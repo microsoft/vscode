@@ -1,0 +1,25 @@
+{
+	"openrpc": "1.3.0",
+	"info": {
+		"title": "Environment Frontend",
+		"version": "1.0.0"
+	},
+	"methods": [
+		{
+			"name": "packages_changed",
+			"summary": "Notify when packages have changed",
+			"description": "Notifies frontend that package list has been updated",
+			"params": [
+				{
+					"name": "package_type",
+					"description": "Type of packages that changed",
+					"schema": {
+						"type": "string",
+						"enum": ["r", "python"]
+					}
+				}
+			]
+		}
+	]
+}
+

@@ -5,7 +5,7 @@
 
 import { ExtHostLanguageRuntime } from './extHostLanguageRuntime.js';
 import type * as erdos from 'erdos';
-import type * as vscode from 'vscode';
+import * as vscode from 'vscode';
 import { IExtHostRpcService } from '../extHostRpcService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -31,6 +31,7 @@ import { ExtHostEditors } from '../extHostTextEditors.js';
 import { UiFrontendRequest } from '../../../services/languageRuntime/common/erdosUiComm.js';
 import { ExtHostEnvironment } from './extHostEnvironment.js';
 import { ExtHostPlotsService } from './extHostPlotsService.js';
+import { ExtHostWebviewPanels } from '../extHostWebviewPanels.js';
 
 export interface IExtensionErdosApiFactory {
 	(extension: IExtensionDescription, extensionInfo: IExtensionRegistries, configProvider: ExtHostConfigProvider): typeof erdos;
@@ -60,6 +61,7 @@ export function createErdosApiFactoryAndRegisterActors(accessor: ServicesAccesso
 		new ExtHostMethods(rpcProtocol, extHostEditors, extHostDocuments, extHostModalDialogs,
 			extHostLanguageRuntime, extHostWorkspace, extHostQuickOpen, extHostCommands, extHostContextKeyService));
 	const extHostEnvironment = rpcProtocol.set(ExtHostErdosContext.ExtHostEnvironment, new ExtHostEnvironment(rpcProtocol));
+	const extHostWebviewPanels: ExtHostWebviewPanels = rpcProtocol.getRaw(ExtHostContext.ExtHostWebviewPanels);
 
 	return function (extension: IExtensionDescription, extensionInfo: IExtensionRegistries, configProvider: ExtHostConfigProvider): typeof erdos {
 
@@ -158,6 +160,30 @@ export function createErdosApiFactoryAndRegisterActors(accessor: ServicesAccesso
 				return extHostPlotsService.getPlotsRenderSettings();
 			},
 			previewHtml(path: string): void {
+			},
+			createPreviewPanel(viewType: string, title: string, preserveFocus?: boolean, options?: erdos.PreviewOptions): erdos.PreviewPanel {
+				// Use VS Code's webview panel as the underlying implementation
+				const webviewPanel = extHostWebviewPanels.createWebviewPanel(extension, viewType, title, 
+					{ viewColumn: vscode.ViewColumn.Beside, preserveFocus: preserveFocus }, options || {});
+				
+				// Wrap it to match the PreviewPanel interface
+				return {
+					viewType,
+					get title() { return webviewPanel.title; },
+					set title(value: string) { webviewPanel.title = value; },
+					webview: webviewPanel.webview,
+					get active() { return webviewPanel.active; },
+					get visible() { return webviewPanel.visible; },
+					onDidChangeViewState: webviewPanel.onDidChangeViewState as any,
+					onDidDispose: webviewPanel.onDidDispose,
+					reveal: (preserveFocus?: boolean) => webviewPanel.reveal(vscode.ViewColumn.Beside, preserveFocus),
+					dispose: () => webviewPanel.dispose()
+				};
+			},
+			previewUrl(url: vscode.Uri): erdos.PreviewPanel {
+				const panel = window.createPreviewPanel('erdos.preview.url', 'Preview', false, {});
+				panel.webview.html = `<!DOCTYPE html><html><body><iframe src="${url.toString()}" width="100%" height="100%" frameborder="0"></iframe></body></html>`;
+				return panel;
 			}
 		};
 

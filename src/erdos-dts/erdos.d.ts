@@ -239,6 +239,7 @@ declare module 'erdos' {
 		Plot = 'erdos.plot',
 		Ui = 'erdos.ui',
 		Help = 'erdos.help',
+		Environment = 'erdos.environment',
 		Connection = 'erdos.connection',
 		Reticulate = 'erdos.reticulate',
 		IPyWidget = 'jupyter.widget',
@@ -387,6 +388,25 @@ declare module 'erdos' {
 		provideHelpTopic(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): vscode.ProviderResult<string>;
 	}
 
+	export interface PreviewOptions extends vscode.WebviewPanelOptions, vscode.WebviewOptions {
+	}
+
+	export interface PreviewPanelOnDidChangeViewStateEvent {
+		readonly previewPanel: PreviewPanel;
+	}
+
+	export interface PreviewPanel {
+		readonly viewType: string;
+		title: string;
+		readonly webview: vscode.Webview;
+		readonly active: boolean;
+		readonly visible: boolean;
+		readonly onDidChangeViewState: vscode.Event<PreviewPanelOnDidChangeViewStateEvent>;
+		readonly onDidDispose: vscode.Event<void>;
+		reveal(preserveFocus?: boolean): void;
+		dispose(): any;
+	}
+
 	export interface Console {
 		pasteText(text: string): void;
 	}
@@ -447,6 +467,8 @@ declare module 'erdos' {
 		export const onDidChangePlotsRenderSettings: vscode.Event<PlotRenderSettings>;
 		export function getPlotsRenderSettings(): Thenable<PlotRenderSettings>;
 		export function previewHtml(path: string): void;
+		export function createPreviewPanel(viewType: string, title: string, preserveFocus?: boolean, options?: PreviewOptions): PreviewPanel;
+		export function previewUrl(url: vscode.Uri): PreviewPanel;
 	}
 
 	namespace runtime {

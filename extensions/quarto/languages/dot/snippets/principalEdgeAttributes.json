@@ -1,0 +1,272 @@
+{
+  "arrowhead": {
+    "prefix": "arrowhead",
+    "body": "arrowhead=${1|normal,normal,inv,dot,invdot,odot,invodot,none|}",
+    "description": "[Principal Edge Attributes]\nstyle of arrowhead at head end\n\n"
+  },
+  "arrowsize": {
+    "prefix": "arrowsize",
+    "body": "arrowsize=${1:1.0}",
+    "description": "[Principal Edge Attributes]\nscaling factor for arrowheads\n\n"
+  },
+  "arrowtail": {
+    "prefix": "arrowtail",
+    "body": "arrowtail=${1|normal,normal,inv,dot,invdot,odot,invodot,none|}",
+    "description": "[Principal Edge Attributes]\nstyle of arrowhead at tail end\n\n"
+  },
+  "color": {
+    "prefix": "color",
+    "body": "color=${1:black}",
+    "description": "[Principal Edge Attributes]\nedge stroke color\n\n"
+  },
+  "colorscheme": {
+    "prefix": "colorscheme",
+    "body": "colorscheme=${1:X11}",
+    "description": "[Principal Edge Attributes]\nscheme for interpreting color names\n\n"
+  },
+  "comment": {
+    "prefix": "comment",
+    "body": "comment=\"$1\"",
+    "description": "[Principal Edge Attributes]\nany string (format-dependent)\n\n"
+  },
+  "constraint": {
+    "prefix": "constraint",
+    "body": "constraint=${1|true,false|}",
+    "description": "[Principal Edge Attributes]\nuse edge to affect node ranking\n\n"
+  },
+  "decorate": {
+    "prefix": "decorate",
+    "body": "decorate=${1|true,false|}",
+    "description": "[Principal Edge Attributes]\nif set, draws a line connecting labels with their edges\n\n"
+  },
+  "dir": {
+    "prefix": "dir",
+    "body": "dir=${1|forward,back,both,none|}",
+    "description": "[Principal Edge Attributes]\n `forward`, `back`, `both`, or `none`\n\n"
+  },
+  "edgeURL": {
+    "prefix": "edgeURL",
+    "body": "edgeURL=\"$1\"",
+    "description": "[Principal Edge Attributes]\nURL attached to non-label part of edge\n\n"
+  },
+  "edgehref": {
+    "prefix": "edgehref",
+    "body": "edgehref=\"$1\"",
+    "description": "[Principal Edge Attributes]\nsynonym for edgeURL\n\n"
+  },
+  "edgetarget": {
+    "prefix": "edgetarget",
+    "body": "edgetarget=\"$1\"",
+    "description": "[Principal Edge Attributes]\nif URL is set, determines browser window for URL\n\n"
+  },
+  "edgetooltip": {
+    "prefix": "edgetooltip",
+    "body": "edgetooltip=\"${1:label}\"",
+    "description": "[Principal Edge Attributes]\ntooltip annotation for non-label part of edge\n\n"
+  },
+  "fontcolor": {
+    "prefix": "fontcolor",
+    "body": "fontcolor=${1:black}",
+    "description": "[Principal Edge Attributes]\ntype face color\n\n"
+  },
+  "fontname": {
+    "prefix": "fontname",
+    "body": "fontname=\"${1:Times-Roman}\"",
+    "description": "[Principal Edge Attributes]\nfont family\n\n"
+  },
+  "fontsize": {
+    "prefix": "fontsize",
+    "body": "fontsize=${1:14}",
+    "description": "[Principal Edge Attributes]\npoint size of label\n\n"
+  },
+  "headclip": {
+    "prefix": "headclip",
+    "body": "headclip=${1|true,false|}",
+    "description": "[Principal Edge Attributes]\nif `false`, edge is not clipped to head node boundary\n\n"
+  },
+  "headhref": {
+    "prefix": "headhref",
+    "body": "headhref=$1",
+    "description": "[Principal Edge Attributes]\nsynonym for headURL\n\n"
+  },
+  "headlabel": {
+    "prefix": "headlabel",
+    "body": "headlabel=\"$1\"",
+    "description": "[Principal Edge Attributes]\nlabel placed near head of edge\n\n"
+  },
+  "headport": {
+    "prefix": "headport",
+    "body": "headport=${1|n,ne,e,se,s,sw,w,nw|}",
+    "description": "[Principal Edge Attributes]\n`n`, `ne`, `e`, `se`, `s`, `sw`, `w`, `nw`\n\n"
+  },
+  "headtarget": {
+    "prefix": "headtarget",
+    "body": "headtarget=$1",
+    "description": "[Principal Edge Attributes]\nif headURL is set, determines browser window for URL\n\n"
+  },
+  "headtooltip": {
+    "prefix": "headtooltip",
+    "body": "headtooltip=\"${1:label}\"",
+    "description": "[Principal Edge Attributes]\ntooltip annotation near head of edge\n\n"
+  },
+  "headURL": {
+    "prefix": "headURL",
+    "body": "headURL=\"$1\"",
+    "description": "[Principal Edge Attributes]\nURL attached to head label\n\n"
+  },
+  "href": {
+    "prefix": "href",
+    "body": "href=\"$1\"",
+    "description": "[Principal Edge Attributes]\nalias for URL\n\n"
+  },
+  "id": {
+    "prefix": "id",
+    "body": "id=$1",
+    "description": "[Principal Edge Attributes]\nany string (user-defined output object tags)\n\n"
+  },
+  "label": {
+    "prefix": "label",
+    "body": "label=$1",
+    "description": "[Principal Edge Attributes]\nedge label\n\n"
+  },
+  "labelangle": {
+    "prefix": "labelangle",
+    "body": "labelangle=${1:-25.0}",
+    "description": "[Principal Edge Attributes]\nangle in degrees which head or tail label is rotated off edge\n\n"
+  },
+  "labeldistance": {
+    "prefix": "labeldistance",
+    "body": "labeldistance=${1:1.0}",
+    "description": "[Principal Edge Attributes]\nscaling factor for distance of head or tail label from node\n\n"
+  },
+  "labelfloat": {
+    "prefix": "labelfloat",
+    "body": "labelfloat=${1|false,true|}",
+    "description": "[Principal Edge Attributes]\nlessen constraints on edge label placement\n\n"
+  },
+  "labelfontcolor": {
+    "prefix": "labelfontcolor",
+    "body": "labelfontcolor=${1:black}",
+    "description": "[Principal Edge Attributes]\ntype face color for head and tail labels\n\n"
+  },
+  "labelfontname": {
+    "prefix": "labelfontname",
+    "body": "labelfontname=${1:Times-Roman}",
+    "description": "[Principal Edge Attributes]\nfont family for head and tail labels\n\n"
+  },
+  "labelfontsize": {
+    "prefix": "labelfontsize",
+    "body": "labelfontsize=${1:14}",
+    "description": "[Principal Edge Attributes]\npoint size for head and tail labels\n\n"
+  },
+  "labelhref": {
+    "prefix": "labelhref",
+    "body": "labelhref=\"$1\"",
+    "description": "[Principal Edge Attributes]\nsynonym for labelURL\n\n"
+  },
+  "labelURL": {
+    "prefix": "labelURL",
+    "body": "labelURL=\"$1\"",
+    "description": "[Principal Edge Attributes]\nURL for label, overrides edge URL\n\n"
+  },
+  "labeltarget": {
+    "prefix": "labeltarget",
+    "body": "labeltarget=\"$1\"",
+    "description": "[Principal Edge Attributes]\nif URL or labelURL is set, determines browser window for URL\n\n"
+  },
+  "labeltooltip": {
+    "prefix": "labeltooltip",
+    "body": "labeltooltip=\"${1:label}\"",
+    "description": "[Principal Edge Attributes]\ntooltip annotation near label\n\n"
+  },
+  "layer": {
+    "prefix": "layer",
+    "body": "layer=\"${1|overlay range,all,id,id:id|}\"",
+    "description": "[Principal Edge Attributes]\n`all`, `id` or `id:id`, or a comma-separated list of the former\n\n"
+  },
+  "lhead": {
+    "prefix": "lhead",
+    "body": "lhead=$1",
+    "description": "[Principal Edge Attributes]\nname of cluster to use as head of edge\n\n"
+  },
+  "ltail": {
+    "prefix": "ltail",
+    "body": "ltail=$1",
+    "description": "[Principal Edge Attributes]\nname of cluster to use as tail of edge\n\n"
+  },
+  "minlen": {
+    "prefix": "minlen",
+    "body": "minlen=${1:1}",
+    "description": "[Principal Edge Attributes]\nminimum rank distance between head and tail\n\n"
+  },
+  "penwidth": {
+    "prefix": "penwidth",
+    "body": "penwidth=${1:1.0}",
+    "description": "[Principal Edge Attributes]\nwidth of pen for drawing edge stroke, in points\n\n"
+  },
+  "samehead": {
+    "prefix": "samehead",
+    "body": "samehead=$1",
+    "description": "[Principal Edge Attributes]\ntag for head node; edge heads with the same tag are merged onto the same port\n\n"
+  },
+  "sametail": {
+    "prefix": "sametail",
+    "body": "sametail=$1",
+    "description": "[Principal Edge Attributes]\ntag for tail node; edge tails with the same tag are merged onto the same port\n\n"
+  },
+  "style": {
+    "prefix": "style",
+    "body": "style=\"$1\"",
+    "description": "[Principal Edge Attributes]\ngraphics options, e.g. `bold`, `dotted`, `filled`\n\n"
+  },
+  "tailclip": {
+    "prefix": "tailclip",
+    "body": "tailclip=${1|true,false|}",
+    "description": "[Principal Edge Attributes]\nif `false`, edge is not clipped to tail node boundary\n\n"
+  },
+  "tailhref": {
+    "prefix": "tailhref",
+    "body": "tailhref=\"$1\"",
+    "description": "[Principal Edge Attributes]\nsynonym for tailURL\n\n"
+  },
+  "taillabel": {
+    "prefix": "taillabel",
+    "body": "taillabel=$1",
+    "description": "[Principal Edge Attributes]\nlabel placed near tail of edgetail\n\n"
+  },
+  "port": {
+    "prefix": "port",
+    "body": "port=${1|n,ne,e,se,s,sw,w,nw|}",
+    "description": "[Principal Edge Attributes]\n`n`, `ne`, `e`, `se`, `s`, `sw`, `w`, `nw`\n\n"
+  },
+  "tailtarget": {
+    "prefix": "tailtarget",
+    "body": "tailtarget=$1",
+    "description": "[Principal Edge Attributes]\nif tailURL is set, determines browser window for URL\n\n"
+  },
+  "tailtooltip": {
+    "prefix": "tailtooltip",
+    "body": "tailtooltip=${1:label}",
+    "description": "[Principal Edge Attributes]\ntooltip annotation near tail of edge\n\n"
+  },
+  "tailURL": {
+    "prefix": "tailURL",
+    "body": "tailURL=$1",
+    "description": "[Principal Edge Attributes]\nURL attached to tail label\n\n"
+  },
+  "target": {
+    "prefix": "target",
+    "body": "target=\"$1\"",
+    "description": "[Principal Edge Attributes]\nif URL is set, determines browser window for URL\n\n"
+  },
+  "tooltip": {
+    "prefix": "tooltip",
+    "body": "tooltip=\"${1:label}\"",
+    "description": "[Principal Edge Attributes]\ntooltip annotation\n\n"
+  },
+  "weight": {
+    "prefix": "weight",
+    "body": "weight=${1:1}",
+    "description": "[Principal Edge Attributes]\ninteger cost of stretching an edge\n\n"
+  }
+}

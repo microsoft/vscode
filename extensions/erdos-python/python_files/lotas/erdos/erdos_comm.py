@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Callable, Generic, TypeVar
 import comm
 
 from . import (
+    environment_comm,
     help_comm,
     plot_comm,
     ui_comm,
@@ -41,6 +42,7 @@ class JsonRpcErrorCode(enum.IntEnum):
 
 T_content = TypeVar(
     "T_content",
+    environment_comm.EnvironmentBackendMessageContent,
     help_comm.HelpBackendMessageContent,
     plot_comm.PlotBackendMessageContent,
     ui_comm.UiBackendMessageContent,

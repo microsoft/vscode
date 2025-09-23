@@ -1,0 +1,66 @@
+
+
+.pm-tag-input-container {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  height: 37px;
+  align-content: center;
+}
+
+.pm-tag-input-placeholder {
+  height: 27px;
+  margin-left: 2px;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+}
+
+.pm-tag-input-tag {
+  display: flex;
+  align-items: center;
+  padding: 4px;
+  margin: 4px;
+  border: solid 1px;
+  border-radius: 50em;
+}
+
+.pm-tag-input-delete-image {
+  height: 14px;
+  width: 24px;
+  padding-left: 4px;
+  padding-right: 6px;
+  cursor: pointer;
+}
+
+.pm-tag-input-edit-image {
+  height: 14px;
+  width: 14px;
+  padding-right: 4px;
+  cursor: pointer;
+}
+
+.pm-tag-input-text {
+  font-size: 10pt;
+  opacity: 0.8;
+  padding: 0px;
+}
+
+.pm-tag-input-text-edittable {
+  cursor: pointer;
+}
+
+.pm-tag-input-text-raw {
+  display: inline-block;
+  padding-top: 0px;
+  padding-bottom: 1px;
+  padding-right: 6px;
+}
+
+.pm-tag-input-text-edit {
+  border: 0px;
+  font-size: 10pt;
+  padding: 0px;
+  margin: 0px;
+  box-sizing: border-box;
+}

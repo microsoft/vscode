@@ -1,0 +1,18 @@
+{
+  "name": "core",
+  "version": "0.1.0",
+  "private": true,
+  "license": "agpl-3.0",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "dependencies": {
+    "markdown-it": "^13.0.1",
+    "markdown-it-attrs": "^4.1.6",
+    "tsconfig": "*",
+    "typescript": "^4.5.2"
+  },
+  "devDependencies": {
+    "@types/markdown-it": "^12.2.3",
+    "@types/markdown-it-attrs": "^4.1.0"
+  }
+}

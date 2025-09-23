@@ -1,0 +1,72 @@
+/*
+ * list-styles.css
+ *
+ * Copyright (C) 2022 by Posit Software, PBC
+ *
+ * Unless you have received this program directly from Posit Software pursuant
+ * to the terms of a commercial license agreement with Posit Software, then
+ * this program is licensed to you under the terms of version 3 of the
+ * GNU Affero General Public License. This program is distributed WITHOUT
+ * ANY EXPRESS OR IMPLIED WARRANTY, INCLUDING THOSE OF NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE. Please refer to the
+ * AGPL (http://www.gnu.org/licenses/agpl-3.0.txt) for more details.
+ *
+ */
+
+.ProseMirror li > .list-item-container {
+  display: flex;
+}
+
+.ProseMirror li .list-item-checkbox {
+  flex: 0 1 auto;
+  margin-top: 3px;
+  margin-right: 7px;
+}
+
+.ProseMirror li .list-item-content {
+  flex: 1 1 auto;
+}
+
+.ProseMirror li ul, 
+.ProseMirror li ol {
+  margin-bottom: 1em;
+}
+
+.ProseMirror ol[data-tight] li ul, 
+.ProseMirror ol[data-tight] li ol, 
+.ProseMirror ul[data-tight] li ul, 
+.ProseMirror ul[data-tight] li ol {
+  margin-bottom: 0;
+}
+
+
+.ProseMirror li > .list-item-container > .list-item-content > p {
+  margin-top: 0;
+}
+
+.ProseMirror ul[data-tight] > li > .list-item-container > .list-item-content > p,
+.ProseMirror ol[data-tight] > li > .list-item-container > .list-item-content > p
+ {
+  margin-top: 0;
+  margin-bottom: 0.3rem;
+}
+
+/* Example Lists */
+
+.ProseMirror ol[data-example] {
+  list-style: none;
+  padding-inline-start: 20px;
+}
+
+.ProseMirror ol[data-example] ol,
+.ProseMirror ol[data-example] ul {
+  padding-inline-start: 20px;
+}
+
+.ProseMirror ol[data-example] > li {
+  display: flex;
+}
+
+.ProseMirror ol[data-example] > li::before {
+  content: "(@) ";
+}

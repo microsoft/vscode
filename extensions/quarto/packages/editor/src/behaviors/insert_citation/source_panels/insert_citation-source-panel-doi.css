@@ -1,0 +1,55 @@
+
+
+.pm-insert-doi-source-panel {
+  width: 100%;
+}
+
+.pm-insert-doi-source-panel-textbox-container {
+  display: flex;
+  width: 100%;
+}
+
+.pm-insert-doi-source-panel-textbox {
+  width: 100%;
+  border: solid 1px;
+  box-sizing:border-box;
+  height: 28px !important;
+  margin-bottom: 10px;
+}
+
+.pm-insert-doi-source-panel-results {
+  border: solid 1px;
+  border-radius: 3px;  
+  height: calc(100% - 38px);
+}
+
+.pm-insert-doi-source-panel-heading {
+  padding-top: 10px;
+}
+
+.pm-insert-doi-source-panel-fields {
+  padding-top: 8px;
+  padding-left: 50px;
+  padding-right: 10px;
+}
+
+.pm-insert-doi-source-panel-fields-name {
+  padding-right: 20px;
+  opacity: 0.6;
+}
+
+.pm-insert-doi-source-panel-fields-value {
+  opacity: 0.8;
+}
+
+.pm-insert-doi-source-panel-no-result {
+  width: 100%;
+}
+
+.pm-insert-doi-source-panel-no-result-text {
+  text-align: center;
+  font-size: 10pt;
+  font-style: italic;
+  opacity: 0.8;
+  padding-top: 20px;
+}

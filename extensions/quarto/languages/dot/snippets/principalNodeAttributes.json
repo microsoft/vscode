@@ -1,0 +1,162 @@
+{
+  "color": {
+    "prefix": "color",
+    "body": "color=${1:black}",
+    "description": "[Principal Node Attributes]\nnode shape color\n\n"
+  },
+  "colorscheme": {
+    "prefix": "colorscheme",
+    "body": "colorscheme=${1:X11}",
+    "description": "[Principal Node Attributes]\nscheme for interpreting color names\n\n"
+  },
+  "comment": {
+    "prefix": "comment",
+    "body": "comment=$1",
+    "description": "[Principal Node Attributes]\nany string (format-dependent)\n\n"
+  },
+  "distortion": {
+    "prefix": "distortion",
+    "body": "distortion=${1:0.0}",
+    "description": "[Principal Node Attributes]\nnode distortion for `shape=polygon`\n\n"
+  },
+  "fillcolor": {
+    "prefix": "fillcolor",
+    "body": "fillcolor=\"${1:lightgrey/black}\"",
+    "description": "[Principal Node Attributes]\nnode fill color\n\n"
+  },
+  "fixedsize": {
+    "prefix": "fixedsize",
+    "body": "fixedsize=${1:false}",
+    "description": "[Principal Node Attributes]\nlabel text has no affect on node size\n\n"
+  },
+  "fontcolor": {
+    "prefix": "fontcolor",
+    "body": "fontcolor=${1:black}",
+    "description": "[Principal Node Attributes]\ntype face color\n\n"
+  },
+  "fontname": {
+    "prefix": "fontname",
+    "body": "fontname=\"${1:Times-Roman}\"",
+    "description": "[Principal Node Attributes]\nfont family\n\n"
+  },
+  "fontsize": {
+    "prefix": "fontsize",
+    "body": "fontsize=${1:14}",
+    "description": "[Principal Node Attributes]\npoint size of label\n\n"
+  },
+  "group": {
+    "prefix": "group",
+    "body": "group=$1",
+    "description": "[Principal Node Attributes]\nname of node’s horizontal alignment group\n\n"
+  },
+  "height": {
+    "prefix": "height",
+    "body": "height=${1:.5}",
+    "description": "[Principal Node Attributes]\nminimum height in inches\n\n"
+  },
+  "id": {
+    "prefix": "id",
+    "body": "id=$1",
+    "description": "[Principal Node Attributes]\nany string (user-defined output object tags)\n\n"
+  },
+  "image": {
+    "prefix": "image",
+    "body": "image=\"$1\"",
+    "description": "[Principal Node Attributes]\nimage file name\n\n"
+  },
+  "imagescale": {
+    "prefix": "imagescale",
+    "body": "imagescale=${1|false,true,width,height,both|}",
+    "description": "[Principal Node Attributes]\n`true`, `width`, `height`, `both`\n\n"
+  },
+  "label": {
+    "prefix": "label",
+    "body": "label=\"${1:node-name}\"",
+    "description": "[Principal Node Attributes]\nany string\n\n"
+  },
+  "labelloc": {
+    "prefix": "labelloc",
+    "body": "labelloc=${1:c}",
+    "description": "[Principal Node Attributes]\nnode label vertical alignment\n\n"
+  },
+  "layer": {
+    "prefix": "layer",
+    "body": "layer=\"${1|overlay range,all,id,id:id, |}\"",
+    "description": "[Principal Node Attributes]\n`all`, `id` or `id:id`, or a comma-separated list of theformer\n\n"
+  },
+  "margin": {
+    "prefix": "margin",
+    "body": "margin=\"${1:0.11,0.55}\"",
+    "description": "[Principal Node Attributes]\nspace around label\n\n"
+  },
+  "nojustify": {
+    "prefix": "nojustify",
+    "body": "nojustify=${1|false,true|}",
+    "description": "[Principal Node Attributes]\nif `true`, justify to label, not node\n\n"
+  },
+  "orientation": {
+    "prefix": "orientation",
+    "body": "orientation=${1:0.0}",
+    "description": "[Principal Node Attributes]\nnode rotation angle\n\n"
+  },
+  "penwidth": {
+    "prefix": "penwidth",
+    "body": "penwidth=${1:1.0}",
+    "description": "[Principal Node Attributes]\nwidth of pen for drawing boundaries, in points\n\n"
+  },
+  "peripheries": {
+    "prefix": "peripheries",
+    "body": "peripheries=${1:shape-dependent}",
+    "description": "[Principal Node Attributes]\nnumber of node boundaries\n\n"
+  },
+  "regular": {
+    "prefix": "regular",
+    "body": "regular=${1:false}",
+    "description": "[Principal Node Attributes]\nforce polygon to be regular\n\n"
+  },
+  "samplepoints": {
+    "prefix": "samplepoints",
+    "body": "samplepoints=${1:8 or 20}",
+    "description": "[Principal Node Attributes]\nnumber vertices to convert circle or ellipse\n\n"
+  },
+  "shape": {
+    "prefix": "shape",
+    "body": "shape=${1:ellipse}",
+    "description": "[Principal Node Attributes]\nnode shape\n\n"
+  },
+  "sides": {
+    "prefix": "sides",
+    "body": "sides=${1:4}",
+    "description": "[Principal Node Attributes]\nnumber of sides for `shape=polygon`\n\n"
+  },
+  "skew": {
+    "prefix": "skew",
+    "body": "skew=${1:0.0}",
+    "description": "[Principal Node Attributes]\nskewing of node for `shape=polygon`\n\n"
+  },
+  "style": {
+    "prefix": "style",
+    "body": "style=\"${1|bold,dotted,filled, |\"",
+    "description": "[Principal Node Attributes]\ngraphics options, e.g. `bold`, `dotted`, `filled`\n\n"
+  },
+  "target": {
+    "prefix": "target",
+    "body": "target=$1",
+    "description": "[Principal Node Attributes]\nif `URL` is set, determines browser window for URL\n\n"
+  },
+  "tooltip": {
+    "prefix": "tooltip",
+    "body": "tooltip=\"${1:label}\"",
+    "description": "[Principal Node Attributes]\ntooltip annotation\n\n"
+  },
+  "URL": {
+    "prefix": "URL",
+    "body": "URL=\"$1\"",
+    "description": "[Principal Node Attributes]\nURL associated with node (format-dependent)\n\n"
+  },
+  "width": {
+    "prefix": "width",
+    "body": "width=${1:.75}",
+    "description": "[Principal Node Attributes]\nminimum width in inches\n\n"
+  }
+}

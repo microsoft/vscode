@@ -1,0 +1,26 @@
+{
+  "name": "editor-server",
+  "version": "0.1.0",
+  "private": true,
+  "license": "agpl-3.0",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "dependencies": {
+    "core": "*",
+    "core-node": "*",
+    "cross-fetch": "^3.1.5",
+    "editor-types": "*",
+    "jayson": "^4.0.0",
+    "js-yaml": "^4.1.0",
+    "mathjax-full": "^3.2.2",
+    "node-sqlite3-wasm": "^0.5.2",
+    "quarto-core": "*",
+    "tsconfig": "*",
+    "typescript": "^4.5.2",
+    "uuid": "^9.0.0",
+    "vscode-languageserver-types": "^3.17.3"
+  },
+  "devDependencies": {
+    "@types/node": "^18.11.17"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "name": "editor-types",
+  "version": "0.1.0",
+  "private": true,
+  "license": "agpl-3.0",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "dependencies": {
+    "tsconfig": "*",
+    "typescript": "^4.5.2",
+    "vscode-languageserver-types": "^3.17.3"
+  }
+}

@@ -29,6 +29,7 @@ export enum RuntimeClientType {
 	Plot = 'erdos.plot',
 	Ui = 'erdos.ui',
 	Help = 'erdos.help',
+	Environment = 'erdos.environment',
 	Connection = 'erdos.connection',
 	Reticulate = 'erdos.reticulate',
 	IPyWidget = 'jupyter.widget',

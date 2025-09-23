@@ -1,0 +1,1554 @@
+{
+  "name": "quarto",
+  "displayName": "Quarto",
+  "description": "Extension for the Quarto scientific and technical publishing system.",
+  "author": "quarto",
+  "publisher": "quarto",
+  "icon": "assets/logo/quarto.png",
+  "license": "agpl-3.0",
+  "keywords": [
+    "markdown",
+    "pandoc",
+    "quarto"
+  ],
+  "version": "1.125.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/quarto-dev/quarto/tree/main/apps/vscode"
+  },
+  "homepage": "https://github.com/quarto-dev/quarto/tree/main/apps/vscode",
+  "bugs": {
+    "url": "https://github.com/quarto-dev/quarto/issues"
+  },
+  "categories": [
+    "Programming Languages",
+    "Data Science",
+    "Machine Learning",
+    "Notebooks"
+  ],
+  "private": true,
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "main": "./out/main.js",
+  "browser": "./browser.js",
+  "activationEvents": [
+    "onLanguage:r",
+    "workspaceContains:**/*.{qmd,rmd}",
+    "workspaceContains:**/_quarto.{yml,yaml}",
+    "workspaceContains:**/_brand.{yml,yaml}",
+    "workspaceContains:**/_extension.{yml,yaml}",
+    "onWebviewPanel:quarto.previewView",
+    "onWebviewPanel:quarto.diagramView"
+  ],
+  "capabilities": {
+    "virtualWorkspaces": true
+  },
+  "contributes": {
+    "languages": [
+      {
+        "id": "quarto",
+        "aliases": [
+          "Quarto",
+          "quarto"
+        ],
+        "extensions": [
+          ".qmd",
+          ".rmd"
+        ],
+        "icon": {
+          "light": "./assets/icon/qmd.svg",
+          "dark": "./assets/icon/qmd.svg"
+        },
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "dot",
+        "aliases": [
+          "Graphviz (DOT)",
+          "dot"
+        ],
+        "extensions": [
+          ".dot",
+          ".DOT",
+          ".gv"
+        ],
+        "configuration": "./languages/dot/dot.configuration.json"
+      },
+      {
+        "id": "mermaid",
+        "aliases": [
+          "Mermaid",
+          "mermaid"
+        ],
+        "extensions": [
+          ".mmd"
+        ],
+        "configuration": "./languages/mermaid/mermaid.configuration.json"
+      },
+      {
+        "id": "typst",
+        "aliases": [
+          "Typst",
+          "mermaid"
+        ],
+        "extensions": [
+          ".typ"
+        ],
+        "configuration": "./languages/typst/typst.configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "quarto",
+        "scopeName": "text.html.quarto",
+        "path": "./syntaxes/quarto.tmLanguage",
+        "embeddedLanguages": {
+          "meta.embedded.block.html": "html",
+          "source.js": "javascript",
+          "source.css": "css",
+          "meta.embedded.block.frontmatter": "yaml",
+          "meta.embedded.block.css": "css",
+          "meta.embedded.block.ini": "ini",
+          "meta.embedded.block.java": "java",
+          "meta.embedded.block.lua": "lua",
+          "meta.embedded.block.makefile": "makefile",
+          "meta.embedded.block.perl": "perl",
+          "meta.embedded.block.r": "r",
+          "meta.embedded.block.julia": "julia",
+          "meta.embedded.block.ruby": "ruby",
+          "meta.embedded.block.php": "php",
+          "meta.embedded.block.sql": "sql",
+          "meta.embedded.block.vs_net": "vs_net",
+          "meta.embedded.block.xml": "xml",
+          "meta.embedded.block.xsl": "xsl",
+          "meta.embedded.block.yaml": "yaml",
+          "meta.embedded.block.dosbatch": "dosbatch",
+          "meta.embedded.block.clojure": "clojure",
+          "meta.embedded.block.coffee": "coffee",
+          "meta.embedded.block.c": "c",
+          "meta.embedded.block.cpp": "cpp",
+          "meta.embedded.block.diff": "diff",
+          "meta.embedded.block.dockerfile": "dockerfile",
+          "meta.embedded.block.go": "go",
+          "meta.embedded.block.groovy": "groovy",
+          "meta.embedded.block.pug": "jade",
+          "meta.embedded.block.javascript": "javascript",
+          "meta.embedded.block.json": "json",
+          "meta.embedded.block.less": "less",
+          "meta.embedded.block.objc": "objc",
+          "meta.embedded.block.scss": "scss",
+          "meta.embedded.block.perl6": "perl6",
+          "meta.embedded.block.powershell": "powershell",
+          "meta.embedded.block.python": "python",
+          "meta.embedded.block.rust": "rust",
+          "meta.embedded.block.scala": "scala",
+          "meta.embedded.block.shellscript": "shellscript",
+          "meta.embedded.block.typst": "typst",
+          "meta.embedded.block.typescript": "typescript",
+          "meta.embedded.block.typescriptreact": "typescriptreact",
+          "meta.embedded.block.csharp": "csharp",
+          "meta.embedded.block.fsharp": "fsharp",
+          "meta.embedded.block.stan": "stan",
+          "meta.embedded.math.quarto": "latex",
+          "meta.embedded.block.dot": "dot",
+          "meta.embedded.block.mermaid": "mermaid",
+          "meta.embedded.block.prql": "prql"
+        }
+      },
+      {
+        "language": "dot",
+        "scopeName": "source.dot",
+        "path": "./languages/dot/syntaxes/dot.tmLanguage"
+      },
+      {
+        "language": "typst",
+        "scopeName": "source.typst",
+        "path": "./languages/typst/typst.tmLanguage.json"
+      },
+      {
+        "language": "mermaid",
+        "scopeName": "source.mmd",
+        "path": "./languages/mermaid/mermaid.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "quarto",
+        "path": "./snippets/quarto.code-snippets"
+      },
+      {
+        "language": "dot",
+        "path": "./languages/dot/snippets/dot.json"
+      },
+      {
+        "language": "dot",
+        "path": "./languages/dot/snippets/principalNodeAttributes.json"
+      },
+      {
+        "language": "dot",
+        "path": "./languages/dot/snippets/principalEdgeAttributes.json"
+      },
+      {
+        "language": "dot",
+        "path": "./languages/dot/snippets/principalGraphAttributes.json"
+      }
+    ],
+    "views": {
+      "explorer": [
+        {
+          "type": "webview",
+          "id": "quarto-assist",
+          "name": "Quarto",
+          "icon": "assets/logo/quarto.svg",
+          "visibility": "hidden",
+          "when": "quarto.assistView.isEnabled"
+        }
+      ]
+    },
+    "customEditors": [
+      {
+        "viewType": "quarto.visualEditor",
+        "displayName": "Quarto Visual Editor",
+        "selector": [
+          {
+            "filenamePattern": "*.{md,qmd}"
+          }
+        ],
+        "priority": "option"
+      }
+    ],
+    "commands": [
+      {
+        "command": "quarto.newDocument",
+        "title": "New Document",
+        "category": "Quarto"
+      },
+      {
+        "command": "quarto.fileNewDocument",
+        "title": "Quarto Document",
+        "category": "Quarto"
+      },
+      {
+        "command": "quarto.newPresentation",
+        "title": "New Presentation",
+        "category": "Quarto"
+      },
+      {
+        "command": "quarto.newNotebook",
+        "title": "New Notebook (ipynb)",
+        "category": "Quarto"
+      },
+      {
+        "command": "quarto.createProject",
+        "title": "Create Project",
+        "category": "Quarto"
+      },
+      {
+        "command": "quarto.fileCreateProject",
+        "title": "Quarto Project",
+        "category": "Quarto"
+      },
+      {
+        "command": "quarto.preview",
+        "title": "Preview",
+        "icon": "$(preview)",
+        "category": "Quarto",
+        "actionBarOptions": {
+          "controlType": "button",
+          "displayTitle": true
+        }
+      },
+      {
+        "command": "quarto.previewScript",
+        "icon": "$(play)",
+        "title": "Quarto Preview"
+      },
+      {
+        "command": "quarto.previewFormat",
+        "title": "Preview Format...",
+        "category": "Quarto"
+      },
+      {
+        "command": "quarto.renderDocument",
+        "title": "Render Document",
+        "category": "Quarto"
+      },
+      {
+        "command": "quarto.renderProject",
+        "title": "Render Project",
+        "category": "Quarto"
+      },
+      {
+        "command": "quarto.editInSourceMode",
+        "title": "Edit in Source Mode",
+        "category": "Quarto"
+      },
+      {
+        "command": "quarto.editInVisualMode",
+        "title": "Edit in Visual Mode",
+        "category": "Quarto"
+      },
+      {
+        "command": "quarto.clearCache",
+        "title": "Clear Cache...",
+        "category": "Quarto"
+      },
+      {
+        "command": "quarto.insertCodeCell",
+        "icon": "$(insert)",
+        "title": "Insert Code Cell",
+        "category": "Quarto",
+        "actionBarOptions": {
+          "controlType": "button",
+          "displayTitle": true
+        }
+      },
+      {
+        "command": "quarto.runSelection",
+        "title": "Run Selected Line(s)",
+        "category": "Quarto"
+      },
+      {
+        "command": "quarto.runCurrent",
+        "title": "Run Current Code",
+        "category": "Quarto"
+      },
+      {
+        "command": "quarto.runCurrentAdvance",
+        "title": "Run Cell and Advance",
+        "category": "Quarto"
+      },
+      {
+        "command": "quarto.runCurrentCell",
+        "title": "Run Cell",
+        "category": "Quarto"
+      },
+      {
+        "command": "quarto.runPreviousCell",
+        "title": "Run Previous Cell",
+        "category": "Quarto"
+      },
+      {
+        "command": "quarto.runNextCell",
+        "title": "Run Next Cell",
+        "category": "Quarto"
+      },
+      {
+        "command": "quarto.runCellsAbove",
+        "title": "Run Cells Above",
+        "category": "Quarto"
+      },
+      {
+        "command": "quarto.runCellsBelow",
+        "title": "Run Cells Below",
+        "category": "Quarto"
+      },
+      {
+        "command": "quarto.runAllCells",
+        "title": "Run All Cells",
+        "category": "Quarto"
+      },
+      {
+        "command": "quarto.goToNextCell",
+        "title": "Go to Next Cell",
+        "category": "Quarto"
+      },
+      {
+        "command": "quarto.goToPreviousCell",
+        "title": "Go to Previous Cell",
+        "category": "Quarto"
+      },
+      {
+        "command": "quarto.formatCell",
+        "title": "Format Cell",
+        "category": "Quarto"
+      },
+      {
+        "command": "quarto.previewMath",
+        "category": "Quarto",
+        "title": "Preview Math"
+      },
+      {
+        "command": "quarto.previewDiagram",
+        "category": "Quarto",
+        "title": "Preview Diagram"
+      },
+      {
+        "command": "quarto.previewContentShortcut",
+        "title": "Preview Content",
+        "category": "Quarto"
+      },
+      {
+        "command": "quarto.showAssist",
+        "category": "Quarto",
+        "title": "Show Assist Panel"
+      },
+      {
+        "command": "quarto.codeViewAssist",
+        "category": "Quarto",
+        "title": "Code View Assist"
+      },
+      {
+        "command": "quarto.assist.pin",
+        "title": "Pin Assist Panel",
+        "icon": "$(pin)",
+        "category": "Quarto"
+      },
+      {
+        "command": "quarto.assist.unpin",
+        "title": "Unpin Assist Panel",
+        "icon": "$(pinned)",
+        "category": "Quarto"
+      },
+      {
+        "command": "quarto.walkthrough.newDocument",
+        "title": "New Document (qmd)",
+        "category": "Quarto"
+      },
+      {
+        "command": "quarto.verifyInstallation",
+        "title": "Verify Installation",
+        "category": "Quarto"
+      },
+      {
+        "command": "quarto.walkthrough.preview",
+        "title": "Preview",
+        "category": "Quarto"
+      },
+      {
+        "command": "quarto.toggleBold",
+        "title": "Toggle Bold",
+        "category": "Quarto",
+        "enablement": "editorTextFocus && !editorReadonly && editorLangId == quarto"
+      },
+      {
+        "command": "quarto.toggleItalic",
+        "title": "Toggle Italic",
+        "category": "Quarto",
+        "enablement": "editorTextFocus && !editorReadonly && editorLangId == quarto"
+      },
+      {
+        "command": "quarto.toggleCode",
+        "title": "Toggle Code",
+        "category": "Quarto",
+        "enablement": "editorTextFocus && !editorReadonly && editorLangId == quarto"
+      },
+      {
+        "command": "quarto.toggleEditMode",
+        "title": "Edit Mode",
+        "category": "Quarto",
+        "enablement": "editorLangId == quarto",
+        "actionBarOptions": {
+          "controlType": "toggle",
+          "leftTitle": "Source",
+          "rightTitle": "Visual",
+          "toggled": "activeCustomEditorId == 'quarto.visualEditor'"
+        }
+      },
+      {
+        "command": "quarto.toggleRenderOnSave",
+        "title": "Render on Save",
+        "category": "Quarto",
+        "enablement": "editorLangId == quarto",
+        "actionBarOptions": {
+          "controlType": "checkbox",
+          "checked": "(quarto.editor.type == quarto && quarto.editor.renderOnSave) || (quarto.editor.type == 'quarto-shiny' && quarto.editor.renderOnSaveShiny)"
+        }
+      },
+      {
+        "command": "quarto.zoteroConfigureLibrary",
+        "category": "Quarto",
+        "title": "Zotero - Connect Web Library"
+      },
+      {
+        "command": "quarto.zoteroSyncWebLibrary",
+        "category": "Quarto",
+        "title": "Zotero - Sync Web Library"
+      },
+      {
+        "command": "quarto.zoteroUnauthorized",
+        "category": "Quarto",
+        "title": "Zotero - Reconnect Web Library"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "quarto.preview",
+        "key": "ctrl+shift+k",
+        "mac": "cmd+shift+k",
+        "when": "!quartoRenderScriptActive"
+      },
+      {
+        "command": "quarto.previewScript",
+        "key": "ctrl+shift+k",
+        "mac": "cmd+shift+k",
+        "when": "quartoRenderScriptActive"
+      },
+      {
+        "command": "quarto.previewContentShortcut",
+        "key": "ctrl+shift+l",
+        "mac": "cmd+shift+l",
+        "when": "activeCustomEditorId == 'quarto.visualEditor' || editorLangId == quarto || editorLangId == mermaid || editorLangId == dot"
+      },
+      {
+        "command": "quarto.editInSourceMode",
+        "key": "ctrl+shift+f4",
+        "mac": "cmd+shift+f4",
+        "when": "activeCustomEditorId == 'quarto.visualEditor'"
+      },
+      {
+        "command": "quarto.editInVisualMode",
+        "key": "ctrl+shift+f4",
+        "mac": "cmd+shift+f4",
+        "when": "resourceScheme != untitled && editorLangId == quarto || resourceScheme != untitled && editorLangId == markdown"
+      },
+      {
+        "command": "quarto.insertCodeCell",
+        "key": "ctrl+shift+i",
+        "mac": "cmd+shift+i",
+        "when": "editorTextFocus && editorLangId == quarto && !findInputFocussed && !replaceInputFocussed"
+      },
+      {
+        "command": "quarto.runSelection",
+        "key": "alt+enter",
+        "when": "editorTextFocus && editorLangId == quarto && !findInputFocussed && !replaceInputFocussed"
+      },
+      {
+        "command": "quarto.runSelection",
+        "key": "alt+enter",
+        "when": "activeCustomEditorId == 'quarto.visualEditor'"
+      },
+      {
+        "command": "quarto.runCurrent",
+        "key": "ctrl+enter",
+        "mac": "cmd+enter",
+        "when": "editorTextFocus && editorLangId == quarto && !findInputFocussed && !replaceInputFocussed"
+      },
+      {
+        "command": "quarto.runCurrent",
+        "key": "ctrl+enter",
+        "mac": "cmd+enter",
+        "when": "activeCustomEditorId == 'quarto.visualEditor'"
+      },
+      {
+        "command": "quarto.runCurrentAdvance",
+        "key": "shift+enter",
+        "when": "editorTextFocus && editorLangId == quarto && !findInputFocussed && !replaceInputFocussed"
+      },
+      {
+        "command": "quarto.runCurrentAdvance",
+        "key": "shift+enter",
+        "when": "activeCustomEditorId == 'quarto.visualEditor'"
+      },
+      {
+        "command": "quarto.runCurrentCell",
+        "key": "ctrl+shift+enter",
+        "mac": "cmd+shift+enter",
+        "when": "editorTextFocus && editorLangId == quarto && !findInputFocussed && !replaceInputFocussed"
+      },
+      {
+        "command": "quarto.runCurrentCell",
+        "key": "ctrl+shift+enter",
+        "mac": "cmd+shift+enter",
+        "when": "activeCustomEditorId == 'quarto.visualEditor'"
+      },
+      {
+        "command": "quarto.runPreviousCell",
+        "key": "ctrl+alt+p",
+        "mac": "cmd+alt+p",
+        "when": "editorTextFocus && editorLangId == quarto && !findInputFocussed && !replaceInputFocussed"
+      },
+      {
+        "command": "quarto.runPreviousCell",
+        "key": "ctrl+alt+p",
+        "mac": "cmd+alt+p",
+        "when": "activeCustomEditorId == 'quarto.visualEditor'"
+      },
+      {
+        "command": "quarto.runNextCell",
+        "key": "ctrl+alt+n",
+        "mac": "cmd+alt+n",
+        "when": "editorTextFocus && editorLangId == quarto && !findInputFocussed && !replaceInputFocussed"
+      },
+      {
+        "command": "quarto.runNextCell",
+        "key": "ctrl+alt+n",
+        "mac": "cmd+alt+n",
+        "when": "activeCustomEditorId == 'quarto.visualEditor'"
+      },
+      {
+        "command": "quarto.runCellsBelow",
+        "key": "ctrl+shift+alt+n",
+        "mac": "cmd+shift+alt+n",
+        "when": "editorTextFocus && editorLangId == quarto && !findInputFocussed && !replaceInputFocussed"
+      },
+      {
+        "command": "quarto.runCellsBelow",
+        "key": "ctrl+shift+alt+n",
+        "mac": "cmd+shift+alt+n",
+        "when": "activeCustomEditorId == 'quarto.visualEditor'"
+      },
+      {
+        "command": "quarto.runCellsAbove",
+        "key": "ctrl+shift+alt+p",
+        "mac": "cmd+shift+alt+p",
+        "when": "editorTextFocus && editorLangId == quarto && !findInputFocussed && !replaceInputFocussed"
+      },
+      {
+        "command": "quarto.runCellsAbove",
+        "key": "ctrl+shift+alt+p",
+        "mac": "cmd+shift+alt+p",
+        "when": "activeCustomEditorId == 'quarto.visualEditor'"
+      },
+      {
+        "command": "quarto.runAllCells",
+        "key": "ctrl+alt+r",
+        "mac": "cmd+alt+r",
+        "when": "editorTextFocus && editorLangId == quarto && !findInputFocussed && !replaceInputFocussed"
+      },
+      {
+        "command": "quarto.runAllCells",
+        "key": "ctrl+alt+r",
+        "mac": "cmd+alt+r",
+        "when": "activeCustomEditorId == 'quarto.visualEditor'"
+      },
+      {
+        "key": "ctrl+pagedown",
+        "mac": "cmd+pagedown",
+        "command": "quarto.goToNextCell",
+        "when": "editorTextFocus && editorLangId == 'quarto'"
+      },
+      {
+        "key": "ctrl+pageup",
+        "mac": "cmd+pageup",
+        "command": "quarto.goToPreviousCell",
+        "when": "editorTextFocus && editorLangId == 'quarto'"
+      },
+      {
+        "key": "ctrl+f1",
+        "mac": "cmd+f1",
+        "command": "quarto-assist.focus",
+        "when": "editorTextFocus && editorLangId == quarto"
+      },
+      {
+        "command": "quarto.formatCell",
+        "key": "ctrl+k ctrl+f",
+        "mac": "cmd+k cmd+f",
+        "when": "editorTextFocus && editorLangId == quarto && !editorHasSelection"
+      }
+    ],
+    "menus": {
+      "editor/actions/left": [
+        {
+          "command": "quarto.preview",
+          "when": "editorLangId == quarto || editorLangId == markdown || activeCustomEditorId == 'quarto.visualEditor'",
+          "group": "0_preview"
+        },
+        {
+          "command": "quarto.toggleRenderOnSave",
+          "when": "editorLangId == quarto || editorLangId == markdown || activeCustomEditorId == 'quarto.visualEditor'",
+          "group": "0_preview"
+        },
+        {
+          "command": "quarto.toggleEditMode",
+          "when": "editorLangId == quarto || editorLangId == markdown || activeCustomEditorId == 'quarto.visualEditor'",
+          "group": "1_editor_mode"
+        }
+      ],
+      "editor/actions/right": [
+        {
+          "command": "quarto.insertCodeCell",
+          "when": "editorLangId == quarto",
+          "group": "2_execute"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "quarto.formatCell",
+          "when": "editorLangId == quarto && !editorHasSelection",
+          "group": "1_modification"
+        },
+        {
+          "command": "quarto.editInVisualMode",
+          "when": "resourceScheme != untitled && editorLangId == quarto || resourceScheme != untitled && editorLangId == markdown",
+          "group": "0_editorMode"
+        }
+      ],
+      "webview/context": [
+        {
+          "command": "quarto.editInSourceMode",
+          "when": "activeCustomEditorId == 'quarto.visualEditor'",
+          "group": "navigation"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "quarto.insertCodeCell",
+          "when": "editorLangId == quarto",
+          "group": "q_execute"
+        },
+        {
+          "command": "quarto.clearCache",
+          "when": "editorLangId == quarto",
+          "group": "q_execute"
+        },
+        {
+          "command": "quarto.editInVisualMode",
+          "when": "resourceScheme != untitled && editorLangId == quarto || resourceScheme != untitled && editorLangId == markdown",
+          "group": "q_switch"
+        },
+        {
+          "command": "quarto.editInSourceMode",
+          "when": "activeCustomEditorId == 'quarto.visualEditor'",
+          "group": "q_switch"
+        },
+        {
+          "command": "quarto.preview",
+          "when": "editorLangId == quarto || editorLangId == markdown || activeCustomEditorId == 'quarto.visualEditor'",
+          "group": "q_zPreview"
+        },
+        {
+          "command": "quarto.previewScript",
+          "when": "quartoRenderScriptActive",
+          "group": "q_zPreview"
+        },
+        {
+          "command": "quarto.previewFormat",
+          "when": "editorLangId == quarto || editorLangId == markdown || activeCustomEditorId == 'quarto.visualEditor' || quartoRenderScriptActive",
+          "group": "q_zPreview"
+        }
+      ],
+      "editor/title/run": [
+        {
+          "command": "quarto.preview",
+          "when": "editorLangId == quarto || editorLangId == markdown || activeCustomEditorId == 'quarto.visualEditor'"
+        },
+        {
+          "command": "quarto.previewScript",
+          "when": "quartoRenderScriptActive"
+        },
+        {
+          "command": "quarto.previewContentShortcut",
+          "when": "editorLangId == mermaid || editorLangId == dot"
+        }
+      ],
+      "notebook/toolbar": [
+        {
+          "command": "quarto.preview",
+          "group": "q_zPreview"
+        },
+        {
+          "command": "quarto.previewFormat",
+          "group": "q_zPreview"
+        }
+      ],
+      "file/newFile": [
+        {
+          "command": "quarto.fileNewDocument",
+          "group": "Quarto"
+        },
+        {
+          "command": "quarto.fileCreateProject",
+          "group": "Quarto"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "quarto.editInSourceMode",
+          "when": "activeCustomEditorId == 'quarto.visualEditor'"
+        },
+        {
+          "command": "quarto.editInVisualMode",
+          "when": "resourceScheme != untitled && editorLangId == quarto || resourceScheme != untitled && editorLangId == markdown"
+        },
+        {
+          "command": "quarto.newDocument"
+        },
+        {
+          "command": "quarto.newNotebook"
+        },
+        {
+          "command": "quarto.newPresentation"
+        },
+        {
+          "command": "quarto.fileNewDocument",
+          "when": "false"
+        },
+        {
+          "command": "quarto.createProject"
+        },
+        {
+          "command": "quarto.fileCreateProject",
+          "when": "false"
+        },
+        {
+          "command": "quarto.renderProject"
+        },
+        {
+          "command": "quarto.renderDocument",
+          "when": "editorLangId == quarto ||  editorLangId == markdown || activeEditor == 'workbench.editor.notebook' || activeCustomEditorId == 'quarto.visualEditor' || quartoRenderDocActive"
+        },
+        {
+          "command": "quarto.previewScript",
+          "when": "false"
+        },
+        {
+          "command": "quarto.preview",
+          "when": "editorLangId == quarto || editorLangId == markdown || activeEditor == 'workbench.editor.notebook' || activeCustomEditorId == 'quarto.visualEditor' || quartoRenderDocActive"
+        },
+        {
+          "command": "quarto.previewFormat",
+          "when": "editorLangId == quarto || editorLangId == markdown || activeEditor == 'workbench.editor.notebook' || activeCustomEditorId == 'quarto.visualEditor' || quartoRenderDocActive"
+        },
+        {
+          "command": "quarto.previewDiagram",
+          "when": "activeCustomEditorId == 'quarto.visualEditor' || editorLangId == quarto || editorLangId == mermaid || editorLangId == dot"
+        },
+        {
+          "command": "quarto.showAssist"
+        },
+        {
+          "command": "quarto.codeViewAssist",
+          "when": "false"
+        },
+        {
+          "command": "quarto.previewContentShortcut",
+          "when": "false"
+        },
+        {
+          "command": "quarto.clearCache",
+          "when": "editorLangId == quarto"
+        },
+        {
+          "command": "quarto.insertCodeCell",
+          "when": "editorLangId == quarto"
+        },
+        {
+          "command": "quarto.runSelection",
+          "when": "editorLangId == quarto || activeCustomEditorId == 'quarto.visualEditor'"
+        },
+        {
+          "command": "quarto.runCurrent",
+          "when": "editorLangId == quarto || activeCustomEditorId == 'quarto.visualEditor'"
+        },
+        {
+          "command": "quarto.runCurrentCell",
+          "when": "editorLangId == quarto || activeCustomEditorId == 'quarto.visualEditor'"
+        },
+        {
+          "command": "quarto.runCurrentAdvance",
+          "when": "editorLangId == quarto || activeCustomEditorId == 'quarto.visualEditor'"
+        },
+        {
+          "command": "quarto.runPreviousCell",
+          "when": "editorLangId == quarto || activeCustomEditorId == 'quarto.visualEditor'"
+        },
+        {
+          "command": "quarto.runNextCell",
+          "when": "editorLangId == quarto || activeCustomEditorId == 'quarto.visualEditor'"
+        },
+        {
+          "command": "quarto.runCellsBelow",
+          "when": "editorLangId == quarto || activeCustomEditorId == 'quarto.visualEditor'"
+        },
+        {
+          "command": "quarto.runCellsAbove",
+          "when": "editorLangId == quarto || activeCustomEditorId == 'quarto.visualEditor'"
+        },
+        {
+          "command": "quarto.runAllCells",
+          "when": "editorLangId == quarto || activeCustomEditorId == 'quarto.visualEditor'"
+        },
+        {
+          "command": "quarto.goToNextCell",
+          "when": "editorLangId == quarto || activeCustomEditorId == 'quarto.visualEditor'"
+        },
+        {
+          "command": "quarto.goToPreviousCell",
+          "when": "editorLangId == quarto || activeCustomEditorId == 'quarto.visualEditor'"
+        },
+        {
+          "command": "quarto.previewMath",
+          "when": "editorLangId == quarto"
+        },
+        {
+          "command": "quarto.assist.pin",
+          "when": "editorLangId == quarto && !quarto.assistView.isPinned"
+        },
+        {
+          "command": "quarto.assist.unpin",
+          "when": "editorLangId == quarto && quarto.assistView.isPinned"
+        },
+        {
+          "command": "quarto.walkthrough.newDocument",
+          "when": "false"
+        },
+        {
+          "command": "quarto.walkthrough.preview",
+          "when": "false"
+        },
+        {
+          "command": "quarto.zoteroConfigureLibrary"
+        },
+        {
+          "command": "quarto.zoteroSyncWebLibrary"
+        },
+        {
+          "command": "quarto.zoteroUnauthorized",
+          "when": "false"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "quarto.assist.pin",
+          "when": "view == quarto-assist && !quarto.assistView.isPinned",
+          "group": "navigation"
+        },
+        {
+          "command": "quarto.assist.unpin",
+          "when": "view == quarto-assist && quarto.assistView.isPinned",
+          "group": "navigation"
+        }
+      ]
+    },
+    "configurationDefaults": {
+      "[r]": {
+        "editor.wordBasedSuggestions": "off"
+      },
+      "[python]": {
+        "editor.wordBasedSuggestions": "off"
+      },
+      "[julia]": {
+        "editor.wordBasedSuggestions": "off"
+      },
+      "[latex]": {
+        "editor.wordBasedSuggestions": "off"
+      },
+      "[dot]": {
+        "editor.wordBasedSuggestions": "off"
+      },
+      "[mermaid]": {
+        "editor.wordBasedSuggestions": "off"
+      },
+      "[lua]": {
+        "editor.wordBasedSuggestions": "off"
+      },
+      "[yaml]": {
+        "editor.quickSuggestions": {
+          "comments": "on",
+          "other": "on",
+          "strings": "on"
+        },
+        "editor.quickSuggestionsDelay": 250,
+        "editor.wordBasedSuggestions": "off"
+      },
+      "[quarto]": {
+        "editor.wordWrap": "on",
+        "editor.quickSuggestions": {
+          "comments": "on",
+          "other": "on",
+          "strings": "on"
+        },
+        "editor.quickSuggestionsDelay": 250,
+        "editor.wordBasedSuggestions": "off",
+        "editor.suggestOnTriggerCharacters": true,
+        "editor.unicodeHighlight.ambiguousCharacters": false,
+        "editor.unicodeHighlight.invisibleCharacters": false
+      },
+      "github.copilot.enable": {
+        "quarto": false
+      }
+    },
+    "configuration": {
+      "type": "object",
+      "title": "Quarto",
+      "properties": {
+        "quarto.assist.updateMode": {
+          "order": 18,
+          "type": "string",
+          "description": "Controls how the Quarto Assist panel is updated when the cursor moves.",
+          "default": "sticky",
+          "enum": [
+            "sticky",
+            "live"
+          ],
+          "enumDescriptions": [
+            "The assist panel tries to show help or live preview at the current cursor position. If there is none, it continues showing the last available help or preview.",
+            "The assist panel tracks the current cursor position. Display empty content if no help or live preview is found at the current position."
+          ]
+        },
+        "quarto.cells.hoverHelp.enabled": {
+          "order": 23,
+          "scope": "window",
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Show help when hovering over functions."
+        },
+        "quarto.cells.signatureHelp.enabled": {
+          "order": 24,
+          "scope": "window",
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Show parameter help when editing function calls."
+        },
+        "quarto.cells.background.enabled": {
+          "type": "boolean",
+          "description": "Enable coloring the background of executable code cells.",
+          "deprecationMessage": "Deprecated: Please use quarto.cells.background.color instead."
+        },
+        "quarto.cells.background.color": {
+          "order": 19,
+          "scope": "window",
+          "type": "string",
+          "markdownDescription": "Control the background coloring of executable code cells.",
+          "default": "default",
+          "enum": [
+            "default",
+            "useTheme",
+            "off"
+          ],
+          "markdownEnumDescriptions": [
+            "Use the default light and dark background colors. Specify these colors with `quarto.cells.background.lightDefault` and `quarto.cells.background.darkDefault`.",
+            "Use the `notebook.selectedCellBackground` color from the current VS Code theme.",
+            "Disable background coloring of executable code cells."
+          ]
+        },
+        "quarto.cells.background.lightDefault": {
+          "order": 20,
+          "scope": "window",
+          "type": "string",
+          "format": "color",
+          "default": "#E1E1E166",
+          "markdownDescription": "CSS color for background of executable code cells on light themes.\n\n*Note that this color should include an alpha channel, like #RRGGBBAA, so that selections show up against the background.*"
+        },
+        "quarto.cells.background.darkDefault": {
+          "order": 21,
+          "scope": "window",
+          "type": "string",
+          "format": "color",
+          "default": "#40404066",
+          "markdownDescription": "CSS color for background of executable code cells on dark themes.\n\n*Note that this color should include an alpha channel, like #RRGGBBAA, so that selections show up against the background.*"
+        },
+        "quarto.cells.background.delay": {
+          "order": 22,
+          "scope": "window",
+          "type": "integer",
+          "default": 250,
+          "markdownDescription": "Millisecond delay between background color updates."
+        },
+        "quarto.cells.useReticulate": {
+          "order": 25,
+          "scope": "window",
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Use reticulate to execute Python cells within Knitr engine documents."
+        },
+        "quarto.mathjax.scale": {
+          "order": 15,
+          "scope": "window",
+          "type": "number",
+          "default": 1,
+          "markdownDescription": "Scaling of MathJax preview."
+        },
+        "quarto.mathjax.extensions": {
+          "order": 16,
+          "scope": "window",
+          "type": "array",
+          "default": [],
+          "markdownDescription": "MathJax extensions to load for preview. See [the list](https://docs.mathjax.org/en/latest/input/tex/extensions/index.html). Note that the following extensions are loaded by default: `ams`, `color`, `newcommand`, `noerrors`, and `noundefined`. They cannot be disabled.",
+          "items": {
+            "type": "string",
+            "enum": [
+              "amscd",
+              "bbox",
+              "boldsymbol",
+              "braket",
+              "bussproofs",
+              "cancel",
+              "cases",
+              "centernot",
+              "colortbl",
+              "empheq",
+              "enclose",
+              "extpfeil",
+              "gensymb",
+              "html",
+              "mathtools",
+              "mhchem",
+              "physics",
+              "textcomp",
+              "textmacros",
+              "unicode",
+              "upgreek",
+              "verb"
+            ]
+          },
+          "uniqueItems": true
+        },
+        "quarto.lua.provideTypes": {
+          "order": 17,
+          "scope": "window",
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Automatically provide Pandoc and Quarto Lua types (.luarc.json) in workspaces with Quarto Lua scripts."
+        },
+        "quarto.path": {
+          "order": 11,
+          "scope": "window",
+          "type": "string",
+          "default": "",
+          "markdownDescription": "A path to the Quarto CLI executable. By default, the extension looks for Quarto CLI in the `PATH`, but if set, will use the path specified instead."
+        },
+        "quarto.usePipQuarto": {
+          "order": 11,
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "When using a venv or conda environment, prefer Quarto CLI installed with pip in that environment. This will override Quarto CLI in the `PATH`, but not an explicitly configured `#quarto.path#`."
+        },
+        "quarto.render.renderOnSave": {
+          "order": 12,
+          "scope": "window",
+          "type": "boolean",
+          "markdownDescription": "Automatically render documents when they are saved. Note that you can also use the `render-on-save` YAML option at the project or document level to specify this behavior. For example:\n\n```yaml\n---\neditor:\n  render-on-save: true\n---\n```\n"
+        },
+        "quarto.render.renderOnSaveShiny": {
+          "order": 12,
+          "scope": "window",
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Automatically render `server: shiny` documents when they are saved. Note that unlike normal documents, this behavior defaults to `true` for `server: shiny` documents. This is to be consistent with the behavior for Shiny applications written in `.py` scripts. You can also use the `render-on-save` YAML option at the project or document level to specify this behavior. For example:\n\n```yaml\n---\nserver: shiny\neditor:\n  render-on-save: false\n---\n```\n"
+        },
+        "quarto.render.previewType": {
+          "order": 13,
+          "scope": "window",
+          "type": "string",
+          "markdownDescription": "Location for document preview after render",
+          "enum": [
+            "internal",
+            "external",
+            "none"
+          ],
+          "default": "internal",
+          "markdownEnumDescriptions": [
+            "Preview using a side-by-side panel inside VS Code",
+            "Preview using an external web browser",
+            "Don't automatically show a preview after render"
+          ]
+        },
+        "quarto.render.previewReveal": {
+          "order": 14,
+          "scope": "window",
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Reveal the preview panel after document render."
+        },
+        "quarto.render.rPackageOutputDirectory": {
+          "order": 15,
+          "scope": "window",
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Render output files in a temporary directory, when in an R package."
+        },
+        "quarto.visualEditor.fontSize": {
+          "order": 31,
+          "scope": "resource",
+          "type": "number",
+          "default": 0,
+          "markdownDescription": "Controls the font size in pixels for the Visual Editor. When set to 0, the `#editor.fontSize#` is used."
+        },
+        "quarto.visualEditor.fontFamily": {
+          "order": 32,
+          "scope": "resource",
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Controls the font family for the visual editor. When unspecified, the Markdown Preview font family is used."
+        },
+        "quarto.visualEditor.maxContentWidth": {
+          "order": 30,
+          "scope": "resource",
+          "type": "number",
+          "default": 1000,
+          "markdownDescription": "Controls the maximum width (in pixels) of the editor's content"
+        },
+        "quarto.visualEditor.defaultListSpacing": {
+          "order": 35,
+          "scope": "resource",
+          "type": "string",
+          "markdownDescription": "Default spacing between list items",
+          "default": "spaced",
+          "enum": [
+            "spaced",
+            "tight"
+          ]
+        },
+        "quarto.visualEditor.lineNumbers": {
+          "order": 33,
+          "scope": "resource",
+          "type": "boolean",
+          "default": "true",
+          "markdownDescription": "Show line numbers in executable code cells"
+        },
+        "quarto.visualEditor.spelling": {
+          "order": 40,
+          "scope": "resource",
+          "type": "boolean",
+          "default": "true",
+          "markdownDescription": "Enable spell checking"
+        },
+        "quarto.visualEditor.spellingDictionary": {
+          "order": 41,
+          "scope": "resource",
+          "type": "string",
+          "default": "en_US",
+          "markdownDescription": "Main dictionary language",
+          "enum": [
+            "en_AU",
+            "en_CA",
+            "en_GB",
+            "en_US",
+            "es_ES",
+            "fr_FR",
+            "de_DE",
+            "ru_RU"
+          ],
+          "markdownEnumDescriptions": [
+            "English (Australia)",
+            "English (Canada)",
+            "English (United Kingdom)",
+            "English (United States)",
+            "Spanish",
+            "French",
+            "German",
+            "Russian"
+          ]
+        },
+        "quarto.visualEditor.markdownWrap": {
+          "order": 36,
+          "scope": "resource",
+          "type": "string",
+          "markdownDescription": "Automatic text wrapping (line breaks). Note that you can also use the `editor: markdown: wrap` YAML option at the project or document level to specify this behavior. For example:\n\n```yaml\n---\neditor:\n  markdown:\n    wrap: column\n---\n```\n",
+          "default": "none",
+          "enum": [
+            "none",
+            "column",
+            "sentence"
+          ],
+          "markdownEnumDescriptions": [
+            "Do not perform any text wraping",
+            "Wrap text to occupy a fixed number of columns",
+            "Insert a line break after each sentence"
+          ]
+        },
+        "quarto.visualEditor.markdownWrapColumn": {
+          "order": 37,
+          "scope": "resource",
+          "type": "number",
+          "default": 72,
+          "markdownDescription": "Column to wrap at when `markdownWrap` is set to `column`. Note that you can also use the `editor: markdown: wrap` YAML option at the project or document level to specify this behavior. For example:\n\n```yaml\n---\neditor:\n  markdown:\n    wrap: 72\n---\n```\n"
+        },
+        "quarto.visualEditor.markdownReferences": {
+          "order": 38,
+          "scope": "resource",
+          "type": "string",
+          "markdownDescription": "Scope to write markdown references (footnotes and reference links) at the end of. Note that you can also use the `editor: markdown: references: location` YAML option at the project or document level to specify this behavior. For example:\n\n```yaml\n---\neditor:\n  markdown:\n    references:\n      location: document\n---\n```\n",
+          "default": "block",
+          "enum": [
+            "block",
+            "section",
+            "document"
+          ],
+          "markdownEnumDescriptions": [
+            "Write references at the end of the block where they appear.",
+            "Write references at the end of the section where they appear.",
+            "Write references at the end of the document."
+          ]
+        },
+        "quarto.visualEditor.markdownReferenceLinks": {
+          "order": 39,
+          "scope": "resource",
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Write markdown links as references rather than inline. Reference links are written to the location specified in `#quarto.visualEditor.markdownReferences#`."
+        },
+        "quarto.zotero.library": {
+          "order": 50,
+          "scope": "window",
+          "type": "string",
+          "markdownDescription": "Location of Zotero references library (`local`, `web`, or `none`).",
+          "default": "local",
+          "enum": [
+            "none",
+            "local",
+            "web"
+          ],
+          "markdownEnumDescriptions": [
+            "Do not use Zotero libraries for inserting references.",
+            "Use my locally installed copy of Zotero for inserting references.",
+            "Use my Zotero Web Library for inserting references. "
+          ]
+        },
+        "quarto.zotero.dataDir": {
+          "order": 51,
+          "scope": "window",
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Zotero data directory (used in `local` library configuration). Note that this can normally be auto-detected (specify explicitly only if required)."
+        },
+        "quarto.zotero.groupLibraries": {
+          "order": 52,
+          "scope": "window",
+          "type": "array",
+          "default": [],
+          "markdownDescription": "Zotero Group Libraries to enable (in addition to **My Library**, which is always enabled). Libraries should be specified using the full name of their Zotero Group. You can see a list of the group libraries your account has access to at <https://www.zotero.org/groups/>.",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "quarto.server.logLevel": {
+          "scope": "window",
+          "type": "string",
+          "default": "warn",
+          "enum": [
+            "trace",
+            "debug",
+            "info",
+            "warn",
+            "error"
+          ],
+          "markdownDescription": "Log level for the Quarto language server."
+        }
+      }
+    },
+    "walkthroughs": [
+      {
+        "id": "quarto",
+        "title": "Get started with Quarto",
+        "description": "Learn the basics of using Quarto with VS Code",
+        "when": "shellExecutionSupported",
+        "featuredFor": [
+          "*.qmd",
+          "_quarto.yml"
+        ],
+        "steps": [
+          {
+            "id": "install",
+            "title": "Install Quarto",
+            "description": "The core capabilities of Quarto are provided by a command line interface (CLI).\n\nBefore getting started, be sure that you've installed the latest version of the Quarto CLI from [https://quarto.org/](https://quarto.org/docs/get-started/)\n[Verify Installation](command:quarto.verifyInstallation)",
+            "media": {
+              "image": {
+                "dark": "assets/walkthrough/quarto-cli-dark.png",
+                "hc": "assets/walkthrough/quarto-cli-dark.png",
+                "light": "assets/walkthrough/quarto-cli-light.png",
+                "hcLight": "assets/walkthrough/quarto-cli-light.png"
+              },
+              "altText": "The output of the Quarto CLI help command"
+            },
+            "completionEvents": [
+              "onStepSelected"
+            ]
+          },
+          {
+            "id": "create",
+            "title": "Create a document",
+            "description": "Next, we'll create a simple Quarto .qmd markdown file.\n\n[Create Document](command:quarto.walkthrough.newDocument)",
+            "media": {
+              "markdown": "assets/walkthrough/empty.md"
+            },
+            "completionEvents": [
+              "onCommand:quarto.walkthrough.newDocument"
+            ]
+          },
+          {
+            "id": "render",
+            "title": "Render and preview a document",
+            "description": "You can render documents to HTML, PDF, or other formats using the **Preview** button on the editor toolbar, the **Cmd+Shift+K** keyboard shortcut, or the **Quarto: Preview** command.\n\n[Preview Document](command:quarto.walkthrough.preview)",
+            "media": {
+              "markdown": "assets/walkthrough/empty.md"
+            },
+            "completionEvents": [
+              "onStepSelected"
+            ]
+          },
+          {
+            "id": "run-cell",
+            "title": "Run a code cell",
+            "description": "When rendering, code cells are automatically executed and their results included in output. When developing and debugging, you can also run individual cells interactively.\n\nClick the **Run Cell** button above the code cell in the qmd editor.",
+            "media": {
+              "markdown": "assets/walkthrough/empty.md"
+            },
+            "completionEvents": [
+              "onStepSelected"
+            ]
+          },
+          {
+            "id": "equation",
+            "title": "Edit an equation",
+            "description": "You can see a realtime preview of LaTeX equations as you edit them.\n\nClick the **Preview** button above the equation to activate the preview (you'll see it below alongside the terminal and output panes). The preview will update as you edit.",
+            "media": {
+              "markdown": "assets/walkthrough/empty.md"
+            },
+            "completionEvents": [
+              "onStepSelected"
+            ]
+          },
+          {
+            "id": "learn-more",
+            "title": "Learn more",
+            "description": "Learn more about using Quarto here:\n- [Quarto Tutorial](https://quarto.org/docs/get-started/hello/vscode.html)\n- [Using VS Code with Quarto](https://quarto.org/docs/tools/vscode.html)",
+            "media": {
+              "markdown": "assets/walkthrough/empty.md"
+            },
+            "completionEvents": [
+              "onStepSelected"
+            ]
+          }
+        ]
+      }
+    ],
+    "notebookRenderer": [
+      {
+        "id": "quarto.markdown-it.qmd-extension",
+        "displayName": "Markdown It Quarto Renderer",
+        "entrypoint": {
+          "extends": "vscode.markdown-it-renderer",
+          "path": "./out/markdownit/index.js"
+        }
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run download:quarto && npm run build:lsp && rm -rf ./out/markdownit && cd ../.. && turbo run build --force --filter quarto...",
+    "install-vscode": "rm -rf *.vsix && vsce package && code --install-extension *.vsix",
+    "install-positron": "rm -rf *.vsix && vsce package && positron --install-extension *.vsix",
+    "build": "npm run download:quarto && npm run build:editor && npm run build:lsp && tsx build.ts",
+    "dev": "yarn run build dev",
+    "lint": "eslint src --ext ts",
+    "build-lang": "node syntaxes/build-lang",
+    "build:lsp": "cd lsp && npm run build",
+    "build:editor": "cd apps/vscode-editor && npm install && npm run build",
+    "download:quarto": "node build/download-quarto.js",
+    "test": "yarn run build test && vscode-test"
+  },
+  "dependencies": {
+    "@codemirror/autocomplete": "^6.18.7",
+    "@codemirror/commands": "^6.8.1",
+    "@codemirror/lang-cpp": "^6.0.3",
+    "@codemirror/lang-css": "^6.3.1",
+    "@codemirror/lang-go": "^6.0.1",
+    "@codemirror/lang-html": "^6.4.10",
+    "@codemirror/lang-java": "^6.0.2",
+    "@codemirror/lang-javascript": "^6.2.4",
+    "@codemirror/lang-json": "^6.0.2",
+    "@codemirror/lang-markdown": "^6.3.4",
+    "@codemirror/lang-php": "^6.0.2",
+    "@codemirror/lang-python": "^6.2.1",
+    "@codemirror/lang-rust": "^6.0.2",
+    "@codemirror/lang-sql": "^6.10.0",
+    "@codemirror/lang-xml": "^6.1.0",
+    "@codemirror/lang-yaml": "^6.1.2",
+    "@codemirror/language": "^6.11.3",
+    "@codemirror/legacy-modes": "^6.5.1",
+    "@codemirror/lint": "^6.8.5",
+    "@codemirror/search": "^6.5.11",
+    "@codemirror/state": "^6.5.2",
+    "@codemirror/view": "^6.38.3",
+    "@fluentui/react-components": "^9.70.0",
+    "@fluentui/react-icons": "^2.0.310",
+    "@reduxjs/toolkit": "^2.9.0",
+    "@replit/codemirror-vscode-keymap": "^6.0.2",
+    "axios": "^1.2.1",
+    "biblatex-csl-converter": "^3.2.2",
+    "clipboard": "^2.0.11",
+    "core": "file:./packages/core",
+    "core-browser": "file:./packages/core-browser",
+    "core-node": "file:./packages/core-node",
+    "diff-match-patch": "^1.0.5",
+    "editor-core": "file:./packages/editor-core",
+    "editor-server": "file:./packages/editor-server",
+    "editor-types": "file:./packages/editor-types",
+    "fuse.js": "^7.1.0",
+    "glob": "^11.0.3",
+    "highlight.js": "^11.7.0",
+    "i18next": "^22.5.1",
+    "jayson": "^4.2.0",
+    "js-yaml": "^4.1.0",
+    "lodash.debounce": "^4.0.8",
+    "lodash.orderby": "^4.6.0",
+    "lodash.throttle": "^4.1.1",
+    "lodash.uniqby": "^4.7.0",
+    "markdown-it": "^13.0.1",
+    "markdown-it-highlightjs": "^4.0.1",
+    "mermaid": "^11.12.0",
+    "nanoid": "^4.0.0",
+    "orderedmap": "^2.1.1",
+    "p-queue": "^8.0.1",
+    "picomatch": "^2.3.1",
+    "pinyin": "^4.0.0",
+    "prosemirror-changeset": "^2.3.1",
+    "prosemirror-commands": "^1.7.1",
+    "prosemirror-dev-tools": "^4.2.0",
+    "prosemirror-dropcursor": "^1.8.2",
+    "prosemirror-gapcursor": "^1.3.2",
+    "prosemirror-history": "^1.4.1",
+    "prosemirror-inputrules": "^1.5.0",
+    "prosemirror-keymap": "^1.2.3",
+    "prosemirror-model": "^1.25.3",
+    "prosemirror-schema-list": "^1.5.1",
+    "prosemirror-state": "^1.4.3",
+    "prosemirror-tables": "^1.8.1",
+    "prosemirror-transform": "^1.10.4",
+    "prosemirror-utils": "^1.2.2",
+    "prosemirror-view": "^1.41.1",
+    "quarto-core": "file:./packages/quarto-core",
+    "react-redux": "^9.2.0",
+    "react-textarea-autosize": "^8.5.9",
+    "react-transition-group": "^4.4.5",
+    "react-window": "^1.8.8",
+    "semver": "^7.7.2",
+    "sentence-splitter": "^5.0.0",
+    "thenby": "^1.3.4",
+    "tlite": "^0.1.9",
+    "tmp": "^0.2.1",
+    "transliteration": "^2.3.5",
+    "typo-js": "^1.3.1",
+    "use-debounce": "^10.0.6",
+    "uuid": "^9.0.0",
+    "vscode-languageclient": "^8.1.0",
+    "vscode-languageserver-types": "^3.17.5",
+    "vscode-nls": "^5.2.0",
+    "wcwidth": "^1.0.1",
+    "which": "^3.0.0",
+    "zenscroll": "^4.0.2"
+  },
+  "devDependencies": {
+    "@types/axios": "^0.14.0",
+    "@types/highlight.js": "^10.1.0",
+    "@types/js-yaml": "^4.0.5",
+    "@types/lodash.debounce": "^4.0.7",
+    "@types/lodash.throttle": "^4.1.9",
+    "@types/markdown-it": "^12.2.3",
+    "@types/markdown-it-highlightjs": "^3.3.1",
+    "@types/node": "16.x",
+    "@types/picomatch": "^2.3.0",
+    "@types/semver": "^7.3.13",
+    "@types/tmp": "^0.2.3",
+    "@types/uuid": "^9.0.0",
+    "@types/vscode": "1.75.0",
+    "@types/which": "^2.0.2",
+    "@typescript-eslint/eslint-plugin": "^5.45.0",
+    "@typescript-eslint/parser": "^5.45.0",
+    "@vscode/test-cli": "^0.0.11",
+    "@vscode/test-electron": "^2.5.2",
+    "@vscode/vsce": "^2.15.0",
+    "esbuild": "^0.16.7",
+    "eslint": "^8.28.0",
+    "plist": "^3.0.6",
+    "tsx": "^3.12.1",
+    "typescript": "^4.9.3",
+    "vsce": "^2.15.0",
+    "webpack": "^5.101.3",
+    "webpack-cli": "^6.0.1"
+  }
+}

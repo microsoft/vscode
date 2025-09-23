@@ -20,6 +20,7 @@ import './contrib/cursorUndo/browser/cursorUndo.js';
 import './contrib/dnd/browser/dnd.js';
 import './contrib/dropOrPasteInto/browser/copyPasteContribution.js';
 import './contrib/dropOrPasteInto/browser/dropIntoEditorContribution.js';
+import './contrib/erdosHelp/browser/provideHelpTopic.js';
 import './contrib/find/browser/findController.js';
 import './contrib/folding/browser/folding.js';
 import './contrib/fontZoom/browser/fontZoom.js';

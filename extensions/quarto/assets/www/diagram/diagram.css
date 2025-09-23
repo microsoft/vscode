@@ -1,0 +1,67 @@
+body {
+  background-color: var(--vscode-editor-background);
+}
+
+body.vscode-light {
+  color: rgb(113, 113, 113);
+}
+
+body.vscode-dark {
+  color: rgb(146, 146, 146);
+}
+
+body.with-preview {
+  background-color: white;
+}
+
+body.with-preview.vscode-light {
+  color: rgb(113, 113, 113);
+}
+
+body.with-preview.vscode-dark {
+  color: rgb(146, 146, 146);
+}
+
+.diagram-preview {
+  width: 100%;
+  height: 100%;
+  padding: 8px;
+}
+
+.diagram-preview svg {
+  width: 100%;
+  height: 100%;
+}
+
+body .diagram-preview {
+  display: none;
+}
+
+body.with-preview #no-preview {
+  display: none;
+}
+
+body.with-preview.mermaid #mermaid-preview {
+  display: block;
+}
+
+body.with-preview.graphviz #graphviz-preview {
+  display: block;
+}
+
+#preview-error {
+  margin-top: 1em;
+  padding: 1em;
+  color: black;
+  background-color: #ffccd7;
+  border-color: #ffccd7;
+  border-radius: 5px;
+}
+
+#preview-error-message {
+  margin: 0;
+}
+
+.hidden {
+  display: none;
+}

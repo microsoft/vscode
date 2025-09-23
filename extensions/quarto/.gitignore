@@ -1,0 +1,13 @@
+out/
+*.vsix
+test-out/
+examples-out/
+bin/
+apps/dist/
+apps/vscode-editor/dist/
+lsp/out/
+assets/www/editor/
+.turbo/
+**/*.map
+node_modules/
+**/.vscode-test/

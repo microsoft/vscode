@@ -1,0 +1,236 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`NodeIndex handles node deletion/restoration 1`] = `
+Array [
+  Object {
+    "node": Object {
+      "attrs": Object {
+        "synthetic": undefined,
+      },
+      "content": Array [
+        Object {
+          "text": "Paragraph One",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+    "pos": 12,
+  },
+  Object {
+    "node": Object {
+      "attrs": Object {
+        "synthetic": undefined,
+      },
+      "content": Array [
+        Object {
+          "text": "Paragraph Three",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+    "pos": 38,
+  },
+]
+`;
+
+exports[`NodeIndex handles node deletion/restoration 2`] = `
+Array [
+  Object {
+    "node": Object {
+      "attrs": Object {
+        "synthetic": undefined,
+      },
+      "content": Array [
+        Object {
+          "text": "Paragraph One",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+    "pos": 12,
+  },
+  Object {
+    "node": Object {
+      "attrs": Object {
+        "synthetic": undefined,
+      },
+      "content": Array [
+        Object {
+          "text": "Paragraph Two",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+    "pos": 27,
+  },
+  Object {
+    "node": Object {
+      "attrs": Object {
+        "synthetic": undefined,
+      },
+      "content": Array [
+        Object {
+          "text": "Paragraph Three",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+    "pos": 53,
+  },
+]
+`;
+
+exports[`NodeIndex handles node replacement 1`] = `
+Array [
+  Object {
+    "node": Object {
+      "attrs": Object {
+        "synthetic": undefined,
+      },
+      "content": Array [
+        Object {
+          "text": "Paragraph One",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+    "pos": 12,
+  },
+  Object {
+    "node": Object {
+      "attrs": Object {
+        "synthetic": undefined,
+      },
+      "content": Array [
+        Object {
+          "text": "Paragraph Two",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+    "pos": 27,
+  },
+  Object {
+    "node": Object {
+      "attrs": Object {
+        "synthetic": undefined,
+      },
+      "content": Array [
+        Object {
+          "text": "A wild paragraph has appeared!",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+    "pos": 53,
+  },
+]
+`;
+
+exports[`NodeIndex initialization 1`] = `
+Array [
+  Object {
+    "node": Object {
+      "attrs": Object {
+        "synthetic": undefined,
+      },
+      "content": Array [
+        Object {
+          "text": "Paragraph One",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+    "pos": 12,
+  },
+  Object {
+    "node": Object {
+      "attrs": Object {
+        "synthetic": undefined,
+      },
+      "content": Array [
+        Object {
+          "text": "Paragraph Two",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+    "pos": 27,
+  },
+  Object {
+    "node": Object {
+      "attrs": Object {
+        "synthetic": undefined,
+      },
+      "content": Array [
+        Object {
+          "text": "Paragraph Three",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+    "pos": 53,
+  },
+]
+`;
+
+exports[`NodeIndex updates when a node's contents change 1`] = `
+Array [
+  Object {
+    "node": Object {
+      "attrs": Object {
+        "synthetic": undefined,
+      },
+      "content": Array [
+        Object {
+          "text": "New content for this paragraph",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+    "pos": 12,
+  },
+  Object {
+    "node": Object {
+      "attrs": Object {
+        "synthetic": undefined,
+      },
+      "content": Array [
+        Object {
+          "text": "Paragraph Two",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+    "pos": 44,
+  },
+  Object {
+    "node": Object {
+      "attrs": Object {
+        "synthetic": undefined,
+      },
+      "content": Array [
+        Object {
+          "text": "Paragraph Three",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+    "pos": 70,
+  },
+]
+`;

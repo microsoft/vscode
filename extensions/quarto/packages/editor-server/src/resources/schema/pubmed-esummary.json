@@ -1,0 +1,19 @@
+{
+  "$id": "http://rstudio.org/schemas/pubmed-esummary.json",
+  "$schema": "http://json-schema.org/schema#",
+  "title": "PubMed eSummary Schema",
+  "type": "object",
+  "properties": {
+    "result": {
+      "type": "object",
+      "properties": {
+        "uids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

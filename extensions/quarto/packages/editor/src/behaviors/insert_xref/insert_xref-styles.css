@@ -1,0 +1,122 @@
+.pm-insert-xref-list {
+  border: solid 1px;
+  border-radius: 3px;
+  margin-bottom: 12px;
+}
+
+.pm-insert-xref-container {
+  display: flex;
+}
+
+.pm-insert-xref-list-container {
+  padding-left: 8px;
+  width: 100%;
+}
+
+.pm-xref-item {
+  width: calc(100% - 4px) !important;
+  display: flex;
+  align-items: center;
+  margin: 2px;
+}
+
+.pm-xref-item-image-container {
+  flex-grow: 0;
+  padding-left: 10px;
+  padding-right: 4px;
+}
+
+.pm-xref-item-body {
+  flex-grow: 1;
+  padding-right: 8px;
+  padding-top: 12px;
+  padding-bottom: 8px;
+  min-width: 0;
+}
+
+.pm-xref-item-title {
+  display: flex;
+  justify-content: space-between;
+}
+
+.pm-xref-item-primary {
+  font-weight: 500;
+  font-size: 10pt;
+  opacity: 0.8;
+}
+
+.pm-xref-item-secondary {
+  font-size: 10pt;
+  opacity: 0.8;
+}
+
+.pm-xref-item-detail {
+  flex-shrink: 1;
+  font-size: 10pt;
+  opacity: 0.8;
+  padding-top: 4px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.pm-insert-xref .pm-dialog-buttons-panel {
+  justify-content: flex-end;
+}
+
+.pm-insert-xref-search-container {
+  display: flex;
+  justify-content: space-between;
+  padding-left: 10px;
+  padding-right: 10px;
+  padding-bottom: 10px;
+}
+
+.pm-insert-xref-search-textbox {
+  width: 100%;
+}
+
+.pm-insert-xref-list-container .pm-textinput-container {
+  width: 100%;
+  margin-bottom: 6px;
+}
+
+.pm-insert-xref-list-placeholder {
+  border: solid 1px;
+  border-radius: 3px;
+  margin-bottom: 12px;
+  display: flex;
+  justify-content: center;
+  width: '100%';
+}
+
+.pm-insert-xref-list-placeholder div {
+  padding-top: 40px;
+  font-weight: 500;
+  font-size: 10pt;
+  opacity: 0.8;
+  font-style: italic;
+}
+
+.pm-insert-xref-insert-options {
+  display: flex;
+  justify-content: space-between;
+  padding-left: 4px;
+}
+
+.pm-insert-xref-prefix {
+  display: flex;
+  align-items: center;
+}
+
+.pm-insert-xref-prefix select {
+  margin-left: 10px;
+  margin-right: 8px;
+  width: 100px;
+}
+
+.pm-insert-xref-type-container {
+  border: solid 1px;
+  border-radius: 3px;
+  margin-bottom: 12px;
+  width: 188px;
+}

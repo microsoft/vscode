@@ -32,6 +32,7 @@ from IPython.utils import PyColorize
 from .access_keys import encode_access_key
 # from .connections import ConnectionsService
 # from .data_explorer import DataExplorerService, DataExplorerWarning
+from .environment import EnvironmentService
 from .help import HelpService, help
 from .lsp import LSPService
 from .patch.bokeh import handle_bokeh_output, patch_bokeh_no_access
@@ -50,6 +51,7 @@ if TYPE_CHECKING:
 
 class _CommTarget(str, enum.Enum):
     # DataExplorer = "erdos.dataExplorer"
+    Environment = "erdos.environment"
     Ui = "erdos.ui"
     Help = "erdos.help"
     Lsp = "erdos.lsp"
@@ -407,6 +409,7 @@ class ErdosIPyKernel(IPythonKernel):
         self.job_queue = BackgroundJobQueue()
 
         # self.data_explorer_service = DataExplorerService(_CommTarget.DataExplorer, self.job_queue)
+        self.environment_service = EnvironmentService()
         self.plots_service = PlotsService(_CommTarget.Plot, self.session_mode)
         self.ui_service = UiService(self)
         self.help_service = HelpService()
@@ -416,6 +419,7 @@ class ErdosIPyKernel(IPythonKernel):
 
         self.comm_manager.register_target(_CommTarget.Lsp, self.lsp_service.on_comm_open)
         self.comm_manager.register_target(_CommTarget.Ui, self.ui_service.on_comm_open)
+        self.comm_manager.register_target(_CommTarget.Environment, self.environment_service.on_comm_open)
         self.comm_manager.register_target(_CommTarget.Help, self.help_service.on_comm_open)
         self.comm_manager.register_target(_CommTarget.Plot, self.plots_service.on_comm_open)
         # self.comm_manager.register_target(
@@ -463,6 +467,7 @@ class ErdosIPyKernel(IPythonKernel):
 
         if hasattr(self, 'data_explorer_service'):
             self.data_explorer_service.shutdown()
+        self.environment_service.shutdown()
         self.ui_service.shutdown()
         self.help_service.shutdown()
         self.lsp_service.shutdown()

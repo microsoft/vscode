@@ -1,0 +1,19 @@
+{
+  "$id": "http://rstudio.org/schemas/pubmed-esearch.json",
+  "$schema": "http://json-schema.org/schema#",
+  "title": "PubMed eSearch Schema",
+  "type": "object",
+  "properties": {
+    "esearchresult": {
+      "type": "object",
+      "properties": {
+        "idlist": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

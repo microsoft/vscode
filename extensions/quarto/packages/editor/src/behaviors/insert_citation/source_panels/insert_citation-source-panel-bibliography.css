@@ -1,0 +1,11 @@
+.pm-insert-bibliography-source-panel-warning {
+  background: #fdf5e0;
+  border: solid 1px;
+  border-radius: 3px;
+  padding: 4px;
+  text-align: center;
+  margin-bottom: 4px;
+  font-size: 8pt;
+  font-weight: 1;
+  opacity: 0.8; 
+}

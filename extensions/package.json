@@ -4,7 +4,8 @@
   "license": "MIT",
   "description": "Dependencies shared by all extensions",
   "dependencies": {
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.2",
+    "quarto": "file:./quarto"
   },
   "scripts": {
     "postinstall": "node ./postinstall.mjs"

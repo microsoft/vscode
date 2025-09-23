@@ -1,0 +1,155 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) 2025 Lotas Inc. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Python Environments Tree View */
+.python-environments-tree {
+	height: 100%;
+	overflow: auto;
+}
+
+.python-environment-item {
+	display: flex;
+	align-items: center;
+	padding: 8px 12px;
+	min-height: 44px;
+	border-radius: 4px;
+	margin: 2px 4px;
+	cursor: pointer;
+	transition: background-color 0.2s ease;
+	position: relative;
+}
+
+.python-environment-item:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.python-environment-item.active {
+	background-color: var(--vscode-list-activeSelectionBackground);
+	color: var(--vscode-list-activeSelectionForeground);
+}
+
+.python-environment-item.active::before {
+	content: '';
+	position: absolute;
+	left: 0;
+	top: 0;
+	bottom: 0;
+	width: 3px;
+	background-color: var(--vscode-focusBorder);
+	border-radius: 0 2px 2px 0;
+}
+
+.environment-icon {
+	width: 16px;
+	height: 16px;
+	margin-right: 8px;
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 16px;
+	line-height: 16px;
+}
+
+.environment-icon::before {
+	display: inline-block;
+	text-decoration: none;
+	text-rendering: auto;
+	text-align: center;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+	user-select: none;
+	-webkit-user-select: none;
+	-ms-user-select: none;
+}
+
+.environment-label-container {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.environment-description {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	opacity: 0.8;
+}
+
+.environment-badge {
+	font-size: 10px;
+	padding: 2px 6px;
+	border-radius: 10px;
+	background-color: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+	font-weight: 500;
+	margin-left: 8px;
+	flex-shrink: 0;
+}
+
+.environment-badge.active {
+	background-color: var(--vscode-statusBarItem-prominentBackground);
+	color: var(--vscode-statusBarItem-prominentForeground);
+}
+
+.environment-badge:empty {
+	display: none;
+}
+
+/* Environment type specific icon colors */
+.environment-icon.codicon-symbol-misc {
+	color: var(--vscode-symbolIcon-variableForeground);
+}
+
+.environment-icon.codicon-folder {
+	color: var(--vscode-symbolIcon-folderForeground);
+}
+
+.environment-icon.codicon-gear {
+	color: var(--vscode-symbolIcon-operatorForeground);
+}
+
+.environment-icon.codicon-versions {
+	color: var(--vscode-symbolIcon-colorForeground);
+}
+
+.environment-icon.codicon-package {
+	color: var(--vscode-symbolIcon-packageForeground);
+}
+
+/* Empty state styling */
+.empty-state-container {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	height: 100%;
+	padding: 20px;
+}
+
+.empty-state {
+	text-align: center;
+	max-width: 300px;
+}
+
+.empty-state-icon {
+	font-size: 48px;
+	color: var(--vscode-descriptionForeground);
+	margin-bottom: 16px;
+	opacity: 0.6;
+}
+
+.empty-state-title {
+	font-size: 16px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+	margin-bottom: 8px;
+}
+
+.empty-state-description {
+	font-size: 13px;
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.4;
+}
+

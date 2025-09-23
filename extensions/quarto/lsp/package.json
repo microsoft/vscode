@@ -1,0 +1,43 @@
+{
+  "name": "quarto-lsp",
+  "version": "0.0.0",
+  "private": true,
+  "license": "agpl-3.0",
+  "scripts": {
+    "build": "tsx build.ts",
+    "dev": "yarn run build dev",
+    "clean": "rm -rf .turbo && rm -rf node_modules && rm -rf dist",
+    "lint": "tsc --noEmit && TIMING=1 eslint \"src/**/*.ts*\"",
+    "start": "node dist/lsp.js"
+  },
+  "dependencies": {
+    "@vscode/l10n": "^0.0.14",
+    "core": "file:../packages/core",
+    "core-node": "file:../packages/core-node",
+    "editor-server": "file:../packages/editor-server",
+    "file-url": "^4.0.0",
+    "glob": "^10.2.5",
+    "js-yaml": "^4.1.0",
+    "mermaid": "^10.2.4",
+    "wcwidth": "^1.0.1",
+    "node-html-parser": "^6.1.5",
+    "node-sqlite3-wasm": "^0.8.49",
+    "picomatch": "^2.3.1",
+    "quarto-core": "file:../packages/quarto-core",
+    "uuid": "^8.3.2",
+    "vscode-languageserver": "^8.1.0",
+    "vscode-languageserver-textdocument": "^1.0.4",
+    "vscode-languageserver-types": "^3.17.3",
+    "vscode-uri": "^3.0.3"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.5",
+    "@types/node": "^20.10.6",
+    "@types/picomatch": "^2.3.0",
+    "esbuild": "^0.16.7",
+    "esbuild-plugin-copy": "^2.0.1",
+    "eslint": "^7.32.0",
+    "tsx": "^3.12.1",
+    "typescript": "^4.5.2"
+  }
+}

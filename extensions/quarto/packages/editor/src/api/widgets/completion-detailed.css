@@ -1,0 +1,89 @@
+/*
+ * completion.css
+ *
+ * Copyright (C) 2022 by Posit Software, PBC
+ *
+ * Unless you have received this program directly from Posit Software pursuant
+ * to the terms of a commercial license agreement with Posit Software, then
+ * this program is licensed to you under the terms of version 3 of the
+ * GNU Affero General Public License. This program is distributed WITHOUT
+ * ANY EXPRESS OR IMPLIED WARRANTY, INCLUDING THOSE OF NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE. Please refer to the
+ * AGPL (http://www.gnu.org/licenses/agpl-3.0.txt) for more details.
+ *
+ */
+
+.pm-completion-detailed-item {
+  display: flex;
+  align-items: flex-start;
+  height: 120px;
+}
+
+.pm-completion-detailed-item-type {
+  margin-top: 24px;
+  margin-left: 6px;
+  margin-right: 6px;
+  display: flex;
+  align-items: center;
+}
+
+.pm-completion-item-detailed-type img {
+  border: solid 1px;
+  border-radius: 2px;
+  padding: 4px;
+  height: 24px;
+  width: 24px;
+  margin-top: 1px;
+  margin-right: 6px;
+  filter: opacity(0.8);
+}
+
+.pm-completion-item-detailed-summary {
+  display: flex;
+  flex-direction: column;
+  padding-top: 6px;
+  padding-right: 4px;
+  padding-bottom: 4px;
+  padding-left: 0px;
+  line-height: 20px;
+  font-size: 14px;
+  max-width: calc(100% - 70px);
+}
+
+.pm-completion-item-detailed-heading {
+  margin-right: 8px;
+  font-weight: 500;
+  font-size: 8pt;
+  opacity: 0.6;
+  width: 100%;
+  
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pm-completion-item-detailed-title {
+  margin-right: 8px;
+
+  font-weight: 520;
+  font-size: 11pt;
+  opacity: 0.8;
+
+  width: 100%;
+  max-height: 60px;
+
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pm-completion-item-detailed-subTitle {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
+  line-height: 18px;
+  padding-top: 8px;
+  
+  font-size: 11pt;
+  opacity: 0.6;
+}

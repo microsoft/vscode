@@ -1,0 +1,50 @@
+{
+  "name": "quarto-vscode-editor",
+  "type": "module",
+  "version": "0.0.1",
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/index.js",
+  "exports": {
+    ".": {
+      "require": "./dist/index.js"
+    }
+  },
+  "private": true,
+  "license": "agpl-3.0",
+  "scripts": {
+    "build": "node --max-old-space-size=8192 ./node_modules/vite/bin/vite.js build",
+    "dev": "tsc --noEmit && vite build --mode=development",
+    "lint": "TIMING=1 eslint \"src/**/*.ts\""
+  },
+  "dependencies": {
+    "@fluentui/react-components": "^9.21.0",
+    "@types/react": "^18.0.26",
+    "@types/react-dom": "^18.0.11",
+    "core": "file:../../packages/core",
+    "core-browser": "file:../../packages/core-browser",
+    "editor": "file:../../packages/editor",
+    "editor-codemirror": "file:../../packages/editor-codemirror",
+    "editor-types": "file:../../packages/editor-types",
+    "editor-ui": "file:../../packages/editor-ui",
+    "lodash.debounce": "^4.0.8",
+    "lodash.throttle": "^4.1.1",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-redux": "^8.0.5",
+    "redux": "^4.2.0",
+    "sass": "^1.93.0",
+    "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "@types/lodash.debounce": "^4.0.7",
+    "@types/lodash.throttle": "^4.1.7",
+    "@types/vscode-webview": "^1.57.0",
+    "eslint": "^7.32.0",
+    "typescript": "^4.5.2",
+    "ui-widgets": "file:../../packages/ui-widgets",
+    "vite": "^3.0.0",
+    "vite-plugin-static-copy": "^0.13.0"
+  }
+}

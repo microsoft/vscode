@@ -58,6 +58,8 @@
     "playwright-install": "npm exec playwright install",
     "compile-build": "node ./node_modules/gulp/bin/gulp.js compile-build-with-mangling",
     "compile-extensions-build": "node ./node_modules/gulp/bin/gulp.js compile-extensions-build",
+    "compile-quarto": "cd extensions/quarto && npm run build",
+    "watch-quarto": "cd extensions/quarto && npm run build && npm run watch",
     "minify-vscode": "node ./node_modules/gulp/bin/gulp.js minify-vscode",
     "minify-vscode-reh": "node ./node_modules/gulp/bin/gulp.js minify-vscode-reh",
     "minify-vscode-reh-web": "node ./node_modules/gulp/bin/gulp.js minify-vscode-reh-web",
