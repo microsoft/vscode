@@ -14,7 +14,7 @@ import { ITextModel } from '../../../../../common/model.js';
 import { localize } from '../../../../../../nls.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 
-export interface IEnableViewZoneSelectionAndCopyOptions {
+export interface IEnableViewZoneCopySelectionOptions {
 	/** The view zone HTML element that contains the deleted codes. */
 	domNode: HTMLElement;
 
@@ -53,8 +53,7 @@ export interface IEnableViewZoneSelectionAndCopyOptions {
 	clipboardService: IClipboardService;
 }
 
-export function enableCopySelection(
-	options: IEnableViewZoneSelectionAndCopyOptions): DisposableStore {
+export function enableCopySelection(options: IEnableViewZoneCopySelectionOptions): DisposableStore {
 	const {
 		domNode,
 		getViewZoneId,
