@@ -5,7 +5,6 @@
 
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
-import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { AccessibleDiffViewerNext } from '../../../../../editor/browser/widget/diffEditor/commands.js';
 import { localize } from '../../../../../nls.js';
 import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
@@ -25,8 +24,7 @@ export class PanelChatAccessibilityHelp implements IAccessibleViewImplementation
 	readonly type = AccessibleViewType.Help;
 	readonly when = ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat), ChatContextKeys.inQuickChat.negate(), ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Ask), ContextKeyExpr.or(ChatContextKeys.inChatSession, ChatContextKeys.isResponse, ChatContextKeys.isRequest));
 	getProvider(accessor: ServicesAccessor) {
-		const codeEditor = accessor.get(ICodeEditorService).getActiveCodeEditor() || accessor.get(ICodeEditorService).getFocusedCodeEditor();
-		return getChatAccessibilityHelpProvider(accessor, codeEditor ?? undefined, 'panelChat');
+		return getChatAccessibilityHelpProvider(accessor, undefined, 'panelChat');
 	}
 }
 
@@ -36,8 +34,7 @@ export class QuickChatAccessibilityHelp implements IAccessibleViewImplementation
 	readonly type = AccessibleViewType.Help;
 	readonly when = ContextKeyExpr.and(ChatContextKeys.inQuickChat, ContextKeyExpr.or(ChatContextKeys.inChatSession, ChatContextKeys.isResponse, ChatContextKeys.isRequest));
 	getProvider(accessor: ServicesAccessor) {
-		const codeEditor = accessor.get(ICodeEditorService).getActiveCodeEditor() || accessor.get(ICodeEditorService).getFocusedCodeEditor();
-		return getChatAccessibilityHelpProvider(accessor, codeEditor ?? undefined, 'quickChat');
+		return getChatAccessibilityHelpProvider(accessor, undefined, 'quickChat');
 	}
 }
 
@@ -47,8 +44,7 @@ export class EditsChatAccessibilityHelp implements IAccessibleViewImplementation
 	readonly type = AccessibleViewType.Help;
 	readonly when = ContextKeyExpr.and(ChatContextKeyExprs.inEditingMode, ChatContextKeys.inChatInput);
 	getProvider(accessor: ServicesAccessor) {
-		const codeEditor = accessor.get(ICodeEditorService).getActiveCodeEditor() || accessor.get(ICodeEditorService).getFocusedCodeEditor();
-		return getChatAccessibilityHelpProvider(accessor, codeEditor ?? undefined, 'editsView');
+		return getChatAccessibilityHelpProvider(accessor, undefined, 'editsView');
 	}
 }
 
@@ -58,8 +54,7 @@ export class AgentChatAccessibilityHelp implements IAccessibleViewImplementation
 	readonly type = AccessibleViewType.Help;
 	readonly when = ContextKeyExpr.and(ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent), ChatContextKeys.inChatInput);
 	getProvider(accessor: ServicesAccessor) {
-		const codeEditor = accessor.get(ICodeEditorService).getActiveCodeEditor() || accessor.get(ICodeEditorService).getFocusedCodeEditor();
-		return getChatAccessibilityHelpProvider(accessor, codeEditor ?? undefined, 'agentView');
+		return getChatAccessibilityHelpProvider(accessor, undefined, 'agentView');
 	}
 }
 
@@ -134,7 +129,7 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 export function getChatAccessibilityHelpProvider(accessor: ServicesAccessor, editor: ICodeEditor | undefined, type: 'panelChat' | 'inlineChat' | 'quickChat' | 'editsView' | 'agentView'): AccessibleContentProvider | undefined {
 	const widgetService = accessor.get(IChatWidgetService);
 	const keybindingService = accessor.get(IKeybindingService);
-	const inputEditor: ICodeEditor | undefined = type === 'panelChat' || type === 'editsView' || type === 'quickChat' ? widgetService.lastFocusedWidget?.inputEditor : editor;
+	const inputEditor: ICodeEditor | undefined = widgetService.lastFocusedWidget?.inputEditor;
 
 	if (!inputEditor) {
 		return;
@@ -152,8 +147,10 @@ export function getChatAccessibilityHelpProvider(accessor: ServicesAccessor, edi
 		{ type: AccessibleViewType.Help },
 		() => helpText,
 		() => {
-			if (type === 'panelChat' && cachedPosition) {
-				inputEditor.setPosition(cachedPosition);
+			if (type === 'quickChat' || type === 'editsView' || type === 'agentView' || type === 'panelChat') {
+				if (cachedPosition) {
+					inputEditor.setPosition(cachedPosition);
+				}
 				inputEditor.focus();
 
 			} else if (type === 'inlineChat') {
@@ -161,9 +158,6 @@ export function getChatAccessibilityHelpProvider(accessor: ServicesAccessor, edi
 				const ctrl = <{ focus(): void } | undefined>editor?.getContribution(INLINE_CHAT_ID);
 				ctrl?.focus();
 
-			} else if (type === 'quickChat' || type === 'editsView' || type === 'agentView') {
-				// For quickChat, editsView, and agentView, restore focus to the chat widget input
-				widgetService.lastFocusedWidget?.focusInput();
 			}
 		},
 		type === 'panelChat' ? AccessibilityVerbositySettingId.Chat : AccessibilityVerbositySettingId.InlineChat,

@@ -30,6 +30,7 @@ import { ILifecycleService } from '../../lifecycle/common/lifecycle.js';
 import { Mutable } from '../../../../base/common/types.js';
 import { distinct } from '../../../../base/common/arrays.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IObservable, observableFromEvent } from '../../../../base/common/observable.js';
 
 export namespace ChatEntitlementContextKeys {
 
@@ -128,6 +129,7 @@ export interface IChatEntitlementService {
 	readonly onDidChangeEntitlement: Event<void>;
 
 	readonly entitlement: ChatEntitlement;
+	readonly entitlementObs: IObservable<ChatEntitlement>;
 
 	readonly organisations: string[] | undefined;
 	readonly isInternal: boolean;
@@ -141,12 +143,14 @@ export interface IChatEntitlementService {
 	readonly onDidChangeSentiment: Event<void>;
 
 	readonly sentiment: IChatSentiment;
+	readonly sentimentObs: IObservable<IChatSentiment>;
 
 	// TODO@bpasero eventually this will become enabled by default
 	// and in that case we only need to check on entitlements change
 	// between `unknown` and any other entitlement.
 	readonly onDidChangeAnonymous: Event<void>;
 	readonly anonymous: boolean;
+	readonly anonymousObs: IObservable<boolean>;
 
 	update(token: CancellationToken): Promise<void>;
 }
@@ -221,6 +225,7 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 				])), this._store
 			), () => { }, this._store
 		);
+		this.entitlementObs = observableFromEvent(this.onDidChangeEntitlement, () => this.entitlement);
 
 		this.onDidChangeSentiment = Event.map(
 			Event.filter(
@@ -233,6 +238,7 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 				])), this._store
 			), () => { }, this._store
 		);
+		this.sentimentObs = observableFromEvent(this.onDidChangeSentiment, () => this.sentiment);
 
 		if ((
 			// TODO@bpasero remove this condition and 'serverlessWebEnabled' once Chat web support lands
@@ -260,6 +266,7 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 	//#region --- Entitlements
 
 	readonly onDidChangeEntitlement: Event<void>;
+	readonly entitlementObs: IObservable<ChatEntitlement>;
 
 	get entitlement(): ChatEntitlement {
 		if (this.contextKeyService.getContextKeyValue<boolean>(ChatEntitlementContextKeys.Entitlement.planPro.key) === true) {
@@ -389,6 +396,7 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 	//#region --- Sentiment
 
 	readonly onDidChangeSentiment: Event<void>;
+	readonly sentimentObs: IObservable<IChatSentiment>;
 
 	get sentiment(): IChatSentiment {
 		return {
@@ -408,6 +416,8 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 
 	private readonly _onDidChangeAnonymous = this._register(new Emitter<void>());
 	readonly onDidChangeAnonymous = this._onDidChangeAnonymous.event;
+
+	readonly anonymousObs = observableFromEvent(this.onDidChangeAnonymous, () => this.anonymous);
 
 	get anonymous(): boolean {
 		if (this.configurationService.getValue(ChatEntitlementService.CHAT_ALLOW_ANONYMOUS_CONFIGURATION_KEY) !== true) {

@@ -738,6 +738,9 @@ export function registerChatActions() {
 
 							for (const provider of providers) {
 								const sessions = await chatSessionsService.provideChatSessionItems(provider.type, cancellationToken.token);
+								if (!sessions?.length) {
+									continue;
+								}
 								providerNSessions.push(...sessions.map(session => ({ providerType: provider.type, session })));
 							}
 

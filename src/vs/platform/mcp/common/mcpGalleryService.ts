@@ -411,7 +411,7 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 	}
 
 	private async queryRawGalleryMcpServers(query: Query, mcpGalleryManifest: IMcpGalleryManifest, token: CancellationToken): Promise<IRawGalleryServersResult> {
-		const mcpGalleryUrl = this.getMcpGalleryUrl(mcpGalleryManifest);
+		const mcpGalleryUrl = query.searchText ? this.getSearchUrl(mcpGalleryManifest) : this.getMcpGalleryUrl(mcpGalleryManifest);
 		if (!mcpGalleryUrl) {
 			return { servers: [] };
 		}
@@ -433,7 +433,7 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 		}
 		if (query.searchText) {
 			const text = encodeURIComponent(query.searchText);
-			url += `&search=${text}`;
+			url += `&q=${text}`;
 		}
 
 		const context = await this.requestService.request({
@@ -577,6 +577,10 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 			return undefined;
 		}
 		return format2(namedResourceUriTemplate, { name });
+	}
+
+	private getSearchUrl(mcpGalleryManifest: IMcpGalleryManifest): string | undefined {
+		return getMcpGalleryManifestResourceUri(mcpGalleryManifest, McpGalleryResourceType.McpServersSearchService);
 	}
 
 	private getWebUrl(name: string, mcpGalleryManifest: IMcpGalleryManifest): string | undefined {

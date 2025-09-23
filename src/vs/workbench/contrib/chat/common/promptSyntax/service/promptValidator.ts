@@ -17,13 +17,14 @@ import { ChatModeKind } from '../../constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../languageModels.js';
 import { ILanguageModelToolsService } from '../../languageModelToolsService.js';
 import { getPromptsTypeForLanguageId, PromptsType } from '../promptTypes.js';
-import { IHeaderAttribute, ParsedPromptFile } from './newPromptsParser.js';
+import { IArrayValue, IHeaderAttribute, ParsedPromptFile } from './newPromptsParser.js';
 import { PromptsConfig } from '../config/config.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Delayer } from '../../../../../../base/common/async.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IPromptsService } from './promptsService.js';
+import { ILabelService } from '../../../../../../platform/label/common/label.js';
 
 const MARKERS_OWNER_ID = 'prompts-diagnostics-provider';
 
@@ -33,6 +34,7 @@ export class PromptValidator {
 		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
 		@IChatModeService private readonly chatModeService: IChatModeService,
 		@IFileService private readonly fileService: IFileService,
+		@ILabelService private readonly labelService: ILabelService
 	) { }
 
 	public async validate(promptAST: ParsedPromptFile, promptType: PromptsType, report: (markers: IMarkerData) => void): Promise<void> {
@@ -58,12 +60,13 @@ export class PromptValidator {
 			fileReferenceChecks.push((async () => {
 				try {
 					const exists = await this.fileService.exists(resolved);
-					if (!exists) {
-						report(toMarker(localize('promptValidator.fileNotFound', "File '{0}' not found.", ref.content), ref.range, MarkerSeverity.Warning));
+					if (exists) {
+						return;
 					}
 				} catch {
-					report(toMarker(localize('promptValidator.fileNotFound', "File '{0}' not found.", ref.content), ref.range, MarkerSeverity.Warning));
 				}
+				const loc = this.labelService.getUriLabel(resolved);
+				report(toMarker(localize('promptValidator.fileNotFound', "File '{0}' not found at '{1}'.", ref.content, loc), ref.range, MarkerSeverity.Warning));
 			})());
 		}
 
@@ -85,19 +88,20 @@ export class PromptValidator {
 		if (!header) {
 			return;
 		}
-		const validAttributeNames = getValidAttributeNames(promptType);
+		const validAttributeNames = getValidAttributeNames(promptType, true);
 		const attributes = header.attributes;
 		for (const attribute of attributes) {
 			if (!validAttributeNames.includes(attribute.key)) {
+				const supportedNames = getValidAttributeNames(promptType, false).join(', ');
 				switch (promptType) {
 					case PromptsType.prompt:
-						report(toMarker(localize('promptValidator.unknownAttribute.prompt', "Attribute '{0}' is not supported in prompt files. Supported: {1}", attribute.key, validAttributeNames.join(', ')), attribute.range, MarkerSeverity.Warning));
+						report(toMarker(localize('promptValidator.unknownAttribute.prompt', "Attribute '{0}' is not supported in prompt files. Supported: {1}.", attribute.key, supportedNames), attribute.range, MarkerSeverity.Warning));
 						break;
 					case PromptsType.mode:
-						report(toMarker(localize('promptValidator.unknownAttribute.mode', "Attribute '{0}' is not supported in mode files. Supported: {1}", attribute.key, validAttributeNames.join(', ')), attribute.range, MarkerSeverity.Warning));
+						report(toMarker(localize('promptValidator.unknownAttribute.mode', "Attribute '{0}' is not supported in mode files. Supported: {1}.", attribute.key, supportedNames), attribute.range, MarkerSeverity.Warning));
 						break;
 					case PromptsType.instructions:
-						report(toMarker(localize('promptValidator.unknownAttribute.instructions', "Attribute '{0}' is not supported in instructions files. Supported: {1}", attribute.key, validAttributeNames.join(', ')), attribute.range, MarkerSeverity.Warning));
+						report(toMarker(localize('promptValidator.unknownAttribute.instructions', "Attribute '{0}' is not supported in instructions files. Supported: {1}.", attribute.key, supportedNames), attribute.range, MarkerSeverity.Warning));
 						break;
 				}
 			}
@@ -112,6 +116,7 @@ export class PromptValidator {
 			}
 			case PromptsType.instructions:
 				this.validateApplyTo(attributes, report);
+				this.validateExcludeMode(attributes, report);
 				break;
 
 			case PromptsType.mode:
@@ -215,16 +220,24 @@ export class PromptValidator {
 		}
 		if (modeKind !== ChatModeKind.Agent) {
 			report(toMarker(localize('promptValidator.toolsOnlyInAgent', "The 'tools' attribute is only supported in agent mode. Attribute will be ignored."), attribute.range, MarkerSeverity.Warning));
-
-		}
-		if (attribute.value.type !== 'array') {
-			report(toMarker(localize('promptValidator.toolsMustBeArray', "The 'tools' attribute must be an array."), attribute.value.range, MarkerSeverity.Error));
-			return;
 		}
 
-		if (attribute.value.items.length > 0) {
+		switch (attribute.value.type) {
+			case 'array':
+				this.validateToolsArray(attribute.value, report);
+				break;
+			case 'object':
+				//this.validateToolsObject(attribute.value, report);
+				break;
+			default:
+				report(toMarker(localize('promptValidator.toolsMustBeArrayOrMap', "The 'tools' attribute must be an array."), attribute.value.range, MarkerSeverity.Error));
+		}
+	}
+
+	private validateToolsArray(valueItem: IArrayValue, report: (markers: IMarkerData) => void) {
+		if (valueItem.items.length > 0) {
 			const available = this.getAvailableToolAndToolSetNames();
-			for (const item of attribute.value.items) {
+			for (const item of valueItem.items) {
 				if (item.type !== 'string') {
 					report(toMarker(localize('promptValidator.eachToolMustBeString', "Each tool name in the 'tools' attribute must be a string."), item.range, MarkerSeverity.Error));
 				} else if (item.value && !available.has(item.value)) {
@@ -277,17 +290,36 @@ export class PromptValidator {
 			report(toMarker(localize('promptValidator.applyToMustBeValidGlob', "The 'applyTo' attribute must be a valid glob pattern."), attribute.value.range, MarkerSeverity.Error));
 		}
 	}
+
+	private validateExcludeMode(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): undefined {
+		const attribute = attributes.find(attr => attr.key === 'excludeMode');
+		if (!attribute) {
+			return;
+		}
+		if (attribute.value.type !== 'array') {
+			report(toMarker(localize('promptValidator.excludeModeMustBeArray', "The 'excludeMode' attribute must be an array."), attribute.value.range, MarkerSeverity.Error));
+			return;
+		}
+	}
 }
 
-function getValidAttributeNames(promptType: PromptsType): string[] {
-	switch (promptType) {
-		case PromptsType.prompt:
-			return ['description', 'model', 'tools', 'mode'];
-		case PromptsType.instructions:
-			return ['description', 'applyTo'];
-		case PromptsType.mode:
-			return ['description', 'model', 'tools'];
-	}
+const validAttributeNames = {
+	[PromptsType.prompt]: ['description', 'model', 'tools', 'mode'],
+	[PromptsType.instructions]: ['description', 'applyTo', 'excludeMode'],
+	[PromptsType.mode]: ['description', 'model', 'tools', 'advancedOptions']
+};
+const validAttributeNamesNoExperimental = {
+	[PromptsType.prompt]: validAttributeNames[PromptsType.prompt].filter(name => !isExperimentalAttribute(name)),
+	[PromptsType.instructions]: validAttributeNames[PromptsType.instructions].filter(name => !isExperimentalAttribute(name)),
+	[PromptsType.mode]: validAttributeNames[PromptsType.mode].filter(name => !isExperimentalAttribute(name))
+};
+
+export function getValidAttributeNames(promptType: PromptsType, includeExperimental: boolean): string[] {
+	return includeExperimental ? validAttributeNames[promptType] : validAttributeNamesNoExperimental[promptType];
+}
+
+export function isExperimentalAttribute(attributeName: string): boolean {
+	return attributeName === 'advancedOptions' || attributeName === 'excludeMode';
 }
 
 function toMarker(message: string, range: Range, severity = MarkerSeverity.Error): IMarkerData {
