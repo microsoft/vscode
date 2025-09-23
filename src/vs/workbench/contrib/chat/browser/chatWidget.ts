@@ -1372,8 +1372,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			// Get all available prompt files with their metadata
 			const promptCommands = await this.promptsService.findPromptSlashCommands();
 
-			let cacheUpdated = false;
-			// Load descriptions only for the specified prompts
 			for (const promptCommand of promptCommands) {
 				if (promptNames.includes(promptCommand.command)) {
 					try {
@@ -1385,11 +1383,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 							const description = parseResult.header?.description;
 							if (description) {
 								this.promptDescriptionsCache.set(promptCommand.command, description);
-								cacheUpdated = true;
 							} else {
 								// Set empty string to indicate we've checked this prompt
 								this.promptDescriptionsCache.set(promptCommand.command, '');
-								cacheUpdated = true;
 							}
 						}
 					} catch (error) {
@@ -1397,14 +1393,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 						this.logService.warn('Failed to parse prompt file for description:', promptCommand.command, error);
 						// Set empty string to indicate we've checked this prompt
 						this.promptDescriptionsCache.set(promptCommand.command, '');
-						cacheUpdated = true;
 					}
 				}
-			}
-
-			// Fire event to trigger a re-render of the welcome view only if cache was updated
-			if (cacheUpdated) {
-				this._welcomeRenderScheduler.schedule();
 			}
 		} catch (error) {
 			this.logService.warn('Failed to load specific prompt descriptions:', error);
