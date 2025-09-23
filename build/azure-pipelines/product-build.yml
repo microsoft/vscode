@@ -639,7 +639,7 @@ extends:
                         targetPath: $(Build.ArtifactStagingDirectory)/vscode_cli_win32_x64_cli.zip
                         artifactName: vscode_cli_win32_x64_cli
                         displayName: Publish signed artifact with ID vscode_cli_win32_x64_cli
-                        sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/sign/unsigned_vscode_cli_win32_x64_cli
+                        sbomBuildDropPath: $(Build.BinariesDirectory)/sign/unsigned_vscode_cli_win32_x64_cli
                         sbomPackageName: "VS Code Windows x64 CLI"
                         sbomPackageVersion: $(Build.SourceVersion)
                     - ${{ if eq(parameters.VSCODE_BUILD_WIN32_ARM64, true) }}:
@@ -647,7 +647,7 @@ extends:
                         targetPath: $(Build.ArtifactStagingDirectory)/vscode_cli_win32_arm64_cli.zip
                         artifactName: vscode_cli_win32_arm64_cli
                         displayName: Publish signed artifact with ID vscode_cli_win32_arm64_cli
-                        sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/sign/unsigned_vscode_cli_win32_arm64_cli
+                        sbomBuildDropPath: $(Build.BinariesDirectory)/sign/unsigned_vscode_cli_win32_arm64_cli
                         sbomPackageName: "VS Code Windows arm64 CLI"
                         sbomPackageVersion: $(Build.SourceVersion)
                 steps:
