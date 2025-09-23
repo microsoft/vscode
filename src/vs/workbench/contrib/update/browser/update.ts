@@ -315,7 +315,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 
 	// Erdos update available notification
 	private onUpdateAvailable(update: IUpdate): void {
-		if (!this.shouldShowNotification()) {
+		if (!this.shouldShowNotification(update.productVersion ?? update.version)) {
 			return;
 		}
 
@@ -346,12 +346,12 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			return;
 		}
 
-		if (!this.shouldShowNotification()) {
+		const productVersion = update.productVersion;
+		if (!productVersion) {
 			return;
 		}
 
-		const productVersion = update.productVersion;
-		if (!productVersion) {
+		if (!this.shouldShowNotification(productVersion)) {
 			return;
 		}
 
@@ -359,11 +359,8 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			severity.Info,
 			nls.localize('updateAvailable', "There's an update available: {0} {1}", this.productService.nameLong, productVersion),
 			[{
-				label: nls.localize('installUpdate', "Install Update"),
+				label: nls.localize('installUpdateNextRestart', "Install on next restart"),
 				run: () => this.updateService.applyUpdate()
-			}, {
-				label: nls.localize('later', "Later"),
-				run: () => { }
 			}, {
 				label: nls.localize('releaseNotes', "Release Notes"),
 				run: () => {
@@ -376,12 +373,11 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 
 	// windows and mac
 	private async onUpdateReady(update: IUpdate): Promise<void> {
+		const productVersion = update.productVersion ?? update.version;
 		const bypassThrottle = isMacintosh || (isWindows && this.productService.target !== 'user');
-		if (!bypassThrottle && !this.shouldShowNotification()) {
+		if (!bypassThrottle && !this.shouldShowNotification(productVersion)) {
 			return;
 		}
-
-		const productVersion = update.productVersion ?? update.version;
 		const restartLabel = isMacintosh ? nls.localize('restartNow', "Restart Now") : nls.localize('updateNow', "Update Now");
 		const message = isMacintosh
 			? (productVersion
@@ -409,20 +405,32 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 		});
 	}
 
-	private shouldShowNotification(): boolean {
-		const currentVersion = this.productService.commit;
+	private shouldShowNotification(updateVersion?: string): boolean {
 		const currentMillis = new Date().getTime();
-		const lastKnownVersion = this.storageService.get('update/lastKnownVersion', StorageScope.APPLICATION);
 
-		// if version != stored version, save version and date
-		if (currentVersion !== lastKnownVersion) {
-			this.storageService.store('update/lastKnownVersion', currentVersion, StorageScope.APPLICATION, StorageTarget.MACHINE);
-			this.storageService.store('update/updateNotificationTime', currentMillis, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		if (updateVersion) {
+			const lastUpdateVersion = this.storageService.get('update/lastNotifiedUpdateVersion', StorageScope.APPLICATION, '');
+			if (lastUpdateVersion !== updateVersion) {
+				this.storageService.store('update/lastNotifiedUpdateVersion', updateVersion, StorageScope.APPLICATION, StorageTarget.MACHINE);
+				this.storageService.store('update/updateNotificationTime', currentMillis, StorageScope.APPLICATION, StorageTarget.MACHINE);
+				return true;
+			}
 		}
 
-		const updateNotificationMillis = this.storageService.getNumber('update/updateNotificationTime', StorageScope.APPLICATION, currentMillis);
-		const diffDays = (currentMillis - updateNotificationMillis) / (1000 * 60 * 60 * 24);
+		const currentCommit = this.productService.commit;
+		const lastKnownVersion = this.storageService.get('update/lastKnownVersion', StorageScope.APPLICATION);
+		if (currentCommit !== lastKnownVersion) {
+			this.storageService.store('update/lastKnownVersion', currentCommit, StorageScope.APPLICATION, StorageTarget.MACHINE);
+			this.storageService.store('update/updateNotificationTime', currentMillis, StorageScope.APPLICATION, StorageTarget.MACHINE);
+			return true;
+		}
 
+		const updateNotificationMillis = this.storageService.getNumber('update/updateNotificationTime', StorageScope.APPLICATION, 0);
+		if (updateNotificationMillis === 0) {
+			return true;
+		}
+
+		const diffDays = (currentMillis - updateNotificationMillis) / (1000 * 60 * 60 * 24);
 		return diffDays > 5;
 	}
 
