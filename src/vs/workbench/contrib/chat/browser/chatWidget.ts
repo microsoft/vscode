@@ -1365,9 +1365,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					}
 				}
 			}
-
-			// Trigger a re-render of the welcome view to show the loaded descriptions
-			this.renderWelcomeViewContentIfNeeded();
 		} catch (error) {
 			this.logService.warn('Failed to load specific prompt descriptions:', error);
 		}
