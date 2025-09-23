@@ -363,7 +363,7 @@ extends:
                       sbomEnabled: false
                       isProduction: false
                     - output: pipelineArtifact
-                      targetPath: .build\crashes
+                      targetPath: .build/crashes
                       artifactName: crash-dump-windows-$(VSCODE_ARCH)-electron-$(System.JobAttempt)
                       displayName: Publish Crash Reports
                       sbomEnabled: false
@@ -377,7 +377,7 @@ extends:
                       isProduction: false
                       condition: failed()
                     - output: pipelineArtifact
-                      targetPath: .build\logs
+                      targetPath: .build/logs
                       artifactName: logs-windows-$(VSCODE_ARCH)-electron-$(System.JobAttempt)
                       displayName: Publish Log Files
                       sbomEnabled: false
@@ -405,7 +405,7 @@ extends:
                       sbomEnabled: false
                       isProduction: false
                     - output: pipelineArtifact
-                      targetPath: .build\crashes
+                      targetPath: .build/crashes
                       artifactName: crash-dump-windows-$(VSCODE_ARCH)-browser-$(System.JobAttempt)
                       displayName: Publish Crash Reports
                       sbomEnabled: false
@@ -419,7 +419,7 @@ extends:
                       isProduction: false
                       condition: failed()
                     - output: pipelineArtifact
-                      targetPath: .build\logs
+                      targetPath: .build/logs
                       artifactName: logs-windows-$(VSCODE_ARCH)-browser-$(System.JobAttempt)
                       displayName: Publish Log Files
                       sbomEnabled: false
@@ -447,7 +447,7 @@ extends:
                       sbomEnabled: false
                       isProduction: false
                     - output: pipelineArtifact
-                      targetPath: .build\crashes
+                      targetPath: .build/crashes
                       artifactName: crash-dump-windows-$(VSCODE_ARCH)-remote-$(System.JobAttempt)
                       displayName: Publish Crash Reports
                       sbomEnabled: false
@@ -461,7 +461,7 @@ extends:
                       isProduction: false
                       condition: failed()
                     - output: pipelineArtifact
-                      targetPath: .build\logs
+                      targetPath: .build/logs
                       artifactName: logs-windows-$(VSCODE_ARCH)-remote-$(System.JobAttempt)
                       displayName: Publish Log Files
                       sbomEnabled: false
@@ -491,7 +491,7 @@ extends:
                       sbomEnabled: false
                       isProduction: false
                     - output: pipelineArtifact
-                      targetPath: .build\crashes
+                      targetPath: .build/crashes
                       artifactName: crash-dump-windows-$(VSCODE_ARCH)-$(System.JobAttempt)
                       displayName: Publish Crash Reports
                       sbomEnabled: false
@@ -505,7 +505,7 @@ extends:
                       isProduction: false
                       condition: failed()
                     - output: pipelineArtifact
-                      targetPath: .build\logs
+                      targetPath: .build/logs
                       artifactName: logs-windows-$(VSCODE_ARCH)-$(System.JobAttempt)
                       displayName: Publish Log Files
                       sbomEnabled: false
