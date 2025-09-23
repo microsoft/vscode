@@ -145,25 +145,31 @@ append_dir LOCPATH "$SNAP/usr/lib/locale"
 # https://forum.snapcraft.io/t/wayland-dconf-and-xdg-runtime-dir/186/10
 # Applications that don't support wayland natively may define DISABLE_WAYLAND
 # (to any non-empty value) to skip that logic entirely.
+# If detect wayland server socket, then set environment so applications prefer
+# wayland, and setup compat symlink ...
 wayland_available=false
 if [[ -n "$XDG_RUNTIME_DIR" && -z "$DISABLE_WAYLAND" ]]; then
     wdisplay="wayland-0"
     if [ -n "$WAYLAND_DISPLAY" ]; then
         wdisplay="$WAYLAND_DISPLAY"
     fi
-    wayland_sockpath="$XDG_RUNTIME_DIR/../$wdisplay"
+
+    wayland_sockpath_parent="$XDG_RUNTIME_DIR/../$wdisplay"
+    wayland_sockpath_runtime="$XDG_RUNTIME_DIR/$wdisplay"
     wayland_snappath="$XDG_RUNTIME_DIR/$wdisplay"
-    if [ -S "$wayland_sockpath" ]; then
+
+    if [ -S "$wayland_sockpath_parent" ] || [ -S "$wayland_sockpath_runtime" ]; then
         # if running under wayland, use it
-        #export WAYLAND_DEBUG=1
-        # shellcheck disable=SC2034
         wayland_available=true
-        # create the compat symlink for now
-        if [ ! -e "$wayland_snappath" ]; then
-            ln -s "$wayland_sockpath" "$wayland_snappath"
+
+        # create the compat symlink only if parent path is used
+        if [ -S "$wayland_sockpath_parent" ] && [ ! -e "$wayland_snappath" ]; then
+            ln -s "$wayland_sockpath_parent" "$wayland_snappath"
         fi
     fi
 fi
+
+
 
 # Keep an array of data dirs, for looping through them
 IFS=':' read -r -a data_dirs_array <<< "$XDG_DATA_DIRS"
