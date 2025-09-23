@@ -341,6 +341,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const templateDisposables = new DisposableStore();
 		const disabledOverlay = dom.append(container, $('.chat-row-disabled-overlay'));
 		const rowContainer = dom.append(container, $('.interactive-item-container'));
+		rowContainer.setAttribute('role', 'heading');
+		rowContainer.setAttribute('aria-level', '2');
 		if (this.rendererOptions.renderStyle === 'compact') {
 			rowContainer.classList.add('interactive-item-compact');
 		}
