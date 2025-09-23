@@ -632,6 +632,7 @@ extends:
               - job: WindowsCLISign
                 timeoutInMinutes: 90
                 templateContext:
+                  outputParentDirectory: $(Build.ArtifactStagingDirectory)
                   outputs:
                     - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
                       - output: pipelineArtifact
