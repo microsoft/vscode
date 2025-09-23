@@ -30,7 +30,6 @@
 		align-items: center;
 		justify-content: center;
 		overflow: hidden;
-		/* Enable container queries so we can adapt styles based on the chat panel width */
 		container-type: inline-size;
 		container-name: chat-welcome;
 
