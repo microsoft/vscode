@@ -25,6 +25,11 @@
 		color: var(--vscode-button-foreground);
 	}
 
+	.action-item > .action-label.codicon:not(.separator) {
+		padding-top: 6px;
+		padding-bottom: 6px;
+	}
+
 	.action-item:first-child > .action-label {
 		padding-left: 7px;
 	}
