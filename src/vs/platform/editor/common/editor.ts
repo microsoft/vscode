@@ -320,6 +320,8 @@ export interface IEditorOptions {
 		 */
 		alwaysOnTop?: boolean;
 	};
+
+	metadata?: Record<string, any>;
 }
 
 export interface ITextEditorSelection {

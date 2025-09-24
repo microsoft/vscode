@@ -238,7 +238,8 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 	private _registerMenuItems(contribution: IChatSessionsExtensionPoint): IDisposable {
-		return MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
+		const disposables = new DisposableStore();
+		disposables.add(MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 			command: {
 				id: `workbench.action.chat.openNewSessionEditor.${contribution.type}`,
 				title: localize('interactiveSession.openNewSessionEditor', "New {0} Chat Editor", contribution.displayName),
@@ -249,11 +250,23 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			when: ContextKeyExpr.and(
 				ContextKeyExpr.equals('view', `${VIEWLET_ID}.${contribution.type}`)
 			),
-		});
+		}));
+		disposables.add(MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
+			command: {
+				id: `workbench.action.chat.openNewSessionEditorWithDropdown.${contribution.type}`,
+				title: localize('interactiveSession.openNewSessionEditorWithDropdown', "New {0} Chat Editor", contribution.displayName),
+				icon: Codicon.plus,
+			},
+			group: 'navigation',
+			order: 1,
+			when: ChatContextKeys.enabled
+		}));
+		return disposables;
 	}
 
 	private _registerCommands(contribution: IChatSessionsExtensionPoint): IDisposable {
-		return registerAction2(class OpenNewChatSessionEditorAction extends Action2 {
+		const disposables = new DisposableStore();
+		disposables.add(registerAction2(class OpenNewChatSessionEditorAction extends Action2 {
 			constructor() {
 				super({
 					id: `workbench.action.chat.openNewSessionEditor.${contribution.type}`,
@@ -265,7 +278,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				});
 			}
 
-			async run(accessor: ServicesAccessor) {
+			async run(accessor: ServicesAccessor, args?: { workingDirectory?: string }) {
 				const editorService = accessor.get(IEditorService);
 				const logService = accessor.get(ILogService);
 
@@ -284,7 +297,38 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 					logService.error(`Failed to open new '${type}' chat session editor`, e);
 				}
 			}
-		});
+		}));
+
+		disposables.add(registerAction2(class OpenNewChatSessionEditorWithMetadata extends Action2 {
+			constructor() {
+				super({
+					id: `workbench.action.chat.openNewSessionEditorWithMetadata`,
+					title: localize2('interactiveSession.openNewSessionEditorWithMetadata', "New Chat Editor with Metadata..."),
+					category: CHAT_CATEGORY,
+					f1: false,
+				});
+			}
+
+			async run(accessor: ServicesAccessor, chatSessionType: string, metadata: Record<string, any>) {
+				const editorService = accessor.get(IEditorService);
+				const logService = accessor.get(ILogService);
+
+				try {
+					const options: IChatEditorOptions = {
+						override: ChatEditorInput.EditorID,
+						pinned: true,
+						metadata
+					};
+					await editorService.openEditor({
+						resource: ChatEditorInput.getNewEditorUri().with({ query: `chatSessionType=${chatSessionType}` }),
+						options,
+					});
+				} catch (e) {
+					logService.error('Failed to open new chat session editor with metadata', e);
+				}
+			}
+		}));
+		return disposables;
 	}
 
 	private _evaluateAvailability(): void {
@@ -501,7 +545,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		request: IChatAgentRequest;
 		prompt?: string;
 		history?: any[];
-		metadata?: any;
+		metadata?: Record<string, any>;
 	}, token: CancellationToken): Promise<IChatSessionItem> {
 		if (!(await this.canResolveItemProvider(chatSessionType))) {
 			throw Error(`Cannot find provider for ${chatSessionType}`);
@@ -596,6 +640,7 @@ class CodingAgentChatImplementation extends Disposable implements IChatAgentImpl
 		}
 
 		let chatSession: ChatSession | undefined;
+		let metadata: Record<string, any> | undefined;
 
 		// Find the first editor that matches the chat session
 		for (const group of this.editorGroupService.groups) {
@@ -605,13 +650,16 @@ class CodingAgentChatImplementation extends Disposable implements IChatAgentImpl
 
 			for (const editor of group.editors) {
 				if (editor instanceof ChatEditorInput) {
+					if (editor.sessionId === request.sessionId) {
+						metadata = editor.options.metadata;
+					}
 					try {
 						const chatModel = await this.chatService.loadSessionForResource(editor.resource, request.location, CancellationToken.None);
 						if (chatModel?.sessionId === request.sessionId) {
 							// this is the model
 							const identifier = ChatSessionUri.parse(editor.resource);
-
 							if (identifier) {
+								metadata = editor.options.metadata;
 								chatSession = await this.chatSessionService.provideChatSessionContent(this.chatSession.type, identifier.sessionId, token);
 							}
 							break;
@@ -633,6 +681,7 @@ class CodingAgentChatImplementation extends Disposable implements IChatAgentImpl
 						request,
 						prompt: request.message,
 						history,
+						metadata
 					},
 					token,
 				);

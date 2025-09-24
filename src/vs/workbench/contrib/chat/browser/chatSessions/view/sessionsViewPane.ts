@@ -13,8 +13,11 @@ import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
 import { truncate } from '../../../../../../base/common/strings.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import * as nls from '../../../../../../nls.js';
+import { IAction, Action } from '../../../../../../base/common/actions.js';
 import { getActionBarActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { IMenuService, MenuId } from '../../../../../../platform/actions/common/actions.js';
+import { IMenuService, MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
+import { IActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionbar.js';
+import { DropdownWithPrimaryActionViewItem } from '../../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -46,6 +49,7 @@ import { ChatSessionTracker } from '../chatSessionTracker.js';
 import { ChatSessionItemWithProvider, findExistingChatEditorByUri, isLocalChatSessionItem, getSessionItemContextOverlay } from '../common.js';
 import { LocalChatSessionsProvider } from '../localChatSessionsProvider.js';
 import { GettingStartedDelegate, GettingStartedRenderer, IGettingStartedItem, SessionsDataSource, SessionsDelegate, SessionsRenderer } from './sessionsTreeRenderer.js';
+import { IBaseActionViewItemOptions } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 
 // Identity provider for session items
 class SessionsIdentityProvider {
@@ -119,6 +123,67 @@ export class SessionsViewPane extends ViewPane {
 
 	override shouldShowWelcome(): boolean {
 		return this._isEmpty;
+	}
+
+	public override createActionViewItem(action: IAction, options: IBaseActionViewItemOptions): IActionViewItem | undefined {
+		if (action.id.includes('workbench.action.chat.openNewSessionEditorWithDropdown.')) {
+			return this.getChatSessionDropdown(action, options);
+		}
+		return super.createActionViewItem(action, options);
+	}
+
+	private getChatSessionDropdown(defaultAction: IAction, options: IBaseActionViewItemOptions) {
+		const primaryAction = this.instantiationService.createInstance(MenuItemAction, {
+			id: defaultAction.id,
+			title: defaultAction.label,
+			icon: Codicon.plus,
+		}, undefined, undefined, undefined, undefined);
+
+		// TEST
+		// Create menu for this session item to get actions
+		const menu = this.menuService.createMenu(MenuId.ChatSessionsMenu, this.contextKeyService);
+
+		// Get actions and filter for context menu (all actions that are NOT inline)
+		const actions = menu.getActions({ shouldForwardArgs: true });
+		const { primary } = getActionBarActions(
+			actions,
+			'submenu',
+		);
+
+		if (!primary || primary.length === 0) {
+			return;
+		}
+
+		const dropdownAction = new Action(
+			'selectNewChatSessionOption',
+			nls.localize('chatSession.selectOption', 'More...'),
+			'codicon-chevron-down',
+			true
+		);
+
+		const dropdownActions: IAction[] = [];
+
+		primary.forEach(element => {
+			dropdownActions.push(new Action(
+				element.id,
+				element.label,
+				undefined,
+				true,
+				async () => {
+					await this.commandService.executeCommand(element.id);
+				}
+			));
+		});
+
+		// Create the dropdown with primary action view item
+		return this.instantiationService.createInstance(
+			DropdownWithPrimaryActionViewItem,
+			primaryAction,
+			dropdownAction,
+			dropdownActions,
+			'',
+			options
+		);
 	}
 
 	public refreshTree(): void {
