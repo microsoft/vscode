@@ -381,6 +381,9 @@ class FunctionDisposable implements IDisposable {
 		if (this._isDisposed) {
 			return;
 		}
+		if (!this._fn) {
+			throw new Error(`Unbound disposable context: Need to use an arrow function to preserve the value of this`);
+		}
 		this._isDisposed = true;
 		markAsDisposed(this);
 		this._fn();
