@@ -454,6 +454,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				const toolResultMessage = toolSpecificData.autoApproveInfo;
 				return {
 					toolResultMessage: toolResultMessage,
+					toolMetadata: {
+						exitCode: undefined // Background processes don't have immediate exit codes
+					},
 					content: [{
 						kind: 'text',
 						value: resultText,
@@ -600,6 +603,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 			return {
 				toolResultMessage: resolvedToolResultMessage,
+				toolMetadata: {
+					exitCode: exitCode
+				},
 				content: [{
 					kind: 'text',
 					value: resultText.join(''),

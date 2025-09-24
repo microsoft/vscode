@@ -3779,12 +3779,13 @@ export class LanguageModelToolResult {
 }
 
 export class LanguageModelToolResult2 {
-	constructor(public content: (LanguageModelTextPart | LanguageModelPromptTsxPart | LanguageModelDataPart)[]) { }
+	constructor(public content: (LanguageModelTextPart | LanguageModelPromptTsxPart | LanguageModelDataPart)[], public toolMetadata?: any) { }
 
 	toJSON() {
 		return {
 			$mid: MarshalledId.LanguageModelToolResult,
 			content: this.content,
+			toolMetadata: this.toolMetadata,
 		};
 	}
 }

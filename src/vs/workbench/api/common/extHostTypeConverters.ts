@@ -3569,11 +3569,13 @@ export namespace LanguageModelToolResult2 {
 			} else {
 				return new types.LanguageModelPromptTsxPart(item.value);
 			}
-		}));
+		}), result.toolMetadata);
 	}
 
-	export function from(result: vscode.ExtendedLanguageModelToolResult2, extension: IExtensionDescription): Dto<IToolResult> | SerializableObjectWithBuffers<Dto<IToolResult>> {
-		if (result.toolResultMessage) {
+	export function from(result: vscode.LanguageModelToolResult2, extension: IExtensionDescription): Dto<IToolResult> | SerializableObjectWithBuffers<Dto<IToolResult>> {
+		const extendedResult = result as any; // Allow access to extended properties
+
+		if (extendedResult.toolResultMessage) {
 			checkProposedApiEnabled(extension, 'chatParticipantPrivate');
 		}
 
@@ -3585,17 +3587,17 @@ export namespace LanguageModelToolResult2 {
 
 		let hasBuffers = false;
 		let detailsDto: Dto<Array<URI | types.Location> | IToolResultInputOutputDetails | IToolResultOutputDetails | undefined> = undefined;
-		if (Array.isArray(result.toolResultDetails)) {
-			detailsDto = result.toolResultDetails?.map(detail => {
+		if (Array.isArray(extendedResult.toolResultDetails)) {
+			detailsDto = extendedResult.toolResultDetails?.map((detail: any) => {
 				return URI.isUri(detail) ? detail : Location.from(detail as vscode.Location);
 			});
 		} else {
-			if (result.toolResultDetails2) {
+			if (extendedResult.toolResultDetails2) {
 				detailsDto = {
 					output: {
 						type: 'data',
-						mimeType: (result.toolResultDetails2 as vscode.ToolResultDataOutput).mime,
-						value: VSBuffer.wrap((result.toolResultDetails2 as vscode.ToolResultDataOutput).value),
+						mimeType: (extendedResult.toolResultDetails2 as vscode.ToolResultDataOutput).mime,
+						value: VSBuffer.wrap((extendedResult.toolResultDetails2 as vscode.ToolResultDataOutput).value),
 					}
 				} satisfies IToolResultOutputDetails;
 				hasBuffers = true;
@@ -3631,8 +3633,9 @@ export namespace LanguageModelToolResult2 {
 					throw new Error('Unknown LanguageModelToolResult part type');
 				}
 			}),
-			toolResultMessage: MarkdownString.fromStrict(result.toolResultMessage),
+			toolResultMessage: MarkdownString.fromStrict(extendedResult.toolResultMessage),
 			toolResultDetails: detailsDto,
+			toolMetadata: result.toolMetadata,
 		};
 
 		return hasBuffers ? new SerializableObjectWithBuffers(dto) : dto;
