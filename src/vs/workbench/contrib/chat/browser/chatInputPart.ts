@@ -785,8 +785,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const storageKey = this.getDefaultModeExperimentStorageKey();
 			const hasSetDefaultMode = this.storageService.getBoolean(storageKey, StorageScope.WORKSPACE, false);
 			if (!hasSetDefaultMode) {
-				const defaultModeKey = this.entitlementService.entitlement === ChatEntitlement.Free ? 'chat.defaultModeFree' : 'chat.defaultMode';
-				const defaultLanguageModelKey = this.entitlementService.entitlement === ChatEntitlement.Free ? 'chat.defaultLanguageModelFree' : 'chat.defaultLanguageModel';
+				const freeOrAnonymous = this.entitlementService.entitlement === ChatEntitlement.Free || this.entitlementService.anonymous;
+				const defaultModeKey = freeOrAnonymous ? 'chat.defaultModeFree' : 'chat.defaultMode';
+				const defaultLanguageModelKey = freeOrAnonymous ? 'chat.defaultLanguageModelFree' : 'chat.defaultLanguageModel';
 				Promise.all([
 					this.experimentService.getTreatment(defaultModeKey),
 					this.experimentService.getTreatment(defaultLanguageModelKey),
