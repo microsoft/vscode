@@ -578,14 +578,14 @@ export class ChatService extends Disposable implements IChatService {
 		return model;
 	}
 
-	getChatSessionData(modelSessionId: string): { chatSessionType: string; chatSessionId: string; isUntitled: boolean } | undefined {
+	getChatSessionFromInternalId(modelSessionId: string): { chatSessionType: string; chatSessionId: string; isUntitled: boolean } | undefined {
 		const data = this._modelToExternalSession.get(modelSessionId);
 		if (!data) {
 			return;
 		}
 		return {
 			...data,
-			isUntitled: data.chatSessionId.startsWith('untitled-'), // TODO:
+			isUntitled: data.chatSessionId.startsWith('untitled-'), // TODO(jospicer)
 		};
 	}
 

@@ -13,7 +13,7 @@ import { IChatCompleteResponse, IChatDetail, IChatProviderInfo, IChatSendRequest
 import { ChatAgentLocation } from '../../common/constants.js';
 
 export class MockChatService implements IChatService {
-	getChatSessionData(modelSessionId: string): { chatSessionType: string; chatSessionId: string; isUntitled: boolean } | undefined {
+	getChatSessionFromInternalId(modelSessionId: string): { chatSessionType: string; chatSessionId: string; isUntitled: boolean } | undefined {
 		throw new Error('Method not implemented.');
 	}
 	requestInProgressObs = observableValue('name', false);
