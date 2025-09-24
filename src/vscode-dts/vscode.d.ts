@@ -19834,18 +19834,6 @@ declare module 'vscode' {
 		 * @param part A response part, rendered or metadata
 		 */
 		push(part: ChatResponsePart): void;
-		
-		/**
-		 * Push a data part to this stream. Short-hand for 
-		 * `push(new LanguageModelDataPart(data, mimeType))`.
-		 *
-		 * This enables rendering custom content via chat output renderers.
-		 * Requires the `chatParticipantAdditions` proposed API.
-		 *
-		 * @param data The binary data to render
-		 * @param mimeType The MIME type that determines which renderer to use
-		 */
-		data?(data: Uint8Array, mimeType: string): void;
 	}
 
 	/**
