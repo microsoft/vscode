@@ -186,9 +186,7 @@ function getRealColumnNumber(
 	textModel: ITextModel,
 ) {
 	const lineContent = textModel.getLineContent(lineNumber);
-	if (lineContent.startsWith('\t')) {
-		const tabs = textModel.getLineFirstNonWhitespaceColumn(lineNumber) - 1;
-		return Math.max(1, mouseColumn - tabs * (textModel.getOptions().tabSize - 1));
-	}
-	return mouseColumn;
+	let i = 0;
+	while (lineContent[i] === '\t') { i++; }
+	return Math.max(1, mouseColumn - i * (textModel.getOptions().tabSize - 1));
 }
