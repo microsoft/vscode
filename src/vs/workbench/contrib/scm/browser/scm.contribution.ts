@@ -660,7 +660,7 @@ registerAction2(class extends Action2 {
 					ChatContextKeys.Setup.hidden.negate(),
 					ChatContextKeys.Setup.disabled.negate(),
 					ChatContextKeys.Setup.installed.negate(),
-					ContextKeyExpr.greater('mergeConflictsCount', 0)
+					ContextKeyExpr.equals('git.activeResourceHasMergeConflicts', true)
 				)
 			}
 		});
