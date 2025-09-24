@@ -324,6 +324,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	// Cache for prompt file descriptions to avoid async calls during rendering
 	private readonly promptDescriptionsCache = new Map<string, string>();
 
+	// UI state for temporarily hiding chat history
+	private _historyVisible = true;
+
 	private set viewModel(viewModel: ChatViewModel | undefined) {
 		if (this._viewModel === viewModel) {
 			return;
@@ -858,6 +861,21 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._onDidClear.fire();
 	}
 
+	public toggleHistoryVisibility(): void {
+		this._historyVisible = !this._historyVisible;
+		// Find and hide/show the existing history section
+		const historyRoot = this.welcomeMessageContainer.querySelector('.chat-welcome-history-root') as HTMLElement;
+		if (historyRoot) {
+			if (this._historyVisible) {
+				historyRoot.style.removeProperty('display');
+				this.welcomeMessageContainer.classList.add('has-chat-history');
+			} else {
+				historyRoot.style.display = 'none';
+				this.welcomeMessageContainer.classList.remove('has-chat-history');
+			}
+		}
+	}
+
 	private onDidChangeItems(skipDynamicLayout?: boolean) {
 		// Update context key when items change
 		this.updateEmptyStateWithHistoryContext();
@@ -987,13 +1005,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.historyViewStore.clear();
 				dom.clearNode(this.welcomeMessageContainer);
 
-				// Optional: recent chat history above welcome content when enabled
-				const showHistory = this.configurationService.getValue<boolean>(ChatConfiguration.EmptyStateHistoryEnabled);
-				if (showHistory && !this._lockedToCodingAgent) {
-					this.renderWelcomeHistorySection();
-				}
-
-				this.welcomePart.value = this.instantiationService.createInstance(
+			// Optional: recent chat history above welcome content when enabled
+			const showHistory = this.configurationService.getValue<boolean>(ChatConfiguration.EmptyStateHistoryEnabled);
+			if (showHistory && !this._lockedToCodingAgent && this._historyVisible) {
+				this.renderWelcomeHistorySection();
+			}				this.welcomePart.value = this.instantiationService.createInstance(
 					ChatViewWelcomePart,
 					welcomeContent,
 					{
@@ -1002,6 +1018,21 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					}
 				);
 				dom.append(this.welcomeMessageContainer, this.welcomePart.value.element);
+
+			// Add right-click context menu to the entire welcome container
+			this._register(dom.addDisposableListener(this.welcomeMessageContainer, dom.EventType.CONTEXT_MENU, (e) => {
+				e.preventDefault();
+				e.stopPropagation();
+				this.contextMenuService.showContextMenu({
+					menuId: MenuId.ChatWelcomeHistoryContext,
+					menuActionOptions: { shouldForwardArgs: true },
+					contextKeyService: this.contextKeyService.createOverlay([
+						['chatHistoryVisible', this._historyVisible]
+					]),
+					getAnchor: () => ({ x: e.clientX, y: e.clientY }),
+					getActionsContext: () => ({})
+				});
+			}));
 			}
 		}
 
