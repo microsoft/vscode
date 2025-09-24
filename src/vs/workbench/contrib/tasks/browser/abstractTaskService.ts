@@ -204,7 +204,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	private static readonly RecentlyUsedTasks_KeyV2 = 'workbench.tasks.recentlyUsedTasks2';
 	private static readonly PersistentTasks_Key = 'workbench.tasks.persistentTasks';
 	private static readonly IgnoreTask010DonotShowAgain_key = 'workbench.tasks.ignoreTask010Shown';
-	private static readonly LongRunningTaskNotificationThreshold = 200;
+	private static readonly LongRunningTaskNotificationThreshold = 60000; // 1 minute in milliseconds
 
 	public _serviceBrand: undefined;
 	public static OutputChannelId: string = 'tasks';
