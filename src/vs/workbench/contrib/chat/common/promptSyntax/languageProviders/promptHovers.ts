@@ -19,11 +19,11 @@ import { ALL_PROMPTS_LANGUAGE_SELECTOR, getPromptsTypeForLanguageId, PromptsType
 import { IPromptsService } from '../service/promptsService.js';
 import { IHeaderAttribute, PromptBody, PromptHeader } from '../service/newPromptsParser.js';
 
-export class PromptHeaderHoverProvider extends Disposable implements HoverProvider {
+export class PromptHoverProvider extends Disposable implements HoverProvider {
 	/**
 	 * Debug display name for this provider.
 	 */
-	public readonly _debugDisplayName: string = 'PromptHeaderHoverProvider';
+	public readonly _debugDisplayName: string = 'PromptHoverProvider';
 
 	constructor(
 		@IPromptsService private readonly promptsService: IPromptsService,
