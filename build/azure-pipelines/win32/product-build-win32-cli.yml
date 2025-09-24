@@ -49,7 +49,7 @@ jobs:
           tar -xvzf $(Build.ArtifactStagingDirectory)/vscode-internal-openssl-prebuilt-0.0.11.tgz --strip-components=1 --directory=$(Build.ArtifactStagingDirectory)/openssl
         displayName: Extract openssl prebuilt
 
-      - template: ../cli/install-rust-win32.yml@self
+      - template: ./steps/product-build-win32-install-rust.yml@self
         parameters:
           targets:
             - ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
