@@ -3571,15 +3571,8 @@ export namespace LanguageModelToolResult2 {
 			}
 		}));
 
-		// Add extended properties if they exist
 		if (result.toolMetadata) {
 			(toolResult as any).toolMetadata = result.toolMetadata;
-		}
-		if (result.toolResultMessage) {
-			(toolResult as any).toolResultMessage = result.toolResultMessage;
-		}
-		if (result.toolResultDetails) {
-			(toolResult as any).toolResultDetails = result.toolResultDetails;
 		}
 
 		return toolResult;
