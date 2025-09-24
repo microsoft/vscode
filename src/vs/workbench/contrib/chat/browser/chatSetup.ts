@@ -816,7 +816,7 @@ class ChatSetup {
 
 	private getDialogDetail(): string {
 		if (this.chatEntitlementService.anonymous) {
-			return localize('enableMoreAnonymous', "Sign in to access your benefits or create a free account for 50 premium requests each month, with access to more models and AI features.");
+			return localize('enableMoreAnonymous', "Sign in to get access to more AI features like premium models, AI code reviews and remote agents.");
 		}
 
 		return ' '; // workaround allowing us to render the message in large
