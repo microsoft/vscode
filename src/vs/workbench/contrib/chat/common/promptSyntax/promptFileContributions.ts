@@ -13,6 +13,7 @@ import { PromptHeaderAutocompletion } from './languageProviders/promptHeaderAuto
 import { PromptHoverProvider } from './languageProviders/promptHovers.js';
 import { PromptHeaderDefinitionProvider } from './languageProviders/PromptHeaderDefinitionProvider.js';
 import { PromptValidatorContribution } from './service/promptValidator.js';
+import { PromptDocumentSemanticTokensProvider } from './languageProviders/promptDocumentSemanticTokensProvider.js';
 
 
 /**
@@ -29,6 +30,7 @@ export function registerPromptFileContributions(): void {
 	registerContribution(PromptHeaderAutocompletion);
 	registerContribution(PromptHoverProvider);
 	registerContribution(PromptHeaderDefinitionProvider);
+	registerContribution(PromptDocumentSemanticTokensProvider);
 	registerContribution(ConfigMigration);
 }
 
