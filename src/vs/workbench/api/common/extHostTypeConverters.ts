@@ -3572,16 +3572,14 @@ export namespace LanguageModelToolResult2 {
 		}));
 
 		if (result.toolMetadata) {
-			(toolResult as any).toolMetadata = result.toolMetadata;
+			(toolResult as types.LanguageModelToolResult2 & { toolMetadata?: unknown }).toolMetadata = result.toolMetadata;
 		}
 
 		return toolResult;
 	}
 
-	export function from(result: vscode.LanguageModelToolResult2, extension: IExtensionDescription): Dto<IToolResult> | SerializableObjectWithBuffers<Dto<IToolResult>> {
-		const extendedResult = result as any; // Allow access to extended properties
-
-		if (extendedResult.toolResultMessage) {
+	export function from(result: vscode.ExtendedLanguageModelToolResult2, extension: IExtensionDescription): Dto<IToolResult> | SerializableObjectWithBuffers<Dto<IToolResult>> {
+		if (result.toolResultMessage) {
 			checkProposedApiEnabled(extension, 'chatParticipantPrivate');
 		}
 
@@ -3593,17 +3591,17 @@ export namespace LanguageModelToolResult2 {
 
 		let hasBuffers = false;
 		let detailsDto: Dto<Array<URI | types.Location> | IToolResultInputOutputDetails | IToolResultOutputDetails | undefined> = undefined;
-		if (Array.isArray(extendedResult.toolResultDetails)) {
-			detailsDto = extendedResult.toolResultDetails?.map((detail: any) => {
+		if (Array.isArray(result.toolResultDetails)) {
+			detailsDto = result.toolResultDetails?.map((detail) => {
 				return URI.isUri(detail) ? detail : Location.from(detail as vscode.Location);
 			});
 		} else {
-			if (extendedResult.toolResultDetails2) {
+			if (result.toolResultDetails2) {
 				detailsDto = {
 					output: {
 						type: 'data',
-						mimeType: (extendedResult.toolResultDetails2 as vscode.ToolResultDataOutput).mime,
-						value: VSBuffer.wrap((extendedResult.toolResultDetails2 as vscode.ToolResultDataOutput).value),
+						mimeType: (result.toolResultDetails2 as vscode.ToolResultDataOutput).mime,
+						value: VSBuffer.wrap((result.toolResultDetails2 as vscode.ToolResultDataOutput).value),
 					}
 				} satisfies IToolResultOutputDetails;
 				hasBuffers = true;
@@ -3639,9 +3637,9 @@ export namespace LanguageModelToolResult2 {
 					throw new Error('Unknown LanguageModelToolResult part type');
 				}
 			}),
-			toolResultMessage: MarkdownString.fromStrict(extendedResult.toolResultMessage),
+			toolResultMessage: MarkdownString.fromStrict(result.toolResultMessage),
 			toolResultDetails: detailsDto,
-			toolMetadata: (result as any).toolMetadata,
+			toolMetadata: result.toolMetadata,
 		};
 
 		return hasBuffers ? new SerializableObjectWithBuffers(dto) : dto;

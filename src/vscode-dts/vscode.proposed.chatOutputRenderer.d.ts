@@ -27,6 +27,11 @@ declare module 'vscode' {
 		// TODO: Should this live here? Or should we be able to mark each `content` items as user/lm specific?
 		// TODO: Should we allow multiple per tool result?
 		toolResultDetails2?: Array<Uri | Location> | ToolResultDataOutput;
+
+		/**
+		 * Additional metadata associated with the tool result.
+		 */
+		toolMetadata?: unknown;
 	}
 
 	/**
