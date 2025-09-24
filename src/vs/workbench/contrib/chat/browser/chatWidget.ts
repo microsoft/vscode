@@ -1042,6 +1042,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.historyViewStore.clear();
 				dom.clearNode(this.welcomeMessageContainer);
 
+				// Reset history list reference when clearing welcome view
+				this.historyList = undefined;
+
 				// Optional: recent chat history above welcome content when enabled
 				const showHistory = this.configurationService.getValue<boolean>(ChatConfiguration.EmptyStateHistoryEnabled);
 				if (showHistory && !this._lockedToCodingAgent && this._historyVisible) {
@@ -1076,7 +1079,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this.updateChatViewVisibility();
 
-		if (numItems > 0) {
+		if (numItems === 0) {
 			this.refreshHistoryList();
 		}
 	}
@@ -1235,7 +1238,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private async refreshHistoryList(): Promise<void> {
 		const numItems = this.viewModel?.getItems().length ?? 0;
-		if (numItems === 0 || !this.historyList) {
+		// Only refresh history list when in empty state (welcome view) and history list exists
+		if (numItems !== 0 || !this.historyList) {
 			return;
 		}
 		const historyItems = await this.computeHistoryItems();
@@ -2085,6 +2089,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.historyList.setFocus([]);
 			this.historyList.setSelection([]);
 		}
+
+		// Clear history view state when switching sessions to ensure fresh rendering
+		this.historyViewStore.clear();
 
 		this._codeBlockModelCollection.clear();
 
