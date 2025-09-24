@@ -171,15 +171,7 @@ export class SessionsViewPane extends ViewPane {
 		const dropdownActions: IAction[] = [];
 
 		primaryActions.forEach(element => {
-			dropdownActions.push(new Action(
-				element.id,
-				element.label,
-				undefined,
-				true,
-				async () => {
-					await this.commandService.executeCommand(element.id);
-				}
-			));
+			dropdownActions.push(element);
 		});
 
 		return this.instantiationService.createInstance(
