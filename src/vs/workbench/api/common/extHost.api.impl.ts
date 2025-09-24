@@ -1775,7 +1775,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			Uri: URI,
 			ViewColumn: extHostTypes.ViewColumn,
 			WorkspaceEdit: extHostTypes.WorkspaceEdit,
-			// Hello, World!
 			// proposed api types
 			DocumentPasteTriggerKind: extHostTypes.DocumentPasteTriggerKind,
 			DocumentDropEdit: extHostTypes.DocumentDropEdit,
