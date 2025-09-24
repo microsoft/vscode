@@ -142,44 +142,6 @@ steps:
     continueOnError: true
     condition: succeededOrFailed()
 
-  - template: ../common/publish-artifact.yml@self
-    parameters:
-      targetPath: .build\crashes
-      ${{ if eq(parameters.VSCODE_TEST_ARTIFACT_NAME, '') }}:
-        artifactName: crash-dump-windows-$(VSCODE_ARCH)-$(System.JobAttempt)
-      ${{ else }}:
-        artifactName: crash-dump-windows-$(VSCODE_ARCH)-${{ parameters.VSCODE_TEST_ARTIFACT_NAME }}-$(System.JobAttempt)
-      sbomEnabled: false
-      displayName: "Publish Crash Reports"
-      continueOnError: true
-      condition: failed()
-
-  # In order to properly symbolify above crash reports
-  # (if any), we need the compiled native modules too
-  - template: ../common/publish-artifact.yml@self
-    parameters:
-      targetPath: node_modules
-      ${{ if eq(parameters.VSCODE_TEST_ARTIFACT_NAME, '') }}:
-        artifactName: node-modules-windows-$(VSCODE_ARCH)-$(System.JobAttempt)
-      ${{ else }}:
-        artifactName: node-modules-windows-$(VSCODE_ARCH)-${{ parameters.VSCODE_TEST_ARTIFACT_NAME }}-$(System.JobAttempt)
-      sbomEnabled: false
-      displayName: "Publish Node Modules"
-      continueOnError: true
-      condition: failed()
-
-  - template: ../common/publish-artifact.yml@self
-    parameters:
-      targetPath: .build\logs
-      ${{ if eq(parameters.VSCODE_TEST_ARTIFACT_NAME, '') }}:
-        artifactName: logs-windows-$(VSCODE_ARCH)-$(System.JobAttempt)
-      ${{ else }}:
-        artifactName: logs-windows-$(VSCODE_ARCH)-${{ parameters.VSCODE_TEST_ARTIFACT_NAME }}-$(System.JobAttempt)
-      sbomEnabled: false
-      displayName: "Publish Log Files"
-      continueOnError: true
-      condition: succeededOrFailed()
-
   - task: PublishTestResults@2
     displayName: Publish Tests Results
     inputs:

@@ -143,7 +143,6 @@ registerAction2(class AcceptAction extends WorkingSetAction {
 			id: 'chatEditing.acceptFile',
 			title: localize2('accept.file', 'Keep'),
 			icon: Codicon.check,
-			precondition: ChatContextKeys.requestInProgress.negate(),
 			menu: [{
 				when: ContextKeyExpr.and(ContextKeyExpr.equals('resourceScheme', CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME), ContextKeyExpr.notIn(chatEditingResourceContextKey.key, decidedChatEditingResourceContextKey.key)),
 				id: MenuId.MultiDiffEditorFileToolbar,
@@ -169,7 +168,6 @@ registerAction2(class DiscardAction extends WorkingSetAction {
 			id: 'chatEditing.discardFile',
 			title: localize2('discard.file', 'Undo'),
 			icon: Codicon.discard,
-			precondition: ChatContextKeys.requestInProgress.negate(),
 			menu: [{
 				when: ContextKeyExpr.and(ContextKeyExpr.equals('resourceScheme', CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME), ContextKeyExpr.notIn(chatEditingResourceContextKey.key, decidedChatEditingResourceContextKey.key)),
 				id: MenuId.MultiDiffEditorFileToolbar,
@@ -197,10 +195,10 @@ export class ChatEditingAcceptAllAction extends EditingSessionAction {
 			title: localize('accept', 'Keep'),
 			icon: Codicon.check,
 			tooltip: localize('acceptAllEdits', 'Keep All Edits'),
-			precondition: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey),
+			precondition: hasUndecidedChatEditingResourceContextKey,
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyCode.Enter,
-				when: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey, ChatContextKeys.inChatInput),
+				when: ContextKeyExpr.and(hasUndecidedChatEditingResourceContextKey, ChatContextKeys.inChatInput),
 				weight: KeybindingWeight.WorkbenchContrib,
 			},
 			menu: [
@@ -229,7 +227,7 @@ export class ChatEditingDiscardAllAction extends EditingSessionAction {
 			title: localize('discard', 'Undo'),
 			icon: Codicon.discard,
 			tooltip: localize('discardAllEdits', 'Undo All Edits'),
-			precondition: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey),
+			precondition: hasUndecidedChatEditingResourceContextKey,
 			menu: [
 				{
 					id: MenuId.ChatEditingWidgetToolbar,
@@ -239,7 +237,7 @@ export class ChatEditingDiscardAllAction extends EditingSessionAction {
 				}
 			],
 			keybinding: {
-				when: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey, ChatContextKeys.inChatInput, ChatContextKeys.inputHasText.negate()),
+				when: ContextKeyExpr.and(hasUndecidedChatEditingResourceContextKey, ChatContextKeys.inChatInput, ChatContextKeys.inputHasText.negate()),
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyCode.Backspace,
 			},
