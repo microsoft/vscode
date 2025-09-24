@@ -541,7 +541,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		this._onDidChangeChatRequestTools.fire(request.extRequest);
 	}
 
-	async $invokeAgent(handle: number, requestDto: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[] }, token: CancellationToken): Promise<IChatAgentResult | undefined> {
+	async $invokeAgent(handle: number, requestDto: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[]; chatSessionContext?: { chatSessionType: string; chatSessionId: string; isUntitled: boolean } }, token: CancellationToken): Promise<IChatAgentResult | undefined> {
 		const agent = this._agents.get(handle);
 		if (!agent) {
 			throw new Error(`[CHAT](${handle}) CANNOT invoke agent because the agent is not registered`);
@@ -575,9 +575,24 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			inFlightRequest = { requestId: requestDto.requestId, extRequest, extension: agent.extension };
 			this._inFlightRequests.add(inFlightRequest);
 
+
+			// If this request originates from a contributed chat session editor, attempt to resolve the ChatSession API object
+			let chatSessionContext: vscode.ChatSessionContext | undefined;
+			if (context.chatSessionContext) {
+				chatSessionContext = {
+					chatSessionItem: {
+						id: context.chatSessionContext.chatSessionId,
+						label: context.chatSessionContext.isUntitled ? 'Untitled Session' : 'Session',
+					},
+					isUntitled: context.chatSessionContext.isUntitled,
+				};
+			}
+
+			const chatContext: vscode.ChatContext = { history, chatSessionContext }
+
 			const task = agent.invoke(
 				extRequest,
-				{ history },
+				chatContext,
 				stream.apiObject,
 				token
 			);

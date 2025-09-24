@@ -21,6 +21,7 @@ import { ChatEditorInput } from '../browser/chatEditorInput.js';
 import { IChatAgentData, IChatAgentRequest, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { ChatSession, ChatSessionStatus, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionsExtensionPoint, IChatSessionsService } from '../common/chatSessionsService.js';
+import { ChatSessionUri } from '../common/chatUri.js';
 import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { CHAT_CATEGORY } from './actions/chatActions.js';
 import { IChatEditorOptions } from './chatEditor.js';
@@ -268,7 +269,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 						pinned: true,
 					};
 					await editorService.openEditor({
-						resource: ChatEditorInput.getNewEditorUri().with({ query: `chatSessionType=${type}` }),
+						resource: ChatSessionUri.forSession(type, 'untitled-01'),
 						options,
 					});
 				} catch (e) {
@@ -557,3 +558,4 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 }
 
 registerSingleton(IChatSessionsService, ChatSessionsService, InstantiationType.Delayed);
+

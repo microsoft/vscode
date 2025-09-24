@@ -700,9 +700,10 @@ export interface IChatService {
 	loadSessionFromContent(data: IExportableChatData | ISerializableChatData | URI): IChatModel | undefined;
 	loadSessionForResource(resource: URI, location: ChatAgentLocation, token: CancellationToken): Promise<IChatModel | undefined>;
 	readonly editingSessions: IChatEditingSession[];
+	getChatSessionData(modelSessionId: string): { chatSessionType: string; chatSessionId: string; isUntitled: boolean } | undefined;
 
 	/**
-	 * Returns whether the request was accepted.
+	 * Returns whether the request was accepted.`
 	 */
 	sendRequest(sessionId: string, message: string, options?: IChatSendRequestOptions): Promise<IChatSendRequestData | undefined>;
 

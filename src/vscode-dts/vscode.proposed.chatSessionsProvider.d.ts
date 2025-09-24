@@ -34,6 +34,12 @@ declare module 'vscode' {
 		readonly onDidChangeChatSessionItems: Event<void>;
 
 		/**
+		 * Fired when a new chat session item is created from an untitled session
+		 * Clients should replace the 'original' chat session with the 'modified' chat session.
+		 */
+		readonly onDidCreateChatSessionItem: Event<{ original: ChatSessionItem /** untitled */, modified: ChatSessionItem /** newly created */ }>;
+
+		/**
 		 * Creates a new chat session.
 		 *
 		 * @param options Options for the new session including an optional initial prompt and history
@@ -184,7 +190,12 @@ declare module 'vscode' {
 	}
 
 	export interface ChatContext {
-		readonly chatSession?: ChatSession; // TEMP
+		readonly chatSessionContext?: ChatSessionContext;
+	}
+
+	export interface ChatSessionContext {
+		readonly chatSessionItem: ChatSessionItem; // Maps to URI of chat session editor (could be 'untitled-1', etc..)
+		readonly isUntitled: boolean;
 	}
 
 	export interface ChatSessionCapabilities {
