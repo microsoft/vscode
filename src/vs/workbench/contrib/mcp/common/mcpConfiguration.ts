@@ -221,10 +221,10 @@ export const mcpServerSchema: IJSONSchema = {
 
 export const mcpContributionPoint: IExtensionPointDescriptor<IMcpCollectionContribution[]> = {
 	extensionPoint: 'mcpServerDefinitionProviders',
-	activationEventsGenerator(contribs, result) {
+	activationEventsGenerator: function* (contribs) {
 		for (const contrib of contribs) {
 			if (contrib.id) {
-				result.push(mcpActivationEvent(contrib.id));
+				yield mcpActivationEvent(contrib.id);
 			}
 		}
 	},
@@ -243,6 +243,10 @@ export const mcpContributionPoint: IExtensionPointDescriptor<IMcpCollectionContr
 				},
 				label: {
 					description: localize('vscode.extension.contributes.mcp.label', "Display name for the collection."),
+					type: 'string'
+				},
+				when: {
+					description: localize('vscode.extension.contributes.mcp.when', "Condition which must be true to enable this collection."),
 					type: 'string'
 				}
 			}

@@ -223,5 +223,11 @@
 	"chat.promptFilesRecommendations": {
 		"plan-fast": true,
 		"plan-deep": true
-	}
+	},
+	// Needed for kusto tool in data.prompt.md
+	"azureMcp.enabledServices": [
+		"kusto"
+	],
+	"azureMcp.serverMode": "all",
+	"azureMcp.readOnly": true
 }
