@@ -3018,15 +3018,15 @@ export namespace ChatResponseCodeCitationPart {
 }
 
 export namespace ChatResponseDataPart {
-	export function from(part: vscode.ChatResponseDataPart): Dto<IChatDataContent> {
+	export function from(part: vscode.LanguageModelDataPart): Dto<IChatDataContent> {
 		return {
 			kind: 'data',
 			mimeType: part.mimeType,
 			data: VSBuffer.wrap(part.data)
 		};
 	}
-	export function to(part: Dto<IChatDataContent>): vscode.ChatResponseDataPart {
-		return new types.ChatResponseDataPart(part.data.buffer, part.mimeType);
+	export function to(part: Dto<IChatDataContent>): vscode.LanguageModelDataPart {
+		return new types.LanguageModelDataPart(part.data.buffer, part.mimeType);
 	}
 }
 
@@ -3063,7 +3063,7 @@ export namespace ChatResponsePart {
 			return ChatResponseConfirmationPart.from(part);
 		} else if (part instanceof types.ChatResponseCodeCitationPart) {
 			return ChatResponseCodeCitationPart.from(part);
-		} else if (part instanceof types.ChatResponseDataPart) {
+		} else if (part instanceof types.LanguageModelDataPart) {
 			return ChatResponseDataPart.from(part);
 		} else if (part instanceof types.ChatResponseMovePart) {
 			return ChatResponseMovePart.from(part);

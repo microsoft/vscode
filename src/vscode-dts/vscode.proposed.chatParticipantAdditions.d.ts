@@ -159,27 +159,7 @@ declare module 'vscode' {
 		constructor(value: ChatResponseDiffEntry[], title: string);
 	}
 
-	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseNotebookEditPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart | ChatResponseExtensionsPart | ChatResponsePullRequestPart | ChatPrepareToolInvocationPart | ChatToolInvocationPart | ChatResponseMultiDiffPart | ChatResponseThinkingProgressPart | ChatResponseDataPart;
-	
-	export class ChatResponseDataPart {
-		/**
-		 * The binary data to render.
-		 */
-		data: Uint8Array;
-
-		/**
-		 * The MIME type that determines which renderer to use.
-		 */
-		mimeType: string;
-
-		/**
-		 * Create a new ChatResponseDataPart.
-		 * 
-		 * @param data The binary data to render
-		 * @param mimeType The MIME type that determines which renderer to use
-		 */
-		constructor(data: Uint8Array, mimeType: string);
-	}
+	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseNotebookEditPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart | ChatResponseExtensionsPart | ChatResponsePullRequestPart | ChatPrepareToolInvocationPart | ChatToolInvocationPart | ChatResponseMultiDiffPart | ChatResponseThinkingProgressPart;
 	
 	export class ChatResponseWarningPart {
 		value: MarkdownString;

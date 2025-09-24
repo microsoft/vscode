@@ -3219,15 +3219,6 @@ export class ChatResponseWarningPart {
 	}
 }
 
-export class ChatResponseDataPart {
-	data: Uint8Array;
-	mimeType: string;
-	constructor(data: Uint8Array, mimeType: string) {
-		this.data = data;
-		this.mimeType = mimeType;
-	}
-}
-
 export class ChatResponseCommandButtonPart {
 	value: vscode.Command;
 	constructor(value: vscode.Command) {
