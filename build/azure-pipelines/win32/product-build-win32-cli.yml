@@ -18,6 +18,19 @@ jobs:
     pool:
       name: 1es-windows-2022-x64
       os: windows
+    timeoutInMinutes: 30
+    variables:
+      VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
+    templateContext:
+      outputs:
+        - ${{ if not(parameters.VSCODE_CHECK_ONLY) }}:
+          - output: pipelineArtifact
+            targetPath: $(Build.ArtifactStagingDirectory)/unsigned_vscode_cli_win32_$(VSCODE_ARCH)_cli.zip
+            artifactName: unsigned_vscode_cli_win32_$(VSCODE_ARCH)_cli
+            displayName: Publish unsigned_vscode_cli_win32_$(VSCODE_ARCH)_cli artifact
+            sbomEnabled: false
+            isProduction: false
+
     steps:
       - template: ../common/checkout.yml@self
 
@@ -75,20 +88,3 @@ jobs:
               OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm64-windows-static/include
               RUSTFLAGS: "-C target-feature=+crt-static -Clink-args=/guard:cf -Clink-args=/CETCOMPAT:NO"
               CFLAGS: "/guard:cf /Qspectre"
-
-      - ${{ if not(parameters.VSCODE_CHECK_ONLY) }}:
-        - ${{ if eq(parameters.VSCODE_BUILD_WIN32_ARM64, true) }}:
-          - template: ../common/publish-artifact.yml@self
-            parameters:
-              targetPath: $(Build.ArtifactStagingDirectory)/unsigned_vscode_cli_win32_arm64_cli.zip
-              artifactName: unsigned_vscode_cli_win32_arm64_cli
-              displayName: Publish unsigned_vscode_cli_win32_arm64_cli artifact
-              sbomEnabled: false
-
-        - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
-          - template: ../common/publish-artifact.yml@self
-            parameters:
-              targetPath: $(Build.ArtifactStagingDirectory)/unsigned_vscode_cli_win32_x64_cli.zip
-              artifactName: unsigned_vscode_cli_win32_x64_cli
-              displayName: Publish unsigned_vscode_cli_win32_x64_cli artifact
-              sbomEnabled: false
