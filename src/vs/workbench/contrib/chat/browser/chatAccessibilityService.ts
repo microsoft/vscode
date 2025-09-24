@@ -94,7 +94,7 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 		}
 
 
-		const notification = await dom.triggerNotification(localize('chat.responseReceivedNotification', "Chat response received {0}", responseContent), {
+		const notification = await dom.triggerNotification(localize('chat.responseReceivedNotification', "Chat response received: {0}", responseContent), {
 			detail: localize('chat.responseReceivedNotification.detail', "Click to open the chat panel"),
 			sticky: false,
 		});
