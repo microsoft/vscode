@@ -211,9 +211,6 @@
 	],
 
 	// --- Workbench ---
-	"remote.extensionKind": {
-		"msjsdiag.debugger-for-chrome": "workspace"
-	},
 	// "application.experimental.rendererProfiling": true, // https://github.com/microsoft/vscode/issues/265654
 
 	"editor.aiStats.enabled": true, // Team selfhosting on ai stats
@@ -223,5 +220,11 @@
 	"chat.promptFilesRecommendations": {
 		"plan-fast": true,
 		"plan-deep": true
-	}
+	},
+	// Needed for kusto tool in data.prompt.md
+	"azureMcp.enabledServices": [
+		"kusto"
+	],
+	"azureMcp.serverMode": "all",
+	"azureMcp.readOnly": true
 }

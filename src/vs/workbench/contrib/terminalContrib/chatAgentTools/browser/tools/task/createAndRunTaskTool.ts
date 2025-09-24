@@ -135,7 +135,7 @@ export class CreateAndRunTaskTool implements IToolImpl {
 		const details = terminalResults.map(r => `Terminal: ${r.name}\nOutput:\n${r.output}`);
 		const uniqueDetails = Array.from(new Set(details)).join('\n\n');
 		const toolResultDetails = toolResultDetailsFromResponse(terminalResults);
-		const toolResultMessage = toolResultMessageFromResponse(task, result, args.task.label, toolResultDetails, terminalResults, dependencyTasks);
+		const toolResultMessage = toolResultMessageFromResponse(result, args.task.label, toolResultDetails, terminalResults);
 		return {
 			content: [{ kind: 'text', value: uniqueDetails }],
 			toolResultMessage,

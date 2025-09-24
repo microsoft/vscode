@@ -570,6 +570,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 								this.checkModelSupported();
 							}
 						}
+					} else {
+						this.setCurrentLanguageModelToDefault();
 					}
 				});
 			}
@@ -693,7 +695,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const defaultLanguageModelId = this.languageModelsService.getLanguageModelIds().find(id => this.languageModelsService.lookupLanguageModel(id)?.isDefault);
 		const hasUserSelectableLanguageModels = this.languageModelsService.getLanguageModelIds().find(id => {
 			const model = this.languageModelsService.lookupLanguageModel(id);
-			return model?.isUserSelectable && !model.isDefault;
+			return model?.isUserSelectable;
 		});
 		const defaultModel = hasUserSelectableLanguageModels && defaultLanguageModelId ?
 			{ metadata: this.languageModelsService.lookupLanguageModel(defaultLanguageModelId)!, identifier: defaultLanguageModelId } :
@@ -783,12 +785,22 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const storageKey = this.getDefaultModeExperimentStorageKey();
 			const hasSetDefaultMode = this.storageService.getBoolean(storageKey, StorageScope.WORKSPACE, false);
 			if (!hasSetDefaultMode) {
-				const defaultModeKey = this.entitlementService.entitlement === ChatEntitlement.Free ? 'chat.defaultModeFree' : 'chat.defaultMode';
-				const defaultLanguageModelKey = this.entitlementService.entitlement === ChatEntitlement.Free ? 'chat.defaultLanguageModelFree' : 'chat.defaultLanguageModel';
+				const isFree = this.entitlementService.entitlement === ChatEntitlement.Free;
+				const defaultModeKey = isFree ? 'chat.defaultModeFree' : 'chat.defaultMode';
+				const defaultLanguageModelKey = isFree ? 'chat.defaultLanguageModelFree' : 'chat.defaultLanguageModel';
+				const isAnonymous = this.entitlementService.anonymous;
 				Promise.all([
 					this.experimentService.getTreatment(defaultModeKey),
 					this.experimentService.getTreatment(defaultLanguageModelKey),
 				]).then(([defaultModeTreatment, defaultLanguageModelTreatment]) => {
+					if (isAnonymous) {
+						// be deterministic for anonymous users
+						// to support agentic flows with default
+						// model.
+						defaultModeTreatment = ChatModeKind.Agent;
+						defaultLanguageModelTreatment = undefined;
+					}
+
 					if (typeof defaultModeTreatment === 'string') {
 						this.storageService.store(storageKey, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 						const defaultMode = validateChatMode(defaultModeTreatment);
