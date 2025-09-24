@@ -5,6 +5,7 @@
 
 import { IAction } from '../../../../base/common/actions.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
@@ -399,6 +400,12 @@ export interface IChatPullRequestContent {
 	kind: 'pullRequest';
 }
 
+export interface IChatDataContent {
+	data: VSBuffer;
+	mimeType: string;
+	kind: 'data';
+}
+
 export interface IChatTodoListContent {
 	kind: 'todoList';
 	sessionId: string;
@@ -450,6 +457,7 @@ export type IChatProgress =
 	| IChatToolInvocationSerialized
 	| IChatExtensionsContent
 	| IChatPullRequestContent
+	| IChatDataContent
 	| IChatUndoStop
 	| IChatPrepareToolInvocationPart
 	| IChatThinkingPart
