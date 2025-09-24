@@ -469,7 +469,15 @@ function patchWin32DependenciesTask(destinationFolderName) {
 	const cwd = path.join(path.dirname(root), destinationFolderName);
 
 	return async () => {
-		const deps = await glob('**/*.node', { cwd, ignore: 'extensions/node_modules/@parcel/watcher/**' });
+	const deps = (await glob('**/*.node', { cwd, ignore: 'extensions/node_modules/@parcel/watcher/**' }))
+		.filter(dep => {
+			const normalized = dep.replace(/\\/g, '/');
+			if (normalized.includes('/prebuilds/')) {
+				// Only patch Windows-targeted prebuilds; keep others untouched so rcedit does not try loading them.
+				return /\/prebuilds\/win32-/i.test(normalized);
+			}
+			return true;
+		});
 		const packageJson = JSON.parse(await fs.promises.readFile(path.join(cwd, 'resources', 'app', 'package.json'), 'utf8'));
 		const product = JSON.parse(await fs.promises.readFile(path.join(cwd, 'resources', 'app', 'product.json'), 'utf8'));
 		const baseVersion = packageJson.version.replace(/-.*$/, '');
