@@ -351,8 +351,8 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		this._itemProvidersRegistrations.get(handle)?.onDidChangeItems.fire();
 	}
 
-	$onDidCreateChatSessionItem(handle: number, original: string, modified: string): void {
-		this._logService.trace(`$onDidCreateChatSessionItem: handle(${handle}), original(${original}), modified(${modified})`);
+	$onDidCommitChatSessionItem(handle: number, original: string, modified: string): void {
+		this._logService.trace(`$onDidCommitChatSessionItem: handle(${handle}), original(${original}), modified(${modified})`);
 		const chatSessionType = this._itemProvidersRegistrations.get(handle)?.provider.chatSessionType;
 		if (!chatSessionType) {
 			this._logService.error(`No chat session type found for provider handle ${handle}`);
@@ -363,13 +363,21 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		const modifiedResource = ChatSessionUri.forSession(chatSessionType, modified);
 		const originalEditor = this._editorService.editors.find(editor => editor.resource?.toString() === originalResource.toString());
 		if (originalEditor) {
-			this._editorService.replaceEditors([{
-				editor: originalEditor,
-				replacement: {
-					resource: modifiedResource,
-					options: {}
-				},
-			}], originalGroup);
+
+			// Prefetch the chat session content to make the subsequent editor swap quick
+			this._chatSessionsService.provideChatSessionContent(
+				chatSessionType,
+				modified,
+				CancellationToken.None,
+			).then(() => {
+				this._editorService.replaceEditors([{
+					editor: originalEditor,
+					replacement: {
+						resource: modifiedResource,
+						options: {}
+					},
+				}], originalGroup);
+			});
 		} else {
 			this._logService.warn(`Original chat session editor not found for resource ${originalResource.toString()}`);
 			this._editorService.openEditor({ resource: modifiedResource }, originalGroup);
