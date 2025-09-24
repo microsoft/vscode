@@ -80,9 +80,9 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 			required: ['type', 'name', 'displayName', 'description'],
 		}
 	},
-	activationEventsGenerator: (contribs, results) => {
+	activationEventsGenerator: function* (contribs) {
 		for (const contrib of contribs) {
-			results.push(`onChatSession:${contrib.type}`);
+			yield `onChatSession:${contrib.type}`;
 		}
 	}
 });

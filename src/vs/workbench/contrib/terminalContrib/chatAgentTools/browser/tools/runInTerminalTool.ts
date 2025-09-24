@@ -10,14 +10,12 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
-import { MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { createCommandUri, MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { Schemas } from '../../../../../../base/common/network.js';
 import { basename } from '../../../../../../base/common/path.js';
 import { OperatingSystem, OS } from '../../../../../../base/common/platform.js';
 import { count } from '../../../../../../base/common/strings.js';
 import type { SingleOrMany } from '../../../../../../base/common/types.js';
-import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -788,11 +786,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	): MarkdownString | undefined {
 		const formatRuleLinks = (result: SingleOrMany<{ result: ICommandApprovalResult; rule?: IAutoApproveRule; reason: string }>): string => {
 			return asArray(result).map(e => {
-				const settingsUri = URI.from({
-					scheme: Schemas.command,
-					path: openTerminalSettingsLinkCommandId,
-					query: encodeURIComponent(JSON.stringify([e.rule!.sourceTarget])),
-				});
+				const settingsUri = createCommandUri(openTerminalSettingsLinkCommandId, e.rule!.sourceTarget);
 				return `[\`${e.rule!.sourceText}\`](${settingsUri.toString()} "${localize('ruleTooltip', 'View rule in settings')}")`;
 			}).join(', ');
 		};
@@ -806,12 +800,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const config = this._configurationService.inspect<boolean | Record<string, boolean>>(ChatConfiguration.GlobalAutoApprove);
 		const isGlobalAutoApproved = config?.value ?? config.defaultValue;
 		if (isGlobalAutoApproved) {
-			const settingsUri = URI.from({
-				scheme: Schemas.command,
-				path: openTerminalSettingsLinkCommandId,
-				query: encodeURIComponent(JSON.stringify(['global'])),
-			});
-
+			const settingsUri = createCommandUri(openTerminalSettingsLinkCommandId, 'global');
 			return new MarkdownString(`_${localize('autoApprove.global', 'Auto approved by setting {0}', `[\`${ChatConfiguration.GlobalAutoApprove}\`](${settingsUri.toString()} "${localize('ruleTooltip.global', 'View settings')}")`)}_`, mdTrustSettings);
 		}
 
