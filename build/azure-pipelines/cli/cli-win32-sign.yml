@@ -33,15 +33,15 @@ steps:
         displayName: Download artifact
         inputs:
           artifact: ${{ target }}
-          path: $(Build.ArtifactStagingDirectory)/pkg/${{ target }}
+          path: $(Build.BinariesDirectory)/pkg/${{ target }}
 
       - task: ExtractFiles@1
         displayName: Extract artifact
         inputs:
-          archiveFilePatterns: $(Build.ArtifactStagingDirectory)/pkg/${{ target }}/*.zip
-          destinationFolder: $(Build.ArtifactStagingDirectory)/sign/${{ target }}
+          archiveFilePatterns: $(Build.BinariesDirectory)/pkg/${{ target }}/*.zip
+          destinationFolder: $(Build.BinariesDirectory)/sign/${{ target }}
 
-  - powershell: node build\azure-pipelines\common\sign $env:EsrpCliDllPath sign-windows $(Build.ArtifactStagingDirectory)/sign "*.exe"
+  - powershell: node build\azure-pipelines\common\sign $env:EsrpCliDllPath sign-windows $(Build.BinariesDirectory)/sign "*.exe"
     env:
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
     displayName: ✍️ Codesign
@@ -55,16 +55,7 @@ steps:
       - task: ArchiveFiles@2
         displayName: Archive signed files
         inputs:
-          rootFolderOrFile: $(Build.ArtifactStagingDirectory)/sign/${{ target }}
+          rootFolderOrFile: $(Build.BinariesDirectory)/sign/${{ target }}
           includeRootFolder: false
           archiveType: zip
           archiveFile: $(Build.ArtifactStagingDirectory)/$(ASSET_ID).zip
-
-      - task: 1ES.PublishPipelineArtifact@1
-        inputs:
-          targetPath: $(Build.ArtifactStagingDirectory)/$(ASSET_ID).zip
-          artifactName: $(ASSET_ID)
-          sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/sign/${{ target }}
-          sbomPackageName: "VS Code Windows ${{ target }} CLI"
-          sbomPackageVersion: $(Build.SourceVersion)
-        displayName: Publish signed artifact with ID $(ASSET_ID)

@@ -16,7 +16,8 @@
   "enabledApiProposals": [
     "idToken",
     "nativeWindowHandle",
-    "authIssuers"
+    "authIssuers",
+    "authenticationChallenges"
   ],
   "capabilities": {
     "virtualWorkspaces": true,
@@ -34,6 +35,7 @@
         "label": "Microsoft",
         "id": "microsoft",
         "authorizationServerGlobs": [
+          "https://login.microsoftonline.com/*",
           "https://login.microsoftonline.com/*/v2.0"
         ]
       },
@@ -109,10 +111,12 @@
             "default": "msal",
             "enum": [
               "msal",
+              "msal-no-broker",
               "classic"
             ],
             "enumDescriptions": [
               "%microsoft-authentication.implementation.enumDescriptions.msal%",
+              "%microsoft-authentication.implementation.enumDescriptions.msal-no-broker%",
               "%microsoft-authentication.implementation.enumDescriptions.classic%"
             ],
             "markdownDescription": "%microsoft-authentication.implementation.description%",
@@ -143,14 +147,11 @@
   },
   "dependencies": {
     "@azure/ms-rest-azure-env": "^2.0.0",
-    "@azure/msal-node": "^2.16.2",
-    "@azure/msal-node-extensions": "^1.5.0",
+    "@azure/msal-node": "^3.7.3",
+    "@azure/msal-node-extensions": "^1.5.22",
     "@vscode/extension-telemetry": "^0.9.8",
     "keytar": "file:./packageMocks/keytar",
     "vscode-tas-client": "^0.1.84"
-  },
-  "overrides": {
-    "@azure/msal-node-runtime": "^0.18.2"
   },
   "repository": {
     "type": "git",

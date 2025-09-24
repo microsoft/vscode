@@ -254,10 +254,6 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 			for (const remaining of editsSeen) {
 				remaining?.streaming.complete();
 			}
-			if (responseModel.result?.errorDetails && !responseModel.result.errorDetails.responseIsIncomplete) {
-				// Roll back everything
-				session.restoreSnapshot(responseModel.requestId, undefined);
-			}
 
 			editsSeen.length = 0;
 			editedFilesExist.clear();
@@ -434,7 +430,7 @@ class ChatDecorationsProvider extends Disposable implements IDecorationsProvider
 		}
 		const isModified = this._modifiedUris.get().some(e => e.toString() === uri.toString());
 		if (isModified) {
-			const defaultAgentName = this._chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)?.fullName;
+			const defaultAgentName = this._chatAgentService.getDefaultAgent(ChatAgentLocation.Chat)?.fullName;
 			return {
 				weight: 1000,
 				letter: Codicon.diffModified,

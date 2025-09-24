@@ -1232,6 +1232,7 @@ interface IEditorPartConfiguration {
 	tabActionLocation?: 'left' | 'right';
 	tabActionCloseVisibility?: boolean;
 	tabActionUnpinVisibility?: boolean;
+	showTabIndex?: boolean;
 	alwaysShowEditorActions?: boolean;
 	tabSizing?: 'fit' | 'shrink' | 'fixed';
 	tabSizingFixedMinWidth?: number;

@@ -213,6 +213,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				default: true,
 				description: localize('workbench.editor.tabActionUnpinVisibility', "Controls the visibility of the tab unpin action button.")
 			},
+			'workbench.editor.showTabIndex': {
+				'type': 'boolean',
+				'default': false,
+				'markdownDescription': localize({ comment: ['{0}, {1} will be a setting name rendered as a link'], key: 'showTabIndex' }, "When enabled, will show the tab index. This value is ignored when {0} is not set to {1}.", '`#workbench.editor.showTabs#`', '`multiple`')
+			},
 			'workbench.editor.tabSizing': {
 				'type': 'string',
 				'enum': ['fit', 'shrink', 'fixed'],
@@ -547,11 +552,8 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			'workbench.secondarySideBar.defaultVisibility': {
 				'type': 'string',
 				'enum': ['hidden', 'visibleInWorkspace', 'visible', 'maximizedInWorkspace', 'maximized'],
-				'default': 'hidden',
-				'experiment': {
-					mode: 'startup'
-				},
-				'description': localize('secondarySideBarDefaultVisibility', "Controls the default visibility of the secondary side bar in workspaces or empty windows opened for the first time."),
+				'default': 'visibleInWorkspace',
+				'description': localize('secondarySideBarDefaultVisibility', "Controls the default visibility of the secondary side bar in workspaces or empty windows that are opened for the first time."),
 				'enumDescriptions': [
 					localize('workbench.secondarySideBar.defaultVisibility.hidden', "The secondary side bar is hidden by default."),
 					localize('workbench.secondarySideBar.defaultVisibility.visibleInWorkspace', "The secondary side bar is visible by default if a workspace is opened."),

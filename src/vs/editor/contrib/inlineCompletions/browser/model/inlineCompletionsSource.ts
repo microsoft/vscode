@@ -117,7 +117,6 @@ export class InlineCompletionsSource extends Disposable {
 		activeInlineCompletion: InlineSuggestionIdentity | undefined,
 		withDebounce: boolean,
 		userJumpedToActiveCompletion: IObservable<boolean>,
-		providerhasChangedCompletion: boolean,
 		requestInfo: InlineSuggestRequestInfo
 	): Promise<boolean> {
 		const position = this._cursorPosition.get();
@@ -125,7 +124,7 @@ export class InlineCompletionsSource extends Disposable {
 
 		const target = context.selectedSuggestionInfo ? this.suggestWidgetInlineCompletions.get() : this.inlineCompletions.get();
 
-		if (!providerhasChangedCompletion && this._updateOperation.value?.request.satisfies(request)) {
+		if (this._updateOperation.value?.request.satisfies(request)) {
 			return this._updateOperation.value.promise;
 		} else if (target?.request?.satisfies(request)) {
 			return Promise.resolve(true);
@@ -224,6 +223,11 @@ export class InlineCompletionsSource extends Disposable {
 						source: c.source.provider.groupId,
 					}));
 					this._log({ sourceId: 'InlineCompletions.fetch', kind: 'end', requestId, durationMs: (Date.now() - startTime.getTime()), error, result, time: Date.now(), didAllProvidersReturn });
+				}
+
+				const remainingTimeToWait = context.earliestShownDateTime - Date.now();
+				if (remainingTimeToWait > 0) {
+					await wait(remainingTimeToWait, source.token);
 				}
 
 				if (source.token.isCancellationRequested || this._store.isDisposed || this._textModel.getVersionId() !== request.versionId

@@ -18,11 +18,13 @@ export class ChatTodoListWidget extends Disposable {
 	public readonly onDidChangeHeight: Event<void> = this._onDidChangeHeight.event;
 
 	private _isExpanded: boolean = true;
+	private _userManuallyExpanded: boolean = false;
 	private expandoElement!: HTMLElement;
 	private todoListContainer!: HTMLElement;
 	private clearButtonContainer!: HTMLElement;
 	private clearButton!: Button;
 	private _currentSessionId: string | undefined;
+	private _userHasScrolledManually: boolean = false;
 
 	constructor(
 		@IChatTodoListService private readonly chatTodoListService: IChatTodoListService
@@ -44,14 +46,17 @@ export class ChatTodoListWidget extends Disposable {
 		this.expandoElement.setAttribute('role', 'button');
 		this.expandoElement.setAttribute('aria-expanded', 'true');
 		this.expandoElement.setAttribute('tabindex', '0');
+		this.expandoElement.setAttribute('aria-controls', 'todo-list-container');
 
 		// Create title section to group icon and title
 		const titleSection = dom.$('.todo-list-title-section');
 
 		const expandIcon = dom.$('.expand-icon.codicon');
 		expandIcon.classList.add(this._isExpanded ? 'codicon-chevron-down' : 'codicon-chevron-right');
+		expandIcon.setAttribute('aria-hidden', 'true');
 
 		const titleElement = dom.$('.todo-list-title');
+		titleElement.id = 'todo-list-title';
 		titleElement.textContent = localize('chat.todoList.title', 'Todos');
 
 		// Add clear button container to the expand element
@@ -66,6 +71,9 @@ export class ChatTodoListWidget extends Disposable {
 
 		this.todoListContainer = dom.$('.todo-list-container');
 		this.todoListContainer.style.display = this._isExpanded ? 'block' : 'none';
+		this.todoListContainer.id = 'todo-list-container';
+		this.todoListContainer.setAttribute('role', 'list');
+		this.todoListContainer.setAttribute('aria-labelledby', 'todo-list-title');
 
 		container.appendChild(this.expandoElement);
 		container.appendChild(this.todoListContainer);
@@ -79,6 +87,11 @@ export class ChatTodoListWidget extends Disposable {
 				e.preventDefault();
 				this.toggleExpanded();
 			}
+		}));
+
+		this._register(dom.addDisposableListener(this.todoListContainer, 'scroll', () => {
+			this.updateScrollShadow();
+			this._userHasScrolledManually = true;
 		}));
 
 		return container;
@@ -99,9 +112,40 @@ export class ChatTodoListWidget extends Disposable {
 		}));
 	}
 
-	public updateSessionId(sessionId: string | undefined): void {
+	public render(sessionId: string | undefined): void {
+		if (!sessionId) {
+			this.domNode.style.display = 'none';
+			return;
+		}
+
+		if (this._currentSessionId !== sessionId) {
+			this._userHasScrolledManually = false;
+			this._userManuallyExpanded = false;
+		}
+
+		const todoList = this.chatTodoListService.getTodos(sessionId);
+		if (todoList.length > 2) {
+			this.renderTodoList(todoList);
+			this.domNode.style.display = 'block';
+		} else {
+			this.domNode.style.display = 'none';
+			return;
+		}
+
 		this._currentSessionId = sessionId;
 		this.updateTodoDisplay();
+	}
+
+	public clear(sessionId: string | undefined): void {
+		if (!sessionId || this.domNode.style.display === 'none') {
+			return;
+		}
+
+		const currentTodos = this.chatTodoListService.getTodos(sessionId);
+		const todoListCompleted = !currentTodos.some(todo => todo.status !== 'completed');
+		if (todoListCompleted) {
+			this.clearAllTodos();
+		}
 	}
 
 	private updateTodoDisplay(): void {
@@ -111,8 +155,7 @@ export class ChatTodoListWidget extends Disposable {
 			return;
 		}
 
-		const todoListStorage = this.chatTodoListService.getChatTodoListStorage();
-		const todoList = todoListStorage.getTodoList(this._currentSessionId);
+		const todoList = this.chatTodoListService.getTodos(this._currentSessionId);
 
 		if (todoList.length > 0) {
 			this.renderTodoList(todoList);
@@ -129,7 +172,13 @@ export class ChatTodoListWidget extends Disposable {
 
 		const titleElement = this.expandoElement.querySelector('.todo-list-title') as HTMLElement;
 		if (titleElement) {
-			titleElement.textContent = this.getProgressText(todoList);
+			this.updateTitleElement(titleElement, todoList);
+		}
+
+		const allIncomplete = todoList.every(todo => todo.status === 'not-started');
+		if (allIncomplete) {
+			this._userHasScrolledManually = false;
+			this._userManuallyExpanded = false;
 		}
 
 		let lastActiveIndex = -1;
@@ -137,7 +186,9 @@ export class ChatTodoListWidget extends Disposable {
 		let firstPendingAfterCompletedIndex = -1;
 
 		todoList.forEach((todo, index) => {
-			const todoElement = dom.$('.todo-item');
+			const todoElement = dom.$('li.todo-item');
+			todoElement.setAttribute('role', 'listitem');
+			todoElement.setAttribute('tabindex', '0');
 
 			// Add tooltip if description exists
 			if (todo.description && todo.description.trim()) {
@@ -147,14 +198,32 @@ export class ChatTodoListWidget extends Disposable {
 			const statusIcon = dom.$('.todo-status-icon.codicon');
 			statusIcon.classList.add(this.getStatusIconClass(todo.status));
 			statusIcon.style.color = this.getStatusIconColor(todo.status);
-
-			const todoContent = dom.$('.todo-content');
+			// Hide decorative icon from screen readers
+			statusIcon.setAttribute('aria-hidden', 'true');
 
 			const titleElement = dom.$('.todo-title');
 			titleElement.textContent = todo.title;
 
-			todoContent.appendChild(titleElement);
+			// Add hidden status text for screen readers
+			const statusText = this.getStatusText(todo.status);
+			const statusElement = dom.$('.todo-status-text');
+			statusElement.id = `todo-status-${index}`;
+			statusElement.textContent = statusText;
+			statusElement.style.position = 'absolute';
+			statusElement.style.left = '-10000px';
+			statusElement.style.width = '1px';
+			statusElement.style.height = '1px';
+			statusElement.style.overflow = 'hidden';
 
+			const todoContent = dom.$('.todo-content');
+			todoContent.appendChild(titleElement);
+			todoContent.appendChild(statusElement);
+
+			const ariaLabel = todo.description && todo.description.trim()
+				? localize('chat.todoList.itemWithDescription', '{0}, {1}, {2}', todo.title, statusText, todo.description)
+				: localize('chat.todoList.item', '{0}, {1}', todo.title, statusText);
+			todoElement.setAttribute('aria-label', ariaLabel);
+			todoElement.setAttribute('aria-describedby', `todo-status-${index}`);
 			todoElement.appendChild(statusIcon);
 			todoElement.appendChild(todoContent);
 
@@ -172,12 +241,32 @@ export class ChatTodoListWidget extends Disposable {
 			}
 		});
 
+		const hasInProgressTask = todoList.some(todo => todo.status === 'in-progress');
+		const hasCompletedTask = todoList.some(todo => todo.status === 'completed');
+
+		// Only auto-collapse if there are in-progress or completed tasks AND user hasn't manually expanded
+		if ((hasInProgressTask || hasCompletedTask) && this._isExpanded && !this._userManuallyExpanded) {
+			this._isExpanded = false;
+			this.expandoElement.setAttribute('aria-expanded', 'false');
+			this.todoListContainer.style.display = 'none';
+
+			const expandIcon = this.expandoElement.querySelector('.expand-icon') as HTMLElement;
+			if (expandIcon) {
+				expandIcon.classList.remove('codicon-chevron-down');
+				expandIcon.classList.add('codicon-chevron-right');
+			}
+
+			this.updateTitleElement(titleElement, todoList);
+			this._onDidChangeHeight.fire();
+		}
+
 		// Auto-scroll to show the most relevant item
 		this.scrollToRelevantItem(lastActiveIndex, firstCompletedIndex, firstPendingAfterCompletedIndex, todoList.length);
 	}
 
 	private toggleExpanded(): void {
 		this._isExpanded = !this._isExpanded;
+		this._userManuallyExpanded = true;
 
 		const expandIcon = this.expandoElement.querySelector('.expand-icon') as HTMLElement;
 		if (expandIcon) {
@@ -185,8 +274,15 @@ export class ChatTodoListWidget extends Disposable {
 			expandIcon.classList.toggle('codicon-chevron-right', !this._isExpanded);
 		}
 
-		this.expandoElement.setAttribute('aria-expanded', this._isExpanded.toString());
 		this.todoListContainer.style.display = this._isExpanded ? 'block' : 'none';
+
+		if (this._currentSessionId) {
+			const todoList = this.chatTodoListService.getTodos(this._currentSessionId);
+			const titleElement = this.expandoElement.querySelector('.todo-list-title') as HTMLElement;
+			if (titleElement) {
+				this.updateTitleElement(titleElement, todoList);
+			}
+		}
 
 		this._onDidChangeHeight.fire();
 	}
@@ -196,13 +292,13 @@ export class ChatTodoListWidget extends Disposable {
 			return;
 		}
 
-		const todoListStorage = this.chatTodoListService.getChatTodoListStorage();
-		todoListStorage.setTodoList(this._currentSessionId, []);
-		this.updateTodoDisplay();
+		this.chatTodoListService.setTodos(this._currentSessionId, []);
+		this.domNode.style.display = 'none';
+		this._onDidChangeHeight.fire();
 	}
 
 	private scrollToRelevantItem(lastActiveIndex: number, firstCompletedIndex: number, firstPendingAfterCompletedIndex: number, totalItems: number): void {
-		if (totalItems <= 6) {
+		if (totalItems <= 6 || this._userHasScrolledManually) {
 			return;
 		}
 
@@ -235,15 +331,94 @@ export class ChatTodoListWidget extends Disposable {
 		}, 50);
 	}
 
-	private getProgressText(todoList: IChatTodo[]): string {
-		if (todoList.length === 0) {
-			return localize('chat.todoList.title', 'Todos');
-		}
+	private updateScrollShadow(): void {
+		this.domNode.classList.toggle('scrolled', this.todoListContainer.scrollTop > 0);
+	}
+
+	private updateTitleElement(titleElement: HTMLElement, todoList: IChatTodo[]): void {
+		titleElement.textContent = '';
 
 		const completedCount = todoList.filter(todo => todo.status === 'completed').length;
 		const totalCount = todoList.length;
+		const inProgressTodos = todoList.filter(todo => todo.status === 'in-progress');
+		const firstInProgressTodo = inProgressTodos.length > 0 ? inProgressTodos[0] : undefined;
+		const completedTodos = todoList.filter(todo => todo.status === 'completed');
+		const lastCompletedTodo = completedTodos.length > 0 ? completedTodos[completedTodos.length - 1] : undefined;
 
-		return localize('chat.todoList.titleWithProgress', 'Todos ({0}/{1})', completedCount, totalCount);
+		const progressText = dom.$('span');
+		if (totalCount === 0) {
+			progressText.textContent = localize('chat.todoList.title', 'Todos');
+		} else {
+			progressText.textContent = localize('chat.todoList.titleWithProgress', 'Todos ({0}/{1})', completedCount, totalCount);
+		}
+		titleElement.appendChild(progressText);
+		const expandButtonLabel = this._isExpanded
+			? localize('chat.todoList.collapseButtonWithProgress', 'Collapse {0}', progressText.textContent)
+			: localize('chat.todoList.expandButtonWithProgress', 'Expand {0}', progressText.textContent);
+		this.expandoElement.setAttribute('aria-label', expandButtonLabel);
+		this.expandoElement.setAttribute('aria-expanded', this._isExpanded ? 'true' : 'false');
+		let title = progressText.textContent || '';
+		if (!this._isExpanded) {
+			let currentTodo: IChatTodo | undefined;
+
+			if (!firstInProgressTodo) {
+				if (completedCount > 0 && completedCount < totalCount && lastCompletedTodo) {
+					currentTodo = lastCompletedTodo;
+					// Add separator
+					const separator = dom.$('span');
+					separator.textContent = ' - ';
+					titleElement.appendChild(separator);
+
+					const icon = dom.$('.codicon.codicon-check');
+					icon.style.color = 'var(--vscode-charts-green)';
+					icon.style.marginRight = '4px';
+					icon.style.verticalAlign = 'middle';
+					titleElement.appendChild(icon);
+
+					// Add completed todo title
+					const completedText = dom.$('span');
+					completedText.textContent = lastCompletedTodo.title;
+					completedText.style.verticalAlign = 'middle';
+					titleElement.appendChild(completedText);
+				}
+			} else {
+				currentTodo = firstInProgressTodo;
+				const separator = dom.$('span');
+				separator.textContent = ' - ';
+				titleElement.appendChild(separator);
+
+				const icon = dom.$('.codicon.codicon-record');
+				icon.style.color = 'var(--vscode-charts-blue)';
+				icon.style.marginRight = '4px';
+				icon.style.verticalAlign = 'middle';
+				titleElement.appendChild(icon);
+
+				const inProgressText = dom.$('span');
+				inProgressText.textContent = firstInProgressTodo.title;
+				inProgressText.style.verticalAlign = 'middle';
+				titleElement.appendChild(inProgressText);
+			}
+			if (currentTodo && currentTodo.description && currentTodo.description.trim()) {
+				title = currentTodo.description;
+			}
+		}
+
+		const titleSection = this.expandoElement.querySelector('.todo-list-title-section') as HTMLElement;
+		if (titleSection) {
+			titleSection.title = title;
+		}
+	}
+
+	private getStatusText(status: string): string {
+		switch (status) {
+			case 'completed':
+				return localize('chat.todoList.status.completed', 'completed');
+			case 'in-progress':
+				return localize('chat.todoList.status.inProgress', 'in progress');
+			case 'not-started':
+			default:
+				return localize('chat.todoList.status.notStarted', 'not started');
+		}
 	}
 
 	private getStatusIconClass(status: string): string {

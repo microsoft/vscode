@@ -7,7 +7,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { basename } from '../../../../../base/common/resources.js';
-import { URI } from '../../../../../base/common/uri.js';
+import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { isCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { Position } from '../../../../../editor/common/core/position.js';
@@ -18,6 +18,7 @@ import { ILanguageFeaturesService } from '../../../../../editor/common/services/
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, IAction2Options, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -55,6 +56,9 @@ export abstract class EditingSessionAction extends Action2 {
 	abstract runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: any[]): any;
 }
 
+/**
+ * Resolve view title toolbar context. If none, return context from the lastFocusedWidget.
+ */
 export function getEditingSessionContext(accessor: ServicesAccessor, args: any[]): { editingSession?: IChatEditingSession; chatWidget: IChatWidget } | undefined {
 	const arg0 = args.at(0);
 	const context = isChatViewTitleActionContext(arg0) ? arg0 : undefined;
@@ -63,7 +67,7 @@ export function getEditingSessionContext(accessor: ServicesAccessor, args: any[]
 	const chatEditingService = accessor.get(IChatEditingService);
 	let chatWidget = context ? chatWidgetService.getWidgetBySessionId(context.sessionId) : undefined;
 	if (!chatWidget) {
-		chatWidget = chatWidgetService.lastFocusedWidget ?? chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Panel).find(w => w.supportsChangingModes);
+		chatWidget = chatWidgetService.lastFocusedWidget ?? chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat).find(w => w.supportsChangingModes);
 	}
 
 	if (!chatWidget?.viewModel) {
@@ -72,10 +76,6 @@ export function getEditingSessionContext(accessor: ServicesAccessor, args: any[]
 
 	const chatSessionId = chatWidget.viewModel.model.sessionId;
 	const editingSession = chatEditingService.getEditingSession(chatSessionId);
-
-	if (!editingSession) {
-		return;
-	}
 
 	return { editingSession, chatWidget };
 }
@@ -143,7 +143,6 @@ registerAction2(class AcceptAction extends WorkingSetAction {
 			id: 'chatEditing.acceptFile',
 			title: localize2('accept.file', 'Keep'),
 			icon: Codicon.check,
-			precondition: ChatContextKeys.requestInProgress.negate(),
 			menu: [{
 				when: ContextKeyExpr.and(ContextKeyExpr.equals('resourceScheme', CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME), ContextKeyExpr.notIn(chatEditingResourceContextKey.key, decidedChatEditingResourceContextKey.key)),
 				id: MenuId.MultiDiffEditorFileToolbar,
@@ -169,7 +168,6 @@ registerAction2(class DiscardAction extends WorkingSetAction {
 			id: 'chatEditing.discardFile',
 			title: localize2('discard.file', 'Undo'),
 			icon: Codicon.discard,
-			precondition: ChatContextKeys.requestInProgress.negate(),
 			menu: [{
 				when: ContextKeyExpr.and(ContextKeyExpr.equals('resourceScheme', CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME), ContextKeyExpr.notIn(chatEditingResourceContextKey.key, decidedChatEditingResourceContextKey.key)),
 				id: MenuId.MultiDiffEditorFileToolbar,
@@ -197,10 +195,10 @@ export class ChatEditingAcceptAllAction extends EditingSessionAction {
 			title: localize('accept', 'Keep'),
 			icon: Codicon.check,
 			tooltip: localize('acceptAllEdits', 'Keep All Edits'),
-			precondition: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey),
+			precondition: hasUndecidedChatEditingResourceContextKey,
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyCode.Enter,
-				when: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey, ChatContextKeys.inChatInput),
+				when: ContextKeyExpr.and(hasUndecidedChatEditingResourceContextKey, ChatContextKeys.inChatInput),
 				weight: KeybindingWeight.WorkbenchContrib,
 			},
 			menu: [
@@ -229,7 +227,7 @@ export class ChatEditingDiscardAllAction extends EditingSessionAction {
 			title: localize('discard', 'Undo'),
 			icon: Codicon.discard,
 			tooltip: localize('discardAllEdits', 'Undo All Edits'),
-			precondition: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey),
+			precondition: hasUndecidedChatEditingResourceContextKey,
 			menu: [
 				{
 					id: MenuId.ChatEditingWidgetToolbar,
@@ -239,7 +237,7 @@ export class ChatEditingDiscardAllAction extends EditingSessionAction {
 				}
 			],
 			keybinding: {
-				when: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey, ChatContextKeys.inChatInput, ChatContextKeys.inputHasText.negate()),
+				when: ContextKeyExpr.and(hasUndecidedChatEditingResourceContextKey, ChatContextKeys.inChatInput, ChatContextKeys.inputHasText.negate()),
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyCode.Backspace,
 			},
@@ -262,8 +260,8 @@ export async function discardAllEditsWithConfirmation(accessor: ServicesAccessor
 		const confirmation = await dialogService.confirm({
 			title: localize('chat.editing.discardAll.confirmation.title', "Undo all edits?"),
 			message: entries.length === 1
-				? localize('chat.editing.discardAll.confirmation.oneFile', "This will undo changes made by {0} in {1}. Do you want to proceed?", 'Copilot Edits', basename(entries[0].modifiedURI))
-				: localize('chat.editing.discardAll.confirmation.manyFiles', "This will undo changes made by {0} in {1} files. Do you want to proceed?", 'Copilot Edits', entries.length),
+				? localize('chat.editing.discardAll.confirmation.oneFile', "This will undo changes made in {0}. Do you want to proceed?", basename(entries[0].modifiedURI))
+				: localize('chat.editing.discardAll.confirmation.manyFiles', "This will undo changes made in {0} files. Do you want to proceed?", entries.length),
 			primaryButton: localize('chat.editing.discardAll.confirmation.primaryButton', "Yes"),
 			type: 'info'
 		});
@@ -728,7 +726,7 @@ export class ViewPreviousEditsAction extends EditingSessionAction {
 			tooltip: ViewPreviousEditsAction.Label,
 			f1: true,
 			icon: Codicon.diffMultiple,
-			precondition: hasUndecidedChatEditingResourceContextKey.negate(),
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, hasUndecidedChatEditingResourceContextKey.negate()),
 			menu: [
 				{
 					id: MenuId.ChatEditingWidgetToolbar,
@@ -745,3 +743,19 @@ export class ViewPreviousEditsAction extends EditingSessionAction {
 	}
 }
 registerAction2(ViewPreviousEditsAction);
+
+/**
+ * Workbench command to explore accepting working set changes from an extension. Executing
+ * the command will accept the changes for the provided resources across all edit sessions.
+ */
+CommandsRegistry.registerCommand('_chat.editSessions.accept', async (accessor: ServicesAccessor, resources: UriComponents[]) => {
+	if (resources.length === 0) {
+		return;
+	}
+
+	const uris = resources.map(resource => URI.revive(resource));
+	const chatEditingService = accessor.get(IChatEditingService);
+	for (const editingSession of chatEditingService.editingSessionsObs.get()) {
+		await editingSession.accept(...uris);
+	}
+});

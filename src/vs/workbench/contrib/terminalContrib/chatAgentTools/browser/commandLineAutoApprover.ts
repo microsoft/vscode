@@ -5,23 +5,25 @@
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import type { OperatingSystem } from '../../../../../base/common/platform.js';
-import { regExpLeadsToEndlessLoop } from '../../../../../base/common/strings.js';
+import { escapeRegExpCharacters, regExpLeadsToEndlessLoop } from '../../../../../base/common/strings.js';
 import { isObject } from '../../../../../base/common/types.js';
 import { structuralEquals } from '../../../../../base/common/equals.js';
-import { IConfigurationService, type IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService, type IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
 import { TerminalChatAgentToolsSettingId } from '../common/terminalChatAgentToolsConfiguration.js';
 import { isPowerShell } from './runInTerminalHelpers.js';
 
-interface IAutoApproveRule {
+export interface IAutoApproveRule {
 	regex: RegExp;
 	regexCaseInsensitive: RegExp;
 	sourceText: string;
+	sourceTarget: ConfigurationTarget;
 	isDefaultRule: boolean;
 }
 
 export interface ICommandApprovalResultWithReason {
 	result: ICommandApprovalResult;
 	reason: string;
+	rule?: IAutoApproveRule;
 }
 
 export type ICommandApprovalResult = 'approved' | 'denied' | 'noMatch';
@@ -72,7 +74,7 @@ export class CommandLineAutoApprover extends Disposable {
 		this._denyListCommandLineRules = denyListCommandLineRules;
 	}
 
-	isCommandAutoApproved(command: string, shell: string, os: OperatingSystem): { result: ICommandApprovalResult; rule?: IAutoApproveRule; reason: string } {
+	isCommandAutoApproved(command: string, shell: string, os: OperatingSystem): ICommandApprovalResultWithReason {
 		// Check the deny list to see if this command requires explicit approval
 		for (const rule of this._denyListRules) {
 			if (this._commandMatchesRule(rule, command, shell, os)) {
@@ -104,7 +106,7 @@ export class CommandLineAutoApprover extends Disposable {
 		};
 	}
 
-	isCommandLineAutoApproved(commandLine: string): { result: ICommandApprovalResult; rule?: IAutoApproveRule; reason: string } {
+	isCommandLineAutoApproved(commandLine: string): ICommandApprovalResultWithReason {
 		// Check the deny list first to see if this command line requires explicit approval
 		for (const rule of this._denyListCommandLineRules) {
 			if (rule.regex.test(commandLine)) {
@@ -132,40 +134,16 @@ export class CommandLineAutoApprover extends Disposable {
 		};
 	}
 
-	private _removeEnvAssignments(command: string, shell: string, os: OperatingSystem): string {
-		const trimmedCommand = command.trimStart();
-
-		// PowerShell environment variable syntax is `$env:VAR='value';` and treated as a different
-		// command
-		if (isPowerShell(shell, os)) {
-			return trimmedCommand;
-		}
-
-		// For bash/sh/bourne shell and unknown shells (fallback to bourne shell syntax)
-		// Handle environment variable assignments like: VAR=value VAR2=value command
-		// This regex matches one or more environment variable assignments at the start
-		const envVarPattern = /^(\s*[A-Za-z_][A-Za-z0-9_]*=(?:[^\s'"]|'[^']*'|"[^"]*")*\s+)+/;
-		const match = trimmedCommand.match(envVarPattern);
-
-		if (match) {
-			const actualCommand = trimmedCommand.slice(match[0].length).trimStart();
-			return actualCommand || trimmedCommand; // Fallback to original if nothing left
-		}
-
-		return trimmedCommand;
-	}
-
 	private _commandMatchesRule(rule: IAutoApproveRule, command: string, shell: string, os: OperatingSystem): boolean {
-		const actualCommand = this._removeEnvAssignments(command, shell, os);
 		const isPwsh = isPowerShell(shell, os);
 
 		// PowerShell is case insensitive regardless of platform
-		if ((isPwsh ? rule.regexCaseInsensitive : rule.regex).test(actualCommand)) {
+		if ((isPwsh ? rule.regexCaseInsensitive : rule.regex).test(command)) {
 			return true;
-		} else if (isPwsh && actualCommand.startsWith('(')) {
+		} else if (isPwsh && command.startsWith('(')) {
 			// Allow ignoring of the leading ( for PowerShell commands as it's a command pattern to
 			// operate on the output of a command. For example `(Get-Content README.md) ...`
-			if (rule.regexCaseInsensitive.test(actualCommand.slice(1))) {
+			if (rule.regexCaseInsensitive.test(command.slice(1))) {
 				return true;
 			}
 		}
@@ -199,13 +177,29 @@ export class CommandLineAutoApprover extends Disposable {
 				key in defaultValue &&
 				structuralEquals((defaultValue as Record<string, unknown>)[key], value)
 			);
+			function checkTarget(inspectValue: Readonly<unknown> | undefined): boolean {
+				return (
+					isObject(inspectValue) &&
+					key in inspectValue &&
+					structuralEquals((inspectValue as Record<string, unknown>)[key], value)
+				);
+			}
+			const sourceTarget = (
+				checkTarget(configInspectValue.workspaceFolder) ? ConfigurationTarget.WORKSPACE_FOLDER
+					: checkTarget(configInspectValue.workspaceValue) ? ConfigurationTarget.WORKSPACE
+						: checkTarget(configInspectValue.userRemoteValue) ? ConfigurationTarget.USER_REMOTE
+							: checkTarget(configInspectValue.userLocalValue) ? ConfigurationTarget.USER_LOCAL
+								: checkTarget(configInspectValue.userValue) ? ConfigurationTarget.USER
+									: checkTarget(configInspectValue.applicationValue) ? ConfigurationTarget.APPLICATION
+										: ConfigurationTarget.DEFAULT
+			);
 			if (typeof value === 'boolean') {
 				const { regex, regexCaseInsensitive } = this._convertAutoApproveEntryToRegex(key);
 				// IMPORTANT: Only true and false are used, null entries need to be ignored
 				if (value === true) {
-					allowListRules.push({ regex, regexCaseInsensitive, sourceText: key, isDefaultRule });
+					allowListRules.push({ regex, regexCaseInsensitive, sourceText: key, sourceTarget, isDefaultRule });
 				} else if (value === false) {
-					denyListRules.push({ regex, regexCaseInsensitive, sourceText: key, isDefaultRule });
+					denyListRules.push({ regex, regexCaseInsensitive, sourceText: key, sourceTarget, isDefaultRule });
 				}
 			} else if (typeof value === 'object' && value !== null) {
 				// Handle object format like { approve: true/false, matchCommandLine: true/false }
@@ -214,15 +208,15 @@ export class CommandLineAutoApprover extends Disposable {
 					const { regex, regexCaseInsensitive } = this._convertAutoApproveEntryToRegex(key);
 					if (objectValue.approve === true) {
 						if (objectValue.matchCommandLine === true) {
-							allowListCommandLineRules.push({ regex, regexCaseInsensitive, sourceText: key, isDefaultRule });
+							allowListCommandLineRules.push({ regex, regexCaseInsensitive, sourceText: key, sourceTarget, isDefaultRule });
 						} else {
-							allowListRules.push({ regex, regexCaseInsensitive, sourceText: key, isDefaultRule });
+							allowListRules.push({ regex, regexCaseInsensitive, sourceText: key, sourceTarget, isDefaultRule });
 						}
 					} else if (objectValue.approve === false) {
 						if (objectValue.matchCommandLine === true) {
-							denyListCommandLineRules.push({ regex, regexCaseInsensitive, sourceText: key, isDefaultRule });
+							denyListCommandLineRules.push({ regex, regexCaseInsensitive, sourceText: key, sourceTarget, isDefaultRule });
 						} else {
-							denyListRules.push({ regex, regexCaseInsensitive, sourceText: key, isDefaultRule });
+							denyListRules.push({ regex, regexCaseInsensitive, sourceText: key, sourceTarget, isDefaultRule });
 						}
 					}
 				}
@@ -281,8 +275,22 @@ export class CommandLineAutoApprover extends Disposable {
 			return neverMatchRegex;
 		}
 
-		// Escape regex special characters
-		const sanitizedValue = value.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&');
+		let sanitizedValue: string;
+
+		// Match both path separators it if looks like a path
+		if (value.includes('/') || value.includes('\\')) {
+			// Replace path separators with placeholders first, apply standard sanitization, then
+			// apply special path handling
+			let pattern = value.replace(/[/\\]/g, '%%PATH_SEP%%');
+			pattern = escapeRegExpCharacters(pattern);
+			pattern = pattern.replace(/%%PATH_SEP%%*/g, '[/\\\\]');
+			sanitizedValue = `^(?:\\.[/\\\\])?${pattern}`;
+		}
+
+		// Escape regex special characters for non-path strings
+		else {
+			sanitizedValue = escapeRegExpCharacters(value);
+		}
 
 		// Regular strings should match the start of the command line and be a word boundary
 		return new RegExp(`^${sanitizedValue}\\b`);

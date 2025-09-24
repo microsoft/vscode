@@ -692,23 +692,23 @@ class RenameCandidateListView {
 
 		this._listWidget = RenameCandidateListView._createListWidget(this._listContainer, this._candidateViewHeight, opts.fontInfo);
 
-		this._listWidget.onDidChangeFocus(
+		this._disposables.add(this._listWidget.onDidChangeFocus(
 			e => {
 				if (e.elements.length === 1) {
 					opts.onFocusChange(e.elements[0].newSymbolName);
 				}
 			},
 			this._disposables
-		);
+		));
 
-		this._listWidget.onDidChangeSelection(
+		this._disposables.add(this._listWidget.onDidChangeSelection(
 			e => {
 				if (e.elements.length === 1) {
 					opts.onSelectionChange();
 				}
 			},
 			this._disposables
-		);
+		));
 
 		this._disposables.add(
 			this._listWidget.onDidBlur(e => { // @ulugbekna: because list widget otherwise remembers last focused element and returns it as focused element

@@ -19,8 +19,8 @@ import { EditorsOrder } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { getNotebookEditorFromEditorPane, INotebookEditor } from '../../../notebook/browser/notebookBrowser.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
-import { IChatRequestImplicitVariableEntry, IChatRequestVariableEntry } from '../../common/chatVariableEntries.js';
 import { IChatService } from '../../common/chatService.js';
+import { IChatRequestImplicitVariableEntry, IChatRequestVariableEntry } from '../../common/chatVariableEntries.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { ILanguageModelIgnoredFilesService } from '../../common/ignoredFiles.js';
 import { getPromptsTypeForLanguageId } from '../../common/promptSyntax/promptTypes.js';
@@ -221,7 +221,7 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 
 		const isPromptFile = languageId && getPromptsTypeForLanguageId(languageId) !== undefined;
 
-		const widgets = updateWidget ? [updateWidget] : [...this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Panel), ...this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Editor)];
+		const widgets = updateWidget ? [updateWidget] : [...this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat), ...this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.EditorInline)];
 		for (const widget of widgets) {
 			if (!widget.input.implicitContext) {
 				continue;

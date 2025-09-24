@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../base/common/lifecycle.js';
-import { URI } from '../../../base/common/uri.js';
 import * as nls from '../../../nls.js';
 import { IGalleryExtension, AllowedExtensionsConfigKey, IAllowedExtensionsService, AllowedExtensionsConfigValueType } from './extensionManagement.js';
 import { ExtensionType, IExtension, TargetPlatform } from '../../extensions/common/extensions.js';
 import { IProductService } from '../../product/common/productService.js';
-import { IMarkdownString, MarkdownString } from '../../../base/common/htmlContent.js';
+import { createCommandUri, IMarkdownString, MarkdownString } from '../../../base/common/htmlContent.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { isBoolean, isObject, isUndefined } from '../../../base/common/types.js';
 import { Emitter } from '../../../base/common/event.js';
@@ -95,7 +94,7 @@ export class AllowedExtensionsService extends Disposable implements IAllowedExte
 			publisherDisplayName = extension.publisherDisplayName?.toLowerCase();
 		}
 
-		const settingsCommandLink = URI.parse(`command:workbench.action.openSettings?${encodeURIComponent(JSON.stringify({ query: `@id:${AllowedExtensionsConfigKey}` }))}`).toString();
+		const settingsCommandLink = createCommandUri('workbench.action.openSettings', { query: `@id:${AllowedExtensionsConfigKey}` }).toString();
 		const extensionValue = this._allowedExtensionsConfigValue[id];
 		const extensionReason = new MarkdownString(nls.localize('specific extension not allowed', "it is not in the [allowed list]({0})", settingsCommandLink));
 		if (!isUndefined(extensionValue)) {

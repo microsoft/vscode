@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { onUnexpectedError } from '../common/errors.js';
-import { Event } from '../common/event.js';
 import { escapeDoubleQuotes, IMarkdownString, MarkdownStringTrustedOptions, parseHrefAndDimensions, removeMarkdownEscapes } from '../common/htmlContent.js';
 import { markdownEscapeEscapedIcons } from '../common/iconLabels.js';
 import { defaultGenerator } from '../common/idGenerator.js';
@@ -17,23 +16,25 @@ import { FileAccess, Schemas } from '../common/network.js';
 import { cloneAndChange } from '../common/objects.js';
 import { dirname, resolvePath } from '../common/resources.js';
 import { escape } from '../common/strings.js';
-import { URI } from '../common/uri.js';
+import { URI, UriComponents } from '../common/uri.js';
 import * as DOM from './dom.js';
 import * as domSanitize from './domSanitize.js';
 import { convertTagToPlaintext } from './domSanitize.js';
-import { DomEmitter } from './event.js';
-import { FormattedTextRenderOptions } from './formattedTextRenderer.js';
 import { StandardKeyboardEvent } from './keyboardEvent.js';
 import { StandardMouseEvent } from './mouseEvent.js';
 import { renderLabelWithIcons } from './ui/iconLabel/iconLabels.js';
 
+export type MarkdownActionHandler = (linkContent: string, mdStr: IMarkdownString) => void;
+
 /**
  * Options for the rendering of markdown with {@link renderMarkdown}.
  */
-export interface MarkdownRenderOptions extends FormattedTextRenderOptions {
+export interface MarkdownRenderOptions {
 	readonly codeBlockRenderer?: (languageId: string, value: string) => Promise<HTMLElement>;
 	readonly codeBlockRendererSync?: (languageId: string, value: string, raw?: string) => HTMLElement;
 	readonly asyncRenderCallback?: () => void;
+
+	readonly actionHandler?: MarkdownActionHandler;
 
 	readonly fillInIncompleteTokens?: boolean;
 
@@ -56,7 +57,9 @@ export interface MarkdownSanitizerConfig {
 	readonly allowedTags?: {
 		readonly override: readonly string[];
 	};
-	readonly customAttrSanitizer?: (attrName: string, attrValue: string) => boolean | string;
+	readonly allowedAttributes?: {
+		readonly override: ReadonlyArray<string | domSanitize.SanitizeAttributeRule>;
+	};
 	readonly allowedLinkSchemes?: {
 		readonly augment: readonly string[];
 	};
@@ -148,7 +151,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	}
 
 	const renderedContent = document.createElement('div');
-	const sanitizerConfig = getDomSanitizerConfig(markdown.isTrusted ?? false, options.sanitizerConfig ?? {});
+	const sanitizerConfig = getDomSanitizerConfig(markdown, options.sanitizerConfig ?? {});
 	domSanitize.safeSetInnerHtml(renderedContent, renderedMarkdown, sanitizerConfig);
 
 	// Rewrite links and images before potentially inserting them into the real dom
@@ -200,17 +203,17 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 
 	// Add event listeners for links
 	if (options.actionHandler) {
-		const onClick = options.actionHandler.disposables.add(new DomEmitter(outElement, 'click'));
-		const onAuxClick = options.actionHandler.disposables.add(new DomEmitter(outElement, 'auxclick'));
-		options.actionHandler.disposables.add(Event.any(onClick.event, onAuxClick.event)(e => {
+		const clickCb = (e: PointerEvent) => {
 			const mouseEvent = new StandardMouseEvent(DOM.getWindow(outElement), e);
 			if (!mouseEvent.leftButton && !mouseEvent.middleButton) {
 				return;
 			}
 			activateLink(markdown, options, mouseEvent);
-		}));
+		};
+		disposables.add(DOM.addDisposableListener(outElement, 'click', clickCb));
+		disposables.add(DOM.addDisposableListener(outElement, 'auxclick', clickCb));
 
-		options.actionHandler.disposables.add(DOM.addDisposableListener(outElement, 'keydown', (e) => {
+		disposables.add(DOM.addDisposableListener(outElement, 'keydown', (e) => {
 			const keyboardEvent = new StandardKeyboardEvent(e);
 			if (!keyboardEvent.equals(KeyCode.Space) && !keyboardEvent.equals(KeyCode.Enter)) {
 				return;
@@ -340,7 +343,7 @@ function preprocessMarkdownString(markdown: IMarkdownString) {
 	return value;
 }
 
-function activateLink(markdown: IMarkdownString, options: MarkdownRenderOptions, event: StandardMouseEvent | StandardKeyboardEvent): void {
+function activateLink(mdStr: IMarkdownString, options: MarkdownRenderOptions, event: StandardMouseEvent | StandardKeyboardEvent): void {
 	const target = event.target.closest('a[data-href]');
 	if (!DOM.isHTMLElement(target)) {
 		return;
@@ -349,10 +352,10 @@ function activateLink(markdown: IMarkdownString, options: MarkdownRenderOptions,
 	try {
 		let href = target.dataset['href'];
 		if (href) {
-			if (markdown.baseUri) {
-				href = resolveWithBaseUri(URI.from(markdown.baseUri), href);
+			if (mdStr.baseUri) {
+				href = resolveWithBaseUri(URI.from(mdStr.baseUri), href);
 			}
-			options.actionHandler!.callback(href, event);
+			options.actionHandler?.(href, mdStr);
 		}
 	} catch (err) {
 		onUnexpectedError(err);
@@ -434,12 +437,17 @@ function resolveWithBaseUri(baseUri: URI, href: string): string {
 	}
 }
 
+type MdStrConfig = {
+	readonly isTrusted?: boolean | MarkdownStringTrustedOptions;
+	readonly baseUri?: UriComponents;
+};
+
 function sanitizeRenderedMarkdown(
 	renderedMarkdown: string,
-	isTrusted: boolean | MarkdownStringTrustedOptions,
+	originalMdStrConfig: MdStrConfig,
 	options: MarkdownSanitizerConfig = {},
 ): TrustedHTML {
-	const sanitizerConfig = getDomSanitizerConfig(isTrusted, options);
+	const sanitizerConfig = getDomSanitizerConfig(originalMdStrConfig, options);
 	return domSanitize.sanitizeHtml(renderedMarkdown, sanitizerConfig);
 }
 
@@ -448,14 +456,12 @@ export const allowedMarkdownHtmlTags = Object.freeze([
 	'input', // Allow inputs for rendering checkboxes. Other types of inputs are removed and the inputs are always disabled
 ]);
 
-export const allowedMarkdownHtmlAttributes = [
+export const allowedMarkdownHtmlAttributes = Object.freeze<Array<string | domSanitize.SanitizeAttributeRule>>([
 	'align',
 	'autoplay',
 	'alt',
-	'checked',
 	'colspan',
 	'controls',
-	'disabled',
 	'draggable',
 	'height',
 	'href',
@@ -470,18 +476,45 @@ export const allowedMarkdownHtmlAttributes = [
 	'type',
 	'width',
 	'start',
+
+	// Input (For disabled inputs)
+	'checked',
+	'disabled',
 	'value',
 
 	// Custom markdown attributes
 	'data-code',
 	'data-href',
 
-	// These attributes are sanitized in the hooks
-	'style',
-	'class',
-];
+	// Only allow very specific styles
+	{
+		attributeName: 'style',
+		shouldKeep: (element, data) => {
+			if (element.tagName === 'SPAN') {
+				if (data.attrName === 'style') {
+					return /^(color\:(#[0-9a-fA-F]+|var\(--vscode(-[a-zA-Z0-9]+)+\));)?(background-color\:(#[0-9a-fA-F]+|var\(--vscode(-[a-zA-Z0-9]+)+\));)?(border-radius:[0-9]+px;)?$/.test(data.attrValue);
+				}
+			}
+			return false;
+		}
+	},
 
-function getDomSanitizerConfig(isTrusted: boolean | MarkdownStringTrustedOptions, options: MarkdownSanitizerConfig): domSanitize.DomSanitizerConfig {
+	// Only allow codicons for classes
+	{
+		attributeName: 'class',
+		shouldKeep: (element, data) => {
+			if (element.tagName === 'SPAN') {
+				if (data.attrName === 'class') {
+					return /^codicon codicon-[a-z\-]+( codicon-modifier-[a-z\-]+)?$/.test(data.attrValue);
+				}
+			}
+			return false;
+		},
+	},
+]);
+
+function getDomSanitizerConfig(mdStrConfig: MdStrConfig, options: MarkdownSanitizerConfig): domSanitize.DomSanitizerConfig {
+	const isTrusted = mdStrConfig.isTrusted ?? false;
 	const allowedLinkSchemes = [
 		Schemas.http,
 		Schemas.https,
@@ -510,11 +543,12 @@ function getDomSanitizerConfig(isTrusted: boolean | MarkdownStringTrustedOptions
 			override: options.allowedTags?.override ?? allowedMarkdownHtmlTags
 		},
 		allowedAttributes: {
-			override: allowedMarkdownHtmlAttributes,
+			override: options.allowedAttributes?.override ?? allowedMarkdownHtmlAttributes,
 		},
 		allowedLinkProtocols: {
 			override: allowedLinkSchemes,
 		},
+		allowRelativeLinkPaths: !!mdStrConfig.baseUri,
 		allowedMediaProtocols: {
 			override: [
 				Schemas.http,
@@ -527,45 +561,6 @@ function getDomSanitizerConfig(isTrusted: boolean | MarkdownStringTrustedOptions
 			]
 		},
 		replaceWithPlaintext: options.replaceWithPlaintext,
-		_do_not_use_hooks: {
-			uponSanitizeAttribute: (element, e) => {
-				if (options.customAttrSanitizer) {
-					const result = options.customAttrSanitizer(e.attrName, e.attrValue);
-					if (typeof result === 'string') {
-						if (result) {
-							e.attrValue = result;
-							e.keepAttr = true;
-						} else {
-							e.keepAttr = false;
-						}
-					} else {
-						e.keepAttr = result;
-					}
-					return;
-				}
-
-				if (e.attrName === 'style' || e.attrName === 'class') {
-					if (element.tagName === 'SPAN') {
-						if (e.attrName === 'style') {
-							e.keepAttr = /^(color\:(#[0-9a-fA-F]+|var\(--vscode(-[a-zA-Z0-9]+)+\));)?(background-color\:(#[0-9a-fA-F]+|var\(--vscode(-[a-zA-Z0-9]+)+\));)?(border-radius:[0-9]+px;)?$/.test(e.attrValue);
-							return;
-						} else if (e.attrName === 'class') {
-							e.keepAttr = /^codicon codicon-[a-z\-]+( codicon-modifier-[a-z\-]+)?$/.test(e.attrValue);
-							return;
-						}
-					}
-
-					e.keepAttr = false;
-					return;
-				} else if (element.tagName === 'INPUT' && element.attributes.getNamedItem('type')?.value === 'checkbox') {
-					if ((e.attrName === 'type' && e.attrValue === 'checkbox') || e.attrName === 'disabled' || e.attrName === 'checked') {
-						e.keepAttr = true;
-						return;
-					}
-					e.keepAttr = false;
-				}
-			},
-		}
 	};
 }
 
@@ -589,7 +584,7 @@ export function renderAsPlaintext(str: IMarkdownString | string, options?: {
 	}
 
 	const html = marked.parse(value, { async: false, renderer: options?.includeCodeBlocksFences ? plainTextWithCodeBlocksRenderer.value : plainTextRenderer.value });
-	return sanitizeRenderedMarkdown(html, /* isTrusted */ false, {})
+	return sanitizeRenderedMarkdown(html, { isTrusted: false }, {})
 		.toString()
 		.replace(/&(#\d+|[a-zA-Z]+);/g, m => unescapeInfo.get(m) ?? m)
 		.trim();

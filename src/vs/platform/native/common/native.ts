@@ -126,6 +126,8 @@ export interface ICommonNativeHostService {
 	 */
 	updateWindowControls(options: INativeHostOptions & { height?: number; backgroundColor?: string; foregroundColor?: string }): Promise<void>;
 
+	updateWindowAccentColor(color: 'default' | 'off' | string, inactiveColor: string | undefined): Promise<void>;
+
 	setMinimumSize(width: number | undefined, height: number | undefined): Promise<void>;
 
 	saveWindowSplash(splash: IPartsSplash): Promise<void>;

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 9
+// version: 10
 
 declare module 'vscode' {
 
@@ -54,6 +54,11 @@ declare module 'vscode' {
 		 * The attempt number of the request. The first request has attempt number 0.
 		 */
 		readonly attempt: number;
+
+		/**
+		 * The session identifier for this chat request
+		 */
+		readonly sessionId: string;
 
 		/**
 		 * If automatic command detection is enabled.
@@ -182,7 +187,11 @@ declare module 'vscode' {
 
 		isQuotaExceeded?: boolean;
 
+		isRateLimited?: boolean;
+
 		level?: ChatErrorLevel;
+
+		code?: string;
 	}
 
 	export namespace chat {
