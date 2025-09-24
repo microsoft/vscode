@@ -200,11 +200,14 @@ export function parseHrefAndDimensions(href: string): { href: string; dimensions
 }
 
 export function markdownCommandLink(command: { title: string; id: string; arguments?: unknown[] }, escapeTokens = true): string {
-	const uri = URI.from({
-		scheme: Schemas.command,
-		path: command.id,
-		query: command.arguments?.length ? encodeURIComponent(JSON.stringify(command.arguments)) : undefined,
-	}).toString();
-
+	const uri = createCommandUri(command.id, ...(command.arguments || [])).toString();
 	return `[${escapeTokens ? escapeMarkdownSyntaxTokens(command.title) : command.title}](${uri})`;
+}
+
+export function createCommandUri(commandId: string, ...args: unknown[]): URI {
+	return URI.from({
+		scheme: Schemas.command,
+		path: commandId,
+		query: args.length ? encodeURIComponent(JSON.stringify(args)) : undefined,
+	});
 }
