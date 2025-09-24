@@ -677,7 +677,7 @@ registerAction2(class extends Action2 {
 			return;
 		}
 
-		const command = product.defaultChatAgent?.resolveMergeConflictCommand;
+		const command = product.defaultChatAgent?.resolveMergeConflictsCommand;
 		if (!command) {
 			return;
 		}
