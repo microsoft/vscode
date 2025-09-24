@@ -10,7 +10,7 @@ import { IWorkbenchContributionsRegistry, Extensions, IWorkbenchContribution } f
 import { PromptLinkProvider } from './languageProviders/promptLinkProvider.js';
 import { PromptBodyAutocompletion } from './languageProviders/promptBodyAutocompletion.js';
 import { PromptHeaderAutocompletion } from './languageProviders/promptHeaderAutocompletion.js';
-import { PromptHeaderHoverProvider } from './languageProviders/promptHeaderHovers.js';
+import { PromptHoverProvider } from './languageProviders/promptHovers.js';
 import { PromptHeaderDefinitionProvider } from './languageProviders/PromptHeaderDefinitionProvider.js';
 import { PromptValidatorContribution } from './service/promptValidator.js';
 
@@ -27,7 +27,7 @@ export function registerPromptFileContributions(): void {
 
 	registerContribution(PromptBodyAutocompletion);
 	registerContribution(PromptHeaderAutocompletion);
-	registerContribution(PromptHeaderHoverProvider);
+	registerContribution(PromptHoverProvider);
 	registerContribution(PromptHeaderDefinitionProvider);
 	registerContribution(ConfigMigration);
 }
