@@ -33,7 +33,7 @@ steps:
 
   - task: Cache@2
     inputs:
-      key: '"node_modules bust" | .build/packagelockhash'
+      key: '"node_modules" | .build/packagelockhash'
       path: .build/node_modules_cache
       cacheHitVar: NODE_MODULES_RESTORED
     displayName: Restore node_modules cache
