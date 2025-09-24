@@ -343,7 +343,7 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 				const fullDateTime = getLocalHistoryDateFormatter().format(session.timing.startTime);
 				templateData.elementDisposable.add(
 					this.hoverService.setupDelayedHover(templateData.timestamp, {
-						content: `${nls.localize('chat.sessions.startTime', 'Start Time')}: ${fullDateTime}`
+						content: `${nls.localize('chat.sessions.lastActivity', 'Last Activity')}: ${fullDateTime}`
 					})
 				);
 			}
