@@ -7,7 +7,7 @@ import { onUnexpectedError } from '../../../base/common/errors.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../extensions/common/extensions.js';
 
 export interface IActivationEventsGenerator<T> {
-	(contributions: T[], result: { push(item: string): void }): void;
+	(contributions: readonly T[]): Iterable<string>;
 }
 
 export class ImplicitActivationEventsImpl {
@@ -73,7 +73,7 @@ export class ImplicitActivationEventsImpl {
 			const contrib = (desc.contributes as any)[extPointName];
 			const contribArr = Array.isArray(contrib) ? contrib : [contrib];
 			try {
-				generator(contribArr, activationEvents);
+				activationEvents.push(...generator(contribArr));
 			} catch (err) {
 				onUnexpectedError(err);
 			}

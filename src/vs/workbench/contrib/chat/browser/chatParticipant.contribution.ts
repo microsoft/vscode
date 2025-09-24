@@ -7,7 +7,7 @@ import { coalesce, isNonEmptyArray } from '../../../../base/common/arrays.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Event } from '../../../../base/common/event.js';
-import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { createCommandUri, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import * as strings from '../../../../base/common/strings.js';
@@ -199,9 +199,9 @@ const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.regi
 			}
 		}
 	},
-	activationEventsGenerator: (contributions: IRawChatParticipantContribution[], result: { push(item: string): void }) => {
+	activationEventsGenerator: function* (contributions: readonly IRawChatParticipantContribution[]) {
 		for (const contrib of contributions) {
-			result.push(`onChatParticipant:${contrib.id}`);
+			yield `onChatParticipant:${contrib.id}`;
 		}
 	},
 });
@@ -354,7 +354,7 @@ export class ChatCompatibilityNotifier extends Disposable implements IWorkbenchC
 		this.registeredWelcomeView = true;
 		const showExtensionLabel = localize('showExtension', "Show Extension");
 		const mainMessage = localize('chatFailErrorMessage', "Chat failed to load because the installed version of the Copilot Chat extension is not compatible with this version of {0}. Please ensure that the Copilot Chat extension is up to date.", this.productService.nameLong);
-		const commandButton = `[${showExtensionLabel}](command:${showExtensionsWithIdsCommandId}?${encodeURIComponent(JSON.stringify([[this.productService.defaultChatAgent?.chatExtensionId]]))})`;
+		const commandButton = `[${showExtensionLabel}](${createCommandUri(showExtensionsWithIdsCommandId, [this.productService.defaultChatAgent?.chatExtensionId])})`;
 		const versionMessage = `Copilot Chat version: ${chatExtension.version}`;
 		const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
 		this._register(viewsRegistry.registerViewWelcomeContent(ChatViewId, {

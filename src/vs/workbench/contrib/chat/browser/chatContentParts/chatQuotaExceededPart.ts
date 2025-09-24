@@ -63,7 +63,7 @@ export class ChatQuotaExceededPart extends Disposable implements IChatContentPar
 		icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.warning));
 
 		const messageContainer = dom.append(this.domNode, $('.chat-quota-error-message'));
-		const markdownContent = renderer.render(new MarkdownString(errorDetails.message));
+		const markdownContent = this._register(renderer.render(new MarkdownString(errorDetails.message)));
 		dom.append(messageContainer, markdownContent.element);
 
 		let primaryButtonLabel: string | undefined;
