@@ -564,9 +564,9 @@ configurationRegistry.registerConfiguration({
 			],
 			default: 'always',
 		},
-		[TaskSettingId.ShowLongRunningTaskCompletionNotification]: {
+		[TaskSettingId.NotifyWindowOnTaskCompletion]: {
 			type: 'boolean',
-			markdownDescription: nls.localize('task.showLongRunningTaskCompletionNotification', 'Show an operating system notification when a task finishes after running for more than 2 minutes if the window is not focused.'),
+			markdownDescription: nls.localize('task.NotifyWindowOnTaskCompletion', 'Controls whether the window should notify the user when a task that takes greater than a minute to complete finishes while the window is not in focus. This includes a window badge as well as notification toast.'),
 			default: false
 		},
 		[TaskSettingId.VerboseLogging]: {

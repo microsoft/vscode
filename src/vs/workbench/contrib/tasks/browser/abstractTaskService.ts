@@ -503,7 +503,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (targetWindow.document.hasFocus()) {
 			return;
 		}
-		if (!this._configurationService.getValue<boolean>(TaskSettingId.ShowLongRunningTaskCompletionNotification)) {
+		if (!this._configurationService.getValue<boolean>(TaskSettingId.NotifyWindowOnTaskCompletion)) {
 			return;
 		}
 

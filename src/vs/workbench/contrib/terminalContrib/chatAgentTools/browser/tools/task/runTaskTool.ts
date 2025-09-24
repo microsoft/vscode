@@ -99,8 +99,8 @@ export class RunTaskTool implements IToolImpl {
 		const toolResultDetails = toolResultDetailsFromResponse(terminalResults);
 		const toolResultMessage = toolResultMessageFromResponse(result, taskLabel, toolResultDetails, terminalResults);
 		const taskFinished = terminalResults.length > 0 && terminalResults.every(r => r.state === OutputMonitorState.Idle);
-		if (taskFinished && !this._configurationService.getValue<boolean>(TaskSettingId.ShowLongRunningTaskCompletionNotification)) {
-			const settingsCommandUri = createCommandUri('workbench.action.openSettings', { query: `@id:${TaskSettingId.ShowLongRunningTaskCompletionNotification}` });
+		if (taskFinished && !this._configurationService.getValue<boolean>(TaskSettingId.NotifyWindowOnTaskCompletion)) {
+			const settingsCommandUri = createCommandUri('workbench.action.openSettings', { query: `@id:${TaskSettingId.NotifyWindowOnTaskCompletion}` });
 			toolResultMessage.supportThemeIcons = true;
 			toolResultMessage.isTrusted = { enabledCommands: ['workbench.action.openSettings'] };
 			toolResultMessage.appendMarkdown(`\n\n$(info) Enable [long running task notifications](${settingsCommandUri})`);

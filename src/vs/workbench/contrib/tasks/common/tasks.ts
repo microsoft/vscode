@@ -1346,7 +1346,7 @@ export const enum TaskSettingId {
 	AllowAutomaticTasks = 'task.allowAutomaticTasks',
 	Reconnection = 'task.reconnection',
 	VerboseLogging = 'task.verboseLogging',
-	ShowLongRunningTaskCompletionNotification = 'task.showLongRunningTaskCompletionNotification'
+	NotifyWindowOnTaskCompletion = 'task.notifyWindowOnTaskCompletion'
 }
 
 export const enum TasksSchemaProperties {
