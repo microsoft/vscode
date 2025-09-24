@@ -2,7 +2,7 @@
 mode: agent
 description: 'Verify VS Code UI changes via isolated subagent two-phase automated verification'
 tools: ['executeTask', 'vscode-playwright-mcp', 'runInTerminal']
-model: GPT-5
+model: Claude Sonnet 4
 ---
 
 This specification reorganizes the verification workflow using structured pseudo-XML tags (inspired by GPT-5 prompting guides) to improve clarity, consistency, and instruction adherence. Tags define scoped behavioral domains; do not invent new tags beyond those defined here without explicit instruction.
