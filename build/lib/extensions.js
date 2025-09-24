@@ -148,12 +148,21 @@ function fromLocalWebpack(extensionPath, webpackConfigFileName, disableMangle) {
     vsce.listFiles({ cwd: extensionPath, packageManager: vsce.PackageManager.None, packagedDependencies }).then(fileNames => {
         const files = fileNames
             .map(fileName => path_1.default.join(extensionPath, fileName))
-            .map(filePath => new vinyl_1.default({
-            path: filePath,
-            stat: fs_1.default.statSync(filePath),
-            base: extensionPath,
-            contents: fs_1.default.createReadStream(filePath)
-        }));
+            .map(filePath => {
+            const stat = fs_1.default.statSync(filePath);
+            if (!stat.isFile()) {
+                return undefined;
+            }
+            // --- Erdos --- Read eagerly to release descriptors promptly (fix EMFILE on Windows)
+            const contents = fs_1.default.readFileSync(filePath);
+            return new vinyl_1.default({
+                path: filePath,
+                stat,
+                base: extensionPath,
+                contents
+            });
+        })
+            .filter(Boolean);
         // check for a webpack configuration files, then invoke webpack
         // and merge its output with the files stream.
         const webpackConfigLocations = glob_1.default.sync(path_1.default.join(extensionPath, '**', webpackConfigFileName), { ignore: ['**/node_modules'] });
@@ -256,7 +265,7 @@ function fromLocalNormal(extensionPath) {
         // --- Start Erdos ---
         // Process files in batches to prevent EMFILE errors
         const filePaths = fileNames.map(fileName => path_1.default.join(extensionPath, fileName));
-        const BATCH_SIZE = 50; // Process 50 files at a time
+        const BATCH_SIZE = 20; // Process 20 files at a time to limit concurrent descriptors
         let currentIndex = 0;
         const processBatch = () => {
             if (currentIndex >= filePaths.length) {
@@ -265,12 +274,25 @@ function fromLocalNormal(extensionPath) {
             }
             const batchEnd = Math.min(currentIndex + BATCH_SIZE, filePaths.length);
             const batch = filePaths.slice(currentIndex, batchEnd);
-            const batchFiles = batch.map(filePath => new vinyl_1.default({
-                path: filePath,
-                stat: fs_1.default.statSync(filePath),
-                base: extensionPath,
-                contents: fs_1.default.createReadStream(filePath)
-            }));
+            const batchFiles = batch.map(filePath => {
+                const stat = fs_1.default.statSync(filePath);
+                if (!stat.isFile()) {
+                    return undefined;
+                }
+                // --- Erdos --- Read eagerly to release descriptors promptly (fix EMFILE on Windows)
+                const contents = fs_1.default.readFileSync(filePath);
+                return new vinyl_1.default({
+                    path: filePath,
+                    stat,
+                    base: extensionPath,
+                    contents
+                });
+            }).filter(Boolean);
+            if (batchFiles.length === 0) {
+                currentIndex = batchEnd;
+                setTimeout(processBatch, 10);
+                return;
+            }
             const batchStream = event_stream_1.default.readArray(batchFiles);
             batchStream.pipe(result, { end: false });
             batchStream.on('end', () => {
