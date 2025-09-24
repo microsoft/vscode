@@ -468,6 +468,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IChatLayoutService private readonly chatLayoutService: IChatLayoutService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super();
 		this._lockedToCodingAgentContextKey = ChatContextKeys.lockedToCodingAgent.bindTo(this.contextKeyService);
@@ -1041,11 +1042,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.historyViewStore.clear();
 				dom.clearNode(this.welcomeMessageContainer);
 
-			// Optional: recent chat history above welcome content when enabled
-			const showHistory = this.configurationService.getValue<boolean>(ChatConfiguration.EmptyStateHistoryEnabled);
-			if (showHistory && !this._lockedToCodingAgent && this._historyVisible) {
-				this.renderWelcomeHistorySection();
-			}				this.welcomePart.value = this.instantiationService.createInstance(
+				// Optional: recent chat history above welcome content when enabled
+				const showHistory = this.configurationService.getValue<boolean>(ChatConfiguration.EmptyStateHistoryEnabled);
+				if (showHistory && !this._lockedToCodingAgent && this._historyVisible) {
+					this.renderWelcomeHistorySection();
+				}
+				this.welcomePart.value = this.instantiationService.createInstance(
 					ChatViewWelcomePart,
 					welcomeContent,
 					{
@@ -1055,20 +1057,20 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				);
 				dom.append(this.welcomeMessageContainer, this.welcomePart.value.element);
 
-			// Add right-click context menu to the entire welcome container
-			this._register(dom.addDisposableListener(this.welcomeMessageContainer, dom.EventType.CONTEXT_MENU, (e) => {
-				e.preventDefault();
-				e.stopPropagation();
-				this.contextMenuService.showContextMenu({
-					menuId: MenuId.ChatWelcomeHistoryContext,
-					menuActionOptions: { shouldForwardArgs: true },
-					contextKeyService: this.contextKeyService.createOverlay([
-						['chatHistoryVisible', this._historyVisible]
-					]),
-					getAnchor: () => ({ x: e.clientX, y: e.clientY }),
-					getActionsContext: () => ({})
-				});
-			}));
+				// Add right-click context menu to the entire welcome container
+				this._register(dom.addDisposableListener(this.welcomeMessageContainer, dom.EventType.CONTEXT_MENU, (e) => {
+					e.preventDefault();
+					e.stopPropagation();
+					this.contextMenuService.showContextMenu({
+						menuId: MenuId.ChatWelcomeHistoryContext,
+						menuActionOptions: { shouldForwardArgs: true },
+						contextKeyService: this.contextKeyService.createOverlay([
+							['chatHistoryVisible', this._historyVisible]
+						]),
+						getAnchor: () => ({ x: e.clientX, y: e.clientY }),
+						getActionsContext: () => ({})
+					});
+				}));
 			}
 		}
 
@@ -1105,16 +1107,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			todayMidnight.setHours(0, 0, 0, 0);
 			const todayMidnightMs = todayMidnight.getTime();
 
+			// Create hover delegate for proper tooltip positioning
+			const getViewContainerLocation = () => {
+				const panelLocation = this.contextKeyService.getContextKeyValue<ViewContainerLocation>('chatPanelLocation');
+				return panelLocation ?? ViewContainerLocation.AuxiliaryBar;
+			};
+			const hoverDelegate = this.instantiationService.createInstance(ChatHistoryHoverDelegate, getViewContainerLocation);
+
 			if (!this.historyList) {
 				const delegate = new ChatHistoryListDelegate();
-				
-				// Create hover delegate for proper tooltip positioning
-				const getViewContainerLocation = () => {
-					const panelLocation = this.contextKeyService.getContextKeyValue<ViewContainerLocation>('chatPanelLocation');
-					return panelLocation ?? ViewContainerLocation.AuxiliaryBar;
-				};
-				const hoverDelegate = this.instantiationService.createInstance(ChatHistoryHoverDelegate, getViewContainerLocation);
-				
+
 				const renderer = this.instantiationService.createInstance(
 					ChatHistoryListRenderer,
 					async (item) => await this.openHistorySession(item.sessionId),
@@ -1158,6 +1160,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			previousChatsLink.setAttribute('role', 'button');
 			previousChatsLink.setAttribute('tabindex', '0');
 			previousChatsLink.setAttribute('aria-label', localize('chat.history.showMoreAriaLabel', 'Open chat history'));
+
+			// Add hover tooltip with the same styling and logic as other hover states
+			const hoverContent = localize('chat.history.showMoreHover', 'Show chat history...');
+			this._register(this.hoverService.setupManagedHover(hoverDelegate, previousChatsLink, hoverContent));
+
 			this._register(dom.addDisposableListener(previousChatsLink, dom.EventType.CLICK, (e) => {
 				e.preventDefault();
 				e.stopPropagation();
