@@ -92,13 +92,10 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 			this.notifications.delete(ds);
 		}
 
-		// Build a unique tag so macOS/Chromium won't silently "update" the previous one.
-		const uniqueTag = `chat-response-${this._requestId || Date.now()}`;
 
 		const notification = await dom.triggerNotification('Chat response received', {
 			detail: 'Click to open the chat panel',
 			sticky: false,
-			tag: uniqueTag,
 		});
 
 		if (!notification) {
