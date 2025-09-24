@@ -92,9 +92,6 @@ jobs:
           sbomPackageName: "VS Code Windows $(VSCODE_ARCH) Web"
           sbomPackageVersion: $(Build.SourceVersion)
           condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''))
-      sdl:
-        suppression:
-          suppressionFile: $(Build.SourcesDirectory)\.config\guardian\.gdnsuppress
     steps:
       - template: product-build-win32-compile.yml@self
         parameters:
