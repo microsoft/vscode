@@ -45,10 +45,9 @@ import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatWidgetService, ChatViewId } from '../../chat.js';
 import { IChatEditorOptions } from '../../chatEditor.js';
 import { ChatEditorInput } from '../../chatEditorInput.js';
-import { ChatSessionsService } from '../../chatSessions.contribution.js';
 import { ChatViewPane } from '../../chatViewPane.js';
 import { ChatSessionTracker } from '../chatSessionTracker.js';
-import { ChatSessionItemWithProvider, findExistingChatEditorByUri, isLocalChatSessionItem, getSessionItemContextOverlay } from '../common.js';
+import { ChatSessionItemWithProvider, findExistingChatEditorByUri, isLocalChatSessionItem, getSessionItemContextOverlay, NEW_CHAT_SESSION_ACTION_ID } from '../common.js';
 import { LocalChatSessionsProvider } from '../localChatSessionsProvider.js';
 import { GettingStartedDelegate, GettingStartedRenderer, IGettingStartedItem, SessionsDataSource, SessionsDelegate, SessionsRenderer } from './sessionsTreeRenderer.js';
 
@@ -127,7 +126,7 @@ export class SessionsViewPane extends ViewPane {
 	}
 
 	public override createActionViewItem(action: IAction, options: IBaseActionViewItemOptions): IActionViewItem | undefined {
-		if (action.id.startsWith(ChatSessionsService.NEW_CHAT_SESSION_ACTION_ID)) {
+		if (action.id.startsWith(NEW_CHAT_SESSION_ACTION_ID)) {
 			return this.getChatSessionDropdown(action, options);
 		}
 		return super.createActionViewItem(action, options);
