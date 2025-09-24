@@ -17,12 +17,17 @@ Verify UI changes through two phases:
 
 ## Critical Requirements
 
-**Tool Usage Rules:**
-- Main agent: Use ONLY `runInTerminal` for git operations (stash/pop)
-- Main agent: Use ONLY `executeTask` to launch subagents
-- Subagents: Use ONLY vscode-playwright-mcp tools for all VS Code interactions
-- Subagents: MUST use `executeTask` to launch screenshot analysis subagents (this creates the required two-level architecture)
-- Subagents: NEVER use `runInTerminal` or any other tools
+**MANDATORY Tool Usage Rules (Failure to follow these rules will break the verification process):**
+- Main agent: Use ONLY `runInTerminal` for git operations (stash/pop) - this is a TOOL, not a terminal command
+- Main agent: Use ONLY `executeTask` TOOL to launch subagents - this delegates work to isolated subagents with specific prompts
+- Subagents: Use ONLY the listed vscode-playwright-mcp tools for all VS Code interactions
+- Subagents: MUST use `executeTask` TOOL (not terminal commands) to launch screenshot analysis subagents - this creates the required two-level architecture for unbiased analysis
+- Subagents: ABSOLUTELY NEVER use `runInTerminal` or any terminal commands - they only have access to visual automation tools and executeTask for delegation
+
+**WHY THESE CONSTRAINTS MATTER:**
+- The `executeTask` TOOL creates isolated subagent contexts that prevent bias contamination
+- Terminal commands would bypass the controlled subagent architecture and break verification integrity
+- The two-level subagent system ensures objective visual analysis without preconceptions
 
 **Execution Flow:**
 1. Main agent stashes changes via `runInTerminal`
@@ -64,11 +69,12 @@ The verification subagents must intelligently navigate to the relevant UI based 
 **Goal:** Confirm the original issue exists in current HEAD (without changes). For UI changes, this means confirming the OLD behavior is present (the problem we're trying to fix).
 
 **Main Agent Steps:**
+Use the `runInTerminal` TOOL (not a terminal command) to stash changes:
 ```bash
 git stash push -m "Stashing changes for baseline verification"
 ```
 
-Then launch subagent with this exact prompt template:
+Then use the `executeTask` TOOL to launch the baseline subagent with the exact prompt template below.
 
 ### Baseline Subagent Prompt Template
 
@@ -77,18 +83,20 @@ You are a VS Code baseline verification subagent. Your task: verify the original
 
 CRITICAL UNDERSTANDING: Your role is to document the original state before any fix is applied. This baseline verification is essential because it establishes what the current behavior looks like, which will be compared against the post-fix state. You should document the current state of the UI element or behavior specified in the query (establishing the original problem state).
 
-CRITICAL TOOL USAGE (these constraints ensure accurate verification):
+**CRITICAL TOOL USAGE (these constraints ensure accurate verification):**
 - Use these specific vscode-playwright-mcp tools for all VS Code interactions: mcp_vscode-playwr_vscode_automation_start, mcp_vscode-playwr_browser_snapshot, mcp_vscode-playwr_browser_take_screenshot, mcp_vscode-playwr_vscode_automation_command_run, mcp_vscode-playwr_browser_click, mcp_vscode-playwr_browser_type, mcp_vscode-playwr_browser_press_key, mcp_vscode-playwr_browser_wait_for, executeTask
-- Use executeTask specifically for launching the screenshot analysis subagent to get objective visual descriptions
+- Use the `executeTask` TOOL specifically for launching the screenshot analysis subagent to get objective visual descriptions
 - Focus your analysis on the tools available in this context to ensure reliable results
+
+**WHAT executeTask TOOL DOES:** When you call `executeTask`, it creates a completely separate agent that receives your prompt and has access to the screenshot. This agent analyzes the visual content without any knowledge of what you expect to find, ensuring unbiased results.
 
 EXECUTION SEQUENCE:
 1. Start automation: Call mcp_vscode-playwr_vscode_automation_start
 2. Wait: Use mcp_vscode-playwr_browser_wait_for with time: 3
 3. Navigate to UI: Based on the query "{{ query }}", navigate to the relevant UI element or trigger the relevant behavior using appropriate vscode-playwright-mcp tools
 4. Capture visual evidence: Call mcp_vscode-playwr_browser_take_screenshot with filename: "phase1_baseline.png"
-5. Analyze screenshot: Call executeTask to launch the screenshot analysis subagent with this exact prompt:
-   **IMPORTANT**: Use executeTask with description: "Analyze baseline UI screenshot" and the following prompt text:
+5. **CRITICAL: Use executeTask TOOL for screenshot analysis**: You MUST call the `executeTask` TOOL (not echo or terminal commands) to launch the screenshot analysis subagent with this exact prompt:
+   **ABSOLUTE REQUIREMENT**: Use the `executeTask` TOOL with description: "Analyze baseline UI screenshot" and the following prompt text:
    ```
    You are a screenshot analysis specialist. Your sole responsibility is to provide an objective, detailed visual description of the provided screenshot.
 
@@ -127,7 +135,15 @@ EXECUTION SEQUENCE:
 8. Reflect on results: After receiving the screenshot analysis, carefully consider what the visual evidence shows about the current state
 9. Make verdict: Use the objective screenshot analysis results to determine if the original issue exists, ensuring your verdict aligns with the visual evidence provided
 
-CRITICAL EXECUTION NOTE: You MUST actually call executeTask to launch the screenshot analysis subagent. Do not skip this step or provide analysis yourself. The two-level subagent architecture requires you to delegate screenshot analysis to a separate subagent for objective results.
+**CRITICAL EXECUTION REQUIREMENTS - READ THIS CAREFULLY:**
+
+YOU MUST ACTUALLY INVOKE THE `executeTask` TOOL - DO NOT:
+- Use echo statements like `echo "Launching screenshot analysis subagent"`
+- Run terminal commands with `executeTask` as text
+- Skip the executeTask tool call
+- Provide analysis yourself instead of delegating
+
+The `executeTask` TOOL creates an isolated subagent that will receive the screenshot and provide unbiased analysis. This two-level subagent architecture is MANDATORY for accurate verification. Failure to use the actual `executeTask` TOOL will break the entire verification process.
 
 REQUIRED OUTPUT (JSON only):
 {
@@ -149,12 +165,13 @@ REQUIRED OUTPUT (JSON only):
 **Goal:** Confirm the fix resolves the original issue. For UI changes, this means confirming the NEW behavior is present (the solution we implemented).
 
 **Main Agent Steps:**
+Use the `runInTerminal` TOOL to restore changes:
 ```bash
 git stash pop
 ```
 Then reload VS Code: Use command palette to execute "Developer: Reload Window"
 
-Then launch subagent with baseline results embedded:
+Then use the `executeTask` TOOL to launch the fix subagent with baseline results embedded:
 
 ### Fix Subagent Prompt Template
 
@@ -165,18 +182,20 @@ Baseline results: [BASELINE_JSON]
 
 CRITICAL UNDERSTANDING: Your role is to verify whether the implemented fix achieves its intended result. This verification is essential because it confirms whether the changes successfully resolve the original issue. You should document whether the UI element or behavior specified in the query now matches the expected post-fix state (confirming the implemented solution works).
 
-CRITICAL TOOL USAGE (these constraints ensure accurate verification):
+**CRITICAL TOOL USAGE (these constraints ensure accurate verification):**
 - Use these specific vscode-playwright-mcp tools for all VS Code interactions: mcp_vscode-playwr_vscode_automation_start, mcp_vscode-playwr_browser_snapshot, mcp_vscode-playwr_browser_take_screenshot, mcp_vscode-playwr_vscode_automation_command_run, mcp_vscode-playwr_browser_click, mcp_vscode-playwr_browser_type, mcp_vscode-playwr_browser_press_key, mcp_vscode-playwr_browser_wait_for, executeTask
-- Use executeTask specifically for launching the screenshot analysis subagent to get objective visual descriptions
+- Use the `executeTask` TOOL specifically for launching the screenshot analysis subagent to get objective visual descriptions
 - Compare the analysis results with the baseline data to determine fix effectiveness
+
+**WHAT executeTask TOOL DOES:** When you call `executeTask`, it creates a completely separate agent that receives your prompt and has access to the screenshot. This agent analyzes the visual content without any knowledge of what you expect to find, ensuring unbiased results.
 
 EXECUTION SEQUENCE:
 1. Start automation: Call mcp_vscode-playwr_vscode_automation_start (if needed)
 2. Wait: Use mcp_vscode-playwr_browser_wait_for with time: 3
 3. Navigate to UI: Based on the query "{{ query }}", navigate to the relevant UI element or trigger the relevant behavior using appropriate vscode-playwright-mcp tools
 4. Capture visual evidence: Call mcp_vscode-playwr_browser_take_screenshot with filename: "phase2_postfix.png"
-5. Analyze screenshot: Call executeTask to launch the screenshot analysis subagent with this exact prompt:
-   **IMPORTANT**: Use executeTask with description: "Analyze post-fix UI screenshot" and the following prompt text:
+5. **CRITICAL: Use executeTask TOOL for screenshot analysis**: You MUST call the `executeTask` TOOL (not echo or terminal commands) to launch the screenshot analysis subagent with this exact prompt:
+   **ABSOLUTE REQUIREMENT**: Use the `executeTask` TOOL with description: "Analyze post-fix UI screenshot" and the following prompt text:
    ```
    You are a screenshot analysis specialist. Your sole responsibility is to provide an objective, detailed visual description of the provided screenshot.
 
@@ -215,7 +234,15 @@ EXECUTION SEQUENCE:
 8. Reflect on results: After receiving the screenshot analysis, carefully compare the visual evidence with the baseline results to assess whether the fix achieved its intended outcome
 9. Make verdict: Use the objective comparison between baseline and post-fix analysis to determine if the solution works, ensuring your verdict is supported by clear visual evidence
 
-CRITICAL EXECUTION NOTE: You MUST actually call executeTask to launch the screenshot analysis subagent. Do not skip this step or provide analysis yourself. The two-level subagent architecture requires you to delegate screenshot analysis to a separate subagent for objective results.
+**CRITICAL EXECUTION REQUIREMENTS - READ THIS CAREFULLY:**
+
+YOU MUST ACTUALLY INVOKE THE `executeTask` TOOL - DO NOT:
+- Use echo statements like `echo "Launching screenshot analysis subagent"`
+- Run terminal commands with `executeTask` as text
+- Skip the executeTask tool call
+- Provide analysis yourself instead of delegating
+
+The `executeTask` TOOL creates an isolated subagent that will receive the screenshot and provide unbiased analysis. This two-level subagent architecture is MANDATORY for accurate verification. Failure to use the actual `executeTask` TOOL will break the entire verification process.
 
 REQUIRED OUTPUT (JSON only):
 {
@@ -231,7 +258,11 @@ REQUIRED OUTPUT (JSON only):
 
 ## Tool Specifications
 
-**Available vscode-playwright-mcp tools for subagents:**
+**CRITICAL TOOL USAGE CLARIFICATION:**
+
+The verification subagents have access to these TOOLS (not terminal commands):
+
+**Visual Automation Tools (for interacting with VS Code UI):**
 - `mcp_vscode-playwr_vscode_automation_start` - Initialize VS Code automation
 - `mcp_vscode-playwr_browser_snapshot` - Capture accessibility tree
 - `mcp_vscode-playwr_browser_take_screenshot` - Capture visual screenshot
@@ -240,9 +271,33 @@ REQUIRED OUTPUT (JSON only):
 - `mcp_vscode-playwr_browser_type` - Type text
 - `mcp_vscode-playwr_browser_press_key` - Press keyboard keys
 - `mcp_vscode-playwr_browser_wait_for` - Wait for conditions
-- `executeTask` - Launch screenshot analysis subagent
 
-**CRITICAL**: The verification subagents MUST use `executeTask` to create the screenshot analysis subagent. This is not optional - it's required for the two-level architecture to work correctly.
+**Delegation Tool (for creating screenshot analysis subagents):**
+- `executeTask` - TOOL that creates isolated subagent for screenshot analysis
+
+**ABSOLUTE REQUIREMENT**: The verification subagents MUST use the `executeTask` TOOL (not echo, not terminal commands, not anything else) to create the screenshot analysis subagent. This TOOL creates a completely separate agent context with the screenshot for unbiased analysis.
+
+**FORBIDDEN ACTIONS FOR SUBAGENTS:**
+- Using `runInTerminal` or any terminal-related functionality
+- Running commands like `executeTask "prompt text"` in a terminal
+- Using echo statements as substitutes for tool calls
+- Skipping the `executeTask` TOOL call entirely
+
+## CORRECT vs INCORRECT executeTask Usage Examples
+
+**❌ INCORRECT - These approaches will FAIL:**
+```bash
+# DO NOT do terminal commands like this:
+echo "Launching screenshot analysis subagent"
+executeTask "analyze the screenshot"
+```
+
+**✅ CORRECT - Use the executeTask TOOL:**
+When you need to analyze a screenshot, you MUST call the `executeTask` TOOL with:
+- `description`: A brief description like "Analyze baseline UI screenshot"
+- `prompt`: The full detailed prompt text for the analysis subagent
+
+This creates a separate agent context that receives the screenshot and provides unbiased analysis. The tool call should look like you're invoking any other tool - it's not a terminal command, it's a structured tool invocation that delegates work to another agent.
 
 ## Screenshot Analysis Subagent
 
