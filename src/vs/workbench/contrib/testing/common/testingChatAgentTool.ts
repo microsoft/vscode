@@ -49,8 +49,10 @@ export class TestingChatAgentToolContribution extends Disposable implements IWor
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super();
-		const runInTerminalTool = instantiationService.createInstance(RunTestTool);
-		this._register(toolsService.registerTool(RunTestTool.DEFINITION, runInTerminalTool));
+		const runTestsTool = instantiationService.createInstance(RunTestTool);
+		this._register(toolsService.registerTool(RunTestTool.DEFINITION, runTestsTool));
+		const runTestsWithCoverageTool = instantiationService.createInstance(RunTestWithCoverageTool);
+		this._register(toolsService.registerTool(RunTestWithCoverageTool.DEFINITION, runTestsWithCoverageTool));
 
 		// todo@connor4312: temporary for 1.103 release during changeover
 		contextKeyService.createKey('chat.coreTestFailureToolEnabled', true).set(true);
@@ -62,49 +64,16 @@ interface IRunTestToolParams {
 	testNames?: string[];
 }
 
-class RunTestTool implements IToolImpl {
-	public static readonly ID = 'runTests';
-	public static readonly DEFINITION: IToolData = {
-		id: this.ID,
-		toolReferenceName: 'runTests',
-		canBeReferencedInPrompt: true,
-		when: TestingContextKeys.hasRunnableTests,
-		displayName: 'Run tests',
-		modelDescription: 'Runs unit tests in files. Use this tool if the user asks to run tests or when you want to validate changes using unit tests, and prefer using this tool instead of the terminal tool. When possible, always try to provide `files` paths containing the relevant unit tests in order to avoid unnecessarily long test runs. This tool outputs detailed information about the results of the test run.',
-		icon: Codicon.beaker,
-		inputSchema: {
-			type: 'object',
-			properties: {
-				files: {
-					type: 'array',
-					items: { type: 'string' },
-					description: 'Absolute paths to the test files to run. If not provided, all test files will be run.',
-				},
-				testNames: {
-					type: 'array',
-					items: { type: 'string' },
-					description: 'An array of test names to run. Depending on the context, test names defined in code may be strings or the names of functions or classes containing the test cases. If not provided, all tests in the files will be run.',
-				}
-			},
-		},
-		userDescription: localize('runTestTool.userDescription', 'Runs unit tests'),
-		source: ToolDataSource.Internal,
-		tags: [
-			'vscode_editing_with_tests',
-			'enable_other_tool_copilot_readFile',
-			'enable_other_tool_copilot_listDirectory',
-			'enable_other_tool_copilot_findFiles',
-			'enable_other_tool_copilot_runTests',
-			'enable_other_tool_copilot_testFailure',
-		],
-	};
-
+abstract class BaseRunTestsTool implements IToolImpl {
 	constructor(
-		@ITestService private readonly _testService: ITestService,
-		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
-		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
-		@ITestResultService private readonly _testResultService: ITestResultService,
+		@ITestService protected readonly _testService: ITestService,
+		@IUriIdentityService protected readonly _uriIdentityService: IUriIdentityService,
+		@IWorkspaceContextService protected readonly _workspaceContextService: IWorkspaceContextService,
+		@ITestResultService protected readonly _testResultService: ITestResultService,
 	) { }
+
+	protected abstract getRunGroup(): TestRunProfileBitset;
+	protected async getAdditionalSummary(result: LiveTestResult): Promise<string> { return ''; }
 
 	async invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
 		const params: IRunTestToolParams = invocation.parameters;
@@ -137,7 +106,7 @@ class RunTestTool implements IToolImpl {
 			};
 		}
 
-		const summary = await this._makeModelTestResults(result);
+		const summary = await this._buildSummary(result);
 		const content = [{ kind: 'text', value: summary } as const];
 
 		return {
@@ -146,165 +115,58 @@ class RunTestTool implements IToolImpl {
 		};
 	}
 
-	private async _makeModelTestResults(result: LiveTestResult) {
+	private async _buildSummary(result: LiveTestResult): Promise<string> {
 		const failures = result.counts[TestResultState.Errored] + result.counts[TestResultState.Failed];
 		let str = `<summary passed=${result.counts[TestResultState.Passed]} failed=${failures} />`;
-
-		// Append failure details only if there are failures
 		if (failures !== 0) {
-			for (const failure of result.tests) {
-				if (!isFailedState(failure.ownComputedState)) {
-					continue;
-				}
-
-				const [, ...testPath] = TestId.split(failure.item.extId);
-				const testName = testPath.pop();
-				str += `<testFailure name=${JSON.stringify(testName)} path=${JSON.stringify(testPath.join(' > '))}>\n`;
-
-				// Extract detailed failure information from error messages
-				for (const task of failure.tasks) {
-					for (const message of task.messages.filter(m => m.type === TestMessageType.Error)) {
-						// Add expected/actual outputs if available
-						if (message.expected !== undefined && message.actual !== undefined) {
-							str += `<expectedOutput>\n${message.expected}\n</expectedOutput>\n`;
-							str += `<actualOutput>\n${message.actual}\n</actualOutput>\n`;
-						} else {
-							// Fallback to the message content
-							const messageText = typeof message.message === 'string' ? message.message : message.message.value;
-							str += `<message>\n${messageText}\n</message>\n`;
-						}
-
-						// Add stack trace information if available (limit to first 10 frames)
-						if (message.stackTrace && message.stackTrace.length > 0) {
-							for (const frame of message.stackTrace.slice(0, 10)) {
-								if (frame.uri && frame.position) {
-									str += `<stackFrame path="${frame.uri.fsPath}" line="${frame.position.lineNumber}" col="${frame.position.column}" />\n`;
-								} else if (frame.uri) {
-									str += `<stackFrame path="${frame.uri.fsPath}">${frame.label}</stackFrame>\n`;
-								} else {
-									str += `<stackFrame>${frame.label}</stackFrame>\n`;
-								}
-							}
-						}
-
-						// Add location information if available
-						if (message.location) {
-							str += `<location path="${message.location.uri.fsPath}" line="${message.location.range.startLineNumber}" col="${message.location.range.startColumn}" />\n`;
-						}
-					}
-				}
-
-				str += `</testFailure>\n`;
-			}
+			str += await this._getFailureDetails(result);
 		}
+		str += await this.getAdditionalSummary(result);
+		return str;
+	}
 
-		// Append only the first uncovered location (or file) if any task produced coverage
-		for (const task of result.tasks) {
-			const coverage = task.coverage.get();
-			if (!coverage) {
+	private async _getFailureDetails(result: LiveTestResult): Promise<string> {
+		let str = '';
+		for (const failure of result.tests) {
+			if (!isFailedState(failure.ownComputedState)) {
 				continue;
 			}
 
-			let firstUncoveredPath: string | undefined;
-			let firstUncoveredKind: 'statement' | 'branch' | 'declaration' | undefined;
-			let firstPct: number | undefined;
-			let firstUncoveredFile: FileCoverage | undefined;
-			let firstUncoveredLines: { start: number; end: number } | undefined;
-			let statementsCovered = 0, statementsTotal = 0;
-			let branchesCovered = 0, branchesTotal = 0;
-			let declarationsCovered = 0, declarationsTotal = 0;
+			const [, ...testPath] = TestId.split(failure.item.extId);
+			const testName = testPath.pop();
+			str += `<testFailure name=${JSON.stringify(testName)} path=${JSON.stringify(testPath.join(' > '))}>\n`;
+			for (const task of failure.tasks) {
+				for (const message of task.messages.filter(m => m.type === TestMessageType.Error)) {
+					if (message.expected !== undefined && message.actual !== undefined) {
+						str += `<expectedOutput>\n${message.expected}\n</expectedOutput>\n`;
+						str += `<actualOutput>\n${message.actual}\n</actualOutput>\n`;
+					} else {
+						// Fallback to the message content
+						const messageText = typeof message.message === 'string' ? message.message : message.message.value;
+						str += `<message>\n${messageText}\n</message>\n`;
+					}
 
-			for (const file of coverage.getAllFiles().values()) {
-				// Track totals
-				statementsCovered += file.statement.covered; statementsTotal += file.statement.total;
-				if (file.branch) { branchesCovered += file.branch.covered; branchesTotal += file.branch.total; }
-				if (file.declaration) { declarationsCovered += file.declaration.covered; declarationsTotal += file.declaration.total; }
+					// Add stack trace information if available (limit to first 10 frames)
+					if (message.stackTrace && message.stackTrace.length > 0) {
+						for (const frame of message.stackTrace.slice(0, 10)) {
+							if (frame.uri && frame.position) {
+								str += `<stackFrame path="${frame.uri.fsPath}" line="${frame.position.lineNumber}" col="${frame.position.column}" />\n`;
+							} else if (frame.uri) {
+								str += `<stackFrame path="${frame.uri.fsPath}">${frame.label}</stackFrame>\n`;
+							} else {
+								str += `<stackFrame>${frame.label}</stackFrame>\n`;
+							}
+						}
+					}
 
-				if (!firstUncoveredPath) {
-					// Determine if this file has any uncovered category
-					const pct = getTotalCoveragePercent(file.statement, file.branch, file.declaration) * 100;
-					const statementFull = file.statement.covered === file.statement.total;
-					const branchFull = !file.branch || file.branch.covered === file.branch.total;
-					const declarationFull = !file.declaration || file.declaration.covered === file.declaration.total;
-					if (!statementFull || !branchFull || !declarationFull) {
-						firstUncoveredPath = file.uri.fsPath;
-						firstUncoveredKind = !statementFull ? 'statement' : (!branchFull ? 'branch' : 'declaration');
-						firstPct = pct;
-						firstUncoveredFile = file;
+					// Add location information if available
+					if (message.location) {
+						str += `<location path="${message.location.uri.fsPath}" line="${message.location.range.startLineNumber}" col="${message.location.range.startColumn}" />\n`;
 					}
 				}
 			}
-
-			if (firstUncoveredPath) {
-				const totalPct = getTotalCoveragePercent(
-					{ covered: statementsCovered, total: statementsTotal },
-					branchesTotal ? { covered: branchesCovered, total: branchesTotal } : undefined,
-					declarationsTotal ? { covered: declarationsCovered, total: declarationsTotal } : undefined,
-				) * 100;
-				str += `<coverage task=${JSON.stringify(task.name || '')} statementsCovered=${statementsCovered} statementsTotal=${statementsTotal} branchesCovered=${branchesCovered} branchesTotal=${branchesTotal} declarationsCovered=${declarationsCovered} declarationsTotal=${declarationsTotal} percent=${totalPct.toFixed(2)}>\n`;
-				str += `<firstUncovered path=${JSON.stringify(firstUncoveredPath)} kind=${JSON.stringify(firstUncoveredKind)} filePercent=${firstPct!.toFixed(2)}>\n`;
-
-				// Attempt to include first consecutive group of uncovered lines for the file
-				try {
-					if (firstUncoveredFile && typeof firstUncoveredFile.details === 'function') {
-						// If details are already resolved or can be awaited quickly, fetch them
-						const details = await firstUncoveredFile.details();
-						const uncoveredLines = new Set<number>();
-						for (const d of details) {
-							const isCovered = !!d.count; // count truthiness represents coverage
-							if (!isCovered && d.location) {
-								// Location may be a Range (with startLineNumber/endLineNumber) or Position (lineNumber)
-								let startLine: number;
-								let endLine: number;
-								if ('startLineNumber' in d.location && 'endLineNumber' in d.location) {
-									startLine = d.location.startLineNumber;
-									endLine = d.location.endLineNumber;
-								} else {
-									startLine = endLine = d.location.lineNumber;
-								}
-								for (let ln = startLine; ln <= endLine; ln++) {
-									uncoveredLines.add(ln);
-								}
-							}
-						}
-						if (uncoveredLines.size) {
-							const sorted = [...uncoveredLines].sort((a, b) => a - b);
-							const rangeStart = sorted[0];
-							let rangeEnd = sorted[0];
-							for (let i = 1; i < sorted.length; i++) {
-								if (sorted[i] === rangeEnd + 1) {
-									rangeEnd = sorted[i];
-								} else {
-									break; // first consecutive group complete
-								}
-							}
-							firstUncoveredLines = { start: rangeStart, end: rangeEnd };
-						}
-					}
-				} catch {
-					// Swallow errors obtaining details, continue without line info
-				}
-
-				if (firstUncoveredLines) {
-					str += `\n<firstUncoveredLines start=${firstUncoveredLines.start} end=${firstUncoveredLines.end} />`;
-				}
-				str += `</firstUncovered>\n`;
-
-				str += `\n</coverage>\n`;
-			} else {
-				// If everything is covered, still emit a minimal coverage tag once
-				const totalPct = getTotalCoveragePercent(
-					{ covered: statementsCovered, total: statementsTotal },
-					branchesTotal ? { covered: branchesCovered, total: branchesTotal } : undefined,
-					declarationsTotal ? { covered: declarationsCovered, total: declarationsTotal } : undefined,
-				) * 100;
-				str += `<coverage task=${JSON.stringify(task.name || '')} statementsCovered=${statementsCovered} statementsTotal=${statementsTotal} branchesCovered=${branchesCovered} branchesTotal=${branchesTotal} declarationsCovered=${declarationsCovered} declarationsTotal=${declarationsTotal} percent=${totalPct.toFixed(2)} />\n`;
-			}
-
-			// Only include the first coverage-producing task
-			break;
+			str += `</testFailure>\n`;
 		}
-
 		return str;
 	}
 
@@ -340,11 +202,11 @@ class RunTestTool implements IToolImpl {
 	}
 
 	/**
-	 * Captures the test result. This is a little tricky because some extensions
-	 * trigger an 'out of bound' test run, so we actually wait for the first
-	 * test run to come in that contains one or more tasks and treat that as the
-	 * one we're looking for.
-	 */
+		 * Captures the test result. This is a little tricky because some extensions
+		 * trigger an 'out of bound' test run, so we actually wait for the first
+		 * test run to come in that contains one or more tasks and treat that as the
+		 * one we're looking for.
+		 */
 	private async _captureTestResult(testCases: IncrementalTestCollectionItem[], token: CancellationToken): Promise<LiveTestResult | undefined> {
 		const store = new DisposableStore();
 		const onDidTimeout = store.add(new Emitter<void>());
@@ -364,7 +226,7 @@ class RunTestTool implements IToolImpl {
 			}));
 
 			this._testService.runTests({
-				group: TestRunProfileBitset.Coverage,
+				group: this.getRunGroup(),
 				tests: testCases,
 				preserveFocus: true,
 			}, token).then(() => {
@@ -452,5 +314,160 @@ class RunTestTool implements IToolImpl {
 				allowAutoConfirm: true,
 			},
 		});
+	}
+}
+
+class RunTestTool extends BaseRunTestsTool {
+	public static readonly ID = 'runTests';
+	public static readonly DEFINITION: IToolData = {
+		id: this.ID,
+		toolReferenceName: 'runTests',
+		canBeReferencedInPrompt: true,
+		when: TestingContextKeys.hasRunnableTests,
+		displayName: 'Run tests',
+		modelDescription: 'Runs unit tests in files. Use this tool if the user asks to run tests or when you want to validate changes using unit tests, and prefer using this tool instead of the terminal tool. When possible, always try to provide `files` paths containing the relevant unit tests in order to avoid unnecessarily long test runs. This tool outputs detailed information about the results of the test run.',
+		icon: Codicon.beaker,
+		inputSchema: {
+			type: 'object',
+			properties: {
+				files: {
+					type: 'array',
+					items: { type: 'string' },
+					description: 'Absolute paths to the test files to run. If not provided, all test files will be run.',
+				},
+				testNames: {
+					type: 'array',
+					items: { type: 'string' },
+					description: 'An array of test names to run. Depending on the context, test names defined in code may be strings or the names of functions or classes containing the test cases. If not provided, all tests in the files will be run.',
+				}
+			},
+		},
+		userDescription: localize('runTestTool.userDescription', 'Runs unit tests'),
+		source: ToolDataSource.Internal,
+		tags: [
+			'vscode_editing_with_tests',
+			'enable_other_tool_copilot_readFile',
+			'enable_other_tool_copilot_listDirectory',
+			'enable_other_tool_copilot_findFiles',
+			'enable_other_tool_copilot_runTests',
+			'enable_other_tool_copilot_testFailure',
+		],
+	};
+
+	constructor(
+		@ITestService testService: ITestService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
+		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
+		@ITestResultService testResultService: ITestResultService,
+	) { super(testService, uriIdentityService, workspaceContextService, testResultService); }
+
+	protected override getRunGroup(): TestRunProfileBitset { return TestRunProfileBitset.Run; }
+}
+
+class RunTestWithCoverageTool extends BaseRunTestsTool {
+	public static readonly ID = 'runTestsWithCoverage';
+	public static readonly DEFINITION: IToolData = {
+		id: this.ID,
+		toolReferenceName: 'runTestsWithCoverage',
+		canBeReferencedInPrompt: true,
+		when: TestingContextKeys.hasRunnableTests,
+		displayName: 'Run tests with coverage',
+		modelDescription: 'Runs unit tests (optionally filtered) and reports a coverage summary. Use when a coverage report is explicitly requested or when identifying uncovered code.',
+		icon: Codicon.beaker,
+		inputSchema: RunTestTool.DEFINITION.inputSchema!,
+		userDescription: localize('runTestWithCoverageTool.userDescription', 'Runs unit tests with coverage'),
+		source: ToolDataSource.Internal,
+		tags: [
+			'vscode_editing_with_tests',
+			'enable_other_tool_copilot_readFile',
+			'enable_other_tool_copilot_listDirectory',
+			'enable_other_tool_copilot_findFiles',
+			'enable_other_tool_copilot_runTestsWithCoverage',
+			'enable_other_tool_copilot_testFailure',
+		],
+	};
+
+	constructor(
+		@ITestService testService: ITestService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
+		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
+		@ITestResultService testResultService: ITestResultService,
+	) { super(testService, uriIdentityService, workspaceContextService, testResultService); }
+
+	protected override getRunGroup(): TestRunProfileBitset { return TestRunProfileBitset.Coverage; }
+
+	protected override async getAdditionalSummary(result: LiveTestResult): Promise<string> {
+		for (const task of result.tasks) {
+			const coverage = task.coverage.get();
+			if (!coverage) { continue; }
+			let firstUncoveredPath: string | undefined;
+			let firstUncoveredKind: 'statement' | 'branch' | 'declaration' | undefined;
+			let firstPct: number | undefined;
+			let firstUncoveredFile: FileCoverage | undefined;
+			let firstUncoveredLines: { start: number; end: number } | undefined;
+			let statementsCovered = 0, statementsTotal = 0;
+			let branchesCovered = 0, branchesTotal = 0;
+			let declarationsCovered = 0, declarationsTotal = 0;
+			for (const file of coverage.getAllFiles().values()) {
+				statementsCovered += file.statement.covered; statementsTotal += file.statement.total;
+				if (file.branch) { branchesCovered += file.branch.covered; branchesTotal += file.branch.total; }
+				if (file.declaration) { declarationsCovered += file.declaration.covered; declarationsTotal += file.declaration.total; }
+				if (!firstUncoveredPath) {
+					const pct = getTotalCoveragePercent(file.statement, file.branch, file.declaration) * 100;
+					const statementFull = file.statement.covered === file.statement.total;
+					const branchFull = !file.branch || file.branch.covered === file.branch.total;
+					const declarationFull = !file.declaration || file.declaration.covered === file.declaration.total;
+					if (!statementFull || !branchFull || !declarationFull) {
+						firstUncoveredPath = file.uri.fsPath;
+						firstUncoveredKind = !statementFull ? 'statement' : (!branchFull ? 'branch' : 'declaration');
+						firstPct = pct;
+						firstUncoveredFile = file;
+					}
+				}
+			}
+			let summary = '';
+			if (firstUncoveredPath) {
+				const totalPct = getTotalCoveragePercent(
+					{ covered: statementsCovered, total: statementsTotal },
+					branchesTotal ? { covered: branchesCovered, total: branchesTotal } : undefined,
+					declarationsTotal ? { covered: declarationsCovered, total: declarationsTotal } : undefined,
+				) * 100;
+				summary += `<coverage task=${JSON.stringify(task.name || '')} statementsCovered=${statementsCovered} statementsTotal=${statementsTotal} branchesCovered=${branchesCovered} branchesTotal=${branchesTotal} declarationsCovered=${declarationsCovered} declarationsTotal=${declarationsTotal} percent=${totalPct.toFixed(2)}>`;
+				summary += `<firstUncovered path=${JSON.stringify(firstUncoveredPath)} kind=${JSON.stringify(firstUncoveredKind)} filePercent=${firstPct!.toFixed(2)}>`;
+				try {
+					if (firstUncoveredFile && typeof firstUncoveredFile.details === 'function') {
+						const details = await firstUncoveredFile.details();
+						const uncoveredLines = new Set<number>();
+						for (const d of details) {
+							const isCovered = !!d.count;
+							if (!isCovered && d.location) {
+								let startLine: number; let endLine: number;
+								if ('startLineNumber' in d.location && 'endLineNumber' in d.location) { startLine = d.location.startLineNumber; endLine = d.location.endLineNumber; }
+								else { startLine = endLine = d.location.lineNumber; }
+								for (let ln = startLine; ln <= endLine; ln++) { uncoveredLines.add(ln); }
+							}
+						}
+						if (uncoveredLines.size) {
+							const sorted = [...uncoveredLines].sort((a, b) => a - b);
+							const rangeStart = sorted[0]; let rangeEnd = sorted[0];
+							for (let i = 1; i < sorted.length; i++) { if (sorted[i] === rangeEnd + 1) { rangeEnd = sorted[i]; } else { break; } }
+							firstUncoveredLines = { start: rangeStart, end: rangeEnd };
+						}
+					}
+				} catch { }
+				if (firstUncoveredLines) { summary += `\n<firstUncoveredLines start=${firstUncoveredLines.start} end=${firstUncoveredLines.end} />`; }
+				summary += `</firstUncovered>`;
+				summary += `\n</coverage>\n`;
+			} else {
+				const totalPct = getTotalCoveragePercent(
+					{ covered: statementsCovered, total: statementsTotal },
+					branchesTotal ? { covered: branchesCovered, total: branchesTotal } : undefined,
+					declarationsTotal ? { covered: declarationsCovered, total: declarationsTotal } : undefined,
+				) * 100;
+				summary += `<coverage task=${JSON.stringify(task.name || '')} statementsCovered=${statementsCovered} statementsTotal=${statementsTotal} branchesCovered=${branchesCovered} branchesTotal=${branchesTotal} declarationsCovered=${declarationsCovered} declarationsTotal=${declarationsTotal} percent=${totalPct.toFixed(2)} />\n`;
+			}
+			return summary; // Only first coverage producing task
+		}
+		return '';
 	}
 }
