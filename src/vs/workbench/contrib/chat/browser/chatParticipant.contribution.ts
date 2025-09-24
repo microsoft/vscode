@@ -199,9 +199,9 @@ const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.regi
 			}
 		}
 	},
-	activationEventsGenerator: (contributions: IRawChatParticipantContribution[], result: { push(item: string): void }) => {
+	activationEventsGenerator: function* (contributions: readonly IRawChatParticipantContribution[]) {
 		for (const contrib of contributions) {
-			result.push(`onChatParticipant:${contrib.id}`);
+			yield `onChatParticipant:${contrib.id}`;
 		}
 	},
 });

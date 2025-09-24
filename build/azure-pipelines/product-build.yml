@@ -357,12 +357,6 @@ extends:
                 templateContext:
                   outputs:
                     - output: pipelineArtifact
-                      targetPath: .build/node-cpuprofile
-                      artifactName: $(ARTIFACT_PREFIX)node-cpuprofile-$(VSCODE_ARCH)-electron-$(System.JobAttempt)
-                      displayName: Publish Codesign cpu profile
-                      sbomEnabled: false
-                      isProduction: false
-                    - output: pipelineArtifact
                       targetPath: .build/crashes
                       artifactName: crash-dump-windows-$(VSCODE_ARCH)-electron-$(System.JobAttempt)
                       displayName: Publish Crash Reports
@@ -399,12 +393,6 @@ extends:
                 templateContext:
                   outputs:
                     - output: pipelineArtifact
-                      targetPath: .build/node-cpuprofile
-                      artifactName: $(ARTIFACT_PREFIX)node-cpuprofile-$(VSCODE_ARCH)-browser-$(System.JobAttempt)
-                      displayName: Publish Codesign cpu profile
-                      sbomEnabled: false
-                      isProduction: false
-                    - output: pipelineArtifact
                       targetPath: .build/crashes
                       artifactName: crash-dump-windows-$(VSCODE_ARCH)-browser-$(System.JobAttempt)
                       displayName: Publish Crash Reports
@@ -440,12 +428,6 @@ extends:
                   VSCODE_ARCH: x64
                 templateContext:
                   outputs:
-                    - output: pipelineArtifact
-                      targetPath: .build/node-cpuprofile
-                      artifactName: $(ARTIFACT_PREFIX)node-cpuprofile-$(VSCODE_ARCH)-remote-$(System.JobAttempt)
-                      displayName: Publish Codesign cpu profile
-                      sbomEnabled: false
-                      isProduction: false
                     - output: pipelineArtifact
                       targetPath: .build/crashes
                       artifactName: crash-dump-windows-$(VSCODE_ARCH)-remote-$(System.JobAttempt)
