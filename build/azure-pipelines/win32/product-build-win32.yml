@@ -16,10 +16,10 @@ parameters:
     default: false
 
 jobs:
-  - job: Windows_${{ parallelParameters.VSCODE_ARCH }}
-    ${{ if eq(parallelParameters.VSCODE_ARCH, 'x64') }}:
+  - job: Windows_${{ parameters.VSCODE_ARCH }}
+    ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
       displayName: Windows
-    ${{ if eq(parallelParameters.VSCODE_ARCH, 'arm64') }}:
+    ${{ if eq(parameters.VSCODE_ARCH, 'arm64') }}:
       displayName: WindowsARM64
     timeoutInMinutes: 90
     variables:
