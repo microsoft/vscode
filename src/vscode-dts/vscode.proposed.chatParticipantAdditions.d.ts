@@ -285,6 +285,18 @@ declare module 'vscode' {
 
 		thinkingProgress(thinkingDelta: ThinkingDelta): void;
 
+		/**
+		 * Push a data part to this stream. Short-hand for 
+		 * `push(new LanguageModelDataPart(data, mimeType))`.
+		 *
+		 * This enables rendering custom content via chat output renderers.
+		 *
+		 * @param data The binary data to render
+		 * @param mimeType The MIME type that determines which renderer to use
+		 * @returns This stream.
+		 */
+		data(data: Uint8Array, mimeType: string): void;
+
 		textEdit(target: Uri, edits: TextEdit | TextEdit[]): void;
 
 		textEdit(target: Uri, isDone: true): void;

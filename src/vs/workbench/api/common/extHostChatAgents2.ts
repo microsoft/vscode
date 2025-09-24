@@ -199,6 +199,14 @@ export class ChatAgentResponseStream {
 					_report(dto);
 					return this;
 				},
+				data(data: Uint8Array, mimeType: string) {
+					throwIfDone(this.data);
+					checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
+					const dataPart = new extHostTypes.LanguageModelDataPart(data, mimeType);
+					const dto = typeConvert.ChatResponseDataPart.from(dataPart);
+					_report(dto);
+					return this;
+				},
 				warning(value) {
 					throwIfDone(this.progress);
 					checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
