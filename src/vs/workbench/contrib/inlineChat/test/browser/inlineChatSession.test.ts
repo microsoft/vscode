@@ -47,7 +47,7 @@ import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/
 import { IChatAccessibilityService, IChatWidgetService } from '../../../chat/browser/chat.js';
 import { ChatSessionsService } from '../../../chat/browser/chatSessions.contribution.js';
 import { ChatVariablesService } from '../../../chat/browser/chatVariables.js';
-import { ChatWidgetService } from '../../../chat/browser/chatWidget.js';
+import { ChatWidget, ChatWidgetService } from '../../../chat/browser/chatWidget.js';
 import { ChatAgentService, IChatAgentService } from '../../../chat/common/chatAgents.js';
 import { IChatEditingService, IChatEditingSession } from '../../../chat/common/chatEditingService.js';
 import { IChatRequestModel } from '../../../chat/common/chatModel.js';
@@ -121,7 +121,7 @@ suite('InlineChatSession', function () {
 				override editingSessionsObs: IObservable<readonly IChatEditingSession[]> = constObservable([]);
 			}],
 			[IChatAccessibilityService, new class extends mock<IChatAccessibilityService>() {
-				override acceptResponse(container: HTMLElement, response: IChatResponseViewModel | undefined, requestId: number): void { }
+				override acceptResponse(chatWidget: ChatWidget, container: HTMLElement, response: IChatResponseViewModel | undefined, requestId: number): void { }
 				override acceptRequest(): number { return -1; }
 				override acceptElicitation(): void { }
 			}],
