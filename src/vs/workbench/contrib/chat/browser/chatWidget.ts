@@ -8,7 +8,7 @@ import { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { IListRenderer, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { ITreeContextMenuEvent, ITreeElement } from '../../../../base/browser/ui/tree/tree.js';
-import { disposableTimeout, timeout } from '../../../../base/common/async.js';
+import { disposableTimeout, RunOnceScheduler, timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { fromNow, fromNowByDay } from '../../../../base/common/date.js';
@@ -53,7 +53,7 @@ import { IChatEntitlementService } from '../../../services/chat/common/chatEntit
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { checkModeOption } from '../common/chat.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentService } from '../common/chatAgents.js';
-import { ChatContextKeys } from '../common/chatContextKeys.js';
+import { ChatContextKeys, ChatContextKeyExprs } from '../common/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, inChatEditingSessionContextKey, ModifiedFileEntryState } from '../common/chatEditingService.js';
 import { IChatLayoutService } from '../common/chatLayoutService.js';
 import { IChatModel, IChatResponseModel } from '../common/chatModel.js';
@@ -262,6 +262,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private readonly inputPartDisposable: MutableDisposable<ChatInputPart> = this._register(new MutableDisposable());
 	private readonly inlineInputPartDisposable: MutableDisposable<ChatInputPart> = this._register(new MutableDisposable());
+	private readonly timeoutDisposable: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 	private inputContainer!: HTMLElement;
 	private focusedInputDOM!: HTMLElement;
 	private editorOptions!: ChatEditorOptions;
@@ -308,6 +309,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private readonly viewModelDisposables = this._register(new DisposableStore());
 	private _viewModel: ChatViewModel | undefined;
+
+	// Welcome view rendering scheduler to prevent reentrant calls
+	private _welcomeRenderScheduler: RunOnceScheduler;
 
 	// Coding agent locking state
 	private _lockedToCodingAgent: string | undefined;
@@ -380,11 +384,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	readonly viewContext: IChatWidgetViewContext;
 
-	private readonly chatSetupTriggerContext = ContextKeyExpr.or(
-		ChatContextKeys.Setup.installed.negate(),
-		ChatContextKeys.Entitlement.canSignUp
-	);
-
 	get supportsChangingModes(): boolean {
 		return !!this.viewOptions.supportsChangingModes;
 	}
@@ -446,16 +445,17 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		// Context key for when empty state history is enabled and in empty state
 		this.inEmptyStateWithHistoryEnabledKey = ChatContextKeys.inEmptyStateWithHistoryEnabled.bindTo(contextKeyService);
+		this._welcomeRenderScheduler = this._register(new RunOnceScheduler(() => this.renderWelcomeViewContentIfNeeded(), 10));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ChatConfiguration.EmptyStateHistoryEnabled)) {
 				this.updateEmptyStateWithHistoryContext();
-				this.renderWelcomeViewContentIfNeeded();
+				this._welcomeRenderScheduler.schedule();
 			}
 		}));
 		this.updateEmptyStateWithHistoryContext();
 
 		// Update welcome view content when `anonymous` condition changes
-		this._register(this.chatEntitlementService.onDidChangeAnonymous(() => this.renderWelcomeViewContentIfNeeded()));
+		this._register(this.chatEntitlementService.onDidChangeAnonymous(() => this._welcomeRenderScheduler.schedule()));
 
 		this._register(bindContextKey(decidedChatEditingResourceContextKey, contextKeyService, (reader) => {
 			const currentSession = this._editingSession.read(reader);
@@ -614,7 +614,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				ChatContextKeys.Entitlement.canSignUp.key
 			]))) {
 				// reset the input in welcome view if it was rendered in experimental mode
-				if (this.container.classList.contains('new-welcome-view') && !this.contextKeyService.contextMatchesRules(this.chatSetupTriggerContext)) {
+				if (this.container.classList.contains('new-welcome-view') && !this.contextKeyService.contextMatchesRules(ChatContextKeyExprs.chatSetupTriggerContext)) {
 					this.container.classList.remove('new-welcome-view');
 					const renderFollowups = this.viewOptions.renderFollowups ?? false;
 					const renderStyle = this.viewOptions.renderStyle;
@@ -710,7 +710,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.createInput(this.container, { renderFollowups, renderStyle });
 		}
 
-		this.renderWelcomeViewContentIfNeeded();
+		this._welcomeRenderScheduler.schedule();
 		this.createList(this.listContainer, { editable: !isInlineChat(this) && !isQuickChat(this), ...this.viewOptions.rendererOptions, renderStyle });
 
 		const scrollDownButton = this._register(new Button(this.listContainer, {
@@ -876,8 +876,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.input.setChatMode(this.lastWelcomeViewChatMode ?? ChatModeKind.Ask);
 			}
 
-			this.renderWelcomeViewContentIfNeeded();
-			this.renderChatTodoListWidget();
+			if (treeItems.length > 0) {
+				this.updateChatViewVisibility();
+				this.renderChatTodoListWidget();
+			} else {
+				this._welcomeRenderScheduler.schedule();
+			}
 
 			this._onWillMaybeChangeHeight.fire();
 
@@ -919,6 +923,27 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
+	/**
+	 * Updates the DOM visibility of welcome view and chat list immediately
+	 * @internal
+	 */
+	private updateChatViewVisibility(): void {
+		if (!this.viewModel) {
+			return;
+		}
+
+		const numItems = this.viewModel.getItems().length;
+		dom.setVisibility(numItems === 0, this.welcomeMessageContainer);
+		dom.setVisibility(numItems !== 0, this.listContainer);
+	}
+
+	/**
+	 * Renders the welcome view content when needed.
+	 *
+	 * Note: Do not call this method directly. Instead, use `this._welcomeRenderScheduler.schedule()`
+	 * to ensure proper debouncing and avoid potential cyclic calls
+	 * @internal
+	 */
 	private renderWelcomeViewContentIfNeeded() {
 
 		if (this.viewOptions.renderStyle === 'compact' || this.viewOptions.renderStyle === 'minimal') {
@@ -940,14 +965,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					`command:${generateInstructionsCommand}`
 				), { isTrusted: { enabledCommands: [generateInstructionsCommand] } });
 			}
-			if (this.contextKeyService.contextMatchesRules(this.chatSetupTriggerContext)) {
+			if (this.contextKeyService.contextMatchesRules(ChatContextKeyExprs.chatSetupTriggerContext)) {
 				welcomeContent = this.getNewWelcomeViewContent();
 				this.container.classList.add('new-welcome-view');
-			}
-			else if (expEmptyState) {
+			} else if (expEmptyState) {
 				welcomeContent = this.getWelcomeViewContent(additionalMessage, expEmptyState);
-			}
-			else {
+			} else {
 				const tips = this.input.currentModeKind === ChatModeKind.Ask
 					? new MarkdownString(localize('chatWidget.tips', "{0} or type {1} to attach context\n\n{2} to chat with extensions\n\nType {3} to use commands", '$(attach)', '#', '$(mention)', '/'), { supportThemeIcons: true })
 					: new MarkdownString(localize('chatWidget.tips.withoutParticipants', "{0} or type {1} to attach context", '$(attach)', '#'), { supportThemeIcons: true });
@@ -976,13 +999,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 		}
 
-		if (this.viewModel) {
-			dom.setVisibility(numItems === 0, this.welcomeMessageContainer);
-			dom.setVisibility(numItems !== 0, this.listContainer);
+		this.updateChatViewVisibility();
 
-			if (numItems > 0) {
-				this.refreshHistoryList();
-			}
+		if (numItems > 0) {
+			this.refreshHistoryList();
 		}
 	}
 
@@ -1347,6 +1367,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			// Get all available prompt files with their metadata
 			const promptCommands = await this.promptsService.findPromptSlashCommands();
 
+			let cacheUpdated = false;
 			// Load descriptions only for the specified prompts
 			for (const promptCommand of promptCommands) {
 				if (promptNames.includes(promptCommand.command)) {
@@ -1359,9 +1380,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 							const description = parseResult.header?.description;
 							if (description) {
 								this.promptDescriptionsCache.set(promptCommand.command, description);
+								cacheUpdated = true;
 							} else {
 								// Set empty string to indicate we've checked this prompt
 								this.promptDescriptionsCache.set(promptCommand.command, '');
+								cacheUpdated = true;
 							}
 						}
 					} catch (error) {
@@ -1369,12 +1392,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 						this.logService.warn('Failed to parse prompt file for description:', promptCommand.command, error);
 						// Set empty string to indicate we've checked this prompt
 						this.promptDescriptionsCache.set(promptCommand.command, '');
+						cacheUpdated = true;
 					}
 				}
 			}
 
-			// Trigger a re-render of the welcome view to show the loaded descriptions
-			this.renderWelcomeViewContentIfNeeded();
+			// Fire event to trigger a re-render of the welcome view only if cache was updated
+			if (cacheUpdated) {
+				this._welcomeRenderScheduler.schedule();
+			}
 		} catch (error) {
 			this.logService.warn('Failed to load specific prompt descriptions:', error);
 		}
@@ -1411,13 +1437,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.input.setVisible(visible);
 
 		if (visible) {
-			this._register(disposableTimeout(() => {
+			this.timeoutDisposable.value = disposableTimeout(() => {
 				// Progressive rendering paused while hidden, so start it up again.
 				// Do it after a timeout because the container is not visible yet (it should be but offsetHeight returns 0 here)
 				if (this._visible) {
 					this.onDidChangeItems(true);
 				}
-			}, 0));
+			}, 0);
 
 			if (!wasVisible) {
 				dom.scheduleAtNextAnimationFrame(dom.getWindow(this.listContainer), () => {
@@ -1909,11 +1935,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._register(this.chatAgentService.onDidChangeAgents(() => {
 			this.parsedChatRequest = undefined;
 			// Tools agent loads -> welcome content changes
-			this.renderWelcomeViewContentIfNeeded();
+			this._welcomeRenderScheduler.schedule();
 		}));
 		this._register(this.input.onDidChangeCurrentChatMode(() => {
 			this.lastWelcomeViewChatMode = this.input.currentModeKind;
-			this.renderWelcomeViewContentIfNeeded();
+			this._welcomeRenderScheduler.schedule();
 			this.refreshParsedInput();
 			this.renderFollowups();
 		}));
@@ -2078,7 +2104,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._codingAgentPrefix = `@${name} `;
 		this._lockedAgentId = agentId;
 		this._lockedToCodingAgentContextKey.set(true);
-		this.renderWelcomeViewContentIfNeeded();
+		this._welcomeRenderScheduler.schedule();
 		this.renderer.updateOptions({ restorable: false, editable: false, noFooter: true, progressMessageAtBottomOfResponse: true });
 		this.tree.rerender();
 	}
@@ -2091,7 +2117,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._lockedToCodingAgentContextKey.set(false);
 
 		// Explicitly update the DOM to reflect unlocked state
-		this.renderWelcomeViewContentIfNeeded();
+		this._welcomeRenderScheduler.schedule();
 
 		// Reset to default placeholder
 		if (this.viewModel) {

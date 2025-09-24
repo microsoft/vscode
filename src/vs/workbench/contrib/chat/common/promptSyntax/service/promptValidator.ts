@@ -88,19 +88,20 @@ export class PromptValidator {
 		if (!header) {
 			return;
 		}
-		const validAttributeNames = getValidAttributeNames(promptType);
+		const validAttributeNames = getValidAttributeNames(promptType, true);
 		const attributes = header.attributes;
 		for (const attribute of attributes) {
 			if (!validAttributeNames.includes(attribute.key)) {
+				const supportedNames = getValidAttributeNames(promptType, false).join(', ');
 				switch (promptType) {
 					case PromptsType.prompt:
-						report(toMarker(localize('promptValidator.unknownAttribute.prompt', "Attribute '{0}' is not supported in prompt files. Supported: {1}.", attribute.key, validAttributeNames.join(', ')), attribute.range, MarkerSeverity.Warning));
+						report(toMarker(localize('promptValidator.unknownAttribute.prompt', "Attribute '{0}' is not supported in prompt files. Supported: {1}.", attribute.key, supportedNames), attribute.range, MarkerSeverity.Warning));
 						break;
 					case PromptsType.mode:
-						report(toMarker(localize('promptValidator.unknownAttribute.mode', "Attribute '{0}' is not supported in mode files. Supported: {1}.", attribute.key, validAttributeNames.join(', ')), attribute.range, MarkerSeverity.Warning));
+						report(toMarker(localize('promptValidator.unknownAttribute.mode', "Attribute '{0}' is not supported in mode files. Supported: {1}.", attribute.key, supportedNames), attribute.range, MarkerSeverity.Warning));
 						break;
 					case PromptsType.instructions:
-						report(toMarker(localize('promptValidator.unknownAttribute.instructions', "Attribute '{0}' is not supported in instructions files. Supported: {1}.", attribute.key, validAttributeNames.join(', ')), attribute.range, MarkerSeverity.Warning));
+						report(toMarker(localize('promptValidator.unknownAttribute.instructions', "Attribute '{0}' is not supported in instructions files. Supported: {1}.", attribute.key, supportedNames), attribute.range, MarkerSeverity.Warning));
 						break;
 				}
 			}
@@ -115,6 +116,7 @@ export class PromptValidator {
 			}
 			case PromptsType.instructions:
 				this.validateApplyTo(attributes, report);
+				this.validateExcludeMode(attributes, report);
 				break;
 
 			case PromptsType.mode:
@@ -288,21 +290,36 @@ export class PromptValidator {
 			report(toMarker(localize('promptValidator.applyToMustBeValidGlob', "The 'applyTo' attribute must be a valid glob pattern."), attribute.value.range, MarkerSeverity.Error));
 		}
 	}
-}
 
-export function getValidAttributeNames(promptType: PromptsType): string[] {
-	switch (promptType) {
-		case PromptsType.prompt:
-			return ['description', 'model', 'tools', 'mode'];
-		case PromptsType.instructions:
-			return ['description', 'applyTo'];
-		case PromptsType.mode:
-			return ['description', 'model', 'tools', 'advancedOptions'];
+	private validateExcludeMode(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): undefined {
+		const attribute = attributes.find(attr => attr.key === 'excludeMode');
+		if (!attribute) {
+			return;
+		}
+		if (attribute.value.type !== 'array') {
+			report(toMarker(localize('promptValidator.excludeModeMustBeArray', "The 'excludeMode' attribute must be an array."), attribute.value.range, MarkerSeverity.Error));
+			return;
+		}
 	}
 }
 
+const validAttributeNames = {
+	[PromptsType.prompt]: ['description', 'model', 'tools', 'mode'],
+	[PromptsType.instructions]: ['description', 'applyTo', 'excludeMode'],
+	[PromptsType.mode]: ['description', 'model', 'tools', 'advancedOptions']
+};
+const validAttributeNamesNoExperimental = {
+	[PromptsType.prompt]: validAttributeNames[PromptsType.prompt].filter(name => !isExperimentalAttribute(name)),
+	[PromptsType.instructions]: validAttributeNames[PromptsType.instructions].filter(name => !isExperimentalAttribute(name)),
+	[PromptsType.mode]: validAttributeNames[PromptsType.mode].filter(name => !isExperimentalAttribute(name))
+};
+
+export function getValidAttributeNames(promptType: PromptsType, includeExperimental: boolean): string[] {
+	return includeExperimental ? validAttributeNames[promptType] : validAttributeNamesNoExperimental[promptType];
+}
+
 export function isExperimentalAttribute(attributeName: string): boolean {
-	return attributeName === 'advancedOptions';
+	return attributeName === 'advancedOptions' || attributeName === 'excludeMode';
 }
 
 function toMarker(message: string, range: Range, severity = MarkerSeverity.Error): IMarkerData {

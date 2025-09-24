@@ -442,8 +442,8 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 		let result: IChatSetupResult | undefined = undefined;
 		try {
 			result = await ChatSetup.getInstance(this.instantiationService, this.context, this.controller).run({
-				disableChatViewReveal: true, 				// we are already in a chat context
-				forceAnonymous: this.shouldForceAnonymous()	// gate anonymous access behind some conditions
+				disableChatViewReveal: true, 							// we are already in a chat context
+				forceAnonymous: this.chatEntitlementService.anonymous	// only enable anonymous selectively
 			});
 		} catch (error) {
 			this.logService.error(`[chat setup] Error during setup: ${toErrorMessage(error)}`);
@@ -479,18 +479,6 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 		}
 
 		return {};
-	}
-
-	private shouldForceAnonymous(): boolean {
-		if (!this.chatEntitlementService.anonymous) {
-			return false; // only enabled conditionally
-		}
-
-		if (this.location !== ChatAgentLocation.Chat) {
-			return false; // currently only supported from Chat (TODO@bpasero expand this to more locations)
-		}
-
-		return true;
 	}
 
 	private replaceAgentInRequestModel(requestModel: IChatRequestModel, chatAgentService: IChatAgentService): IChatRequestModel {
@@ -828,7 +816,7 @@ class ChatSetup {
 
 	private getDialogDetail(): string {
 		if (this.chatEntitlementService.anonymous) {
-			return localize('enableMoreAnonymous', "Sign in to get access to more AI features like multiple chat models, AI code reviews and remote agents.");
+			return localize('enableMoreAnonymous', "Sign in to get access to more AI features like premium models, AI code reviews and remote agents.");
 		}
 
 		return ' '; // workaround allowing us to render the message in large
@@ -1036,6 +1024,25 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			}
 		}
 
+		class ChatSetupTriggerAnonymouslyAction extends Action2 {
+
+			constructor() {
+				super({
+					id: 'workbench.action.chat.triggerSetupAnonymously',
+					title: ChatSetupTriggerAction.CHAT_SETUP_ACTION_LABEL
+				});
+			}
+
+			override async run(accessor: ServicesAccessor): Promise<unknown> {
+				const commandService = accessor.get(ICommandService);
+				const telemetryService = accessor.get(ITelemetryService);
+
+				telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: CHAT_SETUP_ACTION_ID, from: 'api' });
+
+				return commandService.executeCommand(CHAT_SETUP_ACTION_ID, undefined, { forceAnonymous: true });
+			}
+		}
+
 		class ChatSetupFromAccountsAction extends Action2 {
 
 			constructor() {
@@ -1163,6 +1170,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		registerAction2(ChatSetupTriggerForceSignInDialogAction);
 		registerAction2(ChatSetupFromAccountsAction);
 		registerAction2(ChatSetupTriggerWithoutDialogAction);
+		registerAction2(ChatSetupTriggerAnonymouslyAction);
 		registerAction2(UpgradePlanAction);
 		registerAction2(EnableOveragesAction);
 	}

@@ -570,6 +570,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 								this.checkModelSupported();
 							}
 						}
+					} else {
+						this.setCurrentLanguageModelToDefault();
 					}
 				});
 			}
@@ -693,7 +695,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const defaultLanguageModelId = this.languageModelsService.getLanguageModelIds().find(id => this.languageModelsService.lookupLanguageModel(id)?.isDefault);
 		const hasUserSelectableLanguageModels = this.languageModelsService.getLanguageModelIds().find(id => {
 			const model = this.languageModelsService.lookupLanguageModel(id);
-			return model?.isUserSelectable && !model.isDefault;
+			return model?.isUserSelectable;
 		});
 		const defaultModel = hasUserSelectableLanguageModels && defaultLanguageModelId ?
 			{ metadata: this.languageModelsService.lookupLanguageModel(defaultLanguageModelId)!, identifier: defaultLanguageModelId } :

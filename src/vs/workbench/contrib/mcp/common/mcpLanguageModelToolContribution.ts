@@ -26,7 +26,7 @@ import { ChatResponseResource, getAttachableImageExtension } from '../../chat/co
 import { LanguageModelPartAudience } from '../../chat/common/languageModels.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, IToolResultInputOutputDetails, ToolDataSource, ToolProgress, ToolSet } from '../../chat/common/languageModelToolsService.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
-import { IMcpServer, IMcpService, IMcpTool, IMcpToolResourceLinkContents, LazyCollectionState, McpResourceURI, McpServerCacheState, McpToolResourceLinkMimeType } from './mcpTypes.js';
+import { IMcpServer, IMcpService, IMcpTool, IMcpToolResourceLinkContents, McpResourceURI, McpServerCacheState, McpToolResourceLinkMimeType } from './mcpTypes.js';
 import { mcpServerToSourceData } from './mcpTypesUtils.js';
 
 interface ISyncedToolData {
@@ -46,15 +46,7 @@ export class McpLanguageModelToolContribution extends Disposable implements IWor
 	) {
 		super();
 
-		// 1. Auto-discover extensions with new MCP servers
-		const lazyCollectionState = mcpService.lazyCollectionState.map(s => s.state);
-		this._register(autorun(reader => {
-			if (lazyCollectionState.read(reader) === LazyCollectionState.HasUnknown) {
-				mcpService.activateCollections();
-			}
-		}));
-
-		// 2. Keep tools in sync with the tools service.
+		// Keep tools in sync with the tools service.
 		const previous = this._register(new DisposableMap<IMcpServer, DisposableStore>());
 		this._register(autorun(reader => {
 			const servers = mcpService.servers.read(reader);
