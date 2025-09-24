@@ -58,7 +58,7 @@ export class AgentChatAccessibilityHelp implements IAccessibleViewImplementation
 	}
 }
 
-export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'quickChat' | 'editsView' | 'agentView', keybindingService: IKeybindingService): string {
+export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'agentView' | 'quickChat' | 'editsView' | 'agentView', keybindingService: IKeybindingService): string {
 	const content = [];
 	if (type === 'panelChat' || type === 'quickChat' || type === 'agentView') {
 		if (type === 'quickChat') {
@@ -166,7 +166,7 @@ export function getChatAccessibilityHelpProvider(accessor: ServicesAccessor, edi
 
 // The when clauses for actions may not be true when we invoke the accessible view, so we need to provide the keybinding label manually
 // to ensure it's correct
-function getChatFocusKeybindingLabel(keybindingService: IKeybindingService, type: 'panelChat' | 'inlineChat' | 'quickChat', focus?: 'lastFocused' | 'last' | 'input'): string | undefined {
+function getChatFocusKeybindingLabel(keybindingService: IKeybindingService, type: 'agentView' | 'panelChat' | 'inlineChat' | 'quickChat', focus?: 'lastFocused' | 'last' | 'input'): string | undefined {
 	let kbs;
 	const fallback = ' (unassigned keybinding)';
 	if (focus === 'input') {
@@ -180,7 +180,7 @@ function getChatFocusKeybindingLabel(keybindingService: IKeybindingService, type
 		return fallback;
 	}
 	let kb;
-	if (type === 'panelChat') {
+	if (type === 'agentView' || type === 'panelChat') {
 		if (focus) {
 			kb = kbs.find(kb => kb.getAriaLabel()?.includes('DownArrow'))?.getAriaLabel();
 		} else {
