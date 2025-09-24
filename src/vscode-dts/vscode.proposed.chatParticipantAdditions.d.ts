@@ -159,7 +159,28 @@ declare module 'vscode' {
 		constructor(value: ChatResponseDiffEntry[], title: string);
 	}
 
-	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseNotebookEditPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart | ChatResponseExtensionsPart | ChatResponsePullRequestPart | ChatPrepareToolInvocationPart | ChatToolInvocationPart | ChatResponseMultiDiffPart | ChatResponseThinkingProgressPart;
+	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseNotebookEditPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart | ChatResponseExtensionsPart | ChatResponsePullRequestPart | ChatPrepareToolInvocationPart | ChatToolInvocationPart | ChatResponseMultiDiffPart | ChatResponseThinkingProgressPart | ChatResponseDataPart;
+	
+	export class ChatResponseDataPart {
+		/**
+		 * The binary data to render.
+		 */
+		data: Uint8Array;
+
+		/**
+		 * The MIME type that determines which renderer to use.
+		 */
+		mimeType: string;
+
+		/**
+		 * Create a new ChatResponseDataPart.
+		 * 
+		 * @param data The binary data to render
+		 * @param mimeType The MIME type that determines which renderer to use
+		 */
+		constructor(data: Uint8Array, mimeType: string);
+	}
+	
 	export class ChatResponseWarningPart {
 		value: MarkdownString;
 		constructor(value: string | MarkdownString);
@@ -284,18 +305,6 @@ declare module 'vscode' {
 		progress(value: string, task?: (progress: Progress<ChatResponseWarningPart | ChatResponseReferencePart>) => Thenable<string | void>): void;
 
 		thinkingProgress(thinkingDelta: ThinkingDelta): void;
-
-		/**
-		 * Push a data part to this stream. Short-hand for 
-		 * `push(new LanguageModelDataPart(data, mimeType))`.
-		 *
-		 * This enables rendering custom content via chat output renderers.
-		 *
-		 * @param data The binary data to render
-		 * @param mimeType The MIME type that determines which renderer to use
-		 * @returns This stream.
-		 */
-		data(data: Uint8Array, mimeType: string): void;
 
 		textEdit(target: Uri, edits: TextEdit | TextEdit[]): void;
 
