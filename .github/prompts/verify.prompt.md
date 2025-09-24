@@ -21,6 +21,7 @@ Verify UI changes through two phases:
 - Main agent: Use ONLY `runInTerminal` for git operations (stash/pop)
 - Main agent: Use ONLY `executeTask` to launch subagents
 - Subagents: Use ONLY vscode-playwright-mcp tools for all VS Code interactions
+- Subagents: MUST use `executeTask` to launch screenshot analysis subagents (this creates the required two-level architecture)
 - Subagents: NEVER use `runInTerminal` or any other tools
 
 **Execution Flow:**
@@ -86,17 +87,47 @@ EXECUTION SEQUENCE:
 2. Wait: Use mcp_vscode-playwr_browser_wait_for with time: 3
 3. Navigate to UI: Based on the query "{{ query }}", navigate to the relevant UI element or trigger the relevant behavior using appropriate vscode-playwright-mcp tools
 4. Capture visual evidence: Call mcp_vscode-playwr_browser_take_screenshot with filename: "phase1_baseline.png"
-5. Analyze screenshot: Call executeTask with screenshot analysis subagent:
+5. Analyze screenshot: Call executeTask to launch the screenshot analysis subagent with this exact prompt:
+   **IMPORTANT**: Use executeTask with description: "Analyze baseline UI screenshot" and the following prompt text:
    ```
-   executeTask({
-     description: "Analyze baseline UI screenshot",
-     prompt: "You are a screenshot analysis specialist. Your sole responsibility is to provide an objective, detailed visual description of the provided screenshot.\n\nCONTEXT: You are analyzing a VS Code screenshot focusing on: {{ focus_area_from_query }}\n\nCRITICAL REQUIREMENTS (these ensure unbiased analysis for accurate verification):\n- Provide comprehensive objective visual observations that document exactly what appears in the screenshot\n- Focus on factual descriptions of colors, shapes, layout, and visual elements as they appear\n- Use precise color names and specific visual terminology to enable accurate comparison between screenshots\n- Write descriptions that someone who cannot see the image would understand completely\n- Document the specified focus area in detail while including relevant surrounding visual context\n- Maintain complete objectivity since your analysis will be used by other agents to make verification decisions\n\n<analysis_format>\n<primary_focus>\nDetailed description of the main UI element or behavior specified in the verification query\n</primary_focus>\n\n<color_analysis>\nSpecific color observations with precise color names (e.g., \"dark charcoal gray\", \"bright purple\", \"deep blue\")\n</color_analysis>\n\n<visual_elements>\nOther relevant visual elements, layout, typography, icons, etc.\n</visual_elements>\n\n<overall_appearance>\nGeneral visual state and styling impression\n</overall_appearance>\n</analysis_format>\n\nProvide your analysis focusing on: {{ focus_area_from_query }}"
-   })
+   You are a screenshot analysis specialist. Your sole responsibility is to provide an objective, detailed visual description of the provided screenshot.
+
+   CONTEXT: You are analyzing a VS Code screenshot focusing on: {{ focus_area_from_query }}
+
+   CRITICAL REQUIREMENTS (these ensure unbiased analysis for accurate verification):
+   - Provide comprehensive objective visual observations that document exactly what appears in the screenshot
+   - Focus on factual descriptions of colors, shapes, layout, and visual elements as they appear
+   - Use precise color names and specific visual terminology to enable accurate comparison between screenshots
+   - Write descriptions that someone who cannot see the image would understand completely
+   - Document the specified focus area in detail while including relevant surrounding visual context
+   - Maintain complete objectivity since your analysis will be used by other agents to make verification decisions
+
+   <analysis_format>
+   <primary_focus>
+   Detailed description of the main UI element or behavior specified in the verification query
+   </primary_focus>
+
+   <color_analysis>
+   Specific color observations with precise color names (e.g., "dark charcoal gray", "bright purple", "deep blue")
+   </color_analysis>
+
+   <visual_elements>
+   Other relevant visual elements, layout, typography, icons, etc.
+   </visual_elements>
+
+   <overall_appearance>
+   General visual state and styling impression
+   </overall_appearance>
+   </analysis_format>
+
+   Provide your analysis focusing on: {{ focus_area_from_query }}
    ```
 6. Take accessibility snapshot: Call mcp_vscode-playwr_browser_snapshot
 7. Clean up: Close any opened UI elements (e.g., press "Escape" to close dialogs/palettes)
 8. Reflect on results: After receiving the screenshot analysis, carefully consider what the visual evidence shows about the current state
 9. Make verdict: Use the objective screenshot analysis results to determine if the original issue exists, ensuring your verdict aligns with the visual evidence provided
+
+CRITICAL EXECUTION NOTE: You MUST actually call executeTask to launch the screenshot analysis subagent. Do not skip this step or provide analysis yourself. The two-level subagent architecture requires you to delegate screenshot analysis to a separate subagent for objective results.
 
 REQUIRED OUTPUT (JSON only):
 {
@@ -144,17 +175,47 @@ EXECUTION SEQUENCE:
 2. Wait: Use mcp_vscode-playwr_browser_wait_for with time: 3
 3. Navigate to UI: Based on the query "{{ query }}", navigate to the relevant UI element or trigger the relevant behavior using appropriate vscode-playwright-mcp tools
 4. Capture visual evidence: Call mcp_vscode-playwr_browser_take_screenshot with filename: "phase2_postfix.png"
-5. Analyze screenshot: Call executeTask with screenshot analysis subagent:
+5. Analyze screenshot: Call executeTask to launch the screenshot analysis subagent with this exact prompt:
+   **IMPORTANT**: Use executeTask with description: "Analyze post-fix UI screenshot" and the following prompt text:
    ```
-   executeTask({
-     description: "Analyze post-fix UI screenshot",
-     prompt: "You are a screenshot analysis specialist. Your sole responsibility is to provide an objective, detailed visual description of the provided screenshot.\n\nCONTEXT: You are analyzing a VS Code screenshot focusing on: {{ focus_area_from_query }}\n\nCRITICAL REQUIREMENTS (these ensure unbiased analysis for accurate verification):\n- Provide comprehensive objective visual observations that document exactly what appears in the screenshot\n- Focus on factual descriptions of colors, shapes, layout, and visual elements as they appear\n- Use precise color names and specific visual terminology to enable accurate comparison between screenshots\n- Write descriptions that someone who cannot see the image would understand completely\n- Document the specified focus area in detail while including relevant surrounding visual context\n- Maintain complete objectivity since your analysis will be used by other agents to make verification decisions\n\n<analysis_format>\n<primary_focus>\nDetailed description of the main UI element or behavior specified in the verification query\n</primary_focus>\n\n<color_analysis>\nSpecific color observations with precise color names (e.g., \"dark charcoal gray\", \"bright purple\", \"deep blue\")\n</color_analysis>\n\n<visual_elements>\nOther relevant visual elements, layout, typography, icons, etc.\n</visual_elements>\n\n<overall_appearance>\nGeneral visual state and styling impression\n</overall_appearance>\n</analysis_format>\n\nProvide your analysis focusing on: {{ focus_area_from_query }}"
-   })
+   You are a screenshot analysis specialist. Your sole responsibility is to provide an objective, detailed visual description of the provided screenshot.
+
+   CONTEXT: You are analyzing a VS Code screenshot focusing on: {{ focus_area_from_query }}
+
+   CRITICAL REQUIREMENTS (these ensure unbiased analysis for accurate verification):
+   - Provide comprehensive objective visual observations that document exactly what appears in the screenshot
+   - Focus on factual descriptions of colors, shapes, layout, and visual elements as they appear
+   - Use precise color names and specific visual terminology to enable accurate comparison between screenshots
+   - Write descriptions that someone who cannot see the image would understand completely
+   - Document the specified focus area in detail while including relevant surrounding visual context
+   - Maintain complete objectivity since your analysis will be used by other agents to make verification decisions
+
+   <analysis_format>
+   <primary_focus>
+   Detailed description of the main UI element or behavior specified in the verification query
+   </primary_focus>
+
+   <color_analysis>
+   Specific color observations with precise color names (e.g., "dark charcoal gray", "bright purple", "deep blue")
+   </color_analysis>
+
+   <visual_elements>
+   Other relevant visual elements, layout, typography, icons, etc.
+   </visual_elements>
+
+   <overall_appearance>
+   General visual state and styling impression
+   </overall_appearance>
+   </analysis_format>
+
+   Provide your analysis focusing on: {{ focus_area_from_query }}
    ```
 6. Take accessibility snapshot: Call mcp_vscode-playwr_browser_snapshot
 7. Clean up: Close any opened UI elements (e.g., press "Escape" to close dialogs/palettes)
 8. Reflect on results: After receiving the screenshot analysis, carefully compare the visual evidence with the baseline results to assess whether the fix achieved its intended outcome
 9. Make verdict: Use the objective comparison between baseline and post-fix analysis to determine if the solution works, ensuring your verdict is supported by clear visual evidence
+
+CRITICAL EXECUTION NOTE: You MUST actually call executeTask to launch the screenshot analysis subagent. Do not skip this step or provide analysis yourself. The two-level subagent architecture requires you to delegate screenshot analysis to a separate subagent for objective results.
 
 REQUIRED OUTPUT (JSON only):
 {
@@ -180,6 +241,8 @@ REQUIRED OUTPUT (JSON only):
 - `mcp_vscode-playwr_browser_press_key` - Press keyboard keys
 - `mcp_vscode-playwr_browser_wait_for` - Wait for conditions
 - `executeTask` - Launch screenshot analysis subagent
+
+**CRITICAL**: The verification subagents MUST use `executeTask` to create the screenshot analysis subagent. This is not optional - it's required for the two-level architecture to work correctly.
 
 ## Screenshot Analysis Subagent
 
