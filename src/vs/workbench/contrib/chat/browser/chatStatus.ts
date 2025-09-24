@@ -541,9 +541,11 @@ class ChatStatusDashboard extends Disposable {
 					buttonLabel = localize('signInToUseCopilotButton', "Sign in to use Copilot");
 				}
 
-				let setupArgs: { forceAnonymous: boolean } | undefined = undefined;
+				let commandId: string;
 				if (newUser && anonymousUser) {
-					setupArgs = { forceAnonymous: true };
+					commandId = 'workbench.action.chat.triggerSetupAnonymously';
+				} else {
+					commandId = 'workbench.action.chat.triggerSetup';
 				}
 
 				if (typeof descriptionText === 'string') {
@@ -555,7 +557,7 @@ class ChatStatusDashboard extends Disposable {
 
 				const button = disposables.add(new Button(this.element, { ...defaultButtonStyles, hoverDelegate: nativeHoverDelegate }));
 				button.label = buttonLabel;
-				disposables.add(button.onDidClick(() => this.runCommandAndClose('workbench.action.chat.triggerSetup', undefined, setupArgs)));
+				disposables.add(button.onDidClick(() => this.runCommandAndClose(commandId)));
 			}
 		}
 

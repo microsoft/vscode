@@ -81,10 +81,10 @@ const authenticationExtPoint = ExtensionsRegistry.registerExtensionPoint<Authent
 		type: 'array',
 		items: authenticationDefinitionSchema
 	},
-	activationEventsGenerator: (authenticationProviders, result) => {
+	activationEventsGenerator: function* (authenticationProviders) {
 		for (const authenticationProvider of authenticationProviders) {
 			if (authenticationProvider.id) {
-				result.push(`onAuthenticationRequest:${authenticationProvider.id}`);
+				yield `onAuthenticationRequest:${authenticationProvider.id}`;
 			}
 		}
 	}

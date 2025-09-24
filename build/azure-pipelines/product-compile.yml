@@ -130,13 +130,6 @@ steps:
   - script: tar -cz --exclude='.build/node_modules_cache' --exclude='.build/node_modules_list.txt' --exclude='.build/distro' -f $(Build.ArtifactStagingDirectory)/compilation.tar.gz $(ls -d .build out-* test/integration/browser/out test/smoke/out test/automation/out 2>/dev/null)
     displayName: Compress compilation artifact
 
-  - template: common/publish-artifact.yml@self
-    parameters:
-      targetPath: $(Build.ArtifactStagingDirectory)/compilation.tar.gz
-      artifactName: Compilation
-      displayName: Publish compilation artifact
-      sbomEnabled: false
-
   - script: npm run download-builtin-extensions-cg
     env:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
