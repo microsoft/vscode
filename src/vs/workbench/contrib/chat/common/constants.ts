@@ -19,7 +19,7 @@ export enum ChatConfiguration {
 	UseChatSessionsForCloudButton = 'chat.useChatSessionsForCloudButton',
 	ShowAgentSessionsViewDescription = 'chat.showAgentSessionsViewDescription',
 	EmptyStateHistoryEnabled = 'chat.emptyState.history.enabled',
-	ShowResponseCompletionOSNotification = 'chat.showResponseCompletionOSNotification',
+	NotifyWindowOnResponseReceived = 'chat.notifyWindowOnResponseReceived',
 }
 
 /**

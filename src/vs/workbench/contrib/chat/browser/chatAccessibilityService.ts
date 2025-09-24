@@ -72,7 +72,7 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 	}
 
 	private async _showOSNotification(container: HTMLElement, responseContent: string): Promise<void> {
-		if (!this._configurationService.getValue(ChatConfiguration.ShowResponseCompletionOSNotification)) {
+		if (!this._configurationService.getValue(ChatConfiguration.NotifyWindowOnResponseReceived)) {
 			return;
 		}
 
