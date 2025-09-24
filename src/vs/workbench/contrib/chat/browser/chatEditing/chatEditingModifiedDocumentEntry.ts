@@ -34,6 +34,13 @@ import { ChatEditingCodeEditorIntegration } from './chatEditingCodeEditorIntegra
 import { AbstractChatEditingModifiedFileEntry } from './chatEditingModifiedFileEntry.js';
 import { ChatEditingTextModelChangeService } from './chatEditingTextModelChangeService.js';
 import { ChatEditingSnapshotTextModelContentProvider, ChatEditingTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
+import { FileOperation, FileOperationType } from './chatEditingOperations.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
+
+interface IMultiDiffEntryDelegate {
+	collapse: (transaction: ITransaction | undefined) => void;
+	recordOperation?: (operation: FileOperation) => void;
+}
 
 
 export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifiedFileEntry implements IModifiedFileEntry {
@@ -73,7 +80,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 
 	constructor(
 		resourceRef: IReference<IResolvedTextEditorModel>,
-		private readonly _multiDiffEntryDelegate: { collapse: (transaction: ITransaction | undefined) => void },
+		private readonly _multiDiffEntryDelegate: IMultiDiffEntryDelegate,
 		telemetryInfo: IModifiedEntryTelemetryInfo,
 		kind: ChatEditKind,
 		initialContent: string | undefined,
@@ -263,6 +270,20 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 
 	protected override async _doReject(): Promise<void> {
 		if (this.createdInRequestId === this._telemetryInfo.requestId) {
+			// Record file deletion operation before actually deleting
+			const finalContent = this.modifiedModel.getValue();
+			if (this._multiDiffEntryDelegate.recordOperation) {
+				this._multiDiffEntryDelegate.recordOperation({
+					type: FileOperationType.Delete,
+					uri: this.modifiedURI,
+					requestId: this._telemetryInfo.requestId,
+					epoch: 0,
+					operationId: generateUuid(),
+					finalContent,
+					languageId: this.modifiedModel.getLanguageId()
+				});
+			}
+
 			if (isTextFileEditorModel(this._docFileEditorModel)) {
 				await this._docFileEditorModel.revert({ soft: true });
 				await this._fileService.del(this.modifiedURI);

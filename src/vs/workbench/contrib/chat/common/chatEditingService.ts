@@ -18,6 +18,7 @@ import { EditSuggestionId } from '../../../../editor/common/textModelEditSource.
 import { ICellEditOperation } from '../../notebook/common/notebookCommon.js';
 import { IChatAgentResult } from './chatAgents.js';
 import { ChatModel, IChatResponseModel } from './chatModel.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 
 export const IChatEditingService = createDecorator<IChatEditingService>('chatEditingService');
 
@@ -122,9 +123,8 @@ export interface IChatEditingSession extends IDisposable {
 	 */
 	getSnapshotUri(requestId: string, uri: URI, stopId: string | undefined): URI | undefined;
 
+	getSnapshotContents(requestId: string, uri: URI, stopId: string | undefined): Promise<VSBuffer | undefined>;
 	getSnapshotModel(requestId: string, undoStop: string | undefined, snapshotUri: URI): Promise<ITextModel | null>;
-
-	getSnapshot(requestId: string, undoStop: string | undefined, snapshotUri: URI): ISnapshotEntry | undefined;
 
 	/**
 	 * Will lead to this object getting disposed
