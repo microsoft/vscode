@@ -187,6 +187,6 @@ function getRealColumnNumber(
 ) {
 	const lineContent = textModel.getLineContent(lineNumber);
 	let i = 0;
-	while (lineContent[i] === '\t') { i++; }
+	while (i < lineContent.length && lineContent[i] === '\t') { i++; }
 	return Math.max(1, mouseColumn - i * (textModel.getOptions().tabSize - 1));
 }
