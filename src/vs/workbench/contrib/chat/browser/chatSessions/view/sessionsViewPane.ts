@@ -213,6 +213,8 @@ export class SessionsViewPane extends ViewPane {
 	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
+		container.classList.add('chat-sessions-view');
+
 		// For Getting Started view (null provider), show simple list
 		if (this.provider === null) {
 			this.renderGettingStartedList(container);
@@ -282,6 +284,7 @@ export class SessionsViewPane extends ViewPane {
 				overrideStyles: {
 					listBackground: undefined
 				},
+				paddingBottom: SessionsDelegate.ITEM_HEIGHT,
 				setRowLineHeight: false
 
 			}
@@ -301,6 +304,17 @@ export class SessionsViewPane extends ViewPane {
 		this._register(this.tree.onContextMenu((e) => {
 			if (e.element && e.element.id !== LocalChatSessionsProvider.HISTORY_NODE_ID) {
 				this.showContextMenu(e);
+			}
+		}));
+
+		this._register(this.tree.onMouseDblClick(e => {
+			const scrollingByPage = this.configurationService.getValue<boolean>('workbench.list.scrollByPage');
+			if (e.element === null && !scrollingByPage) {
+				if (this.provider?.chatSessionType && this.provider.chatSessionType !== 'local') {
+					this.commandService.executeCommand(`workbench.action.chat.openNewSessionEditor.${this.provider?.chatSessionType}`);
+				} else {
+					this.commandService.executeCommand('workbench.action.openChat');
+				}
 			}
 		}));
 
