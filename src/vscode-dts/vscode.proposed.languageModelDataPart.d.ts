@@ -152,16 +152,10 @@ declare module 'vscode' {
 		content: Array<LanguageModelTextPart | LanguageModelPromptTsxPart | LanguageModelDataPart | unknown>;
 
 		/**
-		 * Optional metadata associated with the tool result.
-		 */
-		toolMetadata?: any;
-
-		/**
 		 * Create a LanguageModelToolResult
 		 * @param content A list of tool result content parts
-		 * @param toolMetadata Optional metadata associated with the tool result
 		 */
-		constructor(content: Array<LanguageModelTextPart | LanguageModelPromptTsxPart | LanguageModelDataPart | unknown>, toolMetadata?: any);
+		constructor(content: Array<LanguageModelTextPart | LanguageModelPromptTsxPart | LanguageModelDataPart | unknown>);
 	}
 
 	export namespace lm {

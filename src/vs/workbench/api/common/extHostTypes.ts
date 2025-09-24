@@ -3779,18 +3779,20 @@ export class LanguageModelToolResult {
 }
 
 export class LanguageModelToolResult2 {
-	constructor(public content: (LanguageModelTextPart | LanguageModelPromptTsxPart | LanguageModelDataPart)[], public toolMetadata?: any) { }
+	constructor(public content: (LanguageModelTextPart | LanguageModelPromptTsxPart | LanguageModelDataPart)[]) { }
 
 	toJSON() {
 		return {
 			$mid: MarshalledId.LanguageModelToolResult,
 			content: this.content,
-			toolMetadata: this.toolMetadata,
 		};
 	}
 }
 
 export class ExtendedLanguageModelToolResult extends LanguageModelToolResult {
+	toolResultMessage?: string | MarkdownString;
+	toolResultDetails?: Array<URI | Location>;
+	toolMetadata?: any;
 }
 
 export enum LanguageModelChatToolMode {

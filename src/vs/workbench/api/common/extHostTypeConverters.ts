@@ -3561,7 +3561,7 @@ export namespace LanguageModelToolResult {
 
 export namespace LanguageModelToolResult2 {
 	export function to(result: IToolResult): vscode.LanguageModelToolResult2 {
-		return new types.LanguageModelToolResult2(result.content.map(item => {
+		const toolResult = new types.LanguageModelToolResult2(result.content.map(item => {
 			if (item.kind === 'text') {
 				return new types.LanguageModelTextPart(item.value, item.audience);
 			} else if (item.kind === 'data') {
@@ -3569,7 +3569,20 @@ export namespace LanguageModelToolResult2 {
 			} else {
 				return new types.LanguageModelPromptTsxPart(item.value);
 			}
-		}), result.toolMetadata);
+		}));
+
+		// Add extended properties if they exist
+		if (result.toolMetadata) {
+			(toolResult as any).toolMetadata = result.toolMetadata;
+		}
+		if (result.toolResultMessage) {
+			(toolResult as any).toolResultMessage = result.toolResultMessage;
+		}
+		if (result.toolResultDetails) {
+			(toolResult as any).toolResultDetails = result.toolResultDetails;
+		}
+
+		return toolResult;
 	}
 
 	export function from(result: vscode.LanguageModelToolResult2, extension: IExtensionDescription): Dto<IToolResult> | SerializableObjectWithBuffers<Dto<IToolResult>> {
@@ -3635,7 +3648,7 @@ export namespace LanguageModelToolResult2 {
 			}),
 			toolResultMessage: MarkdownString.fromStrict(extendedResult.toolResultMessage),
 			toolResultDetails: detailsDto,
-			toolMetadata: result.toolMetadata,
+			toolMetadata: (result as any).toolMetadata,
 		};
 
 		return hasBuffers ? new SerializableObjectWithBuffers(dto) : dto;
