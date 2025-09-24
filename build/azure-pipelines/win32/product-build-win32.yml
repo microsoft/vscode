@@ -17,10 +17,7 @@ parameters:
 
 jobs:
   - job: Windows_${{ parameters.VSCODE_ARCH }}
-    ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
-      displayName: Windows
-    ${{ if eq(parameters.VSCODE_ARCH, 'arm64') }}:
-      displayName: WindowsARM64
+    displayName: Windows${{ upper(parameters.VSCODE_ARCH) }}
     timeoutInMinutes: 90
     variables:
       VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
