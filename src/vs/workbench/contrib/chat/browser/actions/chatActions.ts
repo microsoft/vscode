@@ -1329,7 +1329,45 @@ export function registerChatActions() {
 			const editorUri = editor.getModel()?.uri;
 			if (editorUri) {
 				const widgetService = accessor.get(IChatWidgetService);
-				widgetService.getWidgetByInputUri(editorUri)?.focusLastMessage();
+				widgetService.getWidgetByInputUri(editorUri)?.focusResponseItem(true);
+			}
+		}
+	});
+
+	registerAction2(class FocusMostRecentlyFocusedChatAction extends EditorAction2 {
+		constructor() {
+			super({
+				id: 'workbench.chat.action.focusLastFocused',
+				title: localize2('actions.interactiveSession.focusLastFocused', 'Focus Last Focused Chat List Item'),
+				precondition: ContextKeyExpr.and(ChatContextKeys.inChatInput),
+				category: CHAT_CATEGORY,
+				keybinding: [
+					// On mac, require that the cursor is at the top of the input, to avoid stealing cmd+up to move the cursor to the top
+					{
+						when: ContextKeyExpr.and(ChatContextKeys.inputCursorAtTop, ChatContextKeys.inQuickChat.negate()),
+						primary: KeyMod.CtrlCmd | KeyCode.UpArrow | KeyMod.Shift,
+						weight: KeybindingWeight.EditorContrib + 1,
+					},
+					// On win/linux, ctrl+up can always focus the chat list
+					{
+						when: ContextKeyExpr.and(ContextKeyExpr.or(IsWindowsContext, IsLinuxContext), ChatContextKeys.inQuickChat.negate()),
+						primary: KeyMod.CtrlCmd | KeyCode.UpArrow | KeyMod.Shift,
+						weight: KeybindingWeight.EditorContrib + 1,
+					},
+					{
+						when: ContextKeyExpr.and(ChatContextKeys.inChatSession, ChatContextKeys.inQuickChat),
+						primary: KeyMod.CtrlCmd | KeyCode.DownArrow | KeyMod.Shift,
+						weight: KeybindingWeight.WorkbenchContrib + 1,
+					}
+				]
+			});
+		}
+
+		runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor): void | Promise<void> {
+			const editorUri = editor.getModel()?.uri;
+			if (editorUri) {
+				const widgetService = accessor.get(IChatWidgetService);
+				widgetService.getWidgetByInputUri(editorUri)?.focusResponseItem(false);
 			}
 		}
 	});

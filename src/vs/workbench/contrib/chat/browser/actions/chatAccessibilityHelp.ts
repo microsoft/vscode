@@ -73,8 +73,9 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 		content.push(localize('chat.inspectResponse', 'In the input box, inspect the last response in the accessible view{0}.', '<keybinding:editor.action.accessibleView>'));
 		content.push(localize('chat.progressVerbosity', 'As the chat request is being processed, you will hear verbose progress updates if the request takes more than 4 seconds. This includes information like searched text for <search term> with X results, created file <file_name>, or read file <file path>. This can be disabled with accessibility.verboseChatProgressUpdates.'));
 		content.push(localize('chat.announcement', 'Chat responses will be announced as they come in. A response will indicate the number of code blocks, if any, and then the rest of the response.'));
-		content.push(localize('workbench.action.chat.focus', 'To focus the chat request/response list, which can be navigated with up and down arrows, invoke the Focus Chat command{0}.', getChatFocusKeybindingLabel(keybindingService, type, false)));
-		content.push(localize('workbench.action.chat.focusInput', 'To focus the input box for chat requests, invoke the Focus Chat Input command{0}.', getChatFocusKeybindingLabel(keybindingService, type, true)));
+		content.push(localize('workbench.action.chat.focus', 'To focus the chat request/response list, which can be navigated with up and down arrows, invoke the Focus Chat command{0}.', getChatFocusKeybindingLabel(keybindingService, type, 'last')));
+		content.push(localize('workbench.action.chat.focusLastFocusedItem', 'To focus the last focused chat response, which can be navigated with up and down arrows, invoke the Focus Last Focused Chat Response command{0}.', getChatFocusKeybindingLabel(keybindingService, type, 'lastFocused')));
+		content.push(localize('workbench.action.chat.focusInput', 'To focus the input box for chat requests, invoke the Focus Chat Input command{0}.', getChatFocusKeybindingLabel(keybindingService, type, 'input')));
 		content.push(localize('workbench.action.chat.nextCodeBlock', 'To focus the next code block within a response, invoke the Chat: Next Code Block command{0}.', '<keybinding:workbench.action.chat.nextCodeBlock>'));
 		content.push(localize('workbench.action.chat.announceConfirmation', 'To focus pending chat confirmation dialogs, invoke the Focus Chat Confirmation Status command{0}.', '<keybinding:workbench.action.chat.focusConfirmation>'));
 		if (type === 'panelChat') {
@@ -166,11 +167,13 @@ export function getChatAccessibilityHelpProvider(accessor: ServicesAccessor, edi
 
 // The when clauses for actions may not be true when we invoke the accessible view, so we need to provide the keybinding label manually
 // to ensure it's correct
-function getChatFocusKeybindingLabel(keybindingService: IKeybindingService, type: 'panelChat' | 'inlineChat' | 'quickChat', focusInput?: boolean): string | undefined {
+function getChatFocusKeybindingLabel(keybindingService: IKeybindingService, type: 'panelChat' | 'inlineChat' | 'quickChat', focus?: 'lastFocused' | 'last' | 'input'): string | undefined {
 	let kbs;
 	const fallback = ' (unassigned keybinding)';
-	if (focusInput) {
-		kbs = keybindingService.lookupKeybindings('workbench.action.chat.focusInput');
+	if (focus === 'input') {
+		kbs = keybindingService.lookupKeybindings('workbench.chat.action.focusInput');
+	} else if (focus === 'lastFocused') {
+		kbs = keybindingService.lookupKeybindings('workbench.chat.action.focusLastFocused');
 	} else {
 		kbs = keybindingService.lookupKeybindings('chat.action.focus');
 	}
@@ -179,14 +182,14 @@ function getChatFocusKeybindingLabel(keybindingService: IKeybindingService, type
 	}
 	let kb;
 	if (type === 'panelChat') {
-		if (focusInput) {
+		if (focus) {
 			kb = kbs.find(kb => kb.getAriaLabel()?.includes('DownArrow'))?.getAriaLabel();
 		} else {
 			kb = kbs.find(kb => kb.getAriaLabel()?.includes('UpArrow'))?.getAriaLabel();
 		}
 	} else {
 		// Quick chat
-		if (focusInput) {
+		if (focus) {
 			kb = kbs.find(kb => kb.getAriaLabel()?.includes('UpArrow'))?.getAriaLabel();
 		} else {
 			kb = kbs.find(kb => kb.getAriaLabel()?.includes('DownArrow'))?.getAriaLabel();
