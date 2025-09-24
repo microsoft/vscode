@@ -61,6 +61,11 @@ export class McpService extends Disposable implements IMcpService {
 
 	public async autostart(token?: CancellationToken): Promise<IAutostartResult> {
 		const autoStartConfig = this.configurationService.getValue<McpAutoStartValue>(mcpAutoStartConfig);
+		if (autoStartConfig === McpAutoStartValue.Never) {
+			return { serversRequiringInteraction: [] };
+		}
+
+		await this.activateCollections();
 
 		// don't try re-running errored servers, let the user choose if they want that
 		const candidates = this.servers.get().filter(s => s.connectionState.get().state !== McpConnectionState.Kind.Error);

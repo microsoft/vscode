@@ -816,7 +816,7 @@ class ChatSetup {
 
 	private getDialogDetail(): string {
 		if (this.chatEntitlementService.anonymous) {
-			return localize('enableMoreAnonymous', "Sign in to access your benefits or create a free account for 50 premium requests each month, with access to more models and AI features.");
+			return localize('enableMoreAnonymous', "Sign in to get access to more AI features like premium models, AI code reviews and remote agents.");
 		}
 
 		return ' '; // workaround allowing us to render the message in large
@@ -943,7 +943,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				});
 			}
 
-			override async run(accessor: ServicesAccessor, mode?: ChatModeKind, options?: { forceSignInDialog?: boolean; forceNoDialog?: boolean; additionalScopes?: readonly string[]; forceAnonymous?: boolean }): Promise<boolean> {
+			override async run(accessor: ServicesAccessor, mode?: ChatModeKind, options?: { forceSignInDialog?: boolean; additionalScopes?: readonly string[]; forceAnonymous?: boolean }): Promise<boolean> {
 				const viewsService = accessor.get(IViewsService);
 				const layoutService = accessor.get(IWorkbenchLayoutService);
 				const instantiationService = accessor.get(IInstantiationService);
@@ -958,14 +958,6 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				if (mode) {
 					const chatWidget = await showCopilotView(viewsService, layoutService);
 					chatWidget?.input.setChatMode(mode);
-				}
-
-				if (options?.forceNoDialog) {
-					const chatWidget = await showCopilotView(viewsService, layoutService);
-					ChatSetup.getInstance(instantiationService, context, controller).skipDialog();
-					chatWidget?.acceptInput(localize('setupChat', "Set up chat."));
-
-					return true;
 				}
 
 				const setup = ChatSetup.getInstance(instantiationService, context, controller);
@@ -1002,25 +994,6 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: CHAT_SETUP_ACTION_ID, from: 'api' });
 
 				return commandService.executeCommand(CHAT_SETUP_ACTION_ID, undefined, { forceSignInDialog: true });
-			}
-		}
-
-		class ChatSetupTriggerWithoutDialogAction extends Action2 {
-
-			constructor() {
-				super({
-					id: 'workbench.action.chat.triggerSetupWithoutDialog',
-					title: ChatSetupTriggerAction.CHAT_SETUP_ACTION_LABEL
-				});
-			}
-
-			override async run(accessor: ServicesAccessor): Promise<unknown> {
-				const commandService = accessor.get(ICommandService);
-				const telemetryService = accessor.get(ITelemetryService);
-
-				telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: CHAT_SETUP_ACTION_ID, from: 'api' });
-
-				return commandService.executeCommand(CHAT_SETUP_ACTION_ID, undefined, { forceNoDialog: true });
 			}
 		}
 
@@ -1169,7 +1142,6 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		registerAction2(ChatSetupTriggerAction);
 		registerAction2(ChatSetupTriggerForceSignInDialogAction);
 		registerAction2(ChatSetupFromAccountsAction);
-		registerAction2(ChatSetupTriggerWithoutDialogAction);
 		registerAction2(ChatSetupTriggerAnonymouslyAction);
 		registerAction2(UpgradePlanAction);
 		registerAction2(EnableOveragesAction);
