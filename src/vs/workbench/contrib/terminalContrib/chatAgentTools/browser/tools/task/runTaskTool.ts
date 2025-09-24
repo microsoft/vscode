@@ -11,7 +11,7 @@ import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, ITo
 import { ITaskService, ITaskSummary, Task, TasksAvailableContext } from '../../../../../tasks/common/taskService.js';
 import { ITerminalService } from '../../../../../terminal/browser/terminal.js';
 import { collectTerminalResults, getTaskDefinition, getTaskForTool, resolveDependencyTasks } from '../../taskHelpers.js';
-import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
+import { createCommandUri, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { toolResultDetailsFromResponse, toolResultMessageFromResponse } from './taskHelpers.js';
@@ -100,7 +100,7 @@ export class RunTaskTool implements IToolImpl {
 		const toolResultMessage = toolResultMessageFromResponse(result, taskLabel, toolResultDetails, terminalResults);
 		const taskFinished = terminalResults.length > 0 && terminalResults.every(r => r.state === OutputMonitorState.Idle);
 		if (taskFinished && !this._configurationService.getValue<boolean>(TaskSettingId.ShowLongRunningTaskCompletionNotification)) {
-			const settingsCommandUri = `command:workbench.action.openSettings?%5B%22@id:${TaskSettingId.ShowLongRunningTaskCompletionNotification}%22%5D`;
+			const settingsCommandUri = createCommandUri('workbench.action.openSettings', { query: `@id:${TaskSettingId.ShowLongRunningTaskCompletionNotification}` });
 			toolResultMessage.supportThemeIcons = true;
 			toolResultMessage.isTrusted = { enabledCommands: ['workbench.action.openSettings'] };
 			toolResultMessage.appendMarkdown(`\n\n$(info) Enable [long running task notifications](${settingsCommandUri})`);

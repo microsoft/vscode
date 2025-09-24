@@ -494,22 +494,23 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (durationMs < AbstractTaskService.LongRunningTaskNotificationThreshold) {
 			return;
 		}
-		if (!this._configurationService.getValue<boolean>(TaskSettingId.ShowLongRunningTaskCompletionNotification)) {
-			return;
-		}
 		const terminalForTask = this._terminalService.instances.find(i => i.instanceId === event.terminalId);
 		if (!terminalForTask) {
 			return;
 		}
 		const taskLabel = terminalForTask.title;
-		const durationText = this._formatTaskDuration(durationMs);
-		const message = taskLabel
-			? nls.localize('task.longRunningTaskCompletedWithLabel', 'Task "{0}" finished in {1}.', taskLabel, durationText)
-			: nls.localize('task.longRunningTaskCompleted', 'Task finished in {0}.', durationText);
 		const targetWindow = dom.getWindow(terminalForTask.domElement);
 		if (targetWindow.document.hasFocus()) {
 			return;
 		}
+		if (!this._configurationService.getValue<boolean>(TaskSettingId.ShowLongRunningTaskCompletionNotification)) {
+			return;
+		}
+
+		const durationText = this._formatTaskDuration(durationMs);
+		const message = taskLabel
+			? nls.localize('task.longRunningTaskCompletedWithLabel', 'Task "{0}" finished in {1}.', taskLabel, durationText)
+			: nls.localize('task.longRunningTaskCompleted', 'Task finished in {0}.', durationText);
 		this._taskRunStartTimes.delete(event.taskId);
 		this._hostService.focus(targetWindow, { mode: FocusMode.Notify });
 		const notification = await dom.triggerNotification(message);

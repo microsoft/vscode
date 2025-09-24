@@ -1191,7 +1191,7 @@ export interface ITaskProcessEndedEvent extends ITaskCommon {
 export interface ITaskInactiveEvent extends ITaskCommon {
 	kind: TaskEventKind.Inactive;
 	terminalId: number | undefined;
-	durationMs?: number;
+	durationMs: number | undefined;
 }
 
 export interface ITaskTerminatedEvent extends ITaskCommon {
@@ -1271,7 +1271,7 @@ export namespace TaskEvent {
 		};
 	}
 
-	export function inactive(task: Task, terminalId: number | undefined, durationMs?: number): ITaskInactiveEvent {
+	export function inactive(task: Task, terminalId?: number, durationMs?: number): ITaskInactiveEvent {
 		return {
 			...common(task),
 			kind: TaskEventKind.Inactive,
