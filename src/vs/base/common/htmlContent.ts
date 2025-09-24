@@ -204,10 +204,10 @@ export function markdownCommandLink(command: { title: string; id: string; argume
 	return `[${escapeTokens ? escapeMarkdownSyntaxTokens(command.title) : command.title}](${uri})`;
 }
 
-export function createCommandUri(commandId: string, ...args: unknown[]): URI {
+export function createCommandUri(commandId: string, ...commandArgs: unknown[]): URI {
 	return URI.from({
 		scheme: Schemas.command,
 		path: commandId,
-		query: args.length ? encodeURIComponent(JSON.stringify(args)) : undefined,
+		query: commandArgs.length ? encodeURIComponent(JSON.stringify(commandArgs)) : undefined,
 	});
 }
