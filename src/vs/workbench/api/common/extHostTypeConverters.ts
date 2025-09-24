@@ -3592,7 +3592,7 @@ export namespace LanguageModelToolResult2 {
 		let hasBuffers = false;
 		let detailsDto: Dto<Array<URI | types.Location> | IToolResultInputOutputDetails | IToolResultOutputDetails | undefined> = undefined;
 		if (Array.isArray(result.toolResultDetails)) {
-			detailsDto = result.toolResultDetails?.map((detail) => {
+			detailsDto = result.toolResultDetails?.map(detail => {
 				return URI.isUri(detail) ? detail : Location.from(detail as vscode.Location);
 			});
 		} else {
