@@ -365,7 +365,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		return [];
 	}
 
-	private async _provideNewChatSessionItem(handle: number, options: { request: IChatAgentRequest; prompt?: string; history?: any[]; metadata?: any }, token: CancellationToken): Promise<IChatSessionItem> {
+	private async _provideNewChatSessionItem(handle: number, options: { request: IChatAgentRequest; prompt?: string; history?: any[]; metadata?: Record<string, any> }, token: CancellationToken): Promise<IChatSessionItem> {
 		try {
 			const chatSessionItem = await this._proxy.$provideNewChatSessionItem(handle, options, token);
 			if (!chatSessionItem) {

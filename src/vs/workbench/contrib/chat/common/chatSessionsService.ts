@@ -77,7 +77,7 @@ export interface IChatSessionItemProvider {
 		request: IChatAgentRequest;
 		prompt?: string;
 		history?: any[];
-		metadata?: any;
+		metadata?: Record<string, any>;
 	}, token: CancellationToken): Promise<IChatSessionItem>;
 }
 
@@ -101,7 +101,7 @@ export interface IChatSessionsService {
 		request: IChatAgentRequest;
 		prompt?: string;
 		history?: any[];
-		metadata?: any;
+		metadata?: Record<string, any>;
 	}, token: CancellationToken): Promise<IChatSessionItem>;
 	provideChatSessionItems(chatSessionType: string, token: CancellationToken): Promise<IChatSessionItem[]>;
 	reportInProgress(chatSessionType: string, count: number): void;
