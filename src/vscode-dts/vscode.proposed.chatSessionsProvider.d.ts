@@ -37,7 +37,7 @@ declare module 'vscode' {
 		 * Fired when a new chat session item is created from an untitled session
 		 * Clients should replace the 'original' chat session with the 'modified' chat session.
 		 */
-		readonly onDidCreateChatSessionItem: Event<{ original: ChatSessionItem /** untitled */, modified: ChatSessionItem /** newly created */ }>;
+		readonly onDidCreateChatSessionItem: Event<{ original: ChatSessionItem /** untitled */; modified: ChatSessionItem /** newly created */ }>;
 
 		/**
 		 * Creates a new chat session.

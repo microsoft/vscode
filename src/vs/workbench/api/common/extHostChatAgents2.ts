@@ -588,8 +588,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 				};
 			}
 
-			const chatContext: vscode.ChatContext = { history, chatSessionContext }
-
+			const chatContext: vscode.ChatContext = { history, chatSessionContext };
 			const task = agent.invoke(
 				extRequest,
 				chatContext,
