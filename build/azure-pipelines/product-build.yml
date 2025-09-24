@@ -288,7 +288,7 @@ extends:
                       VSCODE_BUILD_MACOS_ARM64: ${{ parameters.VSCODE_BUILD_MACOS_ARM64 }}
 
             - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
-              - template: build/azure-pipelines/win32/product-build-win32-cli-compile.yml@self
+              - template: build/azure-pipelines/win32/product-build-win32-cli.yml@self
                 parameters:
                   VSCODE_ARCH: x64
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
@@ -296,7 +296,7 @@ extends:
                   VSCODE_BUILD_WIN32: ${{ parameters.VSCODE_BUILD_WIN32 }}
 
             - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}:
-              - template: build/azure-pipelines/win32/product-build-win32-cli-compile.yml@self
+              - template: build/azure-pipelines/win32/product-build-win32-cli.yml@self
                 parameters:
                   VSCODE_ARCH: arm64
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
