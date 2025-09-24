@@ -62,6 +62,8 @@ export class TestingChatAgentToolContribution extends Disposable implements IWor
 interface IRunTestToolParams {
 	files?: string[];
 	testNames?: string[];
+	/** For runTestsWithCoverage: file paths to return coverage info for */
+	coverageFiles?: string[];
 }
 
 abstract class BaseRunTestsTool implements IToolImpl {
@@ -374,7 +376,17 @@ class RunTestWithCoverageTool extends BaseRunTestsTool {
 		displayName: 'Run tests with coverage',
 		modelDescription: 'Runs unit tests (optionally filtered) and reports a coverage summary. Use when a coverage report is explicitly requested or when identifying uncovered code.',
 		icon: Codicon.beaker,
-		inputSchema: RunTestTool.DEFINITION.inputSchema!,
+		inputSchema: {
+			...RunTestTool.DEFINITION.inputSchema!,
+			properties: {
+				...RunTestTool.DEFINITION.inputSchema!.properties,
+				coverageFiles: {
+					type: 'array',
+					items: { type: 'string' },
+					description: 'Absolute file paths to include detailed coverage info for. Only these files will be reported in the coverage summary.'
+				}
+			}
+		},
 		userDescription: localize('runTestWithCoverageTool.userDescription', 'Runs unit tests with coverage'),
 		source: ToolDataSource.Internal,
 		tags: [
@@ -394,79 +406,69 @@ class RunTestWithCoverageTool extends BaseRunTestsTool {
 		@ITestResultService testResultService: ITestResultService,
 	) { super(testService, uriIdentityService, workspaceContextService, testResultService); }
 
+	private _coverageFiles: string[] | undefined;
+
+	override async invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
+		const params: IRunTestToolParams = invocation.parameters;
+		this._coverageFiles = params.coverageFiles && params.coverageFiles.length ? params.coverageFiles : undefined;
+		return super.invoke(invocation, countTokens, progress, token);
+	}
+
 	protected override getRunGroup(): TestRunProfileBitset { return TestRunProfileBitset.Coverage; }
 
 	protected override async getAdditionalSummary(result: LiveTestResult): Promise<string> {
 		for (const task of result.tasks) {
 			const coverage = task.coverage.get();
 			if (!coverage) { continue; }
-			let firstUncoveredPath: string | undefined;
-			let firstUncoveredKind: 'statement' | 'branch' | 'declaration' | undefined;
-			let firstPct: number | undefined;
-			let firstUncoveredFile: FileCoverage | undefined;
-			let firstUncoveredLines: { start: number; end: number } | undefined;
-			let statementsCovered = 0, statementsTotal = 0;
-			let branchesCovered = 0, branchesTotal = 0;
-			let declarationsCovered = 0, declarationsTotal = 0;
-			for (const file of coverage.getAllFiles().values()) {
-				statementsCovered += file.statement.covered; statementsTotal += file.statement.total;
-				if (file.branch) { branchesCovered += file.branch.covered; branchesTotal += file.branch.total; }
-				if (file.declaration) { declarationsCovered += file.declaration.covered; declarationsTotal += file.declaration.total; }
-				if (!firstUncoveredPath) {
-					const pct = getTotalCoveragePercent(file.statement, file.branch, file.declaration) * 100;
-					const statementFull = file.statement.covered === file.statement.total;
-					const branchFull = !file.branch || file.branch.covered === file.branch.total;
-					const declarationFull = !file.declaration || file.declaration.covered === file.declaration.total;
-					if (!statementFull || !branchFull || !declarationFull) {
-						firstUncoveredPath = file.uri.fsPath;
-						firstUncoveredKind = !statementFull ? 'statement' : (!branchFull ? 'branch' : 'declaration');
-						firstPct = pct;
-						firstUncoveredFile = file;
-					}
+			// emit coverage info for the first file we find that coverage was requested for
+			if (this._coverageFiles && this._coverageFiles.length) {
+				const normalized = this._coverageFiles.map(file => URI.file(file).fsPath);
+				const coveredFilesMap = new Map<string, FileCoverage>();
+				for (const file of coverage.getAllFiles().values()) {
+					coveredFilesMap.set(file.uri.fsPath, file);
 				}
-			}
-			let summary = '';
-			if (firstUncoveredPath) {
-				const totalPct = getTotalCoveragePercent(
-					{ covered: statementsCovered, total: statementsTotal },
-					branchesTotal ? { covered: branchesCovered, total: branchesTotal } : undefined,
-					declarationsTotal ? { covered: declarationsCovered, total: declarationsTotal } : undefined,
-				) * 100;
-				summary += `<coverage task=${JSON.stringify(task.name || '')} statementsCovered=${statementsCovered} statementsTotal=${statementsTotal} branchesCovered=${branchesCovered} branchesTotal=${branchesTotal} declarationsCovered=${declarationsCovered} declarationsTotal=${declarationsTotal} percent=${totalPct.toFixed(2)}>`;
-				summary += `<firstUncovered path=${JSON.stringify(firstUncoveredPath)} kind=${JSON.stringify(firstUncoveredKind)} filePercent=${firstPct!.toFixed(2)}>`;
-				try {
-					if (firstUncoveredFile && typeof firstUncoveredFile.details === 'function') {
-						const details = await firstUncoveredFile.details();
-						const uncoveredLines = new Set<number>();
-						for (const d of details) {
-							const isCovered = !!d.count;
-							if (!isCovered && d.location) {
-								let startLine: number; let endLine: number;
-								if ('startLineNumber' in d.location && 'endLineNumber' in d.location) { startLine = d.location.startLineNumber; endLine = d.location.endLineNumber; }
-								else { startLine = endLine = d.location.lineNumber; }
-								for (let ln = startLine; ln <= endLine; ln++) { uncoveredLines.add(ln); }
+				for (const path of normalized) {
+					const file = coveredFilesMap.get(path);
+					if (!file) {
+						continue;
+					}
+					let summary = `<coverage task=${JSON.stringify(task.name || '')}>\n`;
+					const pct = getTotalCoveragePercent(file.statement, file.branch, file.declaration) * 100;
+					summary += `<firstUncoveredFile path=${JSON.stringify(path)} statementsCovered=${file.statement.covered} statementsTotal=${file.statement.total}`;
+					if (file.branch) {
+						summary += ` branchesCovered=${file.branch.covered} branchesTotal=${file.branch.total}`;
+					}
+					if (file.declaration) {
+						summary += ` declarationsCovered=${file.declaration.covered} declarationsTotal=${file.declaration.total}`;
+					}
+					summary += ` percent=${pct.toFixed(2)}`;
+					try {
+						if (typeof file.details === 'function') {
+							const details = await file.details();
+							for (const detail of details) {
+								if (!detail.count && detail.location) {
+									let startLine: number;
+									let endLine: number;
+									if ('startLineNumber' in detail.location && 'endLineNumber' in detail.location) {
+										startLine = detail.location.startLineNumber;
+										endLine = detail.location.endLineNumber;
+									} else {
+										startLine = endLine = detail.location.lineNumber;
+									}
+									summary += ` firstUncoveredStart=${startLine} firstUncoveredEnd=${endLine}`;
+									break;
+								}
 							}
 						}
-						if (uncoveredLines.size) {
-							const sorted = [...uncoveredLines].sort((a, b) => a - b);
-							const rangeStart = sorted[0]; let rangeEnd = sorted[0];
-							for (let i = 1; i < sorted.length; i++) { if (sorted[i] === rangeEnd + 1) { rangeEnd = sorted[i]; } else { break; } }
-							firstUncoveredLines = { start: rangeStart, end: rangeEnd };
-						}
+					} catch {
+						// ignore coverage detail errors
 					}
-				} catch { }
-				if (firstUncoveredLines) { summary += `\n<firstUncoveredLines start=${firstUncoveredLines.start} end=${firstUncoveredLines.end} />`; }
-				summary += `</firstUncovered>`;
-				summary += `\n</coverage>\n`;
-			} else {
-				const totalPct = getTotalCoveragePercent(
-					{ covered: statementsCovered, total: statementsTotal },
-					branchesTotal ? { covered: branchesCovered, total: branchesTotal } : undefined,
-					declarationsTotal ? { covered: declarationsCovered, total: declarationsTotal } : undefined,
-				) * 100;
-				summary += `<coverage task=${JSON.stringify(task.name || '')} statementsCovered=${statementsCovered} statementsTotal=${statementsTotal} branchesCovered=${branchesCovered} branchesTotal=${branchesTotal} declarationsCovered=${declarationsCovered} declarationsTotal=${declarationsTotal} percent=${totalPct.toFixed(2)} />\n`;
+					summary += ` />\n`;
+					summary += `</coverage>\n`;
+					return summary; // emit only first matching file
+				}
+
 			}
-			return summary; // Only first coverage producing task
 		}
 		return '';
 	}
