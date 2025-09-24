@@ -25,7 +25,6 @@ import { localize } from '../../../../nls.js';
 
 const CHAT_RESPONSE_PENDING_ALLOWANCE_MS = 4000;
 export class ChatAccessibilityService extends Disposable implements IChatAccessibilityService {
-
 	declare readonly _serviceBrand: undefined;
 
 	private _pendingSignalMap: DisposableMap<number, AccessibilityProgressSignalScheduler> = this._register(new DisposableMap());
@@ -43,6 +42,15 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 	) {
 		super();
 	}
+
+	override dispose(): void {
+		for (const ds of Array.from(this.notifications)) {
+			ds.dispose();
+		}
+		this.notifications.clear();
+		super.dispose();
+	}
+
 	acceptRequest(): number {
 		this._requestId++;
 		this._accessibilitySignalService.playSignal(AccessibilitySignal.chatRequestSent, { allowManyInParallel: true });
