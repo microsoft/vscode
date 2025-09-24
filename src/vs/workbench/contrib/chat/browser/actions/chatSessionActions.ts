@@ -424,6 +424,38 @@ export class ChatSessionsGettingStartedAction extends Action2 {
 	}
 }
 
+export class OpenNewChatSessionEditorWithMetadata extends Action2 {
+	static readonly ID = 'workbench.action.chat.openNewSessionEditorWithMetadata';
+
+	constructor() {
+		super({
+			id: OpenNewChatSessionEditorWithMetadata.ID,
+			title: nls.localize2('interactiveSession.openNewSessionEditorWithMetadata', "New Chat Editor with Metadata..."),
+			category: CHAT_CATEGORY,
+			f1: false,
+		});
+	}
+
+	async run(accessor: ServicesAccessor, chatSessionType: string, metadata: Record<string, any>) {
+		const editorService = accessor.get(IEditorService);
+		const logService = accessor.get(ILogService);
+
+		try {
+			const options: IChatEditorOptions = {
+				override: ChatEditorInput.EditorID,
+				pinned: true,
+				metadata
+			};
+			await editorService.openEditor({
+				resource: ChatEditorInput.getNewEditorUri().with({ query: `chatSessionType=${chatSessionType}` }),
+				options,
+			});
+		} catch (e) {
+			logService.error('Failed to open new chat session editor with metadata', e);
+		}
+	}
+}
+
 // Register the menu item - show for all local chat sessions (including history items)
 MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 	command: {

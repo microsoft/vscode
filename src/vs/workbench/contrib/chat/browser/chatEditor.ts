@@ -33,6 +33,7 @@ export interface IChatEditorOptions extends IEditorOptions {
 	target?: { sessionId: string } | { data: IExportableChatData | ISerializableChatData };
 	preferredTitle?: string;
 	ignoreInView?: boolean;
+	metadata?: Record<string, any>;
 }
 
 export class ChatEditor extends EditorPane {
