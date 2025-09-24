@@ -518,7 +518,7 @@ class ChatStatusDashboard extends Disposable {
 				let descriptionText: string | MarkdownString;
 				let descriptionClass = '.description';
 				if (newUser && anonymousUser) {
-					descriptionText = new MarkdownString(localize('activateDescriptionAnonymous', "By continuing with {0} Copilot, you agree to {1}'s [Terms]({2}) and [Privacy Statement]({3})", defaultChat.provider.default.name, defaultChat.provider.default.name, defaultChat.termsStatementUrl, defaultChat.privacyStatementUrl), { isTrusted: true });
+					descriptionText = new MarkdownString(localize({ key: 'activeDescriptionAnonymous', comment: ['{Locked="]({2})"}', '{Locked="]({3})"}'] }, "By continuing with {0} Copilot, you agree to {1}'s [Terms]({2}) and [Privacy Statement]({3})", defaultChat.provider.default.name, defaultChat.provider.default.name, defaultChat.termsStatementUrl, defaultChat.privacyStatementUrl), { isTrusted: true });
 					descriptionClass = `${descriptionClass}.terms`;
 				} else if (newUser) {
 					descriptionText = localize('activateDescription', "Set up Copilot to use AI features.");

@@ -59,6 +59,8 @@ export namespace ChatEntitlementContextKeys {
 
 	export const chatQuotaExceeded = new RawContextKey<boolean>('chatQuotaExceeded', false, true);
 	export const completionsQuotaExceeded = new RawContextKey<boolean>('completionsQuotaExceeded', false, true);
+
+	export const chatAnonymous = new RawContextKey<boolean>('chatAnonymous', false, true);
 }
 
 export const IChatEntitlementService = createDecorator<IChatEntitlementService>('chatEntitlementService');
@@ -227,6 +229,8 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 		this.chatQuotaExceededContextKey = ChatEntitlementContextKeys.chatQuotaExceeded.bindTo(this.contextKeyService);
 		this.completionsQuotaExceededContextKey = ChatEntitlementContextKeys.completionsQuotaExceeded.bindTo(this.contextKeyService);
 
+		this.anonymousContextKey = ChatEntitlementContextKeys.chatAnonymous.bindTo(this.contextKeyService);
+
 		this.onDidChangeEntitlement = Event.map(
 			Event.filter(
 				this.contextKeyService.onDidChangeContext, e => e.affectsSome(new Set([
@@ -359,6 +363,8 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 			const newAnonymousUsage = this.anonymous;
 			if (newAnonymousUsage !== anonymousUsage) {
 				anonymousUsage = newAnonymousUsage;
+				this.anonymousContextKey.set(newAnonymousUsage);
+
 				this._onDidChangeAnonymous.fire();
 			}
 		};
@@ -430,6 +436,8 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 
 	//region --- Anonymous
 
+	private readonly anonymousContextKey: IContextKey<boolean>;
+
 	private readonly _onDidChangeAnonymous = this._register(new Emitter<void>());
 	readonly onDidChangeAnonymous = this._onDidChangeAnonymous.event;
 
@@ -438,6 +446,8 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 	get anonymous(): boolean {
 		return isAnonymous(this.configurationService, this.entitlement, this.sentiment);
 	}
+
+	//#endregion
 
 	async update(token: CancellationToken): Promise<void> {
 		await this.requests?.value.forceResolveEntitlement(undefined, token);
