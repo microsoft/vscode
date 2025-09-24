@@ -570,6 +570,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 								this.checkModelSupported();
 							}
 						}
+					} else {
+						this.setCurrentLanguageModelToDefault();
 					}
 				});
 			}
@@ -693,7 +695,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const defaultLanguageModelId = this.languageModelsService.getLanguageModelIds().find(id => this.languageModelsService.lookupLanguageModel(id)?.isDefault);
 		const hasUserSelectableLanguageModels = this.languageModelsService.getLanguageModelIds().find(id => {
 			const model = this.languageModelsService.lookupLanguageModel(id);
-			return model?.isUserSelectable && !model.isDefault;
+			return model?.isUserSelectable;
 		});
 		const defaultModel = hasUserSelectableLanguageModels && defaultLanguageModelId ?
 			{ metadata: this.languageModelsService.lookupLanguageModel(defaultLanguageModelId)!, identifier: defaultLanguageModelId } :
@@ -783,8 +785,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const storageKey = this.getDefaultModeExperimentStorageKey();
 			const hasSetDefaultMode = this.storageService.getBoolean(storageKey, StorageScope.WORKSPACE, false);
 			if (!hasSetDefaultMode) {
-				const defaultModeKey = this.entitlementService.entitlement === ChatEntitlement.Free ? 'chat.defaultModeFree' : 'chat.defaultMode';
-				const defaultLanguageModelKey = this.entitlementService.entitlement === ChatEntitlement.Free ? 'chat.defaultLanguageModelFree' : 'chat.defaultLanguageModel';
+				const freeOrAnonymous = this.entitlementService.entitlement === ChatEntitlement.Free || this.entitlementService.anonymous;
+				const defaultModeKey = freeOrAnonymous ? 'chat.defaultModeFree' : 'chat.defaultMode';
+				const defaultLanguageModelKey = freeOrAnonymous ? 'chat.defaultLanguageModelFree' : 'chat.defaultLanguageModel';
 				Promise.all([
 					this.experimentService.getTreatment(defaultModeKey),
 					this.experimentService.getTreatment(defaultLanguageModelKey),
