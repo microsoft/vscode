@@ -87,7 +87,7 @@ export class ChatEditingNotebookCellEntry extends Disposable {
 		this._textModelChangeService.clearCurrentEditLineDecoration();
 	}
 
-	async acceptAgentEdits(textEdits: TextEdit[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void> {
+	async acceptAgentEdits(textEdits: TextEdit[], isLastEdits: boolean, responseModel: IChatResponseModel | undefined): Promise<void> {
 		const { maxLineNumber } = await this._textModelChangeService.acceptAgentEdits(this.modifiedModel.uri, textEdits, isLastEdits, responseModel);
 
 		transaction((tx) => {

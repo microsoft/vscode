@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { equals as arraysEqual } from '../../../../../base/common/arrays.js';
 import { findLast } from '../../../../../base/common/arraysFind.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
-import { Disposable, DisposableStore, IReference } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
-import { derived, derivedOpts, IObservable, IReader, ObservablePromise, observableSignalFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { equals as objectsEqual } from '../../../../../base/common/objects.js';
+import { derived, derivedOpts, IObservable, IReader, ObservablePromise, observableSignalFromEvent, observableValue, observableValueOpts, transaction } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
@@ -16,25 +18,32 @@ import { TextEdit } from '../../../../../editor/common/languages.js';
 import { TextModel } from '../../../../../editor/common/model/textModel.js';
 import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
-import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IEditSessionEntryDiff } from '../../common/chatEditingService.js';
+import { IEditSessionEntryDiff, IModifiedEntryTelemetryInfo } from '../../common/chatEditingService.js';
+import { IChatRequestDisablement } from '../../common/chatModel.js';
 import { IChatEditingCheckpointTimeline } from './chatEditingCheckpointTimeline.js';
-import { FileOperation, FileOperationType, IChatEditingTimelineState, ICheckpoint, IFileBaseline, IFileCreateOperation, IFileDeleteOperation, IFileRenameOperation, IReconstructedFileState, ITextEditOperation } from './chatEditingOperations.js';
+import { FileOperation, FileOperationType, IChatEditingTimelineState, ICheckpoint, IFileBaseline, IFileCreateOperation, IFileDeleteOperation, IFileRenameOperation, IReconstructedFileState } from './chatEditingOperations.js';
 import { ChatEditingSnapshotTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
 
 const START_REQUEST_EPOCH = '$$start';
 const STOP_ID_EPOCH_PREFIX = '__epoch_';
 
 /**
- * Implementation of the checkpoint-based timeline system
+ * Implementation of the checkpoint-based timeline system.
+ *
+ * Invariants:
+ * - There is at most one checkpoint or operation per epoch
+ * - _checkpoints and _operations are always sorted in ascending order by epoch
+ * - _currentEpoch being equal to the epoch of an operation means that
+ *   operation is _not_ currently applied
  */
 export class ChatEditingCheckpointTimelineImpl extends Disposable implements IChatEditingCheckpointTimeline {
 
 	private _epoch = 0;
 	private readonly _checkpoints = observableValue<readonly ICheckpoint[]>(this, []);
 	private readonly _currentEpoch = observableValue<number>(this, 0);
-	private readonly _operations: FileOperation[] = [];
+	private readonly _operations = observableValueOpts<FileOperation[]>({ equalsFn: () => false }, []); // mutable
 	private readonly _fileBaselines = new Map<string, IFileBaseline>(); // key: `${uri}::${requestId}`
 
 	public readonly currentCheckpoint: IObservable<ICheckpoint | undefined> = derived(reader => {
@@ -44,48 +53,66 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 		return checkpoints.filter(c => c.epoch <= currentEpoch).pop();
 	});
 
-	public readonly canUndo: IObservable<boolean> = derived(reader => {
+	/** Gets the checkpoint, if any, we can 'undo' to. */
+	private readonly _willUndoToCheckpoint = derived(reader => {
 		const currentEpoch = this._currentEpoch.read(reader);
-		const checkpoints = this._checkpoints.read(reader);
-		if (checkpoints.length === 0) {
-			return false;
-		}
-
-		// Can undo if we're past the first checkpoint epoch, or if there are multiple checkpoints
-		// and we're not at the first one
-		const firstCheckpoint = checkpoints[0];
-		if (currentEpoch > firstCheckpoint.epoch) {
-			return true;
-		}
-
-		// If we're at a checkpoint and there's a previous checkpoint
-		const currentCheckpointIndex = checkpoints.findIndex(c => c.epoch === currentEpoch);
-		return currentCheckpointIndex > 0;
+		const maxEpoch = this._operations.read(reader).findLast(op => op.epoch < currentEpoch)?.epoch || 0;
+		return this._checkpoints.read(reader).findLast(cp => cp.epoch < maxEpoch);
 	});
 
-	public readonly canRedo: IObservable<boolean> = derived(reader => {
+	public readonly canUndo: IObservable<boolean> = this._willUndoToCheckpoint.map(cp => !!cp);
+
+
+	/**
+	 * Gets the epoch we'll redo this. Unlike undo this doesn't only use checkpoints
+	 * because we could potentially redo to a 'tip' operation that's not checkpointed yet.
+	 */
+	private readonly _willRedoToEpoch = derived(reader => {
 		const currentEpoch = this._currentEpoch.read(reader);
-		const checkpoints = this._checkpoints.read(reader);
-		if (checkpoints.length === 0) {
-			return false;
+		const operations = this._operations.read(reader);
+		const maxOperationEpoch = operations.at(-1)?.epoch || 0;
+		if (currentEpoch > maxOperationEpoch) {
+			return undefined;
 		}
 
-		// Can redo if there's a checkpoint after the current epoch
-		const laterCheckpoints = checkpoints.filter(c => c.epoch > currentEpoch);
-		if (laterCheckpoints.length > 0) {
-			return true;
-		}
-
-		// Can redo if there are operations beyond the current epoch
-		const laterOperations = this._operations.filter(op => op.epoch > currentEpoch);
-		return laterOperations.length > 0;
+		const minEpoch = operations.find(op => op.epoch >= currentEpoch)?.epoch;
+		const checkpointEpoch = minEpoch && this._checkpoints.read(reader).find(op => op.epoch > minEpoch)?.epoch;
+		return checkpointEpoch || (maxOperationEpoch + 1);
 	});
 
-	// Legacy compatibility - empty for now
-	public readonly requestDisablement: IObservable<any[]> = observableValue<any[]>(this, []);
+
+	public readonly canRedo: IObservable<boolean> = this._willRedoToEpoch.map(e => !!e);
+
+	public readonly requestDisablement: IObservable<IChatRequestDisablement[]> = derivedOpts(
+		{ equalsFn: (a, b) => arraysEqual(a, b, objectsEqual) },
+		reader => {
+			const currentEpoch = this._currentEpoch.read(reader);
+			const checkpoints = this._checkpoints.read(reader);
+
+			const disablement = new Map<string, string | undefined>();
+			// Go through the checkpoints and disable any that are after our current epoch.
+			// Subtle: the request will first make a checkpoint with an 'undefined' undo
+			// stop, and in this loop we'll "automatically" disable the entire request when
+			// we reach that checkpoint.
+			for (let i = checkpoints.length - 1; i >= 0; i--) {
+				const { undoStopId, requestId, epoch } = checkpoints[i];
+				if (epoch < currentEpoch) {
+					break;
+				}
+
+				if (requestId) {
+					disablement.set(requestId, undoStopId);
+				}
+			}
+
+			return [...disablement].map(([requestId, undoStopId]) => ({ requestId, undoStopId }));
+		});
 
 	constructor(
 		private readonly chatSessionId: string,
+		private readonly _delegate: {
+			setContents(uri: URI, content: string, telemetryInfo: IModifiedEntryTelemetryInfo): Promise<void>;
+		},
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IModelService private readonly _modelService: IModelService,
 		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
@@ -147,29 +174,16 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 	}
 
 	async undoToLastCheckpoint(): Promise<void> {
-		const currentEpoch = this._currentEpoch.get();
-		const checkpoints = this._checkpoints.get();
-		if (checkpoints.length === 0) {
-			return;
+		const checkpoint = this._willUndoToCheckpoint.get();
+		if (checkpoint) {
+			await this.navigateToCheckpoint(checkpoint.checkpointId);
 		}
+	}
 
-		// Find the checkpoint to undo to
-		let targetCheckpoint: ICheckpoint | undefined;
-
-		// If we're beyond the last checkpoint, go to the last checkpoint
-		const lastCheckpoint = checkpoints[checkpoints.length - 1];
-		if (currentEpoch > lastCheckpoint.epoch) {
-			targetCheckpoint = lastCheckpoint;
-		} else {
-			// Find the previous checkpoint
-			const currentCheckpointIndex = checkpoints.findIndex(c => c.epoch === currentEpoch);
-			if (currentCheckpointIndex > 0) {
-				targetCheckpoint = checkpoints[currentCheckpointIndex - 1];
-			}
-		}
-
-		if (targetCheckpoint) {
-			await this.navigateToCheckpoint(targetCheckpoint.checkpointId);
+	async redoToNextCheckpoint(): Promise<void> {
+		const targetEpoch = this._willRedoToEpoch.get();
+		if (targetEpoch) {
+			await this.navigateToEpoch(targetEpoch);
 		}
 	}
 
@@ -202,29 +216,6 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 		this._currentEpoch.set(targetEpoch, undefined);
 	}
 
-	async redoToNextCheckpoint(): Promise<void> {
-		const currentEpoch = this._currentEpoch.get();
-		const checkpoints = this._checkpoints.get();
-		if (checkpoints.length === 0) {
-			return;
-		}
-
-		// Find the next checkpoint after current epoch
-		const nextCheckpoint = checkpoints.find(c => c.epoch > currentEpoch);
-		if (nextCheckpoint) {
-			await this.navigateToCheckpoint(nextCheckpoint.checkpointId);
-			return;
-		}
-
-		// If no next checkpoint, but there are operations beyond current epoch,
-		// advance to the latest epoch with operations
-		const laterOperations = this._operations.filter(op => op.epoch > currentEpoch);
-		if (laterOperations.length > 0) {
-			const latestEpoch = Math.max(...laterOperations.map(op => op.epoch));
-			await this.navigateToEpoch(latestEpoch);
-		}
-	}
-
 	getCheckpoint(checkpointId: string): ICheckpoint | undefined {
 		return this._checkpoints.get().find(c => c.checkpointId === checkpointId);
 	}
@@ -238,11 +229,24 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 	}
 
 	recordFileOperation(operation: FileOperation): void {
-		// Set the epoch if not already set
-		if (!('epoch' in operation) || operation.epoch === undefined) {
-			(operation as any).epoch = this.incrementEpoch();
-		}
-		this._operations.push(operation);
+		const currentEpoch = this._currentEpoch.get();
+		const currentCheckpoints = this._checkpoints.get();
+
+		const operations = this._operations.get();
+		const insertAt = operations.findLastIndex(op => op.epoch <= currentEpoch);
+		operations[insertAt + 1] = operation;
+		operations.length = insertAt + 2; // Truncate any operations beyond this point
+
+		// If we undid some operations and are dropping them out of history, also remove
+		// any associated checkpoints.
+		const newCheckpoints = currentCheckpoints.filter(c => c.epoch <= currentEpoch || c.epoch >= operation.epoch);
+		transaction(tx => {
+			if (newCheckpoints.length !== currentCheckpoints.length) {
+				this._checkpoints.set(newCheckpoints, tx);
+			}
+			this._currentEpoch.set(operation.epoch + 1, tx);
+			this._operations.set(operations, tx);
+		});
 	}
 
 	getOperationsSince(checkpointId: string): readonly FileOperation[] {
@@ -251,7 +255,7 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 			return [];
 		}
 
-		return this._operations.filter(op => op.epoch >= checkpoint.epoch);
+		return this._operations.get().filter(op => op.epoch >= checkpoint.epoch);
 	}
 
 	getOperationsBetween(fromCheckpointId: string, toCheckpointId: string): readonly FileOperation[] {
@@ -264,11 +268,11 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 		const minTime = Math.min(fromCheckpoint.epoch, toCheckpoint.epoch);
 		const maxTime = Math.max(fromCheckpoint.epoch, toCheckpoint.epoch);
 
-		return this._operations.filter(op => op.epoch >= minTime && op.epoch <= maxTime);
+		return this._operations.get().filter(op => op.epoch >= minTime && op.epoch <= maxTime);
 	}
 
 	getOperationsForFile(uri: URI): readonly FileOperation[] {
-		return this._operations.filter(op => isEqual(op.uri, uri));
+		return this._operations.get().filter(op => isEqual(op.uri, uri));
 	}
 
 	recordFileBaseline(baseline: IFileBaseline): void {
@@ -296,7 +300,7 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 
 		// The content URI doesn't preserve the original scheme or authority. Look through
 		// to find the operation that touched that path to get its actual URI
-		const fileURI = this._operations.find(o => o.uri.path === contentURI.path)?.uri;
+		const fileURI = this._operations.get().find(o => o.uri.path === contentURI.path)?.uri;
 
 		if (!toEpoch || !fileURI) {
 			return '';
@@ -309,7 +313,8 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 		}
 
 		const operations = this._getFileOperationsInRange(fileURI, baseline.epoch, toEpoch);
-		return this._replayOperations(baseline, operations).content;
+		const replayed = this._replayOperations(baseline, operations);
+		return replayed.exists ? replayed.content : undefined;
 	}
 
 	private _getCheckpointBeforeEpoch(epoch: number, reader?: IReader) {
@@ -328,8 +333,7 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 			// File doesn't exist at this checkpoint
 			return {
 				exists: false,
-				content: undefined,
-				uri
+				uri,
 			};
 		}
 
@@ -354,7 +358,7 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 			checkpoints: this._checkpoints.get(),
 			currentEpoch: this._currentEpoch.get(),
 			fileBaselines: new Map(this._fileBaselines),
-			operations: [...this._operations]
+			operations: this._operations.get()
 		};
 	}
 
@@ -362,24 +366,22 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 		transaction(tx => {
 			this._checkpoints.set(state.checkpoints, tx);
 			this._currentEpoch.set(state.currentEpoch, tx);
+			this._operations.set(state.operations.slice(), tx);
 		});
 
 		this._fileBaselines.clear();
 		for (const [key, baseline] of state.fileBaselines) {
 			this._fileBaselines.set(key, baseline);
 		}
-
-		this._operations.length = 0;
-		this._operations.push(...state.operations);
 	}
 
 	clear(): void {
+		this._fileBaselines.clear();
 		transaction(tx => {
 			this._checkpoints.set([], tx);
 			this._currentEpoch.set(0, tx);
+			this._operations.set([], tx);
 		});
-		this._fileBaselines.clear();
-		this._operations.length = 0;
 	}
 
 	getCheckpointIdForRequest(requestId: string, undoStopId?: string): string | undefined {
@@ -393,7 +395,7 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 		const isMovingForward = targetEpoch > currentEpoch;
 
 		// Get operations between current and target epochs
-		const relevantOperations = this._operations.filter(op => {
+		const relevantOperations = this._operations.get().filter(op => {
 			return op.epoch > Math.min(currentEpoch, targetEpoch) &&
 				op.epoch <= Math.max(currentEpoch, targetEpoch);
 		}).sort((a, b) => isMovingForward ? a.epoch - b.epoch : b.epoch - a.epoch);
@@ -438,8 +440,8 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 		// Reconstruct content for each file that needs it
 		for (const uri of filesToReconstruct) {
 			const reconstructedState = this.reconstructFileState(uri, targetEpoch);
-			if (reconstructedState.exists && reconstructedState.content !== undefined) {
-				await this._updateFileContent(reconstructedState.uri, reconstructedState.content);
+			if (reconstructedState.exists) {
+				this._delegate.setContents(reconstructedState.uri, reconstructedState.content, reconstructedState.telemetryInfo);
 			}
 		}
 	}
@@ -454,8 +456,9 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 		// to see if the file was created/re-created more recently than any baseline
 
 		let currentRequestId = requestId;
-		for (let i = this._operations.length - 1; i >= 0; i--) {
-			const operation = this._operations[i];
+		const operations = this._operations.get();
+		for (let i = operations.length - 1; i >= 0; i--) {
+			const operation = operations[i];
 			if (operation.epoch > epoch) {
 				continue;
 			}
@@ -466,7 +469,8 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 					uri: operation.uri,
 					requestId: operation.requestId,
 					content: createOp.initialContent,
-					epoch: operation.epoch
+					epoch: operation.epoch,
+					telemetryInfo: this.getFileBaseline(uri, currentRequestId)?.telemetryInfo!,
 				};
 			}
 
@@ -486,7 +490,7 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 	}
 
 	private _getFileOperationsInRange(uri: URI, fromEpoch: number, toEpoch: number): readonly FileOperation[] {
-		return this._operations.filter(op =>
+		return this._operations.get().filter(op =>
 			isEqual(op.uri, uri) &&
 			op.epoch >= fromEpoch &&
 			op.epoch <= toEpoch
@@ -497,29 +501,30 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 		let currentState: IReconstructedFileState = {
 			exists: true,
 			content: baseline.content,
-			uri: baseline.uri
+			uri: baseline.uri,
+			telemetryInfo: baseline.telemetryInfo
 		};
 
 		for (const operation of operations) {
-			currentState = this._applyOperationToState(currentState, operation);
+			currentState = this._applyOperationToState(currentState, operation, baseline.telemetryInfo);
 		}
 
 		return currentState;
 	}
 
-	private _applyOperationToState(state: IReconstructedFileState, operation: FileOperation): IReconstructedFileState {
+	private _applyOperationToState(state: IReconstructedFileState, operation: FileOperation, telemetryInfo: IModifiedEntryTelemetryInfo): IReconstructedFileState {
 		switch (operation.type) {
 			case FileOperationType.Create:
 				return {
 					exists: true,
 					content: operation.initialContent,
-					uri: operation.uri
+					uri: operation.uri,
+					telemetryInfo,
 				};
 
 			case FileOperationType.Delete:
 				return {
 					exists: false,
-					content: undefined,
 					uri: operation.uri
 				};
 
@@ -559,7 +564,7 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 		const fromTimestamp = fromCheckpoint?.epoch ?? 0;
 		const toTimestamp = toCheckpoint.epoch;
 
-		const operations = this._operations.filter(op => {
+		const operations = this._operations.get().filter(op => {
 			if (isMovingForward) {
 				return op.epoch > fromTimestamp && op.epoch <= toTimestamp;
 			} else {
@@ -634,16 +639,6 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 		await this._bulkEditService.apply({ edits: [{ oldResource: fromUri, newResource: toUri }] });
 	}
 
-	private async _updateFileContent(uri: URI, content: string): Promise<void> {
-		let ref: IReference<IResolvedTextEditorModel> | undefined;
-		try {
-			ref = await this._textModelService.createModelReference(uri);
-			ref.object.textEditorModel.setValue(content);
-		} finally {
-			ref?.dispose();
-		}
-	}
-
 	private _applyTextEditsToContent(content: string, edits: readonly TextEdit[]): string {
 		// Use the example pattern provided by the user
 		const makeModel = (uri: URI, contents: string) => this._instantiationService.createInstance(TextModel, contents, '', this._modelService.getCreationOptions('', uri, true), uri);
@@ -678,7 +673,7 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 	}
 
 	getEntryDiffBetweenStops(uri: URI, requestId: string | undefined, stopId: string | undefined): IObservable<IEditSessionEntryDiff | undefined> {
-		const epochs = derivedOpts<{ start: ICheckpoint | undefined; end: ICheckpoint | undefined; }>({ equalsFn: (a, b) => a.start === b.start && a.end === b.end }, reader => {
+		const epochs = derivedOpts<{ start: ICheckpoint | undefined; end: ICheckpoint | undefined }>({ equalsFn: (a, b) => a.start === b.start && a.end === b.end }, reader => {
 			const checkpoints = this._checkpoints.read(reader);
 			const startIndex = checkpoints.findIndex(c => c.requestId === requestId && c.undoStopId === stopId);
 			return { start: checkpoints[startIndex], end: checkpoints[startIndex + 1] };
@@ -688,7 +683,7 @@ export class ChatEditingCheckpointTimelineImpl extends Disposable implements ICh
 	}
 
 	getEntryDiffBetweenRequests(uri: URI, startRequestId: string, stopRequestId: string): IObservable<IEditSessionEntryDiff | undefined> {
-		const epochs = derivedOpts<{ start: ICheckpoint | undefined; end: ICheckpoint | undefined; }>({ equalsFn: (a, b) => a.start === b.start && a.end === b.end }, reader => {
+		const epochs = derivedOpts<{ start: ICheckpoint | undefined; end: ICheckpoint | undefined }>({ equalsFn: (a, b) => a.start === b.start && a.end === b.end }, reader => {
 			const checkpoints = this._checkpoints.read(reader);
 			const startIndex = checkpoints.findIndex(c => c.requestId === startRequestId);
 			const start = startIndex === -1 ? checkpoints[0] : checkpoints[startIndex];

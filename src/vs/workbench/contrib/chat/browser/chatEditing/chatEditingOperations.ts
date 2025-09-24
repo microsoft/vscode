@@ -6,6 +6,7 @@
 import { URI } from '../../../../../base/common/uri.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
 import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
+import { IModifiedEntryTelemetryInfo } from '../../common/chatEditingService.js';
 
 export enum FileOperationType {
 	Create = 'create',
@@ -82,16 +83,21 @@ export interface IFileBaseline {
 	readonly requestId: string;
 	readonly content: string;
 	readonly epoch: number;
+	readonly telemetryInfo: IModifiedEntryTelemetryInfo;
 }
 
 /**
  * The reconstructed state of a file at a specific checkpoint
  */
-export interface IReconstructedFileState {
-	readonly exists: boolean;
-	readonly content: string | undefined;
-	readonly uri: URI; // final URI after any renames
-}
+export type IReconstructedFileState = {
+	readonly exists: false;
+	readonly uri: URI;
+} | {
+	readonly exists: true;
+	readonly content: string;
+	readonly uri: URI;
+	readonly telemetryInfo: IModifiedEntryTelemetryInfo;
+};
 
 /**
  * Checkpoint represents a stable state that can be navigated to

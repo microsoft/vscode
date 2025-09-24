@@ -161,7 +161,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		return diff ? diff.identical : false;
 	}
 
-	async acceptAgentEdits(resource: URI, textEdits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<{ rewriteRatio: number; maxLineNumber: number }> {
+	async acceptAgentEdits(resource: URI, textEdits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel | undefined): Promise<{ rewriteRatio: number; maxLineNumber: number }> {
 
 		assertType(textEdits.every(TextEdit.isTextEdit), 'INVALID args, can only handle text edits');
 		assert(isEqual(resource, this.modifiedModel.uri), ' INVALID args, can only edit THIS document');
@@ -170,21 +170,26 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		let maxLineNumber = 0;
 		let rewriteRatio = 0;
 
-		const sessionId = responseModel.session.sessionId;
-		const request = responseModel.session.getRequests().at(-1);
-		const languageId = this.modifiedModel.getLanguageId();
-		const agent = responseModel.agent;
-		const extensionId = VersionedExtensionId.tryCreate(agent?.extensionId.value, agent?.extensionVersion);
+		let source: TextModelEditSource;
+		if (responseModel) {
+			const sessionId = responseModel.session.sessionId;
+			const request = responseModel.session.getRequests().at(-1);
+			const languageId = this.modifiedModel.getLanguageId();
+			const agent = responseModel.agent;
+			const extensionId = VersionedExtensionId.tryCreate(agent?.extensionId.value, agent?.extensionVersion);
 
-		const source = EditSources.chatApplyEdits({
-			modelId: request?.modelId,
-			requestId: request?.id,
-			sessionId: sessionId,
-			languageId,
-			mode: request?.modeInfo?.modeId,
-			extensionId,
-			codeBlockSuggestionId: request?.modeInfo?.applyCodeBlockSuggestionId,
-		});
+			source = EditSources.chatApplyEdits({
+				modelId: request?.modelId,
+				requestId: request?.id,
+				sessionId: sessionId,
+				languageId,
+				mode: request?.modeInfo?.modeId,
+				extensionId,
+				codeBlockSuggestionId: request?.modeInfo?.applyCodeBlockSuggestionId,
+			});
+		} else {
+			source = EditSources.unknown({ name: 'editSessionUndoRedo' });
+		}
 
 		if (isAtomicEdits) {
 			// EDIT and DONE

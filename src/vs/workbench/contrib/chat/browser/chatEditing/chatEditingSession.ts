@@ -45,6 +45,7 @@ import { FileOperationType, FileOperation } from './chatEditingOperations.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { Mutable } from '../../../../../base/common/types.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { Range } from '../../../../../editor/common/core/range.js';
 
 const enum NotExistBehavior {
 	Create,
@@ -130,7 +131,16 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
 	) {
 		super();
-		this._timeline = this._instantiationService.createInstance(ChatEditingCheckpointTimelineImpl, chatSessionId);
+		this._timeline = this._instantiationService.createInstance(
+			ChatEditingCheckpointTimelineImpl,
+			chatSessionId,
+			{
+				setContents: async (uri, content, telemetryInfo) => {
+					const entry = await this._getOrCreateModifiedFileEntry(uri, NotExistBehavior.Create, telemetryInfo);
+					await entry.acceptAgentEdits(uri, [{ range: new Range(1, 1, Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER), text: content }], true, undefined);
+				}
+			}
+		);
 		this.canRedo = this._timeline.canRedo.map((hasHistory, reader) =>
 			hasHistory && this._state.read(reader) === ChatEditingSessionState.Idle);
 		this.canUndo = this._timeline.canUndo.map((hasHistory, reader) =>
@@ -508,6 +518,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 				requestId: responseModel.requestId,
 				content,
 				epoch: this._timeline.incrementEpoch(),
+				telemetryInfo: entry.telemetryInfo,
 			});
 		}
 
@@ -670,7 +681,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 				type: FileOperationType.Create,
 				uri: resource,
 				requestId: telemetryInfo.requestId,
-				epoch: Date.now(),
+				epoch: this._timeline.incrementEpoch(),
 				operationId: generateUuid(),
 				initialContent: initialContent || '',
 				languageId: this._getLanguageId(resource)
