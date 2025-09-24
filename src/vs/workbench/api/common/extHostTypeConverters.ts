@@ -3572,7 +3572,7 @@ export namespace LanguageModelToolResult2 {
 		}));
 
 		if (result.toolMetadata) {
-			(toolResult as types.LanguageModelToolResult2 & { toolMetadata?: unknown }).toolMetadata = result.toolMetadata;
+			(toolResult as vscode.ExtendedLanguageModelToolResult).toolMetadata = result.toolMetadata;
 		}
 
 		return toolResult;
