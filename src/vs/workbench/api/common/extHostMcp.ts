@@ -315,6 +315,14 @@ class McpHTTPHandle extends Disposable {
 		}
 	}
 
+	/**
+	 * Validates that the resource metadata's resource field matches the MCP server URL.
+	 * This validation ensures compliance with RFC9728 protected resource configuration validation.
+	 * 
+	 * @param resourceMetadata - The protected resource metadata to validate
+	 * @param mcpUrl - The MCP server URL that the resource field should match
+	 * @throws {Error} If the resource field doesn't match the MCP URL after normalization
+	 */
 	private _validateResourceMetadata(resourceMetadata: IAuthorizationProtectedResourceMetadata, mcpUrl: string): void {
 		// Use URL constructor for normalization - it handles hostname case and trailing slashes
 		const prmValue = new URL(resourceMetadata.resource).toString();
@@ -429,6 +437,18 @@ class McpHTTPHandle extends Disposable {
 		}
 	}
 
+	/**
+	 * Attempts to discover OAuth protected resource metadata using well-known URIs as per RFC9728.
+	 * This method implements the fallback discovery mechanism when WWW-Authenticate headers
+	 * are not present or don't contain resource_metadata.
+	 * 
+	 * The method tries two well-known URI patterns in the specified order:
+	 * 1. Path insertion: Insert /.well-known/oauth-protected-resource after origin and before MCP path
+	 * 2. Root: Append /.well-known/oauth-protected-resource to the origin
+	 * 
+	 * @param mcpUrl - The MCP server URL to discover metadata for
+	 * @returns Promise resolving to protected resource metadata if found, undefined otherwise
+	 */
 	private async _tryWellKnownResourceMetadataDiscovery(mcpUrl: string): Promise<IAuthorizationProtectedResourceMetadata | undefined> {
 		const mcpServerUrl = new URL(mcpUrl);
 		
