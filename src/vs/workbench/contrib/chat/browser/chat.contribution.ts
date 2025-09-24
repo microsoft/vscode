@@ -311,6 +311,11 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.emptyState.history.enabled', "Show recent chat history on the empty chat state."),
 			tags: ['experimental']
 		},
+		[ChatConfiguration.ShowResponseCompletionOSNotification]: {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('chat.showResponseCompletionNotification', "Show an OS notification when a chat response is received and the window is not focused."),
+		},
 		'chat.checkpoints.enabled': {
 			type: 'boolean',
 			default: true,
