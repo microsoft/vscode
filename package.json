@@ -78,7 +78,7 @@
     "@vscode/deviceid": "^0.1.1",
     "@vscode/iconv-lite-umd": "0.7.0",
     "@vscode/policy-watcher": "^1.3.2",
-    "@vscode/proxy-agent": "^0.33.0",
+    "@vscode/proxy-agent": "^0.34.0",
     "@vscode/ripgrep": "^1.15.13",
     "@vscode/spdlog": "^0.15.2",
     "@vscode/sqlite3": "5.1.8-vscode",
