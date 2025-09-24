@@ -134,7 +134,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 
 			this._collectionDefinitions.set(collection.id, {
 				servers: serverDefinitions,
-				dispose: () => handle.dispose(),
+				dispose: () => store.dispose(),
 			});
 		}
 	}
