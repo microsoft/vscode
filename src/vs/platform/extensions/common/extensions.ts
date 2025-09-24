@@ -196,6 +196,7 @@ export interface IToolSetContribution {
 export interface IMcpCollectionContribution {
 	readonly id: string;
 	readonly label: string;
+	readonly when?: string;
 }
 
 export interface IExtensionContributions {
