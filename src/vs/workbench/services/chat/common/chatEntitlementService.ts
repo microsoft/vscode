@@ -30,6 +30,7 @@ import { ILifecycleService } from '../../lifecycle/common/lifecycle.js';
 import { Mutable } from '../../../../base/common/types.js';
 import { distinct } from '../../../../base/common/arrays.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IObservable, observableFromEvent } from '../../../../base/common/observable.js';
 
 export namespace ChatEntitlementContextKeys {
 
@@ -128,6 +129,7 @@ export interface IChatEntitlementService {
 	readonly onDidChangeEntitlement: Event<void>;
 
 	readonly entitlement: ChatEntitlement;
+	readonly entitlementObs: IObservable<ChatEntitlement>;
 
 	readonly organisations: string[] | undefined;
 	readonly isInternal: boolean;
@@ -141,12 +143,14 @@ export interface IChatEntitlementService {
 	readonly onDidChangeSentiment: Event<void>;
 
 	readonly sentiment: IChatSentiment;
+	readonly sentimentObs: IObservable<IChatSentiment>;
 
 	// TODO@bpasero eventually this will become enabled by default
 	// and in that case we only need to check on entitlements change
 	// between `unknown` and any other entitlement.
 	readonly onDidChangeAnonymous: Event<void>;
 	readonly anonymous: boolean;
+	readonly anonymousObs: IObservable<boolean>;
 
 	update(token: CancellationToken): Promise<void>;
 }
@@ -186,6 +190,24 @@ interface IChatQuotasAccessor {
 	acceptQuotas(quotas: IQuotas): void;
 }
 
+const CHAT_ALLOW_ANONYMOUS_CONFIGURATION_KEY = 'chat.allowAnonymousAccess';
+
+function isAnonymous(configurationService: IConfigurationService, entitlement: ChatEntitlement, sentiment: IChatSentiment): boolean {
+	if (configurationService.getValue(CHAT_ALLOW_ANONYMOUS_CONFIGURATION_KEY) !== true) {
+		return false; // only enabled behind an experimental setting
+	}
+
+	if (entitlement !== ChatEntitlement.Unknown) {
+		return false; // only consider signed out users
+	}
+
+	if (sentiment.hidden || sentiment.disabled || sentiment.untrusted) {
+		return false; // only consider enabled scenarios
+	}
+
+	return true;
+}
+
 export class ChatEntitlementService extends Disposable implements IChatEntitlementService {
 
 	declare _serviceBrand: undefined;
@@ -221,6 +243,7 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 				])), this._store
 			), () => { }, this._store
 		);
+		this.entitlementObs = observableFromEvent(this.onDidChangeEntitlement, () => this.entitlement);
 
 		this.onDidChangeSentiment = Event.map(
 			Event.filter(
@@ -233,6 +256,7 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 				])), this._store
 			), () => { }, this._store
 		);
+		this.sentimentObs = observableFromEvent(this.onDidChangeSentiment, () => this.sentiment);
 
 		if ((
 			// TODO@bpasero remove this condition and 'serverlessWebEnabled' once Chat web support lands
@@ -260,6 +284,7 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 	//#region --- Entitlements
 
 	readonly onDidChangeEntitlement: Event<void>;
+	readonly entitlementObs: IObservable<ChatEntitlement>;
 
 	get entitlement(): ChatEntitlement {
 		if (this.contextKeyService.getContextKeyValue<boolean>(ChatEntitlementContextKeys.Entitlement.planPro.key) === true) {
@@ -339,14 +364,13 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 		};
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatEntitlementService.CHAT_ALLOW_ANONYMOUS_CONFIGURATION_KEY)) {
+			if (e.affectsConfiguration(CHAT_ALLOW_ANONYMOUS_CONFIGURATION_KEY)) {
 				updateAnonymousUsage();
 			}
 		}));
 
-		this._register(this.onDidChangeEntitlement(() => {
-			updateAnonymousUsage();
-		}));
+		this._register(this.onDidChangeEntitlement(() => updateAnonymousUsage()));
+		this._register(this.onDidChangeSentiment(() => updateAnonymousUsage()));
 	}
 
 	acceptQuotas(quotas: IQuotas): void {
@@ -390,6 +414,7 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 	//#region --- Sentiment
 
 	readonly onDidChangeSentiment: Event<void>;
+	readonly sentimentObs: IObservable<IChatSentiment>;
 
 	get sentiment(): IChatSentiment {
 		return {
@@ -405,21 +430,13 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 
 	//region --- Anonymous
 
-	private static readonly CHAT_ALLOW_ANONYMOUS_CONFIGURATION_KEY = 'chat.allowAnonymousAccess';
-
 	private readonly _onDidChangeAnonymous = this._register(new Emitter<void>());
 	readonly onDidChangeAnonymous = this._onDidChangeAnonymous.event;
 
+	readonly anonymousObs = observableFromEvent(this.onDidChangeAnonymous, () => this.anonymous);
+
 	get anonymous(): boolean {
-		if (this.configurationService.getValue(ChatEntitlementService.CHAT_ALLOW_ANONYMOUS_CONFIGURATION_KEY) !== true) {
-			return false; // only enabled behind an experimental setting
-		}
-
-		if (this.entitlement !== ChatEntitlement.Unknown) {
-			return false; // only consider signed out users
-		}
-
-		return true;
+		return isAnonymous(this.configurationService, this.entitlement, this.sentiment);
 	}
 
 	async update(token: CancellationToken): Promise<void> {
@@ -1045,10 +1062,12 @@ type ChatEntitlementClassification = {
 	comment: 'Provides insight into chat entitlements.';
 	chatHidden: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether chat is hidden or not.' };
 	chatEntitlement: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The current chat entitlement of the user.' };
+	chatAnonymous: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user is anonymously using chat.' };
 };
 type ChatEntitlementEvent = {
 	chatHidden: boolean;
 	chatEntitlement: ChatEntitlement;
+	chatAnonymous: boolean;
 };
 
 export class ChatEntitlementContext extends Disposable {
@@ -1219,7 +1238,8 @@ export class ChatEntitlementContext extends Disposable {
 		this.logService.trace(`[chat entitlement context] updateContext(): ${JSON.stringify(state)}`);
 		this.telemetryService.publicLog2<ChatEntitlementEvent, ChatEntitlementClassification>('chatEntitlements', {
 			chatHidden: Boolean(state.hidden),
-			chatEntitlement: state.entitlement
+			chatEntitlement: state.entitlement,
+			chatAnonymous: isAnonymous(this.configurationService, state.entitlement, state)
 		});
 
 		this._onDidChange.fire();

@@ -9,7 +9,7 @@ import { ITransaction, autorun, transaction } from '../../../../../base/common/o
 import { assertType } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { getCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
-import { TextEdit } from '../../../../../editor/common/languages.js';
+import { Location, TextEdit } from '../../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { SingleModelEditStackElement } from '../../../../../editor/common/model/editStack.js';
@@ -186,6 +186,10 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 			state: this.state.get(),
 			telemetryInfo: this._telemetryInfo
 		};
+	}
+
+	public override hasModificationAt(location: Location): boolean {
+		return location.uri.toString() === this.modifiedModel.uri.toString() && this._textModelChangeService.hasHunkAt(location.range);
 	}
 
 	async restoreFromSnapshot(snapshot: ISnapshotEntry, restoreToDisk = true) {

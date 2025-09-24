@@ -18,6 +18,7 @@ import { IChatService } from '../../common/chatService.js';
 
 export const ctxIsGlobalEditingSession = new RawContextKey<boolean>('chatEdits.isGlobalEditingSession', undefined, localize('chat.ctxEditSessionIsGlobal', "The current editor is part of the global edit session"));
 export const ctxHasEditorModification = new RawContextKey<boolean>('chatEdits.hasEditorModifications', undefined, localize('chat.hasEditorModifications', "The current editor contains chat modifications"));
+export const ctxIsCurrentlyBeingModified = new RawContextKey<boolean>('chatEdits.isCurrentlyBeingModified', undefined, localize('chat.isCurrentlyBeingModified', "The current editor is currently being modified"));
 export const ctxReviewModeEnabled = new RawContextKey<boolean>('chatEdits.isReviewModeEnabled', true, localize('chat.ctxReviewModeEnabled', "Review mode for chat changes is enabled"));
 export const ctxHasRequestInProgress = new RawContextKey<boolean>('chatEdits.isRequestInProgress', false, localize('chat.ctxHasRequestInProgress', "The current editor shows a file from an edit session which is still in progress"));
 export const ctxRequestCount = new RawContextKey<number>('chatEdits.requestCount', 0, localize('chatEdits.requestCount', "The number of turns the editing session in this editor has"));
@@ -74,6 +75,7 @@ class ContextKeyGroup {
 	private readonly _ctxHasEditorModification: IContextKey<boolean>;
 	private readonly _ctxHasRequestInProgress: IContextKey<boolean>;
 	private readonly _ctxReviewModeEnabled: IContextKey<boolean>;
+	private readonly _ctxIsCurrentlyBeingModified: IContextKey<boolean>;
 	private readonly _ctxRequestCount: IContextKey<number>;
 
 	private readonly _store = new DisposableStore();
@@ -86,14 +88,13 @@ class ContextKeyGroup {
 	) {
 		this._ctxIsGlobalEditingSession = ctxIsGlobalEditingSession.bindTo(group.scopedContextKeyService);
 		this._ctxHasEditorModification = ctxHasEditorModification.bindTo(group.scopedContextKeyService);
+		this._ctxIsCurrentlyBeingModified = ctxIsCurrentlyBeingModified.bindTo(group.scopedContextKeyService);
 		this._ctxHasRequestInProgress = ctxHasRequestInProgress.bindTo(group.scopedContextKeyService);
 		this._ctxReviewModeEnabled = ctxReviewModeEnabled.bindTo(group.scopedContextKeyService);
 		this._ctxRequestCount = ctxRequestCount.bindTo(group.scopedContextKeyService);
 
 		const editorObs = observableFromEvent(this, group.onDidModelChange, () => group.activeEditor);
-
-		this._store.add(autorun(r => {
-
+		const tupleObs = derived(r => {
 			const editor = editorObs.read(r);
 			const uri = EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
 
@@ -102,8 +103,11 @@ class ContextKeyGroup {
 				return;
 			}
 
-			const tuple = new ObservableEditorSession(uri, chatEditingService, inlineChatSessionService).value.read(r);
+			return new ObservableEditorSession(uri, chatEditingService, inlineChatSessionService).value.read(r);
+		});
 
+		this._store.add(autorun(r => {
+			const tuple = tupleObs.read(r);
 			if (!tuple) {
 				this._reset();
 				return;
@@ -117,6 +121,7 @@ class ContextKeyGroup {
 			this._ctxIsGlobalEditingSession.set(session.isGlobalEditingSession);
 			this._ctxReviewModeEnabled.set(entry ? entry.reviewMode.read(r) : false);
 			this._ctxHasRequestInProgress.set(chatModel?.requestInProgressObs.read(r) ?? false);
+			this._ctxIsCurrentlyBeingModified.set(!!entry?.isCurrentlyBeingModifiedBy.read(r));
 
 			// number of requests
 			const requestCount = chatModel

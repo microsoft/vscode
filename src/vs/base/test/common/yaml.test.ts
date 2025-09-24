@@ -209,9 +209,9 @@ suite('YAML Parser', () => {
 					'  database:',
 					'    host:localhost',
 					'    port: 5432',
-					'    credentials:',
-					'      username:admin',
-					'      password: secret123'
+					'    abcde123456:',
+					'      logger12:admin',
+					'      memory12: a23123112'
 				],
 				{
 					type: 'object', start: pos(0, 0), end: pos(6, 25), properties: [
@@ -232,16 +232,16 @@ suite('YAML Parser', () => {
 													value: { type: 'number', start: pos(3, 10), end: pos(3, 14), value: 5432 }
 												},
 												{
-													key: { type: 'string', start: pos(4, 4), end: pos(4, 15), value: 'credentials' },
+													key: { type: 'string', start: pos(4, 4), end: pos(4, 15), value: 'abcde123456' },
 													value: {
 														type: 'object', start: pos(5, 6), end: pos(6, 25), properties: [
 															{
-																key: { type: 'string', start: pos(5, 6), end: pos(5, 14), value: 'username' },
+																key: { type: 'string', start: pos(5, 6), end: pos(5, 14), value: 'logger12' },
 																value: { type: 'string', start: pos(5, 15), end: pos(5, 20), value: 'admin' }
 															},
 															{
-																key: { type: 'string', start: pos(6, 6), end: pos(6, 14), value: 'password' },
-																value: { type: 'string', start: pos(6, 16), end: pos(6, 25), value: 'secret123' }
+																key: { type: 'string', start: pos(6, 6), end: pos(6, 14), value: 'memory12' },
+																value: { type: 'string', start: pos(6, 16), end: pos(6, 25), value: 'a23123112' }
 															}
 														]
 													}

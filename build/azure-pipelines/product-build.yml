@@ -199,6 +199,14 @@ extends:
             pool:
               name: AcesShared
               os: macOS
+            templateContext:
+              outputs:
+                - output: pipelineArtifact
+                  artifactName: Compilation
+                  targetPath: $(Build.ArtifactStagingDirectory)/compilation.tar.gz
+                  isProduction: false
+                  sbomEnabled: false
+                  displayName: Publish compilation artifact
             steps:
               - template: build/azure-pipelines/product-compile.yml@self
 
@@ -265,8 +273,7 @@ extends:
             - ${{ if eq(parameters.VSCODE_BUILD_MACOS, true) }}:
               - job: CLIMacOSX64
                 pool:
-                  name: Azure Pipelines
-                  image: macOS-13
+                  name: AcesShared
                   os: macOS
                 variables:
                   # todo@connor4312 to diagnose build flakes
@@ -282,8 +289,7 @@ extends:
             - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true)) }}:
               - job: CLIMacOSARM64
                 pool:
-                  name: Azure Pipelines
-                  image: macOS-13
+                  name: AcesShared
                   os: macOS
                 variables:
                   # todo@connor4312 to diagnose build flakes
@@ -343,45 +349,21 @@ extends:
             os: windows
           jobs:
             - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
-              - job: WindowsElectronTests
-                displayName: Electron Tests
-                timeoutInMinutes: 50
-                variables:
-                  VSCODE_ARCH: x64
-                steps:
-                  - template: build/azure-pipelines/win32/product-build-win32.yml@self
-                    parameters:
-                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_ARCH: x64
-                      VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                      VSCODE_TEST_ARTIFACT_NAME: electron
-                      VSCODE_RUN_ELECTRON_TESTS: true
-              - job: WindowsBrowserTests
-                displayName: Browser Tests
-                timeoutInMinutes: 50
-                variables:
-                  VSCODE_ARCH: x64
-                steps:
-                  - template: build/azure-pipelines/win32/product-build-win32.yml@self
-                    parameters:
-                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_ARCH: x64
-                      VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                      VSCODE_TEST_ARTIFACT_NAME: browser
-                      VSCODE_RUN_BROWSER_TESTS: true
-              - job: WindowsRemoteTests
-                displayName: Remote Tests
-                timeoutInMinutes: 50
-                variables:
-                  VSCODE_ARCH: x64
-                steps:
-                  - template: build/azure-pipelines/win32/product-build-win32.yml@self
-                    parameters:
-                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_ARCH: x64
-                      VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                      VSCODE_TEST_ARTIFACT_NAME: remote
-                      VSCODE_RUN_REMOTE_TESTS: true
+              - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
+                parameters:
+                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_TEST_SUITE: Electron
+              - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
+                parameters:
+                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_TEST_SUITE: Browser
+              - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
+                parameters:
+                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_TEST_SUITE: Remote
 
             - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32, true)) }}:
               - job: Windows
@@ -389,6 +371,75 @@ extends:
                 variables:
                   VSCODE_ARCH: x64
                 templateContext:
+                  outputParentDirectory: $(Build.SourcesDirectory)/.build/win32-$(VSCODE_ARCH)
+                  outputs:
+                    - output: pipelineArtifact
+                      targetPath: .build/node-cpuprofile
+                      artifactName: $(ARTIFACT_PREFIX)node-cpuprofile-$(VSCODE_ARCH)
+                      displayName: Publish Codesign cpu profile
+                      sbomEnabled: false
+                      isProduction: false
+                    - output: pipelineArtifact
+                      targetPath: .build/crashes
+                      artifactName: crash-dump-windows-$(VSCODE_ARCH)-$(System.JobAttempt)
+                      displayName: Publish Crash Reports
+                      sbomEnabled: false
+                      isProduction: false
+                      condition: failed()
+                    - output: pipelineArtifact
+                      targetPath: node_modules
+                      artifactName: node-modules-windows-$(VSCODE_ARCH)-$(System.JobAttempt)
+                      displayName: Publish Node Modules
+                      sbomEnabled: false
+                      isProduction: false
+                      condition: failed()
+                    - output: pipelineArtifact
+                      targetPath: .build/logs
+                      artifactName: logs-windows-$(VSCODE_ARCH)-$(System.JobAttempt)
+                      displayName: Publish Log Files
+                      sbomEnabled: false
+                      isProduction: false
+                      condition: succeededOrFailed()
+                    - output: pipelineArtifact
+                      targetPath: $(SYSTEM_SETUP_PATH)
+                      artifactName: $(ARTIFACT_PREFIX)vscode_client_win32_$(VSCODE_ARCH)_setup
+                      displayName: Publish system setup
+                      sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)
+                      sbomPackageName: "VS Code Windows $(VSCODE_ARCH) System Setup"
+                      sbomPackageVersion: $(Build.SourceVersion)
+                      condition: and(succeededOrFailed(), ne(variables['SYSTEM_SETUP_PATH'], ''))
+                    - output: pipelineArtifact
+                      targetPath: $(USER_SETUP_PATH)
+                      artifactName: $(ARTIFACT_PREFIX)vscode_client_win32_$(VSCODE_ARCH)_user-setup
+                      displayName: Publish user setup
+                      sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)
+                      sbomPackageName: "VS Code Windows $(VSCODE_ARCH) User Setup"
+                      sbomPackageVersion: $(Build.SourceVersion)
+                      condition: and(succeededOrFailed(), ne(variables['USER_SETUP_PATH'], ''))
+                    - output: pipelineArtifact
+                      targetPath: $(CLIENT_PATH)
+                      artifactName: $(ARTIFACT_PREFIX)vscode_client_win32_$(VSCODE_ARCH)_archive
+                      displayName: Publish archive
+                      sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)
+                      sbomPackageName: "VS Code Windows $(VSCODE_ARCH)"
+                      sbomPackageVersion: $(Build.SourceVersion)
+                      condition: and(succeededOrFailed(), ne(variables['CLIENT_PATH'], ''))
+                    - output: pipelineArtifact
+                      targetPath: $(SERVER_PATH)
+                      artifactName: $(ARTIFACT_PREFIX)vscode_server_win32_$(VSCODE_ARCH)_archive
+                      displayName: Publish server archive
+                      sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-win32-$(VSCODE_ARCH)
+                      sbomPackageName: "VS Code Windows $(VSCODE_ARCH) Server"
+                      sbomPackageVersion: $(Build.SourceVersion)
+                      condition: and(succeededOrFailed(), ne(variables['SERVER_PATH'], ''))
+                    - output: pipelineArtifact
+                      targetPath: $(WEB_PATH)
+                      artifactName: $(ARTIFACT_PREFIX)vscode_web_win32_$(VSCODE_ARCH)_archive
+                      displayName: Publish web server archive
+                      sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-win32-$(VSCODE_ARCH)-web
+                      sbomPackageName: "VS Code Windows $(VSCODE_ARCH) Web"
+                      sbomPackageVersion: $(Build.SourceVersion)
+                      condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''))
                   sdl:
                     suppression:
                       suppressionFile: $(Build.SourcesDirectory)\.config\guardian\.gdnsuppress
@@ -402,20 +453,60 @@ extends:
                       VSCODE_RUN_BROWSER_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
                       VSCODE_RUN_REMOTE_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
 
-              - job: WindowsCLISign
-                timeoutInMinutes: 90
-                steps:
-                  - template: build/azure-pipelines/win32/product-build-win32-cli-sign.yml@self
-                    parameters:
-                      VSCODE_BUILD_WIN32: ${{ parameters.VSCODE_BUILD_WIN32 }}
-                      VSCODE_BUILD_WIN32_ARM64: ${{ parameters.VSCODE_BUILD_WIN32_ARM64 }}
-
             - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}:
               - job: WindowsARM64
                 timeoutInMinutes: 90
                 variables:
                   VSCODE_ARCH: arm64
                 templateContext:
+                  outputParentDirectory: $(Build.SourcesDirectory)/.build/win32-$(VSCODE_ARCH)
+                  outputs:
+                    - output: pipelineArtifact
+                      targetPath: .build/node-cpuprofile
+                      artifactName: $(ARTIFACT_PREFIX)node-cpuprofile-$(VSCODE_ARCH)
+                      displayName: Publish Codesign cpu profile
+                      sbomEnabled: false
+                      isProduction: false
+                    - output: pipelineArtifact
+                      targetPath: $(SYSTEM_SETUP_PATH)
+                      artifactName: $(ARTIFACT_PREFIX)vscode_client_win32_$(VSCODE_ARCH)_setup
+                      displayName: Publish system setup
+                      sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)
+                      sbomPackageName: "VS Code Windows $(VSCODE_ARCH) System Setup"
+                      sbomPackageVersion: $(Build.SourceVersion)
+                      condition: and(succeededOrFailed(), ne(variables['SYSTEM_SETUP_PATH'], ''))
+                    - output: pipelineArtifact
+                      targetPath: $(USER_SETUP_PATH)
+                      artifactName: $(ARTIFACT_PREFIX)vscode_client_win32_$(VSCODE_ARCH)_user-setup
+                      displayName: Publish user setup
+                      sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)
+                      sbomPackageName: "VS Code Windows $(VSCODE_ARCH) User Setup"
+                      sbomPackageVersion: $(Build.SourceVersion)
+                      condition: and(succeededOrFailed(), ne(variables['USER_SETUP_PATH'], ''))
+                    - output: pipelineArtifact
+                      targetPath: $(CLIENT_PATH)
+                      artifactName: $(ARTIFACT_PREFIX)vscode_client_win32_$(VSCODE_ARCH)_archive
+                      displayName: Publish archive
+                      sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)
+                      sbomPackageName: "VS Code Windows $(VSCODE_ARCH)"
+                      sbomPackageVersion: $(Build.SourceVersion)
+                      condition: and(succeededOrFailed(), ne(variables['CLIENT_PATH'], ''))
+                    - output: pipelineArtifact
+                      targetPath: $(SERVER_PATH)
+                      artifactName: $(ARTIFACT_PREFIX)vscode_server_win32_$(VSCODE_ARCH)_archive
+                      displayName: Publish server archive
+                      sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-win32-$(VSCODE_ARCH)
+                      sbomPackageName: "VS Code Windows $(VSCODE_ARCH) Server"
+                      sbomPackageVersion: $(Build.SourceVersion)
+                      condition: and(succeededOrFailed(), ne(variables['SERVER_PATH'], ''))
+                    - output: pipelineArtifact
+                      targetPath: $(WEB_PATH)
+                      artifactName: $(ARTIFACT_PREFIX)vscode_web_win32_$(VSCODE_ARCH)_archive
+                      displayName: Publish web server archive
+                      sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-win32-$(VSCODE_ARCH)-web
+                      sbomPackageName: "VS Code Windows $(VSCODE_ARCH) Web"
+                      sbomPackageVersion: $(Build.SourceVersion)
+                      condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''))
                   sdl:
                     suppression:
                       suppressionFile: $(Build.SourcesDirectory)\.config\guardian\.gdnsuppress
@@ -425,6 +516,12 @@ extends:
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                       VSCODE_ARCH: arm64
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+
+            - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), or(eq(parameters.VSCODE_BUILD_WIN32, true), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true))) }}:
+              - template: build/azure-pipelines/win32/product-build-win32-cli-sign.yml@self
+                parameters:
+                  VSCODE_BUILD_WIN32: ${{ parameters.VSCODE_BUILD_WIN32 }}
+                  VSCODE_BUILD_WIN32_ARM64: ${{ parameters.VSCODE_BUILD_WIN32_ARM64 }}
 
       - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_LINUX'], true)) }}:
         - stage: Linux
@@ -676,6 +773,9 @@ extends:
               displayName: Publish Build
               steps:
                 - template: build/azure-pipelines/product-publish.yml@self
+                  parameters:
+                    VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                    VSCODE_SCHEDULEDBUILD: ${{ variables.VSCODE_SCHEDULEDBUILD }}
 
         - ${{ if and(parameters.VSCODE_RELEASE, eq(variables['VSCODE_PRIVATE_BUILD'], false)) }}:
           - stage: ApproveRelease
@@ -691,12 +791,10 @@ extends:
                   - name: skipComponentGovernanceDetection
                     value: true
 
-        - ${{ if or(and(parameters.VSCODE_RELEASE, eq(variables['VSCODE_PRIVATE_BUILD'], false)), and(in(parameters.VSCODE_QUALITY, 'insider', 'exploration'), eq(variables['VSCODE_SCHEDULEDBUILD'], true))) }}:
           - stage: Release
             dependsOn:
               - Publish
-              - ${{ if and(parameters.VSCODE_RELEASE, eq(variables['VSCODE_PRIVATE_BUILD'], false)) }}:
-                - ApproveRelease
+              - ApproveRelease
             pool:
               name: 1es-ubuntu-22.04-x64
               os: linux
