@@ -42,7 +42,7 @@ import { InlineCompletionContextKeys } from './inlineCompletionContextKeys.js';
 export class InlineCompletionsController extends Disposable {
 	private static readonly _instances = new Set<InlineCompletionsController>();
 
-	public static hot = createHotClass(InlineCompletionsController);
+	public static hot = createHotClass(this);
 	public static ID = 'editor.contrib.inlineCompletionsController';
 
 	/**
