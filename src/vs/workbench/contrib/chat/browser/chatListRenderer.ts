@@ -436,6 +436,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		// Insert the details container into the toolbar's internal element structure
 		const footerDetailsContainer = dom.append(footerToolbar.getElement(), $('.chat-footer-details'));
+		footerDetailsContainer.tabIndex = 0;
+		footerDetailsContainer.role = 'note';
 
 		const checkpointRestoreContainer = dom.append(rowContainer, $('.checkpoint-restore-container'));
 		const codiconRestoreContainer = dom.append(checkpointRestoreContainer, $('.codicon-container'));
@@ -1203,7 +1205,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				}
 
 				// we got a non-thinking and non-thinking tool content part
-				if (this._currentThinkingPart && content.kind !== 'working' && content.kind !== 'prepareToolInvocation' && content.kind !== 'thinking' && !this._streamingThinking) {
+				if (this._currentThinkingPart && content.kind !== 'working' && content.kind !== 'thinking' && !this._streamingThinking) {
 					if (this.configService.getValue<string>('chat.agent.thinkingStyle') === 'collapsedPreview') {
 						this._currentThinkingPart.collapseContent();
 					}

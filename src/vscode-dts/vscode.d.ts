@@ -17838,6 +17838,30 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Represents parameters for creating a session based on a WWW-Authenticate header value.
+	 * This is used when an API returns a 401 with a WWW-Authenticate header indicating
+	 * that additional authentication is required. The details of which will be passed down
+	 * to the authentication provider to create a session.
+	 *
+	 * @note The authorization provider must support handling challenges and specifically
+	 * the challenges in this WWW-Authenticate value.
+	 * @note For more information on WWW-Authenticate please see https://developer.mozilla.org/docs/Web/HTTP/Reference/Headers/WWW-Authenticate
+	 */
+	export interface AuthenticationWwwAuthenticateRequest {
+		/**
+		 * The raw WWW-Authenticate header value that triggered this challenge.
+		 * This will be parsed by the authentication provider to extract the necessary
+		 * challenge information.
+		 */
+		readonly wwwAuthenticate: string;
+
+		/**
+		 * The fallback scopes to use if no scopes are found in the WWW-Authenticate header.
+		 */
+		readonly fallbackScopes?: readonly string[];
+	}
+
+	/**
 	 * Basic information about an {@link AuthenticationProvider}
 	 */
 	export interface AuthenticationProviderInformation {
@@ -17959,49 +17983,59 @@ declare module 'vscode' {
 	 */
 	export namespace authentication {
 		/**
-		 * Get an authentication session matching the desired scopes. Rejects if a provider with providerId is not
-		 * registered, or if the user does not consent to sharing authentication information with
-		 * the extension. If there are multiple sessions with the same scopes, the user will be shown a
-		 * quickpick to select which account they would like to use.
+		 * Get an authentication session matching the desired scopes or satisfying the WWW-Authenticate request. Rejects if
+		 * a provider with providerId is not registered, or if the user does not consent to sharing authentication information
+		 * with the extension. If there are multiple sessions with the same scopes, the user will be shown a quickpick to
+		 * select which account they would like to use.
 		 *
-		 * Currently, there are only two authentication providers that are contributed from built in extensions
-		 * to the editor that implement GitHub and Microsoft authentication: their providerId's are 'github' and 'microsoft'.
+		 * Built-in auth providers include:
+		 * * 'github' - For GitHub.com
+		 * * 'microsoft' For both personal & organizational Microsoft accounts
+		 * * (less common) 'github-enterprise' - for alternative GitHub hostings, GHE.com, GitHub Enterprise Server
+		 * * (less common) 'microsoft-sovereign-cloud' - for alternative Microsoft clouds
+		 *
 		 * @param providerId The id of the provider to use
-		 * @param scopes A list of scopes representing the permissions requested. These are dependent on the authentication provider
+		 * @param scopeListOrRequest A scope list of permissions requested or a WWW-Authenticate request. These are dependent on the authentication provider.
 		 * @param options The {@link AuthenticationGetSessionOptions} to use
 		 * @returns A thenable that resolves to an authentication session
 		 */
-		export function getSession(providerId: string, scopes: readonly string[], options: AuthenticationGetSessionOptions & { /** */createIfNone: true | AuthenticationGetSessionPresentationOptions }): Thenable<AuthenticationSession>;
+		export function getSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | AuthenticationWwwAuthenticateRequest, options: AuthenticationGetSessionOptions & { /** */createIfNone: true | AuthenticationGetSessionPresentationOptions }): Thenable<AuthenticationSession>;
 
 		/**
-		 * Get an authentication session matching the desired scopes. Rejects if a provider with providerId is not
-		 * registered, or if the user does not consent to sharing authentication information with
-		 * the extension. If there are multiple sessions with the same scopes, the user will be shown a
-		 * quickpick to select which account they would like to use.
+		 * Get an authentication session matching the desired scopes or request. Rejects if a provider with providerId is not
+		 * registered, or if the user does not consent to sharing authentication information with the extension. If there
+		 * are multiple sessions with the same scopes, the user will be shown a quickpick to select which account they would like to use.
 		 *
-		 * Currently, there are only two authentication providers that are contributed from built in extensions
-		 * to the editor that implement GitHub and Microsoft authentication: their providerId's are 'github' and 'microsoft'.
+		 * Built-in auth providers include:
+		 * * 'github' - For GitHub.com
+		 * * 'microsoft' For both personal & organizational Microsoft accounts
+		 * * (less common) 'github-enterprise' - for alternative GitHub hostings, GHE.com, GitHub Enterprise Server
+		 * * (less common) 'microsoft-sovereign-cloud' - for alternative Microsoft clouds
+		 *
 		 * @param providerId The id of the provider to use
-		 * @param scopes A list of scopes representing the permissions requested. These are dependent on the authentication provider
+		 * @param scopeListOrRequest A scope list of permissions requested or a WWW-Authenticate request. These are dependent on the authentication provider.
 		 * @param options The {@link AuthenticationGetSessionOptions} to use
 		 * @returns A thenable that resolves to an authentication session
 		 */
-		export function getSession(providerId: string, scopes: readonly string[], options: AuthenticationGetSessionOptions & { /** literal-type defines return type */forceNewSession: true | AuthenticationGetSessionPresentationOptions | AuthenticationForceNewSessionOptions }): Thenable<AuthenticationSession>;
+		export function getSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | AuthenticationWwwAuthenticateRequest, options: AuthenticationGetSessionOptions & { /** literal-type defines return type */forceNewSession: true | AuthenticationGetSessionPresentationOptions | AuthenticationForceNewSessionOptions }): Thenable<AuthenticationSession>;
 
 		/**
-		 * Get an authentication session matching the desired scopes. Rejects if a provider with providerId is not
-		 * registered, or if the user does not consent to sharing authentication information with
-		 * the extension. If there are multiple sessions with the same scopes, the user will be shown a
-		 * quickpick to select which account they would like to use.
+		 * Get an authentication session matching the desired scopes or request. Rejects if a provider with providerId is not
+		 * registered, or if the user does not consent to sharing authentication information with the extension. If there
+		 * are multiple sessions with the same scopes, the user will be shown a quickpick to select which account they would like to use.
 		 *
-		 * Currently, there are only two authentication providers that are contributed from built in extensions
-		 * to the editor that implement GitHub and Microsoft authentication: their providerId's are 'github' and 'microsoft'.
+		 * Built-in auth providers include:
+		 * * 'github' - For GitHub.com
+		 * * 'microsoft' For both personal & organizational Microsoft accounts
+		 * * (less common) 'github-enterprise' - for alternative GitHub hostings, GHE.com, GitHub Enterprise Server
+		 * * (less common) 'microsoft-sovereign-cloud' - for alternative Microsoft clouds
+		 *
 		 * @param providerId The id of the provider to use
-		 * @param scopes A list of scopes representing the permissions requested. These are dependent on the authentication provider
+		 * @param scopeListOrRequest A scope list of permissions requested or a WWW-Authenticate request. These are dependent on the authentication provider.
 		 * @param options The {@link AuthenticationGetSessionOptions} to use
-		 * @returns A thenable that resolves to an authentication session if available, or undefined if there are no sessions
+		 * @returns A thenable that resolves to an authentication session or undefined if a silent flow was used and no session was found
 		 */
-		export function getSession(providerId: string, scopes: readonly string[], options?: AuthenticationGetSessionOptions): Thenable<AuthenticationSession | undefined>;
+		export function getSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | AuthenticationWwwAuthenticateRequest, options?: AuthenticationGetSessionOptions): Thenable<AuthenticationSession | undefined>;
 
 		/**
 		 * Get all accounts that the user is logged in to for the specified provider.
