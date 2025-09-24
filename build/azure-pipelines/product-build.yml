@@ -293,7 +293,7 @@ extends:
                   name: 1es-windows-2022-x64
                   os: windows
                 steps:
-                  - template: build/azure-pipelines/win32/cli-build-win32.yml@self
+                  - template: build/azure-pipelines/win32/product-build-win32-cli-compile.yml@self
                     parameters:
                       VSCODE_CHECK_ONLY: ${{ variables.VSCODE_CIBUILD }}
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
@@ -305,7 +305,7 @@ extends:
                   name: 1es-windows-2022-x64
                   os: windows
                 steps:
-                  - template: build/azure-pipelines/win32/cli-build-win32.yml@self
+                  - template: build/azure-pipelines/win32/product-build-win32-cli-compile.yml@self
                     parameters:
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                       VSCODE_BUILD_WIN32_ARM64: ${{ parameters.VSCODE_BUILD_WIN32_ARM64 }}
