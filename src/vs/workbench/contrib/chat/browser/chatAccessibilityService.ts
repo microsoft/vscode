@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { alert, status } from '../../../../base/browser/ui/aria/aria.js';
-import { Disposable, DisposableMap, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { AccessibilityProgressSignalScheduler } from '../../../../platform/accessibilitySignal/browser/progressAccessibilitySignalScheduler.js';
@@ -20,6 +20,7 @@ import { FocusMode } from '../../../../platform/native/common/native.js';
 import * as dom from '../../../../base/browser/dom.js';
 import { Event } from '../../../../base/common/event.js';
 import { ChatConfiguration } from '../common/constants.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 
 const CHAT_RESPONSE_PENDING_ALLOWANCE_MS = 4000;
 export class ChatAccessibilityService extends Disposable implements IChatAccessibilityService {
@@ -30,13 +31,14 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 
 	private _requestId: number = 0;
 
-	private readonly notification = this._register(new MutableDisposable<DisposableStore>());
+	private readonly notifications: Set<DisposableStore> = new Set();
 
 	constructor(
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IHostService private readonly _hostService: IHostService,
+		@ICommandService private readonly _commandService: ICommandService,
 	) {
 		super();
 	}
@@ -72,25 +74,54 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 		if (!this._configurationService.getValue(ChatConfiguration.ShowResponseCompletionOSNotification)) {
 			return;
 		}
+
 		const targetWindow = dom.getWindow(container);
+		if (!targetWindow) {
+			return;
+		}
+
 		if (targetWindow.document.hasFocus()) {
 			return;
 		}
-		this._hostService.focus(targetWindow, { mode: FocusMode.Notify });
-		const notification = await dom.triggerNotification('Chat response received');
-		if (notification) {
-			const disposables = this.notification.value = new DisposableStore();
-			disposables.add(notification);
 
-			disposables.add(Event.once(notification.onClick)(() => {
-				this._hostService.focus(targetWindow, { mode: FocusMode.Force });
-			}));
+		await this._hostService.focus(targetWindow, { mode: FocusMode.Notify });
 
-			disposables.add(this._hostService.onDidChangeFocus(focus => {
-				if (focus) {
-					disposables.dispose();
-				}
-			}));
+		// Dispose any previous unhandled notifications to avoid replacement/coalescing.
+		for (const ds of Array.from(this.notifications)) {
+			ds.dispose();
+			this.notifications.delete(ds);
 		}
+
+		// Build a unique tag so macOS/Chromium won't silently "update" the previous one.
+		const uniqueTag = `chat-response-${this._requestId || Date.now()}`;
+
+		const notification = await dom.triggerNotification('Chat response received', {
+			detail: 'Click to open the chat panel',
+			sticky: false,
+			tag: uniqueTag,
+		});
+
+		if (!notification) {
+			return;
+		}
+
+		const disposables = new DisposableStore();
+		disposables.add(notification);
+		this.notifications.add(disposables);
+
+		disposables.add(Event.once(notification.onClick)(async () => {
+			await this._hostService.focus(targetWindow, { mode: FocusMode.Force });
+			await this._commandService.executeCommand('workbench.panel.chat.view.copilot.focus');
+			disposables.dispose();
+			this.notifications.delete(disposables);
+		}));
+
+		disposables.add(this._hostService.onDidChangeFocus(focus => {
+			if (focus) {
+				disposables.dispose();
+				this.notifications.delete(disposables);
+			}
+		}));
 	}
+
 }
