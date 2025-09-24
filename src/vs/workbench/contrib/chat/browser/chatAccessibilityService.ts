@@ -8,7 +8,7 @@ import { Disposable, DisposableMap, DisposableStore } from '../../../../base/com
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { AccessibilityProgressSignalScheduler } from '../../../../platform/accessibilitySignal/browser/progressAccessibilitySignalScheduler.js';
-import { IChatAccessibilityService, IChatWidgetService } from './chat.js';
+import { IChatAccessibilityService } from './chat.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
@@ -21,6 +21,7 @@ import * as dom from '../../../../base/browser/dom.js';
 import { Event } from '../../../../base/common/event.js';
 import { ChatConfiguration } from '../common/constants.js';
 import { localize } from '../../../../nls.js';
+import { ChatWidget } from './chatWidget.js';
 
 const CHAT_RESPONSE_PENDING_ALLOWANCE_MS = 4000;
 export class ChatAccessibilityService extends Disposable implements IChatAccessibilityService {
@@ -37,8 +38,7 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IHostService private readonly _hostService: IHostService,
-		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
+		@IHostService private readonly _hostService: IHostService
 	) {
 		super();
 	}
@@ -48,7 +48,7 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 		this._pendingSignalMap.set(this._requestId, this._instantiationService.createInstance(AccessibilityProgressSignalScheduler, CHAT_RESPONSE_PENDING_ALLOWANCE_MS, undefined));
 		return this._requestId;
 	}
-	acceptResponse(container: HTMLElement, response: IChatResponseViewModel | string | undefined, requestId: number, isVoiceInput?: boolean): void {
+	acceptResponse(widget: ChatWidget, container: HTMLElement, response: IChatResponseViewModel | string | undefined, requestId: number, isVoiceInput?: boolean): void {
 		this._pendingSignalMap.deleteAndDispose(requestId);
 		const isPanelChat = typeof response !== 'string';
 		const responseContent = typeof response === 'string' ? response : response?.response.toString();
@@ -56,7 +56,7 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 		if (!response || !responseContent) {
 			return;
 		}
-		this._showOSNotification(container, responseContent.substring(0, 20));
+		this._showOSNotification(widget, container, responseContent.substring(0, 20));
 		const errorDetails = isPanelChat && response.errorDetails ? ` ${response.errorDetails.message}` : '';
 		const plainTextResponse = renderAsPlaintext(new MarkdownString(responseContent));
 		if (!isVoiceInput || this._configurationService.getValue(AccessibilityVoiceSettingId.AutoSynthesize) !== 'on') {
@@ -70,7 +70,7 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 		this._accessibilitySignalService.playSignal(AccessibilitySignal.chatUserActionRequired, { allowManyInParallel: true });
 	}
 
-	private async _showOSNotification(container: HTMLElement, responseContent: string): Promise<void> {
+	private async _showOSNotification(widget: ChatWidget, container: HTMLElement, responseContent: string): Promise<void> {
 		if (!this._configurationService.getValue(ChatConfiguration.NotifyWindowOnResponseReceived)) {
 			return;
 		}
@@ -108,8 +108,7 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 
 		disposables.add(Event.once(notification.onClick)(async () => {
 			await this._hostService.focus(targetWindow, { mode: FocusMode.Force });
-			const lastWidget = this._chatWidgetService.lastFocusedWidget;
-			lastWidget?.input.focus();
+			widget.input.focus();
 			disposables.dispose();
 			this.notifications.delete(disposables);
 		}));
