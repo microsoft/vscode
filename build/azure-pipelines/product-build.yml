@@ -348,6 +348,12 @@ extends:
             name: 1es-windows-2022-x64
             os: windows
           jobs:
+            - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_TEST_SUITE: Electron
+
             - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
               - job: WindowsElectronTests
                 displayName: Electron Tests
