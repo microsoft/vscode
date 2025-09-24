@@ -199,7 +199,7 @@ export class DiffEditorViewZones extends Disposable {
 						originalModelTokenizationCompleted.read(reader); // Update view-zones once tokenization completes
 
 						const deletedCodeDomNode = document.createElement('div');
-						deletedCodeDomNode.classList.add('view-lines', 'line-delete', 'monaco-mouse-cursor-text');
+						deletedCodeDomNode.classList.add('view-lines', 'line-delete', 'line-delete-selectable', 'monaco-mouse-cursor-text');
 						const originalModel = this._editors.original.getModel()!;
 						// `a.originalRange` can be out of bound when the diff has not been updated yet.
 						// In this case, we do an early return.

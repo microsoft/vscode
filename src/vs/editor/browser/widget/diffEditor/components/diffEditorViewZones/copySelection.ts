@@ -80,10 +80,6 @@ export function enableCopySelection(options: IEnableViewZoneCopySelectionOptions
 			return;
 		}
 
-		// Temporarily makes the *current* view zone selectable
-		// This prevents the selection from bleeding into other view zones
-		domNode.classList.add('line-delete-selectable');
-
 		const lineNumberOffset = calculateLineNumberOffset(e.event.browserEvent.y, domNode, editorLineHeight, viewLineCounts);
 		const lineNumber = diffEntry.original.startLineNumber + lineNumberOffset;
 		lastMouseDownPosition = new Position(lineNumber, getRealColumnNumber(e.target.mouseColumn, lineNumber, originalModel));
@@ -102,8 +98,6 @@ export function enableCopySelection(options: IEnableViewZoneCopySelectionOptions
 		if ((e.target.type !== MouseTargetType.CONTENT_VIEW_ZONE &&
 			e.target.type !== MouseTargetType.GUTTER_VIEW_ZONE) ||
 			e.target.detail.viewZoneId !== getViewZoneId()) {
-			// Mouse left the current view zone. Remove the selectable class
-			domNode.classList.remove('line-delete-selectable');
 			return;
 		}
 
@@ -134,7 +128,6 @@ export function enableCopySelection(options: IEnableViewZoneCopySelectionOptions
 				[],
 			() => {
 				onCopy.dispose();
-				domNode.classList.remove('line-delete-selectable');
 			});
 	}));
 	return viewZoneDisposable;
