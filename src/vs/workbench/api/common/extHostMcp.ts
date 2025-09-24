@@ -315,6 +315,15 @@ class McpHTTPHandle extends Disposable {
 		}
 	}
 
+	private _validateResourceMetadata(resourceMetadata: IAuthorizationProtectedResourceMetadata, mcpUrl: string): void {
+		// Use URL constructor for normalization - it handles hostname case and trailing slashes
+		const prmValue = new URL(resourceMetadata.resource).toString();
+		const mcpValue = new URL(mcpUrl).toString();
+		if (prmValue !== mcpValue) {
+			throw new Error(`Protected Resource Metadata resource value "${prmValue}" (length: ${prmValue.length}) does not match MCP server url "${mcpValue}" (length: ${mcpValue.length}). The MCP server must follow OAuth spec https://datatracker.ietf.org/doc/html/rfc9728#PRConfigurationValidation`);
+		}
+	}
+
 	private async _populateAuthMetadata(mcpUrl: string, originalResponse: Response): Promise<void> {
 		// If there is a resource_metadata challenge, use that to get the oauth server. This is done in 2 steps.
 		// First, extract the resource_metada challenge from the WWW-Authenticate header (if available)
@@ -336,12 +345,7 @@ class McpHTTPHandle extends Disposable {
 		let resource: IAuthorizationProtectedResourceMetadata | undefined;
 		if (resourceMetadataChallenge) {
 			const resourceMetadata = await this._getResourceMetadata(resourceMetadataChallenge);
-			// Use URL constructor for normalization - it handles hostname case and trailing slashes
-			const prmValue = new URL(resourceMetadata.resource).toString();
-			const mcpValue = new URL(mcpUrl).toString();
-			if (prmValue !== mcpValue) {
-				throw new Error(`Protected Resource Metadata resource value "${prmValue}" (length: ${prmValue.length}) does not match MCP server url "${mcpValue}" (length: ${mcpValue.length}). The MCP server must follow OAuth spec https://datatracker.ietf.org/doc/html/rfc9728#PRConfigurationValidation`);
-			}
+			this._validateResourceMetadata(resourceMetadata, mcpUrl);
 			// TODO:@TylerLeonhardt support multiple authorization servers
 			// Consider using one that has an auth provider first, over the dynamic flow
 			serverMetadataUrl = resourceMetadata.authorization_servers?.[0];
@@ -353,12 +357,7 @@ class McpHTTPHandle extends Disposable {
 			// According to RFC9728, MCP clients MUST support both discovery mechanisms
 			resource = await this._tryWellKnownResourceMetadataDiscovery(mcpUrl);
 			if (resource) {
-				// Verify the resource metadata matches the MCP URL
-				const prmValue = new URL(resource.resource).toString();
-				const mcpValue = new URL(mcpUrl).toString();
-				if (prmValue !== mcpValue) {
-					throw new Error(`Protected Resource Metadata resource value "${prmValue}" (length: ${prmValue.length}) does not match MCP server url "${mcpValue}" (length: ${mcpValue.length}). The MCP server must follow OAuth spec https://datatracker.ietf.org/doc/html/rfc9728#PRConfigurationValidation`);
-				}
+				this._validateResourceMetadata(resource, mcpUrl);
 				serverMetadataUrl = resource.authorization_servers?.[0];
 				scopesSupported = resource.scopes_supported;
 				this._log(LogLevel.Debug, `Using resource metadata from well-known URI, auth server: ${serverMetadataUrl}`);
