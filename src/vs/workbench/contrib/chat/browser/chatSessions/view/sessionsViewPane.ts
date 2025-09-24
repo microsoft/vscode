@@ -5,7 +5,10 @@
 
 import * as DOM from '../../../../../../base/browser/dom.js';
 import { append, $ } from '../../../../../../base/browser/dom.js';
+import { IActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionbar.js';
+import { IBaseActionViewItemOptions } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { ITreeContextMenuEvent } from '../../../../../../base/browser/ui/tree/tree.js';
+import { Action, IAction } from '../../../../../../base/common/actions.js';
 import { coalesce } from '../../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { FuzzyScore } from '../../../../../../base/common/filters.js';
@@ -13,8 +16,9 @@ import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
 import { truncate } from '../../../../../../base/common/strings.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import * as nls from '../../../../../../nls.js';
+import { DropdownWithPrimaryActionViewItem } from '../../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { getActionBarActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { IMenuService, MenuId } from '../../../../../../platform/actions/common/actions.js';
+import { IMenuService, MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -41,6 +45,7 @@ import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatWidgetService, ChatViewId } from '../../chat.js';
 import { IChatEditorOptions } from '../../chatEditor.js';
 import { ChatEditorInput } from '../../chatEditorInput.js';
+import { ChatSessionsService } from '../../chatSessions.contribution.js';
 import { ChatViewPane } from '../../chatViewPane.js';
 import { ChatSessionTracker } from '../chatSessionTracker.js';
 import { ChatSessionItemWithProvider, findExistingChatEditorByUri, isLocalChatSessionItem, getSessionItemContextOverlay } from '../common.js';
@@ -119,6 +124,73 @@ export class SessionsViewPane extends ViewPane {
 
 	override shouldShowWelcome(): boolean {
 		return this._isEmpty;
+	}
+
+	public override createActionViewItem(action: IAction, options: IBaseActionViewItemOptions): IActionViewItem | undefined {
+		if (action.id.startsWith(ChatSessionsService.NEW_CHAT_SESSION_ACTION_ID)) {
+			return this.getChatSessionDropdown(action, options);
+		}
+		return super.createActionViewItem(action, options);
+	}
+
+	private getChatSessionDropdown(defaultAction: IAction, options: IBaseActionViewItemOptions) {
+		const primaryAction = this.instantiationService.createInstance(MenuItemAction, {
+			id: defaultAction.id,
+			title: defaultAction.label,
+			icon: Codicon.plus,
+		}, undefined, undefined, undefined, undefined);
+
+		const menu = this.menuService.createMenu(MenuId.ChatSessionsMenu, this.contextKeyService);
+
+		const actions = menu.getActions({ shouldForwardArgs: true });
+		const primaryActions = getActionBarActions(
+			actions,
+			'submenu',
+		).primary.filter(action => {
+			if (action instanceof MenuItemAction && defaultAction instanceof MenuItemAction) {
+				if (!action.item.source?.id || !defaultAction.item.source?.id) {
+					return false;
+				}
+				if (action.item.source.id === defaultAction.item.source.id) {
+					return true;
+				}
+			}
+			return false;
+		});
+
+		if (!primaryActions || primaryActions.length === 0) {
+			return;
+		}
+
+		const dropdownAction = new Action(
+			'selectNewChatSessionOption',
+			nls.localize('chatSession.selectOption', 'More...'),
+			'codicon-chevron-down',
+			true
+		);
+
+		const dropdownActions: IAction[] = [];
+
+		primaryActions.forEach(element => {
+			dropdownActions.push(new Action(
+				element.id,
+				element.label,
+				undefined,
+				true,
+				async () => {
+					await this.commandService.executeCommand(element.id);
+				}
+			));
+		});
+
+		return this.instantiationService.createInstance(
+			DropdownWithPrimaryActionViewItem,
+			primaryAction,
+			dropdownAction,
+			dropdownActions,
+			'',
+			options
+		);
 	}
 
 	public refreshTree(): void {

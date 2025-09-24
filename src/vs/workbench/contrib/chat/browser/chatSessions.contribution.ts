@@ -111,6 +111,7 @@ class ContributedChatSessionData implements IDisposable {
 export class ChatSessionsService extends Disposable implements IChatSessionsService {
 	readonly _serviceBrand: undefined;
 	private readonly _itemsProviders: Map<string, IChatSessionItemProvider> = new Map();
+	public static readonly NEW_CHAT_SESSION_ACTION_ID = 'workbench.action.chat.openNewSessionEditor';
 
 	private readonly _onDidChangeItemsProviders = this._register(new Emitter<IChatSessionItemProvider>());
 	readonly onDidChangeItemsProviders: Event<IChatSessionItemProvider> = this._onDidChangeItemsProviders.event;
@@ -240,9 +241,13 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	private _registerMenuItems(contribution: IChatSessionsExtensionPoint): IDisposable {
 		return MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 			command: {
-				id: `workbench.action.chat.openNewSessionEditor.${contribution.type}`,
+				id: `${ChatSessionsService.NEW_CHAT_SESSION_ACTION_ID}.${contribution.type}`,
 				title: localize('interactiveSession.openNewSessionEditor', "New {0} Chat Editor", contribution.displayName),
 				icon: Codicon.plus,
+				source: {
+					id: contribution.extensionDescription.identifier.value,
+					title: contribution.extensionDescription.displayName || contribution.extensionDescription.name,
+				}
 			},
 			group: 'navigation',
 			order: 1,
