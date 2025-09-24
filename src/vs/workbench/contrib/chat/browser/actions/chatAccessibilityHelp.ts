@@ -60,14 +60,13 @@ export class AgentChatAccessibilityHelp implements IAccessibleViewImplementation
 
 export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'quickChat' | 'editsView' | 'agentView', keybindingService: IKeybindingService): string {
 	const content = [];
-	if (type === 'panelChat' || type === 'quickChat') {
+	if (type === 'panelChat' || type === 'quickChat' || type === 'agentView') {
 		if (type === 'quickChat') {
 			content.push(localize('chat.overview', 'The quick chat view is comprised of an input box and a request/response list. The input box is used to make requests and the list is used to display responses.'));
 			content.push(localize('chat.differenceQuick', 'The quick chat view is a transient interface for making and viewing requests, while the panel chat view is a persistent interface that also supports navigating suggested follow-up questions.'));
 		}
 		if (type === 'panelChat') {
 			content.push(localize('chat.differencePanel', 'The panel chat view is a persistent interface that also supports navigating suggested follow-up questions, while the quick chat view is a transient interface for making and viewing requests.'));
-			content.push(localize('chat.followUp', 'In the input box, navigate to the suggested follow up question (Shift+Tab) and press Enter to run it.'));
 		}
 		content.push(localize('chat.requestHistory', 'In the input box, use up and down arrows to navigate your request history. Edit input and use enter or the submit button to run a new request.'));
 		content.push(localize('chat.inspectResponse', 'In the input box, inspect the last response in the accessible view{0}.', '<keybinding:editor.action.accessibleView>'));
