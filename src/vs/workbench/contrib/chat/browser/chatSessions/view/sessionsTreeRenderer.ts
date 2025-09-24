@@ -51,6 +51,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 interface ISessionTemplateData {
 	readonly container: HTMLElement;
 	readonly resourceLabel: IResourceLabel;
+	readonly customIcon: HTMLElement;
 	readonly actionBar: ActionBar;
 	readonly elementDisposable: DisposableStore;
 	readonly timestamp: HTMLElement;
@@ -188,6 +189,10 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 
 		// Create a container that holds the label, timestamp, and actions
 		const contentContainer = append(element, $('.session-content'));
+
+		// Create custom icon element that won't be affected by file icon theme
+		const customIcon = append(contentContainer, $('.chat-session-custom-icon'));
+
 		const resourceLabel = this.labels.create(contentContainer, { supportHighlights: true });
 		const descriptionRow = append(element, $('.description-row'));
 		const descriptionLabel = append(descriptionRow, $('span.description'));
@@ -204,6 +209,7 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 		return {
 			container: element,
 			resourceLabel,
+			customIcon,
 			actionBar,
 			elementDisposable,
 			timestamp,
@@ -304,14 +310,27 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 				} : undefined) :
 			undefined;
 
-		// Set the resource label
+		// Handle custom icon rendering (independent of file icon theme)
+		if (iconTheme) {
+			templateData.customIcon.className = `chat-session-custom-icon ${ThemeIcon.asClassName(iconTheme)}`;
+			if (iconTheme.color) {
+				const theme = this.themeService.getColorTheme();
+				templateData.customIcon.style.color = theme.getColor(iconTheme.color.id)?.toString() ?? '';
+			} else {
+				templateData.customIcon.style.color = '';
+			}
+			templateData.customIcon.style.display = 'flex';
+		} else {
+			templateData.customIcon.style.display = 'none';
+		}
+
 		templateData.resourceLabel.setResource({
 			name: session.label,
 			description: !renderDescriptionOnSecondRow && 'description' in session && typeof session.description === 'string' ? session.description : '',
 			resource: iconResource
 		}, {
 			fileKind: undefined,
-			icon: iconTheme,
+			hideIcon: true, // Hide the ResourceLabel's icon since we're using custom icon
 			// Set tooltip on resourceLabel only for single-row items
 			title: !renderDescriptionOnSecondRow || !session.description ? tooltipContent : undefined
 		});

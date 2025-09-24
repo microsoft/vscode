@@ -157,6 +157,22 @@
 	padding-bottom: 0;
 }
 
+/* Custom chat session icon that bypasses file icon theme */
+.chat-sessions-tree-container .chat-session-item .chat-session-custom-icon {
+	flex-shrink: 0;
+	width: 16px;
+	height: 16px;
+	margin-right: 6px;
+	align-items: center;
+	justify-content: center;
+	font-size: 16px;
+	color: var(--vscode-icon-foreground);
+}
+
+.chat-sessions-tree-container .chat-session-item .chat-session-custom-icon.codicon-loading::before {
+	animation: codicon-spin 1.5s steps(30) infinite;
+}
+
 /* Ensure resource label takes up available space */
 .chat-sessions-tree-container .chat-session-item .monaco-icon-label {
 	flex: 1;
