@@ -244,6 +244,10 @@ export const mcpContributionPoint: IExtensionPointDescriptor<IMcpCollectionContr
 				label: {
 					description: localize('vscode.extension.contributes.mcp.label', "Display name for the collection."),
 					type: 'string'
+				},
+				when: {
+					description: localize('vscode.extension.contributes.mcp.when', "Condition which must be true to enable this collection."),
+					type: 'string'
 				}
 			}
 		}

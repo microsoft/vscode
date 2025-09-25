@@ -220,7 +220,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		this._agents.set(handle, {
 			id: id,
 			extensionId: extension,
-			dispose: disposable.dispose,
+			dispose: () => disposable.dispose(),
 			hasFollowups: metadata.hasFollowups
 		});
 	}

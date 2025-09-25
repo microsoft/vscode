@@ -17,7 +17,7 @@ import { RemoteAgentConnectionContext } from '../../platform/remote/common/remot
 import { IPtyHostService, IShellLaunchConfig, ITerminalProfile } from '../../platform/terminal/common/terminal.js';
 import { IGetTerminalLayoutInfoArgs, ISetTerminalLayoutInfoArgs } from '../../platform/terminal/common/terminalProcess.js';
 import { IWorkspaceFolder } from '../../platform/workspace/common/workspace.js';
-import { createURITransformer } from '../../workbench/api/node/uriTransformer.js';
+import { createURITransformer } from '../../base/common/uriTransformer.js';
 import { CLIServerBase, ICommandsExecuter } from '../../workbench/api/node/extHostCLIServer.js';
 import { IEnvironmentVariableCollection } from '../../platform/terminal/common/environmentVariable.js';
 import { MergedEnvironmentVariableCollection } from '../../platform/terminal/common/environmentVariableCollection.js';
