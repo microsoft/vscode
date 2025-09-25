@@ -173,39 +173,30 @@
 	animation: codicon-spin 1.5s steps(30) infinite;
 }
 
-/* CSS rules to ensure chat session icons are ALWAYS visible */
-/* These rules override the global FileIcon hiding with maximum specificity using the chat-session-icons-always-visible class */
-
-/* Explicit Unicode values for each chat session status icon */
-
-.monaco-workbench:not(.file-icons-enabled) .chat-sessions-tree-container .chat-session-icons-always-visible .codicon-loading::before {
-	content: "\eb19" !important;
-	font-family: codicon !important;
-	display: inline !important;
+/* Override global file icon hiding for chat session icons */
+.monaco-workbench:not(.file-icons-enabled) .chat-sessions-tree-container .predefined-file-icon.codicon-loading::before {
+	content: var(--vscode-icon-loading-content) !important;
+	font-family: var(--vscode-icon-loading-font-family, codicon) !important;
 }
 
-.monaco-workbench:not(.file-icons-enabled) .chat-sessions-tree-container .chat-session-icons-always-visible .codicon-pass::before {
-	content: "\eba4" !important;
-	font-family: codicon !important;
-	display: inline !important;
+.monaco-workbench:not(.file-icons-enabled) .chat-sessions-tree-container .predefined-file-icon.codicon-pass::before {
+	content: var(--vscode-icon-pass-content) !important;
+	font-family: var(--vscode-icon-pass-font-family, codicon) !important;
 }
 
-.monaco-workbench:not(.file-icons-enabled) .chat-sessions-tree-container .chat-session-icons-always-visible .codicon-error::before {
-	content: "\ea87" !important;
-	font-family: codicon !important;
-	display: inline !important;
+.monaco-workbench:not(.file-icons-enabled) .chat-sessions-tree-container .predefined-file-icon.codicon-error::before {
+	content: var(--vscode-icon-error-content) !important;
+	font-family: var(--vscode-icon-error-font-family, codicon) !important;
 }
 
-.monaco-workbench:not(.file-icons-enabled) .chat-sessions-tree-container .chat-session-icons-always-visible .codicon-circle-outline::before {
-	content: "\eabc" !important;
-	font-family: codicon !important;
-	display: inline !important;
+.monaco-workbench:not(.file-icons-enabled) .chat-sessions-tree-container .predefined-file-icon.codicon-circle-outline::before {
+	content: var(--vscode-icon-circle-outline-content) !important;
+	font-family: var(--vscode-icon-circle-outline-font-family, codicon) !important;
 }
 
-.monaco-workbench:not(.file-icons-enabled) .chat-sessions-tree-container .chat-session-icons-always-visible .codicon-chat-sparkle::before {
-	content: "\ec4f" !important;
-	font-family: codicon !important;
-	display: inline !important;
+.monaco-workbench:not(.file-icons-enabled) .chat-sessions-tree-container .predefined-file-icon.codicon-chat-sparkle::before {
+	content: var(--vscode-icon-chat-sparkle-content) !important;
+	font-family: var(--vscode-icon-chat-sparkle-font-family, codicon) !important;
 }
 
 /* Timestamp styling - similar to timeline pane */
