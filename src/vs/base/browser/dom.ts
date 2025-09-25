@@ -1602,7 +1602,7 @@ export async function triggerNotification(message: string, options?: { detail?: 
 
 	const notification = new Notification(message, {
 		body: options?.detail,
-		requireInteraction: options?.sticky
+		requireInteraction: options?.sticky,
 	});
 
 	const onClick = new event.Emitter<void>();

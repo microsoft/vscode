@@ -4,7 +4,8 @@
 		{
 			"file": [
 				"src/vs/base/test/common/uri.test.ts",
-				"src/vs/workbench/api/test/browser/extHostTelemetry.test.ts"
+				"src/vs/workbench/api/test/browser/extHostTelemetry.test.ts",
+				"src/vs/base/test/common/yaml.test.ts"
 			],
 			"_justification": "These are dummy credentials in tests."
 		},
