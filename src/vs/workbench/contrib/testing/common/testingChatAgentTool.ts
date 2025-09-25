@@ -204,11 +204,11 @@ abstract class BaseRunTestsTool implements IToolImpl {
 	}
 
 	/**
-		 * Captures the test result. This is a little tricky because some extensions
-		 * trigger an 'out of bound' test run, so we actually wait for the first
-		 * test run to come in that contains one or more tasks and treat that as the
-		 * one we're looking for.
-		 */
+	 * Captures the test result. This is a little tricky because some extensions
+	 * trigger an 'out of bound' test run, so we actually wait for the first
+	 * test run to come in that contains one or more tasks and treat that as the
+	 * one we're looking for.
+	 */
 	private async _captureTestResult(testCases: IncrementalTestCollectionItem[], token: CancellationToken): Promise<LiveTestResult | undefined> {
 		const store = new DisposableStore();
 		const onDidTimeout = store.add(new Emitter<void>());
