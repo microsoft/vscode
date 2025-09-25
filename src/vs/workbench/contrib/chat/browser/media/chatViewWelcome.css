@@ -248,7 +248,7 @@ div.chat-welcome-view {
 
 .chat-welcome-history-root {
 	width: 100%;
-	padding: 8px 8px 0 8px;
+	padding: 0px 8px 0 8px;
 
 	&.chat-welcome-history-hidden {
 		display: none;
