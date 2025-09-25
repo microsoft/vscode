@@ -332,6 +332,9 @@ export interface ILanguageModelToolsService {
 	getToolSet(id: string): ToolSet | undefined;
 	getToolSetByName(name: string): ToolSet | undefined;
 	createToolSet(source: ToolDataSource, id: string, referenceName: string, options?: { icon?: ThemeIcon; description?: string }): ToolSet & IDisposable;
+
+	getQualifiedToolNames(includeDeprecated: boolean): Iterable<string>;
+	getToolByQualifiedName(promptFile: URI): IToolData | ToolSet | undefined;
 }
 
 export function createToolInputUri(toolOrId: IToolData | string): URI {

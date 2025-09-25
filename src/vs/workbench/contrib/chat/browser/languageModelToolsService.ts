@@ -43,6 +43,7 @@ import { ChatConfiguration } from '../common/constants.js';
 import { CountTokensCallback, createToolSchemaUri, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultInputOutputDetails, stringifyPromptTsxPart, ToolDataSource, ToolSet, IToolAndToolSetEnablementMap } from '../common/languageModelToolsService.js';
 import { getToolConfirmationAlert } from './chatAccessibilityProvider.js';
 import { alert } from '../../../../base/browser/ui/aria/aria.js';
+import { URI } from '../../../../base/common/uri.js';
 
 const jsonSchemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
 
@@ -694,6 +695,44 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 		this._toolSets.add(result);
 		return result;
+	}
+
+	*getQualifiedToolNames(includeDeprecated: boolean): Iterable<string> {
+		const getQualifiedName = (name: string, source: ToolDataSource) => {
+			if (source.type === 'mcp' || source.type === 'extension') {
+				return `${source.label}/${name}`;
+			}
+			return name;
+		};
+
+		for (const tool of this.getTools()) {
+			if (tool.canBeReferencedInPrompt) {
+				const name = tool.toolReferenceName ?? tool.displayName;
+				if (includeDeprecated) {
+					yield name;
+				}
+				yield getQualifiedName(name, tool.source);
+			}
+		}
+		for (const toolSet of this.toolSets.get()) {
+			const name = toolSet.referenceName;
+			if (includeDeprecated) {
+				yield name;
+			}
+			yield getQualifiedName(name, toolSet.source);
+
+			for (const tool of toolSet.getTools()) {
+				const name = tool.toolReferenceName ?? tool.displayName;
+				if (includeDeprecated) {
+					yield name;
+				}
+				yield getQualifiedName(name, tool.source);
+			}
+		}
+	}
+
+	getToolByQualifiedName(promptFile: URI): IToolData | ToolSet | undefined {
+		return undefined;
 	}
 }
 

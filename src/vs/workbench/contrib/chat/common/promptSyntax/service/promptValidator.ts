@@ -248,19 +248,7 @@ export class PromptValidator {
 	}
 
 	private getAvailableToolAndToolSetNames(): Set<string> {
-		const available = new Set<string>();
-		for (const tool of this.languageModelToolsService.getTools()) {
-			if (tool.canBeReferencedInPrompt) {
-				available.add(tool.toolReferenceName ?? tool.displayName);
-			}
-		}
-		for (const toolSet of this.languageModelToolsService.toolSets.get()) {
-			available.add(toolSet.referenceName);
-			for (const tool of toolSet.getTools()) {
-				available.add(tool.toolReferenceName ?? tool.displayName);
-			}
-		}
-		return available;
+		return new Set<string>(this.languageModelToolsService.getQualifiedToolNames(true));
 	}
 
 	private validateApplyTo(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): undefined {

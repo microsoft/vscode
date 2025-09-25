@@ -7,6 +7,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { IProgressStep } from '../../../../../platform/progress/common/progress.js';
 import { IVariableReference } from '../../common/chatModes.js';
 import { ChatRequestToolReferenceEntry } from '../../common/chatVariableEntries.js';
@@ -91,6 +92,14 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 	}
 
 	toToolReferences(variableReferences: readonly IVariableReference[]): ChatRequestToolReferenceEntry[] {
+		throw new Error('Method not implemented.');
+	}
+
+	getQualifiedToolNames(includeDeprecated: boolean): Iterable<string> {
+		throw new Error('Method not implemented.');
+	}
+
+	getToolByQualifiedName(promptFile: URI): IToolData | ToolSet | undefined {
 		throw new Error('Method not implemented.');
 	}
 }

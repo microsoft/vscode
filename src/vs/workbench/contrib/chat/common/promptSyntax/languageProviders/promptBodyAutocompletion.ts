@@ -70,7 +70,7 @@ export class PromptBodyAutocompletion extends Disposable implements CompletionIt
 	}
 
 	private async collectToolCompletions(model: ITextModel, position: Position, toolRange: Range, suggestions: CompletionItem[]): Promise<void> {
-		const addSuggestion = (toolName: string, toolRange: Range) => {
+		for (const toolName of this.languageModelToolsService.getQualifiedToolNames(false)) {
 			suggestions.push({
 				label: toolName,
 				kind: CompletionItemKind.Value,
@@ -78,14 +78,6 @@ export class PromptBodyAutocompletion extends Disposable implements CompletionIt
 				insertText: toolName,
 				range: toolRange,
 			});
-		};
-		for (const tool of this.languageModelToolsService.getTools()) {
-			if (tool.canBeReferencedInPrompt) {
-				addSuggestion(tool.toolReferenceName ?? tool.displayName, toolRange);
-			}
-		}
-		for (const toolSet of this.languageModelToolsService.toolSets.get()) {
-			addSuggestion(toolSet.referenceName, toolRange);
 		}
 	}
 
