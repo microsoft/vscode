@@ -1365,7 +1365,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		shellLaunchConfig.isFeatureTerminal = true;
 		shellLaunchConfig.useShellEnvironment = true;
 		shellLaunchConfig.tabActions = this._terminalTabActions;
-		shellLaunchConfig.preserveTaskName = presentationOptions.preserveTerminalName && presentationOptions.panel === PanelKind.Dedicated;
+		shellLaunchConfig.preserveTaskName = presentationOptions.preserveTerminalName;
 		return shellLaunchConfig;
 	}
 
@@ -1497,7 +1497,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				isFeatureTerminal: true,
 				icon: task.configurationProperties.icon?.id ? ThemeIcon.fromId(task.configurationProperties.icon.id) : undefined,
 				color: task.configurationProperties.icon?.color || undefined,
-				preserveTaskName: presentationOptions.preserveTerminalName && presentationOptions.panel === PanelKind.Dedicated
+				preserveTaskName: presentationOptions.preserveTerminalName
 			};
 		} else {
 			const resolvedResult: { command: CommandString; args: CommandString[] } = await this._resolveCommandAndArgs(resolver, task.command);

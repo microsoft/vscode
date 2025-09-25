@@ -139,7 +139,6 @@ export interface IPresentationOptionsConfig {
 
 	/**
 	 * Controls whether to preserve the task name in the terminal after task completion.
-	 * Only applicable when panel is set to 'dedicated'. Defaults to true for dedicated panels.
 	 */
 	preserveTerminalName?: boolean;
 }
