@@ -604,7 +604,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		let part!: ChatElicitationRequestPart;
 		// Callback to increment telemetry counter
 		const onHideOrDispose = () => {
-			console.log('hidden');
 			this._outputMonitorTelemetryCounters.inputToolManualShownCount++;
 		};
 		const promise = new Promise<T | undefined>(resolve => {
