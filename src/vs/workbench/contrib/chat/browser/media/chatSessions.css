@@ -179,7 +179,7 @@
 .monaco-workbench:not(.file-icons-enabled) .chat-sessions-tree-container .predefined-file-icon.codicon-error::before,
 .monaco-workbench:not(.file-icons-enabled) .chat-sessions-tree-container .predefined-file-icon.codicon-circle-outline::before,
 .monaco-workbench:not(.file-icons-enabled) .chat-sessions-tree-container .predefined-file-icon.codicon-chat-sparkle::before {
-	font-family: codicon !important;
+	font-family: codicon;
 }
 
 .monaco-workbench:not(.file-icons-enabled) .chat-sessions-tree-container .predefined-file-icon.codicon-loading::before {
