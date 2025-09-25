@@ -210,29 +210,27 @@ div.chat-welcome-view {
 		> .chat-welcome-view-suggested-prompt {
 			display: flex;
 			align-items: center;
-			padding: 2px;
-			border-radius: 8px;
+			gap: 6px;
+			height: 24px;
+			padding: 0 10px;
+			border-radius: 4px;
 			background-color: var(--vscode-editorWidget-background);
 			cursor: pointer;
 			border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
-			border-radius: 4px;
-			max-width: 200px;
+			max-width: 260px;
 			width: fit-content;
 			margin: 0 4px;
 
-			& > .chat-welcome-view-suggested-prompt-icon {
-				display: flex;
-				align-items: center;
-				font-size: 4px;
-				color: var(--vscode-icon-foreground) !important;
-				align-items: center;
-				padding: 4px;
+			& > .chat-welcome-view-suggested-prompt-title {
+				font-size: 14px;
+				font-weight: 600;
+				color: var(--vscode-editorWidget-foreground);
+				white-space: nowrap;
 			}
 
-			& > .chat-welcome-view-suggested-prompt-label {
-				font-size: 14px;
-				color: var(--vscode-editorWidget-foreground);
-				padding: 4px 4px 4px 0;
+			& > .chat-welcome-view-suggested-prompt-description {
+				font-size: 13px;
+				color: var(--vscode-descriptionForeground);
 				overflow: hidden;
 				text-overflow: ellipsis;
 				white-space: nowrap;
@@ -250,7 +248,7 @@ div.chat-welcome-view {
 
 .chat-welcome-history-root {
 	width: 100%;
-	padding: 0px 8px 0 8px;
+	padding: 8px 8px 0 8px;
 
 	&.chat-welcome-history-hidden {
 		display: none;
