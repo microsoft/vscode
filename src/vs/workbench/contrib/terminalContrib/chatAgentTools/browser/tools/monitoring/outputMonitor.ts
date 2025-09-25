@@ -10,7 +10,6 @@ import { CancellationToken } from '../../../../../../../base/common/cancellation
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../../../../base/common/observable.js';
 import { isObject, isString } from '../../../../../../../base/common/types.js';
 import { localize } from '../../../../../../../nls.js';
 import { ExtensionIdentifier } from '../../../../../../../platform/extensions/common/extensions.js';
@@ -78,7 +77,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	constructor(
 		private readonly _execution: IExecution,
 		private readonly _pollFn: ((execution: IExecution, token: CancellationToken, taskService: ITaskService) => Promise<IPollingResult | undefined>) | undefined,
-		invocationContext: IToolInvocationContext,
+		invocationContext: IToolInvocationContext | undefined,
 		token: CancellationToken,
 		command: string,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
@@ -97,7 +96,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 	private async _startMonitoring(
 		command: string,
-		invocationContext: IToolInvocationContext,
+		invocationContext: IToolInvocationContext | undefined,
 		token: CancellationToken
 	): Promise<void> {
 		const pollStartTime = Date.now();
@@ -212,7 +211,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		return { resources, modelOutputEvalResponse, shouldContinuePollling: false };
 	}
 
-	private async _handleTimeoutState(command: string, invocationContext: IToolInvocationContext, extended: boolean, token: CancellationToken): Promise<boolean> {
+	private async _handleTimeoutState(command: string, invocationContext: IToolInvocationContext | undefined, extended: boolean, token: CancellationToken): Promise<boolean> {
 		let continuePollingPart: ChatElicitationRequestPart | undefined;
 		if (extended) {
 			this._state = OutputMonitorState.Cancelled;
@@ -338,13 +337,13 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		return OutputMonitorState.Timeout;
 	}
 
-	private async _promptForMorePolling(command: string, token: CancellationToken, context: IToolInvocationContext): Promise<{ promise: Promise<boolean>; part?: ChatElicitationRequestPart }> {
+	private async _promptForMorePolling(command: string, token: CancellationToken, context: IToolInvocationContext | undefined): Promise<{ promise: Promise<boolean>; part?: ChatElicitationRequestPart }> {
 		if (token.isCancellationRequested || this._state === OutputMonitorState.Cancelled) {
 			return { promise: Promise.resolve(false) };
 		}
 		const result = this._createElicitationPart<boolean>(
 			token,
-			context.sessionId,
+			context?.sessionId,
 			new MarkdownString(localize('poll.terminal.waiting', "Continue waiting for `{0}`?", command)),
 			new MarkdownString(localize('poll.terminal.polling', "This will continue to poll for output to determine when the terminal becomes idle for up to 2 minutes.")),
 			'',
@@ -516,12 +515,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			async () => { execution.instance.focus(true); return true; },
 		);
 
-		this._register(autorun(reader => {
-			if (part.isHidden?.read(reader)) {
-				this._outputMonitorTelemetryCounters.inputToolFreeFormInputShownCount++;
-			}
-		}));
-
 		const inputPromise = new Promise<boolean>(resolve => {
 			const inputDataDisposable = this._register(execution.instance.onDidInputData((data) => {
 				if (!data || data === '\r' || data === '\n' || data === '\r\n') {
@@ -568,12 +561,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			},
 			getMoreActions(suggestedOption, confirmationPrompt)
 		);
-
-		this._register(autorun(reader => {
-			if (part.isHidden?.read(reader)) {
-				this._outputMonitorTelemetryCounters.inputToolManualShownCount++;
-			}
-		}));
 		const inputPromise = new Promise<string | undefined>(resolve => {
 			inputDataDisposable = this._register(execution.instance.onDidInputData(() => {
 				part.hide();
@@ -596,7 +583,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	// attach additional listeners (e.g., onDidRequestHide) or compose with other promises.
 	private _createElicitationPart<T>(
 		token: CancellationToken,
-		sessionId: string,
+		sessionId: string | undefined,
 		title: MarkdownString,
 		detail: MarkdownString,
 		subtitle: string,
@@ -606,7 +593,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		onReject?: () => Promise<T | undefined> | T | undefined,
 		moreActions?: IAction[] | undefined
 	): { promise: Promise<T | undefined>; part: ChatElicitationRequestPart } {
-		const chatModel = this._chatService.getSession(sessionId);
+		const chatModel = sessionId && this._chatService.getSession(sessionId);
 		if (!(chatModel instanceof ChatModel)) {
 			throw new Error('No model');
 		}
@@ -646,8 +633,9 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 						resolve(undefined);
 					}
 				},
-				undefined,
-				moreActions
+				undefined, // source
+				moreActions,
+				() => this._outputMonitorTelemetryCounters.inputToolManualShownCount++
 			));
 			chatModel.acceptResponseProgress(request, thePart);
 			this._promptPart = thePart;

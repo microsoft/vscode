@@ -1694,6 +1694,6 @@ async function moveToPanelChat(accessor: ServicesAccessor, model: ChatModel | un
 		for (const request of model.getRequests().slice()) {
 			await chatService.adoptRequest(widget.viewModel.model.sessionId, request);
 		}
-		widget.focusLastMessage();
+		widget.focusResponseItem();
 	}
 }

@@ -29,7 +29,7 @@ export class ChatResponseAccessibleView implements IAccessibleViewImplementation
 		}
 		const chatInputFocused = widget.hasInputFocus();
 		if (chatInputFocused) {
-			widget.focusLastMessage();
+			widget.focusResponseItem();
 		}
 
 		const verifiedWidget: IChatWidget = widget;
