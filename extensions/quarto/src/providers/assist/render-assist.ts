@@ -33,7 +33,7 @@ import {
   Position,
 } from "vscode";
 import { JsonRpcRequestTransport, escapeRegExpCharacters } from "core";
-import { CodeViewCellContext, kCodeViewAssist } from "editor-types";
+import { CodeViewCellContext, kCodeViewAssist } from "../../types/local-types";
 import { embeddedLanguage } from "../../vdoc/languages";
 import { virtualDocForCode, withVirtualDocUri } from "../../vdoc/vdoc";
 import { getHover, getSignatureHelpHover } from "../../core/hover";

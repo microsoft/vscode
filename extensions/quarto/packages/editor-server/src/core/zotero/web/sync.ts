@@ -14,11 +14,11 @@
  */
 
 
-import { Group, Library, ZoteroApi, ZoteroObjectNotFoundError } from "./api";
-import { groupDelete, groupLocal, groupsLocal, groupsSync, groupsSyncActions } from "./groups";
-import { hasLibrarySyncActions, libraryList, librarySync, librarySyncActions, LibrarySyncActions } from "./libraries";
-import { libraryWrite, userWebLibrariesDir } from "./storage";
-import { zoteroTraceProgress } from "./trace";
+import { Group, Library, ZoteroApi, ZoteroObjectNotFoundError } from "./api.js";
+import { groupDelete, groupLocal, groupsLocal, groupsSync, groupsSyncActions } from "./groups.js";
+import { hasLibrarySyncActions, libraryList, librarySync, librarySyncActions, LibrarySyncActions } from "./libraries.js";
+import { libraryWrite, userWebLibrariesDir } from "./storage.js";
+import { zoteroTraceProgress } from "./trace.js";
 
 import { SyncProgress } from "./types";
 

@@ -13,5 +13,5 @@
  *
  */
 
-export * from './pandoc'
-export * from './markdownit'
+export * from './pandoc.js'
+export * from './markdownit.js'

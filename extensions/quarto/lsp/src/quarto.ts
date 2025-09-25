@@ -16,7 +16,6 @@
 import * as path from "node:path";
 import * as fs from "node:fs";
 
-import fileUrl from "file-url";
 import * as yaml from "js-yaml";
 
 import {
@@ -177,13 +176,22 @@ function initializeQuartoYamlModule(
 ): Promise<QuartoYamlModule> {
   const modulePath = path.join(resourcesPath, "editor", "tools", "vs-code.mjs");
   return new Promise((resolve, reject) => {
-    import(fileUrl(modulePath))
-      .then((mod) => {
-        const quartoModule = mod as QuartoYamlModule;
-        resolve(quartoModule);
-      })
-      .catch((error) => {
-        reject(error);
-      });
+    try {
+      // Use createRequire to load ES modules from CommonJS context
+      // This works better in Electron's Node.js environment
+      const { createRequire } = require('module');
+      const { pathToFileURL } = require('url');
+      
+      // Create a proper file URL for createRequire
+      const requireUrl = pathToFileURL(__filename);
+      const customRequire = createRequire(requireUrl);
+      
+      // Load the ES module using createRequire
+      const mod = customRequire(modulePath);
+      const quartoModule = mod as QuartoYamlModule;
+      resolve(quartoModule);
+    } catch (error) {
+      reject(error);
+    }
   });
 }

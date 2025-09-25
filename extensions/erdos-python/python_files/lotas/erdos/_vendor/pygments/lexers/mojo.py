@@ -10,7 +10,7 @@
 
 import keyword
 
-from pygments import unistring as uni
+from erdos._vendor.pygments import unistring as uni
 from erdos._vendor.pygments.lexer import (
     RegexLexer,
     bygroups,

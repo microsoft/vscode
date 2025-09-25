@@ -1,8 +1,8 @@
 from inspect import Parameter
 
 from erdos._vendor.jedi.cache import memoize_method
-from jedi import debug
-from jedi import parser_utils
+from erdos._vendor.jedi import debug
+from erdos._vendor.jedi import parser_utils
 
 
 class _SignatureMixin:

@@ -3,7 +3,7 @@ from itertools import zip_longest
 
 from erdos._vendor.parso.python import tree
 
-from jedi import debug
+from erdos._vendor.jedi import debug
 from erdos._vendor.jedi.inference.utils import PushBackIterator
 from erdos._vendor.jedi.inference import analysis
 from erdos._vendor.jedi.inference.lazy_value import LazyKnownValue, LazyKnownValues, \

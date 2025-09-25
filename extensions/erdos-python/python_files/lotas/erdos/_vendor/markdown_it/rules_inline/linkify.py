@@ -1,4 +1,5 @@
 """Process links like https://example.org/"""
+
 import re
 
 from .state_inline import StateInline
@@ -27,7 +28,7 @@ def linkify(state: StateInline, silent: bool) -> bool:
     ):
         return False
 
-    if not (match := SCHEME_RE.match(state.pending)):
+    if not (match := SCHEME_RE.search(state.pending)):
         return False
 
     proto = match.group(1)

@@ -39,7 +39,7 @@ import {
 
 } from 'quarto-core';
 
-import { ILogger, LogLevel } from './logging';
+import { ILogger } from './logging';
 import { pandocSlugifier, ISlugifier, Slug } from './slugify';
 
 import { IWorkspace } from './workspace';

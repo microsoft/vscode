@@ -38,7 +38,7 @@ import {
   renderCacheKeyNone,
 } from "./render-cache";
 import { Assist, renderActiveAssist, renderCodeViewAssist, renderWebviewHtml } from "./render-assist";
-import { CodeViewCellContext } from "editor-types";
+import { CodeViewCellContext } from "../../types/local-types";
 import { JsonRpcRequestTransport } from "core";
 
 enum UpdateMode {

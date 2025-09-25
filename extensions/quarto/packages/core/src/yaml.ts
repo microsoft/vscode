@@ -15,7 +15,7 @@
 
 import * as jsYaml from "js-yaml";
 
-import { Metadata } from "./metadata";
+import { Metadata } from "./metadata.js";
 
 export function removeYamlDelimiters(yaml: string) {
   return yaml

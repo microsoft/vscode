@@ -21,7 +21,6 @@ import { MarkdownEngine } from "../markdown/engine";
 import { mainLanguage } from "../vdoc/vdoc";
 import { isQuartoShinyDoc } from "./preview/preview-util";
 import { workspace } from "vscode";
-import { VisualEditorProvider } from "./editor/editor";
 
 const debounceOnDidChangeDocumentMs = 250;
 
@@ -93,14 +92,10 @@ export function getRenderOnSaveShiny() {
     : renderOnSaveShinyOverride;
 }
 
-// toggles edit mode
+// toggles edit mode (visual editor removed - always in source mode)
 export function toggleEditMode() {
-  const quartoVisualEditor = VisualEditorProvider.activeEditor();
-  if (quartoVisualEditor !== undefined) {
-    vscode.commands.executeCommand('quarto.editInSourceMode');
-  } else {
-    vscode.commands.executeCommand('quarto.editInVisualMode');
-  }
+  // Visual editor removed - always use source mode
+  vscode.window.showInformationMessage('Already in source mode (visual editor not available)');
 }
 
 // toggles render on save override

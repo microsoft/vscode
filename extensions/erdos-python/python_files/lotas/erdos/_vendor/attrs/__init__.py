@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 
-from attr import (
+from erdos._vendor.attr import (
     NOTHING,
     Attribute,
     AttrsInstance,

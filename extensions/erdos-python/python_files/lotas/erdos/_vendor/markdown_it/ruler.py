@@ -15,6 +15,7 @@ You will not need use this class directly until write plugins. For simple
 rules control use [[MarkdownIt.disable]], [[MarkdownIt.enable]] and
 [[MarkdownIt.use]].
 """
+
 from __future__ import annotations
 
 from collections.abc import Iterable
@@ -22,12 +23,10 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Generic, TypedDict, TypeVar
 import warnings
 
-from erdos._vendor.markdown_it._compat import DATACLASS_KWARGS
-
 from .utils import EnvType
 
 if TYPE_CHECKING:
-    from markdown_it import MarkdownIt
+    from erdos._vendor.markdown_it import MarkdownIt
 
 
 class StateBase:
@@ -65,7 +64,7 @@ RuleFuncTv = TypeVar("RuleFuncTv")
 """A rule function, whose signature is dependent on the state type."""
 
 
-@dataclass(**DATACLASS_KWARGS)
+@dataclass(slots=True)
 class Rule(Generic[RuleFuncTv]):
     name: str
     enabled: bool

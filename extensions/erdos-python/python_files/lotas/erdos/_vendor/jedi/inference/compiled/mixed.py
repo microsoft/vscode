@@ -7,7 +7,7 @@ from pathlib import Path
 
 from erdos._vendor.jedi.parser_utils import get_cached_code_lines
 
-from jedi import settings
+from erdos._vendor.jedi import settings
 from erdos._vendor.jedi.cache import memoize_method
 from erdos._vendor.jedi.inference import compiled
 from erdos._vendor.jedi.file_io import FileIO

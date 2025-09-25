@@ -863,9 +863,9 @@ def add_method(
         arg_kinds.append(arg.kind)
 
     function_type = ctx.api.named_type(f'{BUILTINS_NAME}.function')
-    signature = CallableType(arg_types, arg_kinds, arg_names, return_type, function_type)
-    if tvar_def:
-        signature.variables = [tvar_def]
+    signature = CallableType(
+        arg_types, arg_kinds, arg_names, return_type, function_type, variables=[tvar_def] if tvar_def else None
+    )
 
     func = FuncDef(name, args, Block([PassStmt()]))
     func.info = info

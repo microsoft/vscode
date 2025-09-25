@@ -13,8 +13,8 @@
  *
  */
 
-import { EditorMenuItem } from "./menu";
-import { XRef } from "./xref";
+import { EditorMenuItem } from "./menu.js";
+import { XRef } from "./xref.js";
 
 export interface EditorDisplay {
   openURL: (url: string) => void;

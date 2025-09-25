@@ -13,7 +13,7 @@
  *
  */
  
-import { CSL } from "editor-types";
+import { CSL } from "../../../../editor-types/src/index.js";
 
 const kKeyPattern = /((.*?)\s*:\s*([^\s]+))/g;
 

@@ -15,7 +15,7 @@ from erdos._vendor.pygments.lexer import DelegatingLexer, RegexLexer, include, \
 from erdos._vendor.pygments.util import get_bool_opt, shebang_matches
 from erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, String, \
     Number, Punctuation, Generic, Other, Error, Whitespace
-from pygments import unistring as uni
+from erdos._vendor.pygments import unistring as uni
 
 __all__ = ['PythonLexer', 'PythonConsoleLexer', 'PythonTracebackLexer',
            'Python2Lexer', 'Python2TracebackLexer',

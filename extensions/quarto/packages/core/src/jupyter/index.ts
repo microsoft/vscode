@@ -14,5 +14,5 @@
  */
 
 export * from './types';
-export * from './notebook';
-export * from './options';
+export * from './notebook.js';
+export * from './options.js';

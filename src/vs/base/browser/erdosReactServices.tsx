@@ -61,6 +61,7 @@ import { IImageAttachmentService } from '../../workbench/services/erdosAiMedia/c
 import { IDocumentManager } from '../../workbench/services/erdosAiDocument/common/documentManager.js';
 import { IWidgetManager } from '../../workbench/services/erdosAi/common/widgetManager.js';
 import { IJupytextService } from '../../workbench/services/erdosAiIntegration/common/jupytextService.js';
+import { IFileChangeTracker } from '../../workbench/services/erdosAi/common/fileChangeTracker.js';
 
 export class ErdosReactServices {
 	public static services: ErdosReactServices;
@@ -133,6 +134,7 @@ export class ErdosReactServices {
 		@IFileResolverService public readonly fileResolverService: IFileResolverService,
 		@ISearchService public readonly searchService: ISearchService,
 		@IWidgetManager public readonly widgetManager: IWidgetManager,
-		@IJupytextService public readonly jupytextService: IJupytextService
+		@IJupytextService public readonly jupytextService: IJupytextService,
+		@IFileChangeTracker public readonly fileChangeTracker: IFileChangeTracker
 	) { }
 }

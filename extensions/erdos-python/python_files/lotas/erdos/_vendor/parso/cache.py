@@ -49,7 +49,7 @@ are regarded as incompatible.
 - A __slot__ of a class is changed.
 """
 
-_VERSION_TAG = '%s-%s%s-%s' % (
+_VERSION_TAG = '%s-%s%s-%s-Erdos' % (
     platform.python_implementation(),
     sys.version_info[0],
     sys.version_info[1],

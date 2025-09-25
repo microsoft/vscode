@@ -1996,7 +1996,7 @@ else:
 
         Example::
 
-          from typing_extensions import LiteralString
+          from erdos._vendor.typing_extensions import LiteralString
 
           def query(sql: LiteralString) -> ...:
               ...
@@ -2041,7 +2041,7 @@ else:
         This can be used to define a function that should never be
         called, or a function that never returns::
 
-            from typing_extensions import Never
+            from erdos._vendor.typing_extensions import Never
 
             def never_call_me(arg: Never) -> None:
                 pass
@@ -2436,7 +2436,7 @@ else:  # <=3.11
 
         Example:
 
-            from typing_extensions import dataclass_transform
+            from erdos._vendor.typing_extensions import dataclass_transform
 
             _T = TypeVar("_T")
 
@@ -2893,7 +2893,7 @@ else:
         Examples::
 
             from typing import TypeVar, Generic
-            from typing_extensions import NamedTuple, TypedDict
+            from erdos._vendor.typing_extensions import NamedTuple, TypedDict
 
             T = TypeVar("T")
             class Foo(Generic[T]): ...

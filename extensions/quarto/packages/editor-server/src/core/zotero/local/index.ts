@@ -13,4 +13,4 @@
  *
  */
 
-export { zoteroLocalCollectionSource } from "./source";
+export { zoteroLocalCollectionSource } from "./source.js";

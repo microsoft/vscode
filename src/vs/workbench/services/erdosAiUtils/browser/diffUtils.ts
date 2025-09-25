@@ -330,8 +330,8 @@ class DiffStorage {
 			const flexiblePattern = createFlexibleWhitespacePattern(oldString);
 			const fullNewJupytext = effectiveContent.replace(new RegExp(flexiblePattern), newString);
 			
-			const oldLines = fullOldJupytext.split('\n');
-			const newLines = fullNewJupytext.split('\n');
+			const oldLines = fullOldJupytext === '' ? [] : fullOldJupytext.split('\n');
+			const newLines = fullNewJupytext === '' ? [] : fullNewJupytext.split('\n');
 			
 			// 3. Get jupytext line mapping using the same reads function as fileContentService.ts
 			const parseResult = reads(fullNewJupytext, { extension: '.py', format_name: 'percent' }, 4, null, true);
@@ -460,7 +460,10 @@ class DiffStorage {
 			// Fall back to regular diff computation
 			const flexiblePattern = createFlexibleWhitespacePattern(oldString);
 			const newContent = effectiveContent.replace(new RegExp(flexiblePattern), newString);
-			const diffResult = computeLineDiff(effectiveContent.split('\n'), newContent.split('\n'));
+			const diffResult = computeLineDiff(
+				effectiveContent === '' ? [] : effectiveContent.split('\n'), 
+				newContent === '' ? [] : newContent.split('\n')
+			);
 			const filteredDiff = filterDiffForDisplay(diffResult.diff);
 			this.storeDiffData(messageId, filteredDiff, effectiveContent, newContent, { is_start_edit: false, is_end_edit: false }, filePath, oldString, newString);
 		}

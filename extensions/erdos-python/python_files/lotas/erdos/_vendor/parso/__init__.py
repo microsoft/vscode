@@ -43,7 +43,7 @@ from erdos._vendor.parso.grammar import Grammar, load_grammar
 from erdos._vendor.parso.utils import split_lines, python_bytes_to_unicode
 
 
-__version__ = '0.8.4'
+__version__ = '0.8.5'
 
 
 def parse(code=None, **kwargs):

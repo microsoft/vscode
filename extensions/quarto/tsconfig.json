@@ -8,18 +8,20 @@
     "lib": ["ES2021", "DOM"],
     "jsx": "react",
     "skipLibCheck": true,
+    "resolveJsonModule": true,
     "types": [
       "node",
       "mocha"
-    ]
+    ],
+    "typeRoots": ["./packages/editor-server/src/@types", "./lsp/src/@types", "./node_modules/@types"]
   },
   "include": [
-    "src/**/*"
+    "src/**/*",
+    "packages/**/*",
+    "lsp/src/**/*"
   ],
   "exclude": [
-    "packages/**/*",
     "apps/**/*",
-    "lsp/**/*",
     "node_modules/**/*",
     "out/**/*",
     "test/**/*",

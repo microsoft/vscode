@@ -14,24 +14,24 @@
  */
 
 
-export * from './promise';
-export * from './wordbreak';
-export * from './jsonrpc';
-export * from './text';
-export * from './path';
-export * from './strings';
-export * from './lazy';
-export * from './png';
-export * from './wait';
-export * from './auto-id';
-export * from './url';
-export * from './uri';
-export * from './image';
-export * from './yaml';
-export * from './dispose';
-export * from './arrays';
-export * from './limiter';
-export * from './markdownit';
-export * from './jupyter';
-export * from './metadata';
+export * from './promise.js';
+export * from './wordbreak.js';
+export * from './jsonrpc.js';
+export * from './text.js';
+export * from './path.js';
+export * from './strings.js';
+export * from './lazy.js';
+export * from './png.js';
+export * from './wait.js';
+export * from './auto-id.js';
+export * from './url.js';
+export * from './uri.js';
+export * from './image.js';
+export * from './yaml.js';
+export * from './dispose.js';
+export * from './arrays.js';
+export * from './limiter.js';
+export * from './markdownit/index.js';
+export * from './jupyter/index.js';
+export * from './metadata.js';
 

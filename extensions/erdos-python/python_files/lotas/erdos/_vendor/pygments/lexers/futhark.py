@@ -11,7 +11,7 @@
 from erdos._vendor.pygments.lexer import RegexLexer, bygroups
 from erdos._vendor.pygments.token import Comment, Operator, Keyword, Name, String, \
     Number, Punctuation, Whitespace
-from pygments import unistring as uni
+from erdos._vendor.pygments import unistring as uni
 
 __all__ = ['FutharkLexer']
 

@@ -77,31 +77,30 @@ class HelpService:
     )
 
     def __init__(self):
-        self._comm: ErdosComm | None = None
+        # Store active comm channels by comm_id to respond on correct channel
+        self._comms: dict[str, ErdosComm] = {}
         self._pydoc_thread = None
 
     def on_comm_open(self, comm: BaseComm, _msg: JsonRecord) -> None:
-        self._comm = ErdosComm(comm)
-        self._comm.on_msg(self.handle_msg, HelpBackendMessageContent)
+        erdos_comm = ErdosComm(comm)
+        self._comms[comm.comm_id] = erdos_comm
+        erdos_comm.on_msg(lambda msg, raw_msg: self.handle_msg(msg, raw_msg, erdos_comm), HelpBackendMessageContent)
 
-    def handle_msg(self, msg: CommMessage[HelpBackendMessageContent], _raw_msg: JsonRecord) -> None:
+    def handle_msg(self, msg: CommMessage[HelpBackendMessageContent], _raw_msg: JsonRecord, comm: ErdosComm) -> None:
         """Handle messages received from the client via the erdos.help comm."""
         request = msg.content.data
 
         if isinstance(request, ShowHelpTopicRequest):
-            if self._comm is not None:
-                self._comm.send_result(data=True)
+            comm.send_result(data=True)
             self.show_help(request.params.topic)
 
         elif isinstance(request, SearchHelpTopicsRequest):
-            if self._comm is not None:
-                search_results = search_help_topics_rpc(request.params.query)
-                self._comm.send_result(data=search_results)
+            search_results = search_help_topics_rpc(request.params.query)
+            comm.send_result(data=search_results)
 
         elif isinstance(request, ParseFunctionsRequest):
-            if self._comm is not None:
-                parse_result = parse_functions_rpc(request.params.code, request.params.language)
-                self._comm.send_result(data=parse_result)
+            parse_result = parse_functions_rpc(request.params.code, request.params.language)
+            comm.send_result(data=parse_result)
 
         else:
             logger.warning(f"Unhandled request: {request}")
@@ -111,9 +110,10 @@ class HelpService:
             logger.info("Stopping pydoc server thread")
             self._pydoc_thread.stop()
             logger.info("Pydoc server thread stopped")
-        if self._comm is not None:
+        for comm in self._comms.values():
             with contextlib.suppress(Exception):
-                self._comm.close()
+                comm.close()
+        self._comms.clear()
 
     def start(self):
         self._pydoc_thread = start_server()

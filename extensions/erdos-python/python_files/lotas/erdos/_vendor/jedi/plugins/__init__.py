@@ -22,9 +22,7 @@ class _PluginManager:
 
             public_name = name or callback.__name__
 
-            # Skip registration if already exists - prevents duplicate registration errors
-            if public_name in self._built_functions:
-                return wrapper
+            assert public_name not in self._built_functions
             built_functions = self._built_functions
             built_functions[public_name] = callback
             self._cached_base_callbacks[public_name] = callback

@@ -1,8 +1,8 @@
 # Rewrite absolute imports.
-diff --git a/extensions/erdos-python/python_files/erdos/erdos/_vendor/jedi_language_server/jedi_utils.py b/extensions/erdos-python/python_files/erdos/erdos/_vendor/jedi_language_server/jedi_utils.py
+diff --git a/extensions/erdos-python/python_files/lotas/erdos/_vendor/jedi_language_server/jedi_utils.py b/extensions/erdos-python/python_files/lotas/erdos/_vendor/jedi_language_server/jedi_utils.py
 index b31f5918935..a723c10718e 100644
---- a/extensions/erdos-python/python_files/erdos/erdos/_vendor/jedi_language_server/jedi_utils.py
-+++ b/extensions/erdos-python/python_files/erdos/erdos/_vendor/jedi_language_server/jedi_utils.py
+--- a/extensions/erdos-python/python_files/lotas/erdos/_vendor/jedi_language_server/jedi_utils.py
++++ b/extensions/erdos-python/python_files/lotas/erdos/_vendor/jedi_language_server/jedi_utils.py
 @@ -12,9 +12,9 @@ from inspect import Parameter
  from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple
 
@@ -45,10 +45,10 @@ index b31f5918935..a723c10718e 100644
          range=Range(
 # Patch the version since version("jedi-language-server") raises a PackageNotFoundError
 # since jedi-language-server is not actually installed.
-diff --git a/extensions/erdos-python/python_files/erdos/erdos/_vendor/jedi_language_server/__init__.py b/extensions/erdos-python/python_files/erdos/erdos/_vendor/jedi_language_server/__init__.py
+diff --git a/extensions/erdos-python/python_files/lotas/erdos/_vendor/jedi_language_server/__init__.py b/extensions/erdos-python/python_files/lotas/erdos/_vendor/jedi_language_server/__init__.py
 index ba6eaf9fe..28266bd95 100644
---- a/extensions/erdos-python/python_files/erdos/erdos/_vendor/jedi_language_server/__init__.py
-+++ b/extensions/erdos-python/python_files/erdos/erdos/_vendor/jedi_language_server/__init__.py
+--- a/extensions/erdos-python/python_files/lotas/erdos/_vendor/jedi_language_server/__init__.py
++++ b/extensions/erdos-python/python_files/lotas/erdos/_vendor/jedi_language_server/__init__.py
 @@ -1,5 +1,4 @@
  """Jedi Language Server."""
 

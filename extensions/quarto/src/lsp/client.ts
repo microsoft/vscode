@@ -78,7 +78,7 @@ export async function activateLsp(
 
   // The server is implemented in node
   const serverModule = context.asAbsolutePath(
-    path.join("out", "lsp", "lsp.js")
+    path.join("out", "lsp", "src", "index.js")
   );
   // The debug options for the server
   // --inspect=6009: runs the server in Node's Inspector mode so VS Code can attach to the server for debugging
@@ -160,7 +160,12 @@ export async function activateLsp(
     });
 
     // Start the client. This will also launch the server
-    client.start();
+    try {
+      client.start();
+    } catch (error) {
+      console.error(`[DEBUG-QUARTO-LSP] Error in client.start(): ${JSON.stringify(error)}`);
+      reject(error);
+    }
   });
 }
 

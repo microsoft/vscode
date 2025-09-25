@@ -19,13 +19,13 @@ import Token from "markdown-it/lib/token";
 
 import attrPlugin from 'markdown-it-attrs';
 
-import { Document } from "../../document";
+import { Document } from "../../document.js";
 
-import { Parser, cachingParser } from "../parser";
-import { Token as QToken, TokenAttr, TokenType, kAttrAttributes, kAttrClasses, kAttrIdentifier } from "../token";
-import { divPlugin, lines, mathjaxPlugin, yamlPlugin } from "core";
+import { Parser, cachingParser } from "../parser.js";
+import { Token as QToken, TokenAttr, TokenType, kAttrAttributes, kAttrClasses, kAttrIdentifier } from "../token.js";
+import { divPlugin, lines, mathjaxPlugin, yamlPlugin } from "../../../../core/src/index.js";
 
-import { makeRange } from "../../range";
+import { makeRange } from "../../range.js";
 
 export function markdownitParser() : Parser {
 

@@ -14,11 +14,11 @@
  */
 
 
-export { zoteroApi, zoteroValidateApiKey } from './api';
+export { zoteroApi, zoteroValidateApiKey } from './api.js';
 
-export { zoteroSyncWebLibrary, zoteroSyncWebLibraries } from './sync';
+export { zoteroSyncWebLibrary, zoteroSyncWebLibraries } from './sync.js';
 
-export { zoteroWebCollectionSource } from './source';
+export { zoteroWebCollectionSource } from './source.js';
 
 
 

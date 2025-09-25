@@ -13,7 +13,7 @@ __all__ = (
     "GenConverter",
     "override",
 )
-from cattrs import global_converter
+from erdos._vendor.cattrs import global_converter
 
 unstructure = global_converter.unstructure
 structure = global_converter.structure

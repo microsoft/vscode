@@ -14,11 +14,11 @@
  */
 
 
-export * from './mathjax';
-export * from './biblio';
-export * from './xref';
-export * from './pandoc';
-export * from './zotero';
-export * from './documents';
+export * from './mathjax.js';
+export * from './biblio.js';
+export * from './xref.js';
+export * from './pandoc.js';
+export * from './zotero/index.js';
+export * from './documents.js';
 
 

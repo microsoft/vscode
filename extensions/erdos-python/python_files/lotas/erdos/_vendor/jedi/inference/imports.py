@@ -14,8 +14,8 @@ from pathlib import Path
 from erdos._vendor.parso.python import tree
 from erdos._vendor.parso.tree import search_ancestor
 
-from jedi import debug
-from jedi import settings
+from erdos._vendor.jedi import debug
+from erdos._vendor.jedi import settings
 from erdos._vendor.jedi.file_io import FolderIO
 from erdos._vendor.jedi.parser_utils import get_cached_code_lines
 from erdos._vendor.jedi.inference import sys_path

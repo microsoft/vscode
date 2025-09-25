@@ -19,8 +19,8 @@ It is important to note that:
 1. Array modifications work only in the current module.
 2. Jedi only checks Array additions; ``list.pop``, etc are ignored.
 """
-from jedi import debug
-from jedi import settings
+from erdos._vendor.jedi import debug
+from erdos._vendor.jedi import settings
 from erdos._vendor.jedi.inference import recursion
 from erdos._vendor.jedi.inference.base_value import ValueSet, NO_VALUES, HelperValueMixin, \
     ValueWrapper

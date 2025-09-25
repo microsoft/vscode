@@ -13,7 +13,7 @@
  *
  */
 
-import { appConfigDir } from "core-node";
+import { appConfigDir } from "../../core-node/src/appdirs.js";
 
 export function userDictionaryDir() {
   return appConfigDir("quarto-writer", "user-dictionary")

@@ -30,7 +30,7 @@ import { looksLikeMarkdownUri } from '../util/file';
 import { ResourceMap } from '../util/resource-maps';
 import { FileStat, IWorkspace, IWorkspaceWithWatching, statLinkToMarkdownFile } from '../workspace';
 import { HrefKind, InternalHref, LinkDefinitionSet, MdLink, MdLinkDefinition, MdLinkKind, MdLinkProvider, MdLinkSource, parseLocationInfoFromFragment, ReferenceLinkMap } from './document-links';
-import { ILogger, LogLevel } from '../logging';
+import { ILogger } from '../logging';
 import { Quarto } from '../quarto';
 import { provideYamlDiagnostics } from './diagnostics-yaml';
 

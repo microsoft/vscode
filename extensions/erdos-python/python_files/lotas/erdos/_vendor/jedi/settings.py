@@ -8,7 +8,7 @@ configuration.
 
 Example usage::
 
-    from jedi import settings
+    from erdos._vendor.jedi import settings
     settings.case_insensitive_completion = True
 
 

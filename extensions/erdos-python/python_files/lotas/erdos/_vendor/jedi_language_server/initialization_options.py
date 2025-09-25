@@ -98,6 +98,11 @@ class Workspace:
 
 
 @light_dataclass
+class SemanticTokens:
+    enable: bool = False
+
+
+@light_dataclass
 class InitializationOptions:
     code_action: CodeAction = field(default_factory=CodeAction)
     completion: Completion = field(default_factory=Completion)
@@ -106,6 +111,7 @@ class InitializationOptions:
     jedi_settings: JediSettings = field(default_factory=JediSettings)
     markup_kind_preferred: Optional[MarkupKind] = None
     workspace: Workspace = field(default_factory=Workspace)
+    semantic_tokens: SemanticTokens = field(default_factory=SemanticTokens)
 
 
 initialization_options_converter = Converter()

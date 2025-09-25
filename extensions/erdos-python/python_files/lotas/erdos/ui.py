@@ -163,15 +163,17 @@ class UiService:
     def __init__(self, kernel: "ErdosIPyKernel") -> None:
         self.kernel = kernel
 
-        self._comm: Optional[ErdosComm] = None
+        # Store active comm channels by comm_id to respond on correct channel
+        self._comms: dict[str, ErdosComm] = {}
 
         self._working_directory: Optional[Path] = None
 
     def on_comm_open(self, comm: BaseComm, _msg: JsonRecord) -> None:
-        self._comm = ErdosComm(comm)
-        self._comm.on_msg(self.handle_msg, UiBackendMessageContent)
+        erdos_comm = ErdosComm(comm)
+        self._comms[comm.comm_id] = erdos_comm
+        erdos_comm.on_msg(lambda msg, raw_msg: self.handle_msg(msg, raw_msg, erdos_comm), UiBackendMessageContent)
 
-        self.browser = ErdosViewerBrowser(comm=self._comm)
+        self.browser = ErdosViewerBrowser(comm=erdos_comm)
         webbrowser.register(
             self.browser.name,
             ErdosViewerBrowser,
@@ -209,16 +211,16 @@ class UiService:
     def clear_webview_preloads(self) -> None:
         self._send_event(name=UiFrontendEvent.ClearWebviewPreloads, payload={})
 
-    def handle_msg(self, msg: CommMessage[UiBackendMessageContent], _raw_msg: JsonRecord) -> None:
+    def handle_msg(self, msg: CommMessage[UiBackendMessageContent], _raw_msg: JsonRecord, comm: ErdosComm) -> None:
         request = msg.content.data
 
         if isinstance(request, CallMethodRequest):
-            self._call_method(request.params)
+            self._call_method(request.params, comm)
 
         else:
             logger.warning(f"Unhandled request: {request}")
 
-    def _call_method(self, rpc_request: CallMethodParams) -> None:
+    def _call_method(self, rpc_request: CallMethodParams, comm: ErdosComm) -> None:
         func = _RPC_METHODS.get(rpc_request.method, None)
         if func is None:
             return logger.warning(f"Invalid frontend RPC request method: {rpc_request.method}")
@@ -230,21 +232,20 @@ class UiService:
                 f"Invalid frontend RPC request params for method '{rpc_request.method}'. {exception}"
             )
 
-        if self._comm is not None:
-            self._comm.send_result(data=result)
-            return None
+        comm.send_result(data=result)
         return None
 
     def shutdown(self) -> None:
-        if self._comm is not None:
+        for comm in self._comms.values():
             with contextlib.suppress(Exception):
-                self._comm.close()
+                comm.close()
+        self._comms.clear()
 
     def _send_event(self, name: str, payload: Union[BaseModel, JsonRecord]) -> None:
-        if self._comm is not None:
-            if isinstance(payload, BaseModel):
-                payload = payload.dict()
-            self._comm.send_event(name=name, payload=payload)
+        if isinstance(payload, BaseModel):
+            payload = payload.dict()
+        for comm in self._comms.values():
+            comm.send_event(name=name, payload=payload)
 
 
 class ErdosViewerBrowser(webbrowser.BaseBrowser):

@@ -13,8 +13,8 @@
  *
  */
 
-import { Token } from "./token";
-import { Document } from "../document"
+import { Token } from "./token.js";
+import { Document } from "../document.js"
 
 
 export type Parser = (document: Document) => Token[];

@@ -7,7 +7,7 @@
 
 import MarkdownIt from "markdown-it";
 import Token from "markdown-it/lib/token";
-import { kTokParaClose, kTokParaOpen } from "./utils/tok";
+import { kTokParaClose, kTokParaOpen } from "./utils/tok.js";
 
 export interface FigureOptions {
   dataType?: boolean;

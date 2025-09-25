@@ -304,7 +304,6 @@ export class PythonRuntimeManager implements IPythonRuntimeManager, Disposable {
         for await (const runtime of discoverer) {
             const extraData = runtime.extraRuntimeData as PythonRuntimeExtraData;
             this.registeredPythonRuntimes.set(extraData.pythonPath, runtime);
-
             yield runtime;
         }
     }

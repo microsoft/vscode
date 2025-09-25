@@ -15,18 +15,18 @@
 
 import * as fs from "node:fs";
 
-import { EditorServer } from "editor-types";
+import { EditorServer } from "../../../editor-types/src/index.js";
 
-import { crossrefServer, crossrefServerMethods, CrossrefServerOptions } from "./crossref";
-import { dataCiteServer, dataCiteServerMethods } from "./datacite";
-import { doiServer, doiServerMethods } from "./doi";
-import { pandocServer, pandocServerMethods } from "./pandoc";
-import { pubMedServer, pubMedServerMethods, PubMedServerOptions } from "./pubmed";
-import { xrefServer, xrefServerMethods } from "./xref";
-import { zoteroServer, zoteroServerMethods } from "./zotero";
-import { JsonRpcServerMethod } from 'core';
-import { QuartoContext } from "quarto-core";
-import { EditorServerDocuments, PandocServerOptions } from "../core";
+import { crossrefServer, crossrefServerMethods, CrossrefServerOptions } from "./crossref.js";
+import { dataCiteServer, dataCiteServerMethods } from "./datacite.js";
+import { doiServer, doiServerMethods } from "./doi.js";
+import { pandocServer, pandocServerMethods } from "./pandoc.js";
+import { pubMedServer, pubMedServerMethods, PubMedServerOptions } from "./pubmed.js";
+import { xrefServer, xrefServerMethods } from "./xref.js";
+import { zoteroServer, zoteroServerMethods } from "./zotero.js";
+import { JsonRpcServerMethod } from '../../../core/src/jsonrpc.js';
+import { QuartoContext } from "../../../quarto-core/src/context.js";
+import { EditorServerDocuments, PandocServerOptions } from "../core/index.js";
 
 
 export interface EditorServerOptions {

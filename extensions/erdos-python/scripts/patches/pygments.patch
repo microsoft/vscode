@@ -1,7 +1,7 @@
-diff --git a/extensions/erdos-python/python_files/erdos/erdos/_vendor/pygments/cmdline.py b/extensions/erdos-python/python_files/erdos/erdos/_vendor/pygments/cmdline.py
+diff --git a/extensions/erdos-python/python_files/lotas/erdos/_vendor/pygments/cmdline.py b/extensions/erdos-python/python_files/lotas/erdos/_vendor/pygments/cmdline.py
 index 435231e65..b75a9d7f4 100644
---- a/extensions/erdos-python/python_files/erdos/erdos/_vendor/pygments/cmdline.py
-+++ b/extensions/erdos-python/python_files/erdos/erdos/_vendor/pygments/cmdline.py
+--- a/extensions/erdos-python/python_files/lotas/erdos/_vendor/pygments/cmdline.py
++++ b/extensions/erdos-python/python_files/lotas/erdos/_vendor/pygments/cmdline.py
 @@ -469,11 +469,11 @@ def main_inner(parser, argns):
          outfile = UnclosingTextIOWrapper(outfile, encoding=fmter.encoding)
          fmter.encoding = None
@@ -16,10 +16,10 @@ index 435231e65..b75a9d7f4 100644
                  outfile, convert=None, strip=None, autoreset=False, wrap=True)
  
      # When using the LaTeX formatter and the option `escapeinside` is
-diff --git a/extensions/erdos-python/python_files/erdos/erdos/_vendor/pygments/__main__.py b/extensions/erdos-python/python_files/erdos/erdos/_vendor/pygments/__main__.py
+diff --git a/extensions/erdos-python/python_files/lotas/erdos/_vendor/pygments/__main__.py b/extensions/erdos-python/python_files/lotas/erdos/_vendor/pygments/__main__.py
 index 5eb2c747a..b8b833ec4 100644
---- a/extensions/erdos-python/python_files/erdos/erdos/_vendor/pygments/__main__.py
-+++ b/extensions/erdos-python/python_files/erdos/erdos/_vendor/pygments/__main__.py
+--- a/extensions/erdos-python/python_files/lotas/erdos/_vendor/pygments/__main__.py
++++ b/extensions/erdos-python/python_files/lotas/erdos/_vendor/pygments/__main__.py
 @@ -9,9 +9,9 @@
  """
  
@@ -32,10 +32,10 @@ index 5eb2c747a..b8b833ec4 100644
 +    sys.exit(main(sys.argv))
  except KeyboardInterrupt:
      sys.exit(1)
-diff --git a/extensions/erdos-python/python_files/erdos/erdos/_vendor/pygments/sphinxext.py b/extensions/erdos-python/python_files/erdos/erdos/_vendor/pygments/sphinxext.py
+diff --git a/extensions/erdos-python/python_files/lotas/erdos/_vendor/pygments/sphinxext.py b/extensions/erdos-python/python_files/lotas/erdos/_vendor/pygments/sphinxext.py
 index f935688f1..4c293489f 100644
---- a/extensions/erdos-python/python_files/erdos/erdos/_vendor/pygments/sphinxext.py
-+++ b/extensions/erdos-python/python_files/erdos/erdos/_vendor/pygments/sphinxext.py
+--- a/extensions/erdos-python/python_files/lotas/erdos/_vendor/pygments/sphinxext.py
++++ b/extensions/erdos-python/python_files/lotas/erdos/_vendor/pygments/sphinxext.py
 @@ -91,7 +91,7 @@ class PygmentsDoc(Directive):
          The columns are the lexer name, the extensions handled by this lexer
          (or "None"), the aliases and a link to the lexer class."""

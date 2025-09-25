@@ -11,7 +11,7 @@
 from erdos._vendor.pygments.lexer import RegexLexer, include, words, default
 from erdos._vendor.pygments.token import Comment, Operator, Keyword, Name, \
     Number, Punctuation, Whitespace
-from pygments import unistring as uni
+from erdos._vendor.pygments import unistring as uni
 
 __all__ = ['WgslLexer']
 

@@ -19,8 +19,8 @@ from typing import Optional
 
 from erdos._vendor.parso.tree import search_ancestor
 
-from jedi import settings
-from jedi import debug
+from erdos._vendor.jedi import settings
+from erdos._vendor.jedi import debug
 from erdos._vendor.jedi.inference.utils import unite
 from erdos._vendor.jedi.cache import memoize_method
 from erdos._vendor.jedi.inference.compiled.mixed import MixedName

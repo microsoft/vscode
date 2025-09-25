@@ -13,14 +13,14 @@
  *
  */
 
-import { CSL, ZoteroCSL, ZoteroCollection, ZoteroCollectionSource, ZoteroCollectionSpec, ZoteroResult } from "editor-types"
-import { Item, Library, User, ZoteroApi, ZoteroAuthorizationError, ZoteroObjectNotFoundError, ZoteroServiceUnavailable, zoteroApi } from "./api";
-import { groupsLocal } from "./groups";
-import { libraryCollectionName, libraryList } from "./libraries";
-import { libraryRead, libraryReadCollections, libraryReadVersions, userWebLibrariesDir } from "./storage";
-import { zoteroSyncWebLibraries, zoteroSyncWebLibrary } from "./sync";
-import { zoteroTrace } from "./trace";
-import { resolveCslJsonCheaterKeyForValue } from "../util";
+import { CSL, ZoteroCSL, ZoteroCollection, ZoteroCollectionSource, ZoteroCollectionSpec, ZoteroResult } from "../../../../../editor-types/src/index.js"
+import { Item, Library, User, ZoteroApi, ZoteroAuthorizationError, ZoteroObjectNotFoundError, ZoteroServiceUnavailable, zoteroApi } from "./api.js";
+import { groupsLocal } from "./groups.js";
+import { libraryCollectionName, libraryList } from "./libraries.js";
+import { libraryRead, libraryReadCollections, libraryReadVersions, userWebLibrariesDir } from "./storage.js";
+import { zoteroSyncWebLibraries, zoteroSyncWebLibrary } from "./sync.js";
+import { zoteroTrace } from "./trace.js";
+import { resolveCslJsonCheaterKeyForValue } from "../util.js";
 
 
 export function zoteroWebCollectionSource(zoteroKey: string) : ZoteroCollectionSource {

@@ -13,11 +13,11 @@
  *
  */
 
-export * from './token'
-export * from './parser'
-export * from './language'
-export * from './yaml';
-export * from './cursor'
-export * from './parsers'
+export * from './token.js'
+export * from './parser.js'
+export * from './language.js'
+export * from './yaml.js';
+export * from './cursor.js'
+export * from './parsers/index.js'
 
 

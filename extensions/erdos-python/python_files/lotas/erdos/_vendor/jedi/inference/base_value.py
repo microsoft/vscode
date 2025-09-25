@@ -12,7 +12,7 @@ from itertools import zip_longest
 
 from erdos._vendor.parso.python.tree import Name
 
-from jedi import debug
+from erdos._vendor.jedi import debug
 from erdos._vendor.jedi.parser_utils import clean_scope_docstring
 from erdos._vendor.jedi.inference.helpers import SimpleGetItemNotFound
 from erdos._vendor.jedi.inference.utils import safe_property

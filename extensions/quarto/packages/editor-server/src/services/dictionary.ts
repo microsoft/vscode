@@ -19,7 +19,7 @@ import path from "node:path";
 
 import { v4 as uuidv4 } from 'uuid';
 
-import { JsonRpcServerMethod } from "core";
+import { JsonRpcServerMethod } from "../../../core/src/jsonrpc.js";
 
 import { 
   Dictionary, 
@@ -33,8 +33,8 @@ import {
   kDictionaryGetUserDictionary, 
   kDictionaryIgnoreWord,
   kDictionaryUnignoreWord
-} from "editor-types";
-import { jsonRpcError, lines } from "core";
+} from "../../../editor-types/src/index.js";
+import { jsonRpcError, lines } from "../../../core/src/index.js";
 
 // dictionaries from: https://github.com/wooorm/dictionaries
 

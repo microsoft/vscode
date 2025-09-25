@@ -36,7 +36,7 @@ from threading import Thread
 from typing import Dict, TYPE_CHECKING
 
 from erdos._vendor.jedi._compatibility import pickle_dump, pickle_load
-from jedi import debug
+from erdos._vendor.jedi import debug
 from erdos._vendor.jedi.cache import memoize_method
 from erdos._vendor.jedi.inference.compiled.subprocess import functions
 from erdos._vendor.jedi.inference.compiled.access import DirectObjectAccess, AccessPath, \
@@ -407,7 +407,7 @@ class Listener:
         try:
             inference_state = self._inference_states[inference_state_id]
         except KeyError:
-            from jedi import InterpreterEnvironment
+            from erdos._vendor.jedi import InterpreterEnvironment
             inference_state = InferenceState(
                 # The project is not actually needed. Nothing should need to
                 # access it.

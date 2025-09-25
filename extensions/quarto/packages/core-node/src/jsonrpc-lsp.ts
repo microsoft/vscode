@@ -14,7 +14,7 @@
  */
 
 
-import { asJsonRpcError, JsonRpcRequestTransport, JsonRpcServerMethod } from "core";
+import { asJsonRpcError, JsonRpcRequestTransport, JsonRpcServerMethod } from "../../core/src/jsonrpc.js";
 
 import { LanguageClient} from "vscode-languageclient/node";
 

@@ -11,11 +11,23 @@ export const IErdosEnvironmentService = createDecorator<IErdosEnvironmentService
 export interface IPythonEnvironment {
 	readonly name: string;
 	readonly path: string;
-	readonly type: 'conda' | 'venv' | 'system' | 'pyenv' | 'pipenv';
+	readonly type: PythonEnvironmentType;
 	readonly version: string;
 	readonly isActive: boolean;
 	readonly runtimeId?: string;
 	readonly packages?: IPythonPackage[];
+	readonly displayName?: string;
+	readonly description?: string;
+	readonly environmentPath?: string;
+	readonly sysPrefix?: string;
+	readonly tools?: string[];
+	readonly workspaceFolder?: string;
+}
+
+export enum PythonEnvironmentType {
+	Unknown = 'Unknown',
+	Conda = 'Conda',
+	VirtualEnv = 'VirtualEnv',
 }
 
 export interface IRPackage {
@@ -47,13 +59,14 @@ export interface IErdosEnvironmentService {
 	getPythonEnvironments(): Promise<IPythonEnvironment[]>;
 	refreshPythonEnvironments(): Promise<void>;
 	getActiveEnvironment(languageId: 'python' | 'r'): ILanguageRuntimeMetadata | undefined;
+	switchToEnvironment(environment: IPythonEnvironment): Promise<void>;
 	
 	// R Packages
-	getRPackages(runtimeId?: string): Promise<IRPackage[]>;
+	getRPackages(runtimeId?: string, forceRefresh?: boolean): Promise<IRPackage[]>;
 	refreshRPackages(runtimeId?: string): Promise<void>;
 	
 	// Python Packages
-	getPythonPackages(runtimeId?: string): Promise<IPythonPackage[]>;
+	getPythonPackages(runtimeId?: string, forceRefresh?: boolean): Promise<IPythonPackage[]>;
 	refreshPythonPackages(runtimeId?: string): Promise<void>;
 	
 	// Package Management

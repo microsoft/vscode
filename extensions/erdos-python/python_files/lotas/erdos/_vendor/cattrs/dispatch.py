@@ -3,7 +3,7 @@ from __future__ import annotations
 from functools import lru_cache, singledispatch
 from typing import TYPE_CHECKING, Any, Callable, Generic, Literal, TypeVar
 
-from attrs import Factory, define
+from erdos._vendor.attrs import Factory, define
 
 from ._compat import TypeAlias
 from .fns import Predicate

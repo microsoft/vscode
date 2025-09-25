@@ -11,38 +11,6 @@ markdown-it-py
 pydantic<2.0.0
 pygls>=0.10.3
 pygments
+# typing-extensions>=4.11.0 causes torch._dynamo to fail to import. We're not yet sure why,
+# so we're pinning the version for now. See: https://github.com/posit-dev/positron/issues/5879.
 typing-extensions<4.11.0
-ipykernel
-ipython
-jupyter_client
-jupyter_core
-comm
-debugpy
-pexpect
-ptyprocess
-pyzmq
-tornado
-
-asttokens
-decorator
-executing
-importlib_metadata
-matplotlib_inline
-microvenv
-nest_asyncio
-packaging
-parso
-platformdirs
-prompt_toolkit
-psutil
-pure_eval
-python_dateutil
-six
-stack_data
-tomli
-traitlets
-wcwidth
-zipp
-
-# macOS specific (conditional)
-appnope

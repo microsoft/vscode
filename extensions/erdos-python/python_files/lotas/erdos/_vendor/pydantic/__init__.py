@@ -17,8 +17,8 @@ from erdos._vendor.pydantic.version import VERSION, compiled
 
 __version__ = VERSION
 
-# WARNING __all__ from erdos._vendor.pydantic.errors is not included here, it will be removed as an export here in v2
-# please use "from erdos._vendor.pydantic.errors import ..." instead
+# WARNING __all__ from pydantic.errors is not included here, it will be removed as an export here in v2
+# please use "from pydantic.errors import ..." instead
 __all__ = [
     # annotated types utils
     'create_model_from_namedtuple',

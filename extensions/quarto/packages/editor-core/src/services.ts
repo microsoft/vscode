@@ -13,7 +13,7 @@
  *
  */
 
-import { JsonRpcRequestTransport } from "core";
+import { JsonRpcRequestTransport } from "../../core/src/jsonrpc.js";
 
 import {
   CodeViewCompletionContext,
@@ -49,7 +49,7 @@ import {
   DiagramState,
   CodeViewCellContext,
   kCodeViewGetDiagnostics
-} from "editor-types";
+} from "../../editor-types/src/index.js";
 
 
 

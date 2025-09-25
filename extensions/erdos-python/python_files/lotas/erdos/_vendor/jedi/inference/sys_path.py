@@ -8,8 +8,8 @@ from erdos._vendor.jedi.inference.base_value import ContextualizedNode
 from erdos._vendor.jedi.inference.helpers import is_string, get_str_or_none
 from erdos._vendor.jedi.parser_utils import get_cached_code_lines
 from erdos._vendor.jedi.file_io import FileIO
-from jedi import settings
-from jedi import debug
+from erdos._vendor.jedi import settings
+from erdos._vendor.jedi import debug
 
 _BUILDOUT_PATH_INSERTION_LIMIT = 10
 

@@ -15,10 +15,10 @@
 
 import fetch from "cross-fetch";
 
-import { JsonRpcServerMethod } from "core";
-import { kPubMedSearch, kStatusOK, PubMedDocument, PubMedResult, PubMedServer } from "editor-types";
+import { JsonRpcServerMethod } from "../../../core/src/jsonrpc.js";
+import { kPubMedSearch, kStatusOK, PubMedDocument, PubMedResult, PubMedServer } from "../../../editor-types/src/index.js";
 
-import { handleResponseWithStatus } from "./response";
+import { handleResponseWithStatus } from "./response.js";
 
  const kPubMedEUtilsHost = "https://eutils.ncbi.nlm.nih.gov";
  const kPubMedESearch = "entrez/eutils/esearch.fcgi";

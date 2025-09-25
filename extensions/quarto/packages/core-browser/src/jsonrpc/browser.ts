@@ -15,7 +15,7 @@
 
 import ClientBrowser from "jayson/lib/client/browser";
 
-import { jsonRpcError, JsonRpcRequestTransport } from "core";
+import { jsonRpcError, JsonRpcRequestTransport } from "../../../core/src/jsonrpc.js";
 
 export function jsonRpcBrowserRequestTransport(url: string) : JsonRpcRequestTransport {
 

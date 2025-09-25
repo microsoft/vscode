@@ -14,7 +14,7 @@ from typing import (
     cast,
 )
 
-import attrs
+from erdos._vendor import attrs
 from erdos._vendor.lsprotocol.types import (
     AnnotatedTextEdit,
     CallHierarchyPrepareParams,

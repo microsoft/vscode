@@ -9,6 +9,6 @@
     "esbuild": "^0.16.17",
     "esbuild-plugin-copy": "^2.1.1",
     "tsconfig": "*",
-    "typescript": "^4.5.2"
+    "typescript": "^5.9.2"
   }
 }

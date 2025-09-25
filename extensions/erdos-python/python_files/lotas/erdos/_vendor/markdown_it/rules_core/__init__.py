@@ -1,11 +1,11 @@
 __all__ = (
     "StateCore",
-    "normalize",
     "block",
     "inline",
+    "linkify",
+    "normalize",
     "replace",
     "smartquotes",
-    "linkify",
     "text_join",
 )
 

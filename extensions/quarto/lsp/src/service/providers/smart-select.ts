@@ -19,7 +19,7 @@ import * as lsp from 'vscode-languageserver-types';
 import { Position, Range } from 'vscode-languageserver-types';
 import { coalesce } from 'core';
 import { translatePosition, areRangesEqual, makeRange, modifyRange, rangeContains, Token, isList } from 'quarto-core';
-import { ILogger, LogLevel } from '../logging';
+import { ILogger } from '../logging';
 import { MdTableOfContentsProvider, TocEntry, isTocHeaderEntry } from '../toc';
 import { getLine, Document, Parser } from 'quarto-core';
 import { isEmptyOrWhitespace } from '../util/string';

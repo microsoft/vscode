@@ -14,7 +14,7 @@
  *
  */
 
-import { CSL } from './csl';
+import { CSL } from './csl.js';
 
 export const kZoteroSetLibraryConfig = 'zotero_set_library_config';
 export const kZoteroValidateWebApiKey = 'zotero_validate_web_api_key';

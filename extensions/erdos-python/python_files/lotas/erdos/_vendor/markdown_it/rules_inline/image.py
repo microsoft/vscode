@@ -66,7 +66,7 @@ def image(state: StateInline, silent: bool) -> bool:
 
         # [link](  <href>  "title"  )
         #                  ^^^^^^^ parsing link title
-        res = state.md.helpers.parseLinkTitle(state.src, pos, state.posMax)
+        res = state.md.helpers.parseLinkTitle(state.src, pos, state.posMax, None)
         if pos < max and start != pos and res.ok:
             title = res.str
             pos = res.pos

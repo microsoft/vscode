@@ -22,6 +22,7 @@ import { ModelDecorationOptions } from '../../../common/model/textModel.js';
 export interface IOptions {
 	showFrame?: boolean;
 	showArrow?: boolean;
+	showSash?: boolean;
 	frameWidth?: number;
 	className?: string;
 	isAccessible?: boolean;
@@ -43,6 +44,7 @@ const defaultColor = new Color(new RGBA(0, 122, 204));
 const defaultOptions: IOptions = {
 	showArrow: true,
 	showFrame: true,
+	showSash: true,
 	className: '',
 	frameColor: defaultColor,
 	arrowColor: defaultColor,
@@ -517,6 +519,10 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 
 	private _initSash(): void {
 		if (this._resizeSash) {
+			return;
+		}
+		// Only create Sash if showSash is true (defaults to true for backward compatibility)
+		if (!this.options.showSash) {
 			return;
 		}
 		this._resizeSash = this._disposables.add(new Sash(this.domNode, this, { orientation: Orientation.HORIZONTAL }));

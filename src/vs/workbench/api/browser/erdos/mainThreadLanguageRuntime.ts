@@ -45,6 +45,7 @@ import { CodeAttributionSource, IConsoleCodeAttribution } from '../../../service
 
 import { isWebviewDisplayMessage, isWebviewPreloadMessage } from '../../../services/erdosIPyWidgets/common/webviewPreloadUtils.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 
 abstract class QueuedRuntimeEvent {
 	constructor(readonly clock: number) { }
@@ -90,7 +91,7 @@ class ExtHostLanguageRuntimeSessionAdapter extends Disposable implements ILangua
 	private readonly _onDidReceiveRuntimeMessagePromptConfigEmitter = new Emitter<void>();
 	private readonly _onDidReceiveRuntimeMessageIPyWidgetEmitter = new Emitter<ILanguageRuntimeMessageIPyWidget>();
 	private readonly _onDidCreateClientInstanceEmitter = new Emitter<ILanguageRuntimeClientCreatedEvent>();	
-	private readonly _positronPlotCommIds = new Set<string>();
+	private readonly _erdosPlotCommIds = new Set<string>();
 
 	private _currentState: RuntimeState = RuntimeState.Uninitialized;
 	private _lastUsed: number = 0;
@@ -118,7 +119,8 @@ class ExtHostLanguageRuntimeSessionAdapter extends Disposable implements ILangua
 		private readonly _notebookService: INotebookService,
 		private readonly _editorService: IEditorService,
 		private readonly _proxy: ExtHostLanguageRuntimeShape,
-		private readonly _openerService: IOpenerService
+		private readonly _openerService: IOpenerService,
+		private readonly _mainRuntime: MainThreadLanguageRuntime
 	) {
 
 		super();
@@ -365,7 +367,7 @@ class ExtHostLanguageRuntimeSessionAdapter extends Disposable implements ILangua
 
 	execute(code: string, id: string, mode: RuntimeCodeExecutionMode, errorBehavior: RuntimeErrorBehavior): void {
 		this._lastUsed = Date.now();
-		this._proxy.$executeCode(this.handle, code, id, mode, errorBehavior);
+		this._proxy.$executeCode(this.handle, code, id, mode, errorBehavior, id);
 	}
 
 	isCodeFragmentComplete(code: string): Promise<RuntimeCodeFragmentStatus> {
@@ -637,6 +639,8 @@ class ExtHostLanguageRuntimeSessionAdapter extends Disposable implements ILangua
 					return RuntimeOutputKind.ViewerWidget;
 				case ErdosOutputLocation.Plot:
 					return RuntimeOutputKind.PlotWidget;
+				case ErdosOutputLocation.Inline:
+					return RuntimeOutputKind.QuartoInline;
 			}
 		}
 
@@ -713,10 +717,39 @@ class ExtHostLanguageRuntimeSessionAdapter extends Disposable implements ILangua
 		this.emitDidReceiveRuntimeMessageUpdateOutput(updateMessage);
 	}
 
+	private sendToQuartoExtension(outputMessage: ILanguageRuntimeMessageOutput): void {
+		this._commandService.executeCommand('quarto.handleInlineOutput', {
+			id: outputMessage.id,
+			parentId: outputMessage.parent_id,
+			data: outputMessage.data,
+			metadata: outputMessage.metadata
+		});		
+	}
+
 	private processMessage(message: ILanguageRuntimeMessage): void {
 		switch (message.type) {
 			case LanguageRuntimeMessageType.Stream:
-				this.emitDidReceiveRuntimeMessageStream(message as ILanguageRuntimeMessageStream);
+				const streamMessage = message as ILanguageRuntimeMessageStream;
+				
+				// Check if this stream output is from a Quarto execution
+				const isQuartoStreamExecution = streamMessage.parent_id && this._mainRuntime.isQuartoExecution(streamMessage.parent_id);
+				
+				if (isQuartoStreamExecution) {
+					// Convert stream to output format for Quarto
+					const outputMessage: ILanguageRuntimeMessageOutput = {
+						id: streamMessage.id,
+						parent_id: streamMessage.parent_id,
+						type: LanguageRuntimeMessageType.Output,
+						event_clock: streamMessage.event_clock,
+						when: streamMessage.when,
+						data: { 'text/plain': streamMessage.text },
+						metadata: {},
+						kind: RuntimeOutputKind.Text
+					};
+					this.sendToQuartoExtension(outputMessage);
+				} else {
+					this.emitDidReceiveRuntimeMessageStream(streamMessage);
+				}
 				break;
 
 			case LanguageRuntimeMessageType.ClearOutput:
@@ -724,7 +757,15 @@ class ExtHostLanguageRuntimeSessionAdapter extends Disposable implements ILangua
 				break;
 
 			case LanguageRuntimeMessageType.Output:
-				this.emitRuntimeMessageOutput(message as ILanguageRuntimeMessageOutput);
+				const outputMessage = message as ILanguageRuntimeMessageOutput;				
+				// Check if this output is from a Quarto execution
+				const isQuartoExecution = outputMessage.parent_id && this._mainRuntime.isQuartoExecution(outputMessage.parent_id);
+				
+				if (isQuartoExecution) {
+					this.sendToQuartoExtension(outputMessage);
+				} else {
+					this.emitRuntimeMessageOutput(outputMessage);
+				}
 				break;
 
 			case LanguageRuntimeMessageType.Result:
@@ -732,11 +773,32 @@ class ExtHostLanguageRuntimeSessionAdapter extends Disposable implements ILangua
 				break;
 
 			case LanguageRuntimeMessageType.Input:
-				this.emitDidReceiveRuntimeMessageInput(message as ILanguageRuntimeMessageInput);
+				const inputMessage = message as ILanguageRuntimeMessageInput;
+				this.emitDidReceiveRuntimeMessageInput(inputMessage);
 				break;
 
 			case LanguageRuntimeMessageType.Error:
-				this.emitDidReceiveRuntimeMessageError(message as ILanguageRuntimeMessageError);
+				const errorMessage = message as ILanguageRuntimeMessageError;
+				
+				// Check if this error output is from a Quarto execution
+				const isQuartoErrorExecution = errorMessage.parent_id && this._mainRuntime.isQuartoExecution(errorMessage.parent_id);
+				
+				if (isQuartoErrorExecution) {
+					// Convert error to output format for Quarto
+					const outputMessage: ILanguageRuntimeMessageOutput = {
+						id: errorMessage.id,
+						parent_id: errorMessage.parent_id,
+						type: LanguageRuntimeMessageType.Output,
+						event_clock: errorMessage.event_clock,
+						when: errorMessage.when,
+						data: { 'text/plain': errorMessage.message },
+						metadata: {},
+						kind: RuntimeOutputKind.Text
+					};
+					this.sendToQuartoExtension(outputMessage);
+				} else {
+					this.emitDidReceiveRuntimeMessageError(errorMessage);
+				}
 				break;
 
 			case LanguageRuntimeMessageType.Prompt:
@@ -753,8 +815,8 @@ class ExtHostLanguageRuntimeSessionAdapter extends Disposable implements ILangua
 
 			case LanguageRuntimeMessageType.CommOpen:
 				const commOpenMsg = message as ILanguageRuntimeMessageCommOpen;
-				if (commOpenMsg.target_name === 'positron.plot') {
-					this.handlePositronPlotCommOpen(commOpenMsg);
+				if (commOpenMsg.target_name === 'erdos.plot' || commOpenMsg.target_name === 'positron.plot') {
+					this.handleErdosPlotCommOpen(commOpenMsg);
 					
 					// Create a modified message with erdos.plot target for VSCode
 					const erdosCommOpenMsg: ILanguageRuntimeMessageCommOpen = {
@@ -769,10 +831,10 @@ class ExtHostLanguageRuntimeSessionAdapter extends Disposable implements ILangua
 
 			case LanguageRuntimeMessageType.CommData:
 				const commDataMsg = message as ILanguageRuntimeMessageCommData;
-				// Check if this is positron.plot data that needs bridging
+				// Check if this is erdos.plot data that needs bridging
 				const clientInstance = this._clients.get(commDataMsg.comm_id);
-				if (clientInstance && this._positronPlotCommIds.has(commDataMsg.comm_id)) {
-					this.handlePositronPlotCommData(commDataMsg);
+				if (clientInstance && this._erdosPlotCommIds.has(commDataMsg.comm_id)) {
+					this.handleErdosPlotCommData(commDataMsg);
 				} else {					
 					this.emitDidReceiveClientMessage(commDataMsg);
 				}
@@ -802,10 +864,10 @@ class ExtHostLanguageRuntimeSessionAdapter extends Disposable implements ILangua
 	}
 
 	/**
-	 * Handle positron.plot comm open message by tracking the comm ID
+	 * Handle erdos.plot comm open message by tracking the comm ID
 	 */
-	private handlePositronPlotCommOpen(message: ILanguageRuntimeMessageCommOpen): void {
-		this._positronPlotCommIds.add(message.comm_id);
+	private handleErdosPlotCommOpen(message: ILanguageRuntimeMessageCommOpen): void {
+		this._erdosPlotCommIds.add(message.comm_id);
 		
 		// Check if there's pre-render data in the CommOpen message
 		if (message.data && typeof message.data === 'object') {
@@ -847,21 +909,61 @@ class ExtHostLanguageRuntimeSessionAdapter extends Disposable implements ILangua
 					setTimeout(() => {
 						this.emitDidReceiveClientMessage(erdosUpdateMsg);
 					}, 50);
+					
+					// ALSO send plot data to Quarto if this is a Quarto execution
+					if (message.parent_id && this._mainRuntime.isQuartoExecution(message.parent_id)) {
+						// Create output message with image data for Quarto
+						const quartoOutputMessage: ILanguageRuntimeMessageOutput = {
+							id: message.id,
+							parent_id: message.parent_id,
+							type: LanguageRuntimeMessageType.Output,
+							event_clock: message.event_clock,
+							when: message.when,
+							data: { [preRender.mime_type]: preRender.data },
+							metadata: {},
+							kind: RuntimeOutputKind.StaticImage
+						};
+						this.sendToQuartoExtension(quartoOutputMessage);
+					}
 				}
 			}
 		}
 	}
 
 	/**
-	 * Handle positron.plot comm data message by bridging to erdos.plot format
+	 * Handle erdos.plot comm data message by bridging to erdos.plot format
 	 */
-	private handlePositronPlotCommData(message: ILanguageRuntimeMessageCommData): void {
+	private handleErdosPlotCommData(message: ILanguageRuntimeMessageCommData): void {
+		// Check if this is a Quarto execution and forward to Quarto extension
+		if (message.parent_id && this._mainRuntime.isQuartoExecution(message.parent_id)) {
+			
+			// Check if this comm data contains plot render results
+			if (message.data && typeof message.data === 'object') {
+				const data = message.data as Record<string, any>;
+				
+				// Look for plot render response with image data (Erdos format)
+				if (data.data && typeof data.data === 'string' && data.mime_type && data.mime_type.startsWith('image/')) {
+					// Create output message with image data for Quarto
+					const quartoOutputMessage: ILanguageRuntimeMessageOutput = {
+						id: message.id,
+						parent_id: message.parent_id,
+						type: LanguageRuntimeMessageType.Output,
+						event_clock: message.event_clock,
+						when: message.when,
+						data: { [data.mime_type]: data.data },
+						metadata: {},
+						kind: RuntimeOutputKind.StaticImage
+					};
+					this.sendToQuartoExtension(quartoOutputMessage);
+				}
+			}
+		}
 		
 		// Check if this comm data contains plot render results
 		if (message.data && typeof message.data === 'object') {
 			const data = message.data as Record<string, any>;
 			
-			// Look for plot render response with image data (Positron format)
+			// Look for plot render response with image data (Erdos format)
 			if (data.data && typeof data.data === 'string' && data.mime_type && data.mime_type.startsWith('image/')) {
 				// Create plot result in Erdos format
 				const plotResult = {
@@ -923,6 +1025,22 @@ class ExtHostLanguageRuntimeSessionAdapter extends Disposable implements ILangua
 					};
 					
 					this.emitDidReceiveClientMessage(erdosCommDataMsg);
+					
+					// ALSO send plot data to Quarto if this is a Quarto execution
+					if (message.parent_id && this._mainRuntime.isQuartoExecution(message.parent_id)) {
+						// Create output message with image data for Quarto
+						const quartoOutputMessage: ILanguageRuntimeMessageOutput = {
+							id: message.id,
+							parent_id: message.parent_id,
+							type: LanguageRuntimeMessageType.Output,
+							event_clock: message.event_clock,
+							when: message.when,
+							data: { [result.mime_type]: result.data },
+							metadata: {},
+							kind: RuntimeOutputKind.StaticImage
+						};
+						this.sendToQuartoExtension(quartoOutputMessage);
+					}
 				}
 			}
 		}
@@ -1214,6 +1332,9 @@ export class MainThreadLanguageRuntime
 
 	private readonly _registeredRuntimes: Map<string, ILanguageRuntimeMetadata> = new Map();
 
+	// Track execution IDs that originate from Quarto
+	private readonly _quartoExecutionIds = new Set<string>();
+
 	private static MAX_ID = 0;
 
 	private readonly _id;
@@ -1262,6 +1383,11 @@ export class MainThreadLanguageRuntime
 
 
 		this._disposables.add(this._runtimeSessionService.registerSessionManager(this));
+
+		// Register command for Quarto execution tracking
+		CommandsRegistry.registerCommand('erdos.registerQuartoExecution', (accessor, executionId: string) => {
+			this.registerQuartoExecution(executionId);
+		});
 	}
 
 	get id() {
@@ -1394,6 +1520,24 @@ export class MainThreadLanguageRuntime
 			languageId, code, attribution, focus, allowIncomplete, mode, errorBehavior, executionId);
 	}
 
+	/**
+	 * Register an execution ID as originating from Quarto
+	 */
+	public registerQuartoExecution(executionId: string): void {
+		this._quartoExecutionIds.add(executionId);
+	}
+
+	/**
+	 * Check if an execution ID originated from Quarto
+	 */
+	public isQuartoExecution(executionId: string): boolean {
+		return this._quartoExecutionIds.has(executionId);
+	}
+
+	$registerQuartoExecution(executionId: string): void {
+		this.registerQuartoExecution(executionId);
+	}
+
 	public dispose(): void {
 		this._sessions.forEach((session) => {
 			if (session.getRuntimeState() !== RuntimeState.Exited) {
@@ -1480,7 +1624,8 @@ export class MainThreadLanguageRuntime
 			this._notebookService,
 			this._editorService,
 			this._proxy,
-			this._openerService);
+			this._openerService,
+			this);
 	}
 
 	private findSession(handle: number): ExtHostLanguageRuntimeSessionAdapter {

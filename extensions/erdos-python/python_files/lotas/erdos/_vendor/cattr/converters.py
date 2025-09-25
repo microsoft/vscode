@@ -1,4 +1,4 @@
-from cattrs.converters import (
+from erdos._vendor.cattrs.converters import (
     BaseConverter,
     Converter,
     GenConverter,

@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "license": "agpl-3.0",
-  "main": "./src/index.ts",
+  "main": "../../out/packages/editor-server/src/index.js",
   "types": "./src/index.ts",
   "dependencies": {
     "core": "*",
@@ -16,7 +16,7 @@
     "node-sqlite3-wasm": "^0.5.2",
     "quarto-core": "*",
     "tsconfig": "*",
-    "typescript": "^4.5.2",
+    "typescript": "^5.9.2",
     "uuid": "^9.0.0",
     "vscode-languageserver-types": "^3.17.3"
   },

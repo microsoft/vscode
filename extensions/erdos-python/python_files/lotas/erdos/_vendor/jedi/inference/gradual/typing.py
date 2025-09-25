@@ -7,7 +7,7 @@ This file deals with all the typing.py cases.
 """
 import itertools
 
-from jedi import debug
+from erdos._vendor.jedi import debug
 from erdos._vendor.jedi.inference.compiled import builtin_from_name, create_simple_object
 from erdos._vendor.jedi.inference.base_value import ValueSet, NO_VALUES, Value, \
     LazyValueWrapper, ValueWrapper

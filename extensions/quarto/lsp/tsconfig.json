@@ -1,18 +1,19 @@
 {
   "compilerOptions": {
     "target": "ES2020",
+    "module": "commonjs",
     "lib": ["ES2020"],
-    "module": "CommonJS",
-    "outDir": "./dist",
-    "rootDir": "./src",
-    "sourceMap": true,
-    "resolveJsonModule": true,
-    "esModuleInterop": true,
+    "outDir": "../out/lsp",
     "strict": true,
-    "forceConsistentCasingInFileNames": true,
+    "esModuleInterop": true,
     "skipLibCheck": true,
-    "moduleResolution": "node"
+    "forceConsistentCasingInFileNames": true,
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "declaration": false,
+    "sourceMap": true,
+    "typeRoots": ["./src/@types", "../node_modules/@types", "./node_modules/@types"]
   },
-  "exclude": ["node_modules"],
-  "include": ["src"]
+  "exclude": ["node_modules", "out", "../out"],
+  "include": ["src/**/*"]
 }

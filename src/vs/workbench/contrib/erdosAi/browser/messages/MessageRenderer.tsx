@@ -6,6 +6,8 @@ import React, { useRef, useLayoutEffect, memo } from 'react';
 import { ConversationMessage } from '../../../../services/erdosAi/common/conversationTypes.js';
 import { ErdosAiMarkdownComponent } from '../components/erdosAiMarkdownRenderer.js';
 import { ErdosAiMarkdownRenderer } from '../markdown/erdosAiMarkdownRenderer.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 
 interface UserMessageProps {
 	message: ConversationMessage;
@@ -128,10 +130,7 @@ export const UserMessage = memo<UserMessageProps>(({
 						onClick={() => onRevertToMessage(message.id)}
 						title="Delete this message and all messages after it"
 					>
-						<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
-							<path d="M 5 11 L 11 11 A 3 3 0 0 0 11 5 L 5 5" stroke="currentColor" strokeWidth="1.2" fill="none"/>
-							<path d="M 4.5 5 L 8.5 2.0 M 4.5 5 L 8.5 8.0" stroke="currentColor" strokeWidth="1.2" fill="none" strokeLinecap="round"/>
-						</svg>
+						<span className={ThemeIcon.asClassName(Codicon.discard)} />
 					</div>
 				</>
 			)}

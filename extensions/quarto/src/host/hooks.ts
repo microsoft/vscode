@@ -15,10 +15,9 @@
 
 import * as vscode from 'vscode';
 import * as erdos from 'erdos';
+import { v4 as generateUuid } from 'uuid';
+import { quartoInlineOutputManager } from '../providers/output/inlineOutputManager';
 
-declare global {
-  function acquireErdosApi(): typeof erdos;
-}
 
 let api: typeof erdos | null | undefined;
 
@@ -31,14 +30,7 @@ import { EmbeddedLanguage } from '../vdoc/languages';
 
 export function hooksApi(): typeof erdos | null {
   if (api === undefined) {
-    try {
-      console.log('Quarto: Attempting to acquire erdos API');
-      api = acquireErdosApi();
-      console.log('Quarto: Successfully acquired erdos API:', !!api);
-    } catch (error) {
-      console.error('Quarto: Failed to acquire erdos API:', error);
-      api = null;
-    }
+    api = erdos;
   }
   return api;
 }
@@ -61,16 +53,13 @@ export function hooksExtensionHost(): ExtensionHost {
         case "csharp":
         case "r":
           return {
-            execute: async (blocks: string[], _editorUri?: vscode.Uri): Promise<void> => {
+            execute: async (blocks: string[], _editorUri?: vscode.Uri, cellRange?: vscode.Range): Promise<void> => {
               const runtime = hooksApi()?.runtime;
 
               if (runtime === undefined) {
-                console.log('Quarto: No runtime available, cannot execute code');
                 // Can't do anything without a runtime
                 return;
               }
-
-              console.log('Quarto: Executing code blocks for language:', language);
 
               if (language === "python" && isKnitrDocument(document, engine)) {
                 language = "r";
@@ -80,7 +69,19 @@ export function hooksExtensionHost(): ExtensionHost {
               // Our callback executes each block sequentially
               const callback = async () => {
                 for (const block of blocks) {
-                  await runtime.executeCode(language, block, false, true);
+                  // Generate unique execution ID for tracking
+                  const executionId = generateUuid();
+
+                  // Register this execution as coming from Quarto via command
+                  await vscode.commands.executeCommand('erdos.registerQuartoExecution', executionId);
+
+                  // Track this execution with its cell range
+                  if (cellRange) {
+                    quartoInlineOutputManager.trackCellExecution(executionId, cellRange);
+                  }
+
+                  // Execute code block with our execution ID
+                  await runtime.executeCode(language, block, false, true, undefined, undefined, undefined, executionId);
                 }
               }
 
@@ -123,7 +124,6 @@ export function hooksExtensionHost(): ExtensionHost {
     ): HostWebviewPanel => {
 
       // create preview panel
-      console.log('Quarto: Creating preview panel:', viewType);
       const panel = hooksApi()?.window.createPreviewPanel(
         viewType,
         title,

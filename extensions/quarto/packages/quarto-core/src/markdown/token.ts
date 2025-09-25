@@ -13,7 +13,7 @@
  *
  */
 
-import { Range } from '../range';
+import { Range } from '../range.js';
 
 export type TokenType =
   | "FrontMatter"

@@ -21,8 +21,8 @@
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 import codecs
+from collections.abc import Callable
 import re
-from typing import Callable
 
 REGEX_SEPARATORS = re.compile(r"[\x2E\u3002\uFF0E\uFF61]")
 REGEX_NON_ASCII = re.compile(r"[^\0-\x7E]")

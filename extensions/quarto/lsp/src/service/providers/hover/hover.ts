@@ -26,7 +26,10 @@ import { docEditorContext } from "../../quarto";
 import { IWorkspace } from "../../workspace";
 
 export class MdHoverProvider {
-  constructor(private readonly workspace_: IWorkspace, private readonly quarto_: Quarto, private readonly parser_: Parser) { }
+  constructor(_workspace: IWorkspace, private readonly quarto_: Quarto, private readonly parser_: Parser) { 
+    // _workspace parameter is intentionally unused but kept for interface compatibility
+    void _workspace;
+  }
 
   public async provideHover(
     doc: Document,

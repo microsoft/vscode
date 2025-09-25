@@ -5,7 +5,7 @@
 """
 from functools import wraps
 
-from jedi import debug
+from erdos._vendor.jedi import debug
 
 _NO_DEFAULT = object()
 _RECURSION_SENTINEL = object()

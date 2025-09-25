@@ -15,10 +15,10 @@
 
 import path from "node:path";
 
-import { JsonRpcServerMethod, lines } from "core";
-import { kSourceGetSourcePosLocations, SourcePosLocation, SourcePosBlock, SourceServer } from "editor-types";
+import { JsonRpcServerMethod, lines } from "../../../core/src/index.js";
+import { kSourceGetSourcePosLocations, SourcePosLocation, SourcePosBlock, SourceServer } from "../../../editor-types/src/index.js";
 
-import { PandocServerOptions, runPandoc } from "../core/pandoc";
+import { PandocServerOptions, runPandoc } from "../core/pandoc.js";
 
 
 export function sourceServer(pandoc: PandocServerOptions) : SourceServer {

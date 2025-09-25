@@ -9,18 +9,56 @@ import * as erdos from 'erdos';
 import { IInterpreterSelector } from '../interpreter/configuration/types';
 import { IInterpreterService } from '../interpreter/contracts';
 import { IServiceContainer } from '../ioc/types';
-import { traceError, traceInfo } from '../logging';
+import { traceError } from '../logging';
 import { PythonEnvironment } from '../pythonEnvironments/info';
-import { createPythonRuntimeMetadata } from './runtime';
+import { createPythonRuntimeMetadata, createPythonRuntimeMetadataFromEnvironment } from './runtime';
 import { comparePythonVersionDescending } from '../interpreter/configuration/environmentTypeComparer';
 import { shouldIncludeInterpreter } from './interpreterSettings';
-import { hasFiles } from './util';
 
 export async function* pythonRuntimeDiscoverer(
     serviceContainer: IServiceContainer,
 ): AsyncGenerator<erdos.LanguageRuntimeMetadata> {
     try {
-        traceInfo('pythonRuntimeDiscoverer: Starting Python runtime discoverer');
+        // Try to use the proper Python Extension Environments API
+        try {
+            const { PythonExtension } = await import('../api/types.js');
+            const pythonApi = await PythonExtension.api();
+            
+            // Trigger environment discovery to ensure we have up-to-date environments
+            await pythonApi.environments.refreshEnvironments();
+            
+            const environments = pythonApi.environments.known;
+
+            // Get the active environment from VS Code instead of guessing
+            const workspaceUri = vscode.workspace.workspaceFolders?.[0]?.uri;
+            const activeEnvPath = pythonApi.environments.getActiveEnvironmentPath(workspaceUri);
+
+            for (const environment of environments) {
+                try {
+                    // Resolve full environment details
+                    const resolvedEnv = await pythonApi.environments.resolveEnvironment(environment);
+                    if (!resolvedEnv) {
+                        continue;
+                    }
+
+                    // Use VS Code's determination of which environment is active/recommended
+                    const isRecommendedForWorkspace = resolvedEnv.id === activeEnvPath.id;
+
+                    const runtime = await createPythonRuntimeMetadataFromEnvironment(
+                        resolvedEnv,
+                        serviceContainer,
+                        isRecommendedForWorkspace,
+                    );
+
+                    yield runtime;
+                } catch (err) {
+                    // Skip failed environments
+                }
+            }
+            return; // Successfully used environments API
+        } catch (err) {
+            // Fallback to interpreter service if environments API fails
+        }
 
         const interpreterService = serviceContainer.get<IInterpreterService>(IInterpreterService);
         const interpreterSelector = serviceContainer.get<IInterpreterSelector>(IInterpreterSelector);
@@ -32,46 +70,22 @@ export async function* pythonRuntimeDiscoverer(
         if (!recommendedInterpreter) {
             recommendedInterpreter = await interpreterService.getActiveInterpreter(workspaceUri);
         }
-        traceInfo(`pythonRuntimeDiscoverer: recommended interpreter: ${recommendedInterpreter?.path}`);
-
         await interpreterService.triggerRefresh().ignoreErrors();
         let interpreters = interpreterService.getInterpreters();
-        traceInfo(`pythonRuntimeDiscoverer: discovered ${interpreters.length} Python interpreters`);
-
-        traceInfo('pythonRuntimeDiscoverer: filtering interpreters');
         interpreters = filterInterpreters(interpreters);
-
-        traceInfo(`pythonRuntimeDiscoverer: ${interpreters.length} Python interpreters remain after filtering`);
-
-        traceInfo('pythonRuntimeDiscoverer: sorting interpreters');
         interpreters = sortInterpreters(interpreters, recommendedInterpreter);
-
-        let recommendedForWorkspace = await hasFiles([
-            '**/*.py',
-            '**/*.ipynb',
-            '.venv/**/*',
-            '.conda/**/*',
-            'pyproject.toml',
-            'Pipfile',
-            '*requirements.txt',
-            '.python-version',
-            'environment.yml',
-        ]);
-        traceInfo(`pythonRuntimeDiscoverer: recommended for workspace: ${recommendedForWorkspace}`);
 
         for (const interpreter of interpreters) {
             try {
+                // In fallback mode, use the recommended interpreter from VS Code's selector
+                const isRecommendedForWorkspace = interpreter === recommendedInterpreter;
+
                 const runtime = await createPythonRuntimeMetadata(
                     interpreter,
                     serviceContainer,
-                    recommendedForWorkspace,
+                    isRecommendedForWorkspace,
                 );
 
-                recommendedForWorkspace = false;
-
-                traceInfo(
-                    `pythonRuntimeDiscoverer: registering runtime for interpreter ${interpreter.path} with id ${runtime.runtimeId}`,
-                );
                 yield runtime;
             } catch (err) {
                 traceError(
@@ -88,12 +102,7 @@ export async function* pythonRuntimeDiscoverer(
 function filterInterpreters(interpreters: PythonEnvironment[]): PythonEnvironment[] {
     return interpreters.filter((interpreter) => {
         const shouldInclude = shouldIncludeInterpreter(interpreter.path);
-        if (!shouldInclude) {
-            traceInfo(`pythonRuntimeDiscoverer: filtering out user-excluded interpreter ${interpreter.path}`);
-            return false;
-        }
-
-        return true;
+        return shouldInclude;
     });
 }
 

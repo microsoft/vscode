@@ -14,7 +14,7 @@
  *
  */
 
-import { JsonRpcServerMethod } from "core";
+import { JsonRpcServerMethod } from "../../../core/src/jsonrpc.js";
 import { 
   kZoteroBetterBibtexExport, 
   kZoteroGetActiveCollectionSpecs, 
@@ -28,8 +28,8 @@ import {
   ZoteroLibraryConfig, 
   ZoteroResult,  
   ZoteroServer 
-} from "editor-types";
-import { zoteroValidateApiKey, zoteroWebCollectionSource } from "../core/zotero/web";
+} from "../../../editor-types/src/index.js";
+import { zoteroValidateApiKey, zoteroWebCollectionSource } from "../core/zotero/web/index.js";
 
 export function zoteroServer(): ZoteroServer {
 
@@ -82,7 +82,7 @@ export function zoteroServer(): ZoteroServer {
     },
 
     async getActiveCollectionSpecs(
-      file: string | null,
+      _file: string | null,
       collections: string[]
     ): Promise<ZoteroResult> {
       if (source) {

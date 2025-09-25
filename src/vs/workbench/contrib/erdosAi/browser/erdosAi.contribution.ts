@@ -35,7 +35,6 @@ import './media/erdosAiView.css';
 import './media/contextBar.css';
 import './media/imageAttachment.css';
 import './media/erdosAiWidgets.css';
-import './media/erdosAiDiffHighlighting.css';
 import './media/settings.css';
 import './media/errorMessage.css';
 

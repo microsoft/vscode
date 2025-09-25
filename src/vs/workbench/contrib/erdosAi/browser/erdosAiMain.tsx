@@ -14,6 +14,7 @@ import { ErdosAiMarkdownComponent } from './components/erdosAiMarkdownRenderer.j
 import { ErdosAiMarkdownRenderer } from './markdown/erdosAiMarkdownRenderer.js';
 import { IErdosAiWidgetInfo, IMonacoWidgetServices } from './widgets/widgetTypes.js';
 import { ICommonUtils } from '../../../services/erdosAiUtils/common/commonUtils.js';
+import { URI } from '../../../../base/common/uri.js';
 import { IErdosAiSettingsService } from '../../../services/erdosAiSettings/common/settingsService.js';
 import { ErrorMessage } from './components/errorMessage.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -24,6 +25,7 @@ import { IErdosAiMarkdownRenderer } from '../../../services/erdosAiUtils/common/
 import { useErdosReactServicesContext } from '../../../../base/browser/erdosReactRendererContext.js';
 import { HistoryDropdown } from './components/ConversationHistory.js';
 import { MessageInput } from './components/MessageInput.js';
+import { FileChangesBar } from './components/fileChangesBar.js';
 import { UserMessage, AssistantMessage, calculateAndSetTextareaHeight } from './messages/MessageRenderer.js';
 import { MemoizedWidgetWrapper, createWidgetHandlers, createWidgetInfo } from './widgets/WidgetManager.js';
 import { updateSingleMessage, filterMessagesForDisplay, formatFunctionCallMessage, parseFunctionArgs, extractCleanedCommand, formatSearchReplaceContent } from './messages/messageUtils.js';
@@ -61,6 +63,7 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 	const [isAiProcessing, setIsAiProcessing] = useState(false);
 	const [thinkingMessage, setThinkingMessage] = useState<string>('');
 	const [currentConversation, setCurrentConversation] = useState<Conversation | null>(null);
+	const [fileChangesRefreshTrigger, setFileChangesRefreshTrigger] = useState(0);
 
 	// Monaco services for widget integration
 	const monacoServices: IMonacoWidgetServices = useMemo(() => {
@@ -131,6 +134,68 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 		setScrollLock,
 		services
 	});
+
+	// Handle file click from FileChangesBar
+	const handleFileClick = (uri: URI) => {
+		// Open the file in the editor
+		services.editorService.openEditor({ resource: uri });
+	};
+
+	// Trigger file changes refresh
+	const refreshFileChanges = () => {
+		setFileChangesRefreshTrigger(prev => prev + 1);
+	};
+
+	// Listen for auto-accept events and editor changes to refresh FileChangesBar
+	useEffect(() => {
+		if (!services.fileChangeTracker) {
+			return;
+		}
+
+		const disposables: any[] = [];
+
+		// Listen for file system changes (includes search_replace operations)
+		const fileChangeDisposable = services.fileService.onDidFilesChange(() => {
+			refreshFileChanges();
+		});
+		disposables.push(fileChangeDisposable);
+
+		// Listen for diff section accept/reject events
+		const diffSectionDisposable = services.fileChangeTracker.onDiffSectionChanged(() => {
+			refreshFileChanges();
+		});
+		disposables.push(diffSectionDisposable);
+
+		// Listen for model content changes (editor changes)
+		const modelChangeDisposable = services.modelService.onModelAdded((model) => {
+			const contentChangeDisposable = model.onDidChangeContent(() => {
+				refreshFileChanges();
+			});
+			disposables.push(contentChangeDisposable);
+			
+			// Clean up when model is removed
+			const modelRemovedDisposable = services.modelService.onModelRemoved((removedModel) => {
+				if (removedModel === model) {
+					contentChangeDisposable.dispose();
+					modelRemovedDisposable.dispose();
+				}
+			});
+			disposables.push(modelRemovedDisposable);
+		});
+		disposables.push(modelChangeDisposable);
+
+		// Listen for existing models
+		services.modelService.getModels().forEach(model => {
+			const contentChangeDisposable = model.onDidChangeContent(() => {
+				refreshFileChanges();
+			});
+			disposables.push(contentChangeDisposable);
+		});
+
+		return () => {
+			disposables.forEach(disposable => disposable.dispose());
+		};
+	}, [services.fileChangeTracker, services.modelService, services.fileService]);
 	
 
 	// Memoize the combined items array at the top level - CRITICAL: hooks must be at top level!
@@ -847,6 +912,14 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 				<div ref={messagesEndRef} />
 			</div>
 
+			{services.fileChangeTracker && (
+				<FileChangesBar 
+					fileChangeTracker={services.fileChangeTracker}
+					currentConversation={currentConversation}
+					onFileClick={handleFileClick}
+					refreshTrigger={fileChangesRefreshTrigger}
+				/>
+			)}
 			<MessageInput
 				inputValue={inputValue}
 				isAiProcessing={isAiProcessing}

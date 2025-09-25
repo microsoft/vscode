@@ -17,8 +17,8 @@ It works as follows:
 - execute these calls and check the input.
 """
 
-from jedi import settings
-from jedi import debug
+from erdos._vendor.jedi import settings
+from erdos._vendor.jedi import debug
 from erdos._vendor.jedi.parser_utils import get_parent_scope
 from erdos._vendor.jedi.inference.cache import inference_state_method_cache
 from erdos._vendor.jedi.inference.arguments import TreeArguments

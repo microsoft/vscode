@@ -18,7 +18,7 @@ import { Command } from "../../core/command";
 import { isQuartoDoc, preserveEditorFocus } from "../../core/doc";
 import { MarkdownEngine } from "../../markdown/engine";
 import { QuartoAssistViewProvider } from "./webview";
-import { CodeViewCellContext } from "editor-types";
+import { CodeViewCellContext } from "../../types/local-types";
 import { JsonRpcRequestTransport } from "core";
 import { languageBlockAtPosition } from "quarto-core";
 

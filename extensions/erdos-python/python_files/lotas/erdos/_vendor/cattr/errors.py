@@ -1,4 +1,4 @@
-from cattrs.errors import (
+from erdos._vendor.cattrs.errors import (
     BaseValidationError,
     ClassValidationError,
     ForbiddenExtraKeysError,

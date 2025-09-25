@@ -9,11 +9,11 @@ Note that this module exists only to implement very specific functionality in
 the standard library. The usual way to understand the standard library is the
 compiled module that returns the types for C-builtins.
 """
-import erdos._vendor.parso as parso
+from erdos._vendor import parso
 import os
 from inspect import Parameter
 
-from jedi import debug
+from erdos._vendor.jedi import debug
 from erdos._vendor.jedi.inference.utils import safe_property
 from erdos._vendor.jedi.inference.helpers import get_str_or_none
 from erdos._vendor.jedi.inference.arguments import iterate_argument_clinic, ParamIssue, \

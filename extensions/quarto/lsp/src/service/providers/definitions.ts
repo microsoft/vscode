@@ -96,6 +96,7 @@ export class MdDefinitionProvider {
     if (isTocHeaderEntry(entry)) {
       return entry.headerLocation;
     }
+    return undefined;
   }
 
   #getDefinitionOfRef(ref: string, allLinksInFile: readonly MdLink[]) {

@@ -13,14 +13,14 @@
  *
  */
 
-import { CrossrefServer } from "./crossref";
-import { DataCiteServer } from "./datacite";
-import { DOIServer } from "./doi";
-import { EnvironmentServer } from "./environment";
-import { PandocServer } from "./pandoc";
-import { PubMedServer } from "./pubmed";
-import { XRefServer } from "./xref";
-import { ZoteroServer } from "./zotero";
+import { CrossrefServer } from "./crossref.js";
+import { DataCiteServer } from "./datacite.js";
+import { DOIServer } from "./doi.js";
+import { EnvironmentServer } from "./environment.js";
+import { PandocServer } from "./pandoc.js";
+import { PubMedServer } from "./pubmed.js";
+import { XRefServer } from "./xref.js";
+import { ZoteroServer } from "./zotero.js";
 
 export const kStatusOK = "ok";
 export const kStatusNotFound = "notfound";

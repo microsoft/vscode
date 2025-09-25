@@ -26,10 +26,10 @@ import {
 
 import { Database } from "node-sqlite3-wasm";
 
-import { zoteroDataDir } from "./datadir";
-import { withZoteroDb } from "./db";
-import { equalsIgnoreCase } from "core";
-import { resolveCslJsonCheaterKeys } from "../util";
+import { zoteroDataDir } from "./datadir.js";
+import { withZoteroDb } from "./db.js";
+import { equalsIgnoreCase } from "../../../../../core/src/text.js";
+import { resolveCslJsonCheaterKeys } from "../util.js";
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function zoteroLocalCollectionSource(dataDir?: string) : ZoteroCollectionSource {

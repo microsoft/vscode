@@ -17,8 +17,8 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
 
-import { lines } from "core";
-import { execProgram } from "core-node";
+import { lines } from "../../core/src/index.js";
+import { execProgram } from "./exec.js";
 
 export function ensureGitignore(
   dir: string,

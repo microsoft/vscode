@@ -1,4 +1,4 @@
-from jedi import debug
+from erdos._vendor.jedi import debug
 from erdos._vendor.jedi.inference.base_value import ValueSet, NO_VALUES, ValueWrapper
 from erdos._vendor.jedi.inference.gradual.base import BaseTypingValue
 

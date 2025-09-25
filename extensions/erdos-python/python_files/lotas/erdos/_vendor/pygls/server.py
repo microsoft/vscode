@@ -32,7 +32,7 @@ from typing import (
     Union,
 )
 
-import erdos._vendor.cattrs
+from erdos._vendor import cattrs
 from erdos._vendor.pygls import IS_PYODIDE
 from erdos._vendor.pygls.lsp import ConfigCallbackType, ShowDocumentCallbackType
 from erdos._vendor.pygls.exceptions import (
@@ -193,7 +193,7 @@ class Server:
     def __init__(
         self,
         protocol_cls: Type[JsonRPCProtocol],
-        converter_factory: Callable[[], erdos._vendor.cattrs.Converter],
+        converter_factory: Callable[[], cattrs.Converter],
         loop: Optional[asyncio.AbstractEventLoop] = None,
         max_workers: int = 2,
         sync_kind: TextDocumentSyncKind = TextDocumentSyncKind.Incremental,

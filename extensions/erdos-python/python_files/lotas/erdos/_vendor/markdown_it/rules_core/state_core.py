@@ -7,7 +7,7 @@ from ..token import Token
 from ..utils import EnvType
 
 if TYPE_CHECKING:
-    from markdown_it import MarkdownIt
+    from erdos._vendor.markdown_it import MarkdownIt
 
 
 class StateCore(StateBase):

@@ -5,6 +5,7 @@ to run text replacements after text join, but before escape join.
 
 For example, `\\:)` shouldn't be replaced with an emoji.
 """
+
 from __future__ import annotations
 
 from ..token import Token

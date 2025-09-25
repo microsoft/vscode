@@ -20,8 +20,8 @@ import path from "node:path";
 
 import readline from 'node:readline';
 
-import { quartoDataDir } from "quarto-core";
-import { Collection, Group, Library, User } from "./api";
+import { quartoDataDir } from "../../../../../quarto-core/src/index.js";
+import { Collection, Group, Library, User } from "./api.js";
 import { LibraryData, LibraryVersions } from "./libraries";
 
 export function userWebLibrariesDir(user: User) {

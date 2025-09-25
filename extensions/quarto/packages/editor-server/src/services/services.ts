@@ -14,16 +14,16 @@
  */
 
 
-import { CodeViewServer, EditorServices } from "editor-types";
+import { CodeViewServer, EditorServices } from "../../../editor-types/src/index.js";
 
-import { mathServer, mathServerMethods } from "./math";
-import { dictionaryServer, dictionaryServerMethods, DictionaryServerOptions } from './dictionary';
-import { JsonRpcServerMethod } from 'core';
-import { prefsServer, prefsServerMethods } from "./prefs";
-import { sourceServer, sourceServerMethods } from "./source";
-import { PandocServerOptions } from "../core/pandoc";
-import { codeViewServerMethods } from "./codeview";
-import { EditorServerDocuments } from "../core";
+import { mathServer, mathServerMethods } from "./math.js";
+import { dictionaryServer, dictionaryServerMethods, DictionaryServerOptions } from './dictionary.js';
+import { JsonRpcServerMethod } from '../../../core/src/jsonrpc.js';
+import { prefsServer, prefsServerMethods } from "./prefs.js";
+import { sourceServer, sourceServerMethods } from "./source.js";
+import { PandocServerOptions } from "../core/pandoc.js";
+import { codeViewServerMethods } from "./codeview.js";
+import { EditorServerDocuments } from "../core/index.js";
 
 export {
   mathServer, 

@@ -13,7 +13,7 @@
  *
  */
 
-import { kStatusError, kStatusNoHost, kStatusNotFound, kStatusOK } from "editor-types";
+import { kStatusError, kStatusNoHost, kStatusNotFound, kStatusOK } from "../../../editor-types/src/index.js";
 
 // datacite, doi, and pubmed all share a common response type pattern that includes
 // status and optional message and error payloads -- this function provides a common

@@ -16,7 +16,7 @@
 import { CancellationToken } from 'vscode-languageserver';
 import * as lsp from 'vscode-languageserver-types';
 import { isBefore, makeRange, Document } from 'quarto-core';
-import { ILogger, LogLevel } from '../logging';
+import { ILogger } from '../logging';
 import { MdTableOfContentsProvider, TableOfContents, TocEntry, TocEntryType } from '../toc';
 import { MdLinkDefinition, MdLinkKind, MdLinkProvider } from './document-links';
 

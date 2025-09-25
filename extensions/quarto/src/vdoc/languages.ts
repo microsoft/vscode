@@ -13,7 +13,7 @@
  *
  */
 
-import { editorLanguage } from "editor-core";
+import { editorLanguage } from "../types/local-types";
 
 export interface EmbeddedLanguage {
   ids: string[];

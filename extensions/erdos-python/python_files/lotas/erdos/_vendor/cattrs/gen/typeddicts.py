@@ -4,7 +4,7 @@ import re
 import sys
 from typing import TYPE_CHECKING, Any, Callable, Literal, TypeVar
 
-from attrs import NOTHING, Attribute
+from erdos._vendor.attrs import NOTHING, Attribute
 
 try:
     from inspect import get_annotations
@@ -23,7 +23,7 @@ except ImportError:
 
 
 try:
-    from typing_extensions import _TypedDictMeta
+    from erdos._vendor.typing_extensions import _TypedDictMeta
 except ImportError:
     _TypedDictMeta = None
 
@@ -548,7 +548,7 @@ if sys.version_info >= (3, 11):
         return cls.__required_keys__
 
 elif sys.version_info >= (3, 9):
-    from typing_extensions import Annotated, NotRequired, Required, get_args
+    from erdos._vendor.typing_extensions import Annotated, NotRequired, Required, get_args
 
     # Note that there is no `typing.Required` on 3.9 and 3.10, only in
     # `typing_extensions`. Therefore, `typing.TypedDict` will not honor this
@@ -582,7 +582,7 @@ elif sys.version_info >= (3, 9):
         return required_keys
 
 else:
-    from typing_extensions import Annotated, NotRequired, Required, get_args
+    from erdos._vendor.typing_extensions import Annotated, NotRequired, Required, get_args
 
     # On 3.8, typing.TypedDicts do not have __required_keys__.
 

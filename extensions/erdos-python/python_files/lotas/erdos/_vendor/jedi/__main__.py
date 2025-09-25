@@ -7,7 +7,7 @@ def _start_linter():
     This is a pre-alpha API. You're not supposed to use it at all, except for
     testing. It will very likely change.
     """
-    import jedi
+    from erdos._vendor import jedi
 
     if '--debug' in sys.argv:
         jedi.set_debug_function()
@@ -41,7 +41,7 @@ def _start_linter():
 
 
 def _complete():
-    import jedi
+    from erdos._vendor import jedi
     import pdb
 
     if '-d' in sys.argv:

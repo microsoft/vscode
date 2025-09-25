@@ -142,7 +142,7 @@ def _get_debug_error_message(module, old_lines, new_lines):
     current_lines = split_lines(module.get_code(), keepends=True)
     current_diff = difflib.unified_diff(new_lines, current_lines)
     old_new_diff = difflib.unified_diff(old_lines, new_lines)
-    import parso
+    from erdos._vendor import parso
     return (
         "There's an issue with the diff parser. Please "
         "report (parso v%s) - Old/New:\n%s\nActual Diff (May be empty):\n%s"

@@ -3,8 +3,8 @@
 import sys
 from typing import Any, List, Optional, Tuple, Union
 
-import attrs
-import erdos._vendor.cattrs
+from erdos._vendor import attrs
+from erdos._vendor import cattrs
 
 from . import types as lsp_types
 
@@ -16,7 +16,7 @@ _resolved_forward_references = False
 
 
 def _resolve_forward_references() -> None:
-    """Resolve forward references for faster processing with erdos._vendor.cattrs."""
+    """Resolve forward references for faster processing with cattrs."""
     global _resolved_forward_references
     if not _resolved_forward_references:
 
@@ -31,14 +31,14 @@ def _resolve_forward_references() -> None:
         _resolved_forward_references = True
 
 
-def register_hooks(converter: erdos._vendor.cattrs.Converter) -> erdos._vendor.cattrs.Converter:
+def register_hooks(converter: cattrs.Converter) -> cattrs.Converter:
     _resolve_forward_references()
     converter = _register_capabilities_hooks(converter)
     converter = _register_required_structure_hooks(converter)
     return _register_custom_property_hooks(converter)
 
 
-def _register_capabilities_hooks(converter: erdos._vendor.cattrs.Converter) -> erdos._vendor.cattrs.Converter:
+def _register_capabilities_hooks(converter: cattrs.Converter) -> cattrs.Converter:
     def _text_document_sync_hook(
         object_: Any, _: type
     ) -> Union[OptionalPrimitive, lsp_types.TextDocumentSyncOptions]:
@@ -1068,8 +1068,8 @@ def _register_capabilities_hooks(converter: erdos._vendor.cattrs.Converter) -> e
 
 
 def _register_required_structure_hooks(
-    converter: erdos._vendor.cattrs.Converter,
-) -> erdos._vendor.cattrs.Converter:
+    converter: cattrs.Converter,
+) -> cattrs.Converter:
     def _lsp_object_hook(object_: Any, type_: type) -> Any:
         return object_
 
@@ -1200,7 +1200,7 @@ def _register_required_structure_hooks(
     return converter
 
 
-def _register_custom_property_hooks(converter: erdos._vendor.cattrs.Converter) -> erdos._vendor.cattrs.Converter:
+def _register_custom_property_hooks(converter: cattrs.Converter) -> cattrs.Converter:
     def _to_camel_case(name: str) -> str:
         # TODO: when min Python becomes >= 3.9, then update this to:
         # `return name.removesuffix("_")`.
@@ -1214,23 +1214,23 @@ def _register_custom_property_hooks(converter: erdos._vendor.cattrs.Converter) -
 
     def _with_custom_unstructure(cls: type) -> Any:
         attributes = {
-            a.name: erdos._vendor.cattrs.gen.override(
+            a.name: cattrs.gen.override(
                 rename=_to_camel_case(a.name),
                 omit_if_default=_omit(cls, a.name),
             )
             for a in attrs.fields(cls)
         }
-        return erdos._vendor.cattrs.gen.make_dict_unstructure_fn(cls, converter, **attributes)
+        return cattrs.gen.make_dict_unstructure_fn(cls, converter, **attributes)
 
     def _with_custom_structure(cls: type) -> Any:
         attributes = {
-            a.name: erdos._vendor.cattrs.gen.override(
+            a.name: cattrs.gen.override(
                 rename=_to_camel_case(a.name),
                 omit_if_default=_omit(cls, a.name),
             )
             for a in attrs.fields(cls)
         }
-        return erdos._vendor.cattrs.gen.make_dict_structure_fn(cls, converter, **attributes)
+        return cattrs.gen.make_dict_structure_fn(cls, converter, **attributes)
 
     converter.register_unstructure_hook_factory(attrs.has, _with_custom_unstructure)
     converter.register_structure_hook_factory(attrs.has, _with_custom_structure)

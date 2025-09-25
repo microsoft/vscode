@@ -32,3 +32,4 @@ src/**/*.js.map
 
 # Temporary kernel files
 temp/kernels/
+/build/extensions/quarto/out

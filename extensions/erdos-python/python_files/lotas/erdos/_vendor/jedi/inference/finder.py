@@ -18,7 +18,7 @@ check for -> a is a string). There's big potential in these checks.
 from erdos._vendor.parso.tree import search_ancestor
 from erdos._vendor.parso.python.tree import Name
 
-from jedi import settings
+from erdos._vendor.jedi import settings
 from erdos._vendor.jedi.inference.arguments import TreeArguments
 from erdos._vendor.jedi.inference.value import iterable
 from erdos._vendor.jedi.inference.base_value import NO_VALUES

@@ -6,7 +6,7 @@ information returned to enable Jedi to make decisions.
 
 import types
 
-from jedi import debug
+from erdos._vendor.jedi import debug
 
 _sentinel = object()
 

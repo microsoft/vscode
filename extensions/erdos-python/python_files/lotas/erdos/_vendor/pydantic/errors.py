@@ -7,7 +7,7 @@ from erdos._vendor.pydantic.typing import display_as_type
 if TYPE_CHECKING:
     from erdos._vendor.pydantic.typing import DictStrAny
 
-# explicitly state exports to avoid "from erdos._vendor.pydantic.errors import *" also importing Decimal, Path etc.
+# explicitly state exports to avoid "from pydantic.errors import *" also importing Decimal, Path etc.
 __all__ = (
     'PydanticTypeError',
     'PydanticValueError',

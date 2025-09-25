@@ -15,11 +15,11 @@
 
 import fetch from "cross-fetch";
 
-import { JsonRpcServerMethod } from "core";
+import { JsonRpcServerMethod } from "../../../core/src/jsonrpc.js";
 
-import { DataCiteRecord, DataCiteResult, DataCiteServer, kDataCiteSearch, kStatusError, kStatusOK } from "editor-types";
+import { DataCiteRecord, DataCiteResult, DataCiteServer, kDataCiteSearch, kStatusError, kStatusOK } from "../../../editor-types/src/index.js";
 
-import { handleResponseWithStatus } from "./response";
+import { handleResponseWithStatus } from "./response.js";
 
 const kDataCiteApiHost = "https://api.datacite.org";
 

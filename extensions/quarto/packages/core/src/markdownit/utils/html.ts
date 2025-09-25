@@ -6,7 +6,7 @@
 */
 
 import Token from "markdown-it/lib/token";
-import { readAttrValue } from "./markdownit";
+import { readAttrValue } from "./markdownit.js";
 
 export interface DecoratorOptions {
   customClass?: string;

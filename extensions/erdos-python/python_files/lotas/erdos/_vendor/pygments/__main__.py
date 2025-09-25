@@ -9,9 +9,9 @@
 """
 
 import sys
-import erdos._vendor.pygments.cmdline
+from erdos._vendor.pygments.cmdline import main
 
 try:
-    sys.exit(pygments.cmdline.main(sys.argv))
+    sys.exit(main(sys.argv))
 except KeyboardInterrupt:
     sys.exit(1)

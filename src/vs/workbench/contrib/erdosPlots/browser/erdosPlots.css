@@ -5,7 +5,7 @@
 
 .plots-container {
 	display: flex;
-	background: var(--vscode-positronPlots-background);
+	background: var(--vscode-erdosPlots-background);
 	flex: 1;
 	overflow: hidden;
 }
@@ -195,9 +195,8 @@
 	padding: 0;
 	cursor: pointer;
 	opacity: 0;
-	background: rgba(255, 255, 255, 0.8);
+	background: none;
 	border: none;
-	border-radius: 3px;
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -206,7 +205,7 @@
 }
 
 .plot-close:hover {
-	background: rgba(255, 255, 255, 0.95);
+	background: none;
 	transform: scale(1.1);
 }
 
@@ -217,12 +216,12 @@
 
 /* Dark mode specific styling */
 .vs-dark .plot-close {
-	background: rgba(0, 0, 0, 0.8);
+	background: none;
 	color: white;
 }
 
 .vs-dark .plot-close:hover {
-	background: rgba(0, 0, 0, 0.95);
+	background: none;
 }
 
 .monaco-pane-view .pane .plots-container .monaco-progress-container {

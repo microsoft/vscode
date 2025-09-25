@@ -7,8 +7,8 @@ from erdos._vendor.parso.python import tree
 from erdos._vendor.parso.tree import search_ancestor, Leaf
 from erdos._vendor.parso import split_lines
 
-from jedi import debug
-from jedi import settings
+from erdos._vendor.jedi import debug
+from erdos._vendor.jedi import settings
 from erdos._vendor.jedi.api import classes
 from erdos._vendor.jedi.api import helpers
 from erdos._vendor.jedi.api import keywords

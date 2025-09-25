@@ -36,7 +36,7 @@ py__doc__()                            Returns the docstring for a value.
 ====================================== ========================================
 
 """
-from jedi import debug
+from erdos._vendor.jedi import debug
 from erdos._vendor.jedi.parser_utils import get_cached_parent_scope, expr_is_dotted, \
     function_is_property
 from erdos._vendor.jedi.inference.cache import inference_state_method_cache, CachedMetaClass, \

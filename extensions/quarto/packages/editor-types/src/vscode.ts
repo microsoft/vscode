@@ -13,12 +13,12 @@
  *
  */
 
-import { CodeViewActiveBlockContext, CodeViewSelectionAction } from "./codeview";
-import { EditorDisplay } from "./display";
-import { EditorUIImageResolver } from "./image";
-import { Prefs } from "./prefs";
-import { SourcePos } from "./source";
-import { XRef } from "./xref";
+import { CodeViewActiveBlockContext, CodeViewSelectionAction } from "./codeview.js";
+import { EditorDisplay } from "./display.js";
+import { EditorUIImageResolver } from "./image.js";
+import { Prefs } from "./prefs.js";
+import { SourcePos } from "./source.js";
+import { XRef } from "./xref.js";
 
 export const VSC_VE_Init = 'vsc_ve_init';
 export const VSC_VE_Focus = 'vsc_ve_focus';

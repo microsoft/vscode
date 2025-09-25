@@ -6,7 +6,8 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
+import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../common/contributions.js';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { IViewContainersRegistry, IViewsRegistry, Extensions as ViewContainerExtensions, ViewContainer, ViewContainerLocation } from '../../../common/views.js';
 import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
 import { localize } from '../../../../nls.js';
@@ -14,9 +15,7 @@ import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js'
 import { Codicon } from '../../../../base/common/codicons.js';
 
 // CSS imports
-import '../media/environment.css';
-import '../media/packages.css';
-import '../media/common.css';
+import './components/shared.css';
 
 // Import services and components
 import { EnvironmentService } from './services/environmentService.js';
@@ -28,11 +27,8 @@ import {
 	ERDOS_PYTHON_PACKAGES_VIEW_ID
 } from '../common/environmentTypes.js';
 import { PythonEnvironmentsView } from './views/pythonEnvironmentsView.js';
-import { RPackagesView } from './views/rPackagesView.js';
-import { PythonPackagesView } from './views/pythonPackagesView.js';
+import { RPackagesView, PythonPackagesView } from './views/packagesView.js';
 
-// Import actions
-import './erdosEnvironmentActions.js';
 
 // Register the environment view icon
 const environmentViewIcon = registerIcon(
@@ -118,6 +114,9 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 // Register the Environment Service as a singleton
 registerSingleton(IErdosEnvironmentService, EnvironmentService, InstantiationType.Delayed);
 
-// Register the workbench contribution
-registerWorkbenchContribution2(ErdosEnvironmentContribution.ID, ErdosEnvironmentContribution, WorkbenchPhase.AfterRestored);
+// Register the workbench contribution - using same lifecycle phase as Plots
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
+	ErdosEnvironmentContribution,
+	LifecyclePhase.Restored
+);
 

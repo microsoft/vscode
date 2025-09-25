@@ -14,11 +14,11 @@
  */
 
 
-import { CodeViewServer } from "./codeview";
-import { DictionaryServer } from "./dictionary";
-import { MathServer } from "./math";
-import { PrefsServer } from "./prefs";
-import { SourceServer } from "./source";
+import { CodeViewServer } from "./codeview.js";
+import { DictionaryServer } from "./dictionary.js";
+import { MathServer } from "./math.js";
+import { PrefsServer } from "./prefs.js";
+import { SourceServer } from "./source.js";
 
 
 export interface EditorServices {

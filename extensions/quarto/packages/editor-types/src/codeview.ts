@@ -14,7 +14,7 @@
  */
 
 import { CompletionList, Range } from "vscode-languageserver-types";
-import { DiagramState } from "./diagram";
+import { DiagramState } from "./diagram.js";
 
 export const kCodeViewAssist = 'code_view_assist';
 export const kCodeViewGetCompletions = 'code_view_get_completions';

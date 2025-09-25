@@ -6,8 +6,8 @@ import itertools
 
 from erdos._vendor.parso.python import tree
 
-from jedi import debug
-from jedi import parser_utils
+from erdos._vendor.jedi import debug
+from erdos._vendor.jedi import parser_utils
 from erdos._vendor.jedi.inference.base_value import ValueSet, NO_VALUES, ContextualizedNode, \
     iterator_to_value_set, iterate_values
 from erdos._vendor.jedi.inference.lazy_value import LazyTreeValue

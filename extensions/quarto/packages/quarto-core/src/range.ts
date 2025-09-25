@@ -15,7 +15,7 @@
  */
 
 import { Range as VSCodeRange } from 'vscode-languageserver-types';
-import { Position, arePositionsEqual, isBefore, isPosition } from './position';
+import { Position, arePositionsEqual, isBefore, isPosition } from './position.js';
 
 export type Range = VSCodeRange;
 

@@ -1169,7 +1169,6 @@ export class RuntimeSessionService extends Disposable implements IRuntimeSession
 				`${formatLanguageRuntimeMetadata(runtimeMetadata)} failed. Reason: ${err}`);
 			startPromise.error(err);
 			this.clearStartingSessionMaps(sessionMode, runtimeMetadata, notebookUri);
-
 			throw err;
 		}
 

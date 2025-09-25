@@ -15,11 +15,11 @@
 
 import { Range, Position } from "vscode-languageserver";
 
-import { Document } from "../document";
+import { Document } from "../document.js";
 
-import { Parser } from "./parser";
-import { Token, TokenMath, isRawBlock, kAttrClasses } from "./token";
-import { isDisplayMath } from "./language";
+import { Parser } from "./parser.js";
+import { Token, TokenMath, isRawBlock, kAttrClasses } from "./token.js";
+import { isDisplayMath } from "./language.js";
 
 
 

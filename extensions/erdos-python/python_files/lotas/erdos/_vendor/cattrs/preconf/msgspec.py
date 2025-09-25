@@ -8,8 +8,8 @@ from enum import Enum
 from functools import partial
 from typing import Any, Callable, TypeVar, Union, get_type_hints
 
-from attrs import has as attrs_has
-from attrs import resolve_types
+from erdos._vendor.attrs import has as attrs_has
+from erdos._vendor.attrs import resolve_types
 from msgspec import Struct, convert, to_builtins
 from msgspec.json import Encoder, decode
 

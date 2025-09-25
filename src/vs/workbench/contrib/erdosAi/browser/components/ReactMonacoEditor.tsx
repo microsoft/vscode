@@ -287,8 +287,8 @@ export const ReactMonacoEditor: React.FC<ReactMonacoEditorProps> = ({
 			scrollbar: {
 				vertical: 'auto',
 				horizontal: 'auto',
-				verticalScrollbarSize: 14,
-				horizontalScrollbarSize: 14
+				verticalScrollbarSize: 4,
+				horizontalScrollbarSize: 4
 			},
 			overviewRulerBorder: false,
 			hideCursorInOverviewRuler: true,

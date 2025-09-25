@@ -19,7 +19,7 @@ import path from 'node:path';
 import * as fs from "node:fs";
 import * as uuid from 'uuid';
 
-import { JsonRpcServerMethod } from 'core';
+import { JsonRpcServerMethod } from '../../../core/src/jsonrpc.js';
 
 import { 
   BibliographyResult, 
@@ -35,7 +35,7 @@ import {
   kPandocCitationHtml, 
 } from "editor-types";
 
-import { projectDirForDocument } from 'quarto-core';
+import { projectDirForDocument } from '../../../quarto-core/src/metadata.js';
 
 import { 
   appendToJSONBibliography, 
@@ -48,9 +48,9 @@ import {
   resolveBiblioOptions 
 } from '../core/biblio';
 
-import { runPandoc as pandoc } from '../core/pandoc';
+import { runPandoc as pandoc } from '../core/pandoc.js';
 
-import { EditorServerOptions } from './server';
+import { EditorServerOptions } from './server.js';
 
 
 export function pandocServer(options: EditorServerOptions) : PandocServer {

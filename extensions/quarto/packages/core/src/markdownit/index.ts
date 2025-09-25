@@ -5,21 +5,21 @@
  *
  */
 
-import gridTableRulePlugin from './gridtables'
+import gridTableRulePlugin from './gridtables/index.js'
 export { gridTableRulePlugin };
 
-import mermaidPlugin from './mermaid';
+import mermaidPlugin from './mermaid/index.js';
 export { mermaidPlugin };
 
-export * from './callouts'
+export * from './callouts.js'
 export * from './cites'
-export * from './decorator'
-export * from './divs'
-export * from './figure-divs'
-export * from './figures'
-export * from './math'
-export * from './shortcodes'
-export * from './spans'
-export * from './table-captions'
-export * from './yaml'
+export * from './decorator.js'
+export * from './divs.js'
+export * from './figure-divs.js'
+export * from './figures.js'
+export * from './math.js'
+export * from './shortcodes.js'
+export * from './spans.js'
+export * from './table-captions.js'
+export * from './yaml.js'
 

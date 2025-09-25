@@ -9,6 +9,13 @@ from .state_block import StateBlock
 headerLineRe = re.compile(r"^:?-+:?$")
 enclosingPipesRe = re.compile(r"^\||\|$")
 
+# Limit the amount of empty autocompleted cells in a table,
+# see https://github.com/markdown-it/markdown-it/issues/1000,
+# Both pulldown-cmark and commonmark-hs limit the number of cells this way to ~200k.
+# We set it to 65k, which can expand user input by a factor of x370
+# (256x256 square is 1.8kB expanded into 650kB).
+MAX_AUTOCOMPLETED_CELLS = 0x10000
+
 
 def getLine(state: StateBlock, line: int) -> str:
     pos = state.bMarks[line] + state.tShift[line]
@@ -172,6 +179,7 @@ def table(state: StateBlock, startLine: int, endLine: int, silent: bool) -> bool
     token = state.push("tr_close", "tr", -1)
     token = state.push("thead_close", "thead", -1)
 
+    autocompleted_cells = 0
     nextLine = startLine + 2
     while nextLine < endLine:
         if state.sCount[nextLine] < state.blkIndent:
@@ -195,6 +203,12 @@ def table(state: StateBlock, startLine: int, endLine: int, silent: bool) -> bool
             columns.pop(0)
         if columns and columns[-1] == "":
             columns.pop()
+
+        # note: autocomplete count can be negative if user specifies more columns than header,
+        # but that does not affect intended use (which is limiting expansion)
+        autocompleted_cells += columnCount - len(columns)
+        if autocompleted_cells > MAX_AUTOCOMPLETED_CELLS:
+            break
 
         if nextLine == startLine + 2:
             token = state.push("tbody_open", "tbody", 1)

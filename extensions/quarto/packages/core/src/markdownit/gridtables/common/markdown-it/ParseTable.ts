@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import wcwidth from "wcwidth";
-import IState from "../../interfaces/markdown-it/IState";
-import getColumnWidths from "../gridtables/GetColumnWidths";
-import ColumnAlignments from "./ColumnAlignments";
-import getLine from "./GetLine";
-import ParseTableResult from "./ParseTableResult";
+import IState from "../../interfaces/markdown-it/IState.js";
+import getColumnWidths from "../gridtables/GetColumnWidths.js";
+import ColumnAlignments from "./ColumnAlignments.js";
+import getLine from "./GetLine.js";
+import ParseTableResult from "./ParseTableResult.js";
 
 export default function parseTable(
     state: IState,

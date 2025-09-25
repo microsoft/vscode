@@ -21,13 +21,10 @@ import {
   ViewColumn,
 } from "vscode";
 
-import { DiagramState } from "editor-types";
-import { languageDiagramEngine } from "editor-core";
-
+import { DiagramState, languageDiagramEngine } from "../../types/local-types";
 import { isGraphvizDoc, isMermaidDoc, isQuartoDoc } from "../../core/doc";
 import { MarkdownEngine } from "../../markdown/engine";
 import { QuartoWebview, QuartoWebviewManager } from "../webview";
-import { visualEditorDiagramState } from "./diagram";
 import { isDiagram, languageBlockAtPosition, languageNameFromBlock } from "quarto-core";
 import { ExtensionHost, HostWebviewPanel } from "../../host";
 
@@ -119,11 +116,6 @@ export class QuartoDiagramWebviewManager extends QuartoWebviewManager<
             engine: "graphviz",
             src: doc.getText(),
           });
-        }
-      } else {
-        const veDiagram = await visualEditorDiagramState();
-        if (veDiagram) {
-          this.updateViewState(veDiagram);
         }
       }
     }

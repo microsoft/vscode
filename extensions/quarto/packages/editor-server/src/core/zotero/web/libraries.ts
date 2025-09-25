@@ -13,10 +13,10 @@
  *
  */
 
-import { kZoteroMyLibrary } from "editor-types";
-import { Collection, Group, Item, Library, User, ZoteroApi } from "./api";
-import { libraryRead, libraryReadVersions, userWebLibrariesDir } from "./storage";
-import { SyncActions, SyncProgress } from "./types";
+import { kZoteroMyLibrary } from "../../../../../editor-types/src/index.js";
+import { Collection, Group, Item, Library, User, ZoteroApi } from "./api.js";
+import { libraryRead, libraryReadVersions, userWebLibrariesDir } from "./storage.js";
+import { SyncActions, SyncProgress } from "./types.js";
 
 export interface LibraryVersions {
   collections: number;

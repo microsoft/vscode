@@ -18,8 +18,8 @@ from erdos._vendor.jedi.inference.gradual.type_var import TypeVar
 from erdos._vendor.jedi.inference.helpers import is_string
 from erdos._vendor.jedi.inference.compiled import builtin_from_name
 from erdos._vendor.jedi.inference.param import get_executed_param_names
-from jedi import debug
-from jedi import parser_utils
+from erdos._vendor.jedi import debug
+from erdos._vendor.jedi import parser_utils
 
 
 def infer_annotation(context, annotation):

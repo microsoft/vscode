@@ -32,9 +32,9 @@ from typing import Callable, Dict, Type, Union, cast, overload
 
 import hypothesis.strategies as st
 
-import pydantic
-import erdos._vendor.pydantic.color
-import erdos._vendor.pydantic.types
+from erdos._vendor import pydantic
+import erdos._vendor.pydantic.color as pydantic_color
+import erdos._vendor.pydantic.types as pydantic_types
 from erdos._vendor.pydantic.utils import lenient_issubclass
 
 # FilePath and DirectoryPath are explicitly unsupported, as we'd have to create
@@ -88,23 +88,23 @@ st.register_type_strategy(
 _color_regexes = (
     '|'.join(
         (
-            pydantic.color.r_hex_short,
-            pydantic.color.r_hex_long,
-            pydantic.color.r_rgb,
-            pydantic.color.r_rgba,
-            pydantic.color.r_hsl,
-            pydantic.color.r_hsla,
+            pydantic_color.r_hex_short,
+            pydantic_color.r_hex_long,
+            pydantic_color.r_rgb,
+            pydantic_color.r_rgba,
+            pydantic_color.r_hsl,
+            pydantic_color.r_hsla,
         )
     )
     # Use more precise regex patterns to avoid value-out-of-range errors
-    .replace(pydantic.color._r_sl, r'(?:(\d\d?(?:\.\d+)?|100(?:\.0+)?)%)')
-    .replace(pydantic.color._r_alpha, r'(?:(0(?:\.\d+)?|1(?:\.0+)?|\.\d+|\d{1,2}%))')
-    .replace(pydantic.color._r_255, r'(?:((?:\d|\d\d|[01]\d\d|2[0-4]\d|25[0-4])(?:\.\d+)?|255(?:\.0+)?))')
+    .replace(pydantic_color._r_sl, r'(?:(\d\d?(?:\.\d+)?|100(?:\.0+)?)%)')
+    .replace(pydantic_color._r_alpha, r'(?:(0(?:\.\d+)?|1(?:\.0+)?|\.\d+|\d{1,2}%))')
+    .replace(pydantic_color._r_255, r'(?:((?:\d|\d\d|[01]\d\d|2[0-4]\d|25[0-4])(?:\.\d+)?|255(?:\.0+)?))')
 )
 st.register_type_strategy(
-    pydantic.color.Color,
+    pydantic_color.Color,
     st.one_of(
-        st.sampled_from(sorted(pydantic.color.COLORS_BY_NAME)),
+        st.sampled_from(sorted(pydantic_color.COLORS_BY_NAME)),
         st.tuples(
             st.integers(0, 255),
             st.integers(0, 255),
@@ -182,22 +182,22 @@ RESOLVERS: Dict[type, Callable[[type], st.SearchStrategy]] = {}  # type: ignore[
 
 
 @overload
-def _registered(typ: Type[pydantic.types.T]) -> Type[pydantic.types.T]:
+def _registered(typ: Type[pydantic_types.T]) -> Type[pydantic.types.T]:
     pass
 
 
 @overload
-def _registered(typ: pydantic.types.ConstrainedNumberMeta) -> pydantic.types.ConstrainedNumberMeta:
+def _registered(typ: pydantic_types.ConstrainedNumberMeta) -> pydantic.types.ConstrainedNumberMeta:
     pass
 
 
 def _registered(
-    typ: Union[Type[pydantic.types.T], pydantic.types.ConstrainedNumberMeta]
-) -> Union[Type[pydantic.types.T], pydantic.types.ConstrainedNumberMeta]:
-    # This function replaces the version in `pydantic.types`, in order to
+    typ: Union[Type[pydantic_types.T], pydantic.types.ConstrainedNumberMeta]
+) -> Union[Type[pydantic_types.T], pydantic.types.ConstrainedNumberMeta]:
+    # This function replaces the version in `pydantic_types`, in order to
     # effect the registration of new constrained types so that Hypothesis
     # can generate valid examples.
-    pydantic.types._DEFINED_TYPES.add(typ)
+    pydantic_types._DEFINED_TYPES.add(typ)
     for supertype, resolver in RESOLVERS.items():
         if issubclass(typ, supertype):
             st.register_type_strategy(typ, resolver(typ))  # type: ignore
@@ -206,7 +206,7 @@ def _registered(
 
 
 def resolves(
-    typ: Union[type, pydantic.types.ConstrainedNumberMeta]
+    typ: Union[type, pydantic_types.ConstrainedNumberMeta]
 ) -> Callable[[Callable[..., st.SearchStrategy]], Callable[..., st.SearchStrategy]]:  # type: ignore[type-arg]
     def inner(f):  # type: ignore
         assert f not in RESOLVERS
@@ -385,7 +385,7 @@ def resolve_constr(cls):  # type: ignore[no-untyped-def]  # pragma: no cover
 
 
 # Finally, register all previously-defined types, and patch in our new function
-for typ in list(pydantic.types._DEFINED_TYPES):
+for typ in list(pydantic_types._DEFINED_TYPES):
     _registered(typ)
-pydantic.types._registered = _registered
+pydantic_types._registered = _registered
 st.register_type_strategy(pydantic.Json, resolve_json)
