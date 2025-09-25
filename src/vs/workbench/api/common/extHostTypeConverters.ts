@@ -3561,7 +3561,7 @@ export namespace LanguageModelToolResult {
 
 export namespace LanguageModelToolResult2 {
 	export function to(result: IToolResult): vscode.LanguageModelToolResult2 {
-		return new types.LanguageModelToolResult2(result.content.map(item => {
+		const toolResult = new types.LanguageModelToolResult2(result.content.map(item => {
 			if (item.kind === 'text') {
 				return new types.LanguageModelTextPart(item.value, item.audience);
 			} else if (item.kind === 'data') {
@@ -3570,6 +3570,12 @@ export namespace LanguageModelToolResult2 {
 				return new types.LanguageModelPromptTsxPart(item.value);
 			}
 		}));
+
+		if (result.toolMetadata) {
+			(toolResult as vscode.ExtendedLanguageModelToolResult).toolMetadata = result.toolMetadata;
+		}
+
+		return toolResult;
 	}
 
 	export function from(result: vscode.ExtendedLanguageModelToolResult2, extension: IExtensionDescription): Dto<IToolResult> | SerializableObjectWithBuffers<Dto<IToolResult>> {
@@ -3633,6 +3639,7 @@ export namespace LanguageModelToolResult2 {
 			}),
 			toolResultMessage: MarkdownString.fromStrict(result.toolResultMessage),
 			toolResultDetails: detailsDto,
+			toolMetadata: result.toolMetadata,
 		};
 
 		return hasBuffers ? new SerializableObjectWithBuffers(dto) : dto;
