@@ -2256,6 +2256,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private _setTitle(title: string | undefined, eventSource: TitleEventSource): void {
+		// For task terminals, preserve the API-set title (task name) even when the process title changes
+		if (this._shellLaunchConfig.type === 'Task' && 
+			this._titleSource === TitleEventSource.Api && 
+			eventSource === TitleEventSource.Process) {
+			// Don't override the task name with process title changes
+			return;
+		}
+
 		const reset = !title;
 		title = this._updateTitleProperties(title, eventSource);
 		const titleChanged = title !== this._title;

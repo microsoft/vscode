@@ -150,6 +150,91 @@ suite('Workbench - TerminalInstance', () => {
 			await new Promise(resolve => setTimeout(resolve, 100));
 			deepStrictEqual(terminalInstance.shellLaunchConfig.env, { TEST: 'TEST' });
 		});
+
+		test('should preserve API-set title for task terminals when process title changes', async () => {
+			const instantiationService = workbenchInstantiationService({
+				configurationService: () => new TestConfigurationService({
+					files: {},
+					terminal: {
+						integrated: {
+							fontFamily: 'monospace',
+							scrollback: 1000,
+							fastScrollSensitivity: 2,
+							mouseWheelScrollSensitivity: 1,
+							unicodeVersion: '6',
+							shellIntegration: {
+								enabled: true
+							}
+						}
+					},
+				})
+			}, store);
+			instantiationService.set(ITerminalProfileResolverService, new MockTerminalProfileResolverService());
+			instantiationService.stub(IViewDescriptorService, new TestViewDescriptorService());
+			instantiationService.stub(IEnvironmentVariableService, store.add(instantiationService.createInstance(EnvironmentVariableService)));
+			instantiationService.stub(ITerminalInstanceService, store.add(new TestTerminalInstanceService()));
+
+			// Create a task terminal with type 'Task'
+			const taskTerminal = store.add(instantiationService.createInstance(TerminalInstance, terminalShellTypeContextKey, {
+				type: 'Task',
+				name: 'Test Task Name'
+			}));
+
+			// Wait for initialization
+			await new Promise(resolve => setTimeout(resolve, 100));
+
+			// Simulate setting the title via API (as the task system would do)
+			await taskTerminal.rename('Test Task Name');
+			strictEqual(taskTerminal.title, 'Test Task Name');
+
+			// Simulate a process title change (which happens when task completes)
+			(taskTerminal as any)._setTitle('some-process-name', (await import('../../../../../platform/terminal/common/terminal.js')).TitleEventSource.Process);
+
+			// Verify that the task name is preserved
+			strictEqual(taskTerminal.title, 'Test Task Name', 'Task terminal should preserve API-set title even when process title changes');
+		});
+
+		test('should allow process title changes for non-task terminals', async () => {
+			const instantiationService = workbenchInstantiationService({
+				configurationService: () => new TestConfigurationService({
+					files: {},
+					terminal: {
+						integrated: {
+							fontFamily: 'monospace',
+							scrollback: 1000,
+							fastScrollSensitivity: 2,
+							mouseWheelScrollSensitivity: 1,
+							unicodeVersion: '6',
+							shellIntegration: {
+								enabled: true
+							}
+						}
+					},
+				})
+			}, store);
+			instantiationService.set(ITerminalProfileResolverService, new MockTerminalProfileResolverService());
+			instantiationService.stub(IViewDescriptorService, new TestViewDescriptorService());
+			instantiationService.stub(IEnvironmentVariableService, store.add(instantiationService.createInstance(EnvironmentVariableService)));
+			instantiationService.stub(ITerminalInstanceService, store.add(new TestTerminalInstanceService()));
+
+			// Create a regular terminal (not a task terminal)
+			const regularTerminal = store.add(instantiationService.createInstance(TerminalInstance, terminalShellTypeContextKey, {
+				name: 'Regular Terminal'
+			}));
+
+			// Wait for initialization
+			await new Promise(resolve => setTimeout(resolve, 100));
+
+			// Simulate setting the title via API
+			await regularTerminal.rename('Regular Terminal');
+			strictEqual(regularTerminal.title, 'Regular Terminal');
+
+			// Simulate a process title change
+			(regularTerminal as any)._setTitle('bash', (await import('../../../../../platform/terminal/common/terminal.js')).TitleEventSource.Process);
+
+			// Verify that the title was changed (regular terminals should allow process title changes)
+			strictEqual(regularTerminal.title, 'bash', 'Regular terminal should allow process title changes to override API-set title');
+		});
 	});
 	suite('parseExitResult', () => {
 		test('should return no message for exit code = undefined', () => {
