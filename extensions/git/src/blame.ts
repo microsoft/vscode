@@ -416,7 +416,7 @@ export class GitBlameController {
 		const ignoreWhitespace = config.get<boolean>('blame.ignoreWhitespace', false);
 
 		// Create cache key that includes the ignoreWhitespace setting
-		const cacheKey = JSON.stringify({ commit, ignoreWhitespace });
+		const cacheKey = `${commit}-${ignoreWhitespace}`;
 		const resourceBlameInformation = this._repositoryBlameCache.get(repository, resource, cacheKey);
 		if (resourceBlameInformation) {
 			return resourceBlameInformation;
