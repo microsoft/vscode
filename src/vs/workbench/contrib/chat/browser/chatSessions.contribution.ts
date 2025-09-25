@@ -506,7 +506,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		request: IChatAgentRequest;
 		prompt?: string;
 		history?: any[];
-		metadata?: any;
+		metadata?: Record<string, any>;
 	}, token: CancellationToken): Promise<IChatSessionItem> {
 		if (!(await this.canResolveItemProvider(chatSessionType))) {
 			throw Error(`Cannot find provider for ${chatSessionType}`);
@@ -601,6 +601,7 @@ class CodingAgentChatImplementation extends Disposable implements IChatAgentImpl
 		}
 
 		let chatSession: ChatSession | undefined;
+		let metadata: Record<string, any> | undefined;
 
 		// Find the first editor that matches the chat session
 		for (const group of this.editorGroupService.groups) {
@@ -611,6 +612,9 @@ class CodingAgentChatImplementation extends Disposable implements IChatAgentImpl
 			for (const editor of group.editors) {
 				if (editor instanceof ChatEditorInput) {
 					try {
+						if (editor.sessionId === request.sessionId) {
+							metadata = editor.options.metadata;
+						}
 						const chatModel = await this.chatService.loadSessionForResource(editor.resource, request.location, CancellationToken.None);
 						if (chatModel?.sessionId === request.sessionId) {
 							// this is the model
@@ -638,6 +642,7 @@ class CodingAgentChatImplementation extends Disposable implements IChatAgentImpl
 						request,
 						prompt: request.message,
 						history,
+						metadata
 					},
 					token,
 				);
