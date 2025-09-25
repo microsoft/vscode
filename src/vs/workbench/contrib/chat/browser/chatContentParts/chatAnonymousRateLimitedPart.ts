@@ -13,6 +13,7 @@ import { localize } from '../../../../../nls.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IChatErrorDetailsPart, IChatRendererContent } from '../../common/chatViewModel.js';
 import { IChatContentPart } from './chatContentParts.js';
 
@@ -22,10 +23,21 @@ export class ChatAnonymousRateLimitedPart extends Disposable implements IChatCon
 
 	constructor(
 		private readonly content: IChatErrorDetailsPart,
-		@ICommandService private readonly commandService: ICommandService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService
+		@ICommandService commandService: ICommandService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IChatEntitlementService chatEntitlementService: IChatEntitlementService
 	) {
 		super();
+
+		let messageValue: string;
+		let buttonLabel: string;
+		if (chatEntitlementService.sentiment.registered) {
+			messageValue = localize('anonymousRegisteredRateLimited', "Sign in to keep the conversation going and to get access to more models and AI tools.");
+			buttonLabel = localize('signIn', "Sign in to continue");
+		} else {
+			messageValue = localize('anonymousRateLimited', "Continue the conversation by signing in. Your free account gets 50 premium requests a month plus access to more models and AI tools.");
+			buttonLabel = localize('enableMoreAIFeatures', "Enable more AI features");
+		}
 
 		this.domNode = $('.chat-rate-limited-widget');
 
@@ -35,17 +47,17 @@ export class ChatAnonymousRateLimitedPart extends Disposable implements IChatCon
 		const messageContainer = append(this.domNode, $('.chat-rate-limited-message'));
 
 		const message = append(messageContainer, $('div'));
-		message.textContent = localize('anonymousRateLimited', "Continue the conversation by signing in! Your free account gets 50 premium requests a month, plus access to more models and AI tools.");
+		message.textContent = messageValue;
 
 		const signInButton = this._register(new Button(messageContainer, { ...defaultButtonStyles, supportIcons: true }));
-		signInButton.label = localize('enableMoreAIFeatures', "Enable more AI features");
+		signInButton.label = buttonLabel;
 		signInButton.element.classList.add('chat-rate-limited-button');
 
 		this._register(signInButton.onDidClick(async () => {
 			const commandId = 'workbench.action.chat.triggerSetup';
-			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: commandId, from: 'chat-response' });
+			telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: commandId, from: 'chat-response' });
 
-			await this.commandService.executeCommand(commandId);
+			await commandService.executeCommand(commandId);
 		}));
 	}
 
