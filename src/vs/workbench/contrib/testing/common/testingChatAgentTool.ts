@@ -39,6 +39,7 @@ import { LiveTestResult } from './testResult.js';
 import { ITestResultService } from './testResultService.js';
 import { ITestService, testsInFile, waitForTestToBeIdle } from './testService.js';
 import { IncrementalTestCollectionItem, TestItemExpandState, TestMessageType, TestResultState, TestRunProfileBitset } from './testTypes.js';
+import { Position } from '../../../../editor/common/core/position.js';
 
 export class TestingChatAgentToolContribution extends Disposable implements IWorkbenchContribution {
 	public static readonly ID = 'workbench.contrib.testing.chatAgentTool';
@@ -419,7 +420,9 @@ class RunTestWithCoverageTool extends BaseRunTestsTool {
 	protected override async getAdditionalSummary(result: LiveTestResult): Promise<string> {
 		for (const task of result.tasks) {
 			const coverage = task.coverage.get();
-			if (!coverage) { continue; }
+			if (!coverage) {
+				continue;
+			}
 			// emit coverage info for the first file we find that coverage was requested for
 			if (this._coverageFiles && this._coverageFiles.length) {
 				const normalized = this._coverageFiles.map(file => URI.file(file).fsPath);
@@ -449,11 +452,11 @@ class RunTestWithCoverageTool extends BaseRunTestsTool {
 								if (!detail.count && detail.location) {
 									let startLine: number;
 									let endLine: number;
-									if ('startLineNumber' in detail.location && 'endLineNumber' in detail.location) {
+									if (Position.isIPosition(detail.location)) {
+										startLine = endLine = detail.location.lineNumber;
+									} else {
 										startLine = detail.location.startLineNumber;
 										endLine = detail.location.endLineNumber;
-									} else {
-										startLine = endLine = detail.location.lineNumber;
 									}
 									summary += ` firstUncoveredStart=${startLine} firstUncoveredEnd=${endLine}`;
 									break;
