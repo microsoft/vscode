@@ -58,6 +58,7 @@ interface ISessionTemplateData {
 	readonly descriptionRow: HTMLElement;
 	readonly descriptionLabel: HTMLElement;
 	readonly statisticsLabel: HTMLElement;
+	readonly iconSpan: HTMLElement; // pre-created dedicated icon span for chat sessions
 }
 
 export interface IGettingStartedItem {
@@ -112,7 +113,6 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 	static readonly TEMPLATE_ID = 'session';
 	private appliedIconColorStyles = new Set<string>();
 	private markdownRenderer: MarkdownRenderer;
-	private _loggedMissingLabelRoot = false; // guard to log DOM structure issues only once
 
 	constructor(
 		private readonly labels: ResourceLabels,
@@ -207,6 +207,20 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 		const actionBar = new ActionBar(actionsContainer);
 		const elementDisposable = new DisposableStore();
 
+		// Pre-create dedicated icon span once (insert before name container if present)
+		const iconSpan = $('span.chat-session-icon.codicon');
+		iconSpan.style.display = 'none';
+		iconSpan.setAttribute('aria-hidden', 'true');
+		const labelRoot = resourceLabel.element.querySelector('.monaco-icon-label-container');
+		if (labelRoot) {
+			const nameContainer = labelRoot.querySelector('.monaco-icon-name-container');
+			if (nameContainer) {
+				labelRoot.insertBefore(iconSpan, nameContainer);
+			} else {
+				labelRoot.prepend(iconSpan);
+			}
+		}
+
 		return {
 			container: element,
 			resourceLabel,
@@ -217,6 +231,7 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 			descriptionRow,
 			descriptionLabel,
 			statisticsLabel,
+			iconSpan,
 		};
 	}
 
@@ -327,45 +342,21 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 			title: !renderDescriptionOnSecondRow || !session.description ? tooltipContent : undefined
 		});
 
-		// Inject/update dedicated codicon span for ThemeIcon only (URI icon already rendered by ResourceLabel)
+		// Update pre-created icon span for ThemeIcon only; URI icon is rendered by ResourceLabel.
+		const iconSpan = templateData.iconSpan;
 		if (iconTheme) {
-			const labelRoot = templateData.resourceLabel.element.querySelector('.monaco-icon-label-container');
-			if (!labelRoot) {
-				if (!this._loggedMissingLabelRoot) {
-					this._loggedMissingLabelRoot = true;
-					this.logService.debug('[ChatSessions] monaco-icon-label-container not found; icon injection skipped.');
-				}
-			} else {
-				let iconSpan = labelRoot.querySelector(':scope > span.chat-session-icon.codicon') as HTMLElement | null;
-				const desired = `codicon-${iconTheme.id}`;
-				if (!iconSpan) {
-					iconSpan = document.createElement('span');
-					iconSpan.className = 'chat-session-icon codicon';
-					iconSpan.setAttribute('aria-hidden', 'true');
-					const nameContainer = labelRoot.querySelector('.monaco-icon-name-container');
-					if (nameContainer) {
-						labelRoot.insertBefore(iconSpan, nameContainer);
-					} else {
-						labelRoot.prepend(iconSpan);
+			const desired = `codicon-${iconTheme.id}`;
+			if (!iconSpan.classList.contains(desired)) {
+				for (const c of [...iconSpan.classList]) {
+					if (c.startsWith('codicon-') && c !== desired) {
+						iconSpan.classList.remove(c);
 					}
 				}
-				// Fast path: already correct
-				if (!iconSpan.classList.contains(desired)) {
-					for (const c of [...iconSpan.classList]) {
-						if (c.startsWith('codicon-') && c !== desired) {
-							iconSpan.classList.remove(c);
-						}
-					}
-					iconSpan.classList.add(desired);
-				}
-				iconSpan.style.display = '';
+				iconSpan.classList.add(desired);
 			}
+			iconSpan.style.display = '';
 		} else {
-			// Hide previously injected span if we no longer have a theme icon
-			const existing = templateData.resourceLabel.element.querySelector(':scope span.chat-session-icon.codicon') as HTMLElement | null;
-			if (existing) {
-				existing.style.display = 'none';
-			}
+			iconSpan.style.display = 'none';
 		}
 
 		// For two-row items, set tooltip on the container instead
