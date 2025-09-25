@@ -20,7 +20,7 @@ import { IChatContentInlineReference, IChatProgress } from '../../contrib/chat/c
 import { ChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
 import { ChatSessionUri } from '../../contrib/chat/common/chatUri.js';
 import { EditorGroupColumn } from '../../services/editor/common/editorGroupColumn.js';
-import { IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
+import { IEditorGroup, IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../services/editor/common/editorService.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
@@ -358,12 +358,23 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 			this._logService.error(`No chat session type found for provider handle ${handle}`);
 			return;
 		}
-		const originalGroup = this.editorGroupService.activeGroup; // TODO(jospicer)
 		const originalResource = ChatSessionUri.forSession(chatSessionType, original);
 		const modifiedResource = ChatSessionUri.forSession(chatSessionType, modified);
 		const originalEditor = this._editorService.editors.find(editor => editor.resource?.toString() === originalResource.toString());
-		if (originalEditor) {
 
+		// Find the group containing the original editor
+		let originalGroup: IEditorGroup | undefined;
+		for (const group of this.editorGroupService.groups) {
+			if (group.editors.some(editor => editor.resource?.toString() === originalResource.toString())) {
+				originalGroup = group;
+				break;
+			}
+		}
+		if (!originalGroup) {
+			originalGroup = this.editorGroupService.activeGroup;
+		}
+
+		if (originalEditor) {
 			// Prefetch the chat session content to make the subsequent editor swap quick
 			this._chatSessionsService.provideChatSessionContent(
 				chatSessionType,
