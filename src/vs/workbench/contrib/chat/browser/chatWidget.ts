@@ -36,7 +36,6 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IHoverService, WorkbenchHoverDelegate } from '../../../../platform/hover/browser/hover.js';
-import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { IHoverOptions } from '../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { IWorkbenchLayoutService, Position } from '../../../services/layout/browser/layoutService.js';
@@ -203,9 +202,7 @@ class ChatHistoryListRenderer implements IListRenderer<IChatHistoryListItem, ICh
 	constructor(
 		private readonly onDidClickItem: (item: IChatHistoryListItem) => void,
 		private readonly formatHistoryTimestamp: (timestamp: number, todayMidnightMs: number) => string,
-		private readonly todayMidnightMs: number,
-		private readonly hoverDelegate: IHoverDelegate,
-		@IHoverService private readonly hoverService: IHoverService
+		private readonly todayMidnightMs: number
 	) { }
 
 	renderTemplate(container: HTMLElement): IChatHistoryTemplate {
@@ -229,10 +226,6 @@ class ChatHistoryListRenderer implements IListRenderer<IChatHistoryListItem, ICh
 		title.textContent = element.title;
 		date.textContent = this.formatHistoryTimestamp(element.lastMessageDate, this.todayMidnightMs);
 		container.setAttribute('aria-label', element.title);
-
-		// Add hover tooltip for the title when it's truncated
-		const hoverContent = element.title;
-		disposables.add(this.hoverService.setupManagedHover(this.hoverDelegate, title, hoverContent));
 
 		disposables.add(dom.addDisposableListener(container, dom.EventType.CLICK, () => {
 			this.onDidClickItem(element);
@@ -1121,8 +1114,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					ChatHistoryListRenderer,
 					async (item) => await this.openHistorySession(item.sessionId),
 					(timestamp, todayMs) => this.formatHistoryTimestamp(timestamp, todayMs),
-					todayMidnightMs,
-					hoverDelegate
+					todayMidnightMs
 				);
 				this.historyList = this._register(this.instantiationService.createInstance(
 					WorkbenchList<IChatHistoryListItem>,
@@ -1161,7 +1153,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			previousChatsLink.setAttribute('tabindex', '0');
 			previousChatsLink.setAttribute('aria-label', localize('chat.history.showMoreAriaLabel', 'Open chat history'));
 
-			// Add hover tooltip with the same styling and logic as other hover states
+			// Add hover tooltip for the link at the end of the list
 			const hoverContent = localize('chat.history.showMoreHover', 'Show chat history...');
 			this._register(this.hoverService.setupManagedHover(hoverDelegate, previousChatsLink, hoverContent));
 

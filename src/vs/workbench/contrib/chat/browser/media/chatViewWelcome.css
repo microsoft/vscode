@@ -315,10 +315,6 @@ div.chat-welcome-view {
 		gap: 8px;
 		outline: none;
 
-		&:hover {
-			background: var(--vscode-list-hoverBackground);
-		}
-
 		.chat-welcome-history-title {
 			font-size: 13px;
 			white-space: nowrap;
