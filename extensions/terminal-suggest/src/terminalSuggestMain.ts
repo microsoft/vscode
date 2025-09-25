@@ -575,6 +575,5 @@ function createFileRegex(fileExtensions?: string[]): vscode.GlobPattern | undefi
 		return undefined;
 	}
 	const exts = fileExtensions.map(ext => ext.startsWith('.') ? ext : '.' + ext);
-	// Create a regex that matches any string ending with one of the extensions
 	return `.*(${exts.map(ext => escapeRegExp(ext)).join('|')})$`;
 }
