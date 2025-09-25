@@ -93,7 +93,7 @@ jobs:
           sbomPackageVersion: $(Build.SourceVersion)
           condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''))
     steps:
-      - template: product-build-win32-compile.yml@self
+      - template: ./steps/product-build-win32-compile.yml@self
         parameters:
           VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
           VSCODE_CIBUILD: ${{ parameters.VSCODE_CIBUILD }}
