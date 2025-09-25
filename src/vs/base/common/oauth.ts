@@ -1014,38 +1014,56 @@ export async function fetchProtectedResourceMetadata(
 	const { sameOriginHeaders = {}, fetch: fetchFn = globalThis.fetch, resourceMetadataChallenge } = options;
 	const resourceUrlObject = new URL(resourceUrl);
 	
+	/**
+	 * Helper function to construct request headers with same-origin logic
+	 */
+	const buildHeaders = (targetUrl: string): Record<string, string> => {
+		let requestHeaders: Record<string, string> = {
+			'Accept': 'application/json'
+		};
+		
+		const targetUrlObject = new URL(targetUrl);
+		if (targetUrlObject.origin === resourceUrlObject.origin && Object.keys(sameOriginHeaders).length > 0) {
+			requestHeaders = {
+				...requestHeaders,
+				...sameOriginHeaders
+			};
+		}
+		
+		return requestHeaders;
+	};
+	
+	/**
+	 * Helper function to fetch and validate resource metadata from a URL
+	 */
+	const fetchAndValidateMetadata = async (url: string, throwOnError: boolean = false): Promise<IAuthorizationProtectedResourceMetadata | null> => {
+		const response = await fetchFn(url, {
+			method: 'GET',
+			headers: buildHeaders(url)
+		});
+		
+		if (response.status === 200) {
+			const body = await response.json();
+			if (isAuthorizationProtectedResourceMetadata(body)) {
+				return body;
+			} else {
+				throw new Error(`Invalid resource metadata. Expected to follow shape of https://datatracker.ietf.org/doc/html/rfc9728#name-protected-resource-metadata (Hints: is scopes_supported an array? Is resource a string?). Current payload: ${JSON.stringify(body)}`);
+			}
+		} else if (throwOnError) {
+			// For direct URLs, throw error with status details to maintain existing behavior
+			const errorText = response.statusText || 'Unknown error';
+			throw new Error(`Failed to fetch resource metadata: ${response.status} ${errorText}`);
+		}
+		
+		return null;
+	};
+	
 	// If a direct resource metadata URL is provided (from WWW-Authenticate header), use it first
 	if (resourceMetadataChallenge) {
 		try {
-			// Check if the resource metadata URL is on the same origin as the resource
-			const resourceMetadataUrl = new URL(resourceMetadataChallenge);
-			let requestHeaders: Record<string, string> = {
-				'Accept': 'application/json'
-			};
-			
-			if (resourceMetadataUrl.origin === resourceUrlObject.origin && Object.keys(sameOriginHeaders).length > 0) {
-				requestHeaders = {
-					...requestHeaders,
-					...sameOriginHeaders
-				};
-			}
-			
-			const response = await fetchFn(resourceMetadataChallenge, {
-				method: 'GET',
-				headers: requestHeaders
-			});
-			
-			if (response.status === 200) {
-				const body = await response.json();
-				if (isAuthorizationProtectedResourceMetadata(body)) {
-					return body;
-				} else {
-					throw new Error(`Invalid resource metadata. Expected to follow shape of https://datatracker.ietf.org/doc/html/rfc9728#name-protected-resource-metadata (Hints: is scopes_supported an array? Is resource a string?). Current payload: ${JSON.stringify(body)}`);
-				}
-			} else {
-				// Throw error for direct URL failures to maintain existing behavior
-				const errorText = response.statusText || 'Unknown error';
-				throw new Error(`Failed to fetch resource metadata: ${response.status} ${errorText}`);
+			const result = await fetchAndValidateMetadata(resourceMetadataChallenge, true);
+			if (result) {
+				return result;
 			}
 		} catch (error) {
 			// Re-throw errors for direct URL requests to maintain existing behavior
@@ -1075,29 +1093,9 @@ export async function fetchProtectedResourceMetadata(
 	// Try each well-known URL in order
 	for (const wellKnownUrl of wellKnownUrls) {
 		try {
-			// Use additional headers if we're talking to the same origin as the resource
-			let requestHeaders: Record<string, string> = {
-				'Accept': 'application/json'
-			};
-			
-			const wellKnownUrlObject = new URL(wellKnownUrl);
-			if (wellKnownUrlObject.origin === resourceUrlObject.origin && Object.keys(sameOriginHeaders).length > 0) {
-				requestHeaders = {
-					...requestHeaders,
-					...sameOriginHeaders
-				};
-			}
-			
-			const response = await fetchFn(wellKnownUrl, {
-				method: 'GET',
-				headers: requestHeaders
-			});
-			
-			if (response.status === 200) {
-				const body = await response.json();
-				if (isAuthorizationProtectedResourceMetadata(body)) {
-					return body;
-				}
+			const result = await fetchAndValidateMetadata(wellKnownUrl);
+			if (result) {
+				return result;
 			}
 		} catch (error) {
 			// Continue to next URL on error
