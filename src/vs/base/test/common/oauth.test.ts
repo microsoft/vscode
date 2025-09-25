@@ -846,6 +846,87 @@ suite('OAuth', () => {
 			sandbox.restore();
 		});
 
+		test('fetchProtectedResourceMetadata should use resourceMetadataChallenge when provided', async () => {
+			const mockMetadata = {
+				resource: 'https://api.example.com/mcp',
+				authorization_servers: ['https://auth.example.com']
+			};
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => mockMetadata
+			} as Response);
+
+			const result = await fetchProtectedResourceMetadata('https://api.example.com/mcp', {
+				resourceMetadataChallenge: 'https://auth.example.com/metadata'
+			});
+
+			// Should only make one call to the direct URL
+			assert.strictEqual(fetchStub.callCount, 1);
+			
+			// Verify call was made to the challenge URL
+			const [url] = fetchStub.firstCall.args;
+			assert.strictEqual(url, 'https://auth.example.com/metadata');
+			
+			assert.deepStrictEqual(result, mockMetadata);
+		});
+
+		test('fetchProtectedResourceMetadata should throw error when resourceMetadataChallenge fails', async () => {
+			fetchStub.resolves({
+				status: 404,
+				statusText: 'Not Found',
+				json: async () => ({})
+			} as Response);
+
+			await assert.rejects(
+				() => fetchProtectedResourceMetadata('https://api.example.com/mcp', {
+					resourceMetadataChallenge: 'https://auth.example.com/metadata'
+				}),
+				/Failed to fetch resource metadata: 404 Not Found/
+			);
+
+			// Should only make one call and not fall back to well-known discovery
+			assert.strictEqual(fetchStub.callCount, 1);
+		});
+
+		test('fetchProtectedResourceMetadata should throw error when resourceMetadataChallenge returns invalid format', async () => {
+			fetchStub.resolves({
+				status: 200,
+				json: async () => ({ invalid: 'data' }) // Missing required 'resource' field
+			} as Response);
+
+			await assert.rejects(
+				() => fetchProtectedResourceMetadata('https://api.example.com/mcp', {
+					resourceMetadataChallenge: 'https://auth.example.com/metadata'
+				}),
+				/Invalid resource metadata/
+			);
+		});
+
+		test('fetchProtectedResourceMetadata should include same-origin headers for resourceMetadataChallenge', async () => {
+			const mockMetadata = {
+				resource: 'https://api.example.com/mcp',
+				authorization_servers: ['https://auth.example.com']
+			};
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => mockMetadata
+			} as Response);
+
+			await fetchProtectedResourceMetadata('https://api.example.com/mcp', {
+				resourceMetadataChallenge: 'https://api.example.com/metadata', // Same origin
+				sameOriginHeaders: { 'Authorization': '******' }
+			});
+
+			// Check that same-origin headers were included
+			const [, init] = fetchStub.firstCall.args;
+			assert.deepStrictEqual(init.headers, {
+				'Accept': 'application/json',
+				'Authorization': '******'
+			});
+		});
+
 		test('fetchProtectedResourceMetadata should try path insertion URL first, then root URL', async () => {
 			const mockMetadata = {
 				resource: 'https://api.example.com/mcp',

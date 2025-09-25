@@ -352,14 +352,30 @@ class McpHTTPHandle extends Disposable {
 		let scopesSupported: string[] | undefined;
 		let resource: IAuthorizationProtectedResourceMetadata | undefined;
 		if (resourceMetadataChallenge) {
-			const resourceMetadata = await this._getResourceMetadata(resourceMetadataChallenge);
-			this._validateResourceMetadata(resourceMetadata, mcpUrl);
+			// Create a wrapper function that adapts this._fetch to the standard fetch signature
+			const fetchAdapter = async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
+				const url = typeof input === 'string' ? input : input.toString();
+				return this._fetch(url, {
+					method: init?.method || 'GET',
+					headers: (init?.headers as Record<string, string>) || {},
+					body: init?.body as Uint8Array<ArrayBuffer> | undefined
+				});
+			};
+			
+			resource = await fetchProtectedResourceMetadata(mcpUrl, {
+				resourceMetadataChallenge,
+				sameOriginHeaders: {
+					...Object.fromEntries(this._launch.headers),
+					'MCP-Protocol-Version': MCP.LATEST_PROTOCOL_VERSION
+				},
+				fetch: fetchAdapter
+			});
+			this._validateResourceMetadata(resource, mcpUrl);
 			// TODO:@TylerLeonhardt support multiple authorization servers
 			// Consider using one that has an auth provider first, over the dynamic flow
-			serverMetadataUrl = resourceMetadata.authorization_servers?.[0];
+			serverMetadataUrl = resource.authorization_servers?.[0];
 			this._log(LogLevel.Debug, `Using auth server metadata url: ${serverMetadataUrl}`);
-			scopesSupported = resourceMetadata.scopes_supported;
-			resource = resourceMetadata;
+			scopesSupported = resource.scopes_supported;
 		} else {
 			// Fallback to well-known URI discovery when WWW-Authenticate header is missing or doesn't contain resource_metadata
 			// According to RFC9728, MCP clients MUST support both discovery mechanisms
@@ -423,35 +439,6 @@ class McpHTTPHandle extends Disposable {
 			resourceMetadata: resource
 		};
 		this._log(LogLevel.Info, 'Using default auth metadata');
-	}
-
-	private async _getResourceMetadata(resourceMetadata: string): Promise<IAuthorizationProtectedResourceMetadata> {
-		// detect if the resourceMetadata, which is a URL, is in the same origin as the MCP server
-		const resourceMetadataUrl = new URL(resourceMetadata);
-		const mcpServerUrl = new URL(this._launch.uri.toString(true));
-		let additionalHeaders: Record<string, string> = {};
-		if (resourceMetadataUrl.origin === mcpServerUrl.origin) {
-			additionalHeaders = {
-				...Object.fromEntries(this._launch.headers)
-			};
-		}
-		const resourceMetadataResponse = await this._fetch(resourceMetadata, {
-			method: 'GET',
-			headers: {
-				...additionalHeaders,
-				'Accept': 'application/json',
-				'MCP-Protocol-Version': MCP.LATEST_PROTOCOL_VERSION
-			}
-		});
-		if (resourceMetadataResponse.status !== 200) {
-			throw new Error(`Failed to fetch resource metadata: ${resourceMetadataResponse.status} ${await this._getErrText(resourceMetadataResponse)}`);
-		}
-		const body = await resourceMetadataResponse.json();
-		if (isAuthorizationProtectedResourceMetadata(body)) {
-			return body;
-		} else {
-			throw new Error(`Invalid resource metadata. Expected to follow shape of https://datatracker.ietf.org/doc/html/rfc9728#name-protected-resource-metadata (Hints: is scopes_supported an array? Is resource a string?). Current payload: ${JSON.stringify(body)}`);
-		}
 	}
 
 	private async _getAuthorizationServerMetadata(authorizationServer: string, addtionalHeaders: Record<string, string>): Promise<IAuthorizationServerMetadata> {

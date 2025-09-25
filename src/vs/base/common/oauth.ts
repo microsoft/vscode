@@ -959,11 +959,11 @@ export function scopesMatch(scopes1: readonly string[], scopes2: readonly string
 }
 
 /**
- * Options for fetching protected resource metadata via well-known URI discovery.
+ * Options for fetching protected resource metadata.
  */
 export interface IProtectedResourceMetadataFetchOptions {
 	/**
-	 * Additional headers to include in requests when the well-known URI is on the same origin
+	 * Additional headers to include in requests when the request is to the same origin
 	 * as the resource URL. This is typically used for authentication or API keys.
 	 */
 	sameOriginHeaders?: Record<string, string>;
@@ -972,29 +972,38 @@ export interface IProtectedResourceMetadataFetchOptions {
 	 * Custom fetch function to use for HTTP requests. Defaults to globalThis.fetch.
 	 */
 	fetch?: typeof fetch;
+	
+	/**
+	 * Optional resource metadata URL from WWW-Authenticate header.
+	 * If provided, this URL will be used directly instead of well-known URI discovery.
+	 */
+	resourceMetadataChallenge?: string;
 }
 
 /**
- * Discovers OAuth protected resource metadata using well-known URIs as specified in RFC 9728.
- * This implements the fallback discovery mechanism for when WWW-Authenticate headers
- * are not present or don't contain resource_metadata.
+ * Discovers OAuth protected resource metadata using either a direct URL from WWW-Authenticate header
+ * or well-known URIs as specified in RFC 9728.
  * 
- * The function tries two well-known URI patterns in the specified order:
- * 1. Path insertion: Insert /.well-known/oauth-protected-resource after origin and before resource path
- * 2. Root: Append /.well-known/oauth-protected-resource to the origin
+ * This function implements both discovery mechanisms required by RFC 9728:
+ * 1. Direct URL from WWW-Authenticate header's resource_metadata parameter (if provided)
+ * 2. Fallback well-known URI discovery with two patterns:
+ *    - Path insertion: Insert /.well-known/oauth-protected-resource after origin and before resource path
+ *    - Root: Append /.well-known/oauth-protected-resource to the origin
  * 
  * @param resourceUrl - The resource URL to discover metadata for
- * @param options - Optional configuration for the discovery process
+ * @param options - Configuration for the discovery process
  * @returns Promise resolving to protected resource metadata if found, undefined otherwise
  * 
  * @example
  * ```typescript
- * // Basic usage
- * const metadata = await fetchProtectedResourceMetadata('https://api.example.com/mcp');
- * 
- * // With custom headers for same-origin requests
+ * // Direct URL from WWW-Authenticate header
  * const metadata = await fetchProtectedResourceMetadata('https://api.example.com/mcp', {
- *   sameOriginHeaders: { 'Authorization': 'Bearer token' }
+ *   resourceMetadataChallenge: 'https://auth.example.com/.well-known/oauth-protected-resource'
+ * });
+ * 
+ * // Fallback well-known URI discovery
+ * const metadata = await fetchProtectedResourceMetadata('https://api.example.com/mcp', {
+ *   sameOriginHeaders: { 'Authorization': '******' }
  * });
  * ```
  */
@@ -1002,9 +1011,49 @@ export async function fetchProtectedResourceMetadata(
 	resourceUrl: string, 
 	options: IProtectedResourceMetadataFetchOptions = {}
 ): Promise<IAuthorizationProtectedResourceMetadata | undefined> {
-	const { sameOriginHeaders = {}, fetch: fetchFn = globalThis.fetch } = options;
+	const { sameOriginHeaders = {}, fetch: fetchFn = globalThis.fetch, resourceMetadataChallenge } = options;
 	const resourceUrlObject = new URL(resourceUrl);
 	
+	// If a direct resource metadata URL is provided (from WWW-Authenticate header), use it first
+	if (resourceMetadataChallenge) {
+		try {
+			// Check if the resource metadata URL is on the same origin as the resource
+			const resourceMetadataUrl = new URL(resourceMetadataChallenge);
+			let requestHeaders: Record<string, string> = {
+				'Accept': 'application/json'
+			};
+			
+			if (resourceMetadataUrl.origin === resourceUrlObject.origin && Object.keys(sameOriginHeaders).length > 0) {
+				requestHeaders = {
+					...requestHeaders,
+					...sameOriginHeaders
+				};
+			}
+			
+			const response = await fetchFn(resourceMetadataChallenge, {
+				method: 'GET',
+				headers: requestHeaders
+			});
+			
+			if (response.status === 200) {
+				const body = await response.json();
+				if (isAuthorizationProtectedResourceMetadata(body)) {
+					return body;
+				} else {
+					throw new Error(`Invalid resource metadata. Expected to follow shape of https://datatracker.ietf.org/doc/html/rfc9728#name-protected-resource-metadata (Hints: is scopes_supported an array? Is resource a string?). Current payload: ${JSON.stringify(body)}`);
+				}
+			} else {
+				// Throw error for direct URL failures to maintain existing behavior
+				const errorText = response.statusText || 'Unknown error';
+				throw new Error(`Failed to fetch resource metadata: ${response.status} ${errorText}`);
+			}
+		} catch (error) {
+			// Re-throw errors for direct URL requests to maintain existing behavior
+			throw error;
+		}
+	}
+	
+	// Fallback to well-known URI discovery
 	// Construct the two well-known URI patterns as specified in RFC9728:
 	// 1. At the path of the resource endpoint: insert .well-known path after origin and before resource path
 	// 2. At the root: append .well-known path to the origin
