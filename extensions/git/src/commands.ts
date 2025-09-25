@@ -3537,6 +3537,85 @@ export class CommandCenter {
 		});
 	}
 
+	@command('git.createWorktreeWithDefaults', { repository: true, repositoryFilter: ['repository'] })
+	async createWorktreeWithDefaults(
+		repository: Repository,
+		commitish: string = 'HEAD'
+	): Promise<string | undefined> {
+		const config = workspace.getConfiguration('git');
+		const branchPrefix = config.get<string>('branchPrefix')!;
+
+		// Generate branch name if not provided
+		let branch = await this.generateRandomBranchName(repository, '-');
+		if (!branch) {
+			// Fallback to timestamp-based name if random generation fails
+			const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+			branch = `${branchPrefix}worktree-${timestamp}`;
+		}
+
+		// Ensure branch name starts with prefix if configured
+		if (branchPrefix && !branch.startsWith(branchPrefix)) {
+			branch = branchPrefix + branch;
+		}
+
+		// Create worktree name from branch name
+		const worktreeName = branch.startsWith(branchPrefix)
+			? branch.substring(branchPrefix.length).replace(/\//g, '-')
+			: branch.replace(/\//g, '-');
+
+		// Determine default worktree path
+		const defaultWorktreeRoot = this.globalState.get<string>(`${CommandCenter.WORKTREE_ROOT_KEY}:${repository.root}`);
+		const defaultWorktreePath = defaultWorktreeRoot
+			? path.join(defaultWorktreeRoot, worktreeName)
+			: path.join(path.dirname(repository.root), `${path.basename(repository.root)}.worktrees`, worktreeName);
+
+		// Check if worktree already exists at this path
+		const existingWorktree = repository.worktrees.find(worktree =>
+			pathEquals(path.normalize(worktree.path), path.normalize(defaultWorktreePath))
+		);
+
+		if (existingWorktree) {
+			// Generate unique path by appending a number
+			let counter = 1;
+			let uniquePath = `${defaultWorktreePath}-${counter}`;
+			while (repository.worktrees.some(wt => pathEquals(path.normalize(wt.path), path.normalize(uniquePath)))) {
+				counter++;
+				uniquePath = `${defaultWorktreePath}-${counter}`;
+			}
+			const finalWorktreePath = uniquePath;
+
+			try {
+				await repository.addWorktree({ path: finalWorktreePath, branch, commitish });
+
+				// Update worktree root in global state
+				const worktreeRoot = path.dirname(finalWorktreePath);
+				if (worktreeRoot !== defaultWorktreeRoot) {
+					this.globalState.update(`${CommandCenter.WORKTREE_ROOT_KEY}:${repository.root}`, worktreeRoot);
+				}
+
+				return finalWorktreePath;
+			} catch (err) {
+				// Return undefined on failure
+				return undefined;
+			}
+		}
+
+		try {
+			await repository.addWorktree({ path: defaultWorktreePath, branch, commitish });
+
+			// Update worktree root in global state
+			const worktreeRoot = path.dirname(defaultWorktreePath);
+			if (worktreeRoot !== defaultWorktreeRoot) {
+				this.globalState.update(`${CommandCenter.WORKTREE_ROOT_KEY}:${repository.root}`, worktreeRoot);
+			}
+
+			return defaultWorktreePath;
+		} catch (err) {
+			// Return undefined on failure
+			return undefined;
+		}
+	}
+
 	@command('git.createWorktree')
 	async createWorktree(repository: any): Promise<void> {
 		repository = this.model.getRepository(repository);
