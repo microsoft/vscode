@@ -207,13 +207,13 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 			// Disabled
 			if (this.chatEntitlementService.sentiment.disabled || this.chatEntitlementService.sentiment.untrusted) {
-				text = `$(copilot-unavailable)`;
-				ariaLabel = localize('copilotDisabledStatus', "Copilot Disabled");
+				text = '$(copilot-unavailable)';
+				ariaLabel = localize('copilotDisabledStatus', "Copilot disabled");
 			}
 
 			// Sessions in progress
 			else if (chatSessionsInProgressCount > 0) {
-				text = `$(loading~spin)`;
+				text = '$(loading~spin)';
 				if (chatSessionsInProgressCount > 1) {
 					ariaLabel = localize('chatSessionsInProgressStatus', "{0} chat sessions in progress", chatSessionsInProgressCount);
 				} else {
@@ -248,13 +248,13 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 			// Completions Disabled
 			else if (this.editorService.activeTextEditorLanguageId && !isCompletionsEnabled(this.configurationService, this.editorService.activeTextEditorLanguageId)) {
-				text = `$(copilot-unavailable)`;
+				text = '$(copilot-unavailable)';
 				ariaLabel = localize('completionsDisabledStatus', "Code completions disabled");
 			}
 
 			// Completions Snoozed
 			else if (this.completionsService.isSnoozing()) {
-				text = `$(copilot-snooze)`;
+				text = '$(copilot-snooze)';
 				ariaLabel = localize('completionsSnoozedStatus', "Code completions snoozed");
 			}
 		}

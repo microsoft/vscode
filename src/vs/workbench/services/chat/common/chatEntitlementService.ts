@@ -39,7 +39,8 @@ export namespace ChatEntitlementContextKeys {
 		installed: new RawContextKey<boolean>('chatSetupInstalled', false, true),  	// True when the chat extension is installed and enabled.
 		disabled: new RawContextKey<boolean>('chatSetupDisabled', false, true),  	// True when the chat extension is disabled due to any other reason than workspace trust.
 		untrusted: new RawContextKey<boolean>('chatSetupUntrusted', false, true),  	// True when the chat extension is disabled due to workspace trust.
-		later: new RawContextKey<boolean>('chatSetupLater', false, true)  			// True when the user wants to finish setup later.
+		later: new RawContextKey<boolean>('chatSetupLater', false, true),  			// True when the user wants to finish setup later.
+		registered: new RawContextKey<boolean>('chatSetupRegistered', false, true)  // True when the user has registered as Free or Pro user.
 	};
 
 	export const Entitlement = {
@@ -122,6 +123,11 @@ export interface IChatSentiment {
 	 * User signals intent to use Chat later.
 	 */
 	later?: boolean;
+
+	/**
+	 * User has registered as Free or Pro user.
+	 */
+	registered?: boolean;
 }
 
 export interface IChatEntitlementService {
@@ -256,7 +262,8 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 					ChatEntitlementContextKeys.Setup.disabled.key,
 					ChatEntitlementContextKeys.Setup.untrusted.key,
 					ChatEntitlementContextKeys.Setup.installed.key,
-					ChatEntitlementContextKeys.Setup.later.key
+					ChatEntitlementContextKeys.Setup.later.key,
+					ChatEntitlementContextKeys.Setup.registered.key
 				])), this._store
 			), () => { }, this._store
 		);
@@ -428,7 +435,8 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 			hidden: this.contextKeyService.getContextKeyValue<boolean>(ChatEntitlementContextKeys.Setup.hidden.key) === true,
 			disabled: this.contextKeyService.getContextKeyValue<boolean>(ChatEntitlementContextKeys.Setup.disabled.key) === true,
 			untrusted: this.contextKeyService.getContextKeyValue<boolean>(ChatEntitlementContextKeys.Setup.untrusted.key) === true,
-			later: this.contextKeyService.getContextKeyValue<boolean>(ChatEntitlementContextKeys.Setup.later.key) === true
+			later: this.contextKeyService.getContextKeyValue<boolean>(ChatEntitlementContextKeys.Setup.later.key) === true,
+			registered: this.contextKeyService.getContextKeyValue<boolean>(ChatEntitlementContextKeys.Setup.registered.key) === true
 		};
 	}
 
@@ -1104,6 +1112,7 @@ export class ChatEntitlementContext extends Disposable {
 	private readonly installedContext: IContextKey<boolean>;
 	private readonly disabledContext: IContextKey<boolean>;
 	private readonly untrustedContext: IContextKey<boolean>;
+	private readonly registeredContext: IContextKey<boolean>;
 
 	private _state: IChatEntitlementContextState;
 	private suspendedState: IChatEntitlementContextState | undefined = undefined;
@@ -1131,14 +1140,17 @@ export class ChatEntitlementContext extends Disposable {
 		this.proPlusContextKey = ChatEntitlementContextKeys.Entitlement.planProPlus.bindTo(contextKeyService);
 		this.businessContextKey = ChatEntitlementContextKeys.Entitlement.planBusiness.bindTo(contextKeyService);
 		this.enterpriseContextKey = ChatEntitlementContextKeys.Entitlement.planEnterprise.bindTo(contextKeyService);
+
 		this.organisationsContextKey = ChatEntitlementContextKeys.Entitlement.organisations.bindTo(contextKeyService);
 		this.isInternalContextKey = ChatEntitlementContextKeys.Entitlement.internal.bindTo(contextKeyService);
 		this.skuContextKey = ChatEntitlementContextKeys.Entitlement.sku.bindTo(contextKeyService);
+
 		this.hiddenContext = ChatEntitlementContextKeys.Setup.hidden.bindTo(contextKeyService);
 		this.laterContext = ChatEntitlementContextKeys.Setup.later.bindTo(contextKeyService);
 		this.installedContext = ChatEntitlementContextKeys.Setup.installed.bindTo(contextKeyService);
 		this.disabledContext = ChatEntitlementContextKeys.Setup.disabled.bindTo(contextKeyService);
 		this.untrustedContext = ChatEntitlementContextKeys.Setup.untrusted.bindTo(contextKeyService);
+		this.registeredContext = ChatEntitlementContextKeys.Setup.registered.bindTo(contextKeyService);
 
 		this._state = this.storageService.getObject<IChatEntitlementContextState>(ChatEntitlementContext.CHAT_ENTITLEMENT_CONTEXT_STORAGE_KEY, StorageScope.PROFILE) ?? { entitlement: ChatEntitlement.Unknown, organisations: undefined, sku: undefined };
 
@@ -1244,6 +1256,7 @@ export class ChatEntitlementContext extends Disposable {
 		this.installedContext.set(!!state.installed);
 		this.disabledContext.set(!!state.disabled);
 		this.untrustedContext.set(!!state.untrusted);
+		this.registeredContext.set(!!state.registered);
 
 		this.logService.trace(`[chat entitlement context] updateContext(): ${JSON.stringify(state)}`);
 		this.telemetryService.publicLog2<ChatEntitlementEvent, ChatEntitlementClassification>('chatEntitlements', {
