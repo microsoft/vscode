@@ -3446,6 +3446,11 @@
           "default": "${authorName} (${authorDateAgo})",
           "markdownDescription": "%config.blameStatusBarItem.template%"
         },
+        "git.blame.ignoreWhitespace": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%config.blameIgnoreWhitespace%"
+        },
         "git.commitShortHashLength": {
           "type": "number",
           "default": 7,

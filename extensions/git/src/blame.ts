@@ -131,22 +131,26 @@ class GitBlameInformationCache {
 		return this._cache.delete(repository);
 	}
 
-	get(repository: Repository, resource: Uri, commit: string): BlameInformation[] | undefined {
-		const key = this._getCacheKey(resource, commit);
+	clear(): void {
+		this._cache.clear();
+	}
+
+	get(repository: Repository, resource: Uri, cacheKey: string): BlameInformation[] | undefined {
+		const key = this._getCacheKey(resource, cacheKey);
 		return this._cache.get(repository)?.get(key);
 	}
 
-	set(repository: Repository, resource: Uri, commit: string, blameInformation: BlameInformation[]): void {
+	set(repository: Repository, resource: Uri, cacheKey: string, blameInformation: BlameInformation[]): void {
 		if (!this._cache.has(repository)) {
 			this._cache.set(repository, new LRUCache<string, BlameInformation[]>(100));
 		}
 
-		const key = this._getCacheKey(resource, commit);
+		const key = this._getCacheKey(resource, cacheKey);
 		this._cache.get(repository)!.set(key, blameInformation);
 	}
 
-	private _getCacheKey(resource: Uri, commit: string): string {
-		return toGitUri(resource, commit).toString();
+	private _getCacheKey(resource: Uri, cacheKey: string): string {
+		return `${toGitUri(resource, '').toString()}-${cacheKey}`;
 	}
 }
 
@@ -321,8 +325,14 @@ export class GitBlameController {
 	private _onDidChangeConfiguration(e?: ConfigurationChangeEvent): void {
 		if (e &&
 			!e.affectsConfiguration('git.blame.editorDecoration.enabled') &&
-			!e.affectsConfiguration('git.blame.statusBarItem.enabled')) {
+			!e.affectsConfiguration('git.blame.statusBarItem.enabled') &&
+			!e.affectsConfiguration('git.blame.ignoreWhitespace')) {
 			return;
+		}
+
+		// Clear cache when ignoreWhitespace setting changes
+		if (e && e.affectsConfiguration('git.blame.ignoreWhitespace')) {
+			this._repositoryBlameCache.clear();
 		}
 
 		const config = workspace.getConfiguration('git');
@@ -401,7 +411,13 @@ export class GitBlameController {
 			return undefined;
 		}
 
-		const resourceBlameInformation = this._repositoryBlameCache.get(repository, resource, commit);
+		// Read the ignore whitespace configuration
+		const config = workspace.getConfiguration('git');
+		const ignoreWhitespace = config.get<boolean>('blame.ignoreWhitespace', false);
+
+		// Create cache key that includes the ignoreWhitespace setting
+		const cacheKey = `${commit}-${ignoreWhitespace}`;
+		const resourceBlameInformation = this._repositoryBlameCache.get(repository, resource, cacheKey);
 		if (resourceBlameInformation) {
 			return resourceBlameInformation;
 		}
@@ -411,8 +427,8 @@ export class GitBlameController {
 		await ensureEmojis();
 
 		// Get blame information for the resource and cache it
-		const blameInformation = await repository.blame2(resource.fsPath, commit) ?? [];
-		this._repositoryBlameCache.set(repository, resource, commit, blameInformation);
+		const blameInformation = await repository.blame2(resource.fsPath, commit, ignoreWhitespace) ?? [];
+		this._repositoryBlameCache.set(repository, resource, cacheKey, blameInformation);
 
 		return blameInformation;
 	}
