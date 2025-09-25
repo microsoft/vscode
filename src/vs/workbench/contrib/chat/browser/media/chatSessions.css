@@ -42,7 +42,7 @@
 	font-style: italic;
 }
 
-/* Simple approach - directly style the edit container for chat sessions */
+/* Style for editing chat sessions */
 .chat-sessions-tree-container .explorer-item.explorer-item-edited {
 	display: flex;
 	align-items: center;
@@ -63,7 +63,6 @@
 	background: transparent !important;
 }
 
-/* Add the complete outline border that file explorer uses (this replaces the border) */
 .chat-sessions-tree-container .explorer-item.explorer-item-edited .monaco-inputbox input[type="text"] {
 	outline-width: 1px;
 	outline-style: solid;
@@ -73,11 +72,15 @@
 	border: none !important; /* Remove any default border */
 }
 
+.getting-started-list-container .monaco-list-row {
+	padding-left: 8px;
+}
+
+/* Style for two line descriptions */
+
 .chat-sessions-tree-container .chat-session-item.multiline {
 	padding: 2px 0;
 }
-
-/* Position session content and actions inline */
 .chat-sessions-tree-container .chat-session-item .session-content {
 	display: flex;
 	justify-content: space-between;
@@ -119,9 +122,7 @@
 	margin-left: 8px;
 }
 
-.getting-started-list-container .monaco-list-row {
-	padding-left: 8px;
-}
+
 
 .chat-sessions-tree-container .chat-session-item .description-row .statistics .insertions {
 	color: var(--vscode-chat-linesAddedForeground);
@@ -133,47 +134,12 @@
 	padding-left: 4px;
 }
 
-.chat-sessions-tree-container .chat-session-item .actions {
-	display: flex;
-	align-items: center;
-	flex-shrink: 0;
-}
-
-/* Hide actions by default, show on hover and focus */
-.chat-sessions-tree-container .chat-session-item .actions .monaco-action-bar .action-label {
-	opacity: 0;
-}
-
-.chat-sessions-tree-container .chat-session-item:hover .actions .monaco-action-bar .action-label,
-.chat-sessions-tree-container .monaco-list-row.focused .chat-session-item .actions .monaco-action-bar .action-label,
-.chat-sessions-tree-container .monaco-list-row.selected .chat-session-item .actions .monaco-action-bar .action-label {
-	opacity: 1;
-}
-
-/* For items with descriptions, keep the structure but adjust alignment */
-.chat-sessions-tree-container .chat-session-item .session-content {
-	align-items: center;
-	padding-top: 0;
-	padding-bottom: 0;
-}
-
-/* Ensure resource label takes up available space */
-.chat-sessions-tree-container .chat-session-item .monaco-icon-label {
-	flex: 1;
-	min-width: 0; /* Allow text to truncate */
-	text-overflow: ellipsis;
-	overflow: hidden;
-}
-
-.chat-sessions-tree-container .chat-session-item .monaco-icon-label::before {
-	text-align: center;
-}
 
 .chat-sessions-tree-container .chat-session-item .monaco-icon-label.codicon-loading::before {
 	animation: codicon-spin 1.5s steps(30) infinite;
 }
 
-/* Timestamp styling - similar to timeline pane */
+/* Needed for showing the timestamp on hover, from timeline pane */
 .chat-sessions-tree-container .chat-session-item .timestamp-container {
 	margin-left: auto;
 	margin-right: 4px;
@@ -219,6 +185,7 @@
 	width: initial;
 }
 
+/* Needed for not pushing the timestamp to the side of the action */
 .chat-sessions-tree-container .monaco-list-row .actions {
 	display: none;
 }
@@ -235,20 +202,10 @@
 	margin: 0;
 }
 
-/* Show twistie only for collapsible items (like "Show history...") */
 .chat-sessions-tree-container .monaco-list-row[aria-expanded] .monaco-tl-twistie {
 	visibility: visible;
 	width: auto;
 	padding-left: 0px;
 	padding-right: 6px;
 	margin: initial;
-}
-
-/* History items styling */
-.chat-sessions-tree-container .chat-session-item[data-history-item="true"] {
-	opacity: 0.9;
-}
-
-.chat-sessions-tree-container .chat-session-item[data-history-item="true"]:hover {
-	background-color: var(--vscode-list-hoverBackground);
 }

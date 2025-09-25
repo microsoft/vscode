@@ -284,6 +284,7 @@ export class SessionsViewPane extends ViewPane {
 				overrideStyles: {
 					listBackground: undefined
 				},
+				// hideTwistiesOfChildlessElements: true,
 				paddingBottom: SessionsDelegate.ITEM_HEIGHT,
 				setRowLineHeight: false
 
