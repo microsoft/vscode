@@ -22,6 +22,10 @@ steps:
         Write-Host "##vso[task.setvariable variable=AZURE_CLIENT_ID]$env:servicePrincipalId"
         Write-Host "##vso[task.setvariable variable=AZURE_ID_TOKEN;issecret=true]$env:idToken"
 
+  - script: npm ci
+    workingDirectory: build
+    displayName: Install build dependencies
+
   - pwsh: |
       $publishAuthTokens = (node build/azure-pipelines/common/getPublishAuthTokens)
       Write-Host "##vso[task.setvariable variable=PUBLISH_AUTH_TOKENS;issecret=true]$publishAuthTokens"
@@ -30,10 +34,6 @@ steps:
       AZURE_CLIENT_ID: "$(AZURE_CLIENT_ID)"
       AZURE_ID_TOKEN: "$(AZURE_ID_TOKEN)"
     displayName: Get publish auth tokens
-
-  - script: npm ci
-    workingDirectory: build
-    displayName: Install build dependencies
 
   - script: node build/azure-pipelines/common/releaseBuild.js ${{ parameters.VSCODE_RELEASE }}
     displayName: Release build
