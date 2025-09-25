@@ -71,6 +71,7 @@ import { registerChatDeveloperActions } from './actions/chatDeveloperActions.js'
 import { ChatSubmitAction, registerChatExecuteActions } from './actions/chatExecuteActions.js';
 import { registerChatFileTreeActions } from './actions/chatFileTreeActions.js';
 import { ChatGettingStartedContribution } from './actions/chatGettingStarted.js';
+import { registerChatPromptNavigationActions } from './actions/chatPromptNavigationActions.js';
 import { registerChatExportActions } from './actions/chatImportExport.js';
 import { registerLanguageModelActions } from './actions/chatLanguageModelActions.js';
 import { registerMoveActions } from './actions/chatMoveActions.js';
@@ -924,6 +925,7 @@ registerChatCopyActions();
 registerChatCodeBlockActions();
 registerChatCodeCompareBlockActions();
 registerChatFileTreeActions();
+registerChatPromptNavigationActions();
 registerChatTitleActions();
 registerChatExecuteActions();
 registerQuickChatActions();
