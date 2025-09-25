@@ -288,27 +288,17 @@ extends:
                       VSCODE_BUILD_MACOS_ARM64: ${{ parameters.VSCODE_BUILD_MACOS_ARM64 }}
 
             - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
-              - job: CLIWindowsX64
-                pool:
-                  name: 1es-windows-2022-x64
-                  os: windows
-                steps:
-                  - template: build/azure-pipelines/win32/product-build-win32-cli-compile.yml@self
-                    parameters:
-                      VSCODE_CHECK_ONLY: ${{ variables.VSCODE_CIBUILD }}
-                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_BUILD_WIN32: ${{ parameters.VSCODE_BUILD_WIN32 }}
+              - template: build/azure-pipelines/win32/product-build-win32-cli.yml@self
+                parameters:
+                  VSCODE_ARCH: x64
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_CHECK_ONLY: ${{ variables.VSCODE_CIBUILD }}
 
             - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}:
-              - job: CLIWindowsARM64
-                pool:
-                  name: 1es-windows-2022-x64
-                  os: windows
-                steps:
-                  - template: build/azure-pipelines/win32/product-build-win32-cli-compile.yml@self
-                    parameters:
-                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_BUILD_WIN32_ARM64: ${{ parameters.VSCODE_BUILD_WIN32_ARM64 }}
+              - template: build/azure-pipelines/win32/product-build-win32-cli.yml@self
+                parameters:
+                  VSCODE_ARCH: arm64
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 
       - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_COMPILE_ONLY, false)) }}:
         - stage: APIScan
