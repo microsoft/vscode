@@ -1058,42 +1058,41 @@ export async function fetchProtectedResourceMetadata(
 		return null;
 	};
 	
-	// Build the list of URLs to try in order
-	const urlsToTry: { url: string; throwOnError: boolean }[] = [];
-	
-	// If a direct resource metadata URL is provided (from WWW-Authenticate header), try it first
+	// If a direct resource metadata URL is provided (from WWW-Authenticate header), use only that
 	if (resourceMetadataChallenge) {
-		urlsToTry.push({ url: resourceMetadataChallenge, throwOnError: true });
+		const result = await fetchAndValidateMetadata(resourceMetadataChallenge, true);
+		if (result) {
+			return result;
+		}
+		// If direct URL fails, we don't fall back to well-known discovery per RFC 9728
+		return undefined;
 	}
 	
-	// Add well-known URI discovery URLs as fallbacks
+	// Fallback to well-known URI discovery
 	// Construct the two well-known URI patterns as specified in RFC9728:
 	// 1. At the path of the resource endpoint: insert .well-known path after origin and before resource path
 	// 2. At the root: append .well-known path to the origin
 	
+	const wellKnownUrls: string[] = [];
 	const rootUrl = new URL(AUTH_PROTECTED_RESOURCE_METADATA_DISCOVERY_PATH, resourceUrlObject.origin).toString();
 	
 	// If the resource has a meaningful path (more than just '/'), also try path insertion
 	if (resourceUrlObject.pathname !== '/') {
 		const pathInsertionUrl = rootUrl + resourceUrlObject.pathname;
-		urlsToTry.push({ url: pathInsertionUrl, throwOnError: false });
+		wellKnownUrls.push(pathInsertionUrl);
 	}
 	
 	// Always include the root URL as fallback
-	urlsToTry.push({ url: rootUrl, throwOnError: false });
+	wellKnownUrls.push(rootUrl);
 	
-	// Try each URL in order
-	for (const { url, throwOnError } of urlsToTry) {
+	// Try each well-known URL in order
+	for (const url of wellKnownUrls) {
 		try {
-			const result = await fetchAndValidateMetadata(url, throwOnError);
+			const result = await fetchAndValidateMetadata(url, false);
 			if (result) {
 				return result;
 			}
 		} catch (error) {
-			if (throwOnError) {
-				// Re-throw errors for direct URL requests to maintain existing behavior
-				throw error;
-			}
 			// Continue to next URL on error for well-known discovery
 			continue;
 		}
