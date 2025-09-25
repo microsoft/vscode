@@ -185,6 +185,15 @@
 	text-align: center;
 }
 
+/* Ensure consistent spacing for chat session icons after removing 'predefined-file-icon' class to keep them visible */
+/* when file icons are globally disabled. Mirrors the sizing from workbench style.css for predefined-file-icon. */
+/* Spacing for dedicated injected chat session icon span */
+.chat-sessions-tree-container .chat-session-item .chat-session-icon.codicon::before {
+	width: 16px;
+	padding-left: 3px; /* width (16px) - typical font-size (13px) = left padding (3px) */
+	padding-right: 3px;
+}
+
 .chat-sessions-tree-container .chat-session-item .monaco-icon-label.codicon-loading::before {
 	animation: codicon-spin 1.5s steps(30) infinite;
 }

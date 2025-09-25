@@ -148,8 +148,8 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 		const color = colorTheme.getColor(colorId);
 
 		if (color) {
-			// Target the ::before pseudo-element where the actual icon is rendered
-			const css = `.monaco-workbench .chat-session-item .monaco-icon-label.codicon-${iconId}::before { color: ${color} !important; }`;
+			// Target only the dedicated chat session icon span
+			const css = `.monaco-workbench .chat-session-item .chat-session-icon.codicon-${iconId}::before { color: ${color} !important; }`;
 			const activeWindow = getActiveWindow();
 
 			const styleId = `chat-sessions-icon-${styleKey}`;
@@ -310,30 +310,49 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 				} : undefined) :
 			undefined;
 
-		// Handle custom icon rendering (independent of file icon theme)
-		if (iconTheme) {
-			templateData.customIcon.className = `chat-session-custom-icon ${ThemeIcon.asClassName(iconTheme)}`;
-			if (iconTheme.color) {
-				const theme = this.themeService.getColorTheme();
-				templateData.customIcon.style.color = theme.getColor(iconTheme.color.id)?.toString() ?? '';
-			} else {
-				templateData.customIcon.style.color = '';
-			}
-			templateData.customIcon.style.display = 'flex';
-		} else {
-			templateData.customIcon.style.display = 'none';
-		}
-
+		// Use hideIcon + custom span approach to ensure icon survives global file icon toggle.
 		templateData.resourceLabel.setResource({
 			name: session.label,
 			description: !renderDescriptionOnSecondRow && 'description' in session && typeof session.description === 'string' ? session.description : '',
 			resource: iconResource
 		}, {
 			fileKind: undefined,
-			hideIcon: true, // Hide the ResourceLabel's icon since we're using custom icon
+			hideIcon: true,
 			// Set tooltip on resourceLabel only for single-row items
 			title: !renderDescriptionOnSecondRow || !session.description ? tooltipContent : undefined
 		});
+
+		// Inject/update dedicated codicon span (not affected by predefined-file-icon rule)
+		if (iconTheme) {
+			const labelRoot = templateData.resourceLabel.element.querySelector('.monaco-icon-label-container');
+			if (labelRoot) {
+				let iconSpan = labelRoot.querySelector(':scope > span.chat-session-icon.codicon') as HTMLElement | null;
+				const desired = `codicon-${iconTheme.id}`;
+				if (!iconSpan) {
+					iconSpan = document.createElement('span');
+					iconSpan.className = `chat-session-icon codicon ${desired}`;
+					const nameContainer = labelRoot.querySelector('.monaco-icon-name-container');
+					if (nameContainer) {
+						labelRoot.insertBefore(iconSpan, nameContainer);
+					} else {
+						labelRoot.prepend(iconSpan);
+					}
+				} else if (!iconSpan.classList.contains(desired)) {
+					for (const c of [...iconSpan.classList]) {
+						if (c.startsWith('codicon-') && c !== desired) {
+							iconSpan.classList.remove(c);
+						}
+					}
+					iconSpan.classList.add(desired);
+				}
+				iconSpan.style.display = '';
+			}
+		} else {
+			const existing = templateData.resourceLabel.element.querySelector(':scope span.chat-session-icon.codicon') as HTMLElement | null;
+			if (existing) {
+				existing.style.display = 'none';
+			}
+		}
 
 		// For two-row items, set tooltip on the container instead
 		if (renderDescriptionOnSecondRow && session.description && tooltipContent) {
