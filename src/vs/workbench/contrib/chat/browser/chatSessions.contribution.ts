@@ -30,6 +30,7 @@ import { ChatSessionUri } from '../common/chatUri.js';
 import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { CHAT_CATEGORY } from './actions/chatActions.js';
 import { IChatEditorOptions } from './chatEditor.js';
+import { NEW_CHAT_SESSION_ACTION_ID } from './chatSessions/common.js';
 import { VIEWLET_ID } from './chatSessions/view/chatSessionsView.js';
 
 const CODING_AGENT_DOCS = 'https://code.visualstudio.com/docs/copilot/copilot-coding-agent';
@@ -80,9 +81,9 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 			required: ['type', 'name', 'displayName', 'description'],
 		}
 	},
-	activationEventsGenerator: (contribs, results) => {
+	activationEventsGenerator: function* (contribs) {
 		for (const contrib of contribs) {
-			results.push(`onChatSession:${contrib.type}`);
+			yield `onChatSession:${contrib.type}`;
 		}
 	}
 });
@@ -240,9 +241,13 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	private _registerMenuItems(contribution: IChatSessionsExtensionPoint): IDisposable {
 		return MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 			command: {
-				id: `workbench.action.chat.openNewSessionEditor.${contribution.type}`,
+				id: `${NEW_CHAT_SESSION_ACTION_ID}.${contribution.type}`,
 				title: localize('interactiveSession.openNewSessionEditor', "New {0} Chat Editor", contribution.displayName),
 				icon: Codicon.plus,
+				source: {
+					id: contribution.extensionDescription.identifier.value,
+					title: contribution.extensionDescription.displayName || contribution.extensionDescription.name,
+				}
 			},
 			group: 'navigation',
 			order: 1,

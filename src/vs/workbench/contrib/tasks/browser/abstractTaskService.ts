@@ -8,7 +8,7 @@ import { IStringDictionary } from '../../../../base/common/collections.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import * as glob from '../../../../base/common/glob.js';
 import * as json from '../../../../base/common/json.js';
-import { Disposable, dispose, IDisposable, IReference } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, dispose, IDisposable, IReference, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { LRUCache, Touch } from '../../../../base/common/map.js';
 import * as Objects from '../../../../base/common/objects.js';
 import { ValidationState, ValidationStatus } from '../../../../base/common/parsers.js';
@@ -47,7 +47,7 @@ import { ITextFileService } from '../../../services/textfile/common/textfiles.js
 import { ITerminalGroupService, ITerminalService } from '../../terminal/browser/terminal.js';
 import { ITerminalProfileResolverService } from '../../terminal/common/terminal.js';
 
-import { ConfiguringTask, ContributedTask, CustomTask, ExecutionEngine, InMemoryTask, InstancePolicy, ITaskEvent, ITaskIdentifier, ITaskSet, JsonSchemaVersion, KeyedTaskIdentifier, RerunAllRunningTasksCommandId, RuntimeType, Task, TASK_RUNNING_STATE, TaskDefinition, TaskEventKind, TaskGroup, TaskRunSource, TaskSettingId, TaskSorter, TaskSourceKind, TasksSchemaProperties, USER_TASKS_GROUP_KEY } from '../common/tasks.js';
+import { ConfiguringTask, ContributedTask, CustomTask, ExecutionEngine, InMemoryTask, InstancePolicy, ITaskEvent, ITaskIdentifier, ITaskInactiveEvent, ITaskProcessEndedEvent, ITaskSet, JsonSchemaVersion, KeyedTaskIdentifier, RerunAllRunningTasksCommandId, RuntimeType, Task, TASK_RUNNING_STATE, TaskDefinition, TaskEventKind, TaskGroup, TaskRunSource, TaskSettingId, TaskSorter, TaskSourceKind, TasksSchemaProperties, USER_TASKS_GROUP_KEY } from '../common/tasks.js';
 import { CustomExecutionSupportedContext, ICustomizationProperties, IProblemMatcherRunOptions, ITaskFilter, ITaskProvider, ITaskService, IWorkspaceFolderTaskResult, ProcessExecutionSupportedContext, ServerlessWebContext, ShellExecutionSupportedContext, TaskCommandsRegistered, TaskExecutionSupportedContext, TasksAvailableContext } from '../common/taskService.js';
 import { ITaskExecuteResult, ITaskResolver, ITaskSummary, ITaskSystem, ITaskSystemInfo, ITaskTerminateResponse, TaskError, TaskErrors, TaskExecuteKind, Triggers, VerifiedTask } from '../common/taskSystem.js';
 import { getTemplates as getTaskTemplates } from '../common/taskTemplates.js';
@@ -89,7 +89,9 @@ import { IChatAgentService } from '../../chat/common/chatAgents.js';
 import { IChatService } from '../../chat/common/chatService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../chat/common/constants.js';
 import { configureTaskIcon, isWorkspaceFolder, ITaskQuickPickEntry, QUICKOPEN_DETAIL_CONFIG, QUICKOPEN_SKIP_CONFIG, TaskQuickPick } from './taskQuickPick.js';
-
+import { IHostService } from '../../../services/host/browser/host.js';
+import * as dom from '../../../../base/browser/dom.js';
+import { FocusMode } from '../../../../platform/native/common/native.js';
 
 const QUICKOPEN_HISTORY_LIMIT_CONFIG = 'task.quickOpen.history';
 const PROBLEM_MATCHER_NEVER_CONFIG = 'task.problemMatchers.neverPrompt';
@@ -202,6 +204,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	private static readonly RecentlyUsedTasks_KeyV2 = 'workbench.tasks.recentlyUsedTasks2';
 	private static readonly PersistentTasks_Key = 'workbench.tasks.persistentTasks';
 	private static readonly IgnoreTask010DonotShowAgain_key = 'workbench.tasks.ignoreTask010Shown';
+	private static readonly LongRunningTaskNotificationThreshold = 60000; // 1 minute in milliseconds
 
 	public _serviceBrand: undefined;
 	public static OutputChannelId: string = 'tasks';
@@ -248,8 +251,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	public get isReconnected(): boolean { return this._tasksReconnected; }
 	private _onDidChangeTaskProviders = this._register(new Emitter<void>());
 	public onDidChangeTaskProviders = this._onDidChangeTaskProviders.event;
+	private readonly _taskRunStartTimes = new Map<string, number>();
 
 	private _activatedTaskProviders: Set<string> = new Set();
+
+	private readonly notification = this._register(new MutableDisposable<DisposableStore>());
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -289,7 +295,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IChatService private readonly _chatService: IChatService,
-		@IChatAgentService private readonly _chatAgentService: IChatAgentService
+		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
+		@IHostService private readonly _hostService: IHostService
 	) {
 		super();
 		this._whenTaskSystemReady = Event.toPromise(this.onDidChangeTaskSystemInfo);
@@ -384,8 +391,35 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		this._register(this._lifecycleService.onBeforeShutdown(e => {
 			this._willRestart = e.reason !== ShutdownReason.RELOAD;
 		}));
-		this._register(this.onDidStateChange(e => {
+		this._register(this.onDidStateChange(async e => {
 			this._log(nls.localize('taskEvent', 'Task Event kind: {0}', e.kind), true);
+			switch (e.kind) {
+				case TaskEventKind.Start:
+					this._taskRunStartTimes.set(e.taskId, Date.now());
+					break;
+				case TaskEventKind.ProcessEnded: {
+					const processEndedEvent = e as ITaskProcessEndedEvent;
+					const startTime = this._taskRunStartTimes.get(e.taskId);
+					this._taskRunStartTimes.delete(e.taskId);
+					const durationMs = processEndedEvent.durationMs ?? (startTime !== undefined ? Date.now() - startTime : undefined);
+					if (durationMs !== undefined) {
+						this._handleLongRunningTaskCompletion(processEndedEvent, durationMs);
+					}
+					break;
+				}
+				case TaskEventKind.Inactive: {
+					const processEndedEvent = e as ITaskInactiveEvent;
+					const startTime = this._taskRunStartTimes.get(e.taskId);
+					const durationMs = processEndedEvent.durationMs ?? (startTime !== undefined ? Date.now() - startTime : undefined);
+					if (durationMs !== undefined) {
+						this._handleLongRunningTaskCompletion(processEndedEvent, durationMs);
+					}
+					break;
+				}
+				case TaskEventKind.Terminated:
+					this._taskRunStartTimes.delete(e.taskId);
+					break;
+			}
 			if (e.kind === TaskEventKind.Changed) {
 				// no-op
 			} else if ((this._willRestart || (e.kind === TaskEventKind.Terminated && e.exitReason === TerminalExitReason.User)) && e.taskId) {
@@ -454,6 +488,58 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this._log(nls.localize('TaskService.reconnected', 'Reconnected to running tasks.'), true);
 			this._onDidReconnectToTasks.fire();
 		});
+	}
+
+	private async _handleLongRunningTaskCompletion(event: ITaskProcessEndedEvent | ITaskInactiveEvent, durationMs: number): Promise<void> {
+		if (durationMs < AbstractTaskService.LongRunningTaskNotificationThreshold) {
+			return;
+		}
+		const terminalForTask = this._terminalService.instances.find(i => i.instanceId === event.terminalId);
+		if (!terminalForTask) {
+			return;
+		}
+		const taskLabel = terminalForTask.title;
+		const targetWindow = dom.getWindow(terminalForTask.domElement);
+		if (targetWindow.document.hasFocus()) {
+			return;
+		}
+		if (!this._configurationService.getValue<boolean>(TaskSettingId.NotifyWindowOnTaskCompletion)) {
+			return;
+		}
+
+		const durationText = this._formatTaskDuration(durationMs);
+		const message = taskLabel
+			? nls.localize('task.longRunningTaskCompletedWithLabel', 'Task "{0}" finished in {1}.', taskLabel, durationText)
+			: nls.localize('task.longRunningTaskCompleted', 'Task finished in {0}.', durationText);
+		this._taskRunStartTimes.delete(event.taskId);
+		this._hostService.focus(targetWindow, { mode: FocusMode.Notify });
+		const notification = await dom.triggerNotification(message);
+		if (notification) {
+			const disposables = this.notification.value = new DisposableStore();
+			disposables.add(notification);
+
+			disposables.add(Event.once(notification.onClick)(() => {
+				this._hostService.focus(targetWindow, { mode: FocusMode.Force });
+			}));
+
+			disposables.add(this._hostService.onDidChangeFocus(focus => {
+				if (focus) {
+					disposables.dispose();
+				}
+			}));
+		}
+	}
+
+	private _formatTaskDuration(durationMs: number): string {
+		const totalSeconds = Math.max(1, Math.round(durationMs / 1000));
+		const minutes = Math.floor(totalSeconds / 60);
+		const seconds = totalSeconds % 60;
+		if (minutes > 0) {
+			return seconds > 0
+				? nls.localize('task.longRunningTaskDurationMinutesSeconds', '{0}m {1}s', minutes, seconds)
+				: nls.localize('task.longRunningTaskDurationMinutes', '{0}m', minutes);
+		}
+		return nls.localize('task.longRunningTaskDurationSeconds', '{0}s', seconds);
 	}
 
 	private async _reconnectTasks(): Promise<boolean> {

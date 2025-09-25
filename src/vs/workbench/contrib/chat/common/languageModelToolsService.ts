@@ -186,6 +186,7 @@ export interface IToolResult {
 	toolResultMessage?: string | IMarkdownString;
 	toolResultDetails?: Array<URI | Location> | IToolResultInputOutputDetails | IToolResultOutputDetails;
 	toolResultError?: string;
+	toolMetadata?: unknown;
 }
 
 export function toolResultHasBuffers(result: IToolResult): boolean {
