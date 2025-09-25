@@ -61,6 +61,8 @@ const enum AutoApproveStorageKeys {
 	GlobalAutoApproveOptIn = 'chat.tools.global.autoApprove.optIn'
 }
 
+const SkipAutoApproveConfirmationKey = 'vscode.chat.tools.global.autoApprove.testMode';
+
 export const globalAutoApproveDescription = localize2(
 	{
 		key: 'autoApprove2.markdown',
@@ -531,6 +533,10 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	private async _checkGlobalAutoApprove(): Promise<boolean> {
 		const optedIn = this._storageService.getBoolean(AutoApproveStorageKeys.GlobalAutoApproveOptIn, StorageScope.APPLICATION, false);
 		if (optedIn) {
+			return true;
+		}
+
+		if (this._contextKeyService.getContextKeyValue(SkipAutoApproveConfirmationKey) === true) {
 			return true;
 		}
 
