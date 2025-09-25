@@ -2051,7 +2051,7 @@ registerAction2(class OpenChatEmptyStateSettingsAction extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const preferencesService = accessor.get(IPreferencesService);
 		await preferencesService.openUserSettings({
-			query: 'chat.emptyState promptFiles'
+			query: 'chat.emptyState chat.promptFilesRecommendations'
 		});
 	}
 });
