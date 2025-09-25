@@ -51,7 +51,6 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 interface ISessionTemplateData {
 	readonly container: HTMLElement;
 	readonly resourceLabel: IResourceLabel;
-	readonly customIcon: HTMLElement;
 	readonly actionBar: ActionBar;
 	readonly elementDisposable: DisposableStore;
 	readonly timestamp: HTMLElement;
@@ -191,9 +190,6 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 		// Create a container that holds the label, timestamp, and actions
 		const contentContainer = append(element, $('.session-content'));
 
-		// Create custom icon element that won't be affected by file icon theme
-		const customIcon = append(contentContainer, $('.chat-session-custom-icon'));
-
 		const resourceLabel = this.labels.create(contentContainer, { supportHighlights: true });
 		const descriptionRow = append(element, $('.description-row'));
 		const descriptionLabel = append(descriptionRow, $('span.description'));
@@ -224,7 +220,6 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 		return {
 			container: element,
 			resourceLabel,
-			customIcon,
 			actionBar,
 			elementDisposable,
 			timestamp,
