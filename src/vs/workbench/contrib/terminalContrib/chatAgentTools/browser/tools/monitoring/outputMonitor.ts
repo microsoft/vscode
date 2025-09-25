@@ -10,7 +10,6 @@ import { CancellationToken } from '../../../../../../../base/common/cancellation
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../../../../base/common/observable.js';
 import { isObject, isString } from '../../../../../../../base/common/types.js';
 import { localize } from '../../../../../../../nls.js';
 import { ExtensionIdentifier } from '../../../../../../../platform/extensions/common/extensions.js';
@@ -516,12 +515,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			async () => { execution.instance.focus(true); return true; },
 		);
 
-		this._register(autorun(reader => {
-			if (part.isHidden?.read(reader)) {
-				this._outputMonitorTelemetryCounters.inputToolFreeFormInputShownCount++;
-			}
-		}));
-
 		const inputPromise = new Promise<boolean>(resolve => {
 			const inputDataDisposable = this._register(execution.instance.onDidInputData((data) => {
 				if (!data || data === '\r' || data === '\n' || data === '\r\n') {
@@ -568,12 +561,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			},
 			getMoreActions(suggestedOption, confirmationPrompt)
 		);
-
-		this._register(autorun(reader => {
-			if (part.isHidden?.read(reader)) {
-				this._outputMonitorTelemetryCounters.inputToolManualShownCount++;
-			}
-		}));
 		const inputPromise = new Promise<string | undefined>(resolve => {
 			inputDataDisposable = this._register(execution.instance.onDidInputData(() => {
 				part.hide();
@@ -615,6 +602,11 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			throw new Error('No request');
 		}
 		let part!: ChatElicitationRequestPart;
+		// Callback to increment telemetry counter
+		const onHideOrDispose = () => {
+			console.log('hidden');
+			this._outputMonitorTelemetryCounters.inputToolManualShownCount++;
+		};
 		const promise = new Promise<T | undefined>(resolve => {
 			const thePart = part = this._register(new ChatElicitationRequestPart(
 				title,
@@ -646,8 +638,9 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 						resolve(undefined);
 					}
 				},
-				undefined,
-				moreActions
+				undefined, // source
+				moreActions,
+				onHideOrDispose
 			));
 			chatModel.acceptResponseProgress(request, thePart);
 			this._promptPart = thePart;
