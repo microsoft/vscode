@@ -112,6 +112,7 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 	static readonly TEMPLATE_ID = 'session';
 	private appliedIconColorStyles = new Set<string>();
 	private markdownRenderer: MarkdownRenderer;
+	private _loggedMissingLabelRoot = false; // guard to log DOM structure issues only once
 
 	constructor(
 		private readonly labels: ResourceLabels,
@@ -257,13 +258,16 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 		// Normal rendering - clear the action bar in case it was used for editing
 		templateData.actionBar.clear();
 
-		// Handle different icon types
-		let iconResource: URI | undefined;
+		// Resolve icon inputs: ThemeIcon vs URI. We only inject a custom span for ThemeIcons to avoid the
+		// global predefined-file-icon rule; URI icons can use the normal ResourceLabel path safely.
 		let iconTheme: ThemeIcon | undefined;
+		let iconUri: URI | undefined;
 		if (!session.iconPath && session.id !== LocalChatSessionsProvider.HISTORY_NODE_ID) {
 			iconTheme = this.statusToIcon(session.status);
-		} else {
+		} else if (session.iconPath && ThemeIcon.isThemeIcon(session.iconPath)) {
 			iconTheme = session.iconPath;
+		} else if (session.iconPath && URI.isUri(session.iconPath)) {
+			iconUri = session.iconPath;
 		}
 
 		if (iconTheme?.color?.id) {
@@ -310,34 +314,43 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 				} : undefined) :
 			undefined;
 
-		// Use hideIcon + custom span approach to ensure icon survives global file icon toggle.
+		// Use hideIcon + custom span approach ONLY for ThemeIcons. For URI icons, fall back to normal label icon support.
 		templateData.resourceLabel.setResource({
 			name: session.label,
 			description: !renderDescriptionOnSecondRow && 'description' in session && typeof session.description === 'string' ? session.description : '',
-			resource: iconResource
+			resource: undefined
 		}, {
 			fileKind: undefined,
-			hideIcon: true,
+			icon: iconUri, // only defined for URI path case
+			hideIcon: !!iconTheme, // hide built-in icon space only when we will inject our own ThemeIcon span
 			// Set tooltip on resourceLabel only for single-row items
 			title: !renderDescriptionOnSecondRow || !session.description ? tooltipContent : undefined
 		});
 
-		// Inject/update dedicated codicon span (not affected by predefined-file-icon rule)
+		// Inject/update dedicated codicon span for ThemeIcon only (URI icon already rendered by ResourceLabel)
 		if (iconTheme) {
 			const labelRoot = templateData.resourceLabel.element.querySelector('.monaco-icon-label-container');
-			if (labelRoot) {
+			if (!labelRoot) {
+				if (!this._loggedMissingLabelRoot) {
+					this._loggedMissingLabelRoot = true;
+					this.logService.debug('[ChatSessions] monaco-icon-label-container not found; icon injection skipped.');
+				}
+			} else {
 				let iconSpan = labelRoot.querySelector(':scope > span.chat-session-icon.codicon') as HTMLElement | null;
 				const desired = `codicon-${iconTheme.id}`;
 				if (!iconSpan) {
 					iconSpan = document.createElement('span');
-					iconSpan.className = `chat-session-icon codicon ${desired}`;
+					iconSpan.className = 'chat-session-icon codicon';
+					iconSpan.setAttribute('aria-hidden', 'true');
 					const nameContainer = labelRoot.querySelector('.monaco-icon-name-container');
 					if (nameContainer) {
 						labelRoot.insertBefore(iconSpan, nameContainer);
 					} else {
 						labelRoot.prepend(iconSpan);
 					}
-				} else if (!iconSpan.classList.contains(desired)) {
+				}
+				// Fast path: already correct
+				if (!iconSpan.classList.contains(desired)) {
 					for (const c of [...iconSpan.classList]) {
 						if (c.startsWith('codicon-') && c !== desired) {
 							iconSpan.classList.remove(c);
@@ -348,6 +361,7 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 				iconSpan.style.display = '';
 			}
 		} else {
+			// Hide previously injected span if we no longer have a theme icon
 			const existing = templateData.resourceLabel.element.querySelector(':scope span.chat-session-icon.codicon') as HTMLElement | null;
 			if (existing) {
 				existing.style.display = 'none';
