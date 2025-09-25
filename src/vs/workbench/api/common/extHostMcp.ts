@@ -6,22 +6,24 @@
 import * as vscode from 'vscode';
 import { DeferredPromise, raceCancellationError, Sequencer, timeout } from '../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { CancellationError } from '../../../base/common/errors.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { AUTH_SERVER_METADATA_DISCOVERY_PATH, getDefaultMetadataForUrl, IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata, isAuthorizationProtectedResourceMetadata, isAuthorizationServerMetadata, OPENID_CONNECT_DISCOVERY_PATH, parseWWWAuthenticateHeader } from '../../../base/common/oauth.js';
 import { SSEParser } from '../../../base/common/sseParser.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import { ConfigurationTarget } from '../../../platform/configuration/common/configuration.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { canLog, ILogService, LogLevel } from '../../../platform/log/common/log.js';
 import { StorageScope } from '../../../platform/storage/common/storage.js';
 import { extensionPrefixedIdentifier, McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerTransportHTTP, McpServerTransportType, UserInteractionRequiredError } from '../../contrib/mcp/common/mcpTypes.js';
-import { ExtHostMcpShape, MainContext, MainThreadMcpShape } from './extHost.protocol.js';
+import { MCP } from '../../contrib/mcp/common/modelContextProtocol.js';
+import { ExtHostMcpShape, IStartMcpOptions, MainContext, MainThreadMcpShape } from './extHost.protocol.js';
+import { IExtHostInitDataService } from './extHostInitDataService.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 import * as Convert from './extHostTypeConverters.js';
-import { AUTH_SERVER_METADATA_DISCOVERY_PATH, OPENID_CONNECT_DISCOVERY_PATH, getDefaultMetadataForUrl, IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata, isAuthorizationProtectedResourceMetadata, isAuthorizationServerMetadata, parseWWWAuthenticateHeader } from '../../../base/common/oauth.js';
-import { URI } from '../../../base/common/uri.js';
-import { MCP } from '../../contrib/mcp/common/modelContextProtocol.js';
-import { CancellationError } from '../../../base/common/errors.js';
-import { ConfigurationTarget } from '../../../platform/configuration/common/configuration.js';
-import { IExtHostInitDataService } from './extHostInitDataService.js';
+import { IExtHostVariableResolverProvider } from './extHostVariableResolverService.js';
+import { IExtHostWorkspace } from './extHostWorkspace.js';
 
 export const IExtHostMpcService = createDecorator<IExtHostMpcService>('IExtHostMpcService');
 
@@ -41,23 +43,36 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
 		@ILogService private readonly _logService: ILogService,
-		@IExtHostInitDataService private readonly _extHostInitData: IExtHostInitDataService
+		@IExtHostInitDataService private readonly _extHostInitData: IExtHostInitDataService,
+		@IExtHostWorkspace protected readonly _workspaceService: IExtHostWorkspace,
+		@IExtHostVariableResolverProvider private readonly _variableResolver: IExtHostVariableResolverProvider,
 	) {
 		super();
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadMcp);
 	}
 
-	$startMcp(id: number, launch: McpServerLaunch.Serialized, errorOnUserInteraction?: boolean): void {
-		this._startMcp(id, McpServerLaunch.fromSerialized(launch), errorOnUserInteraction);
+	$startMcp(id: number, opts: IStartMcpOptions): void {
+		this._startMcp(id, McpServerLaunch.fromSerialized(opts.launch), opts.defaultCwd && URI.revive(opts.defaultCwd), opts.errorOnUserInteraction);
 	}
 
-	protected _startMcp(id: number, launch: McpServerLaunch, errorOnUserInteraction?: boolean): void {
+	protected _startMcp(id: number, launch: McpServerLaunch, _defaultCwd?: URI, errorOnUserInteraction?: boolean): void {
 		if (launch.type === McpServerTransportType.HTTP) {
 			this._sseEventSources.set(id, new McpHTTPHandle(id, launch, this._proxy, this._logService, errorOnUserInteraction));
 			return;
 		}
 
 		throw new Error('not implemented');
+	}
+
+	async $substituteVariables<T>(_workspaceFolder: UriComponents | undefined, value: T): Promise<T> {
+		const folderURI = URI.revive(_workspaceFolder);
+		const folder = folderURI && await this._workspaceService.resolveWorkspaceFolder(folderURI);
+		const variableResolver = await this._variableResolver.getResolver();
+		return variableResolver.resolveAsync(folder && {
+			uri: folder.uri,
+			name: folder.name,
+			index: folder.index,
+		}, value) as T;
 	}
 
 	$stopMcp(id: number): void {
