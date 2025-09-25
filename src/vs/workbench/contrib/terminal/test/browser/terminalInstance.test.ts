@@ -15,7 +15,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { TerminalCapabilityStore } from '../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
-import { GeneralShellType, ITerminalChildProcess, ITerminalProfile } from '../../../../../platform/terminal/common/terminal.js';
+import { GeneralShellType, ITerminalChildProcess, ITerminalProfile, TitleEventSource } from '../../../../../platform/terminal/common/terminal.js';
 import { IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { IViewDescriptorService } from '../../../../common/views.js';
 import { ITerminalConfigurationService, ITerminalInstance, ITerminalInstanceService } from '../../browser/terminal.js';
@@ -188,7 +188,7 @@ suite('Workbench - TerminalInstance', () => {
 			strictEqual(taskTerminal.title, 'Test Task Name');
 
 			// Simulate a process title change (which happens when task completes)
-			(taskTerminal as any)._setTitle('some-process-name', (await import('../../../../../platform/terminal/common/terminal.js')).TitleEventSource.Process);
+			(taskTerminal as any)._setTitle('some-process-name', TitleEventSource.Process);
 
 			// Verify that the task name is preserved
 			strictEqual(taskTerminal.title, 'Test Task Name', 'Task terminal should preserve API-set title even when process title changes');
@@ -230,7 +230,7 @@ suite('Workbench - TerminalInstance', () => {
 			strictEqual(regularTerminal.title, 'Regular Terminal');
 
 			// Simulate a process title change
-			(regularTerminal as any)._setTitle('bash', (await import('../../../../../platform/terminal/common/terminal.js')).TitleEventSource.Process);
+			(regularTerminal as any)._setTitle('bash', TitleEventSource.Process);
 
 			// Verify that the title was changed (regular terminals should allow process title changes)
 			strictEqual(regularTerminal.title, 'bash', 'Regular terminal should allow process title changes to override API-set title');
