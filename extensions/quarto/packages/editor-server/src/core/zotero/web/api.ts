@@ -13,12 +13,12 @@
  *
  */
 
-import { sleep } from "core";
+import { sleep } from "../../../../../core/src/wait.js";
 import fetch from "cross-fetch";
 
-import { CSL } from "editor-types";
-import { zoteroTraceProgress } from "./trace";
-import { SyncProgress } from "./types";
+import { CSL } from "../../../../../editor-types/src/index.js";
+import { zoteroTraceProgress } from "./trace.js";
+import { SyncProgress } from "./types.js";
 
 export interface Library {
   type: "user" | "group";

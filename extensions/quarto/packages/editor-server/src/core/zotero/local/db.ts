@@ -20,9 +20,9 @@ import * as path from "node:path";
 
 import { Database } from "node-sqlite3-wasm";
 
-import { quartoCacheDir } from "quarto-core";
-import { md5Hash } from "core-node";
-import { zoteroTrace } from "../trace";
+import { quartoCacheDir } from "../../../../../quarto-core/src/index.js";
+import { md5Hash } from "../../../../../core-node/src/index.js";
+import { zoteroTrace } from "../trace.js";
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function withZoteroDb<T>(dataDir: string, f: (db: Database) => Promise<T>) {
@@ -54,13 +54,13 @@ export async function withZoteroDb<T>(dataDir: string, f: (db: Database) => Prom
     } catch(error) {
       const closeDb = db;
       db = undefined;
-      closeDb.close();
+      closeDb?.close();
       console.error(error);
       throw error;
     }
     
     // execute the function
-    return f(db);
+    return f(db!);
 
   } finally {
     // if we have a db then close it

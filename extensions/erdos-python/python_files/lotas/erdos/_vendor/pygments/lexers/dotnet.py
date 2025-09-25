@@ -14,7 +14,7 @@ from erdos._vendor.pygments.lexer import RegexLexer, DelegatingLexer, bygroups, 
 from erdos._vendor.pygments.token import Punctuation, Text, Comment, Operator, Keyword, \
     Name, String, Number, Literal, Other, Whitespace
 from erdos._vendor.pygments.util import get_choice_opt
-from pygments import unistring as uni
+from erdos._vendor.pygments import unistring as uni
 
 from erdos._vendor.pygments.lexers.html import XmlLexer
 

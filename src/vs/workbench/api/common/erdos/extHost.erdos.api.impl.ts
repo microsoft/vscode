@@ -5,7 +5,7 @@
 
 import { ExtHostLanguageRuntime } from './extHostLanguageRuntime.js';
 import type * as erdos from 'erdos';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { IExtHostRpcService } from '../extHostRpcService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -15,6 +15,7 @@ import { ExtHostConfigProvider } from '../extHostConfiguration.js';
 import { ExtHostErdosContext } from './extHost.erdos.protocol.js';
 import * as extHostTypes from './extHostTypes.erdos.js';
 import { IExtHostInitDataService } from '../extHostInitDataService.js';
+import { RuntimeCodeExecutionMode, RuntimeErrorBehavior } from '../../../services/languageRuntime/common/languageRuntimeService.js';
 
 import { ExtHostModalDialogs } from './extHostModalDialogs.js';
 import { ExtHostContextKeyService } from './extHostContextKeyService.js';
@@ -32,6 +33,7 @@ import { UiFrontendRequest } from '../../../services/languageRuntime/common/erdo
 import { ExtHostEnvironment } from './extHostEnvironment.js';
 import { ExtHostPlotsService } from './extHostPlotsService.js';
 import { ExtHostWebviewPanels } from '../extHostWebviewPanels.js';
+import * as extHostVSCodeTypes from '../extHostTypes.js';
 
 export interface IExtensionErdosApiFactory {
 	(extension: IExtensionDescription, extensionInfo: IExtensionRegistries, configProvider: ExtHostConfigProvider): typeof erdos;
@@ -66,9 +68,9 @@ export function createErdosApiFactoryAndRegisterActors(accessor: ServicesAccesso
 	return function (extension: IExtensionDescription, extensionInfo: IExtensionRegistries, configProvider: ExtHostConfigProvider): typeof erdos {
 
 		const runtime: typeof erdos.runtime = {
-			executeCode(languageId, code, focus, allowIncomplete, mode, errorBehavior, observer): Thenable<Record<string, any>> {
+			executeCode(languageId: string, code: string, focus: boolean, allowIncomplete?: boolean, mode?: RuntimeCodeExecutionMode, errorBehavior?: RuntimeErrorBehavior, observer?: erdos.runtime.ExecutionObserver, executionId?: string): Thenable<Record<string, any>> {
 				const extensionId = extension.identifier.value;
-				return extHostLanguageRuntime.executeCode(languageId, code, extensionId, focus, allowIncomplete, mode, errorBehavior, observer);
+				return extHostLanguageRuntime.executeCode(languageId, code, extensionId, focus, allowIncomplete, mode, errorBehavior, observer, executionId);
 			},
 			registerLanguageRuntimeManager(
 				languageId: string,
@@ -164,7 +166,7 @@ export function createErdosApiFactoryAndRegisterActors(accessor: ServicesAccesso
 			createPreviewPanel(viewType: string, title: string, preserveFocus?: boolean, options?: erdos.PreviewOptions): erdos.PreviewPanel {
 				// Use VS Code's webview panel as the underlying implementation
 				const webviewPanel = extHostWebviewPanels.createWebviewPanel(extension, viewType, title, 
-					{ viewColumn: vscode.ViewColumn.Beside, preserveFocus: preserveFocus }, options || {});
+					{ viewColumn: extHostVSCodeTypes.ViewColumn.Beside, preserveFocus: preserveFocus }, options || {});
 				
 				// Wrap it to match the PreviewPanel interface
 				return {
@@ -176,7 +178,7 @@ export function createErdosApiFactoryAndRegisterActors(accessor: ServicesAccesso
 					get visible() { return webviewPanel.visible; },
 					onDidChangeViewState: webviewPanel.onDidChangeViewState as any,
 					onDidDispose: webviewPanel.onDidDispose,
-					reveal: (preserveFocus?: boolean) => webviewPanel.reveal(vscode.ViewColumn.Beside, preserveFocus),
+					reveal: (preserveFocus?: boolean) => webviewPanel.reveal(extHostVSCodeTypes.ViewColumn.Beside, preserveFocus),
 					dispose: () => webviewPanel.dispose()
 				};
 			},

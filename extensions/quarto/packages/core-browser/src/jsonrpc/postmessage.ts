@@ -13,7 +13,7 @@
  *
  */
 
-import { JsonRpcPostMessageTarget } from "core";
+import { JsonRpcPostMessageTarget } from "../../../core/src/jsonrpc.js";
 
 export function windowJsonRpcPostMessageTarget(
   receiver: { postMessage: (data: unknown) => void | boolean } | Window, 

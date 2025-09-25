@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 //
-// AUTO-GENERATED from environment.json; do not edit.
+// AUTO-GENERATED from environment.json; do not edit. LOOK AT vscode/erdos/comms/ to generate. Run npx ts-node generate-comms.ts [type to build]
 //
 
 import { Event } from '../../../../base/common/event.js';
@@ -65,12 +65,16 @@ export interface InstallPackageParams {
 	package_name: string;
 
 	package_type: InstallPackagePackageType;
+
+	environment_type?: string;
 }
 
 export interface UninstallPackageParams {
 	package_name: string;
 
 	package_type: UninstallPackagePackageType;
+
+	environment_type?: string;
 }
 
 export enum PackagesChangedPackageType {
@@ -110,12 +114,12 @@ export class ErdosEnvironmentComm extends ErdosBaseComm {
 		return super.performRpc('list_packages', ['package_type'], [packageType]);
 	}
 
-	installPackage(packageName: string, packageType: InstallPackagePackageType): Promise<InstallResult> {
-		return super.performRpc('install_package', ['package_name', 'package_type'], [packageName, packageType]);
+	installPackage(packageName: string, packageType: InstallPackagePackageType, environmentType: string | undefined): Promise<InstallResult> {
+		return super.performRpc('install_package', ['package_name', 'package_type', 'environment_type'], [packageName, packageType, environmentType]);
 	}
 
-	uninstallPackage(packageName: string, packageType: UninstallPackagePackageType): Promise<UninstallResult> {
-		return super.performRpc('uninstall_package', ['package_name', 'package_type'], [packageName, packageType]);
+	uninstallPackage(packageName: string, packageType: UninstallPackagePackageType, environmentType: string | undefined): Promise<UninstallResult> {
+		return super.performRpc('uninstall_package', ['package_name', 'package_type', 'environment_type'], [packageName, packageType, environmentType]);
 	}
 
 

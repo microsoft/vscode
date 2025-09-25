@@ -28,5 +28,10 @@ export interface IAutoAcceptHandler {
 	/**
 	 * Check for auto-accept conditions and automatically set widget decisions
 	 */
-	checkAndHandleAutoAccept(): Promise<boolean>;
+	checkAndHandleAutoAccept(specificBranch: any): Promise<boolean>;
+	
+	/**
+	 * Track an auto-accepted edit for later highlighting
+	 */
+	trackAutoAcceptEdit(filePath: string, conversationId: number): Promise<void>;
 }

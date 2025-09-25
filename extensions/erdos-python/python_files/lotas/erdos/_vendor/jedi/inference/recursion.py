@@ -28,7 +28,7 @@ therefore the quality might not always be maximal.
 
 from contextlib import contextmanager
 
-from jedi import debug
+from erdos._vendor.jedi import debug
 from erdos._vendor.jedi.inference.base_value import NO_VALUES
 
 

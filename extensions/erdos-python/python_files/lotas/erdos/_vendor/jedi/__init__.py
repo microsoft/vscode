@@ -30,7 +30,7 @@ load
 __version__ = '0.19.2'
 
 from erdos._vendor.jedi.api import Script, Interpreter, set_debug_function, preload_module
-from jedi import settings
+from erdos._vendor.jedi import settings
 from erdos._vendor.jedi.api.environment import find_virtualenvs, find_system_environments, \
     get_default_environment, InvalidPythonEnvironment, create_environment, \
     get_system_environment, InterpreterEnvironment

@@ -13,6 +13,6 @@
  *
  */
 
-export * from './server';
-export * from './services';
+export * from './server.js';
+export * from './services.js';
 export * from './languages';

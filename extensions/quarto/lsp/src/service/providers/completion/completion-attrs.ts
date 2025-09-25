@@ -67,6 +67,7 @@ function simpleDivToken(context: EditorContext): AttrToken | undefined {
       };
     }
   }
+  return undefined;
 }
 
 const kFigureAttrRegex =
@@ -108,4 +109,5 @@ function matchCompletionToken(
       }
     }
   }
+  return undefined;
 }

@@ -1,7 +1,7 @@
 from collections import defaultdict
 from inspect import Parameter
 
-from jedi import debug
+from erdos._vendor.jedi import debug
 from erdos._vendor.jedi.inference.utils import PushBackIterator
 from erdos._vendor.jedi.inference import analysis
 from erdos._vendor.jedi.inference.lazy_value import LazyKnownValue, \

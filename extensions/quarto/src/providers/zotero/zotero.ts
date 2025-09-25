@@ -19,13 +19,11 @@ import { zoteroApi, zoteroSyncWebLibraries, zoteroValidateApiKey } from "editor-
 import { Command } from "../../core/command";
 import { LanguageClient } from "vscode-languageclient/node";
 import { lspClientTransport } from "core-node";
-import { editorZoteroJsonRpcServer } from "editor-core";
-import { ZoteroCollectionSpec, ZoteroResult, ZoteroServer, kZoteroMyLibrary } from "editor-types";
-import { zoteroServerMethods } from "editor-server/src/server/zotero";
+import { ZoteroCollectionSpec, ZoteroResult, ZoteroServer, kZoteroMyLibrary, editorZoteroJsonRpcServer } from "../../types/local-types";
+import { zoteroServerMethods } from "editor-server";
 import { JsonRpcRequestTransport, sleep } from "core";
 
 const kQuartoZoteroWebApiKey = "quartoZoteroWebApiKey";
-
 const kZoteroConfigureLibrary = "quarto.zoteroConfigureLibrary";
 const kZoteroSyncWebLibrary = "quarto.zoteroSyncWebLibrary";
 const kZoteroUnauthorized = "quarto.zoteroUnauthorized";

@@ -16,7 +16,7 @@
 
 import { Position, Range } from 'vscode-languageserver-types';
 import { URI } from 'vscode-uri';
-import { makeRange } from 'quarto-core';
+import { makeRange } from './range.js';
 
 /**
  * A document in the workspace.

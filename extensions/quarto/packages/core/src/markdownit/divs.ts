@@ -7,7 +7,7 @@
 import type MarkdownIt from "markdown-it/lib"
 import Token from "markdown-it/lib/token"
 import Renderer from "markdown-it/lib/renderer";
-import { addClass } from "./utils/markdownit";
+import { addClass } from "./utils/markdownit.js";
 
 export const kDivRuleName = "pandocDiv";
 

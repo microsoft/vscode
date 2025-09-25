@@ -47,6 +47,7 @@ export enum RuntimeOutputKind {
 	PlotWidget = 'plot',
 	IPyWidget = 'ipywidget',
 	WebviewPreload = 'webview_preload',
+	QuartoInline = 'quarto_inline',
 	Unknown = 'unknown',
 }
 
@@ -93,6 +94,7 @@ export enum ErdosOutputLocation {
 	Console = 'console',
 	Viewer = 'viewer',
 	Plot = 'plot',
+	Inline = 'inline',
 }
 
 export interface ILanguageRuntimeMessageWebOutput extends ILanguageRuntimeMessageOutput {

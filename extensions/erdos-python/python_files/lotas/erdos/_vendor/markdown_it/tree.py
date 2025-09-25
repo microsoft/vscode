@@ -2,6 +2,7 @@
 
 This module is not part of upstream JavaScript markdown-it.
 """
+
 from __future__ import annotations
 
 from collections.abc import Generator, Sequence
@@ -78,12 +79,10 @@ class SyntaxTreeNode:
         return f"{type(self).__name__}({self.type})"
 
     @overload
-    def __getitem__(self: _NodeType, item: int) -> _NodeType:
-        ...
+    def __getitem__(self: _NodeType, item: int) -> _NodeType: ...
 
     @overload
-    def __getitem__(self: _NodeType, item: slice) -> list[_NodeType]:
-        ...
+    def __getitem__(self: _NodeType, item: slice) -> list[_NodeType]: ...
 
     def __getitem__(self: _NodeType, item: int | slice) -> _NodeType | list[_NodeType]:
         return self.children[item]
@@ -163,7 +162,7 @@ class SyntaxTreeNode:
         if self.token:
             return self.token.type
         assert self.nester_tokens
-        return _removesuffix(self.nester_tokens.opening.type, "_open")
+        return self.nester_tokens.opening.type.removesuffix("_open")
 
     @property
     def next_sibling(self: _NodeType) -> _NodeType | None:
@@ -332,14 +331,3 @@ class SyntaxTreeNode:
         """If it's true, ignore this element when rendering.
         Used for tight lists to hide paragraphs."""
         return self._attribute_token().hidden
-
-
-def _removesuffix(string: str, suffix: str) -> str:
-    """Remove a suffix from a string.
-
-    Replace this with str.removesuffix() from stdlib when minimum Python
-    version is 3.9.
-    """
-    if suffix and string.endswith(suffix):
-        return string[: -len(suffix)]
-    return string

@@ -17,13 +17,13 @@ Then you will be able to use Jedi completer in your Python interpreter::
     ..dex   ..sert
 
 """
-import erdos._vendor.jedi.utils
-from jedi import __version__ as __jedi_version__
+from erdos._vendor.jedi.utils import setup_readline
+from erdos._vendor.jedi import __version__ as __jedi_version__
 
 print('REPL completion using Jedi %s' % __jedi_version__)
-jedi.utils.setup_readline(fuzzy=False)
+setup_readline(fuzzy=False)
 
-del jedi
+del setup_readline
 
 # Note: try not to do many things here, as it will contaminate global
 # namespace of the interpreter.

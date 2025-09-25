@@ -14,7 +14,7 @@
  */
 
 
-import { appCacheDir, appConfigDir, appDataDir, appRuntimeDir } from "core-node";
+import { appCacheDir, appConfigDir, appDataDir, appRuntimeDir } from "../../core-node/src/appdirs.js";
 
 const kQuartoDir = "quarto";
 

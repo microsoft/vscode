@@ -5,6 +5,7 @@ this function assumes that first character ("[") already matches
 returns the end of the label
 
 """
+
 from erdos._vendor.markdown_it.rules_inline import StateInline
 
 

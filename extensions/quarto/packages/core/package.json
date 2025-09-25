@@ -3,16 +3,17 @@
   "version": "0.1.0",
   "private": true,
   "license": "agpl-3.0",
-  "main": "./src/index.ts",
+  "main": "../../out/packages/core/src/index.js",
   "types": "./src/index.ts",
   "dependencies": {
     "markdown-it": "^13.0.1",
     "markdown-it-attrs": "^4.1.6",
     "tsconfig": "*",
-    "typescript": "^4.5.2"
+    "typescript": "^5.9.2"
   },
   "devDependencies": {
     "@types/markdown-it": "^12.2.3",
-    "@types/markdown-it-attrs": "^4.1.0"
+    "@types/markdown-it-attrs": "^4.1.0",
+    "@types/wcwidth": "^1.0.2"
   }
 }

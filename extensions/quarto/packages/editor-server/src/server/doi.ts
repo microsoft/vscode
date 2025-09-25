@@ -15,10 +15,10 @@
 
 import fetch from "cross-fetch";
 
-import { JsonRpcServerMethod } from "core";
-import { DOIResult, DOIServer, kDoiFetchCsl } from "editor-types"
+import { JsonRpcServerMethod } from "../../../core/src/jsonrpc.js";
+import { DOIResult, DOIServer, kDoiFetchCsl } from "../../../editor-types/src/index.js"
 
-import { handleResponseWithStatus } from "./response";
+import { handleResponseWithStatus } from "./response.js";
 
 
 const kDOIHost = "https://doi.org";

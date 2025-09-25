@@ -11,8 +11,8 @@ from inspect import signature as inspect_signature
 from pathlib import Path
 from typing import Any, Callable, Iterable, Optional, Tuple, TypeVar, overload
 
-from attrs import Attribute, resolve_types
-from attrs import has as attrs_has
+from erdos._vendor.attrs import Attribute, resolve_types
+from erdos._vendor.attrs import has as attrs_has
 
 from ._compat import (
     ANIES,

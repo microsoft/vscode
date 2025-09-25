@@ -17,7 +17,11 @@ import { IInstantiationService } from '../../../platform/instantiation/common/in
 import { ExtensionPaths, IExtHostExtensionService } from './extHostExtensionService.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { escapeRegExpCharacters } from '../../../base/common/strings.js';
+
+// --- Start Erdos ---
 import { IExtensionErdosApiFactory } from './erdos/extHost.erdos.api.impl.js';
+import * as erdos from 'erdos';
+// --- End Erdos ---
 
 interface LoadFunction {
 	(request: string): any;
@@ -39,7 +43,9 @@ export abstract class RequireInterceptor {
 
 	constructor(
 		private _apiFactory: IExtensionApiFactory,
+		// --- Start Erdos ---
 		private _erdosApiFactory: IExtensionErdosApiFactory,
+		// --- End Erdos ---
 		private _extensionRegistry: IExtensionRegistries,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@IExtHostConfiguration private readonly _extHostConfiguration: IExtHostConfiguration,
@@ -61,7 +67,9 @@ export abstract class RequireInterceptor {
 		const extensionPaths = await this._extHostExtensionService.getExtensionPathIndex();
 
 		this.register(new VSCodeNodeModuleFactory(this._apiFactory, extensionPaths, this._extensionRegistry, configProvider, this._logService));
+		// --- Start Erdos ---
 		this.register(new ErdosNodeModuleFactory(this._erdosApiFactory, extensionPaths, this._extensionRegistry, configProvider, this._logService));
+		// --- End Erdos ---
 		this.register(this._instaService.createInstance(NodeModuleAliasingModuleFactory));
 		if (this._initData.remote.isRemote) {
 			this.register(this._instaService.createInstance(OpenNodeModuleFactory, extensionPaths, this._initData.environment.appUriScheme));
@@ -293,8 +301,8 @@ class OpenNodeModuleFactory implements INodeModuleFactory {
 class ErdosNodeModuleFactory implements INodeModuleFactory {
 	public readonly nodeModuleName = 'erdos';
 
-	private readonly _extApiImpl = new ExtensionIdentifierMap<any>();
-	private _defaultApiImpl?: any;
+	private readonly _extApiImpl = new ExtensionIdentifierMap<typeof erdos>();
+	private _defaultApiImpl?: typeof erdos;
 
 	constructor(
 		private readonly _apiFactory: IExtensionErdosApiFactory,

@@ -9,12 +9,9 @@ del sys.path[0]
 
 
 def _get_paths():
-    # Get the path to jedi.
+    # Get the path to erdos, in which jedi and parso are vendored.
     _d = os.path.dirname
-    _jedi_path = _d(_d(_d(_d(_d(__file__)))))
-    _parso_path = sys.argv[1]
-    # The paths are the directory that jedi and parso lie in.
-    return {'jedi': _jedi_path, 'parso': _parso_path}
+    return {"erdos": _d(_d(_d(_d(_d(_d(_d(__file__)))))))}
 
 
 class _ExactImporter(MetaPathFinder):

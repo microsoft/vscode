@@ -19,12 +19,12 @@ import { ExecFileSyncOptions } from "node:child_process";
 import * as tmp from "tmp";
 tmp.setGracefulCleanup();
 
-import { pathWithForwardSlashes } from "core";
+import { pathWithForwardSlashes } from "../../../core/src/path.js";
 
-import { QuartoContext, fileCrossrefIndexStorage, quartoProjectConfig } from "quarto-core";
-import { EditorServerDocuments } from "./documents";
-import { xrefsForBook } from "./xref-book";
-import { XRef } from "editor-types";
+import { QuartoContext, fileCrossrefIndexStorage, quartoProjectConfig } from "../../../quarto-core/src/index.js";
+import { EditorServerDocuments } from "./documents.js";
+import { xrefsForBook } from "./xref-book.js";
+import { XRef } from "../../../editor-types/src/index.js";
 
 
 export async function xrefsForFile(

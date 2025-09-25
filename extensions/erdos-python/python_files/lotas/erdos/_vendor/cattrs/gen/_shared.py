@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from attrs import NOTHING, Attribute, Factory
+from erdos._vendor.attrs import NOTHING, Attribute, Factory
 
 from .._compat import is_bare_final
 from ..dispatch import StructureHook

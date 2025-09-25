@@ -186,6 +186,11 @@ class InstallPackageParams(BaseModel):
         description="Type of package manager to use",
     )
 
+    environment_type: Optional[StrictStr] = Field(
+        default=None,
+        description="Environment type (e.g., 'Conda', 'Venv', 'VirtualEnv', etc.)",
+    )
+
 class InstallPackageRequest(BaseModel):
     """
     Installs a package using the appropriate package manager
@@ -214,6 +219,11 @@ class UninstallPackageParams(BaseModel):
 
     package_type: UninstallPackagePackageType = Field(
         description="Type of package manager to use",
+    )
+
+    environment_type: Optional[StrictStr] = Field(
+        default=None,
+        description="Environment type (e.g., 'Conda', 'Venv', 'VirtualEnv', etc.)",
     )
 
 class UninstallPackageRequest(BaseModel):

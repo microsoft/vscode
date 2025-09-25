@@ -74,6 +74,6 @@ declare module 'erdos' {
 			onFinished?: () => void;
 		}
 
-		export function executeCode(languageId: string, code: string, focus: boolean, allowIncomplete?: boolean, mode?: RuntimeCodeExecutionMode, errorBehavior?: RuntimeErrorBehavior, observer?: ExecutionObserver): Thenable<Record<string, any>>;
+		export function executeCode(languageId: string, code: string, focus: boolean, allowIncomplete?: boolean, mode?: RuntimeCodeExecutionMode, errorBehavior?: RuntimeErrorBehavior, observer?: ExecutionObserver, executionId?: string): Thenable<Record<string, any>>;
 	}
 }

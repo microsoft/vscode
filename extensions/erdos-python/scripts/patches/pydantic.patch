@@ -1,7 +1,7 @@
-diff --git a/extensions/erdos-python/python_files/erdos/erdos/_vendor/pydantic/_hypothesis_plugin.py b/extensions/erdos-python/python_files/erdos/erdos/_vendor/pydantic/_hypothesis_plugin.py
+diff --git a/extensions/erdos-python/python_files/lotas/erdos/_vendor/pydantic/_hypothesis_plugin.py b/extensions/erdos-python/python_files/lotas/erdos/_vendor/pydantic/_hypothesis_plugin.py
 index 0c529620f..ce9df7a36 100644
---- a/extensions/erdos-python/python_files/erdos/erdos/_vendor/pydantic/_hypothesis_plugin.py
-+++ b/extensions/erdos-python/python_files/erdos/erdos/_vendor/pydantic/_hypothesis_plugin.py
+--- a/extensions/erdos-python/python_files/lotas/erdos/_vendor/pydantic/_hypothesis_plugin.py
++++ b/extensions/erdos-python/python_files/lotas/erdos/_vendor/pydantic/_hypothesis_plugin.py
 @@ -33,7 +33,7 @@ from typing import Callable, Dict, Type, Union, cast, overload
  import hypothesis.strategies as st
 
@@ -46,10 +46,10 @@ index 0c529620f..ce9df7a36 100644
          st.tuples(
              st.integers(0, 255),
              st.integers(0, 255),
-diff --git a/extensions/erdos-python/python_files/erdos/erdos/_vendor/pydantic/_hypothesis_plugin.py b/extensions/erdos-python/python_files/erdos/erdos/_vendor/pydantic/_hypothesis_plugin.py
+diff --git a/extensions/erdos-python/python_files/lotas/erdos/_vendor/pydantic/_hypothesis_plugin.py b/extensions/erdos-python/python_files/lotas/erdos/_vendor/pydantic/_hypothesis_plugin.py
 index ce9df7a36..93ff17077 100644
---- a/extensions/erdos-python/python_files/erdos/erdos/_vendor/pydantic/_hypothesis_plugin.py
-+++ b/extensions/erdos-python/python_files/erdos/erdos/_vendor/pydantic/_hypothesis_plugin.py
+--- a/extensions/erdos-python/python_files/lotas/erdos/_vendor/pydantic/_hypothesis_plugin.py
++++ b/extensions/erdos-python/python_files/lotas/erdos/_vendor/pydantic/_hypothesis_plugin.py
 @@ -34,7 +34,7 @@ import hypothesis.strategies as st
 
  import pydantic

@@ -13,10 +13,10 @@
  *
  */
 
-import { zoteroTrace } from "../trace";
+import { zoteroTrace } from "../trace.js";
 import { SyncProgress } from "./types";
 
-export { zoteroTrace } from "../trace";
+export { zoteroTrace } from "../trace.js";
 
 export function zoteroTraceProgress() : SyncProgress {
   return {

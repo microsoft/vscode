@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See LICENSE in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import IToken from "./IToken";
+import IToken from "./IToken.js";
 
 export default interface IState
 {

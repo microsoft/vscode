@@ -17,14 +17,16 @@ export function getPandocPath(): string | undefined {
 	const arch = process.arch === 'arm64' ? 'aarch64' : 'x86_64';
 
 	// Check for architecture-specific pandoc
-	if (existsSync(path.join(pandocPath, arch, 'pandoc'))) {
+	const archSpecificPath = path.join(pandocPath, arch, 'pandoc');
+	if (existsSync(archSpecificPath)) {
 		return path.join(pandocPath, arch);
 	}
 
-	if (existsSync(pandocPath)) {
+	if (existsSync(path.join(pandocPath, 'pandoc'))) {
 		return pandocPath;
 	} else {
 		// If pandoc is not found, log a warning; Erdos should always ship with pandoc.
 		console.warn(`No pandoc executable found in Erdos; expected one in ${pandocPath}`);
+		return undefined;
 	}
 }

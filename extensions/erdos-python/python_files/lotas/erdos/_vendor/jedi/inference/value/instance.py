@@ -2,8 +2,8 @@ from abc import abstractproperty
 
 from erdos._vendor.parso.tree import search_ancestor
 
-from jedi import debug
-from jedi import settings
+from erdos._vendor.jedi import debug
+from erdos._vendor.jedi import settings
 from erdos._vendor.jedi.inference import compiled
 from erdos._vendor.jedi.inference.compiled.value import CompiledValueFilter
 from erdos._vendor.jedi.inference.helpers import values_from_qualified_names, is_big_annoying_library

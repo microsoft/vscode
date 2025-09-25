@@ -5,7 +5,7 @@
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    import attrs
+    from erdos._vendor import attrs
 
 INTEGER_MIN_VALUE = -(2**31)
 INTEGER_MAX_VALUE = 2**31 - 1

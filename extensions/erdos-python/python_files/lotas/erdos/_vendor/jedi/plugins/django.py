@@ -3,7 +3,7 @@ Module is used to infer Django model fields.
 """
 from inspect import Parameter
 
-from jedi import debug
+from erdos._vendor.jedi import debug
 from erdos._vendor.jedi.inference.cache import inference_state_function_cache
 from erdos._vendor.jedi.inference.base_value import ValueSet, iterator_to_value_set, ValueWrapper
 from erdos._vendor.jedi.inference.filters import DictFilter, AttributeOverwrite

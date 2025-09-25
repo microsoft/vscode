@@ -16,7 +16,7 @@
 
 import path from "node:path";
 
-import { JsonRpcServerMethod } from "core";
+import { JsonRpcServerMethod } from "../../../core/src/jsonrpc.js";
 import { 
   kXRefIndexForFile, 
   kXRefQuartoIndexForFile, 
@@ -25,9 +25,9 @@ import {
   XRefs, 
   XRefServer 
 } from "editor-types";
-import { projectDirForDocument, } from "quarto-core";
-import { xrefsForFile } from "../core/xref";
-import { EditorServerOptions } from "./server";
+import { projectDirForDocument } from "../../../quarto-core/src/metadata.js";
+import { xrefsForFile } from "../core/xref.js";
+import { EditorServerOptions } from "./server.js";
 
 export function xrefServer(options: EditorServerOptions) : XRefServer {
   return {
@@ -53,10 +53,10 @@ export function xrefServer(options: EditorServerOptions) : XRefServer {
     },
     
     // bookdown xrefs, we don't implement these
-    indexForFile(file: string) : Promise<XRefs> {
+    indexForFile(_file: string) : Promise<XRefs> {
       throw new Error("not implemented");
     },
-    xrefForId(file: string, id: string) : Promise<XRefs> {
+    xrefForId(_file: string, _id: string) : Promise<XRefs> {
       throw new Error("not implemented");
     },
   }

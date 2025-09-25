@@ -7,10 +7,11 @@ Official language server spec:
 """
 
 import itertools
-from typing import Any, List, Optional, Union
+from typing import Any, List, NamedTuple, Optional, Union
 
-import erdos._vendor.cattrs
-from erdos._vendor.jedi import Project, __version__
+from erdos._vendor import cattrs
+from erdos._vendor.jedi import Project, Script, __version__
+from erdos._vendor.jedi.api.classes import Name
 from erdos._vendor.jedi.api.refactoring import RefactoringError
 from erdos._vendor.lsprotocol.types import (
     COMPLETION_ITEM_RESOLVE,
@@ -32,6 +33,8 @@ from erdos._vendor.lsprotocol.types import (
     TEXT_DOCUMENT_HOVER,
     TEXT_DOCUMENT_REFERENCES,
     TEXT_DOCUMENT_RENAME,
+    TEXT_DOCUMENT_SEMANTIC_TOKENS_FULL,
+    TEXT_DOCUMENT_SEMANTIC_TOKENS_RANGE,
     TEXT_DOCUMENT_SIGNATURE_HELP,
     TEXT_DOCUMENT_TYPE_DEFINITION,
     WORKSPACE_DID_CHANGE_CONFIGURATION,
@@ -67,7 +70,13 @@ from erdos._vendor.lsprotocol.types import (
     NotebookDocumentSyncOptionsNotebookSelectorType2,
     NotebookDocumentSyncOptionsNotebookSelectorType2CellsType,
     ParameterInformation,
+    Position,
+    Range,
     RenameParams,
+    SemanticTokens,
+    SemanticTokensLegend,
+    SemanticTokensParams,
+    SemanticTokensRangeParams,
     SignatureHelp,
     SignatureHelpOptions,
     SignatureInformation,
@@ -76,11 +85,16 @@ from erdos._vendor.lsprotocol.types import (
     WorkspaceEdit,
     WorkspaceSymbolParams,
 )
+from erdos._vendor.lsprotocol.validators import INTEGER_MAX_VALUE
 from erdos._vendor.pygls.capabilities import get_capability
 from erdos._vendor.pygls.protocol import LanguageServerProtocol, lsp_method
 from erdos._vendor.pygls.server import LanguageServer
 
 from . import jedi_utils, notebook_utils, pygls_utils, text_edit_utils
+from .constants import (
+    SEMANTIC_TO_TOKEN_ID,
+    SUPPORTED_SEMANTIC_TYPES,
+)
 from .initialization_options import (
     InitializationOptions,
     initialization_options_converter,
@@ -173,6 +187,17 @@ class JediLanguageServerProtocol(LanguageServerProtocol):
 
         if server.initialization_options.hover.enable:
             server.feature(TEXT_DOCUMENT_HOVER)(hover)
+
+        if server.initialization_options.semantic_tokens.enable:
+            tokens_legend = SemanticTokensLegend(
+                token_types=SUPPORTED_SEMANTIC_TYPES, token_modifiers=[]
+            )
+            server.feature(TEXT_DOCUMENT_SEMANTIC_TOKENS_FULL, tokens_legend)(
+                semantic_tokens_full
+            )
+            server.feature(TEXT_DOCUMENT_SEMANTIC_TOKENS_RANGE, tokens_legend)(
+                semantic_tokens_range
+            )
 
         initialize_result: InitializeResult = super().lsp_initialize(params)
         workspace_options = initialization_options.workspace
@@ -722,6 +747,165 @@ def did_change_configuration(
     Currently does nothing, but necessary for pygls. See::
         <https://github.com/pappasam/jedi-language-server/issues/58>
     """
+
+
+EncodedSemanticToken = NamedTuple(
+    "EncodedSemanticToken",
+    [
+        ("line", int),
+        ("start", int),
+        ("length", int),
+        ("tokenType", int),
+        ("tokenModifiers", int),
+    ],
+)
+"""
+Semantic token encoded into integers. Applicable for both absolute and relative positions.
+
+See the LSP spec for details:
+    <https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_semanticTokens>
+"""
+
+
+def _raw_semantic_token(
+    server: JediLanguageServer, n: Name
+) -> Union[EncodedSemanticToken, None]:
+    """Find an appropriate semantic token for the name.
+
+    This works by looking up the definition (using jedi ``goto``) of the name and
+    matching the definition's type to one of the availabile semantic tokens. Further
+    improvements are possible by inspecting context, e.g. semantic token modifiers such
+    as ``abstract`` or ``async`` or even different tokens, e.g. ``property`` or
+    ``method``. Dunder methods may warrant special treatment/modifiers as well.
+    The return is a "raw" semantic token rather than a "diff." This is in the form of a
+    length 5 array of integers where the elements are the line number, starting
+    character, length, token index, and modifiers (as an integer whose binary
+    representation has bits set at the indices of all applicable modifiers).
+    """
+    definitions: list[Name] = n.goto(
+        follow_imports=True,
+        follow_builtin_imports=True,
+        only_stubs=False,
+        prefer_stubs=False,
+    )
+    if not definitions:
+        server.show_message_log(
+            f"no definitions found for name \"{n.description}\" of type '{n.type}' ({n.line}:{n.column})",
+            MessageType.Debug,
+        )
+        return None
+
+    if len(definitions) > 1:
+        def_lines = "\n".join(
+            map(lambda n: str(n), definitions)
+        )  # f-string expression part cannot include a backslash
+        msg = (
+            f"multiple definitions found for name \"{n.description}\" of type '{n.type}' ({n.line}:{n.column}):\n"
+            f" {def_lines}"
+        )
+        server.show_message_log(msg, MessageType.Debug)
+
+    definition, *_ = definitions
+    definition_type = SEMANTIC_TO_TOKEN_ID.get(definition.type, None)
+    if definition_type is None:
+        server.show_message_log(
+            f"no matching semantic token for \"{n.description}\" of type '{n.type}' ({n.line}:{n.column})",
+            MessageType.Debug,
+        )
+        return None
+
+    return EncodedSemanticToken(
+        n.line - 1, n.column, len(n.name), definition_type, 0
+    )
+
+
+@SERVER.thread()
+def semantic_tokens_full(
+    server: JediLanguageServer, params: SemanticTokensParams
+) -> SemanticTokens:
+    """Thin wrap around  _semantic_tokens_range()."""
+    document = server.workspace.get_text_document(params.text_document.uri)
+    jedi_script = jedi_utils.script(server.project, document)
+
+    server.show_message_log(
+        f"semantic_tokens_full {params.text_document.uri} ",
+        MessageType.Log,
+    )
+
+    return _semantic_tokens_range(
+        server,
+        jedi_script,
+        Range(Position(0, 0), Position(INTEGER_MAX_VALUE, INTEGER_MAX_VALUE)),
+    )
+
+
+@SERVER.thread()
+def semantic_tokens_range(
+    server: JediLanguageServer, params: SemanticTokensRangeParams
+) -> SemanticTokens:
+    """Thin wrap around  _semantic_tokens_range()."""
+    document = server.workspace.get_text_document(params.text_document.uri)
+    jedi_script = jedi_utils.script(server.project, document)
+
+    server.show_message_log(
+        f"semantic_tokens_range {params.text_document.uri} {params.range}",
+        MessageType.Log,
+    )
+
+    return _semantic_tokens_range(server, jedi_script, params.range)
+
+
+def _semantic_tokens_range(
+    server: JediLanguageServer, jedi_script: Script, doc_range: Range
+) -> SemanticTokens:
+    """General purpose function to do full / range semantic tokens."""
+    line, column = doc_range.start.line, doc_range.start.character
+    names = jedi_script.get_names(
+        all_scopes=True, definitions=True, references=True
+    )
+    data: list[int] = []
+
+    for n in names:
+        if (
+            not doc_range.start
+            < Position(n.line - 1, n.column)
+            < doc_range.end
+        ):
+            continue
+
+        token = _raw_semantic_token(server, n)
+
+        # server.show_message_log(
+        #     f"raw token for name {n.description} ({n.line - 1}:{n.column}): {token}",
+        #     MessageType.Debug,
+        # )
+        if token is None:
+            continue
+
+        token_line, token_column = token.line, token.start
+        delta_column = (
+            token_column - column if token_line == line else token_column
+        )
+        delta_line = token_line - line
+
+        line = token_line
+        column = token_column
+
+        # server.show_message_log(
+        #     f"diff token for name {n.description} ({n.line - 1}:{n.column}): {token}",
+        #     MessageType.Debug,
+        # )
+        data.extend(
+            [
+                delta_line,
+                delta_column,
+                token.length,
+                token.tokenType,
+                token.tokenModifiers,
+            ]
+        )
+
+    return SemanticTokens(data=data)
 
 
 # Static capability or initializeOptions functions that rely on a specific

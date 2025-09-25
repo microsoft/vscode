@@ -15,7 +15,7 @@
  *
  */
 
-import { JsonRpcRequestTransport } from "core";
+import { JsonRpcRequestTransport } from "../../core/src/jsonrpc.js";
 
 import {
   BibliographyResult,
@@ -59,7 +59,7 @@ import {
   ZoteroResult,
   ZoteroServer,
   ZoteroLibraryConfig,
-} from "editor-types";
+} from "../../editor-types/src/index.js";
 
 
 export function editorJsonRpcServer(request: JsonRpcRequestTransport) : EditorServer {

@@ -80,6 +80,14 @@
 						"type": "string",
 						"enum": ["r", "python"]
 					}
+				},
+				{
+					"name": "environment_type",
+					"description": "Environment type (e.g., 'Conda', 'Venv', 'VirtualEnv', etc.)",
+					"schema": {
+						"type": "string"
+					},
+					"required": false
 				}
 			],
 			"result": {
@@ -119,6 +127,14 @@
 						"type": "string",
 						"enum": ["r", "python"]
 					}
+				},
+				{
+					"name": "environment_type",
+					"description": "Environment type (e.g., 'Conda', 'Venv', 'VirtualEnv', etc.)",
+					"schema": {
+						"type": "string"
+					},
+					"required": false
 				}
 			],
 			"result": {

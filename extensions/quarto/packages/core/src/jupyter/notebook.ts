@@ -13,7 +13,7 @@
  *
  */
 
-import { JupyterKernelspec, JupyterNotebook } from "./types";
+import { JupyterKernelspec, JupyterNotebook } from "./types.js";
 
 export function jupyterFromJSON(nbContents: string): JupyterNotebook {
   // parse the notebook

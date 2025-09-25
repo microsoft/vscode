@@ -28,16 +28,16 @@ import { activateStatusBar } from "./providers/statusbar";
 import { walkthroughCommands } from "./providers/walkthrough";
 import { activateLuaTypes } from "./providers/lua-types";
 import { activateCreate } from "./providers/create/create";
-import { activateEditor } from "./providers/editor/editor";
 import { activateCopyFiles } from "./providers/copyfiles";
+import { quartoInlineOutputManager } from "./providers/output/inlineOutputManager";
 import { activateZotero } from "./providers/zotero/zotero";;
 import { extensionHost } from "./host";
 import { initQuartoContext } from "quarto-core";
 import { configuredQuartoPath } from "./core/quarto";
 import { activateDenoConfig } from "./providers/deno-config";
 
-export async function activate(context: vscode.ExtensionContext) {
-  console.log('Quarto: Starting activation');
+export async function activate(context: vscode.ExtensionContext) {  
+  try {
   
   // create output channel for extension logs and lsp client logs
   const outputChannel = vscode.window.createOutputChannel("Quarto", { log: true });
@@ -69,7 +69,6 @@ export async function activate(context: vscode.ExtensionContext) {
     vscode.window.showWarningMessage
   );
   if (quartoContext.available) {
-
     // enable commands conditional on quarto installation
     vscode.commands.executeCommand(
       "setContext",
@@ -93,11 +92,12 @@ export async function activate(context: vscode.ExtensionContext) {
     activateDenoConfig(context, engine);
 
     // lsp
-    const lspClient = await activateLsp(context, quartoContext, engine, outputChannel);
-
-    // provide visual editor
-    const editorCommands = activateEditor(context, host, quartoContext, lspClient, engine);
-    commands.push(...editorCommands);
+    let lspClient;
+    try {
+      lspClient = await activateLsp(context, quartoContext, engine, outputChannel);
+    } catch (error) {
+      throw error;
+    }
 
     // zotero
     const zoteroCommands = await activateZotero(context, lspClient);
@@ -107,8 +107,10 @@ export async function activate(context: vscode.ExtensionContext) {
     const assistCommands = activateQuartoAssistPanel(context, engine);
     commands.push(...assistCommands);
   }
+  
   // walkthough
-  commands.push(...walkthroughCommands(host, quartoContext));
+  const walkthroughCmds = walkthroughCommands(host, quartoContext);
+  commands.push(...walkthroughCmds);
 
   // provide render
   const renderCommands = activateRender(quartoContext, engine);
@@ -131,11 +133,32 @@ export async function activate(context: vscode.ExtensionContext) {
   // provide file copy/drop handling
   activateCopyFiles(context);
 
+  // register handler for inline outputs from runtime
+  const quartoInlineOutputDisposable = vscode.commands.registerCommand(
+    'quarto.handleInlineOutput',
+    (output: any) => {
+      quartoInlineOutputManager.handleRuntimeOutput(output);
+    }
+  );
+  context.subscriptions.push(quartoInlineOutputDisposable);
+
+  // register handler to check if execution is from Quarto
+  const quartoExecutionCheckDisposable = vscode.commands.registerCommand(
+    'quarto.isQuartoExecution',
+    (executionId: string) => {
+      return quartoInlineOutputManager.isQuartoExecution(executionId);
+    }
+  );
+  context.subscriptions.push(quartoExecutionCheckDisposable);
+
   // activate providers common to browser/node
   activateCommon(context, host, engine, commands);
 
   outputChannel.info("Activated Quarto extension.");
-  console.log('Quarto: Extension activation completed successfully');
+  
+  } catch (error) {
+    throw error;
+  }
 }
 
 export async function deactivate() {

@@ -38,6 +38,7 @@ const compilations = [
 	'extensions/erdos-python/tsconfig.json',
 	'extensions/erdos-supervisor/tsconfig.json',
 	'extensions/erdos-r/tsconfig.json',
+	'extensions/quarto/tsconfig.json',
 	'extensions/configuration-editing/tsconfig.json',
 	'extensions/css-language-features/client/tsconfig.json',
 	'extensions/css-language-features/server/tsconfig.json',
@@ -227,40 +228,6 @@ gulp.task(transpileExtensionsTask);
 const compileExtensionsTask = task.define('compile-extensions', task.parallel(...tasks.map(t => t.compileTask)));
 gulp.task(compileExtensionsTask);
 exports.compileExtensionsTask = compileExtensionsTask;
-
-// Quarto extension has its own build system (esbuild + vite)
-const compileQuartoTask = task.define('compile-quarto', () => {
-	const cp = require('child_process');
-	return new Promise((resolve, reject) => {
-		let output = '';
-		const quartoProcess = cp.spawn('npm', ['run', 'build'], {
-			cwd: path.join(root, 'extensions', 'quarto'),
-			stdio: ['inherit', 'pipe', 'pipe']
-		});
-		
-		quartoProcess.stdout.on('data', (data) => {
-			output += data.toString();
-		});
-		
-		quartoProcess.stderr.on('data', (data) => {
-			output += data.toString();
-		});
-		
-		quartoProcess.on('close', (code) => {
-			if (code === 0) {
-				console.log('Quarto extension built successfully');
-				resolve();
-			} else {
-				console.error('Quarto build failed:');
-				console.error(output);
-				reject(new Error(`Quarto build failed with code ${code}`));
-			}
-		});
-		quartoProcess.on('error', reject);
-	});
-});
-gulp.task(compileQuartoTask);
-exports.compileQuartoTask = compileQuartoTask;
 
 const watchExtensionsTask = task.define('watch-extensions', task.parallel(...tasks.map(t => t.watchTask)));
 gulp.task(watchExtensionsTask);

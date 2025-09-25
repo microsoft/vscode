@@ -62,11 +62,11 @@ I need to mention now that lazy type inference is really good because it
 only *inferes* what needs to be *inferred*. All the statements and modules
 that are not used are just being ignored.
 """
-import erdos._vendor.parso as parso
+from erdos._vendor import parso
 from erdos._vendor.jedi.file_io import FileIO
 
-from jedi import debug
-from jedi import settings
+from erdos._vendor.jedi import debug
+from erdos._vendor.jedi import settings
 from erdos._vendor.jedi.inference import imports
 from erdos._vendor.jedi.inference import recursion
 from erdos._vendor.jedi.inference.cache import inference_state_function_cache

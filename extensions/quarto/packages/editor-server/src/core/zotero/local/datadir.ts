@@ -16,8 +16,8 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-import { isMac, isWindows } from "core-node";
-import { lines } from "core";
+import { isMac, isWindows } from "../../../../../core-node/src/platform.js";
+import { lines } from "../../../../../core/src/index.js";
 
 
 export function zoteroDataDir(dataDirConfig?: string) {
@@ -74,7 +74,7 @@ function platformProfileDir(profilePath: string) {
   }
 }
 
-function defaultProfileDir() {
+function defaultProfileDir(): string | undefined {
   const profilesDir = zoteroProfilesDir();
   const profileIni = path.join(platformProfileDir(profilesDir), "profiles.ini");
   if (fs.existsSync(profileIni)) {
@@ -113,6 +113,7 @@ function defaultProfileDir() {
       }
     }
   }
+  return undefined;
 }
 
 function detectDataDir() {

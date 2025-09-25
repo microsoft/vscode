@@ -20,7 +20,7 @@ import warnings
 
 from erdos._vendor.parso import parse, ParserSyntaxError
 
-from jedi import debug
+from erdos._vendor.jedi import debug
 from erdos._vendor.jedi.inference.cache import inference_state_method_cache
 from erdos._vendor.jedi.inference.base_value import iterator_to_value_set, ValueSet, \
     NO_VALUES

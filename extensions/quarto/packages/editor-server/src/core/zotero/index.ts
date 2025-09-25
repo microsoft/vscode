@@ -13,5 +13,5 @@
  *
  */
  
-export * from './web';
+export * from './web/index.js';
 

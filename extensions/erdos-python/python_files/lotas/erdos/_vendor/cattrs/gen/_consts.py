@@ -3,7 +3,7 @@ from __future__ import annotations
 from threading import local
 from typing import Any, Callable
 
-from attrs import frozen
+from erdos._vendor.attrs import frozen
 
 
 @frozen

@@ -14,7 +14,7 @@ from erdos._vendor.jedi.cache import memoize_method, time_cache
 from erdos._vendor.jedi.inference.compiled.subprocess import CompiledSubprocess, \
     InferenceStateSameProcess, InferenceStateSubprocess
 
-import erdos._vendor.parso as parso
+from erdos._vendor import parso
 
 if TYPE_CHECKING:
     from erdos._vendor.jedi.inference import InferenceState

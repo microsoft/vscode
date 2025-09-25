@@ -11,8 +11,8 @@ from erdos._vendor.jedi.inference.filters import ParserTreeFilter, MergedFilter,
 from erdos._vendor.jedi.inference.names import AnonymousParamName, TreeNameDefinition
 from erdos._vendor.jedi.inference.base_value import NO_VALUES, ValueSet
 from erdos._vendor.jedi.parser_utils import get_parent_scope
-from jedi import debug
-from jedi import parser_utils
+from erdos._vendor.jedi import debug
+from erdos._vendor.jedi import parser_utils
 
 
 class AbstractContext:

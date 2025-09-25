@@ -14,7 +14,7 @@ import shutil
 import argparse
 from textwrap import dedent
 
-from pygments import __version__, highlight
+from erdos._vendor.pygments import __version__, highlight
 from erdos._vendor.pygments.util import ClassNotFound, OptionError, docstring_headline, \
     guess_decode, guess_decode_from_terminal, terminal_encoding, \
     UnclosingTextIOWrapper
@@ -469,11 +469,11 @@ def main_inner(parser, argns):
         outfile = UnclosingTextIOWrapper(outfile, encoding=fmter.encoding)
         fmter.encoding = None
         try:
-            import colorama.initialise
+            import colorama.initialise as colorama_initialise
         except ImportError:
             pass
         else:
-            outfile = colorama.initialise.wrap_stream(
+            outfile = colorama_initialise.wrap_stream(
                 outfile, convert=None, strip=None, autoreset=False, wrap=True)
 
     # When using the LaTeX formatter and the option `escapeinside` is

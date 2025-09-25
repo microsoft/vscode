@@ -11,7 +11,7 @@ import json
 from pathlib import Path
 from itertools import chain
 
-from jedi import debug
+from erdos._vendor.jedi import debug
 from erdos._vendor.jedi.api.environment import get_cached_default_environment, create_environment
 from erdos._vendor.jedi.api.exceptions import WrongVersion
 from erdos._vendor.jedi.api.completion import search_in_module
@@ -285,7 +285,7 @@ class Project:
     @_try_to_skip_duplicates
     def _search_func(self, string, complete=False, all_scopes=False):
         # Using a Script is they easiest way to get an empty module context.
-        from jedi import Script
+        from erdos._vendor.jedi import Script
         s = Script('', project=self)
         inference_state = s._inference_state
         empty_module_context = s._get_module_context()

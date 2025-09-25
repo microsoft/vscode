@@ -39,7 +39,7 @@ if TYPE_CHECKING:
     from erdos._vendor.pygls.server import LanguageServer, WebSocketTransportAdapter
 
 
-import attrs
+from erdos._vendor import attrs
 from erdos._vendor.cattrs.errors import ClassValidationError
 
 from erdos._vendor.lsprotocol.types import (

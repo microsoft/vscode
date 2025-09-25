@@ -6,11 +6,11 @@
 */
 import type MarkdownIt from "markdown-it/lib"
 import Token from "markdown-it/lib/token"
-import { attributeDecorator, decorator, DecoratorOptions } from "./utils/html";
-import { kTokDivOpen } from "./divs";
-import { kTokFigureOpen } from "./figures";
-import { kTokHeadingOpen, kTokTableOpen } from "./utils/tok";
-import { kTokMathBlock } from "./math";
+import { attributeDecorator, decorator, DecoratorOptions } from "./utils/html.js";
+import { kTokDivOpen } from "./divs.js";
+import { kTokFigureOpen } from "./figures.js";
+import { kTokHeadingOpen, kTokTableOpen } from "./utils/tok.js";
+import { kTokMathBlock } from "./math.js";
 
 
 const kTokDecorator = "quarto_decorator";

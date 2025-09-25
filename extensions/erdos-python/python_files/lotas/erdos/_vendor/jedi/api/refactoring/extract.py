@@ -2,7 +2,7 @@ from textwrap import dedent
 
 from erdos._vendor.parso import split_lines
 
-from jedi import debug
+from erdos._vendor.jedi import debug
 from erdos._vendor.jedi.api.exceptions import RefactoringError
 from erdos._vendor.jedi.api.refactoring import Refactoring, EXPRESSION_PARTS
 from erdos._vendor.jedi.common import indent_block

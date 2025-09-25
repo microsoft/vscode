@@ -17,7 +17,7 @@ import { CancellationToken } from 'vscode-languageserver';
 import * as lsp from 'vscode-languageserver-types';
 import { Token, isDisplayMath, isRawBlock, getLine, Document, Parser } from 'quarto-core';
 
-import { ILogger, LogLevel } from '../logging';
+import { ILogger } from '../logging';
 import { MdTableOfContentsProvider, isTocHeaderEntry } from '../toc';
 import { isEmptyOrWhitespace } from '../util/string';
 

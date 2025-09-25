@@ -93,7 +93,7 @@ class PygmentsDoc(Directive):
         The columns are the lexer name, the extensions handled by this lexer
         (or "None"), the aliases and a link to the lexer class."""
         from erdos._vendor.pygments.lexers._mapping import LEXERS
-        import erdos._vendor.pygments.lexers
+        from erdos._vendor.pygments.lexers import find_lexer_class
         out = []
 
         table = []
@@ -104,7 +104,7 @@ class PygmentsDoc(Directive):
             return name
 
         for classname, data in sorted(LEXERS.items(), key=lambda x: x[1][1].lower()):
-            lexer_cls = pygments.lexers.find_lexer_class(data[1])
+            lexer_cls = find_lexer_class(data[1])
             extensions = lexer_cls.filenames + lexer_cls.alias_filenames
 
             table.append({
@@ -149,7 +149,7 @@ class PygmentsDoc(Directive):
 
     def document_lexers(self):
         from erdos._vendor.pygments.lexers._mapping import LEXERS
-        import pygments
+        from erdos._vendor import pygments
         import inspect
         import pathlib
 

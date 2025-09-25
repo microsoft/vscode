@@ -1,7 +1,0 @@
-The lack of newline between this text and the code block previously caused a capsule leak. See https://github.com/quarto-dev/quarto/pull/780
-
-```{{python}}
-1+2
-```
-
-lets also snapshot what happens to this text after the code block

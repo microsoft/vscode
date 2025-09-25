@@ -14,17 +14,17 @@
  */
 
 
-export * from './jsonrpc';
-export * from './jsonrpc-lsp'
-export * from './appdirs';
-export * from './exec';
-export * from './git';
-export * from './mime';
-export * from './path';
-export * from './uuid';
-export * from './platform';
-export * from './hash';
-export * from './jupyter';
-export * from './knitr';
+export * from './jsonrpc.js';
+export * from './jsonrpc-lsp.js'
+export * from './appdirs.js';
+export * from './exec.js';
+export * from './git.js';
+export * from './mime.js';
+export * from './path.js';
+export * from './uuid.js';
+export * from './platform.js';
+export * from './hash.js';
+export * from './jupyter/index.js';
+export * from './knitr.js';
 
 

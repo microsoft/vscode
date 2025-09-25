@@ -1,7 +1,7 @@
-diff --git a/extensions/erdos-python/python_files/erdos/erdos/_vendor/jedi/api/replstartup.py b/extensions/erdos-python/python_files/erdos/erdos/_vendor/jedi/api/replstartup.py
+diff --git a/extensions/erdos-python/python_files/lotas/erdos/_vendor/jedi/api/replstartup.py b/extensions/erdos-python/python_files/lotas/erdos/_vendor/jedi/api/replstartup.py
 index e0f23d19b..f30731476 100644
---- a/extensions/erdos-python/python_files/erdos/erdos/_vendor/jedi/api/replstartup.py
-+++ b/extensions/erdos-python/python_files/erdos/erdos/_vendor/jedi/api/replstartup.py
+--- a/extensions/erdos-python/python_files/lotas/erdos/_vendor/jedi/api/replstartup.py
++++ b/extensions/erdos-python/python_files/lotas/erdos/_vendor/jedi/api/replstartup.py
 @@ -17,13 +17,13 @@ Then you will be able to use Jedi completer in your Python interpreter::
      ..dex   ..sert
 
@@ -19,10 +19,10 @@ index e0f23d19b..f30731476 100644
 
  # Note: try not to do many things here, as it will contaminate global
  # namespace of the interpreter.
-diff --git a/extensions/erdos-python/python_files/erdos/erdos/_vendor/jedi/inference/compiled/subprocess/__main__.py b/extensions/erdos-python/python_files/erdos/erdos/_vendor/jedi/inference/compiled/subprocess/__main__.py
+diff --git a/extensions/erdos-python/python_files/lotas/erdos/_vendor/jedi/inference/compiled/subprocess/__main__.py b/extensions/erdos-python/python_files/lotas/erdos/_vendor/jedi/inference/compiled/subprocess/__main__.py
 index f044e2ee1..beec3f0cf 100644
---- a/extensions/erdos-python/python_files/erdos/erdos/_vendor/jedi/inference/compiled/subprocess/__main__.py
-+++ b/extensions/erdos-python/python_files/erdos/erdos/_vendor/jedi/inference/compiled/subprocess/__main__.py
+--- a/extensions/erdos-python/python_files/lotas/erdos/_vendor/jedi/inference/compiled/subprocess/__main__.py
++++ b/extensions/erdos-python/python_files/lotas/erdos/_vendor/jedi/inference/compiled/subprocess/__main__.py
 @@ -9,12 +9,9 @@ del sys.path[0]
 
 

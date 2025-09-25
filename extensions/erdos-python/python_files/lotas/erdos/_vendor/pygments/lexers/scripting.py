@@ -43,7 +43,7 @@ class LuaLexer(RegexLexer):
 
         .. sourcecode:: pycon
 
-            >>> from erdos._vendor.pygments.lexers._lua_builtins import MODULES
+            >>> from pygments.lexers._lua_builtins import MODULES
             >>> MODULES.keys()
             ['string', 'coroutine', 'modules', 'io', 'basic', ...]
     """
@@ -57,7 +57,7 @@ class LuaLexer(RegexLexer):
 
     _comment_multiline = r'(?:--\[(?P<level>=*)\[[\w\W]*?\](?P=level)\])'
     _comment_single = r'(?:--.*$)'
-    _space = r'(?:\s+)'
+    _space = r'(?:\s+(?!\s))'
     _s = rf'(?:{_comment_multiline}|{_comment_single}|{_space})'
     _name = r'(?:[^\W\d]\w*)'
 
@@ -89,8 +89,10 @@ class LuaLexer(RegexLexer):
             (r'[\[\]{}().,:;]+', Punctuation),
             (r'(and|or|not)\b', Operator.Word),
 
-            ('(break|do|else|elseif|end|for|if|in|repeat|return|then|until|'
-             r'while)\b', Keyword.Reserved),
+            (words([
+                'break', 'do', 'else', 'elseif', 'end', 'for', 'if', 'in',
+                'repeat', 'return', 'then', 'until', 'while'
+            ], suffix=r'\b'), Keyword.Reserved),
             (r'goto\b', Keyword.Reserved, 'goto'),
             (r'(local)\b', Keyword.Declaration),
             (r'(true|false|nil)\b', Keyword.Constant),

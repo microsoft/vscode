@@ -343,7 +343,7 @@ function* createTypescriptComm(name: string, frontend: any, backend: any): Gener
  *--------------------------------------------------------------------------------------------*/
 
 //
-// AUTO-GENERATED from ${name}.json; do not edit.
+// AUTO-GENERATED from ${name}.json; do not edit. LOOK AT vscode/erdos/comms/ to generate. Run npx tsx generate-comms.ts [type to build]
 //
 
 `;

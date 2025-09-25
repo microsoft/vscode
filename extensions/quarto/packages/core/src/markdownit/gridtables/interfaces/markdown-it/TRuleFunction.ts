@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See LICENSE in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import IState from "./IState";
+import IState from "./IState.js";
 
 type TRuleFunction = (
     state: IState,

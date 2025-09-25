@@ -35,6 +35,12 @@ export async function configuredQuartoPath(): Promise<string | undefined> {
     return quartoPath;
   }
 
+  // check for bundled quarto in extension directory first
+  const extensionBundledQuarto = path.join(__dirname, "..", "..", "..", "bin", "bin", "quarto");
+  if (fs.existsSync(extensionBundledQuarto)) {
+    return extensionBundledQuarto;
+  }
+
   // if we can use pip quarto then look for it within the currently python (if its a venv/condaenv)
   const usePipQuarto = config.get("usePipQuarto", true);
   if (usePipQuarto) {

@@ -3,86 +3,142 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as React from 'react';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { IPythonPackage, IRPackage } from '../../common/environmentTypes.js';
 
 export interface PackageListProps {
 	packages: (IPythonPackage | IRPackage)[];
 	type: 'python' | 'r';
-	onRefresh?: () => void;
-	onInstall?: (packageName: string) => Promise<void>;
-	onUninstall?: (packageName: string) => Promise<void>;
 	isLoading?: boolean;
 	hasActiveRuntime?: boolean;
+	onRefresh?: () => void;
+	onUninstall?: (packageName: string) => Promise<void>;
+	onInstall?: () => void;
 }
 
 export const PackageList: React.FC<PackageListProps> = ({ 
 	packages, 
 	type,
-	onRefresh,
-	onInstall,
-	onUninstall,
 	isLoading = false,
-	hasActiveRuntime = true
+	hasActiveRuntime = true,
+	onRefresh,
+	onUninstall,
+	onInstall
 }) => {
 	const [searchTerm, setSearchTerm] = useState('');
-	const [installPackageName, setInstallPackageName] = useState('');
-	const [isInstalling, setIsInstalling] = useState(false);
+	const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 	const [uninstallingPackage, setUninstallingPackage] = useState<string | null>(null);
-	const [sortBy, setSortBy] = useState<'name' | 'version'>('name');
-	const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 	
-	// Filter packages based on search term
-	const filteredPackages = packages.filter(pkg => 
-		pkg.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-		(pkg.description && pkg.description.toLowerCase().includes(searchTerm.toLowerCase())) ||
-		pkg.version.toLowerCase().includes(searchTerm.toLowerCase())
-	);
+	// Column width state for resizable columns (using percentages)
+	const [columnWidths, setColumnWidths] = useState<{[key: string]: string}>({
+		name: '55%',
+		version: '25%',
+		actions: '20%'
+	});
+	
+	// Resize state
+	const [isResizing, setIsResizing] = useState<{
+		column: string | null;
+		startX: number;
+		startWidth: number;
+		containerWidth: number;
+	}>({
+		column: null,
+		startX: 0,
+		startWidth: 0,
+		containerWidth: 800
+	});
 
-	// Sort packages
-	const sortedPackages = [...filteredPackages].sort((a, b) => {
-		let compareValue = 0;
-		
-		if (sortBy === 'name') {
-			compareValue = a.name.localeCompare(b.name);
-		} else if (sortBy === 'version') {
-			compareValue = a.version.localeCompare(b.version);
+	// Filter packages based on search term
+	const filteredPackages = useMemo(() => {
+		if (!searchTerm.trim()) {
+			return packages;
 		}
 		
-		return sortOrder === 'asc' ? compareValue : -compareValue;
-	});
+		const searchLower = searchTerm.toLowerCase();
+		return packages.filter(pkg => 
+			pkg.name.toLowerCase().includes(searchLower) ||
+			(pkg.description && pkg.description.toLowerCase().includes(searchLower))
+		);
+	}, [packages, searchTerm]);
+
+	// Sort packages by name only
+	const sortedPackages = useMemo(() => {
+		return [...filteredPackages].sort((a, b) => {
+			const compareValue = a.name.localeCompare(b.name);
+			return sortDirection === 'asc' ? compareValue : -compareValue;
+		});
+	}, [filteredPackages, sortDirection]);
 
 	// Handle search input change
 	const handleSearchChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
 		setSearchTerm(event.target.value);
 	}, []);
 
-	// Clear search
-	const handleClearSearch = useCallback(() => {
-		setSearchTerm('');
+	// Handle name column click for sorting
+	const handleSort = useCallback(() => {
+		setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+	}, [sortDirection]);
+
+	// Resize handlers
+	const handleResizeStart = useCallback((column: string, e: React.MouseEvent) => {
+		e.preventDefault();
+		e.stopPropagation();
+		
+		// Get the table container width for percentage calculations
+		const table = e.currentTarget.closest('table');
+		const containerWidth = table?.parentElement?.clientWidth || 800;
+		
+		// Convert current percentage to pixels for calculation
+		const currentPercentage = parseFloat(columnWidths[column]) || 15;
+		const startWidth = (currentPercentage / 100) * containerWidth;
+		
+		setIsResizing({
+			column,
+			startX: e.clientX,
+			startWidth,
+			containerWidth
+		});
+	}, [columnWidths]);
+
+	const handleResizeMove = useCallback((e: MouseEvent) => {
+		if (!isResizing.column) return;
+		
+		e.preventDefault();
+		const deltaX = e.clientX - isResizing.startX;
+		const newWidthPx = Math.max(50, isResizing.startWidth + deltaX);
+		
+		// Convert back to percentage
+		const newWidthPercent = Math.max(5, Math.min(80, (newWidthPx / isResizing.containerWidth) * 100));
+		
+		setColumnWidths(prev => ({
+			...prev,
+			[isResizing.column!]: `${newWidthPercent.toFixed(1)}%`
+		}));
+	}, [isResizing]);
+
+	const handleResizeEnd = useCallback(() => {
+		setIsResizing({
+			column: null,
+			startX: 0,
+			startWidth: 0,
+			containerWidth: 800
+		});
 	}, []);
 
-	// Handle refresh
-	const handleRefresh = useCallback(() => {
-		onRefresh?.();
-	}, [onRefresh]);
-
-	// Handle install package
-	const handleInstallPackage = useCallback(async () => {
-		if (!installPackageName.trim() || isInstalling || !onInstall) {
-			return;
+	// Mouse event listeners for resizing
+	useEffect(() => {
+		if (isResizing.column) {
+			document.addEventListener('mousemove', handleResizeMove);
+			document.addEventListener('mouseup', handleResizeEnd);
+			
+			return () => {
+				document.removeEventListener('mousemove', handleResizeMove);
+				document.removeEventListener('mouseup', handleResizeEnd);
+			};
 		}
-
-		setIsInstalling(true);
-		try {
-			await onInstall(installPackageName.trim());
-			setInstallPackageName('');
-		} catch (error) {
-			console.error('Failed to install package:', error);
-		} finally {
-			setIsInstalling(false);
-		}
-	}, [installPackageName, isInstalling, onInstall]);
+		return undefined;
+	}, [isResizing.column, handleResizeMove, handleResizeEnd]);
 
 	// Handle uninstall package
 	const handleUninstallPackage = useCallback(async (packageName: string) => {
@@ -100,246 +156,158 @@ export const PackageList: React.FC<PackageListProps> = ({
 		}
 	}, [uninstallingPackage, onUninstall]);
 
-	// Handle install input key press
-	const handleInstallKeyPress = useCallback((event: React.KeyboardEvent<HTMLInputElement>) => {
-		if (event.key === 'Enter') {
-			event.preventDefault();
-			handleInstallPackage();
-		}
-	}, [handleInstallPackage]);
-
-	// Handle sort change
-	const handleSortChange = useCallback((newSortBy: 'name' | 'version') => {
-		if (sortBy === newSortBy) {
-			setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-		} else {
-			setSortBy(newSortBy);
-			setSortOrder('asc');
-		}
-	}, [sortBy, sortOrder]);
-
-	// Get package type icon
-	const getPackageTypeIcon = (pkg: IPythonPackage | IRPackage): string => {
-		if (type === 'python') {
-			const pythonPkg = pkg as IPythonPackage;
-			if (pythonPkg.editable) {
-				return 'codicon codicon-edit';
-			}
-		} else if (type === 'r') {
-			const rPkg = pkg as IRPackage;
-			if (rPkg.isLoaded) {
-				return 'codicon codicon-check-all';
-			}
-		}
-		return 'codicon codicon-package';
+	// Get sort indicator for name column
+	const getSortIndicator = () => {
+		return (
+			<div className="sort-indicators">
+				<i className={`codicon codicon-chevron-up sort-chevron ${sortDirection === 'asc' ? 'active' : 'hidden'}`}></i>
+				<i className={`codicon codicon-chevron-down sort-chevron ${sortDirection === 'desc' ? 'active' : 'hidden'}`}></i>
+			</div>
+		);
 	};
 
-	// Get sort icon
-	const getSortIcon = (column: 'name' | 'version'): string => {
-		if (sortBy !== column) {
-			return 'codicon codicon-chevron-down';
-		}
-		return sortOrder === 'asc' ? 'codicon codicon-chevron-up' : 'codicon codicon-chevron-down';
-	};
-
-	// Check if package is R and loaded
-	const isRPackageLoaded = (pkg: IPythonPackage | IRPackage): boolean => {
-		return type === 'r' && 'isLoaded' in pkg && pkg.isLoaded;
-	};
-
-	// Check if package is Python and editable
-	const isPythonPackageEditable = (pkg: IPythonPackage | IRPackage): boolean => {
-		return type === 'python' && 'editable' in pkg && (pkg.editable === true);
-	};
+	if (!hasActiveRuntime) {
+		return (
+			<div className="empty-state-container">
+				<div className="empty-state">
+					<div className="empty-state-icon codicon codicon-package"></div>
+					<div className="empty-state-title">No Active {type === 'python' ? 'Python' : 'R'} Runtime</div>
+					<div className="empty-state-description">Start a {type} session to view installed packages</div>
+				</div>
+			</div>
+		);
+	}
 
 	return (
-		<div className="package-list">
-			{/* No runtime message */}
-			{!hasActiveRuntime ? (
-				<div className="no-runtime">
-					<span className="codicon codicon-info"></span>
-					No active {type} runtime
+		<div className="package-list-container">
+			{/* Search Bar with Toolbar Buttons */}
+			<div className="table-actions-toolbar">
+				<div className="toolbar-left">
+					<input
+						type="text"
+						className="search-input"
+						placeholder={`Search ${type} packages...`}
+						value={searchTerm}
+						onChange={handleSearchChange}
+						disabled={isLoading}
+					/>
 				</div>
-			) : (
-				<>
-					{/* Toolbar */}
-					<div className="package-toolbar">
-						<div className="search-container">
-							<input
-								type="text"
-								className="package-search"
-								placeholder={`Search ${type} packages...`}
-								value={searchTerm}
-								onChange={handleSearchChange}
-							/>
-							{searchTerm && (
-								<button 
-									className="clear-search-button codicon codicon-close"
-									onClick={handleClearSearch}
-									title="Clear search"
-								/>
-							)}
-						</div>
+				<div className="toolbar-right">
+					{onRefresh && (
 						<button 
-							className="refresh-button codicon codicon-refresh"
-							onClick={handleRefresh}
+							className="btn btn-icon"
+							onClick={onRefresh}
 							disabled={isLoading}
-							title="Refresh Packages"
-						/>
-					</div>
+							title={`Refresh ${type} packages`}
+						>
+							<i className="codicon codicon-refresh"></i>
+						</button>
+					)}
+					{onInstall && (
+						<button 
+							className="btn btn-icon"
+							onClick={onInstall}
+							disabled={isLoading}
+							title={`Install ${type} package`}
+						>
+							<i className="codicon codicon-add"></i>
+						</button>
+					)}
+				</div>
+			</div>
 
-					{/* Install package section */}
-					<div className="install-package">
-						<div className="install-input-container">
-							<input
-								type="text"
-								className="install-input"
-								placeholder={`Package name to install (e.g., ${type === 'python' ? 'numpy' : 'ggplot2'})`}
-								value={installPackageName}
-								onChange={(e) => setInstallPackageName(e.target.value)}
-								onKeyDown={handleInstallKeyPress}
-								disabled={isInstalling}
-							/>
-							<button 
-								className="install-button"
-								onClick={handleInstallPackage}
-								disabled={!installPackageName.trim() || isInstalling}
-								title={`Install ${type} package`}
-							>
-								{isInstalling ? (
-									<>
-										<span className="codicon codicon-loading codicon-modifier-spin"></span>
-										Installing...
-									</>
-								) : (
-									<>
-										<span className="codicon codicon-add"></span>
-										Install
-									</>
-								)}
-							</button>
-						</div>
+			{/* Data Table Container */}
+			<div className="data-table-container">
+				{isLoading ? (
+					<div className="loading-spinner">
+						<span className="codicon codicon-sync codicon-modifier-spin"></span>
+						Loading packages...
 					</div>
-
-					{/* Package count and sort controls */}
-					<div className="package-controls">
-						<div className="package-count">
-							{sortedPackages.length} of {packages.length} package{packages.length !== 1 ? 's' : ''}
-							{isLoading && <span className="loading-indicator"> (Loading...)</span>}
+				) : sortedPackages.length === 0 ? (
+					packages.length === 0 ? (
+						<div className="empty-state">
+							<i className="codicon codicon-info"></i>
+							<p>No {type} packages found</p>
 						</div>
-						<div className="sort-controls">
-							<button 
-								className={`sort-button ${sortBy === 'name' ? 'active' : ''}`}
-								onClick={() => handleSortChange('name')}
-								title="Sort by name"
-							>
-								Name <span className={getSortIcon('name')}></span>
-							</button>
-							<button 
-								className={`sort-button ${sortBy === 'version' ? 'active' : ''}`}
-								onClick={() => handleSortChange('version')}
-								title="Sort by version"
-							>
-								Version <span className={getSortIcon('version')}></span>
-							</button>
+					) : (
+						<div className="empty-state">
+							<i className="codicon codicon-search"></i>
+							<p>No packages match your search</p>
 						</div>
-					</div>
-
-					{/* Package items */}
-					<div className="package-items">
-						{sortedPackages.length === 0 ? (
-							<div className="no-packages">
-								{packages.length === 0 ? (
-									isLoading ? (
-										<div className="loading-message">
-											<span className="codicon codicon-loading codicon-modifier-spin"></span>
-											Loading packages...
-										</div>
-									) : (
-										<div className="empty-message">
-											<span className="codicon codicon-info"></span>
-											No {type} packages found
-										</div>
-									)
-								) : (
-									<div className="no-results-message">
-										<span className="codicon codicon-search"></span>
-										No packages match your search
-									</div>
-								)}
-							</div>
-						) : (
-							sortedPackages.map(pkg => (
-								<div 
-									key={pkg.name}
-									className={`package-item ${isRPackageLoaded(pkg) ? 'loaded' : ''} ${isPythonPackageEditable(pkg) ? 'editable' : ''}`}
+					)
+				) : (
+					<table className="results-table">
+						<thead>
+							<tr>
+								<th 
+									className="sortable column-header name-column"
+									onClick={handleSort}
+									title="Click to sort by name"
+									style={{ width: columnWidths.name, position: 'relative' }}
 								>
-									<div className="package-info">
-										<div className="package-header">
-											<span className={getPackageTypeIcon(pkg)} />
-											<div className="package-name">{pkg.name}</div>
-											<div className="package-version">v{pkg.version}</div>
-											<div className="package-badges">
-												{isRPackageLoaded(pkg) && (
-													<span className="badge loaded-badge" title="Package is loaded">
-														<span className="codicon codicon-check"></span>
-														Loaded
-													</span>
-												)}
-												{isPythonPackageEditable(pkg) && (
-													<span className="badge editable-badge" title="Editable package">
-														<span className="codicon codicon-edit"></span>
-														Editable
-													</span>
-												)}
-												{type === 'r' && 'priority' in pkg && pkg.priority && (
-													<span className="badge priority-badge" title={`Priority: ${pkg.priority}`}>
-														{pkg.priority}
-													</span>
-												)}
-											</div>
-										</div>
-										
-										{pkg.description && (
-											<div className="package-description" title={pkg.description}>
-												{pkg.description}
-											</div>
-										)}
-										
-										{type === 'python' && 'location' in pkg && pkg.location && (
-											<div className="package-location" title={pkg.location}>
-												<span className="codicon codicon-folder"></span>
-												{pkg.location}
-											</div>
-										)}
-										
-										{type === 'r' && 'depends' in pkg && pkg.depends && pkg.depends.length > 0 && (
-											<div className="package-dependencies">
-												<span className="codicon codicon-references"></span>
-												Depends: {pkg.depends.join(', ')}
-											</div>
-										)}
+									<div className="column-header-content">
+										<span className="column-name">Name</span>
+										{getSortIndicator()}
 									</div>
-									
-									<div className="package-actions">
-										<button
-											className="uninstall-button codicon codicon-trash"
-											onClick={() => handleUninstallPackage(pkg.name)}
-											disabled={uninstallingPackage === pkg.name}
-											title={`${type === 'python' ? 'Uninstall' : 'Remove'} package`}
-										>
-											{uninstallingPackage === pkg.name && (
-												<span className="codicon codicon-loading codicon-modifier-spin"></span>
-											)}
-										</button>
+									<div 
+										className="column-resize-handle"
+										onMouseDown={(e) => handleResizeStart('name', e)}
+									/>
+								</th>
+								<th className="column-header version-column" style={{ width: columnWidths.version, position: 'relative' }}>
+									<div className="column-header-content">
+										<span className="column-name">Version</span>
 									</div>
-								</div>
-							))
-						)}
+									<div 
+										className="column-resize-handle"
+										onMouseDown={(e) => handleResizeStart('version', e)}
+									/>
+								</th>
+								<th className="column-header actions-column" style={{ width: columnWidths.actions, position: 'relative' }}>
+									<div className="column-header-content">
+										<span className="column-name">Actions</span>
+									</div>
+								</th>
+							</tr>
+						</thead>
+						<tbody>
+							{sortedPackages.map((pkg) => (
+								<tr key={pkg.name}>
+									<td className="data-cell name-cell" style={{ width: columnWidths.name }}>
+										{pkg.name}
+									</td>
+									<td className="data-cell version-cell" style={{ width: columnWidths.version }}>
+										{pkg.version}
+									</td>
+									<td className="data-cell actions-cell" style={{ width: columnWidths.actions }}>
+										{onUninstall && (
+											<button
+												className="uninstall-button codicon codicon-trash"
+												onClick={() => handleUninstallPackage(pkg.name)}
+												disabled={uninstallingPackage === pkg.name}
+												title={`Uninstall ${pkg.name}`}
+											>
+												{uninstallingPackage === pkg.name && (
+													<i className="codicon codicon-sync codicon-modifier-spin"></i>
+												)}
+											</button>
+										)}
+									</td>
+								</tr>
+							))}
+						</tbody>
+					</table>
+				)}
+			</div>
+
+			{/* Package Count */}
+			{!isLoading && packages.length > 0 && (
+				<div className="results-info-toolbar">
+					<div className="toolbar-right">
+						<span>{sortedPackages.length} of {packages.length} package{packages.length !== 1 ? 's' : ''}</span>
 					</div>
-				</>
+				</div>
 			)}
 		</div>
 	);
 };
-

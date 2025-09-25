@@ -1,4 +1,5 @@
 """Normalize input string."""
+
 import re
 
 from .state_core import StateCore
@@ -13,6 +14,6 @@ def normalize(state: StateCore) -> None:
     string = NEWLINES_RE.sub("\n", state.src)
 
     # Replace NULL characters
-    string = NULL_RE.sub("\uFFFD", string)
+    string = NULL_RE.sub("\ufffd", string)
 
     state.src = string

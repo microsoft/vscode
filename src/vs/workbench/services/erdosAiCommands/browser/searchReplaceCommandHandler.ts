@@ -541,8 +541,9 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 			// Regular diff computation for non-notebook files
 			const { computeLineDiff } = await import('../../erdosAiUtils/browser/diffUtils.js');
 			
-			const oldLines = oldContent.split('\n');
-			const newLines = newContent.split('\n');
+			// Handle empty content correctly - split('') returns [''] instead of []
+			const oldLines = oldContent === '' ? [] : oldContent.split('\n');
+			const newLines = newContent === '' ? [] : newContent.split('\n');
 			const diffResult = computeLineDiff(oldLines, newLines);
 			
 			// Filter diff before storage to prevent storing entire files
@@ -725,8 +726,8 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 				// Set conversation manager for file persistence
 				diffStore.setConversationManager(this.conversationManager);
 				
-				const oldLines = currentContent.split('\n');
-				const newLines = newContent.split('\n');
+				const oldLines = currentContent === '' ? [] : currentContent.split('\n');
+				const newLines = newContent === '' ? [] : newContent.split('\n');
 				const diffResult = computeLineDiff(oldLines, newLines);
 			
 				// Filter diff before storage to prevent storing entire files (like Rao's pattern)
@@ -1424,8 +1425,8 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 					const { computeLineDiff } = await import('../../erdosAiUtils/browser/diffUtils.js');
 					const { filterDiffForDisplay } = await import('../../erdosAiUtils/browser/diffUtils.js');
 					
-					const oldLines = effectiveContent.split('\n');
-					const newLines = newContent.split('\n');
+					const oldLines = effectiveContent === '' ? [] : effectiveContent.split('\n');
+					const newLines = newContent === '' ? [] : newContent.split('\n');
 					
 					const diffResult = computeLineDiff(oldLines, newLines);
 					

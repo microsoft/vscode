@@ -63,21 +63,6 @@
 	padding: 20px;
 }
 
-.erdos-ai-settings-editor .loading-message {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	height: 100%;
-	color: var(--vscode-foreground);
-	font-size: 14px;
-}
-
-
-
-
-
-
-
 /* Simple settings layout - no complex tree/search structures needed */
 
 .erdos-ai-settings-editor .setting-item-label {

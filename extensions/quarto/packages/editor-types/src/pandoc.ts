@@ -13,7 +13,7 @@
  *
  */
 
-import { Bibliography } from "./csl";
+import { Bibliography } from "./csl.js";
 
 export const kPandocGetCapabilities = 'pandoc_get_capabilities';
 export const kPandocMarkdownToAst = 'pandoc_markdown_to_ast';

@@ -1,3 +1,5 @@
+import functools
+import operator
 import sys
 import typing
 from collections.abc import Callable
@@ -199,9 +201,6 @@ if sys.version_info < (3, 9):
         return tp
 
 else:
-    from typing import _UnionGenericAlias  # type: ignore
-
-    from erdos._vendor.typing_extensions import _AnnotatedAlias
 
     def convert_generics(tp: Type[Any]) -> Type[Any]:
         """
@@ -221,7 +220,7 @@ else:
 
         # typing.Annotated needs special treatment
         if origin is Annotated:
-            return _AnnotatedAlias(convert_generics(args[0]), args[1:])
+            return Annotated[(convert_generics(args[0]), *args[1:])]  # type: ignore
 
         # recursively replace `str` instances inside of `GenericAlias` with `ForwardRef(arg)`
         converted = tuple(
@@ -235,7 +234,7 @@ else:
             return TypingGenericAlias(origin, converted)
         elif isinstance(tp, TypesUnionType):
             # recreate types.UnionType (PEP604, Python >= 3.10)
-            return _UnionGenericAlias(origin, converted)
+            return functools.reduce(operator.or_, converted)  # type: ignore
         else:
             try:
                 setattr(tp, '__args__', converted)

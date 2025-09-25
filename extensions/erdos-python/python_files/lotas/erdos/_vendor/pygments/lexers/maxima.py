@@ -21,7 +21,7 @@ __all__ = ['MaximaLexer']
 class MaximaLexer(RegexLexer):
     """
     A Maxima lexer.
-    Derived from erdos._vendor.pygments.lexers.MuPADLexer.
+    Derived from pygments.lexers.MuPADLexer.
     """
     name = 'Maxima'
     url = 'http://maxima.sourceforge.net'

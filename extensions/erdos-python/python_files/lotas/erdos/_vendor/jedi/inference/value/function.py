@@ -1,6 +1,6 @@
 from erdos._vendor.parso.python import tree
 
-from jedi import debug
+from erdos._vendor.jedi import debug
 from erdos._vendor.jedi.inference.cache import inference_state_method_cache, CachedMetaClass
 from erdos._vendor.jedi.inference import compiled
 from erdos._vendor.jedi.inference import recursion
@@ -17,7 +17,7 @@ from erdos._vendor.jedi.inference.lazy_value import LazyKnownValues, LazyKnownVa
     LazyTreeValue
 from erdos._vendor.jedi.inference.context import ValueContext, TreeContextMixin
 from erdos._vendor.jedi.inference.value import iterable
-from jedi import parser_utils
+from erdos._vendor.jedi import parser_utils
 from erdos._vendor.jedi.inference.parser_cache import get_yield_exprs
 from erdos._vendor.jedi.inference.helpers import values_from_qualified_names
 from erdos._vendor.jedi.inference.gradual.generics import TupleGenericManager

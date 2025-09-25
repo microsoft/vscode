@@ -1,4 +1,5 @@
-""" Atex heading (#, ##, ...) """
+"""Atex heading (#, ##, ...)"""
+
 from __future__ import annotations
 
 import logging

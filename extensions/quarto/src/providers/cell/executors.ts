@@ -17,6 +17,7 @@
 // (e.g. see https://github.com/JeepShen/vscode-markdown-code-runner)
 
 
+import * as vscode from "vscode";
 import { TextDocument } from "vscode";
 
 import {
@@ -85,9 +86,10 @@ export function codeWithoutOptionsFromBlock(token: TokenMath | TokenCodeBlock) {
 export async function executeInteractive(
   executor: CellExecutor,
   blocks: string[],
-  document: TextDocument
+  document: TextDocument,
+  cellRange?: vscode.Range
 ): Promise<void> {
-  return await executor.execute(blocks, !document.isUntitled ? document.uri : undefined);
+  return await executor.execute(blocks, !document.isUntitled ? document.uri : undefined, cellRange);
 }
 
 // attempt language aware execution of current selection (returns false

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See LICENSE in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import IState from "../../interfaces/markdown-it/IState";
+import IState from "../../interfaces/markdown-it/IState.js";
 
 export default function getLine(
     state: IState,

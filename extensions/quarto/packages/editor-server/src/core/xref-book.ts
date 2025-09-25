@@ -1,7 +1,7 @@
-import { QuartoContext, QuartoProjectConfig } from "quarto-core";
-import { EditorServerDocument, EditorServerDocuments, editorDocumentsEqual } from "./documents";
-import { XRef } from "editor-types";
-import { sourceXRefs, projectXrefIndex, computationalXRefs } from "./xref";
+import { QuartoContext, QuartoProjectConfig } from "../../../quarto-core/src/index.js";
+import { EditorServerDocument, EditorServerDocuments, editorDocumentsEqual } from "./documents.js";
+import { XRef } from "../../../editor-types/src/index.js";
+import { sourceXRefs, projectXrefIndex, computationalXRefs } from "./xref.js";
 
 
 

@@ -34,9 +34,9 @@ from typing import MutableSet as TypingMutableSet
 from typing import Sequence as TypingSequence
 from typing import Set as TypingSet
 
-from attrs import NOTHING, Attribute, Factory, resolve_types
-from attrs import fields as attrs_fields
-from attrs import fields_dict as attrs_fields_dict
+from erdos._vendor.attrs import NOTHING, Attribute, Factory, resolve_types
+from erdos._vendor.attrs import fields as attrs_fields
+from erdos._vendor.attrs import fields_dict as attrs_fields_dict
 
 __all__ = [
     "ANIES",
@@ -53,7 +53,7 @@ __all__ = [
 ]
 
 try:
-    from typing_extensions import TypedDict as ExtensionsTypedDict
+    from erdos._vendor.typing_extensions import TypedDict as ExtensionsTypedDict
 except ImportError:  # pragma: no cover
     ExtensionsTypedDict = None
 
@@ -63,20 +63,20 @@ else:
     from exceptiongroup import ExceptionGroup
 
 try:
-    from typing_extensions import is_typeddict as _is_typeddict
+    from erdos._vendor.typing_extensions import is_typeddict as _is_typeddict
 except ImportError:  # pragma: no cover
     assert sys.version_info >= (3, 10)
     from typing import is_typeddict as _is_typeddict
 
 try:
-    from typing_extensions import TypeAlias
+    from erdos._vendor.typing_extensions import TypeAlias
 except ImportError:  # pragma: no cover
     assert sys.version_info >= (3, 11)
     from typing import TypeAlias
 
 LITERALS = {Literal}
 try:
-    from typing_extensions import Literal as teLiteral
+    from erdos._vendor.typing_extensions import Literal as teLiteral
 
     LITERALS.add(teLiteral)
 except ImportError:  # pragma: no cover
@@ -85,7 +85,7 @@ except ImportError:  # pragma: no cover
 # On some Python versions, `typing_extensions.Any` is different than
 # `typing.Any`.
 try:
-    from typing_extensions import Any as teAny
+    from erdos._vendor.typing_extensions import Any as teAny
 
     ANIES = frozenset([Any, teAny])
 except ImportError:  # pragma: no cover
@@ -170,6 +170,7 @@ def adapted_fields(cl) -> List[Attribute]:
                 True,
                 type=type_hints.get(attr.name, attr.type),
                 alias=attr.name,
+                kw_only=getattr(attr, "kw_only", False),
             )
             for attr in attrs
         ]
@@ -301,10 +302,10 @@ if sys.version_info >= (3, 9):
         if sys.version_info >= (3, 11):
             from typing import NotRequired, Required
         else:
-            from typing_extensions import NotRequired, Required
+            from erdos._vendor.typing_extensions import NotRequired, Required
 
     else:
-        from typing_extensions import NotRequired, Required
+        from erdos._vendor.typing_extensions import NotRequired, Required
 
         def is_union_type(obj):
             return (
@@ -460,8 +461,8 @@ else:
     from collections import Counter as ColCounter
     from typing import Counter, Generic, TypedDict, Union, _GenericAlias
 
-    from typing_extensions import Annotated, NotRequired, Required
-    from typing_extensions import get_origin as te_get_origin
+    from erdos._vendor.typing_extensions import Annotated, NotRequired, Required
+    from erdos._vendor.typing_extensions import get_origin as te_get_origin
 
     def is_annotated(type) -> bool:
         return te_get_origin(type) is Annotated

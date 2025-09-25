@@ -8,7 +8,7 @@ from functools import reduce
 from operator import or_
 from typing import TYPE_CHECKING, Any, Callable, Literal, Mapping, Union
 
-from attrs import NOTHING, Attribute, AttrsInstance
+from erdos._vendor.attrs import NOTHING, Attribute, AttrsInstance
 
 from ._compat import (
     NoneType,

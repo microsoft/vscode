@@ -14,7 +14,7 @@ from typing import (
     get_type_hints,
 )
 
-from attrs import NOTHING, Attribute
+from erdos._vendor.attrs import NOTHING, Attribute
 
 from ._compat import ANIES, is_bare, is_frozenset, is_mapping, is_sequence, is_subclass
 from ._compat import is_mutable_set as is_set

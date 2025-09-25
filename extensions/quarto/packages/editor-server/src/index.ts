@@ -13,18 +13,20 @@
  *
  */
 
-export * from './core'; 
+export * from './core/index.js'; 
 
-export type { EditorServerOptions } from './server/server';
-export type { PubMedServerOptions } from './server/pubmed';
-export type { CrossrefServerOptions } from './server/crossref';
+export type { EditorServerOptions } from './server/server.js';
+export type { PubMedServerOptions } from './server/pubmed.js';
+export type { CrossrefServerOptions } from './server/crossref.js';
 
 export { 
   editorServer, 
   editorServerMethods,
   defaultEditorServerOptions,
   fsEditorServerDocuments
-} from './server/server';
+} from './server/server.js';
+
+export { zoteroServerMethods } from './server/zotero.js';
 
 export * from './services/services';
 

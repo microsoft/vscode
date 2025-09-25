@@ -30,7 +30,7 @@ import type { LiteText } from "mathjax-full/js/adaptors/lite/Text.js";
 import TexError from "mathjax-full/js/input/tex/TexError";
 import "mathjax-full/js/input/tex/AllPackages.js";
 
-import { MathjaxSupportedExtension, MathjaxTypesetOptions, MathjaxTypesetResult } from "editor-types";
+import { MathjaxSupportedExtension, MathjaxTypesetOptions, MathjaxTypesetResult } from "../../../editor-types/src/index.js";
 
 type TexOption = {
   packages?: readonly MathjaxSupportedExtension[];

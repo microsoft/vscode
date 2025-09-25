@@ -14,13 +14,12 @@
  */
 
 import { commands, Position, window, Selection } from "vscode";
-import { DiagramState } from "editor-types";
+import { DiagramState } from "../../types/local-types";
 
 import { Command } from "../../core/command";
 import { isGraphvizDoc, isMermaidDoc, isQuartoDoc } from "../../core/doc";
 import { MarkdownEngine } from "../../markdown/engine";
 import { QuartoDiagramWebviewManager } from "./diagram-webview";
-import { visualEditorDiagramState } from "./diagram";
 import { isDiagram, isDisplayMath, languageBlockAtPosition } from "quarto-core";
 
 export interface PreviewDiagramOptions {
@@ -82,20 +81,10 @@ class PreviewContentShortcutCommand implements Command {
         return;
       }
     } else {
-
-      // check for a diagram in the visual editor
-      const veDiagram = await visualEditorDiagramState();
-      if (veDiagram) {
-        await commands.executeCommand("quarto.previewDiagram", {
-          state: veDiagram,
-          activate: true
-        });
-      } else {
-        // info message
-        window.showInformationMessage(
-          "No content preview available (selection not within an equation or diagram)"
-        );
-      }
+      // info message
+      window.showInformationMessage(
+        "No content preview available (selection not within an equation or diagram)"
+      );
     }
   }
 

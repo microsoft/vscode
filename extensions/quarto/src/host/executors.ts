@@ -13,6 +13,7 @@
  *
  */
 
+import * as vscode from "vscode";
 import { Uri, commands, window, extensions } from "vscode";
 
 import semver from "semver";
@@ -24,7 +25,7 @@ import { workspace } from "vscode";
 import { JupyterKernelspec } from "core";
 
 export interface CellExecutor {
-  execute: (blocks: string[], editorUri?: Uri) => Promise<void>;
+  execute: (blocks: string[], editorUri?: Uri, cellRange?: vscode.Range) => Promise<void>;
   executeSelection?: () => Promise<void>;
 }
 

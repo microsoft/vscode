@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See LICENSE in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import IState from "../../interfaces/markdown-it/IState";
+import IState from "../../interfaces/markdown-it/IState.js";
 
 /**
  * Returns the char code of the character at the start of the current line,

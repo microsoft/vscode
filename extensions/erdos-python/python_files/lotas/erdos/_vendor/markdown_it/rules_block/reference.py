@@ -11,7 +11,6 @@ def reference(state: StateBlock, startLine: int, _endLine: int, silent: bool) ->
         "entering reference: %s, %s, %s, %s", state, startLine, _endLine, silent
     )
 
-    lines = 0
     pos = state.bMarks[startLine] + state.tShift[startLine]
     maximum = state.eMarks[startLine]
     nextLine = startLine + 1
@@ -22,51 +21,9 @@ def reference(state: StateBlock, startLine: int, _endLine: int, silent: bool) ->
     if state.src[pos] != "[":
         return False
 
-    # Simple check to quickly interrupt scan on [link](url) at the start of line.
-    # Can be useful on practice: https:#github.com/markdown-it/markdown-it/issues/54
-    while pos < maximum:
-        # /* ] */  /* \ */  /* : */
-        if state.src[pos] == "]" and state.src[pos - 1] != "\\":
-            if pos + 1 == maximum:
-                return False
-            if state.src[pos + 1] != ":":
-                return False
-            break
-        pos += 1
+    string = state.src[pos : maximum + 1]
 
-    endLine = state.lineMax
-
-    # jump line-by-line until empty one or EOF
-    terminatorRules = state.md.block.ruler.getRules("reference")
-
-    oldParentType = state.parentType
-    state.parentType = "reference"
-
-    while nextLine < endLine and not state.isEmpty(nextLine):
-        # this would be a code block normally, but after paragraph
-        # it's considered a lazy continuation regardless of what's there
-        if state.sCount[nextLine] - state.blkIndent > 3:
-            nextLine += 1
-            continue
-
-        # quirk for blockquotes, this line should already be checked by that rule
-        if state.sCount[nextLine] < 0:
-            nextLine += 1
-            continue
-
-        # Some tags can terminate paragraph without empty line.
-        terminate = False
-        for terminatorRule in terminatorRules:
-            if terminatorRule(state, nextLine, endLine, True):
-                terminate = True
-                break
-
-        if terminate:
-            break
-
-        nextLine += 1
-
-    string = state.getLines(startLine, nextLine, state.blkIndent, False).strip()
+    # string = state.getLines(startLine, nextLine, state.blkIndent, False).strip()
     maximum = len(string)
 
     labelEnd = None
@@ -79,11 +36,20 @@ def reference(state: StateBlock, startLine: int, _endLine: int, silent: bool) ->
             labelEnd = pos
             break
         elif ch == 0x0A:  # /* \n */
-            lines += 1
+            if (lineContent := getNextLine(state, nextLine)) is not None:
+                string += lineContent
+                maximum = len(string)
+                nextLine += 1
         elif ch == 0x5C:  # /* \ */
             pos += 1
-            if pos < maximum and charCodeAt(string, pos) == 0x0A:
-                lines += 1
+            if (
+                pos < maximum
+                and charCodeAt(string, pos) == 0x0A
+                and (lineContent := getNextLine(state, nextLine)) is not None
+            ):
+                string += lineContent
+                maximum = len(string)
+                nextLine += 1
         pos += 1
 
     if (
@@ -97,7 +63,10 @@ def reference(state: StateBlock, startLine: int, _endLine: int, silent: bool) ->
     while pos < maximum:
         ch = charCodeAt(string, pos)
         if ch == 0x0A:
-            lines += 1
+            if (lineContent := getNextLine(state, nextLine)) is not None:
+                string += lineContent
+                maximum = len(string)
+                nextLine += 1
         elif isSpace(ch):
             pass
         else:
@@ -106,20 +75,19 @@ def reference(state: StateBlock, startLine: int, _endLine: int, silent: bool) ->
 
     # [label]:   destination   'title'
     #            ^^^^^^^^^^^ parse this
-    res = state.md.helpers.parseLinkDestination(string, pos, maximum)
-    if not res.ok:
+    destRes = state.md.helpers.parseLinkDestination(string, pos, maximum)
+    if not destRes.ok:
         return False
 
-    href = state.md.normalizeLink(res.str)
+    href = state.md.normalizeLink(destRes.str)
     if not state.md.validateLink(href):
         return False
 
-    pos = res.pos
-    lines += res.lines
+    pos = destRes.pos
 
     # save cursor state, we could require to rollback later
     destEndPos = pos
-    destEndLineNo = lines
+    destEndLineNo = nextLine
 
     # [label]:   destination   'title'
     #                       ^^^ skipping those spaces
@@ -127,7 +95,10 @@ def reference(state: StateBlock, startLine: int, _endLine: int, silent: bool) ->
     while pos < maximum:
         ch = charCodeAt(string, pos)
         if ch == 0x0A:
-            lines += 1
+            if (lineContent := getNextLine(state, nextLine)) is not None:
+                string += lineContent
+                maximum = len(string)
+                nextLine += 1
         elif isSpace(ch):
             pass
         else:
@@ -136,15 +107,23 @@ def reference(state: StateBlock, startLine: int, _endLine: int, silent: bool) ->
 
     # [label]:   destination   'title'
     #                          ^^^^^^^ parse this
-    res = state.md.helpers.parseLinkTitle(string, pos, maximum)
-    if pos < maximum and start != pos and res.ok:
-        title = res.str
-        pos = res.pos
-        lines += res.lines
+    titleRes = state.md.helpers.parseLinkTitle(string, pos, maximum, None)
+    while titleRes.can_continue:
+        if (lineContent := getNextLine(state, nextLine)) is None:
+            break
+        string += lineContent
+        pos = maximum
+        maximum = len(string)
+        nextLine += 1
+        titleRes = state.md.helpers.parseLinkTitle(string, pos, maximum, titleRes)
+
+    if pos < maximum and start != pos and titleRes.ok:
+        title = titleRes.str
+        pos = titleRes.pos
     else:
         title = ""
         pos = destEndPos
-        lines = destEndLineNo
+        nextLine = destEndLineNo
 
     # skip trailing spaces until the rest of the line
     while pos < maximum:
@@ -158,7 +137,7 @@ def reference(state: StateBlock, startLine: int, _endLine: int, silent: bool) ->
         # but it could still be a valid reference if we roll back
         title = ""
         pos = destEndPos
-        lines = destEndLineNo
+        nextLine = destEndLineNo
         while pos < maximum:
             ch = charCodeAt(string, pos)
             if not isSpace(ch):
@@ -181,7 +160,7 @@ def reference(state: StateBlock, startLine: int, _endLine: int, silent: bool) ->
     if "references" not in state.env:
         state.env["references"] = {}
 
-    state.line = startLine + lines + 1
+    state.line = nextLine
 
     # note, this is not part of markdown-it JS, but is useful for renderers
     if state.md.options.get("inline_definitions", False):
@@ -210,6 +189,47 @@ def reference(state: StateBlock, startLine: int, _endLine: int, silent: bool) ->
             }
         )
 
-    state.parentType = oldParentType
-
     return True
+
+
+def getNextLine(state: StateBlock, nextLine: int) -> None | str:
+    endLine = state.lineMax
+
+    if nextLine >= endLine or state.isEmpty(nextLine):
+        # empty line or end of input
+        return None
+
+    isContinuation = False
+
+    # this would be a code block normally, but after paragraph
+    # it's considered a lazy continuation regardless of what's there
+    if state.is_code_block(nextLine):
+        isContinuation = True
+
+    # quirk for blockquotes, this line should already be checked by that rule
+    if state.sCount[nextLine] < 0:
+        isContinuation = True
+
+    if not isContinuation:
+        terminatorRules = state.md.block.ruler.getRules("reference")
+        oldParentType = state.parentType
+        state.parentType = "reference"
+
+        # Some tags can terminate paragraph without empty line.
+        terminate = False
+        for terminatorRule in terminatorRules:
+            if terminatorRule(state, nextLine, endLine, True):
+                terminate = True
+                break
+
+        state.parentType = oldParentType
+
+        if terminate:
+            # terminated by another block
+            return None
+
+    pos = state.bMarks[nextLine] + state.tShift[nextLine]
+    maximum = state.eMarks[nextLine]
+
+    # max + 1 explicitly includes the newline
+    return state.src[pos : maximum + 1]

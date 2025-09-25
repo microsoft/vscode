@@ -1,8 +1,10 @@
 """Block-level tokenizer."""
+
 from __future__ import annotations
 
+from collections.abc import Callable
 import logging
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 
 from . import rules_block
 from .ruler import Ruler
@@ -11,7 +13,7 @@ from .token import Token
 from .utils import EnvType
 
 if TYPE_CHECKING:
-    from markdown_it import MarkdownIt
+    from erdos._vendor.markdown_it import MarkdownIt
 
 LOGGER = logging.getLogger(__name__)
 

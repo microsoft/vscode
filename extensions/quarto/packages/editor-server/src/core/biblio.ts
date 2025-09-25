@@ -20,8 +20,8 @@ tmp.setGracefulCleanup();
 
 import * as yaml from "js-yaml";
 
-import { lines, pathWithForwardSlashes, removeYamlDelimiters } from "core";
-import { hasExtension } from "core-node";
+import { lines, pathWithForwardSlashes, removeYamlDelimiters } from "../../../core/src/index.js";
+import { hasExtension } from "../../../core-node/src/path.js";
 
 import {
   metadataFilesForDocument,
@@ -29,7 +29,7 @@ import {
   QuartoContext,
 } from "quarto-core";
 
-import { Bibliography, CSL } from "editor-types";
+import { Bibliography, CSL } from "../../../editor-types/src/index.js";
 
 export type CslRef = {
   id: string;
@@ -329,6 +329,7 @@ function renderCslRefs(
   } catch (err) {
     console.log("Error reading bibliography:");
     console.error(err);
+    return undefined;
   } 
 }
 
@@ -346,6 +347,7 @@ function renderCslJson(quarto: QuartoContext, file: string) : CSL[] | undefined 
   } catch(err) {
     console.log("Error converting bibliography:");
     console.error(err);
+    return undefined;
   }
 }
 

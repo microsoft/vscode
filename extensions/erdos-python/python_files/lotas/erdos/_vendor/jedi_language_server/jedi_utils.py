@@ -12,10 +12,9 @@ from inspect import Parameter
 from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple
 
 from erdos._vendor import docstring_to_markdown
-import erdos._vendor.jedi as jedi
-import erdos._vendor.jedi.api.errors
-import erdos._vendor.jedi.inference.references
-import erdos._vendor.jedi.settings
+from erdos._vendor import jedi
+from erdos._vendor.jedi.api.errors import SyntaxError as JediSyntaxError
+from erdos._vendor.jedi import settings
 from erdos._vendor.jedi import Project, Script
 from erdos._vendor.jedi.api.classes import (
     BaseName,
@@ -47,7 +46,7 @@ from .initialization_options import HoverDisableOptions, InitializationOptions
 from .type_map import get_lsp_completion_type, get_lsp_symbol_type
 
 if sys.version_info < (3, 10):
-    from typing_extensions import ParamSpec
+    from erdos._vendor.typing_extensions import ParamSpec
 else:
     from typing import ParamSpec
 
@@ -115,14 +114,14 @@ def set_jedi_settings(
     initialization_options: InitializationOptions,
 ) -> None:
     """Sets jedi settings."""
-    jedi.settings.auto_import_modules = list(
+    settings.auto_import_modules = list(
         set(
-            jedi.settings.auto_import_modules
+            settings.auto_import_modules
             + initialization_options.jedi_settings.auto_import_modules
         )
     )
 
-    jedi.settings.case_insensitive_completion = (
+    settings.case_insensitive_completion = (
         initialization_options.jedi_settings.case_insensitive_completion
     )
     if initialization_options.jedi_settings.debug:
@@ -297,7 +296,7 @@ def lsp_document_symbols(names: List[Name]) -> List[DocumentSymbol]:
     return results
 
 
-def lsp_diagnostic(error: erdos._vendor.jedi.api.errors.SyntaxError) -> Diagnostic:
+def lsp_diagnostic(error: JediSyntaxError) -> Diagnostic:
     """Get LSP Diagnostic from Jedi SyntaxError."""
     return Diagnostic(
         range=Range(
@@ -388,7 +387,7 @@ def compare_names(name1: Name, name2: Name) -> bool:
     """Check if one Name is equal to another.
 
     This function, while trivial, is useful for documenting types
-    without needing to directly import anything from erdos._vendor.jedi into
+    without needing to directly import anything from jedi into
     `server.py`
     """
     equal: bool = name1 == name2

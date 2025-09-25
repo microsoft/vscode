@@ -15,10 +15,10 @@
 
 import fetch from "cross-fetch";
 
-import { JsonRpcServerMethod } from "core";
-import { CrossrefMessage, CrossrefServer, CrossrefWork, kCrossrefWorks, kStatusOK } from "editor-types";
+import { JsonRpcServerMethod } from "../../../core/src/jsonrpc.js";
+import { CrossrefMessage, CrossrefServer, CrossrefWork, kCrossrefWorks, kStatusOK } from "../../../editor-types/src/index.js";
 
-import { handleResponseWithStatus } from "./response";
+import { handleResponseWithStatus } from "./response.js";
 
 const kCrossrefApiHost = "https://api.crossref.org";
 const kCrossrefWorksApi = "works";

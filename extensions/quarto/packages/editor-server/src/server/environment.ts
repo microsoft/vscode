@@ -13,8 +13,8 @@
  *
  */
 
-import { JsonRpcServerMethod } from "core";
-import { EnvironmentServer, kEnvironmentGetRPackageCitations, kEnvironmentGetRPackageState, RPackageCitation, RPackageState } from "editor-types";
+import { JsonRpcServerMethod } from "../../../core/src/jsonrpc.js";
+import { EnvironmentServer, kEnvironmentGetRPackageCitations, kEnvironmentGetRPackageState, RPackageCitation, RPackageState } from "../../../editor-types/src/index.js";
 
 export function environmentServer() : EnvironmentServer {
   return {
@@ -22,7 +22,7 @@ export function environmentServer() : EnvironmentServer {
       throw new Error("not implemented");
     },
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    getRPackageCitations(pkgName: string) : Promise<RPackageCitation[]> {
+    getRPackageCitations(_pkgName: string) : Promise<RPackageCitation[]> {
       throw new Error("not implemented");
     }
   };

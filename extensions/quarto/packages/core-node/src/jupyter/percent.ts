@@ -20,7 +20,7 @@
 import path from 'node:path';
 import fs from 'node:fs';
 
-import { Metadata, asYamlText, lines, metadataFromKeyvalueText, trimEmptyLines } from "core";
+import { Metadata, asYamlText, lines, metadataFromKeyvalueText, trimEmptyLines } from "../../../core/src/index.js";
 import { kApplicationJavascript, kApplicationRtf, kRestructuredText, kTextHtml, kTextLatex } from "../mime.js";
 
 const kCellRawMimeType = "raw_mimetype";
@@ -132,6 +132,7 @@ function percentCellHeader(line: string): PercentCellHeader | undefined {
       throw new Error(`Invalid cell type: ${type}`);
     }
   }
+  return undefined;
 }
 
 function parsePercentAttribs(
@@ -142,10 +143,11 @@ function parsePercentAttribs(
   if (match) {
     return metadataFromKeyvalueText(match[0], " ");
   }
+  return undefined;
 }
 
 
-function mdRawOutput(mimeType: string, source: string[]) {
+function mdRawOutput(mimeType: string, source: string[]): string {
   switch (mimeType) {
     case kTextHtml:
       return mdHtmlOutput(source);
@@ -157,6 +159,8 @@ function mdRawOutput(mimeType: string, source: string[]) {
       return mdFormatOutput("rtf", source);
     case kApplicationJavascript:
       return mdScriptOutput(mimeType, source);
+    default:
+      return source.join("\n");
   }
 }
 

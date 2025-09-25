@@ -475,7 +475,7 @@ export class ExtHostLanguageRuntime implements extHostProtocol.ExtHostLanguageRu
 		return Promise.resolve(this._runtimeSessions[handle].openResource!(resource));
 	}
 
-	$executeCode(handle: number, code: string, id: string, mode: RuntimeCodeExecutionMode, errorBehavior: RuntimeErrorBehavior): void {
+	$executeCode(handle: number, code: string, id: string, mode: RuntimeCodeExecutionMode, errorBehavior: RuntimeErrorBehavior, executionId?: string): void {
 		if (handle >= this._runtimeSessions.length) {
 			throw new Error(`Cannot execute code: session handle '${handle}' not found or no longer valid.`);
 		}
@@ -815,14 +815,15 @@ export class ExtHostLanguageRuntime implements extHostProtocol.ExtHostLanguageRu
 		allowIncomplete?: boolean,
 		mode?: RuntimeCodeExecutionMode,
 		errorBehavior?: RuntimeErrorBehavior,
-		observer?: IExecutionObserver): Promise<Record<string, any>> {
+		observer?: IExecutionObserver,
+		executionId?: string): Promise<Record<string, any>> {
 
-		const executionId = generateUuid();
+		const finalExecutionId = executionId || generateUuid();
 		const executionObserver = new ExecutionObserver(observer);
-		this._executionObservers.set(executionId, executionObserver);
+		this._executionObservers.set(finalExecutionId, executionObserver);
 
 		this._proxy.$executeCode(
-			languageId, code, extensionId, focus, allowIncomplete, mode, errorBehavior, executionId).then(
+			languageId, code, extensionId, focus, allowIncomplete, mode, errorBehavior, finalExecutionId).then(
 				(sessionId) => {
 					executionObserver.sessionId = sessionId;
 
@@ -851,6 +852,10 @@ export class ExtHostLanguageRuntime implements extHostProtocol.ExtHostLanguageRu
 
 	public selectLanguageRuntime(runtimeId: string): Promise<void> {
 		return this._proxy.$selectLanguageRuntime(runtimeId);
+	}
+
+	public registerQuartoExecution(executionId: string): void {
+		this._proxy.$registerQuartoExecution(executionId);
 	}
 
 	public async startLanguageRuntime(runtimeId: string,

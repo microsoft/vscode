@@ -18,7 +18,7 @@ import fs from "node:fs";
 import { URI } from "vscode-uri";
 import { TextDocuments } from "vscode-languageserver";
 
-import {  Document } from "quarto-core";
+import { Document } from "../../../quarto-core/src/document.js";
 export interface EditorServerDocument {
   filePath: string;
   code: string;

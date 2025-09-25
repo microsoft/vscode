@@ -7,7 +7,7 @@ from inspect import Parameter
 from pathlib import Path
 from typing import Optional
 
-from jedi import debug
+from erdos._vendor.jedi import debug
 from erdos._vendor.jedi.inference.utils import to_list
 from erdos._vendor.jedi.cache import memoize_method
 from erdos._vendor.jedi.inference.filters import AbstractFilter

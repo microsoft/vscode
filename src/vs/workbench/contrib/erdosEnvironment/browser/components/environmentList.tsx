@@ -3,187 +3,356 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as React from 'react';
-import { useState, useCallback } from 'react';
-import { IPythonEnvironment } from '../../common/environmentTypes.js';
+import { useState, useCallback, useMemo, useEffect } from 'react';
+import { IPythonEnvironment, PythonEnvironmentType } from '../../common/environmentTypes.js';
 
 export interface EnvironmentListProps {
 	environments: IPythonEnvironment[];
 	onEnvironmentSelect?: (environment: IPythonEnvironment) => void;
+	onSwitchEnvironment?: (environment: IPythonEnvironment) => Promise<void>;
 	onRefresh?: () => void;
+	onAddEnvironment?: () => void;
 	isLoading?: boolean;
 }
 
 export const EnvironmentList: React.FC<EnvironmentListProps> = ({ 
 	environments, 
 	onEnvironmentSelect,
+	onSwitchEnvironment,
 	onRefresh,
+	onAddEnvironment,
 	isLoading = false
 }) => {
 	const [searchTerm, setSearchTerm] = useState('');
-	const [selectedEnvironmentId, setSelectedEnvironmentId] = useState<string | null>(null);
+	const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+	const [switchingEnvironment, setSwitchingEnvironment] = useState<string | null>(null);
+	
+	// Column width state for resizable columns (using percentages)
+	const [columnWidths, setColumnWidths] = useState<{[key: string]: string}>({
+		name: '30%',
+		type: '15%',
+		version: '15%',
+		location: '20%',
+		actions: '20%'
+	});
+	
+	// Resize state
+	const [isResizing, setIsResizing] = useState<{
+		column: string | null;
+		startX: number;
+		startWidth: number;
+		containerWidth: number;
+	}>({
+		column: null,
+		startX: 0,
+		startWidth: 0,
+		containerWidth: 800
+	});
 
 	// Filter environments based on search term
-	const filteredEnvironments = environments.filter(env => 
-		env.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-		env.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
-		env.version.toLowerCase().includes(searchTerm.toLowerCase()) ||
-		env.path.toLowerCase().includes(searchTerm.toLowerCase())
-	);
+	const filteredEnvironments = useMemo(() => {
+		if (!searchTerm.trim()) {
+			return environments;
+		}
+		
+		const searchLower = searchTerm.toLowerCase();
+		return environments.filter(env => 
+			env.name.toLowerCase().includes(searchLower) ||
+			env.type.toLowerCase().includes(searchLower) ||
+			env.version.toLowerCase().includes(searchLower) ||
+			env.path.toLowerCase().includes(searchLower)
+		);
+	}, [environments, searchTerm]);
 
-	// Handle environment selection
-	const handleEnvironmentClick = useCallback((environment: IPythonEnvironment) => {
-		const envId = environment.runtimeId || environment.path;
-		setSelectedEnvironmentId(envId);
-		onEnvironmentSelect?.(environment);
-	}, [onEnvironmentSelect]);
-
-	// Handle refresh
-	const handleRefresh = useCallback(() => {
-		onRefresh?.();
-	}, [onRefresh]);
+	// Sort environments by name
+	const sortedEnvironments = useMemo(() => {
+		return [...filteredEnvironments].sort((a, b) => {
+			const compareValue = a.name.localeCompare(b.name);
+			return sortDirection === 'asc' ? compareValue : -compareValue;
+		});
+	}, [filteredEnvironments, sortDirection]);
 
 	// Handle search input change
 	const handleSearchChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
 		setSearchTerm(event.target.value);
 	}, []);
 
-	// Clear search
-	const handleClearSearch = useCallback(() => {
-		setSearchTerm('');
+	// Handle name column click for sorting
+	const handleSort = useCallback(() => {
+		setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+	}, [sortDirection]);
+
+	// Resize handlers
+	const handleResizeStart = useCallback((column: string, e: React.MouseEvent) => {
+		e.preventDefault();
+		e.stopPropagation();
+		
+		// Get the table container width for percentage calculations
+		const table = e.currentTarget.closest('table');
+		const containerWidth = table?.parentElement?.clientWidth || 800;
+		
+		// Convert current percentage to pixels for calculation
+		const currentPercentage = parseFloat(columnWidths[column]) || 15;
+		const startWidth = (currentPercentage / 100) * containerWidth;
+		
+		setIsResizing({
+			column,
+			startX: e.clientX,
+			startWidth,
+			containerWidth
+		});
+	}, [columnWidths]);
+
+	const handleResizeMove = useCallback((e: MouseEvent) => {
+		if (!isResizing.column) return;
+		
+		e.preventDefault();
+		const deltaX = e.clientX - isResizing.startX;
+		const newWidthPx = Math.max(50, isResizing.startWidth + deltaX);
+		
+		// Convert back to percentage
+		const newWidthPercent = Math.max(5, Math.min(80, (newWidthPx / isResizing.containerWidth) * 100));
+		
+		setColumnWidths(prev => ({
+			...prev,
+			[isResizing.column!]: `${newWidthPercent.toFixed(1)}%`
+		}));
+	}, [isResizing]);
+
+	const handleResizeEnd = useCallback(() => {
+		setIsResizing({
+			column: null,
+			startX: 0,
+			startWidth: 0,
+			containerWidth: 800
+		});
 	}, []);
 
-	// Get environment type icon class
-	const getEnvironmentTypeIcon = (type: string): string => {
+	// Mouse event listeners for resizing
+	useEffect(() => {
+		if (isResizing.column) {
+			document.addEventListener('mousemove', handleResizeMove);
+			document.addEventListener('mouseup', handleResizeEnd);
+			
+			return () => {
+				document.removeEventListener('mousemove', handleResizeMove);
+				document.removeEventListener('mouseup', handleResizeEnd);
+			};
+		}
+		return undefined;
+	}, [isResizing.column, handleResizeMove, handleResizeEnd]);
+
+	// Handle environment selection
+	const handleEnvironmentClick = useCallback((environment: IPythonEnvironment) => {
+		onEnvironmentSelect?.(environment);
+	}, [onEnvironmentSelect]);
+
+	// Handle environment switching
+	const handleSwitchEnvironment = useCallback(async (environment: IPythonEnvironment, event: React.MouseEvent) => {
+		event.stopPropagation(); // Prevent row click from triggering
+		
+		if (switchingEnvironment || !onSwitchEnvironment || environment.isActive) {
+			return;
+		}
+
+		const envId = environment.runtimeId || environment.path;
+		
+		setSwitchingEnvironment(envId);
+		await onSwitchEnvironment(environment);
+		setSwitchingEnvironment(null);
+	}, [switchingEnvironment, onSwitchEnvironment]);
+
+	// Get sort indicator for name column
+	const getSortIndicator = () => {
+		return (
+			<div className="sort-indicators">
+				<i className={`codicon codicon-chevron-up sort-chevron ${sortDirection === 'asc' ? 'active' : 'hidden'}`}></i>
+				<i className={`codicon codicon-chevron-down sort-chevron ${sortDirection === 'desc' ? 'active' : 'hidden'}`}></i>
+			</div>
+		);
+	};
+
+	// Get user-friendly environment type name
+	const getEnvironmentTypeName = (type: PythonEnvironmentType): string => {
 		switch (type) {
-			case 'conda': return 'codicon codicon-symbol-misc';
-			case 'venv': return 'codicon codicon-folder';
-			case 'system': return 'codicon codicon-gear';
-			case 'pyenv': return 'codicon codicon-versions';
-			case 'pipenv': return 'codicon codicon-package';
-			default: return 'codicon codicon-folder';
+			case PythonEnvironmentType.Conda:
+				return 'Conda';
+			case PythonEnvironmentType.VirtualEnv:
+				return 'Virtual Environment';
+			case PythonEnvironmentType.Unknown:
+				return 'Unknown';
+			default:
+				return type;
 		}
 	};
 
-	// Get environment status indicator
-	const getStatusIndicator = (environment: IPythonEnvironment): React.ReactNode => {
-		if (environment.isActive) {
-			return <span className="status-indicator active" title="Active Environment">●</span>;
-		}
-		return <span className="status-indicator inactive" title="Inactive Environment">○</span>;
+	// Get environment display name using actual environment data
+	const getEnvironmentDisplayName = (env: IPythonEnvironment): string => {
+		// Use the actual environment name if available, otherwise fall back to display name
+		return env.name && env.name !== env.displayName ? env.name : env.displayName || `Python ${env.version}`;
 	};
 
 	return (
-		<div className="environment-list">
-			{/* Toolbar */}
-			<div className="environment-toolbar">
-				<div className="search-container">
+		<div className="environment-list-container">
+			{/* Search Bar with Toolbar Buttons */}
+			<div className="table-actions-toolbar">
+				<div className="toolbar-left">
 					<input
 						type="text"
-						className="environment-search"
+						className="search-input"
 						placeholder="Search environments..."
 						value={searchTerm}
 						onChange={handleSearchChange}
+						disabled={isLoading}
 					/>
-					{searchTerm && (
+				</div>
+				<div className="toolbar-right">
+					{onRefresh && (
 						<button 
-							className="clear-search-button codicon codicon-close"
-							onClick={handleClearSearch}
-							title="Clear search"
-						/>
+							className="btn btn-icon"
+							onClick={onRefresh}
+							disabled={isLoading}
+							title="Refresh environments"
+						>
+							<i className="codicon codicon-refresh"></i>
+						</button>
+					)}
+					{onAddEnvironment && (
+						<button 
+							className="btn btn-icon"
+							onClick={onAddEnvironment}
+							disabled={isLoading}
+							title="Add environment"
+						>
+							<i className="codicon codicon-add"></i>
+						</button>
 					)}
 				</div>
-				<button 
-					className="refresh-button codicon codicon-refresh"
-					onClick={handleRefresh}
-					disabled={isLoading}
-					title="Refresh Environments"
-				/>
 			</div>
 
-			{/* Environment count */}
-			<div className="environment-count">
-				{filteredEnvironments.length} of {environments.length} environment{environments.length !== 1 ? 's' : ''}
-				{isLoading && <span className="loading-indicator"> (Loading...)</span>}
-			</div>
-
-			{/* Environment items */}
-			<div className="environment-items">
-				{filteredEnvironments.length === 0 ? (
-					<div className="no-environments">
-						{environments.length === 0 ? (
-							isLoading ? (
-								<div className="loading-message">
-									<span className="codicon codicon-loading codicon-modifier-spin"></span>
-									Loading environments...
-								</div>
-							) : (
-								<div className="empty-message">
-									<span className="codicon codicon-info"></span>
-									No Python environments found
-								</div>
-							)
-						) : (
-							<div className="no-results-message">
-								<span className="codicon codicon-search"></span>
-								No environments match your search
-							</div>
-						)}
+			{/* Data Table Container */}
+			<div className="data-table-container">
+				{isLoading ? (
+					<div className="loading-spinner">
+						<span className="codicon codicon-sync codicon-modifier-spin"></span>
+						Loading environments...
 					</div>
+				) : sortedEnvironments.length === 0 ? (
+					environments.length === 0 ? (
+						<div className="empty-state">
+							<i className="codicon codicon-info"></i>
+							<p>No Python environments found</p>
+						</div>
+					) : (
+						<div className="empty-state">
+							<i className="codicon codicon-search"></i>
+							<p>No environments match your search</p>
+						</div>
+					)
 				) : (
-					filteredEnvironments.map(env => {
-						const envId = env.runtimeId || env.path;
-						const isSelected = selectedEnvironmentId === envId;
-						
-						return (
-							<div 
-								key={envId}
-								className={`environment-item ${env.isActive ? 'active' : ''} ${isSelected ? 'selected' : ''}`}
-								onClick={() => handleEnvironmentClick(env)}
-								role="button"
-								tabIndex={0}
-								onKeyDown={(e) => {
-									if (e.key === 'Enter' || e.key === ' ') {
-										e.preventDefault();
-										handleEnvironmentClick(env);
-									}
-								}}
-							>
-								<div className="environment-header">
-									<div className="environment-icon-and-name">
-										<span className={getEnvironmentTypeIcon(env.type)} />
-										<div className="environment-name">{env.name}</div>
-										{getStatusIndicator(env)}
+					<table className="results-table">
+						<thead>
+							<tr>
+								<th 
+									className="sortable column-header name-column"
+									onClick={handleSort}
+									title="Click to sort by name"
+									style={{ width: columnWidths.name, position: 'relative' }}
+								>
+									<div className="column-header-content">
+										<span className="column-name">Name</span>
+										{getSortIndicator()}
 									</div>
-									{env.isActive && (
-										<div className="active-badge">
-											<span className="codicon codicon-check"></span>
-											Active
-										</div>
-									)}
-								</div>
-								
-								<div className="environment-details">
-									<div className="environment-type-version">
-										<span className="environment-type">{env.type}</span>
-										<span className="environment-version">v{env.version}</span>
+									<div 
+										className="column-resize-handle"
+										onMouseDown={(e) => handleResizeStart('name', e)}
+									/>
+								</th>
+								<th className="column-header type-column" style={{ width: columnWidths.type, position: 'relative' }}>
+									<div className="column-header-content">
+										<span className="column-name">Type</span>
 									</div>
-								</div>
-								
-								<div className="environment-path" title={env.path}>
-									{env.path}
-								</div>
-								
-								{env.packages && env.packages.length > 0 && (
-									<div className="environment-packages-info">
-										<span className="codicon codicon-package"></span>
-										{env.packages.length} package{env.packages.length !== 1 ? 's' : ''}
+									<div 
+										className="column-resize-handle"
+										onMouseDown={(e) => handleResizeStart('type', e)}
+									/>
+								</th>
+								<th className="column-header version-column" style={{ width: columnWidths.version, position: 'relative' }}>
+									<div className="column-header-content">
+										<span className="column-name">Version</span>
 									</div>
-								)}
-							</div>
-						);
-					})
+									<div 
+										className="column-resize-handle"
+										onMouseDown={(e) => handleResizeStart('version', e)}
+									/>
+								</th>
+								<th className="column-header location-column" style={{ width: columnWidths.location, position: 'relative' }}>
+									<div className="column-header-content">
+										<span className="column-name">Location</span>
+									</div>
+									<div 
+										className="column-resize-handle"
+										onMouseDown={(e) => handleResizeStart('location', e)}
+									/>
+								</th>
+								<th className="column-header actions-column" style={{ width: columnWidths.actions, position: 'relative' }}>
+									<div className="column-header-content">
+										<span className="column-name">Actions</span>
+									</div>
+								</th>
+							</tr>
+						</thead>
+						<tbody>
+							{sortedEnvironments.map((env) => {
+								const envId = env.runtimeId || env.path;
+								return (
+									<tr key={envId} onClick={() => handleEnvironmentClick(env)} className={env.isActive ? 'active-row' : ''}>
+										<td className="data-cell name-cell" style={{ width: columnWidths.name }}>
+											<div className="environment-name-cell">
+												{getEnvironmentDisplayName(env)}
+												{env.isActive && (
+													<span className="active-indicator" title="Active Environment">
+														<i className="codicon codicon-check"></i>
+													</span>
+												)}
+											</div>
+										</td>
+										<td className="data-cell type-cell" style={{ width: columnWidths.type }}>
+											{getEnvironmentTypeName(env.type)}
+										</td>
+										<td className="data-cell version-cell" style={{ width: columnWidths.version }}>
+											{env.version}
+										</td>
+										<td className="data-cell location-cell" style={{ width: columnWidths.location }} title={env.environmentPath || env.path}>
+											{env.environmentPath || env.path}
+										</td>
+									<td className="data-cell actions-cell" style={{ width: columnWidths.actions }}>
+										{!env.isActive && onSwitchEnvironment && (
+											<button
+												className={`switch-button codicon ${switchingEnvironment === envId ? 'codicon-sync codicon-modifier-spin' : 'codicon-play'}`}
+												onClick={(e) => handleSwitchEnvironment(env, e)}
+												disabled={switchingEnvironment !== null}
+												title={switchingEnvironment === envId ? 'Switching...' : `Switch to ${getEnvironmentDisplayName(env)}`}
+											>
+											</button>
+										)}
+									</td>
+									</tr>
+								);
+							})}
+						</tbody>
+					</table>
 				)}
 			</div>
+
+			{/* Environment Count */}
+			{!isLoading && environments.length > 0 && (
+				<div className="results-info-toolbar">
+					<div className="toolbar-right">
+						<span>{sortedEnvironments.length} of {environments.length} environment{environments.length !== 1 ? 's' : ''}</span>
+					</div>
+				</div>
+			)}
 		</div>
 	);
 };

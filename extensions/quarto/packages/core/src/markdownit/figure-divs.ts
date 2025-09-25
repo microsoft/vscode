@@ -7,8 +7,8 @@
 
 import MarkdownIt from "markdown-it";
 import Token from "markdown-it/lib/token";
-import { readAttrValue } from "./utils/markdownit";
-import { kTokInline, kTokParaClose, kTokParaOpen } from "./utils/tok";
+import { readAttrValue } from "./utils/markdownit.js";
+import { kTokInline, kTokParaClose, kTokParaOpen } from "./utils/tok.js";
 import { kTokDivClose, kTokDivOpen } from "./divs";
 import { kTokFigCaptionClose, kTokFigCaptionOpen, mutateToFigureTok } from "./figures";
 

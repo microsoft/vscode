@@ -19,7 +19,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { ExecFileSyncOptions } from "node:child_process";
 import * as semver from "semver";
-import { execProgram, isArm_64 } from "core-node";
+import { execProgram, isArm_64 } from "../../core-node/src/index.js";
 
 export interface QuartoContext {
   available: boolean;

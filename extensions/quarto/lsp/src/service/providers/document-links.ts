@@ -24,7 +24,7 @@ import { Disposable, coalesce, tryDecodeUri } from 'core';
 import { translatePosition, makeRange, rangeContains, Token, isDisplayMath, TokenType, Document, getDocUri, getLine, Parser } from 'quarto-core';
 
 import { LsConfiguration } from '../config';
-import { ILogger, LogLevel } from '../logging';
+import { ILogger } from '../logging';
 import { MdTableOfContentsProvider, isTocHeaderEntry } from '../toc';
 import { r } from '../util/string';
 import { IWorkspace, getWorkspaceFolder, tryAppendMarkdownFileExtension } from '../workspace';

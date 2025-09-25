@@ -3,7 +3,7 @@ This module is about generics, like the `int` in `List[int]`. It's not about
 the Generic class.
 """
 
-from jedi import debug
+from erdos._vendor.jedi import debug
 from erdos._vendor.jedi.cache import memoize_method
 from erdos._vendor.jedi.inference.utils import to_tuple
 from erdos._vendor.jedi.inference.base_value import ValueSet, NO_VALUES

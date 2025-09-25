@@ -5,8 +5,6 @@ import dataclasses as dc
 from typing import Any, Literal
 import warnings
 
-from erdos._vendor.markdown_it._compat import DATACLASS_KWARGS
-
 
 def convert_attrs(value: Any) -> Any:
     """Convert Token.attrs set as ``None`` or ``[[key, value], ...]`` to a dict.
@@ -20,7 +18,7 @@ def convert_attrs(value: Any) -> Any:
     return value
 
 
-@dc.dataclass(**DATACLASS_KWARGS)
+@dc.dataclass(slots=True)
 class Token:
     type: str
     """Type of the token (string, e.g. "paragraph_open")"""

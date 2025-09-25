@@ -1,9 +1,9 @@
 from collections import defaultdict
 from typing import Any, Callable, Dict, Literal, Type, Union
 
-from attrs import NOTHING
+from erdos._vendor.attrs import NOTHING
 
-from cattrs import BaseConverter
+from erdos._vendor.cattrs import BaseConverter
 from erdos._vendor.cattrs._compat import get_newtype_base, is_literal, is_subclass, is_union_type
 
 __all__ = [

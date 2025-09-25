@@ -3,15 +3,15 @@
 
 from typing import Optional
 
-import erdos._vendor.cattrs
+from erdos._vendor import cattrs
 
 from . import _hooks
 
 
 def get_converter(
-    converter: Optional[erdos._vendor.cattrs.Converter] = None,
-) -> erdos._vendor.cattrs.Converter:
+    converter: Optional[cattrs.Converter] = None,
+) -> cattrs.Converter:
     """Adds cattrs hooks for LSP lsp_types to the given converter."""
     if converter is None:
-        converter = erdos._vendor.cattrs.Converter()
+        converter = cattrs.Converter()
     return _hooks.register_hooks(converter)

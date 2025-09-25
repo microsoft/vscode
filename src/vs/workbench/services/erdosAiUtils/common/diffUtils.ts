@@ -28,7 +28,6 @@ export interface DiffEntry {
 	diff_data: DiffItem[];
 	old_content?: string;
 	new_content?: string;
-	original_content?: string;
 	filtered_diff?: DiffItem[];
 	file_path?: string;
 	old_string?: string;

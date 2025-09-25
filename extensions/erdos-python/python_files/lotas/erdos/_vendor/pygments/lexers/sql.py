@@ -44,21 +44,14 @@ import collections
 import re
 
 from erdos._vendor.pygments.lexer import Lexer, RegexLexer, do_insertions, bygroups, words
+from erdos._vendor.pygments.lexers import _googlesql_builtins
+from erdos._vendor.pygments.lexers import _mysql_builtins
+from erdos._vendor.pygments.lexers import _postgres_builtins
+from erdos._vendor.pygments.lexers import _sql_builtins
+from erdos._vendor.pygments.lexers import _tsql_builtins
+from erdos._vendor.pygments.lexers import get_lexer_by_name, ClassNotFound
 from erdos._vendor.pygments.token import Punctuation, Whitespace, Text, Comment, Operator, \
     Keyword, Name, String, Number, Generic, Literal
-from erdos._vendor.pygments.lexers import get_lexer_by_name, ClassNotFound
-
-from erdos._vendor.pygments.lexers._postgres_builtins import KEYWORDS, DATATYPES, \
-    PSEUDO_TYPES, PLPGSQL_KEYWORDS, EXPLAIN_KEYWORDS
-from erdos._vendor.pygments.lexers._mysql_builtins import \
-    MYSQL_CONSTANTS, \
-    MYSQL_DATATYPES, \
-    MYSQL_FUNCTIONS, \
-    MYSQL_KEYWORDS, \
-    MYSQL_OPTIMIZER_HINTS
-
-from erdos._vendor.pygments.lexers import _googlesql_builtins
-from erdos._vendor.pygments.lexers import _tsql_builtins
 
 
 __all__ = ['GoogleSqlLexer', 'PostgresLexer', 'PlPgsqlLexer',
@@ -177,9 +170,10 @@ class PostgresLexer(PostgresBase, RegexLexer):
             (r'--.*\n?', Comment.Single),
             (r'/\*', Comment.Multiline, 'multiline-comments'),
             (r'(' + '|'.join(s.replace(" ", r"\s+")
-                             for s in DATATYPES + PSEUDO_TYPES) + r')\b',
+                             for s in _postgres_builtins.DATATYPES +
+                             _postgres_builtins.PSEUDO_TYPES) + r')\b',
              Name.Builtin),
-            (words(KEYWORDS, suffix=r'\b'), Keyword),
+            (words(_postgres_builtins.KEYWORDS, suffix=r'\b'), Keyword),
             (r'[+*/<>=~!@#%^&|`?-]+', Operator),
             (r'::', Operator),  # cast
             (r'\$\d+', Name.Variable),
@@ -233,7 +227,8 @@ class PlPgsqlLexer(PostgresBase, RegexLexer):
     for i, pattern in enumerate(tokens['root']):
         if pattern[1] == Keyword:
             tokens['root'][i] = (
-                words(KEYWORDS + PLPGSQL_KEYWORDS, suffix=r'\b'),
+                words(_postgres_builtins.KEYWORDS +
+                      _postgres_builtins.PLPGSQL_KEYWORDS, suffix=r'\b'),
                 Keyword)
             del i
             break
@@ -451,7 +446,7 @@ class PostgresExplainLexer(RegexLexer):
                    suffix=r'\b'), Name.Exception),
             (r'(I/O Timings)(:)( )', bygroups(Name.Exception, Punctuation, Whitespace)),
 
-            (words(EXPLAIN_KEYWORDS, suffix=r'\b'), Keyword),
+            (words(_postgres_builtins.EXPLAIN_KEYWORDS, suffix=r'\b'), Keyword),
 
             # join keywords
             (r'((Right|Left|Full|Semi|Anti) Join)', Keyword.Type),
@@ -586,101 +581,8 @@ class SqlLexer(RegexLexer):
             (r'\s+', Whitespace),
             (r'--.*\n?', Comment.Single),
             (r'/\*', Comment.Multiline, 'multiline-comments'),
-            (words((
-                'ABORT', 'ABS', 'ABSOLUTE', 'ACCESS', 'ADA', 'ADD', 'ADMIN', 'AFTER',
-                'AGGREGATE', 'ALIAS', 'ALL', 'ALLOCATE', 'ALTER', 'ANALYSE', 'ANALYZE',
-                'AND', 'ANY', 'ARE', 'AS', 'ASC', 'ASENSITIVE', 'ASSERTION', 'ASSIGNMENT',
-                'ASYMMETRIC', 'AT', 'ATOMIC', 'AUTHORIZATION', 'AVG', 'BACKWARD',
-                'BEFORE', 'BEGIN', 'BETWEEN', 'BITVAR', 'BIT_LENGTH', 'BOTH', 'BREADTH',
-                'BY', 'C', 'CACHE', 'CALL', 'CALLED', 'CARDINALITY', 'CASCADE',
-                'CASCADED', 'CASE', 'CAST', 'CATALOG', 'CATALOG_NAME', 'CHAIN',
-                'CHARACTERISTICS', 'CHARACTER_LENGTH', 'CHARACTER_SET_CATALOG',
-                'CHARACTER_SET_NAME', 'CHARACTER_SET_SCHEMA', 'CHAR_LENGTH', 'CHECK',
-                'CHECKED', 'CHECKPOINT', 'CLASS', 'CLASS_ORIGIN', 'CLOB', 'CLOSE',
-                'CLUSTER', 'COALESCE', 'COBOL', 'COLLATE', 'COLLATION',
-                'COLLATION_CATALOG', 'COLLATION_NAME', 'COLLATION_SCHEMA', 'COLUMN',
-                'COLUMN_NAME', 'COMMAND_FUNCTION', 'COMMAND_FUNCTION_CODE', 'COMMENT',
-                'COMMIT', 'COMMITTED', 'COMPLETION', 'CONDITION_NUMBER', 'CONNECT',
-                'CONNECTION', 'CONNECTION_NAME', 'CONSTRAINT', 'CONSTRAINTS',
-                'CONSTRAINT_CATALOG', 'CONSTRAINT_NAME', 'CONSTRAINT_SCHEMA',
-                'CONSTRUCTOR', 'CONTAINS', 'CONTINUE', 'CONVERSION', 'CONVERT',
-                'COPY', 'CORRESPONDING', 'COUNT', 'CREATE', 'CREATEDB', 'CREATEUSER',
-                'CROSS', 'CUBE', 'CURRENT', 'CURRENT_DATE', 'CURRENT_PATH',
-                'CURRENT_ROLE', 'CURRENT_TIME', 'CURRENT_TIMESTAMP', 'CURRENT_USER',
-                'CURSOR', 'CURSOR_NAME', 'CYCLE', 'DATA', 'DATABASE',
-                'DATETIME_INTERVAL_CODE', 'DATETIME_INTERVAL_PRECISION', 'DAY',
-                'DEALLOCATE', 'DECLARE', 'DEFAULT', 'DEFAULTS', 'DEFERRABLE',
-                'DEFERRED', 'DEFINED', 'DEFINER', 'DELETE', 'DELIMITER', 'DELIMITERS',
-                'DEREF', 'DESC', 'DESCRIBE', 'DESCRIPTOR', 'DESTROY', 'DESTRUCTOR',
-                'DETERMINISTIC', 'DIAGNOSTICS', 'DICTIONARY', 'DISCONNECT', 'DISPATCH',
-                'DISTINCT', 'DO', 'DOMAIN', 'DROP', 'DYNAMIC', 'DYNAMIC_FUNCTION',
-                'DYNAMIC_FUNCTION_CODE', 'EACH', 'ELSE', 'ELSIF', 'ENCODING',
-                'ENCRYPTED', 'END', 'END-EXEC', 'EQUALS', 'ESCAPE', 'EVERY', 'EXCEPTION',
-                'EXCEPT', 'EXCLUDING', 'EXCLUSIVE', 'EXEC', 'EXECUTE', 'EXISTING',
-                'EXISTS', 'EXPLAIN', 'EXTERNAL', 'EXTRACT', 'FALSE', 'FETCH', 'FINAL',
-                'FIRST', 'FOR', 'FORCE', 'FOREIGN', 'FORTRAN', 'FORWARD', 'FOUND', 'FREE',
-                'FREEZE', 'FROM', 'FULL', 'FUNCTION', 'G', 'GENERAL', 'GENERATED', 'GET',
-                'GLOBAL', 'GO', 'GOTO', 'GRANT', 'GRANTED', 'GROUP', 'GROUPING',
-                'HANDLER', 'HAVING', 'HIERARCHY', 'HOLD', 'HOST', 'IDENTITY', 'IF',
-                'IGNORE', 'ILIKE', 'IMMEDIATE', 'IMMEDIATELY', 'IMMUTABLE', 'IMPLEMENTATION', 'IMPLICIT',
-                'IN', 'INCLUDING', 'INCREMENT', 'INDEX', 'INDITCATOR', 'INFIX',
-                'INHERITS', 'INITIALIZE', 'INITIALLY', 'INNER', 'INOUT', 'INPUT',
-                'INSENSITIVE', 'INSERT', 'INSTANTIABLE', 'INSTEAD', 'INTERSECT', 'INTO',
-                'INVOKER', 'IS', 'ISNULL', 'ISOLATION', 'ITERATE', 'JOIN', 'KEY',
-                'KEY_MEMBER', 'KEY_TYPE', 'LANCOMPILER', 'LANGUAGE', 'LARGE', 'LAST',
-                'LATERAL', 'LEADING', 'LEFT', 'LENGTH', 'LESS', 'LEVEL', 'LIKE', 'LIMIT',
-                'LISTEN', 'LOAD', 'LOCAL', 'LOCALTIME', 'LOCALTIMESTAMP', 'LOCATION',
-                'LOCATOR', 'LOCK', 'LOWER', 'MAP', 'MATCH', 'MAX', 'MAXVALUE',
-                'MESSAGE_LENGTH', 'MESSAGE_OCTET_LENGTH', 'MESSAGE_TEXT', 'METHOD', 'MIN',
-                'MINUTE', 'MINVALUE', 'MOD', 'MODE', 'MODIFIES', 'MODIFY', 'MONTH',
-                'MORE', 'MOVE', 'MUMPS', 'NAMES', 'NATIONAL', 'NATURAL', 'NCHAR', 'NCLOB',
-                'NEW', 'NEXT', 'NO', 'NOCREATEDB', 'NOCREATEUSER', 'NONE', 'NOT',
-                'NOTHING', 'NOTIFY', 'NOTNULL', 'NULL', 'NULLABLE', 'NULLIF', 'OBJECT',
-                'OCTET_LENGTH', 'OF', 'OFF', 'OFFSET', 'OIDS', 'OLD', 'ON', 'ONLY',
-                'OPEN', 'OPERATION', 'OPERATOR', 'OPTION', 'OPTIONS', 'OR', 'ORDER',
-                'ORDINALITY', 'OUT', 'OUTER', 'OUTPUT', 'OVERLAPS', 'OVERLAY',
-                'OVERRIDING', 'OWNER', 'PAD', 'PARAMETER', 'PARAMETERS', 'PARAMETER_MODE',
-                'PARAMETER_NAME', 'PARAMETER_ORDINAL_POSITION',
-                'PARAMETER_SPECIFIC_CATALOG', 'PARAMETER_SPECIFIC_NAME',
-                'PARAMETER_SPECIFIC_SCHEMA', 'PARTIAL', 'PASCAL', 'PENDANT', 'PERIOD', 'PLACING',
-                'PLI', 'POSITION', 'POSTFIX', 'PRECEEDS', 'PRECISION', 'PREFIX', 'PREORDER',
-                'PREPARE', 'PRESERVE', 'PRIMARY', 'PRIOR', 'PRIVILEGES', 'PROCEDURAL',
-                'PROCEDURE', 'PUBLIC', 'READ', 'READS', 'RECHECK', 'RECURSIVE', 'REF',
-                'REFERENCES', 'REFERENCING', 'REINDEX', 'RELATIVE', 'RENAME',
-                'REPEATABLE', 'REPLACE', 'RESET', 'RESTART', 'RESTRICT', 'RESULT',
-                'RETURN', 'RETURNED_LENGTH', 'RETURNED_OCTET_LENGTH', 'RETURNED_SQLSTATE',
-                'RETURNS', 'REVOKE', 'RIGHT', 'ROLE', 'ROLLBACK', 'ROLLUP', 'ROUTINE',
-                'ROUTINE_CATALOG', 'ROUTINE_NAME', 'ROUTINE_SCHEMA', 'ROW', 'ROWS',
-                'ROW_COUNT', 'RULE', 'SAVE_POINT', 'SCALE', 'SCHEMA', 'SCHEMA_NAME',
-                'SCOPE', 'SCROLL', 'SEARCH', 'SECOND', 'SECURITY', 'SELECT', 'SELF',
-                'SENSITIVE', 'SERIALIZABLE', 'SERVER_NAME', 'SESSION', 'SESSION_USER',
-                'SET', 'SETOF', 'SETS', 'SHARE', 'SHOW', 'SIMILAR', 'SIMPLE', 'SIZE',
-                'SOME', 'SOURCE', 'SPACE', 'SPECIFIC', 'SPECIFICTYPE', 'SPECIFIC_NAME',
-                'SQL', 'SQLCODE', 'SQLERROR', 'SQLEXCEPTION', 'SQLSTATE', 'SQLWARNINIG',
-                'STABLE', 'START', 'STATE', 'STATEMENT', 'STATIC', 'STATISTICS', 'STDIN',
-                'STDOUT', 'STORAGE', 'STRICT', 'STRUCTURE', 'STYPE', 'SUBCLASS_ORIGIN',
-                'SUBLIST', 'SUBSTRING', 'SUCCEEDS', 'SUM', 'SYMMETRIC', 'SYSID', 'SYSTEM',
-                'SYSTEM_USER', 'TABLE', 'TABLE_NAME', ' TEMP', 'TEMPLATE', 'TEMPORARY',
-                'TERMINATE', 'THAN', 'THEN', 'TIME', 'TIMESTAMP', 'TIMEZONE_HOUR',
-                'TIMEZONE_MINUTE', 'TO', 'TOAST', 'TRAILING', 'TRANSACTION',
-                'TRANSACTIONS_COMMITTED', 'TRANSACTIONS_ROLLED_BACK', 'TRANSACTION_ACTIVE',
-                'TRANSFORM', 'TRANSFORMS', 'TRANSLATE', 'TRANSLATION', 'TREAT', 'TRIGGER',
-                'TRIGGER_CATALOG', 'TRIGGER_NAME', 'TRIGGER_SCHEMA', 'TRIM', 'TRUE',
-                'TRUNCATE', 'TRUSTED', 'TYPE', 'UNCOMMITTED', 'UNDER', 'UNENCRYPTED',
-                'UNION', 'UNIQUE', 'UNKNOWN', 'UNLISTEN', 'UNNAMED', 'UNNEST', 'UNTIL',
-                'UPDATE', 'UPPER', 'USAGE', 'USER', 'USER_DEFINED_TYPE_CATALOG',
-                'USER_DEFINED_TYPE_NAME', 'USER_DEFINED_TYPE_SCHEMA', 'USING', 'VACUUM',
-                'VALID', 'VALIDATOR', 'VALUES', 'VARIABLE', 'VERBOSE',
-                'VERSION', 'VERSIONS', 'VERSIONING', 'VIEW',
-                'VOLATILE', 'WHEN', 'WHENEVER', 'WHERE', 'WITH', 'WITHOUT', 'WORK',
-                'WRITE', 'YEAR', 'ZONE'), suffix=r'\b'),
-             Keyword),
-            (words((
-                'ARRAY', 'BIGINT', 'BINARY', 'BIT', 'BLOB', 'BOOLEAN', 'CHAR',
-                'CHARACTER', 'DATE', 'DEC', 'DECIMAL', 'FLOAT', 'INT', 'INTEGER',
-                'INTERVAL', 'NUMBER', 'NUMERIC', 'REAL', 'SERIAL', 'SMALLINT',
-                'VARCHAR', 'VARYING', 'INT8', 'SERIAL8', 'TEXT'), suffix=r'\b'),
-             Name.Builtin),
+            (words(_sql_builtins.KEYWORDS, suffix=r'\b'), Keyword),
+            (words(_sql_builtins.DATATYPES, suffix=r'\b'), Name.Builtin),
             (r'[+*/<>=~!@#%^&|`?-]', Operator),
             (r'[0-9]+', Number.Integer),
             # TODO: Backslash escapes?
@@ -706,7 +608,7 @@ class TransactSqlLexer(RegexLexer):
     Transact-SQL (T-SQL) is Microsoft's and Sybase's proprietary extension to
     SQL.
 
-    The list of keywords includes ODBC and keywords reserved for future use..
+    The list of keywords includes ODBC and keywords reserved for future use.
     """
 
     name = 'Transact-SQL'
@@ -864,10 +766,13 @@ class MySqlLexer(RegexLexer):
             (r'\b(character)(\s+)(set)\b', bygroups(Keyword, Whitespace, Keyword)),
             # In all other known cases, "SET" is tokenized by MYSQL_DATATYPES.
 
-            (words(MYSQL_CONSTANTS, prefix=r'\b', suffix=r'\b'), Name.Constant),
-            (words(MYSQL_DATATYPES, prefix=r'\b', suffix=r'\b'), Keyword.Type),
-            (words(MYSQL_KEYWORDS, prefix=r'\b', suffix=r'\b'), Keyword),
-            (words(MYSQL_FUNCTIONS, prefix=r'\b', suffix=r'\b(\s*)(\()'),
+            (words(_mysql_builtins.MYSQL_CONSTANTS, prefix=r'\b', suffix=r'\b'),
+             Name.Constant),
+            (words(_mysql_builtins.MYSQL_DATATYPES, prefix=r'\b', suffix=r'\b'),
+             Keyword.Type),
+            (words(_mysql_builtins.MYSQL_KEYWORDS, prefix=r'\b', suffix=r'\b'),
+             Keyword),
+            (words(_mysql_builtins.MYSQL_FUNCTIONS, prefix=r'\b', suffix=r'\b(\s*)(\()'),
              bygroups(Name.Function, Whitespace, Punctuation)),
 
             # Schema object names
@@ -889,7 +794,8 @@ class MySqlLexer(RegexLexer):
         'optimizer-hints': [
             (r'[^*a-z]+', Comment.Special),
             (r'\*/', Comment.Special, '#pop'),
-            (words(MYSQL_OPTIMIZER_HINTS, suffix=r'\b'), Comment.Preproc),
+            (words(_mysql_builtins.MYSQL_OPTIMIZER_HINTS, suffix=r'\b'),
+             Comment.Preproc),
             ('[a-z]+', Comment.Special),
             (r'\*', Comment.Special),
         ],

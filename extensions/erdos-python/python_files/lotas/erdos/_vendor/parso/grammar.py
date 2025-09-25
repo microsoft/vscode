@@ -239,7 +239,16 @@ def load_grammar(*, version: str = None, path: str = None):
     :param str version: A python version string, e.g. ``version='3.8'``.
     :param str path: A path to a grammar file
     """
-    version_info = parse_version_string(version)
+    # NOTE: this (3, 14) should be updated to the latest version parso supports.
+    #       (if this doesn't happen, users will get older syntaxes and spurious warnings)
+    passed_version_info = parse_version_string(version)
+    version_info = min(passed_version_info, PythonVersionInfo(3, 14))
+
+    # # NOTE: this is commented out until parso properly supports newer Python grammars.
+    # if passed_version_info != version_info:
+    #     warnings.warn('parso does not support %s.%s yet.' % (
+    #         passed_version_info.major, passed_version_info.minor
+    #     ))
 
     file = path or os.path.join(
         'python',

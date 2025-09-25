@@ -1,15 +1,15 @@
 __all__ = (
     "StateBlock",
-    "paragraph",
-    "heading",
-    "lheading",
+    "blockquote",
     "code",
     "fence",
+    "heading",
     "hr",
-    "list_block",
-    "reference",
-    "blockquote",
     "html_block",
+    "lheading",
+    "list_block",
+    "paragraph",
+    "reference",
     "table",
 )
 

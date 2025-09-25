@@ -13,7 +13,7 @@
  *
  */
 
-import { CSL } from "./csl";
+import { CSL } from "./csl.js";
 
 export const kDoiFetchCsl = 'doi_fetch_csl';
 

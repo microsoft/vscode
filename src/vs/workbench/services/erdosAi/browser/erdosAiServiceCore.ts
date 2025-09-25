@@ -125,13 +125,13 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 	private lastThinkingMessageTime: Date | null = null;
 	private isThinkingMessageActive = false;
 	
-	private pendingWidgetDecision: {
+	private pendingWidgetDecisions: Array<{
 		functionType: string;
 		messageId: number;
 		decision: 'accept' | 'cancel';
 		content?: string;
 		requestId?: string;
-	} | null = null;
+	}> = [];
 	
 	// State machine for persistent processing loop
 	private isProcessingLoopActive = false;
@@ -259,7 +259,7 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 			// Only trigger auto-accept for interactive functions that are waiting for user decision
 			if (branch.status === 'waiting_user' && branch.requestId === this.currentRequestId) {
 				// Use existing auto-accept logic - it already handles all function types correctly
-				this.autoAcceptHandler.checkAndHandleAutoAccept().then(wasHandled => {
+				this.autoAcceptHandler.checkAndHandleAutoAccept(branch).then(wasHandled => {
 					if (wasHandled) {
 						this.signalProcessingContinuation(this.currentRequestId);
 					}
@@ -421,7 +421,7 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 			this.currentRequestWasCancelled = true;
 			this.signalResolve = null;
 			this.processingSignal = null;
-			this.pendingWidgetDecision = null;
+			this.pendingWidgetDecisions = [];
 		}
 		
 		this.messageIdManager.clearPreallocationStateForConversationSwitch();
@@ -636,13 +636,16 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 	}
 
 	setWidgetDecision(functionType: string, messageId: number, decision: 'accept' | 'cancel', content?: string, requestId?: string): void {
-		this.pendingWidgetDecision = {
+		const newDecision = {
 			functionType,
 			messageId,
 			decision,
 			content,
 			requestId
 		};
+		
+		this.pendingWidgetDecisions.push(newDecision);
+		this.signalProcessingContinuation(requestId);
 	}
 
 	/**
@@ -700,8 +703,8 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 			return 'complete';
 		}
 
-		// Handle pending widget decision first
-		if (this.pendingWidgetDecision) {
+		// Handle pending widget decisions first
+		if (this.pendingWidgetDecisions.length > 0) {
 			return 'process_widget_decision';
 		}
 
@@ -717,7 +720,7 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 		
 		// Handle batch status first
 		if (batchStatus === 'pending') {
-			if (this.pendingWidgetDecision) {
+			if (this.pendingWidgetDecisions.length > 0) {
 				return 'process_widget_decision';
 			}
 			return 'wait_for_widget_decision';
@@ -869,8 +872,11 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 	 * Process widget decision (accept/cancel)
 	 */
 	private async processWidgetDecision(): Promise<void> {
-		const decision = this.pendingWidgetDecision!;
-		this.pendingWidgetDecision = null;
+		if (this.pendingWidgetDecisions.length === 0) {
+			return;
+		}
+		
+		const decision = this.pendingWidgetDecisions.shift()!;
 		
 		let result: {status: string, data: any} | undefined;
 		
@@ -921,12 +927,11 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 		// CRITICAL FIX: Complete the branch with the command handler result
 		// This updates the branch status and triggers batch status recalculation
 		if (result) {
-			
 			// Find the branch by message ID and complete it using the established pattern
 			const branches = this.branchManager.getBatchBranches(this.streamingOrchestrator.getCurrentBatchId() || '');
 			const branch = branches.find(b => b.messageId === decision.messageId);
 			
-			if (branch) {				
+			if (branch) {
 				// Complete the branch with the result from the command handler
 				await this.branchManager.completeBranch(branch.id, {
 					type: result.status === 'error' ? 'error' : 'success',
@@ -934,8 +939,6 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 					data: result.data,
 					...(result.status === 'error' && { error: result.data?.error })
 				});
-			} else {
-				this.logService.error('Branch not found for messageId:', decision.messageId);
 			}
 		}
 	}

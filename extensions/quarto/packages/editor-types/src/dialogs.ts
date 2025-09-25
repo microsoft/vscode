@@ -13,12 +13,12 @@
  *
  */
 
-import { CiteField, CSL } from "./csl";
-import { ImageDimensions } from "./image";
-import { LinkCapabilities, LinkTargets, LinkType } from "./link";
-import { ListCapabilities, ListType } from "./list";
-import { PandocAttr } from "./pandoc";
-import { TableCapabilities } from "./table";
+import { CiteField, CSL } from "./csl.js";
+import { ImageDimensions } from "./image.js";
+import { LinkCapabilities, LinkTargets, LinkType } from "./link.js";
+import { ListCapabilities, ListType } from "./list.js";
+import { PandocAttr } from "./pandoc.js";
+import { TableCapabilities } from "./table.js";
 
 export interface EditorDialogs {
   alert: AlertFn;

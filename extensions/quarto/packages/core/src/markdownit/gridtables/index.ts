@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See LICENSE in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import gridTableRule from "./rules/gridtable";
+import gridTableRule from "./rules/gridtable.js";
 
 export default function gridTableRulePlugin(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

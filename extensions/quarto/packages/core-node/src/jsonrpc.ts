@@ -15,7 +15,7 @@
 
 import jayson, { JSONRPCCallbackTypePlain, RequestParamsLike } from 'jayson'
 
-import { asJsonRpcError, JsonRpcServerMethod } from 'core';
+import { asJsonRpcError, JsonRpcServerMethod } from '../../core/src/jsonrpc.js';
 
 export function jaysonServerMethods(methods: Record<string,JsonRpcServerMethod>) {
   const jaysonMethods: Record<string,jayson.Method> = {};

@@ -3,7 +3,7 @@ Module for statical analysis.
 """
 from erdos._vendor.parso.python import tree
 
-from jedi import debug
+from erdos._vendor.jedi import debug
 from erdos._vendor.jedi.inference.helpers import is_string
 
 

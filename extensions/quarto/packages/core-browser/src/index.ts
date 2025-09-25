@@ -13,9 +13,9 @@
  *
  */
 
-export * from './jsonrpc/browser';
-export * from './jsonrpc/postmessage';
-export * from './input';
-export * from './browser';
+export * from './jsonrpc/browser.js';
+export * from './jsonrpc/postmessage.js';
+export * from './input.js';
+export * from './browser.js';
 
 

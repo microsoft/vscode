@@ -10,13 +10,13 @@ arguments.
 import sys
 from pathlib import Path
 
-import erdos._vendor.parso as parso
+from erdos._vendor import parso
 from erdos._vendor.parso.python import tree
 
 from erdos._vendor.jedi.parser_utils import get_executable_nodes
-from jedi import debug
-from jedi import settings
-from jedi import cache
+from erdos._vendor.jedi import debug
+from erdos._vendor.jedi import settings
+from erdos._vendor.jedi import cache
 from erdos._vendor.jedi.file_io import KnownContentFileIO
 from erdos._vendor.jedi.api import classes
 from erdos._vendor.jedi.api import interpreter

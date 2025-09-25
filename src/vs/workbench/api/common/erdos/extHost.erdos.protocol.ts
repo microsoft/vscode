@@ -44,6 +44,7 @@ export interface MainThreadLanguageRuntimeShape extends IDisposable {
 	$emitLanguageRuntimeMessage(handle: number, handled: boolean, message: SerializableObjectWithBuffers<ILanguageRuntimeMessage>): void;
 	$emitLanguageRuntimeState(handle: number, clock: number, state: RuntimeState): void;
 	$emitLanguageRuntimeExit(handle: number, exit: ILanguageRuntimeExit): void;
+	$registerQuartoExecution(executionId: string): void;
 }
 
 export interface ExtHostLanguageRuntimeShape {

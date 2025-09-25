@@ -19,7 +19,6 @@ import fs from "node:fs";
 import * as vscode from "vscode";
 import { Uri } from "vscode";
 import { revealSlideIndex } from "../markdown/reveal";
-import { VisualEditorProvider } from "../providers/editor/editor";
 import { extname } from "./path";
 import { MarkdownEngine } from "../markdown/engine";
 import { QuartoContext, projectDirForDocument } from "quarto-core";
@@ -175,15 +174,6 @@ export function preserveEditorFocus(editor?: QuartoEditor) {
       }, 200);
     }
   } else {
-    // see if there is a visual editor we should be preserving focus for
-    const visualEditor = VisualEditorProvider.activeEditor();
-    if (visualEditor) {
-      setTimeout(async () => {
-        if (!(await visualEditor.hasFocus())) {
-          await visualEditor.activate();
-        }
-      }, 200);
-    }
   }
 }
 
@@ -202,11 +192,6 @@ export function findQuartoEditor(
   filter: (doc: vscode.TextDocument) => boolean,
   includeVisible = true
 ): QuartoEditor | undefined {
-  // first check for an active visual editor
-  const activeVisualEditor = VisualEditorProvider.activeEditor();
-  if (activeVisualEditor && filter(activeVisualEditor.document)) {
-    return activeVisualEditor;
-  }
 
   // then check for active notebook editor
   const notebookEditor = (vscode.window as any).activeNotebookEditor as
@@ -232,11 +217,6 @@ export function findQuartoEditor(
     return quartoEditor(textEditor, engine, context);
     // check visible text editors
   } else if (includeVisible) {
-    // visible visual editor (sometime it loses track of 'active' so we need to use 'visible')
-    const visibleVisualEditor = VisualEditorProvider.activeEditor(true);
-    if (visibleVisualEditor && filter(visibleVisualEditor.document)) {
-      return visibleVisualEditor;
-    }
 
     // visible text editors
     const visibleEditor = vscode.window.visibleTextEditors.find((editor) =>

@@ -127,7 +127,7 @@ def version_info() -> Version:
     Returns a namedtuple of parso's version, similar to Python's
     ``sys.version_info``.
     """
-    from parso import __version__
+    from erdos._vendor.parso import __version__
     tupl = re.findall(r'[a-z]+|\d+', __version__)
     return Version(*[x if i == 3 else int(x) for i, x in enumerate(tupl)])
 

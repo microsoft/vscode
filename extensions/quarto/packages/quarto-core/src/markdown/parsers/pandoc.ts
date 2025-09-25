@@ -15,14 +15,14 @@
 
 import path from "node:path"
 
-import { QuartoContext } from "../../context";
-import { Token, TokenFrontMatter, isCodeBlock, kAttrClasses } from "../token";
-import { partitionYamlFrontMatter } from "../yaml";
-import { Parser, cachingParser } from "../parser";
-import { lines } from "core";
-import { makeRange } from "../../range";
-import { Document } from "../../document";
-import { isExecutableLanguageBlock, languageNameFromBlock } from "../language";
+import { QuartoContext } from "../../context.js";
+import { Token, TokenFrontMatter, isCodeBlock, kAttrClasses } from "../token.js";
+import { partitionYamlFrontMatter } from "../yaml.js";
+import { Parser, cachingParser } from "../parser.js";
+import { lines } from "../../../../core/src/index.js";
+import { makeRange } from "../../range.js";
+import { Document } from "../../document.js";
+import { isExecutableLanguageBlock, languageNameFromBlock } from "../language.js";
 
 
 export function pandocParser(context: QuartoContext, resourcesDir: string) : Parser {

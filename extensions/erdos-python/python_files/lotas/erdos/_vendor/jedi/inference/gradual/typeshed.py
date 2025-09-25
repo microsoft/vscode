@@ -5,7 +5,7 @@ from collections import namedtuple
 from typing import Dict, Mapping, Tuple
 from pathlib import Path
 
-from jedi import settings
+from erdos._vendor.jedi import settings
 from erdos._vendor.jedi.file_io import FileIO
 from erdos._vendor.jedi.parser_utils import get_cached_code_lines
 from erdos._vendor.jedi.inference.base_value import ValueSet, NO_VALUES

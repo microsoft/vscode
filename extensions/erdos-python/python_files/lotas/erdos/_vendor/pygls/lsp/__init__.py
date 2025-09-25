@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and      #
 # limitations under the License.                                           #
 ############################################################################
-import erdos._vendor.cattrs
+from erdos._vendor import cattrs
 from typing import Any, Callable, List, Optional, Union
 
 from erdos._vendor.lsprotocol.types import (
@@ -131,7 +131,7 @@ def get_method_return_type(method_name, lsp_methods_map=METHOD_TO_TYPES):
         raise MethodTypeNotRegisteredError(method_name)
 
 
-def is_instance(cv: erdos._vendor.cattrs.Converter, o, t):
+def is_instance(cv: cattrs.Converter, o, t):
     try:
         cv.unstructure(o, t)
         return True

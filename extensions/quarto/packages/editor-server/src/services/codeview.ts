@@ -13,7 +13,7 @@
  *
  */
 
-import { JsonRpcServerMethod } from "core";
+import { JsonRpcServerMethod } from "../../../core/src/jsonrpc.js";
 
 import {
   CodeViewServer,

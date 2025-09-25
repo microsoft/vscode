@@ -14,7 +14,7 @@ from erdos._vendor.pygments.lexer import Lexer, RegexLexer, bygroups, do_inserti
     default, include, inherit, line_re
 from erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, String, \
     Number, Punctuation, Generic, Whitespace
-from pygments import unistring as uni
+from erdos._vendor.pygments import unistring as uni
 
 __all__ = ['HaskellLexer', 'HspecLexer', 'IdrisLexer', 'AgdaLexer', 'CryptolLexer',
            'LiterateHaskellLexer', 'LiterateIdrisLexer', 'LiterateAgdaLexer',

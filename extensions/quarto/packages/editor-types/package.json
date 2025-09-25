@@ -3,11 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "license": "agpl-3.0",
-  "main": "./src/index.ts",
+  "main": "../../out/packages/editor-types/src/index.js",
   "types": "./src/index.ts",
   "dependencies": {
     "tsconfig": "*",
-    "typescript": "^4.5.2",
+    "typescript": "^5.9.2",
     "vscode-languageserver-types": "^3.17.3"
   }
 }

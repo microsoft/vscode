@@ -13,7 +13,7 @@ from typing import (
     TypeVar,
 )
 
-from attrs import NOTHING, Attribute, Factory, resolve_types
+from erdos._vendor.attrs import NOTHING, Attribute, Factory, resolve_types
 
 from .._compat import (
     ANIES,

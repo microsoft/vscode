@@ -32,14 +32,14 @@ export class EnvironmentClientInstance extends Disposable {
 		return this._comm.listPackages(enumType);
 	}
 
-	async installPackage(packageName: string, packageType: 'r' | 'python'): Promise<InstallResult> {
+	async installPackage(packageName: string, packageType: 'r' | 'python', environmentType?: string): Promise<InstallResult> {
 		const enumType = packageType === 'r' ? InstallPackagePackageType.R : InstallPackagePackageType.Python;
-		return this._comm.installPackage(packageName, enumType);
+		return this._comm.installPackage(packageName, enumType, environmentType);
 	}
 
-	async uninstallPackage(packageName: string, packageType: 'r' | 'python'): Promise<UninstallResult> {
+	async uninstallPackage(packageName: string, packageType: 'r' | 'python', environmentType?: string): Promise<UninstallResult> {
 		const enumType = packageType === 'r' ? UninstallPackagePackageType.R : UninstallPackagePackageType.Python;
-		return this._comm.uninstallPackage(packageName, enumType);
+		return this._comm.uninstallPackage(packageName, enumType, environmentType);
 	}
 
 	onDidPackagesChange: Event<PackagesChangedEvent>;

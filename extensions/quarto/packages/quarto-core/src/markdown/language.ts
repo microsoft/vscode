@@ -13,9 +13,9 @@
  *
  */
 
-import { Position } from "../position";
+import { Position } from "../position.js";
 
-import { Token, TokenCodeBlock, TokenMath, isCodeBlock, isMath, kAttrClasses  } from "./token";
+import { Token, TokenCodeBlock, TokenMath, isCodeBlock, isMath, kAttrClasses  } from "./token.js";
 
 export function isLanguageBlock(token: Token) {
   return isCodeBlock(token) || isDisplayMath(token);

@@ -13,14 +13,14 @@
  *
  */
 
-export * from './context';
-export * from './metadata';
-export * from './appdirs';
-export * from './markdown';
-export * from './markdown/parsers/pandoc'
-export * from './storage';
-export * from './dictionaries';
-export * from './position';
-export * from './range';
-export * from './document';
-export * from './lsp';
+export * from './context.js';
+export * from './metadata.js';
+export * from './appdirs.js';
+export * from './markdown/index.js';
+export * from './markdown/parsers/pandoc.js'
+export * from './storage.js';
+export * from './dictionaries.js';
+export * from './position.js';
+export * from './range.js';
+export * from './document.js';
+export * from './lsp.js';

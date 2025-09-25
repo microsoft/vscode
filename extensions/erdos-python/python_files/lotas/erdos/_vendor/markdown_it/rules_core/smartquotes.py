@@ -1,5 +1,5 @@
-"""Convert straight quotation marks to typographic ones
-"""
+"""Convert straight quotation marks to typographic ones"""
+
 from __future__ import annotations
 
 import re

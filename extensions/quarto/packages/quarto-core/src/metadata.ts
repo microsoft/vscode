@@ -21,8 +21,8 @@ import * as semver from "semver";
 
 import * as yaml from "js-yaml";
 import { ExecFileSyncOptions } from "child_process";
-import { md5Hash } from "core-node";
-import { QuartoContext } from "./context";
+import { md5Hash } from "../../core-node/src/hash.js";
+import { QuartoContext } from "./context.js";
 
 export function projectDirForDocument(doc: string) {
   let dir = path.dirname(doc);

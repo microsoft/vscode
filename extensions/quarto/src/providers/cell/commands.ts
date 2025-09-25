@@ -13,8 +13,7 @@
  *
  */
 
-import { lines } from "core";
-import { CodeViewActiveBlockContext, CodeViewSelectionAction } from "editor-types";
+import * as vscode from "vscode";
 import {
   Position,
   Range,
@@ -37,7 +36,6 @@ import {
 import { Command } from "../../core/command";
 import { isQuartoDoc } from "../../core/doc";
 import { MarkdownEngine } from "../../markdown/engine";
-import { QuartoVisualEditor, VisualEditorProvider } from "../editor/editor";
 import {
   blockHasExecutor,
   blockIsExecutable,
@@ -73,51 +71,34 @@ abstract class RunCommand {
   ) { }
 
   public async execute(line?: number): Promise<void> {
-
-    // see if this is for the visual or the source editor
-    const visualEditor = VisualEditorProvider.activeEditor();
-    if (visualEditor) {
-      const blockContext = await visualEditor.getActiveBlockContext();
-      if (blockContext) {
-        if (await this.hasExecutorForLanguage(blockContext.activeLanguage, visualEditor.document, this.engine_)) {
-          await this.doExecuteVisualMode(visualEditor, blockContext);
-        } else {
-          window.showWarningMessage(`Execution of ${blockContext.activeLanguage} cells is not supported`);
-        }
-      } else {
-        window.showWarningMessage("Editor selection is not within an executable cell");
-      }
-    } else {
-      const editor = window.activeTextEditor;
-      const doc = editor?.document;
-      if (doc && isQuartoDoc(doc)) {
-        const tokens = this.engine_.parse(doc);
-        line = line || editor.selection.start.line;
-        if (this.blockRequired()) {
-          const block = languageBlockAtPosition(
-            tokens,
-            new Position(line, 0),
-            this.includeFence()
-          );
-          if (block) {
-            const language = languageNameFromBlock(block);
-            if (await this.hasExecutorForLanguage(language, doc, this.engine_)) {
-              await this.doExecute(editor, tokens, line, block);
-            }
-          } else {
-            window.showWarningMessage(
-              "Editor selection is not within an executable cell"
-            );
+    // Only source editor (standard VS Code text editor) is supported
+    const editor = window.activeTextEditor;
+    const doc = editor?.document;
+    if (doc && isQuartoDoc(doc)) {
+      const tokens = this.engine_.parse(doc);
+      line = line || editor.selection.start.line;
+      if (this.blockRequired()) {
+        const block = languageBlockAtPosition(
+          tokens,
+          new Position(line, 0),
+          this.includeFence()
+        );
+        if (block) {
+          const language = languageNameFromBlock(block);
+          if (await this.hasExecutorForLanguage(language, doc, this.engine_)) {
+            await this.doExecute(editor, tokens, line, block);
           }
         } else {
-          await this.doExecute(editor, tokens, line);
+          window.showWarningMessage(
+            "Editor selection is not within an executable cell"
+          );
         }
       } else {
-        window.showWarningMessage("Active editor is not a Quarto document");
+        await this.doExecute(editor, tokens, line);
       }
+    } else {
+      window.showWarningMessage("Active editor is not a Quarto document");
     }
-
-
   }
 
   protected includeFence() {
@@ -127,11 +108,6 @@ abstract class RunCommand {
   protected blockRequired() {
     return true;
   }
-
-  protected abstract doExecuteVisualMode(
-    editor: QuartoVisualEditor,
-    context: CodeViewActiveBlockContext
-  ): Promise<void>;
 
   protected abstract doExecute(
     editor: TextEditor,
@@ -167,25 +143,18 @@ class RunCurrentCellCommand extends RunCommand implements Command {
       const language = languageNameFromBlock(block);
       const executor = await this.cellExecutorForLanguage(language, editor.document, this.engine_);
       if (executor) {
+        // Extract cell range from the markdown token
+        const cellRange = new vscode.Range(
+          new vscode.Position(block.range.start.line, 0),
+          new vscode.Position(block.range.end.line, editor.document.lineAt(block.range.end.line).text.length)
+        );
+        
         const code = codeWithoutOptionsFromBlock(block);
-        await executeInteractive(executor, [code], editor.document);
+        await executeInteractive(executor, [code], editor.document, cellRange);
       }
     }
   }
 
-  override async doExecuteVisualMode(
-    editor: QuartoVisualEditor,
-    context: CodeViewActiveBlockContext
-  ): Promise<void> {
-    const activeBlock = context.blocks.find(block => block.active);
-    if (activeBlock) {
-      const executor = await this.cellExecutorForLanguage(activeBlock.language, editor.document, this.engine_);
-      if (executor) {
-        await executeInteractive(executor, [activeBlock.code], editor.document);
-        await activateIfRequired(editor);
-      }
-    }
-  }
 }
 
 class RunNextCellCommand extends RunCommand implements Command {
@@ -202,23 +171,6 @@ class RunNextCellCommand extends RunCommand implements Command {
     }
   }
 
-  override async doExecuteVisualMode(
-    editor: QuartoVisualEditor,
-    context: CodeViewActiveBlockContext
-  ): Promise<void> {
-    const activeBlockIndex = context.blocks.findIndex(block => block.active);
-    const nextBlock = context.blocks[activeBlockIndex + 1];
-    if (nextBlock) {
-      await editor.setBlockSelection(context, "nextblock");
-      const executor = await this.cellExecutorForLanguage(nextBlock.language, editor.document, this.engine_);
-      if (executor) {
-        await executeInteractive(executor, [nextBlock.code], editor.document);
-        await activateIfRequired(editor);
-      }
-    } else {
-      window.showInformationMessage("No more cells available to execute");
-    }
-  }
 }
 
 class RunPreviousCellCommand extends RunCommand implements Command {
@@ -237,23 +189,6 @@ class RunPreviousCellCommand extends RunCommand implements Command {
     }
   }
 
-  override async doExecuteVisualMode(
-    editor: QuartoVisualEditor,
-    context: CodeViewActiveBlockContext
-  ): Promise<void> {
-    const activeBlockIndex = context.blocks.findIndex(block => block.active);
-    const prevBlock = context.blocks[activeBlockIndex - 1];
-    if (prevBlock) {
-      await editor.setBlockSelection(context, "prevblock");
-      const executor = await this.cellExecutorForLanguage(prevBlock.language, editor.document, this.engine_);
-      if (executor) {
-        await executeInteractive(executor, [prevBlock.code], editor.document);
-        await activateIfRequired(editor);
-      }
-    } else {
-      window.showInformationMessage("No more cells available to execute");
-    }
-  }
 }
 
 
@@ -292,8 +227,14 @@ class RunCurrentCommand extends RunCommand implements Command {
         (!hasHooks() && (language === "python" || language === "r"));
 
       if (resolveToRunCell) {
+        // Extract cell range from the markdown token
+        const cellRange = new vscode.Range(
+          new vscode.Position(block.range.start.line, 0),
+          new vscode.Position(block.range.end.line, editor.document.lineAt(block.range.end.line).text.length)
+        );
+        
         const code = codeWithoutOptionsFromBlock(block);
-        await executeInteractive(executor, [code], editor.document);
+        await executeInteractive(executor, [code], editor.document, cellRange);
       } else {
         // submit
         const executed = await executeSelectionInteractive(executor);
@@ -321,53 +262,19 @@ class RunCurrentCommand extends RunCommand implements Command {
             editor.selection = new Selection(selPos, selPos);
           }
 
+          // Extract cell range from the markdown token for selection execution too
+          const cellRange = new vscode.Range(
+            new vscode.Position(block.range.start.line, 0),
+            new vscode.Position(block.range.end.line, editor.document.lineAt(block.range.end.line).text.length)
+          );
+
           // run code
-          await executeInteractive(executor, [selection], editor.document);
+          await executeInteractive(executor, [selection], editor.document, cellRange);
         }
       }
     }
   }
 
-  override async doExecuteVisualMode(
-    editor: QuartoVisualEditor,
-    context: CodeViewActiveBlockContext
-  ): Promise<void> {
-    // get selection and active block
-    let selection = context.selectedText;
-    const activeBlock = context.blocks.find(block => block.active);
-
-    // if the selection is empty and this isn't a knitr document then it resolves to run cell
-    if (selection.length <= 0 && !isKnitrDocument(editor.document, this.engine_)) {
-      if (activeBlock) {
-        const executor = await this.cellExecutorForLanguage(activeBlock.language, editor.document, this.engine_);
-        if (executor) {
-          await executeInteractive(executor, [activeBlock.code], editor.document);
-          await activateIfRequired(editor);
-        }
-      }
-
-    } else {
-      // if the selection is empty take the whole line, otherwise take the selected text exactly
-      let action: CodeViewSelectionAction | undefined;
-      if (selection.length <= 0) {
-        if (activeBlock) {
-          selection = lines(activeBlock.code)[context.selection.start.line];
-          action = "nextline";
-        }
-      }
-
-      // run code
-      const executor = await this.cellExecutorForLanguage(context.activeLanguage, editor.document, this.engine_);
-      if (executor) {
-        await executeInteractive(executor, [selection], editor.document);
-
-        // advance cursor if necessary
-        if (action) {
-          editor.setBlockSelection(context, "nextline");
-        }
-      }
-    }
-  }
 }
 
 
@@ -403,22 +310,6 @@ class RunCurrentAdvanceCommand extends RunCommand implements Command {
     }
   }
 
-  override async doExecuteVisualMode(
-    editor: QuartoVisualEditor,
-    context: CodeViewActiveBlockContext
-  ): Promise<void> {
-    const activeBlock = context.blocks.find(block => block.active);
-    if (activeBlock) {
-      const executor = await this.cellExecutorForLanguage(activeBlock.language, editor.document, this.engine_);
-      if (executor) {
-        await executeInteractive(executor, [activeBlock.code], editor.document);
-        const blockContext = await editor.getActiveBlockContext();
-        if (blockContext) {
-          await editor.setBlockSelection(blockContext, "nextblock");
-        }
-      }
-    }
-  }
 }
 
 
@@ -468,31 +359,17 @@ class RunCellsAboveCommand extends RunCommand implements Command {
         }
 
         // execute
-        await executeInteractive(executor, code, editor.document);
+        const firstBlock = blocks[0];
+        const lastBlock = blocks[blocks.length - 1];
+        const combinedRange = new vscode.Range(
+          new vscode.Position(firstBlock.range.start.line, 0),
+          new vscode.Position(lastBlock.range.end.line, editor.document.lineAt(lastBlock.range.end.line).text.length)
+        );
+        await executeInteractive(executor, code, editor.document, combinedRange);
       }
     }
   }
 
-  override async doExecuteVisualMode(
-    editor: QuartoVisualEditor,
-    context: CodeViewActiveBlockContext
-  ): Promise<void> {
-    const executor = await this.cellExecutorForLanguage(context.activeLanguage, editor.document, this.engine_);
-    if (executor) {
-      const code: string[] = [];
-      for (const block of context.blocks) {
-        if (block.active) {
-          break;
-        } else if (block.language === context.activeLanguage) {
-          code.push(block.code);
-        }
-      }
-      if (code.length > 0) {
-        await executeInteractive(executor, code, editor.document);
-        await activateIfRequired(editor);
-      }
-    }
-  }
 }
 
 class RunCellsBelowCommand extends RunCommand implements Command {
@@ -536,31 +413,16 @@ class RunCellsBelowCommand extends RunCommand implements Command {
     if (language && blocks.length > 0) {
       const executor = await this.cellExecutorForLanguage(language, editor.document, this.engine_);
       if (executor) {
-        await executeInteractive(executor, blocks, editor.document);
+        // Create range from current line to end of document for "below" commands
+        const combinedRange = new vscode.Range(
+          new vscode.Position(line, 0),
+          new vscode.Position(editor.document.lineCount - 1, editor.document.lineAt(editor.document.lineCount - 1).text.length)
+        );
+        await executeInteractive(executor, blocks, editor.document, combinedRange);
       }
     }
   }
 
-  override async doExecuteVisualMode(
-    editor: QuartoVisualEditor,
-    context: CodeViewActiveBlockContext
-  ): Promise<void> {
-    const executor = await this.cellExecutorForLanguage(context.activeLanguage, editor.document, this.engine_);
-    if (executor) {
-      let code: string[] | undefined;
-      for (const block of context.blocks) {
-        if (block.active) {
-          code = [];
-        } else if (code && (block.language === context.activeLanguage)) {
-          code.push(block.code);
-        }
-      }
-      if (code && code.length > 0) {
-        await executeInteractive(executor, code, editor.document);
-        await activateIfRequired(editor);
-      }
-    }
-  }
 }
 
 class RunAllCellsCommand extends RunCommand implements Command {
@@ -594,29 +456,16 @@ class RunAllCellsCommand extends RunCommand implements Command {
     if (language && blocks.length > 0) {
       const executor = await this.cellExecutorForLanguage(language, editor.document, this.engine_);
       if (executor) {
-        await executeInteractive(executor, blocks, editor.document);
+        // Create range for entire document for "all cells" command
+        const combinedRange = new vscode.Range(
+          new vscode.Position(0, 0),
+          new vscode.Position(editor.document.lineCount - 1, editor.document.lineAt(editor.document.lineCount - 1).text.length)
+        );
+        await executeInteractive(executor, blocks, editor.document, combinedRange);
       }
     }
   }
 
-  override async doExecuteVisualMode(
-    editor: QuartoVisualEditor,
-    context: CodeViewActiveBlockContext
-  ): Promise<void> {
-    const code: string[] = [];
-    for (const block of context.blocks) {
-      if (block.language === context.activeLanguage) {
-        code.push(block.code);
-      }
-    }
-    if (code.length > 0) {
-      const executor = await this.cellExecutorForLanguage(context.activeLanguage, editor.document, this.engine_);
-      if (executor) {
-        await executeInteractive(executor, code, editor.document);
-        await activateIfRequired(editor);
-      }
-    }
-  }
 }
 
 class GoToCellCommand {
@@ -631,33 +480,18 @@ class GoToCellCommand {
   }
 
   async execute(): Promise<void> {
-    const visualEditor = VisualEditorProvider.activeEditor();
-    if (visualEditor) {
-      const blockContext = await visualEditor.getActiveBlockContext();
-      if (blockContext) {
-        if (this.dir_ === "next") {
-          await visualEditor.setBlockSelection(blockContext, "nextblock");
-        } else {
-          await visualEditor.setBlockSelection(blockContext, "prevblock");
-        }
-        await activateIfRequired(visualEditor);
-      } else {
-        window.showWarningMessage("Editor selection is not within an executable cell");
-      }
-    } else {
-      const editor = window.activeTextEditor;
-      const doc = editor?.document;
-      if (doc && isQuartoDoc(doc)) {
-        const tokens = this.engine_.parse(doc);
-        const line = editor.selection.start.line;
-        const selector = this.dir_ === "next" ? nextBlock : previousBlock;
-        const cell = selector(this.host_, line, tokens, false, false);
-        if (cell) {
-          navigateToBlock(editor, cell);
-        }
+    // Only source editor (standard VS Code text editor) is supported
+    const editor = window.activeTextEditor;
+    const doc = editor?.document;
+    if (doc && isQuartoDoc(doc)) {
+      const tokens = this.engine_.parse(doc);
+      const line = editor.selection.start.line;
+      const selector = this.dir_ === "next" ? nextBlock : previousBlock;
+      const cell = selector(this.host_, line, tokens, false, false);
+      if (cell) {
+        navigateToBlock(editor, cell);
       }
     }
-
   }
 
 
@@ -687,7 +521,12 @@ async function runAdjacentBlock(host: ExtensionHost, editor: TextEditor, engine:
   const language = languageNameFromBlock(block);
   const executor = await host.cellExecutorForLanguage(language, editor.document, engine);
   if (executor) {
-    await executeInteractive(executor, [codeWithoutOptionsFromBlock(block)], editor.document);
+    // Extract cell range from the block token
+    const cellRange = new vscode.Range(
+      new vscode.Position(block.range.start.line, 0),
+      new vscode.Position(block.range.end.line, editor.document.lineAt(block.range.end.line).text.length)
+    );
+    await executeInteractive(executor, [codeWithoutOptionsFromBlock(block)], editor.document, cellRange);
   }
 }
 
@@ -743,8 +582,3 @@ function previousBlock(
   return undefined;
 }
 
-async function activateIfRequired(editor: QuartoVisualEditor) {
-  if (!(await editor.hasFocus())) {
-    await editor.activate();
-  }
-}

@@ -11,7 +11,7 @@ import enum
 import functools
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-import attrs
+from erdos._vendor import attrs
 
 from . import validators
 

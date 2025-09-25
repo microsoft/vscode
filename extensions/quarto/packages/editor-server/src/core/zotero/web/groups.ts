@@ -15,8 +15,8 @@
 
 import * as fs from "node:fs";
 import path from "node:path";
-import { Group, User, ZoteroApi } from "./api";
-import { libraryReadGroup, userWebLibrariesDir } from "./storage";
+import { Group, User, ZoteroApi } from "./api.js";
+import { libraryReadGroup, userWebLibrariesDir } from "./storage.js";
 import { SyncActions, SyncProgress } from "./types";
 
 export async function groupLocal(user: User, groupId: number) {

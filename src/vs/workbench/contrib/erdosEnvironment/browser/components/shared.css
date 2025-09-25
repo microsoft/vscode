@@ -1,0 +1,502 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) 2025 Lotas Inc. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Shared List Container - Use database client pattern */
+.package-list-container,
+.environment-list-container {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	width: 100%;
+	overflow: hidden;
+	font-family: var(--vscode-font-family);
+	font-size: var(--vscode-font-size);
+	background-color: var(--vscode-editor-background);
+	color: var(--vscode-editor-foreground);
+}
+
+/* Search Toolbar - Search extends all the way to buttons */
+.table-actions-toolbar {
+	display: flex;
+	align-items: stretch;
+	padding: 0;
+	background: var(--vscode-editor-background);
+	border-bottom: 1px solid var(--vscode-widget-border);
+	flex-shrink: 0;
+	height: 24px;
+	gap: 0;
+}
+
+.table-actions-toolbar .toolbar-left {
+	display: flex;
+	align-items: stretch;
+	flex: 1;
+	min-width: 0;
+}
+
+.table-actions-toolbar .toolbar-right {
+	display: flex;
+	align-items: stretch;
+	flex-shrink: 0;
+	padding-left: 0;
+}
+
+.table-actions-toolbar .search-input {
+	flex-grow: 1 !important;
+	flex-shrink: 1 !important;
+	flex-basis: 0 !important;
+	min-width: 0 !important;
+	width: 100% !important;
+	max-width: 100% !important;
+	height: 100% !important;
+	padding: 0 6px !important;
+	margin: 0 !important;
+	background: var(--vscode-input-background);
+	color: var(--vscode-input-foreground);
+	border: 1px solid var(--vscode-widget-border);
+	font-size: 12px;
+	font-family: var(--vscode-font-family);
+	box-sizing: border-box !important;
+	outline: none;
+	border-top-right-radius: 0;
+	border-bottom-right-radius: 0;
+}
+
+.table-actions-toolbar .search-input:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+	border-color: var(--vscode-focusBorder);
+}
+
+.table-actions-toolbar .search-input::placeholder {
+	color: var(--vscode-input-placeholderForeground);
+}
+
+.table-actions-toolbar .search-input:disabled {
+	opacity: 0.6;
+	cursor: not-allowed;
+}
+
+.table-actions-toolbar .btn.btn-icon {
+	background: transparent;
+	border: none;
+	padding: 0;
+	margin: 0;
+	margin-left: 2px;
+	cursor: pointer;
+	color: var(--vscode-foreground);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 100%;
+	flex-shrink: 0;
+}
+
+.table-actions-toolbar .btn.btn-icon:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.table-actions-toolbar .btn.btn-icon:active {
+	background: var(--vscode-toolbar-activeBackground);
+}
+
+.table-actions-toolbar .btn.btn-icon .codicon {
+	font-size: 16px;
+}
+
+.table-actions-toolbar .btn.btn-icon:disabled {
+	opacity: 0.6;
+	cursor: not-allowed;
+}
+
+/* Data Table Container - Copy database client pattern */
+.data-table-container {
+	flex: 1;
+	overflow: auto;
+	min-height: 0;
+	position: relative;
+}
+
+/* Results Table - Copy database client pattern exactly */
+.results-table {
+	width: 100%;
+	border-collapse: separate;
+	border-spacing: 0;
+	font-size: 13px;
+	font-family: var(--vscode-editor-font-family);
+	display: table;
+	table-layout: fixed;
+	position: relative;
+	max-width: 100%;
+}
+
+.results-table thead {
+	position: sticky;
+	top: 0;
+	z-index: 100;
+	background: var(--vscode-editor-background);
+	display: table-header-group;
+}
+
+.results-table tbody {
+	display: table-row-group;
+}
+
+.results-table tr {
+	display: table-row;
+	height: 15px;
+}
+
+.results-table tr:hover td {
+	background: var(--vscode-list-hoverBackground);
+}
+
+/* Environment-specific active row styling */
+.results-table tr.active-row td {
+	background: var(--vscode-list-activeSelectionBackground);
+}
+
+/* Environment-specific row cursor */
+.environment-list-container .results-table tr {
+	cursor: pointer;
+}
+
+.results-table th,
+.results-table td {
+	display: table-cell;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	min-width: 0;
+}
+
+.results-table th {
+	background: var(--vscode-editor-background);
+	color: var(--vscode-editor-foreground);
+	border: 1px solid var(--vscode-widget-border);
+	padding: 6px 12px;
+	height: 22px;
+	text-align: left;
+	font-weight: 600;
+	position: sticky;
+	top: 0;
+	z-index: 100;
+	box-shadow: 0 1px 0 0 var(--vscode-widget-border);
+}
+
+.results-table th.sortable {
+	cursor: pointer;
+	user-select: none;
+}
+
+.results-table th.sortable:hover {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.results-table td {
+	border: 1px solid var(--vscode-widget-border);
+	padding: 4px 12px;
+	height: 22px;
+	background: var(--vscode-editor-background);
+}
+
+.results-table tr:nth-child(even) td {
+	background: var(--vscode-list-inactiveSelectionBackground);
+}
+
+/* Sort indicators - Copy database client pattern */
+.column-header-content {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	position: relative;
+}
+
+.sort-indicators {
+	position: absolute;
+	right: 4px;
+	top: 50%;
+	transform: translateY(-52%);
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	height: 16px;
+	justify-content: center;
+}
+
+.sort-chevron {
+	font-size: 8px;
+	opacity: 0.5;
+	margin: 0;
+	padding: 0;
+	line-height: 8px;
+	height: 8px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	transition: opacity 0.2s ease;
+}
+
+.sort-chevron.active {
+	opacity: 1;
+	color: var(--vscode-foreground);
+}
+
+.sort-chevron.hidden {
+	opacity: 0;
+	visibility: hidden;
+}
+
+.results-table th.sortable:hover .sort-chevron {
+	opacity: 0.8;
+}
+
+.results-table th.sortable:hover .sort-chevron.active {
+	opacity: 1;
+}
+
+/* Results Info Toolbar - Copy database client pattern */
+.results-info-toolbar {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	padding: 4px 8px;
+	background: var(--vscode-editor-background);
+	border-top: 1px solid var(--vscode-widget-border);
+	font-size: 13px;
+	flex-shrink: 0;
+}
+
+.results-info-toolbar .toolbar-right {
+	display: flex;
+	align-items: center;
+	color: var(--vscode-descriptionForeground);
+}
+
+/* Loading States - Copy database client pattern */
+.loading-spinner {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 40px;
+	color: var(--vscode-descriptionForeground);
+	font-size: 14px;
+}
+
+.loading-spinner .codicon {
+	margin-right: 8px;
+	background: none !important;
+	background-color: transparent !important;
+	border: none !important;
+	border-radius: 0 !important;
+}
+
+/* Remove any circular background from all codicon spinners */
+.codicon.codicon-modifier-spin {
+	background: none !important;
+	background-color: transparent !important;
+	border: none !important;
+	border-radius: 0 !important;
+}
+
+/* Empty States - Match packages view pattern */
+.empty-state-container {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	height: 100%;
+	width: 100%;
+}
+
+.empty-state {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	padding: 40px;
+	color: var(--vscode-descriptionForeground);
+	text-align: center;
+}
+
+.empty-state-icon {
+	font-size: 48px;
+	margin-bottom: 16px;
+	opacity: 0.6;
+	color: var(--vscode-descriptionForeground);
+}
+
+.empty-state-title {
+	font-size: 16px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+	margin-bottom: 8px;
+}
+
+.empty-state-description {
+	font-size: 14px;
+	max-width: 300px;
+	line-height: 1.4;
+	color: var(--vscode-descriptionForeground);
+}
+
+/* Legacy empty state support */
+.empty-state .codicon {
+	font-size: 48px;
+	margin-bottom: 16px;
+	opacity: 0.6;
+}
+
+.empty-state p {
+	margin: 0;
+	font-size: 14px;
+}
+
+/* Package-specific column widths */
+.package-list-container .name-column {
+	width: 50%;
+}
+
+.package-list-container .version-column {
+	width: 30%;
+}
+
+.package-list-container .actions-column {
+	width: 20%;
+	text-align: center;
+}
+
+.package-list-container .name-cell {
+	width: 50%;
+}
+
+.package-list-container .version-cell {
+	width: 30%;
+}
+
+.package-list-container .actions-cell {
+	width: 20%;
+	text-align: center;
+}
+
+/* Environment-specific column widths */
+.environment-list-container .name-column {
+	width: 35%;
+}
+
+.environment-list-container .type-column {
+	width: 15%;
+}
+
+.environment-list-container .version-column {
+	width: 15%;
+}
+
+.environment-list-container .path-column {
+	width: 25%;
+}
+
+.environment-list-container .actions-column {
+	width: 10%;
+	text-align: center;
+}
+
+.environment-list-container .name-cell {
+	width: 35%;
+}
+
+.environment-list-container .type-cell {
+	width: 15%;
+}
+
+.environment-list-container .version-cell {
+	width: 15%;
+}
+
+.environment-list-container .path-cell {
+	width: 25%;
+}
+
+.environment-list-container .actions-cell {
+	width: 10%;
+	text-align: center;
+}
+
+/* Environment name cell with active indicator */
+.environment-name-cell {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.active-indicator {
+	color: var(--vscode-terminal-ansiGreen);
+	font-size: 12px;
+}
+
+/* Action buttons - shared styling */
+.uninstall-button,
+.delete-button,
+.switch-button {
+	background: transparent;
+	border: none;
+	cursor: pointer;
+	color: var(--vscode-foreground);
+	padding: 2px;
+	font-size: 14px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 20px;
+	height: 20px;
+	transition: background-color 0.2s;
+}
+
+.uninstall-button:hover:not(:disabled),
+.delete-button:hover:not(:disabled) {
+	background: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-errorForeground);
+}
+
+.switch-button:hover:not(:disabled) {
+	background: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-terminal-ansiGreen);
+}
+
+.uninstall-button:disabled,
+.delete-button:disabled,
+.switch-button:disabled {
+	opacity: 0.6;
+	cursor: not-allowed;
+}
+
+/* Resize handles - Copy from database client */
+.column-resize-handle {
+	position: absolute;
+	top: 0;
+	right: -3px;
+	width: 6px;
+	height: 100%;
+	cursor: col-resize;
+	background: transparent;
+	border-right: 2px solid transparent;
+	transition: border-color 0.2s ease;
+	z-index: 100;
+}
+
+.column-resize-handle:hover {
+	border-right-color: var(--vscode-focusBorder);
+	background: rgba(0, 123, 255, 0.1);
+}
+
+.column-resize-handle:active {
+	border-right-color: var(--vscode-focusBorder);
+	background: rgba(0, 123, 255, 0.2);
+}
+
+/* Enhanced column header positioning for resize handles */
+.results-table th.column-header {
+	position: relative;
+	overflow: hidden;
+}

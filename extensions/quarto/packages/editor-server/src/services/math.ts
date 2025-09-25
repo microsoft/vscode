@@ -13,11 +13,11 @@
  *
  */
 
-import { JsonRpcServerMethod } from "core";
-import { kMathMathjaxTypesetSvg, MathjaxTypesetOptions, MathServer } from "editor-types";
+import { JsonRpcServerMethod } from "../../../core/src/jsonrpc.js";
+import { kMathMathjaxTypesetSvg, MathjaxTypesetOptions, MathServer } from "../../../editor-types/src/index.js";
 
-import { mathjaxTypeset } from "../core/mathjax";
-import { EditorServerDocuments } from "../core";
+import { mathjaxTypeset } from "../core/mathjax.js";
+import { EditorServerDocuments } from "../core/index.js";
 
 export function mathServer(documents: EditorServerDocuments) : MathServer {
   return {

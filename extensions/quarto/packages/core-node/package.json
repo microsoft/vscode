@@ -3,13 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "license": "agpl-3.0",
-  "main": "./src/index.ts",
+  "main": "../../out/packages/core-node/src/index.js",
   "types": "./src/index.ts",
   "dependencies": {
     "core": "*",
     "jayson": "^4.0.0",
     "tsconfig": "*",
-    "typescript": "^4.5.2",
+    "typescript": "^5.9.2",
     "vscode-languageclient": "^8.1.0",
     "vscode-languageserver": "^8.1.0"
   }

@@ -42,36 +42,7 @@
 	border: none !important;
 }
 
-/* Diff highlighting styles for Monaco decorations */
-.monaco-editor .diff-line-added {
-	background-color: rgba(40, 167, 69, 0.1) !important;
-}
 
-.monaco-editor .diff-line-deleted {
-	background-color: rgba(244, 67, 54, 0.1) !important;
-}
-
-.monaco-editor .diff-line-unchanged {
-	background-color: transparent !important;
-}
-
-.monaco-editor .diff-glyph-added {
-	background-color: #28a745 !important;
-	width: 3px !important;
-}
-
-.monaco-editor .diff-glyph-deleted {
-	background-color: #dc3545 !important;
-	width: 3px !important;
-}
-
-.monaco-editor .diff-margin-added {
-	background-color: rgba(40, 167, 69, 0.2) !important;
-}
-
-.monaco-editor .diff-margin-deleted {
-	background-color: rgba(244, 67, 54, 0.2) !important;
-}
 
 /* Widget collapsed state - rounded bottom corners when content is hidden */
 .erdos-ai-widget.widget-collapsed {
@@ -592,236 +563,6 @@
 }
 
 
-/* === Auto-Accept Settings Panel === */
-.auto-accept-settings-panel {
-	padding: 20px;
-	max-width: 800px;
-}
-
-.settings-section {
-	margin-bottom: 24px;
-}
-
-.settings-section h3 {
-	margin: 0 0 8px 0;
-	font-size: 18px;
-	font-weight: 600;
-	color: var(--vscode-foreground);
-}
-
-.settings-section h4 {
-	margin: 0 0 12px 0;
-	font-size: 16px;
-	font-weight: 600;
-	color: var(--vscode-foreground);
-}
-
-.settings-section h5 {
-	margin: 0 0 8px 0;
-	font-size: 14px;
-	font-weight: 600;
-	color: var(--vscode-foreground);
-}
-
-.settings-description {
-	margin: 0 0 16px 0;
-	color: var(--vscode-descriptionForeground);
-	line-height: 1.4;
-}
-
-.setting-item {
-	margin-bottom: 16px;
-	padding: 12px;
-	border: 1px solid var(--vscode-input-border);
-	border-radius: 4px;
-	background-color: var(--vscode-input-background);
-}
-
-.setting-label {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	cursor: pointer;
-	margin-bottom: 4px;
-}
-
-.setting-title {
-	font-weight: 500;
-	color: var(--vscode-foreground);
-}
-
-.setting-description {
-	margin: 4px 0 0 24px;
-	font-size: 13px;
-	color: var(--vscode-descriptionForeground);
-	line-height: 1.3;
-}
-
-
-.list-description {
-	margin: 0 0 12px 0;
-	font-size: 13px;
-	color: var(--vscode-descriptionForeground);
-	line-height: 1.3;
-}
-
-.add-function-row {
-	display: flex;
-	gap: 8px;
-	margin-bottom: 16px;
-}
-
-.function-input {
-	flex: 1;
-	padding: 8px 12px;
-	border: 1px solid var(--vscode-input-border);
-	border-radius: 4px;
-	background-color: var(--vscode-input-background);
-	color: var(--vscode-input-foreground);
-	font-family: var(--monaco-monospace-font);
-	font-size: 13px;
-}
-
-.function-input:focus {
-	outline: none;
-	border-color: var(--vscode-focusBorder);
-}
-
-.add-function-button {
-	padding: 8px 16px;
-	border-radius: 4px;
-	border: 1px solid var(--vscode-button-border);
-	font-size: 13px;
-	cursor: pointer;
-	transition: all 0.2s ease;
-	white-space: nowrap;
-}
-
-.add-function-button:disabled {
-	opacity: 0.5;
-	cursor: not-allowed;
-}
-
-.add-function-button.allow {
-	background-color: rgba(76, 175, 80, 0.1);
-	color: #4CAF50;
-	border-color: #4CAF50;
-}
-
-.add-function-button.allow:hover:not(:disabled) {
-	background-color: rgba(76, 175, 80, 0.2);
-}
-
-.add-function-button.deny {
-	background-color: rgba(244, 67, 54, 0.1);
-	color: #f44336;
-	border-color: #f44336;
-}
-
-.add-function-button.deny:hover:not(:disabled) {
-	background-color: rgba(244, 67, 54, 0.2);
-}
-
-.function-list {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 8px;
-	min-height: 40px;
-}
-
-.function-tag {
-	display: flex;
-	align-items: center;
-	gap: 6px;
-	padding: 6px 10px;
-	border-radius: 16px;
-	font-family: var(--monaco-monospace-font);
-	font-size: 12px;
-	border: 1px solid;
-	transition: all 0.2s ease;
-}
-
-.function-tag.allow {
-	background-color: rgba(76, 175, 80, 0.1);
-	color: #4CAF50;
-	border-color: #4CAF50;
-}
-
-.function-tag.deny {
-	background-color: rgba(244, 67, 54, 0.1);
-	color: #f44336;
-	border-color: #f44336;
-}
-
-.function-name {
-	font-weight: 500;
-}
-
-.remove-function-button {
-	background: none;
-	border: none;
-	color: inherit;
-	cursor: pointer;
-	padding: 0;
-	width: 16px;
-	height: 16px;
-	border-radius: 50%;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	font-size: 14px;
-	line-height: 1;
-	transition: all 0.2s ease;
-}
-
-.remove-function-button:hover {
-	background-color: rgba(0, 0, 0, 0.1);
-}
-
-.empty-list-message {
-	color: var(--vscode-descriptionForeground);
-	font-style: italic;
-	margin: 8px 0;
-	text-align: center;
-	padding: 20px;
-}
-
-.safety-notice {
-	padding: 16px;
-	border: 1px solid #ffc107;
-	border-radius: 4px;
-	background-color: rgba(255, 193, 7, 0.1);
-}
-
-.safety-notice h4 {
-	color: #ffc107;
-	margin-bottom: 8px;
-}
-
-.safety-notice p {
-	margin: 0 0 8px 0;
-	color: var(--vscode-foreground);
-	line-height: 1.4;
-}
-
-.safety-notice ul {
-	margin: 0;
-	padding-left: 20px;
-	color: var(--vscode-foreground);
-}
-
-.safety-notice li {
-	margin-bottom: 4px;
-	line-height: 1.4;
-}
-
-.safety-notice code {
-	background-color: var(--vscode-textCodeBlock-background);
-	padding: 2px 4px;
-	border-radius: 2px;
-	font-family: var(--monaco-monospace-font);
-	font-size: 11px;
-}
 
 /* Responsive adjustments for smaller screens */
 @media (max-width: 600px) {
@@ -844,14 +585,6 @@
 		font-size: 12px;
 	}
 	
-	.auto-accept-dialog {
-		width: 95%;
-		max-height: 90vh;
-	}
-	
-	.functions-grid {
-		grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-	}
 }
 
 /* Delete file widget - custom single rounded rectangle design */
@@ -923,4 +656,40 @@
 
 .vs-dark .delete-file-widget-custom .delete-file-btn-cancel {
 	color: #f44336;
+}
+
+/* Auto-accept highlighting styles */
+.monaco-editor .erdos-ai-auto-accept-added {
+	background-color: rgba(40, 167, 69, 0.2) !important;
+}
+
+.monaco-editor .erdos-ai-auto-accept-deleted {
+	background-color: rgba(220, 53, 69, 0.2) !important;
+}
+
+.monaco-editor .erdos-ai-auto-accept-glyph-added {
+	background-color: #28a745 !important;
+	width: 3px !important;
+}
+
+.monaco-editor .erdos-ai-auto-accept-glyph-deleted {
+	background-color: #dc3545 !important;
+	width: 3px !important;
+}
+
+/* Dark theme support for auto-accept highlighting */
+.vs-dark .monaco-editor .erdos-ai-auto-accept-added {
+	background-color: rgba(76, 175, 80, 0.15) !important;
+}
+
+.vs-dark .monaco-editor .erdos-ai-auto-accept-deleted {
+	background-color: rgba(244, 67, 54, 0.15) !important;
+}
+
+.vs-dark .monaco-editor .erdos-ai-auto-accept-glyph-added {
+	background-color: #4CAF50 !important;
+}
+
+.vs-dark .monaco-editor .erdos-ai-auto-accept-glyph-deleted {
+	background-color: #f44336 !important;
 }

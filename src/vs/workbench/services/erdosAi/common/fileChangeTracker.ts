@@ -5,6 +5,7 @@
 
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { URI } from '../../../../base/common/uri.js';
+import { Event } from '../../../../base/common/event.js';
 
 export const IFileChangeTracker = createDecorator<IFileChangeTracker>('fileChangeTracker');
 
@@ -21,4 +22,21 @@ export interface IFileChangeTracker {
 	}>>;
 	applyFileChangeHighlighting(uri: URI, fileChange: any): Promise<void>;
 	clearAllFileHighlighting(): void;
+	applyAutoAcceptHighlighting(uri: URI): Promise<void>;
+	acceptAutoAcceptChanges(uri: URI): Promise<void>;
+	acceptDiffSection(uri: URI, diffSectionId: string): Promise<void>;
+	rejectDiffSection(uri: URI, diffSectionId: string): Promise<void>;
+	clearAutoAcceptHighlighting(uri: URI): void;
+	getTrackedFilesWithChanges(): Promise<Array<{
+		filePath: string;
+		fileName: string;
+		addedLines: number;
+		deletedLines: number;
+		uri: URI;
+	}>>;
+
+	/**
+	 * Event fired when a diff section is accepted or rejected
+	 */
+	readonly onDiffSectionChanged: Event<{ uri: URI; action: 'accept' | 'reject'; sectionId: string }>;
 }

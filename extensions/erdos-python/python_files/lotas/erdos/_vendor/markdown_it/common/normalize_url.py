@@ -5,7 +5,7 @@ from contextlib import suppress
 import re
 from urllib.parse import quote, unquote, urlparse, urlunparse  # noqa: F401
 
-import mdurl
+from erdos._vendor import mdurl
 
 from .. import _punycode
 
