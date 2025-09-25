@@ -152,6 +152,20 @@ export class ErdosAiSettingsService extends Disposable implements IErdosAiSettin
 		}
 	}
 
+	async getInteractionMode(): Promise<'ask' | 'agent'> {
+		return this.configurationService.getValue<'ask' | 'agent'>('erdosAi.interactionMode') || 'ask';
+	}
+
+	async setInteractionMode(mode: 'ask' | 'agent'): Promise<boolean> {
+		try {
+			await this.configurationService.updateValue('erdosAi.interactionMode', mode);
+			return true;
+		} catch (error) {
+			this.logService.error('Failed to set interaction mode:', error);
+			return false;
+		}
+	}
+
 	async getAutoAcceptEdits(): Promise<boolean> {
 		return this.configurationService.getValue<boolean>('erdosAi.autoAcceptEdits') || false;
 	}

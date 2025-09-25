@@ -195,12 +195,9 @@
 .erdos-ai-file-changes-bar .file-changes-header .codicon {
 	margin-right: 6px;
 	font-size: 11px;
+	color: var(--vscode-input-placeholderForeground);
 }
 
-.erdos-ai-file-changes-bar .file-changes-text {
-	font-weight: 500;
-	color: var(--vscode-foreground);
-}
 
 .erdos-ai-file-changes-bar .file-changes-list {
 	border-top: 1px solid var(--vscode-input-border, #e0e0e0);
@@ -1001,4 +998,107 @@ em.erdos-ai-thinking {
 /* Drag and drop styling for editor tabs - use existing light blue highlighting */
 .erdos-ai-input-part.drag-over {
 	background-color: var(--vscode-editor-dragAndDropBackground);
+}
+
+/* Mode toggle styling */
+.mode-toggle-container {
+	position: relative;
+	display: inline-block;
+	background-color: var(--vscode-sideBar-background);
+	border-radius: 8px;
+	padding: 2px 4px;
+}
+
+.mode-toggle-button {
+	display: flex;
+	align-items: center;
+	gap: 3px;
+	background: transparent;
+	border: none;
+	color: var(--vscode-input-placeholderForeground);
+	cursor: pointer;
+	padding: 2px 4px;
+	border-radius: 4px;
+	font-size: 12px;
+	line-height: 1;
+}
+
+
+.mode-toggle-button:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+}
+
+.mode-label-text {
+	font-size: 12px;
+	font-weight: 400;
+	color: var(--vscode-input-placeholderForeground);
+}
+
+.mode-toggle-dropdown {
+	position: absolute;
+	bottom: 100%;
+	right: 0;
+	background-color: var(--vscode-dropdown-background);
+	border: 1px solid var(--vscode-dropdown-border);
+	border-radius: 4px;
+	box-shadow: var(--vscode-widget-shadow) 0px 2px 8px;
+	z-index: 1000;
+	min-width: 100px;
+	margin-bottom: 4px;
+}
+
+.mode-option {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	width: 100%;
+	background: transparent;
+	border: none;
+	color: var(--vscode-dropdown-foreground);
+	cursor: pointer;
+	padding: 4px 12px;
+	font-size: 12px;
+	line-height: 1.2;
+	text-align: left;
+	transition: background-color 0.2s ease;
+}
+
+.mode-option:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.mode-option:focus {
+	background-color: var(--vscode-list-focusBackground);
+	outline: none;
+}
+
+.mode-option.active {
+	background-color: var(--vscode-list-activeSelectionBackground);
+	color: var(--vscode-list-activeSelectionForeground);
+}
+
+.mode-option .codicon {
+	font-size: 16px;
+	flex-shrink: 0;
+}
+
+.mode-label {
+	flex: 1;
+	font-weight: 400;
+}
+
+/* Mode toggle wrapper styling to match image attachment wrapper */
+.mode-toggle-wrapper {
+	display: flex;
+	align-items: center;
+}
+
+/* Image attachment wrapper styling to match Ask/Agent toggle */
+.image-attachment-wrapper {
+	background-color: var(--vscode-sideBar-background);
+	border-radius: 8px;
+	padding: 2px 4px;
+	display: flex;
+	align-items: center;
 }

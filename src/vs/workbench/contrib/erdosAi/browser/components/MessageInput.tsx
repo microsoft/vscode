@@ -9,6 +9,7 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { Conversation } from '../../../../services/erdosAi/common/conversationTypes.js';
 import { ImageAttachmentToolbar } from './imageAttachmentToolbar.js';
 import { ContextBar } from './contextBar.js';
+import { ModeToggle } from './modeToggle.js';
 import { IContextService } from '../../../../services/erdosAiContext/common/contextService.js';
 import { IErdosHelpSearchService } from '../../../erdosHelp/browser/erdosHelpSearchService.js';
 import { useErdosReactServicesContext } from '../../../../../base/browser/erdosReactRendererContext.js';
@@ -254,6 +255,14 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 					<div className="erdos-ai-input-toolbars">
 						<div className="image-attachment-wrapper">
 							{imageAttachmentComponent}
+						</div>
+						<div className="mode-toggle-wrapper">
+							<ModeToggle 
+								configurationService={services.configurationService}
+								onModeChange={(mode) => {
+									console.log('Mode changed to:', mode);
+								}}
+							/>
 						</div>
 						{inputValue.trim() ? (
 							<button

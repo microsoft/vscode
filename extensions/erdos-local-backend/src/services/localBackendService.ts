@@ -227,7 +227,7 @@ export class LocalBackendService implements ILocalBackendService {
 	 */
 	private getApiTools(conversation: ConversationMessage[], symbolsNote: string | null,
 					   isConversationNameRequest: boolean,
-					   provider: string, webSearchEnabled: boolean): any[] {
+					   provider: string, webSearchEnabled: boolean, interactionMode: string = 'ask'): any[] {
 		
 		const tools: any[] = [];
 		
@@ -259,19 +259,31 @@ export class LocalBackendService implements ILocalBackendService {
 			}
 		}
 				
-		// Define the standard function names to include
-		const standardFunctions = [
-			'search_replace',  // Added for find-replace functionality
+		// Define read-only functions (allowed in both ask and agent modes)
+		const readOnlyFunctions = [
 			'grep',
 			'list_dir',        // Always included
 			'search_for_file', // Always included (fuzzy file search)
-			'run_terminal_cmd', // Always included
-			'run_console_cmd', // Always included
 			'read_file',      // Always included
-			'delete_file',    // Always included  
-			'run_file',       // Always included
 			'retrieve_documentation' // Always included (documentation retrieval)
 		];
+		
+		// Define write functions (only allowed in agent mode)
+		const writeFunctions = [
+			'search_replace',  // Added for find-replace functionality
+			'run_terminal_cmd', // Always included
+			'run_console_cmd', // Always included
+			'delete_file',    // Always included  
+			'run_file'       // Always included
+		];
+		
+		// Build function list based on interaction mode
+		const standardFunctions = [...readOnlyFunctions];
+		
+		// Add write functions only if in agent mode
+		if (interactionMode && interactionMode.toLowerCase() === 'agent') {
+			standardFunctions.push(...writeFunctions);
+		}
 		
 		
 		// Include end_turn function for OpenAI models only
@@ -874,7 +886,8 @@ export class LocalBackendService implements ILocalBackendService {
 		const tools = this.getApiTools(conversation, symbolsNote, 
 			isConversationNameRequest,
 			'openai',  // Provider for OpenAI calls
-			webSearchEnabled);
+			webSearchEnabled,
+			request.interaction_mode || 'ask');
 			
 		if (tools.length > 0) {
 			apiParams.tools = tools;
@@ -1145,7 +1158,8 @@ export class LocalBackendService implements ILocalBackendService {
 				symbolsNote, 
 				isConversationNameRequest,
 				'anthropic',
-				webSearchEnabled
+				webSearchEnabled,
+				request.interaction_mode || 'ask'
 			);
 			
 			// Convert tools to Anthropic format
@@ -1439,7 +1453,8 @@ export class LocalBackendService implements ILocalBackendService {
 			const tools = this.getApiTools(conversation, symbolsNote, 
 				isNamingRequest,
 				'openai',  // Use OpenAI tool format for SageMaker
-				false);    // Disable web search for SageMaker
+				false,     // Disable web search for SageMaker
+				request.interaction_mode || 'ask');
 				
 			if (tools.length > 0) {
 				// Convert tools to proper OpenAI format (like Anthropic conversion)
@@ -1849,6 +1864,7 @@ export class LocalBackendService implements ILocalBackendService {
 		const user_workspace_path = contextData?.user_workspace_path || null;
 		const user_shell = contextData?.user_shell || null;
 		const project_layout = contextData?.project_layout || null;
+		const interaction_mode = contextData?.interaction_mode || 'ask';
 					
 		// Create a full request object similar to makeAiApiCallStreaming
 		const fullRequest = {
@@ -1862,6 +1878,7 @@ export class LocalBackendService implements ILocalBackendService {
 			user_workspace_path: user_workspace_path,
 			user_shell: user_shell,
 			project_layout: project_layout,
+			interaction_mode: interaction_mode,
 			byok_keys: contextData?.byok_keys,
 			previous_summary: contextData?.previous_summary  // Add previous_summary from contextData
 		};

@@ -159,11 +159,9 @@
 	margin-left: 0; /* Remove extra margin to match fallback button position */
 }
 
-/* Image attachment wrapper positioning */
+/* Image attachment wrapper positioning - styling moved to erdosAiView.css */
 .image-attachment-wrapper {
 	position: relative;
-	display: flex;
-	align-items: center;
 }
 
 /* Drag and drop visual feedback */
@@ -188,22 +186,19 @@
 }
 
 .image-attachment-button {
-	background: none;
-	border: none;
-	padding: 4px;
-	cursor: pointer;
-	border-radius: 3px;
 	display: flex;
 	align-items: center;
-	justify-content: center;
-	width: 24px;
-	height: 24px;
-	transition: background-color 0.2s ease;
+	gap: 3px;
+	background: transparent;
+	border: none;
+	color: var(--vscode-input-placeholderForeground);
+	cursor: pointer;
+	padding: 2px 4px;
+	border-radius: 4px;
+	font-size: 12px;
+	line-height: 1;
 }
 
-.image-attachment-button:hover {
-	background-color: var(--vscode-toolbar-hoverBackground);
-}
 
 .image-attachment-count {
 	position: relative;
@@ -214,8 +209,8 @@
 	border: 1px solid var(--vscode-button-border);
 	border-radius: 6px;
 	padding: 2px 8px;
-	font-size: 11px;
-	color: var(--vscode-button-secondaryForeground);
+	font-size: 12px;
+	color: var(--vscode-input-placeholderForeground);
 	cursor: pointer;
 	display: flex;
 	align-items: center;
@@ -227,9 +222,6 @@
 	min-width: 80px;
 }
 
-.image-count-text {
-	flex: 1;
-}
 
 .image-count-chevron {
 	flex-shrink: 0;

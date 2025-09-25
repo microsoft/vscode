@@ -103,7 +103,7 @@ export const FileChangesBar: React.FC<FileChangesBarProps> = ({
 				title={`${totalFiles} ${fileText} have been edited and not yet accepted`}
 			>
 				<span className={`codicon codicon-chevron-${isExpanded ? 'down' : 'right'}`}></span>
-				<span className="file-changes-text">
+				<span className="mode-label-text">
 					{totalFiles} {fileText} edited
 				</span>
 			</div>

@@ -27,6 +27,10 @@ export interface IErdosAiSettingsService {
 	getWebSearchEnabled(): Promise<boolean>;
 	setWebSearchEnabled(enabled: boolean): Promise<boolean>;
 
+	// Interaction mode settings
+	getInteractionMode(): Promise<'ask' | 'agent'>;
+	setInteractionMode(mode: 'ask' | 'agent'): Promise<boolean>;
+
 	// Auto-accept settings
 	getAutoAcceptEdits(): Promise<boolean>;
 	setAutoAcceptEdits(enabled: boolean): Promise<boolean>;

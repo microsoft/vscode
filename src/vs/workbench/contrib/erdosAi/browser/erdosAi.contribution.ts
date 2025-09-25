@@ -32,6 +32,7 @@ import { ErdosAiNameService } from '../../../services/erdosAi/browser/erdosAiNam
 
 // CSS imports
 import './media/erdosAiView.css';
+import './media/erdosAiDiffHighlighting.css';
 import './media/contextBar.css';
 import './media/imageAttachment.css';
 import './media/erdosAiWidgets.css';
@@ -465,6 +466,17 @@ configurationRegistry.registerConfiguration({
 			default: 'us-east-1',
 			description: nls.localize('erdosAi.sagemakerRegion', "AWS region for SageMaker endpoint."),
 			order: 24
+		},
+		'erdosAi.interactionMode': {
+			type: 'string',
+			default: 'ask',
+			enum: ['ask', 'agent'],
+			enumDescriptions: [
+				nls.localize('erdosAi.interactionMode.ask', "Ask mode - for questions and conversations"),
+				nls.localize('erdosAi.interactionMode.agent', "Agent mode - for autonomous task execution")
+			],
+			description: nls.localize('erdosAi.interactionMode', "Controls the interaction mode for AI conversations."),
+			order: 25
 		}
 	}
 });

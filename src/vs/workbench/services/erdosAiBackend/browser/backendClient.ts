@@ -150,6 +150,9 @@ export class BackendClient extends Disposable implements IBackendClient {
 
 		const sorted_conversation = messages.sort((a, b) => (a.id || 0) - (b.id || 0));
 
+		// Get current interaction mode
+		const interactionMode = await this.settingsService.getInteractionMode();
+
 		const requestData: any = {
 			request_type: requestType,
 			conversation: sorted_conversation,
@@ -159,6 +162,7 @@ export class BackendClient extends Disposable implements IBackendClient {
 			request_id: requestId,
 			client_version: client_version,
 			app_type: 'erdos',
+			interaction_mode: interactionMode,
 			symbols_note: contextData?.symbols_note,
 			user_rules: contextData?.user_rules || [],
 			user_os_version: contextData?.user_os_version || navigator.platform || 'unknown',

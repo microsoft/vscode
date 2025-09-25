@@ -342,13 +342,34 @@ export const ReactMonacoEditor: React.FC<ReactMonacoEditorProps> = ({
 		setEditor(codeEditorWidget);
 		setModel(textModel);
 
-		// Layout the editor with explicit dimensions
-		const containerRect = containerRef.current.getBoundingClientRect();
-		const heightValue = parseInt(calculatedHeight.replace('px', ''), 10);
-		codeEditorWidget.layout({
-			width: containerRect.width,
-			height: heightValue
-		});
+		// Set up automatic width adjustment using ResizeObserver for width-only changes
+		if (containerRef.current) {
+			const heightValue = parseInt(calculatedHeight.replace('px', ''), 10);
+			const initialWidth = containerRef.current.getBoundingClientRect().width;
+			
+			codeEditorWidget.layout({
+				width: initialWidth,
+				height: heightValue
+			});
+			
+			// Set up ResizeObserver for width-only automatic updates
+			const resizeObserver = new ResizeObserver((entries) => {
+				for (const entry of entries) {
+					const newWidth = entry.contentRect.width;
+					// Only update width, keep current height
+					const currentLayout = codeEditorWidget.getLayoutInfo();
+					codeEditorWidget.layout({
+						width: newWidth,
+						height: currentLayout.height
+					});
+				}
+			});
+			
+			resizeObserver.observe(containerRef.current);
+			disposableStore.add({
+				dispose: () => resizeObserver.disconnect()
+			});
+		}
 
 		// Notify parent component
 		if (onEditorReady) {
@@ -383,17 +404,15 @@ export const ReactMonacoEditor: React.FC<ReactMonacoEditorProps> = ({
 		// Only update if height actually changed to prevent infinite loops
 		if (calculatedHeight !== dynamicHeight) {
 			setDynamicHeight(calculatedHeight);
-			// Force explicit layout with calculated dimensions
-			setTimeout(() => {
-				if (editor && containerRef.current) {
-					const containerRect = containerRef.current.getBoundingClientRect();
-					const heightValue = parseInt(calculatedHeight.replace('px', ''), 10);
-					editor.layout({
-						width: containerRect.width,
-						height: heightValue
-					});
-				}
-			}, 0);
+			// Update only height, width is handled by ResizeObserver
+			if (editor) {
+				const heightValue = parseInt(calculatedHeight.replace('px', ''), 10);
+				const currentLayout = editor.getLayoutInfo();
+				editor.layout({
+					width: currentLayout.width,
+					height: heightValue
+				});
+			}
 		}
 	}, [content, editor, monacoServices, configurationService, dynamicHeight, getEditorContent]);
 

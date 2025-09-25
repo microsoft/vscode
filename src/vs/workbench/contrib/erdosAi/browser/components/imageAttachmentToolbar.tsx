@@ -268,7 +268,7 @@ export const ImageAttachmentToolbar: React.FC<ImageAttachmentToolbarProps> = ({
 						onClick={() => setShowImageViewer(!showImageViewer)}
 						title={`${imageCount} image(s) attached`}
 					>
-						<span className="image-count-text">{imageCount} image{imageCount !== 1 ? 's' : ''} attached</span>
+						<span className="mode-label-text">{imageCount} image{imageCount !== 1 ? 's' : ''} attached</span>
 						<span className={`image-count-chevron ${ThemeIcon.asClassName(showImageViewer ? Codicon.chevronDown : Codicon.chevronUp)}`} />
 					</button>
 
