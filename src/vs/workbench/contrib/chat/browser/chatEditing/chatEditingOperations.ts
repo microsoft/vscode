@@ -24,7 +24,6 @@ export interface IFileOperation {
 	readonly uri: URI;
 	readonly requestId: string;
 	readonly epoch: number;
-	readonly operationId: string; // unique identifier for this operation
 }
 
 /**
@@ -33,7 +32,6 @@ export interface IFileOperation {
 export interface IFileCreateOperation extends IFileOperation {
 	readonly type: FileOperationType.Create;
 	readonly initialContent: string;
-	readonly languageId: string;
 }
 
 /**
@@ -42,7 +40,6 @@ export interface IFileCreateOperation extends IFileOperation {
 export interface IFileDeleteOperation extends IFileOperation {
 	readonly type: FileOperationType.Delete;
 	readonly finalContent: string; // content before deletion for potential restoration
-	readonly languageId: string;
 }
 
 /**
@@ -116,7 +113,8 @@ export interface ICheckpoint {
  */
 export interface IChatEditingTimelineState {
 	readonly checkpoints: readonly ICheckpoint[];
-	readonly fileBaselines: ReadonlyMap<string, IFileBaseline>; // key: `${uri}::${requestId}`
+	readonly fileBaselines: [string, IFileBaseline][]; // key: `${uri}::${requestId}`
 	readonly operations: readonly FileOperation[];
 	readonly currentEpoch: number;
+	readonly epochCounter: number;
 }

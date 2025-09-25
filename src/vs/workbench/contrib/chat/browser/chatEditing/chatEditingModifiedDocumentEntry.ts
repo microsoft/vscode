@@ -32,10 +32,9 @@ import { IChatResponseModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatEditingCodeEditorIntegration } from './chatEditingCodeEditorIntegration.js';
 import { AbstractChatEditingModifiedFileEntry } from './chatEditingModifiedFileEntry.js';
+import { FileOperation, FileOperationType } from './chatEditingOperations.js';
 import { ChatEditingTextModelChangeService } from './chatEditingTextModelChangeService.js';
 import { ChatEditingSnapshotTextModelContentProvider, ChatEditingTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
-import { FileOperation, FileOperationType } from './chatEditingOperations.js';
-import { generateUuid } from '../../../../../base/common/uuid.js';
 
 interface IMultiDiffEntryDelegate {
 	collapse: (transaction: ITransaction | undefined) => void;
@@ -278,9 +277,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 					uri: this.modifiedURI,
 					requestId: this._telemetryInfo.requestId,
 					epoch: 0,
-					operationId: generateUuid(),
 					finalContent,
-					languageId: this.modifiedModel.getLanguageId()
 				});
 			}
 
