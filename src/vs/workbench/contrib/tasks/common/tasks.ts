@@ -279,11 +279,17 @@ export interface IPresentationOptions {
 	 * Controls whether the terminal that the task runs in is closed when the task completes.
 	 */
 	close?: boolean;
+
+	/**
+	 * Controls whether to preserve the task name in the terminal after task completion.
+	 * Only applicable when panel is set to 'dedicated'. Defaults to true for dedicated panels.
+	 */
+	preserveTerminalName?: boolean;
 }
 
 export namespace PresentationOptions {
 	export const defaults: IPresentationOptions = {
-		echo: true, reveal: RevealKind.Always, revealProblems: RevealProblemKind.Never, focus: false, panel: PanelKind.Shared, showReuseMessage: true, clear: false
+		echo: true, reveal: RevealKind.Always, revealProblems: RevealProblemKind.Never, focus: false, panel: PanelKind.Shared, showReuseMessage: true, clear: false, preserveTerminalName: true
 	};
 }
 

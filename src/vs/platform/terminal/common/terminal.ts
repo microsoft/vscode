@@ -657,6 +657,12 @@ export interface IShellLaunchConfig {
 	 * This allows extensions to control shell integration for terminals they create.
 	 */
 	shellIntegrationNonce?: string;
+
+	/**
+	 * For task terminals, controls whether to preserve the task name after task completion.
+	 * When true, prevents process title changes from overriding the API-set task name.
+	 */
+	preserveTaskName?: boolean;
 }
 
 export interface ITerminalTabAction {

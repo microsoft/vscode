@@ -151,7 +151,7 @@ suite('Workbench - TerminalInstance', () => {
 			deepStrictEqual(terminalInstance.shellLaunchConfig.env, { TEST: 'TEST' });
 		});
 
-		test('should preserve API-set title for task terminals when process title changes', async () => {
+		test('should preserve API-set title for task terminals when preserveTaskName is enabled', async () => {
 			const instantiationService = workbenchInstantiationService({
 				configurationService: () => new TestConfigurationService({
 					files: {},
@@ -174,10 +174,11 @@ suite('Workbench - TerminalInstance', () => {
 			instantiationService.stub(IEnvironmentVariableService, store.add(instantiationService.createInstance(EnvironmentVariableService)));
 			instantiationService.stub(ITerminalInstanceService, store.add(new TestTerminalInstanceService()));
 
-			// Create a task terminal with type 'Task'
+			// Create a task terminal with type 'Task' and preserveTaskName enabled
 			const taskTerminal = store.add(instantiationService.createInstance(TerminalInstance, terminalShellTypeContextKey, {
 				type: 'Task',
-				name: 'Test Task Name'
+				name: 'Test Task Name',
+				preserveTaskName: true
 			}));
 
 			// Wait for initialization
@@ -191,7 +192,51 @@ suite('Workbench - TerminalInstance', () => {
 			(taskTerminal as any)._setTitle('some-process-name', TitleEventSource.Process);
 
 			// Verify that the task name is preserved
-			strictEqual(taskTerminal.title, 'Test Task Name', 'Task terminal should preserve API-set title even when process title changes');
+			strictEqual(taskTerminal.title, 'Test Task Name', 'Task terminal should preserve API-set title when preserveTaskName is enabled');
+		});
+
+		test('should allow process title changes for task terminals when preserveTaskName is disabled', async () => {
+			const instantiationService = workbenchInstantiationService({
+				configurationService: () => new TestConfigurationService({
+					files: {},
+					terminal: {
+						integrated: {
+							fontFamily: 'monospace',
+							scrollback: 1000,
+							fastScrollSensitivity: 2,
+							mouseWheelScrollSensitivity: 1,
+							unicodeVersion: '6',
+							shellIntegration: {
+								enabled: true
+							}
+						}
+					},
+				})
+			}, store);
+			instantiationService.set(ITerminalProfileResolverService, new MockTerminalProfileResolverService());
+			instantiationService.stub(IViewDescriptorService, new TestViewDescriptorService());
+			instantiationService.stub(IEnvironmentVariableService, store.add(instantiationService.createInstance(EnvironmentVariableService)));
+			instantiationService.stub(ITerminalInstanceService, store.add(new TestTerminalInstanceService()));
+
+			// Create a task terminal with type 'Task' but preserveTaskName disabled
+			const taskTerminal = store.add(instantiationService.createInstance(TerminalInstance, terminalShellTypeContextKey, {
+				type: 'Task',
+				name: 'Test Task Name',
+				preserveTaskName: false
+			}));
+
+			// Wait for initialization
+			await new Promise(resolve => setTimeout(resolve, 100));
+
+			// Simulate setting the title via API (as the task system would do)
+			await taskTerminal.rename('Test Task Name');
+			strictEqual(taskTerminal.title, 'Test Task Name');
+
+			// Simulate a process title change (which happens when task completes)
+			(taskTerminal as any)._setTitle('some-process-name', TitleEventSource.Process);
+
+			// Verify that the title was changed (preserveTaskName disabled allows process title changes)
+			strictEqual(taskTerminal.title, 'some-process-name', 'Task terminal should allow process title changes when preserveTaskName is disabled');
 		});
 
 		test('should allow process title changes for non-task terminals', async () => {

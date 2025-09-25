@@ -136,6 +136,12 @@ export interface IPresentationOptionsConfig {
 	 * Note that if the terminal process exits with a non-zero exit code, it will not close.
 	 */
 	close?: boolean;
+
+	/**
+	 * Controls whether to preserve the task name in the terminal after task completion.
+	 * Only applicable when panel is set to 'dedicated'. Defaults to true for dedicated panels.
+	 */
+	preserveTerminalName?: boolean;
 }
 
 export interface IRunOptionsConfig {
@@ -879,7 +885,7 @@ namespace CommandOptions {
 namespace CommandConfiguration {
 
 	export namespace PresentationOptions {
-		const properties: IMetaData<Tasks.IPresentationOptions, void>[] = [{ property: 'echo' }, { property: 'reveal' }, { property: 'revealProblems' }, { property: 'focus' }, { property: 'panel' }, { property: 'showReuseMessage' }, { property: 'clear' }, { property: 'group' }, { property: 'close' }];
+		const properties: IMetaData<Tasks.IPresentationOptions, void>[] = [{ property: 'echo' }, { property: 'reveal' }, { property: 'revealProblems' }, { property: 'focus' }, { property: 'panel' }, { property: 'showReuseMessage' }, { property: 'clear' }, { property: 'group' }, { property: 'close' }, { property: 'preserveTerminalName' }];
 
 		interface IPresentationOptionsShape extends ILegacyCommandProperties {
 			presentation?: IPresentationOptionsConfig;
@@ -895,6 +901,7 @@ namespace CommandConfiguration {
 			let clear: boolean;
 			let group: string | undefined;
 			let close: boolean | undefined;
+			let preserveTerminalName: boolean | undefined;
 			let hasProps = false;
 			if (Types.isBoolean(config.echoCommand)) {
 				echo = config.echoCommand;
@@ -933,12 +940,15 @@ namespace CommandConfiguration {
 				if (Types.isBoolean(presentation.close)) {
 					close = presentation.close;
 				}
+				if (Types.isBoolean(presentation.preserveTerminalName)) {
+					preserveTerminalName = presentation.preserveTerminalName;
+				}
 				hasProps = true;
 			}
 			if (!hasProps) {
 				return undefined;
 			}
-			return { echo: echo!, reveal: reveal!, revealProblems: revealProblems!, focus: focus!, panel: panel!, showReuseMessage: showReuseMessage!, clear: clear!, group, close: close };
+			return { echo: echo!, reveal: reveal!, revealProblems: revealProblems!, focus: focus!, panel: panel!, showReuseMessage: showReuseMessage!, clear: clear!, group, close: close, preserveTerminalName };
 		}
 
 		export function assignProperties(target: Tasks.IPresentationOptions, source: Tasks.IPresentationOptions | undefined): Tasks.IPresentationOptions | undefined {
@@ -951,7 +961,7 @@ namespace CommandConfiguration {
 
 		export function fillDefaults(value: Tasks.IPresentationOptions, context: IParseContext): Tasks.IPresentationOptions | undefined {
 			const defaultEcho = context.engine === Tasks.ExecutionEngine.Terminal ? true : false;
-			return _fillDefaults(value, { echo: defaultEcho, reveal: Tasks.RevealKind.Always, revealProblems: Tasks.RevealProblemKind.Never, focus: false, panel: Tasks.PanelKind.Shared, showReuseMessage: true, clear: false }, properties, context);
+			return _fillDefaults(value, { echo: defaultEcho, reveal: Tasks.RevealKind.Always, revealProblems: Tasks.RevealProblemKind.Never, focus: false, panel: Tasks.PanelKind.Shared, showReuseMessage: true, clear: false, preserveTerminalName: true }, properties, context);
 		}
 
 		export function freeze(value: Tasks.IPresentationOptions): Readonly<Tasks.IPresentationOptions> | undefined {

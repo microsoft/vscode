@@ -197,6 +197,11 @@ const presentation: IJSONSchema = {
 		close: {
 			type: 'boolean',
 			description: nls.localize('JsonSchema.tasks.presentation.close', 'Controls whether the terminal the task runs in is closed when the task exits.')
+		},
+		preserveTerminalName: {
+			type: 'boolean',
+			default: true,
+			description: nls.localize('JsonSchema.tasks.presentation.preserveTerminalName', 'Controls whether to preserve the task name in the terminal after task completion. Only applicable when panel is set to \'dedicated\'. Defaults to true for dedicated panels.')
 		}
 	}
 };
