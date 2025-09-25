@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EventType, addDisposableListener, getActiveWindow, isActiveElement } from '../../../../base/browser/dom.js';
+import { EventType, addDisposableListener, getActiveWindow, getWindow, isActiveElement } from '../../../../base/browser/dom.js';
 import { IKeyboardEvent, StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { ActionsOrientation } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { alert } from '../../../../base/browser/ui/aria/aria.js';
@@ -631,6 +631,12 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 		this._updateToolbar(this._currentProvider.actions, provider.options.type);
 
 		const hide = (e?: KeyboardEvent | IKeyboardEvent): void => {
+			if (!getWindow(this._editorWidget.getDomNode()).document.hasFocus()) {
+				// Window focus changed, keep accessible view active
+				e?.preventDefault();
+				e?.stopPropagation();
+				return;
+			}
 			if (!this._isInQuickPick) {
 				provider.onClose();
 			}
