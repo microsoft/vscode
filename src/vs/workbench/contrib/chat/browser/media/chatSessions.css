@@ -174,29 +174,32 @@
 }
 
 /* Override global file icon hiding for chat session icons */
+.monaco-workbench:not(.file-icons-enabled) .chat-sessions-tree-container .predefined-file-icon.codicon-loading::before,
+.monaco-workbench:not(.file-icons-enabled) .chat-sessions-tree-container .predefined-file-icon.codicon-pass::before,
+.monaco-workbench:not(.file-icons-enabled) .chat-sessions-tree-container .predefined-file-icon.codicon-error::before,
+.monaco-workbench:not(.file-icons-enabled) .chat-sessions-tree-container .predefined-file-icon.codicon-circle-outline::before,
+.monaco-workbench:not(.file-icons-enabled) .chat-sessions-tree-container .predefined-file-icon.codicon-chat-sparkle::before {
+	font-family: codicon !important;
+}
+
 .monaco-workbench:not(.file-icons-enabled) .chat-sessions-tree-container .predefined-file-icon.codicon-loading::before {
 	content: var(--vscode-icon-loading-content) !important;
-	font-family: var(--vscode-icon-loading-font-family, codicon) !important;
 }
 
 .monaco-workbench:not(.file-icons-enabled) .chat-sessions-tree-container .predefined-file-icon.codicon-pass::before {
 	content: var(--vscode-icon-pass-content) !important;
-	font-family: var(--vscode-icon-pass-font-family, codicon) !important;
 }
 
 .monaco-workbench:not(.file-icons-enabled) .chat-sessions-tree-container .predefined-file-icon.codicon-error::before {
 	content: var(--vscode-icon-error-content) !important;
-	font-family: var(--vscode-icon-error-font-family, codicon) !important;
 }
 
 .monaco-workbench:not(.file-icons-enabled) .chat-sessions-tree-container .predefined-file-icon.codicon-circle-outline::before {
 	content: var(--vscode-icon-circle-outline-content) !important;
-	font-family: var(--vscode-icon-circle-outline-font-family, codicon) !important;
 }
 
 .monaco-workbench:not(.file-icons-enabled) .chat-sessions-tree-container .predefined-file-icon.codicon-chat-sparkle::before {
 	content: var(--vscode-icon-chat-sparkle-content) !important;
-	font-family: var(--vscode-icon-chat-sparkle-font-family, codicon) !important;
 }
 
 /* Timestamp styling - similar to timeline pane */
