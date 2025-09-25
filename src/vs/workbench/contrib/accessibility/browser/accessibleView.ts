@@ -631,8 +631,9 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 		this._updateToolbar(this._currentProvider.actions, provider.options.type);
 
 		const hide = (e?: KeyboardEvent | IKeyboardEvent): void => {
-			if (!getWindow(this._editorWidget.getDomNode()).document.hasFocus()) {
-				// Window focus changed, keep accessible view active
+			const thisWindowIsFocused = getWindow(this._editorWidget.getDomNode()).document.hasFocus();
+			if (!thisWindowIsFocused) {
+				// When switching windows, keep accessible view open
 				e?.preventDefault();
 				e?.stopPropagation();
 				return;
