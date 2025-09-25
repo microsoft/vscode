@@ -252,6 +252,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	private _onDidChangeTaskProviders = this._register(new Emitter<void>());
 	public onDidChangeTaskProviders = this._onDidChangeTaskProviders.event;
 	private readonly _taskRunStartTimes = new Map<string, number>();
+	private readonly _taskRunSources = new Map<string, TaskRunSource>();
 
 	private _activatedTaskProviders: Set<string> = new Set();
 
@@ -418,6 +419,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				}
 				case TaskEventKind.Terminated:
 					this._taskRunStartTimes.delete(e.taskId);
+					this._taskRunSources.delete(e.taskId);
 					break;
 			}
 			if (e.kind === TaskEventKind.Changed) {
@@ -497,9 +499,12 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			return;
 		}
 		
-		// If chat response notifications are enabled, avoid showing duplicate notifications for tasks that may have been run by the agent
+		// Check if this task was started by the chat agent
+		const taskRunSource = this._taskRunSources.get(event.taskId);
 		const chatNotificationsEnabled = this._configurationService.getValue<boolean>(ChatConfiguration.NotifyWindowOnResponseReceived);
-		if (chatNotificationsEnabled) {
+		
+		// If task was run by chat agent and chat response notifications are enabled, avoid duplicate notifications
+		if (taskRunSource === TaskRunSource.ChatAgent && chatNotificationsEnabled) {
 			return;
 		}
 		
@@ -518,6 +523,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			? nls.localize('task.longRunningTaskCompletedWithLabel', 'Task "{0}" finished in {1}.', taskLabel, durationText)
 			: nls.localize('task.longRunningTaskCompleted', 'Task finished in {0}.', durationText);
 		this._taskRunStartTimes.delete(event.taskId);
+		this._taskRunSources.delete(event.taskId); // Clean up the run source tracking
 		this._hostService.focus(targetWindow, { mode: FocusMode.Notify });
 		const notification = await dom.triggerNotification(message);
 		if (notification) {
@@ -2091,6 +2097,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async _handleExecuteResult(executeResult: ITaskExecuteResult, runSource?: TaskRunSource): Promise<ITaskSummary> {
+		// Store the run source for this task so we can use it later in notification logic
+		if (runSource && executeResult.task._id) {
+			this._taskRunSources.set(executeResult.task._id, runSource);
+		}
+		
 		if (runSource === TaskRunSource.User) {
 			await this._setRecentlyUsedTask(executeResult.task);
 		}
