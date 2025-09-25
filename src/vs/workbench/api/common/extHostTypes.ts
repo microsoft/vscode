@@ -3790,6 +3790,9 @@ export class LanguageModelToolResult2 {
 }
 
 export class ExtendedLanguageModelToolResult extends LanguageModelToolResult {
+	toolResultMessage?: string | MarkdownString;
+	toolResultDetails?: Array<URI | Location>;
+	toolMetadata?: unknown;
 }
 
 export enum LanguageModelChatToolMode {

@@ -564,6 +564,11 @@ configurationRegistry.registerConfiguration({
 			],
 			default: 'always',
 		},
+		[TaskSettingId.NotifyWindowOnTaskCompletion]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('task.NotifyWindowOnTaskCompletion', 'Controls whether the window should notify the user when a task that takes greater than a minute to complete finishes while the window is not in focus. This includes a window badge as well as notification toast.'),
+			default: false
+		},
 		[TaskSettingId.VerboseLogging]: {
 			type: 'boolean',
 			description: nls.localize('task.verboseLogging', "Enable verbose logging for tasks."),

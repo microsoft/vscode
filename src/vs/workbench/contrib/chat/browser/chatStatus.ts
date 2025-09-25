@@ -518,7 +518,7 @@ class ChatStatusDashboard extends Disposable {
 				let descriptionText: string | MarkdownString;
 				let descriptionClass = '.description';
 				if (newUser && anonymousUser) {
-					descriptionText = new MarkdownString(localize('activateDescriptionAnonymous', "By continuing with {0} Copilot, you agree to {1}'s [Terms]({2}) and [Privacy Statement]({3})", defaultChat.provider.default.name, defaultChat.provider.default.name, defaultChat.termsStatementUrl, defaultChat.privacyStatementUrl), { isTrusted: true });
+					descriptionText = new MarkdownString(localize({ key: 'activeDescriptionAnonymous', comment: ['{Locked="]({2})"}', '{Locked="]({3})"}'] }, "By continuing with {0} Copilot, you agree to {1}'s [Terms]({2}) and [Privacy Statement]({3})", defaultChat.provider.default.name, defaultChat.provider.default.name, defaultChat.termsStatementUrl, defaultChat.privacyStatementUrl), { isTrusted: true });
 					descriptionClass = `${descriptionClass}.terms`;
 				} else if (newUser) {
 					descriptionText = localize('activateDescription', "Set up Copilot to use AI features.");
@@ -541,9 +541,11 @@ class ChatStatusDashboard extends Disposable {
 					buttonLabel = localize('signInToUseCopilotButton', "Sign in to use Copilot");
 				}
 
-				let setupArgs: { forceAnonymous: boolean } | undefined = undefined;
+				let commandId: string;
 				if (newUser && anonymousUser) {
-					setupArgs = { forceAnonymous: true };
+					commandId = 'workbench.action.chat.triggerSetupAnonymously';
+				} else {
+					commandId = 'workbench.action.chat.triggerSetup';
 				}
 
 				if (typeof descriptionText === 'string') {
@@ -555,7 +557,7 @@ class ChatStatusDashboard extends Disposable {
 
 				const button = disposables.add(new Button(this.element, { ...defaultButtonStyles, hoverDelegate: nativeHoverDelegate }));
 				button.label = buttonLabel;
-				disposables.add(button.onDidClick(() => this.runCommandAndClose('workbench.action.chat.triggerSetup', undefined, setupArgs)));
+				disposables.add(button.onDidClick(() => this.runCommandAndClose(commandId)));
 			}
 		}
 
