@@ -1329,7 +1329,7 @@ export function registerChatActions() {
 			const editorUri = editor.getModel()?.uri;
 			if (editorUri) {
 				const widgetService = accessor.get(IChatWidgetService);
-				widgetService.getWidgetByInputUri(editorUri)?.focusResponseItem(true);
+				widgetService.getWidgetByInputUri(editorUri)?.focusResponseItem();
 			}
 		}
 	});
@@ -1367,7 +1367,7 @@ export function registerChatActions() {
 			const editorUri = editor.getModel()?.uri;
 			if (editorUri) {
 				const widgetService = accessor.get(IChatWidgetService);
-				widgetService.getWidgetByInputUri(editorUri)?.focusResponseItem(false);
+				widgetService.getWidgetByInputUri(editorUri)?.focusResponseItem(true);
 			}
 		}
 	});
