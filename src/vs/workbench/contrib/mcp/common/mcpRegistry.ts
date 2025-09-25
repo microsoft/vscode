@@ -433,17 +433,20 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		this._onDidChangeInputs.fire();
 	}
 
-	private async _replaceVariablesInLaunch(definition: McpServerDefinition, launch: McpServerLaunch, errorOnUserInteraction?: boolean) {
+	private async _replaceVariablesInLaunch(delegate: IMcpHostDelegate, definition: McpServerDefinition, launch: McpServerLaunch, errorOnUserInteraction?: boolean) {
 		if (!definition.variableReplacement) {
 			return launch;
 		}
 
 		const { section, target, folder } = definition.variableReplacement;
 		const inputStorage = this._getInputStorageInConfigTarget(target);
-		const previouslyStored = await inputStorage.getMap();
+		const [previouslyStored, withRemoteFilled] = await Promise.all([
+			inputStorage.getMap(),
+			delegate.substituteVariables(definition, launch),
+		]);
 
 		// pre-fill the variables we already resolved to avoid extra prompting
-		const expr = ConfigurationResolverExpression.parse(launch);
+		const expr = ConfigurationResolverExpression.parse(withRemoteFilled);
 		for (const replacement of expr.unresolved()) {
 			if (previouslyStored.hasOwnProperty(replacement.id)) {
 				expr.resolve(replacement, previouslyStored[replacement.id]);
@@ -457,7 +460,6 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 				throw new UserInteractionRequiredError('variables');
 			}
 		}
-
 		// resolve variables requiring user input
 		await this._configurationResolverService.resolveWithInteraction(folder, expr, section, undefined, target);
 
@@ -500,7 +502,7 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		}
 
 		try {
-			launch = await this._replaceVariablesInLaunch(definition, launch, opts.errorOnUserInteraction);
+			launch = await this._replaceVariablesInLaunch(delegate, definition, launch, opts.errorOnUserInteraction);
 
 			if (definition.devMode && debug) {
 				launch = await this._instantiationService.invokeFunction(accessor => accessor.get(IMcpDevModeDebugging).transform(definition, launch!));

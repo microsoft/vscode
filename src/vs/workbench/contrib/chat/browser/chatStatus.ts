@@ -207,13 +207,13 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 			// Disabled
 			if (this.chatEntitlementService.sentiment.disabled || this.chatEntitlementService.sentiment.untrusted) {
-				text = `$(copilot-unavailable)`;
-				ariaLabel = localize('copilotDisabledStatus', "Copilot Disabled");
+				text = '$(copilot-unavailable)';
+				ariaLabel = localize('copilotDisabledStatus', "Copilot disabled");
 			}
 
 			// Sessions in progress
 			else if (chatSessionsInProgressCount > 0) {
-				text = `$(loading~spin)`;
+				text = '$(copilot-in-progress)';
 				if (chatSessionsInProgressCount > 1) {
 					ariaLabel = localize('chatSessionsInProgressStatus', "{0} chat sessions in progress", chatSessionsInProgressCount);
 				} else {
@@ -248,13 +248,13 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 			// Completions Disabled
 			else if (this.editorService.activeTextEditorLanguageId && !isCompletionsEnabled(this.configurationService, this.editorService.activeTextEditorLanguageId)) {
-				text = `$(copilot-unavailable)`;
+				text = '$(copilot-unavailable)';
 				ariaLabel = localize('completionsDisabledStatus', "Code completions disabled");
 			}
 
 			// Completions Snoozed
 			else if (this.completionsService.isSnoozing()) {
-				text = `$(copilot-snooze)`;
+				text = '$(copilot-snooze)';
 				ariaLabel = localize('completionsSnoozedStatus', "Code completions snoozed");
 			}
 		}
@@ -518,7 +518,7 @@ class ChatStatusDashboard extends Disposable {
 				let descriptionText: string | MarkdownString;
 				let descriptionClass = '.description';
 				if (newUser && anonymousUser) {
-					descriptionText = new MarkdownString(localize('activateDescriptionAnonymous', "By continuing with {0} Copilot, you agree to {1}'s [Terms]({2}) and [Privacy Statement]({3})", defaultChat.provider.default.name, defaultChat.provider.default.name, defaultChat.termsStatementUrl, defaultChat.privacyStatementUrl), { isTrusted: true });
+					descriptionText = new MarkdownString(localize({ key: 'activeDescriptionAnonymous', comment: ['{Locked="]({2})"}', '{Locked="]({3})"}'] }, "By continuing with {0} Copilot, you agree to {1}'s [Terms]({2}) and [Privacy Statement]({3})", defaultChat.provider.default.name, defaultChat.provider.default.name, defaultChat.termsStatementUrl, defaultChat.privacyStatementUrl), { isTrusted: true });
 					descriptionClass = `${descriptionClass}.terms`;
 				} else if (newUser) {
 					descriptionText = localize('activateDescription', "Set up Copilot to use AI features.");
