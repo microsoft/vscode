@@ -16,7 +16,7 @@ import { extensionPrefixedIdentifier, McpCollectionDefinition, McpConnectionStat
 import { ExtHostMcpShape, MainContext, MainThreadMcpShape } from './extHost.protocol.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 import * as Convert from './extHostTypeConverters.js';
-import { AUTH_SERVER_METADATA_DISCOVERY_PATH, AUTH_PROTECTED_RESOURCE_METADATA_DISCOVERY_PATH, OPENID_CONNECT_DISCOVERY_PATH, getDefaultMetadataForUrl, IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata, isAuthorizationProtectedResourceMetadata, isAuthorizationServerMetadata, parseWWWAuthenticateHeader } from '../../../base/common/oauth.js';
+import { AUTH_SERVER_METADATA_DISCOVERY_PATH, OPENID_CONNECT_DISCOVERY_PATH, getDefaultMetadataForUrl, IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata, isAuthorizationProtectedResourceMetadata, isAuthorizationServerMetadata, parseWWWAuthenticateHeader, fetchProtectedResourceMetadata } from '../../../base/common/oauth.js';
 import { URI } from '../../../base/common/uri.js';
 import { MCP } from '../../contrib/mcp/common/modelContextProtocol.js';
 import { CancellationError } from '../../../base/common/errors.js';
@@ -363,7 +363,24 @@ class McpHTTPHandle extends Disposable {
 		} else {
 			// Fallback to well-known URI discovery when WWW-Authenticate header is missing or doesn't contain resource_metadata
 			// According to RFC9728, MCP clients MUST support both discovery mechanisms
-			resource = await this._tryWellKnownResourceMetadataDiscovery(mcpUrl);
+			
+			// Create a wrapper function that adapts this._fetch to the standard fetch signature
+			const fetchAdapter = async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
+				const url = typeof input === 'string' ? input : input.toString();
+				return this._fetch(url, {
+					method: init?.method || 'GET',
+					headers: (init?.headers as Record<string, string>) || {},
+					body: init?.body as Uint8Array<ArrayBuffer> | undefined
+				});
+			};
+			
+			resource = await fetchProtectedResourceMetadata(mcpUrl, {
+				sameOriginHeaders: {
+					...Object.fromEntries(this._launch.headers),
+					'MCP-Protocol-Version': MCP.LATEST_PROTOCOL_VERSION
+				},
+				fetch: fetchAdapter
+			});
 			if (resource) {
 				this._validateResourceMetadata(resource, mcpUrl);
 				serverMetadataUrl = resource.authorization_servers?.[0];
@@ -435,81 +452,6 @@ class McpHTTPHandle extends Disposable {
 		} else {
 			throw new Error(`Invalid resource metadata. Expected to follow shape of https://datatracker.ietf.org/doc/html/rfc9728#name-protected-resource-metadata (Hints: is scopes_supported an array? Is resource a string?). Current payload: ${JSON.stringify(body)}`);
 		}
-	}
-
-	/**
-	 * Attempts to discover OAuth protected resource metadata using well-known URIs as per RFC9728.
-	 * This method implements the fallback discovery mechanism when WWW-Authenticate headers
-	 * are not present or don't contain resource_metadata.
-	 * 
-	 * The method tries two well-known URI patterns in the specified order:
-	 * 1. Path insertion: Insert /.well-known/oauth-protected-resource after origin and before MCP path
-	 * 2. Root: Append /.well-known/oauth-protected-resource to the origin
-	 * 
-	 * @param mcpUrl - The MCP server URL to discover metadata for
-	 * @returns Promise resolving to protected resource metadata if found, undefined otherwise
-	 */
-	private async _tryWellKnownResourceMetadataDiscovery(mcpUrl: string): Promise<IAuthorizationProtectedResourceMetadata | undefined> {
-		const mcpServerUrl = new URL(mcpUrl);
-		
-		// Try the two well-known URI patterns as specified in RFC9728:
-		// 1. At the path of the server's MCP endpoint: insert .well-known path after origin and before MCP path
-		// 2. At the root: append .well-known path to the origin
-		
-		const wellKnownUrls: string[] = [];
-		
-		// Pattern 1: Path insertion - insert /.well-known/oauth-protected-resource after origin and before path
-		if (mcpServerUrl.pathname !== '/') {
-			const pathInsertionUrl = new URL(AUTH_PROTECTED_RESOURCE_METADATA_DISCOVERY_PATH, mcpServerUrl.origin).toString() + mcpServerUrl.pathname;
-			wellKnownUrls.push(pathInsertionUrl);
-		}
-		
-		// Pattern 2: Root - append /.well-known/oauth-protected-resource to origin
-		const rootUrl = new URL(AUTH_PROTECTED_RESOURCE_METADATA_DISCOVERY_PATH, mcpServerUrl.origin).toString();
-		wellKnownUrls.push(rootUrl);
-		
-		// Try each well-known URL in order
-		for (const wellKnownUrl of wellKnownUrls) {
-			try {
-				this._log(LogLevel.Debug, `Attempting to fetch protected resource metadata from well-known URI: ${wellKnownUrl}`);
-				
-				// Use launch headers if we're talking to the same origin as the MCP server
-				let additionalHeaders: Record<string, string> = {};
-				const wellKnownUrlObject = new URL(wellKnownUrl);
-				if (wellKnownUrlObject.origin === mcpServerUrl.origin) {
-					additionalHeaders = {
-						...Object.fromEntries(this._launch.headers)
-					};
-				}
-				
-				const response = await this._fetch(wellKnownUrl, {
-					method: 'GET',
-					headers: {
-						...additionalHeaders,
-						'Accept': 'application/json',
-						'MCP-Protocol-Version': MCP.LATEST_PROTOCOL_VERSION
-					}
-				});
-				
-				if (response.status === 200) {
-					const body = await response.json();
-					if (isAuthorizationProtectedResourceMetadata(body)) {
-						this._log(LogLevel.Debug, `Successfully fetched protected resource metadata from: ${wellKnownUrl}`);
-						return body;
-					} else {
-						this._log(LogLevel.Debug, `Invalid protected resource metadata format from ${wellKnownUrl}: ${JSON.stringify(body)}`);
-					}
-				} else {
-					this._log(LogLevel.Debug, `Failed to fetch from ${wellKnownUrl}: ${response.status} ${await this._getErrText(response)}`);
-				}
-			} catch (error) {
-				this._log(LogLevel.Debug, `Error fetching from well-known URI ${wellKnownUrl}: ${String(error)}`);
-				// Continue to next URL
-			}
-		}
-		
-		this._log(LogLevel.Debug, `No protected resource metadata found via well-known URI discovery`);
-		return undefined;
 	}
 
 	private async _getAuthorizationServerMetadata(authorizationServer: string, addtionalHeaders: Record<string, string>): Promise<IAuthorizationServerMetadata> {

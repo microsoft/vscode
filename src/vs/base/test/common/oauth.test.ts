@@ -17,6 +17,7 @@ import {
 	isAuthorizationTokenResponse,
 	parseWWWAuthenticateHeader,
 	fetchDynamicRegistration,
+	fetchProtectedResourceMetadata,
 	scopesMatch,
 	IAuthorizationJWTClaims,
 	IAuthorizationServerMetadata,
@@ -829,6 +830,211 @@ suite('OAuth', () => {
 				async () => await fetchDynamicRegistration(serverMetadata, 'Test Client'),
 				/Registration to https:\/\/auth\.example\.com\/register failed: DCR not supported/
 			);
+		});
+	});
+
+	suite('Protected Resource Metadata Discovery', () => {
+		let sandbox: sinon.SinonSandbox;
+		let fetchStub: sinon.SinonStub;
+
+		setup(() => {
+			sandbox = sinon.createSandbox();
+			fetchStub = sandbox.stub(globalThis, 'fetch');
+		});
+
+		teardown(() => {
+			sandbox.restore();
+		});
+
+		test('fetchProtectedResourceMetadata should try path insertion URL first, then root URL', async () => {
+			const mockMetadata = {
+				resource: 'https://api.example.com/mcp',
+				authorization_servers: ['https://auth.example.com']
+			};
+
+			// First call (path insertion) fails, second call (root) succeeds
+			fetchStub.onFirstCall().resolves({
+				status: 404,
+				json: async () => ({})
+			} as Response);
+
+			fetchStub.onSecondCall().resolves({
+				status: 200,
+				json: async () => mockMetadata
+			} as Response);
+
+			const result = await fetchProtectedResourceMetadata('https://api.example.com/mcp');
+
+			assert.strictEqual(fetchStub.callCount, 2);
+			
+			// Verify first call was to path insertion URL
+			const [firstUrl] = fetchStub.firstCall.args;
+			assert.strictEqual(firstUrl, 'https://api.example.com/.well-known/oauth-protected-resource/mcp');
+			
+			// Verify second call was to root URL
+			const [secondUrl] = fetchStub.secondCall.args;
+			assert.strictEqual(secondUrl, 'https://api.example.com/.well-known/oauth-protected-resource');
+
+			assert.deepStrictEqual(result, mockMetadata);
+		});
+
+		test('fetchProtectedResourceMetadata should return undefined if no valid metadata found', async () => {
+			fetchStub.resolves({
+				status: 404,
+				json: async () => ({})
+			} as Response);
+
+			const result = await fetchProtectedResourceMetadata('https://api.example.com/mcp');
+			
+			assert.strictEqual(result, undefined);
+			assert.strictEqual(fetchStub.callCount, 2); // Should try both URLs
+		});
+
+		test('fetchProtectedResourceMetadata should return undefined if response has invalid metadata format', async () => {
+			fetchStub.resolves({
+				status: 200,
+				json: async () => ({ invalid: 'data' }) // Missing required 'resource' field
+			} as Response);
+
+			const result = await fetchProtectedResourceMetadata('https://api.example.com/mcp');
+			
+			assert.strictEqual(result, undefined);
+		});
+
+		test('fetchProtectedResourceMetadata should handle network errors gracefully', async () => {
+			fetchStub.onFirstCall().rejects(new Error('Network error'));
+			fetchStub.onSecondCall().resolves({
+				status: 200,
+				json: async () => ({
+					resource: 'https://api.example.com/mcp',
+					authorization_servers: ['https://auth.example.com']
+				})
+			} as Response);
+
+			const result = await fetchProtectedResourceMetadata('https://api.example.com/mcp');
+			
+			// Should continue to second URL even after first URL throws
+			assert.strictEqual(fetchStub.callCount, 2);
+			assert.strictEqual(result?.resource, 'https://api.example.com/mcp');
+		});
+
+		test('fetchProtectedResourceMetadata should include same-origin headers when appropriate', async () => {
+			const mockMetadata = {
+				resource: 'https://api.example.com/mcp',
+				authorization_servers: ['https://auth.example.com']
+			};
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => mockMetadata
+			} as Response);
+
+			await fetchProtectedResourceMetadata('https://api.example.com/mcp', {
+				sameOriginHeaders: { 'Authorization': 'Bearer token123' }
+			});
+
+			// Check that same-origin headers were included (both URLs are same-origin)
+			const [, firstInit] = fetchStub.firstCall.args;
+			assert.deepStrictEqual(firstInit.headers, {
+				'Accept': 'application/json',
+				'Authorization': 'Bearer token123'
+			});
+		});
+
+		test('fetchProtectedResourceMetadata should not include same-origin headers for different origins', async () => {
+			fetchStub.resolves({
+				status: 404,
+				json: async () => ({})
+			} as Response);
+
+			await fetchProtectedResourceMetadata('https://api.example.com/mcp', {
+				sameOriginHeaders: { 'Authorization': 'Bearer token123' }
+			});
+
+			// Headers should only include Accept since all well-known URLs are same-origin
+			const [, firstInit] = fetchStub.firstCall.args;
+			assert.deepStrictEqual(firstInit.headers, {
+				'Accept': 'application/json',
+				'Authorization': 'Bearer token123'
+			});
+		});
+
+		test('fetchProtectedResourceMetadata should use custom fetch function when provided', async () => {
+			const customFetch = sinon.stub();
+			const mockMetadata = {
+				resource: 'https://api.example.com/mcp',
+				authorization_servers: ['https://auth.example.com']
+			};
+
+			customFetch.resolves({
+				status: 200,
+				json: async () => mockMetadata
+			} as Response);
+
+			const result = await fetchProtectedResourceMetadata('https://api.example.com/mcp', {
+				fetch: customFetch
+			});
+
+			assert.strictEqual(customFetch.callCount, 1);
+			assert.strictEqual(fetchStub.callCount, 0); // Global fetch should not be called
+			assert.deepStrictEqual(result, mockMetadata);
+		});
+
+		test('fetchProtectedResourceMetadata should only try root URL for root resource URLs', async () => {
+			const mockMetadata = {
+				resource: 'https://api.example.com/',
+				authorization_servers: ['https://auth.example.com']
+			};
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => mockMetadata
+			} as Response);
+
+			await fetchProtectedResourceMetadata('https://api.example.com/');
+
+			// Should only try root URL since pathname is '/'
+			assert.strictEqual(fetchStub.callCount, 1);
+			const [url] = fetchStub.firstCall.args;
+			assert.strictEqual(url, 'https://api.example.com/.well-known/oauth-protected-resource');
+		});
+
+		test('fetchProtectedResourceMetadata should handle complex paths correctly', async () => {
+			fetchStub.resolves({
+				status: 404,
+				json: async () => ({})
+			} as Response);
+
+			await fetchProtectedResourceMetadata('https://api.example.com/v1/mcp/endpoint');
+
+			assert.strictEqual(fetchStub.callCount, 2);
+			
+			// First call should be path insertion
+			const [firstUrl] = fetchStub.firstCall.args;
+			assert.strictEqual(firstUrl, 'https://api.example.com/.well-known/oauth-protected-resource/v1/mcp/endpoint');
+			
+			// Second call should be root
+			const [secondUrl] = fetchStub.secondCall.args;
+			assert.strictEqual(secondUrl, 'https://api.example.com/.well-known/oauth-protected-resource');
+		});
+
+		test('fetchProtectedResourceMetadata should return first successful response', async () => {
+			const mockMetadata = {
+				resource: 'https://api.example.com/mcp',
+				authorization_servers: ['https://auth.example.com']
+			};
+
+			// First call succeeds
+			fetchStub.onFirstCall().resolves({
+				status: 200,
+				json: async () => mockMetadata
+			} as Response);
+
+			const result = await fetchProtectedResourceMetadata('https://api.example.com/mcp');
+
+			// Should only make one call since first one succeeded
+			assert.strictEqual(fetchStub.callCount, 1);
+			assert.deepStrictEqual(result, mockMetadata);
 		});
 	});
 });

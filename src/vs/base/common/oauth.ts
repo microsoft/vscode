@@ -957,3 +957,102 @@ export function scopesMatch(scopes1: readonly string[], scopes2: readonly string
 
 	return sortedScopes1.every((scope, index) => scope === sortedScopes2[index]);
 }
+
+/**
+ * Options for fetching protected resource metadata via well-known URI discovery.
+ */
+export interface IProtectedResourceMetadataFetchOptions {
+	/**
+	 * Additional headers to include in requests when the well-known URI is on the same origin
+	 * as the resource URL. This is typically used for authentication or API keys.
+	 */
+	sameOriginHeaders?: Record<string, string>;
+	
+	/**
+	 * Custom fetch function to use for HTTP requests. Defaults to globalThis.fetch.
+	 */
+	fetch?: typeof fetch;
+}
+
+/**
+ * Discovers OAuth protected resource metadata using well-known URIs as specified in RFC 9728.
+ * This implements the fallback discovery mechanism for when WWW-Authenticate headers
+ * are not present or don't contain resource_metadata.
+ * 
+ * The function tries two well-known URI patterns in the specified order:
+ * 1. Path insertion: Insert /.well-known/oauth-protected-resource after origin and before resource path
+ * 2. Root: Append /.well-known/oauth-protected-resource to the origin
+ * 
+ * @param resourceUrl - The resource URL to discover metadata for
+ * @param options - Optional configuration for the discovery process
+ * @returns Promise resolving to protected resource metadata if found, undefined otherwise
+ * 
+ * @example
+ * ```typescript
+ * // Basic usage
+ * const metadata = await fetchProtectedResourceMetadata('https://api.example.com/mcp');
+ * 
+ * // With custom headers for same-origin requests
+ * const metadata = await fetchProtectedResourceMetadata('https://api.example.com/mcp', {
+ *   sameOriginHeaders: { 'Authorization': 'Bearer token' }
+ * });
+ * ```
+ */
+export async function fetchProtectedResourceMetadata(
+	resourceUrl: string, 
+	options: IProtectedResourceMetadataFetchOptions = {}
+): Promise<IAuthorizationProtectedResourceMetadata | undefined> {
+	const { sameOriginHeaders = {}, fetch: fetchFn = globalThis.fetch } = options;
+	const resourceUrlObject = new URL(resourceUrl);
+	
+	// Construct the two well-known URI patterns as specified in RFC9728:
+	// 1. At the path of the resource endpoint: insert .well-known path after origin and before resource path
+	// 2. At the root: append .well-known path to the origin
+	
+	const wellKnownUrls: string[] = [];
+	
+	// Pattern 1: Path insertion - insert /.well-known/oauth-protected-resource after origin and before path
+	if (resourceUrlObject.pathname !== '/') {
+		const pathInsertionUrl = new URL(AUTH_PROTECTED_RESOURCE_METADATA_DISCOVERY_PATH, resourceUrlObject.origin).toString() + resourceUrlObject.pathname;
+		wellKnownUrls.push(pathInsertionUrl);
+	}
+	
+	// Pattern 2: Root - append /.well-known/oauth-protected-resource to origin
+	const rootUrl = new URL(AUTH_PROTECTED_RESOURCE_METADATA_DISCOVERY_PATH, resourceUrlObject.origin).toString();
+	wellKnownUrls.push(rootUrl);
+	
+	// Try each well-known URL in order
+	for (const wellKnownUrl of wellKnownUrls) {
+		try {
+			// Use additional headers if we're talking to the same origin as the resource
+			let requestHeaders: Record<string, string> = {
+				'Accept': 'application/json'
+			};
+			
+			const wellKnownUrlObject = new URL(wellKnownUrl);
+			if (wellKnownUrlObject.origin === resourceUrlObject.origin && Object.keys(sameOriginHeaders).length > 0) {
+				requestHeaders = {
+					...requestHeaders,
+					...sameOriginHeaders
+				};
+			}
+			
+			const response = await fetchFn(wellKnownUrl, {
+				method: 'GET',
+				headers: requestHeaders
+			});
+			
+			if (response.status === 200) {
+				const body = await response.json();
+				if (isAuthorizationProtectedResourceMetadata(body)) {
+					return body;
+				}
+			}
+		} catch (error) {
+			// Continue to next URL on error
+			continue;
+		}
+	}
+	
+	return undefined;
+}
