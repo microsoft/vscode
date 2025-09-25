@@ -48,6 +48,7 @@ import { ITerminalGroupService, ITerminalService } from '../../terminal/browser/
 import { ITerminalProfileResolverService } from '../../terminal/common/terminal.js';
 
 import { ConfiguringTask, ContributedTask, CustomTask, ExecutionEngine, InMemoryTask, InstancePolicy, ITaskEvent, ITaskIdentifier, ITaskInactiveEvent, ITaskProcessEndedEvent, ITaskSet, JsonSchemaVersion, KeyedTaskIdentifier, RerunAllRunningTasksCommandId, RuntimeType, Task, TASK_RUNNING_STATE, TaskDefinition, TaskEventKind, TaskGroup, TaskRunSource, TaskSettingId, TaskSorter, TaskSourceKind, TasksSchemaProperties, USER_TASKS_GROUP_KEY } from '../common/tasks.js';
+import { ChatConfiguration } from '../../chat/common/constants.js';
 import { CustomExecutionSupportedContext, ICustomizationProperties, IProblemMatcherRunOptions, ITaskFilter, ITaskProvider, ITaskService, IWorkspaceFolderTaskResult, ProcessExecutionSupportedContext, ServerlessWebContext, ShellExecutionSupportedContext, TaskCommandsRegistered, TaskExecutionSupportedContext, TasksAvailableContext } from '../common/taskService.js';
 import { ITaskExecuteResult, ITaskResolver, ITaskSummary, ITaskSystem, ITaskSystemInfo, ITaskTerminateResponse, TaskError, TaskErrors, TaskExecuteKind, Triggers, VerifiedTask } from '../common/taskSystem.js';
 import { getTemplates as getTaskTemplates } from '../common/taskTemplates.js';
@@ -204,7 +205,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	private static readonly RecentlyUsedTasks_KeyV2 = 'workbench.tasks.recentlyUsedTasks2';
 	private static readonly PersistentTasks_Key = 'workbench.tasks.persistentTasks';
 	private static readonly IgnoreTask010DonotShowAgain_key = 'workbench.tasks.ignoreTask010Shown';
-	private static readonly LongRunningTaskNotificationThreshold = 60000; // 1 minute in milliseconds
 
 	public _serviceBrand: undefined;
 	public static OutputChannelId: string = 'tasks';
@@ -491,9 +491,17 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async _handleLongRunningTaskCompletion(event: ITaskProcessEndedEvent | ITaskInactiveEvent, durationMs: number): Promise<void> {
-		if (durationMs < AbstractTaskService.LongRunningTaskNotificationThreshold) {
+		const notificationThreshold = this._configurationService.getValue<number>(TaskSettingId.NotifyWindowOnTaskCompletion);
+		if (!notificationThreshold || durationMs < notificationThreshold) {
 			return;
 		}
+		
+		// If chat response notifications are enabled, avoid showing duplicate notifications for tasks that may have been run by the agent
+		const chatNotificationsEnabled = this._configurationService.getValue<boolean>(ChatConfiguration.NotifyWindowOnResponseReceived);
+		if (chatNotificationsEnabled) {
+			return;
+		}
+		
 		const terminalForTask = this._terminalService.instances.find(i => i.instanceId === event.terminalId);
 		if (!terminalForTask) {
 			return;
@@ -501,9 +509,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		const taskLabel = terminalForTask.title;
 		const targetWindow = dom.getWindow(terminalForTask.domElement);
 		if (targetWindow.document.hasFocus()) {
-			return;
-		}
-		if (!this._configurationService.getValue<boolean>(TaskSettingId.NotifyWindowOnTaskCompletion)) {
 			return;
 		}
 
