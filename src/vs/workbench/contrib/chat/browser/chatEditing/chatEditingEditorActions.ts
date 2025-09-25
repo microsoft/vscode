@@ -2,12 +2,16 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+import '../media/chatEditorController.css';
+
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { URI } from '../../../../../base/common/uri.js'; // Used for entry.modifiedURI type in ExplainHunkAction
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, IAction2Options, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -22,7 +26,8 @@ import { NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_EDITOR_FOCUSED } from '../../../no
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, IChatEditingService, IChatEditingSession, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
-import { ctxHasEditorModification, ctxIsCurrentlyBeingModified, ctxIsGlobalEditingSession, ctxReviewModeEnabled } from './chatEditingEditorContextKeys.js';
+import { DiffHunkWidget } from './chatEditingCodeEditorIntegration.js';
+import { ctxHasEditorModification, ctxHasRequestInProgress, ctxIsCurrentlyBeingModified, ctxIsGlobalEditingSession, ctxReviewModeEnabled } from './chatEditingEditorContextKeys.js';
 
 
 abstract class ChatEditingEditorAction extends Action2 {
@@ -322,6 +327,34 @@ class ToggleAccessibleDiffViewAction extends ChatEditingEditorAction {
 	}
 }
 
+class ExplainHunkAction extends ChatEditingEditorAction {
+	constructor() {
+		super({
+			id: 'chatEditor.action.explainHunk',
+			title: localize2('explainHunk', 'Explain this Change'),
+			precondition: ContextKeyExpr.and(ctxHasEditorModification, ctxHasRequestInProgress.negate()),
+			icon: Codicon.sparkle,
+			f1: false,
+			menu: {
+				id: MenuId.ChatEditingEditorHunk,
+				order: 5
+			}
+		});
+	}
+
+	override async runChatEditingCommand(accessor: ServicesAccessor, _session: IChatEditingSession, entry: IModifiedFileEntry, _integration: IModifiedFileEntryEditorIntegration, ...args: unknown[]): Promise<void> {
+		const commandService = accessor.get(ICommandService);
+
+		const hunkWidget = args[0] as DiffHunkWidget;
+		const diffRange = hunkWidget?.getChangeRange();
+
+		await commandService.executeCommand('workbench.action.chat.open', {
+			query: '/explain this change',
+			attachFiles: [{ uri: entry.modifiedURI as URI, range: diffRange }]
+		});
+	}
+}
+
 export class ReviewChangesAction extends ChatEditingEditorAction {
 
 	constructor() {
@@ -426,6 +459,7 @@ export function registerChatEditorActions() {
 	registerAction2(class RejectHunkAction extends AcceptRejectHunkAction { constructor() { super(false); } });
 	registerAction2(ToggleDiffAction);
 	registerAction2(ToggleAccessibleDiffViewAction);
+	registerAction2(ExplainHunkAction);
 
 	registerAction2(class extends MultiDiffAcceptDiscardAction { constructor() { super(true); } });
 	registerAction2(class extends MultiDiffAcceptDiscardAction { constructor() { super(false); } });
