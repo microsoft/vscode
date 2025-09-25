@@ -660,7 +660,7 @@ export interface IShellLaunchConfig {
 
 	/**
 	 * For task terminals, controls whether to preserve the task name after task completion.
-	 * When true, prevents process title changes from overriding the API-set task name.
+	 * When true, prevents process title changes from overriding the task name.
 	 */
 	preserveTaskName?: boolean;
 }
