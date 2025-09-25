@@ -184,6 +184,7 @@ div.chat-welcome-view {
 		color: var(--vscode-input-placeholderForeground);
 		margin: 16px auto;
 		padding: 0 12px;
+		padding-bottom: min(24px, max(0px, calc(24px - 1000 * (100% - 213px))));
 		a {
 			color: var(--vscode-textLink-foreground);
 		}
@@ -196,12 +197,6 @@ div.chat-welcome-view {
 		max-width: 400px;
 		a {
 			color: var(--vscode-textLink-foreground);
-		}
-	}
-
-	@media (max-width: 213px) {
-		.interactive-session .chat-welcome-view-container.has-chat-history & > .chat-welcome-view-disclaimer {
-			padding-bottom: 24px;
 		}
 	}
 
