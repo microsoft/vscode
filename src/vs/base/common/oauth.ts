@@ -1060,14 +1060,16 @@ export async function fetchProtectedResourceMetadata(
 	
 	const wellKnownUrls: string[] = [];
 	
-	// Pattern 1: Path insertion - insert /.well-known/oauth-protected-resource after origin and before path
+	// Always start with the root well-known URL
+	const rootUrl = new URL(AUTH_PROTECTED_RESOURCE_METADATA_DISCOVERY_PATH, resourceUrlObject.origin).toString();
+	
+	// If the resource has a meaningful path (more than just '/'), also try path insertion
 	if (resourceUrlObject.pathname !== '/') {
-		const pathInsertionUrl = new URL(AUTH_PROTECTED_RESOURCE_METADATA_DISCOVERY_PATH, resourceUrlObject.origin).toString() + resourceUrlObject.pathname;
+		const pathInsertionUrl = rootUrl + resourceUrlObject.pathname;
 		wellKnownUrls.push(pathInsertionUrl);
 	}
 	
-	// Pattern 2: Root - append /.well-known/oauth-protected-resource to origin
-	const rootUrl = new URL(AUTH_PROTECTED_RESOURCE_METADATA_DISCOVERY_PATH, resourceUrlObject.origin).toString();
+	// Always include the root URL as fallback
 	wellKnownUrls.push(rootUrl);
 	
 	// Try each well-known URL in order
