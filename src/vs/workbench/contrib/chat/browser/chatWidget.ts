@@ -1557,12 +1557,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					listInactiveSelectionIconForeground: undefined,
 				}
 			}));
-		// Add focus listener for items to update _mostRecentlyFocusedItemIndex
-		this._register(this.tree.onDidFocus(() => {
+
+		this._register(this.tree.onDidChangeFocus(() => {
 			const focused = this.tree.getFocus();
 			if (focused && focused.length > 0) {
+				const focusedItem = focused[0];
 				const items = this.tree.getNode(null).children;
-				const idx = items.findIndex(i => i.element === focused[0]);
+				const idx = items.findIndex(i => i.element === focusedItem);
 				if (idx !== -1) {
 					this._mostRecentlyFocusedItemIndex = idx;
 				}
