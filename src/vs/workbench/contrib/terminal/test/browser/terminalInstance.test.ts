@@ -151,7 +151,7 @@ suite('Workbench - TerminalInstance', () => {
 			deepStrictEqual(terminalInstance.shellLaunchConfig.env, { TEST: 'TEST' });
 		});
 
-		test('should preserve API-set title for task terminals when preserveTaskName is enabled', async () => {
+		test('should preserve title for task terminals when preserveTaskName is enabled', async () => {
 			const instantiationService = workbenchInstantiationService({
 				configurationService: () => new TestConfigurationService({
 					files: {},
