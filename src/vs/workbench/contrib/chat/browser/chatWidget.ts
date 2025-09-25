@@ -2394,16 +2394,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return this.renderer.getLastFocusedFileTreeForResponse(response);
 	}
 
-	focusResponseItem(last?: boolean): void {
+	focusResponseItem(lastFocused?: boolean): void {
 		if (!this.viewModel) {
 			return;
 		}
 		const items = this.tree.getNode(null).children;
 		let item;
-		if (last) {
-			item = items[items.length - 1];
-		} else {
+		if (lastFocused) {
 			item = items[this._mostRecentlyFocusedItemIndex] ?? items[items.length - 1];
+		} else {
+			item = items[items.length - 1];
 		}
 		if (!item) {
 			return;

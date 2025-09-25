@@ -238,10 +238,10 @@ export interface IChatWidget {
 	setInputPlaceholder(placeholder: string): void;
 	resetInputPlaceholder(): void;
 	/**
-	 * Focus the most recent response
-	 * @param last Focus the most recent response. When false, focuses the most recently focused message.
+	 * Focuses the response item in the list.
+	 * @param lastFocused Focuses the most recently focused response. Otherwise, focuses the last response.
 	 */
-	focusResponseItem(last?: boolean): void;
+	focusResponseItem(lastFocused?: boolean): void;
 	focusInput(): void;
 	hasInputFocus(): boolean;
 	getModeRequestOptions(): Partial<IChatSendRequestOptions>;
