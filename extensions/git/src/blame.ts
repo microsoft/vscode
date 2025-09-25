@@ -9,7 +9,7 @@ import { dispose, fromNow, getCommitShortHash, IDisposable, truncate } from './u
 import { Repository } from './repository';
 import { throttle } from './decorators';
 import { BlameInformation, Commit } from './git';
-import { fromGitUri, isGitUri, toGitUri } from './uri';
+import { fromGitUri, isGitUri } from './uri';
 import { emojify, ensureEmojis } from './emoji';
 import { getWorkingTreeAndIndexDiffInformation, getWorkingTreeDiffInformation } from './staging';
 import { provideSourceControlHistoryItemAvatar, provideSourceControlHistoryItemHoverCommands, provideSourceControlHistoryItemMessageLinks } from './historyItemDetailsProvider';
@@ -150,7 +150,7 @@ class GitBlameInformationCache {
 	}
 
 	private _getCacheKey(resource: Uri, cacheKey: string): string {
-		return `${toGitUri(resource, '').toString()}-${cacheKey}`;
+		return `${resource.toString()}-${cacheKey}`;
 	}
 }
 
@@ -416,7 +416,7 @@ export class GitBlameController {
 		const ignoreWhitespace = config.get<boolean>('blame.ignoreWhitespace', false);
 
 		// Create cache key that includes the ignoreWhitespace setting
-		const cacheKey = `${commit}-${ignoreWhitespace}`;
+		const cacheKey = JSON.stringify({ commit, ignoreWhitespace });
 		const resourceBlameInformation = this._repositoryBlameCache.get(repository, resource, cacheKey);
 		if (resourceBlameInformation) {
 			return resourceBlameInformation;
