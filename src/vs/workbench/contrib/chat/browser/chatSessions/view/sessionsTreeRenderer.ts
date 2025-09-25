@@ -317,7 +317,7 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 			title: !renderDescriptionOnSecondRow || !session.description ? tooltipContent : undefined
 		});
 
-		// Add a CSS class to the container to enable  specific CSS rules
+		// Add CSS class to enable chat session icon visibility when FileIcon setting is disabled
 		templateData.container.classList.add('chat-session-icons-always-visible');
 
 
