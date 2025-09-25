@@ -200,7 +200,7 @@ const presentation: IJSONSchema = {
 		},
 		preserveTerminalName: {
 			type: 'boolean',
-			default: true,
+			default: false,
 			description: nls.localize('JsonSchema.tasks.presentation.preserveTerminalName', 'Controls whether to preserve the task name in the terminal after task completion.')
 		}
 	}
