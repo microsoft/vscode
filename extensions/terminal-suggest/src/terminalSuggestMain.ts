@@ -306,7 +306,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 			const cwd = result.cwd ?? terminal.shellIntegration?.cwd;
 			if (cwd && (result.filesRequested || result.foldersRequested)) {
-				const globPattern = createFileRegex(result.fileExtensions);
+				const globPattern = createFileGlobPattern(result.fileExtensions);
 				return new vscode.TerminalCompletionList(result.items, {
 					filesRequested: result.filesRequested,
 					foldersRequested: result.foldersRequested,
@@ -564,16 +564,13 @@ export function sanitizeProcessEnvironment(env: Record<string, string>, ...prese
 		});
 }
 
-
-// Escapes regex special characters in a string
-function escapeRegExp(str: string): string {
-	return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-function createFileRegex(fileExtensions?: string[]): vscode.GlobPattern | undefined {
+function createFileGlobPattern(fileExtensions?: string[]): vscode.GlobPattern | undefined {
 	if (!fileExtensions || fileExtensions.length === 0) {
 		return undefined;
 	}
-	const exts = fileExtensions.map(ext => ext.startsWith('.') ? ext : '.' + ext);
-	return `.*(${exts.map(ext => escapeRegExp(ext)).join('|')})$`;
+	const exts = fileExtensions.map(ext => ext.startsWith('.') ? ext.slice(1) : ext);
+	if (exts.length === 1) {
+		return `**/*.${exts[0]}`;
+	}
+	return `**/*.{${exts.join(',')}}`;
 }
