@@ -167,7 +167,7 @@
     "fancy-log": "^1.3.3",
     "file-loader": "^6.2.0",
     "glob": "^5.0.13",
-    "gulp": "^4.0.0",
+    "gulp": "^5.0.1",
     "gulp-azure-storage": "^0.12.1",
     "gulp-bom": "^3.0.0",
     "gulp-buffer": "0.0.2",
