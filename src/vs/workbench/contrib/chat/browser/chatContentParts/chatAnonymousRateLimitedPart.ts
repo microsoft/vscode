@@ -27,19 +27,19 @@ export class ChatAnonymousRateLimitedPart extends Disposable implements IChatCon
 	) {
 		super();
 
-		this.domNode = $('.chat-rate-limited-error-widget');
+		this.domNode = $('.chat-rate-limited-widget');
 
 		const icon = append(this.domNode, $('span'));
-		icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.warning));
+		icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.info));
 
-		const messageContainer = append(this.domNode, $('.chat-rate-limited-error-message'));
+		const messageContainer = append(this.domNode, $('.chat-rate-limited-message'));
 
 		const message = append(messageContainer, $('div'));
 		message.textContent = localize('anonymousRateLimited', "You've reached the chat limit without signing in. Sign in to access your benefits, or create a free account for 50 premium requests each month, with access to more models and AI features");
 
 		const signInButton = this._register(new Button(messageContainer, { ...defaultButtonStyles, supportIcons: true }));
-		signInButton.label = localize('signInToContinue', "Sign in to Continue");
-		signInButton.element.classList.add('chat-rate-limited-error-button');
+		signInButton.label = localize('enableMoreAIFeatures', "Enable more AI features");
+		signInButton.element.classList.add('chat-rate-limited-button');
 
 		this._register(signInButton.onDidClick(async () => {
 			const commandId = 'workbench.action.chat.triggerSetup';

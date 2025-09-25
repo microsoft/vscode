@@ -1335,9 +1335,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .chat-notification-widget .chat-warning-codicon .codicon-warning,
-.chat-quota-error-widget .codicon-warning,
-.chat-rate-limited-error-widget .codicon-warning {
+.chat-quota-error-widget .codicon-warning {
 	color: var(--vscode-notificationsWarningIcon-foreground) !important;
+	/* Have to override default styles which apply to all lists */
+}
+
+.chat-rate-limited-widget .codicon-info {
+	color: var(--vscode-notificationsInfoIcon-foreground) !important;
 	/* Have to override default styles which apply to all lists */
 }
 
@@ -1859,7 +1863,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .chat-summary-list,
 .chat-used-context-list,
 .chat-quota-error-widget,
-.chat-rate-limited-error-widget {
+.chat-rate-limited-widget {
 	border: 1px solid var(--vscode-chat-requestBorder);
 	border-radius: 4px;
 	margin-bottom: 8px;
@@ -2164,7 +2168,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .chat-quota-error-widget,
-.chat-rate-limited-error-widget {
+.chat-rate-limited-widget {
 	padding: 8px 12px;
 	display: flex;
 	gap: 6px;
@@ -2175,7 +2179,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 
 	.chat-quota-error-button,
-	.chat-rate-limited-error-button {
+	.chat-rate-limited-button {
 		margin-top: 6px;
 		margin-bottom: 2px;
 	}
@@ -2196,7 +2200,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 
 	.chat-quota-error-message,
-	.chat-rate-limited-error-message {
+	.chat-rate-limited-message {
 		.rendered-markdown p {
 			margin: 0px;
 		}
