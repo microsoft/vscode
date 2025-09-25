@@ -25,6 +25,7 @@ import { McpService } from '../../common/mcpService.js';
 import { IMcpService } from '../../common/mcpTypes.js';
 import { MCP } from '../../common/modelContextProtocol.js';
 import { TestMcpMessageTransport, TestMcpRegistry } from './mcpRegistryTypes.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 
 
 suite('Workbench - MCP - ResourceFilesystem', () => {
@@ -40,6 +41,7 @@ suite('Workbench - MCP - ResourceFilesystem', () => {
 			[IStorageService, ds.add(new TestStorageService())],
 			[ILoggerService, ds.add(new TestLoggerService())],
 			[IWorkspaceContextService, new TestContextService()],
+			[IWorkbenchEnvironmentService, {}],
 			[ITelemetryService, NullTelemetryService],
 			[IProductService, TestProductService],
 		);
