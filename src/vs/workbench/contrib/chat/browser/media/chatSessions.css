@@ -193,19 +193,3 @@
 .chat-sessions-tree-container .monaco-list-row:hover .actions {
 	display: block;
 }
-
-/* Hide twisties for elements that don't have children */
-.chat-sessions-tree-container .monaco-list-row .monaco-tl-twistie {
-	visibility: hidden;
-	width: 0;
-	padding: 0;
-	margin: 0;
-}
-
-.chat-sessions-tree-container .monaco-list-row[aria-expanded] .monaco-tl-twistie {
-	visibility: visible;
-	width: auto;
-	padding-left: 0px;
-	padding-right: 6px;
-	margin: initial;
-}

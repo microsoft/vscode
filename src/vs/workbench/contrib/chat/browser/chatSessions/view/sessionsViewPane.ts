@@ -26,7 +26,7 @@ import { WorkbenchAsyncDataTree, WorkbenchList } from '../../../../../../platfor
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
-import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
+import { IFileIconTheme, IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { fillEditorsDragData } from '../../../../../browser/dnd.js';
 import { ResourceLabels } from '../../../../../browser/labels.js';
 import { ViewPane, IViewPaneOptions } from '../../../../../browser/parts/views/viewPane.js';
@@ -222,6 +222,7 @@ export class SessionsViewPane extends ViewPane {
 		}
 
 		this.treeContainer = DOM.append(container, DOM.$('.chat-sessions-tree-container'));
+		this.treeContainer.classList.add('file-icon-themable-tree');
 		// Create message element for empty state
 		this.messageElement = append(container, $('.chat-sessions-message'));
 		this.messageElement.style.display = 'none';
@@ -318,6 +319,16 @@ export class SessionsViewPane extends ViewPane {
 				}
 			}
 		}));
+
+		// Handle icons and twisties correctly
+		const onDidChangeFileIconTheme = (theme: IFileIconTheme) => {
+			if (this.treeContainer) {
+				this.treeContainer.classList.toggle('align-icons-and-twisties', theme.hasFileIcons && !theme.hasFolderIcons);
+				this.treeContainer.classList.toggle('hide-arrows', theme.hidesExplorerArrows === true);
+			}
+		};
+		onDidChangeFileIconTheme(this.themeService.getFileIconTheme());
+		this._register(this.themeService.onDidFileIconThemeChange(onDidChangeFileIconTheme));
 
 		// Handle visibility changes to load data
 		this._register(this.onDidChangeBodyVisibility(async visible => {
