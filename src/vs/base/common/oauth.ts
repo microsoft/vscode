@@ -1058,47 +1058,43 @@ export async function fetchProtectedResourceMetadata(
 		return null;
 	};
 	
-	// If a direct resource metadata URL is provided (from WWW-Authenticate header), use it first
+	// Build the list of URLs to try in order
+	const urlsToTry: { url: string; throwOnError: boolean }[] = [];
+	
+	// If a direct resource metadata URL is provided (from WWW-Authenticate header), try it first
 	if (resourceMetadataChallenge) {
-		try {
-			const result = await fetchAndValidateMetadata(resourceMetadataChallenge, true);
-			if (result) {
-				return result;
-			}
-		} catch (error) {
-			// Re-throw errors for direct URL requests to maintain existing behavior
-			throw error;
-		}
+		urlsToTry.push({ url: resourceMetadataChallenge, throwOnError: true });
 	}
 	
-	// Fallback to well-known URI discovery
+	// Add well-known URI discovery URLs as fallbacks
 	// Construct the two well-known URI patterns as specified in RFC9728:
 	// 1. At the path of the resource endpoint: insert .well-known path after origin and before resource path
 	// 2. At the root: append .well-known path to the origin
 	
-	const wellKnownUrls: string[] = [];
-	
-	// Always start with the root well-known URL
 	const rootUrl = new URL(AUTH_PROTECTED_RESOURCE_METADATA_DISCOVERY_PATH, resourceUrlObject.origin).toString();
 	
 	// If the resource has a meaningful path (more than just '/'), also try path insertion
 	if (resourceUrlObject.pathname !== '/') {
 		const pathInsertionUrl = rootUrl + resourceUrlObject.pathname;
-		wellKnownUrls.push(pathInsertionUrl);
+		urlsToTry.push({ url: pathInsertionUrl, throwOnError: false });
 	}
 	
 	// Always include the root URL as fallback
-	wellKnownUrls.push(rootUrl);
+	urlsToTry.push({ url: rootUrl, throwOnError: false });
 	
-	// Try each well-known URL in order
-	for (const wellKnownUrl of wellKnownUrls) {
+	// Try each URL in order
+	for (const { url, throwOnError } of urlsToTry) {
 		try {
-			const result = await fetchAndValidateMetadata(wellKnownUrl);
+			const result = await fetchAndValidateMetadata(url, throwOnError);
 			if (result) {
 				return result;
 			}
 		} catch (error) {
-			// Continue to next URL on error
+			if (throwOnError) {
+				// Re-throw errors for direct URL requests to maintain existing behavior
+				throw error;
+			}
+			// Continue to next URL on error for well-known discovery
 			continue;
 		}
 	}
