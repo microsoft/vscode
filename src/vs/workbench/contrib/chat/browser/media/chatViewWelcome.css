@@ -30,8 +30,6 @@
 		align-items: center;
 		justify-content: center;
 		overflow: hidden;
-		container-type: inline-size;
-		container-name: chat-welcome;
 
 		&.has-chat-history {
 			flex-direction: column;
@@ -201,11 +199,11 @@ div.chat-welcome-view {
 		}
 	}
 
-@container chat-welcome (max-width: 213px) {
-	.interactive-session .chat-welcome-view-container.has-chat-history & > .chat-welcome-view-disclaimer {
-		padding-bottom: 24px;
+	@media (max-width: 213px) {
+		.interactive-session .chat-welcome-view-container.has-chat-history & > .chat-welcome-view-disclaimer {
+			padding-bottom: 24px;
+		}
 	}
-}
 
 	& > .chat-welcome-view-suggested-prompts {
 		display: flex;
@@ -258,6 +256,10 @@ div.chat-welcome-view {
 .chat-welcome-history-root {
 	width: 100%;
 	padding: 0px 8px 0 8px;
+
+	&.chat-welcome-history-hidden {
+		display: none;
+	}
 
 	.chat-welcome-history-header {
 		display: flex;
@@ -338,7 +340,6 @@ div.chat-welcome-view {
 		text-decoration: none;
 		cursor: pointer;
 		padding: 2px 12px 4px 12px;
-		font-size: 13px;
 		border: none;
 		background: none;
 		text-align: left;

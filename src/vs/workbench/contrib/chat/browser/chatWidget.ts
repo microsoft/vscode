@@ -900,17 +900,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	public toggleHistoryVisibility(): void {
 		this._historyVisible = !this._historyVisible;
-		// Find and hide/show the existing history section
-		const historyRoot = this.welcomeMessageContainer.querySelector('.chat-welcome-history-root') as HTMLElement;
+		// Find and hide/show the existing history section via CSS class toggles
+		const historyRoot = this.welcomeMessageContainer.querySelector<HTMLElement>('.chat-welcome-history-root');
 		if (historyRoot) {
-			if (this._historyVisible) {
-				historyRoot.style.removeProperty('display');
-				this.welcomeMessageContainer.classList.add('has-chat-history');
-			} else {
-				historyRoot.style.display = 'none';
-				this.welcomeMessageContainer.classList.remove('has-chat-history');
-			}
+			historyRoot.classList.toggle('chat-welcome-history-hidden', !this._historyVisible);
 		}
+		const shouldShowHistory = this._historyVisible && !!historyRoot;
+		this.welcomeMessageContainer.classList.toggle('has-chat-history', shouldShowHistory);
 	}
 
 	private onDidChangeItems(skipDynamicLayout?: boolean) {
@@ -1103,7 +1099,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 
 			this.historyListContainer = dom.append(container, $('.chat-welcome-history-list'));
-			this.welcomeMessageContainer.classList.toggle('has-chat-history', initialHistoryItems.length > 0);
+			historyRoot.classList.toggle('chat-welcome-history-hidden', !this._historyVisible);
+			this.welcomeMessageContainer.classList.toggle('has-chat-history', this._historyVisible && initialHistoryItems.length > 0);
 
 			// Compute today's midnight once for label decisions
 			const todayMidnight = new Date();
