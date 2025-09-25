@@ -317,6 +317,10 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 			title: !renderDescriptionOnSecondRow || !session.description ? tooltipContent : undefined
 		});
 
+		// Add a CSS class to the container to enable  specific CSS rules
+		templateData.container.classList.add('chat-session-icons-always-visible');
+
+
 		// For two-row items, set tooltip on the container instead
 		if (renderDescriptionOnSecondRow && session.description && tooltipContent) {
 			if (typeof tooltipContent === 'string') {

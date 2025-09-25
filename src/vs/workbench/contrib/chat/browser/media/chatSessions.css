@@ -173,6 +173,41 @@
 	animation: codicon-spin 1.5s steps(30) infinite;
 }
 
+/* CSS rules to ensure chat session icons are ALWAYS visible */
+/* These rules override the global FileIcon hiding with maximum specificity using the chat-session-icons-always-visible class */
+
+/* Explicit Unicode values for each chat session status icon */
+
+.monaco-workbench:not(.file-icons-enabled) .chat-sessions-tree-container .chat-session-icons-always-visible .codicon-loading::before {
+	content: "\eb19" !important;
+	font-family: codicon !important;
+	display: inline !important;
+}
+
+.monaco-workbench:not(.file-icons-enabled) .chat-sessions-tree-container .chat-session-icons-always-visible .codicon-pass::before {
+	content: "\eba4" !important;
+	font-family: codicon !important;
+	display: inline !important;
+}
+
+.monaco-workbench:not(.file-icons-enabled) .chat-sessions-tree-container .chat-session-icons-always-visible .codicon-error::before {
+	content: "\ea87" !important;
+	font-family: codicon !important;
+	display: inline !important;
+}
+
+.monaco-workbench:not(.file-icons-enabled) .chat-sessions-tree-container .chat-session-icons-always-visible .codicon-circle-outline::before {
+	content: "\eabc" !important;
+	font-family: codicon !important;
+	display: inline !important;
+}
+
+.monaco-workbench:not(.file-icons-enabled) .chat-sessions-tree-container .chat-session-icons-always-visible .codicon-chat-sparkle::before {
+	content: "\ec4f" !important;
+	font-family: codicon !important;
+	display: inline !important;
+}
+
 /* Timestamp styling - similar to timeline pane */
 .chat-sessions-tree-container .chat-session-item .timestamp-container {
 	margin-left: auto;
