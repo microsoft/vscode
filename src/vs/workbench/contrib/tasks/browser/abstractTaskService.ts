@@ -492,7 +492,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	private async _handleLongRunningTaskCompletion(event: ITaskProcessEndedEvent | ITaskInactiveEvent, durationMs: number): Promise<void> {
 		const notificationThreshold = this._configurationService.getValue<number>(TaskSettingId.NotifyWindowOnTaskCompletion);
-		if (!notificationThreshold || durationMs < notificationThreshold) {
+		// If threshold is 0, notifications are disabled
+		if (notificationThreshold === 0 || durationMs < notificationThreshold) {
 			return;
 		}
 		
