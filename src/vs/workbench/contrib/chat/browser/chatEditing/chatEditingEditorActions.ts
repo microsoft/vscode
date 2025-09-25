@@ -350,7 +350,7 @@ class ExplainHunkAction extends ChatEditingEditorAction {
 
 		await commandService.executeCommand('workbench.action.chat.open', {
 			query: '/explain this change',
-			attachFiles: [{ uri: entry.modifiedURI as URI, range: diffRange }]
+			attachFiles: [{ uri: entry.modifiedURI, range: diffRange }]
 		});
 	}
 }
