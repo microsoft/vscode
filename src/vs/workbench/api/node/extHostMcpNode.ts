@@ -165,9 +165,17 @@ class McpHTTPHandleNode extends McpHTTPHandle {
 			}).toString(true);
 		}
 
-		// An `as CommonResponse` is required because of a very slight type mismatch between undici's `Response` and the standard `Response` type
-		// (Way down in `ReadableStreamReadDoneResult<T>`, `value` is optional in the undici type but required [yet can be `undefined`] in the standard type)
-		return await fetch(httpUrl, undiciInit) as CommonResponse;
+		const undiciResponse = await fetch(httpUrl, undiciInit);
+
+		return {
+			status: undiciResponse.status,
+			statusText: undiciResponse.statusText,
+			headers: undiciResponse.headers,
+			body: undiciResponse.body as ReadableStream, // Way down in `ReadableStreamReadDoneResult<T>`, `value` is optional in the undici type but required (yet can be `undefined`) in the standard type
+			url: undiciResponse.url,
+			json: () => undiciResponse.json(),
+			text: () => undiciResponse.text(),
+		};
 	}
 }
 
