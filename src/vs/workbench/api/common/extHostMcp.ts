@@ -34,7 +34,7 @@ export interface IExtHostMpcService extends ExtHostMcpShape {
 export class ExtHostMcpService extends Disposable implements IExtHostMpcService {
 	protected _proxy: MainThreadMcpShape;
 	private readonly _initialProviderPromises = new Set<Promise<void>>();
-	private readonly _sseEventSources = this._register(new DisposableMap<number, McpHTTPHandle>());
+	protected readonly _sseEventSources = this._register(new DisposableMap<number, McpHTTPHandle>());
 	private readonly _unresolvedMcpServers = new Map</* collectionId */ string, {
 		provider: vscode.McpServerDefinitionProvider;
 		servers: vscode.McpServerDefinition[];
@@ -42,7 +42,7 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
-		@ILogService private readonly _logService: ILogService,
+		@ILogService protected readonly _logService: ILogService,
 		@IExtHostInitDataService private readonly _extHostInitData: IExtHostInitDataService,
 		@IExtHostWorkspace protected readonly _workspaceService: IExtHostWorkspace,
 		@IExtHostVariableResolverProvider private readonly _variableResolver: IExtHostVariableResolverProvider,
@@ -201,7 +201,7 @@ const REDIRECT_STATUS_CODES = [301, 302, 303, 307, 308];
  * server is legacy SSE, it should return some 4xx status in that case,
  * and we'll automatically fall back to SSE and res
  */
-class McpHTTPHandle extends Disposable {
+export class McpHTTPHandle extends Disposable {
 	private readonly _requestSequencer = new Sequencer();
 	private readonly _postEndpoint = new DeferredPromise<{ url: string; transport: McpServerTransportHTTP }>();
 	private _mode: HttpModeT = { value: HttpMode.Unknown };
@@ -753,7 +753,7 @@ class McpHTTPHandle extends Disposable {
 		let currentUrl = url;
 		let response!: Response;
 		for (let redirectCount = 0; redirectCount < MAX_FOLLOW_REDIRECTS; redirectCount++) {
-			response = await fetch(currentUrl, {
+			response = await this._fetchInternal(currentUrl, {
 				...init,
 				signal: this._abortCtrl.signal,
 				redirect: 'manual'
@@ -790,12 +790,21 @@ class McpHTTPHandle extends Disposable {
 
 		return response;
 	}
+
+	protected _fetchInternal(url: string, init?: CommonRequestInit): Promise<Response> {
+		return fetch(url, init);
+	}
 }
 
 interface MinimalRequestInit {
 	method: string;
 	headers: Record<string, string>;
 	body?: Uint8Array<ArrayBuffer>;
+}
+
+export interface CommonRequestInit extends MinimalRequestInit {
+	signal?: AbortSignal;
+	redirect?: RequestRedirect;
 }
 
 function isJSON(str: string): boolean {
