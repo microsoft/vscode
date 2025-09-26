@@ -80,7 +80,12 @@ export function registerNewChatActions() {
 							ChatContextKeys.inEmptyStateWithHistoryEnabled.negate()
 						),
 						group: 'navigation',
-						order: -1
+						order: -1,
+						alt: {
+							id: 'workbench.action.openChat',
+							title: localize2('interactiveSession.open', "New Chat Editor"),
+							precondition: ChatContextKeys.enabled
+						}
 					},
 					...[MenuId.EditorTitle, MenuId.CompactWindowEditorTitle].map(id => ({
 						id,
