@@ -682,6 +682,30 @@ export interface IChatSendRequestOptions {
 	confirmation?: string;
 }
 
+export const enum ChatQueueUpdateKind {
+	Enqueued = 1,
+	Dequeued = 2,
+	Flushed = 3,
+	Cleared = 4,
+	Dropped = 5
+}
+
+export interface IChatQueuedRequestSummary {
+	readonly id: string;
+	readonly message: string;
+	readonly createdAt: number;
+	readonly characterCount: number;
+	readonly attachments: ReadonlyArray<IChatRequestVariableEntry>;
+}
+
+export interface IChatQueueChangedEvent {
+	readonly sessionId: string;
+	readonly kind: ChatQueueUpdateKind;
+	readonly length: number;
+	readonly totalCharacters: number;
+	readonly entry?: IChatQueuedRequestSummary;
+}
+
 export const IChatService = createDecorator<IChatService>('IChatService');
 
 export interface IChatService {
@@ -709,7 +733,7 @@ export interface IChatService {
 	resendRequest(request: IChatRequestModel, options?: IChatSendRequestOptions): Promise<void>;
 	adoptRequest(sessionId: string, request: IChatRequestModel): Promise<void>;
 	removeRequest(sessionid: string, requestId: string): Promise<void>;
-	cancelCurrentRequestForSession(sessionId: string): void;
+	cancelCurrentRequestForSession(sessionId: string, options?: { readonly clearQueued?: boolean }): void;
 	clearSession(sessionId: string): Promise<void>;
 	addCompleteRequest(sessionId: string, message: IParsedChatRequest | string, variableData: IChatRequestVariableData | undefined, attempt: number | undefined, response: IChatCompleteResponse): void;
 	getHistory(): Promise<IChatDetail[]>;
@@ -730,6 +754,10 @@ export interface IChatService {
 	readonly edits2Enabled: boolean;
 
 	readonly requestInProgressObs: IObservable<boolean>;
+
+	onDidChangeQueue: Event<IChatQueueChangedEvent>;
+	getQueuedRequests(sessionId: string): ReadonlyArray<IChatQueuedRequestSummary>;
+	getQueuedRequestCount(sessionId: string): number;
 }
 
 export const KEYWORD_ACTIVIATION_SETTING_ID = 'accessibility.voice.keywordActivation';

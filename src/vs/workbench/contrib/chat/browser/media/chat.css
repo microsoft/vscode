@@ -1365,6 +1365,23 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	gap: 4px;
 }
 
+.interactive-session .chat-input-queue-status {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	font-size: var(--vscode-chat-font-size-body-xs);
+	color: var(--vscode-descriptionForeground);
+	margin: 4px 0;
+}
+
+.interactive-session .chat-input-queue-status .chat-input-queue-count {
+	font-weight: 600;
+}
+
+.interactive-session .chat-input-queue-status .chat-input-queue-characters {
+	opacity: 0.8;
+}
+
 .interactive-session .interactive-input-part.compact {
 	margin: 0;
 	padding: 8px 0 0 0

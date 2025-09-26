@@ -225,6 +225,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private readonly followupsDisposables: DisposableStore;
 
 	private attachmentsContainer!: HTMLElement;
+	private queueStatusContainer!: HTMLElement;
+	private queueCountLabel!: HTMLElement;
+	private queueCharactersLabel!: HTMLElement;
+	private _queuedState = { length: 0, totalCharacters: 0 };
 
 	private chatInputOverlay!: HTMLElement;
 	private readonly overlayClickListener: MutableDisposable<IDisposable>;
@@ -1067,6 +1071,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					dom.h('.interactive-input-and-side-toolbar@inputAndSideToolbar', [
 						dom.h('.chat-input-container@inputContainer', [
 							dom.h('.chat-editor-container@editorContainer'),
+							dom.h('.chat-input-queue-status@queueStatusContainer', [
+								dom.h('span.chat-input-queue-count@queueCountLabel'),
+								dom.h('span.chat-input-queue-characters@queueCharactersLabel')
+							]),
 							dom.h('.chat-input-toolbars@inputToolbars'),
 						]),
 					]),
@@ -1089,6 +1097,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 							dom.h('.chat-related-files@relatedFilesContainer'),
 							dom.h('.chat-attached-context@attachedContextContainer'),
 						]),
+						dom.h('.chat-input-queue-status@queueStatusContainer', [
+							dom.h('span.chat-input-queue-count@queueCountLabel'),
+							dom.h('span.chat-input-queue-characters@queueCharactersLabel')
+						]),
 						dom.h('.chat-editor-container@editorContainer'),
 						dom.h('.chat-input-toolbars@inputToolbars'),
 					]),
@@ -1107,9 +1119,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.attachmentsContainer = elements.attachmentsContainer;
 		this.attachedContextContainer = elements.attachedContextContainer;
 		this.relatedFilesContainer = elements.relatedFilesContainer;
+		this.queueStatusContainer = elements.queueStatusContainer;
+		this.queueCountLabel = elements.queueCountLabel;
+		this.queueCharactersLabel = elements.queueCharactersLabel;
 		const toolbarsContainer = elements.inputToolbars;
 		const attachmentToolbarContainer = elements.attachmentToolbar;
 		this.chatEditingSessionWidgetContainer = elements.chatEditingSessionWidgetContainer;
+		this.renderQueuedState();
 		if (this.options.enableImplicitContext) {
 			this._implicitContext = this._register(
 				this.instantiationService.createInstance(ChatImplicitContext),
@@ -1373,6 +1389,54 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		} else {
 			this.overlayClickListener.clear();
 		}
+	}
+
+	private renderQueuedState(): void {
+		if (!this.queueStatusContainer) {
+			return;
+		}
+
+		const { length, totalCharacters } = this._queuedState;
+		const hasQueue = length > 0;
+		dom.setVisibility(hasQueue, this.queueStatusContainer);
+		this.queueStatusContainer.setAttribute('aria-hidden', hasQueue ? 'false' : 'true');
+		if (!hasQueue) {
+			this.queueCountLabel.textContent = '';
+			this.queueCharactersLabel.textContent = '';
+			this.queueCharactersLabel.style.display = 'none';
+			this.queueStatusContainer.removeAttribute('title');
+			this.queueStatusContainer.removeAttribute('aria-label');
+			return;
+		}
+
+		const countText = length === 1
+			? localize('chat.queueStatus.singleLabel', "Queued 1 message")
+			: localize('chat.queueStatus.multipleLabel', "Queued {0} messages", length);
+		const charactersText = totalCharacters > 0
+			? localize('chat.queueStatus.charactersLabel', "{0} characters total", totalCharacters)
+			: '';
+		const tooltip = totalCharacters > 0
+			? (length === 1
+				? localize('chat.queueStatus.tooltipSingleWithCharacters', "1 message queued with {0} characters total.", totalCharacters)
+				: localize('chat.queueStatus.tooltipMultipleWithCharacters', "{0} messages queued with {1} characters total.", length, totalCharacters))
+			: (length === 1
+				? localize('chat.queueStatus.tooltipSingle', "1 message queued.")
+				: localize('chat.queueStatus.tooltipMultiple', "{0} messages queued.", length));
+
+		this.queueCountLabel.textContent = countText;
+		this.queueCharactersLabel.textContent = charactersText;
+		this.queueCharactersLabel.style.display = charactersText ? '' : 'none';
+		this.queueStatusContainer.title = tooltip;
+		this.queueStatusContainer.setAttribute('aria-label', tooltip);
+	}
+
+	public updateQueuedState(length: number, totalCharacters: number): void {
+		if (this._queuedState.length === length && this._queuedState.totalCharacters === totalCharacters && this.queueStatusContainer) {
+			return;
+		}
+
+		this._queuedState = { length, totalCharacters };
+		this.renderQueuedState();
 	}
 
 	public renderAttachedContext() {

@@ -60,7 +60,7 @@ import { IChatModel, IChatResponseModel } from '../common/chatModel.js';
 import { IChatModeService } from '../common/chatModes.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestDynamicVariablePart, ChatRequestSlashPromptPart, ChatRequestToolPart, ChatRequestToolSetPart, chatSubcommandLeader, formatChatQuestion, IParsedChatRequest } from '../common/chatParserTypes.js';
 import { ChatRequestParser } from '../common/chatRequestParser.js';
-import { IChatLocationData, IChatSendRequestOptions, IChatService } from '../common/chatService.js';
+import { ChatQueueUpdateKind, IChatLocationData, IChatQueueChangedEvent, IChatSendRequestOptions, IChatService } from '../common/chatService.js';
 import { IChatSlashCommandService } from '../common/chatSlashCommands.js';
 import { IChatTodoListService } from '../common/chatTodoListService.js';
 import { ChatRequestVariableSet, IChatRequestVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../common/chatVariableEntries.js';
@@ -289,7 +289,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private requestInProgress: IContextKey<boolean>;
 	private agentInInput: IContextKey<boolean>;
 	private inEmptyStateWithHistoryEnabledKey: IContextKey<boolean>;
-	private currentRequest: Promise<void> | undefined;
+	private lastKnownQueueLength = 0;
+	private queueState: { length: number; totalCharacters: number } = { length: 0, totalCharacters: 0 };
 
 	private _visible = false;
 	public get visible() {
@@ -498,6 +499,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const lastResponse = observableFromEvent(this, chatModel.onDidChange, () => chatModel.getRequests().at(-1)?.response).read(r);
 			return lastResponse?.result?.errorDetails && !lastResponse?.result?.errorDetails.responseIsIncomplete;
 		}));
+
+		this._register(this.onDidChangeViewModel(() => this.applyQueueStateFromModel()));
+		this._register(this.chatService.onDidChangeQueue(event => this.handleQueueEvent(event)));
 
 		this._codeBlockModelCollection = this._register(instantiationService.createInstance(CodeBlockModelCollection, undefined));
 		this.chatTodoListWidget = this._register(this.instantiationService.createInstance(ChatTodoListWidget));
@@ -1857,6 +1861,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		this.input.render(container, '', this);
+		this.updateQueueInputs(this.queueState.length, this.queueState.totalCharacters);
 
 		this._register(this.input.onDidLoadInputState(state => {
 			this.contribs.forEach(c => {
@@ -1963,6 +1968,61 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.input.attachmentModel.updateContext(disabledTools, Iterable.empty());
 			this.refreshParsedInput();
 		}));
+	}
+
+	private handleQueueEvent(event: IChatQueueChangedEvent): void {
+		const sessionId = this.viewModel?.sessionId;
+		if (!sessionId || event.sessionId !== sessionId) {
+			return;
+		}
+
+		const previousLength = this.lastKnownQueueLength;
+		this.lastKnownQueueLength = event.length;
+		this.queueState = { length: event.length, totalCharacters: event.totalCharacters };
+		this.updateQueueInputs(event.length, event.totalCharacters);
+
+		switch (event.kind) {
+			case ChatQueueUpdateKind.Enqueued:
+				this.chatAccessibilityService.announceQueued(event.length);
+				break;
+			case ChatQueueUpdateKind.Flushed:
+				if (previousLength > 0 && event.length === 0) {
+					this.chatAccessibilityService.announceQueueFlushed(previousLength);
+				}
+				break;
+			case ChatQueueUpdateKind.Cleared:
+				if (previousLength > 0 && event.length === 0) {
+					this.chatAccessibilityService.announceQueueCleared(previousLength);
+				}
+				break;
+			case ChatQueueUpdateKind.Dropped: {
+				const cleared = event.entry ? 1 : Math.max(previousLength - event.length, 1);
+				this.chatAccessibilityService.announceQueueCleared(cleared);
+				break;
+			}
+		}
+	}
+
+	private updateQueueInputs(length: number, totalCharacters: number): void {
+		for (const part of [this.inputPartDisposable.value, this.inlineInputPartDisposable.value]) {
+			part?.updateQueuedState(length, totalCharacters);
+		}
+	}
+
+	private applyQueueStateFromModel(): void {
+		const model = this.viewModel?.model;
+		if (!model) {
+			this.lastKnownQueueLength = 0;
+			this.queueState = { length: 0, totalCharacters: 0 };
+			this.updateQueueInputs(0, 0);
+			return;
+		}
+
+		const length = model.queueLength;
+		const totalCharacters = model.queueCharacterCount;
+		this.lastKnownQueueLength = length;
+		this.queueState = { length, totalCharacters };
+		this.updateQueueInputs(length, totalCharacters);
 	}
 
 	private onDidStyleChange(): void {
@@ -2232,10 +2292,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private async _acceptInput(query: { query: string } | undefined, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined> {
-		if (this.viewModel?.requestInProgress) {
-			return;
-		}
-
 		if (!query && this.input.generating) {
 			// if the user submits the input and generation finishes quickly, just submit it for them
 			const generatingAutoSubmitWindow = 500;
@@ -2297,13 +2353,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.telemetryService.publicLog2<ChatEditingWorkingSetEvent, ChatEditingWorkingSetClassification>('chatEditing/workingSetSize', { originalSize: uniqueWorkingSetEntries.size, actualSize: uniqueWorkingSetEntries.size });
 			}
 
-			this.chatService.cancelCurrentRequestForSession(this.viewModel.sessionId);
-			if (this.currentRequest) {
-				// We have to wait the current request to be properly cancelled so that it has a chance to update the model with its result metadata.
-				// This is awkward, it's basically a limitation of the chat provider-based agent.
-				await Promise.race([this.currentRequest, timeout(1000)]);
-			}
-
 			this.input.validateAgentMode();
 
 			if (this.viewModel.model.checkpoint) {
@@ -2316,7 +2365,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				}
 			}
 
-			const result = await this.chatService.sendRequest(this.viewModel.sessionId, requestInputs.input, {
+			const originalInput = requestInputs.input;
+			const sendPromise = this.chatService.sendRequest(this.viewModel.sessionId, requestInputs.input, {
 				userSelectedModelId: this.input.currentLanguageModel,
 				location: this.location,
 				locationData: this._location.resolveData?.(),
@@ -2328,10 +2378,18 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				agentIdSilent: this._lockedAgentId
 			});
 
-			if (result) {
-				this.input.acceptInput(isUserQuery);
+			this.input.acceptInput(isUserQuery);
+
+			const responsePromise = sendPromise.then(result => {
+				if (!result) {
+					if (isUserQuery) {
+						this.input.setValue(originalInput, false);
+					}
+					return undefined;
+				}
+
 				this._onDidSubmitAgent.fire({ agent: result.agent, slashCommand: result.slashCommand });
-				this.currentRequest = result.responseCompletePromise.then(() => {
+				result.responseCompletePromise.then(() => {
 					const responses = this.viewModel?.getItems().filter(isResponseVM);
 					const lastResponse = responses?.[responses.length - 1];
 					this.chatAccessibilityService.acceptResponse(this, this.container, lastResponse, requestId, options?.isVoiceInput);
@@ -2342,8 +2400,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 							this.input.setValue(question, false);
 						}
 					}
-
-					this.currentRequest = undefined;
 				});
 
 				if (this.viewModel?.editing) {
@@ -2351,7 +2407,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					this.viewModel.model?.setCheckpoint(undefined);
 				}
 				return result.responseCreatedPromise;
-			}
+			}).catch(err => {
+				this.logService.error('FAILED to send chat request', err);
+				if (isUserQuery) {
+					this.input.setValue(originalInput, false);
+				}
+				return undefined;
+			});
+
+			return responsePromise;
 		}
 		return undefined;
 	}

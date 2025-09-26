@@ -78,6 +78,27 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 		this._accessibilitySignalService.playSignal(AccessibilitySignal.chatUserActionRequired, { allowManyInParallel: true });
 	}
 
+	announceQueued(count: number): void {
+		const message = count === 1
+			? localize('chat.accessibility.queue.single', "1 chat message queued. It will be sent when the current response finishes.")
+			: localize('chat.accessibility.queue.multiple', "{0} chat messages queued. They'll be sent when the current response finishes.", count);
+		status(message);
+	}
+
+	announceQueueFlushed(count: number): void {
+		const message = count === 1
+			? localize('chat.accessibility.queue.flushed.single', "Queued chat message sent.")
+			: localize('chat.accessibility.queue.flushed.multiple', "Queued chat messages sent.");
+		status(message);
+	}
+
+	announceQueueCleared(count: number): void {
+		const message = count === 1
+			? localize('chat.accessibility.queue.cleared.single', "Queued chat message cleared.")
+			: localize('chat.accessibility.queue.cleared.multiple', "Queued chat messages cleared.");
+		status(message);
+	}
+
 	private async _showOSNotification(widget: ChatWidget, container: HTMLElement, responseContent: string): Promise<void> {
 		if (!this._configurationService.getValue(ChatConfiguration.NotifyWindowOnResponseReceived)) {
 			return;

@@ -12,7 +12,7 @@ import { ResourceMap } from '../../../../base/common/map.js';
 import { revive } from '../../../../base/common/marshalling.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { equals } from '../../../../base/common/objects.js';
-import { IObservable, ObservablePromise, observableFromEvent, observableSignalFromEvent } from '../../../../base/common/observable.js';
+import { IObservable, ISettableObservable, ObservablePromise, observableFromEvent, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI, UriComponents, UriDto, isUriComponents } from '../../../../base/common/uri.js';
@@ -1058,6 +1058,10 @@ export interface IChatModel extends IDisposable {
 	readonly title: string;
 	readonly requestInProgress: boolean;
 	readonly requestInProgressObs: IObservable<boolean>;
+	readonly queueLengthObs: IObservable<number>;
+	readonly queueCharacterCountObs: IObservable<number>;
+	readonly queueLength: number;
+	readonly queueCharacterCount: number;
 	readonly inputPlaceholder?: string;
 	readonly editingSessionObs?: ObservablePromise<IChatEditingSession> | undefined;
 	readonly editingSession?: IChatEditingSession | undefined;
@@ -1435,6 +1439,19 @@ export class ChatModel extends Disposable implements IChatModel {
 		return this._initialLocation;
 	}
 
+	private readonly _queueLength: ISettableObservable<number>;
+	readonly queueLengthObs: IObservable<number>;
+	private readonly _queueCharacters: ISettableObservable<number>;
+	readonly queueCharacterCountObs: IObservable<number>;
+
+	get queueLength(): number {
+		return this._queueLength.get();
+	}
+
+	get queueCharacterCount(): number {
+		return this._queueCharacters.get();
+	}
+
 	constructor(
 		initialData: ISerializableChatData | IExportableChatData | undefined,
 		initialModelProps: { initialLocation: ChatAgentLocation; inputType?: string },
@@ -1464,6 +1481,13 @@ export class ChatModel extends Disposable implements IChatModel {
 		this._inputType = initialData?.inputType ?? initialModelProps.inputType;
 		this._initialLocation = initialData?.initialLocation ?? initialModelProps.initialLocation;
 
+		const queueLength = observableValue(this, 0);
+		this._queueLength = queueLength;
+		this.queueLengthObs = queueLength;
+		const queueCharacters = observableValue(this, 0);
+		this._queueCharacters = queueCharacters;
+		this.queueCharacterCountObs = queueCharacters;
+
 		const lastResponse = observableFromEvent(this, this.onDidChange, () => this._requests.at(-1)?.response);
 
 		this.requestInProgressObs = lastResponse.map((response, r) => {
@@ -1479,6 +1503,14 @@ export class ChatModel extends Disposable implements IChatModel {
 		this._editingSession.promise.then(editingSession => {
 			this._store.isDisposed ? editingSession.dispose() : this._register(editingSession);
 		});
+	}
+
+	setQueueState(length: number, totalCharacters: number): void {
+		if (this._queueLength.get() === length && this._queueCharacters.get() === totalCharacters) {
+			return;
+		}
+		this._queueLength.set(length, undefined);
+		this._queueCharacters.set(totalCharacters, undefined);
 	}
 
 	private currentEditedFileEvents = new ResourceMap<IChatAgentEditedFileEvent>();

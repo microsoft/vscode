@@ -9,7 +9,7 @@ import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ChatModel, IChatModel, IChatRequestModel, IChatRequestVariableData, ISerializableChatData } from '../../common/chatModel.js';
 import { IParsedChatRequest } from '../../common/chatParserTypes.js';
-import { IChatCompleteResponse, IChatDetail, IChatProviderInfo, IChatSendRequestData, IChatSendRequestOptions, IChatService, IChatTransferredSessionData, IChatUserActionEvent } from '../../common/chatService.js';
+import { IChatCompleteResponse, IChatDetail, IChatProviderInfo, IChatQueueChangedEvent, IChatQueuedRequestSummary, IChatSendRequestData, IChatSendRequestOptions, IChatService, IChatTransferredSessionData, IChatUserActionEvent } from '../../common/chatService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 
 export class MockChatService implements IChatService {
@@ -19,6 +19,7 @@ export class MockChatService implements IChatService {
 	editingSessions = [];
 	transferredSessionData: IChatTransferredSessionData | undefined;
 	onDidSubmitRequest: Event<{ chatSessionId: string }> = Event.None;
+	onDidChangeQueue: Event<IChatQueueChangedEvent> = Event.None;
 
 	private sessions = new Map<string, IChatModel>();
 
@@ -68,8 +69,14 @@ export class MockChatService implements IChatService {
 	removeRequest(sessionid: string, requestId: string): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
-	cancelCurrentRequestForSession(sessionId: string): void {
+	cancelCurrentRequestForSession(sessionId: string, _options?: { readonly clearQueued?: boolean }): void {
 		throw new Error('Method not implemented.');
+	}
+	getQueuedRequests(sessionId: string): ReadonlyArray<IChatQueuedRequestSummary> {
+		return [];
+	}
+	getQueuedRequestCount(sessionId: string): number {
+		return 0;
 	}
 	clearSession(sessionId: string): Promise<void> {
 		throw new Error('Method not implemented.');

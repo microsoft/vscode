@@ -15,6 +15,7 @@ import { revive } from '../../../../base/common/marshalling.js';
 import { autorun, derived, IObservable, ObservableMap } from '../../../../base/common/observable.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { isDefined } from '../../../../base/common/types.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { URI } from '../../../../base/common/uri.js';
 import { OffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
 import { localize } from '../../../../nls.js';
@@ -30,7 +31,7 @@ import { IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRe
 import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, normalizeSerializableChatData, toChatHistoryContent, updateRanges } from './chatModel.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, chatSubcommandLeader, getPromptText, IParsedChatRequest } from './chatParserTypes.js';
 import { ChatRequestParser } from './chatRequestParser.js';
-import { IChatCompleteResponse, IChatDetail, IChatFollowup, IChatProgress, IChatSendRequestData, IChatSendRequestOptions, IChatSendRequestResponseState, IChatService, IChatTransferredSessionData, IChatUserActionEvent } from './chatService.js';
+import { ChatQueueUpdateKind, IChatCompleteResponse, IChatDetail, IChatFollowup, IChatProgress, IChatQueueChangedEvent, IChatQueuedRequestSummary, IChatSendRequestData, IChatSendRequestOptions, IChatSendRequestResponseState, IChatService, IChatTransferredSessionData, IChatUserActionEvent } from './chatService.js';
 import { ChatRequestTelemetry, ChatServiceTelemetry } from './chatServiceTelemetry.js';
 import { IChatSessionsService } from './chatSessionsService.js';
 import { ChatSessionStore, IChatTransfer2 } from './chatSessionStore.js';
@@ -47,6 +48,24 @@ const serializedChatKey = 'interactive.sessions';
 const TransferredGlobalChatKey = 'chat.workspaceTransfer';
 
 const SESSION_TRANSFER_EXPIRATION_IN_MILLISECONDS = 1000 * 60;
+
+const MAX_QUEUED_MESSAGES = 5;
+const MAX_QUEUED_MESSAGE_LENGTH = 10 * 1024;
+const MAX_QUEUED_TOTAL_LENGTH = 50 * 1024;
+
+interface QueuedChatRequest {
+	readonly id: string;
+	readonly rawMessage: string;
+	readonly createdAt: number;
+	readonly length: number;
+	readonly options: IChatSendRequestOptions | undefined;
+	readonly deferred: DeferredPromise<IChatSendRequestData | undefined>;
+}
+
+interface QueueState {
+	entries: QueuedChatRequest[];
+	totalCharacters: number;
+}
 
 class CancellableRequest implements IDisposable {
 	constructor(
@@ -74,7 +93,12 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _sessionModels = new ObservableMap<string, ChatModel>();
 	private readonly _contentProviderSessionModels = new Map<string, Map<string, { readonly model: IChatModel; readonly disposables: DisposableStore }>>();
 	private readonly _pendingRequests = this._register(new DisposableMap<string, CancellableRequest>());
+	private readonly _queuedRequests = new Map<string, QueueState>();
+	private readonly _queueProcessors = new Set<string>();
 	private _persistedSessions: ISerializableChatsData;
+
+	private readonly _onDidChangeQueue = this._register(new Emitter<IChatQueueChangedEvent>());
+	public readonly onDidChangeQueue: Event<IChatQueueChangedEvent> = this._onDidChangeQueue.event;
 
 	private _transferredSessionData: IChatTransferredSessionData | undefined;
 	public get transferredSessionData(): IChatTransferredSessionData | undefined {
@@ -214,6 +238,76 @@ export class ChatService extends Disposable implements IChatService {
 		this.logService.error(`ChatService#${method} ${message}`);
 	}
 
+	private cloneSendRequestOptions(options: IChatSendRequestOptions | undefined): IChatSendRequestOptions | undefined {
+		if (!options) {
+			return undefined;
+		}
+
+		const clone: IChatSendRequestOptions = { ...options };
+		if (options.attachedContext) {
+			clone.attachedContext = this.cloneVariableEntries(options.attachedContext);
+		}
+		if (options.acceptedConfirmationData) {
+			clone.acceptedConfirmationData = [...options.acceptedConfirmationData];
+		}
+		if (options.rejectedConfirmationData) {
+			clone.rejectedConfirmationData = [...options.rejectedConfirmationData];
+		}
+		return clone;
+	}
+
+	private cloneVariableEntries(entries: IChatRequestVariableEntry[] | undefined): IChatRequestVariableEntry[] {
+		if (!entries) {
+			return [];
+		}
+
+		return entries.map(entry => ({ ...entry }));
+	}
+
+	private getOrCreateQueueState(sessionId: string): QueueState {
+		let state = this._queuedRequests.get(sessionId);
+		if (!state) {
+			state = { entries: [], totalCharacters: 0 } satisfies QueueState;
+			this._queuedRequests.set(sessionId, state);
+		}
+		return state;
+	}
+
+	private toQueueSummary(entry: QueuedChatRequest): IChatQueuedRequestSummary {
+		return {
+			id: entry.id,
+			message: this.getDisplayMessage(entry),
+			createdAt: entry.createdAt,
+			characterCount: entry.length,
+			attachments: entry.options?.attachedContext ? this.cloneVariableEntries(entry.options.attachedContext) : []
+		};
+	}
+
+	private getDisplayMessage(entry: QueuedChatRequest): string {
+		const trimmed = entry.rawMessage.trim();
+		if (trimmed) {
+			return trimmed;
+		}
+		if (entry.options?.slashCommand) {
+			return `/${entry.options.slashCommand}`;
+		}
+		return entry.rawMessage;
+	}
+
+	private emitQueueChange(sessionId: string, kind: ChatQueueUpdateKind, entry?: QueuedChatRequest): void {
+		const state = this._queuedRequests.get(sessionId);
+		const length = state?.entries.length ?? 0;
+		const totalCharacters = state?.totalCharacters ?? 0;
+		const eventEntry = entry ? this.toQueueSummary(entry) : undefined;
+		this.updateModelQueueState(sessionId, length, totalCharacters);
+		this._onDidChangeQueue.fire({ sessionId, kind, length, totalCharacters, entry: eventEntry });
+	}
+
+	private updateModelQueueState(sessionId: string, length: number, totalCharacters: number): void {
+		const model = this._sessionModels.get(sessionId);
+		model?.setQueueState(length, totalCharacters);
+	}
+
 	private deserializeChats(sessionData: string): ISerializableChatsData {
 		try {
 			const arrayOfSessions: ISerializableChatDataIn[] = revive(JSON.parse(sessionData)); // Revive serialized URIs in session data
@@ -291,6 +385,197 @@ export class ChatService extends Disposable implements IChatService {
 				this._persistedSessions[sessionId] = minimalSession;
 			}
 		}
+	}
+
+	private async prepareModelForSubmission(model: ChatModel, sessionId: string): Promise<void> {
+		const requests = model.getRequests();
+		for (let i = requests.length - 1; i >= 0; i -= 1) {
+			const request = requests[i];
+			if (!request.shouldBeRemovedOnSend) {
+				continue;
+			}
+			if (request.shouldBeRemovedOnSend.afterUndoStop) {
+				request.response?.finalizeUndoState();
+			} else {
+				await this.removeRequest(sessionId, request.id);
+			}
+		}
+	}
+
+	private enqueueQueuedRequest(sessionId: string, message: string, options: IChatSendRequestOptions | undefined): Promise<IChatSendRequestData | undefined> {
+		const trimmed = message.trim();
+		if (!trimmed && !options?.slashCommand && !options?.agentId && !options?.agentIdSilent) {
+			return Promise.resolve(undefined);
+		}
+
+		const length = Math.max(message.length, trimmed.length);
+		if (length > MAX_QUEUED_MESSAGE_LENGTH) {
+			this.logService.warn(`ChatService#enqueueQueuedRequest dropping request for session ${sessionId} because it exceeds the per-message limit (${length} > ${MAX_QUEUED_MESSAGE_LENGTH}).`);
+			return Promise.resolve(undefined);
+		}
+
+		const deferred = new DeferredPromise<IChatSendRequestData | undefined>();
+		const entry: QueuedChatRequest = {
+			id: generateUuid(),
+			rawMessage: message,
+			createdAt: Date.now(),
+			length,
+			options: this.cloneSendRequestOptions(options),
+			deferred
+		};
+
+		const state = this.getOrCreateQueueState(sessionId);
+
+		while (state.entries.length >= MAX_QUEUED_MESSAGES) {
+			const dropped = state.entries.shift();
+			if (!dropped) {
+				break;
+			}
+			state.totalCharacters -= dropped.length;
+			dropped.deferred.error(new Error('Queued request dropped because the queue reached its maximum length.'));
+			this.logService.warn(`ChatService#enqueueQueuedRequest dropping oldest queued request ${dropped.id} for session ${sessionId} to respect queue length limit.`);
+			this.emitQueueChange(sessionId, ChatQueueUpdateKind.Dropped, dropped);
+		}
+
+		while (state.totalCharacters + length > MAX_QUEUED_TOTAL_LENGTH && state.entries.length > 0) {
+			const dropped = state.entries.shift();
+			if (!dropped) {
+				break;
+			}
+			state.totalCharacters -= dropped.length;
+			dropped.deferred.error(new Error('Queued request dropped because the queue exceeded its total size limit.'));
+			this.logService.warn(`ChatService#enqueueQueuedRequest dropping queued request ${dropped.id} for session ${sessionId} to respect queue size limit.`);
+			this.emitQueueChange(sessionId, ChatQueueUpdateKind.Dropped, dropped);
+		}
+
+		if (state.totalCharacters + length > MAX_QUEUED_TOTAL_LENGTH && state.entries.length === 0) {
+			this.logService.warn(`ChatService#enqueueQueuedRequest dropping request for session ${sessionId} because it exceeds the total queue size limit (${length} > ${MAX_QUEUED_TOTAL_LENGTH}).`);
+			deferred.error(new Error('Queued request dropped because it exceeds the session queue size limit.'));
+			this.emitQueueChange(sessionId, ChatQueueUpdateKind.Dropped, entry);
+			this._queuedRequests.delete(sessionId);
+			return deferred.p;
+		}
+
+		state.entries.push(entry);
+		state.totalCharacters += length;
+		this.emitQueueChange(sessionId, ChatQueueUpdateKind.Enqueued, entry);
+		return deferred.p;
+	}
+
+	private clearQueuedRequests(sessionId: string, kind: ChatQueueUpdateKind, error?: Error): void {
+		const state = this._queuedRequests.get(sessionId);
+		if (!state) {
+			this.emitQueueChange(sessionId, kind);
+			return;
+		}
+
+		while (state.entries.length > 0) {
+			const entry = state.entries.shift();
+			if (!entry) {
+				break;
+			}
+			entry.deferred.error(error ?? new Error('Queued request cleared.'));
+		}
+		state.totalCharacters = 0;
+		this._queuedRequests.delete(sessionId);
+		this.emitQueueChange(sessionId, kind);
+	}
+
+	private async processQueue(sessionId: string): Promise<void> {
+		if (this._queueProcessors.has(sessionId)) {
+			return;
+		}
+
+		this._queueProcessors.add(sessionId);
+		try {
+			const state = this._queuedRequests.get(sessionId);
+			if (!state || state.entries.length === 0) {
+				if (state) {
+					this._queuedRequests.delete(sessionId);
+				}
+				this.emitQueueChange(sessionId, ChatQueueUpdateKind.Cleared);
+				return;
+			}
+
+			if (this._pendingRequests.has(sessionId)) {
+				return;
+			}
+
+			const model = this._sessionModels.get(sessionId);
+			if (!model) {
+				this.clearQueuedRequests(sessionId, ChatQueueUpdateKind.Cleared, new Error(`Session ${sessionId} disposed before queued requests were processed.`));
+				return;
+			}
+
+			const entries = state.entries.splice(0, state.entries.length);
+			state.totalCharacters = 0;
+			this._queuedRequests.delete(sessionId);
+			this.emitQueueChange(sessionId, ChatQueueUpdateKind.Flushed);
+
+			await this.prepareModelForSubmission(model, sessionId);
+
+			const aggregatedMessage = this.buildAggregatedMessage(entries);
+			const lastEntry = entries[entries.length - 1];
+			if (entries.length > 1) {
+				for (let i = 0; i < entries.length - 1; i++) {
+					if (entries[i].options?.attachedContext?.length) {
+						this.logService.warn(`Queued request ${entries[i].id} included attachments that were dropped because only the newest queued request's attachments are sent.`);
+					}
+				}
+			}
+			const options = this.cloneSendRequestOptions(lastEntry.options);
+
+			try {
+				const sendResult = this.executeSend(model, sessionId, aggregatedMessage, options);
+				for (const entry of entries) {
+					entry.deferred.complete(sendResult);
+				}
+			} catch (err) {
+				for (const entry of entries) {
+					entry.deferred.error(err);
+				}
+			}
+		} finally {
+			this._queueProcessors.delete(sessionId);
+		}
+	}
+
+	private buildAggregatedMessage(entries: readonly QueuedChatRequest[]): string {
+		if (entries.length === 0) {
+			return '';
+		}
+
+		if (entries.length === 1) {
+			return entries[0].rawMessage;
+		}
+
+		return entries.map((entry, index) => {
+			const display = this.getDisplayMessage(entry);
+			if (!display) {
+				return `${index + 1}.`;
+			}
+			const lines = display.split(/\r?\n/);
+			const [first, ...rest] = lines;
+			const body = rest.map(line => line ? `   ${line}` : '   ').join('\n');
+			return body ? `${index + 1}. ${first}\n${body}` : `${index + 1}. ${first}`;
+		}).join('\n\n');
+	}
+
+	private executeSend(model: ChatModel, sessionId: string, request: string, options?: IChatSendRequestOptions): IChatSendRequestData {
+		const location = options?.location ?? model.initialLocation;
+		const attempt = options?.attempt ?? 0;
+		const defaultAgent = this.chatAgentService.getDefaultAgent(location, options?.modeInfo?.kind)!;
+
+		const parsedRequest = this.parseChatRequest(sessionId, request, location, options);
+		const silentAgent = options?.agentIdSilent ? this.chatAgentService.getAgent(options.agentIdSilent) : undefined;
+		const agent = silentAgent ?? parsedRequest.parts.find((r): r is ChatRequestAgentPart => r instanceof ChatRequestAgentPart)?.agent ?? defaultAgent;
+		const agentSlashCommandPart = parsedRequest.parts.find((r): r is ChatRequestAgentSubcommandPart => r instanceof ChatRequestAgentSubcommandPart);
+
+		return {
+			...this._sendRequestAsync(model, sessionId, parsedRequest, attempt, !options?.noCommandDetection, silentAgent ?? defaultAgent, location, options),
+			agent,
+			slashCommand: agentSlashCommandPart?.command,
+		};
 	}
 
 	/**
@@ -615,38 +900,22 @@ export class ChatService extends Disposable implements IChatService {
 			throw new Error(`Unknown session: ${sessionId}`);
 		}
 
+		await this.prepareModelForSubmission(model, sessionId);
+
 		if (this._pendingRequests.has(sessionId)) {
-			this.trace('sendRequest', `Session ${sessionId} already has a pending request`);
-			return;
+			this.trace('sendRequest', `Session ${sessionId} already has a pending request; queueing.`);
+			return this.enqueueQueuedRequest(sessionId, request, options);
 		}
 
-		const requests = model.getRequests();
-		for (let i = requests.length - 1; i >= 0; i -= 1) {
-			const request = requests[i];
-			if (request.shouldBeRemovedOnSend) {
-				if (request.shouldBeRemovedOnSend.afterUndoStop) {
-					request.response?.finalizeUndoState();
-				} else {
-					await this.removeRequest(sessionId, request.id);
-				}
-			}
+		const queueState = this._queuedRequests.get(sessionId);
+		if (queueState && queueState.entries.length > 0) {
+			this.trace('sendRequest', `Session ${sessionId} has queued requests without a pending request; queueing new request and processing.`);
+			const promise = this.enqueueQueuedRequest(sessionId, request, options);
+			this.processQueue(sessionId).catch(err => this.logService.error(err));
+			return promise;
 		}
 
-		const location = options?.location ?? model.initialLocation;
-		const attempt = options?.attempt ?? 0;
-		const defaultAgent = this.chatAgentService.getDefaultAgent(location, options?.modeInfo?.kind)!;
-
-		const parsedRequest = this.parseChatRequest(sessionId, request, location, options);
-		const silentAgent = options?.agentIdSilent ? this.chatAgentService.getAgent(options.agentIdSilent) : undefined;
-		const agent = silentAgent ?? parsedRequest.parts.find((r): r is ChatRequestAgentPart => r instanceof ChatRequestAgentPart)?.agent ?? defaultAgent;
-		const agentSlashCommandPart = parsedRequest.parts.find((r): r is ChatRequestAgentSubcommandPart => r instanceof ChatRequestAgentSubcommandPart);
-
-		// This method is only returning whether the request was accepted - don't block on the actual request
-		return {
-			...this._sendRequestAsync(model, sessionId, parsedRequest, attempt, !options?.noCommandDetection, silentAgent ?? defaultAgent, location, options),
-			agent,
-			slashCommand: agentSlashCommandPart?.command,
-		};
+		return this.executeSend(model, sessionId, request, options);
 	}
 
 	private parseChatRequest(sessionId: string, request: string, location: ChatAgentLocation, options: IChatSendRequestOptions | undefined): IParsedChatRequest {
@@ -962,6 +1231,7 @@ export class ChatService extends Disposable implements IChatService {
 		this._pendingRequests.set(model.sessionId, this.instantiationService.createInstance(CancellableRequest, source, undefined));
 		rawResponsePromise.finally(() => {
 			this._pendingRequests.deleteAndDispose(model.sessionId);
+			this.processQueue(model.sessionId).catch(err => this.logService.error(err));
 		});
 		this._onDidSubmitRequest.fire({ chatSessionId: model.sessionId });
 		return {
@@ -1085,10 +1355,13 @@ export class ChatService extends Disposable implements IChatService {
 		model.completeResponse(request);
 	}
 
-	cancelCurrentRequestForSession(sessionId: string): void {
+	cancelCurrentRequestForSession(sessionId: string, options?: { readonly clearQueued?: boolean }): void {
 		this.trace('cancelCurrentRequestForSession', `sessionId: ${sessionId}`);
 		this._pendingRequests.get(sessionId)?.cancel();
 		this._pendingRequests.deleteAndDispose(sessionId);
+		if (options?.clearQueued) {
+			this.clearQueuedRequests(sessionId, ChatQueueUpdateKind.Cleared, new Error('Queued requests cancelled.'));
+		}
 	}
 
 	async clearSession(sessionId: string): Promise<void> {
@@ -1111,7 +1384,21 @@ export class ChatService extends Disposable implements IChatService {
 		model.dispose();
 		this._pendingRequests.get(sessionId)?.cancel();
 		this._pendingRequests.deleteAndDispose(sessionId);
+		this.clearQueuedRequests(sessionId, ChatQueueUpdateKind.Cleared, new Error('Session cleared.'));
 		this._onDidDisposeSession.fire({ sessionId, reason: 'cleared' });
+	}
+
+	getQueuedRequests(sessionId: string): ReadonlyArray<IChatQueuedRequestSummary> {
+		const state = this._queuedRequests.get(sessionId);
+		if (!state) {
+			return [];
+		}
+
+		return state.entries.map(entry => this.toQueueSummary(entry));
+	}
+
+	getQueuedRequestCount(sessionId: string): number {
+		return this._queuedRequests.get(sessionId)?.entries.length ?? 0;
 	}
 
 	public hasSessions(): boolean {
