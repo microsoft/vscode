@@ -165,7 +165,7 @@ steps:
   - script: |
       set -e
       npm run gulp vscode-linux-$(VSCODE_ARCH)-min-ci
-      ARCHIVE_PATH=".build/linux/client/code-${{ parameters.VSCODE_QUALITY }}-$(VSCODE_ARCH)-$(date +%s).tar.gz"
+      ARCHIVE_PATH=".build/linux/out/client/code-${{ parameters.VSCODE_QUALITY }}-$(VSCODE_ARCH)-$(date +%s).tar.gz"
       mkdir -p $(dirname $ARCHIVE_PATH)
       echo "##vso[task.setvariable variable=CLIENT_PATH]$ARCHIVE_PATH"
     env:

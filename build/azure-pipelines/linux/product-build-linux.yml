@@ -29,7 +29,7 @@ jobs:
       NPM_ARCH: ${{ parameters.NPM_ARCH }}
       VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
     templateContext:
-      outputParentDirectory: $(Build.SourcesDirectory)/.build/linux
+      outputParentDirectory: $(Build.SourcesDirectory)/.build/linux/out
       outputs:
         - ${{ if or(eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}:
           - output: pipelineArtifact
@@ -61,46 +61,46 @@ jobs:
           sbomPackageName: "VS Code Linux $(VSCODE_ARCH) (unsigned)"
           sbomPackageVersion: $(Build.SourceVersion)
           condition: and(succeededOrFailed(), ne(variables['CLIENT_PATH'], ''))
-        - output: pipelineArtifact
-          targetPath: $(SERVER_PATH)
-          artifactName: $(ARTIFACT_PREFIX)vscode_server_linux_$(VSCODE_ARCH)_archive-unsigned
-          displayName: Publish server archive
-          sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)
-          sbomPackageName: "VS Code Linux $(VSCODE_ARCH) Server"
-          sbomPackageVersion: $(Build.SourceVersion)
-          condition: and(succeededOrFailed(), ne(variables['SERVER_PATH'], ''))
-        - output: pipelineArtifact
-          targetPath: $(WEB_PATH)
-          artifactName: $(ARTIFACT_PREFIX)vscode_web_linux_$(VSCODE_ARCH)_archive-unsigned
-          displayName: Publish web server archive
-          sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)-web
-          sbomPackageName: "VS Code Linux $(VSCODE_ARCH) Web"
-          sbomPackageVersion: $(Build.SourceVersion)
-          condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''))
-        - output: pipelineArtifact
-          targetPath: $(DEB_PATH)
-          artifactName: $(ARTIFACT_PREFIX)vscode_client_linux_$(VSCODE_ARCH)_deb-package
-          displayName: Publish deb package
-          sbomBuildDropPath: .build/linux/deb
-          sbomPackageName: "VS Code Linux $(VSCODE_ARCH) DEB"
-          sbomPackageVersion: $(Build.SourceVersion)
-          condition: and(succeededOrFailed(), ne(variables['DEB_PATH'], ''))
-        - output: pipelineArtifact
-          targetPath: $(RPM_PATH)
-          artifactName: $(ARTIFACT_PREFIX)vscode_client_linux_$(VSCODE_ARCH)_rpm-package
-          displayName: Publish rpm package
-          sbomBuildDropPath: .build/linux/rpm
-          sbomPackageName: "VS Code Linux $(VSCODE_ARCH) RPM"
-          sbomPackageVersion: $(Build.SourceVersion)
-          condition: and(succeededOrFailed(), ne(variables['RPM_PATH'], ''))
-        - output: pipelineArtifact
-          targetPath: $(SNAP_PATH)
-          artifactName: vscode_client_linux_$(VSCODE_ARCH)_snap
-          displayName: Publish snap package
-          sbomBuildDropPath: $(SNAP_EXTRACTED_PATH)
-          sbomPackageName: "VS Code Linux $(VSCODE_ARCH) SNAP"
-          sbomPackageVersion: $(Build.SourceVersion)
-          condition: and(succeededOrFailed(), ne(variables['SNAP_PATH'], ''))
+        # - output: pipelineArtifact
+        #   targetPath: $(SERVER_PATH)
+        #   artifactName: $(ARTIFACT_PREFIX)vscode_server_linux_$(VSCODE_ARCH)_archive-unsigned
+        #   displayName: Publish server archive
+        #   sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)
+        #   sbomPackageName: "VS Code Linux $(VSCODE_ARCH) Server"
+        #   sbomPackageVersion: $(Build.SourceVersion)
+        #   condition: and(succeededOrFailed(), ne(variables['SERVER_PATH'], ''))
+        # - output: pipelineArtifact
+        #   targetPath: $(WEB_PATH)
+        #   artifactName: $(ARTIFACT_PREFIX)vscode_web_linux_$(VSCODE_ARCH)_archive-unsigned
+        #   displayName: Publish web server archive
+        #   sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)-web
+        #   sbomPackageName: "VS Code Linux $(VSCODE_ARCH) Web"
+        #   sbomPackageVersion: $(Build.SourceVersion)
+        #   condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''))
+        # - output: pipelineArtifact
+        #   targetPath: $(DEB_PATH)
+        #   artifactName: $(ARTIFACT_PREFIX)vscode_client_linux_$(VSCODE_ARCH)_deb-package
+        #   displayName: Publish deb package
+        #   sbomBuildDropPath: .build/linux/deb
+        #   sbomPackageName: "VS Code Linux $(VSCODE_ARCH) DEB"
+        #   sbomPackageVersion: $(Build.SourceVersion)
+        #   condition: and(succeededOrFailed(), ne(variables['DEB_PATH'], ''))
+        # - output: pipelineArtifact
+        #   targetPath: $(RPM_PATH)
+        #   artifactName: $(ARTIFACT_PREFIX)vscode_client_linux_$(VSCODE_ARCH)_rpm-package
+        #   displayName: Publish rpm package
+        #   sbomBuildDropPath: .build/linux/rpm
+        #   sbomPackageName: "VS Code Linux $(VSCODE_ARCH) RPM"
+        #   sbomPackageVersion: $(Build.SourceVersion)
+        #   condition: and(succeededOrFailed(), ne(variables['RPM_PATH'], ''))
+        # - output: pipelineArtifact
+        #   targetPath: $(SNAP_PATH)
+        #   artifactName: vscode_client_linux_$(VSCODE_ARCH)_snap
+        #   displayName: Publish snap package
+        #   sbomBuildDropPath: $(SNAP_EXTRACTED_PATH)
+        #   sbomPackageName: "VS Code Linux $(VSCODE_ARCH) SNAP"
+        #   sbomPackageVersion: $(Build.SourceVersion)
+        #   condition: and(succeededOrFailed(), ne(variables['SNAP_PATH'], ''))
 
     steps:
       - template: ./steps/product-build-linux-compile.yml@self
