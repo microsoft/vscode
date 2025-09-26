@@ -10,6 +10,7 @@ import { IContextMenuService } from '../../../../../platform/contextview/browser
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { SimpleSettingRenderer } from '../../../markdown/browser/markdownSettingRenderer.js';
+import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
 import { renderReleaseNotesMarkdown } from '../../browser/releaseNotesEditor.js';
 
 
@@ -52,6 +53,50 @@ Navigation End -->
 
 ## Test`;
 
+		const result = await renderReleaseNotesMarkdown(content, extensionService, languageService, instantiationService.createInstance(SimpleSettingRenderer));
+		await assertSnapshot(result.toString());
+	});
+
+	test('Should render code settings', async () => {
+		// Stub preferences service with a known setting so the SimpleSettingRenderer treats it as valid
+		const testSettingId = 'editor.wordWrap';
+		instantiationService.stub(IPreferencesService, <IPreferencesService><unknown>{
+			_serviceBrand: undefined,
+			onDidDefaultSettingsContentChanged: { event: () => { /* noop */ } },
+			userSettingsResource: undefined as any,
+			workspaceSettingsResource: null,
+			getFolderSettingsResource: () => null,
+			createPreferencesEditorModel: async () => null,
+			getDefaultSettingsContent: () => undefined,
+			hasDefaultSettingsContent: () => false,
+			createSettings2EditorModel: () => { throw new Error('not needed'); },
+			openPreferences: async () => undefined,
+			openRawDefaultSettings: async () => undefined,
+			openSettings: async () => undefined,
+			openApplicationSettings: async () => undefined,
+			openUserSettings: async () => undefined,
+			openRemoteSettings: async () => undefined,
+			openWorkspaceSettings: async () => undefined,
+			openFolderSettings: async () => undefined,
+			openGlobalKeybindingSettings: async () => undefined,
+			openDefaultKeybindingsFile: async () => undefined,
+			openLanguageSpecificSettings: async () => undefined,
+			getEditableSettingsURI: async () => null,
+			getSetting: (id: string) => {
+				if (id === testSettingId) {
+					// Provide the minimal fields accessed by SimpleSettingRenderer
+					return <any>{
+						key: testSettingId,
+						value: 'off',
+						type: 'string'
+					};
+				}
+				return undefined;
+			},
+			createSplitJsonEditorInput: () => { throw new Error('not needed'); }
+		});
+
+		const content = `Here is a setting: \`setting(${testSettingId}:on)\` and another \`setting(${testSettingId}:off)\``;
 		const result = await renderReleaseNotesMarkdown(content, extensionService, languageService, instantiationService.createInstance(SimpleSettingRenderer));
 		await assertSnapshot(result.toString());
 	});
