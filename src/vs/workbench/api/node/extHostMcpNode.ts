@@ -6,6 +6,8 @@
 import { ChildProcessWithoutNullStreams, spawn } from 'child_process';
 import { readFile } from 'fs/promises';
 import { homedir } from 'os';
+// eslint-disable-next-line local/code-import-patterns
+import type { RequestInit as UndiciRequestInit } from 'undici';
 import { parseEnvFile } from '../../../base/common/envfile.js';
 import { untildify } from '../../../base/common/labels.js';
 import { DisposableMap } from '../../../base/common/lifecycle.js';
@@ -140,7 +142,7 @@ class McpHTTPHandleNode extends McpHTTPHandle {
 	protected override async _fetchInternal(url: string, init?: CommonRequestInit): Promise<Response> {
 		const { fetch, Agent } = await import('undici');
 
-		const undiciInit = { ...init, dispatcher: undefined as any };
+		const undiciInit: UndiciRequestInit = { ...init };
 
 		let httpUrl = url;
 		const uri = URI.parse(url);
