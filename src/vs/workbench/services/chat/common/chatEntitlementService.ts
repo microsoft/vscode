@@ -1081,11 +1081,15 @@ type ChatEntitlementClassification = {
 	chatHidden: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether chat is hidden or not.' };
 	chatEntitlement: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The current chat entitlement of the user.' };
 	chatAnonymous: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user is anonymously using chat.' };
+	chatRegistered: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user is registered for chat.' };
+	chatDisabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether chat is disabled or not.' };
 };
 type ChatEntitlementEvent = {
 	chatHidden: boolean;
 	chatEntitlement: ChatEntitlement;
 	chatAnonymous: boolean;
+	chatRegistered: boolean;
+	chatDisabled: boolean;
 };
 
 export class ChatEntitlementContext extends Disposable {
@@ -1261,7 +1265,9 @@ export class ChatEntitlementContext extends Disposable {
 		this.logService.trace(`[chat entitlement context] updateContext(): ${JSON.stringify(state)}`);
 		this.telemetryService.publicLog2<ChatEntitlementEvent, ChatEntitlementClassification>('chatEntitlements', {
 			chatHidden: Boolean(state.hidden),
+			chatDisabled: Boolean(state.disabled),
 			chatEntitlement: state.entitlement,
+			chatRegistered: Boolean(state.registered),
 			chatAnonymous: isAnonymous(this.configurationService, state.entitlement, state)
 		});
 

@@ -14,6 +14,7 @@ import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider } from '.
 import { IChatService } from '../../common/chatService.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { IChatModel } from '../../common/chatModel.js';
+import { ChatSessionUri } from '../../common/chatUri.js';
 
 export class ChatSessionTracker extends Disposable {
 	private readonly _onDidChangeEditors = this._register(new Emitter<{ sessionType: string; kind: GroupModelChangeKind }>());
@@ -98,8 +99,9 @@ export class ChatSessionTracker extends Disposable {
 				}
 			}
 
+			const parsed = ChatSessionUri.parse(editor.resource);
 			const hybridSession: ChatSessionItemWithProvider = {
-				id: `${provider.chatSessionType}-local-${index}`,
+				id: parsed?.sessionId || editor.sessionId || `${provider.chatSessionType}-local-${index}`,
 				label: editor.getName(),
 				iconPath: Codicon.chatSparkle,
 				status,
