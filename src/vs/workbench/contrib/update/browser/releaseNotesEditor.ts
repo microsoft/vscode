@@ -276,11 +276,10 @@ export class ReleaseNotesManager extends Disposable {
 					override: '*' // TODO: remove once we can use <base> to find real resource locations
 				},
 				allowedLinkProtocols: {
-					override: [Schemas.http, Schemas.https, Schemas.command]
+					override: [Schemas.http, Schemas.https, Schemas.command, Schemas.codeSetting]
 				},
-				allowedTags: {
-					augment: ['nav']
-				}
+				allowedTags: { augment: ['nav', 'svg', 'path'] },
+				allowedAttributes: { augment: ['aria-role', 'viewBox', 'fill', 'xmlns', 'd'] }
 			},
 			markedExtensions: [{
 				renderer: {
