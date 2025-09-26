@@ -189,7 +189,7 @@ suite('Workbench - TerminalInstance', () => {
 			strictEqual(taskTerminal.title, 'Test Task Name');
 
 			// Simulate a process title change (which happens when task completes)
-			(taskTerminal as any)._setTitle('some-process-name', TitleEventSource.Process);
+			await taskTerminal.rename('some-process-name', TitleEventSource.Process);
 
 			// Verify that the task name is preserved
 			strictEqual(taskTerminal.title, 'Test Task Name', 'Task terminal should preserve API-set title when preserveTaskName is enabled');
@@ -231,7 +231,7 @@ suite('Workbench - TerminalInstance', () => {
 			strictEqual(regularTerminal.title, 'Regular Terminal');
 
 			// Simulate a process title change
-			(regularTerminal as any)._setTitle('bash', TitleEventSource.Process);
+			await regularTerminal.rename('bash', TitleEventSource.Process);
 
 			// Verify that the title was changed (regular terminals should allow process title changes)
 			strictEqual(regularTerminal.title, 'bash', 'Regular terminal should allow process title changes to override API-set title');
