@@ -18,7 +18,7 @@ import { findExecutable } from '../../../base/node/processes.js';
 import { LogLevel } from '../../../platform/log/common/log.js';
 import { McpConnectionState, McpServerLaunch, McpServerTransportStdio, McpServerTransportType } from '../../contrib/mcp/common/mcpTypes.js';
 import { McpStdioStateHandler } from '../../contrib/mcp/node/mcpStdioStateHandler.js';
-import { CommonRequestInit, ExtHostMcpService, McpHTTPHandle } from '../common/extHostMcp.js';
+import { CommonRequestInit, CommonResponse, ExtHostMcpService, McpHTTPHandle } from '../common/extHostMcp.js';
 
 export class NodeExtHostMpcService extends ExtHostMcpService {
 	private nodeServers = this._register(new DisposableMap<number, McpStdioStateHandler>());
@@ -141,7 +141,7 @@ export class NodeExtHostMpcService extends ExtHostMcpService {
 class McpHTTPHandleNode extends McpHTTPHandle {
 	private readonly _undici = new Lazy(() => import('undici'));
 
-	protected override async _fetchInternal(url: string, init?: CommonRequestInit): Promise<Response> {
+	protected override async _fetchInternal(url: string, init?: CommonRequestInit): Promise<CommonResponse> {
 		// Note: imported async so that we can ensure we load undici after proxy patches have been applied
 		const { fetch, Agent } = await this._undici.value;
 
@@ -165,13 +165,9 @@ class McpHTTPHandleNode extends McpHTTPHandle {
 			}).toString(true);
 		}
 
-		const undiciResponse = await fetch(httpUrl, undiciInit);
-
-		return new Response(undiciResponse.body as ReadableStream, {
-			status: undiciResponse.status,
-			statusText: undiciResponse.statusText,
-			headers: undiciResponse.headers
-		});
+		// An `as CommonResponse` is required because of a very slight type mismatch between undici's `Response` and the standard `Response` type
+		// (Way down in `ReadableStreamReadDoneResult<T>`, `value` is optional in the undici type but required [yet can be `undefined`] in the standard type)
+		return await fetch(httpUrl, undiciInit) as CommonResponse;
 	}
 }
 
