@@ -438,6 +438,11 @@ export class ExtensionFeaturesTab extends Themable {
 
 	private showFeatureView(feature: IExtensionFeatureDescriptor, container: HTMLElement): void {
 		if (this.featureView.value?.feature.id === feature.id) {
+			// Ensure the view is still properly attached to the container
+			if (container.firstChild !== this.featureView.value.domNode) {
+				clearNode(container);
+				container.appendChild(this.featureView.value.domNode);
+			}
 			return;
 		}
 		clearNode(container);
