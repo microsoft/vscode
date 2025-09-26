@@ -1035,37 +1035,31 @@ export async function fetchProtectedResourceMetadata(
 	
 	/**
 	 * Helper function to fetch and validate resource metadata from a URL
+	 * Throws errors for both non-200 status codes and invalid response format
 	 */
-	const fetchAndValidateMetadata = async (url: string, throwOnError: boolean = false): Promise<IAuthorizationProtectedResourceMetadata | null> => {
+	const fetchAndValidateMetadata = async (url: string): Promise<IAuthorizationProtectedResourceMetadata> => {
 		const response = await fetchFn(url, {
 			method: 'GET',
 			headers: buildHeaders(url)
 		});
 		
-		if (response.status === 200) {
-			const body = await response.json();
-			if (isAuthorizationProtectedResourceMetadata(body)) {
-				return body;
-			} else {
-				throw new Error(`Invalid resource metadata. Expected to follow shape of https://datatracker.ietf.org/doc/html/rfc9728#name-protected-resource-metadata (Hints: is scopes_supported an array? Is resource a string?). Current payload: ${JSON.stringify(body)}`);
-			}
-		} else if (throwOnError) {
-			// For direct URLs, throw error with status details to maintain existing behavior
+		if (response.status !== 200) {
 			const errorText = response.statusText || 'Unknown error';
 			throw new Error(`Failed to fetch resource metadata: ${response.status} ${errorText}`);
 		}
 		
-		return null;
+		const body = await response.json();
+		if (!isAuthorizationProtectedResourceMetadata(body)) {
+			throw new Error(`Invalid resource metadata. Expected to follow shape of https://datatracker.ietf.org/doc/html/rfc9728#name-protected-resource-metadata (Hints: is scopes_supported an array? Is resource a string?). Current payload: ${JSON.stringify(body)}`);
+		}
+		
+		return body;
 	};
 	
 	// If a direct resource metadata URL is provided (from WWW-Authenticate header), use only that
 	if (resourceMetadataChallenge) {
-		const result = await fetchAndValidateMetadata(resourceMetadataChallenge, true);
-		if (result) {
-			return result;
-		}
-		// If direct URL fails, we don't fall back to well-known discovery per RFC 9728
-		return undefined;
+		const result = await fetchAndValidateMetadata(resourceMetadataChallenge);
+		return result;
 	}
 	
 	// Fallback to well-known URI discovery
@@ -1088,10 +1082,8 @@ export async function fetchProtectedResourceMetadata(
 	// Try each well-known URL in order
 	for (const url of wellKnownUrls) {
 		try {
-			const result = await fetchAndValidateMetadata(url, false);
-			if (result) {
-				return result;
-			}
+			const result = await fetchAndValidateMetadata(url);
+			return result;
 		} catch (error) {
 			// Continue to next URL on error for well-known discovery
 			continue;
