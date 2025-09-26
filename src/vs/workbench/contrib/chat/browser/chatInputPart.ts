@@ -82,7 +82,7 @@ import { IChatFollowup } from '../common/chatService.js';
 import { ChatRequestVariableSet, IChatRequestVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemChangeRangeVariableEntry, isSCMHistoryItemChangeVariableEntry, isSCMHistoryItemVariableEntry } from '../common/chatVariableEntries.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
 import { ChatInputHistoryMaxEntries, IChatHistoryEntry, IChatInputState, IChatWidgetHistoryService } from '../common/chatWidgetHistoryService.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, validateChatMode } from '../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, TodoListWidgetPositionSettingId, validateChatMode } from '../common/constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
 import { ILanguageModelToolsService } from '../common/languageModelToolsService.js';
 import { PromptsType } from '../common/promptSyntax/promptTypes.js';
@@ -1600,9 +1600,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		// Optionally render a todo list above the working set using the IChatTodoListService
 		// Reuse the styling from ChatTodoListWidget by including the `.chat-todo-list-widget` class on the container
-		const renderTodoListInInput = this.configurationService.getValue<boolean>('chat.renderTodoListInInput') === true;
-		if (!renderTodoListInInput) {
-			// When disabled, ensure existing container is hidden and proceed with working set rendering
+		const todoListWidgetPosition = this.configurationService.getValue<string>(TodoListWidgetPositionSettingId) || 'default';
+		if (todoListWidgetPosition !== 'chat-input') {
+			// When not 'chat-input', ensure existing container is hidden and proceed with working set rendering
 			const existingTodos = this.chatEditingSessionWidgetContainer.querySelector('.chat-editing-session-todos.chat-todo-list-widget') as HTMLElement | null;
 			if (existingTodos) { dom.setVisibility(false, existingTodos); }
 			// Continue with working set rendering below
