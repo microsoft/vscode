@@ -169,9 +169,7 @@
 	text-align: center;
 }
 
-.chat-sessions-tree-container .chat-session-item .monaco-icon-label.codicon-loading::before {
-	animation: codicon-spin 1.5s steps(30) infinite;
-}
+/* Removed old .monaco-icon-label loading spinner rule (no longer used after switching to custom icon element) */
 
 /* Custom chat session icon that bypasses file icon theme */
 .chat-sessions-tree-container .chat-session-item .chat-session-custom-icon {
@@ -179,8 +177,6 @@
 	width: 16px;
 	height: 16px;
 	margin-right: 6px;
-	align-items: center;
-	justify-content: center;
 	font-size: 16px;
 	color: var(--vscode-icon-foreground);
 }
@@ -245,8 +241,10 @@
 
 /* Hide twisties for elements that don't have children */
 .chat-sessions-tree-container .monaco-list-row .monaco-tl-twistie {
-	visibility: hidden;
-	width: 0;
+	/* Ultra-small indent to separate parent/child without large gutter */
+	visibility: hidden; /* keep layout space */
+	width: 3px; /* tuned down from 6px after feedback */
+	min-width: 3px;
 	padding: 0;
 	margin: 0;
 }
