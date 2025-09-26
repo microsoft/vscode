@@ -119,6 +119,7 @@ export const enum TestCommandId {
 	TestingViewAsListAction = 'testing.viewAsList',
 	TestingViewAsTreeAction = 'testing.viewAsTree',
 	ToggleContinousRunForTest = 'testing.toggleContinuousRunForTest',
+	ToggleResultsViewLayoutAction = 'testing.toggleResultsViewLayout',
 	ToggleInlineTestOutput = 'testing.toggleInlineTestOutput',
 	UnhideAllTestsAction = 'testing.unhideAllTests',
 	UnhideTestAction = 'testing.unhideTest',

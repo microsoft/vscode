@@ -876,6 +876,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				const renderStyle = this.viewOptions.renderStyle;
 				this.createInput(this.container, { renderFollowups, renderStyle });
 				this.input.setChatMode(this.lastWelcomeViewChatMode ?? ChatModeKind.Ask);
+				this.focusInput();
 			}
 
 			if (treeItems.length > 0) {
