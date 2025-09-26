@@ -72,10 +72,16 @@ export class PromptValidator {
 
 		// Validate variable references (tool or toolset names)
 		if (body.variableReferences.length) {
-			const available = this.getAvailableToolAndToolSetNames();
+			const available = new Set<string>(this.languageModelToolsService.getQualifiedToolNames());
+			const deprecatedNames = this.languageModelToolsService.getDeprecatedQualifiedToolNames();
 			for (const variable of body.variableReferences) {
 				if (!available.has(variable.name)) {
-					report(toMarker(localize('promptValidator.unknownVariableReference', "Unknown tool or toolset '{0}'.", variable.name), variable.range, MarkerSeverity.Warning));
+					if (deprecatedNames.has(variable.name)) {
+						const currentName = deprecatedNames.get(variable.name);
+						report(toMarker(localize('promptValidator.deprecatedVariableReference', "Tool or toolset '{0}' is deprecated, use '{1}' instead.", variable.name, currentName), variable.range, MarkerSeverity.Warning));
+					} else {
+						report(toMarker(localize('promptValidator.unknownVariableReference', "Unknown tool or toolset '{0}'.", variable.name), variable.range, MarkerSeverity.Error));
+					}
 				}
 			}
 		}
@@ -236,31 +242,21 @@ export class PromptValidator {
 
 	private validateToolsArray(valueItem: IArrayValue, report: (markers: IMarkerData) => void) {
 		if (valueItem.items.length > 0) {
-			const available = this.getAvailableToolAndToolSetNames();
+			const available = new Set<string>(this.languageModelToolsService.getQualifiedToolNames());
+			const deprecatedNames = this.languageModelToolsService.getDeprecatedQualifiedToolNames();
 			for (const item of valueItem.items) {
 				if (item.type !== 'string') {
 					report(toMarker(localize('promptValidator.eachToolMustBeString', "Each tool name in the 'tools' attribute must be a string."), item.range, MarkerSeverity.Error));
 				} else if (item.value && !available.has(item.value)) {
-					report(toMarker(localize('promptValidator.toolNotFound', "Unknown tool '{0}'.", item.value), item.range, MarkerSeverity.Warning));
+					if (deprecatedNames.has(item.value)) {
+						const currentName = deprecatedNames.get(item.value);
+						report(toMarker(localize('promptValidator.toolDeprecated', "Tool or toolset '{0}' is deprecated, use '{1}' instead.", item.value, currentName), item.range, MarkerSeverity.Warning));
+					} else {
+						report(toMarker(localize('promptValidator.toolNotFound', "Unknown tool '{0}'.", item.value), item.range, MarkerSeverity.Error));
+					}
 				}
 			}
 		}
-	}
-
-	private getAvailableToolAndToolSetNames(): Set<string> {
-		const available = new Set<string>();
-		for (const tool of this.languageModelToolsService.getTools()) {
-			if (tool.canBeReferencedInPrompt) {
-				available.add(tool.toolReferenceName ?? tool.displayName);
-			}
-		}
-		for (const toolSet of this.languageModelToolsService.toolSets.get()) {
-			available.add(toolSet.referenceName);
-			for (const tool of toolSet.getTools()) {
-				available.add(tool.toolReferenceName ?? tool.displayName);
-			}
-		}
-		return available;
 	}
 
 	private validateApplyTo(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): undefined {

@@ -129,13 +129,13 @@ export class PromptHoverProvider extends Disposable implements HoverProvider {
 	}
 
 	private getToolHoverByName(toolName: string, range: Range): Hover | undefined {
-		const tool = this.languageModelToolsService.getToolByName(toolName);
-		if (tool) {
-			return this.createHover(tool.modelDescription, range);
-		}
-		const toolSet = this.languageModelToolsService.getToolSetByName(toolName);
-		if (toolSet) {
-			return this.getToolsetHover(toolSet, range);
+		const tool = this.languageModelToolsService.getToolByQualifiedName(toolName);
+		if (tool !== undefined) {
+			if (tool instanceof ToolSet) {
+				return this.getToolsetHover(tool, range);
+			} else {
+				return this.createHover(tool.modelDescription, range);
+			}
 		}
 		return undefined;
 	}
