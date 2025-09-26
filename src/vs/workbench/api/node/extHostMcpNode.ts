@@ -22,13 +22,13 @@ import { McpStdioStateHandler } from '../../contrib/mcp/node/mcpStdioStateHandle
 import { CommonRequestInit, ExtHostMcpService, McpHTTPHandle } from '../common/extHostMcp.js';
 
 export class NodeExtHostMpcService extends ExtHostMcpService {
-	protected override _mcpHttpHandleType = McpHTTPHandleNode;
-
 	private nodeServers = this._register(new DisposableMap<number, McpStdioStateHandler>());
 
 	protected override _startMcp(id: number, launch: McpServerLaunch, defaultCwd?: URI, errorOnUserInteraction?: boolean): void {
 		if (launch.type === McpServerTransportType.Stdio) {
 			this.startNodeMpc(id, launch, defaultCwd);
+		} else if (launch.type === McpServerTransportType.HTTP) {
+			this._sseEventSources.set(id, new McpHTTPHandleNode(id, launch, this._proxy, this._logService, errorOnUserInteraction));
 		} else {
 			super._startMcp(id, launch, defaultCwd, errorOnUserInteraction);
 		}

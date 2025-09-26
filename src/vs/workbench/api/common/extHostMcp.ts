@@ -33,9 +33,8 @@ export interface IExtHostMpcService extends ExtHostMcpShape {
 
 export class ExtHostMcpService extends Disposable implements IExtHostMpcService {
 	protected _proxy: MainThreadMcpShape;
-	protected _mcpHttpHandleType = McpHTTPHandle;
 	private readonly _initialProviderPromises = new Set<Promise<void>>();
-	private readonly _sseEventSources = this._register(new DisposableMap<number, McpHTTPHandle>());
+	protected readonly _sseEventSources = this._register(new DisposableMap<number, McpHTTPHandle>());
 	private readonly _unresolvedMcpServers = new Map</* collectionId */ string, {
 		provider: vscode.McpServerDefinitionProvider;
 		servers: vscode.McpServerDefinition[];
@@ -43,7 +42,7 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
-		@ILogService private readonly _logService: ILogService,
+		@ILogService protected readonly _logService: ILogService,
 		@IExtHostInitDataService private readonly _extHostInitData: IExtHostInitDataService,
 		@IExtHostWorkspace protected readonly _workspaceService: IExtHostWorkspace,
 		@IExtHostVariableResolverProvider private readonly _variableResolver: IExtHostVariableResolverProvider,
@@ -58,7 +57,7 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 
 	protected _startMcp(id: number, launch: McpServerLaunch, _defaultCwd?: URI, errorOnUserInteraction?: boolean): void {
 		if (launch.type === McpServerTransportType.HTTP) {
-			this._sseEventSources.set(id, new this._mcpHttpHandleType(id, launch, this._proxy, this._logService, errorOnUserInteraction));
+			this._sseEventSources.set(id, new McpHTTPHandle(id, launch, this._proxy, this._logService, errorOnUserInteraction));
 			return;
 		}
 
