@@ -262,12 +262,12 @@ steps:
         npm run gulp "vscode-linux-$(VSCODE_ARCH)-build-deb"
         mkdir -p .build/linux/out/deb
         cp .build/linux/deb/*/deb/*.deb .build/linux/out/deb/
-        file_output=$(file $(ls .build/linux/out/deb/*/deb/*.deb))
+        file_output=$(file $(ls .build/linux/out/*.deb))
         if [[ "$file_output" != *"data compression xz"* ]]; then
           echo "Error: unknown compression. $file_output"
           exit 1
         fi
-        echo "##vso[task.setvariable variable=DEB_PATH]$(ls .build/linux/out/deb/*/deb/*.deb)"
+        echo "##vso[task.setvariable variable=DEB_PATH]$(ls .build/linux/out/*.deb)"
       displayName: Build deb package
 
     - script:  |
@@ -291,7 +291,7 @@ steps:
         set -e
         mkdir -p .build/linux/out/rpm
         cp .build/linux/rpm/*/*.rpm .build/linux/out/rpm/
-        echo "##vso[task.setvariable variable=RPM_PATH]$(ls .build/linux/out/rpm/*/*.rpm)"
+        echo "##vso[task.setvariable variable=RPM_PATH]$(ls .build/linux/out/rpm/*.rpm)"
       displayName: Build rpm package
 
     - ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
