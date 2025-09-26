@@ -623,7 +623,7 @@ class ChatStatusDashboard extends Disposable {
 		this.hoverService.hideHover(true);
 	}
 
-	private createQuotaIndicator(container: HTMLElement, disposables: DisposableStore, quota: IQuotaSnapshot | string, label: string, supportsOverage: boolean): (quota: IQuotaSnapshot) => void {
+	private createQuotaIndicator(container: HTMLElement, disposables: DisposableStore, quota: IQuotaSnapshot | string, label: string, supportsOverage: boolean): (quota: IQuotaSnapshot | string) => void {
 		const quotaValue = $('span.quota-value');
 		const quotaBit = $('div.quota-bit');
 		const overageLabel = $('span.overage-label');
