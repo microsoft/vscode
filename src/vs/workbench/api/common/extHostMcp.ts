@@ -812,7 +812,6 @@ export interface CommonResponse {
 	statusText: string;
 	headers: Headers;
 	body?: ReadableStream | null;
-	bodyUsed: boolean;
 	url: string;
 	json(): Promise<any>;
 	text(): Promise<string>;
