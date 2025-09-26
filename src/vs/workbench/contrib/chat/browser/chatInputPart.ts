@@ -1412,9 +1412,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const countText = length === 1
 			? localize('chat.queueStatus.singleLabel', "Queued 1 message")
 			: localize('chat.queueStatus.multipleLabel', "Queued {0} messages", length);
-		const charactersText = totalCharacters > 0
-			? localize('chat.queueStatus.charactersLabel', "{0} characters total", totalCharacters)
-			: '';
 		const tooltip = totalCharacters > 0
 			? (length === 1
 				? localize('chat.queueStatus.tooltipSingleWithCharacters', "1 message queued with {0} characters total.", totalCharacters)
@@ -1424,8 +1421,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				: localize('chat.queueStatus.tooltipMultiple', "{0} messages queued.", length));
 
 		this.queueCountLabel.textContent = countText;
-		this.queueCharactersLabel.textContent = charactersText;
-		this.queueCharactersLabel.style.display = charactersText ? '' : 'none';
+		this.queueCharactersLabel.textContent = '';
+		this.queueCharactersLabel.style.display = 'none';
 		this.queueStatusContainer.title = tooltip;
 		this.queueStatusContainer.setAttribute('aria-label', tooltip);
 	}

@@ -918,6 +918,10 @@ export class ChatService extends Disposable implements IChatService {
 		await this.prepareModelForSubmission(model, sessionId);
 
 		if (this._pendingRequests.has(sessionId)) {
+			const queueingEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.QueueMessagesEnabled);
+			if (!queueingEnabled) {
+				throw new ErrorNoTelemetry(localize('chatInProgress', "A chat request is already in progress."));
+			}
 			this.trace('sendRequest', `Session ${sessionId} already has a pending request; queueing.`);
 			return this.enqueueQueuedRequest(sessionId, request, options);
 		}

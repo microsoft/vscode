@@ -316,6 +316,12 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			description: nls.localize('chat.notifyWindowOnResponseReceived', "Controls whether a chat session should notify the user when a response is received while the window is not in focus. This includes a window badge as well as notification toast."),
 		},
+		[ChatConfiguration.QueueMessagesEnabled]: {
+			type: 'boolean',
+			default: false,
+			tags: ['experimental'],
+			description: nls.localize('chat.queueMessages.enabled', "Enable queuing of chat messages when a request is in progress."),
+		},
 		'chat.checkpoints.enabled': {
 			type: 'boolean',
 			default: true,
