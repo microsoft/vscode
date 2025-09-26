@@ -8,7 +8,6 @@ node_modules/
 extensions/**/dist/
 /out*/
 /extensions/**/out/
-test_layout_feature.js
 build/node_modules
 coverage/
 test_data/

@@ -247,7 +247,7 @@ export class TestResultsViewContent extends Disposable {
 		const layout = getTestingConfiguration(this.configurationService, TestingConfigKeys.ResultsViewLayout);
 		this.isTreeLeft = layout === TestingResultsViewLayout.TreeLeft;
 
-		// Note: Configuration changes require view recreation to take effect
+		// Note: Configuration changes require view recreation to take effect (when Test Results view is reopened)
 		// This is consistent with other VS Code panel layout changes
 
 		const messageContainer = this.messageContainer = dom.$('.test-output-peek-message-container');
