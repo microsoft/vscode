@@ -99,6 +99,8 @@ export class InlineCompletionsModel extends Disposable {
 	private readonly _triggerCommandOnProviderChange;
 	private readonly _minShowDelay;
 	private readonly _showOnSuggestConflict;
+	private readonly _suppressInSnippetMode;
+	private readonly _isInSnippetMode;
 
 	constructor(
 		public readonly textModel: ITextModel,
@@ -131,9 +133,13 @@ export class InlineCompletionsModel extends Disposable {
 		this._suppressedInlineCompletionGroupIds = inlineSuggest.map(v => new Set(v.experimental.suppressInlineSuggestions.split(',')));
 		this._inlineEditsEnabled = inlineSuggest.map(v => !!v.edits.enabled);
 		this._inlineEditsShowCollapsedEnabled = inlineSuggest.map(s => s.edits.showCollapsed);
-		this._triggerCommandOnProviderChange = inlineSuggest.map(s => s.experimental.triggerCommandOnProviderChange);
+		this._triggerCommandOnProviderChange = inlineSuggest.map(s => s.triggerCommandOnProviderChange);
 		this._minShowDelay = inlineSuggest.map(s => s.minShowDelay);
 		this._showOnSuggestConflict = inlineSuggest.map(s => s.experimental.showOnSuggestConflict);
+		this._suppressInSnippetMode = inlineSuggest.map(s => s.suppressInSnippetMode);
+
+		const snippetController = SnippetController2.get(this._editor);
+		this._isInSnippetMode = snippetController?.isInSnippetObservable ?? constObservable(false);
 
 		this._typing = this._register(new TypingInterval(this.textModel));
 
@@ -356,9 +362,9 @@ export class InlineCompletionsModel extends Disposable {
 
 		this._textModelVersionId.read(reader); // Refetch on text change
 
-		const suggestWidgetInlineCompletions = this._source.suggestWidgetInlineCompletions.get();
+		const suggestWidgetInlineCompletions = this._source.suggestWidgetInlineCompletions.read(undefined);
 		let suggestItem = this._selectedSuggestItem.read(reader);
-		if (this._shouldShowOnSuggestConflict.get()) {
+		if (this._shouldShowOnSuggestConflict.read(undefined)) {
 			suggestItem = undefined;
 		}
 		if (suggestWidgetInlineCompletions && !suggestItem) {
@@ -402,7 +408,7 @@ export class InlineCompletionsModel extends Disposable {
 			includeInlineCompletions: !changeSummary.onlyRequestInlineEdits,
 			includeInlineEdits: this._inlineEditsEnabled.read(reader),
 			requestIssuedDateTime: requestInfo.startTime,
-			earliestShownDateTime: requestInfo.startTime + (changeSummary.inlineCompletionTriggerKind === InlineCompletionTriggerKind.Explicit || this.inAcceptFlow.get() ? 0 : this._minShowDelay.get()),
+			earliestShownDateTime: requestInfo.startTime + (changeSummary.inlineCompletionTriggerKind === InlineCompletionTriggerKind.Explicit || this.inAcceptFlow.read(undefined) ? 0 : this._minShowDelay.read(undefined)),
 		};
 
 		if (context.triggerKind === InlineCompletionTriggerKind.Automatic && changeSummary.textChange) {
@@ -417,10 +423,10 @@ export class InlineCompletionsModel extends Disposable {
 			}
 		}
 
-		const itemToPreserveCandidate = this.selectedInlineCompletion.get() ?? this._inlineCompletionItems.get()?.inlineEdit;
+		const itemToPreserveCandidate = this.selectedInlineCompletion.read(undefined) ?? this._inlineCompletionItems.read(undefined)?.inlineEdit;
 		const itemToPreserve = changeSummary.preserveCurrentCompletion || itemToPreserveCandidate?.forwardStable
 			? itemToPreserveCandidate : undefined;
-		const userJumpedToActiveCompletion = this._jumpedToId.map(jumpedTo => !!jumpedTo && jumpedTo === this._inlineCompletionItems.get()?.inlineEdit?.semanticId);
+		const userJumpedToActiveCompletion = this._jumpedToId.map(jumpedTo => !!jumpedTo && jumpedTo === this._inlineCompletionItems.read(undefined)?.inlineEdit?.semanticId);
 
 		const providers = changeSummary.provider
 			? { providers: [changeSummary.provider], label: 'single:' + changeSummary.provider.providerId?.toString() }
@@ -606,6 +612,10 @@ export class InlineCompletionsModel extends Disposable {
 		}
 	}, (reader) => {
 		const model = this.textModel;
+
+		if (this._suppressInSnippetMode.read(reader) && this._isInSnippetMode.read(reader)) {
+			return undefined;
+		}
 
 		const item = this._inlineCompletionItems.read(reader);
 		const inlineEditResult = item?.inlineEdit;

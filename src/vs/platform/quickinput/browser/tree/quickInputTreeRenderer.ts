@@ -83,11 +83,16 @@ export class QuickInputTreeRenderer<T extends IQuickTreeItem> extends Disposable
 		const quickTreeItem = node.element;
 
 		// Checkbox
-		templateData.checkbox.domNode.style.display = '';
-		templateData.checkbox.checked = quickTreeItem.checked ?? false;
-		store.add(Event.filter(this.onCheckedEvent, e => e.item === quickTreeItem)(e => templateData.checkbox.checked = e.checked));
-		if (quickTreeItem.disabled) {
-			templateData.checkbox.disable();
+		if (quickTreeItem.pickable === false) {
+			// Hide checkbox for non-pickable items
+			templateData.checkbox.domNode.style.display = 'none';
+		} else {
+			templateData.checkbox.domNode.style.display = '';
+			templateData.checkbox.checked = quickTreeItem.checked ?? false;
+			store.add(Event.filter(this.onCheckedEvent, e => e.item === quickTreeItem)(e => templateData.checkbox.checked = e.checked));
+			if (quickTreeItem.disabled) {
+				templateData.checkbox.disable();
+			}
 		}
 
 		// Icon

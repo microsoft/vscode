@@ -764,13 +764,11 @@ export async function fetchDynamicRegistration(serverMetadata: IAuthorizationSer
 			redirect_uris: [
 				'https://insiders.vscode.dev/redirect',
 				'https://vscode.dev/redirect',
-				'http://localhost/',
 				'http://127.0.0.1/',
 				// Added these for any server that might do
 				// only exact match on the redirect URI even
 				// though the spec says it should not care
 				// about the port.
-				`http://localhost:${DEFAULT_AUTH_FLOW_PORT}/`,
 				`http://127.0.0.1:${DEFAULT_AUTH_FLOW_PORT}/`
 			],
 			scope: scopes?.join(AUTH_SCOPE_SEPARATOR),
@@ -872,9 +870,13 @@ export function parseWWWAuthenticateHeader(wwwAuthenticateHeaderValue: string): 
 					currentChallenge = { scheme: beforeSpace.trim(), params: {} };
 
 					// Parse the parameter part
-					const [key, value] = afterSpace.split('=').map(s => s.trim().replace(/"/g, ''));
-					if (key && value !== undefined) {
-						currentChallenge.params[key] = value;
+					const equalIndex = afterSpace.indexOf('=');
+					if (equalIndex > 0) {
+						const key = afterSpace.substring(0, equalIndex).trim();
+						const value = afterSpace.substring(equalIndex + 1).trim().replace(/^"|"$/g, '');
+						if (key && value !== undefined) {
+							currentChallenge.params[key] = value;
+						}
 					}
 					continue;
 				}
@@ -882,9 +884,13 @@ export function parseWWWAuthenticateHeader(wwwAuthenticateHeaderValue: string): 
 
 			// This is a parameter for the current challenge
 			if (currentChallenge) {
-				const [key, value] = token.split('=').map(s => s.trim().replace(/"/g, ''));
-				if (key && value !== undefined) {
-					currentChallenge.params[key] = value;
+				const equalIndex = token.indexOf('=');
+				if (equalIndex > 0) {
+					const key = token.substring(0, equalIndex).trim();
+					const value = token.substring(equalIndex + 1).trim().replace(/^"|"$/g, '');
+					if (key && value !== undefined) {
+						currentChallenge.params[key] = value;
+					}
 				}
 			}
 		}

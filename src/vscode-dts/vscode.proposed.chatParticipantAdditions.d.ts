@@ -125,6 +125,16 @@ declare module 'vscode' {
 		 * Optional URI to navigate to when clicking on the file.
 		 */
 		goToFileUri?: Uri;
+
+		/**
+		 * Added data (e.g. line numbers) to show in the UI
+		 */
+		added?: number;
+
+		/**
+		 * Removed data (e.g. line numbers) to show in the UI
+		 */
+		removed?: number;
 	}
 
 	/**
@@ -590,6 +600,11 @@ declare module 'vscode' {
 		 * TODO Needed for now to drive the variableName-type reference, but probably both of these should go away in the future.
 		 */
 		readonly name: string;
+
+		/**
+		 * The list of tools were referenced in the value of the reference
+		 */
+		readonly toolReferences?: readonly ChatLanguageModelToolReference[];
 	}
 
 	export interface ChatResultFeedback {
@@ -631,6 +646,13 @@ declare module 'vscode' {
 	}
 
 	export interface ChatRequest {
-		modeInstructions?: string;
+		readonly modeInstructions?: string;
+		readonly modeInstructions2?: ChatRequestModeInstructions;
+	}
+
+	export interface ChatRequestModeInstructions {
+		readonly content: string;
+		readonly toolReferences?: readonly ChatLanguageModelToolReference[];
+		readonly metadata?: Record<string, boolean | string | number>;
 	}
 }

@@ -10,7 +10,7 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { clamp } from '../../../../../base/common/numbers.js';
 import { autorun, derived, IObservable, ITransaction, observableValue, observableValueOpts, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { TextEdit } from '../../../../../editor/common/languages.js';
+import { Location, TextEdit } from '../../../../../editor/common/languages.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -149,11 +149,11 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 			if (inProgress === false && !this.reviewMode.read(r)) {
 				// AUTO accept mode (when request is done)
 
-				const acceptTimeout = this._autoAcceptTimeout.get() * 1000;
+				const acceptTimeout = this._autoAcceptTimeout.read(undefined) * 1000;
 				const future = Date.now() + acceptTimeout;
 				const update = () => {
 
-					const reviewMode = this.reviewMode.get();
+					const reviewMode = this.reviewMode.read(undefined);
 					if (reviewMode) {
 						// switched back to review mode
 						this._autoAcceptCtrl.set(undefined, undefined);
@@ -181,6 +181,8 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 			super.dispose();
 		}
 	}
+
+	public abstract hasModificationAt(location: Location): boolean;
 
 	acquire() {
 		this._refCounter++;
@@ -261,6 +263,7 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 				),
 				feature: this._telemetryInfo.feature,
 				languageId: action.languageId,
+				source: undefined,
 			});
 		}
 

@@ -465,6 +465,10 @@ export interface IEditorOptions {
 	 */
 	multiCursorLimit?: number;
 	/**
+	 * Enables middle mouse button to open links and Go To Definition
+	 */
+	mouseMiddleClickAction?: MouseMiddleClickAction;
+	/**
 	 * Configure the editor's accessibility support.
 	 * Defaults to 'auto'. It is best to leave this to 'auto'.
 	 */
@@ -4364,7 +4368,7 @@ export interface IInlineSuggestOptions {
 	suppressSuggestions?: boolean;
 
 	minShowDelay?: number;
-
+	suppressInSnippetMode?: boolean;
 	/**
 	 * Does not clear active inline suggestions when the editor loses focus.
 	 */
@@ -4391,16 +4395,16 @@ export interface IInlineSuggestOptions {
 	/**
 	* @internal
 	*/
+	triggerCommandOnProviderChange?: boolean;
+
+	/**
+	* @internal
+	*/
 	experimental?: {
 		/**
 		* @internal
 		*/
 		suppressInlineSuggestions?: string;
-
-		/**
-		* @internal
-		*/
-		triggerCommandOnProviderChange?: boolean;
 
 		showOnSuggestConflict?: 'always' | 'never' | 'whenSuggestListIsIncomplete';
 	};
@@ -4429,15 +4433,16 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 			fontFamily: 'default',
 			syntaxHighlightingEnabled: true,
 			minShowDelay: 0,
+			suppressInSnippetMode: false,
 			edits: {
 				enabled: true,
 				showCollapsed: false,
 				renderSideBySide: 'auto',
 				allowCodeShifting: 'always',
 			},
+			triggerCommandOnProviderChange: true,
 			experimental: {
 				suppressInlineSuggestions: '',
-				triggerCommandOnProviderChange: false,
 				showOnSuggestConflict: 'never',
 			},
 		};
@@ -4471,6 +4476,11 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					default: defaults.suppressSuggestions,
 					description: nls.localize('inlineSuggest.suppressSuggestions', "Controls how inline suggestions interact with the suggest widget. If enabled, the suggest widget is not shown automatically when inline suggestions are available.")
 				},
+				'editor.inlineSuggest.suppressInSnippetMode': {
+					type: 'boolean',
+					default: defaults.suppressInSnippetMode,
+					description: nls.localize('inlineSuggest.suppressInSnippetMode', "Controls whether inline suggestions are suppressed when in snippet mode."),
+				},
 				'editor.inlineSuggest.minShowDelay': {
 					type: 'number',
 					default: 0,
@@ -4487,9 +4497,9 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 						mode: 'auto'
 					}
 				},
-				'editor.inlineSuggest.experimental.triggerCommandOnProviderChange': {
+				'editor.inlineSuggest.triggerCommandOnProviderChange': {
 					type: 'boolean',
-					default: defaults.experimental.triggerCommandOnProviderChange,
+					default: defaults.triggerCommandOnProviderChange,
 					tags: ['experimental'],
 					description: nls.localize('inlineSuggest.triggerCommandOnProviderChange', "Controls whether to trigger a command when the inline suggestion provider changes."),
 					experiment: {
@@ -4553,15 +4563,16 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 			fontFamily: EditorStringOption.string(input.fontFamily, this.defaultValue.fontFamily),
 			syntaxHighlightingEnabled: boolean(input.syntaxHighlightingEnabled, this.defaultValue.syntaxHighlightingEnabled),
 			minShowDelay: EditorIntOption.clampedInt(input.minShowDelay, 0, 0, 10000),
+			suppressInSnippetMode: boolean(input.suppressInSnippetMode, this.defaultValue.suppressInSnippetMode),
 			edits: {
 				enabled: boolean(input.edits?.enabled, this.defaultValue.edits.enabled),
 				showCollapsed: boolean(input.edits?.showCollapsed, this.defaultValue.edits.showCollapsed),
 				allowCodeShifting: stringSet(input.edits?.allowCodeShifting, this.defaultValue.edits.allowCodeShifting, ['always', 'horizontal', 'never']),
 				renderSideBySide: stringSet(input.edits?.renderSideBySide, this.defaultValue.edits.renderSideBySide, ['never', 'auto']),
 			},
+			triggerCommandOnProviderChange: boolean(input.triggerCommandOnProviderChange, this.defaultValue.triggerCommandOnProviderChange),
 			experimental: {
 				suppressInlineSuggestions: EditorStringOption.string(input.experimental?.suppressInlineSuggestions, this.defaultValue.experimental.suppressInlineSuggestions),
-				triggerCommandOnProviderChange: boolean(input.experimental?.triggerCommandOnProviderChange, this.defaultValue.experimental.triggerCommandOnProviderChange),
 				showOnSuggestConflict: stringSet(input.experimental?.showOnSuggestConflict, this.defaultValue.experimental.showOnSuggestConflict, ['always', 'never', 'whenSuggestListIsIncomplete']),
 			},
 		};
@@ -5715,6 +5726,7 @@ export const enum EditorOption {
 	mouseWheelZoom,
 	multiCursorMergeOverlapping,
 	multiCursorModifier,
+	mouseMiddleClickAction,
 	multiCursorPaste,
 	multiCursorLimit,
 	occurrencesHighlight,
@@ -6287,6 +6299,11 @@ export const EditorOptions = {
 			}, "The modifier to be used to add multiple cursors with the mouse. The Go to Definition and Open Link mouse gestures will adapt such that they do not conflict with the [multicursor modifier](https://code.visualstudio.com/docs/editor/codebasics#_multicursor-modifier).")
 		}
 	)),
+	mouseMiddleClickAction: register(new EditorStringEnumOption(
+		EditorOption.mouseMiddleClickAction, 'mouseMiddleClickAction', 'default' as MouseMiddleClickAction,
+		['default', 'openLink', 'ctrlLeftClick'] as MouseMiddleClickAction[],
+		{ description: nls.localize('mouseMiddleClickAction', "Controls what happens when middle mouse button is clicked in the editor.") }
+	)),
 	multiCursorPaste: register(new EditorStringEnumOption(
 		EditorOption.multiCursorPaste, 'multiCursorPaste',
 		'spread' as 'spread' | 'full',
@@ -6710,3 +6727,5 @@ type EditorOptionsType = typeof EditorOptions;
 type FindEditorOptionsKeyById<T extends EditorOption> = { [K in keyof EditorOptionsType]: EditorOptionsType[K]['id'] extends T ? K : never }[keyof EditorOptionsType];
 type ComputedEditorOptionValue<T extends IEditorOption<any, any>> = T extends IEditorOption<any, infer R> ? R : never;
 export type FindComputedEditorOptionValueById<T extends EditorOption> = NonNullable<ComputedEditorOptionValue<EditorOptionsType[FindEditorOptionsKeyById<T>]>>;
+
+export type MouseMiddleClickAction = 'default' | 'openLink' | 'ctrlLeftClick';

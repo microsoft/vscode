@@ -21,7 +21,9 @@ import { ContextKeyExpression } from '../../../../platform/contextkey/common/con
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IProgress } from '../../../../platform/progress/common/progress.js';
+import { IVariableReference } from './chatModes.js';
 import { IChatExtensionsContent, IChatTodoListContent, IChatToolInputInvocationData, type IChatTerminalToolInvocationData } from './chatService.js';
+import { ChatRequestToolReferenceEntry } from './chatVariableEntries.js';
 import { LanguageModelPartAudience } from './languageModels.js';
 import { PromptElementJSON, stringifyPromptElementJSON } from './tools/promptTsxTypes.js';
 
@@ -47,8 +49,8 @@ export interface IToolData {
 
 export interface IToolProgressStep {
 	readonly message: string | IMarkdownString | undefined;
-	readonly increment?: number;
-	readonly total?: number;
+	/** 0-1 progress of the tool call */
+	readonly progress?: number;
 }
 
 export type ToolProgress = IProgress<IToolProgressStep>;
@@ -75,11 +77,17 @@ export type ToolDataSource =
 	| {
 		type: 'internal';
 		label: string;
+	} | {
+		type: 'external';
+		label: string;
 	};
 
 export namespace ToolDataSource {
 
 	export const Internal: ToolDataSource = { type: 'internal', label: 'Built-In' };
+
+	/** External tools may not be contributed or invoked, but may be invoked externally and described in an IChatToolInvocationSerialized */
+	export const External: ToolDataSource = { type: 'external', label: 'External' };
 
 	export function toKey(source: ToolDataSource): string {
 		switch (source.type) {
@@ -87,6 +95,7 @@ export namespace ToolDataSource {
 			case 'mcp': return `mcp:${source.collectionId}:${source.definitionId}`;
 			case 'user': return `user:${source.file.toString()}`;
 			case 'internal': return 'internal';
+			case 'external': return 'external';
 		}
 	}
 
@@ -141,6 +150,8 @@ export type ToolInputOutputBase = {
 	uri?: URI;
 	/** If true, this part came in as a resource reference rather than direct data. */
 	asResource?: boolean;
+	/** Audience of the data part */
+	audience?: LanguageModelPartAudience[];
 };
 
 export type ToolInputOutputEmbedded = ToolInputOutputBase & {
@@ -175,6 +186,7 @@ export interface IToolResult {
 	toolResultMessage?: string | IMarkdownString;
 	toolResultDetails?: Array<URI | Location> | IToolResultInputOutputDetails | IToolResultOutputDetails;
 	toolResultError?: string;
+	toolMetadata?: unknown;
 }
 
 export function toolResultHasBuffers(result: IToolResult): boolean {
@@ -222,12 +234,17 @@ export interface IToolConfirmationAction {
 
 export type ToolConfirmationAction = IToolConfirmationAction | Separator;
 
+export enum ToolInvocationPresentation {
+	Hidden = 'hidden',
+	HiddenAfterComplete = 'hiddenAfterComplete'
+}
+
 export interface IPreparedToolInvocation {
 	invocationMessage?: string | IMarkdownString;
 	pastTenseMessage?: string | IMarkdownString;
 	originMessage?: string | IMarkdownString;
 	confirmationMessages?: IToolConfirmationMessages;
-	presentation?: 'hidden' | undefined;
+	presentation?: ToolInvocationPresentation;
 	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent;
 }
 
@@ -309,6 +326,7 @@ export interface ILanguageModelToolsService {
 	cancelToolCallsForRequest(requestId: string): void;
 	toToolEnablementMap(toolOrToolSetNames: Set<string>): Record<string, boolean>;
 	toToolAndToolSetEnablementMap(toolOrToolSetNames: readonly string[]): IToolAndToolSetEnablementMap;
+	toToolReferences(variableReferences: readonly IVariableReference[]): ChatRequestToolReferenceEntry[];
 
 	readonly toolSets: IObservable<Iterable<ToolSet>>;
 	getToolSet(id: string): ToolSet | undefined;

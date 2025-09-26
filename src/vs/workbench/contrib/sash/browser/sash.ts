@@ -6,28 +6,31 @@
 import { clamp } from '../../../../base/common/numbers.js';
 import { setGlobalSashSize, setGlobalHoverDelay } from '../../../../base/browser/ui/sash/sash.js';
 import { Event } from '../../../../base/common/event.js';
-import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
-import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
+import { createStyleSheet } from '../../../../base/browser/domStylesheets.js';
 
 export const minSize = 1;
 export const maxSize = 20; // see also https://ux.stackexchange.com/questions/39023/what-is-the-optimum-button-size-of-touch-screen-applications
 
-export class SashSettingsController implements IWorkbenchContribution, IDisposable {
+export class SashSettingsController extends Disposable implements IWorkbenchContribution {
 
-	private readonly disposables = new DisposableStore();
+	static readonly ID = 'workbench.contrib.sash';
+
+	private readonly styleSheet = createStyleSheet();
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ILayoutService private readonly layoutService: ILayoutService
 	) {
+		super();
+
 		const onDidChangeSize = Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('workbench.sash.size'));
-		onDidChangeSize(this.onDidChangeSize, this, this.disposables);
+		onDidChangeSize(this.onDidChangeSize, this, this._store);
 		this.onDidChangeSize();
 
 		const onDidChangeHoverDelay = Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('workbench.sash.hoverDelay'));
-		onDidChangeHoverDelay(this.onDidChangeHoverDelay, this, this.disposables);
+		onDidChangeHoverDelay(this.onDidChangeHoverDelay, this, this._store);
 		this.onDidChangeHoverDelay();
 	}
 
@@ -36,16 +39,17 @@ export class SashSettingsController implements IWorkbenchContribution, IDisposab
 		const size = clamp(configuredSize, 4, 20);
 		const hoverSize = clamp(configuredSize, 1, 8);
 
-		this.layoutService.mainContainer.style.setProperty('--vscode-sash-size', size + 'px');
-		this.layoutService.mainContainer.style.setProperty('--vscode-sash-hover-size', hoverSize + 'px');
+		this.styleSheet.textContent = `
+			.monaco-workbench {
+				--vscode-sash-size: ${size}px;
+				--vscode-sash-hover-size: ${hoverSize}px;
+			}
+		`;
+
 		setGlobalSashSize(size);
 	}
 
 	private onDidChangeHoverDelay(): void {
 		setGlobalHoverDelay(this.configurationService.getValue<number>('workbench.sash.hoverDelay'));
-	}
-
-	dispose(): void {
-		this.disposables.dispose();
 	}
 }

@@ -1,9 +1,10 @@
 steps:
+  - template: ../common/checkout.yml@self
+
   - task: NodeTool@0
     inputs:
       versionSource: fromFile
       versionFilePath: .nvmrc
-      nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
   - template: ../distro/download-distro.yml@self
 
@@ -73,6 +74,19 @@ steps:
 
   - script: |
       set -e
+      mkdir -p .build/nodejs-musl
+      NODE_VERSION=$(grep '^target=' remote/.npmrc | cut -d '"' -f 2)
+      BUILD_ID=$(grep '^ms_build_id=' remote/.npmrc | cut -d '"' -f 2)
+      gh release download "v${NODE_VERSION}-${BUILD_ID}" -R microsoft/vscode-node -p "node-v${NODE_VERSION}-linux-${VSCODE_ARCH}-musl.tar.gz" --dir .build/nodejs-musl --clobber
+      tar -xzf ".build/nodejs-musl/node-v${NODE_VERSION}-linux-${VSCODE_ARCH}-musl.tar.gz" -C ".build/nodejs-musl" --strip-components=1
+      rm ".build/nodejs-musl/node-v${NODE_VERSION}-linux-${VSCODE_ARCH}-musl.tar.gz"
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+    displayName: Download NodeJS MUSL
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
+  - script: |
+      set -e
 
       for i in {1..5}; do # try 5 times
         npm ci && break
@@ -89,6 +103,7 @@ steps:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
       VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME: vscodehub.azurecr.io/vscode-linux-build-agent:alpine-$(VSCODE_ARCH)
       VSCODE_HOST_MOUNT: "/mnt/vss/_work/1/s"
+      VSCODE_NPMRC_PATH: $(NPMRC_PATH)
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 

@@ -86,6 +86,8 @@ export default tseslint.config(
 			'local/code-no-unexternalized-strings': 'warn',
 			'local/code-must-use-super-dispose': 'warn',
 			'local/code-declare-service-brand': 'warn',
+			'local/code-no-reader-after-await': 'warn',
+			'local/code-no-observable-get-in-reactive-context': 'warn',
 			'local/code-no-deep-import-of-internal': ['error', { '.*Internal': true, 'searchExtTypesInternal': false }],
 			'local/code-layering': [
 				'warn',
@@ -307,7 +309,8 @@ export default tseslint.config(
 						'terminate',
 						'trigger',
 						'unregister',
-						'write'
+						'write',
+						'commit'
 					]
 				}
 			]
@@ -763,6 +766,17 @@ export default tseslint.config(
 			'local': pluginLocal,
 		},
 		rules: {
+			'no-restricted-imports': [
+				'warn',
+				{
+					'patterns': [
+						{
+							'group': ['dompurify*'],
+							'message': 'Use domSanitize instead of dompurify directly'
+						},
+					]
+				}
+			],
 			'local/code-import-patterns': [
 				'warn',
 				{
@@ -1410,6 +1424,7 @@ export default tseslint.config(
 	{
 		files: [
 			'extensions/markdown-language-features/**/*.ts',
+			'extensions/mermaid-chat-features/**/*.ts',
 			'extensions/media-preview/**/*.ts',
 			'extensions/simple-browser/**/*.ts',
 			'extensions/typescript-language-features/**/*.ts',
@@ -1429,6 +1444,10 @@ export default tseslint.config(
 					// Media preview
 					'extensions/simple-browser/tsconfig.json',
 					'extensions/simple-browser/preview-src/tsconfig.json',
+
+					// Mermaid chat features
+					'extensions/mermaid-chat-features/tsconfig.json',
+					'extensions/mermaid-chat-features/chat-webview-src/tsconfig.json',
 
 					// TypeScript
 					'extensions/typescript-language-features/tsconfig.json',

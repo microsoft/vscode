@@ -7,7 +7,7 @@
 	padding: 0px;
 	color: var(--vscode-button-foreground);
 	background-color: var(--vscode-button-background);
-	border-radius: 5px;
+	border-radius: 2px;
 	border: 1px solid var(--vscode-contrastBorder);
 	display: flex;
 	align-items: center;
@@ -79,8 +79,8 @@
 	> .action-label.codicon,
 	> .action-label,
 	> .action-label:hover {
-		color: var(--vscode-button-foreground);
-		opacity: 0.7;
+		color: var(--vscode-button-separator);
+		opacity: 1;
 	}
 }
 

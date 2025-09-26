@@ -24,6 +24,8 @@ const defaultChat = {
 	manageSettingsUrl: product.defaultChatAgent?.manageSettingsUrl ?? '',
 	provider: product.defaultChatAgent?.provider ?? { default: { name: '' } },
 	publicCodeMatchesUrl: product.defaultChatAgent?.publicCodeMatchesUrl ?? '',
+	termsStatementUrl: product.defaultChatAgent?.termsStatementUrl ?? '',
+	privacyStatementUrl: product.defaultChatAgent?.privacyStatementUrl ?? ''
 };
 
 export const copilotSettingsMessage = localize({ key: 'settings', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "{0} Copilot may show [public code]({1}) suggestions and use your data to improve the product. You can change these [settings]({2}) anytime.", defaultChat.provider.default.name, defaultChat.publicCodeMatchesUrl, defaultChat.manageSettingsUrl);
@@ -223,14 +225,16 @@ export const startEntries: GettingStartedStartEntryContent = [
 const Button = (title: string, href: string) => `[${title}](${href})`;
 
 const CopilotStepTitle = localize('gettingStarted.copilotSetup.title', "Use AI features with Copilot for free");
-const CopilotDescription = localize({ key: 'gettingStarted.copilotSetup.description', comment: ['{Locked="["}', '{Locked="]({0})"}'] }, "You can use [Copilot]({0}) to generate code across multiple files, fix errors, ask questions about your code and much more using natural language.", defaultChat.documentationUrl ?? '');
-const CopilotSignedOutButton = Button(localize('setupCopilotButton.signIn', "Set up Copilot"), `command:workbench.action.chat.triggerSetup`);
+const CopilotDescription = localize({ key: 'gettingStarted.copilotSetup.description', comment: ['{Locked="["}', '{Locked="]({0})"}'] }, "You can use [Copilot]({0}) to generate code across multiple files, fix errors, ask questions about your code, and much more using natural language.", defaultChat.documentationUrl ?? '');
+const CopilotTermsString = localize({ key: 'gettingStarted.copilotSetup.terms', comment: ['{Locked="]({2})"}', '{Locked="]({3})"}'] }, "By continuing with {0} Copilot, you agree to {1}'s [Terms]({2}) and [Privacy Statement]({3})", defaultChat.provider.default.name, defaultChat.provider.default.name, defaultChat.termsStatementUrl, defaultChat.privacyStatementUrl);
+const CopilotAnonymousButton = Button(localize('setupCopilotButton.setup', "Set up Copilot"), `command:workbench.action.chat.triggerSetupAnonymously`);
+const CopilotSignedOutButton = Button(localize('setupCopilotButton.setup', "Set up Copilot"), `command:workbench.action.chat.triggerSetup`);
 const CopilotSignedInButton = Button(localize('setupCopilotButton.setup', "Set up Copilot"), `command:workbench.action.chat.triggerSetup`);
 const CopilotCompleteButton = Button(localize('setupCopilotButton.chatWithCopilot', "Chat with Copilot"), 'command:workbench.action.chat.open');
 
 function createCopilotSetupStep(id: string, button: string, when: string, includeTerms: boolean): BuiltinGettingStartedStep {
 	const description = includeTerms ?
-		`${CopilotDescription}\n\n${button}` :
+		`${CopilotDescription}\n${CopilotTermsString}\n${button}` :
 		`${CopilotDescription}\n${button}`;
 
 	return {
@@ -257,9 +261,10 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 		content: {
 			type: 'steps',
 			steps: [
-				createCopilotSetupStep('CopilotSetupSignedOut', CopilotSignedOutButton, 'chatEntitlementSignedOut', true),
+				createCopilotSetupStep('CopilotSetupAnonymous', CopilotAnonymousButton, 'chatAnonymous', true),
+				createCopilotSetupStep('CopilotSetupSignedOut', CopilotSignedOutButton, 'chatEntitlementSignedOut && !chatAnonymous', false),
 				createCopilotSetupStep('CopilotSetupComplete', CopilotCompleteButton, 'chatSetupInstalled && !chatSetupDisabled && (chatPlanPro || chatPlanProPlus || chatPlanBusiness || chatPlanEnterprise || chatPlanFree)', false),
-				createCopilotSetupStep('CopilotSetupSignedIn', CopilotSignedInButton, '!chatEntitlementSignedOut && (!chatSetupInstalled || chatSetupDisabled || chatPlanCanSignUp)', true),
+				createCopilotSetupStep('CopilotSetupSignedIn', CopilotSignedInButton, '!chatEntitlementSignedOut && (!chatSetupInstalled || chatSetupDisabled || chatPlanCanSignUp)', false),
 				{
 					id: 'pickColorTheme',
 					title: localize('gettingStarted.pickColor.title', "Choose your theme"),
@@ -269,87 +274,6 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 						'onCommand:workbench.action.selectTheme'
 					],
 					media: { type: 'markdown', path: 'theme_picker', }
-				},
-				{
-					id: 'extensionsWeb',
-					title: localize('gettingStarted.extensions.title', "Code with extensions"),
-					description: localize('gettingStarted.extensionsWeb.description.interpolated', "Extensions are VS Code's power-ups. A growing number are becoming available in the web.\n{0}", Button(localize('browsePopularWeb', "Browse Popular Web Extensions"), 'command:workbench.extensions.action.showPopularExtensions')),
-					when: 'workspacePlatform == \'webworker\'',
-					media: {
-						type: 'svg', altText: 'VS Code extension marketplace with featured language extensions', path: 'extensions-web.svg'
-					},
-				},
-				{
-					id: 'findLanguageExtensions',
-					title: localize('gettingStarted.findLanguageExts.title', "Rich support for all your languages"),
-					description: localize('gettingStarted.findLanguageExts.description.interpolated', "Code smarter with syntax highlighting, code completion, linting and debugging. While many languages are built-in, many more can be added as extensions.\n{0}", Button(localize('browseLangExts', "Browse Language Extensions"), 'command:workbench.extensions.action.showLanguageExtensions')),
-					when: 'workspacePlatform != \'webworker\'',
-					media: {
-						type: 'svg', altText: 'Language extensions', path: 'languages.svg'
-					},
-				},
-				// Hidden in favor of copilot entry (to be revisited when copilot entry moves, if at all)
-				// {
-				// 	id: 'settings',
-				// 	title: localize('gettingStarted.settings.title', "Tune your settings"),
-				// 	description: localize('gettingStarted.settings.description.interpolated', "Customize every aspect of VS Code and your extensions to your liking. Commonly used settings are listed first to get you started.\n{0}", Button(localize('tweakSettings', "Open Settings"), 'command:toSide:workbench.action.openSettings')),
-				// 	media: {
-				// 		type: 'svg', altText: 'VS Code Settings', path: 'settings.svg'
-				// 	},
-				// },
-				// {
-				// 	id: 'settingsSync',
-				// 	title: localize('gettingStarted.settingsSync.title', "Sync settings across devices"),
-				// 	description: localize('gettingStarted.settingsSync.description.interpolated', "Keep your essential customizations backed up and updated across all your devices.\n{0}", Button(localize('enableSync', "Backup and Sync Settings"), 'command:workbench.userDataSync.actions.turnOn')),
-				// 	when: 'syncStatus != uninitialized',
-				// 	completionEvents: ['onEvent:sync-enabled'],
-				// 	media: {
-				// 		type: 'svg', altText: 'The "Turn on Sync" entry in the settings gear menu.', path: 'settingsSync.svg'
-				// 	},
-				// },
-				{
-					id: 'settingsAndSync',
-					title: localize('gettingStarted.settings.title', "Tune your settings"),
-					description: localize('gettingStarted.settingsAndSync.description.interpolated', "Customize every aspect of VS Code and your extensions to your liking. [Back up and sync](command:workbench.userDataSync.actions.turnOn) your essential customizations across all your devices.\n{0}", Button(localize('tweakSettings', "Open Settings"), 'command:toSide:workbench.action.openSettings')),
-					when: 'syncStatus != uninitialized',
-					completionEvents: ['onEvent:sync-enabled'],
-					media: {
-						type: 'svg', altText: 'VS Code Settings', path: 'settings.svg'
-					},
-				},
-				{
-					id: 'commandPaletteTask',
-					title: localize('gettingStarted.commandPalette.title', "Unlock productivity with the Command Palette "),
-					description: localize('gettingStarted.commandPalette.description.interpolated', "Run commands without reaching for your mouse to accomplish any task in VS Code.\n{0}", Button(localize('commandPalette', "Open Command Palette"), 'command:workbench.action.showCommands')),
-					media: { type: 'svg', altText: 'Command Palette overlay for searching and executing commands.', path: 'commandPalette.svg' },
-				},
-				// Hidden in favor of copilot entry (to be revisited when copilot entry moves, if at all)
-				// {
-				// 	id: 'pickAFolderTask-Mac',
-				// 	title: localize('gettingStarted.setup.OpenFolder.title', "Open up your code"),
-				// 	description: localize('gettingStarted.setup.OpenFolder.description.interpolated', "You're all set to start coding. Open a project folder to get your files into VS Code.\n{0}", Button(localize('pickFolder', "Pick a Folder"), 'command:workbench.action.files.openFileFolder')),
-				// 	when: 'isMac && workspaceFolderCount == 0',
-				// 	media: {
-				// 		type: 'svg', altText: 'Explorer view showing buttons for opening folder and cloning repository.', path: 'openFolder.svg'
-				// 	}
-				// },
-				// {
-				// 	id: 'pickAFolderTask-Other',
-				// 	title: localize('gettingStarted.setup.OpenFolder.title', "Open up your code"),
-				// 	description: localize('gettingStarted.setup.OpenFolder.description.interpolated', "You're all set to start coding. Open a project folder to get your files into VS Code.\n{0}", Button(localize('pickFolder', "Pick a Folder"), 'command:workbench.action.files.openFolder')),
-				// 	when: '!isMac && workspaceFolderCount == 0',
-				// 	media: {
-				// 		type: 'svg', altText: 'Explorer view showing buttons for opening folder and cloning repository.', path: 'openFolder.svg'
-				// 	}
-				// },
-				{
-					id: 'quickOpen',
-					title: localize('gettingStarted.quickOpen.title', "Quickly navigate between your files"),
-					description: localize('gettingStarted.quickOpen.description.interpolated', "Navigate between files in an instant with one keystroke. Tip: Open multiple files by pressing the right arrow key.\n{0}", Button(localize('quickOpen', "Quick Open a File"), 'command:toSide:workbench.action.quickOpen')),
-					when: 'workspaceFolderCount != 0',
-					media: {
-						type: 'svg', altText: 'Go to file in quick search.', path: 'search.svg'
-					}
 				},
 				{
 					id: 'videoTutorial',
@@ -542,6 +466,13 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					title: localize('gettingStarted.accessibilitySettings.title', "Configure accessibility settings"),
 					description: localize('gettingStarted.accessibilitySettings.description.interpolated', "Accessibility settings can be configured by running the Open Accessibility Settings command.\n{0}", Button(localize('openAccessibilitySettings', "Open Accessibility Settings"), 'command:workbench.action.openAccessibilitySettings')),
 					media: { type: 'markdown', path: 'empty' }
+				},
+				{
+					id: 'dictation',
+					title: localize('gettingStarted.dictation.title', "Use dictation to write code and text in the editor and terminal"),
+					description: localize('gettingStarted.dictation.description.interpolated', "Dictation allows you to write code and text using your voice. It can be activated with the Voice: Start Dictation in Editor command.\n{0}\n For dictation in the terminal, use the Voice: Start Dictation in Terminal and Voice: Stop Dictation in Terminal commands.\n{1}\n{2}", Button(localize('toggleDictation', "Voice: Start Dictation in Editor"), 'command:workbench.action.editorDictation.start'), Button(localize('terminalStartDictation', "Terminal: Start Dictation in Terminal"), 'command:workbench.action.terminal.startVoiceDictation'), Button(localize('terminalStopDictation', "Terminal: Stop Dictation in Terminal"), 'command:workbench.action.terminal.stopVoiceDictation')),
+					when: 'hasSpeechProvider',
+					media: { type: 'markdown', path: 'empty' }
 				}
 			]
 		}
@@ -556,6 +487,16 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 		content: {
 			type: 'steps',
 			steps: [
+				{
+					id: 'settingsAndSync',
+					title: localize('gettingStarted.settings.title', "Tune your settings"),
+					description: localize('gettingStarted.settingsAndSync.description.interpolated', "Customize every aspect of VS Code and [sync](command:workbench.userDataSync.actions.turnOn) customizations across devices.\n{0}", Button(localize('tweakSettings', "Open Settings"), 'command:toSide:workbench.action.openSettings')),
+					when: 'workspacePlatform != \'webworker\' && syncStatus != uninitialized',
+					completionEvents: ['onEvent:sync-enabled'],
+					media: {
+						type: 'svg', altText: 'VS Code Settings', path: 'settings.svg'
+					},
+				},
 				{
 					id: 'extensions',
 					title: localize('gettingStarted.extensions.title', "Code with extensions"),

@@ -34,24 +34,28 @@ import * as languages from '../../../editor/common/languages.js';
 import { EndOfLineSequence, TrackedRangeStickiness } from '../../../editor/common/model.js';
 import { ITextEditorOptions } from '../../../platform/editor/common/editor.js';
 import { IExtensionDescription, IRelaxedExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { ILogService } from '../../../platform/log/common/log.js';
 import { IMarkerData, IRelatedInformation, MarkerSeverity, MarkerTag } from '../../../platform/markers/common/markers.js';
 import { ProgressLocation as MainProgressLocation } from '../../../platform/progress/common/progress.js';
 import { DEFAULT_EDITOR_ASSOCIATION, SaveReason } from '../../common/editor.js';
 import { IViewBadge } from '../../common/views.js';
 import { IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/chatAgents.js';
 import { IChatRequestDraft } from '../../contrib/chat/common/chatEditingService.js';
-import { IChatRequestVariableEntry, isImageVariableEntry } from '../../contrib/chat/common/chatVariableEntries.js';
-import { IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatMoveMessage, IChatMultiDiffData, IChatPrepareToolInvocationPart, IChatProgressMessage, IChatPullRequestContent, IChatResponseCodeblockUriPart, IChatTaskDto, IChatTaskResult, IChatTextEdit, IChatThinkingPart, IChatTreeData, IChatUserActionEvent, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
+import { IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatMoveMessage, IChatMultiDiffData, IChatPrepareToolInvocationPart, IChatProgressMessage, IChatPullRequestContent, IChatResponseCodeblockUriPart, IChatTaskDto, IChatTaskResult, IChatTextEdit, IChatThinkingPart, IChatToolInvocationSerialized, IChatTreeData, IChatUserActionEvent, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
+import { IChatRequestVariableEntry, isImageVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry } from '../../contrib/chat/common/chatVariableEntries.js';
+import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { IToolResult, IToolResultInputOutputDetails, IToolResultOutputDetails, ToolDataSource } from '../../contrib/chat/common/languageModelToolsService.js';
 import * as chatProvider from '../../contrib/chat/common/languageModels.js';
 import { IChatMessageDataPart, IChatResponseDataPart, IChatResponsePromptTsxPart, IChatResponseTextPart } from '../../contrib/chat/common/languageModels.js';
 import { DebugTreeItemCollapsibleState, IDebugVisualizationTreeItem } from '../../contrib/debug/common/debug.js';
+import { McpServerLaunch, McpServerTransportType } from '../../contrib/mcp/common/mcpTypes.js';
 import * as notebooks from '../../contrib/notebook/common/notebookCommon.js';
 import { CellEditType } from '../../contrib/notebook/common/notebookCommon.js';
 import { ICellRange } from '../../contrib/notebook/common/notebookRange.js';
 import * as search from '../../contrib/search/common/search.js';
 import { TestId } from '../../contrib/testing/common/testId.js';
 import { CoverageDetails, DetailType, ICoverageCount, IFileCoverage, ISerializedTestResults, ITestErrorMessage, ITestItem, ITestRunProfileReference, ITestTag, TestMessageType, TestResultItem, TestRunProfileBitset, denamespaceTestTag, namespaceTestTag } from '../../contrib/testing/common/testTypes.js';
+import { AiSettingsSearchResult, AiSettingsSearchResultKind } from '../../services/aiSettingsSearch/common/aiSettingsSearch.js';
 import { EditorGroupColumn } from '../../services/editor/common/editorGroupColumn.js';
 import { ACTIVE_GROUP, SIDE_GROUP } from '../../services/editor/common/editorService.js';
 import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
@@ -61,10 +65,7 @@ import { CommandsConverter } from './extHostCommands.js';
 import { getPrivateApiFor } from './extHostTestingPrivateApi.js';
 import * as types from './extHostTypes.js';
 import { LanguageModelDataPart, LanguageModelPromptTsxPart, LanguageModelTextPart } from './extHostTypes.js';
-import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
-import { AiSettingsSearchResult, AiSettingsSearchResultKind } from '../../services/aiSettingsSearch/common/aiSettingsSearch.js';
-import { McpServerLaunch, McpServerTransportType } from '../../contrib/mcp/common/mcpTypes.js';
-import { ILogService } from '../../../platform/log/common/log.js';
+import { IChatRequestModeInstructions } from '../../contrib/chat/common/chatModel.js';
 
 export namespace Command {
 
@@ -2652,7 +2653,9 @@ export namespace ChatResponseMultiDiffPart {
 				resources: part.value.map(entry => ({
 					originalUri: entry.originalUri,
 					modifiedUri: entry.modifiedUri,
-					goToFileUri: entry.goToFileUri
+					goToFileUri: entry.goToFileUri,
+					added: entry.added,
+					removed: entry.removed,
 				}))
 			}
 		};
@@ -2661,7 +2664,9 @@ export namespace ChatResponseMultiDiffPart {
 		const resources = part.multiDiffData.resources.map(resource => ({
 			originalUri: resource.originalUri ? URI.revive(resource.originalUri) : undefined,
 			modifiedUri: resource.modifiedUri ? URI.revive(resource.modifiedUri) : undefined,
-			goToFileUri: resource.goToFileUri ? URI.revive(resource.goToFileUri) : undefined
+			goToFileUri: resource.goToFileUri ? URI.revive(resource.goToFileUri) : undefined,
+			added: resource.added,
+			removed: resource.removed,
 		}));
 		return new types.ChatResponseMultiDiffPart(resources, part.multiDiffData.title);
 	}
@@ -2784,7 +2789,7 @@ export namespace ChatPrepareToolInvocationPart {
 }
 
 export namespace ChatToolInvocationPart {
-	export function from(part: vscode.ChatToolInvocationPart): any {
+	export function from(part: vscode.ChatToolInvocationPart): IChatToolInvocationSerialized {
 		// Convert extension API ChatToolInvocationPart to internal serialized format
 		return {
 			kind: 'toolInvocationSerialized',
@@ -2795,8 +2800,8 @@ export namespace ChatToolInvocationPart {
 			pastTenseMessage: part.pastTenseMessage ? MarkdownString.from(part.pastTenseMessage) : undefined,
 			isConfirmed: part.isConfirmed,
 			isComplete: part.isComplete ?? true,
-			isError: part.isError ?? false,
-			resultDetails: undefined,
+			source: ToolDataSource.External,
+			// isError: part.isError ?? false,
 			toolSpecificData: part.toolSpecificData ? convertToolSpecificData(part.toolSpecificData) : undefined,
 			presentation: undefined
 		};
@@ -3111,6 +3116,7 @@ export namespace ChatAgentRequest {
 			attempt: request.attempt ?? 0,
 			enableCommandDetection: request.enableCommandDetection ?? true,
 			isParticipantDetected: request.isParticipantDetected ?? false,
+			sessionId: request.sessionId,
 			references: variableReferences
 				.map(v => ChatPromptReference.to(v, diagnostics, logService))
 				.filter(isDefined),
@@ -3123,7 +3129,8 @@ export namespace ChatAgentRequest {
 			tools,
 			model,
 			editedFileEvents: request.editedFileEvents,
-			modeInstructions: request.modeInstructions,
+			modeInstructions: request.modeInstructions?.content,
+			modeInstructions2: ChatRequestModeInstructions.to(request.modeInstructions),
 		};
 
 		if (!isProposedApiEnabled(extension, 'chatParticipantPrivate')) {
@@ -3134,6 +3141,7 @@ export namespace ChatAgentRequest {
 			delete (requestWithAllProps as any).location;
 			delete (requestWithAllProps as any).location2;
 			delete (requestWithAllProps as any).editedFileEvents;
+			delete (requestWithAllProps as any).sessionId;
 		}
 
 		if (!isProposedApiEnabled(extension, 'chatParticipantAdditions')) {
@@ -3161,8 +3169,8 @@ export namespace ChatLocation {
 		switch (loc) {
 			case ChatAgentLocation.Notebook: return types.ChatLocation.Notebook;
 			case ChatAgentLocation.Terminal: return types.ChatLocation.Terminal;
-			case ChatAgentLocation.Panel: return types.ChatLocation.Panel;
-			case ChatAgentLocation.Editor: return types.ChatLocation.Editor;
+			case ChatAgentLocation.Chat: return types.ChatLocation.Panel;
+			case ChatAgentLocation.EditorInline: return types.ChatLocation.Editor;
 		}
 	}
 
@@ -3170,8 +3178,8 @@ export namespace ChatLocation {
 		switch (loc) {
 			case types.ChatLocation.Notebook: return ChatAgentLocation.Notebook;
 			case types.ChatLocation.Terminal: return ChatAgentLocation.Terminal;
-			case types.ChatLocation.Panel: return ChatAgentLocation.Panel;
-			case types.ChatLocation.Editor: return ChatAgentLocation.Editor;
+			case types.ChatLocation.Panel: return ChatAgentLocation.Chat;
+			case types.ChatLocation.Editor: return ChatAgentLocation.EditorInline;
 		}
 	}
 }
@@ -3222,11 +3230,16 @@ export namespace ChatPromptReference {
 				})];
 			}).filter(([, d]) => d.length > 0));
 		}
+		let toolReferences;
+		if (isPromptFileVariableEntry(variable) || isPromptTextVariableEntry(variable)) {
+			toolReferences = variable.toolReferences?.map(ref => ChatLanguageModelToolReference.to(ref));
+		}
 
 		return {
 			id: variable.id,
 			name: variable.name,
 			range: variable.range && [variable.range.start, variable.range.endExclusive],
+			toolReferences,
 			value,
 			modelDescription: variable.modelDescription,
 		};
@@ -3244,6 +3257,16 @@ export namespace ChatLanguageModelToolReference {
 			name: variable.id,
 			range: variable.range && [variable.range.start, variable.range.endExclusive],
 		};
+	}
+}
+
+export namespace ChatRequestModeInstructions {
+	export function to(mode: IChatRequestModeInstructions | undefined): vscode.ChatRequestModeInstructions | undefined {
+		return mode ? {
+			content: mode.content,
+			toolReferences: mode.toolReferences?.map(ref => ChatLanguageModelToolReference.to(ref)) ?? [],
+			metadata: mode.metadata
+		} : undefined;
 	}
 }
 
@@ -3397,6 +3420,7 @@ export namespace TerminalResourceRequestConfig {
 			...resourceRequestConfig,
 			pathSeparator,
 			cwd: resourceRequestConfig.cwd,
+			globPattern: GlobPattern.from(resourceRequestConfig.globPattern) ?? undefined
 		};
 	}
 }
@@ -3537,7 +3561,7 @@ export namespace LanguageModelToolResult {
 
 export namespace LanguageModelToolResult2 {
 	export function to(result: IToolResult): vscode.LanguageModelToolResult2 {
-		return new types.LanguageModelToolResult2(result.content.map(item => {
+		const toolResult = new types.LanguageModelToolResult2(result.content.map(item => {
 			if (item.kind === 'text') {
 				return new types.LanguageModelTextPart(item.value, item.audience);
 			} else if (item.kind === 'data') {
@@ -3546,6 +3570,12 @@ export namespace LanguageModelToolResult2 {
 				return new types.LanguageModelPromptTsxPart(item.value);
 			}
 		}));
+
+		if (result.toolMetadata) {
+			(toolResult as vscode.ExtendedLanguageModelToolResult).toolMetadata = result.toolMetadata;
+		}
+
+		return toolResult;
 	}
 
 	export function from(result: vscode.ExtendedLanguageModelToolResult2, extension: IExtensionDescription): Dto<IToolResult> | SerializableObjectWithBuffers<Dto<IToolResult>> {
@@ -3609,6 +3639,7 @@ export namespace LanguageModelToolResult2 {
 			}),
 			toolResultMessage: MarkdownString.fromStrict(result.toolResultMessage),
 			toolResultDetails: detailsDto,
+			toolMetadata: result.toolMetadata,
 		};
 
 		return hasBuffers ? new SerializableObjectWithBuffers(dto) : dto;

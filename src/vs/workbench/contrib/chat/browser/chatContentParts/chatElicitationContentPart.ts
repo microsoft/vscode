@@ -6,11 +6,12 @@
 import { Emitter } from '../../../../../base/common/event.js';
 import { IMarkdownString, isMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatProgressRenderableResponseContent } from '../../common/chatModel.js';
 import { IChatElicitationRequest } from '../../common/chatService.js';
 import { IChatAccessibilityService } from '../chat.js';
-import { ChatConfirmationWidget } from './chatConfirmationWidget.js';
+import { ChatConfirmationWidget, IChatConfirmationButton } from './chatConfirmationWidget.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { IAction } from '../../../../../base/common/actions.js';
 
@@ -28,18 +29,20 @@ export class ChatElicitationContentPart extends Disposable implements IChatConte
 	) {
 		super();
 
-		const buttons = [
+		const buttons: IChatConfirmationButton<unknown>[] = [
 			{
 				label: elicitation.acceptButtonLabel,
 				data: true,
-				moreActions: (elicitation.moreActions || []).map((action: IAction) => ({
+				moreActions: elicitation.moreActions?.map((action: IAction) => ({
 					label: action.label,
 					data: action,
 					run: action.run
 				}))
 			},
-			{ label: elicitation.rejectButtonLabel, data: false, isSecondary: true },
 		];
+		if (elicitation.rejectButtonLabel && elicitation.reject) {
+			buttons.push({ label: elicitation.rejectButtonLabel, data: false, isSecondary: true });
+		}
 		const confirmationWidget = this._register(this.instantiationService.createInstance(ChatConfirmationWidget, context.container, {
 			title: elicitation.title,
 			subtitle: elicitation.subtitle,
@@ -49,8 +52,12 @@ export class ChatElicitationContentPart extends Disposable implements IChatConte
 		}));
 		confirmationWidget.setShowButtons(elicitation.state === 'pending');
 
-		if (elicitation.onDidRequestHide) {
-			this._register(elicitation.onDidRequestHide(() => this.domNode.remove()));
+		if (elicitation.isHidden) {
+			this._register(autorun(reader => {
+				if (elicitation.isHidden?.read(reader)) {
+					this.domNode.remove();
+				}
+			}));
 		}
 
 		this._register(confirmationWidget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
@@ -66,7 +73,7 @@ export class ChatElicitationContentPart extends Disposable implements IChatConte
 			}
 			if (result !== undefined) {
 				await elicitation.accept(result);
-			} else {
+			} else if (elicitation.reject) {
 				await elicitation.reject();
 			}
 

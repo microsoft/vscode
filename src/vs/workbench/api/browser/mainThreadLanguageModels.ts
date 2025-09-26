@@ -58,8 +58,8 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 		const dipsosables = new DisposableStore();
 		dipsosables.add(this._chatProviderService.registerLanguageModelProvider(vendor, {
 			onDidChange: Event.filter(this._lmProviderChange.event, e => e.vendor === vendor, dipsosables) as unknown as Event<void>,
-			prepareLanguageModelChat: async (options, token) => {
-				const modelsAndIdentifiers = await this._proxy.$prepareLanguageModelProvider(vendor, options, token);
+			provideLanguageModelChatInfo: async (options, token) => {
+				const modelsAndIdentifiers = await this._proxy.$provideLanguageModelChatInfo(vendor, options, token);
 				modelsAndIdentifiers.forEach(m => {
 					if (m.metadata.auth) {
 						dipsosables.add(this._registerAuthenticationProvider(m.metadata.extension, m.metadata.auth));

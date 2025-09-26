@@ -10,14 +10,13 @@ import { parseEnvFile } from '../../../base/common/envfile.js';
 import { untildify } from '../../../base/common/labels.js';
 import { DisposableMap } from '../../../base/common/lifecycle.js';
 import * as path from '../../../base/common/path.js';
+import { URI } from '../../../base/common/uri.js';
 import { StreamSplitter } from '../../../base/node/nodeStreams.js';
 import { findExecutable } from '../../../base/node/processes.js';
-import { ILogService, LogLevel } from '../../../platform/log/common/log.js';
+import { LogLevel } from '../../../platform/log/common/log.js';
 import { McpConnectionState, McpServerLaunch, McpServerTransportStdio, McpServerTransportType } from '../../contrib/mcp/common/mcpTypes.js';
 import { McpStdioStateHandler } from '../../contrib/mcp/node/mcpStdioStateHandler.js';
-import { IExtHostInitDataService } from '../common/extHostInitDataService.js';
 import { ExtHostMcpService } from '../common/extHostMcp.js';
-import { IExtHostRpcService } from '../common/extHostRpcService.js';
 import { IExtHostConsumerFileSystem } from '../common/extHostFileSystemConsumer.js';
 import { IExtHostFileSystemInfo } from '../common/extHostFileSystemInfo.js';
 
@@ -34,11 +33,11 @@ export class NodeExtHostMpcService extends ExtHostMcpService {
 
 	private nodeServers = this._register(new DisposableMap<number, McpStdioStateHandler>());
 
-	protected override _startMcp(id: number, launch: McpServerLaunch): void {
+	protected override _startMcp(id: number, launch: McpServerLaunch, defaultCwd?: URI, errorOnUserInteraction?: boolean): void {
 		if (launch.type === McpServerTransportType.Stdio) {
-			this.startNodeMpc(id, launch);
+			this.startNodeMpc(id, launch, defaultCwd);
 		} else {
-			super._startMcp(id, launch);
+			super._startMcp(id, launch, defaultCwd, errorOnUserInteraction);
 		}
 	}
 
@@ -60,7 +59,7 @@ export class NodeExtHostMpcService extends ExtHostMcpService {
 		}
 	}
 
-	private async startNodeMpc(id: number, launch: McpServerTransportStdio) {
+	private async startNodeMpc(id: number, launch: McpServerTransportStdio, defaultCwd?: URI): Promise<void> {
 		const onError = (err: Error | string) => this._proxy.$onDidChangeState(id, {
 			state: McpConnectionState.Kind.Error,
 			code: err.hasOwnProperty('code') ? String((err as any).code) : undefined,
@@ -89,7 +88,7 @@ export class NodeExtHostMpcService extends ExtHostMcpService {
 			const home = homedir();
 			let cwd = launch.cwd ? untildify(launch.cwd, home) : home;
 			if (!path.isAbsolute(cwd)) {
-				cwd = path.join(home, cwd);
+				cwd = defaultCwd ? path.join(defaultCwd.fsPath, cwd) : path.join(home, cwd);
 			}
 
 			const { executable, args, shell } = await formatSubprocessArguments(

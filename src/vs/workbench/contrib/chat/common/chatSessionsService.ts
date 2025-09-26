@@ -22,7 +22,6 @@ export const enum ChatSessionStatus {
 }
 
 export interface IChatSessionsExtensionPoint {
-	readonly id: string; // TODO(jospicer): Deprecated. Remove
 	readonly type: string;
 	readonly name: string;
 	readonly displayName: string;
@@ -75,8 +74,7 @@ export interface IChatSessionItemProvider {
 	readonly onDidChangeChatSessionItems: Event<void>;
 	provideChatSessionItems(token: CancellationToken): Promise<IChatSessionItem[]>;
 	provideNewChatSessionItem?(options: {
-		prompt?: string;
-		history?: any[];
+		request: IChatAgentRequest;
 		metadata?: any;
 	}, token: CancellationToken): Promise<IChatSessionItem>;
 }
@@ -98,8 +96,7 @@ export interface IChatSessionsService {
 	canResolveItemProvider(chatSessionType: string): Promise<boolean>;
 	getAllChatSessionItemProviders(): IChatSessionItemProvider[];
 	provideNewChatSessionItem(chatSessionType: string, options: {
-		prompt?: string;
-		history?: any[];
+		request: IChatAgentRequest;
 		metadata?: any;
 	}, token: CancellationToken): Promise<IChatSessionItem>;
 	provideChatSessionItems(chatSessionType: string, token: CancellationToken): Promise<IChatSessionItem[]>;

@@ -8,24 +8,26 @@ import * as sinon from 'sinon';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyService } from '../../../../platform/contextkey/browser/contextKeyService.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { TestInstantiationService } from '../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../platform/log/common/log.js';
-import { MainThreadChatSessions, ObservableChatSession } from '../../browser/mainThreadChatSessions.js';
-import { ExtHostChatSessionsShape, IChatProgressDto } from '../../common/extHost.protocol.js';
-import { IExtHostContext } from '../../../services/extensions/common/extHostCustomers.js';
-import { ExtensionHostKind } from '../../../services/extensions/common/extensionHostKind.js';
+import { ChatSessionsService } from '../../../contrib/chat/browser/chatSessions.contribution.js';
+import { IChatAgentRequest } from '../../../contrib/chat/common/chatAgents.js';
 import { IChatProgress } from '../../../contrib/chat/common/chatService.js';
 import { IChatSessionItem, IChatSessionsService } from '../../../contrib/chat/common/chatSessionsService.js';
+import { ChatAgentLocation } from '../../../contrib/chat/common/constants.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IExtHostContext } from '../../../services/extensions/common/extHostCustomers.js';
+import { ExtensionHostKind } from '../../../services/extensions/common/extensionHostKind.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { mock, TestExtensionService } from '../../../test/common/workbenchTestServices.js';
-import { ChatSessionsService } from '../../../contrib/chat/browser/chatSessions.contribution.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { ContextKeyService } from '../../../../platform/contextkey/browser/contextKeyService.js';
-import { TestConfigurationService } from '../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { MainThreadChatSessions, ObservableChatSession } from '../../browser/mainThreadChatSessions.js';
+import { ExtHostChatSessionsShape, IChatProgressDto } from '../../common/extHost.protocol.js';
 
 suite('ObservableChatSession', function () {
 	let disposables: DisposableStore;
@@ -372,9 +374,19 @@ suite('MainThreadChatSessions', function () {
 	test('provideNewChatSessionItem creates a new chat session', async function () {
 		mainThread.$registerChatSessionItemProvider(1, 'test-type');
 
+		// Create a mock IChatAgentRequest
+		const mockRequest: IChatAgentRequest = {
+			sessionId: 'test-session',
+			requestId: 'test-request',
+			agentId: 'test-agent',
+			message: 'my prompt',
+			location: ChatAgentLocation.Chat,
+			variables: { variables: [] }
+		};
+
 		// Valid
 		const chatSessionItem = await chatSessionsService.provideNewChatSessionItem('test-type', {
-			prompt: 'my prompt',
+			request: mockRequest,
 			metadata: {}
 		}, CancellationToken.None);
 		assert.strictEqual(chatSessionItem.id, 'new-session-id');
@@ -383,7 +395,7 @@ suite('MainThreadChatSessions', function () {
 		// Invalid session type should throw
 		await assert.rejects(
 			chatSessionsService.provideNewChatSessionItem('invalid-type', {
-				prompt: 'my prompt',
+				request: mockRequest,
 				metadata: {}
 			}, CancellationToken.None)
 		);

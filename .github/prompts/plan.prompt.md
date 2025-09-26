@@ -1,7 +1,7 @@
 ---
 mode: agent
-description: 'Plan the solution for a problem.'
-tools: ['codebase', 'usages', 'vscodeAPI', 'problems', 'changes', 'testFailure', 'fetch', 'findTestFiles', 'searchResults', 'githubRepo', 'terminalSelection', 'terminalLastCommand', 'todos', 'search', 'get_issue', 'get_issue_comments', 'get_me']
+description: 'Start planning'
+tools: ['getNotebookSummary', 'readNotebookCellOutput', 'search', 'getTerminalOutput', 'terminalSelection', 'terminalLastCommand', 'usages', 'vscodeAPI', 'think', 'problems', 'changes', 'testFailure', 'fetch', 'githubRepo', 'todos', 'get_issue', 'get_issue_comments', 'get_me']
 ---
 Your goal is to prepare a detailed plan to fix the bug or add the new feature, for this you first need to:
 * Understand the context of the bug or feature by reading the issue description and comments.

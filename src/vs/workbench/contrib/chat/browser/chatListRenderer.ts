@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './chatContentParts/media/chatMcpServersInteractionContent.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { renderFormattedText } from '../../../../base/browser/formattedTextRenderer.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
@@ -14,8 +15,8 @@ import { IListElementRenderDetails, IListVirtualDelegate } from '../../../../bas
 import { ITreeNode, ITreeRenderer } from '../../../../base/browser/ui/tree/tree.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { coalesce, distinct } from '../../../../base/common/arrays.js';
-import { Codicon } from '../../../../base/common/codicons.js';
 import { findLast } from '../../../../base/common/arraysFind.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { canceledName } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -52,9 +53,9 @@ import { IChatAgentMetadata } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatTextEditGroup } from '../common/chatModel.js';
 import { chatSubcommandLeader } from '../common/chatParserTypes.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatErrorLevel, IChatChangesSummary, IChatConfirmation, IChatContentReference, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatPullRequestContent, IChatMultiDiffData, IChatTask, IChatTaskSerialized, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatElicitationRequest } from '../common/chatService.js';
-import { IChatChangesSummaryPart, IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatErrorLevel, IChatChangesSummary, IChatConfirmation, IChatContentReference, IChatElicitationRequest, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatMcpServersInteractionRequired, IChatMultiDiffData, IChatPullRequestContent, IChatTask, IChatTaskSerialized, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop } from '../common/chatService.js';
 import { IChatRequestVariableEntry } from '../common/chatVariableEntries.js';
+import { IChatChangesSummaryPart, IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
 import { getNWords } from '../common/chatWordCounter.js';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../common/constants.js';
@@ -73,6 +74,7 @@ import { ChatErrorConfirmationContentPart } from './chatContentParts/chatErrorCo
 import { ChatErrorContentPart } from './chatContentParts/chatErrorContentPart.js';
 import { ChatExtensionsContentPart } from './chatContentParts/chatExtensionsContentPart.js';
 import { ChatMarkdownContentPart, EditorPool } from './chatContentParts/chatMarkdownContentPart.js';
+import { ChatMcpServersInteractionContentPart } from './chatContentParts/chatMcpServersInteractionContentPart.js';
 import { ChatMultiDiffContentPart } from './chatContentParts/chatMultiDiffContentPart.js';
 import { ChatProgressContentPart, ChatWorkingProgressContentPart } from './chatContentParts/chatProgressContentPart.js';
 import { ChatPullRequestContentPart } from './chatContentParts/chatPullRequestContentPart.js';
@@ -87,7 +89,8 @@ import { ChatMarkdownDecorationsRenderer } from './chatMarkdownDecorationsRender
 import { ChatMarkdownRenderer } from './chatMarkdownRenderer.js';
 import { ChatEditorOptions } from './chatOptions.js';
 import { ChatCodeBlockContentProvider, CodeBlockPart } from './codeBlockPart.js';
-import { ChatPinnedContentPart } from './chatContentParts/chatPinnedContentPart.js';
+import { ChatAnonymousRateLimitedPart } from './chatContentParts/chatAnonymousRateLimitedPart.js';
+import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 
 const $ = dom.$;
 
@@ -181,8 +184,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private readonly _diffEditorPool: DiffEditorPool;
 	private readonly _treePool: TreePool;
 	private readonly _contentReferencesListPool: CollapsibleListPool;
-	private _currentlyPinnedPart: ChatPinnedContentPart | undefined;
-	private _finishedThinking: boolean = false;
+	private _currentThinkingPart: ChatThinkingContentPart | undefined;
+	private _streamingThinking: boolean = false;
 
 	private _currentLayoutWidth: number = 0;
 	private _isVisible = true;
@@ -193,11 +196,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	 * TODO@roblourens shouldn't use the CodeBlockModelCollection at all
 	 */
 	private readonly _toolInvocationCodeBlockCollection: CodeBlockModelCollection;
-
-	private hasAnyValidThinkingTokens(element: IChatResponseViewModel): boolean {
-		return element.model.entireResponse.value.some(
-			part => part.kind === 'thinking');
-	}
 
 	constructor(
 		editorOptions: ChatEditorOptions,
@@ -214,6 +212,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@ICommandService private readonly commandService: ICommandService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 	) {
 		super();
 
@@ -437,6 +436,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		// Insert the details container into the toolbar's internal element structure
 		const footerDetailsContainer = dom.append(footerToolbar.getElement(), $('.chat-footer-details'));
+		footerDetailsContainer.tabIndex = 0;
+		footerDetailsContainer.role = 'note';
 
 		const checkpointRestoreContainer = dom.append(rowContainer, $('.checkpoint-restore-container'));
 		const codiconRestoreContainer = dom.append(checkpointRestoreContainer, $('.codicon-container'));
@@ -563,7 +564,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		ChatContextKeys.responseIsFiltered.bindTo(templateData.contextKeyService).set(isFiltered);
 
 		const location = this.chatWidgetService.getWidgetBySessionId(element.sessionId)?.location;
-		templateData.rowContainer.classList.toggle('editing-session', location === ChatAgentLocation.Panel);
+		templateData.rowContainer.classList.toggle('editing-session', location === ChatAgentLocation.Chat);
 		templateData.rowContainer.classList.toggle('interactive-request', isRequestVM(element));
 		templateData.rowContainer.classList.toggle('interactive-response', isResponseVM(element));
 		const progressMessageAtBottomOfResponse = checkModeOption(this.delegate.currentChatMode(), this.rendererOptions.progressMessageAtBottomOfResponse);
@@ -713,13 +714,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private renderChatResponseBasic(element: IChatResponseViewModel, index: number, templateData: IChatListItemTemplate) {
 		templateData.rowContainer.classList.toggle('chat-response-loading', (isResponseVM(element) && !element.isComplete));
 
-		if (element.isCanceled && this._currentlyPinnedPart) {
-			this._finishedThinking = true;
-			this._currentlyPinnedPart.hidePreview(true);
-			if (!this._currentlyPinnedPart.hasCustomTitle()) {
-				this._currentlyPinnedPart.updateTitle(localize('chat.pinned.thinking.header.done', "Thought for a few seconds..."));
+		if (element.isCanceled) {
+			if (this._currentThinkingPart?.domNode) {
+				this._currentThinkingPart.finalizeTitleIfDefault();
+				this._currentThinkingPart = undefined;
+				this._streamingThinking = false;
+				this.updateItemHeight(templateData);
 			}
-			this._currentlyPinnedPart = undefined;
 		}
 
 		const content: IChatRendererContent[] = [];
@@ -756,13 +757,19 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		// Show if no content, only "used references", ends with a complete tool call, or ends with complete text edits and there is no incomplete tool call (edits are still being applied some time after they are all generated)
 		const lastPart = findLast(partsToRender, part => part.kind !== 'markdownContent' || part.content.value.trim().length > 0);
+
+		const thinkingStyle = this.configService.getValue<string>('chat.agent.thinkingStyle');
+		if (thinkingStyle === 'fixedScrolling' && lastPart?.kind === 'thinking') {
+			return false;
+		}
+
 		if (
 			!lastPart ||
-			lastPart.kind === 'references' ||
-			(lastPart.kind === 'toolInvocation' && (lastPart.isComplete || lastPart.presentation === 'hidden')) ||
+			lastPart.kind === 'references' || lastPart.kind === 'thinking' ||
+			((lastPart.kind === 'toolInvocation' || lastPart.kind === 'toolInvocationSerialized') && (lastPart.isComplete || lastPart.presentation === 'hidden')) ||
 			((lastPart.kind === 'textEditGroup' || lastPart.kind === 'notebookEditGroup') && lastPart.done && !partsToRender.some(part => part.kind === 'toolInvocation' && !part.isComplete)) ||
 			(lastPart.kind === 'progressTask' && lastPart.deferred.isSettled) ||
-			lastPart.kind === 'prepareToolInvocation'
+			lastPart.kind === 'prepareToolInvocation' || lastPart.kind === 'mcpServersInteractionRequired'
 		) {
 			return true;
 		}
@@ -976,7 +983,17 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 
 			const alreadyRenderedPart = templateData.renderedParts?.[contentIndex];
+
+			// keep existing thinking part instance during streaming and update it in place
 			if (alreadyRenderedPart) {
+				if (partToRender.kind === 'thinking' && alreadyRenderedPart instanceof ChatThinkingContentPart) {
+					if (!Array.isArray(partToRender.value)) {
+						alreadyRenderedPart.updateThinking(partToRender);
+					}
+					renderedParts[contentIndex] = alreadyRenderedPart;
+					return;
+				}
+
 				alreadyRenderedPart.dispose();
 			}
 
@@ -1003,6 +1020,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					} else if (newPart.domNode) {
 						templateData.value.appendChild(newPart.domNode);
 					}
+
 				} catch (err) {
 					this.logService.error('ChatListItemRenderer#renderChatContentDiff: error replacing part', err);
 				}
@@ -1104,8 +1122,22 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return element.isComplete && this.configService.getValue<boolean>('chat.checkpoints.showFileChanges');
 	}
 
+	private shouldShowThinkingPart(): boolean {
+		return this.configService.getValue<string>('chat.agent.thinkingStyle') !== 'none';
+	}
 
 	private getDataForProgressiveRender(element: IChatResponseViewModel) {
+		if (!element.isComplete && element.response.value.length > 0 && (element.contentUpdateTimings ? element.contentUpdateTimings.lastWordCount : 0) === 0) {
+			/**
+			 * None of the content parts in the ongoing response have been rendered yet,
+			 * so we should render all existing parts without animation.
+			 */
+			return {
+				numWordsToRender: Number.MAX_SAFE_INTEGER,
+				rate: Number.MAX_SAFE_INTEGER
+			};
+		}
+
 		const renderData = element.renderData ?? { lastRenderTime: 0, renderedWordCount: 0 };
 
 		const rate = this.getProgressiveRenderRate(element);
@@ -1138,47 +1170,52 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return diff;
 	}
 
-	// Put the part om a "pinned" collapsible region if it is thinking or a special tool invocation (and there has been some thinking).
-	private shouldPinPart(part: IChatRendererContent, element?: IChatResponseViewModel): boolean {
-		if (part.kind === 'thinking' || part.kind === 'prepareToolInvocation') {
-			return true;
-		}
+	// put thinking parts inside a pinned part. commented out for now.
+	// private shouldPinPart(part: IChatRendererContent, element?: IChatResponseViewModel): boolean {
 
-		if ((part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && element) {
-			// Explicit set of tools that should be pinned when there has been thinking
-			const specialToolIds = new Set<string>([
-				'copilot_searchCodebase',
-				'copilot_searchWorkspaceSymbols',
-				'copilot_listCodeUsages',
-				'copilot_think',
-				'copilot_findFiles',
-				'copilot_findTextInFiles',
-				'copilot_readFile',
-				'copilot_listDirectory',
-				'copilot_getChangedFiles',
-			]);
-			const isSpecialTool = specialToolIds.has(part.toolId);
-			return isSpecialTool && this.hasAnyValidThinkingTokens(element);
-		}
+	// 	if ((part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && element) {
+	// 		// Explicit set of tools that should be pinned when there has been thinking
+	// 		const specialToolIds = new Set<string>([
+	// 			'copilot_searchCodebase',
+	// 			'copilot_searchWorkspaceSymbols',
+	// 			'copilot_listCodeUsages',
+	// 			'copilot_think',
+	// 			'copilot_findFiles',
+	// 			'copilot_findTextInFiles',
+	// 			'copilot_readFile',
+	// 			'copilot_listDirectory',
+	// 			'copilot_getChangedFiles',
+	// 		]);
+	// 		const isSpecialTool = specialToolIds.has(part.toolId);
+	// 		return isSpecialTool && this._hasHitThinking;
+	// 	}
 
-		return false;
-	}
+	// 	return false;
+	// }
 
 	private renderChatContentPart(content: IChatRendererContent, templateData: IChatListItemTemplate, context: IChatContentPartRenderContext): IChatContentPart | undefined {
 		try {
-			const shouldPin = ((content.kind === 'thinking' && content.value) || this.shouldPinPart(content, isResponseVM(context.element) ? context.element : undefined));
 
-			if (!shouldPin && content.kind !== 'working' && isResponseVM(context.element) && !this._finishedThinking && this.hasAnyValidThinkingTokens(context.element)) {
-				this._finishedThinking = true;
-				if (this._currentlyPinnedPart && !this._currentlyPinnedPart.hasCustomTitle()) {
-					this._currentlyPinnedPart.updateTitle(localize('chat.pinned.thinking.header.done', "Thought for a few seconds..."));
+			if (this.shouldShowThinkingPart()) {
+				// if we get an empty thinking part, mark thinking as finished
+				if (content.kind === 'thinking' && (Array.isArray(content.value) ? content.value.length === 0 : !content.value)) {
+					this._currentThinkingPart?.resetId();
+					this._streamingThinking = false;
+					return this.renderNoContent(other => content.kind === other.kind);
 				}
-				this._currentlyPinnedPart?.hidePreview();
+
+				// we got a non-thinking and non-thinking tool content part
+				if (this._currentThinkingPart && content.kind !== 'working' && content.kind !== 'thinking' && !this._streamingThinking) {
+					if (this.configService.getValue<string>('chat.agent.thinkingStyle') === 'collapsedPreview') {
+						this._currentThinkingPart.collapseContent();
+					}
+					this._currentThinkingPart?.finalizeTitleIfDefault();
+					this._currentThinkingPart?.resetId();
+					this._currentThinkingPart = undefined;
+				}
 			}
 
-			if (shouldPin && this.configService.getValue<string>(ChatConfiguration.ThinkingStyle) !== 'none') {
-				return this.renderPinnedContainer(content, templateData, context);
-			} else if (content.kind === 'treeData') {
+			if (content.kind === 'treeData') {
 				return this.renderTreeData(content, templateData, context);
 			} else if (content.kind === 'multiDiffData') {
 				return this.renderMultiDiffData(content, templateData, context);
@@ -1216,6 +1253,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				return this.renderElicitation(context, content, templateData);
 			} else if (content.kind === 'changesSummary') {
 				return this.renderChangesSummary(content, context, templateData);
+			} else if (content.kind === 'mcpServersInteractionRequired') {
+				return this.renderMcpServersInteractionRequired(content, context, templateData);
+			} else if (content.kind === 'thinking' && this.shouldShowThinkingPart()) {
+				return this.renderThinkingPart(content, context, templateData);
 			}
 
 			return this.renderNoContent(other => content.kind === other.kind);
@@ -1240,6 +1281,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (content.errorDetails.isQuotaExceeded) {
 			const renderedError = this.instantiationService.createInstance(ChatQuotaExceededPart, context.element, content, this.renderer);
 			renderedError.addDisposable(renderedError.onDidChangeHeight(() => this.updateItemHeight(templateData)));
+			return renderedError;
+		} else if (content.errorDetails.isRateLimited && this.chatEntitlementService.anonymous) {
+			const renderedError = this.instantiationService.createInstance(ChatAnonymousRateLimitedPart, content);
 			return renderedError;
 		} else if (content.errorDetails.confirmationButtons && isLast) {
 			const level = content.errorDetails.level ?? ChatErrorLevel.Error;
@@ -1408,81 +1452,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return part;
 	}
 
-
-	private extractTitleFromThinkingContent(content: string): string | undefined {
-		const headerMatch = content.match(/^\*\*([^*]+)\*\*\s*\n\n/);
-		return headerMatch ? headerMatch[1].trim() : undefined;
-	}
-
-	private ensurePinnedContainer(templateData: IChatListItemTemplate, context: IChatContentPartRenderContext, extractedTitle?: string): void {
-		if (this._finishedThinking || !this._currentlyPinnedPart) {
-			this._currentlyPinnedPart = templateData.instantiationService.createInstance(ChatPinnedContentPart, undefined, context, extractedTitle);
-			this._currentlyPinnedPart.addDisposable(this._currentlyPinnedPart.onDidChangeHeight(() => this.updateItemHeight(templateData)));
-			this._finishedThinking = false;
-		}
-	}
-
-	private updatePinnedContainer(childPart: IChatContentPart, content: IChatRendererContent, extractedTitle?: string): void {
-		const newDomPart = childPart?.domNode;
-		if (!newDomPart || !this._currentlyPinnedPart) {
-			return;
-		}
-
-		const isSectionStart = content.kind === 'thinking';
-		// Update title if this is a new thinking section with extracted title
-		if (isSectionStart && extractedTitle) {
-			this._currentlyPinnedPart.updateTitle(extractedTitle);
-		}
-		this._currentlyPinnedPart.update(newDomPart, isSectionStart);
-
-		if (childPart) {
-			this._currentlyPinnedPart.addDisposable(childPart);
-		}
-	}
-
-	private renderPinnedContainer(content: IChatRendererContent, templateData: IChatListItemTemplate, context: IChatContentPartRenderContext): IChatContentPart | undefined {
-		let childPart: IChatContentPart | undefined;
-		let extractedTitle: string | undefined;
-
-		if (content.kind === 'toolInvocation' || content.kind === 'toolInvocationSerialized') {
-			childPart = this.renderToolInvocation(content, context, templateData);
-		} else if (content.kind === 'thinking' && content.value) {
-			if (Array.isArray(content.value)) {
-				for (const item of content.value) {
-					if (item) {
-						const itemContent = { ...content, value: item };
-						const itemPart = templateData.instantiationService.createInstance(ChatThinkingContentPart, itemContent, context);
-						if (itemPart) {
-							childPart = itemPart;
-						}
-						extractedTitle = this.extractTitleFromThinkingContent(item || '');
-
-						if (childPart?.domNode) {
-							this.ensurePinnedContainer(templateData, context, extractedTitle);
-							this.updatePinnedContainer(childPart, content, extractedTitle);
-						}
-					}
-				}
-
-				return this._currentlyPinnedPart;
-			} else {
-				extractedTitle = this.extractTitleFromThinkingContent(content.value || '');
-				childPart = templateData.instantiationService.createInstance(ChatThinkingContentPart, content, context);
-			}
-		} else {
-			return this.renderNoContent(other => content.kind === other.kind);
-		}
-
-		if (!childPart?.domNode) {
-			return undefined;
-		}
-
-		this.ensurePinnedContainer(templateData, context, extractedTitle);
-		this.updatePinnedContainer(childPart, content, extractedTitle);
-
-		return this._currentlyPinnedPart;
-	}
-
 	private renderChangesSummary(content: IChatChangesSummaryPart, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): IChatContentPart {
 		const part = this.instantiationService.createInstance(ChatCheckpointFileChangesSummaryContentPart, content, context);
 		part.addDisposable(part.onDidChangeHeight(() => { this.updateItemHeight(templateData); }));
@@ -1490,7 +1459,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private renderAttachments(variables: IChatRequestVariableEntry[], contentReferences: ReadonlyArray<IChatContentReference> | undefined, templateData: IChatListItemTemplate) {
-		return this.instantiationService.createInstance(ChatAttachmentsContentPart, variables, contentReferences, undefined);
+		return this.instantiationService.createInstance(ChatAttachmentsContentPart, {
+			variables,
+			contentReferences,
+			domNode: undefined
+		});
 	}
 
 	private renderTextEdit(context: IChatContentPartRenderContext, chatTextEdit: IChatTextEditGroup, templateData: IChatListItemTemplate): IChatContentPart {
@@ -1564,6 +1537,47 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return markdownPart;
 	}
 
+	renderThinkingPart(content: IChatThinkingPart, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate,): IChatContentPart {
+		this._streamingThinking = true;
+
+		// TODO @justschen @karthiknadig: remove this when OSWE moves off commentary channel
+		if (!content.id) {
+			content.id = Date.now().toString();
+		}
+
+		// if array, we do a naive part by part rendering for now
+		if (Array.isArray(content.value)) {
+			if (content.value.length < 1) {
+				this._currentThinkingPart?.finalizeTitleIfDefault();
+				return this.renderNoContent(other => content.kind === other.kind);
+			}
+			for (const item of content.value) {
+				if (item) {
+					if (this._currentThinkingPart) {
+						this._currentThinkingPart.setupThinkingContainer({ ...content, value: item }, context);
+					} else {
+						const itemContent = { ...content, value: item };
+						const itemPart = templateData.instantiationService.createInstance(ChatThinkingContentPart, itemContent, context);
+						itemPart.addDisposable(itemPart.onDidChangeHeight(() => this.updateItemHeight(templateData)));
+						this._currentThinkingPart = itemPart;
+					}
+				}
+			}
+			return this._currentThinkingPart ?? this.renderNoContent(other => content.kind === other.kind);
+			// non-array, handle case where we are currently thinking vs. starting a new thinking part
+		} else {
+			if (this._currentThinkingPart) {
+				this._currentThinkingPart.setupThinkingContainer(content, context);
+			} else {
+				const part = templateData.instantiationService.createInstance(ChatThinkingContentPart, content, context);
+				part.addDisposable(part.onDidChangeHeight(() => this.updateItemHeight(templateData)));
+				this._currentThinkingPart = part;
+			}
+			return this._currentThinkingPart;
+
+		}
+	}
+
 	disposeElement(node: ITreeNode<ChatTreeItem, FuzzyScore>, index: number, templateData: IChatListItemTemplate, details?: IListElementRenderDetails): void {
 		this.traceLayout('disposeElement', `Disposing element, index=${index}`);
 		templateData.elementDisposables.clear();
@@ -1581,6 +1595,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			templateData.titleToolbar.context = undefined;
 		}
 		templateData.footerToolbar.context = undefined;
+	}
+
+	private renderMcpServersInteractionRequired(content: IChatMcpServersInteractionRequired, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): IChatContentPart {
+		return this.instantiationService.createInstance(ChatMcpServersInteractionContentPart, content);
 	}
 
 	disposeTemplate(templateData: IChatListItemTemplate): void {

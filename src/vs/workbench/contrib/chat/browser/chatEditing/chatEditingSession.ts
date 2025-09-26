@@ -111,7 +111,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 
 	private readonly _entriesObs = observableValue<readonly AbstractChatEditingModifiedFileEntry[]>(this, []);
 	public get entries(): IObservable<readonly IModifiedFileEntry[]> {
-		this._assertNotDisposed();
 		return this._entriesObs;
 	}
 
@@ -319,35 +318,30 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	}
 
 	async accept(...uris: URI[]): Promise<void> {
-		this._assertNotDisposed();
-
-		if (uris.length === 0) {
-			await Promise.all(this._entriesObs.get().map(entry => entry.accept()));
+		if (await this._operateEntry('accept', uris)) {
+			this._accessibilitySignalService.playSignal(AccessibilitySignal.editsKept, { allowManyInParallel: true });
 		}
 
-		for (const uri of uris) {
-			const entry = this._entriesObs.get().find(e => isEqual(e.modifiedURI, uri));
-			if (entry) {
-				await entry.accept();
-			}
-		}
-		this._accessibilitySignalService.playSignal(AccessibilitySignal.editsKept, { allowManyInParallel: true });
 	}
 
 	async reject(...uris: URI[]): Promise<void> {
+		if (await this._operateEntry('reject', uris)) {
+			this._accessibilitySignalService.playSignal(AccessibilitySignal.editsUndone, { allowManyInParallel: true });
+		}
+	}
+
+	private async _operateEntry(action: 'accept' | 'reject', uris: URI[]): Promise<number> {
 		this._assertNotDisposed();
 
-		if (uris.length === 0) {
-			await Promise.all(this._entriesObs.get().map(entry => entry.reject()));
+		const applicableEntries = this._entriesObs.get()
+			.filter(e => uris.length === 0 || uris.some(u => isEqual(u, e.modifiedURI)))
+			.filter(e => !e.isCurrentlyBeingModifiedBy.get());
+
+		for (const entry of applicableEntries) {
+			await entry[action]();
 		}
 
-		for (const uri of uris) {
-			const entry = this._entriesObs.get().find(e => isEqual(e.modifiedURI, uri));
-			if (entry) {
-				await entry.reject();
-			}
-		}
-		this._accessibilitySignalService.playSignal(AccessibilitySignal.editsUndone, { allowManyInParallel: true });
+		return applicableEntries.length;
 	}
 
 	async show(previousChanges?: boolean): Promise<void> {
@@ -521,9 +515,9 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			get applyCodeBlockSuggestionId() { return responseModel.request?.modeInfo?.applyCodeBlockSuggestionId; }
 
 			get feature(): string {
-				if (responseModel.session.initialLocation === ChatAgentLocation.Panel) {
+				if (responseModel.session.initialLocation === ChatAgentLocation.Chat) {
 					return 'sideBarChat';
-				} else if (responseModel.session.initialLocation === ChatAgentLocation.Editor) {
+				} else if (responseModel.session.initialLocation === ChatAgentLocation.EditorInline) {
 					return 'inlineChat';
 				}
 				return responseModel.session.initialLocation;

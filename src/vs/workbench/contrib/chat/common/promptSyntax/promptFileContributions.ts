@@ -8,12 +8,12 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
 import { IWorkbenchContributionsRegistry, Extensions, IWorkbenchContribution } from '../../../../common/contributions.js';
 import { PromptLinkProvider } from './languageProviders/promptLinkProvider.js';
-import { PromptLinkDiagnosticsInstanceManager } from './languageProviders/promptLinkDiagnosticsProvider.js';
-import { PromptHeaderDiagnosticsInstanceManager } from './languageProviders/promptHeaderDiagnosticsProvider.js';
 import { PromptBodyAutocompletion } from './languageProviders/promptBodyAutocompletion.js';
 import { PromptHeaderAutocompletion } from './languageProviders/promptHeaderAutocompletion.js';
-import { PromptHeaderHoverProvider } from './languageProviders/promptHeaderHovers.js';
+import { PromptHoverProvider } from './languageProviders/promptHovers.js';
 import { PromptHeaderDefinitionProvider } from './languageProviders/PromptHeaderDefinitionProvider.js';
+import { PromptValidatorContribution } from './service/promptValidator.js';
+import { PromptDocumentSemanticTokensProvider } from './languageProviders/promptDocumentSemanticTokensProvider.js';
 
 
 /**
@@ -24,20 +24,13 @@ export function registerPromptFileContributions(): void {
 	// all language constributions
 
 	registerContribution(PromptLinkProvider);
-	registerContribution(PromptLinkDiagnosticsInstanceManager);
-	registerContribution(PromptHeaderDiagnosticsInstanceManager);
-	/**
-	 * PromptDecorationsProviderInstanceManager is currently disabled because the only currently
-	 * available decoration is the Front Matter header, which we decided to disable for now.
-	 * Add it back when more decorations are needed.
-	 */
-	// registerContribution(PromptDecorationsProviderInstanceManager); ,
-
+	registerContribution(PromptValidatorContribution);
 
 	registerContribution(PromptBodyAutocompletion);
 	registerContribution(PromptHeaderAutocompletion);
-	registerContribution(PromptHeaderHoverProvider);
+	registerContribution(PromptHoverProvider);
 	registerContribution(PromptHeaderDefinitionProvider);
+	registerContribution(PromptDocumentSemanticTokensProvider);
 	registerContribution(ConfigMigration);
 }
 

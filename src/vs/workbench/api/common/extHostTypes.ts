@@ -3468,16 +3468,13 @@ export class LanguageModelToolResultPart implements vscode.LanguageModelToolResu
 	}
 }
 
-export class LanguageModelToolResultPart2 implements vscode.LanguageModelToolResultPart2 {
+export class LanguageModelToolResultPart2 extends LanguageModelToolResultPart implements vscode.LanguageModelToolResultPart2 {
 
-	callId: string;
-	content: (LanguageModelTextPart | LanguageModelPromptTsxPart | LanguageModelDataPart | unknown)[];
-	isError: boolean;
+	declare content: (LanguageModelTextPart | LanguageModelPromptTsxPart | LanguageModelDataPart | unknown)[];
 
 	constructor(callId: string, content: (LanguageModelTextPart | LanguageModelPromptTsxPart | LanguageModelDataPart | unknown)[], isError?: boolean) {
-		this.callId = callId;
+		super(callId, content, isError);
 		this.content = content;
-		this.isError = isError ?? false;
 	}
 }
 
@@ -3793,6 +3790,9 @@ export class LanguageModelToolResult2 {
 }
 
 export class ExtendedLanguageModelToolResult extends LanguageModelToolResult {
+	toolResultMessage?: string | MarkdownString;
+	toolResultDetails?: Array<URI | Location>;
+	toolMetadata?: unknown;
 }
 
 export enum LanguageModelChatToolMode {

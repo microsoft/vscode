@@ -21,6 +21,7 @@ import { timeout } from '../../../../../base/common/async.js';
 import { gitBashToWindowsPath, windowsToGitBashPath } from './terminalGitBashHelpers.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { IRelativePattern, match } from '../../../../../base/common/glob.js';
 
 export const ITerminalCompletionService = createDecorator<ITerminalCompletionService>('terminalCompletionService');
 
@@ -55,10 +56,9 @@ export class TerminalCompletionList<ITerminalCompletion> {
 export interface TerminalResourceRequestConfig {
 	filesRequested?: boolean;
 	foldersRequested?: boolean;
-	fileExtensions?: string[];
-	cwd?: UriComponents;
+	globPattern?: string | IRelativePattern;
+	cwd: UriComponents;
 	pathSeparator: string;
-	env?: { [key: string]: string | null | undefined };
 }
 
 
@@ -258,10 +258,9 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		// provide diagnostics when a folder is provided where a file is expected.
 		const foldersRequested = (resourceRequestConfig.foldersRequested || resourceRequestConfig.filesRequested) ?? false;
 		const filesRequested = resourceRequestConfig.filesRequested ?? false;
-		const fileExtensions = resourceRequestConfig.fileExtensions ?? undefined;
+		const globPattern = resourceRequestConfig.globPattern ?? undefined;
 
-		const cwd = URI.revive(resourceRequestConfig.cwd);
-		if (!cwd || (!foldersRequested && !filesRequested)) {
+		if (!foldersRequested && !filesRequested) {
 			return;
 		}
 
@@ -307,6 +306,8 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		const lastWordFolderHasTildePrefix = !!lastWordFolder.match(/^~[\\\/]?/);
 		const isAbsolutePath = getIsAbsolutePath(shellType, resourceRequestConfig.pathSeparator, lastWordFolder, useWindowsStylePath);
 		const type = lastWordFolderHasTildePrefix ? 'tilde' : isAbsolutePath ? 'absolute' : 'relative';
+		const cwd = URI.revive(resourceRequestConfig.cwd);
+
 		switch (type) {
 			case 'tilde': {
 				const home = this._getHomeDir(useWindowsStylePath, capabilities);
@@ -442,9 +443,10 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 
 			label = escapeTerminalCompletionLabel(label, shellType, resourceRequestConfig.pathSeparator);
 
-			if (child.isFile && fileExtensions) {
-				const extension = child.name.split('.').length > 1 ? child.name.split('.').at(-1) : undefined;
-				if (extension && !fileExtensions.includes(extension)) {
+			if (child.isFile && globPattern) {
+				const filePath = child.resource.fsPath;
+				const matches = match(globPattern, filePath);
+				if (!matches) {
 					return;
 				}
 			}

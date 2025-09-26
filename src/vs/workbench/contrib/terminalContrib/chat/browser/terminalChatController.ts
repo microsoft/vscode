@@ -12,10 +12,10 @@ import { IChatCodeBlockContextProviderService, showChatView } from '../../../cha
 import { IChatService } from '../../../chat/common/chatService.js';
 import { isDetachedTerminalInstance, ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal } from '../../../terminal/browser/terminal.js';
 import { TerminalChatWidget } from './terminalChatWidget.js';
-
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import type { ITerminalContributionContext } from '../../../terminal/browser/terminalExtensions.js';
 import type { IChatModel } from '../../../chat/common/chatModel.js';
+import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 
 export class TerminalChatController extends Disposable implements ITerminalContribution {
 	static readonly ID = 'terminal.chat';
@@ -53,11 +53,18 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	constructor(
 		private readonly _ctx: ITerminalContributionContext,
 		@IChatCodeBlockContextProviderService chatCodeBlockContextProviderService: IChatCodeBlockContextProviderService,
+		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 	) {
 		super();
+
+		this._register(chatEntitlementService.onDidChangeSentiment(() => {
+			if (chatEntitlementService.sentiment.hidden) {
+				this._terminalChatWidget?.value.clear();
+			}
+		}));
 
 		this._register(chatCodeBlockContextProviderService.registerProvider({
 			getCodeBlockContext: (editor) => {
@@ -94,7 +101,6 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			return chatWidget;
 		});
 	}
-
 
 	private _forcedPlaceholder: string | undefined = undefined;
 
@@ -157,6 +163,6 @@ async function moveToPanelChat(accessor: ServicesAccessor, model: IChatModel | u
 		for (const request of model.getRequests().slice()) {
 			await chatService.adoptRequest(widget.viewModel.model.sessionId, request);
 		}
-		widget.focusLastMessage();
+		widget.focusResponseItem();
 	}
 }

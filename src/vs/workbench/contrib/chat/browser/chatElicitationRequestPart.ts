@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IAction } from '../../../../base/common/actions.js';
-import { Emitter } from '../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IChatElicitationRequest } from '../common/chatService.js';
@@ -15,26 +14,36 @@ export class ChatElicitationRequestPart extends Disposable implements IChatElici
 	public state: 'pending' | 'accepted' | 'rejected' = 'pending';
 	public acceptedResult?: Record<string, unknown>;
 
-	private _onDidRequestHide = this._register(new Emitter<void>());
-	public readonly onDidRequestHide = this._onDidRequestHide.event;
-
+	private _hideOrDisposeCalled = false;
 	constructor(
 		public readonly title: string | IMarkdownString,
 		public readonly message: string | IMarkdownString,
 		public readonly subtitle: string | IMarkdownString,
 		public readonly acceptButtonLabel: string,
-		public readonly rejectButtonLabel: string,
+		public readonly rejectButtonLabel: string | undefined,
 		// True when the primary action is accepted, otherwise the action that was selected
 		public readonly accept: (value: IAction | true) => Promise<void>,
-		public readonly reject: () => Promise<void>,
+		public readonly reject?: () => Promise<void>,
 		public readonly source?: ToolDataSource,
 		public readonly moreActions?: IAction[],
+		public readonly onHideOrDispose?: () => void,
 	) {
 		super();
 	}
 
 	hide(): void {
-		this._onDidRequestHide.fire();
+		if (!this._hideOrDisposeCalled && this.onHideOrDispose) {
+			this.onHideOrDispose();
+			this._hideOrDisposeCalled = true;
+		}
+	}
+
+	override dispose(): void {
+		if (!this._hideOrDisposeCalled && this.onHideOrDispose) {
+			this.onHideOrDispose();
+			this._hideOrDisposeCalled = true;
+		}
+		super.dispose();
 	}
 
 	public toJSON() {

@@ -41,7 +41,7 @@ suite('lm', function () {
 
 		try {
 			disposables.push(vscode.lm.registerLanguageModelChatProvider('test-lm-vendor', {
-				async prepareLanguageModelChatInformation(_options, _token) {
+				async provideLanguageModelChatInformation(_options, _token) {
 					return [testProviderOptions];
 				},
 				async provideLanguageModelChatResponse(_model, _messages, _options, progress, _token) {
@@ -93,7 +93,7 @@ suite('lm', function () {
 	test('lm request fail', async function () {
 
 		disposables.push(vscode.lm.registerLanguageModelChatProvider('test-lm-vendor', {
-			async prepareLanguageModelChatInformation(_options, _token) {
+			async provideLanguageModelChatInformation(_options, _token) {
 				return [testProviderOptions];
 			},
 			async provideLanguageModelChatResponse(_model, _messages, _options, _progress, _token) {
@@ -120,7 +120,7 @@ suite('lm', function () {
 		const defer = new DeferredPromise<void>();
 
 		disposables.push(vscode.lm.registerLanguageModelChatProvider('test-lm-vendor', {
-			async prepareLanguageModelChatInformation(_options, _token) {
+			async provideLanguageModelChatInformation(_options, _token) {
 				return [testProviderOptions];
 			},
 			async provideLanguageModelChatResponse(_model, _messages, _options, _progress, _token) {
@@ -158,7 +158,7 @@ suite('lm', function () {
 	test('LanguageModelError instance is not thrown to extensions#235322 (SYNC)', async function () {
 
 		disposables.push(vscode.lm.registerLanguageModelChatProvider('test-lm-vendor', {
-			async prepareLanguageModelChatInformation(_options, _token) {
+			async provideLanguageModelChatInformation(_options, _token) {
 				return [testProviderOptions];
 			},
 			provideLanguageModelChatResponse(_model, _messages, _options, _progress, _token) {
@@ -184,7 +184,7 @@ suite('lm', function () {
 	test('LanguageModelError instance is not thrown to extensions#235322 (ASYNC)', async function () {
 
 		disposables.push(vscode.lm.registerLanguageModelChatProvider('test-lm-vendor', {
-			async prepareLanguageModelChatInformation(_options, _token) {
+			async provideLanguageModelChatInformation(_options, _token) {
 				return [testProviderOptions];
 			},
 			async provideLanguageModelChatResponse(_model, _messages, _options, _progress, _token) {

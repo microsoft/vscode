@@ -154,6 +154,7 @@
 .extension-editor > .header > .details > .subtitle .extension-kind-indicator,
 .extension-editor > .header > .details > .subtitle .install,
 .extension-editor > .header > .details > .subtitle .rating,
+.extension-editor > .header > .details > .subtitle .license,
 .extension-editor > .header > .details > .subtitle .sponsor {
 	display: flex;
 	align-items: center;
@@ -490,18 +491,21 @@
 }
 
 .extension-editor > .body > .content > .details > .additional-details-container .resources-container > .resources > .resource {
-	display: block;
+	display: flex;
+	align-items: center;
 	cursor: pointer;
+	padding: 2px 4px;
 }
 
-.extension-editor > .body > .content > .details > .additional-details-container .resources-container > .resources > .resource {
+.extension-editor > .body > .content > .details > .additional-details-container .resources-container > .resources > .resource a {
+	padding-left: 4px;
 	overflow: hidden;
 	white-space: nowrap;
 	text-overflow: ellipsis;
 	text-decoration: var(--text-link-decoration);
 }
 
-.extension-editor > .body > .content > .details > .additional-details-container .resources-container > .resources > .resource:hover {
+.extension-editor > .body > .content > .details > .additional-details-container .resources-container > .resources > .resource:hover a {
 	text-decoration: underline;
 }
 

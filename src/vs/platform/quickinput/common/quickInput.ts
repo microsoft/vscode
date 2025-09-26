@@ -760,6 +760,11 @@ export interface IInputBox extends IQuickInput {
 	 * Severity of the input validation message.
 	 */
 	severity: Severity;
+
+	/**
+	 * Programmatically accepts an item. Used internally for keyboard navigation.
+	 */
+	accept(): void;
 }
 
 export enum QuickInputButtonLocation {
@@ -1162,6 +1167,12 @@ export interface IQuickTreeItem extends IQuickItem {
 	 * The children of this tree item.
 	 */
 	children?: readonly IQuickTreeItem[];
+
+	/**
+	 * Defaults to true, can be false to disable picks for a single item.
+	 * When false, the item is not selectable and does not respond to mouse/keyboard activation.
+	 */
+	pickable?: boolean;
 }
 
 /**

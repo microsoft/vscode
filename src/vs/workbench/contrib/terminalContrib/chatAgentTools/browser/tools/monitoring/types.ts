@@ -12,6 +12,7 @@ export interface IConfirmationPrompt {
 	prompt: string;
 	options: string[];
 	descriptions?: string[];
+	detectedRequestForFreeFormInput: boolean;
 }
 
 export interface IExecution {
@@ -19,7 +20,7 @@ export interface IExecution {
 	isActive?: () => Promise<boolean>;
 	task?: Task | Pick<Task, 'configurationProperties'>;
 	instance: Pick<ITerminalInstance, 'sendText' | 'instanceId' | 'onDidInputData' | 'onData' | 'focus' | 'registerMarker'>;
-	sessionId: string;
+	sessionId: string | undefined;
 }
 
 export interface IPollingResult {
@@ -47,7 +48,7 @@ export interface IRacePollingOrPromptResult {
 }
 
 export const enum PollingConsts {
-	MinNoDataEvents = 2, // Minimum number of no data checks before considering the terminal idle
+	MinIdleEvents = 2, // Minimum number of idle checks before considering the terminal idle
 	MinPollingDuration = 500,
 	FirstPollingMaxDuration = 20000, // 20 seconds
 	ExtendedPollingMaxDuration = 120000, // 2 minutes
