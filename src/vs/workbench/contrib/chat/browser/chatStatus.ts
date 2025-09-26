@@ -423,8 +423,8 @@ class ChatStatusDashboard extends Disposable {
 		else if (this.chatEntitlementService.anonymous && this.chatEntitlementService.sentiment.installed) {
 			addSeparator(localize('anonymousTitle', "Copilot Usage"));
 
-			this.createQuotaIndicator(this.element, disposables, undefined, localize('completionsLabel', "Code completions"), false);
-			this.createQuotaIndicator(this.element, disposables, undefined, localize('chatsLabel', "Chat messages"), false);
+			this.createQuotaIndicator(this.element, disposables, localize('quotaDisabled', "Disabled"), localize('completionsLabel', "Code completions"), false);
+			this.createQuotaIndicator(this.element, disposables, localize('quotaLimited', "Limited"), localize('chatsLabel', "Chat messages"), false);
 
 			this.element.appendChild($('div.description', undefined, localize('anonymousFooter', "Sign in to increase allowance.")));
 		}
@@ -623,7 +623,7 @@ class ChatStatusDashboard extends Disposable {
 		this.hoverService.hideHover(true);
 	}
 
-	private createQuotaIndicator(container: HTMLElement, disposables: DisposableStore, quota: IQuotaSnapshot | undefined, label: string, supportsOverage: boolean): (quota: IQuotaSnapshot) => void {
+	private createQuotaIndicator(container: HTMLElement, disposables: DisposableStore, quota: IQuotaSnapshot | string, label: string, supportsOverage: boolean): (quota: IQuotaSnapshot) => void {
 		const quotaValue = $('span.quota-value');
 		const quotaBit = $('div.quota-bit');
 		const overageLabel = $('span.overage-label');
@@ -647,19 +647,19 @@ class ChatStatusDashboard extends Disposable {
 			disposables.add(manageOverageButton.onDidClick(() => this.runCommandAndClose(() => this.openerService.open(URI.parse(defaultChat.manageOverageUrl)))));
 		}
 
-		const update = (quota: IQuotaSnapshot | undefined) => {
+		const update = (quota: IQuotaSnapshot | string) => {
 			quotaIndicator.classList.remove('error');
 			quotaIndicator.classList.remove('warning');
 
 			let usedPercentage: number;
-			if (!quota || quota.unlimited) {
+			if (typeof quota === 'string' || quota.unlimited) {
 				usedPercentage = 0;
 			} else {
 				usedPercentage = Math.max(0, 100 - quota.percentRemaining);
 			}
 
-			if (!quota) {
-				quotaValue.textContent = localize('quotaLimited', "Limited");
+			if (typeof quota === 'string') {
+				quotaValue.textContent = quota;
 			} else if (quota.unlimited) {
 				quotaValue.textContent = localize('quotaUnlimited', "Included");
 			} else if (quota.overageCount) {
@@ -677,7 +677,7 @@ class ChatStatusDashboard extends Disposable {
 			}
 
 			if (supportsOverage) {
-				if (quota?.overageEnabled) {
+				if (typeof quota !== 'string' && quota?.overageEnabled) {
 					overageLabel.textContent = localize('additionalUsageEnabled', "Additional paid premium requests enabled.");
 				} else {
 					overageLabel.textContent = localize('additionalUsageDisabled', "Additional paid premium requests disabled.");
