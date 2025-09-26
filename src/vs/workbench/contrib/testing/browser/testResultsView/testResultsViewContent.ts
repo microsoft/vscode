@@ -247,12 +247,8 @@ export class TestResultsViewContent extends Disposable {
 		const layout = getTestingConfiguration(this.configurationService, TestingConfigKeys.ResultsViewLayout);
 		this.isTreeLeft = layout === TestingResultsViewLayout.TreeLeft;
 
-		// React to configuration changes
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(TestingConfigKeys.ResultsViewLayout)) {
-				this.updateLayout();
-			}
-		}));
+		// Note: Configuration changes require view recreation to take effect
+		// This is consistent with other VS Code panel layout changes
 
 		const messageContainer = this.messageContainer = dom.$('.test-output-peek-message-container');
 		this.stackContainer = dom.append(containerElement, dom.$('.test-output-call-stack-container'));
@@ -485,16 +481,7 @@ export class TestResultsViewContent extends Disposable {
 		this.splitView.layout(width);
 	}
 
-	private updateLayout() {
-		const newLayout = getTestingConfiguration(this.configurationService, TestingConfigKeys.ResultsViewLayout);
-		const newIsTreeLeft = newLayout === TestingResultsViewLayout.TreeLeft;
 
-		if (newIsTreeLeft !== this.isTreeLeft) {
-			this.isTreeLeft = newIsTreeLeft;
-			// For now, we'll require a reload to change layout as restructuring the splitView is complex
-			// In the future, this could be improved to dynamically reorder views
-		}
-	}
 }
 
 const FOLLOWUP_ANIMATION_MIN_TIME = 500;

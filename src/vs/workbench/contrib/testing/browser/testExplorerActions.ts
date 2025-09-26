@@ -1999,9 +1999,7 @@ export class ToggleResultsViewLayoutAction extends Action2 {
 	public override async run(accessor: ServicesAccessor) {
 		const configurationService = accessor.get(IConfigurationService);
 		const currentLayout = getTestingConfiguration(configurationService, TestingConfigKeys.ResultsViewLayout);
-		const newLayout = currentLayout === TestingResultsViewLayout.TreeLeft 
-			? TestingResultsViewLayout.TreeRight 
-			: TestingResultsViewLayout.TreeLeft;
+		const newLayout = currentLayout === TestingResultsViewLayout.TreeLeft ? TestingResultsViewLayout.TreeRight : TestingResultsViewLayout.TreeLeft;
 
 		await configurationService.updateValue(TestingConfigKeys.ResultsViewLayout, newLayout);
 	}
