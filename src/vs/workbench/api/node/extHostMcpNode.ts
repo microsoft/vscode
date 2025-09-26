@@ -10,6 +10,7 @@ import { homedir } from 'os';
 import type { RequestInit as UndiciRequestInit } from 'undici';
 import { parseEnvFile } from '../../../base/common/envfile.js';
 import { untildify } from '../../../base/common/labels.js';
+import { Lazy } from '../../../base/common/lazy.js';
 import { DisposableMap } from '../../../base/common/lifecycle.js';
 import * as path from '../../../base/common/path.js';
 import { URI } from '../../../base/common/uri.js';
@@ -139,8 +140,11 @@ export class NodeExtHostMpcService extends ExtHostMcpService {
 }
 
 class McpHTTPHandleNode extends McpHTTPHandle {
+	private readonly _undici = new Lazy(() => import('undici'));
+
 	protected override async _fetchInternal(url: string, init?: CommonRequestInit): Promise<Response> {
-		const { fetch, Agent } = await import('undici');
+		// Note: imported async so that we can ensure we load undici after proxy patches have been applied
+		const { fetch, Agent } = await this._undici.value;
 
 		const undiciInit: UndiciRequestInit = { ...init };
 
