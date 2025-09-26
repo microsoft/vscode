@@ -644,6 +644,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 	}
 
 	$registerInlineCompletionsSupport(handle: number, selector: IDocumentFilterDto[], supportsHandleEvents: boolean, extensionId: string, extensionVersion: string, groupId: string | undefined, yieldsToExtensionIds: string[], displayName: string | undefined, debounceDelayMs: number | undefined, excludesExtensionIds: string[], eventHandle: number | undefined): void {
+		const providerId = new languages.ProviderId(extensionId, extensionVersion, groupId);
 		const provider: languages.InlineCompletionsProvider<IdentifiableInlineCompletions> = {
 			provideInlineCompletions: async (model: ITextModel, position: EditorPosition, context: languages.InlineCompletionContext, token: CancellationToken): Promise<IdentifiableInlineCompletions | undefined> => {
 				const result = await this._proxy.$provideInlineCompletions(handle, model.uri, position, context, token);
@@ -654,12 +655,13 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 					const aiEditTelemetryService = accessor.getIfExists(IAiEditTelemetryService);
 					item.suggestionId = aiEditTelemetryService?.createSuggestionId({
 						applyCodeBlockSuggestionId: undefined,
-						editDeltaInfo: new EditDeltaInfo(1, 1, -1, -1), // TODO@hediet, fix this approximation.
 						feature: 'inlineSuggestion',
+						source: providerId,
 						languageId: completions.languageId,
+						editDeltaInfo: new EditDeltaInfo(1, 1, -1, -1), // TODO@hediet, fix this approximation.
 						modeId: undefined,
 						modelId: undefined,
-						presentation: 'inlineSuggestion',
+						presentation: item.isInlineEdit ? 'nextEditSuggestion' : 'inlineCompletion',
 					});
 				});
 
@@ -693,17 +695,18 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 						const aiEditTelemetryService = accessor.getIfExists(IAiEditTelemetryService);
 						aiEditTelemetryService?.handleCodeAccepted({
 							suggestionId: item.suggestionId,
+							feature: 'inlineSuggestion',
+							source: providerId,
+							languageId: completions.languageId,
 							editDeltaInfo: EditDeltaInfo.tryCreate(
 								lifetimeSummary.lineCountModified,
 								lifetimeSummary.lineCountOriginal,
 								lifetimeSummary.characterCountModified,
 								lifetimeSummary.characterCountOriginal,
 							),
-							feature: 'inlineSuggestion',
-							languageId: completions.languageId,
 							modeId: undefined,
 							modelId: undefined,
-							presentation: 'inlineSuggestion',
+							presentation: item.isInlineEdit ? 'nextEditSuggestion' : 'inlineCompletion',
 							acceptanceMethod: 'accept',
 							applyCodeBlockSuggestionId: undefined,
 						});
@@ -762,7 +765,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 				}
 			},
 			groupId: groupId ?? extensionId,
-			providerId: new languages.ProviderId(extensionId, extensionVersion, groupId),
+			providerId,
 			yieldsToGroupIds: yieldsToExtensionIds,
 			excludesGroupIds: excludesExtensionIds,
 			debounceDelayMs,

@@ -267,6 +267,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 							modeId: element.model.request?.modeInfo?.modeId,
 							modelId: element.model.request?.modelId,
 							applyCodeBlockSuggestionId: undefined,
+							source: undefined,
 						})
 					};
 				}));
