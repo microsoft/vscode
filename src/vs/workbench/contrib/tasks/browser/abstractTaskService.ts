@@ -88,7 +88,6 @@ import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { CHAT_OPEN_ACTION_ID } from '../../chat/browser/actions/chatActions.js';
 import { IChatAgentService } from '../../chat/common/chatAgents.js';
 import { IChatService } from '../../chat/common/chatService.js';
-import { ChatAgentLocation, ChatModeKind } from '../../chat/common/constants.js';
 import { configureTaskIcon, isWorkspaceFolder, ITaskQuickPickEntry, QUICKOPEN_DETAIL_CONFIG, QUICKOPEN_SKIP_CONFIG, TaskQuickPick } from './taskQuickPick.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import * as dom from '../../../../base/browser/dom.js';
@@ -498,16 +497,15 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (notificationThreshold === 0 || durationMs < notificationThreshold) {
 			return;
 		}
-		
-		// Check if this task was started by the chat agent
+
 		const taskRunSource = this._taskRunSources.get(event.taskId);
 		const chatNotificationsEnabled = this._configurationService.getValue<boolean>(ChatConfiguration.NotifyWindowOnResponseReceived);
-		
+
 		// If task was run by chat agent and chat response notifications are enabled, avoid duplicate notifications
 		if (taskRunSource === TaskRunSource.ChatAgent && chatNotificationsEnabled) {
 			return;
 		}
-		
+
 		const terminalForTask = this._terminalService.instances.find(i => i.instanceId === event.terminalId);
 		if (!terminalForTask) {
 			return;
@@ -523,7 +521,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			? nls.localize('task.longRunningTaskCompletedWithLabel', 'Task "{0}" finished in {1}.', taskLabel, durationText)
 			: nls.localize('task.longRunningTaskCompleted', 'Task finished in {0}.', durationText);
 		this._taskRunStartTimes.delete(event.taskId);
-		this._taskRunSources.delete(event.taskId); // Clean up the run source tracking
+		this._taskRunSources.delete(event.taskId);
 		this._hostService.focus(targetWindow, { mode: FocusMode.Notify });
 		const notification = await dom.triggerNotification(message);
 		if (notification) {
@@ -2097,11 +2095,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async _handleExecuteResult(executeResult: ITaskExecuteResult, runSource?: TaskRunSource): Promise<ITaskSummary> {
-		// Store the run source for this task so we can use it later in notification logic
 		if (runSource && executeResult.task._id) {
 			this._taskRunSources.set(executeResult.task._id, runSource);
 		}
-		
+
 		if (runSource === TaskRunSource.User) {
 			await this._setRecentlyUsedTask(executeResult.task);
 		}
