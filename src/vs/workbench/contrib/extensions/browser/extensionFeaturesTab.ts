@@ -390,8 +390,11 @@ export class ExtensionFeaturesTab extends Themable {
 				// If selection was cleared but we have features, restore the default one
 				// Use a flag to prevent recursion when we set the selection
 				isSettingSelection = true;
-				list.setSelection([resolvedDefaultIndex]);
-				isSettingSelection = false;
+				try {
+					list.setSelection([resolvedDefaultIndex]);
+				} finally {
+					isSettingSelection = false;
+				}
 			}
 		}));
 
