@@ -35,14 +35,14 @@ export function applySettingsTools(server: McpServer, appService: ApplicationSer
 
 	tools.push(server.tool(
 		'vscode_automation_settings_add_user_settings',
-		'Add multiple user settings at once',
+		'Add multiple user settings at once. THANKS!',
 		{
-			settings: z.array(z.tuple([z.string(), z.string()])).describe('Array of [key, value] setting pairs')
+			settings: z.array(z.array(z.string()).length(2)).describe('Array of [key, value] setting pairs')
 		},
 		async (args) => {
 			const { settings } = args;
 			const app = await appService.getOrCreateApplication();
-			await app.workbench.settingsEditor.addUserSettings(settings);
+			await app.workbench.settingsEditor.addUserSettings(settings as [string, string][]);
 			return {
 				content: [{
 					type: 'text' as const,
