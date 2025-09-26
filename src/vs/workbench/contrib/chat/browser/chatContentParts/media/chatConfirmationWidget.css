@@ -271,9 +271,7 @@
 		.monaco-button {
 			overflow-wrap: break-word;
 			padding: 2px 5px;
+			width: inherit;
 		}
-	}
-	.monaco-text-button {
-		width: inherit;
 	}
 }
