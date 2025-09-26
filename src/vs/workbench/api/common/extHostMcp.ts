@@ -195,7 +195,7 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 				this._logService.warn(`Skipping the unsupported MCP package type: ${item.packageType}`);
 				return undefined;
 			}
-			const entrypoint = await this.findNodePackageEntryPoint(item.packageName, extension.extensionLocation);
+			const entrypoint = await this.findNodePackageEntryPoint(item.name, extension.extensionLocation);
 			return Convert.McpServerDefinition.from({
 				...item,
 				command: 'node',

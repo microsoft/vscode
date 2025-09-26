@@ -20355,12 +20355,12 @@ declare module 'vscode' {
 		readonly label: string;
 
 		/**
-		 * Name of the package that needs to be started.
+		 * The name of the package. Example: @modelcontextprotocol/server-brave-search
 		 */
-		readonly packageName: string;
+		readonly name: string;
 
 		/**
-		 * The type of the mcp package
+		 * The type of the package
 		 */
 		readonly packageType: McpPackageType;
 
