@@ -84,6 +84,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  compile-macos:
     name: Compile & Hygiene (macOS)
     runs-on: macos-14-xlarge
     env:
