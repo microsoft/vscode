@@ -577,11 +577,12 @@ export class SessionsDataSource implements IAsyncDataSource<IChatSessionItemProv
 				// Add hybrid local editor sessions for this provider using the centralized service
 				if (this.provider.chatSessionType !== 'local') {
 					const hybridSessions = await this.sessionTracker.getHybridSessionsForProvider(this.provider);
-					itemsWithProvider.push(...(hybridSessions as ChatSessionItemWithProvider[]));
-				}
-
-				// For non-local providers, apply time-based sorting and grouping
-				if (this.provider.chatSessionType !== 'local') {
+					hybridSessions.forEach(session => {
+						const duplicate = itemsWithProvider.some(s => s.id === session.id);
+						if (!duplicate) {
+							itemsWithProvider.push(session as ChatSessionItemWithProvider);
+						}
+					});
 					processSessionsWithTimeGrouping(itemsWithProvider);
 				}
 
