@@ -2256,10 +2256,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private _setTitle(title: string | undefined, eventSource: TitleEventSource): void {
-		if (this._shellLaunchConfig?.type === 'Task' &&
-			(this._shellLaunchConfig?.preserveTaskName || this._titleSource === TitleEventSource.Api) &&
-			eventSource === TitleEventSource.Process) {
-			// For task terminals with preserveTaskName enabled or with API-set titles, preserve the title even when the process title changes
+		if ((this._shellLaunchConfig?.type === 'Task' || this._titleSource === TitleEventSource.Api) && eventSource === TitleEventSource.Process) {
 			return;
 		}
 
