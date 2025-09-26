@@ -1,4 +1,3 @@
-````prompt
 ---
 mode: agent
 description: 'Verify VS Code UI changes via flattened subagent orchestration for two-phase automated verification'
@@ -301,5 +300,3 @@ Following Claude 4 prompt engineering best practices:
 10. **Flattened Architecture**: No nested subagents, clear orchestration flow
 
 **VERIFICATION EXCELLENCE**: Create comprehensive, detailed analysis that provides definitive proof of UI change effectiveness. Include as many relevant verification steps as possible to ensure thorough validation.
-
-````
