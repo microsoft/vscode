@@ -179,9 +179,6 @@
 	color: var(--vscode-icon-foreground);
 }
 
-.chat-sessions-tree-container .chat-session-item .chat-session-custom-icon.codicon-loading::before {
-	animation: codicon-spin 1.5s steps(30) infinite;
-}
 
 /* Timestamp styling - similar to timeline pane */
 .chat-sessions-tree-container .chat-session-item .timestamp-container {

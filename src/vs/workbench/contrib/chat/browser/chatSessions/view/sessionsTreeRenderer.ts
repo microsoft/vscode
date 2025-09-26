@@ -30,7 +30,6 @@ import { IHoverService } from '../../../../../../platform/hover/browser/hover.js
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import product from '../../../../../../platform/product/common/product.js';
 import { defaultInputBoxStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
-import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { IResourceLabel, ResourceLabels } from '../../../../../browser/labels.js';
 import { IconLabel } from '../../../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { IEditableData } from '../../../../../common/views.js';
@@ -113,7 +112,6 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 	private markdownRenderer: MarkdownRenderer;
 
 	constructor(
-		@IThemeService private readonly themeService: IThemeService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
@@ -170,7 +168,7 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 	statusToIcon(status?: ChatSessionStatus) {
 		switch (status) {
 			case ChatSessionStatus.InProgress:
-				return Codicon.loading;
+				return ThemeIcon.modify(Codicon.loading, 'spin');
 			case ChatSessionStatus.Completed:
 				return Codicon.pass;
 			case ChatSessionStatus.Failed:
@@ -256,14 +254,11 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 		// Handle custom icon rendering
 		if (iconTheme) {
 			templateData.customIcon.className = `chat-session-custom-icon ${ThemeIcon.asClassName(iconTheme)}`;
-			if (iconTheme.color) {
-				const theme = this.themeService.getColorTheme();
-				templateData.customIcon.style.color = theme.getColor(iconTheme.color.id)?.toString() ?? '';
-			} else {
-				templateData.customIcon.style.color = '';
-			}
+			// ensure no stale inline color remains
+			templateData.customIcon.style.color = '';
 			templateData.customIcon.style.display = 'flex';
 		} else {
+			// No icon for this item: hide the element so a recycled template doesn't show a stale icon from a previous row
 			templateData.customIcon.style.display = 'none';
 		}
 
