@@ -60,7 +60,7 @@ Navigation End -->
 	test('Should render code settings', async () => {
 		// Stub preferences service with a known setting so the SimpleSettingRenderer treats it as valid
 		const testSettingId = 'editor.wordWrap';
-		instantiationService.stub(IPreferencesService, <IPreferencesService><unknown>{
+		instantiationService.stub(IPreferencesService, <Partial<IPreferencesService>>{
 			_serviceBrand: undefined,
 			onDidDefaultSettingsContentChanged: { event: () => { /* noop */ } },
 			userSettingsResource: undefined as any,
