@@ -36,6 +36,16 @@ suite('Prompt Constants', () => {
 			);
 
 			assert.strictEqual(
+				getCleanPromptName(URI.file('/path/to/my-instruction.instructions.md')),
+				'my-instruction',
+			);
+
+			assert.strictEqual(
+				getCleanPromptName(URI.file('./some-mode.chatmode.md')),
+				'some-mode',
+			);
+
+			assert.strictEqual(
 				getCleanPromptName(URI.file('/etc/prompts/my-prompt')),
 				'my-prompt',
 			);
@@ -68,6 +78,14 @@ suite('Prompt Constants', () => {
 
 			assert(
 				isPromptOrInstructionsFile(URI.file('.github/copilot-instructions.md')),
+			);
+
+			assert(
+				isPromptOrInstructionsFile(URI.file('/path/to/my-instruction.instructions.md')),
+			);
+
+			assert(
+				isPromptOrInstructionsFile(URI.file('./some-mode.chatmode.md')),
 			);
 		});
 
