@@ -371,22 +371,22 @@ extends:
             name: 1es-ubuntu-22.04-x64
             os: linux
           jobs:
-            # - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
-            - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
-              parameters:
-                VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                VSCODE_TEST_SUITE: Electron
-            - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
-              parameters:
-                VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                VSCODE_TEST_SUITE: Browser
-            - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
-              parameters:
-                VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                VSCODE_TEST_SUITE: Remote
+            - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
+              - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
+                parameters:
+                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_TEST_SUITE: Electron
+              - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
+                parameters:
+                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_TEST_SUITE: Browser
+              - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
+                parameters:
+                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_TEST_SUITE: Remote
 
             - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), or(eq(parameters.VSCODE_BUILD_LINUX, true), eq(parameters.VSCODE_BUILD_LINUX_SNAP, true))) }}:
               - template: build/azure-pipelines/linux/product-build-linux.yml@self
