@@ -143,7 +143,6 @@ export interface IGalleryMcpServer {
 	};
 	readonly lastUpdated?: number;
 	readonly publishDate?: number;
-	readonly releaseDate?: number;
 	readonly repositoryUrl?: string;
 	readonly configuration?: IGalleryMcpServerConfiguration;
 	readonly readmeUrl?: string;
