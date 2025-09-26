@@ -173,33 +173,20 @@
 	animation: codicon-spin 1.5s steps(30) infinite;
 }
 
-/* Override global file icon hiding for chat session icons */
-.monaco-workbench:not(.file-icons-enabled) .chat-sessions-tree-container .predefined-file-icon.codicon-loading::before,
-.monaco-workbench:not(.file-icons-enabled) .chat-sessions-tree-container .predefined-file-icon.codicon-pass::before,
-.monaco-workbench:not(.file-icons-enabled) .chat-sessions-tree-container .predefined-file-icon.codicon-error::before,
-.monaco-workbench:not(.file-icons-enabled) .chat-sessions-tree-container .predefined-file-icon.codicon-circle-outline::before,
-.monaco-workbench:not(.file-icons-enabled) .chat-sessions-tree-container .predefined-file-icon.codicon-chat-sparkle::before {
-	font-family: codicon;
+/* Custom chat session icon that bypasses file icon theme */
+.chat-sessions-tree-container .chat-session-item .chat-session-custom-icon {
+	flex-shrink: 0;
+	width: 16px;
+	height: 16px;
+	margin-right: 6px;
+	align-items: center;
+	justify-content: center;
+	font-size: 16px;
+	color: var(--vscode-icon-foreground);
 }
 
-.monaco-workbench:not(.file-icons-enabled) .chat-sessions-tree-container .predefined-file-icon.codicon-loading::before {
-	content: var(--vscode-icon-loading-content) !important;
-}
-
-.monaco-workbench:not(.file-icons-enabled) .chat-sessions-tree-container .predefined-file-icon.codicon-pass::before {
-	content: var(--vscode-icon-pass-content) !important;
-}
-
-.monaco-workbench:not(.file-icons-enabled) .chat-sessions-tree-container .predefined-file-icon.codicon-error::before {
-	content: var(--vscode-icon-error-content) !important;
-}
-
-.monaco-workbench:not(.file-icons-enabled) .chat-sessions-tree-container .predefined-file-icon.codicon-circle-outline::before {
-	content: var(--vscode-icon-circle-outline-content) !important;
-}
-
-.monaco-workbench:not(.file-icons-enabled) .chat-sessions-tree-container .predefined-file-icon.codicon-chat-sparkle::before {
-	content: var(--vscode-icon-chat-sparkle-content) !important;
+.chat-sessions-tree-container .chat-session-item .chat-session-custom-icon.codicon-loading::before {
+	animation: codicon-spin 1.5s steps(30) infinite;
 }
 
 /* Timestamp styling - similar to timeline pane */
