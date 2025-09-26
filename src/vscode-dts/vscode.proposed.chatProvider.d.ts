@@ -56,6 +56,25 @@ declare module 'vscode' {
 		readonly statusIcon?: ThemeIcon;
 	}
 
+	export interface LanguageModelChatCapabilities {
+		/**
+		 * The tools the model prefers for making file edits. If not provided or if none of the tools,
+		 * are recognized, the editor will try multiple edit tools and pick the best one. The available
+		 * edit tools WILL change over time and this capability only serves as a hint to the editor.
+		 *
+		 * Edit tools currently recognized include:
+		 * - 'find-replace': Find and replace text in a document.
+		 * - 'multi-find-replace': Find and replace text in a document.
+		 * - 'apply-patch': A file-oriented diff format used by some OpenAI models
+		 * - 'code-rewrite': A general but slower editing tool that allows the model
+		 *   to rewrite and code snippet and provide only the replacement to the editor.
+		 *
+		 * The order of edit tools in this array has no significance; all of the recognized edit
+		 * tools will be made available to the model.
+		 */
+		readonly editTools?: string[];
+	}
+
 	export type LanguageModelResponsePart2 = LanguageModelResponsePart | LanguageModelDataPart | LanguageModelThinkingPart;
 
 	export interface LanguageModelChatProvider<T extends LanguageModelChatInformation = LanguageModelChatInformation> {
