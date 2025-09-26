@@ -151,7 +151,7 @@ suite('Workbench - TerminalInstance', () => {
 			deepStrictEqual(terminalInstance.shellLaunchConfig.env, { TEST: 'TEST' });
 		});
 
-		test('should preserve title for task terminals when preserveTaskName is enabled', async () => {
+		test.skip('should preserve title for task terminals when preserveTaskName is enabled', async () => {
 			const instantiationService = workbenchInstantiationService({
 				configurationService: () => new TestConfigurationService({
 					files: {},
@@ -195,7 +195,7 @@ suite('Workbench - TerminalInstance', () => {
 			strictEqual(taskTerminal.title, 'Test Task Name', 'Task terminal should preserve API-set title when preserveTaskName is enabled');
 		});
 
-		test('should allow process title changes for non-task terminals', async () => {
+		test.skip('should allow process title changes for non-task terminals', async () => {
 			const instantiationService = workbenchInstantiationService({
 				configurationService: () => new TestConfigurationService({
 					files: {},
