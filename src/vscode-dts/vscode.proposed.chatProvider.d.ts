@@ -64,7 +64,7 @@ declare module 'vscode' {
 		 *
 		 * Edit tools currently recognized include:
 		 * - 'find-replace': Find and replace text in a document.
-		 * - 'multi-find-replace': Find and replace text in a document.
+		 * - 'multi-find-replace': Find and replace multiple text snippets across documents.
 		 * - 'apply-patch': A file-oriented diff format used by some OpenAI models
 		 * - 'code-rewrite': A general but slower editing tool that allows the model
 		 *   to rewrite and code snippet and provide only the replacement to the editor.
