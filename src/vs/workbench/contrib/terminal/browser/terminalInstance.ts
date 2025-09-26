@@ -2251,8 +2251,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return this._processManager.updateProperty(type, value);
 	}
 
-	async rename(title?: string) {
-		this._setTitle(title, TitleEventSource.Api);
+	async rename(title?: string, source?: TitleEventSource) {
+		this._setTitle(title, source ?? TitleEventSource.Api);
 	}
 
 	private _setTitle(title: string | undefined, eventSource: TitleEventSource): void {
