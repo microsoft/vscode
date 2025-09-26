@@ -747,7 +747,7 @@ class ChatSetup {
 			createWorkbenchDialogOptions({
 				type: 'none',
 				extraClasses: ['chat-setup-dialog'],
-				detail: this.getDialogDetail(),
+				detail: ' ', // workaround allowing us to render the message in large
 				icon: Codicon.copilotLarge,
 				alignment: DialogContentsAlignment.Vertical,
 				cancelId: buttons.length - 1,
@@ -812,14 +812,6 @@ class ChatSetup {
 		}
 
 		return localize('startUsing', "Start using GitHub Copilot");
-	}
-
-	private getDialogDetail(): string {
-		if (this.chatEntitlementService.anonymous) {
-			return localize('enableMoreAnonymous', "Sign in to get access to more AI features like premium models, AI code reviews and remote agents.");
-		}
-
-		return ' '; // workaround allowing us to render the message in large
 	}
 
 	private createDialogFooter(disposables: DisposableStore): HTMLElement {

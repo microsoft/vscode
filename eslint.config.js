@@ -309,7 +309,8 @@ export default tseslint.config(
 						'terminate',
 						'trigger',
 						'unregister',
-						'write'
+						'write',
+						'commit'
 					]
 				}
 			]
