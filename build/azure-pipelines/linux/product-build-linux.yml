@@ -77,22 +77,22 @@ jobs:
           sbomPackageName: "VS Code Linux $(VSCODE_ARCH) Web"
           sbomPackageVersion: $(Build.SourceVersion)
           condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''))
-        # - output: pipelineArtifact
-        #   targetPath: $(DEB_PATH)
-        #   artifactName: $(ARTIFACT_PREFIX)vscode_client_linux_$(VSCODE_ARCH)_deb-package
-        #   displayName: Publish deb package
-        #   sbomBuildDropPath: .build/linux/deb
-        #   sbomPackageName: "VS Code Linux $(VSCODE_ARCH) DEB"
-        #   sbomPackageVersion: $(Build.SourceVersion)
-        #   condition: and(succeededOrFailed(), ne(variables['DEB_PATH'], ''))
-        # - output: pipelineArtifact
-        #   targetPath: $(RPM_PATH)
-        #   artifactName: $(ARTIFACT_PREFIX)vscode_client_linux_$(VSCODE_ARCH)_rpm-package
-        #   displayName: Publish rpm package
-        #   sbomBuildDropPath: .build/linux/rpm
-        #   sbomPackageName: "VS Code Linux $(VSCODE_ARCH) RPM"
-        #   sbomPackageVersion: $(Build.SourceVersion)
-        #   condition: and(succeededOrFailed(), ne(variables['RPM_PATH'], ''))
+        - output: pipelineArtifact
+          targetPath: $(DEB_PATH)
+          artifactName: $(ARTIFACT_PREFIX)vscode_client_linux_$(VSCODE_ARCH)_deb-package
+          displayName: Publish deb package
+          sbomBuildDropPath: .build/linux/deb
+          sbomPackageName: "VS Code Linux $(VSCODE_ARCH) DEB"
+          sbomPackageVersion: $(Build.SourceVersion)
+          condition: and(succeededOrFailed(), ne(variables['DEB_PATH'], ''))
+        - output: pipelineArtifact
+          targetPath: $(RPM_PATH)
+          artifactName: $(ARTIFACT_PREFIX)vscode_client_linux_$(VSCODE_ARCH)_rpm-package
+          displayName: Publish rpm package
+          sbomBuildDropPath: .build/linux/rpm
+          sbomPackageName: "VS Code Linux $(VSCODE_ARCH) RPM"
+          sbomPackageVersion: $(Build.SourceVersion)
+          condition: and(succeededOrFailed(), ne(variables['RPM_PATH'], ''))
         # - output: pipelineArtifact
         #   targetPath: $(SNAP_PATH)
         #   artifactName: vscode_client_linux_$(VSCODE_ARCH)_snap
