@@ -181,8 +181,6 @@ suite('Workbench - TerminalInstance', () => {
 				preserveTaskName: true
 			}));
 
-			// Wait for initialization
-			await new Promise(resolve => setTimeout(resolve, 100));
 
 			// Simulate setting the title via API (as the task system would do)
 			await taskTerminal.rename('Test Task Name');
@@ -223,8 +221,6 @@ suite('Workbench - TerminalInstance', () => {
 				name: 'Regular Terminal'
 			}));
 
-			// Wait for initialization
-			await new Promise(resolve => setTimeout(resolve, 100));
 
 			// Simulate setting the title via API
 			await regularTerminal.rename('Regular Terminal');
