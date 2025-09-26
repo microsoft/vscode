@@ -445,9 +445,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 
 			if (child.isFile && globPattern) {
 				const filePath = child.resource.fsPath;
-				const matches = typeof globPattern === 'string'
-					? new RegExp(globPattern).test(filePath)
-					: match(globPattern, filePath);
+				const matches = match(globPattern, filePath);
 				if (!matches) {
 					return;
 				}

@@ -13,6 +13,9 @@ import { IChatCompleteResponse, IChatDetail, IChatProviderInfo, IChatQueueChange
 import { ChatAgentLocation } from '../../common/constants.js';
 
 export class MockChatService implements IChatService {
+	getChatSessionFromInternalId(modelSessionId: string): { chatSessionType: string; chatSessionId: string; isUntitled: boolean } | undefined {
+		throw new Error('Method not implemented.');
+	}
 	requestInProgressObs = observableValue('name', false);
 	edits2Enabled: boolean = false;
 	_serviceBrand: undefined;
