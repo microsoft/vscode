@@ -3543,7 +3543,7 @@ export class CommandCenter {
 		commitish: string = 'HEAD'
 	): Promise<string | undefined> {
 		const config = workspace.getConfiguration('git');
-		const branchPrefix = config.get<string>('branchPrefix')!;
+		const branchPrefix = config.get<string>('branchPrefix', '');
 
 		// Generate branch name if not provided
 		let branch = await this.generateRandomBranchName(repository, '-');
