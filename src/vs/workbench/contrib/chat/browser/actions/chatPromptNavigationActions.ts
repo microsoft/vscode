@@ -20,7 +20,7 @@ export function registerChatPromptNavigationActions() {
 				id: 'workbench.action.chat.nextUserPrompt',
 				title: localize2('interactive.nextUserPrompt.label', "Next User Prompt"),
 				keybinding: {
-					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.DownArrow,
+					primary: KeyMod.CtrlCmd | KeyCode.RightArrow,
 					weight: KeybindingWeight.WorkbenchContrib,
 					when: ChatContextKeys.inChatSession,
 				},
@@ -41,7 +41,7 @@ export function registerChatPromptNavigationActions() {
 				id: 'workbench.action.chat.previousUserPrompt',
 				title: localize2('interactive.previousUserPrompt.label', "Previous User Prompt"),
 				keybinding: {
-					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.UpArrow,
+					primary: KeyMod.CtrlCmd | KeyCode.LeftArrow,
 					weight: KeybindingWeight.WorkbenchContrib,
 					when: ChatContextKeys.inChatSession,
 				},
@@ -99,11 +99,16 @@ function navigateUserPrompts(accessor: ServicesAccessor, reverse: boolean) {
 		// Navigate to next/previous prompt
 		nextIndex = reverse ? currentIndex - 1 : currentIndex + 1;
 
-		// Wrap around if needed
+		// Clamp instead of wrap and stay at boundaries when trying to navigate past ends
 		if (nextIndex < 0) {
-			nextIndex = userPrompts.length - 1;
+			nextIndex = 0; // already at first, do not move further
 		} else if (nextIndex >= userPrompts.length) {
-			nextIndex = 0;
+			nextIndex = userPrompts.length - 1; // already at last, do not move further
+		}
+
+		// avoid re-focusing if we didn't actually move
+		if (nextIndex === currentIndex) {
+			return; // no change in focus
 		}
 	}
 
