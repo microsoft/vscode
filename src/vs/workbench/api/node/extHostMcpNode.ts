@@ -17,20 +17,8 @@ import { LogLevel } from '../../../platform/log/common/log.js';
 import { McpConnectionState, McpServerLaunch, McpServerTransportStdio, McpServerTransportType } from '../../contrib/mcp/common/mcpTypes.js';
 import { McpStdioStateHandler } from '../../contrib/mcp/node/mcpStdioStateHandler.js';
 import { ExtHostMcpService } from '../common/extHostMcp.js';
-import { IExtHostConsumerFileSystem } from '../common/extHostFileSystemConsumer.js';
-import { IExtHostFileSystemInfo } from '../common/extHostFileSystemInfo.js';
 
 export class NodeExtHostMpcService extends ExtHostMcpService {
-	constructor(
-		@IExtHostRpcService extHostRpc: IExtHostRpcService,
-		@IExtHostInitDataService initDataService: IExtHostInitDataService,
-		@ILogService logService: ILogService,
-		@IExtHostFileSystemInfo extHostFileSystemInfo: IExtHostFileSystemInfo,
-		@IExtHostConsumerFileSystem extHostConsumerFileSystem: IExtHostConsumerFileSystem,
-	) {
-		super(extHostRpc, logService, initDataService, extHostFileSystemInfo, extHostConsumerFileSystem);
-	}
-
 	private nodeServers = this._register(new DisposableMap<number, McpStdioStateHandler>());
 
 	protected override _startMcp(id: number, launch: McpServerLaunch, defaultCwd?: URI, errorOnUserInteraction?: boolean): void {
