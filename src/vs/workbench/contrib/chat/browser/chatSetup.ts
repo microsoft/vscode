@@ -1302,10 +1302,7 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 					title: ChatSetupHideAction.TITLE,
 					f1: true,
 					category: CHAT_CATEGORY,
-					precondition: ContextKeyExpr.and(
-						ChatContextKeys.Setup.hidden.negate(),
-						ChatContextKeys.Setup.installed.negate()
-					),
+					precondition: ChatContextKeys.Setup.hidden.negate(),
 					menu: {
 						id: MenuId.ChatTitleBarMenu,
 						group: 'z_hide',
