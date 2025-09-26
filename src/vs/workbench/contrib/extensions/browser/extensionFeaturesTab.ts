@@ -378,6 +378,10 @@ export class ExtensionFeaturesTab extends Themable {
 			const feature = e.elements[0];
 			if (feature) {
 				this.showFeatureView(feature, featureViewContainer);
+			} else if (e.elements.length === 0 && features.length > 0) {
+				// If selection was cleared but we have features, restore the first one
+				const defaultIndex = this.feature ? features.findIndex(f => f.id === this.feature) : 0;
+				list.setSelection([defaultIndex === -1 ? 0 : defaultIndex]);
 			}
 		}));
 
