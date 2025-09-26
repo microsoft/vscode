@@ -1986,7 +1986,7 @@ export class ToggleResultsViewLayoutAction extends Action2 {
 			id: TestCommandId.ToggleResultsViewLayoutAction,
 			title: localize2('testing.toggleResultsViewLayout', 'Toggle Tree Position'),
 			category,
-			icon: Codicon.splitHorizontal,
+			icon: Codicon.arrowSwap,
 			menu: {
 				id: MenuId.ViewTitle,
 				order: ActionOrder.DisplayMode,

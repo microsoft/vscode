@@ -238,6 +238,16 @@ export class TestResultsViewContent extends Disposable {
 		super();
 	}
 
+	private swapViews() {
+		const leftSize = this.splitView.getViewSize(0);
+		const rightSize = this.splitView.getViewSize(1);
+		const leftView = this.splitView.removeView(1);
+		const rightView = this.splitView.removeView(0);
+
+		this.splitView.addView(leftView, rightSize);
+		this.splitView.addView(rightView, leftSize);
+	}
+
 	public fillBody(containerElement: HTMLElement): void {
 		const initialSpitWidth = TestResultsViewContent.lastSplitWidth;
 		this.splitView = new SplitView(containerElement, { orientation: Orientation.HORIZONTAL });
@@ -246,9 +256,16 @@ export class TestResultsViewContent extends Disposable {
 		const isInPeekView = this.editor !== undefined;
 		const layout = getTestingConfiguration(this.configurationService, TestingConfigKeys.ResultsViewLayout);
 		this.isTreeLeft = layout === TestingResultsViewLayout.TreeLeft;
-
-		// Note: Configuration changes require view recreation to take effect (when Test Results view is reopened)
-		// This is consistent with other VS Code panel layout changes
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(TestingConfigKeys.ResultsViewLayout)) {
+				const newLayout = getTestingConfiguration(this.configurationService, TestingConfigKeys.ResultsViewLayout);
+				const newIsTreeLeft = newLayout === TestingResultsViewLayout.TreeLeft;
+				if (newIsTreeLeft !== this.isTreeLeft) {
+					this.isTreeLeft = newIsTreeLeft;
+					this.swapViews();
+				}
+			}
+		}));
 
 		const messageContainer = this.messageContainer = dom.$('.test-output-peek-message-container');
 		this.stackContainer = dom.append(containerElement, dom.$('.test-output-call-stack-container'));
@@ -305,14 +322,10 @@ export class TestResultsViewContent extends Disposable {
 			},
 		};
 
+		this.splitView.addView(stackView, Sizing.Distribute);
+		this.splitView.addView(treeView, Sizing.Distribute);
 		if (this.isTreeLeft) {
-			// Tree first (left), then content (right)
-			this.splitView.addView(treeView, Sizing.Distribute);
-			this.splitView.addView(stackView, Sizing.Distribute);
-		} else {
-			// Content first (left), then tree (right) - original layout
-			this.splitView.addView(stackView, Sizing.Distribute);
-			this.splitView.addView(treeView, Sizing.Distribute);
+			this.swapViews();
 		}
 
 		// Configure visibility for the tree view
