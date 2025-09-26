@@ -19,6 +19,7 @@ import { IConversationManager } from '../../erdosAiConversation/common/conversat
 import { IDocumentManager } from '../../erdosAiDocument/common/documentManager.js';
 import { IJupytextService } from '../../erdosAiIntegration/common/jupytextService.js';
 import { IFileResolverService } from '../../erdosAiUtils/common/fileResolverService.js';
+import { IFileChangeTracker } from '../../erdosAi/common/fileChangeTracker.js';
 
 export class SearchReplaceCommandHandler extends Disposable implements ISearchReplaceCommandHandler {
 	readonly _serviceBrand: undefined;
@@ -34,7 +35,8 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 		@IDocumentManager private readonly documentManager: IDocumentManager,
 		@ICommonUtils private readonly commonUtils: ICommonUtils,
 		@IJupytextService private readonly jupytextService: IJupytextService,
-		@IFileResolverService private readonly fileResolverService: IFileResolverService
+		@IFileResolverService private readonly fileResolverService: IFileResolverService,
+		@IFileChangeTracker private readonly fileChangeTracker: IFileChangeTracker
 	) {
 		super();
 	}
@@ -424,6 +426,16 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 			
 			if (modificationMade && fileWritten) {
 				await this.openDocumentInEditor(filePath);
+				
+				// Trigger diff highlighting after successful search_replace
+				const conversation = this.conversationManager.getCurrentConversation();
+				if (conversation) {
+					try {
+						await this.fileChangeTracker.initializeFileChangeTracking(conversation.info.id);
+					} catch (error) {
+						this.logService.error('Failed to trigger diff highlighting:', error);
+					}
+				}
 			}
 			
 		} catch (error) {
@@ -504,11 +516,11 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 	}
 
 	private async recordFileModificationWithDiff(filePath: string, oldContent: string, newContent: string, messageId: number, wasUnsaved: boolean = false): Promise<void> {
-		// FIRST: Store JSON content in file_changes.json (no diff needed - stores full content)
+		// Store JSON content in file_changes.json (no diff needed - stores full content)
 		fileChangesStorage.setConversationManager(this.conversationManager);
 		await fileChangesStorage.recordFileModification(filePath, oldContent, newContent, messageId, wasUnsaved);
 		
-		// SECOND: Check if diff already exists from streaming (avoid double diff computation)
+		// Check if diff already exists from streaming (avoid double diff computation)
 		const existingDiff = diffStore.getStoredDiffEntry(messageId.toString());
 		if (existingDiff) {
 			return;
@@ -522,7 +534,7 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 	 * Shared diff computation logic used by both streaming diff and conversation diff
 	 * Routes to notebook-specific or regular diff computation based on file type
 	 */
-	private async computeAndStoreDiff(oldContent: string, newContent: string, messageId: number, filePath: string, oldString?: string, newString?: string): Promise<void> {		
+	private async computeAndStoreDiff(oldContent: string, newContent: string, messageId: number, filePath: string, oldString?: string, newString?: string, replaceAll?: boolean): Promise<void> {		
 		// Set conversation manager for file persistence
 		diffStore.setConversationManager(this.conversationManager);
 		
@@ -535,7 +547,8 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 				newString, 
 				messageId.toString(), 
 				filePath,
-				oldContent
+				oldContent,
+				replaceAll || false
 			);
 		} else {
 			// Regular diff computation for non-notebook files
@@ -841,10 +854,10 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 			if (isNotebook) {
 				// Use notebook-specific diff computation from diffStorage
 				diffStore.setConversationManager(this.conversationManager);
-				await diffStore.storeNotebookDiff(oldString, newString, messageId.toString(), filePath, effectiveContent);
+				await diffStore.storeNotebookDiff(oldString, newString, messageId.toString(), filePath, effectiveContent, replaceAll);
 			} else {
 				// Use the shared diff computation logic
-				await this.computeAndStoreDiff(effectiveContent, newContent, messageId, filePath, oldString, newString);
+				await this.computeAndStoreDiff(effectiveContent, newContent, messageId, filePath, oldString, newString, replaceAll);
 			}
 
 			// Save successful function_call_output
@@ -1417,7 +1430,7 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 					await diffStorage.storeNotebookDiff(
 						oldString, 
 						newString, 
-						context.functionCallMessageId?.toString() || '0', 
+						context.functionCallMessageId?.toString() || '0',
 						filePath,
 						effectiveContent
 					);

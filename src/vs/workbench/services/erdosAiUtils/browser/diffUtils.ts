@@ -320,7 +320,8 @@ class DiffStorage {
 		newString: string, 
 		messageId: string, 
 		filePath: string,
-		effectiveContent: string  // The full old Jupytext content
+		effectiveContent: string,  // The full old Jupytext content
+		replaceAll: boolean = false  // Whether to replace all occurrences
 	): Promise<void> {
 		try {
 			// 1. Full old Jupytext content (already have this)
@@ -328,7 +329,9 @@ class DiffStorage {
 			
 			// 2. Full new Jupytext content (simulate the replacement)
 			const flexiblePattern = createFlexibleWhitespacePattern(oldString);
-			const fullNewJupytext = effectiveContent.replace(new RegExp(flexiblePattern), newString);
+			const fullNewJupytext = replaceAll ? 
+				effectiveContent.replace(new RegExp(flexiblePattern, 'g'), newString) :
+				effectiveContent.replace(new RegExp(flexiblePattern), newString);
 			
 			const oldLines = fullOldJupytext === '' ? [] : fullOldJupytext.split('\n');
 			const newLines = fullNewJupytext === '' ? [] : fullNewJupytext.split('\n');
@@ -459,7 +462,9 @@ class DiffStorage {
 			console.error(`[NOTEBOOK_DIFF_FLOW_STEP1] Failed to compute notebook diff for ${filePath}:`, error);
 			// Fall back to regular diff computation
 			const flexiblePattern = createFlexibleWhitespacePattern(oldString);
-			const newContent = effectiveContent.replace(new RegExp(flexiblePattern), newString);
+			const newContent = replaceAll ? 
+				effectiveContent.replace(new RegExp(flexiblePattern, 'g'), newString) :
+				effectiveContent.replace(new RegExp(flexiblePattern), newString);
 			const diffResult = computeLineDiff(
 				effectiveContent === '' ? [] : effectiveContent.split('\n'), 
 				newContent === '' ? [] : newContent.split('\n')

@@ -26,9 +26,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { INotebookEditorService } from '../../../contrib/notebook/browser/services/notebookEditorService.js';
-import { getNotebookEditorFromEditorPane } from '../../../contrib/notebook/browser/notebookBrowser.js';
-import { ErdosAiNotebookDiffDecorator } from './erdosAiNotebookDiffDecorator.js';
+import { INotebookDiffService, ICellDiffData } from './notebookDiffService.js';
 
 /**
  * Zone widget for displaying deleted content (original diff system)
@@ -320,7 +318,6 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 	private readonly fileDeletedContentZones = new Map<string, Map<number, DeletedContentZoneWidget>>();
 	private readonly fileDeletedLinesByPosition = new Map<string, Map<number, string[]>>();
 	private readonly editorClickHandlers = new Map<string, IDisposable>();
-	private readonly notebookDecorators = new Map<string, ErdosAiNotebookDiffDecorator>();
 	private readonly autoAcceptDecorations = new Map<string, string[]>();
 	private readonly autoAcceptZones = new Map<string, Map<number, AutoAcceptDiffZoneWidget>>();
 	private readonly storedSectionInfo = new Map<string, StoredSectionInfo>(); // sectionId -> info
@@ -337,10 +334,10 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 		@IConversationManager private readonly conversationManager: IConversationManager,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IFileResolverService private readonly fileResolverService: IFileResolverService,
-		@INotebookEditorService private readonly notebookEditorService: INotebookEditorService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@IThemeService private readonly themeService: IThemeService
+		@IThemeService private readonly themeService: IThemeService,
+		@INotebookDiffService private readonly notebookDiffService: INotebookDiffService
 	) {
 		super();
 	}
@@ -442,19 +439,23 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 
 			if (isNotebook) {
 				// For notebooks, we need to get the current content from the notebook model if available
-				const notebookEditor = this.findNotebookEditorForUri(uri);
+				const notebookEditor = this.notebookDiffService.findNotebookEditorForUri(uri);
 				let notebookCurrentContent = currentContent;
 				
 				if (notebookEditor && notebookEditor.hasModel()) {
 					// Get current notebook content as JSON from the notebook model
 					const notebookModel = notebookEditor.textModel!;
+					
 					const notebookData = {
-						cells: notebookModel.cells.map(cell => ({
-							cell_type: cell.cellKind === 1 ? 'markdown' : 'code', // 1 = markdown, 2 = code
-							source: cell.textBuffer.getLinesContent(),
-							metadata: cell.metadata,
-							...(cell.cellKind === 2 && { outputs: cell.outputs, execution_count: cell.internalMetadata?.executionOrder })
-						})),
+						cells: notebookModel.cells.map((cell, index) => {
+							const cellData = {
+								cell_type: cell.cellKind === 1 ? 'markdown' : 'code', // 1 = markdown, 2 = code
+								source: cell.textBuffer.getLinesContent(),
+								metadata: cell.metadata,
+								...(cell.cellKind === 2 && { outputs: cell.outputs, execution_count: cell.internalMetadata?.executionOrder })
+							};
+							return cellData;
+						}),
 						metadata: notebookModel.metadata,
 						nbformat: 4,
 						nbformat_minor: 2
@@ -557,24 +558,27 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 	}
 
 	/**
-	 * Map flat diff results back to notebook cells and apply decorations
+	 * Map flat diff results back to notebook cells and apply decorations using direct cell decoration system
 	 */
 	private async applyNotebookDecorationsFromDiff(
 		uri: URI,
 		diffEntries: Array<{ type: 'added' | 'deleted' | 'unchanged'; content: string; oldLine: number; newLine: number; }>,
 		newLineMapping: Array<{ cellIndex: number; lineInCell: number; originalLine: string; }>
 	): Promise<void> {
-		// Find the notebook editor
-		const notebookEditor = this.findNotebookEditorForUri(uri);
+		// Find the notebook editor and register it with the diff service
+		const notebookEditor = this.notebookDiffService.findNotebookEditorForUri(uri);
 		if (!notebookEditor || !notebookEditor.hasModel()) {
 			return;
 		}
 
-		const uriString = uri.toString();
-		this.clearNotebookDecorator(uriString);
+		// Register the notebook editor with the diff service
+		this.notebookDiffService.registerNotebookEditor(uri, notebookEditor);
+
+		// Clear existing diff highlighting
+		this.notebookDiffService.clearNotebookDiffHighlighting(uri);
 
 		// Group diff entries by cell using the new line mapping
-		const cellDiffs = new Map<number, Array<{ type: 'added' | 'deleted' | 'unchanged'; content: string; lineNumber: number; }>>();
+		const cellDiffs = new Map<number, Array<{ type: 'added' | 'deleted'; content: string; lineNumber: number; }>>();
 
 		for (const diffEntry of diffEntries) {
 			if (diffEntry.type === 'added' && diffEntry.newLine > 0) {
@@ -620,45 +624,19 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 			}
 		}
 
-		// Convert to the format expected by ErdosAiNotebookDiffDecorator
-		const cellDiffArray = Array.from(cellDiffs.entries()).map(([cellIndex, lineDiffs]) => ({
+		// Convert to the format expected by the new direct decoration system
+		const cellDiffArray: ICellDiffData[] = Array.from(cellDiffs.entries()).map(([cellIndex, lineDiffs]) => ({
 			cellIndex,
 			type: 'modified' as const,
 			lineDiffs
 		}));
 
-		// Apply decorations using the existing decorator
-		const decorator = this._register(this.instantiationService.createInstance(ErdosAiNotebookDiffDecorator, notebookEditor));
-		decorator.apply(cellDiffArray);
-		
-		// Store decorator for cleanup
-		this.notebookDecorators.set(uriString, decorator);
+
+		// Apply diff highlighting using the new direct decoration system
+		const conversationId = this.conversationManager.getCurrentConversation()?.info.id?.toString() || 'unknown';
+		this.notebookDiffService.applyNotebookDiffHighlighting(uri, conversationId, cellDiffArray);
 	}
 
-	private findNotebookEditorForUri(uri: URI) {
-		const activeEditorPane = this.editorService.activeEditorPane;
-		const activeNotebookEditor = getNotebookEditorFromEditorPane(activeEditorPane);
-		if (activeNotebookEditor && activeNotebookEditor.textModel?.uri.toString() === uri.toString()) {
-			return activeNotebookEditor;
-		}
-		
-		// Search through all notebook editors
-		const notebookEditors = this.notebookEditorService.listNotebookEditors();
-		const matchingEditor = notebookEditors.find(editor => editor.textModel?.uri.toString() === uri.toString());
-		if (matchingEditor) {
-			return matchingEditor;
-		}
-		
-		return null;
-	}
-
-	private clearNotebookDecorator(uriString: string): void {
-		const existingDecorator = this.notebookDecorators.get(uriString);
-		if (existingDecorator) {
-			existingDecorator.dispose();
-			this.notebookDecorators.delete(uriString);
-		}
-	}
 
 	private updateGlyphMarginArrow(uri: URI, lineNumber: number, isExpanded: boolean): void {
 		const model = this.modelService.getModel(uri);
@@ -708,16 +686,13 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 				disposable.dispose();
 			}
 			
-			// Clear all notebook decorators
-			for (const [, decorator] of this.notebookDecorators.entries()) {
-				decorator.dispose();
-			}
+			// Clear all notebook diff highlighting
+			this.notebookDiffService.clearAllDiffHighlighting();
 			
 			this.fileDecorations.clear();
 			this.fileDeletedContentZones.clear();
 			this.fileDeletedLinesByPosition.clear();
 			this.editorClickHandlers.clear();
-			this.notebookDecorators.clear();
 			
 		} catch (error) {
 			this.logService.error('Failed to clear all file highlighting:', error);
@@ -732,10 +707,12 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 		this._register(this.editorService.onDidActiveEditorChange(() => {
 			this.handleActiveEditorChange();
 			this.handleEditorVisibilityChange();
+			this.handleNotebookEditorChange();
 		}));
 
 		this._register(this.editorService.onDidVisibleEditorsChange(() => {
 			this.handleEditorVisibilityChange();
+			this.handleNotebookVisibilityChange();
 		}));
 
 		// Listen for editor close events to clean up zones
@@ -756,6 +733,22 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 				this.onModelContentChanged(model.uri);
 			}));
 		});
+
+		// Listen for notebook content changes - both existing and new editors
+		const setupNotebookContentListener = (editor: any) => {
+			if (editor.textModel) {
+				this._register(editor.textModel.onDidChangeContent(() => {
+					this.onModelContentChanged(editor.textModel!.uri);
+				}));
+			}
+		};
+
+		// Listen for new notebook editors
+		this._register(this.notebookDiffService.notebookEditorService.onDidAddNotebookEditor(setupNotebookContentListener));
+		
+		// Setup listeners for existing notebook editors
+		const existingNotebookEditors = this.notebookDiffService.notebookEditorService.listNotebookEditors();
+		existingNotebookEditors.forEach(setupNotebookContentListener);
 	}
 
 	private async applyDiffDecorations(uri: URI, diffEntries: Array<{
@@ -998,8 +991,8 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 			// Clear stored deleted lines data
 			this.fileDeletedLinesByPosition.delete(uriString);
 			
-			// Clear notebook decorators
-			this.clearNotebookDecorator(uriString);
+			// Clear notebook diff highlighting
+			this.notebookDiffService.clearNotebookDiffHighlighting(uri);
 			
 		} catch (error) {
 			this.logService.error(`Failed to clear file highlighting for ${uri.toString()}:`, error);
@@ -1017,14 +1010,8 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 			}
 			
 			// Only respond to changes to the currently open file
-			const changedFiles = event.changes || [];
-			const activeFileChanged = changedFiles.some((change: any) => {
-				const changedResource = change.resource;
-				if (!changedResource) return false;
-				
-				// Check if the changed file is the currently active file
-				return changedResource.toString() === activeResource.toString();
-			});
+			// Use the proper FileChangesEvent.affects() method instead of non-existent .changes property
+			const activeFileChanged = event.affects(activeResource);
 			
 			if (!activeFileChanged) {
 				return;
@@ -1145,6 +1132,51 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 		}
 	}
 
+	private async handleNotebookEditorChange(): Promise<void> {
+		try {
+			const currentConversation = this.conversationManager.getCurrentConversation();
+			if (!currentConversation) {
+				return;
+			}
+
+			const activeEditor = this.editorService.activeEditor;
+			if (!activeEditor || !activeEditor.resource) {
+				return;
+			}
+
+			// Check if this is a notebook file
+			const uri = activeEditor.resource;
+			if (uri.path.endsWith('.ipynb')) {
+				// Trigger diff highlighting for the active notebook
+				await this.applyHighlightingFromFileChanges(currentConversation.info.id);
+			}
+		} catch (error) {
+			this.logService.error('Failed to handle notebook editor change:', error);
+		}
+	}
+
+	private async handleNotebookVisibilityChange(): Promise<void> {
+		try {
+			const currentConversation = this.conversationManager.getCurrentConversation();
+			if (!currentConversation || !this.isFileHighlightingEnabled(currentConversation.info.id)) {
+				return;
+			}
+
+			// Get all currently visible notebook editors
+			const visibleEditors = this.editorService.visibleEditorPanes;
+			
+			for (const editorPane of visibleEditors) {
+				const resource = editorPane.input?.resource;
+				if (resource && resource.path.endsWith('.ipynb')) {
+					// Apply highlighting for visible notebook
+					await this.applyHighlightingFromFileChanges(currentConversation.info.id);
+				}
+			}
+		} catch (error) {
+			this.logService.error('Failed to handle notebook visibility change:', error);
+		}
+	}
+
 	private async onModelContentChanged(uri: URI): Promise<void> {
 		try {
 			if (this.modelContentChangeTimeout) {
@@ -1243,6 +1275,11 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 
 	private async hasAutoAcceptTracking(uri: URI): Promise<boolean> {
 		try {
+			// Skip auto-accept tracking for in-memory URIs (like diff widgets)
+			if (uri.scheme !== 'file') {
+				return false;
+			}
+			
 			const filePath = uri.fsPath;
 			const workspace = this.workspaceContextService.getWorkspace();
 			const isEmptyWindow = !workspace.configuration && workspace.folders.length === 0;
@@ -1261,7 +1298,8 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 			
 			return !!fileHash;
 		} catch (error) {
-			throw new Error(`Failed to check auto-accept tracking for ${uri.toString()}: ${error}`);
+			// Don't throw for missing auto-accept files, just return false
+			return false;
 		}
 	}
 

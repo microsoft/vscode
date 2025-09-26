@@ -460,7 +460,6 @@ export class WidgetManager extends Disposable implements IWidgetManager {
 
 
 	async generateSearchReplaceDiff(callId: string, messageId: number, completeArguments: string, requestId: string, userMessageId: number): Promise<{success: boolean, errorMessage?: string}> {
-		
 		try {
 			// Create function call object for diff generation
 			const functionCall = {

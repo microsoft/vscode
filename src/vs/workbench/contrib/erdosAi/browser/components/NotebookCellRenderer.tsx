@@ -12,8 +12,16 @@ import { ICommonUtils } from '../../../../services/erdosAiUtils/common/commonUti
 import { renderMarkdown } from '../../../../../base/browser/markdownRenderer.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 
+interface CellWithDiffLines extends CellNode {
+	diffLines?: Array<{
+		type: 'added' | 'deleted' | 'unchanged';
+		content: string;
+		lineNumber: number;
+	}>;
+}
+
 interface NotebookCellRendererProps {
-	cells: CellNode[];
+	cells: CellWithDiffLines[];
 	monacoServices: IMonacoWidgetServices;
 	configurationService: IConfigurationService;
 	commonUtils: ICommonUtils;
@@ -52,9 +60,9 @@ export const NotebookCellRenderer: React.FC<NotebookCellRendererProps> = ({
 			{cells.map((cell, index) => {
 				// For diff display, construct content from diffLines to ensure perfect sync
 				let cellContent;
-				if ((cell as any).diffLines && (cell as any).diffLines.length > 0) {
+				if (cell.diffLines && cell.diffLines.length > 0) {
 					// Use diffLines content in exact order for diff display
-					cellContent = (cell as any).diffLines.map((diffLine: any) => diffLine.content).join('\n');
+					cellContent = cell.diffLines.map(diffLine => diffLine.content).join('\n');
 				} else {
 					// Fallback to regular cell source for non-diff display
 					cellContent = typeof cell.source === 'string' ? cell.source : cell.source.join('');
@@ -63,7 +71,7 @@ export const NotebookCellRenderer: React.FC<NotebookCellRendererProps> = ({
 				if (cell.cell_type === 'code') {
 					return (
 						<div key={index} className="code-cell-row" style={{ width: '100%' }}>
-							<div className="cell-inner-container" style={{ width: '100%', paddingTop: '6px', paddingBottom: '6px' }}>
+							<div className="cell-inner-container" style={{ width: '100%', paddingTop: '0', paddingBottom: '0' }}>
 								<div className="cell-focus-indicator cell-focus-indicator-top"></div>
 								<div className="cell-focus-indicator cell-focus-indicator-side cell-focus-indicator-left">
 									<div className="execution-count-label"></div>
@@ -80,7 +88,7 @@ export const NotebookCellRenderer: React.FC<NotebookCellRendererProps> = ({
 												monacoServices={monacoServices}
 												configurationService={configurationService}
 												commonUtils={commonUtils}
-												diffLines={(cell as any).diffLines}
+												diffLines={cell.diffLines}
 											/>
 										</div>
 									</div>
@@ -93,7 +101,7 @@ export const NotebookCellRenderer: React.FC<NotebookCellRendererProps> = ({
 				} else if (cell.cell_type === 'markdown') {
 					return (
 						<div key={index} className="markdown-cell-row" style={{ width: '100%' }}>
-							<div className="cell-inner-container" style={{ width: '100%', paddingTop: '8px', paddingBottom: '8px' }}>
+							<div className="cell-inner-container" style={{ width: '100%', paddingTop: '0', paddingBottom: '0' }}>
 								<div className="cell-focus-indicator cell-focus-indicator-top"></div>
 								<div className="cell-focus-indicator cell-focus-indicator-side cell-focus-indicator-left"></div>
 								<div className="cell markdown" style={{ width: '100%' }}>
@@ -108,7 +116,7 @@ export const NotebookCellRenderer: React.FC<NotebookCellRendererProps> = ({
 					// Raw cell
 					return (
 						<div key={index} className="code-cell-row" style={{ width: '100%' }}>
-							<div className="cell-inner-container" style={{ width: '100%' }}>
+							<div className="cell-inner-container" style={{ width: '100%', paddingTop: '0', paddingBottom: '0' }}>
 								<div className="cell-focus-indicator cell-focus-indicator-top"></div>
 								<div className="cell-focus-indicator cell-focus-indicator-side cell-focus-indicator-left"></div>
 								<div className="cell code" style={{ width: '100%' }}>
@@ -143,8 +151,7 @@ const VSCodeMarkdownRenderer: React.FC<{ content: string }> = ({ content }) => {
 			}));
 
 			// Clear container and append rendered element
-			containerRef.current.innerHTML = '';
-			containerRef.current.appendChild(rendered.element);
+			containerRef.current.replaceChildren(rendered.element);
 		}
 
 		return () => {

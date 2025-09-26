@@ -101,17 +101,26 @@ export class PythonEnvironmentsView extends ViewPane implements IReactComponentC
 	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 				
-		// Create and render the React component
-		this._erdosReactRenderer = new ErdosReactRenderer(container);
-		this._register(this._erdosReactRenderer);
-		
-		this.renderReactComponent();
-		
-		// Initial load
-		this.refresh();
+		try {
+			// Create and render the React component
+			this._erdosReactRenderer = new ErdosReactRenderer(container);
+			this._register(this._erdosReactRenderer);
+			
+			this.renderReactComponent();
+			
+			// Initial load
+			this.refresh();
+		} catch (error) {
+			console.error('[PythonEnvironmentsView] Failed to initialize React renderer:', error);
+		}
 	}
 	
 	private renderReactComponent(): void {
+		if (!this._erdosReactRenderer) {
+			// Return silently if the renderer is not initialized, will try again when initialized
+			return;
+		}
+		
 		this._erdosReactRenderer.render(
 			React.createElement(EnvironmentList, {
 				environments: this._environments,

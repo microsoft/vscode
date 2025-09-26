@@ -1,0 +1,33 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Lotas Inc. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Notebook diff highlighting styles - replicating regular file diff styles for notebooks */
+
+/* Deleted content zone styling */
+.notebook-deleted-content-zone {
+	background-color: rgba(255, 0, 0, 0.05);
+	border-left: 2px solid rgba(255, 0, 0, 0.3);
+	padding: 2px 0;
+	margin: 2px 0;
+}
+
+.notebook-deleted-content-zone .deleted-line-content {
+	color: var(--vscode-editor-foreground);
+	background-color: rgba(255, 0, 0, 0.1);
+	border-left: 3px solid rgba(255, 0, 0, 0.4);
+	padding-left: 4px;
+	margin: 1px 0;
+}
+
+.notebook-deleted-content-zone .deleted-line-background {
+	background-color: rgba(255, 0, 0, 0.1);
+}
+
+
+/* Notebooks now use the exact same CSS classes as regular files:
+   - erdos-ai-diff-added-gutter (defined in erdosAiDiffHighlighting.css)
+   - erdos-ai-diff-deleted-arrow (defined in erdosAiDiffHighlighting.css)
+   - erdos-ai-diff-deleted-arrow-expanded (defined in erdosAiDiffHighlighting.css)
+   No custom CSS needed here since we reuse the regular file system classes. */

@@ -111,13 +111,22 @@ export class PackagesView extends ViewPane implements IReactComponentContainer {
 	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 		
-		this._erdosReactRenderer = new ErdosReactRenderer(container);
-		this._register(this._erdosReactRenderer);
-		
-		this.refresh();
+		try {
+			this._erdosReactRenderer = new ErdosReactRenderer(container);
+			this._register(this._erdosReactRenderer);
+			
+			this.refresh();
+		} catch (error) {
+			console.error('[PackagesView] Failed to initialize React renderer:', error);
+		}
 	}
 	
 	private renderReactComponent(): void {
+		if (!this._erdosReactRenderer) {
+			// Return silently if the renderer is not initialized, will try again when initialized
+			return;
+		}
+		
 		const activeRuntime = this.environmentService.getActiveEnvironment(this.packageType);
 		const hasActiveRuntime = !!activeRuntime;
 		

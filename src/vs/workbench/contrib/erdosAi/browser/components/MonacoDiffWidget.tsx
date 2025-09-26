@@ -22,6 +22,13 @@ interface DiffItem {
 	new_line?: number;
 }
 
+interface EnhancedDiffItem extends DiffItem {
+	cellIndex: number;
+	lineInCell: number;
+	cellType: string;
+}
+
+
 export interface MonacoDiffWidgetProps {
 	content: string;
 	diffData?: {
@@ -62,7 +69,7 @@ export const MonacoDiffWidget: React.FC<MonacoDiffWidgetProps> = ({
 	const isNotebookFile = filename && filename.toLowerCase().endsWith('.ipynb');
 	const hasNotebookDiffData = diffData && diffData.diff_data && 
 		Array.isArray(diffData.diff_data) && 
-		diffData.diff_data.some((item: any) => item.cellIndex !== undefined);
+		diffData.diff_data.some((item: DiffItem) => 'cellIndex' in item);
 
 	// Detect if this should render as notebook cells (like MonacoWidgetEditor pattern)
 	let isNotebookCells = false;
@@ -71,53 +78,47 @@ export const MonacoDiffWidget: React.FC<MonacoDiffWidgetProps> = ({
 	// Process notebook data if conditions are met
 	if (isNotebookFile && hasNotebookDiffData && diffData?.diff_data && jupytextService && commonUtils) {
 		try {
-			// Step 1: Convert the filtered Jupytext content back to notebook JSON			
-			const notebookJson = jupytextService.convertTextToNotebook(
-				content, // This is already the filtered Jupytext content (unchanged + added lines)
-				{ extension: '.py', format_name: 'percent' }
-			);
+			// Group diff lines by cellIndex from conversation diff data
+			const cellDiffMap = new Map<number, Array<{type: string, content: string, old_line?: number, new_line?: number, lineInCell: number}>>();
 			
-			const notebook = JSON.parse(notebookJson);
-			if (notebook.cells && Array.isArray(notebook.cells)) {				
-				// Step 2: Group diff lines by cellIndex for matching with reconstructed cells
-				const cellDiffMap = new Map<number, Array<{type: string, content: string, old_line?: number, new_line?: number, lineInCell: number}>>();
-				
-				for (const item of diffData.diff_data) {
-					const enhancedItem = item as any; // Enhanced diff data with cellIndex and lineInCell
-					if (enhancedItem.cellIndex !== undefined) {
-						if (!cellDiffMap.has(enhancedItem.cellIndex)) {
-							cellDiffMap.set(enhancedItem.cellIndex, []);
-						}
-						cellDiffMap.get(enhancedItem.cellIndex)!.push({
-							type: item.type,
-							content: item.content,
-							old_line: item.old_line,
-							new_line: item.new_line,
-							lineInCell: enhancedItem.lineInCell
-						});
+			for (const item of diffData.diff_data) {
+				// Enhanced diff items have cellIndex, lineInCell, cellType
+				if ('cellIndex' in item) {
+					const enhancedItem = item as EnhancedDiffItem;
+					if (!cellDiffMap.has(enhancedItem.cellIndex)) {
+						cellDiffMap.set(enhancedItem.cellIndex, []);
 					}
+					cellDiffMap.get(enhancedItem.cellIndex)!.push({
+						type: item.type,
+						content: item.content,
+						old_line: item.old_line,
+						new_line: item.new_line,
+						lineInCell: enhancedItem.lineInCell
+					});
 				}
-
-				// Step 3: Match cells with their diff data and verify consistency
-				cellsWithDiffData = notebook.cells.map((cell: any, cellIndex: number) => {
-					const cellDiffLines = cellDiffMap.get(cellIndex) || [];
-					
-					// Use the EXACT order from conversation_diffs.json - don't sort, don't skip, don't reorder
-					const mappedDiffLines = cellDiffLines.map((diffLine: any, index: number) => ({
-						type: diffLine.type as 'added' | 'deleted' | 'unchanged',
-						content: diffLine.content,
-						lineNumber: index + 1 // Just use sequential numbering 1, 2, 3, 4, 5, 6
-					}));
-										
-					// Attach diff information to the cell
-					return {
-						...cell,
-						diffLines: mappedDiffLines
-					};
-				});
-				
-				isNotebookCells = true;
 			}
+
+			// Create cells directly from diff data - only cells that have diffs
+			cellsWithDiffData = Array.from(cellDiffMap.entries()).map(([originalCellIndex, diffLines]) => {
+				// Use the EXACT order from conversation_diffs.json - sequential line numbering for display
+				const mappedDiffLines = diffLines.map((diffLine, index) => ({
+					type: diffLine.type as 'added' | 'deleted' | 'unchanged',
+					content: diffLine.content,
+					lineNumber: index + 1  // Sequential: 1, 2, 3, 4, 5...
+				}));
+				
+				// Get cell type from diff data (all items in a cell should have same cellType)
+				const cellType = (diffLines[0] as any).cellType || 'code';
+				
+				return {
+					cell_type: cellType,
+					source: diffLines.map(line => line.content).join('\n'), // Reconstruct source from diff lines
+					metadata: {},
+					diffLines: mappedDiffLines
+				};
+			});
+			
+			isNotebookCells = cellsWithDiffData.length > 0;
 		} catch (error) {
 			console.error(`[MONACO_DIFF_WIDGET_DEBUG] Notebook processing failed:`, error);
 		}

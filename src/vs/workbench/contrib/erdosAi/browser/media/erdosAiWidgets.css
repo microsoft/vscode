@@ -42,7 +42,14 @@
 	border: none !important;
 }
 
+/* Diff highlighting styles for Monaco decorations - margin classes only */
+.monaco-editor .diff-margin-added {
+	background-color: rgba(40, 167, 69, 0.2) !important;
+}
 
+.monaco-editor .diff-margin-deleted {
+	background-color: rgba(244, 67, 54, 0.2) !important;
+}
 
 /* Widget collapsed state - rounded bottom corners when content is hidden */
 .erdos-ai-widget.widget-collapsed {
@@ -525,6 +532,16 @@
 
 .diff-line-unchanged {
 	background-color: transparent;
+}
+
+.monaco-editor .diff-glyph-added {
+	background-color: #28a745 !important;
+	width: 3px !important;
+}
+
+.monaco-editor .diff-glyph-deleted {
+	background-color: #dc3545 !important;
+	width: 3px !important;
 }
 
 .diff-editor-textarea {
