@@ -20,6 +20,7 @@ import { IChatContentInlineReference, IChatProgress } from '../../contrib/chat/c
 import { ChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
 import { ChatSessionUri } from '../../contrib/chat/common/chatUri.js';
 import { EditorGroupColumn } from '../../services/editor/common/editorGroupColumn.js';
+import { IEditorGroup, IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../services/editor/common/editorService.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
@@ -317,6 +318,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IEditorService private readonly _editorService: IEditorService,
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@ILogService private readonly _logService: ILogService,
 		@IViewsService private readonly _viewsService: IViewsService,
 	) {
@@ -349,6 +351,50 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		this._itemProvidersRegistrations.get(handle)?.onDidChangeItems.fire();
 	}
 
+	$onDidCommitChatSessionItem(handle: number, original: string, modified: string): void {
+		this._logService.trace(`$onDidCommitChatSessionItem: handle(${handle}), original(${original}), modified(${modified})`);
+		const chatSessionType = this._itemProvidersRegistrations.get(handle)?.provider.chatSessionType;
+		if (!chatSessionType) {
+			this._logService.error(`No chat session type found for provider handle ${handle}`);
+			return;
+		}
+		const originalResource = ChatSessionUri.forSession(chatSessionType, original);
+		const modifiedResource = ChatSessionUri.forSession(chatSessionType, modified);
+		const originalEditor = this._editorService.editors.find(editor => editor.resource?.toString() === originalResource.toString());
+
+		// Find the group containing the original editor
+		let originalGroup: IEditorGroup | undefined;
+		for (const group of this.editorGroupService.groups) {
+			if (group.editors.some(editor => editor.resource?.toString() === originalResource.toString())) {
+				originalGroup = group;
+				break;
+			}
+		}
+		if (!originalGroup) {
+			originalGroup = this.editorGroupService.activeGroup;
+		}
+
+		if (originalEditor) {
+			// Prefetch the chat session content to make the subsequent editor swap quick
+			this._chatSessionsService.provideChatSessionContent(
+				chatSessionType,
+				modified,
+				CancellationToken.None,
+			).then(() => {
+				this._editorService.replaceEditors([{
+					editor: originalEditor,
+					replacement: {
+						resource: modifiedResource,
+						options: {}
+					},
+				}], originalGroup);
+			});
+		} else {
+			this._logService.warn(`Original chat session editor not found for resource ${originalResource.toString()}`);
+			this._editorService.openEditor({ resource: modifiedResource }, originalGroup);
+		}
+	}
+
 	private async _provideChatSessionItems(handle: number, token: CancellationToken): Promise<IChatSessionItem[]> {
 		try {
 			// Get all results as an array from the RPC call
@@ -365,7 +411,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		return [];
 	}
 
-	private async _provideNewChatSessionItem(handle: number, options: { request: IChatAgentRequest; prompt?: string; history?: any[]; metadata?: any }, token: CancellationToken): Promise<IChatSessionItem> {
+	private async _provideNewChatSessionItem(handle: number, options: { request: IChatAgentRequest; metadata?: any }, token: CancellationToken): Promise<IChatSessionItem> {
 		try {
 			const chatSessionItem = await this._proxy.$provideNewChatSessionItem(handle, options, token);
 			if (!chatSessionItem) {

@@ -13,6 +13,7 @@ import { mapValues } from '../../../../base/common/objects.js';
 import { autorun, autorunSelfDisposable, derived, disposableObservableValue, IDerivedReader, IObservable, ITransaction, observableFromEvent, ObservablePromise, observableValue, transaction } from '../../../../base/common/observable.js';
 import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
+import { createURITransformer } from '../../../../base/common/uriTransformer.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -20,11 +21,11 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ILogger, ILoggerService } from '../../../../platform/log/common/log.js';
 import { INotificationService, IPromptChoice, Severity } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { IRemoteAuthorityResolverService } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IOutputService } from '../../../services/output/common/output.js';
 import { ToolProgress } from '../../chat/common/languageModelToolsService.js';
@@ -283,6 +284,7 @@ export class McpServer extends Disposable implements IMcpServer {
 		return raceCancellationError(callPromise, token).finally(() => d.dispose());
 	}
 
+	public readonly collection: McpCollectionReference;
 	private readonly _connectionSequencer = new Sequencer();
 	private readonly _connection = this._register(disposableObservableValue<IMcpServerConnection | undefined>(this, undefined));
 
@@ -359,7 +361,7 @@ export class McpServer extends Disposable implements IMcpServer {
 	public runningToolCalls = new Set<IMcpToolCallContext>();
 
 	constructor(
-		public readonly collection: McpCollectionReference,
+		initialCollection: McpCollectionDefinition,
 		public readonly definition: McpDefinitionReference,
 		explicitRoots: URI[] | undefined,
 		private readonly _requiresExtensionActivation: boolean | undefined,
@@ -377,10 +379,11 @@ export class McpServer extends Disposable implements IMcpServer {
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IMcpSamplingService private readonly _samplingService: IMcpSamplingService,
 		@IMcpElicitationService private readonly _elicitationService: IMcpElicitationService,
-		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 
+		this.collection = initialCollection;
 		this._fullDefinitions = this._mcpRegistry.getServerDefinition(this.collection, this.definition);
 		this._loggerId = `mcpServer.${definition.id}`;
 		this._logger = this._register(_loggerService.createLogger(this._loggerId, { hidden: true, name: `MCP: ${definition.label}` }));
@@ -401,18 +404,7 @@ export class McpServer extends Disposable implements IMcpServer {
 				() => workspacesService.getWorkspace().folders,
 			);
 
-		const workspacesWithCanonicalURIs = derived(reader => {
-			const folders = workspaces.read(reader);
-			return new ObservablePromise((async () => {
-				let uris = folders.map(f => f.uri);
-				try {
-					uris = await Promise.all(uris.map(u => this._remoteAuthorityResolverService.getCanonicalURI(u)));
-				} catch (error) {
-					this._logger.error(`Failed to resolve workspace folder URIs: ${error}`);
-				}
-				return uris.map((uri, i): MCP.Root => ({ uri: uri.toString(), name: folders[i].name }));
-			})());
-		}).recomputeInitiallyAndOnChange(this._store);
+		const uriTransformer = environmentService.remoteAuthority ? createURITransformer(environmentService.remoteAuthority) : undefined;
 
 		this._register(autorun(reader => {
 			const cnx = this._connection.read(reader)?.handler.read(reader);
@@ -420,10 +412,12 @@ export class McpServer extends Disposable implements IMcpServer {
 				return;
 			}
 
-			const roots = workspacesWithCanonicalURIs.read(reader).promiseResult.read(reader);
-			if (roots?.data) {
-				cnx.roots = roots.data;
-			}
+			cnx.roots = workspaces.read(reader)
+				.filter(w => w.uri.authority === (initialCollection.remoteAuthority || ''))
+				.map(w => ({
+					name: w.name,
+					uri: URI.from(uriTransformer?.transformIncoming(w.uri) ?? w.uri).toString()
+				}));
 		}));
 
 		// 2. Populate this.tools when we connect to a server.

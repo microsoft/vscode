@@ -747,7 +747,7 @@ class ChatSetup {
 			createWorkbenchDialogOptions({
 				type: 'none',
 				extraClasses: ['chat-setup-dialog'],
-				detail: this.getDialogDetail(),
+				detail: ' ', // workaround allowing us to render the message in large
 				icon: Codicon.copilotLarge,
 				alignment: DialogContentsAlignment.Vertical,
 				cancelId: buttons.length - 1,
@@ -814,14 +814,6 @@ class ChatSetup {
 		return localize('startUsing', "Start using GitHub Copilot");
 	}
 
-	private getDialogDetail(): string {
-		if (this.chatEntitlementService.anonymous) {
-			return localize('enableMoreAnonymous', "Sign in to get access to more AI features like premium models, AI code reviews and remote agents.");
-		}
-
-		return ' '; // workaround allowing us to render the message in large
-	}
-
 	private createDialogFooter(disposables: DisposableStore): HTMLElement {
 		const element = $('.chat-setup-dialog-footer');
 
@@ -849,7 +841,8 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -868,6 +861,10 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 	}
 
 	private registerSetupAgents(context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): void {
+		if (this.configurationService.getValue<boolean>('chat.experimental.disableCoreAgents')) {
+			return; // TODO@bpasero eventually remove this when we figured out extension activation issues
+		}
+
 		const defaultAgentDisposables = markAsSingleton(new MutableDisposable()); // prevents flicker on window reload
 		const vscodeAgentDisposables = markAsSingleton(new MutableDisposable());
 
