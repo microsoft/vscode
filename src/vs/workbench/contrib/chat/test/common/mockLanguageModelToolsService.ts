@@ -7,7 +7,6 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable } from '../../../../../base/common/observable.js';
-import { URI } from '../../../../../base/common/uri.js';
 import { IProgressStep } from '../../../../../platform/progress/common/progress.js';
 import { IVariableReference } from '../../common/chatModes.js';
 import { ChatRequestToolReferenceEntry } from '../../common/chatVariableEntries.js';
@@ -83,10 +82,6 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 		throw new Error('Method not implemented.');
 	}
 
-	toToolEnablementMap(toolOrToolSetNames: Set<string>): Record<string, boolean> {
-		throw new Error('Method not implemented.');
-	}
-
 	toToolAndToolSetEnablementMap(toolOrToolSetNames: readonly string[]): IToolAndToolSetEnablementMap {
 		throw new Error('Method not implemented.');
 	}
@@ -95,11 +90,23 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 		throw new Error('Method not implemented.');
 	}
 
-	getQualifiedToolNames(includeDeprecated: boolean): Iterable<string> {
+	getQualifiedToolNames(): Iterable<string> {
 		throw new Error('Method not implemented.');
 	}
 
-	getToolByQualifiedName(promptFile: URI): IToolData | ToolSet | undefined {
+	getToolByQualifiedName(qualifiedName: string): IToolData | ToolSet | undefined {
+		throw new Error('Method not implemented.');
+	}
+
+	getQualifiedToolName(tool: IToolData, set?: ToolSet): string {
+		throw new Error('Method not implemented.');
+	}
+
+	toQualifiedToolNames(map: IToolAndToolSetEnablementMap): string[] {
+		throw new Error('Method not implemented.');
+	}
+
+	getDeprecatedQualifiedToolNames(): Map<string, string> {
 		throw new Error('Method not implemented.');
 	}
 }

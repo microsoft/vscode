@@ -222,7 +222,7 @@ export class PromptHeaderAutocompletion extends Disposable implements Completion
 		}
 		const getSuggestions = (toolRange: Range) => {
 			const suggestions: CompletionItem[] = [];
-			for (const toolName of this.languageModelToolsService.getQualifiedToolNames(false)) {
+			for (const toolName of this.languageModelToolsService.getQualifiedToolNames()) {
 				let insertText: string;
 				if (!toolRange.isEmpty()) {
 					const firstChar = model.getValueInRange(toolRange).charCodeAt(0);

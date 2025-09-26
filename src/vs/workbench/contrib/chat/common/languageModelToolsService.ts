@@ -324,17 +324,22 @@ export interface ILanguageModelToolsService {
 	getToolAutoConfirmation(toolId: string): 'workspace' | 'profile' | 'session' | 'never';
 	resetToolAutoConfirmation(): void;
 	cancelToolCallsForRequest(requestId: string): void;
-	toToolEnablementMap(toolOrToolSetNames: Set<string>): Record<string, boolean>;
-	toToolAndToolSetEnablementMap(toolOrToolSetNames: readonly string[]): IToolAndToolSetEnablementMap;
-	toToolReferences(variableReferences: readonly IVariableReference[]): ChatRequestToolReferenceEntry[];
 
 	readonly toolSets: IObservable<Iterable<ToolSet>>;
 	getToolSet(id: string): ToolSet | undefined;
 	getToolSetByName(name: string): ToolSet | undefined;
 	createToolSet(source: ToolDataSource, id: string, referenceName: string, options?: { icon?: ThemeIcon; description?: string }): ToolSet & IDisposable;
 
-	getQualifiedToolNames(includeDeprecated: boolean): Iterable<string>;
-	getToolByQualifiedName(promptFile: URI): IToolData | ToolSet | undefined;
+	// tool names in prompt files handling ('qualified names')
+
+	getQualifiedToolNames(): Iterable<string>;
+	getToolByQualifiedName(qualifiedName: string): IToolData | ToolSet | undefined;
+	getQualifiedToolName(tool: IToolData, toolSet?: ToolSet): string;
+	getDeprecatedQualifiedToolNames(): Map<string, string>;
+
+	toToolAndToolSetEnablementMap(qualifiedToolOrToolSetNames: readonly string[]): IToolAndToolSetEnablementMap;
+	toQualifiedToolNames(map: IToolAndToolSetEnablementMap): string[];
+	toToolReferences(variableReferences: readonly IVariableReference[]): ChatRequestToolReferenceEntry[];
 }
 
 export function createToolInputUri(toolOrId: IToolData | string): URI {

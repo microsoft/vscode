@@ -70,7 +70,7 @@ export class PromptBodyAutocompletion extends Disposable implements CompletionIt
 	}
 
 	private async collectToolCompletions(model: ITextModel, position: Position, toolRange: Range, suggestions: CompletionItem[]): Promise<void> {
-		for (const toolName of this.languageModelToolsService.getQualifiedToolNames(false)) {
+		for (const toolName of this.languageModelToolsService.getQualifiedToolNames()) {
 			suggestions.push({
 				label: toolName,
 				kind: CompletionItemKind.Value,
