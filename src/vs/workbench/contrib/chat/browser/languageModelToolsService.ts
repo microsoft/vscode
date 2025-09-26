@@ -43,6 +43,7 @@ import { ChatConfiguration } from '../common/constants.js';
 import { CountTokensCallback, createToolSchemaUri, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultInputOutputDetails, stringifyPromptTsxPart, ToolDataSource, ToolSet, IToolAndToolSetEnablementMap } from '../common/languageModelToolsService.js';
 import { getToolConfirmationAlert } from './chatAccessibilityProvider.js';
 import { alert } from '../../../../base/browser/ui/aria/aria.js';
+import { AccessibilityWorkbenchSettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 
 const jsonSchemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
 
@@ -59,6 +60,8 @@ interface ITrackedCall {
 const enum AutoApproveStorageKeys {
 	GlobalAutoApproveOptIn = 'chat.tools.global.autoApprove.optIn'
 }
+
+const SkipAutoApproveConfirmationKey = 'vscode.chat.tools.global.autoApprove.testMode';
 
 export const globalAutoApproveDescription = localize2(
 	{
@@ -446,7 +449,9 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	}
 
 	private informScreenReader(msg: string | IMarkdownString): void {
-		alert(typeof msg === 'string' ? msg : msg.value);
+		if (this._configurationService.getValue(AccessibilityWorkbenchSettingId.VerboseChatProgressUpdates)) {
+			alert(typeof msg === 'string' ? msg : msg.value);
+		}
 	}
 
 	private playAccessibilitySignal(toolInvocations: ChatToolInvocation[]): void {
@@ -528,6 +533,10 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	private async _checkGlobalAutoApprove(): Promise<boolean> {
 		const optedIn = this._storageService.getBoolean(AutoApproveStorageKeys.GlobalAutoApproveOptIn, StorageScope.APPLICATION, false);
 		if (optedIn) {
+			return true;
+		}
+
+		if (this._contextKeyService.getContextKeyValue(SkipAutoApproveConfirmationKey) === true) {
 			return true;
 		}
 

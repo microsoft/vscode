@@ -98,10 +98,7 @@ variables:
   - name: VSCODE_PRIVATE_BUILD
     value: ${{ ne(variables['Build.Repository.Uri'], 'https://github.com/microsoft/vscode.git') }}
   - name: NPM_REGISTRY
-    ${{ if in(variables['Build.Reason'], 'IndividualCI', 'BatchedCI') }}: # disable terrapin when in VSCODE_CIBUILD
-      value: none
-    ${{ else }}:
-      value: ${{ parameters.NPM_REGISTRY }}
+    value: ${{ parameters.NPM_REGISTRY }}
   - name: CARGO_REGISTRY
     value: ${{ parameters.CARGO_REGISTRY }}
   - name: VSCODE_QUALITY
