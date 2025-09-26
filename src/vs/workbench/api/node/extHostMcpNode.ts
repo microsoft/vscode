@@ -16,9 +16,11 @@ import { findExecutable } from '../../../base/node/processes.js';
 import { LogLevel } from '../../../platform/log/common/log.js';
 import { McpConnectionState, McpServerLaunch, McpServerTransportStdio, McpServerTransportType } from '../../contrib/mcp/common/mcpTypes.js';
 import { McpStdioStateHandler } from '../../contrib/mcp/node/mcpStdioStateHandler.js';
-import { ExtHostMcpService } from '../common/extHostMcp.js';
+import { CommonRequestInit, ExtHostMcpService, McpHTTPHandle } from '../common/extHostMcp.js';
 
 export class NodeExtHostMpcService extends ExtHostMcpService {
+	protected override _mcpHttpHandleType = McpHTTPHandleNode;
+
 	private nodeServers = this._register(new DisposableMap<number, McpStdioStateHandler>());
 
 	protected override _startMcp(id: number, launch: McpServerLaunch, defaultCwd?: URI, errorOnUserInteraction?: boolean): void {
@@ -131,6 +133,42 @@ export class NodeExtHostMpcService extends ExtHostMcpService {
 		});
 
 		this.nodeServers.set(id, connectionManager);
+	}
+}
+
+class McpHTTPHandleNode extends McpHTTPHandle {
+	protected override async _fetchInternal(url: string, init?: CommonRequestInit): Promise<Response> {
+		const { fetch, Agent } = await import('undici');
+
+		const undiciInit = { ...init, dispatcher: undefined as any };
+
+		let httpUrl = url;
+		const uri = URI.parse(url);
+
+		if (uri.scheme === 'unix' || uri.scheme === 'pipe') {
+			// By convention, we put the *socket path* as the URI path, and the *request path* in the fragment
+			// So, set the dispatcher with the socket path
+			undiciInit.dispatcher = new Agent({
+				socketPath: uri.path,
+			});
+
+			// And then rewrite the URL to be http://localhost/<fragment>
+			httpUrl = uri
+				.with({
+					scheme: 'http',
+					authority: 'localhost', // HTTP always wants a host (not that we're using it), but if we're using a socket or pipe then localhost is sorta right anyway
+					path: uri.fragment,
+				})
+				.toString(true);
+		}
+
+		const undiciResponse = await fetch(httpUrl, undiciInit);
+
+		return new Response(undiciResponse.body as ReadableStream, {
+			status: undiciResponse.status,
+			statusText: undiciResponse.statusText,
+			headers: undiciResponse.headers
+		});
 	}
 }
 
