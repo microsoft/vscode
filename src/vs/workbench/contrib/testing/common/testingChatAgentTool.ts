@@ -40,6 +40,7 @@ import { ITestResultService } from './testResultService.js';
 import { ITestService, testsInFile, waitForTestToBeIdle } from './testService.js';
 import { IncrementalTestCollectionItem, TestItemExpandState, TestMessageType, TestResultState, TestRunProfileBitset } from './testTypes.js';
 import { Position } from '../../../../editor/common/core/position.js';
+import { ITestProfileService } from './testProfileService.js';
 
 export class TestingChatAgentToolContribution extends Disposable implements IWorkbenchContribution {
 	public static readonly ID = 'workbench.contrib.testing.chatAgentTool';
@@ -121,12 +122,13 @@ class RunTestTool implements IToolImpl {
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@ITestResultService private readonly _testResultService: ITestResultService,
+		@ITestProfileService private readonly _testProfileService: ITestProfileService,
 	) { }
 
 	async invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
 		const params: IRunTestToolParams = invocation.parameters;
 		const mode: Mode = (params.mode === 'coverage' ? 'coverage' : 'run');
-		const group = (mode === 'coverage' ? TestRunProfileBitset.Coverage : TestRunProfileBitset.Run);
+		let group = (mode === 'coverage' ? TestRunProfileBitset.Coverage : TestRunProfileBitset.Run);
 		const coverageFiles = (mode === 'coverage' ? (params.coverageFiles && params.coverageFiles.length ? params.coverageFiles : undefined) : undefined);
 
 		const testFiles = await this._getFileTestsToRun(params, progress);
@@ -139,6 +141,13 @@ class RunTestTool implements IToolImpl {
 		}
 
 		progress.report({ message: localize('runTestTool.invoke.progress', 'Starting test run...') });
+
+		// If the model asks for coverage but the test provider doesn't support it, use normal 'run' mode
+		if (group === TestRunProfileBitset.Coverage) {
+			if (!testCases.some(tc => this._testProfileService.capabilitiesForTest(tc.item) & TestRunProfileBitset.Coverage)) {
+				group = TestRunProfileBitset.Run;
+			}
+		}
 
 		const result = await this._captureTestResult(testCases, group, token);
 		if (!result) {
