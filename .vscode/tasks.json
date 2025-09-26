@@ -1,6 +1,17 @@
 {
 	"version": "2.0.0",
 	"tasks": [
+		    {
+      "label": "Testing Task Name",
+      "type": "shell",
+      "command": "sleep 3s && echo 123",
+      "presentation": {
+        "close": false,
+        "panel": "dedicated",
+        "showReuseMessage": false,
+      },
+      "problemMatcher": [],
+    },
 		{
 			"type": "npm",
 			"script": "watch-clientd",
