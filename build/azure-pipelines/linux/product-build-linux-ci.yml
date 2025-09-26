@@ -43,7 +43,6 @@ jobs:
           VSCODE_ARCH: x64
           VSCODE_CIBUILD: ${{ parameters.VSCODE_CIBUILD }}
           VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
-          VSCODE_BUILD_LINUX_SNAP: false
           ${{ if eq(parameters.VSCODE_TEST_SUITE, 'Electron') }}:
             VSCODE_RUN_ELECTRON_TESTS: true
           ${{ if eq(parameters.VSCODE_TEST_SUITE, 'Browser') }}:
