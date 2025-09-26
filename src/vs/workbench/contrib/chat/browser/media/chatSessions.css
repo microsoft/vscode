@@ -238,7 +238,7 @@
 .chat-sessions-tree-container .monaco-list-row .monaco-tl-twistie {
 	/* Ultra-small indent to separate parent/child without large gutter */
 	visibility: hidden; /* keep layout space */
-	width: 3px; /* tuned down from 6px after feedback */
+	width: 3px;
 	min-width: 3px;
 	padding: 0;
 	margin: 0;
