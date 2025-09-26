@@ -169,8 +169,6 @@
 	text-align: center;
 }
 
-/* Removed old .monaco-icon-label loading spinner rule (no longer used after switching to custom icon element) */
-
 /* Custom chat session icon that bypasses file icon theme */
 .chat-sessions-tree-container .chat-session-item .chat-session-custom-icon {
 	flex-shrink: 0;
