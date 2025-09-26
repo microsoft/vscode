@@ -623,7 +623,7 @@ suite('InlineChatController', function () {
 			override get viewModel() {
 				return { model: targetModel } as any;
 			}
-			override focusLastMessage() { }
+			override focusResponseItem() { }
 		};
 
 		const r = ctrl.joinCurrentRun();
@@ -671,7 +671,7 @@ suite('InlineChatController', function () {
 			override get viewModel() {
 				return { model: targetModel } as any;
 			}
-			override focusLastMessage() { }
+			override focusResponseItem() { }
 		};
 
 		const r = ctrl.joinCurrentRun();
