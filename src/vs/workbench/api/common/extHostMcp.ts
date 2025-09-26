@@ -27,7 +27,7 @@ import { IExtHostWorkspace } from './extHostWorkspace.js';
 import { Schemas } from '../../../base/common/network.js';
 import { IExtHostFileSystemInfo } from './extHostFileSystemInfo.js';
 import { IExtHostConsumerFileSystem } from './extHostFileSystemConsumer.js';
-import { McpPackageType } from './extHostTypes.js';
+import { McpPackageKind } from './extHostTypes.js';
 
 export const IExtHostMpcService = createDecorator<IExtHostMpcService>('IExtHostMpcService');
 
@@ -191,8 +191,8 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 
 	private async _resolveMcpServerLaunch(item: vscode.McpServerDefinition, extension: IExtensionDescription): Promise<McpServerLaunch.Serialized | undefined> {
 		if (Convert.McpServerDefinition.isMcpNodeServerDefinition(item)) {
-			if (item.packageType !== McpPackageType.Node) {
-				this._logService.warn(`Skipping the unsupported MCP package type: ${item.packageType}`);
+			if (item.kind !== McpPackageKind.Node) {
+				this._logService.warn(`Skipping the unsupported MCP package type: ${item.kind}`);
 				return undefined;
 			}
 			const entrypoint = await this.findNodePackageEntryPoint(item.name, extension.extensionLocation);

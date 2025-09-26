@@ -20282,9 +20282,9 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * The MCP package type
+	 * The MCP package kind
 	 */
-	export enum McpPackageType {
+	export enum McpPackageKind {
 		/**
 		 * Node Package
 		 */
@@ -20360,9 +20360,9 @@ declare module 'vscode' {
 		readonly name: string;
 
 		/**
-		 * The type of the package
+		 * The kind of the package
 		 */
-		readonly packageType: McpPackageType;
+		readonly kind: McpPackageKind;
 
 		/**
 		 * The working directory used to start the server.
@@ -20389,7 +20389,7 @@ declare module 'vscode' {
 		 * @param env Optional additional environment information for the server.
 		 * @param version Optional version identification for the server.
 		 */
-		constructor(label: string, packageName: string, packageType: McpPackageType, args?: string[], env?: Record<string, string | number | null>, version?: string);
+		constructor(label: string, packageName: string, packageType: McpPackageKind, args?: string[], env?: Record<string, string | number | null>, version?: string);
 	}
 
 	/**
