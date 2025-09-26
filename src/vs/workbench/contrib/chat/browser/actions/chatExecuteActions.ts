@@ -596,6 +596,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			id: CreateRemoteAgentJobAction.ID,
 			// TODO(joshspicer): Generalize title, pull from contribution
 			title: localize2('actions.chat.createRemoteJob', "Delegate to Coding Agent"),
+			tooltip: localize('delegateToCodingAgentTooltip', "Send your chat conversation and attached context to a remote coding agent for advanced assistance with code changes, pull requests, and complex development tasks"),
 			icon: Codicon.sendToRemoteAgent,
 			precondition,
 			toggled: {
