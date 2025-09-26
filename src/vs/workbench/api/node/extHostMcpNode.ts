@@ -6,7 +6,6 @@
 import { ChildProcessWithoutNullStreams, spawn } from 'child_process';
 import { readFile } from 'fs/promises';
 import { homedir } from 'os';
-// eslint-disable-next-line local/code-import-patterns
 import type { RequestInit as UndiciRequestInit } from 'undici';
 import { parseEnvFile } from '../../../base/common/envfile.js';
 import { untildify } from '../../../base/common/labels.js';
@@ -159,13 +158,11 @@ class McpHTTPHandleNode extends McpHTTPHandle {
 			});
 
 			// And then rewrite the URL to be http://localhost/<fragment>
-			httpUrl = uri
-				.with({
-					scheme: 'http',
-					authority: 'localhost', // HTTP always wants a host (not that we're using it), but if we're using a socket or pipe then localhost is sorta right anyway
-					path: uri.fragment,
-				})
-				.toString(true);
+			httpUrl = uri.with({
+				scheme: 'http',
+				authority: 'localhost', // HTTP always wants a host (not that we're using it), but if we're using a socket or pipe then localhost is sorta right anyway
+				path: uri.fragment,
+			}).toString(true);
 		}
 
 		const undiciResponse = await fetch(httpUrl, undiciInit);
