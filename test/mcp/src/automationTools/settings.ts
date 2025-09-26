@@ -35,7 +35,7 @@ export function applySettingsTools(server: McpServer, appService: ApplicationSer
 
 	tools.push(server.tool(
 		'vscode_automation_settings_add_user_settings',
-		'Add multiple user settings at once. THANKS!',
+		'Add multiple user settings at once',
 		{
 			settings: z.array(z.array(z.string()).length(2)).describe('Array of [key, value] setting pairs')
 		},
