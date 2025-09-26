@@ -192,14 +192,27 @@ div.chat-welcome-view {
 	flex-wrap: wrap;
 	justify-content: flex-start;
 	row-gap: 8px;
-	padding: 12px;
+	padding: 32px 12px 12px 12px; /* Extra top padding for title */
+
+	.chat-welcome-view-suggested-prompts-title {
+		position: absolute;
+		top: 8px;
+		left: 16px;
+		font-size: 11px;
+		font-weight: normal;
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+		color: var(--vscode-descriptionForeground);
+		margin: 0;
+		text-align: left;
+	}
 
 	> .chat-welcome-view-suggested-prompt {
 		display: flex;
 		align-items: center;
 		gap: 6px;
 		height: 24px;
-		padding: 0 10px;
+		padding: 0 8px;
 		border-radius: 4px;
 		background-color: var(--vscode-editorWidget-background);
 		cursor: pointer;
