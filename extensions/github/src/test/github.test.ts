@@ -7,6 +7,7 @@ import 'mocha';
 import * as assert from 'assert';
 import { workspace, extensions, Uri, commands } from 'vscode';
 import { findPullRequestTemplates, pickPullRequestTemplate } from '../pushErrorHandler.js';
+import { getRepositoryUpstreamRemote } from '../util.js';
 
 suite('github smoke test', function () {
 	const cwd = workspace.workspaceFolders![0].uri;
@@ -61,5 +62,42 @@ suite('github smoke test', function () {
 		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
 
 		assert.ok(await pick === undefined);
+	});
+
+	test('getRepositoryUpstreamRemote should prioritize upstream over origin', () => {
+		// Mock repository with both upstream and origin remotes
+		const mockRepository = {
+			state: {
+				remotes: [
+					{ name: 'origin', fetchUrl: 'https://github.com/user/vscode.git' },
+					{ name: 'upstream', fetchUrl: 'https://github.com/microsoft/vscode.git' },
+					{ name: 'other', fetchUrl: 'https://github.com/other/vscode.git' }
+				]
+			}
+		} as any;
+
+		const result = getRepositoryUpstreamRemote(mockRepository);
+		
+		// Should return upstream repository info (microsoft/vscode)
+		assert.strictEqual(result?.owner, 'microsoft');
+		assert.strictEqual(result?.repo, 'vscode');
+	});
+
+	test('getRepositoryUpstreamRemote should fallback to origin if no upstream', () => {
+		// Mock repository with only origin remote
+		const mockRepository = {
+			state: {
+				remotes: [
+					{ name: 'origin', fetchUrl: 'https://github.com/user/vscode.git' },
+					{ name: 'other', fetchUrl: 'https://github.com/other/vscode.git' }
+				]
+			}
+		} as any;
+
+		const result = getRepositoryUpstreamRemote(mockRepository);
+		
+		// Should return origin repository info (user/vscode)
+		assert.strictEqual(result?.owner, 'user');
+		assert.strictEqual(result?.repo, 'vscode');
 	});
 });

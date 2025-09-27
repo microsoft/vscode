@@ -6,7 +6,7 @@
 import { Command, l10n, LogOutputChannel, workspace } from 'vscode';
 import { Commit, Repository as GitHubRepository, Maybe } from '@octokit/graphql-schema';
 import { API, AvatarQuery, AvatarQueryCommit, Repository, SourceControlHistoryItemDetailsProvider } from './typings/git.js';
-import { DisposableStore, getRepositoryDefaultRemote, getRepositoryDefaultRemoteUrl, getRepositoryFromUrl, groupBy, sequentialize } from './util.js';
+import { DisposableStore, getRepositoryDefaultRemote, getRepositoryDefaultRemoteUrl, getRepositoryFromUrl, getRepositoryUpstreamRemote, groupBy, sequentialize } from './util.js';
 import { AuthenticationError, OctokitService } from './auth.js';
 import { getAvatarLink } from './links.js';
 
@@ -220,7 +220,7 @@ export class GitHubSourceControlHistoryItemDetailsProvider implements SourceCont
 	}
 
 	async provideMessageLinks(repository: Repository, message: string): Promise<string | undefined> {
-		const descriptor = getRepositoryDefaultRemote(repository);
+		const descriptor = getRepositoryUpstreamRemote(repository);
 		if (!descriptor) {
 			return undefined;
 		}
