@@ -347,6 +347,8 @@ export class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListR
 	private activeIndentNodes = new Set<ITreeNode<T, TFilterData>>();
 	private indentGuidesDisposable: IDisposable = Disposable.None;
 
+	private hasCollapsibleFirstLevelNodes = false;
+
 	private readonly disposables = new DisposableStore();
 
 	constructor(
@@ -362,6 +364,34 @@ export class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListR
 
 		Event.map(onDidChangeCollapseState, e => e.node)(this.onDidChangeNodeTwistieState, this, this.disposables);
 		renderer.onDidChangeTwistieState?.(this.onDidChangeTwistieState, this, this.disposables);
+		
+		// Listen to model changes to recalculate first-level node state
+		this.disposables.add(model.onDidSpliceModel(() => {
+			this.updateCollapsibleFirstLevelNodesState();
+		}));
+	}
+
+	private updateCollapsibleFirstLevelNodesState(): void {
+		this.hasCollapsibleFirstLevelNodes = false;
+		
+		// Get the root node and check all its children (first-level nodes)
+		try {
+			const rootNode = this.model.getNode();
+			for (const child of rootNode.children) {
+				if (child.collapsible) {
+					this.hasCollapsibleFirstLevelNodes = true;
+					break;
+				}
+			}
+		} catch {
+			// Fallback to checking rendered nodes if model access fails
+			for (const [node] of this.renderedNodes) {
+				if (node.depth === 1 && node.collapsible) {
+					this.hasCollapsibleFirstLevelNodes = true;
+					break;
+				}
+			}
+		}
 	}
 
 	updateOptions(options: ITreeRendererOptions = {}): void {
@@ -371,8 +401,14 @@ export class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListR
 			if (indent !== this.indent) {
 				this.indent = indent;
 
+				// Reset and recalculate whether there are collapsible first-level nodes
+				this.updateCollapsibleFirstLevelNodesState();
+
 				for (const [node, templateData] of this.renderedNodes) {
-					templateData.indentSize = TreeRenderer.DefaultIndent + (node.depth - 1) * this.indent;
+					// For first-level nodes that are not collapsible, use minimal indentation only if no first-level nodes are collapsible
+					const shouldUseMinimalIndent = node.depth === 1 && !node.collapsible && !this.hasCollapsibleFirstLevelNodes;
+					const baseIndent = shouldUseMinimalIndent ? 0 : TreeRenderer.DefaultIndent;
+					templateData.indentSize = baseIndent + (node.depth - 1) * this.indent;
 					this.renderTreeElement(node, templateData);
 				}
 			}
@@ -416,7 +452,15 @@ export class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListR
 	}
 
 	renderElement(node: ITreeNode<T, TFilterData>, index: number, templateData: ITreeListTemplateData<TTemplateData>, details?: IListElementRenderDetails): void {
-		templateData.indentSize = TreeRenderer.DefaultIndent + (node.depth - 1) * this.indent;
+		// Ensure state is initialized on first render
+		if (this.renderedNodes.size === 0) {
+			this.updateCollapsibleFirstLevelNodesState();
+		}
+
+		// For first-level nodes that are not collapsible, use minimal indentation only if no first-level nodes are collapsible
+		const shouldUseMinimalIndent = node.depth === 1 && !node.collapsible && !this.hasCollapsibleFirstLevelNodes;
+		const baseIndent = shouldUseMinimalIndent ? 0 : TreeRenderer.DefaultIndent;
+		templateData.indentSize = baseIndent + (node.depth - 1) * this.indent;
 
 		this.renderedNodes.set(node, templateData);
 		this.renderedElements.set(node.element, node);
@@ -432,6 +476,11 @@ export class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListR
 		if (typeof details?.height === 'number') {
 			this.renderedNodes.delete(node);
 			this.renderedElements.delete(node.element);
+			
+			// If we're removing a first-level collapsible node, recalculate the state
+			if (node.depth === 1 && node.collapsible) {
+				this.updateCollapsibleFirstLevelNodesState();
+			}
 		}
 	}
 
@@ -454,6 +503,11 @@ export class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListR
 
 		if (!templateData) {
 			return;
+		}
+
+		// If a first-level node's collapsible state changed, recalculate the state
+		if (node.depth === 1) {
+			this.updateCollapsibleFirstLevelNodesState();
 		}
 
 		this._onDidChangeActiveNodes(this.activeNodes.elements);
