@@ -18,7 +18,7 @@ import { ChatViewPane } from '../../contrib/chat/browser/chatViewPane.js';
 import { IChatAgentRequest } from '../../contrib/chat/common/chatAgents.js';
 import { IChatContentInlineReference, IChatProgress } from '../../contrib/chat/common/chatService.js';
 import { ChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
-import { ChatSessionUri } from '../../contrib/chat/common/chatUri.js';
+import { ChatSessionIdentifier, ChatSessionUri } from '../../contrib/chat/common/chatUri.js';
 import { EditorGroupColumn } from '../../services/editor/common/editorGroupColumn.js';
 import { IEditorGroup, IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../services/editor/common/editorService.js';
@@ -358,9 +358,15 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 			this._logService.error(`No chat session type found for provider handle ${handle}`);
 			return;
 		}
-		const originalResource = ChatSessionUri.forSession(chatSessionType, original);
-		const modifiedResource = ChatSessionUri.forSession(chatSessionType, modified);
-		const originalEditor = this._editorService.editors.find(editor => editor.resource?.toString() === originalResource.toString());
+		const originalResource = ChatSessionUri.forSession({
+			chatSessionType,
+			sessionId: original,
+		});
+		const modifiedResource = ChatSessionUri.forSession({
+			chatSessionType,
+			sessionId: modified
+		});
+		const originalEditor = this._editorService.editors.find(editor => editor.resource?.toString().split('?')[0] === originalResource.toString());
 
 		// Find the group containing the original editor
 		let originalGroup: IEditorGroup | undefined;
@@ -376,19 +382,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 
 		if (originalEditor) {
 			// Prefetch the chat session content to make the subsequent editor swap quick
-			this._chatSessionsService.provideChatSessionContent(
-				chatSessionType,
-				modified,
-				CancellationToken.None,
-			).then(() => {
-				this._editorService.replaceEditors([{
-					editor: originalEditor,
-					replacement: {
-						resource: modifiedResource,
-						options: {}
-					},
-				}], originalGroup);
-			});
+			this._chatSessionsService.provideChatSessionContent({ chatSessionType, sessionId: modified, metadata: originalEditor.resource?.query ? JSON.parse(originalEditor.resource.query) : undefined }, CancellationToken.None).then(() => this._editorService.replaceEditors([{ editor: originalEditor, replacement: { resource: modifiedResource, options: {} } }], originalGroup));
 		} else {
 			this._logService.warn(`Original chat session editor not found for resource ${originalResource.toString()}`);
 			this._editorService.openEditor({ resource: modifiedResource }, originalGroup);
@@ -546,8 +540,8 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		return undefined;
 	}
 
-	async $showChatSession(chatSessionType: string, sessionId: string, position: EditorGroupColumn | undefined): Promise<void> {
-		const sessionUri = ChatSessionUri.forSession(chatSessionType, sessionId);
+	async $showChatSession(chatSession: ChatSessionIdentifier, position: EditorGroupColumn | undefined): Promise<void> {
+		const sessionUri = ChatSessionUri.forSession(chatSession);
 
 		if (typeof position === 'undefined') {
 			const chatPanel = await this._viewsService.openView<ChatViewPane>(ChatViewId);

@@ -127,6 +127,11 @@ declare module 'vscode' {
 			 */
 			deletions: number;
 		};
+
+		/**
+		 * Optional metadata associated to the chat session item
+		 */
+		metadata?: Record<string, string>;
 	}
 
 	export interface ChatSession {

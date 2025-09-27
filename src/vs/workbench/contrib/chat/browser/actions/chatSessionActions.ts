@@ -37,6 +37,7 @@ import { ChatViewPane } from '../chatViewPane.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { VIEWLET_ID } from '../chatSessions/view/chatSessionsView.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 
 export interface IChatSessionContext {
 	sessionId: string;
@@ -193,7 +194,11 @@ export class OpenChatSessionInNewWindowAction extends Action2 {
 		const sessionId = context.session.id;
 		const editorGroupsService = accessor.get(IEditorGroupsService);
 		if (context.session.provider?.chatSessionType) {
-			const uri = ChatSessionUri.forSession(context.session.provider.chatSessionType, sessionId);
+			const uri = ChatSessionUri.forSession({
+				chatSessionType: context.session.provider.chatSessionType,
+				sessionId,
+				metadata: context.session.metadata
+			});
 			// Check if this session is already open in another editor
 			const existingEditor = findExistingChatEditorByUri(uri, sessionId, editorGroupsService);
 			if (existingEditor) {
@@ -250,7 +255,11 @@ export class OpenChatSessionInNewEditorGroupAction extends Action2 {
 		const sessionId = context.session.id;
 		const editorGroupsService = accessor.get(IEditorGroupsService);
 		if (context.session.provider?.chatSessionType) {
-			const uri = ChatSessionUri.forSession(context.session.provider.chatSessionType, sessionId);
+			const uri = ChatSessionUri.forSession({
+				chatSessionType: context.session.provider.chatSessionType,
+				sessionId,
+				metadata: context.session.metadata
+			});
 			// Check if this session is already open in another editor
 			const existingEditor = findExistingChatEditorByUri(uri, sessionId, editorGroupsService);
 			if (existingEditor) {
@@ -308,7 +317,11 @@ export class OpenChatSessionInSidebarAction extends Action2 {
 		const editorGroupsService = accessor.get(IEditorGroupsService);
 		const sessionId = context.session.id;
 		if (context.session.provider?.chatSessionType) {
-			const uri = ChatSessionUri.forSession(context.session.provider.chatSessionType, sessionId);
+			const uri = ChatSessionUri.forSession({
+				chatSessionType: context.session.provider.chatSessionType,
+				sessionId,
+				metadata: context.session.metadata
+			});
 			// Check if this session is already open in another editor
 			const existingEditor = findExistingChatEditorByUri(uri, sessionId, editorGroupsService);
 			if (existingEditor) {
@@ -328,7 +341,11 @@ export class OpenChatSessionInSidebarAction extends Action2 {
 			} else {
 				// For external provider sessions, create a URI and load using that
 				const providerType = context.session.provider?.chatSessionType || 'external';
-				const sessionUri = ChatSessionUri.forSession(providerType, sessionId);
+				const sessionUri = ChatSessionUri.forSession({
+					chatSessionType: providerType,
+					sessionId,
+					metadata: context.session.metadata
+				});
 				await chatViewPane.loadSession(sessionUri);
 			}
 
@@ -421,6 +438,41 @@ export class ChatSessionsGettingStartedAction extends Action2 {
 			return;
 		}
 		await extensionManagementService.installGalleryExtensions(galleryExtensions.map(extension => ({ extension, options: { preRelease: productService.quality !== 'stable' } })));
+	}
+}
+
+export class OpenNewChatSessionEditorWithMetadata extends Action2 {
+	static readonly ID = 'workbench.action.chat.openNewSessionEditorWithMetadata';
+	constructor() {
+		super({
+			id: OpenNewChatSessionEditorWithMetadata.ID,
+			title: nls.localize2('interactiveSession.openNewSessionEditorWithMetadata', "New Chat Editor with Metadata..."),
+			category: CHAT_CATEGORY,
+			f1: false,
+		});
+	}
+
+	async run(accessor: ServicesAccessor, chatSessionType: string, metadata: Record<string, any>) {
+		const editorService = accessor.get(IEditorService);
+		const logService = accessor.get(ILogService);
+
+		try {
+			const options: IChatEditorOptions = {
+				override: ChatEditorInput.EditorID,
+				pinned: true,
+			};
+			const untitledId = `untitled-${generateUuid()}`;
+			await editorService.openEditor({
+				resource: ChatSessionUri.forSession({
+					chatSessionType,
+					sessionId: untitledId,
+					metadata
+				}),
+				options,
+			});
+		} catch (e) {
+			logService.error(`Failed to open new '${chatSessionType}' chat session editor with metadata`, e);
+		}
 	}
 }
 

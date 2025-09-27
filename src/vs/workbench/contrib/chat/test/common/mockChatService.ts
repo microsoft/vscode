@@ -10,10 +10,11 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ChatModel, IChatModel, IChatRequestModel, IChatRequestVariableData, ISerializableChatData } from '../../common/chatModel.js';
 import { IParsedChatRequest } from '../../common/chatParserTypes.js';
 import { IChatCompleteResponse, IChatDetail, IChatProviderInfo, IChatSendRequestData, IChatSendRequestOptions, IChatService, IChatTransferredSessionData, IChatUserActionEvent } from '../../common/chatService.js';
+import { ChatSessionIdentifier } from '../../common/chatUri.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 
 export class MockChatService implements IChatService {
-	getChatSessionFromInternalId(modelSessionId: string): { chatSessionType: string; chatSessionId: string; isUntitled: boolean } | undefined {
+	getChatSessionFromInternalId(modelSessionId: string): ChatSessionIdentifier & { isUntitled: boolean } | undefined {
 		throw new Error('Method not implemented.');
 	}
 	requestInProgressObs = observableValue('name', false);

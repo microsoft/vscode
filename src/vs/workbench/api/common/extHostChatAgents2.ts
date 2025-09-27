@@ -34,6 +34,7 @@ import { ExtHostLanguageModels } from './extHostLanguageModels.js';
 import { ExtHostLanguageModelTools } from './extHostLanguageModelTools.js';
 import * as typeConvert from './extHostTypeConverters.js';
 import * as extHostTypes from './extHostTypes.js';
+import { ChatSessionIdentifier } from '../../contrib/chat/common/chatUri.js';
 
 export class ChatAgentResponseStream {
 
@@ -541,7 +542,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		this._onDidChangeChatRequestTools.fire(request.extRequest);
 	}
 
-	async $invokeAgent(handle: number, requestDto: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[]; chatSessionContext?: { chatSessionType: string; chatSessionId: string; isUntitled: boolean } }, token: CancellationToken): Promise<IChatAgentResult | undefined> {
+	async $invokeAgent(handle: number, requestDto: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[]; chatSessionContext?: ChatSessionIdentifier & { isUntitled: boolean } }, token: CancellationToken): Promise<IChatAgentResult | undefined> {
 		const agent = this._agents.get(handle);
 		if (!agent) {
 			throw new Error(`[CHAT](${handle}) CANNOT invoke agent because the agent is not registered`);
@@ -581,8 +582,9 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			if (context.chatSessionContext) {
 				chatSessionContext = {
 					chatSessionItem: {
-						id: context.chatSessionContext.chatSessionId,
+						id: context.chatSessionContext.sessionId,
 						label: context.chatSessionContext.isUntitled ? 'Untitled Session' : 'Session',
+						metadata: context.chatSessionContext.metadata,
 					},
 					isUntitled: context.chatSessionContext.isUntitled,
 				};

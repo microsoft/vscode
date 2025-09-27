@@ -14,6 +14,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { IEditableData } from '../../../common/views.js';
 import { IChatAgentRequest } from './chatAgents.js';
 import { IChatProgress } from './chatService.js';
+import { ChatSessionIdentifier } from './chatUri.js';
 
 export const enum ChatSessionStatus {
 	Failed = 0,
@@ -48,7 +49,7 @@ export interface IChatSessionItem {
 		insertions: number;
 		deletions: number;
 	};
-
+	metadata?: Record<string, string>;
 }
 
 export type IChatSessionHistoryItem = { type: 'request'; prompt: string; participant: string } | { type: 'response'; parts: IChatProgress[]; participant: string };
@@ -105,7 +106,7 @@ export interface IChatSessionsService {
 
 	registerChatSessionContentProvider(chatSessionType: string, provider: IChatSessionContentProvider): IDisposable;
 	canResolveContentProvider(chatSessionType: string): Promise<boolean>;
-	provideChatSessionContent(chatSessionType: string, id: string, token: CancellationToken): Promise<ChatSession>;
+	provideChatSessionContent(chatSessionDecription: ChatSessionIdentifier, token: CancellationToken): Promise<ChatSession>;
 
 	// Editable session support
 	setEditableSession(sessionId: string, data: IEditableData | null): Promise<void>;
