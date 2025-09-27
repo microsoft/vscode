@@ -265,6 +265,44 @@ suite('Multicursor selection', () => {
 		});
 	});
 
+	test('issue #107090: Add selection to next find does not work in Regex find mode', () => {
+		withTestCodeEditor([
+			'',
+			'1.',
+			'',
+			'2.',
+			'',
+			'3.',
+			'4.'
+		], { serviceCollection: serviceCollection, hasTextFocus: false }, (editor) => {
+
+			const findController = editor.registerAndInstantiateContribution(CommonFindController.ID, CommonFindController);
+			const multiCursorSelectController = editor.registerAndInstantiateContribution(MultiCursorSelectionController.ID, MultiCursorSelectionController);
+			const addSelectionToNextFindMatch = new AddSelectionToNextFindMatchAction();
+
+
+			editor.setSelection(new Selection(1, 1, 1, 1));
+
+			findController.getState().change({ searchString: '\\d\\.', isRegex: true, isRevealed: true }, false);
+
+			addSelectionToNextFindMatch.run(null!, editor);
+			addSelectionToNextFindMatch.run(null!, editor);
+			addSelectionToNextFindMatch.run(null!, editor);
+			addSelectionToNextFindMatch.run(null!, editor);
+
+			assert.deepStrictEqual(editor.getSelections()!.map(fromRange), [
+				[1, 1, 1, 1],
+				[2, 1, 2, 3],
+				[4, 1, 4, 3],
+				[6, 1, 6, 3],
+				[7, 1, 7, 3]
+			]);
+
+			multiCursorSelectController.dispose();
+			findController.dispose();
+		});
+	});
+
 	function testMulticursor(text: string[], callback: (editor: ITestCodeEditor, findController: CommonFindController) => void): void {
 		withTestCodeEditor(text, { serviceCollection: serviceCollection }, (editor) => {
 			const findController = editor.registerAndInstantiateContribution(CommonFindController.ID, CommonFindController);
