@@ -10,6 +10,8 @@ const replace = require('gulp-replace');
 const rename = require('gulp-rename');
 const es = require('event-stream');
 const vfs = require('vinyl-fs');
+const fs = require('fs');
+const https = require('https');
 const { rimraf } = require('./lib/util');
 const { getVersion } = require('./lib/getVersion');
 const task = require('./lib/task');
@@ -21,11 +23,63 @@ const path = require('path');
 const cp = require('child_process');
 const util = require('util');
 
+const fsp = fs.promises;
+
 const exec = util.promisify(cp.exec);
 const root = path.dirname(__dirname);
 const commit = getVersion(root);
 
 const linuxPackageRevision = Math.floor(new Date().getTime() / 1000);
+const appImageToolUrl = 'https://github.com/AppImage/AppImageKit/releases/download/13/appimagetool-x86_64.AppImage';
+
+async function downloadFile(url, destination) {
+	await new Promise((resolve, reject) => {
+		https.get(url, response => {
+			if (response.statusCode !== 200) {
+				response.resume();
+				reject(new Error(`Failed to download ${url}: status code ${response.statusCode}`));
+				return;
+			}
+
+			const fileStream = fs.createWriteStream(destination);
+			response.pipe(fileStream);
+			fileStream.on('finish', () => fileStream.close(resolve));
+			fileStream.on('error', error => {
+				fileStream.close(() => {
+					fs.unlink(destination, () => reject(error));
+				});
+			});
+		}).on('error', reject);
+	});
+}
+
+async function ensureAppImageTool() {
+	const toolsDir = path.join(root, '.build/linux/appimage/tools');
+	const toolPath = path.join(toolsDir, 'appimagetool-x86_64.AppImage');
+
+	try {
+		await fsp.access(toolPath, fs.constants.X_OK);
+		return toolPath;
+	} catch (error) {
+		if (error.code !== 'ENOENT') {
+			throw error;
+		}
+	}
+
+	await fsp.mkdir(toolsDir, { recursive: true });
+	await downloadFile(appImageToolUrl, toolPath);
+	await fsp.chmod(toolPath, 0o755);
+
+	return toolPath;
+}
+
+async function streamToPromise(stream) {
+	return new Promise((resolve, reject) => {
+		stream.on('end', resolve);
+		stream.on('finish', resolve);
+		stream.on('error', reject);
+	});
+}
 
 /**
  * @param {string} arch
@@ -131,6 +185,55 @@ function buildDebPackage(arch) {
 		await exec(`chmod 755 ${product.applicationName}-${debArch}/DEBIAN/postinst ${product.applicationName}-${debArch}/DEBIAN/prerm ${product.applicationName}-${debArch}/DEBIAN/postrm`, { cwd });
 		await exec('mkdir -p deb', { cwd });
 		await exec(`fakeroot dpkg-deb -Zxz -b ${product.applicationName}-${debArch} deb`, { cwd });
+	};
+}
+
+function prepareAppImage(arch) {
+	const binaryDir = '../VSCode-linux-' + arch;
+	const destination = `.build/linux/appimage/${arch}/AppDir`;
+
+	return async function () {
+		await fsp.mkdir(destination, { recursive: true });
+
+		const binaries = gulp.src(binaryDir + '/**/*', { base: binaryDir })
+			.pipe(rename(p => {
+				p.dirname = 'usr/lib/' + product.applicationName + '/' + p.dirname;
+			}));
+
+		const desktop = gulp.src('resources/linux/code.desktop', { base: '.' })
+			.pipe(rename('usr/share/applications/' + product.applicationName + '.desktop'))
+			.pipe(replace('@@NAME_LONG@@', product.nameLong))
+			.pipe(replace('@@NAME_SHORT@@', product.nameShort))
+			.pipe(replace('@@NAME@@', product.applicationName))
+			.pipe(replace('@@EXEC@@', 'AppRun --no-sandbox'))
+			.pipe(replace('@@ICON@@', product.linuxIconName))
+			.pipe(replace('@@URLPROTOCOL@@', product.urlProtocol));
+
+		const icon = gulp.src('resources/linux/erdos.png', { base: '.' })
+			.pipe(rename('usr/share/icons/hicolor/512x512/apps/' + product.linuxIconName + '.png'));
+
+		const appRun = gulp.src('resources/linux/appimage/AppRun', { base: 'resources/linux/appimage' })
+			.pipe(replace('@@APPNAME@@', product.applicationName))
+			.pipe(rename('AppRun'));
+
+		const streams = es.merge(binaries, desktop, icon, appRun)
+			.pipe(vfs.dest(destination));
+
+		await streamToPromise(streams);
+		await fsp.chmod(path.join(destination, 'AppRun'), 0o755);
+	};
+}
+
+function buildAppImage(arch) {
+	const appImageRoot = path.join(root, '.build/linux/appimage', arch);
+
+	return async function () {
+		const toolPath = await ensureAppImageTool();
+		const outputName = `${product.nameShort}-${packageJson.version}-${arch}.AppImage`;
+		const cwd = appImageRoot;
+
+		await exec(`"${toolPath}" AppDir "${outputName}"`, { cwd });
+		await fsp.chmod(path.join(appImageRoot, outputName), 0o755);
 	};
 }
 
@@ -311,6 +414,11 @@ BUILD_TARGETS.forEach(({ arch }) => {
 	gulp.task(prepareDebTask);
 	const buildDebTask = task.define(`vscode-linux-${arch}-build-deb`, buildDebPackage(arch));
 	gulp.task(buildDebTask);
+
+	const prepareAppImageTask = task.define(`vscode-linux-${arch}-prepare-appimage`, task.series(rimraf(`.build/linux/appimage/${arch}`), prepareAppImage(arch)));
+	gulp.task(prepareAppImageTask);
+	const buildAppImageTask = task.define(`vscode-linux-${arch}-build-appimage`, buildAppImage(arch));
+	gulp.task(buildAppImageTask);
 
 	const rpmArch = getRpmPackageArch(arch);
 	const prepareRpmTask = task.define(`vscode-linux-${arch}-prepare-rpm`, task.series(rimraf(`.build/linux/rpm/${rpmArch}`), prepareRpmPackage(arch)));
