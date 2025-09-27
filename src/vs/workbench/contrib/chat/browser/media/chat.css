@@ -1400,13 +1400,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	height: auto;
 }
 
-/* Icon-only chat attachment button styling */
-.action-item.chat-attachment-button {
-	width: 20px;
-	height: 20px;
-}
-
-.interactive-session .action-item.chat-attachment-button .action-label {
+.interactive-session .action-item.chat-attachment-button .action-label:not(.has-label) {
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -1417,6 +1411,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
 	border-radius: 4px;
 	box-sizing: border-box;
+
+	.codicon {
+		width: 14px;
+	}
 }
 
 .action-item.chat-attachment-button .codicon {
