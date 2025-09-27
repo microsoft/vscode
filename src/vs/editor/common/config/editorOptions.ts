@@ -1753,6 +1753,11 @@ export interface IEditorFindOptions {
 	 * Controls how the replace widget search history should be stored
 	 */
 	replaceHistory?: 'never' | 'workspace';
+	/**
+	 * @internal
+	 * Controls the ordering of find history items
+	 */
+	historyOrder?: 'chronological' | 'mostRecentlyUsed';
 }
 
 /**
@@ -1773,6 +1778,7 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 			loop: true,
 			history: 'workspace',
 			replaceHistory: 'workspace',
+			historyOrder: 'chronological',
 		};
 		super(
 			EditorOption.find, 'find', defaults,
@@ -1845,6 +1851,16 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 					default: defaults.findOnType,
 					description: nls.localize('find.findOnType', "Controls whether the Find Widget should search as you type.")
 				},
+				'editor.find.historyOrder': {
+					type: 'string',
+					enum: ['chronological', 'mostRecentlyUsed'],
+					default: defaults.historyOrder,
+					enumDescriptions: [
+						nls.localize('editor.find.historyOrder.chronological', 'Maintain chronological order of search history.'),
+						nls.localize('editor.find.historyOrder.mostRecentlyUsed', 'Move recently used search terms to the top of history.'),
+					],
+					description: nls.localize('find.historyOrder', "Controls the ordering of find history items.")
+				},
 			}
 		);
 	}
@@ -1868,6 +1884,7 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 			loop: boolean(input.loop, this.defaultValue.loop),
 			history: stringSet<'never' | 'workspace'>(input.history, this.defaultValue.history, ['never', 'workspace']),
 			replaceHistory: stringSet<'never' | 'workspace'>(input.replaceHistory, this.defaultValue.replaceHistory, ['never', 'workspace']),
+			historyOrder: stringSet<'chronological' | 'mostRecentlyUsed'>(input.historyOrder, this.defaultValue.historyOrder, ['chronological', 'mostRecentlyUsed']),
 		};
 	}
 }
