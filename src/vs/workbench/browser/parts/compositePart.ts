@@ -42,7 +42,7 @@ export interface ICompositeTitleLabel {
 	/**
 	 * Asks to update the title for the composite with the given ID.
 	 */
-	updateTitle(id: string, title: string, keybinding?: string): void;
+	updateTitle(id: string | undefined, title: string, keybinding?: string): void;
 
 	/**
 	 * Called when theming information changes.
@@ -429,7 +429,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		return {
 			updateTitle: (id, title, keybinding) => {
 				// The title label is shared for all composites in the base CompositePart
-				if (!this.activeComposite || this.activeComposite.getId() === id) {
+				if (this.activeComposite?.getId() === id) {
 					titleLabel.textContent = title;
 					hover.update(keybinding ? localize('titleTooltip', "{0} ({1})", title, keybinding) : title);
 				}
