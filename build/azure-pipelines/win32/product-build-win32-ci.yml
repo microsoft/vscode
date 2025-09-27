@@ -36,7 +36,7 @@ jobs:
           isProduction: false
           condition: succeededOrFailed()
     steps:
-      - template: product-build-win32-compile.yml@self
+      - template: ./steps/product-build-win32-compile.yml@self
         parameters:
           VSCODE_ARCH: x64
           VSCODE_CIBUILD: ${{ parameters.VSCODE_CIBUILD }}

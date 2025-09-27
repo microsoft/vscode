@@ -14,6 +14,7 @@ import { PromptHoverProvider } from './languageProviders/promptHovers.js';
 import { PromptHeaderDefinitionProvider } from './languageProviders/PromptHeaderDefinitionProvider.js';
 import { PromptValidatorContribution } from './service/promptValidator.js';
 import { PromptDocumentSemanticTokensProvider } from './languageProviders/promptDocumentSemanticTokensProvider.js';
+import { PromptCodeActionProvider } from './languageProviders/promptCodeActions.js';
 
 
 /**
@@ -31,6 +32,7 @@ export function registerPromptFileContributions(): void {
 	registerContribution(PromptHoverProvider);
 	registerContribution(PromptHeaderDefinitionProvider);
 	registerContribution(PromptDocumentSemanticTokensProvider);
+	registerContribution(PromptCodeActionProvider);
 	registerContribution(ConfigMigration);
 }
 
