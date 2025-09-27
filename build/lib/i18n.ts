@@ -44,11 +44,12 @@ export const defaultLanguages: Language[] = [
 	{ id: 'it', folderName: 'ita' }
 ];
 
-// languages requested by the community to non-stable builds
+// languages requested by the community
 export const extraLanguages: Language[] = [
 	{ id: 'pt-br', folderName: 'ptb' },
-	{ id: 'hu', folderName: 'hun' },
-	{ id: 'tr', folderName: 'trk' }
+	{ id: 'tr', folderName: 'trk' },
+	{ id: 'cs' },
+	{ id: 'pl' }
 ];
 
 interface Item {
