@@ -95,8 +95,8 @@ export interface IViewModel extends ICursorSimpleModel, ISimpleModel {
 	setPrevEditOperationType(type: EditOperationType): void;
 	revealAllCursors(source: string | null | undefined, revealHorizontal: boolean, minimalReveal?: boolean): void;
 	revealPrimaryCursor(source: string | null | undefined, revealHorizontal: boolean, minimalReveal?: boolean): void;
-	revealTopMostCursor(source: string | null | undefined): void;
-	revealBottomMostCursor(source: string | null | undefined): void;
+	revealTheTopMostCursor(source: string | null | undefined, revealHorizontal?: boolean): void;
+	revealTheBottomMostCursor(source: string | null | undefined, revealHorizontal?: boolean): void;
 	revealRange(source: string | null | undefined, revealHorizontal: boolean, viewRange: Range, verticalType: VerticalRevealType, scrollType: ScrollType): void;
 	//#endregion
 
