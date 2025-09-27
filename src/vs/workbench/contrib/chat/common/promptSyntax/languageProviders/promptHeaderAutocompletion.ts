@@ -222,7 +222,7 @@ export class PromptHeaderAutocompletion extends Disposable implements Completion
 		}
 		const getSuggestions = (toolRange: Range) => {
 			const suggestions: CompletionItem[] = [];
-			const addSuggestion = (toolName: string, toolRange: Range) => {
+			for (const toolName of this.languageModelToolsService.getQualifiedToolNames()) {
 				let insertText: string;
 				if (!toolRange.isEmpty()) {
 					const firstChar = model.getValueInRange(toolRange).charCodeAt(0);
@@ -237,14 +237,6 @@ export class PromptHeaderAutocompletion extends Disposable implements Completion
 					insertText: insertText,
 					range: toolRange,
 				});
-			};
-			for (const tool of this.languageModelToolsService.getTools()) {
-				if (tool.canBeReferencedInPrompt) {
-					addSuggestion(tool.toolReferenceName ?? tool.displayName, toolRange);
-				}
-			}
-			for (const toolSet of this.languageModelToolsService.toolSets.get()) {
-				addSuggestion(toolSet.referenceName, toolRange);
 			}
 			return { suggestions };
 		};

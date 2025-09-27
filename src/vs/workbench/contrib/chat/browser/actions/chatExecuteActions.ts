@@ -711,7 +711,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 		// Execute the remote command
 		const result: Omit<IChatPullRequestContent, 'kind'> | string | undefined = await commandService.executeCommand(agent.command, {
 			userPrompt,
-			summary: summary || userPrompt,
+			summary,
 			_version: 2, // Signal that we support the new response format
 		});
 
