@@ -1,0 +1,12 @@
+<html lang="en">
+	<body>
+		<div id="root"></div>
+		<script type="module">
+			import './style.css';
+			import { editor } from "../../../src/vs/editor/editor.main";
+
+			const root = document.getElementById("root");
+			const d = editor.create(root, { automaticLayout: true });
+		</script>
+	</body>
+</html>
