@@ -2940,6 +2940,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 			width: 100%;
 			border: none;
 			outline: none;
+			padding-left: 10px;
 
 			&:hover {
 				background: var(--vscode-toolbar-hoverBackground);
@@ -2991,6 +2992,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 		&.finished:not(.collapsed) .chat-used-context-list.chat-thinking-collapsible {
 			display: block;
+		}
+
+		&.finished .chat-thinking-fixed-header .codicon-pass-filled {
+			display: none;
 		}
 	}
 
