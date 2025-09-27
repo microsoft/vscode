@@ -402,8 +402,8 @@ export const ACTIVITY_BAR_FOREGROUND = registerColor('activityBar.foreground', {
 }, localize('activityBarForeground', "Activity bar item foreground color when it is active. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
 export const ACTIVITY_BAR_INACTIVE_FOREGROUND = registerColor('activityBar.inactiveForeground', {
-	dark: transparent(ACTIVITY_BAR_FOREGROUND, 0.4),
-	light: transparent(ACTIVITY_BAR_FOREGROUND, 0.4),
+	dark: transparent(ACTIVITY_BAR_FOREGROUND, 0.5),
+	light: transparent(ACTIVITY_BAR_FOREGROUND, 0.5),
 	hcDark: Color.white,
 	hcLight: editorForeground
 }, localize('activityBarInActiveForeground', "Activity bar item foreground color when it is inactive. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
