@@ -852,6 +852,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// Unlock coding agent when clearing
 		this.unlockFromCodingAgent();
 		this._onDidClear.fire();
+		this.chatTodoListWidget.clear(this.viewModel?.sessionId, true);
 	}
 
 	private onDidChangeItems(skipDynamicLayout?: boolean) {
@@ -2059,8 +2060,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			if (e.kind === 'setAgent') {
 				this._onDidChangeAgent.fire({ agent: e.agent, slashCommand: e.command });
 			}
-			if (e.kind === 'addRequest') {
-				this.chatTodoListWidget.clear(model.sessionId);
+			if (e.kind === 'addRequest' || e.kind === 'removeRequest') {
+				this.chatTodoListWidget.clear(model.sessionId, e.kind === 'removeRequest' /*force*/);
 			}
 		}));
 
