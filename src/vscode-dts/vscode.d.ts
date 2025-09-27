@@ -4464,6 +4464,12 @@ declare module 'vscode' {
 	 * semantic tokens.
 	 */
 	export interface DocumentRangeSemanticTokensProvider {
+
+		/**
+		 * An optional event to signal that the semantic tokens from this provider have changed.
+		 */
+		onDidChangeSemanticTokens?: Event<void>;
+
 		/**
 		 * @see {@link DocumentSemanticTokensProvider.provideDocumentSemanticTokens provideDocumentSemanticTokens}.
 		 */

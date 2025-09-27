@@ -2387,6 +2387,7 @@ export interface DocumentSemanticTokensProvider {
 }
 
 export interface DocumentRangeSemanticTokensProvider {
+	onDidChange?: Event<void>;
 	getLegend(): SemanticTokensLegend;
 	provideDocumentRangeSemanticTokens(model: model.ITextModel, range: Range, token: CancellationToken): ProviderResult<SemanticTokens>;
 }
