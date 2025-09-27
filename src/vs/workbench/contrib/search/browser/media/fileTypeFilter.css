@@ -1,0 +1,84 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .search-view .file-type-filter {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	margin: 6px 0;
+	padding: 6px 0;
+	border-bottom: 1px solid var(--vscode-widget-border);
+}
+
+.monaco-workbench .search-view .file-type-filter-label {
+	font-size: 12px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+	min-width: 70px;
+	user-select: none;
+}
+
+.monaco-workbench .search-view .file-type-filter .dropdown {
+	min-width: 180px;
+}
+
+.monaco-workbench .search-view .file-type-filter .dropdown .dropdown-label {
+	padding: 6px 12px;
+	border: 1px solid var(--vscode-dropdown-border);
+	border-radius: 3px;
+	background: var(--vscode-dropdown-background);
+	color: var(--vscode-dropdown-foreground);
+	font-size: 13px;
+	cursor: pointer;
+	height: 28px;
+	line-height: 16px;
+	display: flex;
+	align-items: center;
+}
+
+.monaco-workbench .search-view .file-type-filter .dropdown .dropdown-label:hover {
+	background: var(--vscode-dropdown-background);
+}
+
+.monaco-workbench .search-view .file-type-filter .dropdown .dropdown-label:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+/* Hide file type filter when disabled */
+.monaco-workbench .search-view .file-type-filter[style*="display: none"] {
+	display: none !important;
+}
+
+/* Integration with existing search widget styles */
+.monaco-workbench .search-view .search-widgets-container .file-type-filter {
+	order: 1; /* Place after search input but before query details */
+}
+
+.monaco-workbench .search-view .search-widgets-container .query-details {
+	order: 2;
+}
+
+/* Make the select box more prominent */
+.monaco-workbench .search-view .file-type-filter .monaco-select-box {
+	min-height: 28px;
+	font-size: 13px;
+}
+
+.monaco-workbench .search-view .file-type-filter .monaco-select-box .select-box-label {
+	padding: 6px 12px;
+	height: 28px;
+	line-height: 16px;
+	display: flex;
+	align-items: center;
+}
+
+.monaco-workbench .search-view .file-type-filter .monaco-select-box .select-box-arrow {
+	height: 28px;
+	width: 20px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
