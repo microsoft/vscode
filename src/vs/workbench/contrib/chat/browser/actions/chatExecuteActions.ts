@@ -608,13 +608,13 @@ export class CreateRemoteAgentJobAction extends Action2 {
 					id: MenuId.ChatExecute,
 					group: 'navigation',
 					order: 3.4,
-					when: ContextKeyExpr.and(ChatContextKeys.hasRemoteCodingAgent, ChatContextKeys.lockedToCodingAgent.negate()),
+					when: ContextKeyExpr.and(ChatContextKeys.hasRemoteCodingAgent, ChatContextKeys.lockedToCodingAgent.negate(), ChatContextKeys.delegateToCodingAgentInSecondaryMenu.negate()),
 				},
 				{
 					id: MenuId.ChatExecuteSecondary,
 					group: 'group_3',
 					order: 1,
-					when: ContextKeyExpr.and(ChatContextKeys.hasRemoteCodingAgent, ChatContextKeys.lockedToCodingAgent.negate()),
+					when: ContextKeyExpr.and(ChatContextKeys.hasRemoteCodingAgent, ChatContextKeys.lockedToCodingAgent.negate(), ChatContextKeys.delegateToCodingAgentInSecondaryMenu),
 				}
 			]
 		});
