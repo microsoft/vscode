@@ -924,7 +924,7 @@ export function registerChatActions() {
 						const contextItem = context.item as ICodingAgentPickerItem;
 						commandService.executeCommand(buttonItem.id, {
 							uri: contextItem.uri,
-							session: contextItem.session?.session,
+							session: contextItem.session,
 							$mid: MarshalledId.ChatSessionContext
 						});
 
@@ -1045,7 +1045,11 @@ export function registerChatActions() {
 		private async showChatSessionInEditor(providerType: string, session: IChatSessionItem, editorService: IEditorService) {
 			// Open the chat editor
 			await editorService.openEditor({
-				resource: ChatSessionUri.forSession(providerType, session.id),
+				resource: ChatSessionUri.forSession({
+					chatSessionType: providerType,
+					sessionId: session.id,
+					metadata: session.metadata
+				}),
 				options: {} satisfies IChatEditorOptions
 			});
 		}

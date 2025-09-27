@@ -22,7 +22,7 @@ import { ChatEditorInput } from '../browser/chatEditorInput.js';
 import { IChatAgentData, IChatAgentRequest, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { ChatSession, ChatSessionStatus, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionsExtensionPoint, IChatSessionsService } from '../common/chatSessionsService.js';
-import { ChatSessionUri } from '../common/chatUri.js';
+import { ChatSessionIdentifier, ChatSessionUri } from '../common/chatUri.js';
 import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { CHAT_CATEGORY } from './actions/chatActions.js';
 import { IChatEditorOptions } from './chatEditor.js';
@@ -87,13 +87,12 @@ class ContributedChatSessionData implements IDisposable {
 
 	constructor(
 		readonly session: ChatSession,
-		readonly chatSessionType: string,
-		readonly id: string,
+		readonly sessionDescription: ChatSessionIdentifier,
 		private readonly onWillDispose: (session: ChatSession, chatSessionType: string, id: string) => void
 	) {
 		this._disposableStore = new DisposableStore();
 		this._disposableStore.add(this.session.onWillDispose(() => {
-			this.onWillDispose(this.session, this.chatSessionType, this.id);
+			this.onWillDispose(this.session, this.sessionDescription.chatSessionType, this.sessionDescription.sessionId);
 		}));
 	}
 
@@ -276,7 +275,10 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 					};
 					const untitledId = `untitled-${generateUuid()}`;
 					await editorService.openEditor({
-						resource: ChatSessionUri.forSession(type, untitledId),
+						resource: ChatSessionUri.forSession({
+							chatSessionType: type,
+							sessionId: untitledId,
+						}),
 						options,
 					});
 				} catch (e) {
@@ -331,7 +333,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		// Find and dispose all sessions that belong to this contribution
 		const sessionsToDispose: string[] = [];
 		for (const [sessionKey, sessionData] of this._sessions) {
-			if (sessionData.chatSessionType === contributionId) {
+			if (sessionData.sessionDescription.chatSessionType === contributionId) {
 				sessionsToDispose.push(sessionKey);
 			}
 		}
@@ -473,7 +475,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 				// Remove all sessions that were created by this provider
 				for (const [key, session] of this._sessions) {
-					if (session.chatSessionType === chatSessionType) {
+					if (session.sessionDescription.chatSessionType === chatSessionType) {
 						session.dispose();
 						this._sessions.delete(key);
 					}
@@ -511,24 +513,25 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return chatSessionItem;
 	}
 
-	public async provideChatSessionContent(chatSessionType: string, id: string, token: CancellationToken): Promise<ChatSession> {
-		if (!(await this.canResolveContentProvider(chatSessionType))) {
-			throw Error(`Can not find provider for ${chatSessionType}`);
+	public async provideChatSessionContent(chatSessionDescription: ChatSessionIdentifier, token: CancellationToken): Promise<ChatSession> {
+		const { sessionId: id, chatSessionType: type } = chatSessionDescription;
+		if (!(await this.canResolveContentProvider(type))) {
+			throw Error(`Can not find provider for ${type}`);
 		}
 
-		const provider = this._contentProviders.get(chatSessionType);
+		const provider = this._contentProviders.get(type);
 		if (!provider) {
-			throw Error(`Can not find provider for ${chatSessionType}`);
+			throw Error(`Can not find provider for ${type}`);
 		}
 
-		const sessionKey = `${chatSessionType}_${id}`;
+		const sessionKey = `${type}_${id}`;
 		const existingSessionData = this._sessions.get(sessionKey);
 		if (existingSessionData) {
 			return existingSessionData.session;
 		}
 
 		const session = await provider.provideChatSessionContent(id, token);
-		const sessionData = new ContributedChatSessionData(session, chatSessionType, id, this._onWillDisposeSession.bind(this));
+		const sessionData = new ContributedChatSessionData(session, chatSessionDescription, this._onWillDisposeSession.bind(this));
 
 		this._sessions.set(sessionKey, sessionData);
 

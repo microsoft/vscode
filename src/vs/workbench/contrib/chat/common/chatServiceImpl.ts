@@ -36,7 +36,7 @@ import { IChatSessionsService } from './chatSessionsService.js';
 import { ChatSessionStore, IChatTransfer2 } from './chatSessionStore.js';
 import { IChatSlashCommandService } from './chatSlashCommands.js';
 import { IChatTransferService } from './chatTransferService.js';
-import { ChatSessionUri } from './chatUri.js';
+import { ChatSessionIdentifier, ChatSessionUri } from './chatUri.js';
 import { IChatRequestVariableEntry } from './chatVariableEntries.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from './constants.js';
 import { ChatMessageRole, IChatMessage } from './languageModels.js';
@@ -73,7 +73,7 @@ export class ChatService extends Disposable implements IChatService {
 
 	private readonly _sessionModels = new ObservableMap<string, ChatModel>();
 	private readonly _contentProviderSessionModels = new Map<string, Map<string, { readonly model: IChatModel; readonly disposables: DisposableStore }>>();
-	private readonly _modelToExternalSession = new Map<string /* internal model sessionId */, { chatSessionType: string; chatSessionId: string }>();
+	private readonly _modelToExternalSession = new Map<string /* internal model sessionId */, ChatSessionIdentifier>();
 	private readonly _pendingRequests = this._register(new DisposableMap<string, CancellableRequest>());
 	private _persistedSessions: ISerializableChatsData;
 
@@ -469,11 +469,11 @@ export class ChatService extends Disposable implements IChatService {
 		}
 
 		const chatSessionType = parsed.chatSessionType;
-		const content = await this.chatSessionService.provideChatSessionContent(chatSessionType, parsed.sessionId, CancellationToken.None);
+		const content = await this.chatSessionService.provideChatSessionContent(parsed, CancellationToken.None);
 
 		const model = this._startSession(undefined, location, true, CancellationToken.None, chatSessionType);
 		// Record mapping from internal model session id to external contributed chat session identity
-		this._modelToExternalSession.set(model.sessionId, { chatSessionType, chatSessionId: parsed.sessionId });
+		this._modelToExternalSession.set(model.sessionId, parsed);
 		if (!this._contentProviderSessionModels.has(chatSessionType)) {
 			this._contentProviderSessionModels.set(chatSessionType, new Map());
 		}
@@ -578,14 +578,14 @@ export class ChatService extends Disposable implements IChatService {
 		return model;
 	}
 
-	getChatSessionFromInternalId(modelSessionId: string): { chatSessionType: string; chatSessionId: string; isUntitled: boolean } | undefined {
+	getChatSessionFromInternalId(modelSessionId: string): ChatSessionIdentifier & { isUntitled: boolean } | undefined {
 		const data = this._modelToExternalSession.get(modelSessionId);
 		if (!data) {
 			return;
 		}
 		return {
 			...data,
-			isUntitled: data.chatSessionId.startsWith('untitled-'), // TODO(jospicer)
+			isUntitled: data.sessionId.startsWith('untitled-'), // TODO(jospicer)
 		};
 	}
 

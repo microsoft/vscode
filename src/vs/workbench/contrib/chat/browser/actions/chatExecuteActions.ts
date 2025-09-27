@@ -685,7 +685,11 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			preferredTitle: newChatSession.label,
 		};
 		await editorService.openEditor({
-			resource: ChatSessionUri.forSession(type, newChatSession.id),
+			resource: ChatSessionUri.forSession({
+				chatSessionType: type,
+				sessionId: newChatSession.id,
+				metadata: newChatSession.metadata
+			}),
 			options,
 		});
 
