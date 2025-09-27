@@ -9,6 +9,7 @@ import path from 'path';
 import byline from 'byline';
 import { rgPath } from '@vscode/ripgrep';
 import Parser from 'tree-sitter';
+import { getDate } from './util';
 const { typescript } = require('tree-sitter-typescript');
 const product = require('../../product.json');
 const packageJson = require('../../package.json');
@@ -849,7 +850,7 @@ function renderProfileManifest(appName: string, bundleIdentifier: string, _versi
     <key>pfm_interaction</key>
     <string>combined</string>
     <key>pfm_last_modified</key>
-    <date>${new Date().toISOString().replace(/\.\d+Z$/, 'Z')}</date>
+    <date>${getDate().toISOString().replace(/\.\d+Z$/, 'Z')}</date>
     <key>pfm_platforms</key>
     <array>
         <string>macOS</string>

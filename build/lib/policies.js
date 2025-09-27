@@ -13,6 +13,7 @@ const path_1 = __importDefault(require("path"));
 const byline_1 = __importDefault(require("byline"));
 const ripgrep_1 = require("@vscode/ripgrep");
 const tree_sitter_1 = __importDefault(require("tree-sitter"));
+const util_1 = require("./util");
 const { typescript } = require('tree-sitter-typescript');
 const product = require('../../product.json');
 const packageJson = require('../../package.json');
@@ -642,7 +643,7 @@ function renderProfileManifest(appName, bundleIdentifier, _versions, _categories
     <key>pfm_interaction</key>
     <string>combined</string>
     <key>pfm_last_modified</key>
-    <date>${new Date().toISOString().replace(/\.\d+Z$/, 'Z')}</date>
+    <date>${(0, util_1.getDate)().toISOString().replace(/\.\d+Z$/, 'Z')}</date>
     <key>pfm_platforms</key>
     <array>
         <string>macOS</string>
