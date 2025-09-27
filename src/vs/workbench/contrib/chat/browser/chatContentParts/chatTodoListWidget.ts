@@ -360,28 +360,8 @@ export class ChatTodoListWidget extends Disposable {
 		let title = progressText.textContent || '';
 		if (!this._isExpanded) {
 			let currentTodo: IChatTodo | undefined;
-
-			if (!firstInProgressTodo) {
-				if (completedCount > 0 && completedCount < totalCount && lastCompletedTodo) {
-					currentTodo = lastCompletedTodo;
-					// Add separator
-					const separator = dom.$('span');
-					separator.textContent = ' - ';
-					titleElement.appendChild(separator);
-
-					const icon = dom.$('.codicon.codicon-check');
-					icon.style.color = 'var(--vscode-charts-green)';
-					icon.style.marginRight = '4px';
-					icon.style.verticalAlign = 'middle';
-					titleElement.appendChild(icon);
-
-					// Add completed todo title
-					const completedText = dom.$('span');
-					completedText.textContent = lastCompletedTodo.title;
-					completedText.style.verticalAlign = 'middle';
-					titleElement.appendChild(completedText);
-				}
-			} else {
+			// Priority 1: Show first in-progress todo (matches manageTodoListTool logic)
+			if (firstInProgressTodo) {
 				currentTodo = firstInProgressTodo;
 				const separator = dom.$('span');
 				separator.textContent = ' - ';
@@ -397,6 +377,25 @@ export class ChatTodoListWidget extends Disposable {
 				inProgressText.textContent = firstInProgressTodo.title;
 				inProgressText.style.verticalAlign = 'middle';
 				titleElement.appendChild(inProgressText);
+			}
+			// Priority 2: Show last completed todo if not all completed (matches manageTodoListTool logic)
+			else if (completedCount > 0 && completedCount < totalCount && lastCompletedTodo) {
+				currentTodo = lastCompletedTodo;
+
+				const separator = dom.$('span');
+				separator.textContent = ' - ';
+				titleElement.appendChild(separator);
+
+				const icon = dom.$('.codicon.codicon-check');
+				icon.style.color = 'var(--vscode-charts-green)';
+				icon.style.marginRight = '4px';
+				icon.style.verticalAlign = 'middle';
+				titleElement.appendChild(icon);
+
+				const completedText = dom.$('span');
+				completedText.textContent = lastCompletedTodo.title;
+				completedText.style.verticalAlign = 'middle';
+				titleElement.appendChild(completedText);
 			}
 			if (currentTodo && currentTodo.description && currentTodo.description.trim()) {
 				title = currentTodo.description;
