@@ -14,6 +14,7 @@ export interface IUpdate {
 	timestamp?: number;
 	url?: string;
 	sha256hash?: string;
+	manualInstructions?: string;
 }
 
 /**

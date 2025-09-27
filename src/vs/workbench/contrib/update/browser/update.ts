@@ -17,7 +17,7 @@ import { INotificationService, NotificationPriority, Severity } from '../../../.
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../../services/environment/browser/environmentService.js';
 import { ReleaseNotesManager } from './releaseNotesEditor.js';
-import { isMacintosh, isWeb, isWindows } from '../../../../base/common/platform.js';
+import { isLinux, isMacintosh, isWeb, isWindows } from '../../../../base/common/platform.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { RawContextKey, IContextKey, IContextKeyService, ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { MenuRegistry, MenuId, registerAction2, Action2 } from '../../../../platform/actions/common/actions.js';
@@ -339,7 +339,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 
 	// windows fast updates
 	private onUpdateDownloaded(update: IUpdate): void {
-		if (isMacintosh) {
+		if (isMacintosh || isLinux) {
 			return;
 		}
 		if (this.configurationService.getValue('update.enableWindowsBackgroundUpdates') && this.productService.target === 'user') {
@@ -374,18 +374,34 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 	// windows and mac
 	private async onUpdateReady(update: IUpdate): Promise<void> {
 		const productVersion = update.productVersion ?? update.version;
+		const manualInstructions = update.manualInstructions;
 		const bypassThrottle = isMacintosh || (isWindows && this.productService.target !== 'user');
 		if (!bypassThrottle && !this.shouldShowNotification(productVersion)) {
 			return;
 		}
 		const restartLabel = isMacintosh ? nls.localize('restartNow', "Restart Now") : nls.localize('updateNow', "Update Now");
-		const message = isMacintosh
+		const message = manualInstructions && isLinux
 			? (productVersion
-				? nls.localize('erdosRestartToUpdate', "Erdos {0} is ready. Restart to finish installing the update.", productVersion)
-				: nls.localize('erdosRestartToUpdateNoVersion', "An Erdos update is ready. Restart to finish installing it."))
-			: nls.localize('updateAvailableAfterRestart', "Restart {0} to apply the latest update.", this.productService.nameLong);
+				? nls.localize('erdosRestartToUpdateManual', "Erdos {0} is ready, but the running AppImage cannot be updated automatically. Restart to launch the new build, or follow the instructions below.", productVersion)
+				: nls.localize('erdosRestartToUpdateManualNoVersion', "An Erdos update is ready, but the running AppImage cannot be updated automatically. Restart to launch the new build, or follow the instructions below."))
+			: (isMacintosh
+				? (productVersion
+					? nls.localize('erdosRestartToUpdate', "Erdos {0} is ready. Restart to finish installing the update.", productVersion)
+					: nls.localize('erdosRestartToUpdateNoVersion', "An Erdos update is ready. Restart to finish installing it."))
+				: nls.localize('updateAvailableAfterRestart', "Restart {0} to apply the latest update.", this.productService.nameLong));
 
 		const releaseNotes = await this.fetchReleaseNotes(productVersion);
+		const markdownDetails = [] as { markdown: MarkdownString }[];
+
+		if (manualInstructions) {
+			const instructions = new MarkdownString();
+			instructions.appendText(manualInstructions);
+			markdownDetails.push({ markdown: instructions });
+		}
+
+		if (releaseNotes) {
+			markdownDetails.push({ markdown: releaseNotes });
+		}
 
 		await this.dialogService.prompt({
 			type: Severity.Info,
@@ -401,7 +417,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 				label: nls.localize('later', "Later"),
 				run: () => false
 			},
-			custom: releaseNotes ? { markdownDetails: [{ markdown: releaseNotes }] } : undefined
+			custom: markdownDetails.length ? { markdownDetails } : undefined
 		});
 	}
 
