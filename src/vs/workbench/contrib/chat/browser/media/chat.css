@@ -567,7 +567,7 @@
 .interactive-item-container .value > .from-sub-agent.chat-tool-invocation-part,
 .interactive-item-container .value > .from-sub-agent.chat-confirmation-widget,
 .interactive-item-container .value > .from-sub-agent.chat-terminal-confirmation-widget {
-	margin-left: 12px;
+	margin-left: 18px;
 }
 
 .interactive-item-container .value > .rendered-markdown li > p {
@@ -1685,6 +1685,20 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	min-height: 86px;
 }
 
+.quick-input-widget .interactive-session .disclaimer {
+	margin: 8px 12px;
+	color: var(--vscode-descriptionForeground);
+	font-size: 12px;
+
+	a {
+		color: var(--vscode-textLink-foreground);
+	}
+
+	p {
+		margin: 0;
+	}
+}
+
 /* #endregion */
 
 .interactive-response-progress-tree .monaco-list-row:not(.selected) .monaco-tl-row:hover {
@@ -2533,6 +2547,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	top: 0;
 	z-index: 2;
 	background-color: var(--vscode-sideBar-background);
+	padding-left: 12px;
+	padding-right: 12px;
 }
 
 /* Special styling when todo widget is used inline in chat responses (subparts) */
@@ -2630,7 +2646,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .chat-todo-list-widget .todo-list-container {
-	padding-left: 10px;
 	margin-top: 2px;
 	max-height: calc(6.5 * 21px);
 	/* 6.5 items to show half-line affordance */
