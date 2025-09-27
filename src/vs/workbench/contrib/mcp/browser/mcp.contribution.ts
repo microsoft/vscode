@@ -16,7 +16,7 @@ import { IConfigurationMigrationRegistry, Extensions as ConfigurationMigrationEx
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { EditorExtensions } from '../../../common/editor.js';
 import { mcpSchemaId } from '../../../services/configuration/common/configuration.js';
-import { ILocalMcpConfigService, LocalMcpConfigService } from '../common/mcpLocalConfigLoader.js';
+import { IMcpLocalConfigReader, McpLocalConfigReader } from '../common/mcpLocalConfigReader.js';
 import { ExtensionMcpDiscovery } from '../common/discovery/extensionMcpDiscovery.js';
 import { InstalledMcpServersDiscovery } from '../common/discovery/installedMcpServersDiscovery.js';
 import { mcpDiscoveryRegistry } from '../common/discovery/mcpDiscovery.js';
@@ -51,7 +51,7 @@ registerSingleton(IMcpWorkbenchService, McpWorkbenchService, InstantiationType.E
 registerSingleton(IMcpDevModeDebugging, McpDevModeDebugging, InstantiationType.Delayed);
 registerSingleton(IMcpSamplingService, McpSamplingService, InstantiationType.Delayed);
 registerSingleton(IMcpElicitationService, McpElicitationService, InstantiationType.Delayed);
-registerSingleton(ILocalMcpConfigService, LocalMcpConfigService, InstantiationType.Eager);
+registerSingleton(IMcpLocalConfigReader, McpLocalConfigReader, InstantiationType.Delayed);
 
 mcpDiscoveryRegistry.register(new SyncDescriptor(RemoteNativeMpcDiscovery));
 mcpDiscoveryRegistry.register(new SyncDescriptor(InstalledMcpServersDiscovery));
