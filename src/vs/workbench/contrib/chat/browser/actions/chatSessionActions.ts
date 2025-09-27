@@ -34,7 +34,7 @@ import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { ChatSessionItemWithProvider, findExistingChatEditorByUri, isLocalChatSessionItem } from '../chatSessions/common.js';
 import { ChatViewPane } from '../chatViewPane.js';
-import { CHAT_CATEGORY } from './chatActions.js';
+import { ACTION_ID_OPEN_CHAT, CHAT_CATEGORY } from './chatActions.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { VIEWLET_ID } from '../chatSessions/view/chatSessionsView.js';
 
@@ -492,7 +492,7 @@ MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, {
 
 MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 	command: {
-		id: 'workbench.action.openChat',
+		id: ACTION_ID_OPEN_CHAT,
 		title: nls.localize2('interactiveSession.open', "New Chat Editor"),
 		icon: Codicon.plus
 	},
