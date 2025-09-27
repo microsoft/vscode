@@ -11031,6 +11031,16 @@ declare module 'vscode' {
 		export const onDidChangeActiveTextEditor: Event<TextEditor | undefined>;
 
 		/**
+		 * Swipe gesture direction.
+		 */
+		export type SwipeGestureDirection = 'left' | 'right' | 'up' | 'down';
+
+		/**
+		 * An {@link Event} which fires when a swipe gesture occurs.
+		 */
+		export const onDidReceiveSwipeGesture: Event<SwipeGestureDirection>;
+
+		/**
 		 * An {@link Event} which fires when the array of {@link window.visibleTextEditors visible editors}
 		 * has changed.
 		 */
