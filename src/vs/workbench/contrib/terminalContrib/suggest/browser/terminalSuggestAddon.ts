@@ -947,6 +947,11 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		// Use for amend the label if inputData is not defined
 		if (resultSequence === undefined) {
 			let completionText = typeof completion.label === 'string' ? completion.label : completion.label.label;
+			
+			// Strip star prefix from IntelliCode starred suggestions when using label as completion text
+			if (completionText.startsWith('★ ')) {
+				completionText = completionText.substring(2); // Remove "★ " prefix
+			}
 			if ((completion.kind === TerminalCompletionItemKind.Folder || completion.isFileOverride) && completionText.includes(' ')) {
 				// Escape spaces in files or folders so they're valid paths
 				completionText = completionText.replaceAll(' ', '\\ ');
