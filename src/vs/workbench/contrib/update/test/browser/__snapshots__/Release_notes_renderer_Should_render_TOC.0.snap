@@ -10,12 +10,12 @@
 <p>text</p>
 </blockquote>
 <div class="toc-nav-layout">
-    
+    <nav id="toc-nav">
         <div>In this update</div>
         <ul>
             <li><a href="#chat">test</a></li>
         </ul>
-    
+    </nav>
     <div class="notes-main">
 
 <h2 id="test">Test</h2>
