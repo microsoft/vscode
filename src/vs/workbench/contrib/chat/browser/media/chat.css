@@ -1685,6 +1685,20 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	min-height: 86px;
 }
 
+.quick-input-widget .interactive-session .disclaimer {
+	margin: 8px 12px;
+	color: var(--vscode-descriptionForeground);
+	font-size: 12px;
+
+	a {
+		color: var(--vscode-textLink-foreground);
+	}
+
+	p {
+		margin: 0;
+	}
+}
+
 /* #endregion */
 
 .interactive-response-progress-tree .monaco-list-row:not(.selected) .monaco-tl-row:hover {
