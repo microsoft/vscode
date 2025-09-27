@@ -69,6 +69,7 @@ export class McpServersListView extends AbstractExtensionsListView<IWorkbenchMcp
 	private welcomeContainer: HTMLElement | null = null;
 	private readonly contextMenuActionRunner = this._register(new ActionRunner());
 	private input: IQueryResult | undefined;
+	private currentQueryPromise: Promise<IQueryResult> | undefined;
 
 	constructor(
 		private readonly mpcViewOptions: McpServerListViewOptions,
@@ -88,6 +89,15 @@ export class McpServersListView extends AbstractExtensionsListView<IWorkbenchMcp
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
+	}
+
+	override dispose(): void {
+		if (this.input) {
+			this.input.disposables.dispose();
+			this.input = undefined;
+		}
+		this.currentQueryPromise = undefined;
+		super.dispose();
 	}
 
 	protected override renderBody(container: HTMLElement): void {
@@ -186,7 +196,20 @@ export class McpServersListView extends AbstractExtensionsListView<IWorkbenchMcp
 			this.input = undefined;
 		}
 
-		this.input = await this.query(query.trim());
+		// If there's already a query in progress, wait for it to complete
+		// This prevents creating multiple DisposableStores concurrently
+		if (this.currentQueryPromise) {
+			try {
+				const result = await this.currentQueryPromise;
+				result.disposables.dispose();
+			} catch {
+				// Ignore errors from previous query
+			}
+		}
+
+		this.currentQueryPromise = this.query(query.trim());
+		this.input = await this.currentQueryPromise;
+		this.currentQueryPromise = undefined;
 
 		this.input.showWelcomeContent = !!this.mpcViewOptions.showWelcomeOnEmpty && this.mcpGalleryManifestService.mcpGalleryManifestStatus === McpGalleryManifestStatus.Unavailable && this.input.model.length === 0;
 		this.renderInput();
