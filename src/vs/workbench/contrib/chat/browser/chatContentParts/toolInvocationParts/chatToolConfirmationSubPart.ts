@@ -66,6 +66,11 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 	) {
 		super(toolInvocation);
 
+		// Tag for sub-agent styling
+		if (toolInvocation.fromSubAgent) {
+			context.container.classList.add('from-sub-agent');
+		}
+
 		if (!toolInvocation.confirmationMessages) {
 			throw new Error('Confirmation messages are missing');
 		}

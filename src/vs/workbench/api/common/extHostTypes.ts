@@ -3354,6 +3354,7 @@ export class ChatToolInvocationPart {
 	isConfirmed?: boolean;
 	isComplete?: boolean;
 	toolSpecificData?: ChatTerminalToolInvocationData2;
+	fromSubAgent?: boolean;
 
 	constructor(toolName: string,
 		toolCallId: string,

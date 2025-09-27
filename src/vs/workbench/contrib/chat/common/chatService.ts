@@ -351,6 +351,7 @@ export interface IChatToolInvocation {
 	progress: IObservable<{ message?: string | IMarkdownString; progress: number | undefined }>;
 	readonly toolId: string;
 	readonly toolCallId: string;
+	readonly fromSubAgent?: boolean;
 
 	isCompletePromise: Promise<void>;
 	isComplete: boolean;
@@ -382,6 +383,7 @@ export interface IChatToolInvocationSerialized {
 	toolCallId: string;
 	toolId: string;
 	source: ToolDataSource;
+	readonly fromSubAgent?: boolean;
 	kind: 'toolInvocationSerialized';
 }
 

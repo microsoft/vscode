@@ -2803,7 +2803,8 @@ export namespace ChatToolInvocationPart {
 			source: ToolDataSource.External,
 			// isError: part.isError ?? false,
 			toolSpecificData: part.toolSpecificData ? convertToolSpecificData(part.toolSpecificData) : undefined,
-			presentation: undefined
+			presentation: undefined,
+			fromSubAgent: part.fromSubAgent
 		};
 	}
 
@@ -2852,6 +2853,7 @@ export namespace ChatToolInvocationPart {
 		if (part.toolSpecificData) {
 			toolInvocation.toolSpecificData = convertFromInternalToolSpecificData(part.toolSpecificData);
 		}
+		toolInvocation.fromSubAgent = part.fromSubAgent;
 
 		return toolInvocation;
 	}
