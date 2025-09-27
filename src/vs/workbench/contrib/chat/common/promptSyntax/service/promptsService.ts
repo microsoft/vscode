@@ -23,7 +23,7 @@ export const IPromptsService = createDecorator<IPromptsService>('IPromptsService
 /**
  * Where the prompt is stored.
  */
-export type TPromptsStorage = 'local' | 'user';
+export type TPromptsStorage = 'local' | 'user' | 'extension';
 
 /**
  * Represents a prompt path with its type.
@@ -44,6 +44,15 @@ export interface IPromptPath {
 	 * Type of the prompt (e.g. 'prompt' or 'instructions').
 	 */
 	readonly type: PromptsType;
+
+	/**
+	 * Identifier of the contributing extension (only when storage === 'extension').
+	 */
+	readonly extensionId?: string;
+
+	readonly name?: string;
+
+	readonly description?: string;
 }
 
 
@@ -179,6 +188,15 @@ export interface IPromptsService extends IDisposable {
 	 * @param resource the URI of the resource
 	 */
 	getPromptFileType(resource: URI): PromptsType | undefined;
+
+	/**
+	 * Internal: register a contributed file. Returns a disposable that removes the contribution.
+	 * Not intended for extension authors; used by contribution point handler.
+	 */
+	registerContributedFile(type: PromptsType, name: string, description: string, uri: URI, extensionId: string): IDisposable;
+
+
+	getPromptLocationLabel(promptPath: IPromptPath): string;
 }
 
 export interface IChatPromptSlashCommand {

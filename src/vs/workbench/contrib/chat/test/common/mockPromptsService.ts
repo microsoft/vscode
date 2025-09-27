@@ -5,10 +5,12 @@
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../base/common/event.js';
+import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
+import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { ParsedPromptFile } from '../../common/promptSyntax/service/newPromptsParser.js';
-import { ICustomChatMode, IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
+import { ICustomChatMode, IPromptPath, IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 
 export class MockPromptsService implements IPromptsService {
 	_serviceBrand: undefined;
@@ -38,5 +40,8 @@ export class MockPromptsService implements IPromptsService {
 	parseNew(_uri: URI, _token: CancellationToken): Promise<any> { throw new Error('Not implemented'); }
 	getPromptFileType(_resource: URI): any { return undefined; }
 	getParsedPromptFile(textModel: ITextModel): ParsedPromptFile { throw new Error('Not implemented'); }
+	registerContributedFile(type: PromptsType, name: string, description: string, uri: URI, extensionId: string): IDisposable { throw new Error('Not implemented'); }
+	getPromptLocationLabel(promptPath: IPromptPath): string { throw new Error('Not implemented'); }
+
 	dispose(): void { }
 }

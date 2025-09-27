@@ -203,7 +203,7 @@ class SlashCommandCompletions extends Disposable {
 				return {
 					suggestions: promptCommands.map((c, i): CompletionItem => {
 						const label = `/${c.command}`;
-						const description = c.promptPath?.storage === 'user' ? localize('promptFileDescription', 'User Prompt File') : localize('promptFileDescriptionWorkspace', 'Workspace Prompt File');
+						const description = c.promptPath ? this.promptsService.getPromptLocationLabel(c.promptPath) : undefined;
 						return {
 							label: { label, description },
 							insertText: `${label} `,

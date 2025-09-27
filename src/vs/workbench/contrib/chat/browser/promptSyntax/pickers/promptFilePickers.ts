@@ -12,7 +12,6 @@ import { IPromptPath, IPromptsService } from '../../../common/promptSyntax/servi
 import { dirname, extUri, joinPath } from '../../../../../../base/common/resources.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
-import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
@@ -184,7 +183,6 @@ const COPY_BUTTON: IQuickInputButton = Object.freeze({
 
 export class PromptFilePickers {
 	constructor(
-		@ILabelService private readonly _labelService: ILabelService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IFileService private readonly _fileService: IFileService,
@@ -355,13 +353,8 @@ export class PromptFilePickers {
 
 		// if a "user" prompt, don't show its filesystem path in
 		// the user interface, but do that for all the "local" ones
-		const description = (storage === 'user')
-			? localize('user-data-dir.capitalized', 'User data folder')
-			: this._labelService.getUriLabel(dirname(uri), { relative: true });
-
-		const tooltip = (storage === 'user')
-			? description
-			: uri.fsPath;
+		const description = this._promptsService.getPromptLocationLabel(promptFile);
+		const tooltip = (storage !== 'local') ? undefined : uri.fsPath;
 
 		return {
 			id: uri.toString(),

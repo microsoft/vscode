@@ -28,6 +28,7 @@ import { ResourceMap } from '../../../../../../base/common/map.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 import { IChatModeInstructions, IVariableReference } from '../../chatModes.js';
+import { dirname } from '../../../../../../base/common/resources.js';
 
 /**
  * Provides prompt services.
@@ -47,6 +48,15 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 
 	private parsedPromptFileCache = new ResourceMap<[number, ParsedPromptFile]>();
+
+	/**
+	 * Contributed files from extensions keyed by prompt type then name.
+	 */
+	private readonly contributedFiles = {
+		[PromptsType.prompt]: new ResourceMap<IPromptPath>(),
+		[PromptsType.instructions]: new ResourceMap<IPromptPath>(),
+		[PromptsType.mode]: new ResourceMap<IPromptPath>(),
+	};
 
 	/**
 	 * Lazily created event that is fired when the custom chat modes change.
@@ -116,7 +126,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				.then(withType('local', type)),
 		]);
 
-		return prompts.flat();
+		return [...prompts.flat(), ...this.contributedFiles[type].values()];
 	}
 
 	public getSourceFolders(type: PromptsType): readonly IPromptPath[] {
@@ -255,6 +265,28 @@ export class PromptsService extends Disposable implements IPromptsService {
 			throw new CancellationError();
 		}
 		return new NewPromptsParser().parse(uri, fileContent.value.toString());
+	}
+
+	public registerContributedFile(type: PromptsType, name: string, description: string, uri: URI, extensionId: string) {
+		const bucket = this.contributedFiles[type];
+		if (bucket.has(uri)) {
+			// keep first registration per extension (handler filters duplicates per extension already)
+			return Disposable.None;
+		}
+		bucket.set(uri, { uri, name, description, storage: 'extension', type, extensionId });
+		return {
+			dispose: () => {
+				bucket.delete(uri);
+			}
+		};
+	}
+
+	getPromptLocationLabel(promptPath: IPromptPath): string {
+		switch (promptPath.storage) {
+			case 'local': return this.labelService.getUriLabel(dirname(promptPath.uri), { relative: true });
+			case 'user': return localize('user-data-dir.capitalized', 'User Data');
+			case 'extension': return promptPath.extensionId ?? localize('extension', 'Extension');
+		}
 	}
 }
 

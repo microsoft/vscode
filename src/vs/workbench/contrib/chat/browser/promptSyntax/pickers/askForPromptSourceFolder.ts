@@ -54,13 +54,10 @@ export async function askForPromptSourceFolder(
 	const foldersList = folders.map<IFolderQuickPickItem>(folder => {
 		const uri = folder.uri;
 		const detail = (existingFolder && isEqual(uri, existingFolder)) ? localize('current.folder', "Current Location") : undefined;
-		if (folder.storage === 'user') {
+		if (folder.storage !== 'local') {
 			return {
 				type: 'item',
-				label: localize(
-					'commands.prompts.create.source-folder.user',
-					"User Data Folder",
-				),
+				label: promptsService.getPromptLocationLabel(folder),
 				detail,
 				tooltip: labelService.getUriLabel(uri),
 				folder

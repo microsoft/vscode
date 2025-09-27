@@ -49,9 +49,10 @@ export class PromptFilesLocator extends Disposable {
 	public async listFiles(type: PromptsType, storage: TPromptsStorage, token: CancellationToken): Promise<readonly URI[]> {
 		if (storage === 'local') {
 			return await this.listFilesInLocal(type, token);
-		} else {
+		} else if (storage === 'user') {
 			return await this.listFilesInUserData(type, token);
 		}
+		throw new Error(`Unsupported prompt file storage: ${storage}`);
 	}
 
 	private async listFilesInUserData(type: PromptsType, token: CancellationToken): Promise<readonly URI[]> {
