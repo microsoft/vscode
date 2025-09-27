@@ -27,6 +27,10 @@ There are many ways in which you can participate in this project, for example:
 * Review [source code changes](https://github.com/microsoft/vscode/pulls)
 * Review the [documentation](https://github.com/microsoft/vscode-docs) and make pull requests for anything from typos to additional and new content
 
+## MCP Discovery Configuration Override
+
+VS Code now supports local configuration overrides for the MCP (Model Context Protocol) discovery service. This allows developers to override server-pushed settings using a local `cline_mcp_settings.json` file. See [docs/mcp-local-config-override.md](docs/mcp-local-config-override.md) for detailed information.
+
 If you are interested in fixing issues and contributing directly to the code base,
 please see the document [How to Contribute](https://github.com/microsoft/vscode/wiki/How-to-Contribute), which covers the following:
 

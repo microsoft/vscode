@@ -1,0 +1,9 @@
+{
+  "mcp_discovery": {
+    "enabled": true,
+    "hostname": "staging-discovery.example.com",
+    "port": 443,
+    "use_tls": true,
+    "timeout_ms": 5000
+  }
+}

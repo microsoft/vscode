@@ -453,7 +453,7 @@ configurationRegistry.registerConfiguration({
 			properties: Object.fromEntries(allDiscoverySources.map(k => [k, { type: 'boolean', description: discoverySourceSettingsLabel[k] }])),
 			additionalProperties: false,
 			default: Object.fromEntries(allDiscoverySources.map(k => [k, false])),
-			markdownDescription: nls.localize('mcp.discovery.enabled', "Configures discovery of Model Context Protocol servers from configuration from various other applications."),
+			markdownDescription: nls.localize('mcp.discovery.enabled', "Configures discovery of Model Context Protocol servers from configuration from various other applications. Note: Local overrides via cline_mcp_settings.json take precedence over these settings."),
 		},
 		[mcpGalleryServiceUrlConfig]: {
 			type: 'string',

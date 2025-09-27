@@ -11,6 +11,8 @@ import { mcpAccessConfig, McpAccessValue } from '../../../../platform/mcp/common
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { mcpDiscoveryRegistry } from '../common/discovery/mcpDiscovery.js';
+import { ILocalMcpConfigService } from '../common/mcpLocalConfigLoader.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 
 export class McpDiscovery extends Disposable implements IWorkbenchContribution {
 	public static readonly ID = 'workbench.contrib.mcp.discovery';
@@ -18,6 +20,8 @@ export class McpDiscovery extends Disposable implements IWorkbenchContribution {
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@ILocalMcpConfigService private readonly localConfigService: ILocalMcpConfigService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
@@ -26,18 +30,40 @@ export class McpDiscovery extends Disposable implements IWorkbenchContribution {
 
 		this._register(autorun(reader => {
 			store.clear();
-			const value = mcpAccessValue.read(reader);
-			if (value === McpAccessValue.None) {
-				return;
-			}
-			for (const descriptor of mcpDiscoveryRegistry.getAll()) {
-				const mcpDiscovery = instantiationService.createInstance(descriptor);
-				if (value === McpAccessValue.Registry && !mcpDiscovery.fromGallery) {
-					mcpDiscovery.dispose();
-					continue;
+			
+			// Check for local overrides first
+			const localOverrides = this.localConfigService.getDiscoveryConfig();
+			if (localOverrides) {
+				this.logService.info('Initializing Discovery Service with local overrides.');
+				if (localOverrides.enabled === false) {
+					this.logService.info('Discovery service disabled by local override.');
+					return;
 				}
-				store.add(mcpDiscovery);
-				mcpDiscovery.start();
+				// If enabled is true or undefined, continue with discovery
+				if (localOverrides.enabled === true || localOverrides.enabled === undefined) {
+					for (const descriptor of mcpDiscoveryRegistry.getAll()) {
+						const mcpDiscovery = instantiationService.createInstance(descriptor);
+						store.add(mcpDiscovery);
+						mcpDiscovery.start();
+					}
+					return;
+				}
+			} else {
+				// Fallback to existing server configuration logic
+				this.logService.info('No local overrides found. Initializing with server configuration.');
+				const value = mcpAccessValue.read(reader);
+				if (value === McpAccessValue.None) {
+					return;
+				}
+				for (const descriptor of mcpDiscoveryRegistry.getAll()) {
+					const mcpDiscovery = instantiationService.createInstance(descriptor);
+					if (value === McpAccessValue.Registry && !mcpDiscovery.fromGallery) {
+						mcpDiscovery.dispose();
+						continue;
+					}
+					store.add(mcpDiscovery);
+					mcpDiscovery.start();
+				}
 			}
 		}));
 	}
