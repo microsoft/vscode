@@ -27,6 +27,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { TokenizerSyntaxTokenBackend } from './tokenizerSyntaxTokenBackend.js';
 import { ITreeSitterLibraryService } from '../../services/treeSitter/treeSitterLibraryService.js';
 import { derived, IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
+import { ILineVariableFontInfo } from '../../languages.js';
 
 export class TokenizationTextModelPart extends TextModelPart implements ITokenizationTextModelPart {
 	private readonly _semanticTokens: SparseTokensStore;
@@ -39,6 +40,9 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 
 	private readonly _onDidChangeTokens: Emitter<IModelTokensChangedEvent>;
 	public readonly onDidChangeTokens: Event<IModelTokensChangedEvent>;
+
+	private readonly _onDidChangeFontInfo: Emitter<ILineVariableFontInfo[]> = this._register(new Emitter<ILineVariableFontInfo[]>());
+	public readonly onDidChangeFontInfo: Event<ILineVariableFontInfo[]> = this._onDidChangeFontInfo.event;
 
 	public readonly tokens: IObservable<AbstractSyntaxTokenBackend>;
 	private readonly _useTreeSitter: IObservable<boolean>;
@@ -80,6 +84,9 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 			reader.store.add(tokens.onDidChangeTokens(e => {
 				this._emitModelTokensChangedEvent(e);
 			}));
+			reader.store.add(tokens.onDidChangeFontInfo(e => {
+				this._onDidChangeFontInfo.fire(e);
+			}));
 
 			reader.store.add(tokens.onDidChangeBackgroundTokenizationState(e => {
 				this._bracketPairsTextModelPart.handleDidChangeBackgroundTokenizationState();
@@ -104,12 +111,15 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 		this.onDidChangeLanguageConfiguration = this._onDidChangeLanguageConfiguration.event;
 		this._onDidChangeTokens = this._register(new Emitter<IModelTokensChangedEvent>());
 		this.onDidChangeTokens = this._onDidChangeTokens.event;
+		this._onDidChangeFontInfo = this._register(new Emitter<ILineVariableFontInfo[]>());
+		this.onDidChangeFontInfo = this._onDidChangeFontInfo.event;
 	}
 
 	_hasListeners(): boolean {
 		return (this._onDidChangeLanguage.hasListeners()
 			|| this._onDidChangeLanguageConfiguration.hasListeners()
-			|| this._onDidChangeTokens.hasListeners());
+			|| this._onDidChangeTokens.hasListeners())
+			|| this._onDidChangeFontInfo.hasListeners();
 	}
 
 	public handleLanguageConfigurationServiceChange(e: LanguageConfigurationServiceChangeEvent): void {
