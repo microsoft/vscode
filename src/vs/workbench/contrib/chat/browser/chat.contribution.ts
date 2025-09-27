@@ -308,7 +308,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.EmptyStateHistoryEnabled]: {
 			type: 'boolean',
-			default: true,
+			default: product.quality === 'insiders',
 			description: nls.localize('chat.emptyState.history.enabled', "Show recent chat history on the empty chat state."),
 			tags: ['experimental']
 		},
