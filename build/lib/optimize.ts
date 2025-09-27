@@ -152,9 +152,17 @@ function bundleESMTask(opts: IBundleESMTaskOpts): NodeJS.ReadWriteStream {
 						sourceMapFile = res.outputFiles.find(f => f.path === `${file.path}.map`);
 					}
 
+					let sourceMap = sourceMapFile ? JSON.parse(sourceMapFile.text) : undefined;
+
+					if (sourceMap && sourceMap.sources) {
+						sourceMap.sources = sourceMap.sources.map(src =>
+							src.replace(/^file:\/\/\//, '')         // Remove file:///
+								.replace(/^.*?\/src\//, 'vs/')       // Replace long /src/... path with vs/
+						);
+					}
 					const fileProps = {
 						contents: Buffer.from(file.contents),
-						sourceMap: sourceMapFile ? JSON.parse(sourceMapFile.text) : undefined, // support gulp-sourcemaps
+						sourceMap: sourceMap,
 						path: file.path,
 						base: path.join(REPO_ROOT_PATH, opts.src)
 					};
