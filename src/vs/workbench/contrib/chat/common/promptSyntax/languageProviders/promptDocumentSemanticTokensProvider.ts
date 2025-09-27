@@ -4,14 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { DocumentSemanticTokensProvider, ProviderResult, SemanticTokens, SemanticTokensLegend } from '../../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
-import { ILanguageFeaturesService } from '../../../../../../editor/common/services/languageFeatures.js';
-import { ALL_PROMPTS_LANGUAGE_SELECTOR, getPromptsTypeForLanguageId } from '../promptTypes.js';
+import { getPromptsTypeForLanguageId } from '../promptTypes.js';
 import { IPromptsService } from '../service/promptsService.js';
 
-export class PromptDocumentSemanticTokensProvider extends Disposable implements DocumentSemanticTokensProvider {
+export class PromptDocumentSemanticTokensProvider implements DocumentSemanticTokensProvider {
 	/**
 	 * Debug display name for this provider.
 	 */
@@ -19,17 +17,13 @@ export class PromptDocumentSemanticTokensProvider extends Disposable implements 
 
 	constructor(
 		@IPromptsService private readonly promptsService: IPromptsService,
-		@ILanguageFeaturesService private readonly languageService: ILanguageFeaturesService,
 	) {
-		super();
-
-		this._register(this.languageService.documentSemanticTokensProvider.register(ALL_PROMPTS_LANGUAGE_SELECTOR, this));
 	}
 
 	provideDocumentSemanticTokens(model: ITextModel, lastResultId: string | null, token: CancellationToken): ProviderResult<SemanticTokens> {
 		const promptType = getPromptsTypeForLanguageId(model.getLanguageId());
 		if (!promptType) {
-			// if the model is not a prompt, we don't provide any completions
+			// if the model is not a prompt, we don't provide any semantic tokens
 			return undefined;
 		}
 

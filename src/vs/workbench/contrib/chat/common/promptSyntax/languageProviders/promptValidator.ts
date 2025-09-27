@@ -17,13 +17,13 @@ import { ChatModeKind } from '../../constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../languageModels.js';
 import { ILanguageModelToolsService } from '../../languageModelToolsService.js';
 import { getPromptsTypeForLanguageId, PromptsType } from '../promptTypes.js';
-import { IArrayValue, IHeaderAttribute, ParsedPromptFile } from './newPromptsParser.js';
+import { IArrayValue, IHeaderAttribute, ParsedPromptFile } from '../service/newPromptsParser.js';
 import { PromptsConfig } from '../config/config.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Delayer } from '../../../../../../base/common/async.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
-import { IPromptsService } from './promptsService.js';
+import { IPromptsService } from '../service/promptsService.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 
 const MARKERS_OWNER_ID = 'prompts-diagnostics-provider';
