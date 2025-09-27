@@ -184,6 +184,7 @@ div.chat-welcome-view {
 		color: var(--vscode-input-placeholderForeground);
 		margin: 16px auto;
 		padding: 0 12px;
+		padding-bottom: min(24px, max(0px, calc(24px - 1000 * (100% - 213px))));
 		a {
 			color: var(--vscode-textLink-foreground);
 		}
@@ -209,29 +210,27 @@ div.chat-welcome-view {
 		> .chat-welcome-view-suggested-prompt {
 			display: flex;
 			align-items: center;
-			padding: 2px;
-			border-radius: 8px;
+			gap: 6px;
+			height: 24px;
+			padding: 0 10px;
+			border-radius: 4px;
 			background-color: var(--vscode-editorWidget-background);
 			cursor: pointer;
 			border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
-			border-radius: 4px;
-			max-width: 200px;
+			max-width: 260px;
 			width: fit-content;
 			margin: 0 4px;
 
-			& > .chat-welcome-view-suggested-prompt-icon {
-				display: flex;
-				align-items: center;
-				font-size: 4px;
-				color: var(--vscode-icon-foreground) !important;
-				align-items: center;
-				padding: 4px;
+			& > .chat-welcome-view-suggested-prompt-title {
+				font-size: 14px;
+				font-weight: 600;
+				color: var(--vscode-editorWidget-foreground);
+				white-space: nowrap;
 			}
 
-			& > .chat-welcome-view-suggested-prompt-label {
-				font-size: 14px;
-				color: var(--vscode-editorWidget-foreground);
-				padding: 4px 4px 4px 0;
+			& > .chat-welcome-view-suggested-prompt-description {
+				font-size: 13px;
+				color: var(--vscode-descriptionForeground);
 				overflow: hidden;
 				text-overflow: ellipsis;
 				white-space: nowrap;
@@ -250,6 +249,10 @@ div.chat-welcome-view {
 .chat-welcome-history-root {
 	width: 100%;
 	padding: 0px 8px 0 8px;
+
+	&.chat-welcome-history-hidden {
+		display: none;
+	}
 
 	.chat-welcome-history-header {
 		display: flex;
@@ -305,10 +308,6 @@ div.chat-welcome-view {
 		gap: 8px;
 		outline: none;
 
-		&:hover {
-			background: var(--vscode-list-hoverBackground);
-		}
-
 		.chat-welcome-history-title {
 			font-size: 13px;
 			white-space: nowrap;
@@ -324,4 +323,35 @@ div.chat-welcome-view {
 			margin-left: 8px;
 		}
 	}
+
+	.chat-welcome-history-more {
+		color: var(--vscode-textLink-foreground);
+		text-decoration: none;
+		cursor: pointer;
+		padding: 2px 12px 4px 12px;
+		border: none;
+		background: none;
+		text-align: left;
+		height: 22px;
+		display: flex;
+		align-items: center;
+		border-radius: 4px;
+		box-sizing: border-box;
+		margin-right: 14px;
+
+		&:hover {
+			background: var(--vscode-list-hoverBackground);
+		}
+
+		&:focus {
+			outline: 1px solid var(--vscode-focusBorder);
+			outline-offset: -1px;
+		}
+	}
+}
+
+/* Chat history hover tooltip styling */
+.chat-history-item-hover {
+	max-width: 300px;
+	word-wrap: break-word;
 }
