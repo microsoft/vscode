@@ -843,6 +843,7 @@ class ExtHostTreeView<T> extends Disposable {
 			parentHandle: parent ? parent.item.handle : undefined,
 			label: toTreeItemLabel(extensionTreeItem.label, this._extension),
 			description: extensionTreeItem.description,
+			alignment: extensionTreeItem.alignment,
 			resourceUri: extensionTreeItem.resourceUri,
 			tooltip: this._getTooltip(extensionTreeItem.tooltip),
 			command: this._getCommand(disposableStore, extensionTreeItem.command),

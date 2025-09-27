@@ -1330,6 +1330,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		const resource = node.resourceUri ? URI.revive(node.resourceUri) : null;
 		const treeItemLabel: ITreeItemLabel | undefined = node.label ? node.label : (resource ? { label: basename(resource) } : undefined);
 		const description = isString(node.description) ? node.description : resource && node.description === true ? this.labelService.getUriLabel(dirname(resource), { relative: true }) : undefined;
+		const alignment = node.alignment === 'right' ? node.alignment : 'left';
 		const label = treeItemLabel ? treeItemLabel.label : undefined;
 		const matches = (treeItemLabel && treeItemLabel.highlights && label) ? treeItemLabel.highlights.map(([start, end]) => {
 			if (start < 0) {
@@ -1363,6 +1364,12 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 
 		this.renderCheckbox(node, templateData);
 
+		const extraClasses = ['custom-view-tree-node-item-resourceLabel'];
+
+		if (alignment === 'right') {
+			extraClasses.push('custom-view-tree-node-item-right');
+		}
+
 		if (resource) {
 			const fileDecorations = this.configurationService.getValue<{ colors: boolean; badges: boolean }>('explorer.decorations');
 			const labelResource = resource ? resource : URI.parse('missing:_icon_resource');
@@ -1371,7 +1378,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 				title,
 				hideIcon: this.shouldHideResourceLabelIcon(iconUrl, node.themeIcon),
 				fileDecorations,
-				extraClasses: ['custom-view-tree-node-item-resourceLabel'],
+				extraClasses,
 				matches: matches ? matches : createMatches(element.filterData),
 				strikethrough: treeItemLabel?.strikethrough,
 				disabledCommand: !commandEnabled,
@@ -1382,7 +1389,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 			templateData.resourceLabel.setResource({ name: label, description }, {
 				title,
 				hideIcon: true,
-				extraClasses: ['custom-view-tree-node-item-resourceLabel'],
+				extraClasses,
 				matches: matches ? matches : createMatches(element.filterData),
 				strikethrough: treeItemLabel?.strikethrough,
 				disabledCommand: !commandEnabled,
