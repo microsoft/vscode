@@ -2060,7 +2060,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this._onDidChangeAgent.fire({ agent: e.agent, slashCommand: e.command });
 			}
 			if (e.kind === 'addRequest' || e.kind === 'removeRequest') {
-				this.chatTodoListWidget.clear(model.sessionId, e.kind === 'removeRequest' ? true : false /*force*/);
+				this.chatTodoListWidget.clear(model.sessionId, e.kind === 'removeRequest' /*force*/);
 			}
 		}));
 
