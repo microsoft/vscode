@@ -124,7 +124,7 @@ const UPDATE_INSTRUCTIONS_OPTION: IPromptPickerQuickPickItem = Object.freeze({
 	type: 'item',
 	label: `$(refresh) ${localize(
 		'commands.update-instructions.select-dialog.label',
-		'Generate instructions...',
+		'Generate agent instructions...',
 	)}`,
 	value: URI.parse(INSTRUCTIONS_DOCUMENTATION_URL),
 	pickable: false,
