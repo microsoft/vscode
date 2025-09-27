@@ -37,6 +37,9 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	get hasRichCommandDetection() { return this._hasRichCommandDetection; }
 	private _promptType: string | undefined;
 	get promptType(): string | undefined { return this._promptType; }
+	private _viewportCleared: boolean = false;
+	get viewportCleared(): boolean { return this._viewportCleared; }
+	set viewportCleared(value: boolean) { this._viewportCleared = value; }
 
 	private _ptyHeuristicsHooks: ICommandDetectionHeuristicsHooks;
 	private readonly _ptyHeuristics: MandatoryMutableDisposable<IPtyHeuristics>;
@@ -290,15 +293,15 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	handlePromptStart(options?: IHandleCommandOptions): void {
 		// Adjust the last command's finished marker when needed. The standard position for the
 		// finished marker `D` to appear is at the same position as the following prompt started
-		// `A`.
+		// `A`. Skip adjustment if viewport was recently cleared as previous marker positions
+		// are no longer valid.
 		const lastCommand = this.commands.at(-1);
-		if (lastCommand?.endMarker && lastCommand?.executedMarker && lastCommand.endMarker.line === lastCommand.executedMarker.line) {
+		if (!this._viewportCleared && lastCommand?.endMarker && lastCommand?.executedMarker && lastCommand.endMarker.line === lastCommand.executedMarker.line) {
 			this._logService.debug('CommandDetectionCapability#handlePromptStart adjusted commandFinished', `${lastCommand.endMarker.line} -> ${lastCommand.executedMarker.line + 1}`);
 			lastCommand.endMarker = cloneMarker(this._terminal, lastCommand.executedMarker, 1);
 		}
 
-		this._currentCommand.promptStartMarker = options?.marker || (lastCommand?.endMarker ? cloneMarker(this._terminal, lastCommand.endMarker) : this._terminal.registerMarker(0));
-
+		this._currentCommand.promptStartMarker = options?.marker || (!this._viewportCleared && lastCommand?.endMarker ? cloneMarker(this._terminal, lastCommand.endMarker) : this._terminal.registerMarker(0));
 		this._logService.debug('CommandDetectionCapability#handlePromptStart', this._terminal.buffer.active.cursorX, this._currentCommand.promptStartMarker?.line);
 	}
 
@@ -342,6 +345,8 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			this._currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
 			this._onCommandStartChanged.fire();
 			this._logService.debug('CommandDetectionCapability#handleCommandStart', this._currentCommand.commandStartX, this._currentCommand.commandStartMarker?.line);
+			// Reset the viewport cleared flag here, after we've handled the command start
+			this._viewportCleared = false;
 			return;
 		}
 		this._ptyHeuristics.value.handleCommandStart(options);
@@ -505,6 +510,7 @@ class UnixPtyHeuristics extends Disposable {
 		this._register(_terminal.parser.registerCsiHandler({ final: 'J' }, params => {
 			if (params.length >= 1 && (params[0] === 2 || params[0] === 3)) {
 				_hooks.clearCommandsInViewport();
+				this._capability.viewportCleared = true;
 			}
 			// We don't want to override xterm.js' default behavior, just augment it
 			return false;
