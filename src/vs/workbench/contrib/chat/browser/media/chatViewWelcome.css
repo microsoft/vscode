@@ -15,11 +15,6 @@
 
 /* Container for chat widget welcome message and interactive session variants */
 .interactive-session {
-	position: relative; /* Enable absolute positioning for child elements */
-	display: flex;
-	flex-direction: column;
-	height: 100%;
-
 	&.new-welcome-view {
 		.interactive-input-part {
 			.dropdown-action-container { display: none; }
@@ -32,19 +27,30 @@
 	/* chat welcome container */
 	.chat-welcome-view-container {
 		display: flex;
-		flex-direction: column;
 		align-items: center;
 		justify-content: center;
 		overflow: hidden;
-		flex: 1;
-		position: relative; /* Allow absolute positioning of prompts */
 
 		&.has-chat-history {
-			/* Reintroduce minimal layout so welcome block centers vertically when history is shown */
 			flex-direction: column;
+			justify-content: flex-start;
+			align-items: stretch;
 			height: 100%;
-			/* Keep default align-items/justify-content from base (center) so history list sits above, then auto margins center welcome */
+			position: relative;
+			div.chat-welcome-view > .chat-welcome-view-title { display: none; }
+			.chat-welcome-view-icon .codicon { line-height: 48px; }
 			div.chat-welcome-view { align-self: center; margin-top: auto; margin-bottom: auto; }
+			.chat-welcome-view-message.empty-state,
+			.chat-welcome-view-disclaimer {
+				position: absolute;
+				left: 0;
+				right: 0;
+				bottom: 0;
+				margin: 0;
+				padding: 0 8px;
+				max-width: none;
+				text-align: center;
+			}
 		}
 	}
 
@@ -67,7 +73,6 @@ div.chat-welcome-view {
 	display: flex;
 	flex-direction: column;
 	align-items: center;
-	padding: 12px;
 
 	& > .chat-welcome-view-icon {
 		min-height: 48px;
@@ -172,83 +177,78 @@ div.chat-welcome-view {
 		}
 	}
 
-	& > .chat-welcome-view-disclaimer {
+	/* Dedicated disclaimer container appended at root in TS */
+	.interactive-session .chat-welcome-view-container.has-chat-history & > .chat-welcome-view-disclaimer {
+		text-align: center;
+		max-width: 400px;
+		color: var(--vscode-input-placeholderForeground);
+		margin: 16px auto;
+		padding: 0 12px;
+		padding-bottom: min(24px, max(0px, calc(24px - 1000 * (100% - 213px))));
+		a {
+			color: var(--vscode-textLink-foreground);
+		}
+	}
+
+	.interactive-session .chat-welcome-view-container:not(.has-chat-history) & > .chat-welcome-view-disclaimer {
 		color: var(--vscode-input-placeholderForeground);
 		text-align: center;
 		margin: -16px auto;
 		max-width: 400px;
-		padding: 0 12px;
-		a { color: var(--vscode-textLink-foreground); }
-	}
-}
-
-/* Suggested prompts section - positioned at bottom of welcome container */
-.chat-welcome-view-suggested-prompts {
-	position: absolute;
-	bottom: 0;
-	left: 0;
-	right: 0;
-	display: flex;
-	flex-wrap: wrap;
-	justify-content: flex-start;
-	row-gap: 8px;
-	padding: 32px 12px 12px 12px; /* Extra top padding for title */
-
-	.chat-welcome-view-suggested-prompts-title {
-		position: absolute;
-		top: 8px;
-		left: 16px;
-		font-size: 11px;
-		font-weight: normal;
-		text-transform: uppercase;
-		letter-spacing: 0.5px;
-		color: var(--vscode-descriptionForeground);
-		margin: 0;
-		text-align: left;
+		a {
+			color: var(--vscode-textLink-foreground);
+		}
 	}
 
-	> .chat-welcome-view-suggested-prompt {
+	& > .chat-welcome-view-suggested-prompts {
 		display: flex;
-		align-items: center;
-		gap: 6px;
-		height: 24px;
-		padding: 0 8px;
-		border-radius: 4px;
-		background-color: var(--vscode-editorWidget-background);
-		cursor: pointer;
-		border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
-		max-width: 260px;
-		width: fit-content;
-		margin: 0 4px;
+		flex-wrap: wrap;
+		justify-content: center;
+		row-gap: 8px;
+		margin-top: 4px;
 
-		& > .chat-welcome-view-suggested-prompt-title {
-			font-size: 14px;
-			font-weight: 600;
-			color: var(--vscode-editorWidget-foreground);
-			white-space: nowrap;
+		> .chat-welcome-view-suggested-prompt {
+			display: flex;
+			align-items: center;
+			gap: 6px;
+			height: 24px;
+			padding: 0 10px;
+			border-radius: 4px;
+			background-color: var(--vscode-editorWidget-background);
+			cursor: pointer;
+			border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
+			max-width: 260px;
+			width: fit-content;
+			margin: 0 4px;
+
+			& > .chat-welcome-view-suggested-prompt-title {
+				font-size: 14px;
+				font-weight: 600;
+				color: var(--vscode-editorWidget-foreground);
+				white-space: nowrap;
+			}
+
+			& > .chat-welcome-view-suggested-prompt-description {
+				font-size: 13px;
+				color: var(--vscode-descriptionForeground);
+				overflow: hidden;
+				text-overflow: ellipsis;
+				white-space: nowrap;
+				flex: 1;
+				min-width: 0;
+			}
 		}
 
-		& > .chat-welcome-view-suggested-prompt-description {
-			font-size: 13px;
-			color: var(--vscode-descriptionForeground);
-			overflow: hidden;
-			text-overflow: ellipsis;
-			white-space: nowrap;
-			flex: 1;
-			min-width: 0;
+		& > .chat-welcome-view-suggested-prompt:hover {
+			background-color: var(--vscode-list-hoverBackground);
+			border-color: var(--vscode-focusBorder);
 		}
-	}
-
-	> .chat-welcome-view-suggested-prompt:hover {
-		background-color: var(--vscode-list-hoverBackground);
-		border-color: var(--vscode-focusBorder);
 	}
 }
-
 
 .chat-welcome-history-root {
 	width: 100%;
-	padding: 8px;
+	padding: 0px 8px 0 8px;
 
 	&.chat-welcome-history-hidden {
 		display: none;
@@ -285,7 +285,7 @@ div.chat-welcome-view {
 
 
 	.chat-welcome-history {
-		margin: 0 8px 8px 8px;
+		margin: 0 0 12px;
 		width: 100%;
 	}
 
@@ -295,7 +295,7 @@ div.chat-welcome-view {
 		border-radius: 4px;
 		overflow: hidden;
 		box-sizing: border-box;
-		padding: 0 16px 0 0;
+		padding: 0 14px 0 0;
 	}
 
 	.chat-welcome-history-item {
