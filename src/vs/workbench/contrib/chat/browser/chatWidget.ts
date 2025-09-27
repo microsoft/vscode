@@ -283,6 +283,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private readonly historyViewStore = this._register(new DisposableStore());
 	private readonly chatTodoListWidget: ChatTodoListWidget;
 	private historyList: WorkbenchList<IChatHistoryListItem> | undefined;
+	private lastHistoryItemsCount: number = 0; // tracks number of history items to decide empty-state button visibility
 
 	private bodyDimension: dom.Dimension | undefined;
 	private visibleChangeCount = 0;
@@ -458,6 +459,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		// Update welcome view content when `anonymous` condition changes
 		this._register(this.chatEntitlementService.onDidChangeAnonymous(() => this._welcomeRenderScheduler.schedule()));
+
+		// Update history list when a history entry is removed
+		this._register(this.chatService.onDidRemoveHistoryEntry(() => this.refreshHistoryList()));
 
 		this._register(bindContextKey(decidedChatEditingResourceContextKey, contextKeyService, (reader) => {
 			const currentSession = this._editingSession.read(reader);
@@ -1012,7 +1016,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private updateEmptyStateWithHistoryContext(): void {
 		const historyEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.EmptyStateHistoryEnabled);
 		const numItems = this.viewModel?.getItems().length ?? 0;
-		const shouldHideButtons = historyEnabled && numItems === 0;
+		// Hide default empty-state buttons ONLY when we (a) are in an empty session AND (b) have history to show.
+		const shouldHideButtons = historyEnabled && numItems === 0 && this.lastHistoryItemsCount > 0;
 		this.inEmptyStateWithHistoryEnabledKey.set(shouldHideButtons);
 	}
 
@@ -1030,6 +1035,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			header.appendChild(headerToolbarContainer);
 
 			const initialHistoryItems = await this.computeHistoryItems();
+			this.lastHistoryItemsCount = initialHistoryItems.length;
+			this.updateEmptyStateWithHistoryContext();
 			if (initialHistoryItems.length === 0) {
 				historyRoot.remove();
 				return;
@@ -1137,11 +1144,38 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private async refreshHistoryList(): Promise<void> {
-		const numItems = this.viewModel?.getItems().length ?? 0;
-		if (numItems === 0 || !this.historyList) {
+		// NOTE: Previously this method bailed when the chat session had zero items.
+		// That prevented the history preview (shown specifically in the empty state) from
+		// updating reactively when a history entry was deleted via the command palette.
+		// We now always refresh if the history list UI exists.
+		if (!this.historyList) {
 			return;
 		}
 		const historyItems = await this.computeHistoryItems();
+		this.lastHistoryItemsCount = historyItems.length;
+		this.updateEmptyStateWithHistoryContext();
+		if (historyItems.length === 0) {
+			// If no items remain, clear the list and collapse its height so the empty state
+			// buttons (if any) can realign. We intentionally do NOT dispose the list instance
+			// to keep event wiring intact should new history appear later (e.g. after creating
+			// a new session without leaving the view).
+			// Clear all existing items from the list
+			this.historyList.splice(0, this.historyList.length);
+			if (this.historyListContainer) {
+				this.historyListContainer.style.height = '0px';
+				this.historyListContainer.style.minHeight = '0px';
+			}
+			this.welcomeMessageContainer.classList.remove('has-chat-history');
+			// Remove the history root container entirely so layout reverts to normal empty state
+			const existingRoot = this.welcomeMessageContainer.querySelector('.chat-welcome-history-root');
+			if (existingRoot) {
+				existingRoot.remove();
+				this.historyList = undefined;
+				this.historyListContainer = undefined as any; // explicit reset
+			}
+			return;
+		}
+		this.welcomeMessageContainer.classList.toggle('has-chat-history', historyItems.length > 0);
 		this.renderHistoryItems(historyItems);
 	}
 

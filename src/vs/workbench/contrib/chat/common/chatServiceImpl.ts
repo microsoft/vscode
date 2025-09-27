@@ -91,6 +91,9 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _onDidDisposeSession = this._register(new Emitter<{ sessionId: string; reason: 'cleared' }>());
 	public readonly onDidDisposeSession = this._onDidDisposeSession.event;
 
+	private readonly _onDidRemoveHistoryEntry = this._register(new Emitter<{ sessionId: string }>());
+	public readonly onDidRemoveHistoryEntry = this._onDidRemoveHistoryEntry.event;
+
 	private readonly _sessionFollowupCancelTokens = this._register(new DisposableMap<string, CancellationTokenSource>());
 	private readonly _chatServiceTelemetry: ChatServiceTelemetry;
 	private readonly _chatSessionStore: ChatSessionStore;
@@ -324,6 +327,7 @@ export class ChatService extends Disposable implements IChatService {
 
 	async removeHistoryEntry(sessionId: string): Promise<void> {
 		await this._chatSessionStore.deleteSession(sessionId);
+		this._onDidRemoveHistoryEntry.fire({ sessionId });
 	}
 
 	async clearAllHistoryEntries(): Promise<void> {
