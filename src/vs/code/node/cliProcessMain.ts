@@ -331,7 +331,7 @@ class CliMain extends Disposable {
 
 		// Install MCP server
 		else if (this.argv['add-mcp']) {
-			return instantiationService.createInstance(McpManagementCli, new ConsoleLogger(LogLevel.Info, false)).addMcpDefinitions(this.argv['add-mcp']);
+			return instantiationService.createInstance(McpManagementCli, new ConsoleLogger(LogLevel.Info, false)).addMcpDefinitions(this.argv['add-mcp'], this.argv['mcp-target']);
 		}
 
 		// Telemetry
