@@ -574,7 +574,7 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, con
 
 	const getPromptSymbol = () => {
 		// For run_file with .ipynb files (notebook cells), don't show > symbol
-		if (functionType === 'run_file' && widgetInfo.filename && widgetInfo.filename.toLowerCase().endsWith('.ipynb')) {
+		if (functionType === 'run_file' && widgetInfo.filename && commonUtils.getFileExtension(widgetInfo.filename).toLowerCase() === 'ipynb') {
 			return '';
 		}
 		return (functionType === 'run_console_cmd' || functionType === 'run_file') ? '>' : '$';

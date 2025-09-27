@@ -513,7 +513,12 @@ export function parseKeyEqualValue(text: string): Record<string, any> {
             const metadata = prevWhitespace > 0 ? parseKeyEqualValue(text.slice(0, prevWhitespace)) : {};
             
             // Append our value
-            metadata[key] = value;
+            // Special case: if key is "metadata" and value is already an object, don't double-wrap
+            if (key === "metadata" && typeof value === "object" && value !== null) {
+                Object.assign(metadata, value);
+            } else {
+                metadata[key] = value;
+            }
             
             // And return
             return metadata;

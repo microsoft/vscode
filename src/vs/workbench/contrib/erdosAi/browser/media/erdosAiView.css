@@ -9,6 +9,7 @@
 	flex-direction: column;
 	height: 100%;
 	background-color: var(--vscode-sideBar-background);
+	position: relative;
 }
 
 /* Message list area following Rao streaming panel */
@@ -408,6 +409,125 @@
 .erdos-ai-send-button:disabled {
 	opacity: 0.4;
 	cursor: not-allowed;
+}
+
+/* Auto-accept floating bar */
+.erdos-ai-auto-accept-floating-bar {
+	display: flex;
+	gap: 8px;
+	align-items: center;
+	pointer-events: auto;
+	max-width: 600px;
+}
+
+.erdos-ai-auto-accept-main-section {
+	display: flex;
+	align-items: center;
+	gap: 0px;
+	background-color: var(--vscode-input-background);
+	border: 1px solid var(--vscode-input-border, #e0e0e0);
+	border-radius: 4px;
+	padding: 6px 12px;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+	font-size: 12px;
+	flex: 1;
+}
+
+.erdos-ai-auto-accept-file-section {
+	display: flex;
+	align-items: center;
+	gap: 0px;
+	background-color: var(--vscode-input-background);
+	border: 1px solid var(--vscode-input-border, #e0e0e0);
+	border-radius: 4px;
+	padding: 6px 12px;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+	font-size: 12px;
+}
+
+.erdos-ai-auto-accept-nav-button {
+	background: none;
+	border: none;
+	cursor: pointer;
+	color: var(--vscode-icon-foreground);
+	padding: 2px;
+	border-radius: 2px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 20px;
+	height: 20px;
+}
+
+.erdos-ai-auto-accept-nav-button:hover {
+	background: none !important;
+}
+
+.erdos-ai-auto-accept-nav-button:active {
+	background: none !important;
+}
+
+.erdos-ai-auto-accept-nav-button:focus {
+	background: none !important;
+}
+
+.erdos-ai-auto-accept-counter {
+	color: var(--vscode-foreground);
+	font-size: 12px;
+	min-width: 40px;
+	text-align: center;
+}
+
+.erdos-ai-auto-accept-actions {
+	display: flex;
+	gap: 8px;
+	margin-left: auto;
+}
+
+.erdos-ai-auto-accept-undo-button {
+	background: none;
+	border: none;
+	cursor: pointer;
+	color: var(--vscode-foreground);
+	font-size: 12px;
+	padding: 4px 8px;
+	border-radius: 2px;
+}
+
+.erdos-ai-auto-accept-undo-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.erdos-ai-auto-accept-keep-button {
+	background-color: var(--vscode-button-background);
+	border: none;
+	cursor: pointer;
+	color: var(--vscode-button-foreground) !important;
+	font-size: 12px;
+	padding: 4px 8px;
+	border-radius: 2px;
+}
+
+.erdos-ai-auto-accept-keep-button:hover {
+	background-color: var(--vscode-button-hoverBackground);
+}
+
+/* Review next file button - full rectangle styling */
+.erdos-ai-auto-accept-review-file-button {
+	display: flex;
+	align-items: center;
+	background-color: var(--vscode-input-background);
+	border: 1px solid var(--vscode-input-border, #e0e0e0);
+	border-radius: 4px;
+	padding: 8px 12px;
+	cursor: pointer;
+	font-size: 12px;
+	color: var(--vscode-foreground);
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.erdos-ai-auto-accept-review-file-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
 .erdos-ai-stop-button {

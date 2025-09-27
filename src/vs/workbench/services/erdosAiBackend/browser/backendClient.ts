@@ -537,7 +537,7 @@ export class BackendClient extends Disposable implements IBackendClient {
 					if (event.type === 'data' && event.data) {
 						const streamData = parser.handleDataLine(event.data);
 						if (streamData) {
-							onData(streamData);
+							await onData(streamData);
 							
 							if (streamData.end_turn === true) {
 								onComplete();

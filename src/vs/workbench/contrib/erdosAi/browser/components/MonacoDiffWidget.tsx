@@ -66,7 +66,7 @@ export const MonacoDiffWidget: React.FC<MonacoDiffWidgetProps> = ({
 	className = 'monaco-diff-widget'
 }) => {
 	// Check if this is a Jupyter notebook file with enhanced diff data (contains cellIndex)
-	const isNotebookFile = filename && filename.toLowerCase().endsWith('.ipynb');
+	const isNotebookFile = filename && commonUtils?.getFileExtension(filename).toLowerCase() === 'ipynb';
 	const hasNotebookDiffData = diffData && diffData.diff_data && 
 		Array.isArray(diffData.diff_data) && 
 		diffData.diff_data.some((item: DiffItem) => 'cellIndex' in item);
@@ -150,6 +150,7 @@ export const MonacoDiffWidget: React.FC<MonacoDiffWidgetProps> = ({
 			filename={filename}
 			monacoServices={monacoServices}
 			configurationService={configurationService}
+			commonUtils={commonUtils}
 			onContentChange={onContentChange}
 			onEditorReady={onEditorReady}
 			height={height}

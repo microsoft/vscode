@@ -166,6 +166,14 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 		});
 		disposables.push(diffSectionDisposable);
 
+		// Listen for widget button actions (may include auto-accept)
+		if (props.erdosAiService.onWidgetButtonAction) {
+			const widgetActionDisposable = props.erdosAiService.onWidgetButtonAction(() => {
+				refreshFileChanges();
+			});
+			disposables.push(widgetActionDisposable);
+		}
+
 		// Listen for model content changes (editor changes)
 		const modelChangeDisposable = services.modelService.onModelAdded((model) => {
 			const contentChangeDisposable = model.onDidChangeContent(() => {

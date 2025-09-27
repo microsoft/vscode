@@ -22,6 +22,7 @@ import { FontMeasurements } from '../../../../../editor/browser/config/fontMeasu
 import { BareFontInfo } from '../../../../../editor/common/config/fontInfo.js';
 import { PixelRatio } from '../../../../../base/browser/pixelRatio.js';
 import * as DOM from '../../../../../base/browser/dom.js';
+import { ICommonUtils } from '../../../../services/erdosAiUtils/common/commonUtils.js';
 
 /**
  * Diff data interface matching the existing structure
@@ -44,6 +45,7 @@ export interface ReactMonacoEditorProps {
 	filename?: string;
 	monacoServices: IMonacoWidgetServices;
 	configurationService: IConfigurationService;
+	commonUtils?: ICommonUtils;
 	onContentChange?: (content: string) => void;
 	onEditorReady?: (editor: CodeEditorWidget) => void;
 	height?: string;
@@ -60,6 +62,7 @@ export const ReactMonacoEditor: React.FC<ReactMonacoEditorProps> = ({
 	filename,
 	monacoServices,
 	configurationService,
+	commonUtils,
 	onContentChange,
 	onEditorReady,
 	height = '300px',
@@ -259,7 +262,7 @@ export const ReactMonacoEditor: React.FC<ReactMonacoEditorProps> = ({
 		const contentLines = heightContent.split('\n').length;
 		const maxLines = 10;
 		const linesToShow = Math.min(contentLines, maxLines);
-		const isNotebookFile = filename ? filename.toLowerCase().endsWith('.ipynb') : false;
+		const isNotebookFile = filename && commonUtils ? commonUtils.getFileExtension(filename).toLowerCase() === 'ipynb' : false;
 		const editorPadding = isNotebookFile ? 30 : 0;
 		const calculatedHeight = `${linesToShow * actualFontInfo.lineHeight + editorPadding}px`;
 		
@@ -396,7 +399,7 @@ export const ReactMonacoEditor: React.FC<ReactMonacoEditorProps> = ({
 		const maxLines = 10;
 		const linesToShow = Math.min(contentLines, maxLines);
 		// Use 30px padding for ipynb cells, 0px for everything else
-		const isNotebookFile = filename ? filename.toLowerCase().endsWith('.ipynb') : false;
+		const isNotebookFile = filename && commonUtils ? commonUtils.getFileExtension(filename).toLowerCase() === 'ipynb' : false;
 		const editorPadding = isNotebookFile ? 30 : 0;
 		const calculatedHeight = `${linesToShow * actualFontInfo.lineHeight + editorPadding}px`;
 		

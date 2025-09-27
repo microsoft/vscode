@@ -81,6 +81,9 @@ import { MessageReversion } from '../../../services/erdosAi/browser/messageRever
 import { IFileChangeTracker } from '../../../services/erdosAi/common/fileChangeTracker.js';
 import { FileChangeTracker } from '../../../services/erdosAi/browser/fileChangeTracker.js';
 
+// Auto Accept Editor Overlay
+import { AutoAcceptEditorOverlay } from './autoAcceptEditorOverlay.js';
+
 // Session Management Service
 import { ISessionManagement } from '../../../services/erdosAiUtils/common/sessionManagement.js';
 import { SessionManagement } from '../../../services/erdosAiUtils/browser/sessionManagement.js';
@@ -652,5 +655,10 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
 	SecurityAnalyticsContribution,
+	LifecyclePhase.Restored
+);
+
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
+	AutoAcceptEditorOverlay,
 	LifecyclePhase.Restored
 );

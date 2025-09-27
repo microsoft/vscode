@@ -40,17 +40,27 @@ export interface INotebookDiffService {
 	/**
 	 * Apply diff highlighting to a notebook
 	 */
-	applyNotebookDiffHighlighting(uri: URI, conversationId: string, cellDiffs: ICellDiffData[]): void;
+	notebookApplyFileChangeHighlighting(uri: URI, conversationId: string, cellDiffs: ICellDiffData[]): void;
+
+	/**
+	 * Apply auto-accept highlighting to a notebook with Accept/Reject buttons
+	 */
+	notebookApplyAutoAcceptHighlighting(uri: URI, conversationId: string, cellDiffs: ICellDiffData[], fileChangeTracker: any): void;
 
 	/**
 	 * Clear diff highlighting for a notebook
 	 */
-	clearNotebookDiffHighlighting(uri: URI): void;
+	notebookClearFileHighlighting(uri: URI): void;
+
+	/**
+	 * Clear only auto-accept highlighting for a notebook (leave regular diff highlighting intact)
+	 */
+	notebookClearAutoAcceptHighlighting(uri: URI): void;
 
 	/**
 	 * Clear all diff highlighting
 	 */
-	clearAllDiffHighlighting(): void;
+	notebookClearAllFileHighlighting(): void;
 
 	/**
 	 * Find notebook editor for a given URI
@@ -79,7 +89,7 @@ export class NotebookDiffService extends Disposable implements INotebookDiffServ
 		}
 	}
 
-	public applyNotebookDiffHighlighting(uri: URI, conversationId: string, cellDiffs: ICellDiffData[]): void {
+	public notebookApplyFileChangeHighlighting(uri: URI, conversationId: string, cellDiffs: ICellDiffData[]): void {
 		// Use the public method to find the editor
 		const editor = this.findNotebookEditorForUri(uri);
 		if (!editor) {
@@ -94,35 +104,67 @@ export class NotebookDiffService extends Disposable implements INotebookDiffServ
 		}
 
 		// Apply the diff highlighting
-		contribution.applyDiffHighlighting(uri, conversationId, cellDiffs);
+		contribution.applyFileChangeHighlighting(uri, conversationId, cellDiffs);
 	}
 
-	public clearNotebookDiffHighlighting(uri: URI): void {
-		const uriString = uri.toString();
+	public notebookClearFileHighlighting(uri: URI): void {
+		// Use the same method as notebookApplyAutoAcceptHighlighting for consistency
+		const editor = this.findNotebookEditorForUri(uri);
+		if (!editor) {
+			return;
+		}
 
-		const editor = this._activeNotebookEditors.get(uriString);
-		if (editor) {
-			const contribution = editor.getContribution<NotebookDiffHighlightContribution>(NotebookDiffHighlightContribution.id);
-			if (contribution) {
-				contribution.clearDiffHighlighting();
-			}
+		const contribution = editor.getContribution<NotebookDiffHighlightContribution>(NotebookDiffHighlightContribution.id);
+		if (contribution) {
+			contribution.clearFileHighlighting();
 		}
 	}
 
-	public clearAllDiffHighlighting(): void {
+	public notebookClearAutoAcceptHighlighting(uri: URI): void {
+		// Clear only auto-accept highlighting, leave regular diff highlighting intact
+		const editor = this.findNotebookEditorForUri(uri);
+		if (!editor) {
+			return;
+		}
+
+		const contribution = editor.getContribution<NotebookDiffHighlightContribution>(NotebookDiffHighlightContribution.id);
+		if (contribution) {
+			contribution.clearAutoAcceptHighlighting();
+		}
+	}
+
+	public notebookApplyAutoAcceptHighlighting(uri: URI, conversationId: string, cellDiffs: ICellDiffData[], fileChangeTracker: any): void {
+		// Use the public method to find the editor
+		const editor = this.findNotebookEditorForUri(uri);
+		if (!editor) {
+			return;
+		}
+
+		// Always get a fresh contribution from the editor - no caching
+		const contribution = editor.getContribution<NotebookDiffHighlightContribution>(NotebookDiffHighlightContribution.id);
+		
+		if (!contribution) {
+			return;
+		}
+
+		// Apply the auto-accept highlighting with Accept/Reject buttons
+		contribution.applyAutoAcceptHighlighting(uri, conversationId, cellDiffs, fileChangeTracker);
+	}
+
+	public notebookClearAllFileHighlighting(): void {
 		// Clear all currently open notebook editors, not just registered ones
 		const allNotebookEditors = this.notebookEditorService.listNotebookEditors();
 		
 		allNotebookEditors.forEach((editor) => {
 			const contribution = editor.getContribution<NotebookDiffHighlightContribution>(NotebookDiffHighlightContribution.id);
 			if (contribution) {
-				contribution.clearDiffHighlighting();
+				contribution.clearFileHighlighting();
 			}
 		});
 	}
 
 	override dispose(): void {
-		this.clearAllDiffHighlighting();
+		this.notebookClearAllFileHighlighting();
 		this._activeNotebookEditors.clear();
 		super.dispose();
 	}
