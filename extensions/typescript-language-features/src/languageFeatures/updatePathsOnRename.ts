@@ -54,6 +54,7 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 		super();
 
 		this._register(vscode.workspace.onDidRenameFiles(async (e) => {
+			let needsProjectReload = false;
 			for (const { newUri, oldUri } of e.files) {
 				const newFilePath = this.client.toTsFilePath(newUri);
 				if (!newFilePath) {
@@ -63,6 +64,10 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 				const oldFilePath = this.client.toTsFilePath(oldUri);
 				if (!oldFilePath) {
 					continue;
+				}
+
+				if (oldFilePath !== newFilePath && oldFilePath.toLowerCase() === newFilePath.toLowerCase()) {
+					needsProjectReload = true;
 				}
 
 				const config = this.getConfiguration(newUri);
@@ -80,11 +85,14 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 
 				this._pendingRenames.add({ oldUri, newUri, newFilePath, oldFilePath, jsTsFileThatIsBeingMoved });
 
-				this._delayer.trigger(() => {
-					vscode.window.withProgress({
+				this._delayer.trigger(async () => {
+					await vscode.window.withProgress({
 						location: vscode.ProgressLocation.Window,
 						title: vscode.l10n.t("Checking for update of JS/TS imports")
 					}, () => this.flushRenames());
+					if (needsProjectReload) {
+						this.client.executeWithoutWaitingForResponse('reloadProjects', null);
+					}
 				});
 			}
 		}));
