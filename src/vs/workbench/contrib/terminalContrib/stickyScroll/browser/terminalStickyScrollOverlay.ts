@@ -244,6 +244,12 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			return;
 		}
 
+		// Do not show sticky scroll after `clear` command
+		if (command.command && this._isClearCommand(command.command)) {
+			this._setVisible(false);
+			return;
+		}
+
 		// If the marker doesn't exist or it was trimmed from scrollback
 		const marker = command.marker;
 		if (!marker || marker.line === -1) {
@@ -520,6 +526,19 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			selectionBackground: undefined,
 			selectionInactiveBackground: undefined
 		};
+	}
+
+	private _isClearCommand(command: string): boolean {
+		const trimmedCommand = command.trim().toLowerCase();
+
+		const clearCommands = [
+			'clear',       // Unix/Linux/macOS bash/zsh
+			'cls',         // Windows cmd.exe
+			'clear-host',  // PowerShell
+			'reset'
+		];
+
+		return clearCommands.includes(trimmedCommand);
 	}
 }
 
