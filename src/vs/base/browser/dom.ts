@@ -686,9 +686,11 @@ export function position(element: HTMLElement, top: number, right?: number, bott
 export function getDomNodePagePosition(domNode: HTMLElement): IDomNodePagePosition {
 	const bb = domNode.getBoundingClientRect();
 	const window = getWindow(domNode);
+	const isSettings = domNode.closest('.settings-editor');
+	const extraOffset = isSettings ? 10 : 0;
 	return {
 		left: bb.left + window.scrollX,
-		top: bb.top + window.scrollY,
+		top: bb.top + window.scrollY + extraOffset,
 		width: bb.width,
 		height: bb.height
 	};
