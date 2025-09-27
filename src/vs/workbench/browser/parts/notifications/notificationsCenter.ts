@@ -11,9 +11,10 @@ import { INotificationsModel, INotificationChangeEvent, NotificationChangeType, 
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { INotificationsCenterController, NotificationActionRunner } from './notificationsCommands.js';
+import { INotificationsCenterController, NotificationActionRunner, NotificationPosition, NOTIFICATIONS_POSITION_SETTING } from './notificationsCommands.js';
 import { NotificationsList } from './notificationsList.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { $, Dimension, isAncestorOfActiveElement } from '../../../../base/browser/dom.js';
 import { widgetShadow } from '../../../../platform/theme/common/colorRegistry.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
@@ -60,7 +61,8 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super(themeService);
 
@@ -73,6 +75,15 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 		this._register(this.model.onDidChangeNotification(e => this.onDidChangeNotification(e)));
 		this._register(this.layoutService.onDidLayoutMainContainer(dimension => this.layout(Dimension.lift(dimension))));
 		this._register(this.notificationService.onDidChangeFilter(() => this.onDidChangeFilter()));
+
+		// Configuration changes
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(NOTIFICATIONS_POSITION_SETTING)) {
+				if (this.notificationsCenterContainer) {
+					this.applyPositionClass(this.notificationsCenterContainer);
+				}
+			}
+		}));
 	}
 
 	private onDidChangeFilter(): void {
@@ -150,6 +161,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 
 		// Container
 		this.notificationsCenterContainer = $('.notifications-center');
+		this.applyPositionClass(this.notificationsCenterContainer);
 
 		// Header
 		this.notificationsCenterHeader = $('.notifications-center-header');
@@ -382,6 +394,19 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 			}
 			this.accessibilitySignalService.playSignal(AccessibilitySignal.clear);
 		}
+	}
+
+	private applyPositionClass(container: HTMLElement): void {
+		const position = this.configurationService.getValue<NotificationPosition>(NOTIFICATIONS_POSITION_SETTING) || NotificationPosition.BOTTOM_RIGHT;
+
+		// Remove any existing position classes
+		container.classList.remove(
+			'notification-position-bottomRight',
+			'notification-position-bottomLeft'
+		);
+
+		// Add the current position class
+		container.classList.add(`notification-position-${position}`);
 	}
 }
 
