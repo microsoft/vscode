@@ -11,6 +11,7 @@ exports.additionalDeps = [
     'ca-certificates', // Make sure users have SSL certificates.
     'libgtk-3-0 (>= 3.9.10) | libgtk-4-1',
     'libnss3 (>= 3.26)',
+    'libsecret-1-0', // Ensure keytar can integrate with the system keyring.
     'libcurl3-gnutls | libcurl3-nss | libcurl4 | libcurl3', // For Breakpad crash reports.
     'xdg-utils (>= 1.0.2)', // OS integration
 ];
@@ -47,6 +48,7 @@ exports.referenceGeneratedDepsByArch = {
         'libnss3 (>= 2:3.30)',
         'libnss3 (>= 3.26)',
         'libpango-1.0-0 (>= 1.14.0)',
+        'libsecret-1-0',
         'libssl3t64 (>= 3.0.0)',
         'libstdc++6 (>= 5)',
         'libstdc++6 (>= 6)',
@@ -89,6 +91,7 @@ exports.referenceGeneratedDepsByArch = {
         'libnss3 (>= 2:3.30)',
         'libnss3 (>= 3.26)',
         'libpango-1.0-0 (>= 1.14.0)',
+        'libsecret-1-0',
         'libstdc++6 (>= 4.1.1)',
         'libstdc++6 (>= 5)',
         'libstdc++6 (>= 5.2)',
@@ -128,6 +131,7 @@ exports.referenceGeneratedDepsByArch = {
         'libnss3 (>= 2:3.30)',
         'libnss3 (>= 3.26)',
         'libpango-1.0-0 (>= 1.14.0)',
+        'libsecret-1-0',
         'libstdc++6 (>= 4.1.1)',
         'libstdc++6 (>= 5)',
         'libstdc++6 (>= 5.2)',
