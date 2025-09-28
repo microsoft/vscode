@@ -49,10 +49,28 @@ export async function createPythonRuntimeMetadataFromEnvironment(
 
     const workspaceUri = workspaceService.workspaceFolders?.[0]?.uri;
 
-    // Extract Python executable path from environment
-    const pythonPath = environment.executable?.uri?.fsPath || environment.path;
+    // Extract Python executable path from environment and ensure it points to an executable.
+    let pythonPath = environment.executable?.uri?.fsPath || environment.path;
     if (!pythonPath) {
         throw new Error(`Environment ${environment.id} has no executable path`);
+    }
+
+    try {
+        const stat = await fs.stat(pythonPath);
+        if (stat.isDirectory()) {
+            const candidate = path.join(pythonPath, 'bin', 'python');
+            if (await fs.pathExists(candidate)) {
+                pythonPath = candidate;
+            }
+        }
+    } catch (ex) {
+        // Ignore errors; the later validation step will surface missing interpreters.
+    }
+
+    try {
+        pythonPath = await fs.realpath(pythonPath);
+    } catch (ex) {
+        // Ignore errors resolving symlinks; fall back to the original path.
     }
 
     // Create a temporary interpreter object for compatibility with existing ipykernel logic
