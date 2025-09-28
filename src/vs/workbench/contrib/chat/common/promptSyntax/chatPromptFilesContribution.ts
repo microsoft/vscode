@@ -24,7 +24,7 @@ function registerChatFilesExtensionPoint(point: ChatContributionPoint) {
 	return extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawChatFileContribution[]>({
 		extensionPoint: point,
 		jsonSchema: {
-			description: localize('chat.files.' + point, 'Contributes {0} for chat prompts.', point),
+			description: localize('chatContribution.schema.description', 'Contributes {0} for chat prompts.', point),
 			type: 'array',
 			items: {
 				additionalProperties: false,
@@ -39,16 +39,16 @@ function registerChatFilesExtensionPoint(point: ChatContributionPoint) {
 				required: ['name', 'path'],
 				properties: {
 					name: {
-						description: localize('chat.files.name', 'Identifier for this file. Must be unique within this extension for this contribution point.'),
+						description: localize('chatContribution.property.name', 'Identifier for this file. Must be unique within this extension for this contribution point.'),
 						type: 'string',
 						pattern: '^[\\w.-]+$'
 					},
 					path: {
-						description: localize('chat.files.path', 'Path to the file relative to the extension root.'),
+						description: localize('chatContribution.property.path', 'Path to the file relative to the extension root.'),
 						type: 'string'
 					},
 					description: {
-						description: localize('chat.files.description', '(Optional) Description of the file.'),
+						description: localize('chatContribution.property.description', '(Optional) Description of the file.'),
 						type: 'string'
 					}
 				}
@@ -61,8 +61,8 @@ const epPrompt = registerChatFilesExtensionPoint('chatPromptFiles');
 const epInstructions = registerChatFilesExtensionPoint('chatInstructions');
 const epModes = registerChatFilesExtensionPoint('chatModes');
 
-function pointToType(point: ChatContributionPoint): PromptsType {
-	switch (point) {
+function pointToType(contributionPoint: ChatContributionPoint): PromptsType {
+	switch (contributionPoint) {
 		case 'chatPromptFiles': return PromptsType.prompt;
 		case 'chatInstructions': return PromptsType.instructions;
 		case 'chatModes': return PromptsType.mode;
@@ -86,26 +86,26 @@ export class ChatPromptFilesExtensionPointHandler implements IWorkbenchContribut
 		this.handle(epModes, 'chatModes');
 	}
 
-	private handle(extensionPoint: extensionsRegistry.IExtensionPoint<IRawChatFileContribution[]>, point: ChatContributionPoint) {
+	private handle(extensionPoint: extensionsRegistry.IExtensionPoint<IRawChatFileContribution[]>, contributionPoint: ChatContributionPoint) {
 		extensionPoint.setHandler((_extensions, delta) => {
 			for (const ext of delta.added) {
-				const type = pointToType(point);
+				const type = pointToType(contributionPoint);
 				for (const raw of ext.value) {
 					if (!raw.name || !raw.name.match(/^[\w.-]+$/)) {
-						ext.collector.error(`Extension '${ext.description.identifier.value}' cannot register ${point} entry with invalid name '${raw.name}'.`);
+						ext.collector.error(localize('extension.invalid.name', "Extension '{0}' cannot register {1} entry with invalid name '{2}'.", ext.description.identifier.value, contributionPoint, raw.name));
 						continue;
 					}
 					if (!raw.path) {
-						ext.collector.error(`Extension '${ext.description.identifier.value}' cannot register ${point} entry '${raw.name}' without path.`);
+						ext.collector.error(localize('extension.missing.path', "Extension '{0}' cannot register {1} entry '{2}' without path.", ext.description.identifier.value, contributionPoint, raw.name));
 						continue;
 					}
 					if (!raw.description) {
-						ext.collector.error(`Extension '${ext.description.identifier.value}' cannot register ${point} entry '${raw.name}' without description.`);
+						ext.collector.error(localize('extension.missing.description', "Extension '{0}' cannot register {1} entry '{2}' without description.", ext.description.identifier.value, contributionPoint, raw.name));
 						continue;
 					}
 					const fileUri = joinPath(ext.description.extensionLocation, raw.path);
 					if (!isEqualOrParent(fileUri, ext.description.extensionLocation)) {
-						ext.collector.error(`Extension '${ext.description.identifier.value}' ${point} entry '${raw.name}' path resolves outside the extension.`);
+						ext.collector.error(localize('extension.invalid.path', "Extension '{0}' {1} entry '{2}' path resolves outside the extension.", ext.description.identifier.value, contributionPoint, raw.name));
 						continue;
 					}
 					try {
@@ -113,12 +113,12 @@ export class ChatPromptFilesExtensionPointHandler implements IWorkbenchContribut
 						this.registrations.set(key(ext.description.identifier, type, raw.name), d);
 					} catch (e) {
 						const msg = e instanceof Error ? e.message : String(e);
-						ext.collector.error(`Failed to register ${point} entry '${raw.name}': ${msg}`);
+						ext.collector.error(localize('extension.registration.failed', "Failed to register {0} entry '{1}': {2}", contributionPoint, raw.name, msg));
 					}
 				}
 			}
 			for (const ext of delta.removed) {
-				const type = pointToType(point);
+				const type = pointToType(contributionPoint);
 				for (const raw of ext.value) {
 					this.registrations.deleteAndDispose(key(ext.description.identifier, type, raw.name));
 				}
