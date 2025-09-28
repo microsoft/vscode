@@ -933,7 +933,7 @@ suite('RunInTerminalTool', () => {
 	suite('getCopilotShellOrProfile', () => {
 		test('should return custom profile when configured', async () => {
 			runInTerminalTool.setBackendOs(OperatingSystem.Windows);
-			const customProfile = { path: 'C:\\Windows\\System32\\powershell.exe', args: ['-NoProfile'] };
+			const customProfile = Object.freeze({ path: 'C:\\Windows\\System32\\powershell.exe', args: ['-NoProfile'] });
 			setConfig(TerminalChatAgentToolsSettingId.TerminalProfileWindows, customProfile);
 
 			const result = await runInTerminalTool.getCopilotShellOrProfile();
