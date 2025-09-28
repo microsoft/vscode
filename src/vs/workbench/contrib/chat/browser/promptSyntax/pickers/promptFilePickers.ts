@@ -303,7 +303,7 @@ export class PromptFilePickers {
 		const exts = await this._promptsService.listPromptFilesForStorage(options.type, PromptsStorage.extension, CancellationToken.None);
 		if (exts.length) {
 			result.push({ type: 'separator', label: localize('separator.extensions', "Extensions") });
-			result.push(...exts.map(e => this._createPromptPickItem(e, buttons)));
+			result.push(...exts.map(e => this._createPromptPickItem(e, undefined)));
 		}
 		const users = await this._promptsService.listPromptFilesForStorage(options.type, PromptsStorage.user, CancellationToken.None);
 		if (users.length) {
@@ -326,7 +326,7 @@ export class PromptFilePickers {
 		}
 	}
 
-	private _createPromptPickItem(promptFile: IPromptPath, buttons: IQuickInputButton[]): IPromptPickerQuickPickItem {
+	private _createPromptPickItem(promptFile: IPromptPath, buttons: IQuickInputButton[] | undefined): IPromptPickerQuickPickItem {
 		const promptName = promptFile.name ?? getCleanPromptName(promptFile.uri);
 
 		let tooltip: string | undefined;
@@ -349,7 +349,7 @@ export class PromptFilePickers {
 			description: promptFile.description,
 			tooltip,
 			value: promptFile.uri,
-			buttons
+			buttons: buttons
 		};
 	}
 
