@@ -197,7 +197,7 @@ class UiService:
 
         if current_dir != self._working_directory:
             self._working_directory = current_dir
-            if self._comm is not None:
+            if self._comms:
                 event = WorkingDirectoryParams(directory=str(alias_home(current_dir)))
                 self._send_event(name=UiFrontendEvent.WorkingDirectory, payload=event)
 
@@ -313,4 +313,3 @@ class ErdosViewerBrowser(webbrowser.BaseBrowser):
             ).dict(),
         )
         return True
-
