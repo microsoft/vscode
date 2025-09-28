@@ -141,7 +141,7 @@ export class ToolTerminalCreator {
 		} else {
 			config.executable = shellOrProfile.path;
 			config.args = shellOrProfile.args;
-			config.icon = shellOrProfile.icon || config.icon;
+			config.icon = shellOrProfile.icon ?? config.icon;
 			config.color = shellOrProfile.color;
 			config.env = {
 				...config.env,
