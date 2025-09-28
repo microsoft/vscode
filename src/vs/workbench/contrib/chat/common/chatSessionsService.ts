@@ -75,8 +75,6 @@ export interface IChatSessionItemProvider {
 	provideChatSessionItems(token: CancellationToken): Promise<IChatSessionItem[]>;
 	provideNewChatSessionItem?(options: {
 		request: IChatAgentRequest;
-		prompt?: string;
-		history?: any[];
 		metadata?: any;
 	}, token: CancellationToken): Promise<IChatSessionItem>;
 }
@@ -99,8 +97,6 @@ export interface IChatSessionsService {
 	getAllChatSessionItemProviders(): IChatSessionItemProvider[];
 	provideNewChatSessionItem(chatSessionType: string, options: {
 		request: IChatAgentRequest;
-		prompt?: string;
-		history?: any[];
 		metadata?: any;
 	}, token: CancellationToken): Promise<IChatSessionItem>;
 	provideChatSessionItems(chatSessionType: string, token: CancellationToken): Promise<IChatSessionItem[]>;

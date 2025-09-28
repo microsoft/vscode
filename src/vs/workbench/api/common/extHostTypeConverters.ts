@@ -41,6 +41,7 @@ import { DEFAULT_EDITOR_ASSOCIATION, SaveReason } from '../../common/editor.js';
 import { IViewBadge } from '../../common/views.js';
 import { IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/chatAgents.js';
 import { IChatRequestDraft } from '../../contrib/chat/common/chatEditingService.js';
+import { IChatRequestModeInstructions } from '../../contrib/chat/common/chatModel.js';
 import { IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatMoveMessage, IChatMultiDiffData, IChatPrepareToolInvocationPart, IChatProgressMessage, IChatPullRequestContent, IChatResponseCodeblockUriPart, IChatTaskDto, IChatTaskResult, IChatTextEdit, IChatThinkingPart, IChatToolInvocationSerialized, IChatTreeData, IChatUserActionEvent, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
 import { IChatRequestVariableEntry, isImageVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry } from '../../contrib/chat/common/chatVariableEntries.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
@@ -2802,7 +2803,8 @@ export namespace ChatToolInvocationPart {
 			source: ToolDataSource.External,
 			// isError: part.isError ?? false,
 			toolSpecificData: part.toolSpecificData ? convertToolSpecificData(part.toolSpecificData) : undefined,
-			presentation: undefined
+			presentation: undefined,
+			fromSubAgent: part.fromSubAgent
 		};
 	}
 
@@ -2851,6 +2853,7 @@ export namespace ChatToolInvocationPart {
 		if (part.toolSpecificData) {
 			toolInvocation.toolSpecificData = convertFromInternalToolSpecificData(part.toolSpecificData);
 		}
+		toolInvocation.fromSubAgent = part.fromSubAgent;
 
 		return toolInvocation;
 	}
@@ -3129,7 +3132,7 @@ export namespace ChatAgentRequest {
 			model,
 			editedFileEvents: request.editedFileEvents,
 			modeInstructions: request.modeInstructions?.content,
-			modeInstructionsToolReferences: request.modeInstructions?.toolReferences?.map(ChatLanguageModelToolReference.to),
+			modeInstructions2: ChatRequestModeInstructions.to(request.modeInstructions),
 		};
 
 		if (!isProposedApiEnabled(extension, 'chatParticipantPrivate')) {
@@ -3256,6 +3259,16 @@ export namespace ChatLanguageModelToolReference {
 			name: variable.id,
 			range: variable.range && [variable.range.start, variable.range.endExclusive],
 		};
+	}
+}
+
+export namespace ChatRequestModeInstructions {
+	export function to(mode: IChatRequestModeInstructions | undefined): vscode.ChatRequestModeInstructions | undefined {
+		return mode ? {
+			content: mode.content,
+			toolReferences: mode.toolReferences?.map(ref => ChatLanguageModelToolReference.to(ref)) ?? [],
+			metadata: mode.metadata
+		} : undefined;
 	}
 }
 
@@ -3550,7 +3563,7 @@ export namespace LanguageModelToolResult {
 
 export namespace LanguageModelToolResult2 {
 	export function to(result: IToolResult): vscode.LanguageModelToolResult2 {
-		return new types.LanguageModelToolResult2(result.content.map(item => {
+		const toolResult = new types.LanguageModelToolResult2(result.content.map(item => {
 			if (item.kind === 'text') {
 				return new types.LanguageModelTextPart(item.value, item.audience);
 			} else if (item.kind === 'data') {
@@ -3559,6 +3572,12 @@ export namespace LanguageModelToolResult2 {
 				return new types.LanguageModelPromptTsxPart(item.value);
 			}
 		}));
+
+		if (result.toolMetadata) {
+			(toolResult as vscode.ExtendedLanguageModelToolResult).toolMetadata = result.toolMetadata;
+		}
+
+		return toolResult;
 	}
 
 	export function from(result: vscode.ExtendedLanguageModelToolResult2, extension: IExtensionDescription): Dto<IToolResult> | SerializableObjectWithBuffers<Dto<IToolResult>> {
@@ -3622,6 +3641,7 @@ export namespace LanguageModelToolResult2 {
 			}),
 			toolResultMessage: MarkdownString.fromStrict(result.toolResultMessage),
 			toolResultDetails: detailsDto,
+			toolMetadata: result.toolMetadata,
 		};
 
 		return hasBuffers ? new SerializableObjectWithBuffers(dto) : dto;

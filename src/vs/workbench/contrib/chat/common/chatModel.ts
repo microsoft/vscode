@@ -215,14 +215,15 @@ const defaultChatResponseModelChangeReason: ChatResponseModelChangeReason = { re
 export interface IChatRequestModeInfo {
 	kind: ChatModeKind | undefined; // is undefined in case of modeId == 'apply'
 	isBuiltin: boolean;
-	instructions: IChatRequestModeInstructions | undefined;
+	modeInstructions: IChatRequestModeInstructions | undefined;
 	modeId: 'ask' | 'agent' | 'edit' | 'custom' | 'applyCodeBlock' | undefined;
 	applyCodeBlockSuggestionId: EditSuggestionId | undefined;
 }
 
 export interface IChatRequestModeInstructions {
-	readonly content: string | undefined;
-	readonly toolReferences: readonly ChatRequestToolReferenceEntry[] | undefined;
+	readonly content: string;
+	readonly toolReferences: readonly ChatRequestToolReferenceEntry[];
+	readonly metadata?: Record<string, boolean | string | number>;
 }
 
 export interface IChatRequestModelParameters {
@@ -1965,15 +1966,15 @@ export interface IChatAgentEditedFileEvent {
 export namespace ChatResponseResource {
 	export const scheme = 'vscode-chat-response-resource';
 
-	export function createUri(sessionId: string, requestId: string, toolCallId: string, index: number, basename?: string): URI {
+	export function createUri(sessionId: string, toolCallId: string, index: number, basename?: string): URI {
 		return URI.from({
 			scheme: ChatResponseResource.scheme,
 			authority: sessionId,
-			path: `/tool/${requestId}/${toolCallId}/${index}` + (basename ? `/${basename}` : ''),
+			path: `/tool/${toolCallId}/${index}` + (basename ? `/${basename}` : ''),
 		});
 	}
 
-	export function parseUri(uri: URI): undefined | { sessionId: string; requestId: string; toolCallId: string; index: number } {
+	export function parseUri(uri: URI): undefined | { sessionId: string; toolCallId: string; index: number } {
 		if (uri.scheme !== ChatResponseResource.scheme) {
 			return undefined;
 		}
@@ -1983,14 +1984,13 @@ export namespace ChatResponseResource {
 			return undefined;
 		}
 
-		const [, kind, requestId, toolCallId, index] = parts;
+		const [, kind, toolCallId, index] = parts;
 		if (kind !== 'tool') {
 			return undefined;
 		}
 
 		return {
 			sessionId: uri.authority,
-			requestId: requestId,
 			toolCallId: toolCallId,
 			index: Number(index),
 		};

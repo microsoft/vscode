@@ -14,7 +14,7 @@ import { IStorageService } from '../../../../../platform/storage/common/storage.
 import { TestLoggerService, TestProductService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { IMcpHostDelegate } from '../../common/mcpRegistryTypes.js';
 import { McpServerRequestHandler } from '../../common/mcpServerRequestHandler.js';
-import { McpConnectionState } from '../../common/mcpTypes.js';
+import { McpConnectionState, McpServerDefinition, McpServerLaunch } from '../../common/mcpTypes.js';
 import { MCP } from '../../common/modelContextProtocol.js';
 import { TestMcpMessageTransport } from './mcpRegistryTypes.js';
 import { IOutputService } from '../../../../services/output/common/output.js';
@@ -29,6 +29,11 @@ class TestMcpHostDelegate extends Disposable implements IMcpHostDelegate {
 	constructor() {
 		super();
 		this._transport = this._register(new TestMcpMessageTransport());
+	}
+
+
+	substituteVariables(serverDefinition: McpServerDefinition, launch: McpServerLaunch): Promise<McpServerLaunch> {
+		return Promise.resolve(launch);
 	}
 
 	canStart(): boolean {

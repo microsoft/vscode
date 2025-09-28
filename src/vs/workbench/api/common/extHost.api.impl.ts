@@ -224,6 +224,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostChatOutputRenderer = rpcProtocol.set(ExtHostContext.ExtHostChatOutputRenderer, new ExtHostChatOutputRenderer(rpcProtocol, extHostWebviews));
 	rpcProtocol.set(ExtHostContext.ExtHostInteractive, new ExtHostInteractive(rpcProtocol, extHostNotebook, extHostDocumentsAndEditors, extHostCommands, extHostLogService));
 	const extHostLanguageModelTools = rpcProtocol.set(ExtHostContext.ExtHostLanguageModelTools, new ExtHostLanguageModelTools(rpcProtocol, extHostLanguageModels));
+	const extHostChatSessions = rpcProtocol.set(ExtHostContext.ExtHostChatSessions, new ExtHostChatSessions(extHostCommands, extHostLanguageModels, rpcProtocol, extHostLogService));
 	const extHostChatAgents2 = rpcProtocol.set(ExtHostContext.ExtHostChatAgents2, new ExtHostChatAgents2(rpcProtocol, extHostLogService, extHostCommands, extHostDocuments, extHostLanguageModels, extHostDiagnostics, extHostLanguageModelTools));
 	const extHostAiRelatedInformation = rpcProtocol.set(ExtHostContext.ExtHostAiRelatedInformation, new ExtHostRelatedInformation(rpcProtocol));
 	const extHostAiEmbeddingVector = rpcProtocol.set(ExtHostContext.ExtHostAiEmbeddingVector, new ExtHostAiEmbeddingVector(rpcProtocol));
@@ -231,7 +232,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostStatusBar = rpcProtocol.set(ExtHostContext.ExtHostStatusBar, new ExtHostStatusBar(rpcProtocol, extHostCommands.converter));
 	const extHostSpeech = rpcProtocol.set(ExtHostContext.ExtHostSpeech, new ExtHostSpeech(rpcProtocol));
 	const extHostEmbeddings = rpcProtocol.set(ExtHostContext.ExtHostEmbeddings, new ExtHostEmbeddings(rpcProtocol));
-	const extHostChatSessions = rpcProtocol.set(ExtHostContext.ExtHostChatSessions, new ExtHostChatSessions(extHostCommands, extHostLanguageModels, rpcProtocol, extHostLogService));
 
 	rpcProtocol.set(ExtHostContext.ExtHostMcp, accessor.get(IExtHostMpcService));
 
@@ -302,9 +302,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 		const authentication: typeof vscode.authentication = {
 			getSession(providerId: string, scopesOrChallenge: readonly string[] | vscode.AuthenticationWwwAuthenticateRequest, options?: vscode.AuthenticationGetSessionOptions) {
-				if (!Array.isArray(scopesOrChallenge)) {
-					checkProposedApiEnabled(extension, 'authenticationChallenges');
-				}
 				if (
 					(typeof options?.forceNewSession === 'object' && options.forceNewSession.learnMore) ||
 					(typeof options?.createIfNone === 'object' && options.createIfNone.learnMore)
@@ -1530,9 +1527,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'chatSessionsProvider');
 				return extHostChatSessions.registerChatSessionItemProvider(extension, chatSessionType, provider);
 			},
-			registerChatSessionContentProvider(chatSessionType: string, provider: vscode.ChatSessionContentProvider, capabilities?: vscode.ChatSessionCapabilities) {
+			registerChatSessionContentProvider(chatSessionType: string, provider: vscode.ChatSessionContentProvider, chatParticipant: vscode.ChatParticipant, capabilities?: vscode.ChatSessionCapabilities) {
 				checkProposedApiEnabled(extension, 'chatSessionsProvider');
-				return extHostChatSessions.registerChatSessionContentProvider(extension, chatSessionType, provider, capabilities);
+				return extHostChatSessions.registerChatSessionContentProvider(extension, chatSessionType, chatParticipant, provider, capabilities);
 			},
 			registerChatOutputRenderer: (viewType: string, renderer: vscode.ChatOutputRenderer) => {
 				checkProposedApiEnabled(extension, 'chatOutputRenderer');

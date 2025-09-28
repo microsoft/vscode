@@ -6,15 +6,14 @@
 import { ChatModeKind } from '../../constants.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { Event } from '../../../../../../base/common/event.js';
-import { TMetadata } from '../parsers/promptHeader/headerBase.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
-import { TextModelPromptParser } from '../parsers/textModelPromptParser.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { PromptsType } from '../promptTypes.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { ITopError } from '../parsers/types.js';
-import { IVariableReference } from '../../chatModes.js';
+import { YamlNode, YamlParseError } from '../../../../../../base/common/yaml.js';
+import { IChatModeInstructions } from '../../chatModes.js';
+import { ParsedPromptFile } from './newPromptsParser.js';
 
 /**
  * Provides prompt services.
@@ -47,32 +46,6 @@ export interface IPromptPath {
 	readonly type: PromptsType;
 }
 
-/**
- * Type for a shared prompt parser instance returned by the {@link IPromptsService}.
- * Because the parser is shared, we omit the `dispose` method from
- * the original type so the caller cannot dispose it prematurely
- */
-export type TSharedPrompt = Omit<TextModelPromptParser, 'dispose'>;
-
-/**
- * Metadata node object in a hierarchical tree of prompt references.
- */
-export interface IMetadata {
-	/**
-	 * URI of a prompt file.
-	 */
-	readonly uri: URI;
-
-	/**
-	 * Metadata of the prompt file.
-	 */
-	readonly metadata: TMetadata | null;
-
-	/**
-	 * List of metadata for each valid child prompt reference.
-	 */
-	readonly children?: readonly IMetadata[];
-}
 
 export interface ICustomChatMode {
 	/**
@@ -101,14 +74,9 @@ export interface ICustomChatMode {
 	readonly model?: string;
 
 	/**
-	 * Contents of the custom chat mode file body.
+	 * Contents of the custom chat mode file body and other mode instructions.
 	 */
-	readonly body: string;
-
-	/**
-	 * References to variables without a type in the mode body. These could be tools or toolsets.
-	 */
-	readonly variableReferences: readonly IVariableReference[];
+	readonly modeInstructions: IChatModeInstructions;
 }
 
 /**
@@ -159,10 +127,10 @@ export interface IPromptsService extends IDisposable {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Get a prompt syntax parser for the provided text model.
-	 * See {@link TextModelPromptParser} for more info on the parser API.
+	 * The parsed prompt file for the provided text model.
+	 * @param textModel Returns the parsed prompt file.
 	 */
-	getSyntaxParserFor(model: ITextModel): TSharedPrompt & { isDisposed: false };
+	getParsedPromptFile(textModel: ITextModel): ParsedPromptFile;
 
 	/**
 	 * List all available prompt files.
@@ -183,7 +151,7 @@ export interface IPromptsService extends IDisposable {
 	/**
 	 * Gets the prompt file for a slash command.
 	 */
-	resolvePromptSlashCommand(data: IChatPromptSlashCommand, _token: CancellationToken): Promise<IPromptParserResult | undefined>;
+	resolvePromptSlashCommand(data: IChatPromptSlashCommand, _token: CancellationToken): Promise<ParsedPromptFile | undefined>;
 
 	/**
 	 * Returns a prompt command if the command name is valid.
@@ -204,7 +172,7 @@ export interface IPromptsService extends IDisposable {
 	 * Parses the provided URI
 	 * @param uris
 	 */
-	parse(uri: URI, type: PromptsType, token: CancellationToken): Promise<IPromptParserResult>;
+	parseNew(uri: URI, token: CancellationToken): Promise<ParsedPromptFile>;
 
 	/**
 	 * Returns the prompt file type for the given URI.
@@ -219,11 +187,7 @@ export interface IChatPromptSlashCommand {
 	readonly promptPath?: IPromptPath;
 }
 
-
-export interface IPromptParserResult {
-	readonly uri: URI;
-	readonly metadata: TMetadata | null;
-	readonly topError: ITopError | undefined;
-	readonly fileReferences: readonly URI[];
-	readonly variableReferences: readonly IVariableReference[];
+export interface IPromptHeader {
+	readonly node: YamlNode | undefined;
+	readonly errors: YamlParseError[];
 }

@@ -12,8 +12,8 @@
     "start-stdio": "npm run -s compile && node ./out/stdio.js"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.17.3",
-    "@playwright/mcp": "^0.0.34",
+    "@modelcontextprotocol/sdk": "1.18.1",
+    "@playwright/mcp": "^0.0.37",
     "cors": "^2.8.5",
     "express": "^5.1.0",
     "minimist": "^1.2.8",

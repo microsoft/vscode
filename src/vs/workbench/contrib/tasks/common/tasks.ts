@@ -279,11 +279,16 @@ export interface IPresentationOptions {
 	 * Controls whether the terminal that the task runs in is closed when the task completes.
 	 */
 	close?: boolean;
+
+	/**
+	 * Controls whether to preserve the task name in the terminal after task completion.
+	 */
+	preserveTerminalName?: boolean;
 }
 
 export namespace PresentationOptions {
 	export const defaults: IPresentationOptions = {
-		echo: true, reveal: RevealKind.Always, revealProblems: RevealProblemKind.Never, focus: false, panel: PanelKind.Shared, showReuseMessage: true, clear: false
+		echo: true, reveal: RevealKind.Always, revealProblems: RevealProblemKind.Never, focus: false, panel: PanelKind.Shared, showReuseMessage: true, clear: false, preserveTerminalName: false
 	};
 }
 
@@ -1185,6 +1190,13 @@ export interface ITaskProcessEndedEvent extends ITaskCommon {
 	kind: TaskEventKind.ProcessEnded;
 	terminalId: number | undefined;
 	exitCode?: number;
+	durationMs?: number;
+}
+
+export interface ITaskInactiveEvent extends ITaskCommon {
+	kind: TaskEventKind.Inactive;
+	terminalId: number | undefined;
+	durationMs: number | undefined;
 }
 
 export interface ITaskTerminatedEvent extends ITaskCommon {
@@ -1223,7 +1235,8 @@ export const enum TaskRunSource {
 	User,
 	FolderOpen,
 	ConfigurationChange,
-	Reconnect
+	Reconnect,
+	ChatAgent
 }
 
 export namespace TaskEvent {
@@ -1254,12 +1267,22 @@ export namespace TaskEvent {
 			processId,
 		};
 	}
-	export function processEnded(task: Task, terminalId: number | undefined, exitCode: number | undefined): ITaskProcessEndedEvent {
+	export function processEnded(task: Task, terminalId: number | undefined, exitCode: number | undefined, durationMs?: number): ITaskProcessEndedEvent {
 		return {
 			...common(task),
 			kind: TaskEventKind.ProcessEnded,
 			terminalId,
 			exitCode,
+			durationMs,
+		};
+	}
+
+	export function inactive(task: Task, terminalId?: number, durationMs?: number): ITaskInactiveEvent {
+		return {
+			...common(task),
+			kind: TaskEventKind.Inactive,
+			terminalId,
+			durationMs,
 		};
 	}
 
@@ -1328,7 +1351,8 @@ export const enum TaskSettingId {
 	QuickOpenShowAll = 'task.quickOpen.showAll',
 	AllowAutomaticTasks = 'task.allowAutomaticTasks',
 	Reconnection = 'task.reconnection',
-	VerboseLogging = 'task.verboseLogging'
+	VerboseLogging = 'task.verboseLogging',
+	NotifyWindowOnTaskCompletion = 'task.notifyWindowOnTaskCompletion'
 }
 
 export const enum TasksSchemaProperties {

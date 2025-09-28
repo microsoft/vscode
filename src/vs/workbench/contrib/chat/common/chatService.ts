@@ -19,6 +19,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { ICellEditOperation } from '../../notebook/common/notebookCommon.js';
 import { IWorkspaceSymbol } from '../../search/common/search.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult, UserSelectedTools } from './chatAgents.js';
+import { IChatEditingSession } from './chatEditingService.js';
 import { ChatModel, IChatModel, IChatRequestModeInfo, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData } from './chatModel.js';
 import { IParsedChatRequest } from './chatParserTypes.js';
 import { IChatParserContext } from './chatRequestParser.js';
@@ -50,6 +51,7 @@ export interface IChatResponseErrorDetails {
 	responseIsFiltered?: boolean;
 	responseIsRedacted?: boolean;
 	isQuotaExceeded?: boolean;
+	isRateLimited?: boolean;
 	level?: ChatErrorLevel;
 	confirmationButtons?: IChatResponseErrorDetailsConfirmationButton[];
 	code?: string;
@@ -349,6 +351,7 @@ export interface IChatToolInvocation {
 	progress: IObservable<{ message?: string | IMarkdownString; progress: number | undefined }>;
 	readonly toolId: string;
 	readonly toolCallId: string;
+	readonly fromSubAgent?: boolean;
 
 	isCompletePromise: Promise<void>;
 	isComplete: boolean;
@@ -380,6 +383,7 @@ export interface IChatToolInvocationSerialized {
 	toolCallId: string;
 	toolId: string;
 	source: ToolDataSource;
+	readonly fromSubAgent?: boolean;
 	kind: 'toolInvocationSerialized';
 }
 
@@ -639,6 +643,8 @@ export interface IChatEditorLocationData {
 	document: URI;
 	selection: ISelection;
 	wholeRange: IRange;
+	close: () => void;
+	delegateSessionId: string | undefined;
 }
 
 export interface IChatNotebookLocationData {
@@ -695,9 +701,11 @@ export interface IChatService {
 	isPersistedSessionEmpty(sessionId: string): boolean;
 	loadSessionFromContent(data: IExportableChatData | ISerializableChatData | URI): IChatModel | undefined;
 	loadSessionForResource(resource: URI, location: ChatAgentLocation, token: CancellationToken): Promise<IChatModel | undefined>;
+	readonly editingSessions: IChatEditingSession[];
+	getChatSessionFromInternalId(sessionId: string): { chatSessionType: string; chatSessionId: string; isUntitled: boolean } | undefined;
 
 	/**
-	 * Returns whether the request was accepted.
+	 * Returns whether the request was accepted.`
 	 */
 	sendRequest(sessionId: string, message: string, options?: IChatSendRequestOptions): Promise<IChatSendRequestData | undefined>;
 
