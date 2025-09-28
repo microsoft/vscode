@@ -13,7 +13,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { PromptInputState } from '../../../../../platform/terminal/common/capabilities/commandDetection/promptInputModel.js';
-import { ITerminalLogService, ITerminalProfile, TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
+import { ITerminalLogService, ITerminalProfile, TerminalSettingId, type IShellLaunchConfig } from '../../../../../platform/terminal/common/terminal.js';
 import { ITerminalService, type ITerminalInstance } from '../../../terminal/browser/terminal.js';
 import { TerminalChatAgentToolsSettingId } from '../common/terminalChatAgentToolsConfiguration.js';
 
@@ -127,33 +127,28 @@ export class ToolTerminalCreator {
 	}
 
 	private _createCopilotTerminal(shellOrProfile: string | ITerminalProfile) {
-		let config: any;
-		
+		const config: IShellLaunchConfig = {
+			icon: ThemeIcon.fromId(Codicon.chatSparkle.id),
+			hideFromUser: true,
+			env: {
+				// Avoid making `git diff` interactive when called from copilot
+				GIT_PAGER: 'cat',
+			}
+		};
+
 		if (typeof shellOrProfile === 'string') {
-			// When null setting or fallback, use previous behavior with just shell string
-			config = {
-				executable: shellOrProfile,
-				icon: ThemeIcon.fromId(Codicon.chatSparkle.id),
-				hideFromUser: true,
-				env: {
-					GIT_PAGER: 'cat', // avoid making `git diff` interactive when called from copilot
-				},
-			};
+			config.executable = shellOrProfile;
 		} else {
-			// When profile is set, use everything from the chat terminal profile (icon, args, etc.)
-			config = {
-				executable: shellOrProfile.path,
-				args: shellOrProfile.args,
-				icon: shellOrProfile.icon || ThemeIcon.fromId(Codicon.chatSparkle.id),
-				color: shellOrProfile.color,
-				hideFromUser: true,
-				env: {
-					GIT_PAGER: 'cat', // avoid making `git diff` interactive when called from copilot
-					...shellOrProfile.env, // merge profile env with our default
-				},
+			config.executable = shellOrProfile.path;
+			config.args = shellOrProfile.args;
+			config.icon = shellOrProfile.icon || config.icon;
+			config.color = shellOrProfile.color;
+			config.env = {
+				...config.env,
+				...shellOrProfile.env
 			};
 		}
-		
+
 		return this._terminalService.createTerminal({ config });
 	}
 
