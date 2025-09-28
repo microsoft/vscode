@@ -11,7 +11,7 @@ import { ITextModel } from '../../../../../editor/common/model.js';
 import { IExtensionDescription } from '../../../../../platform/extensions/common/extensions.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { ParsedPromptFile } from '../../common/promptSyntax/service/newPromptsParser.js';
-import { ICustomChatMode, IPromptPath, IPromptsService, TPromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
+import { ICustomChatMode, IPromptPath, IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 
 export class MockPromptsService implements IPromptsService {
 	_serviceBrand: undefined;
@@ -33,7 +33,7 @@ export class MockPromptsService implements IPromptsService {
 	// Stub implementations for required interface methods
 	getSyntaxParserFor(_model: any): any { throw new Error('Not implemented'); }
 	listPromptFiles(_type: any): Promise<readonly any[]> { throw new Error('Not implemented'); }
-	listPromptFilesForStorage(type: PromptsType, storage: TPromptsStorage, token: CancellationToken): Promise<readonly IPromptPath[]> { throw new Error('Not implemented'); }
+	listPromptFilesForStorage(type: PromptsType, storage: PromptsStorage, token: CancellationToken): Promise<readonly IPromptPath[]> { throw new Error('Not implemented'); }
 	getSourceFolders(_type: any): readonly any[] { throw new Error('Not implemented'); }
 	asPromptSlashCommand(_command: string): any { return undefined; }
 	resolvePromptSlashCommand(_data: any, _token: CancellationToken): Promise<any> { throw new Error('Not implemented'); }

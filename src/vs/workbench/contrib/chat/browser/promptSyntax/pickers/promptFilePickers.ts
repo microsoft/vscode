@@ -8,7 +8,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { assert } from '../../../../../../base/common/assert.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
-import { IPromptPath, IPromptsService, TPromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { IPromptPath, IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { dirname, extUri, joinPath } from '../../../../../../base/common/resources.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
@@ -295,17 +295,17 @@ export class PromptFilePickers {
 		if (newItems.length > 0) {
 			result.push(...newItems);
 		}
-		const locals = await this._promptsService.listPromptFilesForStorage(options.type, TPromptsStorage.local, CancellationToken.None);
+		const locals = await this._promptsService.listPromptFilesForStorage(options.type, PromptsStorage.local, CancellationToken.None);
 		if (locals.length) {
 			result.push({ type: 'separator', label: localize('separator.workspace', "Workspace") });
 			result.push(...locals.map(l => this._createPromptPickItem(l, buttons)));
 		}
-		const exts = await this._promptsService.listPromptFilesForStorage(options.type, TPromptsStorage.extension, CancellationToken.None);
+		const exts = await this._promptsService.listPromptFilesForStorage(options.type, PromptsStorage.extension, CancellationToken.None);
 		if (exts.length) {
 			result.push({ type: 'separator', label: localize('separator.extensions', "Extensions") });
 			result.push(...exts.map(e => this._createPromptPickItem(e, buttons)));
 		}
-		const users = await this._promptsService.listPromptFilesForStorage(options.type, TPromptsStorage.user, CancellationToken.None);
+		const users = await this._promptsService.listPromptFilesForStorage(options.type, PromptsStorage.user, CancellationToken.None);
 		if (users.length) {
 			result.push({ type: 'separator', label: localize('separator.user', "User Data") });
 			result.push(...users.map(u => this._createPromptPickItem(u, buttons)));
@@ -332,13 +332,13 @@ export class PromptFilePickers {
 		let tooltip: string | undefined;
 
 		switch (promptFile.storage) {
-			case TPromptsStorage.extension:
+			case PromptsStorage.extension:
 				tooltip = promptFile.extension.displayName ?? promptFile.extension.id;
 				break;
-			case TPromptsStorage.local:
+			case PromptsStorage.local:
 				tooltip = this._labelService.getUriLabel(dirname(promptFile.uri), { relative: true });
 				break;
-			case TPromptsStorage.user:
+			case PromptsStorage.user:
 				tooltip = undefined;
 				break;
 		}

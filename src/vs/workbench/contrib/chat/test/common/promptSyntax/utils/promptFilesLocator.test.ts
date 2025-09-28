@@ -27,7 +27,7 @@ import { isValidGlob, PromptFilesLocator } from '../../../../common/promptSyntax
 import { IMockFolder, MockFilesystem } from '../testUtils/mockFilesystem.js';
 import { mockService } from './mock.js';
 import { TestUserDataProfileService } from '../../../../../../test/common/workbenchTestServices.js';
-import { TPromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
+import { PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
 
 /**
  * Mocked instance of {@link IConfigurationService}.
@@ -148,7 +148,7 @@ suite('PromptFilesLocator', () => {
 		const locator = instantiationService.createInstance(PromptFilesLocator);
 
 		return {
-			async listFiles(type: PromptsType, storage: TPromptsStorage, token: CancellationToken): Promise<readonly URI[]> {
+			async listFiles(type: PromptsType, storage: PromptsStorage, token: CancellationToken): Promise<readonly URI[]> {
 				return locator.listFiles(type, storage, token);
 			},
 			getConfigBasedSourceFolders(type: PromptsType): readonly URI[] {
@@ -169,7 +169,7 @@ suite('PromptFilesLocator', () => {
 				const locator = await createPromptsLocator(undefined, EMPTY_WORKSPACE, []);
 
 				assertOutcome(
-					await locator.listFiles(PromptsType.prompt, TPromptsStorage.local, CancellationToken.None),
+					await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
 					[],
 					'No prompts must be found.',
 				);
@@ -183,7 +183,7 @@ suite('PromptFilesLocator', () => {
 				}, EMPTY_WORKSPACE, []);
 
 				assertOutcome(
-					await locator.listFiles(PromptsType.prompt, TPromptsStorage.local, CancellationToken.None),
+					await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
 					[],
 					'No prompts must be found.',
 				);
@@ -197,7 +197,7 @@ suite('PromptFilesLocator', () => {
 				], EMPTY_WORKSPACE, []);
 
 				assertOutcome(
-					await locator.listFiles(PromptsType.prompt, TPromptsStorage.local, CancellationToken.None),
+					await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
 					[],
 					'No prompts must be found.',
 				);
@@ -208,7 +208,7 @@ suite('PromptFilesLocator', () => {
 				const locator = await createPromptsLocator(null, EMPTY_WORKSPACE, []);
 
 				assertOutcome(
-					await locator.listFiles(PromptsType.prompt, TPromptsStorage.local, CancellationToken.None),
+					await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
 					[],
 					'No prompts must be found.',
 				);
@@ -219,7 +219,7 @@ suite('PromptFilesLocator', () => {
 				const locator = await createPromptsLocator('/etc/hosts/prompts', EMPTY_WORKSPACE, []);
 
 				assertOutcome(
-					await locator.listFiles(PromptsType.prompt, TPromptsStorage.local, CancellationToken.None),
+					await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
 					[],
 					'No prompts must be found.',
 				);
@@ -272,7 +272,7 @@ suite('PromptFilesLocator', () => {
 					]);
 
 				assertOutcome(
-					await locator.listFiles(PromptsType.prompt, TPromptsStorage.local, CancellationToken.None),
+					await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
 					[
 						'/Users/legomushroom/repos/prompts/test.prompt.md',
 						'/Users/legomushroom/repos/prompts/refactor-tests.prompt.md',
@@ -348,7 +348,7 @@ suite('PromptFilesLocator', () => {
 						);
 
 						assertOutcome(
-							await locator.listFiles(PromptsType.prompt, TPromptsStorage.local, CancellationToken.None),
+							await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
 							[
 								'/Users/legomushroom/repos/vscode/deps/text/my.prompt.md',
 								'/Users/legomushroom/repos/vscode/deps/text/nested/specific.prompt.md',
@@ -506,7 +506,7 @@ suite('PromptFilesLocator', () => {
 						);
 
 						assertOutcome(
-							await locator.listFiles(PromptsType.prompt, TPromptsStorage.local, CancellationToken.None),
+							await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
 							[
 								'/Users/legomushroom/repos/vscode/deps/text/nested/specific.prompt.md',
 								'/Users/legomushroom/repos/vscode/deps/text/nested/unspecific1.prompt.md',
@@ -588,7 +588,7 @@ suite('PromptFilesLocator', () => {
 						);
 
 						assertOutcome(
-							await locator.listFiles(PromptsType.prompt, TPromptsStorage.local, CancellationToken.None),
+							await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
 							[
 								'/Users/legomushroom/repos/vscode/deps/text/my.prompt.md',
 								'/Users/legomushroom/repos/vscode/deps/text/nested/specific.prompt.md',
@@ -747,7 +747,7 @@ suite('PromptFilesLocator', () => {
 						);
 
 						assertOutcome(
-							await locator.listFiles(PromptsType.prompt, TPromptsStorage.local, CancellationToken.None),
+							await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
 							[
 								'/Users/legomushroom/repos/vscode/deps/text/nested/specific.prompt.md',
 								'/Users/legomushroom/repos/vscode/deps/text/nested/unspecific1.prompt.md',
@@ -826,7 +826,7 @@ suite('PromptFilesLocator', () => {
 						);
 
 						assertOutcome(
-							await locator.listFiles(PromptsType.prompt, TPromptsStorage.local, CancellationToken.None),
+							await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
 							[
 								'/Users/legomushroom/repos/vscode/deps/text/my.prompt.md',
 								'/Users/legomushroom/repos/vscode/deps/text/nested/specific.prompt.md',
@@ -985,7 +985,7 @@ suite('PromptFilesLocator', () => {
 						);
 
 						assertOutcome(
-							await locator.listFiles(PromptsType.prompt, TPromptsStorage.local, CancellationToken.None),
+							await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
 							[
 								'/Users/legomushroom/repos/vscode/deps/text/nested/specific.prompt.md',
 								'/Users/legomushroom/repos/vscode/deps/text/nested/unspecific1.prompt.md',
@@ -1070,7 +1070,7 @@ suite('PromptFilesLocator', () => {
 			]);
 
 		assertOutcome(
-			await locator.listFiles(PromptsType.prompt, TPromptsStorage.local, CancellationToken.None),
+			await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
 			[
 				'/Users/legomushroom/repos/vscode/.github/prompts/my.prompt.md',
 				'/Users/legomushroom/repos/prompts/test.prompt.md',
@@ -1157,7 +1157,7 @@ suite('PromptFilesLocator', () => {
 			]);
 
 		assertOutcome(
-			await locator.listFiles(PromptsType.prompt, TPromptsStorage.local, CancellationToken.None),
+			await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
 			[
 				'/Users/legomushroom/repos/prompts/test.prompt.md',
 				'/Users/legomushroom/repos/prompts/refactor-tests.prompt.md',
@@ -1278,7 +1278,7 @@ suite('PromptFilesLocator', () => {
 					]);
 
 				assertOutcome(
-					await locator.listFiles(PromptsType.prompt, TPromptsStorage.local, CancellationToken.None),
+					await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
 					[
 						'/Users/legomushroom/repos/vscode/.github/prompts/default.prompt.md',
 						'/Users/legomushroom/repos/node/.github/prompts/refactor-static-classes.prompt.md',
@@ -1399,7 +1399,7 @@ suite('PromptFilesLocator', () => {
 					]);
 
 				assertOutcome(
-					await locator.listFiles(PromptsType.prompt, TPromptsStorage.local, CancellationToken.None),
+					await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
 					[
 						'/Users/legomushroom/repos/vscode/.github/prompts/default.prompt.md',
 						'/Users/legomushroom/repos/node/.github/prompts/refactor-static-classes.prompt.md',
@@ -1523,7 +1523,7 @@ suite('PromptFilesLocator', () => {
 					]);
 
 				assertOutcome(
-					await locator.listFiles(PromptsType.prompt, TPromptsStorage.local, CancellationToken.None),
+					await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
 					[
 						'/Users/legomushroom/repos/prompts/test.prompt.md',
 						'/Users/legomushroom/repos/prompts/refactor-tests.prompt.md',
@@ -1646,7 +1646,7 @@ suite('PromptFilesLocator', () => {
 					]);
 
 				assertOutcome(
-					await locator.listFiles(PromptsType.prompt, TPromptsStorage.local, CancellationToken.None),
+					await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
 					[
 						// all of these are due to the `.github/prompts` setting
 						'/Users/legomushroom/repos/vscode/.github/prompts/default.prompt.md',
@@ -1761,7 +1761,7 @@ suite('PromptFilesLocator', () => {
 						);
 
 						assertOutcome(
-							await locator.listFiles(PromptsType.prompt, TPromptsStorage.local, CancellationToken.None),
+							await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
 							[
 								'/Users/legomushroom/repos/vscode/gen/text/my.prompt.md',
 								'/Users/legomushroom/repos/vscode/gen/text/nested/specific.prompt.md',
@@ -1966,7 +1966,7 @@ suite('PromptFilesLocator', () => {
 						);
 
 						assertOutcome(
-							await locator.listFiles(PromptsType.prompt, TPromptsStorage.local, CancellationToken.None),
+							await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
 							[
 								'/Users/legomushroom/repos/vscode/gen/text/my.prompt.md',
 								'/Users/legomushroom/repos/vscode/gen/text/nested/specific.prompt.md',
@@ -2090,7 +2090,7 @@ suite('PromptFilesLocator', () => {
 						);
 
 						assertOutcome(
-							await locator.listFiles(PromptsType.prompt, TPromptsStorage.local, CancellationToken.None),
+							await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
 							[
 								'/Users/legomushroom/repos/vscode/gen/text/my.prompt.md',
 								'/Users/legomushroom/repos/vscode/gen/text/nested/specific.prompt.md',
@@ -2325,7 +2325,7 @@ suite('PromptFilesLocator', () => {
 						);
 
 						assertOutcome(
-							await locator.listFiles(PromptsType.prompt, TPromptsStorage.local, CancellationToken.None),
+							await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
 							[
 								'/Users/legomushroom/repos/vscode/gen/text/my.prompt.md',
 								'/Users/legomushroom/repos/vscode/gen/text/nested/specific.prompt.md',

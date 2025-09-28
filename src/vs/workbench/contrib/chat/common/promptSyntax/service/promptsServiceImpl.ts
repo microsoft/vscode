@@ -17,7 +17,7 @@ import { IModelService } from '../../../../../../editor/common/services/model.js
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
-import { IChatPromptSlashCommand, ICustomChatMode, IExtensionPromptPath, ILocalPromptPath, IPromptPath, IPromptsService, IUserPromptPath, TPromptsStorage } from './promptsService.js';
+import { IChatPromptSlashCommand, ICustomChatMode, IExtensionPromptPath, ILocalPromptPath, IPromptPath, IPromptsService, IUserPromptPath, PromptsStorage } from './promptsService.js';
 import { getCleanPromptName, PROMPT_FILE_EXTENSION } from '../config/promptFileLocations.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 import { PromptsConfig } from '../config/config.js';
@@ -121,25 +121,25 @@ export class PromptsService extends Disposable implements IPromptsService {
 		}
 
 		const prompts = await Promise.all([
-			this.fileLocator.listFiles(type, TPromptsStorage.user, token).then(uris => uris.map(uri => ({ uri, storage: TPromptsStorage.user, type } satisfies IUserPromptPath))),
-			this.fileLocator.listFiles(type, TPromptsStorage.local, token).then(uris => uris.map(uri => ({ uri, storage: TPromptsStorage.local, type } satisfies ILocalPromptPath)))
+			this.fileLocator.listFiles(type, PromptsStorage.user, token).then(uris => uris.map(uri => ({ uri, storage: PromptsStorage.user, type } satisfies IUserPromptPath))),
+			this.fileLocator.listFiles(type, PromptsStorage.local, token).then(uris => uris.map(uri => ({ uri, storage: PromptsStorage.local, type } satisfies ILocalPromptPath)))
 		]);
 
 		return [...prompts.flat(), ...this.contributedFiles[type].values()];
 	}
 
-	public async listPromptFilesForStorage(type: PromptsType, storage: TPromptsStorage, token: CancellationToken): Promise<readonly IPromptPath[]> {
+	public async listPromptFilesForStorage(type: PromptsType, storage: PromptsStorage, token: CancellationToken): Promise<readonly IPromptPath[]> {
 		if (!PromptsConfig.enabled(this.configurationService)) {
 			return [];
 		}
 
 		switch (storage) {
-			case TPromptsStorage.extension:
+			case PromptsStorage.extension:
 				return Promise.resolve(Array.from(this.contributedFiles[type].values()));
-			case TPromptsStorage.local:
-				return this.fileLocator.listFiles(type, TPromptsStorage.local, token).then(uris => uris.map(uri => ({ uri, storage: TPromptsStorage.local, type } satisfies ILocalPromptPath)));
-			case TPromptsStorage.user:
-				return this.fileLocator.listFiles(type, TPromptsStorage.user, token).then(uris => uris.map(uri => ({ uri, storage: TPromptsStorage.user, type } satisfies IUserPromptPath)));
+			case PromptsStorage.local:
+				return this.fileLocator.listFiles(type, PromptsStorage.local, token).then(uris => uris.map(uri => ({ uri, storage: PromptsStorage.local, type } satisfies ILocalPromptPath)));
+			case PromptsStorage.user:
+				return this.fileLocator.listFiles(type, PromptsStorage.user, token).then(uris => uris.map(uri => ({ uri, storage: PromptsStorage.user, type } satisfies IUserPromptPath)));
 			default:
 				throw new Error(`[listPromptFilesForStorage] Unsupported prompt storage type: ${storage}`);
 		}
@@ -153,10 +153,10 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const result: IPromptPath[] = [];
 
 		for (const uri of this.fileLocator.getConfigBasedSourceFolders(type)) {
-			result.push({ uri, storage: TPromptsStorage.local, type });
+			result.push({ uri, storage: PromptsStorage.local, type });
 		}
 		const userHome = this.userDataService.currentProfile.promptsHome;
-		result.push({ uri: userHome, storage: TPromptsStorage.user, type });
+		result.push({ uri: userHome, storage: PromptsStorage.user, type });
 
 		return result;
 	}
@@ -289,7 +289,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			// keep first registration per extension (handler filters duplicates per extension already)
 			return Disposable.None;
 		}
-		bucket.set(uri, { uri, name, description, storage: TPromptsStorage.extension, type, extension } satisfies IExtensionPromptPath);
+		bucket.set(uri, { uri, name, description, storage: PromptsStorage.extension, type, extension } satisfies IExtensionPromptPath);
 		if (type === PromptsType.mode) {
 			this.cachedCustomChatModes = undefined;
 		}
@@ -302,9 +302,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 	getPromptLocationLabel(promptPath: IPromptPath): string {
 		switch (promptPath.storage) {
-			case TPromptsStorage.local: return this.labelService.getUriLabel(dirname(promptPath.uri), { relative: true });
-			case TPromptsStorage.user: return localize('user-data-dir.capitalized', 'User Data');
-			case TPromptsStorage.extension: {
+			case PromptsStorage.local: return this.labelService.getUriLabel(dirname(promptPath.uri), { relative: true });
+			case PromptsStorage.user: return localize('user-data-dir.capitalized', 'User Data');
+			case PromptsStorage.extension: {
 				return localize('extension.with.id', 'Extension: {0}', promptPath.extension.displayName ?? promptPath.extension.id);
 			}
 			default: throw new Error('Unknown prompt storage type');

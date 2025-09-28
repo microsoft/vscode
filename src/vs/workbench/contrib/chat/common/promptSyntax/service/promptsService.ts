@@ -24,7 +24,7 @@ export const IPromptsService = createDecorator<IPromptsService>('IPromptsService
 /**
  * Where the prompt is stored.
  */
-export enum TPromptsStorage {
+export enum PromptsStorage {
 	local = 'local',
 	user = 'user',
 	extension = 'extension'
@@ -46,7 +46,7 @@ export interface IPromptPathBase {
 	/**
 	 * Storage of the prompt.
 	 */
-	readonly storage: TPromptsStorage;
+	readonly storage: PromptsStorage;
 
 	/**
 	 * Type of the prompt (e.g. 'prompt' or 'instructions').
@@ -64,16 +64,16 @@ export interface IPromptPathBase {
 }
 
 export interface IExtensionPromptPath extends IPromptPathBase {
-	readonly storage: TPromptsStorage.extension;
+	readonly storage: PromptsStorage.extension;
 	readonly extension: IExtensionDescription;
 	readonly name: string;
 	readonly description: string;
 }
 export interface ILocalPromptPath extends IPromptPathBase {
-	readonly storage: TPromptsStorage.local;
+	readonly storage: PromptsStorage.local;
 }
 export interface IUserPromptPath extends IPromptPathBase {
-	readonly storage: TPromptsStorage.user;
+	readonly storage: PromptsStorage.user;
 }
 
 
@@ -170,7 +170,7 @@ export interface IPromptsService extends IDisposable {
 	/**
 	 * List all available prompt files.
 	 */
-	listPromptFilesForStorage(type: PromptsType, storage: TPromptsStorage, token: CancellationToken): Promise<readonly IPromptPath[]>;
+	listPromptFilesForStorage(type: PromptsType, storage: PromptsStorage, token: CancellationToken): Promise<readonly IPromptPath[]>;
 
 	/**
 	 * Get a list of prompt source folders based on the provided prompt type.
