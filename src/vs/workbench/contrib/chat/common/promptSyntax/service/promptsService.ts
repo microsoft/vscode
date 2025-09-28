@@ -11,7 +11,6 @@ import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { PromptsType } from '../promptTypes.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { YamlNode, YamlParseError } from '../../../../../../base/common/yaml.js';
 import { IChatModeInstructions } from '../../chatModes.js';
 import { ParsedPromptFile } from './newPromptsParser.js';
 import { IExtensionDescription } from '../../../../../../platform/extensions/common/extensions.js';
@@ -54,7 +53,7 @@ export interface IPromptPathBase {
 	readonly type: PromptsType;
 
 	/**
-	 * Identifier of the contributing extension (only when storage === 'extension').
+	 * Identifier of the contributing extension (only when storage === PromptsStorage.extension).
 	 */
 	readonly extension?: IExtensionDescription;
 
@@ -229,9 +228,4 @@ export interface IChatPromptSlashCommand {
 	readonly command: string;
 	readonly detail: string;
 	readonly promptPath?: IPromptPath;
-}
-
-export interface IPromptHeader {
-	readonly node: YamlNode | undefined;
-	readonly errors: YamlParseError[];
 }
