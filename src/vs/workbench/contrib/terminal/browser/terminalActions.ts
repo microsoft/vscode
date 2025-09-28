@@ -1029,6 +1029,7 @@ export function registerTerminalActions() {
 			}]
 		},
 		precondition: sharedWhenClause.terminalAvailable,
+		f1: false,
 		run: async (activeInstance, c, accessor, args) => {
 			const notificationService = accessor.get(INotificationService);
 			const name = isObject(args) && 'name' in args ? toOptionalString(args.name) : undefined;
