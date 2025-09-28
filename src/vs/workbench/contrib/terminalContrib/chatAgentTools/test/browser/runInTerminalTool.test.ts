@@ -30,6 +30,9 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 	get commandLineAutoApprover() { return this._commandLineAutoApprover; }
 	get sessionTerminalAssociations() { return this._sessionTerminalAssociations; }
 
+	getCopilotShellOrProfile() {
+		return this._getCopilotShellOrProfile();
+	}
 	setBackendOs(os: OperatingSystem) {
 		this._osBackend = Promise.resolve(os);
 	}
@@ -911,63 +914,6 @@ suite('RunInTerminalTool', () => {
 		});
 	});
 
-	suite('Terminal Profile Configuration', () => {
-		test('should use chat agent terminal profile when configured', async () => {
-			// Set a custom terminal profile for Windows
-			setConfig(TerminalChatAgentToolsSettingId.TerminalProfileWindows, {
-				path: 'C:\\Windows\\System32\\cmd.exe',
-				args: ['/K', 'echo "Custom Terminal"']
-			});
-
-			runInTerminalTool.setBackendOs(OperatingSystem.Windows);
-
-			const result = await executeToolTest({
-				command: 'echo hello',
-				explanation: 'test custom profile',
-				isBackground: false
-			});
-
-			// The test should have a mock that intercepts the profile resolution
-			// For now, we verify that the setting is properly accessed
-			ok(result, 'Expected tool to execute successfully with custom profile');
-		});
-
-		test('should fallback to default when no chat agent profile configured', async () => {
-			// Ensure no terminal profile is set
-			setConfig(TerminalChatAgentToolsSettingId.TerminalProfileWindows, null);
-			setConfig(TerminalChatAgentToolsSettingId.TerminalProfileLinux, null);
-			setConfig(TerminalChatAgentToolsSettingId.TerminalProfileMacOs, null);
-
-			runInTerminalTool.setBackendOs(OperatingSystem.Linux);
-
-			const result = await executeToolTest({
-				command: 'echo hello',
-				explanation: 'test default fallback',
-				isBackground: false
-			});
-
-			ok(result, 'Expected tool to execute successfully with default profile');
-		});
-
-		test('should validate terminal profile configuration', async () => {
-			// Set invalid terminal profile (missing path)
-			setConfig(TerminalChatAgentToolsSettingId.TerminalProfileLinux, {
-				args: ['-l']
-			});
-
-			runInTerminalTool.setBackendOs(OperatingSystem.Linux);
-
-			const result = await executeToolTest({
-				command: 'echo hello',
-				explanation: 'test invalid profile',
-				isBackground: false
-			});
-
-			// Should fallback to default when profile is invalid
-			ok(result, 'Expected tool to execute successfully with fallback to default profile');
-		});
-	});
-
 	suite('unique rules deduplication', () => {
 		test('should properly deduplicate rules with same sourceText in auto-approve info', async () => {
 			setAutoApprove({
@@ -981,6 +927,25 @@ suite('RunInTerminalTool', () => {
 			ok(autoApproveInfo);
 			ok(autoApproveInfo.value.includes('Auto approved by rule '), 'should contain singular "rule", not plural');
 			strictEqual(count(autoApproveInfo.value, 'echo'), 1);
+		});
+	});
+
+	suite('getCopilotShellOrProfile', () => {
+		test('should return custom profile when configured', async () => {
+			runInTerminalTool.setBackendOs(OperatingSystem.Windows);
+			const customProfile = { path: 'C:\\Windows\\System32\\powershell.exe', args: ['-NoProfile'] };
+			setConfig(TerminalChatAgentToolsSettingId.TerminalProfileWindows, customProfile);
+
+			const result = await runInTerminalTool.getCopilotShellOrProfile();
+			strictEqual(result, customProfile);
+		});
+
+		test('should fall back to default shell when no custom profile is configured', async () => {
+			runInTerminalTool.setBackendOs(OperatingSystem.Linux);
+			setConfig(TerminalChatAgentToolsSettingId.TerminalProfileLinux, null);
+
+			const result = await runInTerminalTool.getCopilotShellOrProfile();
+			strictEqual(result, 'pwsh'); // From the mock ITerminalProfileResolverService
 		});
 	});
 });

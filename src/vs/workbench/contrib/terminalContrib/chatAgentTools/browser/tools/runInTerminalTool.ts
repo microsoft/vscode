@@ -612,7 +612,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 	// #region Terminal init
 
-	private async _getCopilotShellOrProfile(): Promise<string | ITerminalProfile> {
+	protected async _getCopilotShellOrProfile(): Promise<string | ITerminalProfile> {
 		const os = await this._osBackend;
 
 		// Check for chat agent terminal profile first
