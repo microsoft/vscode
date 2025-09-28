@@ -521,7 +521,6 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			selectionInactiveBackground: undefined
 		};
 	}
-
 }
 
 function lineStartsWith(line: IBufferLine | undefined, text: string): boolean {
