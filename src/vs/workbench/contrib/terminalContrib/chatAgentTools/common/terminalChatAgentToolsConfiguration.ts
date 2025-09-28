@@ -165,6 +165,13 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			// - See notes on `grep`
 			'git grep': true,
 
+			// git branch
+			// - `-d`, `-D`, `--delete`: Prevent branch deletion
+			// - `-m`, `-M`: Prevent branch renaming
+			// - `--force`: Generally dangerous
+			'git branch': true,
+			'/^git branch\\b.*-(d|D|m|M|-delete|-force)\\b/': false,
+
 			// #endregion
 
 			// #region PowerShell
