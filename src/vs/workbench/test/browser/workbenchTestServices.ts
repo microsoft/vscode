@@ -15,6 +15,7 @@ import { isValidBasename } from '../../../base/common/extpath.js';
 import { IMarkdownString } from '../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { Schemas } from '../../../base/common/network.js';
+import { observableValue } from '../../../base/common/observable.js';
 import { posix, win32 } from '../../../base/common/path.js';
 import { IProcessEnvironment, isWindows, OperatingSystem } from '../../../base/common/platform.js';
 import { env } from '../../../base/common/process.js';
@@ -2184,11 +2185,14 @@ export class TestChatEntitlementService implements IChatEntitlementService {
 	}
 
 	readonly onDidChangeSentiment = Event.None;
+	readonly sentimentObs = observableValue({}, {});
 	readonly sentiment = {};
 
 	readonly onDidChangeEntitlement = Event.None;
 	entitlement: ChatEntitlement = ChatEntitlement.Unknown;
+	readonly entitlementObs = observableValue({}, ChatEntitlement.Unknown);
 
 	readonly anonymous = false;
 	onDidChangeAnonymous = Event.None;
+	readonly anonymousObs = observableValue({}, false);
 }

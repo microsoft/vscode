@@ -177,6 +177,7 @@ export interface ILanguageModelChatMetadata {
 		readonly vision?: boolean;
 		readonly toolCalling?: boolean;
 		readonly agentMode?: boolean;
+		readonly editTools?: ReadonlyArray<string>;
 	};
 }
 
@@ -298,9 +299,9 @@ export const languageModelChatProviderExtensionPoint = ExtensionsRegistry.regist
 			}
 		]
 	},
-	activationEventsGenerator: (contribs: IUserFriendlyLanguageModel[], result: { push(item: string): void }) => {
+	activationEventsGenerator: function* (contribs: readonly IUserFriendlyLanguageModel[]) {
 		for (const contrib of contribs) {
-			result.push(`onLanguageModelChatProvider:${contrib.vendor}`);
+			yield `onLanguageModelChatProvider:${contrib.vendor}`;
 		}
 	}
 });

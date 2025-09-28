@@ -15,6 +15,9 @@ import { ChatSessionUri } from '../../common/chatUri.js';
 import { IChatWidgetService } from '../chat.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 
+
+export const NEW_CHAT_SESSION_ACTION_ID = 'workbench.action.chat.openNewSessionEditor';
+
 export type ChatSessionItemWithProvider = IChatSessionItem & {
 	readonly provider: IChatSessionItemProvider;
 	isHistory?: boolean;

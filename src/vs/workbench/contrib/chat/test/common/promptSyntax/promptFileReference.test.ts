@@ -86,7 +86,8 @@ class TestPromptFileReference extends Disposable {
 	 */
 	public async run(): Promise<any> {
 		// create the files structure on the disk
-		await (this.instantiationService.createInstance(MockFilesystem, this.fileStructure)).mock(toUri('/'));
+		const mockFs = this.instantiationService.createInstance(MockFilesystem, this.fileStructure);
+		await mockFs.mock(toUri('/'));
 
 		const content = await this.fileService.readFile(this.rootFileUri);
 
@@ -124,6 +125,9 @@ class TestPromptFileReference extends Disposable {
 				}
 			}
 		}
+
+		await mockFs.delete();
+
 		return result;
 	}
 }

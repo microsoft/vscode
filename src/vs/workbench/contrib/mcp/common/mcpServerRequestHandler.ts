@@ -259,7 +259,7 @@ export class McpServerRequestHandler extends Disposable {
 		} while (nextCursor !== undefined && !token.isCancellationRequested);
 	}
 
-	private sendNotification<N extends MCP.ClientNotification>(notification: N): void {
+	private sendNotification<N extends MCP.ClientNotification>(notification: Omit<N, 'jsonrpc'>): void {
 		this.send({ ...notification, jsonrpc: MCP.JSONRPC_VERSION });
 	}
 

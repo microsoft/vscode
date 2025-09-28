@@ -103,6 +103,7 @@ declare module 'vscode' {
 		isConfirmed?: boolean;
 		isComplete?: boolean;
 		toolSpecificData?: ChatTerminalToolInvocationData;
+		fromSubAgent?: boolean;
 
 		constructor(toolName: string, toolCallId: string, isError?: boolean);
 	}
@@ -646,7 +647,13 @@ declare module 'vscode' {
 	}
 
 	export interface ChatRequest {
-		modeInstructions?: string;
-		modeInstructionsToolReferences?: readonly ChatLanguageModelToolReference[];
+		readonly modeInstructions?: string;
+		readonly modeInstructions2?: ChatRequestModeInstructions;
+	}
+
+	export interface ChatRequestModeInstructions {
+		readonly content: string;
+		readonly toolReferences?: readonly ChatLanguageModelToolReference[];
+		readonly metadata?: Record<string, boolean | string | number>;
 	}
 }

@@ -26,6 +26,7 @@ import { ITextModel } from '../../../../../editor/common/model.js';
 import { getIconClasses } from '../../../../../editor/common/services/getIconClasses.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { EditDeltaInfo } from '../../../../../editor/common/textModelEditSource.js';
 import { localize } from '../../../../../nls.js';
 import { getFlatContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
@@ -38,7 +39,6 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IAiEditTelemetryService } from '../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
-import { EditDeltaInfo } from '../../../../../editor/common/textModelEditSource.js';
 import { MarkedKatexSupport } from '../../../markdown/browser/markedKatexSupport.js';
 import { IMarkdownVulnerability } from '../../common/annotations.js';
 import { IEditSessionEntryDiff } from '../../common/chatEditingService.js';
@@ -127,11 +127,11 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				})])
 				: [];
 
-			// Don't set to 'false' for responses, respect defaults
-			const markedOpts: MarkdownRendererMarkedOptions = isRequestVM(element) ? {
+			// Enables github-flavored-markdown + line breaks with single newlines (which matches typical expectations but isn't "proper" in markdown)
+			const markedOpts: MarkdownRendererMarkedOptions = {
 				gfm: true,
 				breaks: true,
-			} : {};
+			};
 
 			const result = this._register(renderer.render(markdown.content, {
 				sanitizerConfig: MarkedKatexSupport.getSanitizerOptions({
@@ -267,6 +267,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 							modeId: element.model.request?.modeInfo?.modeId,
 							modelId: element.model.request?.modelId,
 							applyCodeBlockSuggestionId: undefined,
+							source: undefined,
 						})
 					};
 				}));

@@ -5,25 +5,30 @@
 
 import assert from 'assert';
 
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
-import { URI } from '../../../../../../../base/common/uri.js';
-import { NewPromptsParser } from '../../../../common/promptSyntax/service/newPromptsParser.js';
-import { PromptValidator } from '../../../../common/promptSyntax/service/promptValidator.js';
-import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { PromptsConfig } from '../../../../common/promptSyntax/config/config.js';
-import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
-import { ILanguageModelToolsService, IToolData, ToolDataSource, ToolSet } from '../../../../common/languageModelToolsService.js';
-import { ObservableSet } from '../../../../../../../base/common/observable.js';
-import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../common/languageModels.js';
-import { ExtensionIdentifier } from '../../../../../../../platform/extensions/common/extensions.js';
-import { ChatMode, CustomChatMode, IChatModeService } from '../../../../common/chatModes.js';
-import { MockChatModeService } from '../../mockChatModeService.js';
-import { PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
-import { IMarkerData, MarkerSeverity } from '../../../../../../../platform/markers/common/markers.js';
-import { getPromptFileExtension } from '../../../../common/promptSyntax/config/promptFileLocations.js';
-import { IFileService } from '../../../../../../../platform/files/common/files.js';
-import { ResourceSet } from '../../../../../../../base/common/map.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { NewPromptsParser } from '../../../common/promptSyntax/service/newPromptsParser.js';
+import { PromptValidator } from '../../../common/promptSyntax/languageProviders/promptValidator.js';
+import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { PromptsConfig } from '../../../common/promptSyntax/config/config.js';
+import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../../../common/languageModelToolsService.js';
+import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
+import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
+import { ChatMode, CustomChatMode, IChatModeService } from '../../../common/chatModes.js';
+import { MockChatModeService } from '../../common/mockChatModeService.js';
+import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
+import { IMarkerData, MarkerSeverity } from '../../../../../../platform/markers/common/markers.js';
+import { getPromptFileExtension } from '../../../common/promptSyntax/config/promptFileLocations.js';
+import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { ResourceSet } from '../../../../../../base/common/map.js';
+import { ChatConfiguration } from '../../../common/constants.js';
+import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { IChatService } from '../../../common/chatService.js';
+import { MockChatService } from '../../common/mockChatService.js';
+import { LanguageModelToolsService } from '../../../browser/languageModelToolsService.js';
+import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
+import { ILabelService } from '../../../../../../platform/label/common/label.js';
 
 suite('PromptValidator', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -31,20 +36,29 @@ suite('PromptValidator', () => {
 	let instaService: TestInstantiationService;
 
 	setup(async () => {
-		instaService = disposables.add(new TestInstantiationService());
 
 		const testConfigService = new TestConfigurationService();
 		testConfigService.setUserConfiguration(PromptsConfig.KEY, true);
+		testConfigService.setUserConfiguration(ChatConfiguration.ExtensionToolsEnabled, true);
+		instaService = workbenchInstantiationService({
+			contextKeyService: () => disposables.add(new ContextKeyService(testConfigService)),
+			configurationService: () => testConfigService
+		}, disposables);
+		const chatService = new MockChatService();
+		instaService.stub(IChatService, chatService);
+		instaService.stub(ILabelService, { getUriLabel: (resource) => resource.path });
 
-		instaService.stub(IConfigurationService, testConfigService);
+		const toolService = disposables.add(instaService.createInstance(LanguageModelToolsService));
 
 		const testTool1 = { id: 'testTool1', displayName: 'tool1', canBeReferencedInPrompt: true, modelDescription: 'Test Tool 1', source: ToolDataSource.External, inputSchema: {} } satisfies IToolData;
 		const testTool2 = { id: 'testTool2', displayName: 'tool2', canBeReferencedInPrompt: true, toolReferenceName: 'tool2', modelDescription: 'Test Tool 2', source: ToolDataSource.External, inputSchema: {} } satisfies IToolData;
+		const testTool3 = { id: 'testTool3', displayName: 'tool3', canBeReferencedInPrompt: true, toolReferenceName: 'tool3', modelDescription: 'Test Tool 3', source: { type: 'extension', label: "My Extension", extensionId: new ExtensionIdentifier('My.extension') }, inputSchema: {} } satisfies IToolData;
 
-		instaService.stub(ILanguageModelToolsService, {
-			getTools() { return [testTool1, testTool2]; },
-			toolSets: new ObservableSet<ToolSet>().observable
-		});
+		disposables.add(toolService.registerToolData(testTool1));
+		disposables.add(toolService.registerToolData(testTool2));
+		disposables.add(toolService.registerToolData(testTool3));
+
+		instaService.set(ILanguageModelToolsService, toolService);
 
 		const testModels: ILanguageModelChatMetadata[] = [
 			{ id: 'mae-4', name: 'MAE 4', vendor: 'olama', version: '1.0', family: 'mae', modelPickerCategory: undefined, extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true } } satisfies ILanguageModelChatMetadata,
@@ -59,7 +73,11 @@ suite('PromptValidator', () => {
 			}
 		});
 
-		const customChatMode = new CustomChatMode({ uri: URI.parse('myFs://test/test/chatmode.md'), name: 'BeastMode', body: '', variableReferences: [] });
+		const customChatMode = new CustomChatMode({
+			uri: URI.parse('myFs://test/test/chatmode.md'),
+			name: 'BeastMode',
+			modeInstructions: { content: 'Beast mode instructions', toolReferences: [] },
+		});
 		instaService.stub(IChatModeService, new MockChatModeService({ builtin: [ChatMode.Agent, ChatMode.Ask, ChatMode.Edit], custom: [customChatMode] }));
 
 
@@ -100,17 +118,16 @@ suite('PromptValidator', () => {
 			/* 01 */"---",
 			/* 02 */`description: ""`, // empty description -> error
 			/* 03 */"model: MAE 4.2", // unknown model -> warning
-			/* 04 */"tools: ['tool1', 'tool2', 'tool3']", // tool3 unknown -> warning
+			/* 04 */"tools: ['tool1', 'tool2', 'tool4', 'my.extension/tool3']", // tool4 unknown -> error
 			/* 05 */"---",
 			/* 06 */"Body",
 			].join('\n');
 			const markers = await validate(content, PromptsType.mode);
-			assert.strictEqual(markers.length, 3, 'Expected 3 validation issues');
 			assert.deepStrictEqual(
 				markers.map(m => ({ severity: m.severity, message: m.message })),
 				[
 					{ severity: MarkerSeverity.Error, message: "The 'description' attribute should not be empty." },
-					{ severity: MarkerSeverity.Warning, message: "Unknown tool 'tool3'." },
+					{ severity: MarkerSeverity.Error, message: "Unknown tool 'tool4'." },
 					{ severity: MarkerSeverity.Warning, message: "Unknown model 'MAE 4.2'." },
 				]
 			);
@@ -136,8 +153,28 @@ suite('PromptValidator', () => {
 				"---",
 			].join('\n');
 			const markers = await validate(content, PromptsType.mode);
-			assert.strictEqual(markers.length, 1);
-			assert.strictEqual(markers[0].message, "Each tool name in the 'tools' attribute must be a string.");
+			assert.deepStrictEqual(
+				markers.map(m => ({ severity: m.severity, message: m.message })),
+				[
+					{ severity: MarkerSeverity.Error, message: "Each tool name in the 'tools' attribute must be a string." },
+				]
+			);
+		});
+
+		test('old tool reference', async () => {
+			const content = [
+				"---",
+				"description: \"Test\"",
+				"tools: ['tool1', 'tool3']",
+				"---",
+			].join('\n');
+			const markers = await validate(content, PromptsType.mode);
+			assert.deepStrictEqual(
+				markers.map(m => ({ severity: m.severity, message: m.message })),
+				[
+					{ severity: MarkerSeverity.Warning, message: "Tool or toolset 'tool3' is deprecated, use 'my.extension/tool3' instead." },
+				]
+			);
 		});
 
 		test('unknown attribute in mode file', async () => {
@@ -306,8 +343,8 @@ suite('PromptValidator', () => {
 			const markers = await validate(content, PromptsType.prompt);
 			const messages = markers.map(m => m.message).sort();
 			assert.deepStrictEqual(messages, [
-				"File './missing1.md' not found.",
-				"File './missing2.md' not found."
+				"File './missing1.md' not found at '/missing1.md'.",
+				"File './missing2.md' not found at '/missing2.md'."
 			]);
 		});
 
@@ -320,7 +357,7 @@ suite('PromptValidator', () => {
 			].join('\n');
 			const markers = await validate(content, PromptsType.prompt);
 			assert.strictEqual(markers.length, 1, 'Expected one warning for unknown tool variable');
-			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
 			assert.strictEqual(markers[0].message, "Unknown tool or toolset 'toolX'.");
 		});
 

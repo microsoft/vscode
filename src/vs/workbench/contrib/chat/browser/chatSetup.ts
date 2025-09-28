@@ -292,7 +292,6 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 	private async doForwardRequestToCopilotWhenReady(requestModel: IChatRequestModel, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatAgentService: IChatAgentService, chatWidgetService: IChatWidgetService, languageModelToolsService: ILanguageModelToolsService): Promise<void> {
 		const widget = chatWidgetService.getWidgetBySessionId(requestModel.session.sessionId);
 		const modeInfo = widget?.input.currentModeInfo;
-		const languageModel = widget?.input.currentLanguageModel;
 
 		// We need a signal to know when we can resend the request to
 		// Copilot. Waiting for the registration of the agent is not
@@ -352,8 +351,7 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 
 		await chatService.resendRequest(requestModel, {
 			...widget?.getModeRequestOptions(),
-			modeInfo,
-			userSelectedModelId: languageModel,
+			modeInfo
 		});
 	}
 
@@ -442,8 +440,8 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 		let result: IChatSetupResult | undefined = undefined;
 		try {
 			result = await ChatSetup.getInstance(this.instantiationService, this.context, this.controller).run({
-				disableChatViewReveal: true, 				// we are already in a chat context
-				forceAnonymous: this.shouldForceAnonymous()	// gate anonymous access behind some conditions
+				disableChatViewReveal: true, 							// we are already in a chat context
+				forceAnonymous: this.chatEntitlementService.anonymous	// only enable anonymous selectively
 			});
 		} catch (error) {
 			this.logService.error(`[chat setup] Error during setup: ${toErrorMessage(error)}`);
@@ -479,18 +477,6 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 		}
 
 		return {};
-	}
-
-	private shouldForceAnonymous(): boolean {
-		if (!this.chatEntitlementService.anonymous) {
-			return false; // only enabled conditionally
-		}
-
-		if (this.location !== ChatAgentLocation.Chat) {
-			return false; // currently only supported from Chat (TODO@bpasero expand this to more locations)
-		}
-
-		return true;
 	}
 
 	private replaceAgentInRequestModel(requestModel: IChatRequestModel, chatAgentService: IChatAgentService): IChatRequestModel {
@@ -815,6 +801,10 @@ class ChatSetup {
 	}
 
 	private getDialogTitle(options?: { forceSignInDialog?: boolean }): string {
+		if (this.chatEntitlementService.anonymous) {
+			return localize('enableMore', "Enable more AI features");
+		}
+
 		if (this.context.state.entitlement === ChatEntitlement.Unknown || options?.forceSignInDialog) {
 			return localize('signIn', "Sign in to use GitHub Copilot");
 		}
@@ -849,7 +839,8 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -868,6 +859,10 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 	}
 
 	private registerSetupAgents(context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): void {
+		if (this.configurationService.getValue<boolean>('chat.experimental.disableCoreAgents')) {
+			return; // TODO@bpasero eventually remove this when we figured out extension activation issues
+		}
+
 		const defaultAgentDisposables = markAsSingleton(new MutableDisposable()); // prevents flicker on window reload
 		const vscodeAgentDisposables = markAsSingleton(new MutableDisposable());
 
@@ -913,7 +908,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				vscodeAgentDisposables.clear();
 			}
 
-			if ((context.state.installed && context.state.entitlement !== ChatEntitlement.Unknown && context.state.entitlement !== ChatEntitlement.Unresolved) && !context.state.disabled) {
+			if (context.state.installed && !context.state.disabled) {
 				vscodeAgentDisposables.clear(); // we need to do this to prevent showing duplicate agent/tool entries in the list
 			}
 		};
@@ -943,7 +938,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				});
 			}
 
-			override async run(accessor: ServicesAccessor, mode?: ChatModeKind, options?: { forceSignInDialog?: boolean; forceNoDialog?: boolean; additionalScopes?: readonly string[]; forceAnonymous?: boolean }): Promise<boolean> {
+			override async run(accessor: ServicesAccessor, mode?: ChatModeKind, options?: { forceSignInDialog?: boolean; additionalScopes?: readonly string[]; forceAnonymous?: boolean }): Promise<boolean> {
 				const viewsService = accessor.get(IViewsService);
 				const layoutService = accessor.get(IWorkbenchLayoutService);
 				const instantiationService = accessor.get(IInstantiationService);
@@ -958,14 +953,6 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				if (mode) {
 					const chatWidget = await showCopilotView(viewsService, layoutService);
 					chatWidget?.input.setChatMode(mode);
-				}
-
-				if (options?.forceNoDialog) {
-					const chatWidget = await showCopilotView(viewsService, layoutService);
-					ChatSetup.getInstance(instantiationService, context, controller).skipDialog();
-					chatWidget?.acceptInput(localize('setupChat', "Set up chat."));
-
-					return true;
 				}
 
 				const setup = ChatSetup.getInstance(instantiationService, context, controller);
@@ -1005,11 +992,11 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			}
 		}
 
-		class ChatSetupTriggerWithoutDialogAction extends Action2 {
+		class ChatSetupTriggerAnonymouslyAction extends Action2 {
 
 			constructor() {
 				super({
-					id: 'workbench.action.chat.triggerSetupWithoutDialog',
+					id: 'workbench.action.chat.triggerSetupAnonymously',
 					title: ChatSetupTriggerAction.CHAT_SETUP_ACTION_LABEL
 				});
 			}
@@ -1020,7 +1007,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 				telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: CHAT_SETUP_ACTION_ID, from: 'api' });
 
-				return commandService.executeCommand(CHAT_SETUP_ACTION_ID, undefined, { forceNoDialog: true });
+				return commandService.executeCommand(CHAT_SETUP_ACTION_ID, undefined, { forceAnonymous: true });
 			}
 		}
 
@@ -1150,7 +1137,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		registerAction2(ChatSetupTriggerAction);
 		registerAction2(ChatSetupTriggerForceSignInDialogAction);
 		registerAction2(ChatSetupFromAccountsAction);
-		registerAction2(ChatSetupTriggerWithoutDialogAction);
+		registerAction2(ChatSetupTriggerAnonymouslyAction);
 		registerAction2(UpgradePlanAction);
 		registerAction2(EnableOveragesAction);
 	}
