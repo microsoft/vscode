@@ -1,0 +1,51 @@
+import Foundation
+import ZIPFoundation
+
+// Распаковать IPA в временную папку, найти .app/Info.plist, изменить и запаковать обратно
+func processIPA(at ipaURL: URL, completion: @escaping (Result<URL, Error>) -> Void) {
+    DispatchQueue.global(qos: .userInitiated).async {
+        let fileManager = FileManager.default
+        let tmpDir = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        do {
+            try fileManager.createDirectory(at: tmpDir, withIntermediateDirectories: true, attributes: nil)
+
+            // 1) Распаковать IPA (IPA — zip)
+            guard let archive = Archive(url: ipaURL, accessMode: .read) else {
+                throw NSError(domain: "IPA", code: 1, userInfo: [NSLocalizedDescriptionKey: "Не удалось открыть архив"])
+            }
+            try archive.extract(to: tmpDir)
+
+            // 2) Найти .app папку
+            let payloadURL = tmpDir.appendingPathComponent("Payload")
+            let items = try fileManager.contentsOfDirectory(at: payloadURL, includingPropertiesForKeys: nil)
+            guard let appBundleURL = items.first(where: { $0.pathExtension == "app" }) else {
+                throw NSError(domain: "IPA", code: 2, userInfo: [NSLocalizedDescriptionKey: "Не найдена .app папка"])
+            }
+
+            // 3) Путь к Info.plist
+            let infoPlistURL = appBundleURL.appendingPathComponent("Info.plist")
+            guard fileManager.fileExists(atPath: infoPlistURL.path) else {
+                throw NSError(domain: "IPA", code: 3, userInfo: [NSLocalizedDescriptionKey: "Info.plist отсутствует"])
+            }
+
+            // 4) Загрузить Info.plist и изменить (пример: изменить CFBundleDisplayName)
+            let data = try Data(contentsOf: infoPlistURL)
+            var format = PropertyListSerialization.PropertyListFormat.xml
+            guard var plist = try PropertyListSerialization.propertyList(from: data, options: .mutableContainersAndLeaves, format: &format) as? [String: Any] else {
+                throw NSError(domain: "IPA", code: 4, userInfo: [NSLocalizedDescriptionKey: "Не удалось распарсить Info.plist"])
+            }
+
+            // Пример изменения
+            plist["CFBundleDisplayName"] = "My Edited App"
+
+            // Сохранить обратно
+            let newData = try PropertyListSerialization.data(fromPropertyList: plist, format: format, options: 0)
+            try newData.write(to: infoPlistURL, options: .atomic)
+
+            // 5) Удалить старый ipa / создать новый архив
+            let newIpaURL = fileManager.temporaryDirectory.appendingPathComponent("edited_\(ipaURL.lastPathComponent)")
+            if fileManager.fileExists(atPath: newIpaURL.path) {
+                try fileManager.removeItem(at: newIpaURL)
+            }
+
+            // Запаковать имя tmpDir → newI
