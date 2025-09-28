@@ -8,12 +8,13 @@ import { OperatingSystem } from '../../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { CommandSimplifier } from '../../browser/commandSimplifier.js';
 import type { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import type { TestContextService } from '../../../../../test/common/workbenchTestServices.js';
-import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { TestContextService } from '../../../../../test/common/workbenchTestServices.js';
+import { IWorkspaceContextService, toWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import type { IRunInTerminalInputParams } from '../../browser/tools/runInTerminalTool.js';
+import { Workspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 
 suite('command re-writing', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -37,12 +38,15 @@ suite('command re-writing', () => {
 		};
 	}
 
-	setup(() => {
-		instantiationService = workbenchInstantiationService({
-			// configurationService: () => configurationService,
-		}, store);
-		workspaceService = instantiationService.invokeFunction(accessor => accessor.get(IWorkspaceContextService)) as TestContextService;
+	function setWorkspaceFolders(folders: URI[]) {
+		workspaceService.setWorkspace(new Workspace(folders.reduce((prev, curr) => {
+			return `${prev},${curr}`;
+		}, ''), folders.map(e => toWorkspaceFolder(e))));
+	}
 
+	setup(() => {
+		instantiationService = workbenchInstantiationService(undefined, store);
+		workspaceService = instantiationService.get(IWorkspaceContextService) as TestContextService;
 	});
 
 	suite('cd <cwd> && <suffix> -> <suffix>', () => {
@@ -68,9 +72,7 @@ suite('command re-writing', () => {
 			test('should rewrite command with ; separator when directory matches cwd', async () => {
 				const testDir = '/test/workspace';
 				const parameters = createRewriteParams(`cd ${testDir}; npm test`, 'session-1');
-				workspaceService.setWorkspace({
-					folders: [{ uri: URI.file(testDir) }]
-				});
+				setWorkspaceFolders([URI.file(testDir)]);
 
 				const result = await commandSimplifier.rewriteIfNeeded(parameters, undefined, 'pwsh');
 
@@ -80,9 +82,7 @@ suite('command re-writing', () => {
 			test('should rewrite command with && separator when directory matches cwd', async () => {
 				const testDir = '/test/workspace';
 				const parameters = createRewriteParams(`cd ${testDir} && npm install`, 'session-1');
-				workspaceService.setWorkspace({
-					folders: [{ uri: URI.file(testDir) }]
-				});
+				setWorkspaceFolders([URI.file(testDir)]);
 
 				const result = await commandSimplifier.rewriteIfNeeded(parameters, undefined, 'bash');
 
@@ -92,9 +92,7 @@ suite('command re-writing', () => {
 			test('should rewrite command when the path is wrapped in double quotes', async () => {
 				const testDir = '/test/workspace';
 				const parameters = createRewriteParams(`cd "${testDir}" && npm install`, 'session-1');
-				workspaceService.setWorkspace({
-					folders: [{ uri: URI.file(testDir) }]
-				});
+				setWorkspaceFolders([URI.file(testDir)]);
 
 				const result = await commandSimplifier.rewriteIfNeeded(parameters, undefined, 'bash');
 
@@ -106,9 +104,7 @@ suite('command re-writing', () => {
 				const differentDir = '/different/path';
 				const command = `cd ${differentDir} && npm install`;
 				const parameters = createRewriteParams(command, 'session-1');
-				workspaceService.setWorkspace({
-					folders: [{ uri: URI.file(testDir) }]
-				});
+				setWorkspaceFolders([URI.file(testDir)]);
 
 				const result = await commandSimplifier.rewriteIfNeeded(parameters, undefined, 'bash');
 
@@ -118,9 +114,7 @@ suite('command re-writing', () => {
 			test('should return original command when no workspace folders available', async () => {
 				const command = 'cd /some/path && npm install';
 				const parameters = createRewriteParams(command, 'session-1');
-				workspaceService.setWorkspace({
-					folders: []
-				});
+				setWorkspaceFolders([]);
 
 				const result = await commandSimplifier.rewriteIfNeeded(parameters, undefined, 'bash');
 
@@ -130,12 +124,10 @@ suite('command re-writing', () => {
 			test('should return original command when multiple workspace folders available', async () => {
 				const command = 'cd /some/path && npm install';
 				const parameters = createRewriteParams(command, 'session-1');
-				workspaceService.setWorkspace({
-					folders: [
-						{ uri: URI.file('/workspace1') },
-						{ uri: URI.file('/workspace2') }
-					]
-				});
+				setWorkspaceFolders([
+					URI.file('/workspace1'),
+					URI.file('/workspace2')
+				]);
 
 				const result = await commandSimplifier.rewriteIfNeeded(parameters, undefined, 'bash');
 
@@ -146,9 +138,7 @@ suite('command re-writing', () => {
 				const testDir = '/test/workspace';
 				const command = `cd ${testDir} && npm install && npm test && echo "done"`;
 				const parameters = createRewriteParams(command, 'session-1');
-				workspaceService.setWorkspace({
-					folders: [{ uri: URI.file(testDir) }]
-				});
+				setWorkspaceFolders([URI.file(testDir)]);
 
 				const result = await commandSimplifier.rewriteIfNeeded(parameters, undefined, 'bash');
 
@@ -158,9 +148,7 @@ suite('command re-writing', () => {
 			test('should handle session without chatSessionId', async () => {
 				const command = 'cd /some/path && npm install';
 				const parameters = createRewriteParams(command);
-				workspaceService.setWorkspace({
-					folders: [{ uri: URI.file('/some/path') }]
-				});
+				setWorkspaceFolders([URI.file('/some/path')]);
 
 				const result = await commandSimplifier.rewriteIfNeeded(parameters, undefined, 'bash');
 
@@ -170,9 +158,7 @@ suite('command re-writing', () => {
 			test('should ignore any trailing forward slash', async () => {
 				const testDir = '/test/workspace';
 				const parameters = createRewriteParams(`cd ${testDir}/ && npm install`, 'session-1');
-				workspaceService.setWorkspace({
-					folders: [{ uri: URI.file(testDir) }]
-				});
+				setWorkspaceFolders([URI.file(testDir)]);
 
 				const result = await commandSimplifier.rewriteIfNeeded(parameters, undefined, 'bash');
 
@@ -188,9 +174,7 @@ suite('command re-writing', () => {
 			test('should ignore any trailing back slash', async () => {
 				const testDir = 'c:\\test\\workspace';
 				const parameters = createRewriteParams(`cd ${testDir}\\ && npm install`, 'session-1');
-				workspaceService.setWorkspace({
-					folders: [{ uri: URI.file(testDir) }]
-				});
+				setWorkspaceFolders([URI.file(testDir)]);
 
 				const result = await commandSimplifier.rewriteIfNeeded(parameters, undefined, 'cmd');
 
@@ -203,9 +187,7 @@ suite('command re-writing', () => {
 				const command = `cd ${instanceDir} && npm test`;
 				const parameters = createRewriteParams(command, 'session-1');
 
-				workspaceService.setWorkspace({
-					folders: [{ uri: URI.file(workspaceDir) }]
-				});
+				setWorkspaceFolders([URI.file(workspaceDir)]);
 				const instance = createInstanceWithCwd(URI.file(instanceDir));
 
 				const result = await commandSimplifier.rewriteIfNeeded(parameters, instance, 'cmd');
@@ -219,9 +201,7 @@ suite('command re-writing', () => {
 				const command = `cd ${instanceDir}; npm test`;
 				const parameters = createRewriteParams(command, 'session-1');
 
-				workspaceService.setWorkspace({
-					folders: [{ uri: URI.file(workspaceDir) }]
-				});
+				setWorkspaceFolders([URI.file(workspaceDir)]);
 				const instance = createInstanceWithCwd(URI.file(instanceDir));
 
 				const result = await commandSimplifier.rewriteIfNeeded(parameters, instance, 'pwsh');
@@ -236,9 +216,7 @@ suite('command re-writing', () => {
 				const command = `cd ${cdDir} && npm test`;
 				const parameters = createRewriteParams(command, 'session-1');
 
-				workspaceService.setWorkspace({
-					folders: [{ uri: URI.file(workspaceDir) }]
-				});
+				setWorkspaceFolders([URI.file(workspaceDir)]);
 				const instance = createInstanceWithCwd(URI.file(instanceDir));
 
 				const result = await commandSimplifier.rewriteIfNeeded(parameters, instance, 'cmd');
@@ -252,9 +230,7 @@ suite('command re-writing', () => {
 				const command = `cd ${workspaceDir} && npm test`;
 				const parameters = createRewriteParams(command, 'session-1');
 
-				workspaceService.setWorkspace({
-					folders: [{ uri: URI.file(workspaceDir) }]
-				});
+				setWorkspaceFolders([URI.file(workspaceDir)]);
 				const instance = createInstanceWithCwd(undefined);
 
 				const result = await commandSimplifier.rewriteIfNeeded(parameters, instance, 'cmd');
@@ -267,9 +243,7 @@ suite('command re-writing', () => {
 				const command = `cd ${sharedDir} && npm build`;
 				const parameters = createRewriteParams(command, 'session-1');
 
-				workspaceService.setWorkspace({
-					folders: [{ uri: URI.file(sharedDir) }]
-				});
+				setWorkspaceFolders([URI.file(sharedDir)]);
 				const instance = createInstanceWithCwd(URI.file(sharedDir));
 
 				const result = await commandSimplifier.rewriteIfNeeded(parameters, instance, 'cmd');
@@ -295,9 +269,7 @@ suite('command re-writing', () => {
 				const command = 'cd "C:\\instance\\workspace" && npm test';
 				const parameters = createRewriteParams(command, 'session-1');
 
-				workspaceService.setWorkspace({
-					folders: [{ uri: URI.file('C:\\different\\workspace') }]
-				});
+				setWorkspaceFolders([URI.file('C:\\different\\workspace')]);
 				const instance = createInstanceWithCwd(URI.file(instanceDir));
 
 				const result = await commandSimplifier.rewriteIfNeeded(parameters, instance, 'cmd');
@@ -308,9 +280,7 @@ suite('command re-writing', () => {
 			test('should handle cd /d flag when directory matches cwd', async () => {
 				const testDir = 'C:\\test\\workspace';
 				const options = createRewriteParams(`cd /d ${testDir} && echo hello`, 'session-1');
-				workspaceService.setWorkspace({
-					folders: [{ uri: URI.file(testDir) }]
-				});
+				setWorkspaceFolders([URI.file(testDir)]);
 
 				const result = await commandSimplifier.rewriteIfNeeded(options, undefined, 'pwsh');
 
@@ -320,9 +290,7 @@ suite('command re-writing', () => {
 			test('should handle cd /d flag with quoted paths when directory matches cwd', async () => {
 				const testDir = 'C:\\test\\workspace';
 				const options = createRewriteParams(`cd /d "${testDir}" && echo hello`, 'session-1');
-				workspaceService.setWorkspace({
-					folders: [{ uri: URI.file(testDir) }]
-				});
+				setWorkspaceFolders([URI.file(testDir)]);
 
 				const result = await commandSimplifier.rewriteIfNeeded(options, undefined, 'pwsh');
 
@@ -332,9 +300,7 @@ suite('command re-writing', () => {
 			test('should handle cd /d flag with quoted paths from issue example', async () => {
 				const testDir = 'd:\\microsoft\\vscode';
 				const options = createRewriteParams(`cd /d "${testDir}" && .\\scripts\\test.bat`, 'session-1');
-				workspaceService.setWorkspace({
-					folders: [{ uri: URI.file(testDir) }]
-				});
+				setWorkspaceFolders([URI.file(testDir)]);
 
 				const result = await commandSimplifier.rewriteIfNeeded(options, undefined, 'pwsh');
 
@@ -346,9 +312,7 @@ suite('command re-writing', () => {
 				const differentDir = 'C:\\different\\path';
 				const command = `cd /d ${differentDir} && echo hello`;
 				const options = createRewriteParams(command, 'session-1');
-				workspaceService.setWorkspace({
-					folders: [{ uri: URI.file(testDir) }]
-				});
+				setWorkspaceFolders([URI.file(testDir)]);
 
 				const result = await commandSimplifier.rewriteIfNeeded(options, undefined, 'pwsh');
 
@@ -361,9 +325,7 @@ suite('command re-writing', () => {
 				const command = `cd /d ${instanceDir} && npm test`;
 				const parameters = createRewriteParams(command, 'session-1');
 
-				workspaceService.setWorkspace({
-					folders: [{ uri: URI.file(workspaceDir) }]
-				});
+				setWorkspaceFolders([URI.file(workspaceDir)]);
 				const instance = createInstanceWithCwd(URI.file(instanceDir));
 
 				const result = await commandSimplifier.rewriteIfNeeded(parameters, instance, 'pwsh');
@@ -374,9 +336,7 @@ suite('command re-writing', () => {
 			test('should handle cd /d flag with semicolon separator', async () => {
 				const testDir = 'C:\\test\\workspace';
 				const options = createRewriteParams(`cd /d ${testDir}; echo hello`, 'session-1');
-				workspaceService.setWorkspace({
-					folders: [{ uri: URI.file(testDir) }]
-				});
+				setWorkspaceFolders([URI.file(testDir)]);
 
 				const result = await commandSimplifier.rewriteIfNeeded(options, undefined, 'pwsh');
 
