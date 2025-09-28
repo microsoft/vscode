@@ -109,7 +109,7 @@ export class ChatPromptFilesExtensionPointHandler implements IWorkbenchContribut
 						continue;
 					}
 					try {
-						const d = this.promptsService.registerContributedFile(type, raw.name, raw.description, fileUri, ext.description.identifier.value);
+						const d = this.promptsService.registerContributedFile(type, raw.name, raw.description, fileUri, ext.description);
 						this.registrations.set(key(ext.description.identifier, type, raw.name), d);
 					} catch (e) {
 						const msg = e instanceof Error ? e.message : String(e);

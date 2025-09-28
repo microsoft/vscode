@@ -17,7 +17,7 @@ import { IModelService } from '../../../../../../editor/common/services/model.js
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
-import type { IChatPromptSlashCommand, ICustomChatMode, IPromptPath, IPromptsService, TPromptsStorage } from './promptsService.js';
+import { IChatPromptSlashCommand, ICustomChatMode, IExtensionPromptPath, ILocalPromptPath, IPromptPath, IPromptsService, IUserPromptPath, TPromptsStorage } from './promptsService.js';
 import { getCleanPromptName, PROMPT_FILE_EXTENSION } from '../config/promptFileLocations.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 import { PromptsConfig } from '../config/config.js';
@@ -29,6 +29,7 @@ import { CancellationError } from '../../../../../../base/common/errors.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 import { IChatModeInstructions, IVariableReference } from '../../chatModes.js';
 import { dirname } from '../../../../../../base/common/resources.js';
+import { IExtensionDescription } from '../../../../../../platform/extensions/common/extensions.js';
 
 /**
  * Provides prompt services.
@@ -53,9 +54,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 	 * Contributed files from extensions keyed by prompt type then name.
 	 */
 	private readonly contributedFiles = {
-		[PromptsType.prompt]: new ResourceMap<IPromptPath>(),
-		[PromptsType.instructions]: new ResourceMap<IPromptPath>(),
-		[PromptsType.mode]: new ResourceMap<IPromptPath>(),
+		[PromptsType.prompt]: new ResourceMap<IExtensionPromptPath>(),
+		[PromptsType.instructions]: new ResourceMap<IExtensionPromptPath>(),
+		[PromptsType.mode]: new ResourceMap<IExtensionPromptPath>(),
 	};
 
 	/**
@@ -71,7 +72,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		@IUserDataProfileService private readonly userDataService: IUserDataProfileService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IFileService private readonly fileService: IFileService,
+		@IFileService private readonly fileService: IFileService
 	) {
 		super();
 
@@ -120,13 +121,28 @@ export class PromptsService extends Disposable implements IPromptsService {
 		}
 
 		const prompts = await Promise.all([
-			this.fileLocator.listFiles(type, 'user', token)
-				.then(withType('user', type)),
-			this.fileLocator.listFiles(type, 'local', token)
-				.then(withType('local', type)),
+			this.fileLocator.listFiles(type, TPromptsStorage.user, token).then(uris => uris.map(uri => ({ uri, storage: TPromptsStorage.user, type } satisfies IUserPromptPath))),
+			this.fileLocator.listFiles(type, TPromptsStorage.local, token).then(uris => uris.map(uri => ({ uri, storage: TPromptsStorage.local, type } satisfies ILocalPromptPath)))
 		]);
 
 		return [...prompts.flat(), ...this.contributedFiles[type].values()];
+	}
+
+	public async listPromptFilesForStorage(type: PromptsType, storage: TPromptsStorage, token: CancellationToken): Promise<readonly IPromptPath[]> {
+		if (!PromptsConfig.enabled(this.configurationService)) {
+			return [];
+		}
+
+		switch (storage) {
+			case TPromptsStorage.extension:
+				return Promise.resolve(Array.from(this.contributedFiles[type].values()));
+			case TPromptsStorage.local:
+				return this.fileLocator.listFiles(type, TPromptsStorage.local, token).then(uris => uris.map(uri => ({ uri, storage: TPromptsStorage.local, type } satisfies ILocalPromptPath)));
+			case TPromptsStorage.user:
+				return this.fileLocator.listFiles(type, TPromptsStorage.user, token).then(uris => uris.map(uri => ({ uri, storage: TPromptsStorage.user, type } satisfies IUserPromptPath)));
+			default:
+				throw new Error(`[listPromptFilesForStorage] Unsupported prompt storage type: ${storage}`);
+		}
 	}
 
 	public getSourceFolders(type: PromptsType): readonly IPromptPath[] {
@@ -137,10 +153,10 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const result: IPromptPath[] = [];
 
 		for (const uri of this.fileLocator.getConfigBasedSourceFolders(type)) {
-			result.push({ uri, storage: 'local', type });
+			result.push({ uri, storage: TPromptsStorage.local, type });
 		}
 		const userHome = this.userDataService.currentProfile.promptsHome;
-		result.push({ uri: userHome, storage: 'user', type });
+		result.push({ uri: userHome, storage: TPromptsStorage.user, type });
 
 		return result;
 	}
@@ -267,13 +283,13 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return new NewPromptsParser().parse(uri, fileContent.value.toString());
 	}
 
-	public registerContributedFile(type: PromptsType, name: string, description: string, uri: URI, extensionId: string) {
+	public registerContributedFile(type: PromptsType, name: string, description: string, uri: URI, extension: IExtensionDescription) {
 		const bucket = this.contributedFiles[type];
 		if (bucket.has(uri)) {
 			// keep first registration per extension (handler filters duplicates per extension already)
 			return Disposable.None;
 		}
-		bucket.set(uri, { uri, name, description, storage: 'extension', type, extensionId });
+		bucket.set(uri, { uri, name, description, storage: TPromptsStorage.extension, type, extension } satisfies IExtensionPromptPath);
 		return {
 			dispose: () => {
 				bucket.delete(uri);
@@ -285,7 +301,10 @@ export class PromptsService extends Disposable implements IPromptsService {
 		switch (promptPath.storage) {
 			case 'local': return this.labelService.getUriLabel(dirname(promptPath.uri), { relative: true });
 			case 'user': return localize('user-data-dir.capitalized', 'User Data');
-			case 'extension': return promptPath.extensionId ?? localize('extension', 'Extension');
+			case 'extension': {
+				return localize('extension.with.id', 'Extension: {0}', promptPath.extension.displayName ?? promptPath.extension.id);
+			}
+			default: throw new Error('Unknown prompt storage type');
 		}
 	}
 }
@@ -293,24 +312,4 @@ export class PromptsService extends Disposable implements IPromptsService {
 export function getPromptCommandName(path: string): string {
 	const name = basename(path, PROMPT_FILE_EXTENSION);
 	return name;
-}
-
-/**
- * Utility to add a provided prompt `storage` and
- * `type` attributes to a prompt URI.
- */
-function addType(storage: TPromptsStorage, type: PromptsType): (uri: URI) => IPromptPath {
-	return (uri) => {
-		return { uri, storage, type };
-	};
-}
-
-/**
- * Utility to add a provided prompt `type` to a list of prompt URIs.
- */
-function withType(storage: TPromptsStorage, type: PromptsType): (uris: readonly URI[]) => (readonly IPromptPath[]) {
-	return (uris) => {
-		return uris
-			.map(addType(storage, type));
-	};
 }

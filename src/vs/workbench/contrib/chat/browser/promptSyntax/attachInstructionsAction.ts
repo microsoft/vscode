@@ -250,7 +250,7 @@ export class ChatInstructionsPickerPick implements IChatContextPickerItem {
 				}
 
 				result.push({
-					label: getCleanPromptName(promptsPath.uri),
+					label: promptsPath.name ?? getCleanPromptName(promptsPath.uri),
 					asAttachment: (): IPromptFileVariableEntry => {
 						return toPromptFileVariableEntry(promptsPath.uri, PromptFileVariableKind.Instruction);
 					}

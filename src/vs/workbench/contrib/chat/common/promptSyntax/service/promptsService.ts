@@ -14,6 +14,7 @@ import { createDecorator } from '../../../../../../platform/instantiation/common
 import { YamlNode, YamlParseError } from '../../../../../../base/common/yaml.js';
 import { IChatModeInstructions } from '../../chatModes.js';
 import { ParsedPromptFile } from './newPromptsParser.js';
+import { IExtensionDescription } from '../../../../../../platform/extensions/common/extensions.js';
 
 /**
  * Provides prompt services.
@@ -23,13 +24,20 @@ export const IPromptsService = createDecorator<IPromptsService>('IPromptsService
 /**
  * Where the prompt is stored.
  */
-export type TPromptsStorage = 'local' | 'user' | 'extension';
+export enum TPromptsStorage {
+	local = 'local',
+	user = 'user',
+	extension = 'extension'
+}
 
 /**
  * Represents a prompt path with its type.
  * This is used for both prompt files and prompt source folders.
  */
-export interface IPromptPath {
+export type IPromptPath = IExtensionPromptPath | ILocalPromptPath | IUserPromptPath;
+
+
+export interface IPromptPathBase {
 	/**
 	 * URI of the prompt.
 	 */
@@ -48,11 +56,24 @@ export interface IPromptPath {
 	/**
 	 * Identifier of the contributing extension (only when storage === 'extension').
 	 */
-	readonly extensionId?: string;
+	readonly extension?: IExtensionDescription;
 
 	readonly name?: string;
 
 	readonly description?: string;
+}
+
+export interface IExtensionPromptPath extends IPromptPathBase {
+	readonly storage: TPromptsStorage.extension;
+	readonly extension: IExtensionDescription;
+	readonly name: string;
+	readonly description: string;
+}
+export interface ILocalPromptPath extends IPromptPathBase {
+	readonly storage: TPromptsStorage.local;
+}
+export interface IUserPromptPath extends IPromptPathBase {
+	readonly storage: TPromptsStorage.user;
 }
 
 
@@ -147,6 +168,11 @@ export interface IPromptsService extends IDisposable {
 	listPromptFiles(type: PromptsType, token: CancellationToken): Promise<readonly IPromptPath[]>;
 
 	/**
+	 * List all available prompt files.
+	 */
+	listPromptFilesForStorage(type: PromptsType, storage: TPromptsStorage, token: CancellationToken): Promise<readonly IPromptPath[]>;
+
+	/**
 	 * Get a list of prompt source folders based on the provided prompt type.
 	 */
 	getSourceFolders(type: PromptsType): readonly IPromptPath[];
@@ -193,7 +219,7 @@ export interface IPromptsService extends IDisposable {
 	 * Internal: register a contributed file. Returns a disposable that removes the contribution.
 	 * Not intended for extension authors; used by contribution point handler.
 	 */
-	registerContributedFile(type: PromptsType, name: string, description: string, uri: URI, extensionId: string): IDisposable;
+	registerContributedFile(type: PromptsType, name: string, description: string, uri: URI, extension: IExtensionDescription): IDisposable;
 
 
 	getPromptLocationLabel(promptPath: IPromptPath): string;
