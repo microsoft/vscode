@@ -45,6 +45,7 @@ const dirs = [
 	'extensions/merge-conflict',
 	'extensions/microsoft-authentication',
 	'extensions/notebook-renderers',
+	'extensions/quarto',
 	'extensions/npm',
 	'extensions/php-language-features',
 	'extensions/references-view',

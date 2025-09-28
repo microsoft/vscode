@@ -1263,6 +1263,7 @@
     "editor-types": "file:./packages/editor-types",
     "file-url": "^4.0.0",
     "fuse.js": "^7.1.0",
+    "glob": "^10.4.5",
     "highlight.js": "^11.7.0",
     "i18next": "^22.5.1",
     "image-size": "^2.0.2",

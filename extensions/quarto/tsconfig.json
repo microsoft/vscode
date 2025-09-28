@@ -9,21 +9,38 @@
     "jsx": "react",
     "skipLibCheck": true,
     "resolveJsonModule": true,
+    "baseUrl": ".",
+    "paths": {
+      "core": ["./packages/core/src"],
+      "core-node": ["./packages/core-node/src"],
+      "core-browser": ["./packages/core-browser/src"],
+      "editor-core": ["./packages/editor-core/src"],
+      "editor-server": ["./packages/editor-server/src"],
+      "editor-types": ["./packages/editor-types/src"],
+      "quarto-core": ["./packages/quarto-core/src"]
+    },
     "types": [
       "node",
       "mocha"
     ],
-    "typeRoots": ["./packages/editor-server/src/@types", "./lsp/src/@types", "./node_modules/@types"]
+    "typeRoots": [
+      "./packages/editor-server/src/@types",
+      "./lsp/src/@types",
+      "./node_modules/@types",
+      "../../node_modules/@types"
+    ]
   },
   "include": [
     "src/**/*",
     "packages/**/*",
-    "lsp/src/**/*"
+    "lsp/src/**/*",
+    "../../src/vscode-dts/vscode.d.ts"
   ],
   "exclude": [
     "apps/**/*",
     "node_modules/**/*",
     "out/**/*",
     "test/**/*",
+    "packages/build/**/*"
   ]
 }

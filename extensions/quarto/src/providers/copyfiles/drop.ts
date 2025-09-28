@@ -43,8 +43,13 @@ export const imageFileExtensions = new Set<string>([
 ]);
 
 export function registerDropIntoEditorSupport(selector: vscode.DocumentSelector) {
-  return vscode.languages.registerDocumentDropEditProvider(selector, new class implements vscode.DocumentDropEditProvider {
-    async provideDocumentDropEdits(document: vscode.TextDocument, _position: vscode.Position, dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): Promise<vscode.DocumentDropEdit | undefined> {
+  const provider = {
+    async provideDocumentDropEdits(
+      document: vscode.TextDocument,
+      _position: vscode.Position,
+      dataTransfer: vscode.DataTransfer,
+      token: vscode.CancellationToken
+    ): Promise<vscode.DocumentDropEdit | undefined> {
       const enabled = vscode.workspace.getConfiguration('markdown', document).get('editor.drop.enabled', true);
       if (!enabled) {
         return undefined;
@@ -53,7 +58,14 @@ export function registerDropIntoEditorSupport(selector: vscode.DocumentSelector)
       const snippet = await tryGetUriListSnippet(document, dataTransfer, token);
       return snippet ? new vscode.DocumentDropEdit(snippet) : undefined;
     }
-  });
+  };
+
+  // The drop API expects a provider that can yield either a single edit or a list of edits.
+  // Casting keeps the async helper above while satisfying the runtime shape VS Code uses today.
+  return vscode.languages.registerDocumentDropEditProvider(
+    selector,
+    provider as unknown as vscode.DocumentDropEditProvider
+  );
 }
 
 export async function tryGetUriListSnippet(document: vscode.TextDocument, dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): Promise<vscode.SnippetString | undefined> {

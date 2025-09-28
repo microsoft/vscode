@@ -1730,7 +1730,7 @@
         "kill-compiled": "deemon --kill npm run compile",
         "checkDependencies": "gulp checkDependencies",
         "install-pet": "ts-node scripts/install-pet.ts",
-        "postinstall": "gulp installPythonLibs && ts-node scripts/post-install.ts",
+        "postinstall": "node scripts/install-python-libs.js",
         "test": "node ./out/test/standardTest.js && node ./out/test/multiRootTest.js",
         "test:unittests": "mocha --config ./build/.mocha.unittests.json",
         "test:unittests:cover": "nyc --no-clean --nycrc-path ./build/.nycrc mocha --config ./build/.mocha.unittests.json",

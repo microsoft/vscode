@@ -31,6 +31,10 @@ module.exports = withDefaults({
 			'quarto-core': path.resolve(__dirname, 'packages/quarto-core/src')
 		}
 	},
+	externals: {
+		'bufferutil': 'commonjs bufferutil',
+		'utf-8-validate': 'commonjs utf-8-validate'
+	},
 	plugins: [
 		new CopyWebpackPlugin({
 			patterns: [

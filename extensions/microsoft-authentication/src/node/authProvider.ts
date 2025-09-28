@@ -183,7 +183,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 
 	}
 
-	async createSession(scopes: readonly string[], options: AuthenticationProviderSessionOptions): Promise<AuthenticationSession> {
+	async createSession(scopes: readonly string[], options: AuthenticationProviderSessionOptions = {}): Promise<AuthenticationSession> {
 		const scopeData = new ScopeData(scopes, undefined, options.authorizationServer);
 		// Do NOT use `scopes` beyond this place in the code. Use `scopeData` instead.
 
@@ -285,7 +285,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 		this._logger.info('[removeSession]', sessionId, `attempted to remove ${promises.length} sessions`);
 	}
 
-	async getSessionsFromChallenges(constraint: AuthenticationConstraint, options: AuthenticationProviderSessionOptions): Promise<readonly AuthenticationSession[]> {
+	async getSessionsFromChallenges(constraint: AuthenticationConstraint, options: AuthenticationProviderSessionOptions = {}): Promise<readonly AuthenticationSession[]> {
 		this._logger.info('[getSessionsFromChallenges]', 'starting with', constraint.challenges.length, 'challenges');
 
 		// Use scopes from constraint if provided, otherwise extract from challenges
@@ -294,17 +294,17 @@ export class MsalAuthProvider implements AuthenticationProvider {
 		if (!claims) {
 			throw new Error('No claims found in authentication challenges');
 		}
-		const scopeData = new ScopeData(scopes, claims, options?.authorizationServer);
+		const scopeData = new ScopeData(scopes, claims, options.authorizationServer);
 		this._logger.info('[getSessionsFromChallenges]', `[${scopeData.scopeStr}]`, 'with claims:', scopeData.claims);
 
 		const cachedPca = await this._publicClientManager.getOrCreate(scopeData.clientId);
-		const sessions = await this.getAllSessionsForPca(cachedPca, scopeData, options?.account);
+		const sessions = await this.getAllSessionsForPca(cachedPca, scopeData, options.account);
 
 		this._logger.info('[getSessionsFromChallenges]', 'returning', sessions.length, 'sessions');
 		return sessions;
 	}
 
-	async createSessionFromChallenges(constraint: AuthenticationConstraint, options: AuthenticationProviderSessionOptions): Promise<AuthenticationSession> {
+	async createSessionFromChallenges(constraint: AuthenticationConstraint, options: AuthenticationProviderSessionOptions = {}): Promise<AuthenticationSession> {
 		this._logger.info('[createSessionFromChallenges]', 'starting with', constraint.challenges.length, 'challenges');
 
 		// Use scopes from constraint if provided, otherwise extract from challenges
