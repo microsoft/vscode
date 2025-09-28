@@ -8,6 +8,7 @@ import type { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
 import { localize } from '../../../../../nls.js';
 import { type IConfigurationPropertySchema } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
+import { terminalProfileBaseProperties } from '../../../../../platform/terminal/common/terminalPlatformConfiguration.js';
 
 export const enum TerminalChatAgentToolsSettingId {
 	EnableAutoApprove = 'chat.tools.terminal.enableAutoApprove',
@@ -53,28 +54,7 @@ const terminalChatAgentProfileSchema: IJSONSchema = {
 			description: localize('terminalChatAgentProfile.path', "A single path to a shell executable."),
 			type: 'string',
 		},
-		args: {
-			description: localize('terminalChatAgentProfile.args', "An array of command-line arguments to pass to the shell."),
-			type: 'array',
-			items: {
-				type: 'string'
-			},
-		},
-		icon: {
-			description: localize('terminalChatAgentProfile.icon', "A codicon ID to associate with this terminal."),
-			type: 'string',
-		},
-		color: {
-			description: localize('terminalChatAgentProfile.color', "A color theme color ID to associate with this terminal."),
-			type: 'string',
-		},
-		env: {
-			description: localize('terminalChatAgentProfile.env', "Object with environment variables that will be added to the shell."),
-			type: 'object',
-			additionalProperties: {
-				type: ['string', 'null']
-			},
-		},
+		...terminalProfileBaseProperties,
 	}
 };
 

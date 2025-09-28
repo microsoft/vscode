@@ -616,10 +616,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const os = await this._osBackend;
 
 		// Check for chat agent terminal profile first
-		const chatAgentProfile = this._getChatAgentTerminalProfile(os);
-		if (chatAgentProfile) {
-			// When profile is set, use everything from the chat terminal profile (icon, args, etc.)
-			return chatAgentProfile;
+		const customChatAgentProfile = this._getChatTerminalProfile(os);
+		if (customChatAgentProfile) {
+			return customChatAgentProfile;
 		}
 
 		// When setting is null, use the previous behavior
@@ -627,46 +626,24 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			os,
 			remoteAuthority: this._remoteAgentService.getConnection()?.remoteAuthority
 		});
+
 		// Force pwsh over cmd as cmd doesn't have shell integration
 		if (basename(defaultShell) === 'cmd.exe') {
 			return 'C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe';
 		}
+
 		return defaultShell;
 	}
 
 	private async _getCopilotShell(): Promise<string> {
-		const shellConfig = await this._getCopilotShellConfig();
-		return shellConfig.executable || 'bash';
+		const shellOrProfile = await this._getCopilotShellOrProfile();
+		if (typeof shellOrProfile === 'string') {
+			return shellOrProfile;
+		}
+		return shellOrProfile.path;
 	}
 
-	private async _getCopilotShellConfig(): Promise<{ executable: string; args?: string[] }> {
-		const os = await this._osBackend;
-
-		// Check for chat agent terminal profile first
-		const chatAgentProfile = this._getChatAgentTerminalProfile(os);
-		if (chatAgentProfile) {
-			return {
-				executable: chatAgentProfile.path,
-				args: chatAgentProfile.args
-			};
-		}
-
-		const defaultShell = await this._terminalProfileResolverService.getDefaultShell({
-			os,
-			remoteAuthority: this._remoteAgentService.getConnection()?.remoteAuthority
-		});
-		// Force pwsh over cmd as cmd doesn't have shell integration
-		if (basename(defaultShell) === 'cmd.exe') {
-			return {
-				executable: 'C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
-			};
-		}
-		return {
-			executable: defaultShell
-		};
-	}
-
-	private _getChatAgentTerminalProfile(os: OperatingSystem): ITerminalProfile | undefined {
+	private _getChatTerminalProfile(os: OperatingSystem): ITerminalProfile | undefined {
 		let profileSetting: string;
 		switch (os) {
 			case OperatingSystem.Windows:
@@ -682,7 +659,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 
 		const profile = this._configurationService.getValue(profileSetting);
-
 		if (this._isValidChatAgentTerminalProfile(profile)) {
 			return profile;
 		}
