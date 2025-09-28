@@ -290,6 +290,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 			return Disposable.None;
 		}
 		bucket.set(uri, { uri, name, description, storage: TPromptsStorage.extension, type, extension } satisfies IExtensionPromptPath);
+		if (type === PromptsType.mode) {
+			this.cachedCustomChatModes = undefined;
+		}
 		return {
 			dispose: () => {
 				bucket.delete(uri);
@@ -299,9 +302,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 	getPromptLocationLabel(promptPath: IPromptPath): string {
 		switch (promptPath.storage) {
-			case 'local': return this.labelService.getUriLabel(dirname(promptPath.uri), { relative: true });
-			case 'user': return localize('user-data-dir.capitalized', 'User Data');
-			case 'extension': {
+			case TPromptsStorage.local: return this.labelService.getUriLabel(dirname(promptPath.uri), { relative: true });
+			case TPromptsStorage.user: return localize('user-data-dir.capitalized', 'User Data');
+			case TPromptsStorage.extension: {
 				return localize('extension.with.id', 'Extension: {0}', promptPath.extension.displayName ?? promptPath.extension.id);
 			}
 			default: throw new Error('Unknown prompt storage type');

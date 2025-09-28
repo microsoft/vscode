@@ -47,9 +47,9 @@ export class PromptFilesLocator extends Disposable {
 	 * @returns List of prompt files found in the workspace.
 	 */
 	public async listFiles(type: PromptsType, storage: TPromptsStorage, token: CancellationToken): Promise<readonly URI[]> {
-		if (storage === 'local') {
+		if (storage === TPromptsStorage.local) {
 			return await this.listFilesInLocal(type, token);
-		} else if (storage === 'user') {
+		} else if (storage === TPromptsStorage.user) {
 			return await this.listFilesInUserData(type, token);
 		}
 		throw new Error(`Unsupported prompt file storage: ${storage}`);
