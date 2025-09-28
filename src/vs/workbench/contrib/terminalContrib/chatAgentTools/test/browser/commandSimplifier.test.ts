@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { strictEqual } from 'assert';
-import { OperatingSystem } from '../../../../../../base/common/platform.js';
+import { isWindows, OperatingSystem } from '../../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { CommandSimplifier } from '../../browser/commandSimplifier.js';
 import type { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -50,7 +50,7 @@ suite('command re-writing', () => {
 	});
 
 	suite('cd <cwd> && <suffix> -> <suffix>', () => {
-		suite('Posix', () => {
+		(!isWindows ? suite : suite.skip)('Posix', () => {
 			setup(() => {
 				commandSimplifier = instantiationService.createInstance(CommandSimplifier, Promise.resolve(OperatingSystem.Linux));
 			});
@@ -166,7 +166,7 @@ suite('command re-writing', () => {
 			});
 		});
 
-		suite('Windows', () => {
+		(isWindows ? suite : suite.skip)('Windows', () => {
 			setup(() => {
 				commandSimplifier = instantiationService.createInstance(CommandSimplifier, Promise.resolve(OperatingSystem.Windows));
 			});
