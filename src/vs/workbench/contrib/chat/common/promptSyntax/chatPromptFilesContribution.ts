@@ -11,6 +11,7 @@ import { joinPath, isEqualOrParent } from '../../../../../base/common/resources.
 import { IPromptsService } from './service/promptsService.js';
 import { PromptsType } from './promptTypes.js';
 import { DisposableMap } from '../../../../../base/common/lifecycle.js';
+import { checkProposedApiEnabled } from '../../../../services/extensions/common/extensions.js';
 
 interface IRawChatFileContribution {
 	readonly name: string;
@@ -89,6 +90,7 @@ export class ChatPromptFilesExtensionPointHandler implements IWorkbenchContribut
 	private handle(extensionPoint: extensionsRegistry.IExtensionPoint<IRawChatFileContribution[]>, contributionPoint: ChatContributionPoint) {
 		extensionPoint.setHandler((_extensions, delta) => {
 			for (const ext of delta.added) {
+				checkProposedApiEnabled(ext.description, 'chatParticipantPrivate');
 				const type = pointToType(contributionPoint);
 				for (const raw of ext.value) {
 					if (!raw.name || !raw.name.match(/^[\w.-]+$/)) {
