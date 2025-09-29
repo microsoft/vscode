@@ -5,21 +5,19 @@
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { Position } from '../../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { Hover, HoverContext, HoverProvider } from '../../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
-import { ILanguageFeaturesService } from '../../../../../../editor/common/services/languageFeatures.js';
 import { localize } from '../../../../../../nls.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../languageModels.js';
 import { ILanguageModelToolsService, ToolSet } from '../../languageModelToolsService.js';
 import { IChatModeService, isBuiltinChatMode } from '../../chatModes.js';
-import { ALL_PROMPTS_LANGUAGE_SELECTOR, getPromptsTypeForLanguageId, PromptsType } from '../promptTypes.js';
+import { getPromptsTypeForLanguageId, PromptsType } from '../promptTypes.js';
 import { IPromptsService } from '../service/promptsService.js';
 import { IHeaderAttribute, PromptBody, PromptHeader } from '../service/newPromptsParser.js';
 
-export class PromptHoverProvider extends Disposable implements HoverProvider {
+export class PromptHoverProvider implements HoverProvider {
 	/**
 	 * Debug display name for this provider.
 	 */
@@ -27,14 +25,10 @@ export class PromptHoverProvider extends Disposable implements HoverProvider {
 
 	constructor(
 		@IPromptsService private readonly promptsService: IPromptsService,
-		@ILanguageFeaturesService private readonly languageService: ILanguageFeaturesService,
 		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@IChatModeService private readonly chatModeService: IChatModeService,
 	) {
-		super();
-
-		this._register(this.languageService.hoverProvider.register(ALL_PROMPTS_LANGUAGE_SELECTOR, this));
 	}
 
 	private createHover(contents: string, range: Range): Hover {
@@ -129,13 +123,13 @@ export class PromptHoverProvider extends Disposable implements HoverProvider {
 	}
 
 	private getToolHoverByName(toolName: string, range: Range): Hover | undefined {
-		const tool = this.languageModelToolsService.getToolByName(toolName);
-		if (tool) {
-			return this.createHover(tool.modelDescription, range);
-		}
-		const toolSet = this.languageModelToolsService.getToolSetByName(toolName);
-		if (toolSet) {
-			return this.getToolsetHover(toolSet, range);
+		const tool = this.languageModelToolsService.getToolByQualifiedName(toolName);
+		if (tool !== undefined) {
+			if (tool instanceof ToolSet) {
+				return this.getToolsetHover(tool, range);
+			} else {
+				return this.createHover(tool.modelDescription, range);
+			}
 		}
 		return undefined;
 	}

@@ -309,7 +309,8 @@ export default tseslint.config(
 						'terminate',
 						'trigger',
 						'unregister',
-						'write'
+						'write',
+						'commit'
 					]
 				}
 			]
@@ -826,6 +827,7 @@ export default tseslint.config(
 						'string_decoder',
 						'tas-client-umd',
 						'tls',
+						'undici',
 						'undici-types',
 						'url',
 						'util',

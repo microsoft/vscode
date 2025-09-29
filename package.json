@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.105.0",
-  "distro": "08cc7707ea2064bf9503442022aa365a12c7dbd0",
+  "distro": "35091a9a52c6140fcbee98e0829b9713aed0f6a0",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -110,6 +110,7 @@
     "node-pty": "1.1.0-beta35",
     "open": "^10.1.2",
     "tas-client-umd": "0.2.0",
+    "undici": "^7.9.0",
     "v8-inspect-profiler": "^0.1.1",
     "vscode-oniguruma": "1.7.0",
     "vscode-regexpp": "^3.1.0",
