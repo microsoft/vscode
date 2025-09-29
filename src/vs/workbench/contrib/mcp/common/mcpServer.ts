@@ -31,9 +31,10 @@ import { IOutputService } from '../../../services/output/common/output.js';
 import { ToolProgress } from '../../chat/common/languageModelToolsService.js';
 import { mcpActivationEvent } from './mcpConfiguration.js';
 import { McpDevModeServerAttache } from './mcpDevMode.js';
+import { McpIcons, parseAndValidateMcpIcon, StoredMcpIcons } from './mcpIcons.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
-import { extensionMcpCollectionPrefix, IMcpElicitationService, IMcpPrompt, IMcpPromptMessage, IMcpResource, IMcpResourceTemplate, IMcpSamplingService, IMcpServer, IMcpServerConnection, IMcpServerStartOpts, IMcpTool, IMcpToolCallContext, McpCapability, McpCollectionDefinition, McpCollectionReference, McpConnectionFailedError, McpConnectionState, McpDefinitionReference, mcpPromptReplaceSpecialChars, McpResourceURI, McpServerCacheState, McpServerDefinition, McpServerTransportType, McpToolName, UserInteractionRequiredError } from './mcpTypes.js';
+import { extensionMcpCollectionPrefix, IMcpElicitationService, IMcpIcons, IMcpPrompt, IMcpPromptMessage, IMcpResource, IMcpResourceTemplate, IMcpSamplingService, IMcpServer, IMcpServerConnection, IMcpServerStartOpts, IMcpTool, IMcpToolCallContext, McpCapability, McpCollectionDefinition, McpCollectionReference, McpConnectionFailedError, McpConnectionState, McpDefinitionReference, mcpPromptReplaceSpecialChars, McpResourceURI, McpServerCacheState, McpServerDefinition, McpServerTransportType, McpToolName, UserInteractionRequiredError } from './mcpTypes.js';
 import { MCP } from './modelContextProtocol.js';
 import { UriTemplate } from './uriTemplate.js';
 
@@ -99,22 +100,27 @@ type ServerBootStateClassification = {
 	time: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Duration in milliseconds to reach that state' };
 };
 
+type StoredMcpPrompt = MCP.Prompt & { _icons: StoredMcpIcons };
+
 interface IToolCacheEntry {
 	readonly serverName: string | undefined;
 	readonly serverInstructions: string | undefined;
+	readonly serverIcons: StoredMcpIcons;
+
 	readonly trustedAtNonce: string | undefined;
 
 	readonly nonce: string | undefined;
 	/** Cached tools so we can show what's available before it's started */
-	readonly tools: readonly IValidatedMcpTool[];
+	readonly tools: readonly ValidatedMcpTool[];
 	/** Cached prompts */
-	readonly prompts: readonly MCP.Prompt[] | undefined;
+	readonly prompts: readonly StoredMcpPrompt[] | undefined;
 	/** Cached capabilities */
 	readonly capabilities: McpCapability | undefined;
 }
 
 const emptyToolEntry: IToolCacheEntry = {
 	serverName: undefined,
+	serverIcons: [],
 	serverInstructions: undefined,
 	trustedAtNonce: undefined,
 	nonce: undefined,
@@ -200,18 +206,27 @@ export class McpServerMetadataCache extends Disposable {
 	}
 }
 
-interface IValidatedMcpTool extends MCP.Tool {
+type ValidatedMcpTool = MCP.Tool & {
+	_icons: StoredMcpIcons;
+
 	/**
 	 * Tool name as published by the MCP server. This may
 	 * be different than the one in {@link definition} due to name normalization
 	 * in {@link McpServer._getValidatedTools}.
 	 */
 	serverToolName: string;
+};
+
+interface StoredServerMetadata {
+	readonly serverName: string | undefined;
+	readonly serverInstructions: string | undefined;
+	readonly serverIcons: StoredMcpIcons | undefined;
 }
 
 interface ServerMetadata {
 	readonly serverName: string | undefined;
 	readonly serverInstructions: string | undefined;
+	readonly icons: IMcpIcons;
 }
 
 class CachedPrimitive<T, C> {
@@ -297,17 +312,17 @@ export class McpServer extends Disposable implements IMcpServer {
 		return this._capabilities;
 	}
 
-	private readonly _tools: CachedPrimitive<readonly IMcpTool[], readonly IValidatedMcpTool[]>;
+	private readonly _tools: CachedPrimitive<readonly IMcpTool[], readonly ValidatedMcpTool[]>;
 	public get tools() {
 		return this._tools.value;
 	}
 
-	private readonly _prompts: CachedPrimitive<readonly IMcpPrompt[], readonly MCP.Prompt[]>;
+	private readonly _prompts: CachedPrimitive<readonly IMcpPrompt[], readonly StoredMcpPrompt[]>;
 	public get prompts() {
 		return this._prompts.value;
 	}
 
-	private readonly _serverMetadata: CachedPrimitive<ServerMetadata, ServerMetadata | undefined>;
+	private readonly _serverMetadata: CachedPrimitive<ServerMetadata, StoredServerMetadata | undefined>;
 	public get serverMetadata() {
 		return this._serverMetadata.value;
 	}
@@ -432,7 +447,7 @@ export class McpServer extends Disposable implements IMcpServer {
 		}));
 
 		// 3. Publish tools
-		this._tools = new CachedPrimitive<readonly IMcpTool[], readonly IValidatedMcpTool[]>(
+		this._tools = new CachedPrimitive<readonly IMcpTool[], readonly ValidatedMcpTool[]>(
 			this.definition.id,
 			this._primitiveCache,
 			(entry) => entry.tools,
@@ -440,8 +455,8 @@ export class McpServer extends Disposable implements IMcpServer {
 			[],
 		);
 
-		// 4. Publish promtps
-		this._prompts = new CachedPrimitive<readonly IMcpPrompt[], readonly MCP.Prompt[]>(
+		// 4. Publish prompts
+		this._prompts = new CachedPrimitive<readonly IMcpPrompt[], readonly StoredMcpPrompt[]>(
 			this.definition.id,
 			this._primitiveCache,
 			(entry) => entry.prompts || [],
@@ -449,11 +464,11 @@ export class McpServer extends Disposable implements IMcpServer {
 			[],
 		);
 
-		this._serverMetadata = new CachedPrimitive<ServerMetadata, ServerMetadata | undefined>(
+		this._serverMetadata = new CachedPrimitive<ServerMetadata, StoredServerMetadata | undefined>(
 			this.definition.id,
 			this._primitiveCache,
-			(entry) => ({ serverName: entry.serverName, serverInstructions: entry.serverInstructions }),
-			(entry) => ({ serverName: entry?.serverName, serverInstructions: entry?.serverInstructions }),
+			(entry) => ({ serverName: entry.serverName, serverInstructions: entry.serverInstructions, serverIcons: entry.serverIcons }),
+			(entry) => ({ serverName: entry?.serverName, serverInstructions: entry?.serverInstructions, icons: McpIcons.fromStored(entry?.serverIcons) }),
 			undefined,
 		);
 
@@ -474,7 +489,7 @@ export class McpServer extends Disposable implements IMcpServer {
 		return new AsyncIterableProducer<IMcpResource[]>(async emitter => {
 			await McpServer.callOn(this, async (handler) => {
 				for await (const resource of handler.listResourcesIterable({}, cts.token)) {
-					emitter.emitOne(resource.map(r => new McpResource(this, r)));
+					emitter.emitOne(resource.map(r => new McpResource(this, r, McpIcons.fromStored(this._parseIcons(r)))));
 					if (cts.token.isCancellationRequested) {
 						return;
 					}
@@ -673,8 +688,12 @@ export class McpServer extends Disposable implements IMcpServer {
 		});
 	}
 
-	private async _normalizeTool(originalTool: MCP.Tool): Promise<IValidatedMcpTool | { error: string[] }> {
-		const tool: IValidatedMcpTool = { ...originalTool, serverToolName: originalTool.name };
+	private async _normalizeTool(originalTool: MCP.Tool): Promise<ValidatedMcpTool | { error: string[] }> {
+		const tool: ValidatedMcpTool = {
+			...originalTool,
+			serverToolName: originalTool.name,
+			_icons: this._parseIcons(originalTool),
+		};
 		if (!tool.description) {
 			// Ensure a description is provided for each tool, #243919
 			this._logger.warn(`Tool ${tool.name} does not have a description. Tools must be accurately described to be called`);
@@ -712,11 +731,11 @@ export class McpServer extends Disposable implements IMcpServer {
 		return { error: messages };
 	}
 
-	private async _getValidatedTools(handler: McpServerRequestHandler, tools: MCP.Tool[]): Promise<IValidatedMcpTool[]> {
+	private async _getValidatedTools(handler: McpServerRequestHandler, tools: MCP.Tool[]): Promise<ValidatedMcpTool[]> {
 		let error = '';
 
 		const validations = await Promise.all(tools.map(t => this._normalizeTool(t)));
-		const validated: IValidatedMcpTool[] = [];
+		const validated: ValidatedMcpTool[] = [];
 		for (const [i, result] of validations.entries()) {
 			if ('error' in result) {
 				error += localize('mcpBadSchema.tool', 'Tool `{0}` has invalid JSON parameters:', tools[i].name) + '\n';
@@ -737,6 +756,21 @@ export class McpServer extends Disposable implements IMcpServer {
 		return validated;
 	}
 
+	/**
+	 * Parses incoming MCP icons and returns the resulting 'stored' record. Note
+	 * that this requires an active MCP server connection since we validate
+	 * against some of that connection's data. The icons may however be stored
+	 * and rehydrated later.
+	 */
+	private _parseIcons(icons: MCP.Icons) {
+		const cnx = this._connection.get();
+		if (!cnx) {
+			return [];
+		}
+
+		return parseAndValidateMcpIcon(icons, cnx.launchDefinition, this._logger);
+	}
+
 	private populateLiveData(handler: McpServerRequestHandler, cacheNonce: string | undefined, store: DisposableStore) {
 		const cts = new CancellationTokenSource();
 		store.add(toDisposable(() => cts.dispose(true)));
@@ -755,7 +789,13 @@ export class McpServer extends Disposable implements IMcpServer {
 
 		const updatePrompts = (tx: ITransaction | undefined) => {
 			const promptsPromise = handler.capabilities.prompts ? handler.listPrompts({}, cts.token) : Promise.resolve([]);
-			const promptsPromiseSafe = promptsPromise.then(data => ({ data, nonce: cacheNonce }));
+			const promptsPromiseSafe = promptsPromise.then(data => ({
+				data: data.map(prompt => ({
+					...prompt,
+					_icons: this._parseIcons(prompt)
+				})),
+				nonce: cacheNonce
+			}));
 			this._prompts.fromServerPromise.set(new ObservablePromise(promptsPromiseSafe), tx);
 			return promptsPromiseSafe;
 		};
@@ -770,25 +810,22 @@ export class McpServer extends Disposable implements IMcpServer {
 			updatePrompts(undefined);
 		}));
 
+		const serverMetadata = {
+			serverName: handler.serverInfo.title || handler.serverInfo.name,
+			serverInstructions: handler.serverInstructions,
+			serverIcons: this._parseIcons(handler.serverInfo),
+		};
+
 		const metadataPromise = new ObservablePromise(Promise.resolve({
 			nonce: cacheNonce,
-			data: {
-				serverName: handler.serverInfo.title || handler.serverInfo.name,
-				serverInstructions: handler.serverInstructions,
-			},
+			data: serverMetadata,
 		}));
 
 		transaction(tx => {
 			// note: all update* methods must use tx synchronously
 			const capabilities = encodeCapabilities(handler.capabilities);
-			this._primitiveCache.store(this.definition.id, {
-				serverName: handler.serverInfo.title || handler.serverInfo.name,
-				serverInstructions: handler.serverInstructions,
-				capabilities,
-			});
-
+			this._primitiveCache.store(this.definition.id, { ...serverMetadata, capabilities });
 			this._capabilities.set(capabilities, tx);
-
 			this._serverMetadata.fromServerPromise.set(metadataPromise, tx);
 
 			Promise.all([updateTools(tx), updatePrompts(tx)]).then(([{ data: tools }, { data: prompts }]) => {
@@ -818,16 +855,18 @@ class McpPrompt implements IMcpPrompt {
 	readonly description?: string;
 	readonly title?: string;
 	readonly arguments: readonly MCP.PromptArgument[];
+	readonly icons: IMcpIcons;
 
 	constructor(
 		private readonly _server: McpServer,
-		private readonly _definition: MCP.Prompt,
+		private readonly _definition: StoredMcpPrompt,
 	) {
 		this.id = mcpPromptReplaceSpecialChars(this._server.definition.label + '.' + _definition.name);
 		this.name = _definition.name;
 		this.title = _definition.title;
 		this.description = _definition.description;
 		this.arguments = _definition.arguments || [];
+		this.icons = McpIcons.fromStored(this._definition._icons);
 	}
 
 	async resolve(args: Record<string, string>, token?: CancellationToken): Promise<IMcpPromptMessage[]> {
@@ -877,16 +916,18 @@ export class McpTool implements IMcpTool {
 
 	readonly id: string;
 	readonly referenceName: string;
+	readonly icons: IMcpIcons;
 
 	public get definition(): MCP.Tool { return this._definition; }
 
 	constructor(
 		private readonly _server: McpServer,
 		idPrefix: string,
-		private readonly _definition: IValidatedMcpTool,
+		private readonly _definition: ValidatedMcpTool,
 	) {
 		this.referenceName = _definition.name.replaceAll('.', '_');
 		this.id = (idPrefix + _definition.name).replaceAll('.', '_').slice(0, McpToolName.MaxLength);
+		this.icons = McpIcons.fromStored(this._definition._icons);
 	}
 
 	async call(params: Record<string, unknown>, context?: IMcpToolCallContext, token?: CancellationToken): Promise<MCP.CallToolResult> {
@@ -1011,6 +1052,7 @@ class McpResource implements IMcpResource {
 	constructor(
 		server: McpServer,
 		original: MCP.Resource,
+		public readonly icons: IMcpIcons,
 	) {
 		this.mcpUri = original.uri;
 		this.title = original.title;
