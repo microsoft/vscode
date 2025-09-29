@@ -113,6 +113,18 @@
 	max-width: 300px;
 }
 
+.monaco-workbench .pane > .pane-body .welcome-view-content > .button-container > .monaco-button .monaco-button-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.monaco-workbench .pane > .pane-body .welcome-view-content > .button-container > .monaco-button .monaco-button-mdlabel {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
 .monaco-workbench .pane > .pane-body .welcome-view-content > p {
 	width: 100%;
 }
