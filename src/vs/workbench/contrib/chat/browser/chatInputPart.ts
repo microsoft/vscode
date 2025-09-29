@@ -1611,11 +1611,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (chatEditingSession) {
 			if (chatEditingSession.chatSessionId !== this._lastEditingSessionId) {
 				this._workingSetCollapsed = true;
-				// Reset todo state when session changes
-				if (this._lastEditingSessionId !== chatEditingSession.chatSessionId) {
-					// Clear the todo widget when session changes
-					this._chatInputTodoListWidget.value?.clear(chatEditingSession.chatSessionId, true);
-				}
+
 			}
 			this._lastEditingSessionId = chatEditingSession.chatSessionId;
 		}
