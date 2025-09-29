@@ -75,6 +75,7 @@
   "overrides": {
     "path-scurry": {
       "lru-cache": "11.2.1"
-    }
+    },
+    "tar-fs": "2.1.4"
   }
 }
