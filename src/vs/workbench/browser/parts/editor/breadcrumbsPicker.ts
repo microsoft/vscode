@@ -448,10 +448,8 @@ class OutlineTreeSorter<E> implements ITreeSorter<E> {
 		this._order = configService.getValue(uri, 'breadcrumbs.symbolSortOrder');
 		this._caseSensitive = configService.getValue(uri, 'breadcrumbs.symbolSortOrderCaseSensitive');
 		
-		// Configure case sensitivity on the comparator if it supports it
-		if (this.comparator.setCaseSensitive) {
-			this.comparator.setCaseSensitive(this._caseSensitive);
-		}
+		// Configure case sensitivity on the comparator
+		this.comparator.setCaseSensitive?.(this._caseSensitive);
 	}
 
 	compare(a: E, b: E): number {

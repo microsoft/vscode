@@ -486,6 +486,7 @@ export class NotebookBreadcrumbsProvider implements IBreadcrumbsDataSource<Outli
 class NotebookComparator implements IOutlineComparator<OutlineEntry> {
 
 	private readonly _collator = safeIntl.Collator(undefined, { numeric: true });
+	private readonly _collatorCaseSensitive = safeIntl.Collator(undefined, { numeric: true, sensitivity: 'case' });
 	private _caseSensitive: boolean = false;
 
 	setCaseSensitive(caseSensitive: boolean): void {
@@ -493,11 +494,7 @@ class NotebookComparator implements IOutlineComparator<OutlineEntry> {
 	}
 
 	private _getCollator() {
-		if (this._caseSensitive) {
-			return safeIntl.Collator(undefined, { numeric: true, sensitivity: 'case' });
-		} else {
-			return this._collator;
-		}
+		return this._caseSensitive ? this._collatorCaseSensitive : this._collator;
 	}
 
 	compareByPosition(a: OutlineEntry, b: OutlineEntry): number {

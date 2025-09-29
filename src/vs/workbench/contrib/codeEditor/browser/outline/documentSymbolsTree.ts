@@ -335,6 +335,7 @@ export class DocumentSymbolFilter implements ITreeFilter<DocumentSymbolItem> {
 export class DocumentSymbolComparator implements IOutlineComparator<DocumentSymbolItem> {
 
 	private readonly _collator = safeIntl.Collator(undefined, { numeric: true });
+	private readonly _collatorCaseSensitive = safeIntl.Collator(undefined, { numeric: true, sensitivity: 'case' });
 	private _caseSensitive: boolean = false;
 
 	setCaseSensitive(caseSensitive: boolean): void {
@@ -342,11 +343,7 @@ export class DocumentSymbolComparator implements IOutlineComparator<DocumentSymb
 	}
 
 	private _getCollator() {
-		if (this._caseSensitive) {
-			return safeIntl.Collator(undefined, { numeric: true, sensitivity: 'case' });
-		} else {
-			return this._collator;
-		}
+		return this._caseSensitive ? this._collatorCaseSensitive : this._collator;
 	}
 
 	compareByPosition(a: DocumentSymbolItem, b: DocumentSymbolItem): number {
