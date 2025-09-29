@@ -310,6 +310,10 @@ export class PromptsService extends Disposable implements IPromptsService {
 			default: throw new Error('Unknown prompt storage type');
 		}
 	}
+
+	findAgentMDsInWorkspace(token: CancellationToken): Promise<URI[]> {
+		return this.fileLocator.findAgentMDsInWorkspace(token);
+	}
 }
 
 export function getPromptCommandName(path: string): string {

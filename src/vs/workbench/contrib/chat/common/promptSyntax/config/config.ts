@@ -82,6 +82,11 @@ export namespace PromptsConfig {
 	export const USE_AGENT_MD = 'chat.useAgentsMdFile';
 
 	/**
+	 * Configuration key for nested AGENTS.md files.
+	 */
+	export const USE_NESTED_AGENT_MD = 'chat.useNestedAgentsMdFiles';
+
+	/**
 	 * Checks if the feature is enabled.
 	 * @see {@link PromptsConfig.KEY}.
 	 */
