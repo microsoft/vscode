@@ -5,6 +5,9 @@ parameters:
 jobs:
   - job: WindowsNodeModules_${{ parameters.VSCODE_ARCH }}
     displayName: Windows (${{ upper(parameters.VSCODE_ARCH) }})
+    pool:
+      name: 1es-windows-2022-x64
+      os: windows
     timeoutInMinutes: 60
     variables:
       VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
