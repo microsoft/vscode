@@ -260,3 +260,17 @@
 .chat-sessions-tree-container .chat-session-item[data-history-item="true"]:hover {
 	background-color: var(--vscode-list-hoverBackground);
 }
+
+/* Progress indicator for the view */
+.chat-sessions-view .loading-message {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 20px;
+	gap: 8px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-sessions-view .loading-message .loading-icon {
+	font-size: 16px;
+}

@@ -48,6 +48,8 @@ export class ChatEditor extends EditorPane {
 	private _memento: Memento | undefined;
 	private _viewState: IChatViewState | undefined;
 	private dimension = new dom.Dimension(0, 0);
+	private _loadingContainer: HTMLElement | undefined;
+	private _editorContainer: HTMLElement | undefined;
 
 	constructor(
 		group: IEditorGroup,
@@ -68,6 +70,7 @@ export class ChatEditor extends EditorPane {
 	}
 
 	protected override createEditor(parent: HTMLElement): void {
+		this._editorContainer = parent;
 		this._scopedContextKeyService = this._register(this.contextKeyService.createScoped(parent));
 		const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
 		ChatContextKeys.inChatEditor.bindTo(this._scopedContextKeyService).set(true);
@@ -125,6 +128,53 @@ export class ChatEditor extends EditorPane {
 		super.clearInput();
 	}
 
+	private showLoadingInChatWidget(message: string): void {
+		if (!this._editorContainer) {
+			return;
+		}
+
+		// Remove any existing loading container
+		this.hideLoadingInChatWidget();
+
+		// Create loading container
+		this._loadingContainer = dom.append(this._editorContainer, dom.$('.chat-loading-overlay'));
+		this._loadingContainer.style.cssText = `
+			position: absolute;
+			top: 0;
+			left: 0;
+			right: 0;
+			bottom: 0;
+			background: var(--vscode-editor-background);
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			z-index: 1000;
+		`;
+
+		const loadingContent = dom.append(this._loadingContainer, dom.$('.chat-loading-content'));
+		loadingContent.style.cssText = `
+			display: flex;
+			align-items: center;
+			gap: 8px;
+			color: var(--vscode-editor-foreground);
+		`;
+
+		// Add loading icon
+		const icon = dom.append(loadingContent, dom.$('.codicon.codicon-loading.codicon-modifier-spin'));
+		icon.style.fontSize = '16px';
+
+		// Add loading text
+		const text = dom.append(loadingContent, dom.$('span'));
+		text.textContent = message;
+	}
+
+	private hideLoadingInChatWidget(): void {
+		if (this._loadingContainer) {
+			this._loadingContainer.remove();
+			this._loadingContainer = undefined;
+		}
+	}
+
 	override async setInput(input: ChatEditorInput, options: IChatEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
 		if (token.isCancellationRequested) {
@@ -138,29 +188,48 @@ export class ChatEditor extends EditorPane {
 		let isContributedChatSession = false;
 		const chatSessionType = getChatSessionType(input);
 		if (chatSessionType !== 'local') {
-			await raceCancellationError(this.chatSessionsService.canResolveContentProvider(chatSessionType), token);
-			const contributions = this.chatSessionsService.getAllChatSessionContributions();
-			const contribution = contributions.find(c => c.type === chatSessionType);
-			if (contribution) {
-				this.widget.lockToCodingAgent(contribution.name, contribution.displayName, contribution.type);
-				isContributedChatSession = true;
-			} else {
-				this.widget.unlockFromCodingAgent();
+			// Show single loading state for GitHub Copilot sessions
+			this.showLoadingInChatWidget('Loading session...');
+
+			try {
+				await raceCancellationError(this.chatSessionsService.canResolveContentProvider(chatSessionType), token);
+				const contributions = this.chatSessionsService.getAllChatSessionContributions();
+				const contribution = contributions.find(c => c.type === chatSessionType);
+				if (contribution) {
+					this.widget.lockToCodingAgent(contribution.name, contribution.displayName, contribution.type);
+					isContributedChatSession = true;
+				} else {
+					this.widget.unlockFromCodingAgent();
+				}
+			} catch (error) {
+				this.hideLoadingInChatWidget();
+				throw error;
 			}
 		} else {
 			this.widget.unlockFromCodingAgent();
 		}
 
-		const editorModel = await raceCancellationError(input.resolve(), token);
+		try {
+			const editorModel = await raceCancellationError(input.resolve(), token);
 
-		if (!editorModel) {
-			throw new Error(`Failed to get model for chat editor. id: ${input.sessionId}`);
-		}
-		const viewState = options?.viewState ?? input.options.viewState;
-		this.updateModel(editorModel.model, viewState);
+			if (!editorModel) {
+				throw new Error(`Failed to get model for chat editor. id: ${input.sessionId}`);
+			}
 
-		if (isContributedChatSession && options?.preferredTitle) {
-			editorModel.model.setCustomTitle(options?.preferredTitle);
+			// Hide loading state before updating model
+			if (chatSessionType !== 'local') {
+				this.hideLoadingInChatWidget();
+			}
+
+			const viewState = options?.viewState ?? input.options.viewState;
+			this.updateModel(editorModel.model, viewState);
+
+			if (isContributedChatSession && options?.preferredTitle) {
+				editorModel.model.setCustomTitle(options?.preferredTitle);
+			}
+		} catch (error) {
+			this.hideLoadingInChatWidget();
+			throw error;
 		}
 	}
 
