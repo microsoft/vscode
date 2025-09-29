@@ -297,6 +297,32 @@ extends:
                   VSCODE_ARCH: arm64
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 
+      - ${{ if and(eq(variables['VSCODE_CIBUILD'], true), eq(parameters.VSCODE_COMPILE_ONLY, false)) }}:
+        - stage: node_modules
+          dependsOn: []
+          jobs:
+            - template: build/azure-pipelines/win32/product-build-win32-node-modules.yml@self
+              parameters:
+                VSCODE_ARCH: arm64
+            - template: build/azure-pipelines/linux/product-build-linux-node-modules.yml@self
+              parameters:
+                NPM_ARCH: arm64
+                VSCODE_ARCH: arm64
+            - template: build/azure-pipelines/linux/product-build-linux-node-modules.yml@self
+              parameters:
+                NPM_ARCH: arm
+                VSCODE_ARCH: armhf
+            - template: build/azure-pipelines/alpine/product-build-alpine-node-modules.yml@self
+              parameters:
+                VSCODE_ARCH: x64
+            - template: build/azure-pipelines/alpine/product-build-alpine-node-modules.yml@self
+              parameters:
+                VSCODE_ARCH: arm64
+            - template: build/azure-pipelines/darwin/product-build-darwin-node-modules.yml@self
+              parameters:
+                VSCODE_ARCH: x64
+            - template: build/azure-pipelines/web/product-build-web-node-modules.yml@self
+
       - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_COMPILE_ONLY, false)) }}:
         - stage: APIScan
           dependsOn: []
