@@ -119,7 +119,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 							continue;
 						} else {
 							this._promptPart?.hide();
-							this._promptPart?.dispose();
 							this._promptPart = undefined;
 							break;
 						}
@@ -154,7 +153,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				resources
 			};
 			this._promptPart?.hide();
-			this._promptPart?.dispose();
 			this._promptPart = undefined;
 			this._onDidFinishCommand.fire();
 		}
@@ -255,7 +253,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			const r = race.r;
 
 			if (r === OutputMonitorState.Idle || r === OutputMonitorState.Cancelled || r === OutputMonitorState.Timeout) {
-				try { continuePollingPart?.hide(); continuePollingPart?.dispose(); } catch { /* noop */ }
+				try { continuePollingPart?.hide(); } catch { /* noop */ }
 				continuePollingPart = undefined;
 				continuePollingDecisionP = undefined;
 
@@ -563,7 +561,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		const inputPromise = new Promise<string | undefined>(resolve => {
 			inputDataDisposable = this._register(execution.instance.onDidInputData(() => {
 				part.hide();
-				part.dispose();
 				inputDataDisposable.dispose();
 				this._state = OutputMonitorState.PollingForIdle;
 				resolve(undefined);
@@ -622,7 +619,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				async () => {
 					thePart.state = 'rejected';
 					thePart.hide();
-					thePart.dispose();
 					this._promptPart = undefined;
 					try {
 						const r = await (onReject ? onReject() : undefined);
