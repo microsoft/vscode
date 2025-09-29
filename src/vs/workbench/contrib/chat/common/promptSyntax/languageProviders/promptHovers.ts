@@ -5,36 +5,30 @@
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { Position } from '../../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { Hover, HoverContext, HoverProvider } from '../../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
-import { ILanguageFeaturesService } from '../../../../../../editor/common/services/languageFeatures.js';
 import { localize } from '../../../../../../nls.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../languageModels.js';
 import { ILanguageModelToolsService, ToolSet } from '../../languageModelToolsService.js';
 import { IChatModeService, isBuiltinChatMode } from '../../chatModes.js';
-import { ALL_PROMPTS_LANGUAGE_SELECTOR, getPromptsTypeForLanguageId, PromptsType } from '../promptTypes.js';
+import { getPromptsTypeForLanguageId, PromptsType } from '../promptTypes.js';
 import { IPromptsService } from '../service/promptsService.js';
-import { IHeaderAttribute } from '../service/newPromptsParser.js';
+import { IHeaderAttribute, PromptBody, PromptHeader } from '../service/newPromptsParser.js';
 
-export class PromptHeaderHoverProvider extends Disposable implements HoverProvider {
+export class PromptHoverProvider implements HoverProvider {
 	/**
 	 * Debug display name for this provider.
 	 */
-	public readonly _debugDisplayName: string = 'PromptHeaderHoverProvider';
+	public readonly _debugDisplayName: string = 'PromptHoverProvider';
 
 	constructor(
 		@IPromptsService private readonly promptsService: IPromptsService,
-		@ILanguageFeaturesService private readonly languageService: ILanguageFeaturesService,
 		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@IChatModeService private readonly chatModeService: IChatModeService,
 	) {
-		super();
-
-		this._register(this.languageService.hoverProvider.register(ALL_PROMPTS_LANGUAGE_SELECTOR, this));
 	}
 
 	private createHover(contents: string, range: Range): Hover {
@@ -44,25 +38,35 @@ export class PromptHeaderHoverProvider extends Disposable implements HoverProvid
 		};
 	}
 
-	public async provideHover(
-		model: ITextModel,
-		position: Position,
-		token: CancellationToken,
-		_context?: HoverContext
-	): Promise<Hover | undefined> {
+	public async provideHover(model: ITextModel, position: Position, token: CancellationToken, _context?: HoverContext): Promise<Hover | undefined> {
 
 		const promptType = getPromptsTypeForLanguageId(model.getLanguageId());
 		if (!promptType) {
-			// if the model is not a prompt, we don't provide any completions
+			// if the model is not a prompt, we don't provide any hovers
 			return undefined;
 		}
 
 		const parser = this.promptsService.getParsedPromptFile(model);
-		const header = parser.header;
-		if (!header) {
-			return undefined;
+		if (parser.header?.range.containsPosition(position)) {
+			return this.provideHeaderHover(position, promptType, parser.header);
 		}
+		if (parser.body?.range.containsPosition(position)) {
+			return this.provideBodyHover(position, parser.body);
+		}
+		return undefined;
+	}
 
+	private async provideBodyHover(position: Position, body: PromptBody): Promise<Hover | undefined> {
+		for (const ref of body.variableReferences) {
+			if (ref.range.containsPosition(position)) {
+				const toolName = ref.name;
+				return this.getToolHoverByName(toolName, ref.range);
+			}
+		}
+		return undefined;
+	}
+
+	private async provideHeaderHover(position: Position, promptType: PromptsType, header: PromptHeader): Promise<Hover | undefined> {
 		if (promptType === PromptsType.instructions) {
 			const descriptionRange = header.getAttribute('description')?.range;
 			if (descriptionRange?.containsPosition(position)) {
@@ -111,18 +115,23 @@ export class PromptHeaderHoverProvider extends Disposable implements HoverProvid
 		if (node.value.type === 'array') {
 			for (const toolName of node.value.items) {
 				if (toolName.type === 'string' && toolName.range.containsPosition(position)) {
-					const tool = this.languageModelToolsService.getToolByName(toolName.value);
-					if (tool) {
-						return this.createHover(tool.modelDescription, toolName.range);
-					}
-					const toolSet = this.languageModelToolsService.getToolSetByName(toolName.value);
-					if (toolSet) {
-						return this.getToolsetHover(toolSet, toolName.range);
-					}
+					return this.getToolHoverByName(toolName.value, toolName.range);
 				}
 			}
 		}
 		return this.createHover(baseMessage, node.range);
+	}
+
+	private getToolHoverByName(toolName: string, range: Range): Hover | undefined {
+		const tool = this.languageModelToolsService.getToolByQualifiedName(toolName);
+		if (tool !== undefined) {
+			if (tool instanceof ToolSet) {
+				return this.getToolsetHover(tool, range);
+			} else {
+				return this.createHover(tool.modelDescription, range);
+			}
+		}
+		return undefined;
 	}
 
 	private getToolsetHover(toolSet: ToolSet, range: Range): Hover | undefined {

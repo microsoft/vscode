@@ -73,6 +73,7 @@ export class ChatService extends Disposable implements IChatService {
 
 	private readonly _sessionModels = new ObservableMap<string, ChatModel>();
 	private readonly _contentProviderSessionModels = new Map<string, Map<string, { readonly model: IChatModel; readonly disposables: DisposableStore }>>();
+	private readonly _modelToExternalSession = new Map<string /* internal model sessionId */, { chatSessionType: string; chatSessionId: string }>();
 	private readonly _pendingRequests = this._register(new DisposableMap<string, CancellableRequest>());
 	private _persistedSessions: ISerializableChatsData;
 
@@ -471,6 +472,8 @@ export class ChatService extends Disposable implements IChatService {
 		const content = await this.chatSessionService.provideChatSessionContent(chatSessionType, parsed.sessionId, CancellationToken.None);
 
 		const model = this._startSession(undefined, location, true, CancellationToken.None, chatSessionType);
+		// Record mapping from internal model session id to external contributed chat session identity
+		this._modelToExternalSession.set(model.sessionId, { chatSessionType, chatSessionId: parsed.sessionId });
 		if (!this._contentProviderSessionModels.has(chatSessionType)) {
 			this._contentProviderSessionModels.set(chatSessionType, new Map());
 		}
@@ -479,6 +482,7 @@ export class ChatService extends Disposable implements IChatService {
 
 		disposables.add(model.onDidDispose(() => {
 			this._contentProviderSessionModels?.get(chatSessionType)?.delete(parsed.sessionId);
+			this._modelToExternalSession.delete(model.sessionId);
 			content.dispose();
 		}));
 
@@ -572,6 +576,17 @@ export class ChatService extends Disposable implements IChatService {
 		}
 
 		return model;
+	}
+
+	getChatSessionFromInternalId(modelSessionId: string): { chatSessionType: string; chatSessionId: string; isUntitled: boolean } | undefined {
+		const data = this._modelToExternalSession.get(modelSessionId);
+		if (!data) {
+			return;
+		}
+		return {
+			...data,
+			isUntitled: data.chatSessionId.startsWith('untitled-'), // TODO(jospicer)
+		};
 	}
 
 	async resendRequest(request: IChatRequestModel, options?: IChatSendRequestOptions): Promise<void> {

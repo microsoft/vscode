@@ -47,6 +47,7 @@ import { LocalChatSessionsProvider } from '../localChatSessionsProvider.js';
 import { IListRenderer, IListVirtualDelegate } from '../../../../../../base/browser/ui/list/list.js';
 import { ChatSessionTracker } from '../chatSessionTracker.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { getLocalHistoryDateFormatter } from '../../../../localHistory/browser/localHistory.js';
 
 interface ISessionTemplateData {
 	readonly container: HTMLElement;
@@ -336,6 +337,16 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 			templateData.timestamp.ariaLabel = session.relativeTimeFullWord ?? '';
 			templateData.timestamp.parentElement!.classList.toggle('timestamp-duplicate', session.hideRelativeTime === true);
 			templateData.timestamp.parentElement!.style.display = '';
+
+			// Add tooltip showing full date/time when hovering over the timestamp
+			if (session.timing?.startTime) {
+				const fullDateTime = getLocalHistoryDateFormatter().format(session.timing.startTime);
+				templateData.elementDisposable.add(
+					this.hoverService.setupDelayedHover(templateData.timestamp, {
+						content: nls.localize('chat.sessions.lastActivity', 'Last Activity: {0}', fullDateTime)
+					})
+				);
+			}
 		} else {
 			// Hide timestamp container if no timestamp available
 			templateData.timestamp.parentElement!.style.display = 'none';
@@ -566,11 +577,13 @@ export class SessionsDataSource implements IAsyncDataSource<IChatSessionItemProv
 				// Add hybrid local editor sessions for this provider using the centralized service
 				if (this.provider.chatSessionType !== 'local') {
 					const hybridSessions = await this.sessionTracker.getHybridSessionsForProvider(this.provider);
-					itemsWithProvider.push(...(hybridSessions as ChatSessionItemWithProvider[]));
-				}
-
-				// For non-local providers, apply time-based sorting and grouping
-				if (this.provider.chatSessionType !== 'local') {
+					const existingIds = new Set(itemsWithProvider.map(s => s.id));
+					hybridSessions.forEach(session => {
+						if (!existingIds.has(session.id)) {
+							itemsWithProvider.push(session as ChatSessionItemWithProvider);
+							existingIds.add(session.id);
+						}
+					});
 					processSessionsWithTimeGrouping(itemsWithProvider);
 				}
 
