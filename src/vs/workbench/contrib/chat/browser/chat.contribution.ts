@@ -664,7 +664,7 @@ configurationRegistry.registerConfiguration({
 		'chat.todoListTool.descriptionField': {
 			type: 'boolean',
 			default: true,
-			description: nls.localize('chat.todoListTool.descriptionField', "When enabled, the todo tool includes description fields in tool parameters, context, and UI tooltips."),
+			description: nls.localize('chat.todoListTool.descriptionField', "When enabled, todo items include detailed descriptions for implementation context. This provides more information but uses additional tokens and may slow down responses."),
 			tags: ['experimental']
 		},
 		[ChatConfiguration.ThinkingStyle]: {
