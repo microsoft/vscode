@@ -8,12 +8,14 @@ import * as dom from '../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IListContextMenuEvent } from '../../../../base/browser/ui/list/list.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { createCommandUri, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { combinedDisposable, Disposable, DisposableStore, dispose, IDisposable, isDisposable } from '../../../../base/common/lifecycle.js';
 import { DelayedPagedModel, IPagedModel, PagedModel } from '../../../../base/common/paging.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyDefinedExpr, ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
@@ -39,7 +41,6 @@ import { SyncDescriptor } from '../../../../platform/instantiation/common/descri
 import { DefaultViewsContext, SearchMcpServersContext } from '../../extensions/common/extensions.js';
 import { VIEW_CONTAINER } from '../../extensions/browser/extensions.contribution.js';
 import { renderMarkdown } from '../../../../base/browser/markdownRenderer.js';
-import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
@@ -50,7 +51,6 @@ import { IWorkbenchLayoutService, Position } from '../../../services/layout/brow
 import { mcpServerIcon } from './mcpServerIcons.js';
 import { IPagedRenderer } from '../../../../base/browser/ui/list/listPaging.js';
 import { IMcpGalleryManifestService, McpGalleryManifestStatus } from '../../../../platform/mcp/common/mcpGalleryManifest.js';
-import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { ProductQualityContext } from '../../../../platform/contextkey/common/contextkeys.js';
 
 export interface McpServerListViewOptions {
@@ -84,7 +84,7 @@ export class McpServersListView extends AbstractExtensionsListView<IWorkbenchMcp
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IOpenerService openerService: IOpenerService,
-		@IPreferencesService private readonly preferencesService: IPreferencesService,
+		@IDialogService private readonly dialogService: IDialogService,
 		@IMcpWorkbenchService private readonly mcpWorkbenchService: IMcpWorkbenchService,
 		@IMcpGalleryManifestService protected readonly mcpGalleryManifestService: IMcpGalleryManifestService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
@@ -236,7 +236,7 @@ export class McpServersListView extends AbstractExtensionsListView<IWorkbenchMcp
 
 		const description = dom.append(welcomeContent, dom.$('.mcp-welcome-description'));
 		const markdownResult = this._register(renderMarkdown(new MarkdownString(
-			localize('mcp.welcome.descriptionWithLink', "Browse and install MCP servers directly from VS Code to extend agent mode with extra tools for connecting to databases, invoking APIs and performing specialized tasks."),
+			localize('mcp.welcome.descriptionWithLink', "Browse and install Model Context Protocol (MCP) servers directly from VS Code to extend agent mode with extra tools for connecting to databases, invoking APIs and performing specialized tasks."),
 			{ isTrusted: true }
 		), {
 			actionHandler: (content: string) => {
@@ -252,9 +252,27 @@ export class McpServersListView extends AbstractExtensionsListView<IWorkbenchMcp
 		}));
 		button.label = localize('mcp.welcome.enableGalleryButton', "Enable MCP Servers Marketplace");
 
-		this._register(button.onDidClick(() => this.preferencesService.openSettings({
-			query: `@id:${mcpGalleryServiceEnablementConfig}`,
-		})));
+		this._register(button.onDidClick(async () => {
+			const settingsCommandLink = createCommandUri('workbench.action.openSettings', { query: `@id:${mcpGalleryServiceEnablementConfig}` }).toString();
+
+			const { result } = await this.dialogService.prompt({
+				type: 'info',
+				message: localize('mcp.gallery.enableDialog.title', "Enable MCP Servers Marketplace?"),
+				custom: {
+					markdownDetails: [{
+						markdown: new MarkdownString(localize('mcp.gallery.enableDialog.setting', "This feature is currently in preview. You can disable it anytime using the setting [{0}]({1}).", mcpGalleryServiceEnablementConfig, settingsCommandLink), { isTrusted: true })
+					}]
+				},
+				buttons: [
+					{ label: localize('mcp.gallery.enableDialog.enable', "Enable"), run: () => true },
+					{ label: localize('mcp.gallery.enableDialog.cancel', "Cancel"), run: () => false }
+				]
+			});
+
+			if (result) {
+				await this.configurationService.updateValue(mcpGalleryServiceEnablementConfig, true);
+			}
+		}));
 	}
 
 	private async query(query: string): Promise<IQueryResult> {
