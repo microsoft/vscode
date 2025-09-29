@@ -72,6 +72,9 @@ export class PromptValidator {
 
 		// Validate variable references (tool or toolset names)
 		if (body.variableReferences.length) {
+			const headerTools = promptAST.header?.tools;
+			const headerToolsMap = headerTools ? this.languageModelToolsService.toToolAndToolSetEnablementMap(headerTools) : undefined;
+
 			const available = new Set<string>(this.languageModelToolsService.getQualifiedToolNames());
 			const deprecatedNames = this.languageModelToolsService.getDeprecatedQualifiedToolNames();
 			for (const variable of body.variableReferences) {
@@ -81,6 +84,11 @@ export class PromptValidator {
 						report(toMarker(localize('promptValidator.deprecatedVariableReference', "Tool or toolset '{0}' has been renamed, use '{1}' instead.", variable.name, currentName), variable.range, MarkerSeverity.Info));
 					} else {
 						report(toMarker(localize('promptValidator.unknownVariableReference', "Unknown tool or toolset '{0}'.", variable.name), variable.range, MarkerSeverity.Warning));
+					}
+				} else if (headerToolsMap) {
+					const tool = this.languageModelToolsService.getToolByQualifiedName(variable.name);
+					if (tool && headerToolsMap.get(tool) === false) {
+						report(toMarker(localize('promptValidator.disabledTool', "Tool or toolset '{0}' is not enabled in the header`.", variable.name), variable.range, MarkerSeverity.Warning));
 					}
 				}
 			}
@@ -231,9 +239,6 @@ export class PromptValidator {
 		switch (attribute.value.type) {
 			case 'array':
 				this.validateToolsArray(attribute.value, report);
-				break;
-			case 'object':
-				//this.validateToolsObject(attribute.value, report);
 				break;
 			default:
 				report(toMarker(localize('promptValidator.toolsMustBeArrayOrMap', "The 'tools' attribute must be an array."), attribute.value.range, MarkerSeverity.Error));

@@ -3264,11 +3264,24 @@ export namespace ChatLanguageModelToolReference {
 
 export namespace ChatRequestModeInstructions {
 	export function to(mode: IChatRequestModeInstructions | undefined): vscode.ChatRequestModeInstructions | undefined {
-		return mode ? {
-			content: mode.content,
-			toolReferences: mode.toolReferences?.map(ref => ChatLanguageModelToolReference.to(ref)) ?? [],
-			metadata: mode.metadata
-		} : undefined;
+		if (mode) {
+			const toolReferences = [];
+			for (const v of mode.toolReferences) {
+				if (v.kind === 'tool') {
+					toolReferences.push(ChatLanguageModelToolReference.to(v));
+				} else if (v.kind === 'toolset') {
+					toolReferences.push(...v.value.map(ChatLanguageModelToolReference.to));
+				} else {
+					throw new Error('Invalid tool reference in mode instructions');
+				}
+			}
+			return {
+				content: mode.content,
+				toolReferences,
+				metadata: mode.metadata
+			};
+		}
+		return undefined;
 	}
 }
 
