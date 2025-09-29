@@ -12,7 +12,6 @@ import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
-import { IProductService } from '../../product/common/productService.js';
 import { asJson, asText, IRequestService } from '../../request/common/request.js';
 import { IGalleryMcpServer, GalleryMcpServerStatus, IMcpGalleryService, IGalleryMcpServerConfiguration, IMcpServerPackage, IQueryOptions, SseTransport, StreamableHttpTransport, IMcpServerKeyValueInput, Transport, TransportType } from './mcpManagement.js';
 import { IMcpGalleryManifestService, McpGalleryManifestStatus, getMcpGalleryManifestResourceUri, McpGalleryResourceType, IMcpGalleryManifest } from './mcpGalleryManifest.js';
@@ -196,30 +195,6 @@ interface IRawGalleryServersResult {
 	readonly servers: readonly IRawGalleryMcpServer[];
 }
 
-interface IVSCodeGalleryMcpServerDetail {
-	readonly name: string;
-	readonly displayName: string;
-	readonly description: string;
-	readonly repository?: {
-		readonly url: string;
-		readonly source: string;
-	};
-	readonly codicon?: string;
-	readonly iconUrl?: string;
-	readonly iconUrlDark?: string;
-	readonly iconUrlLight?: string;
-	readonly readmeUrl: string;
-	readonly publisher?: {
-		readonly displayName: string;
-		readonly url: string;
-		readonly is_verified: boolean;
-	};
-	readonly manifest: {
-		readonly packages?: readonly IRawGalleryMcpServerPackage[];
-		readonly remotes?: McpServerRemotes;
-	};
-}
-
 const DefaultPageSize = 50;
 
 interface IQueryState {
@@ -256,7 +231,6 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 	constructor(
 		@IRequestService private readonly requestService: IRequestService,
 		@IFileService private readonly fileService: IFileService,
-		@IProductService private readonly productService: IProductService,
 		@ILogService private readonly logService: ILogService,
 		@IMcpGalleryManifestService private readonly mcpGalleryManifestService: IMcpGalleryManifestService,
 	) {
@@ -322,11 +296,6 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 		}));
 
 		return mcpServers;
-	}
-
-	async getMcpServersFromVSCodeGallery(names: string[]): Promise<IGalleryMcpServer[]> {
-		const servers = await this.fetchMcpServersFromVSCodeGallery();
-		return servers.filter(item => names.includes(item.name));
 	}
 
 	async getMcpServerConfiguration(gallery: IGalleryMcpServer, token: CancellationToken): Promise<IGalleryMcpServerConfiguration> {
@@ -468,11 +437,6 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 	}
 
 	private async queryGalleryMcpServers(query: Query, mcpGalleryManifest: IMcpGalleryManifest, token: CancellationToken): Promise<{ servers: IGalleryMcpServer[]; metadata?: IRawGalleryServerListMetadata }> {
-		if (mcpGalleryManifest.url === this.productService.extensionsGallery?.mcpUrl) {
-			return {
-				servers: await this.fetchMcpServersFromVSCodeGallery()
-			};
-		}
 		const { servers, metadata } = await this.queryRawGalleryMcpServers(query, mcpGalleryManifest, token);
 		return {
 			servers: servers.map(item => this.toGalleryMcpServer(item, mcpGalleryManifest)),
@@ -633,45 +597,6 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 		}
 
 		throw new Error('Unsupported MCP server schema version');
-	}
-
-	private async fetchMcpServersFromVSCodeGallery(): Promise<IGalleryMcpServer[]> {
-		const mcpGalleryUrl = this.productService.extensionsGallery?.mcpUrl;
-		if (!mcpGalleryUrl) {
-			return [];
-		}
-
-		const context = await this.requestService.request({
-			type: 'GET',
-			url: mcpGalleryUrl,
-		}, CancellationToken.None);
-
-		const result = await asJson<{ servers: IVSCodeGalleryMcpServerDetail[] }>(context);
-		if (!result) {
-			return [];
-		}
-
-		return result.servers.map<IGalleryMcpServer>(item => {
-			return {
-				id: item.name,
-				name: item.name,
-				displayName: item.displayName,
-				description: item.description,
-				version: '0.0.1',
-				isLatest: true,
-				status: GalleryMcpServerStatus.Active,
-				repositoryUrl: item.repository?.url,
-				codicon: item.codicon,
-				publisher: '',
-				publisherDisplayName: item.publisher?.displayName,
-				publisherDomain: item.publisher ? {
-					link: item.publisher.url,
-					verified: item.publisher.is_verified,
-				} : undefined,
-				readmeUrl: item.readmeUrl,
-				configuration: this.toGalleryMcpServerConfiguration(item.manifest.packages, item.manifest.remotes)
-			};
-		});
 	}
 
 	private getServerUrl(id: string, mcpGalleryManifest: IMcpGalleryManifest): string | undefined {
