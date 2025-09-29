@@ -49,10 +49,6 @@ jobs:
           cacheHitVar: NODE_MODULES_RESTORED
         displayName: Restore node_modules cache
 
-      # - powershell: 7z.exe x .build/node_modules_cache/cache.7z -aoa
-      #   condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
-      #   displayName: Extract node_modules cache
-
       - powershell: |
           . build/azure-pipelines/win32/exec.ps1
           $ErrorActionPreference = "Stop"
