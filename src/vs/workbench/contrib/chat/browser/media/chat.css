@@ -2718,17 +2718,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	min-width: 0;
 }
 
-/* Make the input's todo list match the chat editing container background and border */
-.interactive-session .chat-editing-session .chat-editing-session-todos.chat-todo-list-widget {
-	background-color: var(--vscode-editor-background);
-	border: 1px solid var(--vscode-input-border, transparent);
-	border-bottom: none;
-	/* Seamless join with the following editing container */
-	border-radius: 4px;
-	padding: 6px 12px;
-	/* Match container side padding */
-}
-
 .interactive-session .interactive-response .chat-used-context-list.chat-thinking-items {
 	color: var(--vscode-descriptionForeground);
 	padding-top: 0;
