@@ -22,15 +22,6 @@ jobs:
           KeyVaultName: vscode-build-secrets
           SecretsFilter: "github-distro-mixin-password"
 
-      - task: DownloadPipelineArtifact@2
-        inputs:
-          artifact: Compilation
-          path: $(Build.ArtifactStagingDirectory)
-        displayName: Download compilation output
-
-      - script: tar -xzf $(Build.ArtifactStagingDirectory)/compilation.tar.gz
-        displayName: Extract compilation output
-
       - script: node build/setup-npm-registry.js $NPM_REGISTRY
         condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Setup NPM Registry
