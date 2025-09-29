@@ -14,6 +14,7 @@ import { ILanguageModelsService } from '../../../../chat/common/languageModels.j
 import { IChatService } from '../../../../chat/common/chatService.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { ChatModel } from '../../../../chat/common/chatModel.js';
+import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 
 suite('OutputMonitor', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -64,7 +65,7 @@ suite('OutputMonitor', () => {
 				} as any)
 			}
 		);
-
+		instantiationService.stub(ILogService, new NullLogService());
 		cts = new CancellationTokenSource();
 	});
 

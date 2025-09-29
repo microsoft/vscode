@@ -123,6 +123,7 @@ export function provideInlineCompletions(
 	const inlineCompletionLists = AsyncIterableProducer.fromPromisesResolveOrder(providers.map(p => queryProvider.get(p))).filter(isDefined);
 
 	return {
+		contextWithUuid,
 		get didAllProvidersReturn() { return runningCount === 0; },
 		lists: inlineCompletionLists,
 		cancelAndDispose: reason => {
@@ -151,6 +152,8 @@ export function runWhenCancelled(token: CancellationToken, callback: () => void)
 
 export interface IInlineCompletionProviderResult {
 	get didAllProvidersReturn(): boolean;
+
+	contextWithUuid: InlineCompletionContext;
 
 	cancelAndDispose(reason: InlineCompletionsDisposeReason): void;
 
@@ -371,6 +374,7 @@ export class InlineSuggestData {
 			const summary: LifetimeSummary = {
 				requestUuid: this.context.requestUuid,
 				correlationId: this._correlationId,
+				selectedSuggestionInfo: !!this.context.selectedSuggestionInfo,
 				partiallyAccepted: this._partiallyAcceptedCount,
 				partiallyAcceptedCountSinceOriginal: this._partiallyAcceptedSinceOriginal.count,
 				partiallyAcceptedRatioSinceOriginal: this._partiallyAcceptedSinceOriginal.ratio,
