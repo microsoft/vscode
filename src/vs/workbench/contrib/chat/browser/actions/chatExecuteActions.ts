@@ -25,24 +25,21 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IRemoteCodingAgent, IRemoteCodingAgentsService } from '../../../remoteCodingAgents/common/remoteCodingAgentsService.js';
 import { IChatAgentHistoryEntry, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys, ChatContextKeyExprs } from '../../common/chatContextKeys.js';
 import { IChatModel, IChatRequestModel, toChatHistoryContent } from '../../common/chatModel.js';
 import { IChatMode, IChatModeService } from '../../common/chatModes.js';
-import { chatVariableLeader } from '../../common/chatParserTypes.js';
+import { chatAgentLeader, chatVariableLeader } from '../../common/chatParserTypes.js';
 import { ChatRequestParser } from '../../common/chatRequestParser.js';
 import { IChatPullRequestContent, IChatService } from '../../common/chatService.js';
 import { IChatSessionsExtensionPoint, IChatSessionsService } from '../../common/chatSessionsService.js';
-import { ChatSessionUri } from '../../common/chatUri.js';
 import { ChatRequestVariableSet, isChatRequestFileEntry } from '../../common/chatVariableEntries.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, } from '../../common/constants.js';
 import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
 import { IChatWidget, IChatWidgetService, showChatWidgetInViewOrEditor } from '../chat.js';
 import { getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
-import { IChatEditorOptions } from '../chatEditor.js';
 import { ACTION_ID_NEW_CHAT, CHAT_CATEGORY, handleCurrentEditingSession, handleModeSwitch } from './chatActions.js';
 
 export interface IVoiceChatExecuteActionContext {
@@ -649,47 +646,27 @@ export class CreateRemoteAgentJobAction extends Action2 {
 
 	private async createWithChatSessions(
 		chatSessionsService: IChatSessionsService,
+		chatAgentService: IChatAgentService,
 		quickPickService: IQuickInputService,
-		editorService: IEditorService,
-		chatModel: IChatModel,
-		addedRequest: IChatRequestModel,
+		widget: IChatWidget,
 		userPrompt: string,
-		summary?: string
 	) {
 		const contributions = chatSessionsService.getAllChatSessionContributions();
 		const agent = await this.pickCodingAgent(quickPickService, contributions);
 		if (!agent) {
-			chatModel.completeResponse(addedRequest);
-			return;
+			throw new Error('No coding agent selected');
 		}
-		const { type } = agent;
-		const newChatSession = await chatSessionsService.provideNewChatSessionItem(
-			type,
-			{
-				request: {
-					agentId: '',
-					location: ChatAgentLocation.Chat,
-					message: userPrompt,
-					requestId: '',
-					sessionId: '',
-					variables: { variables: [] },
-				},
-				metadata: {
-					summary,
-					source: 'chatExecuteActions',
-				}
-			},
-			CancellationToken.None,
-		);
-		const options: IChatEditorOptions = {
-			pinned: true,
-			preferredTitle: newChatSession.label,
-		};
-		await editorService.openEditor({
-			resource: ChatSessionUri.forSession(type, newChatSession.id),
-			options,
-		});
-
+		// TODO(jospicer): The chat history doesn't get sent to chat participants!
+		const { name, type } = agent;
+		const chatAgent = chatAgentService.getAgent(type);
+		if (!chatAgent) {
+			throw new Error(`Could not find chat agent with type ${type}`);
+		}
+		const trimmed = userPrompt.trim();
+		const mentionPrefix = `${chatAgentLeader}${name}`;
+		const finalPrompt = trimmed.startsWith(mentionPrefix) ? trimmed : `${mentionPrefix} ${trimmed}`;
+		widget.setInput(finalPrompt);
+		widget.acceptInput();
 	}
 
 	private async createWithLegacy(
@@ -786,7 +763,6 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			const quickPickService = accessor.get(IQuickInputService);
 			const remoteCodingAgentService = accessor.get(IRemoteCodingAgentsService);
 			const chatSessionsService = accessor.get(IChatSessionsService);
-			const editorService = accessor.get(IEditorService);
 			const workspaceContextService = accessor.get(IWorkspaceContextService);
 
 			const widget = widgetService.lastFocusedWidget;
@@ -818,15 +794,20 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Chat);
 			const instantiationService = accessor.get(IInstantiationService);
 			const requestParser = instantiationService.createInstance(ChatRequestParser);
-			const parsedRequest = requestParser.parseChatRequest(session, userPrompt, ChatAgentLocation.Chat);
+
+			const isChatSessionsExperimentEnabled = configurationService.getValue<boolean>(ChatConfiguration.UseChatSessionsForCloudButton);
+			if (isChatSessionsExperimentEnabled) {
+				return await this.createWithChatSessions(chatSessionsService, chatAgentService, quickPickService, widget, userPrompt);
+			}
 
 			// Add the request to the model first
+			const parsedRequest = requestParser.parseChatRequest(session, userPrompt, ChatAgentLocation.Chat);
 			const addedRequest = chatModel.addRequest(
 				parsedRequest,
 				{ variables: attachedContext.asArray() },
 				0,
 				undefined,
-				defaultAgent,
+				defaultAgent
 			);
 
 			let title: string | undefined = undefined;
@@ -912,13 +893,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 				)
 			});
 
-			const isChatSessionsExperimentEnabled = configurationService.getValue<boolean>(ChatConfiguration.UseChatSessionsForCloudButton);
-			if (isChatSessionsExperimentEnabled) {
-				await this.createWithChatSessions(chatSessionsService, quickPickService, editorService, chatModel, addedRequest, summarizedUserPrompt || userPrompt, summary);
-			} else {
-				await this.createWithLegacy(remoteCodingAgentService, commandService, quickPickService, chatModel, addedRequest, widget, summarizedUserPrompt || userPrompt, summary);
-			}
-
+			await this.createWithLegacy(remoteCodingAgentService, commandService, quickPickService, chatModel, addedRequest, widget, summarizedUserPrompt || userPrompt, summary);
 			chatModel.setResponse(addedRequest, {});
 			chatModel.completeResponse(addedRequest);
 		} catch (e) {
