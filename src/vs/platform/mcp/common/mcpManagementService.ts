@@ -66,7 +66,7 @@ export abstract class AbstractCommonMcpManagementService extends Disposable {
 		}
 
 		// local
-		const serverPackage = manifest.packages?.find(p => p.registry_type === packageType) ?? manifest.packages?.[0];
+		const serverPackage = manifest.packages?.find(p => p.registryType === packageType) ?? manifest.packages?.[0];
 		if (!serverPackage) {
 			throw new Error(`No server package found`);
 		}
@@ -75,31 +75,31 @@ export abstract class AbstractCommonMcpManagementService extends Disposable {
 		const inputs: IMcpServerVariable[] = [];
 		const env: Record<string, string> = {};
 
-		if (serverPackage.registry_type === RegistryType.DOCKER || serverPackage.registry_type === RegistryType.DOCKER_HUB) {
+		if (serverPackage.registryType === RegistryType.DOCKER) {
 			args.push('run');
 			args.push('-i');
 			args.push('--rm');
 		}
 
-		if (serverPackage.runtime_arguments?.length) {
-			const result = this.processArguments(serverPackage.runtime_arguments ?? []);
+		if (serverPackage.runtimeArguments?.length) {
+			const result = this.processArguments(serverPackage.runtimeArguments ?? []);
 			args.push(...result.args);
 			inputs.push(...result.variables);
 		}
 
-		if (serverPackage.environment_variables?.length) {
-			const { inputs: envInputs, variables: envVariables } = this.processKeyValueInputs(serverPackage.environment_variables ?? []);
+		if (serverPackage.environmentVariables?.length) {
+			const { inputs: envInputs, variables: envVariables } = this.processKeyValueInputs(serverPackage.environmentVariables ?? []);
 			inputs.push(...envVariables);
 			for (const [name, value] of Object.entries(envInputs)) {
 				env[name] = value;
-				if (serverPackage.registry_type === RegistryType.DOCKER || serverPackage.registry_type === RegistryType.DOCKER_HUB) {
+				if (serverPackage.registryType === RegistryType.DOCKER) {
 					args.push('-e');
 					args.push(name);
 				}
 			}
 		}
 
-		switch (serverPackage.registry_type) {
+		switch (serverPackage.registryType) {
 			case RegistryType.NODE:
 				args.push(serverPackage.version ? `${serverPackage.identifier}@${serverPackage.version}` : serverPackage.identifier);
 				break;
@@ -107,20 +107,19 @@ export abstract class AbstractCommonMcpManagementService extends Disposable {
 				args.push(serverPackage.version ? `${serverPackage.identifier}==${serverPackage.version}` : serverPackage.identifier);
 				break;
 			case RegistryType.DOCKER:
-			case RegistryType.DOCKER_HUB:
 				args.push(serverPackage.version ? `${serverPackage.identifier}:${serverPackage.version}` : serverPackage.identifier);
 				break;
 			case RegistryType.NUGET:
 				args.push(serverPackage.version ? `${serverPackage.identifier}@${serverPackage.version}` : serverPackage.identifier);
 				args.push('--yes'); // installation is confirmed by the UI, so --yes is appropriate here
-				if (serverPackage.package_arguments?.length) {
+				if (serverPackage.packageArguments?.length) {
 					args.push('--');
 				}
 				break;
 		}
 
-		if (serverPackage.package_arguments?.length) {
-			const result = this.processArguments(serverPackage.package_arguments);
+		if (serverPackage.packageArguments?.length) {
+			const result = this.processArguments(serverPackage.packageArguments);
 			args.push(...result.args);
 			inputs.push(...result.variables);
 		}
@@ -128,7 +127,7 @@ export abstract class AbstractCommonMcpManagementService extends Disposable {
 		return {
 			config: {
 				type: McpServerType.LOCAL,
-				command: this.getCommandName(serverPackage.registry_type),
+				command: this.getCommandName(serverPackage.registryType),
 				args: args.length ? args : undefined,
 				env: Object.keys(env).length ? env : undefined,
 			},
@@ -140,7 +139,6 @@ export abstract class AbstractCommonMcpManagementService extends Disposable {
 		switch (packageType) {
 			case RegistryType.NODE: return 'npx';
 			case RegistryType.DOCKER: return 'docker';
-			case RegistryType.DOCKER_HUB: return 'docker'; // Backward compatibility
 			case RegistryType.PYTHON: return 'uvx';
 			case RegistryType.NUGET: return 'dnx';
 		}
@@ -154,7 +152,7 @@ export abstract class AbstractCommonMcpManagementService extends Disposable {
 				id: key,
 				type: value.choices ? McpServerVariableType.PICK : McpServerVariableType.PROMPT,
 				description: value.description ?? '',
-				password: !!value.is_secret,
+				password: !!value.isSecret,
 				default: value.default,
 				options: value.choices,
 			});
@@ -182,7 +180,7 @@ export abstract class AbstractCommonMcpManagementService extends Disposable {
 					id: input.name,
 					type: input.choices ? McpServerVariableType.PICK : McpServerVariableType.PROMPT,
 					description: input.description ?? '',
-					password: !!input.is_secret,
+					password: !!input.isSecret,
 					default: input.default,
 					options: input.choices,
 				});
@@ -211,19 +209,19 @@ export abstract class AbstractCommonMcpManagementService extends Disposable {
 					if (argVariables.length) {
 						variables.push(...argVariables);
 					}
-				} else if (arg.value_hint && (arg.description || arg.default !== undefined)) {
+				} else if (arg.valueHint && (arg.description || arg.default !== undefined)) {
 					// Create input variable for positional argument without value
 					variables.push({
-						id: arg.value_hint,
+						id: arg.valueHint,
 						type: McpServerVariableType.PROMPT,
 						description: arg.description ?? '',
 						password: false,
 						default: arg.default,
 					});
-					args.push(`\${input:${arg.value_hint}}`);
+					args.push(`\${input:${arg.valueHint}}`);
 				} else {
 					// Fallback to value_hint as literal
-					args.push(arg.value_hint ?? '');
+					args.push(arg.valueHint ?? '');
 				}
 			} else if (arg.type === 'named') {
 				args.push(arg.name);
