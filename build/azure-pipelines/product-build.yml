@@ -313,6 +313,9 @@ extends:
               NPM_ARCH: arm
               JOB_SUFFIX: ARMHF
               VSCODE_ARCH: armhf
+          - template: build/azure-pipelines/darwin/product-build-darwin-node-modules.yml@self
+            parameters:
+              VSCODE_ARCH: arm64
 
       - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_COMPILE_ONLY, false)) }}:
         - stage: APIScan
