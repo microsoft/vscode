@@ -13888,8 +13888,10 @@ declare module 'vscode' {
 		 * In the same way, symbolic links are preserved, i.e. the file event will report the path of the
 		 * symbolic link as it was provided for watching and not the target.
 		 *
-		 * *Note* that file events from deleting a folder may not include events for contained files. If possible
-		 * events will be aggregated to reduce the overal number of emitted events.
+		 * *Note* that file events from deleting a folder may not include events for contained files but
+		 * only the most top level folder that was deleted. This helps reduce the overhead of file events
+		 * being sent. If you need to know about all deleted files, you have to watch with `**` and deal
+		 * with all file events yourself.
 		 *
 		 * ### Examples
 		 *
