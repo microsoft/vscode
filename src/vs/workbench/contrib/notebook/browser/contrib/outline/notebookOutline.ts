@@ -486,15 +486,28 @@ export class NotebookBreadcrumbsProvider implements IBreadcrumbsDataSource<Outli
 class NotebookComparator implements IOutlineComparator<OutlineEntry> {
 
 	private readonly _collator = safeIntl.Collator(undefined, { numeric: true });
+	private _caseSensitive: boolean = false;
+
+	setCaseSensitive(caseSensitive: boolean): void {
+		this._caseSensitive = caseSensitive;
+	}
+
+	private _getCollator() {
+		if (this._caseSensitive) {
+			return safeIntl.Collator(undefined, { numeric: true, sensitivity: 'case' });
+		} else {
+			return this._collator;
+		}
+	}
 
 	compareByPosition(a: OutlineEntry, b: OutlineEntry): number {
 		return a.index - b.index;
 	}
 	compareByType(a: OutlineEntry, b: OutlineEntry): number {
-		return a.cell.cellKind - b.cell.cellKind || this._collator.value.compare(a.label, b.label);
+		return a.cell.cellKind - b.cell.cellKind || this._getCollator().value.compare(a.label, b.label);
 	}
 	compareByName(a: OutlineEntry, b: OutlineEntry): number {
-		return this._collator.value.compare(a.label, b.label);
+		return this._getCollator().value.compare(a.label, b.label);
 	}
 }
 

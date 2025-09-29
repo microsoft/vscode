@@ -71,6 +71,7 @@ export abstract class BreadcrumbsConfig<T> {
 	static readonly FilePath = BreadcrumbsConfig._stub<'on' | 'off' | 'last'>('breadcrumbs.filePath');
 	static readonly SymbolPath = BreadcrumbsConfig._stub<'on' | 'off' | 'last'>('breadcrumbs.symbolPath');
 	static readonly SymbolSortOrder = BreadcrumbsConfig._stub<'position' | 'name' | 'type'>('breadcrumbs.symbolSortOrder');
+	static readonly SymbolSortOrderCaseSensitive = BreadcrumbsConfig._stub<boolean>('breadcrumbs.symbolSortOrderCaseSensitive');
 	static readonly Icons = BreadcrumbsConfig._stub<boolean>('breadcrumbs.icons');
 	static readonly TitleScrollbarSizing = BreadcrumbsConfig._stub<IEditorPartOptions['titleScrollbarSizing']>('workbench.editor.titleScrollbarSizing');
 	static readonly TitleScrollbarVisibility = BreadcrumbsConfig._stub<IEditorPartOptions['titleScrollbarVisibility']>('workbench.editor.titleScrollbarVisibility');
@@ -159,6 +160,12 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 				localize('symbolSortOrder.name', "Show symbol outline in alphabetical order."),
 				localize('symbolSortOrder.type', "Show symbol outline in symbol type order."),
 			]
+		},
+		'breadcrumbs.symbolSortOrderCaseSensitive': {
+			description: localize('symbolSortOrderCaseSensitive', "Controls whether symbol names are sorted case sensitive in the breadcrumbs outline view. This is helpful for languages where case indicates visibility like Go."),
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE
 		},
 		'breadcrumbs.icons': {
 			description: localize('icons', "Render breadcrumb items with icons."),

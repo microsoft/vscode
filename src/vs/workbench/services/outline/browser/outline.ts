@@ -44,6 +44,7 @@ export interface IOutlineComparator<E> {
 	compareByPosition(a: E, b: E): number;
 	compareByType(a: E, b: E): number;
 	compareByName(a: E, b: E): number;
+	setCaseSensitive?(caseSensitive: boolean): void;
 }
 
 export interface IQuickPickOutlineElement<E> {

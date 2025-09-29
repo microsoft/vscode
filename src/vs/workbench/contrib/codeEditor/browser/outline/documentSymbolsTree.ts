@@ -335,12 +335,25 @@ export class DocumentSymbolFilter implements ITreeFilter<DocumentSymbolItem> {
 export class DocumentSymbolComparator implements IOutlineComparator<DocumentSymbolItem> {
 
 	private readonly _collator = safeIntl.Collator(undefined, { numeric: true });
+	private _caseSensitive: boolean = false;
+
+	setCaseSensitive(caseSensitive: boolean): void {
+		this._caseSensitive = caseSensitive;
+	}
+
+	private _getCollator() {
+		if (this._caseSensitive) {
+			return safeIntl.Collator(undefined, { numeric: true, sensitivity: 'case' });
+		} else {
+			return this._collator;
+		}
+	}
 
 	compareByPosition(a: DocumentSymbolItem, b: DocumentSymbolItem): number {
 		if (a instanceof OutlineGroup && b instanceof OutlineGroup) {
 			return a.order - b.order;
 		} else if (a instanceof OutlineElement && b instanceof OutlineElement) {
-			return Range.compareRangesUsingStarts(a.symbol.range, b.symbol.range) || this._collator.value.compare(a.symbol.name, b.symbol.name);
+			return Range.compareRangesUsingStarts(a.symbol.range, b.symbol.range) || this._getCollator().value.compare(a.symbol.name, b.symbol.name);
 		}
 		return 0;
 	}
@@ -348,7 +361,7 @@ export class DocumentSymbolComparator implements IOutlineComparator<DocumentSymb
 		if (a instanceof OutlineGroup && b instanceof OutlineGroup) {
 			return a.order - b.order;
 		} else if (a instanceof OutlineElement && b instanceof OutlineElement) {
-			return a.symbol.kind - b.symbol.kind || this._collator.value.compare(a.symbol.name, b.symbol.name);
+			return a.symbol.kind - b.symbol.kind || this._getCollator().value.compare(a.symbol.name, b.symbol.name);
 		}
 		return 0;
 	}
@@ -356,7 +369,7 @@ export class DocumentSymbolComparator implements IOutlineComparator<DocumentSymb
 		if (a instanceof OutlineGroup && b instanceof OutlineGroup) {
 			return a.order - b.order;
 		} else if (a instanceof OutlineElement && b instanceof OutlineElement) {
-			return this._collator.value.compare(a.symbol.name, b.symbol.name) || Range.compareRangesUsingStarts(a.symbol.range, b.symbol.range);
+			return this._getCollator().value.compare(a.symbol.name, b.symbol.name) || Range.compareRangesUsingStarts(a.symbol.range, b.symbol.range);
 		}
 		return 0;
 	}
