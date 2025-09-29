@@ -8,7 +8,8 @@ import type { WebglAddon as WebglAddonType } from '@xterm/addon-webgl';
 import type { LigaturesAddon as LigaturesAddonType } from '@xterm/addon-ligatures';
 import type { IBufferLine, IMarker, ITerminalOptions, ITheme, Terminal as RawXtermTerminal, Terminal as XTermTerminal } from '@xterm/xterm';
 import { $, addDisposableListener, addStandardDisposableListener, getWindow } from '../../../../../base/browser/dom.js';
-import { debounce, throttle } from '../../../../../base/common/decorators.js';
+import { RunOnceScheduler } from '../../../../../base/common/async.js';
+import { throttle } from '../../../../../base/common/decorators.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, MutableDisposable, combinedDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { removeAnsiEscapeCodes } from '../../../../../base/common/strings.js';
@@ -63,7 +64,10 @@ export class TerminalStickyScrollOverlay extends Disposable {
 	private _state: OverlayState = OverlayState.Off;
 	private _isRefreshQueued = false;
 	private _rawMaxLineCount: number = 5;
-	private _pendingShowOperation = false;
+	private readonly _showScheduler: RunOnceScheduler;
+	private readonly _hideScheduler: RunOnceScheduler;
+	private _isVisible = false;
+	private _shouldBeVisible = false;
 
 	constructor(
 		private readonly _instance: ITerminalInstance,
@@ -80,6 +84,30 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		@IThemeService private readonly _themeService: IThemeService,
 	) {
 		super();
+
+		// Initialize schedulers with proper cancellation support
+		this._showScheduler = this._register(new RunOnceScheduler(() => {
+			console.log('scheduled show executing, _shouldBeVisible:', this._shouldBeVisible);
+			if (this._shouldBeVisible) {
+				this._ensureElement();
+				this._element?.classList.toggle(CssClasses.Visible, true);
+				this._isVisible = true;
+				console.log('  -> actually showed');
+			} else {
+				console.log('  -> cancelled, not showing because _shouldBeVisible is false');
+			}
+		}, 100));
+
+		this._hideScheduler = this._register(new RunOnceScheduler(() => {
+			console.log('scheduled hide executing, _shouldBeVisible:', this._shouldBeVisible);
+			if (!this._shouldBeVisible) {
+				this._element?.classList.toggle(CssClasses.Visible, false);
+				this._isVisible = false;
+				console.log('  -> actually hid');
+			} else {
+				console.log('  -> cancelled, not hiding because _shouldBeVisible is true');
+			}
+		}, 50)); // Shorter delay for hiding to feel more responsive
 
 		this._contextMenu = this._register(menuService.createMenu(MenuId.TerminalStickyScrollContext, contextKeyService));
 
@@ -187,32 +215,35 @@ export class TerminalStickyScrollOverlay extends Disposable {
 	}
 
 	private _setVisible(isVisible: boolean) {
+		console.log(`***********_setVisible(${isVisible}) - current: _isVisible=${this._isVisible}, _shouldBeVisible=${this._shouldBeVisible}******`);
+
 		if (isVisible) {
-			this._pendingShowOperation = true;
-			this._show();
+			this._shouldBeVisible = true;
+			// Cancel any pending hide operation
+			this._hideScheduler.cancel();
+
+			// Only schedule show if not already visible
+			if (!this._isVisible) {
+				console.log('  -> scheduling show in 100ms (cancelling any existing show first)');
+				this._showScheduler.cancel();
+				this._showScheduler.schedule();
+			} else {
+				console.log('  -> already visible, not scheduling show');
+			}
 		} else {
-			this._cancelPendingShow();
-			this._hide();
+			this._shouldBeVisible = false;
+			// Cancel any pending show operation
+			this._showScheduler.cancel();
+
+			// Only schedule hide if currently visible
+			if (this._isVisible) {
+				console.log('  -> scheduling hide in 50ms (cancelling any existing hide first)');
+				this._hideScheduler.cancel();
+				this._hideScheduler.schedule();
+			} else {
+				console.log('  -> already hidden, not scheduling hide');
+			}
 		}
-	}
-
-	private _cancelPendingShow(): void {
-		const showFn = this._show as typeof this._show & { clear: () => void };
-		showFn.clear();
-		this._pendingShowOperation = false;
-	}
-
-	@debounce(100)
-	private _show(): void {
-		if (this._pendingShowOperation) {
-			this._ensureElement();
-			this._element?.classList.toggle(CssClasses.Visible, true);
-		}
-		this._pendingShowOperation = false;
-	}
-
-	private _hide(): void {
-		this._element?.classList.toggle(CssClasses.Visible, false);
 	}
 
 	private _refresh(): void {
