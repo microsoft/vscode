@@ -35,6 +35,9 @@ export class ChatElicitationRequestPart extends Disposable implements IChatElici
 	}
 
 	hide(): void {
+		if (this._isHiddenValue.get()) {
+			return;
+		}
 		this._isHiddenValue.set(true, undefined, undefined);
 		this.onHide?.();
 		this.dispose();
