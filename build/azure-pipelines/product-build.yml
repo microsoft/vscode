@@ -303,6 +303,16 @@ extends:
           - template: build/azure-pipelines/win32/product-build-win32-node-modules.yml@self
             parameters:
               VSCODE_ARCH: arm64
+          - template: build/azure-pipelines/linux/product-build-linux-node-modules.yml@self
+            parameters:
+              NPM_ARCH: arm64
+              JOB_SUFFIX: ARM64
+              VSCODE_ARCH: arm64
+          - template: build/azure-pipelines/linux/product-build-linux-node-modules.yml@self
+            parameters:
+              NPM_ARCH: arm
+              JOB_SUFFIX: ARMHF
+              VSCODE_ARCH: armhf
 
       - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_COMPILE_ONLY, false)) }}:
         - stage: APIScan
