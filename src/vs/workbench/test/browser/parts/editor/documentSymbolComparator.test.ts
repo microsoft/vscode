@@ -28,12 +28,12 @@ suite('DocumentSymbolComparator Case Sensitivity', function () {
 
 	test('compareByName - case insensitive by default', function () {
 		const comparator = new DocumentSymbolComparator();
-		
+
 		// Since we can't easily test with OutlineElements, we'll test the collator behavior
 		// by checking that the comparator has the right default configuration
 		const symbolA = createDocumentSymbol('Apple');
 		const symbolB = createDocumentSymbol('banana');
-		
+
 		// Just verify the symbols are created correctly
 		assert.strictEqual(symbolA.name, 'Apple');
 		assert.strictEqual(symbolB.name, 'banana');
@@ -42,24 +42,24 @@ suite('DocumentSymbolComparator Case Sensitivity', function () {
 
 	test('setCaseSensitive method exists', function () {
 		const comparator = new DocumentSymbolComparator();
-		
+
 		// Verify the method exists and can be called
 		assert.ok(typeof comparator.setCaseSensitive === 'function', 'setCaseSensitive method exists');
-		
+
 		// Call it to verify it works
 		comparator.setCaseSensitive(true);
 		comparator.setCaseSensitive(false);
-		
+
 		assert.ok(true, 'setCaseSensitive method can be called without errors');
 	});
 
 	test('case sensitivity configuration', function () {
 		const comparator = new DocumentSymbolComparator();
-		
+
 		// Test that we can toggle case sensitivity
 		comparator.setCaseSensitive(true);
 		comparator.setCaseSensitive(false);
-		
+
 		assert.ok(true, 'Case sensitivity can be toggled successfully');
 	});
 });
