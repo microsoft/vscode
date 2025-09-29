@@ -572,7 +572,11 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 				{
 					label: nls.localize('dcrCopyUrlsAndProceed', "Copy URIs & Proceed"),
 					run: async () => {
-						await this.clipboardService.writeText(redirectUrls);
+						try {
+							await this.clipboardService.writeText(redirectUrls);
+						} catch (error) {
+							this.notificationService.error(nls.localize('dcrFailedToCopy', "Failed to copy redirect URIs to clipboard."));
+						}
 						return true;
 					}
 				},
