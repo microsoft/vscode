@@ -410,11 +410,35 @@ class ExtHostTreeView<T> extends Disposable {
 					const _promiseCallback = promiseCallback;
 					refreshingPromise = null;
 					const childrenToClear = Array.from(this._nodesToClear);
+					// Logging: snapshot of incoming refresh request
+					try {
+						const elementHandles = elements.map(e => {
+							if (!e) { return '<root>'; }
+							const node = this._nodes.get(e as T);
+							return node ? node.item.handle : '<unresolved>';
+						});
+						const nodesToClearHandles = childrenToClear.map(n => n.item.handle);
+						this._logService.info(`[treeView:${this._viewId}] refresh start elements=${elementHandles.join(',')} nodesToClear(count=${childrenToClear.length})=[${nodesToClearHandles.join(',')}]`);
+					} catch (err) {
+						this._logService.error(`[treeView:${this._viewId}] logging (pre-refresh) failed`, err);
+					}
 					return this._refresh(elements).then(() => {
+						try {
+							this._logService.info(`[treeView:${this._viewId}] refresh success clearingNodes=${childrenToClear.length}`);
+						} catch { /* ignore logging errors */ }
 						this._clearNodes(childrenToClear);
+						try {
+							this._logService.info(`[treeView:${this._viewId}] cleared nodes`);
+						} catch { /* ignore logging errors */ }
 						return _promiseCallback();
-					}).catch(_ => {
+					}).catch(error => {
+						try {
+							this._logService.error(`[treeView:${this._viewId}] refresh failed`, error);
+						} catch { /* ignore logging errors */ }
 						this._clearNodes(childrenToClear);
+						try {
+							this._logService.info(`[treeView:${this._viewId}] cleared nodes after failure count=${childrenToClear.length}`);
+						} catch { /* ignore logging errors */ }
 					});
 				});
 			}
