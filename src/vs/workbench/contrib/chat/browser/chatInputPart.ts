@@ -87,7 +87,6 @@ import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, IL
 import { ILanguageModelToolsService } from '../common/languageModelToolsService.js';
 import { PromptsType } from '../common/promptSyntax/promptTypes.js';
 import { IPromptsService } from '../common/promptSyntax/service/promptsService.js';
-import { IChatTodoListService } from '../common/chatTodoListService.js';
 import { CancelAction, ChatDelegateToEditSessionAction, ChatEditingSessionSubmitAction, ChatOpenModelPickerActionId, ChatSubmitAction, IChatExecuteActionContext, OpenModePickerAction } from './actions/chatExecuteActions.js';
 import { ImplicitContextAttachmentWidget } from './attachments/implicitContextAttachment.js';
 import { IChatWidget } from './chat.js';
@@ -99,6 +98,7 @@ import { ChatDragAndDrop } from './chatDragAndDrop.js';
 import { ChatEditingShowChangesAction, ViewPreviousEditsAction } from './chatEditing/chatEditingActions.js';
 import { ChatFollowups } from './chatFollowups.js';
 import { ChatSelectedTools } from './chatSelectedTools.js';
+import { ChatTodoListWidget } from './chatContentParts/chatTodoListWidget.js';
 import { IChatViewState } from './chatWidget.js';
 import { ChatImplicitContext } from './contrib/chatImplicitContext.js';
 import { ChatRelatedFiles } from './contrib/chatInputRelatedFilesContrib.js';
@@ -144,8 +144,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private static _counter = 0;
 
 	private _workingSetCollapsed = true;
-	// Collapsible state for the editing session todo list (defaults to expanded)
-	private _editingTodosExpanded = true;
+	private readonly _chatInputTodoListWidget = this._register(new MutableDisposable<ChatTodoListWidget>());
 	private readonly _chatEditingTodosDisposables = this._register(new DisposableStore());
 	private _lastEditingSessionId: string | undefined;
 
@@ -413,7 +412,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IChatEntitlementService private readonly entitlementService: IChatEntitlementService,
 		@IChatModeService private readonly chatModeService: IChatModeService,
 		@IPromptsService private readonly promptsService: IPromptsService,
-		@IChatTodoListService private readonly chatTodoListService: IChatTodoListService,
 		@ILanguageModelToolsService private readonly toolService: ILanguageModelToolsService,
 	) {
 		super();
@@ -1017,6 +1015,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		// Clear attached context, fire event to clear input state, and clear the input editor
 		this.attachmentModel.clear();
+		this._chatInputTodoListWidget.value?.clear(this._lastEditingSessionId, true);
 		this._onDidLoadInputState.fire({});
 		if (this.accessibilityService.isScreenReaderOptimized() && isMacintosh) {
 			this._acceptInputForVoiceover();
@@ -1597,6 +1596,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				if (this._editingTodosStateSession !== chatEditingSession.chatSessionId) {
 					this._editingTodosStateSession = chatEditingSession.chatSessionId;
 					this._editingTodosState.clear();
+					// Clear the todo widget when session changes
+					this._chatInputTodoListWidget.value?.clear(chatEditingSession.chatSessionId, true);
 				}
 			}
 			this._lastEditingSessionId = chatEditingSession.chatSessionId;
@@ -1627,211 +1628,35 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 		}
 
-		// Optionally render a todo list above the working set using the IChatTodoListService
-		// Reuse the styling from ChatTodoListWidget by including the `.chat-todo-list-widget` class on the container
+		// Optionally render a todo list above the working set using ChatTodoListWidget
 		const todoListWidgetPosition = this.configurationService.getValue<string>(TodoListWidgetPositionSettingId) || 'default';
-		if (todoListWidgetPosition !== 'chat-input') {
-			// When not 'chat-input', ensure existing container is hidden and proceed with working set rendering
-			const existingTodos = this.chatEditingSessionWidgetContainer.querySelector('.chat-editing-session-todos.chat-todo-list-widget') as HTMLElement | null;
-			if (existingTodos) { dom.setVisibility(false, existingTodos); }
-			// Continue with working set rendering below
-			// ...
-		} else {
-			let todosContainer = this.chatEditingSessionWidgetContainer.querySelector('.chat-editing-session-todos.chat-todo-list-widget') as HTMLElement | null;
-			if (!todosContainer) {
-				// Create and insert as the first child so it's above the working set container
-				todosContainer = $('.chat-editing-session-todos.chat-todo-list-widget');
+		if (todoListWidgetPosition === 'chat-input' && chatEditingSession) {
+			// Render the todo list widget in the chat input area
+			if (!this._chatInputTodoListWidget.value) {
+				// Create the widget instance
+				const widget = this.instantiationService.createInstance(ChatTodoListWidget);
+				this._chatInputTodoListWidget.value = widget;
+
+				// Add the widget's DOM node as the first child of the container
 				const firstChild = this.chatEditingSessionWidgetContainer.firstChild;
 				if (firstChild) {
-					this.chatEditingSessionWidgetContainer.insertBefore(todosContainer, firstChild);
+					this.chatEditingSessionWidgetContainer.insertBefore(widget.domNode, firstChild);
 				} else {
-					dom.append(this.chatEditingSessionWidgetContainer, todosContainer);
+					dom.append(this.chatEditingSessionWidgetContainer, widget.domNode);
 				}
-			}
-			// Clear and repopulate with service todos
-			dom.clearNode(todosContainer);
-			this._chatEditingTodosDisposables.clear();
 
-			// Create collapsible header like ChatTodoListWidget
-			const expando = dom.append(todosContainer, $('.todo-list-expand'));
-			expando.setAttribute('role', 'button');
-			expando.setAttribute('tabindex', '0');
-			expando.setAttribute('aria-expanded', String(this._editingTodosExpanded));
-			const titleSection = dom.append(expando, $('.todo-list-title-section'));
-			const expandIcon = dom.append(titleSection, $('.expand-icon.codicon'));
-			expandIcon.classList.add(this._editingTodosExpanded ? 'codicon-chevron-down' : 'codicon-chevron-right');
-			const todosHeader = dom.append(titleSection, $('.todo-list-title'));
-			todosHeader.textContent = localize('chatEditingSession.todosHeader', 'Todos');
-
-			const todosList = dom.append(todosContainer, $('.chat-editing-session-todos-list.todo-list-container'));
-			todosList.style.display = this._editingTodosExpanded ? 'block' : 'none';
-
-			// Title updater mirroring ChatTodoListWidget
-			const updateTitleElement = (titleElement: HTMLElement, todoList: Array<{ status: 'not-started' | 'in-progress' | 'completed'; title: string; description?: string }>): void => {
-				titleElement.textContent = '';
-				const completedCount = todoList.filter(t => t.status === 'completed').length;
-				const totalCount = todoList.length;
-				const inProgressTodos = todoList.filter(t => t.status === 'in-progress');
-				const firstInProgressTodo = inProgressTodos.length > 0 ? inProgressTodos[0] : undefined;
-				const completedTodos = todoList.filter(t => t.status === 'completed');
-				const lastCompletedTodo = completedTodos.length > 0 ? completedTodos[completedTodos.length - 1] : undefined;
-
-				const progressText = dom.$('span');
-				if (totalCount === 0) {
-					progressText.textContent = localize('chat.todoList.title', 'Todos');
-				} else {
-					progressText.textContent = localize('chat.todoList.titleWithProgress', 'Todos ({0}/{1})', completedCount, totalCount);
-				}
-				titleElement.appendChild(progressText);
-
-				if (!this._editingTodosExpanded) {
-					let currentTodo: { status: 'not-started' | 'in-progress' | 'completed'; title: string; description?: string } | undefined;
-					if (!firstInProgressTodo) {
-						if (completedCount > 0 && completedCount < totalCount && lastCompletedTodo) {
-							currentTodo = lastCompletedTodo;
-							const separator = dom.$('span');
-							separator.textContent = ' - ';
-							titleElement.appendChild(separator);
-
-							const icon = dom.$('.codicon.codicon-check');
-							(icon as HTMLElement).style.color = 'var(--vscode-charts-green)';
-							(icon as HTMLElement).style.marginRight = '4px';
-							(icon as HTMLElement).style.verticalAlign = 'middle';
-							titleElement.appendChild(icon);
-
-							const completedText = dom.$('span');
-							completedText.textContent = lastCompletedTodo.title;
-							(completedText as HTMLElement).style.verticalAlign = 'middle';
-							titleElement.appendChild(completedText);
-						}
-					} else {
-						currentTodo = firstInProgressTodo;
-						const separator = dom.$('span');
-						separator.textContent = ' - ';
-						titleElement.appendChild(separator);
-
-						const icon = dom.$('.codicon.codicon-record');
-						(icon as HTMLElement).style.color = 'var(--vscode-charts-blue)';
-						(icon as HTMLElement).style.marginRight = '4px';
-						(icon as HTMLElement).style.verticalAlign = 'middle';
-						titleElement.appendChild(icon);
-
-						const inProgressText = dom.$('span');
-						inProgressText.textContent = firstInProgressTodo.title;
-						(inProgressText as HTMLElement).style.verticalAlign = 'middle';
-						titleElement.appendChild(inProgressText);
-					}
-
-					if (currentTodo && currentTodo.description && currentTodo.description.trim()) {
-						(expando as HTMLElement).title = currentTodo.description;
-					}
-				} else {
-					(expando as HTMLElement).title = progressText.textContent || '';
-				}
-			};
-
-			let currentTodosForTitle: Array<{ status: 'not-started' | 'in-progress' | 'completed'; title: string; description?: string }> = [];
-
-			const applyExpanded = () => {
-				expandIcon.classList.toggle('codicon-chevron-down', this._editingTodosExpanded);
-				expandIcon.classList.toggle('codicon-chevron-right', !this._editingTodosExpanded);
-				expando.setAttribute('aria-expanded', String(this._editingTodosExpanded));
-				todosList.style.display = this._editingTodosExpanded ? 'block' : 'none';
-				updateTitleElement(todosHeader, currentTodosForTitle);
-				this._onDidChangeHeight.fire();
-			};
-
-			const toggleExpanded = () => { this._editingTodosExpanded = !this._editingTodosExpanded; applyExpanded(); };
-			this._chatEditingTodosDisposables.add(addDisposableListener(expando, 'click', () => toggleExpanded()));
-			this._chatEditingTodosDisposables.add(addDisposableListener(expando, 'keydown', (e: KeyboardEvent) => {
-				if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleExpanded(); }
-			}));
-
-			let hasTodoItems = false;
-			if (chatEditingSession) {
-				const sessionId = chatEditingSession.chatSessionId;
-				const serviceTodos = this.chatTodoListService.getTodos(sessionId);
-				if (serviceTodos.length > 0) {
-					currentTodosForTitle = serviceTodos;
-					for (const todo of serviceTodos) {
-						hasTodoItems = true;
-						const todoItem = dom.append(todosList, $('.todo-item'));
-						// status icon
-						const statusIcon = dom.$('.todo-status-icon.codicon');
-						const applyIcon = (status: string) => {
-							statusIcon.classList.remove('codicon-check', 'codicon-record', 'codicon-circle-large-outline');
-							if (status === 'completed') {
-								statusIcon.classList.add('codicon-check');
-								(statusIcon as HTMLElement).style.color = 'var(--vscode-charts-green)';
-							} else if (status === 'in-progress') {
-								statusIcon.classList.add('codicon-record');
-								(statusIcon as HTMLElement).style.color = 'var(--vscode-charts-blue)';
-							} else {
-								statusIcon.classList.add('codicon-circle-large-outline');
-								(statusIcon as HTMLElement).style.color = 'var(--vscode-foreground)';
-							}
-						};
-						applyIcon(todo.status);
-
-						const todoContent = dom.$('.todo-content');
-						const titleEl = dom.$('.todo-title');
-						titleEl.textContent = todo.title;
-						if (todo.description && todo.description.trim()) {
-							(todoItem as HTMLElement).title = todo.description;
-						}
-						todoContent.appendChild(titleEl);
-
-						todoItem.appendChild(statusIcon);
-						todoItem.appendChild(todoContent);
-						// Read-only indicator: do not attach any interaction handlers
-						(todoItem as HTMLElement).setAttribute('role', 'listitem');
-					}
-					// Update header based on current todos
-					updateTitleElement(todosHeader, currentTodosForTitle);
-				} else {
-					// Fallback to previous behavior: derive todos from working set entries
-					const fallbackTodos: Array<{ status: 'not-started' | 'in-progress' | 'completed'; title: string; description?: string }> = [];
-					for (const item of entries) {
-						if (item.kind !== 'reference' || !URI.isUri(item.reference)) {
-							continue;
-						}
-						hasTodoItems = true;
-						const uri = item.reference;
-						fallbackTodos.push({ status: 'not-started', title: this.labelService.getUriBasenameLabel(uri) });
-						const todoItem = dom.append(todosList, $('.todo-item'));
-						const statusIcon = dom.$('.todo-status-icon.codicon');
-						const checked = false; // read-only fallback: no local state
-						const applyIcon = (isDone: boolean) => {
-							statusIcon.classList.remove('codicon-check', 'codicon-record', 'codicon-circle-large-outline');
-							if (isDone) {
-								statusIcon.classList.add('codicon-check');
-								(statusIcon as HTMLElement).style.color = 'var(--vscode-charts-green)';
-							} else {
-								statusIcon.classList.add('codicon-circle-large-outline');
-								(statusIcon as HTMLElement).style.color = 'var(--vscode-foreground)';
-							}
-						};
-						applyIcon(checked);
-						const todoContent = dom.$('.todo-content');
-						const titleEl = dom.$('.todo-title');
-						titleEl.textContent = this.labelService.getUriBasenameLabel(uri);
-						todoContent.appendChild(titleEl);
-						todoItem.appendChild(statusIcon);
-						todoItem.appendChild(todoContent);
-						// Read-only fallback: no interaction, present as list item
-						(todoItem as HTMLElement).setAttribute('role', 'listitem');
-					}
-					currentTodosForTitle = fallbackTodos;
-					updateTitleElement(todosHeader, currentTodosForTitle);
-				}
+				// Listen to height changes
+				this._chatEditingTodosDisposables.add(widget.onDidChangeHeight(() => {
+					this._onDidChangeHeight.fire();
+				}));
 			}
 
-			dom.setVisibility(hasTodoItems, todosContainer);
-			if (hasTodoItems) {
-				this._onDidChangeHeight.fire();
-			}
-
-		} // end of: else { ... render todo list in input }
+			// Render the widget with the current session
+			this._chatInputTodoListWidget.value.render(chatEditingSession.chatSessionId);
+		} else {
+			// Clear the widget if it exists
+			this._chatInputTodoListWidget.clear();
+		}
 
 		// If there is no working set to render, clear only the working set container and return
 		if (!this.options.renderWorkingSet || entries.length === 0) {
