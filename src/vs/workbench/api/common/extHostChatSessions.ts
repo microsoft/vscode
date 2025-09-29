@@ -22,6 +22,7 @@ import { ExtHostLanguageModels } from './extHostLanguageModels.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 import * as typeConvert from './extHostTypeConverters.js';
 import * as extHostTypes from './extHostTypes.js';
+import { ChatSessionIdentifier } from '../../contrib/chat/common/chatUri.js';
 
 class ExtHostChatSession {
 	private _stream: ChatAgentResponseStream;
@@ -132,8 +133,8 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		});
 	}
 
-	async showChatSession(_extension: IExtensionDescription, chatSessionType: string, sessionId: string, options: vscode.ChatSessionShowOptions | undefined): Promise<void> {
-		await this._proxy.$showChatSession(chatSessionType, sessionId, typeConvert.ViewColumn.from(options?.viewColumn));
+	async showChatSession(_extension: IExtensionDescription, chatSession: ChatSessionIdentifier, options: vscode.ChatSessionShowOptions | undefined): Promise<void> {
+		await this._proxy.$showChatSession(chatSession, typeConvert.ViewColumn.from(options?.viewColumn));
 	}
 
 	private convertChatSessionStatus(status: vscode.ChatSessionStatus | undefined): ChatSessionStatus | undefined {

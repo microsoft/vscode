@@ -303,7 +303,11 @@ export class SessionsViewPane extends ViewPane {
 				return null;
 			}
 
-			return ChatSessionUri.forSession(element.provider.chatSessionType, element.id);
+			return ChatSessionUri.forSession({
+				chatSessionType: element.provider.chatSessionType,
+				sessionId: element.id,
+				metadata: element.metadata
+			});
 		};
 
 		this.tree = this.instantiationService.createInstance(
@@ -328,6 +332,7 @@ export class SessionsViewPane extends ViewPane {
 						if (element.id === LocalChatSessionsProvider.HISTORY_NODE_ID) {
 							return null;
 						}
+						// TODO: fix this
 						return getResourceForElement(element)?.toString() ?? null;
 					},
 					getDragLabel: (elements: ChatSessionItemWithProvider[]) => {
@@ -455,8 +460,13 @@ export class SessionsViewPane extends ViewPane {
 		}
 
 		try {
+			const sessionIdentifier = {
+				chatSessionType: session.provider.chatSessionType,
+				sessionId: session.id,
+				metadata: session.metadata
+			};
 			// Check first if we already have an open editor for this session
-			const uri = ChatSessionUri.forSession(session.provider.chatSessionType, session.id);
+			const uri = ChatSessionUri.forSession(sessionIdentifier);
 			const existingEditor = findExistingChatEditorByUri(uri, session.id, this.editorGroupsService);
 			if (existingEditor) {
 				await this.editorService.openEditor(existingEditor.editor, existingEditor.groupId);
@@ -496,7 +506,7 @@ export class SessionsViewPane extends ViewPane {
 				preserveFocus: true,
 			};
 			await this.editorService.openEditor({
-				resource: ChatSessionUri.forSession(session.provider.chatSessionType, session.id),
+				resource: ChatSessionUri.forSession(sessionIdentifier),
 				options,
 			});
 

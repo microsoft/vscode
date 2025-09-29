@@ -10,16 +10,21 @@ import { URI } from '../../../../base/common/uri.js';
 export type ChatSessionIdentifier = {
 	readonly chatSessionType: string;
 	readonly sessionId: string;
+	readonly metadata?: Record<string, string>;
 };
 
 export namespace ChatSessionUri {
 
 	export const scheme = Schemas.vscodeChatSession;
 
-	export function forSession(chatSessionType: string, sessionId: string): URI {
-		const encodedId = encodeBase64(VSBuffer.wrap(new TextEncoder().encode(sessionId)), false, true);
+	export function forSession(chatSession: ChatSessionIdentifier): URI {
+		const encodedId = encodeBase64(VSBuffer.wrap(new TextEncoder().encode(chatSession.sessionId)), false, true);
 		// TODO: Do we need to encode the authority too?
-		return URI.from({ scheme, authority: chatSessionType, path: '/' + encodedId });
+		return URI.from({
+			scheme, authority: chatSession.chatSessionType,
+			path: '/' + encodedId,
+			query: chatSession.metadata ? JSON.stringify(chatSession.metadata) : undefined
+		});
 	}
 
 	export function parse(resource: URI): ChatSessionIdentifier | undefined {
@@ -38,6 +43,6 @@ export namespace ChatSessionUri {
 
 		const chatSessionType = resource.authority;
 		const decodedSessionId = decodeBase64(parts[1]);
-		return { chatSessionType, sessionId: new TextDecoder().decode(decodedSessionId.buffer) };
+		return { chatSessionType, sessionId: new TextDecoder().decode(decodedSessionId.buffer), metadata: JSON.parse(resource.query || '{}') };
 	}
 }
