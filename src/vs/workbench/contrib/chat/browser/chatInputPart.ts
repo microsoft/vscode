@@ -98,12 +98,15 @@ import { ChatDragAndDrop } from './chatDragAndDrop.js';
 import { ChatEditingShowChangesAction, ViewPreviousEditsAction } from './chatEditing/chatEditingActions.js';
 import { ChatFollowups } from './chatFollowups.js';
 import { ChatSelectedTools } from './chatSelectedTools.js';
+import { ChatTodoListWidget } from './chatContentParts/chatTodoListWidget.js';
 import { IChatViewState } from './chatWidget.js';
 import { ChatImplicitContext } from './contrib/chatImplicitContext.js';
 import { ChatRelatedFiles } from './contrib/chatInputRelatedFilesContrib.js';
 import { resizeImage } from './imageUtils.js';
 import { IModelPickerDelegate, ModelPickerActionItem } from './modelPicker/modelPickerActionItem.js';
 import { IModePickerDelegate, ModePickerActionItem } from './modelPicker/modePickerActionItem.js';
+import { assertType } from '../../../../base/common/types.js';
+import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 
 const $ = dom.$;
 
@@ -141,6 +144,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private static _counter = 0;
 
 	private _workingSetCollapsed = true;
+	private readonly _chatInputTodoListWidget = this._register(new MutableDisposable<ChatTodoListWidget>());
+	private readonly _chatEditingTodosDisposables = this._register(new DisposableStore());
 	private _lastEditingSessionId: string | undefined;
 
 	private _onDidLoadInputState: Emitter<IChatInputState | undefined>;
@@ -235,6 +240,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private relatedFilesContainer!: HTMLElement;
 
 	private chatEditingSessionWidgetContainer!: HTMLElement;
+	private chatInputTodoListWidgetContainer!: HTMLElement;
 
 	private _inputPartHeight: number;
 	get inputPartHeight() {
@@ -262,6 +268,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private inputActionsToolbar!: MenuWorkbenchToolBar;
 
 	private addFilesToolbar: MenuWorkbenchToolBar | undefined;
+	private addFilesButton: AddFilesButton | undefined;
 
 	get inputEditor() {
 		return this._inputEditor;
@@ -1063,6 +1070,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (this.options.renderStyle === 'compact') {
 			elements = dom.h('.interactive-input-part', [
 				dom.h('.interactive-input-and-edit-session', [
+					dom.h('.chat-todo-list-widget-container@chatInputTodoListWidgetContainer'),
 					dom.h('.chat-editing-session@chatEditingSessionWidgetContainer'),
 					dom.h('.interactive-input-and-side-toolbar@inputAndSideToolbar', [
 						dom.h('.chat-input-container@inputContainer', [
@@ -1081,6 +1089,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		} else {
 			elements = dom.h('.interactive-input-part', [
 				dom.h('.interactive-input-followups@followupsContainer'),
+				dom.h('.chat-todo-list-widget-container@chatInputTodoListWidgetContainer'),
 				dom.h('.chat-editing-session@chatEditingSessionWidgetContainer'),
 				dom.h('.interactive-input-and-side-toolbar@inputAndSideToolbar', [
 					dom.h('.chat-input-container@inputContainer', [
@@ -1110,6 +1119,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const toolbarsContainer = elements.inputToolbars;
 		const attachmentToolbarContainer = elements.attachmentToolbar;
 		this.chatEditingSessionWidgetContainer = elements.chatEditingSessionWidgetContainer;
+		this.chatInputTodoListWidgetContainer = elements.chatInputTodoListWidgetContainer;
 		if (this.options.enableImplicitContext) {
 			this._implicitContext = this._register(
 				this.instantiationService.createInstance(ChatImplicitContext),
@@ -1348,8 +1358,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			hoverDelegate,
 			actionViewItemProvider: (action, options) => {
 				if (action.id === 'workbench.action.chat.attachContext') {
-					const viewItem = this.instantiationService.createInstance(AddFilesButton, undefined, action, options);
-					return viewItem;
+					const viewItem = this.instantiationService.createInstance(AddFilesButton, this._attachmentModel, action, options);
+					viewItem.setShowLabel(this._attachmentModel.size === 0 && !this.hasImplicitContextBlock());
+					this.addFilesButton = viewItem;
+					return this.addFilesButton;
 				}
 				return undefined;
 			}
@@ -1476,7 +1488,31 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._onDidChangeHeight.fire();
 		}
 
+		this.addFilesButton?.setShowLabel(this._attachmentModel.size === 0 && !this.hasImplicitContextBlock());
+
 		this._indexOfLastOpenedContext = -1;
+	}
+
+	private hasImplicitContextBlock(): boolean {
+		const implicit = this.implicitContext?.value;
+		if (!implicit) {
+			return false;
+		}
+		const isSuggestedEnabled = this.configurationService.getValue<boolean>('chat.implicitContext.suggestedContext');
+		if (!isSuggestedEnabled) {
+			return true;
+		}
+
+		// TODO @justschen: merge this with above showing implicit logic
+		const isUri = URI.isUri(implicit);
+		if (isUri || isLocation(implicit)) {
+			const targetUri = isUri ? implicit : implicit.uri;
+			const attachments = [...this._attachmentModel.attachments.entries()];
+			const currentlyAttached = attachments.some(([, a]) => URI.isUri(a.value) && isEqual(a.value, targetUri));
+			const shouldShowImplicit = isUri ? !currentlyAttached : implicit.range;
+			return !!shouldShowImplicit;
+		}
+		return false;
 	}
 
 	private handleAttachmentDeletion(e: KeyboardEvent | unknown, index: number, attachment: IChatRequestVariableEntry) {
@@ -1547,6 +1583,25 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			e.preventDefault();
 			e.stopPropagation();
 		}
+	}
+
+	async renderChatTodoListWidget(chatSessionId: string) {
+		if (!this._chatInputTodoListWidget.value) {
+			const widget = this._chatEditingTodosDisposables.add(this.instantiationService.createInstance(ChatTodoListWidget));
+			this._chatInputTodoListWidget.value = widget;
+
+			// Add the widget's DOM node to the dedicated todo list container
+			dom.clearNode(this.chatInputTodoListWidgetContainer);
+			dom.append(this.chatInputTodoListWidgetContainer, widget.domNode);
+
+			// Listen to height changes
+			this._chatEditingTodosDisposables.add(widget.onDidChangeHeight(() => {
+				this._onDidChangeHeight.fire();
+			}));
+		}
+
+		// Render the widget with the current session
+		this._chatInputTodoListWidget.value.render(chatSessionId);
 	}
 
 	async renderChatEditingSessionState(chatEditingSession: IChatEditingSession | null) {
@@ -1825,7 +1880,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const followupsWidth = width - data.inputPartHorizontalPadding;
 		this.followupsContainer.style.width = `${followupsWidth}px`;
 
-		this._inputPartHeight = data.inputPartVerticalPadding + data.followupsHeight + inputEditorHeight + data.inputEditorBorder + data.attachmentsHeight + data.toolbarsHeight + data.chatEditingStateHeight;
+		this._inputPartHeight = data.inputPartVerticalPadding + data.followupsHeight + inputEditorHeight + data.inputEditorBorder + data.attachmentsHeight + data.toolbarsHeight + data.chatEditingStateHeight + data.todoListWidgetContainerHeight;
 		this._followupsHeight = data.followupsHeight;
 		this._editSessionWidgetHeight = data.chatEditingStateHeight;
 
@@ -1863,6 +1918,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			toolbarsHeight: this.options.renderStyle === 'compact' ? 0 : 22,
 			chatEditingStateHeight: this.chatEditingSessionWidgetContainer.offsetHeight,
 			sideToolbarWidth: this.inputSideToolbarContainer ? dom.getTotalWidth(this.inputSideToolbarContainer) + 4 /*gap*/ : 0,
+			todoListWidgetContainerHeight: this.chatInputTodoListWidgetContainer.offsetHeight,
 		};
 	}
 
@@ -1930,18 +1986,35 @@ const chatInputEditorContainerSelector = '.interactive-input-editor';
 setupSimpleEditorSelectionStyling(chatInputEditorContainerSelector);
 
 class AddFilesButton extends ActionViewItem {
+	private showLabel: boolean | undefined;
 
 	constructor(context: unknown, action: IAction, options: IActionViewItemOptions) {
 		super(context, action, {
 			...options,
-			icon: true,
-			label: false,
+			icon: false,
+			label: true,
 			keybindingNotRenderedWithLabel: true,
 		});
+	}
+
+	public setShowLabel(show: boolean): void {
+		this.showLabel = show;
+		this.updateLabel();
 	}
 
 	override render(container: HTMLElement): void {
 		container.classList.add('chat-attachment-button');
 		super.render(container);
+		this.updateLabel();
+	}
+
+	protected override updateLabel(): void {
+		if (!this.label) {
+			return;
+		}
+		assertType(this.label);
+		this.label.classList.toggle('has-label', this.showLabel);
+		const message = this.showLabel ? `$(attach) ${this.action.label}` : `$(attach)`;
+		dom.reset(this.label, ...renderLabelWithIcons(message));
 	}
 }
