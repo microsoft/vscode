@@ -88,7 +88,7 @@ export class PromptValidator {
 				} else if (headerToolsMap) {
 					const tool = this.languageModelToolsService.getToolByQualifiedName(variable.name);
 					if (tool && headerToolsMap.get(tool) === false) {
-						report(toMarker(localize('promptValidator.disabledTool', "Tool or toolset '{0}' is not enabled in the header`.", variable.name), variable.range, MarkerSeverity.Warning));
+						report(toMarker(localize('promptValidator.disabledTool', "Tool or toolset '{0}' also needs to be enabled in the header.", variable.name), variable.range, MarkerSeverity.Warning));
 					}
 				}
 			}
