@@ -55,7 +55,7 @@ import { accessibleViewCurrentProviderId, accessibleViewIsShown, accessibleViewO
 import { IRemoteTerminalAttachTarget, ITerminalProfileResolverService, ITerminalProfileService, TERMINAL_VIEW_ID, TerminalCommandId } from '../common/terminal.js';
 import { TerminalContextKeys } from '../common/terminalContextKey.js';
 import { terminalStrings } from '../common/terminalStrings.js';
-import { Direction, ICreateTerminalOptions, IDetachedTerminalInstance, ITerminalConfigurationService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService, IXtermTerminal } from './terminal.js';
+import { Direction, ICreateTerminalOptions, IDetachedTerminalInstance, ITerminalConfigurationService, ITerminalEditorService, ITerminalEditingService, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService, IXtermTerminal } from './terminal.js';
 import { isAuxiliaryWindow } from '../../../../base/browser/window.js';
 import { InstanceContext } from './terminalContextMenu.js';
 import { getColorClass, getIconId, getUriClasses } from './terminalIcon.js';
@@ -275,6 +275,7 @@ export interface ITerminalServicesCollection {
 	groupService: ITerminalGroupService;
 	instanceService: ITerminalInstanceService;
 	editorService: ITerminalEditorService;
+	editingService: ITerminalEditingService;
 	profileService: ITerminalProfileService;
 	profileResolverService: ITerminalProfileResolverService;
 }
@@ -286,6 +287,7 @@ function getTerminalServices(accessor: ServicesAccessor): ITerminalServicesColle
 		groupService: accessor.get(ITerminalGroupService),
 		instanceService: accessor.get(ITerminalInstanceService),
 		editorService: accessor.get(ITerminalEditorService),
+		editingService: accessor.get(ITerminalEditingService),
 		profileService: accessor.get(ITerminalProfileService),
 		profileResolverService: accessor.get(ITerminalProfileResolverService)
 	};
@@ -787,13 +789,13 @@ export function registerTerminalActions() {
 				return renameWithQuickPick(c, accessor, firstInstance);
 			}
 
-			c.service.setEditingTerminal(firstInstance);
-			c.service.setEditable(firstInstance, {
+			c.editingService.setEditingTerminal(firstInstance);
+			c.editingService.setEditable(firstInstance, {
 				validationMessage: value => validateTerminalName(value),
 				onFinish: async (value, success) => {
 					// Cancel editing first as instance.rename will trigger a rerender automatically
-					c.service.setEditable(firstInstance, null);
-					c.service.setEditingTerminal(undefined);
+					c.editingService.setEditable(firstInstance, null);
+					c.editingService.setEditingTerminal(undefined);
 					if (success) {
 						const promises: Promise<void>[] = [];
 						for (const instance of instances) {
@@ -1027,6 +1029,7 @@ export function registerTerminalActions() {
 			}]
 		},
 		precondition: sharedWhenClause.terminalAvailable,
+		f1: false,
 		run: async (activeInstance, c, accessor, args) => {
 			const notificationService = accessor.get(INotificationService);
 			const name = isObject(args) && 'name' in args ? toOptionalString(args.name) : undefined;
