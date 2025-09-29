@@ -292,7 +292,6 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 	private async doForwardRequestToCopilotWhenReady(requestModel: IChatRequestModel, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatAgentService: IChatAgentService, chatWidgetService: IChatWidgetService, languageModelToolsService: ILanguageModelToolsService): Promise<void> {
 		const widget = chatWidgetService.getWidgetBySessionId(requestModel.session.sessionId);
 		const modeInfo = widget?.input.currentModeInfo;
-		const languageModel = widget?.input.currentLanguageModel;
 
 		// We need a signal to know when we can resend the request to
 		// Copilot. Waiting for the registration of the agent is not
@@ -352,8 +351,7 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 
 		await chatService.resendRequest(requestModel, {
 			...widget?.getModeRequestOptions(),
-			modeInfo,
-			userSelectedModelId: languageModel,
+			modeInfo
 		});
 	}
 
@@ -910,7 +908,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				vscodeAgentDisposables.clear();
 			}
 
-			if ((context.state.installed && context.state.entitlement !== ChatEntitlement.Unknown && context.state.entitlement !== ChatEntitlement.Unresolved) && !context.state.disabled) {
+			if (context.state.installed && !context.state.disabled) {
 				vscodeAgentDisposables.clear(); // we need to do this to prevent showing duplicate agent/tool entries in the list
 			}
 		};

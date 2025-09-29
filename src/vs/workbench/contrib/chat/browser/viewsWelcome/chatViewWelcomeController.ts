@@ -118,6 +118,7 @@ export interface IChatViewWelcomeContent {
 export interface IChatSuggestedPrompts {
 	readonly icon?: ThemeIcon;
 	readonly label: string;
+	readonly description?: string;
 	readonly prompt: string;
 }
 
@@ -195,14 +196,20 @@ export class ChatViewWelcomePart extends Disposable {
 					// Make the prompt element keyboard accessible
 					promptElement.setAttribute('role', 'button');
 					promptElement.setAttribute('tabindex', '0');
-					promptElement.setAttribute('aria-label', localize('suggestedPromptAriaLabel', 'Suggested prompt: {0}', prompt.label));
-					if (prompt.icon) {
-						const iconElement = dom.append(promptElement, $('.chat-welcome-view-suggested-prompt-icon'));
-						iconElement.appendChild(renderIcon(prompt.icon));
+					const promptAriaLabel = prompt.description
+						? localize('suggestedPromptAriaLabelWithDescription', 'Suggested prompt: {0}, {1}', prompt.label, prompt.description)
+						: localize('suggestedPromptAriaLabel', 'Suggested prompt: {0}', prompt.label);
+					promptElement.setAttribute('aria-label', promptAriaLabel);
+					const titleElement = dom.append(promptElement, $('.chat-welcome-view-suggested-prompt-title'));
+					titleElement.textContent = prompt.label;
+					const tooltip = localize('runPromptTitle', "Suggested prompt: {0}", prompt.prompt);
+					promptElement.title = tooltip;
+					titleElement.title = tooltip;
+					if (prompt.description) {
+						const descriptionElement = dom.append(promptElement, $('.chat-welcome-view-suggested-prompt-description'));
+						descriptionElement.textContent = prompt.description;
+						descriptionElement.title = prompt.description;
 					}
-					const labelElement = dom.append(promptElement, $('.chat-welcome-view-suggested-prompt-label'));
-					labelElement.textContent = prompt.label;
-					labelElement.title = localize('runPromptTitle', "Suggested prompt: {0}", prompt.prompt);
 					const executePrompt = () => {
 						type SuggestedPromptClickEvent = { suggestedPrompt: string };
 
@@ -270,7 +277,10 @@ export class ChatViewWelcomePart extends Disposable {
 			this.content.additionalMessage !== content.additionalMessage ||
 			this.content.tips?.value !== content.tips?.value ||
 			this.content.suggestedPrompts?.length !== content.suggestedPrompts?.length ||
-			this.content.suggestedPrompts?.some((prompt, index) => content.suggestedPrompts?.[index]?.label !== prompt.label));
+			this.content.suggestedPrompts?.some((prompt, index) => {
+				const incoming = content.suggestedPrompts?.[index];
+				return incoming?.label !== prompt.label || incoming?.description !== prompt.description;
+			}));
 	}
 
 	private renderMarkdownMessageContent(renderer: MarkdownRenderer, content: IMarkdownString, options: IChatViewWelcomeRenderOptions | undefined): IMarkdownRenderResult {
