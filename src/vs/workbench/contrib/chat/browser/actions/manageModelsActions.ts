@@ -52,7 +52,7 @@ export class ManageModelsAction extends Action2 {
 		const vendors = languageModelsService.getVendors();
 		const store = new DisposableStore();
 
-		const quickPickItems: IVendorQuickPickItem[] = vendors.map(vendor => ({
+		const quickPickItems: IVendorQuickPickItem[] = vendors.sort((v1, v2) => v1.displayName.localeCompare(v2.displayName)).map(vendor => ({
 			label: vendor.displayName,
 			vendor: vendor.vendor,
 			managementCommand: vendor.managementCommand,
@@ -72,7 +72,7 @@ export class ManageModelsAction extends Action2 {
 			quickPick.hide();
 			const selectedItem: IVendorQuickPickItem = quickPick.selectedItems[0] as IVendorQuickPickItem;
 			if (selectedItem) {
-				const models: ILanguageModelChatMetadataAndIdentifier[] = coalesce((await languageModelsService.selectLanguageModels({ vendor: selectedItem.vendor }, true)).map(modelIdentifier => {
+				const models: ILanguageModelChatMetadataAndIdentifier[] = coalesce((await languageModelsService.selectLanguageModels({ vendor: selectedItem.vendor }, true)).sort((m1, m2) => m1.localeCompare(m2)).map(modelIdentifier => {
 					const modelMetadata = languageModelsService.lookupLanguageModel(modelIdentifier);
 					if (!modelMetadata) {
 						return undefined;
