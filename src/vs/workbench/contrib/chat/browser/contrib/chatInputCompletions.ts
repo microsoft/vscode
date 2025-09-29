@@ -542,7 +542,7 @@ class AgentCompletions extends Disposable {
 			}
 		}
 
-		return usedAgent;
+		return { agent: usedAgent.agent };
 	}
 
 	private getAgentCompletionDetails(agent: IChatAgentData): { label: string; isDupe: boolean } {
