@@ -1251,10 +1251,23 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		const todoListWidgetPosition = this.configurationService.getValue<string>(TodoListWidgetPositionSettingId) || 'default';
-		if (todoListWidgetPosition !== 'default') {
+
+		// Handle 'off' - hide the widget and return
+		if (todoListWidgetPosition === 'off') {
+			this.chatTodoListWidget.domNode.style.display = 'none';
+			this._onDidChangeContentHeight.fire();
 			return;
 		}
 
+		// Handle 'chat-input' - hide the standalone widget to avoid duplication
+		if (todoListWidgetPosition === 'chat-input') {
+			this.chatTodoListWidget.domNode.style.display = 'none';
+			this.inputPart.renderChatTodoListWidget(sessionId);
+			this._onDidChangeContentHeight.fire();
+			return;
+		}
+
+		// Handle 'default' - render the widget if there are todos
 		const todos = this.chatTodoListService.getTodos(sessionId);
 		if (todos.length > 0) {
 			this.chatTodoListWidget.render(sessionId);
