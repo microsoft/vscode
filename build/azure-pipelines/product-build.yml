@@ -297,6 +297,13 @@ extends:
                   VSCODE_ARCH: arm64
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 
+      - stage: node_modules
+        dependsOn: []
+        jobs:
+          - template: build/azure-pipelines/win32/product-build-win32-node-modules.yml@self
+            parameters:
+              VSCODE_ARCH: arm64
+
       - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_COMPILE_ONLY, false)) }}:
         - stage: APIScan
           dependsOn: []
