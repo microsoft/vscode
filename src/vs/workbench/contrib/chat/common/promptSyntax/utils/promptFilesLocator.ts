@@ -18,7 +18,7 @@ import { Schemas } from '../../../../../../base/common/network.js';
 import { getExcludes, IFileQuery, ISearchConfiguration, ISearchService, QueryType } from '../../../../../services/search/common/search.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
-import { TPromptsStorage } from '../service/promptsService.js';
+import { PromptsStorage } from '../service/promptsService.js';
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
@@ -46,12 +46,13 @@ export class PromptFilesLocator extends Disposable {
 	 *
 	 * @returns List of prompt files found in the workspace.
 	 */
-	public async listFiles(type: PromptsType, storage: TPromptsStorage, token: CancellationToken): Promise<readonly URI[]> {
-		if (storage === 'local') {
+	public async listFiles(type: PromptsType, storage: PromptsStorage, token: CancellationToken): Promise<readonly URI[]> {
+		if (storage === PromptsStorage.local) {
 			return await this.listFilesInLocal(type, token);
-		} else {
+		} else if (storage === PromptsStorage.user) {
 			return await this.listFilesInUserData(type, token);
 		}
+		throw new Error(`Unsupported prompt file storage: ${storage}`);
 	}
 
 	private async listFilesInUserData(type: PromptsType, token: CancellationToken): Promise<readonly URI[]> {

@@ -29,7 +29,7 @@ import { AcceptToolConfirmationActionId } from '../../actions/chatToolActions.js
 import { IChatCodeBlockInfo, IChatWidgetService } from '../../chat.js';
 import { renderFileWidgets } from '../../chatInlineAnchorWidget.js';
 import { ICodeBlockRenderOptions } from '../../codeBlockPart.js';
-import { ChatCustomConfirmationWidget, IChatConfirmationButton, ChatConfirmationWidget } from '../chatConfirmationWidget.js';
+import { ChatConfirmationWidget, ChatCustomConfirmationWidget, IChatConfirmationButton } from '../chatConfirmationWidget.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { IChatMarkdownAnchorService } from '../chatMarkdownAnchorService.js';
 import { ChatMarkdownContentPart, EditorPool } from '../chatMarkdownContentPart.js';
@@ -65,6 +65,11 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
 	) {
 		super(toolInvocation);
+
+		// Tag for sub-agent styling
+		if (toolInvocation.fromSubAgent) {
+			context.container.classList.add('from-sub-agent');
+		}
 
 		if (!toolInvocation.confirmationMessages) {
 			throw new Error('Confirmation messages are missing');

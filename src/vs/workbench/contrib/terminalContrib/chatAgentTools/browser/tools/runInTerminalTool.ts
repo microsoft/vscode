@@ -22,7 +22,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
-import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
+import { ITerminalLogService, ITerminalProfile } from '../../../../../../platform/terminal/common/terminal.js';
 import { IRemoteAgentService } from '../../../../../services/remote/common/remoteAgentService.js';
 import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
 import { openTerminalSettingsLinkCommandId } from '../../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolProgressPart.js';
@@ -616,22 +616,74 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 	// #region Terminal init
 
-	private async _getCopilotShell(): Promise<string> {
+	protected async _getCopilotShellOrProfile(): Promise<string | ITerminalProfile> {
+		const os = await this._osBackend;
+
+		// Check for chat agent terminal profile first
+		const customChatAgentProfile = this._getChatTerminalProfile(os);
+		if (customChatAgentProfile) {
+			return customChatAgentProfile;
+		}
+
+		// When setting is null, use the previous behavior
 		const defaultShell = await this._terminalProfileResolverService.getDefaultShell({
-			os: await this._osBackend,
+			os,
 			remoteAuthority: this._remoteAgentService.getConnection()?.remoteAuthority
 		});
+
 		// Force pwsh over cmd as cmd doesn't have shell integration
 		if (basename(defaultShell) === 'cmd.exe') {
 			return 'C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe';
 		}
+
 		return defaultShell;
+	}
+
+	private async _getCopilotShell(): Promise<string> {
+		const shellOrProfile = await this._getCopilotShellOrProfile();
+		if (typeof shellOrProfile === 'string') {
+			return shellOrProfile;
+		}
+		return shellOrProfile.path;
+	}
+
+	private _getChatTerminalProfile(os: OperatingSystem): ITerminalProfile | undefined {
+		let profileSetting: string;
+		switch (os) {
+			case OperatingSystem.Windows:
+				profileSetting = TerminalChatAgentToolsSettingId.TerminalProfileWindows;
+				break;
+			case OperatingSystem.Macintosh:
+				profileSetting = TerminalChatAgentToolsSettingId.TerminalProfileMacOs;
+				break;
+			case OperatingSystem.Linux:
+			default:
+				profileSetting = TerminalChatAgentToolsSettingId.TerminalProfileLinux;
+				break;
+		}
+
+		const profile = this._configurationService.getValue(profileSetting);
+		if (this._isValidChatAgentTerminalProfile(profile)) {
+			return profile;
+		}
+
+		return undefined;
+	}
+
+	private _isValidChatAgentTerminalProfile(profile: unknown): profile is ITerminalProfile {
+		if (profile === null || profile === undefined || typeof profile !== 'object') {
+			return false;
+		}
+		if ('path' in profile && typeof (profile as { path: unknown }).path === 'string') {
+			return true;
+		}
+		return false;
 	}
 
 	private async _initBackgroundTerminal(chatSessionId: string, termId: string, token: CancellationToken): Promise<IToolTerminal> {
 		this._logService.debug(`RunInTerminalTool: Creating background terminal with ID=${termId}`);
-		const shell = await this._getCopilotShell();
-		const toolTerminal = await this._terminalToolCreator.createTerminal(shell, token);
+		const shellOrProfile = await this._getCopilotShellOrProfile();
+		const toolTerminal = await this._terminalToolCreator.createTerminal(shellOrProfile, token);
 		this._registerInputListener(toolTerminal);
 		this._sessionTerminalAssociations.set(chatSessionId, toolTerminal);
 		if (token.isCancellationRequested) {
@@ -649,8 +701,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			this._terminalToolCreator.refreshShellIntegrationQuality(cachedTerminal);
 			return cachedTerminal;
 		}
-		const shell = await this._getCopilotShell();
-		const toolTerminal = await this._terminalToolCreator.createTerminal(shell, token);
+		const shellOrProfile = await this._getCopilotShellOrProfile();
+		const toolTerminal = await this._terminalToolCreator.createTerminal(shellOrProfile, token);
 		this._registerInputListener(toolTerminal);
 		this._sessionTerminalAssociations.set(chatSessionId, toolTerminal);
 		if (token.isCancellationRequested) {

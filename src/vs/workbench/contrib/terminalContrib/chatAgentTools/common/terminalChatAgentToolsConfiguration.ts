@@ -8,12 +8,17 @@ import type { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
 import { localize } from '../../../../../nls.js';
 import { type IConfigurationPropertySchema } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
+import { terminalProfileBaseProperties } from '../../../../../platform/terminal/common/terminalPlatformConfiguration.js';
 
 export const enum TerminalChatAgentToolsSettingId {
 	EnableAutoApprove = 'chat.tools.terminal.enableAutoApprove',
 	AutoApprove = 'chat.tools.terminal.autoApprove',
 	ShellIntegrationTimeout = 'chat.tools.terminal.shellIntegrationTimeout',
 	AutoReplyToPrompts = 'chat.tools.terminal.autoReplyToPrompts',
+
+	TerminalProfileLinux = 'chat.tools.terminal.terminalProfile.linux',
+	TerminalProfileMacOs = 'chat.tools.terminal.terminalProfile.osx',
+	TerminalProfileWindows = 'chat.tools.terminal.terminalProfile.windows',
 
 	DeprecatedAutoApproveCompatible = 'chat.agent.terminal.autoApprove',
 	DeprecatedAutoApprove1 = 'chat.agent.terminal.allowList',
@@ -39,6 +44,18 @@ const autoApproveBoolean: IJSONSchema = {
 		localize('autoApprove.false', "Require explicit approval for the pattern."),
 	],
 	description: localize('autoApprove.key', "The start of a command to match against. A regular expression can be provided by wrapping the string in `/` characters."),
+};
+
+const terminalChatAgentProfileSchema: IJSONSchema = {
+	type: 'object',
+	required: ['path'],
+	properties: {
+		path: {
+			description: localize('terminalChatAgentProfile.path', "A single path to a shell executable."),
+			type: 'string',
+		},
+		...terminalProfileBaseProperties,
+	}
 };
 
 export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
@@ -164,6 +181,13 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			// - `--open-files-in-pager`: This is the configured pager, so no risk of code execution
 			// - See notes on `grep`
 			'git grep': true,
+
+			// git branch
+			// - `-d`, `-D`, `--delete`: Prevent branch deletion
+			// - `-m`, `-M`: Prevent branch renaming
+			// - `--force`: Generally dangerous
+			'git branch': true,
+			'/^git branch\\b.*-(d|D|m|M|-delete|-force)\\b/': false,
 
 			// #endregion
 
@@ -304,6 +328,57 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		minimum: -1,
 		maximum: 60000,
 		default: -1
+	},
+	[TerminalChatAgentToolsSettingId.TerminalProfileLinux]: {
+		restricted: true,
+		markdownDescription: localize('terminalChatAgentProfile.linux', "The terminal profile to use on Linux for chat agent's run in terminal tool."),
+		type: ['object', 'null'],
+		default: null,
+		'anyOf': [
+			{ type: 'null' },
+			terminalChatAgentProfileSchema
+		],
+		defaultSnippets: [
+			{
+				body: {
+					path: '${1}'
+				}
+			}
+		]
+	},
+	[TerminalChatAgentToolsSettingId.TerminalProfileMacOs]: {
+		restricted: true,
+		markdownDescription: localize('terminalChatAgentProfile.osx', "The terminal profile to use on macOS for chat agent's run in terminal tool."),
+		type: ['object', 'null'],
+		default: null,
+		'anyOf': [
+			{ type: 'null' },
+			terminalChatAgentProfileSchema
+		],
+		defaultSnippets: [
+			{
+				body: {
+					path: '${1}'
+				}
+			}
+		]
+	},
+	[TerminalChatAgentToolsSettingId.TerminalProfileWindows]: {
+		restricted: true,
+		markdownDescription: localize('terminalChatAgentProfile.windows', "The terminal profile to use on Windows for chat agent's run in terminal tool."),
+		type: ['object', 'null'],
+		default: null,
+		'anyOf': [
+			{ type: 'null' },
+			terminalChatAgentProfileSchema
+		],
+		defaultSnippets: [
+			{
+				body: {
+					path: '${1}'
+				}
+			}
+		]
 	},
 	[TerminalChatAgentToolsSettingId.AutoReplyToPrompts]: {
 		type: 'boolean',

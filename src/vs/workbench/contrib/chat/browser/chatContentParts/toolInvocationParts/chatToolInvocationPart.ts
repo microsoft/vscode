@@ -58,6 +58,9 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		super();
 
 		this.domNode = dom.$('.chat-tool-invocation-part');
+		if (toolInvocation.fromSubAgent) {
+			this.domNode.classList.add('from-sub-agent');
+		}
 		if (toolInvocation.presentation === 'hidden') {
 			return;
 		}
