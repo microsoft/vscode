@@ -295,8 +295,7 @@ export class SessionsViewPane extends ViewPane {
 		const accessibilityProvider = new SessionsAccessibilityProvider();
 
 		// Use the existing ResourceLabels service for consistent styling
-		const labels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
-		const renderer = this.instantiationService.createInstance(SessionsRenderer, labels);
+		const renderer = this.instantiationService.createInstance(SessionsRenderer);
 		this._register(renderer);
 
 		const getResourceForElement = (element: ChatSessionItemWithProvider): URI | null => {
