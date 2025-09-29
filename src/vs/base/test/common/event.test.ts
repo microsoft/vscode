@@ -531,12 +531,6 @@ suite('Event', function () {
 		// assert that all events are delivered in order
 		assert.deepStrictEqual(listener2Events, ['e1', 'e2', 'e3']);
 	});
-
-	test('Cannot read property \'_actual\' of undefined #142204', function () {
-		const e = ds.add(new Emitter<number>());
-		const dispo = e.event(() => { });
-		dispo.dispose.call(undefined);  // assert that disposable can be called with this
-	});
 });
 
 suite('AsyncEmitter', function () {

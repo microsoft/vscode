@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
+import { alert } from '../../../../base/browser/ui/aria/aria.js';
 import { assertNever } from '../../../../base/common/assert.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { encodeBase64 } from '../../../../base/common/buffer.js';
@@ -33,6 +34,7 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { AccessibilityWorkbenchSettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { ChatModel } from '../common/chatModel.js';
 import { IVariableReference } from '../common/chatModes.js';
@@ -40,9 +42,8 @@ import { ChatToolInvocation } from '../common/chatProgressTypes/chatToolInvocati
 import { ConfirmedReason, IChatService, ToolConfirmKind } from '../common/chatService.js';
 import { ChatRequestToolReferenceEntry, toToolSetVariableEntry, toToolVariableEntry } from '../common/chatVariableEntries.js';
 import { ChatConfiguration } from '../common/constants.js';
-import { CountTokensCallback, createToolSchemaUri, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultInputOutputDetails, stringifyPromptTsxPart, ToolDataSource, ToolSet, IToolAndToolSetEnablementMap } from '../common/languageModelToolsService.js';
+import { CountTokensCallback, createToolSchemaUri, ILanguageModelToolsService, IPreparedToolInvocation, IToolAndToolSetEnablementMap, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultInputOutputDetails, stringifyPromptTsxPart, ToolDataSource, ToolSet } from '../common/languageModelToolsService.js';
 import { getToolConfirmationAlert } from './chatAccessibilityProvider.js';
-import { alert } from '../../../../base/browser/ui/aria/aria.js';
 
 const jsonSchemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
 
@@ -59,6 +60,8 @@ interface ITrackedCall {
 const enum AutoApproveStorageKeys {
 	GlobalAutoApproveOptIn = 'chat.tools.global.autoApprove.optIn'
 }
+
+const SkipAutoApproveConfirmationKey = 'vscode.chat.tools.global.autoApprove.testMode';
 
 export const globalAutoApproveDescription = localize2(
 	{
@@ -322,7 +325,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 				const prepared = await this.prepareToolInvocation(tool, dto, token);
 
-				toolInvocation = new ChatToolInvocation(prepared, tool.data, dto.callId);
+				toolInvocation = new ChatToolInvocation(prepared, tool.data, dto.callId, dto.fromSubAgent);
 				trackedCall.invocation = toolInvocation;
 				const autoConfirmed = await this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace);
 				if (autoConfirmed) {
@@ -446,7 +449,9 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	}
 
 	private informScreenReader(msg: string | IMarkdownString): void {
-		alert(typeof msg === 'string' ? msg : msg.value);
+		if (this._configurationService.getValue(AccessibilityWorkbenchSettingId.VerboseChatProgressUpdates)) {
+			alert(typeof msg === 'string' ? msg : msg.value);
+		}
 	}
 
 	private playAccessibilitySignal(toolInvocations: ChatToolInvocation[]): void {
@@ -531,6 +536,10 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			return true;
 		}
 
+		if (this._contextKeyService.getContextKeyValue(SkipAutoApproveConfirmationKey) === true) {
+			return true;
+		}
+
 		const promptResult = await this._dialogService.prompt({
 			type: Severity.Warning,
 			message: localize('autoApprove2.title', 'Enable global auto approve?'),
@@ -587,58 +596,73 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 	}
 
-	toToolEnablementMap(toolOrToolsetNames: Set<string>): Record<string, boolean> {
-		const result: Record<string, boolean> = {};
-		for (const tool of this._tools.values()) {
-			if (tool.data.toolReferenceName && toolOrToolsetNames.has(tool.data.toolReferenceName)) {
-				result[tool.data.id] = true;
-			} else {
-				result[tool.data.id] = false;
-			}
-		}
-
-		for (const toolSet of this._toolSets) {
-			if (toolOrToolsetNames.has(toolSet.referenceName)) {
-				for (const tool of toolSet.getTools()) {
-					result[tool.id] = true;
-				}
-			}
-		}
-
-		return result;
-	}
-
 	/**
 	 * Create a map that contains all tools and toolsets with their enablement state.
 	 * @param toolOrToolSetNames A list of tool or toolset names that are enabled.
 	 * @returns A map of tool or toolset instances to their enablement state.
 	 */
-	toToolAndToolSetEnablementMap(enabledToolOrToolSetNames: readonly string[]): IToolAndToolSetEnablementMap {
-		const toolOrToolSetNames = new Set(enabledToolOrToolSetNames);
+	toToolAndToolSetEnablementMap(enabledQualifiedToolOrToolSetNames: readonly string[]): IToolAndToolSetEnablementMap {
+		const toolOrToolSetNames = new Set(enabledQualifiedToolOrToolSetNames);
 		const result = new Map<ToolSet | IToolData, boolean>();
 		for (const tool of this.getTools()) {
 			if (tool.canBeReferencedInPrompt) {
-				result.set(tool, toolOrToolSetNames.has(tool.toolReferenceName ?? tool.displayName));
+				const enabled = toolOrToolSetNames.has(getToolReferenceName(tool)) || /* legacy */ toolOrToolSetNames.has(tool.toolReferenceName ?? tool.displayName);
+				result.set(tool, enabled);
 			}
 		}
-		for (const toolSet of this._toolSets) {
-			const enabled = toolOrToolSetNames.has(toolSet.referenceName);
-			result.set(toolSet, enabled);
+		for (const toolSet of this.toolSets.get()) {
+			const toolSetEnabled = toolOrToolSetNames.has(getToolSetReferenceName(toolSet)) || /* legacy */ toolOrToolSetNames.has(toolSet.referenceName);
+			result.set(toolSet, toolSetEnabled);
 			for (const tool of toolSet.getTools()) {
-				result.set(tool, enabled || toolOrToolSetNames?.has(tool.toolReferenceName ?? tool.displayName));
+				const enabled = toolSetEnabled || toolOrToolSetNames.has(getToolReferenceName(tool, toolSet)) || /* legacy */ toolOrToolSetNames.has(tool.toolReferenceName ?? tool.displayName);
+				result.set(tool, enabled);
 			}
-
 		}
 		return result;
 	}
 
-	public toToolReferences(variableReferences: readonly IVariableReference[]): ChatRequestToolReferenceEntry[] {
-		const toolsOrToolSetByName = new Map<string, ToolSet | IToolData>();
-		for (const toolSet of this.toolSets.get()) {
-			toolsOrToolSetByName.set(toolSet.referenceName, toolSet);
+	toQualifiedToolNames(map: IToolAndToolSetEnablementMap): string[] {
+		const toolsCoveredBySets = new Set<IToolData>();
+		for (const item of map.keys()) {
+			if (item instanceof ToolSet) {
+				for (const tool of item.getTools()) {
+					toolsCoveredBySets.add(tool);
+				}
+			}
 		}
+
+		const result: string[] = [];
 		for (const tool of this.getTools()) {
-			toolsOrToolSetByName.set(tool.toolReferenceName ?? tool.displayName, tool);
+			if (map.get(tool) && !toolsCoveredBySets.has(tool)) {
+				result.push(getToolReferenceName(tool));
+			}
+		}
+		for (const toolSet of this.toolSets.get()) {
+			if (map.get(toolSet)) {
+				result.push(getToolSetReferenceName(toolSet));
+			} else {
+				for (const tool of toolSet.getTools()) {
+					if (map.get(tool)) {
+						result.push(getToolReferenceName(tool, toolSet));
+					}
+				}
+			}
+		}
+		return result;
+	}
+
+	toToolReferences(variableReferences: readonly IVariableReference[]): ChatRequestToolReferenceEntry[] {
+		const toolsOrToolSetByName = new Map<string, ToolSet | IToolData>();
+		for (const tool of this.getTools()) {
+			if (tool.canBeReferencedInPrompt) {
+				toolsOrToolSetByName.set(getToolReferenceName(tool), tool);
+			}
+		}
+		for (const toolSet of this.toolSets.get()) {
+			toolsOrToolSetByName.set(getToolSetReferenceName(toolSet), toolSet);
+			for (const tool of toolSet.getTools()) {
+				toolsOrToolSetByName.set(getToolReferenceName(tool, toolSet), tool);
+			}
 		}
 
 		const result: ChatRequestToolReferenceEntry[] = [];
@@ -695,6 +719,93 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		this._toolSets.add(result);
 		return result;
 	}
+
+	*getQualifiedToolNames(): Iterable<string> {
+		for (const tool of this.getTools()) {
+			if (tool.canBeReferencedInPrompt) {
+				yield getToolReferenceName(tool);
+			}
+		}
+		for (const toolSet of this.toolSets.get()) {
+			yield getToolSetReferenceName(toolSet);
+			for (const tool of toolSet.getTools()) {
+				yield getToolReferenceName(tool, toolSet);
+			}
+		}
+	}
+
+	getDeprecatedQualifiedToolNames(): Map<string, string> {
+		const result = new Map<string, string>();
+		const add = (name: string, qualifiedName: string) => {
+			if (name !== qualifiedName) {
+				result.set(name, qualifiedName);
+			}
+		};
+		for (const tool of this.getTools()) {
+			if (tool.canBeReferencedInPrompt) {
+				add(tool.toolReferenceName ?? tool.displayName, getToolReferenceName(tool));
+			}
+		}
+		for (const toolSet of this.toolSets.get()) {
+			add(toolSet.referenceName, getToolSetReferenceName(toolSet));
+			for (const tool of toolSet.getTools()) {
+				add(tool.toolReferenceName ?? tool.displayName, getToolReferenceName(tool, toolSet));
+			}
+		}
+		return result;
+	}
+
+	getToolByQualifiedName(qualifiedName: string): IToolData | ToolSet | undefined {
+		for (const tool of this.getTools()) {
+			if (tool.canBeReferencedInPrompt) {
+				if (qualifiedName === getToolReferenceName(tool) || qualifiedName === (tool.toolReferenceName ?? tool.displayName) /* legacy */) {
+					if (matchesToolReferenceName(tool, qualifiedName)) {
+						return tool;
+					}
+				}
+			}
+			for (const toolSet of this.toolSets.get()) {
+				if (qualifiedName === getToolSetReferenceName(toolSet) || qualifiedName === toolSet.referenceName /* legacy */) {
+					return toolSet;
+				}
+				for (const tool of toolSet.getTools()) {
+					if (qualifiedName === getToolReferenceName(tool) || qualifiedName === (tool.toolReferenceName ?? tool.displayName) /* legacy */) {
+						return tool;
+					}
+				}
+			}
+		}
+		return undefined;
+	}
+
+	getQualifiedToolName(tool: IToolData | ToolSet, toolSet?: ToolSet): string {
+		if (tool instanceof ToolSet) {
+			return getToolSetReferenceName(tool);
+		}
+		return getToolReferenceName(tool, toolSet);
+	}
+}
+
+function getToolReferenceName(tool: IToolData, toolSet?: ToolSet) {
+	const toolName = tool.toolReferenceName ?? tool.displayName;
+	if (toolSet) {
+		return `${toolSet.referenceName}/${toolName}`;
+	} else if (tool.source.type === 'extension') {
+		return `${tool.source.extensionId.value.toLowerCase()}/${toolName}`;
+	}
+	return toolName;
+}
+
+function getToolSetReferenceName(toolSet: ToolSet) {
+	if (toolSet.source.type === 'mcp') {
+		return `${toolSet.referenceName}/*`;
+	}
+	return toolSet.referenceName;
+}
+
+function matchesToolReferenceName(tool: IToolData, name: string, toolSet?: ToolSet) {
+	const toolName = tool.toolReferenceName ?? tool.displayName;
+	return name === toolName || (toolSet && name === `${toolSet.referenceName}/${toolName}`);
 }
 
 type LanguageModelToolInvokedEvent = {

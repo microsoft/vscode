@@ -1,3 +1,9 @@
+parameters:
+  - name: VSCODE_QUALITY
+    type: string
+  - name: VSCODE_SCHEDULEDBUILD
+    type: boolean
+
 steps:
   - template: ./common/checkout.yml@self
 
@@ -75,10 +81,6 @@ steps:
 
   - pwsh: node build/azure-pipelines/common/publish.js
     env:
-      GITHUB_TOKEN: "$(github-distro-mixin-password)"
-      AZURE_TENANT_ID: "$(AZURE_TENANT_ID)"
-      AZURE_CLIENT_ID: "$(AZURE_CLIENT_ID)"
-      AZURE_ID_TOKEN: "$(AZURE_ID_TOKEN)"
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
       PUBLISH_AUTH_TOKENS: "$(PUBLISH_AUTH_TOKENS)"
       RELEASE_TENANT_ID: "$(ESRP_TENANT_ID)"
@@ -96,10 +98,8 @@ steps:
       sbomEnabled: false
       condition: always()
 
-  - ${{ if and(in(parameters.VSCODE_QUALITY, 'insider', 'exploration'), eq(variables['VSCODE_SCHEDULEDBUILD'], true)) }}:
+  - ${{ if and(in(parameters.VSCODE_QUALITY, 'insider', 'exploration'), eq(parameters.VSCODE_SCHEDULEDBUILD, true)) }}:
     - script: node build/azure-pipelines/common/releaseBuild.js
       env:
-        AZURE_TENANT_ID: "$(AZURE_TENANT_ID)"
-        AZURE_CLIENT_ID: "$(AZURE_CLIENT_ID)"
-        AZURE_ID_TOKEN: "$(AZURE_ID_TOKEN)"
+        PUBLISH_AUTH_TOKENS: "$(PUBLISH_AUTH_TOKENS)"
       displayName: Release build

@@ -473,9 +473,7 @@ suite('OAuth', () => {
 			assert.deepStrictEqual(requestBody.redirect_uris, [
 				'https://insiders.vscode.dev/redirect',
 				'https://vscode.dev/redirect',
-				'http://localhost/',
 				'http://127.0.0.1/',
-				`http://localhost:${DEFAULT_AUTH_FLOW_PORT}/`,
 				`http://127.0.0.1:${DEFAULT_AUTH_FLOW_PORT}/`
 			]);
 

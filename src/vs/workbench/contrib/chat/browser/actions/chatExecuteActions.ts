@@ -11,6 +11,7 @@ import { basename, relativePath } from '../../../../../base/common/resources.js'
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { assertType } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 import { localize, localize2 } from '../../../../../nls.js';
@@ -27,7 +28,7 @@ import { IWorkspaceContextService } from '../../../../../platform/workspace/comm
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IRemoteCodingAgent, IRemoteCodingAgentsService } from '../../../remoteCodingAgents/common/remoteCodingAgentsService.js';
 import { IChatAgentHistoryEntry, IChatAgentService } from '../../common/chatAgents.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { ChatContextKeys, ChatContextKeyExprs } from '../../common/chatContextKeys.js';
 import { IChatModel, IChatRequestModel, toChatHistoryContent } from '../../common/chatModel.js';
 import { IChatMode, IChatModeService } from '../../common/chatModes.js';
 import { chatVariableLeader } from '../../common/chatParserTypes.js';
@@ -39,7 +40,7 @@ import { ChatRequestVariableSet, isChatRequestFileEntry } from '../../common/cha
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, } from '../../common/constants.js';
 import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
-import { IChatWidget, IChatWidgetService } from '../chat.js';
+import { IChatWidget, IChatWidgetService, showChatWidgetInViewOrEditor } from '../chat.js';
 import { getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ACTION_ID_NEW_CHAT, CHAT_CATEGORY, handleCurrentEditingSession, handleModeSwitch } from './chatActions.js';
@@ -177,7 +178,10 @@ export class ChatSubmitAction extends SubmitAction {
 				tooltip: localize('sendToRemoteAgent', "Send to coding agent"),
 			},
 			keybinding: {
-				when: ChatContextKeys.inChatInput,
+				when: ContextKeyExpr.and(
+					ChatContextKeys.inChatInput,
+					ChatContextKeys.withinEditSessionDiff.negate(),
+				),
 				primary: KeyCode.Enter,
 				weight: KeybindingWeight.EditorContrib
 			},
@@ -186,7 +190,10 @@ export class ChatSubmitAction extends SubmitAction {
 					id: MenuId.ChatExecuteSecondary,
 					group: 'group_1',
 					order: 1,
-					when: ContextKeyExpr.and(menuCondition, ChatContextKeys.lockedToCodingAgent.negate()),
+					when: ContextKeyExpr.or(
+						ChatContextKeys.withinEditSessionDiff,
+						ContextKeyExpr.and(menuCondition, ChatContextKeys.lockedToCodingAgent.negate())
+					),
 				},
 				{
 					id: MenuId.ChatExecute,
@@ -194,10 +201,83 @@ export class ChatSubmitAction extends SubmitAction {
 					when: ContextKeyExpr.and(
 						whenNotInProgress,
 						menuCondition,
+						ChatContextKeys.withinEditSessionDiff.negate(),
 					),
 					group: 'navigation',
 				}]
 		});
+	}
+}
+
+export class ChatDelegateToEditSessionAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.delegateToEditSession';
+
+	constructor() {
+		super({
+			id: ChatDelegateToEditSessionAction.ID,
+			title: localize2('interactive.submit.panel.label', "Send to Edit Session"),
+			f1: false,
+			category: CHAT_CATEGORY,
+			icon: Codicon.commentDiscussion,
+			keybinding: {
+				when: ContextKeyExpr.and(
+					ChatContextKeys.inChatInput,
+					ChatContextKeys.withinEditSessionDiff,
+				),
+				primary: KeyCode.Enter,
+				weight: KeybindingWeight.EditorContrib
+			},
+			menu: [
+				{
+					id: MenuId.ChatExecute,
+					order: 4,
+					when: ContextKeyExpr.and(
+						whenNotInProgress,
+						ChatContextKeys.withinEditSessionDiff,
+					),
+					group: 'navigation',
+				},
+				{
+					id: MenuId.ChatExecuteSecondary,
+					group: 'group_1',
+					order: 1,
+					when: ContextKeyExpr.and(
+						whenNotInProgress,
+						ChatContextKeys.filePartOfEditSession,
+					),
+				}
+			]
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+		const context: IChatExecuteActionContext | undefined = args[0];
+		const widgetService = accessor.get(IChatWidgetService);
+		const instantiationService = accessor.get(IInstantiationService);
+		const inlineWidget = context?.widget ?? widgetService.lastFocusedWidget;
+		const locationData = inlineWidget?.locationData;
+
+		if (inlineWidget && locationData?.type === ChatAgentLocation.EditorInline && locationData.delegateSessionId) {
+			const sessionWidget = widgetService.getWidgetBySessionId(locationData.delegateSessionId);
+
+			if (sessionWidget) {
+				await instantiationService.invokeFunction(showChatWidgetInViewOrEditor, sessionWidget);
+				sessionWidget.attachmentModel.addContext({
+					id: 'vscode.delegate.inline',
+					kind: 'file',
+					modelDescription: `User's chat context`,
+					name: 'delegate-inline',
+					value: { range: locationData.wholeRange, uri: locationData.document },
+				});
+				sessionWidget.acceptInput(inlineWidget.getInput(), {
+					noCommandDetection: true,
+					enableImplicitContext: false,
+				});
+
+				inlineWidget.setInput('');
+				locationData.close();
+			}
+		}
 	}
 }
 
@@ -382,7 +462,8 @@ export class OpenModePickerAction extends Action2 {
 						ChatContextKeys.enabled,
 						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 						ChatContextKeys.inQuickChat.negate(),
-						ChatContextKeys.lockedToCodingAgent.negate()),
+						ChatContextKeys.lockedToCodingAgent.negate(),
+						ChatContextKeyExprs.chatSetupTriggerContext?.negate()),
 					group: 'navigation',
 				},
 			]
@@ -514,9 +595,10 @@ export class CreateRemoteAgentJobAction extends Action2 {
 
 		super({
 			id: CreateRemoteAgentJobAction.ID,
-			// TODO(joshspicer): Generalize title, pull from contribution
+			// TODO(joshspicer): Generalize title/tooltip - pull from contribution
 			title: localize2('actions.chat.createRemoteJob', "Delegate to Coding Agent"),
 			icon: Codicon.sendToRemoteAgent,
+			tooltip: localize('delegateToCodingAgentToolTip', "Delegate this task to the GitHub Copilot coding agent. The agent will continue work asynchronously and create a pull request with the proposed changes. Iterate further via chat or from the associated pull request."),
 			precondition,
 			toggled: {
 				condition: ChatContextKeys.remoteJobCreating,
@@ -585,7 +667,6 @@ export class CreateRemoteAgentJobAction extends Action2 {
 		const newChatSession = await chatSessionsService.provideNewChatSessionItem(
 			type,
 			{
-				prompt: userPrompt,
 				request: {
 					agentId: '',
 					location: ChatAgentLocation.Chat,
@@ -632,7 +713,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 		// Execute the remote command
 		const result: Omit<IChatPullRequestContent, 'kind'> | string | undefined = await commandService.executeCommand(agent.command, {
 			userPrompt,
-			summary: summary || userPrompt,
+			summary,
 			_version: 2, // Signal that we support the new response format
 		});
 
@@ -673,6 +754,9 @@ export class CreateRemoteAgentJobAction extends Action2 {
 		if (!workspaceFolder) {
 			return [];
 		}
+		if (!attachedContext) {
+			return [];
+		}
 		const relativePaths: string[] = [];
 		for (const contextEntry of attachedContext.asArray()) {
 			if (isChatRequestFileEntry(contextEntry)) { // TODO: Extend for more variable types as needed
@@ -687,23 +771,6 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			}
 		}
 		return relativePaths;
-	}
-
-	private extractChatTurns(historyEntries: IChatAgentHistoryEntry[]): string {
-		let result = '\n';
-		for (const entry of historyEntries) {
-			if (entry.request.message) {
-				result += `User: ${entry.request.message}\n`;
-			}
-			if (entry.response) {
-				for (const content of entry.response) {
-					if (content.kind === 'markdownContent') {
-						result += `AI: ${content.content.value}\n`;
-					}
-				}
-			}
-		}
-		return `${result}\n`;
 	}
 
 	async run(accessor: ServicesAccessor, ...args: any[]) {
@@ -721,7 +788,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			const remoteCodingAgentService = accessor.get(IRemoteCodingAgentsService);
 			const chatSessionsService = accessor.get(IChatSessionsService);
 			const editorService = accessor.get(IEditorService);
-
+			const workspaceContextService = accessor.get(IWorkspaceContextService);
 
 			const widget = widgetService.lastFocusedWidget;
 			if (!widget) {
@@ -754,7 +821,6 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			const requestParser = instantiationService.createInstance(ChatRequestParser);
 			const parsedRequest = requestParser.parseChatRequest(session, userPrompt, ChatAgentLocation.Chat);
 
-
 			// Add the request to the model first
 			const addedRequest = chatModel.addRequest(
 				parsedRequest,
@@ -764,12 +830,45 @@ export class CreateRemoteAgentJobAction extends Action2 {
 				defaultAgent,
 			);
 
+			let title: string | undefined = undefined;
+
+			// -- summarize userPrompt if necessary
+			let summarizedUserPrompt: string | undefined = undefined;
+			if (defaultAgent && userPrompt.length > 10_000) {
+				chatModel.acceptResponseProgress(addedRequest, {
+					kind: 'progressMessage',
+					content: new MarkdownString(
+						localize('summarizeUserPromptCreateRemoteJob', "Summarizing user prompt"),
+						CreateRemoteAgentJobAction.markdownStringTrustedOptions,
+					)
+				});
+
+				const userPromptEntry: IChatAgentHistoryEntry = {
+					request: {
+						sessionId: session,
+						requestId: generateUuid(),
+						agentId: '',
+						message: userPrompt,
+						command: undefined,
+						variables: { variables: attachedContext.asArray() },
+						location: ChatAgentLocation.Chat,
+						editedFileEvents: [],
+					},
+					response: [],
+					result: {}
+				};
+				const historyEntries = [userPromptEntry];
+				title = await chatAgentService.getChatTitle(defaultAgent.id, historyEntries, CancellationToken.None);
+				summarizedUserPrompt = await chatAgentService.getChatSummary(defaultAgent.id, historyEntries, CancellationToken.None);
+			}
+
 			let summary: string = '';
-			const relativeAttachedContext = this.extractRelativeFromAttachedContext(attachedContext, accessor.get(IWorkspaceContextService));
+			const relativeAttachedContext = this.extractRelativeFromAttachedContext(attachedContext, workspaceContextService);
 			if (relativeAttachedContext.length) {
 				summary += `\n\n${localize('attachedFiles', "The user has attached the following files from their workspace:")}\n${relativeAttachedContext.map(file => `- ${file}`).join('\n')}\n\n`;
 			}
 
+			// -- summarize context if necessary
 			if (defaultAgent && chatRequests.length > 1) {
 				chatModel.acceptResponseProgress(addedRequest, {
 					kind: 'progressMessage',
@@ -798,9 +897,12 @@ export class CreateRemoteAgentJobAction extends Action2 {
 				//      For example, if the user has already delegated to a coding agent once,
 				// 		 prefer the conversation afterwards.
 
-				summary += 'The following is a snapshot of a chat conversation between a user and an AI coding assistant. Prioritize later messages in the conversation.';
-				summary += this.extractChatTurns(historyEntries);
+				title ??= await chatAgentService.getChatTitle(defaultAgent.id, historyEntries, CancellationToken.None);
 				summary += await chatAgentService.getChatSummary(defaultAgent.id, historyEntries, CancellationToken.None);
+			}
+
+			if (title) {
+				summary += `\nTITLE: ${title}\n`;
 			}
 
 			chatModel.acceptResponseProgress(addedRequest, {
@@ -811,15 +913,18 @@ export class CreateRemoteAgentJobAction extends Action2 {
 				)
 			});
 
-			const isChatSessionsEnabled = configurationService.getValue<boolean>(ChatConfiguration.UseChatSessionsForCloudButton);
-			if (isChatSessionsEnabled) {
-				await this.createWithChatSessions(chatSessionsService, quickPickService, editorService, chatModel, addedRequest, userPrompt, summary);
+			const isChatSessionsExperimentEnabled = configurationService.getValue<boolean>(ChatConfiguration.UseChatSessionsForCloudButton);
+			if (isChatSessionsExperimentEnabled) {
+				await this.createWithChatSessions(chatSessionsService, quickPickService, editorService, chatModel, addedRequest, summarizedUserPrompt || userPrompt, summary);
 			} else {
-				await this.createWithLegacy(remoteCodingAgentService, commandService, quickPickService, chatModel, addedRequest, widget, userPrompt, summary);
+				await this.createWithLegacy(remoteCodingAgentService, commandService, quickPickService, chatModel, addedRequest, widget, summarizedUserPrompt || userPrompt, summary);
 			}
 
 			chatModel.setResponse(addedRequest, {});
 			chatModel.completeResponse(addedRequest);
+		} catch (e) {
+			console.error('Error creating remote coding agent job', e);
+			throw e;
 		} finally {
 			remoteJobCreatingKey.set(false);
 		}
@@ -1027,6 +1132,7 @@ export class CancelEdit extends Action2 {
 
 export function registerChatExecuteActions() {
 	registerAction2(ChatSubmitAction);
+	registerAction2(ChatDelegateToEditSessionAction);
 	registerAction2(ChatEditingSessionSubmitAction);
 	registerAction2(SubmitWithoutDispatchingAction);
 	registerAction2(CancelAction);

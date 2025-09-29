@@ -10,7 +10,6 @@ import { CancellationToken } from '../../../../../../../base/common/cancellation
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../../../../base/common/observable.js';
 import { isObject, isString } from '../../../../../../../base/common/types.js';
 import { localize } from '../../../../../../../nls.js';
 import { ExtensionIdentifier } from '../../../../../../../platform/extensions/common/extensions.js';
@@ -28,6 +27,7 @@ import { IConfirmationPrompt, IExecution, IPollingResult, OutputMonitorState, Po
 import { getTextResponseFromStream } from './utils.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TerminalChatAgentToolsSettingId } from '../../../common/terminalChatAgentToolsConfiguration.js';
+import { ILogService } from '../../../../../../../platform/log/common/log.js';
 
 export interface IOutputMonitor extends Disposable {
 	readonly pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
@@ -78,7 +78,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	constructor(
 		private readonly _execution: IExecution,
 		private readonly _pollFn: ((execution: IExecution, token: CancellationToken, taskService: ITaskService) => Promise<IPollingResult | undefined>) | undefined,
-		invocationContext: IToolInvocationContext,
+		invocationContext: IToolInvocationContext | undefined,
 		token: CancellationToken,
 		command: string,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
@@ -86,6 +86,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		@IChatService private readonly _chatService: IChatService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 
@@ -97,7 +98,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 	private async _startMonitoring(
 		command: string,
-		invocationContext: IToolInvocationContext,
+		invocationContext: IToolInvocationContext | undefined,
 		token: CancellationToken
 	): Promise<void> {
 		const pollStartTime = Date.now();
@@ -120,7 +121,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 							continue;
 						} else {
 							this._promptPart?.hide();
-							this._promptPart?.dispose();
 							this._promptPart = undefined;
 							break;
 						}
@@ -155,7 +155,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				resources
 			};
 			this._promptPart?.hide();
-			this._promptPart?.dispose();
 			this._promptPart = undefined;
 			this._onDidFinishCommand.fire();
 		}
@@ -212,7 +211,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		return { resources, modelOutputEvalResponse, shouldContinuePollling: false };
 	}
 
-	private async _handleTimeoutState(command: string, invocationContext: IToolInvocationContext, extended: boolean, token: CancellationToken): Promise<boolean> {
+	private async _handleTimeoutState(command: string, invocationContext: IToolInvocationContext | undefined, extended: boolean, token: CancellationToken): Promise<boolean> {
 		let continuePollingPart: ChatElicitationRequestPart | undefined;
 		if (extended) {
 			this._state = OutputMonitorState.Cancelled;
@@ -238,7 +237,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		]);
 
 		if (race.kind === 'decision') {
-			try { continuePollingPart?.hide(); continuePollingPart?.dispose?.(); } catch { /* noop */ }
+			try { continuePollingPart?.hide(); } catch { /* noop */ }
 			continuePollingPart = undefined;
 
 			// User explicitly declined to keep waiting, so finish with the timed-out result
@@ -256,7 +255,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			const r = race.r;
 
 			if (r === OutputMonitorState.Idle || r === OutputMonitorState.Cancelled || r === OutputMonitorState.Timeout) {
-				try { continuePollingPart?.hide(); continuePollingPart?.dispose?.(); } catch { /* noop */ }
+				try { continuePollingPart?.hide(); } catch { /* noop */ }
 				continuePollingPart = undefined;
 				continuePollingDecisionP = undefined;
 
@@ -316,7 +315,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 				const recentlyIdle = consecutiveIdleEvents >= PollingConsts.MinIdleEvents;
 				const isActive = execution.isActive ? await execution.isActive() : undefined;
-
+				this._logService.trace(`OutputMonitor: waitForIdle check: waited=${waited}ms, recentlyIdle=${recentlyIdle}, isActive=${isActive}`);
 				// Keep polling if still active with no recent data
 				if (recentlyIdle && isActive === true) {
 					consecutiveIdleEvents = 0;
@@ -338,13 +337,13 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		return OutputMonitorState.Timeout;
 	}
 
-	private async _promptForMorePolling(command: string, token: CancellationToken, context: IToolInvocationContext): Promise<{ promise: Promise<boolean>; part?: ChatElicitationRequestPart }> {
+	private async _promptForMorePolling(command: string, token: CancellationToken, context: IToolInvocationContext | undefined): Promise<{ promise: Promise<boolean>; part?: ChatElicitationRequestPart }> {
 		if (token.isCancellationRequested || this._state === OutputMonitorState.Cancelled) {
 			return { promise: Promise.resolve(false) };
 		}
 		const result = this._createElicitationPart<boolean>(
 			token,
-			context.sessionId,
+			context?.sessionId,
 			new MarkdownString(localize('poll.terminal.waiting', "Continue waiting for `{0}`?", command)),
 			new MarkdownString(localize('poll.terminal.polling', "This will continue to poll for output to determine when the terminal becomes idle for up to 2 minutes.")),
 			'',
@@ -392,7 +391,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		}
 		const lastFiveLines = execution.getOutput(this._lastPromptMarker).trimEnd().split('\n').slice(-5).join('\n');
 		const promptText =
-			`Analyze the following terminal output. If it contains a prompt requesting user input (such as a confirmation, selection, or yes/no question) and that prompt has NOT already been answered, extract the prompt text. The prompt may ask to choose from a set. If so, extract the possible options as a JSON object with keys 'prompt', 'options' (an array of strings or an object with option to description mappings), and 'freeFormInput': false. If no options are provided, and free form input is requested, for example: Password:, return the word freeFormInput. For example, if the options are "[Y] Yes  [A] Yes to All  [N] No  [L] No to All  [C] Cancel", the option to description mappings would be {"Y": "Yes", "A": "Yes to All", "N": "No", "L": "No to All", "C": "Cancel"}. If there is no such prompt, return null.
+			`Analyze the following terminal output. If it contains a prompt requesting user input (such as a confirmation, selection, or yes/no question) and that prompt has NOT already been answered, extract the prompt text. The prompt may ask to choose from a set. If so, extract the possible options as a JSON object with keys 'prompt', 'options' (an array of strings or an object with option to description mappings), and 'freeFormInput': false. If no options are provided, and free form input is requested, for example: Password:, return the word freeFormInput. For example, if the options are "[Y] Yes  [A] Yes to All  [N] No  [L] No to All  [C] Cancel", the option to description mappings would be {"Y": "Yes", "A": "Yes to All", "N": "No", "L": "No to All", "C": "Cancel"}. If there is no such prompt, return null. If the option is ambiguous, like "any key", return null.
 			Examples:
 			1. Output: "Do you want to overwrite? (y/n)"
 				Response: {"prompt": "Do you want to overwrite?", "options": ["y", "n"], "freeFormInput": false}
@@ -516,17 +515,10 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			async () => { execution.instance.focus(true); return true; },
 		);
 
-		this._register(autorun(reader => {
-			if (part.isHidden?.read(reader)) {
-				this._outputMonitorTelemetryCounters.inputToolFreeFormInputShownCount++;
-			}
-		}));
-
 		const inputPromise = new Promise<boolean>(resolve => {
 			const inputDataDisposable = this._register(execution.instance.onDidInputData((data) => {
 				if (!data || data === '\r' || data === '\n' || data === '\r\n') {
 					part.hide();
-					part.dispose();
 					inputDataDisposable.dispose();
 					this._state = OutputMonitorState.PollingForIdle;
 					resolve(true);
@@ -568,16 +560,9 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			},
 			getMoreActions(suggestedOption, confirmationPrompt)
 		);
-
-		this._register(autorun(reader => {
-			if (part.isHidden?.read(reader)) {
-				this._outputMonitorTelemetryCounters.inputToolManualShownCount++;
-			}
-		}));
 		const inputPromise = new Promise<string | undefined>(resolve => {
 			inputDataDisposable = this._register(execution.instance.onDidInputData(() => {
 				part.hide();
-				part.dispose();
 				inputDataDisposable.dispose();
 				this._state = OutputMonitorState.PollingForIdle;
 				resolve(undefined);
@@ -596,7 +581,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	// attach additional listeners (e.g., onDidRequestHide) or compose with other promises.
 	private _createElicitationPart<T>(
 		token: CancellationToken,
-		sessionId: string,
+		sessionId: string | undefined,
 		title: MarkdownString,
 		detail: MarkdownString,
 		subtitle: string,
@@ -606,7 +591,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		onReject?: () => Promise<T | undefined> | T | undefined,
 		moreActions?: IAction[] | undefined
 	): { promise: Promise<T | undefined>; part: ChatElicitationRequestPart } {
-		const chatModel = this._chatService.getSession(sessionId);
+		const chatModel = sessionId && this._chatService.getSession(sessionId);
 		if (!(chatModel instanceof ChatModel)) {
 			throw new Error('No model');
 		}
@@ -625,7 +610,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				async (value: IAction | true) => {
 					thePart.state = 'accepted';
 					thePart.hide();
-					thePart.dispose();
 					this._promptPart = undefined;
 					try {
 						const r = await (onAccept ? onAccept(value) : undefined);
@@ -637,7 +621,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				async () => {
 					thePart.state = 'rejected';
 					thePart.hide();
-					thePart.dispose();
 					this._promptPart = undefined;
 					try {
 						const r = await (onReject ? onReject() : undefined);
@@ -646,17 +629,16 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 						resolve(undefined);
 					}
 				},
-				undefined,
-				moreActions
+				undefined, // source
+				moreActions,
+				() => this._outputMonitorTelemetryCounters.inputToolManualShownCount++
 			));
+
 			chatModel.acceptResponseProgress(request, thePart);
 			this._promptPart = thePart;
 		});
 
-		this._register(token.onCancellationRequested(() => {
-			part.hide();
-			part.dispose();
-		}));
+		this._register(token.onCancellationRequested(() => part.hide()));
 
 		return { promise, part };
 	}
