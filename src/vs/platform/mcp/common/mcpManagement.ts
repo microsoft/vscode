@@ -168,7 +168,6 @@ export interface IMcpGalleryService {
 	readonly _serviceBrand: undefined;
 	isEnabled(): boolean;
 	query(options?: IQueryOptions, token?: CancellationToken): Promise<IPager<IGalleryMcpServer>>;
-	getMcpServersFromVSCodeGallery(servers: string[]): Promise<IGalleryMcpServer[]>;
 	getMcpServersFromGallery(urls: string[]): Promise<IGalleryMcpServer[]>;
 	getMcpServer(url: string): Promise<IGalleryMcpServer | undefined>;
 	getMcpServerByName(name: string): Promise<IGalleryMcpServer | undefined>;
@@ -244,6 +243,7 @@ export interface IAllowedMcpServersService {
 
 export const mcpAccessConfig = 'chat.mcp.access';
 export const mcpGalleryServiceUrlConfig = 'chat.mcp.gallery.serviceUrl';
+export const mcpGalleryServiceEnablementConfig = 'chat.mcp.gallery.enabled';
 export const mcpAutoStartConfig = 'chat.mcp.autostart';
 
 export const enum McpAutoStartValue {

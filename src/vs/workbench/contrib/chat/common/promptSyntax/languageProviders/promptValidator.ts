@@ -78,9 +78,9 @@ export class PromptValidator {
 				if (!available.has(variable.name)) {
 					if (deprecatedNames.has(variable.name)) {
 						const currentName = deprecatedNames.get(variable.name);
-						report(toMarker(localize('promptValidator.deprecatedVariableReference', "Tool or toolset '{0}' is deprecated, use '{1}' instead.", variable.name, currentName), variable.range, MarkerSeverity.Warning));
+						report(toMarker(localize('promptValidator.deprecatedVariableReference', "Tool or toolset '{0}' has been renamed, use '{1}' instead.", variable.name, currentName), variable.range, MarkerSeverity.Info));
 					} else {
-						report(toMarker(localize('promptValidator.unknownVariableReference', "Unknown tool or toolset '{0}'.", variable.name), variable.range, MarkerSeverity.Error));
+						report(toMarker(localize('promptValidator.unknownVariableReference', "Unknown tool or toolset '{0}'.", variable.name), variable.range, MarkerSeverity.Warning));
 					}
 				}
 			}
@@ -250,9 +250,9 @@ export class PromptValidator {
 				} else if (item.value && !available.has(item.value)) {
 					if (deprecatedNames.has(item.value)) {
 						const currentName = deprecatedNames.get(item.value);
-						report(toMarker(localize('promptValidator.toolDeprecated', "Tool or toolset '{0}' is deprecated, use '{1}' instead.", item.value, currentName), item.range, MarkerSeverity.Warning));
+						report(toMarker(localize('promptValidator.toolDeprecated', "Tool or toolset '{0}' has been renamed, use '{1}' instead.", item.value, currentName), item.range, MarkerSeverity.Info));
 					} else {
-						report(toMarker(localize('promptValidator.toolNotFound', "Unknown tool '{0}'.", item.value), item.range, MarkerSeverity.Error));
+						report(toMarker(localize('promptValidator.toolNotFound', "Unknown tool '{0}'.", item.value), item.range, MarkerSeverity.Warning));
 					}
 				}
 			}
