@@ -138,26 +138,22 @@ export class ChatEditor extends EditorPane {
 
 		// Create loading container
 		this._loadingContainer = dom.append(this._editorContainer, dom.$('.chat-loading-overlay'));
-		this._loadingContainer.style.cssText = `
-			position: absolute;
-			top: 0;
-			left: 0;
-			right: 0;
-			bottom: 0;
-			background: var(--vscode-editor-background);
-			display: flex;
-			align-items: center;
-			justify-content: center;
-			z-index: 1000;
-		`;
+		this._loadingContainer.style.position = 'absolute';
+		this._loadingContainer.style.top = '0';
+		this._loadingContainer.style.left = '0';
+		this._loadingContainer.style.right = '0';
+		this._loadingContainer.style.bottom = '0';
+		this._loadingContainer.style.background = 'var(--vscode-editor-background)';
+		this._loadingContainer.style.display = 'flex';
+		this._loadingContainer.style.alignItems = 'center';
+		this._loadingContainer.style.justifyContent = 'center';
+		this._loadingContainer.style.zIndex = '1000';
 
 		const loadingContent = dom.append(this._loadingContainer, dom.$('.chat-loading-content'));
-		loadingContent.style.cssText = `
-			display: flex;
-			align-items: center;
-			gap: 8px;
-			color: var(--vscode-editor-foreground);
-		`;
+		loadingContent.style.display = 'flex';
+		loadingContent.style.alignItems = 'center';
+		loadingContent.style.gap = '8px';
+		loadingContent.style.color = 'var(--vscode-editor-foreground)';
 
 		// Add loading icon
 		const icon = dom.append(loadingContent, dom.$('.codicon.codicon-loading.codicon-modifier-spin'));
