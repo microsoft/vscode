@@ -7674,6 +7674,7 @@ declare namespace monaco.languages {
 		sameShapeReplacements?: boolean;
 		typingInterval: number;
 		typingIntervalCharacterCount: number;
+		selectedSuggestionInfo: boolean;
 	};
 
 	export interface CodeAction {

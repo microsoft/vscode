@@ -222,6 +222,8 @@ export interface IPromptsService extends IDisposable {
 
 
 	getPromptLocationLabel(promptPath: IPromptPath): string;
+
+	findAgentMDsInWorkspace(token: CancellationToken): Promise<URI[]>;
 }
 
 export interface IChatPromptSlashCommand {
