@@ -6302,7 +6302,7 @@ export const EditorOptions = {
 	mouseMiddleClickAction: register(new EditorStringEnumOption(
 		EditorOption.mouseMiddleClickAction, 'mouseMiddleClickAction', 'default' as MouseMiddleClickAction,
 		['default', 'openLink', 'ctrlLeftClick'] as MouseMiddleClickAction[],
-		{ description: nls.localize('mouseMiddleClickAction', "Controls what happens when middle mouse button is clicked in the editor.") }
+		{ markdownDescription: nls.localize('mouseMiddleClickAction', "Controls what happens when middle mouse button is clicked in the editor. **Note:** This setting conflicts with `#editor.scrollOnMiddleClick#` - if both are enabled, this setting takes precedence.") }
 	)),
 	multiCursorPaste: register(new EditorStringEnumOption(
 		EditorOption.multiCursorPaste, 'multiCursorPaste',
@@ -6463,7 +6463,7 @@ export const EditorOptions = {
 	)),
 	scrollOnMiddleClick: register(new EditorBooleanOption(
 		EditorOption.scrollOnMiddleClick, 'scrollOnMiddleClick', false,
-		{ description: nls.localize('scrollOnMiddleClick', "Controls whether the editor will scroll when the middle button is pressed.") }
+		{ markdownDescription: nls.localize('scrollOnMiddleClick', "Controls whether the editor will scroll when the middle button is pressed. **Note:** This setting conflicts with `#editor.mouseMiddleClickAction#` - if both are enabled, the middle click action takes precedence.") }
 	)),
 	scrollPredominantAxis: register(new EditorBooleanOption(
 		EditorOption.scrollPredominantAxis, 'scrollPredominantAxis', true,
