@@ -957,3 +957,86 @@ export function scopesMatch(scopes1: readonly string[], scopes2: readonly string
 
 	return sortedScopes1.every((scope, index) => scope === sortedScopes2[index]);
 }
+
+interface CommonResponse {
+	status: number;
+	json(): Promise<any>;
+	text(): Promise<string>;
+}
+
+interface IFetcher {
+	(input: string, init: { method: string; headers: Record<string, string> }): Promise<CommonResponse>;
+}
+
+export interface IFetchResourceMetadataOptions {
+	/**
+	 * Headers to include only when the resource metadata URL has the same origin as the target resource
+	 */
+	sameOriginHeaders?: Record<string, string>;
+	/**
+	 * Optional custom fetch implementation (defaults to global fetch)
+	 */
+	fetch?: IFetcher;
+}
+
+/**
+ * Fetches and validates OAuth 2.0 protected resource metadata from the given URL.
+ *
+ * @param targetResource The target resource URL to compare origins with (e.g., the MCP server URL)
+ * @param resourceMetadataUrl The URL to fetch the resource metadata from
+ * @param options Configuration options for the fetch operation
+ * @returns Promise that resolves to the validated resource metadata
+ * @throws Error if the fetch fails, returns non-200 status, or the response is invalid
+ */
+export async function fetchResourceMetadata(
+	targetResource: string,
+	resourceMetadataUrl: string,
+	options: IFetchResourceMetadataOptions = {}
+): Promise<IAuthorizationProtectedResourceMetadata> {
+	const {
+		sameOriginHeaders = {},
+		fetch: fetchImpl = fetch
+	} = options;
+
+	// Determine if we should include same-origin headers
+	let headersToUse: Record<string, string> = {
+		'Accept': 'application/json'
+	};
+
+	const resourceMetadataUrlObj = new URL(resourceMetadataUrl);
+	const targetResourceUrlObj = new URL(targetResource);
+	if (resourceMetadataUrlObj.origin === targetResourceUrlObj.origin) {
+		headersToUse = {
+			...headersToUse,
+			...sameOriginHeaders
+		};
+	}
+
+	const response = await fetchImpl(resourceMetadataUrl, {
+		method: 'GET',
+		headers: headersToUse
+	});
+
+	if (response.status !== 200) {
+		let errorText: string;
+		try {
+			errorText = await response.text();
+		} catch {
+			errorText = 'statusText' in response ? response.statusText : 'Unknown error';
+		}
+		throw new Error(`Failed to fetch resource metadata: ${response.status} ${errorText}`);
+	}
+
+	const body = await response.json();
+	if (isAuthorizationProtectedResourceMetadata(body)) {
+		// Use URL constructor for normalization - it handles hostname case and trailing slashes
+		const prmValue = new URL(body.resource).toString();
+		const targetValue = new URL(targetResource).toString();
+		if (prmValue !== targetValue) {
+			throw new Error(`Protected Resource Metadata resource property value "${prmValue}" (length: ${prmValue.length}) does not match target server url "${targetValue}" (length: ${targetValue.length}). These MUST match to follow OAuth spec https://datatracker.ietf.org/doc/html/rfc9728#PRConfigurationValidation`);
+		}
+		return body;
+	} else {
+		throw new Error(`Invalid resource metadata. Expected to follow shape of https://datatracker.ietf.org/doc/html/rfc9728#name-protected-resource-metadata (Hints: is scopes_supported an array? Is resource a string?). Current payload: ${JSON.stringify(body)}`);
+	}
+}

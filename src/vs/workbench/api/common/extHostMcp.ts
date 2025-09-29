@@ -8,7 +8,7 @@ import { DeferredPromise, raceCancellationError, Sequencer, timeout } from '../.
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { CancellationError } from '../../../base/common/errors.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { AUTH_SERVER_METADATA_DISCOVERY_PATH, getDefaultMetadataForUrl, IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata, isAuthorizationProtectedResourceMetadata, isAuthorizationServerMetadata, OPENID_CONNECT_DISCOVERY_PATH, parseWWWAuthenticateHeader } from '../../../base/common/oauth.js';
+import { AUTH_SERVER_METADATA_DISCOVERY_PATH, fetchResourceMetadata, getDefaultMetadataForUrl, IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata, isAuthorizationServerMetadata, OPENID_CONNECT_DISCOVERY_PATH, parseWWWAuthenticateHeader } from '../../../base/common/oauth.js';
 import { SSEParser } from '../../../base/common/sseParser.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { ConfigurationTarget } from '../../../platform/configuration/common/configuration.js';
@@ -350,13 +350,13 @@ export class McpHTTPHandle extends Disposable {
 		let scopesSupported: string[] | undefined;
 		let resource: IAuthorizationProtectedResourceMetadata | undefined;
 		if (resourceMetadataChallenge) {
-			const resourceMetadata = await this._getResourceMetadata(resourceMetadataChallenge);
-			// Use URL constructor for normalization - it handles hostname case and trailing slashes
-			const prmValue = new URL(resourceMetadata.resource).toString();
-			const mcpValue = new URL(mcpUrl).toString();
-			if (prmValue !== mcpValue) {
-				throw new Error(`Protected Resource Metadata resource value "${prmValue}" (length: ${prmValue.length}) does not match MCP server url "${mcpValue}" (length: ${mcpValue.length}). The MCP server must follow OAuth spec https://datatracker.ietf.org/doc/html/rfc9728#PRConfigurationValidation`);
-			}
+			const resourceMetadata = await fetchResourceMetadata(mcpUrl, resourceMetadataChallenge, {
+				sameOriginHeaders: {
+					...Object.fromEntries(this._launch.headers),
+					'MCP-Protocol-Version': MCP.LATEST_PROTOCOL_VERSION
+				},
+				fetch: (url, init) => this._fetch(url, init)
+			});
 			// TODO:@TylerLeonhardt support multiple authorization servers
 			// Consider using one that has an auth provider first, over the dynamic flow
 			serverMetadataUrl = resourceMetadata.authorization_servers?.[0];
@@ -399,35 +399,6 @@ export class McpHTTPHandle extends Disposable {
 			resourceMetadata: resource
 		};
 		this._log(LogLevel.Info, 'Using default auth metadata');
-	}
-
-	private async _getResourceMetadata(resourceMetadata: string): Promise<IAuthorizationProtectedResourceMetadata> {
-		// detect if the resourceMetadata, which is a URL, is in the same origin as the MCP server
-		const resourceMetadataUrl = new URL(resourceMetadata);
-		const mcpServerUrl = new URL(this._launch.uri.toString(true));
-		let additionalHeaders: Record<string, string> = {};
-		if (resourceMetadataUrl.origin === mcpServerUrl.origin) {
-			additionalHeaders = {
-				...Object.fromEntries(this._launch.headers)
-			};
-		}
-		const resourceMetadataResponse = await this._fetch(resourceMetadata, {
-			method: 'GET',
-			headers: {
-				...additionalHeaders,
-				'Accept': 'application/json',
-				'MCP-Protocol-Version': MCP.LATEST_PROTOCOL_VERSION
-			}
-		});
-		if (resourceMetadataResponse.status !== 200) {
-			throw new Error(`Failed to fetch resource metadata: ${resourceMetadataResponse.status} ${await this._getErrText(resourceMetadataResponse)}`);
-		}
-		const body = await resourceMetadataResponse.json();
-		if (isAuthorizationProtectedResourceMetadata(body)) {
-			return body;
-		} else {
-			throw new Error(`Invalid resource metadata. Expected to follow shape of https://datatracker.ietf.org/doc/html/rfc9728#name-protected-resource-metadata (Hints: is scopes_supported an array? Is resource a string?). Current payload: ${JSON.stringify(body)}`);
-		}
 	}
 
 	private async _getAuthorizationServerMetadata(authorizationServer: string, addtionalHeaders: Record<string, string>): Promise<IAuthorizationServerMetadata> {
