@@ -410,9 +410,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				}
 				case TaskEventKind.Inactive: {
 					const processEndedEvent = e as ITaskInactiveEvent;
+					const startTime = this._taskRunStartTimes.get(e.taskId);
 					this._taskRunStartTimes.delete(e.taskId);
 					this._taskRunSources.delete(e.taskId);
-					const startTime = this._taskRunStartTimes.get(e.taskId);
 					const durationMs = processEndedEvent.durationMs ?? (startTime !== undefined ? Date.now() - startTime : undefined);
 					if (durationMs !== undefined) {
 						this._handleLongRunningTaskCompletion(processEndedEvent, durationMs);
