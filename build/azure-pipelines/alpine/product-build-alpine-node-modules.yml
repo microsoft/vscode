@@ -43,10 +43,6 @@ jobs:
           cacheHitVar: NODE_MODULES_RESTORED
         displayName: Restore node_modules cache
 
-      - script: tar -xzf .build/node_modules_cache/cache.tgz
-        condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
-        displayName: Extract node_modules cache
-
       - script: |
           set -e
           # Set the private NPM registry to the global npmrc file
