@@ -40,26 +40,26 @@ suite('DocumentSymbolComparator Case Sensitivity', function () {
 		assert.ok(comparator, 'DocumentSymbolComparator instance created successfully');
 	});
 
-	test('setCaseSensitive method exists', function () {
+	test('case sensitive sorting behavior', function () {
 		const comparator = new DocumentSymbolComparator();
-
-		// Verify the method exists and can be called
-		assert.ok(typeof comparator.setCaseSensitive === 'function', 'setCaseSensitive method exists');
-
-		// Call it to verify it works
-		comparator.setCaseSensitive(true);
+		
+		// Test with case insensitive (default)
 		comparator.setCaseSensitive(false);
-
-		assert.ok(true, 'setCaseSensitive method can be called without errors');
-	});
-
-	test('case sensitivity configuration', function () {
-		const comparator = new DocumentSymbolComparator();
-
-		// Test that we can toggle case sensitivity
+		
+		// Test that case insensitive sorting works by checking collator behavior
+		// We test the collator directly since we can't easily create OutlineElements
+		const collator = (comparator as any)._getCollator().value;
+		
+		// Case insensitive: 'Apple' and 'apple' should be equal
+		assert.strictEqual(collator.compare('Apple', 'apple'), 0, 'Case insensitive: Apple and apple should be equal');
+		
+		// Now test case sensitive
 		comparator.setCaseSensitive(true);
-		comparator.setCaseSensitive(false);
-
-		assert.ok(true, 'Case sensitivity can be toggled successfully');
+		const caseSensitiveCollator = (comparator as any)._getCollator().value;
+		
+		// Case sensitive: 'Apple' should come before 'apple' (uppercase before lowercase)
+		assert.ok(caseSensitiveCollator.compare('Apple', 'apple') < 0, 'Case sensitive: Apple should come before apple');
+		assert.ok(caseSensitiveCollator.compare('Banana', 'apple') < 0, 'Case sensitive: Banana should come before apple');
+		assert.ok(caseSensitiveCollator.compare('apple', 'Banana') > 0, 'Case sensitive: apple should come after Banana');
 	});
 });

@@ -438,7 +438,6 @@ export class BreadcrumbsFilePicker extends BreadcrumbsPicker {
 class OutlineTreeSorter<E> implements ITreeSorter<E> {
 
 	private _order: 'name' | 'type' | 'position';
-	private _caseSensitive: boolean;
 
 	constructor(
 		private comparator: IOutlineComparator<E>,
@@ -446,10 +445,10 @@ class OutlineTreeSorter<E> implements ITreeSorter<E> {
 		@ITextResourceConfigurationService configService: ITextResourceConfigurationService,
 	) {
 		this._order = configService.getValue(uri, 'breadcrumbs.symbolSortOrder');
-		this._caseSensitive = configService.getValue(uri, 'breadcrumbs.symbolSortOrderCaseSensitive');
+		const caseSensitive = configService.getValue(uri, 'breadcrumbs.symbolSortOrderCaseSensitive');
 		
 		// Configure case sensitivity on the comparator
-		this.comparator.setCaseSensitive(this._caseSensitive);
+		this.comparator.setCaseSensitive(caseSensitive);
 	}
 
 	compare(a: E, b: E): number {
