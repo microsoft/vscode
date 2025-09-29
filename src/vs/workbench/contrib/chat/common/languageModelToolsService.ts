@@ -124,6 +124,10 @@ export interface IToolInvocation {
 	context: IToolInvocationContext | undefined;
 	chatRequestId?: string;
 	chatInteractionId?: string;
+	/**
+	 * Lets us add some nicer UI to toolcalls that came from a sub-agent, but in the long run, this should probably just be rendered in a similar way to thinking text + tool call groups
+	 */
+	fromSubAgent?: boolean;
 	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent;
 	modelId?: string;
 }
@@ -324,14 +328,22 @@ export interface ILanguageModelToolsService {
 	getToolAutoConfirmation(toolId: string): 'workspace' | 'profile' | 'session' | 'never';
 	resetToolAutoConfirmation(): void;
 	cancelToolCallsForRequest(requestId: string): void;
-	toToolEnablementMap(toolOrToolSetNames: Set<string>): Record<string, boolean>;
-	toToolAndToolSetEnablementMap(toolOrToolSetNames: readonly string[]): IToolAndToolSetEnablementMap;
-	toToolReferences(variableReferences: readonly IVariableReference[]): ChatRequestToolReferenceEntry[];
 
 	readonly toolSets: IObservable<Iterable<ToolSet>>;
 	getToolSet(id: string): ToolSet | undefined;
 	getToolSetByName(name: string): ToolSet | undefined;
 	createToolSet(source: ToolDataSource, id: string, referenceName: string, options?: { icon?: ThemeIcon; description?: string }): ToolSet & IDisposable;
+
+	// tool names in prompt files handling ('qualified names')
+
+	getQualifiedToolNames(): Iterable<string>;
+	getToolByQualifiedName(qualifiedName: string): IToolData | ToolSet | undefined;
+	getQualifiedToolName(tool: IToolData, toolSet?: ToolSet): string;
+	getDeprecatedQualifiedToolNames(): Map<string, string>;
+
+	toToolAndToolSetEnablementMap(qualifiedToolOrToolSetNames: readonly string[]): IToolAndToolSetEnablementMap;
+	toQualifiedToolNames(map: IToolAndToolSetEnablementMap): string[];
+	toToolReferences(variableReferences: readonly IVariableReference[]): ChatRequestToolReferenceEntry[];
 }
 
 export function createToolInputUri(toolOrId: IToolData | string): URI {

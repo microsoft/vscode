@@ -564,6 +564,12 @@
 	}
 }
 
+.interactive-item-container .value > .from-sub-agent.chat-tool-invocation-part,
+.interactive-item-container .value > .from-sub-agent.chat-confirmation-widget,
+.interactive-item-container .value > .from-sub-agent.chat-terminal-confirmation-widget {
+	margin-left: 18px;
+}
+
 .interactive-item-container .value > .rendered-markdown li > p {
 	margin: 0;
 }
@@ -1411,13 +1417,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	height: auto;
 }
 
-/* Icon-only chat attachment button styling */
-.action-item.chat-attachment-button {
-	width: 20px;
-	height: 20px;
-}
-
-.interactive-session .action-item.chat-attachment-button .action-label {
+.interactive-session .action-item.chat-attachment-button .action-label:not(.has-label) {
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -1428,6 +1428,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
 	border-radius: 4px;
 	box-sizing: border-box;
+
+	.codicon {
+		width: 14px;
+	}
 }
 
 .action-item.chat-attachment-button .codicon {
@@ -1694,6 +1698,20 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .quick-input-widget .interactive-response {
 	min-height: 86px;
+}
+
+.quick-input-widget .interactive-session .disclaimer {
+	margin: 8px 12px;
+	color: var(--vscode-descriptionForeground);
+	font-size: 12px;
+
+	a {
+		color: var(--vscode-textLink-foreground);
+	}
+
+	p {
+		margin: 0;
+	}
 }
 
 /* #endregion */
@@ -2544,6 +2562,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	top: 0;
 	z-index: 2;
 	background-color: var(--vscode-sideBar-background);
+	padding-left: 12px;
+	padding-right: 12px;
 }
 
 /* Special styling when todo widget is used inline in chat responses (subparts) */
@@ -2641,7 +2661,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .chat-todo-list-widget .todo-list-container {
-	padding-left: 10px;
 	margin-top: 2px;
 	max-height: calc(6.5 * 21px);
 	/* 6.5 items to show half-line affordance */
@@ -3096,6 +3115,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 			width: 100%;
 			border: none;
 			outline: none;
+			padding-left: 10px;
 
 			&:hover {
 				background: var(--vscode-toolbar-hoverBackground);
@@ -3147,6 +3167,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 		&.finished:not(.collapsed) .chat-used-context-list.chat-thinking-collapsible {
 			display: block;
+		}
+
+		&.finished .chat-thinking-fixed-header .codicon-pass-filled {
+			display: none;
 		}
 	}
 

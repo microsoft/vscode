@@ -327,7 +327,7 @@ class McpToolImplementation implements IToolImpl {
 					});
 
 					if (isForModel) {
-						const permalink = invocation.chatRequestId && invocation.context && ChatResponseResource.createUri(invocation.context.sessionId, invocation.chatRequestId, invocation.callId, result.content.length, basename(uri));
+						const permalink = invocation.context && ChatResponseResource.createUri(invocation.context.sessionId, invocation.callId, result.content.length, basename(uri));
 						addAsLinkedResource(permalink || uri, item.resource.mimeType);
 					}
 				}

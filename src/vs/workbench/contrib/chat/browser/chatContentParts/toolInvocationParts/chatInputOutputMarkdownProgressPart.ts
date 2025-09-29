@@ -16,7 +16,6 @@ import { IModelService } from '../../../../../../editor/common/services/model.js
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ChatResponseResource } from '../../../common/chatModel.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService.js';
-import { isResponseVM } from '../../../common/chatViewModel.js';
 import { IToolResultInputOutputDetails } from '../../../common/languageModelToolsService.js';
 import { IChatCodeBlockInfo } from '../../chat.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
@@ -93,7 +92,6 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 			processedOutput = [{ type: 'embed', value: output, isText: true }];
 		}
 
-		const requestId = isResponseVM(context.element) ? context.element.requestId : context.element.id;
 		const collapsibleListPart = this._register(instantiationService.createInstance(
 			ChatCollapsibleInputOutputContentPart,
 			message,
@@ -125,7 +123,7 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 						}
 
 						// Fall back to text if it's not valid base64
-						const permalinkUri = ChatResponseResource.createUri(context.element.sessionId, requestId, toolInvocation.toolCallId, i, permalinkBasename);
+						const permalinkUri = ChatResponseResource.createUri(context.element.sessionId, toolInvocation.toolCallId, i, permalinkBasename);
 						return { kind: 'data', value: decoded || new TextEncoder().encode(o.value), mimeType: o.mimeType, uri: permalinkUri, audience: o.audience };
 					}
 				}),

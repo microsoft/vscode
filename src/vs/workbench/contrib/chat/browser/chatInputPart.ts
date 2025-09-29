@@ -104,6 +104,8 @@ import { ChatRelatedFiles } from './contrib/chatInputRelatedFilesContrib.js';
 import { resizeImage } from './imageUtils.js';
 import { IModelPickerDelegate, ModelPickerActionItem } from './modelPicker/modelPickerActionItem.js';
 import { IModePickerDelegate, ModePickerActionItem } from './modelPicker/modePickerActionItem.js';
+import { assertType } from '../../../../base/common/types.js';
+import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 
 const $ = dom.$;
 
@@ -262,6 +264,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private inputActionsToolbar!: MenuWorkbenchToolBar;
 
 	private addFilesToolbar: MenuWorkbenchToolBar | undefined;
+	private addFilesButton: AddFilesButton | undefined;
 
 	get inputEditor() {
 		return this._inputEditor;
@@ -1348,8 +1351,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			hoverDelegate,
 			actionViewItemProvider: (action, options) => {
 				if (action.id === 'workbench.action.chat.attachContext') {
-					const viewItem = this.instantiationService.createInstance(AddFilesButton, undefined, action, options);
-					return viewItem;
+					const viewItem = this.instantiationService.createInstance(AddFilesButton, this._attachmentModel, action, options);
+					viewItem.setShowLabel(this._attachmentModel.size === 0 && !this.hasImplicitContextBlock());
+					this.addFilesButton = viewItem;
+					return this.addFilesButton;
 				}
 				return undefined;
 			}
@@ -1476,7 +1481,31 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._onDidChangeHeight.fire();
 		}
 
+		this.addFilesButton?.setShowLabel(this._attachmentModel.size === 0 && !this.hasImplicitContextBlock());
+
 		this._indexOfLastOpenedContext = -1;
+	}
+
+	private hasImplicitContextBlock(): boolean {
+		const implicit = this.implicitContext?.value;
+		if (!implicit) {
+			return false;
+		}
+		const isSuggestedEnabled = this.configurationService.getValue<boolean>('chat.implicitContext.suggestedContext');
+		if (!isSuggestedEnabled) {
+			return true;
+		}
+
+		// TODO @justschen: merge this with above showing implicit logic
+		const isUri = URI.isUri(implicit);
+		if (isUri || isLocation(implicit)) {
+			const targetUri = isUri ? implicit : implicit.uri;
+			const attachments = [...this._attachmentModel.attachments.entries()];
+			const currentlyAttached = attachments.some(([, a]) => URI.isUri(a.value) && isEqual(a.value, targetUri));
+			const shouldShowImplicit = isUri ? !currentlyAttached : implicit.range;
+			return !!shouldShowImplicit;
+		}
+		return false;
 	}
 
 	private handleAttachmentDeletion(e: KeyboardEvent | unknown, index: number, attachment: IChatRequestVariableEntry) {
@@ -1930,18 +1959,35 @@ const chatInputEditorContainerSelector = '.interactive-input-editor';
 setupSimpleEditorSelectionStyling(chatInputEditorContainerSelector);
 
 class AddFilesButton extends ActionViewItem {
+	private showLabel: boolean | undefined;
 
 	constructor(context: unknown, action: IAction, options: IActionViewItemOptions) {
 		super(context, action, {
 			...options,
-			icon: true,
-			label: false,
+			icon: false,
+			label: true,
 			keybindingNotRenderedWithLabel: true,
 		});
+	}
+
+	public setShowLabel(show: boolean): void {
+		this.showLabel = show;
+		this.updateLabel();
 	}
 
 	override render(container: HTMLElement): void {
 		container.classList.add('chat-attachment-button');
 		super.render(container);
+		this.updateLabel();
+	}
+
+	protected override updateLabel(): void {
+		if (!this.label) {
+			return;
+		}
+		assertType(this.label);
+		this.label.classList.toggle('has-label', this.showLabel);
+		const message = this.showLabel ? `$(attach) ${this.action.label}` : `$(attach)`;
+		dom.reset(this.label, ...renderLabelWithIcons(message));
 	}
 }
