@@ -111,6 +111,7 @@ jobs:
           VSCODE_ARCH: $(VSCODE_ARCH)
           GITHUB_TOKEN: "$(github-distro-mixin-password)"
         displayName: Download vscode sysroots
+        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
       - script: |
           set -e
