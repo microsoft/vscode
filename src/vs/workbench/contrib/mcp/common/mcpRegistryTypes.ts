@@ -31,6 +31,7 @@ export interface IMcpHostDelegate {
 	readonly priority: number;
 	waitForInitialProviderPromises(): Promise<void>;
 	canStart(collectionDefinition: McpCollectionDefinition, serverDefinition: McpServerDefinition): boolean;
+	substituteVariables(serverDefinition: McpServerDefinition, launch: McpServerLaunch): Promise<McpServerLaunch>;
 	start(collectionDefinition: McpCollectionDefinition, serverDefinition: McpServerDefinition, resolvedLaunch: McpServerLaunch, options?: { errorOnUserInteraction?: boolean }): IMcpMessageTransport;
 }
 

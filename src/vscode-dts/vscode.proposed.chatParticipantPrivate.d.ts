@@ -221,6 +221,10 @@ declare module 'vscode' {
 		chatSessionId?: string;
 		chatInteractionId?: string;
 		terminalCommand?: string;
+		/**
+		 * Lets us add some nicer UI to toolcalls that came from a sub-agent, but in the long run, this should probably just be rendered in a similar way to thinking text + tool call groups
+		 */
+		fromSubAgent?: boolean;
 	}
 
 	export interface LanguageModelToolInvocationPrepareOptions<T> {
@@ -241,6 +245,7 @@ declare module 'vscode' {
 	export class ExtendedLanguageModelToolResult extends LanguageModelToolResult {
 		toolResultMessage?: string | MarkdownString;
 		toolResultDetails?: Array<Uri | Location>;
+		toolMetadata?: unknown;
 	}
 
 	// #region Chat participant detection

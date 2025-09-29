@@ -35,7 +35,8 @@ export const enum AccessibilityWorkbenchSettingId {
 	DimUnfocusedEnabled = 'accessibility.dimUnfocused.enabled',
 	DimUnfocusedOpacity = 'accessibility.dimUnfocused.opacity',
 	HideAccessibleView = 'accessibility.hideAccessibleView',
-	AccessibleViewCloseOnKeyPress = 'accessibility.accessibleView.closeOnKeyPress'
+	AccessibleViewCloseOnKeyPress = 'accessibility.accessibleView.closeOnKeyPress',
+	VerboseChatProgressUpdates = 'accessibility.verboseChatProgressUpdates'
 }
 
 export const enum ViewDimUnfocusedOpacityProperties {
@@ -843,6 +844,11 @@ export function registerAccessibilityConfiguration() {
 				type: 'boolean',
 				default: false,
 				tags: ['accessibility']
+			},
+			[AccessibilityWorkbenchSettingId.VerboseChatProgressUpdates]: {
+				'type': 'boolean',
+				'default': true,
+				'markdownDescription': localize('accessibility.verboseChatProgressUpdates', "Controls whether verbose progress announcements should be made when a chat request is in progress, including information like searched text for <search term> with X results, created file <file_name>, or read file <file path>.")
 			}
 		}
 	});

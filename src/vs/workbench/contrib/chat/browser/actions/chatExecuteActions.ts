@@ -27,7 +27,7 @@ import { IWorkspaceContextService } from '../../../../../platform/workspace/comm
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IRemoteCodingAgent, IRemoteCodingAgentsService } from '../../../remoteCodingAgents/common/remoteCodingAgentsService.js';
 import { IChatAgentHistoryEntry, IChatAgentService } from '../../common/chatAgents.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { ChatContextKeys, ChatContextKeyExprs } from '../../common/chatContextKeys.js';
 import { IChatModel, IChatRequestModel, toChatHistoryContent } from '../../common/chatModel.js';
 import { IChatMode, IChatModeService } from '../../common/chatModes.js';
 import { chatVariableLeader } from '../../common/chatParserTypes.js';
@@ -461,7 +461,8 @@ export class OpenModePickerAction extends Action2 {
 						ChatContextKeys.enabled,
 						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 						ChatContextKeys.inQuickChat.negate(),
-						ChatContextKeys.lockedToCodingAgent.negate()),
+						ChatContextKeys.lockedToCodingAgent.negate(),
+						ChatContextKeyExprs.chatSetupTriggerContext?.negate()),
 					group: 'navigation',
 				},
 			]
@@ -664,7 +665,6 @@ export class CreateRemoteAgentJobAction extends Action2 {
 		const newChatSession = await chatSessionsService.provideNewChatSessionItem(
 			type,
 			{
-				prompt: userPrompt,
 				request: {
 					agentId: '',
 					location: ChatAgentLocation.Chat,
@@ -711,7 +711,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 		// Execute the remote command
 		const result: Omit<IChatPullRequestContent, 'kind'> | string | undefined = await commandService.executeCommand(agent.command, {
 			userPrompt,
-			summary: summary || userPrompt,
+			summary,
 			_version: 2, // Signal that we support the new response format
 		});
 

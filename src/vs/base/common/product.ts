@@ -105,7 +105,6 @@ export interface IProductConfiguration {
 	readonly extensionsGallery?: {
 		readonly serviceUrl: string;
 		readonly controlUrl: string;
-		readonly mcpUrl: string;
 		readonly extensionUrlTemplate: string;
 		readonly resourceUrlTemplate: string;
 		readonly nlsBaseUrl: string;
@@ -379,6 +378,7 @@ export interface IDefaultChatAgent {
 	readonly completionsRefreshTokenCommand: string;
 	readonly chatRefreshTokenCommand: string;
 	readonly generateCommitMessageCommand: string;
+	readonly resolveMergeConflictsCommand: string;
 
 	readonly completionsAdvancedSetting: string;
 	readonly completionsEnablementSetting: string;

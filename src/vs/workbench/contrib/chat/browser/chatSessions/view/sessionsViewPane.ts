@@ -5,7 +5,10 @@
 
 import * as DOM from '../../../../../../base/browser/dom.js';
 import { append, $ } from '../../../../../../base/browser/dom.js';
+import { IActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionbar.js';
+import { IBaseActionViewItemOptions } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { ITreeContextMenuEvent } from '../../../../../../base/browser/ui/tree/tree.js';
+import { Action, IAction } from '../../../../../../base/common/actions.js';
 import { coalesce } from '../../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { FuzzyScore } from '../../../../../../base/common/filters.js';
@@ -13,8 +16,9 @@ import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
 import { truncate } from '../../../../../../base/common/strings.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import * as nls from '../../../../../../nls.js';
+import { DropdownWithPrimaryActionViewItem } from '../../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { getActionBarActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { IMenuService, MenuId } from '../../../../../../platform/actions/common/actions.js';
+import { IMenuService, MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -43,7 +47,7 @@ import { IChatEditorOptions } from '../../chatEditor.js';
 import { ChatEditorInput } from '../../chatEditorInput.js';
 import { ChatViewPane } from '../../chatViewPane.js';
 import { ChatSessionTracker } from '../chatSessionTracker.js';
-import { ChatSessionItemWithProvider, findExistingChatEditorByUri, isLocalChatSessionItem, getSessionItemContextOverlay } from '../common.js';
+import { ChatSessionItemWithProvider, findExistingChatEditorByUri, isLocalChatSessionItem, getSessionItemContextOverlay, NEW_CHAT_SESSION_ACTION_ID } from '../common.js';
 import { LocalChatSessionsProvider } from '../localChatSessionsProvider.js';
 import { GettingStartedDelegate, GettingStartedRenderer, IGettingStartedItem, SessionsDataSource, SessionsDelegate, SessionsRenderer } from './sessionsTreeRenderer.js';
 
@@ -119,6 +123,65 @@ export class SessionsViewPane extends ViewPane {
 
 	override shouldShowWelcome(): boolean {
 		return this._isEmpty;
+	}
+
+	public override createActionViewItem(action: IAction, options: IBaseActionViewItemOptions): IActionViewItem | undefined {
+		if (action.id.startsWith(NEW_CHAT_SESSION_ACTION_ID)) {
+			return this.getChatSessionDropdown(action, options);
+		}
+		return super.createActionViewItem(action, options);
+	}
+
+	private getChatSessionDropdown(defaultAction: IAction, options: IBaseActionViewItemOptions) {
+		const primaryAction = this.instantiationService.createInstance(MenuItemAction, {
+			id: defaultAction.id,
+			title: defaultAction.label,
+			icon: Codicon.plus,
+		}, undefined, undefined, undefined, undefined);
+
+		const menu = this.menuService.createMenu(MenuId.ChatSessionsMenu, this.contextKeyService);
+
+		const actions = menu.getActions({ shouldForwardArgs: true });
+		const primaryActions = getActionBarActions(
+			actions,
+			'submenu',
+		).primary.filter(action => {
+			if (action instanceof MenuItemAction && defaultAction instanceof MenuItemAction) {
+				if (!action.item.source?.id || !defaultAction.item.source?.id) {
+					return false;
+				}
+				if (action.item.source.id === defaultAction.item.source.id) {
+					return true;
+				}
+			}
+			return false;
+		});
+
+		if (!primaryActions || primaryActions.length === 0) {
+			return;
+		}
+
+		const dropdownAction = new Action(
+			'selectNewChatSessionOption',
+			nls.localize('chatSession.selectOption', 'More...'),
+			'codicon-chevron-down',
+			true
+		);
+
+		const dropdownActions: IAction[] = [];
+
+		primaryActions.forEach(element => {
+			dropdownActions.push(element);
+		});
+
+		return this.instantiationService.createInstance(
+			DropdownWithPrimaryActionViewItem,
+			primaryAction,
+			dropdownAction,
+			dropdownActions,
+			'',
+			options
+		);
 	}
 
 	public refreshTree(): void {
@@ -213,6 +276,8 @@ export class SessionsViewPane extends ViewPane {
 	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
+		container.classList.add('chat-sessions-view');
+
 		// For Getting Started view (null provider), show simple list
 		if (this.provider === null) {
 			this.renderGettingStartedList(container);
@@ -230,8 +295,7 @@ export class SessionsViewPane extends ViewPane {
 		const accessibilityProvider = new SessionsAccessibilityProvider();
 
 		// Use the existing ResourceLabels service for consistent styling
-		const labels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
-		const renderer = this.instantiationService.createInstance(SessionsRenderer, labels);
+		const renderer = this.instantiationService.createInstance(SessionsRenderer);
 		this._register(renderer);
 
 		const getResourceForElement = (element: ChatSessionItemWithProvider): URI | null => {
@@ -282,6 +346,7 @@ export class SessionsViewPane extends ViewPane {
 				overrideStyles: {
 					listBackground: undefined
 				},
+				paddingBottom: SessionsDelegate.ITEM_HEIGHT,
 				setRowLineHeight: false
 
 			}
@@ -301,6 +366,17 @@ export class SessionsViewPane extends ViewPane {
 		this._register(this.tree.onContextMenu((e) => {
 			if (e.element && e.element.id !== LocalChatSessionsProvider.HISTORY_NODE_ID) {
 				this.showContextMenu(e);
+			}
+		}));
+
+		this._register(this.tree.onMouseDblClick(e => {
+			const scrollingByPage = this.configurationService.getValue<boolean>('workbench.list.scrollByPage');
+			if (e.element === null && !scrollingByPage) {
+				if (this.provider?.chatSessionType && this.provider.chatSessionType !== 'local') {
+					this.commandService.executeCommand(`workbench.action.chat.openNewSessionEditor.${this.provider?.chatSessionType}`);
+				} else {
+					this.commandService.executeCommand('workbench.action.openChat');
+				}
 			}
 		}));
 

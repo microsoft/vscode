@@ -29,12 +29,15 @@ export class ChatElicitationRequestPart extends Disposable implements IChatElici
 		public readonly reject?: () => Promise<void>,
 		public readonly source?: ToolDataSource,
 		public readonly moreActions?: IAction[],
+		public readonly onHide?: () => void,
 	) {
 		super();
 	}
 
 	hide(): void {
 		this._isHiddenValue.set(true, undefined, undefined);
+		this.onHide?.();
+		this.dispose();
 	}
 
 	public toJSON() {

@@ -6,22 +6,24 @@
 import * as vscode from 'vscode';
 import { DeferredPromise, raceCancellationError, Sequencer, timeout } from '../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { CancellationError } from '../../../base/common/errors.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { AUTH_SERVER_METADATA_DISCOVERY_PATH, getDefaultMetadataForUrl, IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata, isAuthorizationProtectedResourceMetadata, isAuthorizationServerMetadata, OPENID_CONNECT_DISCOVERY_PATH, parseWWWAuthenticateHeader } from '../../../base/common/oauth.js';
 import { SSEParser } from '../../../base/common/sseParser.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import { ConfigurationTarget } from '../../../platform/configuration/common/configuration.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { canLog, ILogService, LogLevel } from '../../../platform/log/common/log.js';
 import { StorageScope } from '../../../platform/storage/common/storage.js';
 import { extensionPrefixedIdentifier, McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerTransportHTTP, McpServerTransportType, UserInteractionRequiredError } from '../../contrib/mcp/common/mcpTypes.js';
-import { ExtHostMcpShape, MainContext, MainThreadMcpShape } from './extHost.protocol.js';
+import { MCP } from '../../contrib/mcp/common/modelContextProtocol.js';
+import { ExtHostMcpShape, IStartMcpOptions, MainContext, MainThreadMcpShape } from './extHost.protocol.js';
+import { IExtHostInitDataService } from './extHostInitDataService.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 import * as Convert from './extHostTypeConverters.js';
-import { AUTH_SERVER_METADATA_DISCOVERY_PATH, OPENID_CONNECT_DISCOVERY_PATH, getDefaultMetadataForUrl, IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata, isAuthorizationProtectedResourceMetadata, isAuthorizationServerMetadata, parseWWWAuthenticateHeader } from '../../../base/common/oauth.js';
-import { URI } from '../../../base/common/uri.js';
-import { MCP } from '../../contrib/mcp/common/modelContextProtocol.js';
-import { CancellationError } from '../../../base/common/errors.js';
-import { ConfigurationTarget } from '../../../platform/configuration/common/configuration.js';
-import { IExtHostInitDataService } from './extHostInitDataService.js';
+import { IExtHostVariableResolverProvider } from './extHostVariableResolverService.js';
+import { IExtHostWorkspace } from './extHostWorkspace.js';
 
 export const IExtHostMpcService = createDecorator<IExtHostMpcService>('IExtHostMpcService');
 
@@ -32,7 +34,7 @@ export interface IExtHostMpcService extends ExtHostMcpShape {
 export class ExtHostMcpService extends Disposable implements IExtHostMpcService {
 	protected _proxy: MainThreadMcpShape;
 	private readonly _initialProviderPromises = new Set<Promise<void>>();
-	private readonly _sseEventSources = this._register(new DisposableMap<number, McpHTTPHandle>());
+	protected readonly _sseEventSources = this._register(new DisposableMap<number, McpHTTPHandle>());
 	private readonly _unresolvedMcpServers = new Map</* collectionId */ string, {
 		provider: vscode.McpServerDefinitionProvider;
 		servers: vscode.McpServerDefinition[];
@@ -40,24 +42,37 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
-		@ILogService private readonly _logService: ILogService,
-		@IExtHostInitDataService private readonly _extHostInitData: IExtHostInitDataService
+		@ILogService protected readonly _logService: ILogService,
+		@IExtHostInitDataService private readonly _extHostInitData: IExtHostInitDataService,
+		@IExtHostWorkspace protected readonly _workspaceService: IExtHostWorkspace,
+		@IExtHostVariableResolverProvider private readonly _variableResolver: IExtHostVariableResolverProvider,
 	) {
 		super();
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadMcp);
 	}
 
-	$startMcp(id: number, launch: McpServerLaunch.Serialized, errorOnUserInteraction?: boolean): void {
-		this._startMcp(id, McpServerLaunch.fromSerialized(launch), errorOnUserInteraction);
+	$startMcp(id: number, opts: IStartMcpOptions): void {
+		this._startMcp(id, McpServerLaunch.fromSerialized(opts.launch), opts.defaultCwd && URI.revive(opts.defaultCwd), opts.errorOnUserInteraction);
 	}
 
-	protected _startMcp(id: number, launch: McpServerLaunch, errorOnUserInteraction?: boolean): void {
+	protected _startMcp(id: number, launch: McpServerLaunch, _defaultCwd?: URI, errorOnUserInteraction?: boolean): void {
 		if (launch.type === McpServerTransportType.HTTP) {
 			this._sseEventSources.set(id, new McpHTTPHandle(id, launch, this._proxy, this._logService, errorOnUserInteraction));
 			return;
 		}
 
 		throw new Error('not implemented');
+	}
+
+	async $substituteVariables<T>(_workspaceFolder: UriComponents | undefined, value: T): Promise<T> {
+		const folderURI = URI.revive(_workspaceFolder);
+		const folder = folderURI && await this._workspaceService.resolveWorkspaceFolder(folderURI);
+		const variableResolver = await this._variableResolver.getResolver();
+		return variableResolver.resolveAsync(folder && {
+			uri: folder.uri,
+			name: folder.name,
+			index: folder.index,
+		}, value) as T;
 	}
 
 	$stopMcp(id: number): void {
@@ -186,7 +201,7 @@ const REDIRECT_STATUS_CODES = [301, 302, 303, 307, 308];
  * server is legacy SSE, it should return some 4xx status in that case,
  * and we'll automatically fall back to SSE and res
  */
-class McpHTTPHandle extends Disposable {
+export class McpHTTPHandle extends Disposable {
 	private readonly _requestSequencer = new Sequencer();
 	private readonly _postEndpoint = new DeferredPromise<{ url: string; transport: McpServerTransportHTTP }>();
 	private _mode: HttpModeT = { value: HttpMode.Unknown };
@@ -315,7 +330,7 @@ class McpHTTPHandle extends Disposable {
 		}
 	}
 
-	private async _populateAuthMetadata(mcpUrl: string, originalResponse: Response): Promise<void> {
+	private async _populateAuthMetadata(mcpUrl: string, originalResponse: CommonResponse): Promise<void> {
 		// If there is a resource_metadata challenge, use that to get the oauth server. This is done in 2 steps.
 		// First, extract the resource_metada challenge from the WWW-Authenticate header (if available)
 		let resourceMetadataChallenge: string | undefined;
@@ -471,7 +486,7 @@ class McpHTTPHandle extends Disposable {
 		throw new Error(`Invalid authorization server metadata: ${JSON.stringify(body)}`);
 	}
 
-	private async _handleSuccessfulStreamableHttp(res: Response, message: string) {
+	private async _handleSuccessfulStreamableHttp(res: CommonResponse, message: string) {
 		if (res.status === 202) {
 			return; // no body
 		}
@@ -516,7 +531,7 @@ class McpHTTPHandle extends Disposable {
 		for (let retry = 0; !this._store.isDisposed; retry++) {
 			await timeout(Math.min(retry * 1000, 30_000), this._cts.token);
 
-			let res: Response;
+			let res: CommonResponse;
 			try {
 				const headers: Record<string, string> = {
 					...Object.fromEntries(this._launch.headers),
@@ -584,7 +599,7 @@ class McpHTTPHandle extends Disposable {
 		};
 		await this._addAuthHeader(headers);
 
-		let res: Response;
+		let res: CommonResponse;
 		try {
 			res = await this._fetchWithAuthRetry(
 				this._launch.uri.toString(true),
@@ -643,7 +658,7 @@ class McpHTTPHandle extends Disposable {
 	}
 
 	/** Generic handle to pipe a response into an SSE parser. */
-	private async _doSSE(parser: SSEParser, res: Response) {
+	private async _doSSE(parser: SSEParser, res: CommonResponse) {
 		if (!res.body) {
 			return;
 		}
@@ -692,7 +707,7 @@ class McpHTTPHandle extends Disposable {
 		}
 	}
 
-	private async _getErrText(res: Response) {
+	private async _getErrText(res: CommonResponse) {
 		try {
 			return await res.text();
 		} catch {
@@ -705,7 +720,7 @@ class McpHTTPHandle extends Disposable {
 	 * If the initial request returns 401 and we don't have auth metadata,
 	 * it will populate the auth metadata and retry once.
 	 */
-	private async _fetchWithAuthRetry(mcpUrl: string, init: MinimalRequestInit, headers: Record<string, string>): Promise<Response> {
+	private async _fetchWithAuthRetry(mcpUrl: string, init: MinimalRequestInit, headers: Record<string, string>): Promise<CommonResponse> {
 		const doFetch = () => this._fetch(mcpUrl, init);
 
 		let res = await doFetch();
@@ -723,7 +738,7 @@ class McpHTTPHandle extends Disposable {
 		return res;
 	}
 
-	private async _fetch(url: string, init: MinimalRequestInit): Promise<Response> {
+	private async _fetch(url: string, init: MinimalRequestInit): Promise<CommonResponse> {
 		if (canLog(this._logService.getLevel(), LogLevel.Trace)) {
 			const traceObj: any = { ...init, headers: { ...init.headers } };
 			if (traceObj.body) {
@@ -736,9 +751,9 @@ class McpHTTPHandle extends Disposable {
 		}
 
 		let currentUrl = url;
-		let response!: Response;
+		let response!: CommonResponse;
 		for (let redirectCount = 0; redirectCount < MAX_FOLLOW_REDIRECTS; redirectCount++) {
-			response = await fetch(currentUrl, {
+			response = await this._fetchInternal(currentUrl, {
 				...init,
 				signal: this._abortCtrl.signal,
 				redirect: 'manual'
@@ -775,12 +790,31 @@ class McpHTTPHandle extends Disposable {
 
 		return response;
 	}
+
+	protected _fetchInternal(url: string, init?: CommonRequestInit): Promise<CommonResponse> {
+		return fetch(url, init);
+	}
 }
 
 interface MinimalRequestInit {
 	method: string;
 	headers: Record<string, string>;
 	body?: Uint8Array<ArrayBuffer>;
+}
+
+export interface CommonRequestInit extends MinimalRequestInit {
+	signal?: AbortSignal;
+	redirect?: RequestRedirect;
+}
+
+export interface CommonResponse {
+	status: number;
+	statusText: string;
+	headers: Headers;
+	body?: ReadableStream | null;
+	url: string;
+	json(): Promise<any>;
+	text(): Promise<string>;
 }
 
 function isJSON(str: string): boolean {

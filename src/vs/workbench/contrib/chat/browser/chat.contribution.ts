@@ -20,7 +20,7 @@ import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurati
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { McpAccessValue, McpAutoStartValue, mcpAccessConfig, mcpAutoStartConfig, mcpGalleryServiceUrlConfig } from '../../../../platform/mcp/common/mcpManagement.js';
+import { McpAccessValue, McpAutoStartValue, mcpAccessConfig, mcpAutoStartConfig, mcpGalleryServiceEnablementConfig, mcpGalleryServiceUrlConfig } from '../../../../platform/mcp/common/mcpManagement.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
 import { Extensions, IConfigurationMigrationRegistry } from '../../../common/configuration.js';
@@ -52,11 +52,12 @@ import { ILanguageModelStatsService, LanguageModelStatsService } from '../common
 import { ILanguageModelToolsService } from '../common/languageModelToolsService.js';
 import { PromptsConfig } from '../common/promptSyntax/config/config.js';
 import { INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, MODE_DEFAULT_SOURCE_FOLDER, MODE_FILE_EXTENSION, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../common/promptSyntax/config/promptFileLocations.js';
-import { registerPromptFileContributions } from '../common/promptSyntax/promptFileContributions.js';
+import { PromptLanguageFeaturesProvider } from '../common/promptSyntax/promptFileContributions.js';
 import { INSTRUCTIONS_DOCUMENTATION_URL, MODE_DOCUMENTATION_URL, PROMPT_DOCUMENTATION_URL } from '../common/promptSyntax/promptTypes.js';
 import { IPromptsService } from '../common/promptSyntax/service/promptsService.js';
 import { PromptsService } from '../common/promptSyntax/service/promptsServiceImpl.js';
 import { LanguageModelToolsExtensionPointHandler } from '../common/tools/languageModelToolsContribution.js';
+import { ChatPromptFilesExtensionPointHandler } from '../common/promptSyntax/chatPromptFilesContribution.js';
 import { BuiltinToolsContribution } from '../common/tools/tools.js';
 import { IVoiceChatService, VoiceChatService } from '../common/voiceChatService.js';
 import { registerChatAccessibilityActions } from './actions/chatAccessibilityActions.js';
@@ -71,6 +72,7 @@ import { registerChatDeveloperActions } from './actions/chatDeveloperActions.js'
 import { ChatSubmitAction, registerChatExecuteActions } from './actions/chatExecuteActions.js';
 import { registerChatFileTreeActions } from './actions/chatFileTreeActions.js';
 import { ChatGettingStartedContribution } from './actions/chatGettingStarted.js';
+import { registerChatPromptNavigationActions } from './actions/chatPromptNavigationActions.js';
 import { registerChatExportActions } from './actions/chatImportExport.js';
 import { registerLanguageModelActions } from './actions/chatLanguageModelActions.js';
 import { registerMoveActions } from './actions/chatMoveActions.js';
@@ -307,9 +309,14 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.EmptyStateHistoryEnabled]: {
 			type: 'boolean',
-			default: true,
+			default: product.quality === 'insiders',
 			description: nls.localize('chat.emptyState.history.enabled', "Show recent chat history on the empty chat state."),
 			tags: ['experimental']
+		},
+		[ChatConfiguration.NotifyWindowOnResponseReceived]: {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('chat.notifyWindowOnResponseReceived', "Controls whether a chat session should notify the user when a response is received while the window is not in focus. This includes a window badge as well as notification toast."),
 		},
 		'chat.checkpoints.enabled': {
 			type: 'boolean',
@@ -448,6 +455,13 @@ configurationRegistry.registerConfiguration({
 			additionalProperties: false,
 			default: Object.fromEntries(allDiscoverySources.map(k => [k, false])),
 			markdownDescription: nls.localize('mcp.discovery.enabled', "Configures discovery of Model Context Protocol servers from configuration from various other applications."),
+		},
+		[mcpGalleryServiceEnablementConfig]: {
+			type: 'boolean',
+			default: false,
+			tags: ['preview'],
+			description: nls.localize('chat.mcp.gallery.enabled', "Enables the default Marketplace for Model Context Protocol (MCP) servers."),
+			included: product.quality === 'stable'
 		},
 		[mcpGalleryServiceUrlConfig]: {
 			type: 'string',
@@ -889,6 +903,7 @@ registerWorkbenchContribution2(ChatResolverContribution.ID, ChatResolverContribu
 registerWorkbenchContribution2(ChatSlashStaticSlashCommandsContribution.ID, ChatSlashStaticSlashCommandsContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ChatExtensionPointHandler.ID, ChatExtensionPointHandler, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(LanguageModelToolsExtensionPointHandler.ID, LanguageModelToolsExtensionPointHandler, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(ChatPromptFilesExtensionPointHandler.ID, ChatPromptFilesExtensionPointHandler, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatCompatibilityNotifier.ID, ChatCompatibilityNotifier, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(CopilotTitleBarMenuRendering.ID, CopilotTitleBarMenuRendering, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(CodeBlockActionRendering.ID, CodeBlockActionRendering, WorkbenchPhase.BlockRestore);
@@ -912,6 +927,7 @@ registerWorkbenchContribution2(PromptUrlHandler.ID, PromptUrlHandler, WorkbenchP
 registerWorkbenchContribution2(ChatSessionsView.ID, ChatSessionsView, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatEditingNotebookFileSystemProviderContrib.ID, ChatEditingNotebookFileSystemProviderContrib, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(UserToolSetsContributions.ID, UserToolSetsContributions, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2(PromptLanguageFeaturesProvider.ID, PromptLanguageFeaturesProvider, WorkbenchPhase.Eventually);
 
 registerChatActions();
 registerChatAccessibilityActions();
@@ -919,6 +935,7 @@ registerChatCopyActions();
 registerChatCodeBlockActions();
 registerChatCodeCompareBlockActions();
 registerChatFileTreeActions();
+registerChatPromptNavigationActions();
 registerChatTitleActions();
 registerChatExecuteActions();
 registerQuickChatActions();
@@ -960,10 +977,6 @@ registerSingleton(IChatAttachmentResolveService, ChatAttachmentResolveService, I
 registerSingleton(IChatTodoListService, ChatTodoListService, InstantiationType.Delayed);
 registerSingleton(IChatOutputRendererService, ChatOutputRendererService, InstantiationType.Delayed);
 registerSingleton(IChatLayoutService, ChatLayoutService, InstantiationType.Delayed);
-
-
-registerPromptFileContributions();
-
 
 registerAction2(ConfigureToolSets);
 registerAction2(RenameChatSessionAction);
