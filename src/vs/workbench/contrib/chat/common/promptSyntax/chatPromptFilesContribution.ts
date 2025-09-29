@@ -90,7 +90,9 @@ export class ChatPromptFilesExtensionPointHandler implements IWorkbenchContribut
 	private handle(extensionPoint: extensionsRegistry.IExtensionPoint<IRawChatFileContribution[]>, contributionPoint: ChatContributionPoint) {
 		extensionPoint.setHandler((_extensions, delta) => {
 			for (const ext of delta.added) {
-				checkProposedApiEnabled(ext.description, 'chatParticipantPrivate');
+				if (contributionPoint === 'chatModes') {
+					checkProposedApiEnabled(ext.description, 'chatParticipantPrivate');
+				}
 				const type = pointToType(contributionPoint);
 				for (const raw of ext.value) {
 					if (!raw.name || !raw.name.match(/^[\w.-]+$/)) {
