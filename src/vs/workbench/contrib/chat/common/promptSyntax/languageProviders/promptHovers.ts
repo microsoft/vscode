@@ -74,7 +74,7 @@ export class PromptHoverProvider implements HoverProvider {
 			}
 			const applyToRange = header.getAttribute('applyTo')?.range;
 			if (applyToRange?.containsPosition(position)) {
-				return this.createHover(localize('promptHeader.instructions.applyToRange', 'One or more glob pattern (separated by comma) that describe for which files the instructions apply to. Based on these patterns, the file is automatically included in the prompt, when the context contains a file that matches one or more of these patterns. Use `**` when you want this file to always be added.\nExample: **/*.ts, **/*.js, client/**'), applyToRange);
+				return this.createHover(localize('promptHeader.instructions.applyToRange', 'One or more glob pattern (separated by comma) that describe for which files the instructions apply to. Based on these patterns, the file is automatically included in the prompt, when the context contains a file that matches one or more of these patterns. Use `**` when you want this file to always be added.\nExample: `**/*.ts`, `**/*.js`, `client/**`'), applyToRange);
 			}
 
 		} else if (promptType === PromptsType.mode) {
