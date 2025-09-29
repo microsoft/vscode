@@ -21,7 +21,7 @@ const mcpAllowableContentTypes: readonly string[] = [
 interface IIcon {
 	/** URI the image can be loaded from */
 	src: URI;
-	/** Sizes of the icon in asending order. */
+	/** Sizes of the icon in ascending order. */
 	sizes: { width: number; height: number }[];
 }
 

@@ -9,7 +9,6 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { NullLogger } from '../../../../../platform/log/common/log.js';
 import { parseAndValidateMcpIcon } from '../../common/mcpIcons.js';
 import { McpServerTransportHTTP, McpServerTransportStdio, McpServerTransportType } from '../../common/mcpTypes.js';
-import { MCP } from '../../common/modelContextProtocol.js';
 
 suite('MCP Icons', () => {
 	suite('parseAndValidateMcpIcon', () => {
