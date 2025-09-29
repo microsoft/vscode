@@ -13889,9 +13889,9 @@ declare module 'vscode' {
 		 * symbolic link as it was provided for watching and not the target.
 		 *
 		 * *Note* that file events from deleting a folder may not include events for contained files but
-		 * only the most top level folder that was deleted. This helps reduce the overhead of file events
-		 * being sent. If you need to know about all deleted files, you have to watch with `**` and deal
-		 * with all file events yourself.
+		 * only the most top level folder that was deleted. This is a performance optimisation to reduce
+		 * the overhead of file events being sent. If you need to know about all deleted files, you have
+		 * to watch with `**` and deal with all file events yourself.
 		 *
 		 * ### Examples
 		 *
