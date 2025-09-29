@@ -6,8 +6,10 @@
 import assert from 'assert';
 import { SymbolKind, DocumentSymbol } from '../../../../../editor/common/languages.js';
 import { Range } from '../../../../../editor/common/core/range.js';
-import { DocumentSymbolComparator } from '../../../../contrib/codeEditor/browser/outline/documentSymbolsTree.js';
+import { DocumentSymbolComparator, DocumentSymbolItem } from '../../../../contrib/codeEditor/browser/outline/documentSymbolsTree.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { OutlineElement } from '../../../../../editor/contrib/documentSymbols/browser/outlineModel.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 
 suite('DocumentSymbolComparator Case Sensitivity', function () {
 
@@ -42,24 +44,21 @@ suite('DocumentSymbolComparator Case Sensitivity', function () {
 
 	test('case sensitive sorting behavior', function () {
 		const comparator = new DocumentSymbolComparator();
-		
+
 		// Test with case insensitive (default)
 		comparator.setCaseSensitive(false);
-		
-		// Test that case insensitive sorting works by checking collator behavior
-		// We test the collator directly since we can't easily create OutlineElements
-		const collator = (comparator as any)._getCollator().value;
-		
-		// Case insensitive: 'Apple' and 'apple' should be equal
-		assert.strictEqual(collator.compare('Apple', 'apple'), 0, 'Case insensitive: Apple and apple should be equal');
-		
+
+
+		function makeElement(name: string): DocumentSymbolItem {
+			return new OutlineElement(generateUuid(), undefined, createDocumentSymbol(name));
+		}
+
 		// Now test case sensitive
 		comparator.setCaseSensitive(true);
-		const caseSensitiveCollator = (comparator as any)._getCollator().value;
-		
+
 		// Case sensitive: 'Apple' should come before 'apple' (uppercase before lowercase)
-		assert.ok(caseSensitiveCollator.compare('Apple', 'apple') < 0, 'Case sensitive: Apple should come before apple');
-		assert.ok(caseSensitiveCollator.compare('Banana', 'apple') < 0, 'Case sensitive: Banana should come before apple');
-		assert.ok(caseSensitiveCollator.compare('apple', 'Banana') > 0, 'Case sensitive: apple should come after Banana');
+		assert.ok(comparator.compareByName(makeElement('Apple'), makeElement('apple')) > 0);
+		assert.ok(comparator.compareByName(makeElement('Banana'), makeElement('apple')) > 0);
+		assert.ok(comparator.compareByName(makeElement('apple'), makeElement('Banana')) < 0);
 	});
 });
