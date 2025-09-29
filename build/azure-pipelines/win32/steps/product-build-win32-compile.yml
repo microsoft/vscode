@@ -87,40 +87,6 @@ steps:
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Authentication
 
-  # Remove once https://github.com/parcel-bundler/watcher/pull/202 is merged.
-  - pwsh: |
-      $includes = @'
-        {
-          'target_defaults': {
-            'conditions': [
-              ['OS=="win"', {
-                "msvs_settings": {
-                  "VCCLCompilerTool": {
-                    "AdditionalOptions": [
-                      "/guard:cf",
-                      "/w34244",
-                      "/w34267",
-                    ]
-                  },
-                  "VCLinkerTool": {
-                    "AdditionalOptions": [
-                      "/guard:cf",
-                    ]
-                  }
-                }
-              }]
-            ]
-          }
-        }
-      '@
-
-      if (!(Test-Path "~/.gyp")) {
-        mkdir "~/.gyp"
-      }
-      echo $includes > "~/.gyp/include.gypi"
-    displayName: Create include.gypi
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"

@@ -294,7 +294,6 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 
 	private async syncInstalledMcpServers(resetGallery?: boolean): Promise<void> {
 		const galleryMcpServerUrls: string[] = [];
-		const vscodeGalleryMcpServerNames: string[] = [];
 
 		for (const installed of this.local) {
 			if (installed.local?.source !== 'gallery') {
@@ -302,8 +301,6 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 			}
 			if (installed.local.galleryUrl) {
 				galleryMcpServerUrls.push(installed.local.galleryUrl);
-			} else if (!installed.local.manifest) {
-				vscodeGalleryMcpServerNames.push(installed.local.name);
 			}
 		}
 
@@ -311,13 +308,6 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 			const galleryServers = await this.mcpGalleryService.getMcpServersFromGallery(galleryMcpServerUrls);
 			if (galleryServers.length) {
 				await this.syncInstalledMcpServersWithGallery(galleryServers, false, resetGallery);
-			}
-		}
-
-		if (vscodeGalleryMcpServerNames.length) {
-			const galleryServers = await this.mcpGalleryService.getMcpServersFromVSCodeGallery(vscodeGalleryMcpServerNames);
-			if (galleryServers.length) {
-				await this.syncInstalledMcpServersWithGallery(galleryServers, true, resetGallery);
 			}
 		}
 	}
@@ -648,21 +638,10 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 
 		try {
 			const { name, inputs, gallery, ...config } = parsed;
-
-			if (gallery || !config || Object.keys(config).length === 0) {
-				const [galleryServer] = await this.mcpGalleryService.getMcpServersFromVSCodeGallery([name]);
-				if (!galleryServer) {
-					throw new Error(`MCP server '${name}' not found in gallery`);
-				}
-				const local = this.local.find(e => e.name === name && e.local?.scope !== LocalMcpServerScope.Workspace)
-					?? this.instantiationService.createInstance(McpWorkbenchServer, e => this.getInstallState(e), undefined, galleryServer, undefined);
-				this.open(local);
-			} else {
-				if (config.type === undefined) {
-					(<Mutable<IMcpServerConfiguration>>config).type = (<IMcpStdioServerConfiguration>parsed).command ? McpServerType.LOCAL : McpServerType.REMOTE;
-				}
-				this.open(this.instantiationService.createInstance(McpWorkbenchServer, e => this.getInstallState(e), undefined, undefined, { name, config, inputs }));
+			if (config.type === undefined) {
+				(<Mutable<IMcpServerConfiguration>>config).type = (<IMcpStdioServerConfiguration>parsed).command ? McpServerType.LOCAL : McpServerType.REMOTE;
 			}
+			this.open(this.instantiationService.createInstance(McpWorkbenchServer, e => this.getInstallState(e), undefined, undefined, { name, config, inputs }));
 		} catch (e) {
 			// ignore
 		}

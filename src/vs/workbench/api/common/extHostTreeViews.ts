@@ -410,11 +410,15 @@ class ExtHostTreeView<T> extends Disposable {
 					const _promiseCallback = promiseCallback;
 					refreshingPromise = null;
 					const childrenToClear = Array.from(this._nodesToClear);
+					this._nodesToClear.clear();
 					return this._refresh(elements).then(() => {
 						this._clearNodes(childrenToClear);
 						return _promiseCallback();
-					}).catch(_ => {
+					}).catch(e => {
+						const message = e instanceof Error ? e.message : JSON.stringify(e);
 						this._clearNodes(childrenToClear);
+						this._logService.error(`Unable to refresh tree view ${this._viewId}: ${message}`);
+						return _promiseCallback();
 					});
 				});
 			}
