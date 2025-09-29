@@ -320,7 +320,7 @@ extends:
               VSCODE_ARCH: arm64
           - template: build/azure-pipelines/darwin/product-build-darwin-node-modules.yml@self
             parameters:
-              VSCODE_ARCH: arm64
+              VSCODE_ARCH: x64
           - template: build/azure-pipelines/web/product-build-web-node-modules.yml@self
 
       - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_COMPILE_ONLY, false)) }}:
