@@ -373,10 +373,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this._attemptedWorkingSetEntriesCount;
 	}
 
-	// Persist simple todo checkbox state per editing session
-	private _editingTodosStateSession: string | undefined;
-	private _editingTodosState: Map<string, boolean> = new Map();
-
 	private readonly getInputState: () => IChatInputState;
 
 	/**
@@ -1593,9 +1589,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			if (chatEditingSession.chatSessionId !== this._lastEditingSessionId) {
 				this._workingSetCollapsed = true;
 				// Reset todo state when session changes
-				if (this._editingTodosStateSession !== chatEditingSession.chatSessionId) {
-					this._editingTodosStateSession = chatEditingSession.chatSessionId;
-					this._editingTodosState.clear();
+				if (this._lastEditingSessionId !== chatEditingSession.chatSessionId) {
 					// Clear the todo widget when session changes
 					this._chatInputTodoListWidget.value?.clear(chatEditingSession.chatSessionId, true);
 				}
@@ -1634,7 +1628,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// Render the todo list widget in the chat input area
 			if (!this._chatInputTodoListWidget.value) {
 				// Create the widget instance
-				const widget = this.instantiationService.createInstance(ChatTodoListWidget);
+				const widget = this._chatEditingTodosDisposables.add(this.instantiationService.createInstance(ChatTodoListWidget));
 				this._chatInputTodoListWidget.value = widget;
 
 				// Add the widget's DOM node as the first child of the container
@@ -1653,9 +1647,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 			// Render the widget with the current session
 			this._chatInputTodoListWidget.value.render(chatEditingSession.chatSessionId);
-		} else {
-			// Clear the widget if it exists
-			this._chatInputTodoListWidget.clear();
 		}
 
 		// If there is no working set to render, clear only the working set container and return
@@ -1674,7 +1665,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return;
 		}
 
-		// Summary of number of files changed (working set)
 		const innerContainer = this.chatEditingSessionWidgetContainer.querySelector('.chat-editing-session-container.show-file-icons') as HTMLElement ?? dom.append(this.chatEditingSessionWidgetContainer, $('.chat-editing-session-container.show-file-icons'));
 
 		entries.sort((a, b) => {
