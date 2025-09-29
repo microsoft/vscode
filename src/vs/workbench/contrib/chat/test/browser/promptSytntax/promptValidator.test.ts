@@ -8,7 +8,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { NewPromptsParser } from '../../../common/promptSyntax/service/newPromptsParser.js';
-import { PromptValidator } from '../../../common/promptSyntax/service/promptValidator.js';
+import { PromptValidator } from '../../../common/promptSyntax/languageProviders/promptValidator.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { PromptsConfig } from '../../../common/promptSyntax/config/config.js';

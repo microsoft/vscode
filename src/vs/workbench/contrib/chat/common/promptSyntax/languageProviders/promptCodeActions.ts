@@ -4,38 +4,32 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { CodeActionContext, CodeActionList, CodeActionProvider, ProviderResult, TextEdit, WorkspaceEdit } from '../../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
-import { ILanguageFeaturesService } from '../../../../../../editor/common/services/languageFeatures.js';
 import { localize } from '../../../../../../nls.js';
 import { ILanguageModelToolsService } from '../../languageModelToolsService.js';
-import { ALL_PROMPTS_LANGUAGE_SELECTOR, getPromptsTypeForLanguageId } from '../promptTypes.js';
+import { getPromptsTypeForLanguageId } from '../promptTypes.js';
 import { IPromptsService } from '../service/promptsService.js';
 import { IValue } from '../service/newPromptsParser.js';
 import { Selection } from '../../../../../../editor/common/core/selection.js';
 
-export class PromptCodeActionProvider extends Disposable implements CodeActionProvider {
+export class PromptCodeActionProvider implements CodeActionProvider {
 	/**
 	 * Debug display name for this provider.
 	 */
-	public readonly _debugDisplayName: string = 'PromptHoverProvider';
+	public readonly _debugDisplayName: string = 'PromptCodeActionProvider';
 
 	constructor(
 		@IPromptsService private readonly promptsService: IPromptsService,
-		@ILanguageFeaturesService private readonly languageService: ILanguageFeaturesService,
 		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService
 	) {
-		super();
-
-		this._register(this.languageService.codeActionProvider.register(ALL_PROMPTS_LANGUAGE_SELECTOR, this));
 	}
 
 	provideCodeActions(model: ITextModel, range: Range | Selection, context: CodeActionContext, token: CancellationToken): ProviderResult<CodeActionList> {
 		const promptType = getPromptsTypeForLanguageId(model.getLanguageId());
 		if (!promptType) {
-			// if the model is not a prompt, we don't provide any hovers
+			// if the model is not a prompt, we don't provide any code actions
 			return undefined;
 		}
 
