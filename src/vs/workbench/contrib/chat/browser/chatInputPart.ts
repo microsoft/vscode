@@ -1012,7 +1012,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		// Clear attached context, fire event to clear input state, and clear the input editor
 		this.attachmentModel.clear();
-		this._chatInputTodoListWidget.value?.clear(this._lastEditingSessionId, true);
 		this._onDidLoadInputState.fire({});
 		if (this.accessibilityService.isScreenReaderOptimized() && isMacintosh) {
 			this._acceptInputForVoiceover();
