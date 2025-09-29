@@ -235,7 +235,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		]);
 
 		if (race.kind === 'decision') {
-			try { continuePollingPart?.hide(); continuePollingPart?.dispose(); } catch { /* noop */ }
+			try { continuePollingPart?.hide(); } catch { /* noop */ }
 			continuePollingPart = undefined;
 
 			// User explicitly declined to keep waiting, so finish with the timed-out result
@@ -636,10 +636,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			this._promptPart = thePart;
 		});
 
-		this._register(token.onCancellationRequested(() => {
-			part.hide();
-			part.dispose();
-		}));
+		this._register(token.onCancellationRequested(() => part.hide()));
 
 		return { promise, part };
 	}
