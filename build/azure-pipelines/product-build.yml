@@ -312,6 +312,12 @@ extends:
               parameters:
                 NPM_ARCH: arm
                 VSCODE_ARCH: armhf
+            - template: build/azure-pipelines/alpine/product-build-alpine-node-modules.yml@self
+              parameters:
+                VSCODE_ARCH: x64
+            - template: build/azure-pipelines/alpine/product-build-alpine-node-modules.yml@self
+              parameters:
+                VSCODE_ARCH: arm64
             - template: build/azure-pipelines/darwin/product-build-darwin-node-modules.yml@self
               parameters:
                 VSCODE_ARCH: arm64
