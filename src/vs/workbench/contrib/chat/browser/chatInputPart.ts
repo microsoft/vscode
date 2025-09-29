@@ -1640,7 +1640,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 		}
 
-		if (!chatEditingSession || !this.options.renderWorkingSet || entries.length === 0) {
+		if (!chatEditingSession || !this.options.renderWorkingSet || !entries.length) {
 			dom.clearNode(this.chatEditingSessionWidgetContainer);
 			this._chatEditsDisposables.clear();
 			this._chatEditList = undefined;
