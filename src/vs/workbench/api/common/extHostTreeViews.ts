@@ -410,11 +410,13 @@ class ExtHostTreeView<T> extends Disposable {
 					const _promiseCallback = promiseCallback;
 					refreshingPromise = null;
 					const childrenToClear = Array.from(this._nodesToClear);
+					this._nodesToClear.clear();
 					return this._refresh(elements).then(() => {
 						this._clearNodes(childrenToClear);
 						return _promiseCallback();
-					}).catch(_ => {
+					}).catch(e => {
 						this._clearNodes(childrenToClear);
+						throw e;
 					});
 				});
 			}
