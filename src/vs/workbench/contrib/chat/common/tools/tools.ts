@@ -29,7 +29,7 @@ export class BuiltinToolsContribution extends Disposable implements IWorkbenchCo
 		// Check if write-only mode is enabled for the todo tool
 		const writeOnlyMode = this.configurationService.getValue<boolean>(TodoListToolWriteOnlySettingId) === true;
 		const todoToolData = createManageTodoListToolData(writeOnlyMode);
-		const manageTodoListTool = instantiationService.createInstance(ManageTodoListTool, writeOnlyMode);
+		const manageTodoListTool = this._register(instantiationService.createInstance(ManageTodoListTool, writeOnlyMode));
 		this._register(toolsService.registerTool(todoToolData, manageTodoListTool));
 
 		// Register the confirmation tool

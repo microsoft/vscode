@@ -88,18 +88,6 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		const keys: (keyof vscode.AuthenticationGetSessionOptions)[] = Object.keys(options) as (keyof vscode.AuthenticationGetSessionOptions)[];
 		const optionsStr = keys.sort().map(key => `${key}:${!!options[key]}`).join(', ');
 
-		// old shape, remove next milestone
-		if (
-			'scopes' in scopesOrRequest
-			&& typeof scopesOrRequest.scopes === 'string'
-			&& !scopesOrRequest.fallbackScopes
-		) {
-			scopesOrRequest = {
-				wwwAuthenticate: scopesOrRequest.wwwAuthenticate,
-				fallbackScopes: scopesOrRequest.scopes
-			};
-		}
-
 		let singlerKey: string;
 		if (isAuthenticationWwwAuthenticateRequest(scopesOrRequest)) {
 			const challenge = scopesOrRequest as vscode.AuthenticationWwwAuthenticateRequest;
@@ -112,12 +100,14 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		}
 
 		return await this._getSessionTaskSingler.getOrCreate(singlerKey, async () => {
+			await this._proxy.$ensureProvider(providerId);
 			const extensionName = requestingExtension.displayName || requestingExtension.name;
 			return this._proxy.$getSession(providerId, scopesOrRequest, extensionId, extensionName, options);
 		});
 	}
 
 	async getAccounts(providerId: string) {
+		await this._proxy.$ensureProvider(providerId);
 		return await this._proxy.$getAccounts(providerId);
 	}
 
@@ -376,7 +366,7 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		// Auth Provider label is just the resource name if provided, otherwise the authority of the authorization server.
 		this.label = _resourceMetadata?.resource_name ?? this.authorizationServer.authority;
 
-		this._logger = loggerService.createLogger(this.id, { name: this.label });
+		this._logger = loggerService.createLogger(this.id, { name: `Auth: ${this.label}` });
 		this._disposable = new DisposableStore();
 		this._disposable.add(this._onDidChangeSessions);
 		const scopedEvent = Event.chain(onDidDynamicAuthProviderTokensChange.event, $ => $
@@ -513,7 +503,7 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		// Store session for later retrieval
 		this._tokenStore.update({ added: [{ ...token, created_at: Date.now() }], removed: [] });
 		const session = this._tokenStore.sessions.find(t => t.accessToken === token.access_token)!;
-		this._logger.info(`Created session for scopes: ${token.scope}`);
+		this._logger.info(`Created ${token.refresh_token ? 'refreshable' : 'non-refreshable'} session for scopes: ${token.scope}${token.expires_in ? ` that expires in ${token.expires_in} seconds` : ''}`);
 		return session;
 	}
 

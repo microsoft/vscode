@@ -26,7 +26,7 @@ import { ChatResponseResource, getAttachableImageExtension } from '../../chat/co
 import { LanguageModelPartAudience } from '../../chat/common/languageModels.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, IToolResultInputOutputDetails, ToolDataSource, ToolProgress, ToolSet } from '../../chat/common/languageModelToolsService.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
-import { IMcpServer, IMcpService, IMcpTool, IMcpToolResourceLinkContents, LazyCollectionState, McpResourceURI, McpServerCacheState, McpToolResourceLinkMimeType } from './mcpTypes.js';
+import { IMcpServer, IMcpService, IMcpTool, IMcpToolResourceLinkContents, McpResourceURI, McpServerCacheState, McpToolResourceLinkMimeType } from './mcpTypes.js';
 import { mcpServerToSourceData } from './mcpTypesUtils.js';
 
 interface ISyncedToolData {
@@ -46,15 +46,7 @@ export class McpLanguageModelToolContribution extends Disposable implements IWor
 	) {
 		super();
 
-		// 1. Auto-discover extensions with new MCP servers
-		const lazyCollectionState = mcpService.lazyCollectionState.map(s => s.state);
-		this._register(autorun(reader => {
-			if (lazyCollectionState.read(reader) === LazyCollectionState.HasUnknown) {
-				mcpService.activateCollections();
-			}
-		}));
-
-		// 2. Keep tools in sync with the tools service.
+		// Keep tools in sync with the tools service.
 		const previous = this._register(new DisposableMap<IMcpServer, DisposableStore>());
 		this._register(autorun(reader => {
 			const servers = mcpService.servers.read(reader);
@@ -130,10 +122,11 @@ export class McpLanguageModelToolContribution extends Disposable implements IWor
 			const collection = collectionObservable.read(reader);
 			for (const tool of server.tools.read(reader)) {
 				const existing = tools.get(tool.id);
+				const iconURI = tool.icons.getUrl(22);
 				const toolData: IToolData = {
 					id: tool.id,
 					source: collectionData.value.source,
-					icon: Codicon.tools,
+					icon: iconURI ? { dark: iconURI, light: iconURI } : Codicon.tools,
 					// duplicative: https://github.com/modelcontextprotocol/modelcontextprotocol/pull/813
 					displayName: tool.definition.annotations?.title || tool.definition.title || tool.definition.name,
 					toolReferenceName: tool.referenceName,
@@ -202,7 +195,7 @@ class McpToolImplementation implements IToolImpl {
 			this._productService.nameShort
 		);
 
-		const needsConfirmation = !tool.definition.annotations?.readOnlyHint;
+		const needsConfirmation = !tool.definition.annotations?.readOnlyHint || !!tool.definition.annotations.openWorldHint;
 		// duplicative: https://github.com/modelcontextprotocol/modelcontextprotocol/pull/813
 		const title = tool.definition.annotations?.title || tool.definition.title || ('`' + tool.definition.name + '`');
 
@@ -335,7 +328,7 @@ class McpToolImplementation implements IToolImpl {
 					});
 
 					if (isForModel) {
-						const permalink = invocation.chatRequestId && invocation.context && ChatResponseResource.createUri(invocation.context.sessionId, invocation.chatRequestId, invocation.callId, result.content.length, basename(uri));
+						const permalink = invocation.context && ChatResponseResource.createUri(invocation.context.sessionId, invocation.callId, result.content.length, basename(uri));
 						addAsLinkedResource(permalink || uri, item.resource.mimeType);
 					}
 				}

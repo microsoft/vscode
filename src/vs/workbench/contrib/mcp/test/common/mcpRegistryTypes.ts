@@ -180,6 +180,9 @@ export class TestMcpRegistry implements IMcpRegistry {
 	delegates = observableValue<readonly IMcpHostDelegate[]>(this, [{
 		priority: 0,
 		canStart: () => true,
+		substituteVariables(serverDefinition, launch) {
+			return Promise.resolve(launch);
+		},
 		start: () => {
 			const t = this.makeTestTransport();
 			setTimeout(() => t.setConnectionState({ state: McpConnectionState.Kind.Running }));
@@ -235,6 +238,7 @@ export class TestMcpRegistry implements IMcpRegistry {
 			del,
 			definition.launch,
 			new NullLogger(),
+			false,
 			this._instantiationService,
 		));
 	}

@@ -81,10 +81,10 @@ const authenticationExtPoint = ExtensionsRegistry.registerExtensionPoint<Authent
 		type: 'array',
 		items: authenticationDefinitionSchema
 	},
-	activationEventsGenerator: (authenticationProviders, result) => {
+	activationEventsGenerator: function* (authenticationProviders) {
 		for (const authenticationProvider of authenticationProviders) {
 			if (authenticationProvider.id) {
-				result.push(`onAuthenticationRequest:${authenticationProvider.id}`);
+				yield `onAuthenticationRequest:${authenticationProvider.id}`;
 			}
 		}
 	}
@@ -396,12 +396,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 	}
 
 	private async tryActivateProvider(providerId: string, activateImmediate: boolean): Promise<IAuthenticationProvider> {
-		try {
-			await this._extensionService.activateByEvent(getAuthenticationProviderActivationEvent(providerId), activateImmediate ? ActivationKind.Immediate : ActivationKind.Normal);
-		} catch (e) {
-			this._logService.error(`Extension Service failed to activate authentication provider '${providerId}':`, e);
-			throw e;
-		}
+		await this._extensionService.activateByEvent(getAuthenticationProviderActivationEvent(providerId), activateImmediate ? ActivationKind.Immediate : ActivationKind.Normal);
 		let provider = this._authenticationProviders.get(providerId);
 		if (provider) {
 			return provider;

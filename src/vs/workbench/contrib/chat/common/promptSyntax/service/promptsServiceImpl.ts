@@ -4,40 +4,38 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../../../nls.js';
-import { getLanguageIdForPromptsType, getPromptsTypeForLanguageId, MODE_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptsType } from '../promptTypes.js';
-import { PromptParser } from '../parsers/promptParser.js';
+import { getPromptsTypeForLanguageId, PROMPT_LANGUAGE_ID, PromptsType } from '../promptTypes.js';
 import { type URI } from '../../../../../../base/common/uri.js';
-import { assert } from '../../../../../../base/common/assert.js';
 import { basename } from '../../../../../../base/common/path.js';
 import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { type ITextModel } from '../../../../../../editor/common/model.js';
-import { ObjectCache } from '../utils/objectCache.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
-import { TextModelPromptParser } from '../parsers/textModelPromptParser.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
-import type { IChatPromptSlashCommand, ICustomChatMode, IPromptParserResult, IPromptPath, IPromptsService, TPromptsStorage } from './promptsService.js';
+import { IChatPromptSlashCommand, ICustomChatMode, IExtensionPromptPath, ILocalPromptPath, IPromptPath, IPromptsService, IUserPromptPath, PromptsStorage } from './promptsService.js';
 import { getCleanPromptName, PROMPT_FILE_EXTENSION } from '../config/promptFileLocations.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 import { PromptsConfig } from '../config/config.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { PositionOffsetTransformer } from '../../../../../../editor/common/core/text/positionToOffset.js';
+import { NewPromptsParser, ParsedPromptFile } from './newPromptsParser.js';
+import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { ResourceMap } from '../../../../../../base/common/map.js';
+import { CancellationError } from '../../../../../../base/common/errors.js';
+import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
+import { IChatModeInstructions, IVariableReference } from '../../chatModes.js';
+import { dirname } from '../../../../../../base/common/resources.js';
+import { IExtensionDescription } from '../../../../../../platform/extensions/common/extensions.js';
 
 /**
  * Provides prompt services.
  */
 export class PromptsService extends Disposable implements IPromptsService {
 	public declare readonly _serviceBrand: undefined;
-
-	/**
-	 * Cache of text model content prompt parsers.
-	 */
-	private readonly cache: ObjectCache<TextModelPromptParser, ITextModel>;
 
 	/**
 	 * Prompt files locator utility.
@@ -48,6 +46,18 @@ export class PromptsService extends Disposable implements IPromptsService {
 	 * Cached custom modes. Caching only happens if the `onDidChangeCustomChatModes` event is used.
 	 */
 	private cachedCustomChatModes: Promise<readonly ICustomChatMode[]> | undefined;
+
+
+	private parsedPromptFileCache = new ResourceMap<[number, ParsedPromptFile]>();
+
+	/**
+	 * Contributed files from extensions keyed by prompt type then name.
+	 */
+	private readonly contributedFiles = {
+		[PromptsType.prompt]: new ResourceMap<IExtensionPromptPath>(),
+		[PromptsType.instructions]: new ResourceMap<IExtensionPromptPath>(),
+		[PromptsType.mode]: new ResourceMap<IExtensionPromptPath>(),
+	};
 
 	/**
 	 * Lazily created event that is fired when the custom chat modes change.
@@ -62,40 +72,15 @@ export class PromptsService extends Disposable implements IPromptsService {
 		@IUserDataProfileService private readonly userDataService: IUserDataProfileService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IFileService private readonly fileService: IFileService
 	) {
 		super();
 
 		this.fileLocator = this._register(this.instantiationService.createInstance(PromptFilesLocator));
 
-		// the factory function below creates a new prompt parser object
-		// for the provided model, if no active non-disposed parser exists
-		this.cache = this._register(
-			new ObjectCache((model) => {
-				assert(
-					model.isDisposed() === false,
-					'Text model must not be disposed.',
-				);
-
-				/**
-				 * Note! When/if shared with "file" prompts, the `seenReferences` array below must be taken into account.
-				 * Otherwise consumers will either see incorrect failing or incorrect successful results, based on their
-				 * use case, timing of their calls to the {@link getSyntaxParserFor} function, and state of this service.
-				 */
-				const parser: TextModelPromptParser = instantiationService.createInstance(
-					TextModelPromptParser,
-					model,
-					{ allowNonPromptFiles: true, languageId: undefined, updateOnChange: true },
-				).start();
-
-				// this is a sanity check and the contract of the object cache,
-				// we must return a non-disposed object from this factory function
-				parser.assertNotDisposed(
-					'Created prompt parser must not be disposed.',
-				);
-
-				return parser;
-			})
-		);
+		this._register(this.modelService.onModelRemoved((model) => {
+			this.parsedPromptFileCache.delete(model.uri);
+		}));
 	}
 
 	/**
@@ -118,19 +103,16 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 
-	/**
-	 * @throws {Error} if:
-	 * 	- the provided model is disposed
-	 * 	- newly created parser is disposed immediately on initialization.
-	 * 	  See factory function in the {@link constructor} for more info.
-	 */
-	public getSyntaxParserFor(model: ITextModel): TextModelPromptParser & { isDisposed: false } {
-		assert(
-			model.isDisposed() === false,
-			'Cannot create a prompt syntax parser for a disposed model.',
-		);
-
-		return this.cache.get(model);
+	public getParsedPromptFile(textModel: ITextModel): ParsedPromptFile {
+		const cached = this.parsedPromptFileCache.get(textModel.uri);
+		if (cached && cached[0] === textModel.getVersionId()) {
+			return cached[1];
+		}
+		const ast = new NewPromptsParser().parse(textModel.uri, textModel.getValue());
+		if (!cached || cached[0] < textModel.getVersionId()) {
+			this.parsedPromptFileCache.set(textModel.uri, [textModel.getVersionId(), ast]);
+		}
+		return ast;
 	}
 
 	public async listPromptFiles(type: PromptsType, token: CancellationToken): Promise<readonly IPromptPath[]> {
@@ -139,13 +121,28 @@ export class PromptsService extends Disposable implements IPromptsService {
 		}
 
 		const prompts = await Promise.all([
-			this.fileLocator.listFiles(type, 'user', token)
-				.then(withType('user', type)),
-			this.fileLocator.listFiles(type, 'local', token)
-				.then(withType('local', type)),
+			this.fileLocator.listFiles(type, PromptsStorage.user, token).then(uris => uris.map(uri => ({ uri, storage: PromptsStorage.user, type } satisfies IUserPromptPath))),
+			this.fileLocator.listFiles(type, PromptsStorage.local, token).then(uris => uris.map(uri => ({ uri, storage: PromptsStorage.local, type } satisfies ILocalPromptPath)))
 		]);
 
-		return prompts.flat();
+		return [...prompts.flat(), ...this.contributedFiles[type].values()];
+	}
+
+	public async listPromptFilesForStorage(type: PromptsType, storage: PromptsStorage, token: CancellationToken): Promise<readonly IPromptPath[]> {
+		if (!PromptsConfig.enabled(this.configurationService)) {
+			return [];
+		}
+
+		switch (storage) {
+			case PromptsStorage.extension:
+				return Promise.resolve(Array.from(this.contributedFiles[type].values()));
+			case PromptsStorage.local:
+				return this.fileLocator.listFiles(type, PromptsStorage.local, token).then(uris => uris.map(uri => ({ uri, storage: PromptsStorage.local, type } satisfies ILocalPromptPath)));
+			case PromptsStorage.user:
+				return this.fileLocator.listFiles(type, PromptsStorage.user, token).then(uris => uris.map(uri => ({ uri, storage: PromptsStorage.user, type } satisfies IUserPromptPath)));
+			default:
+				throw new Error(`[listPromptFilesForStorage] Unsupported prompt storage type: ${storage}`);
+		}
 	}
 
 	public getSourceFolders(type: PromptsType): readonly IPromptPath[] {
@@ -156,10 +153,10 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const result: IPromptPath[] = [];
 
 		for (const uri of this.fileLocator.getConfigBasedSourceFolders(type)) {
-			result.push({ uri, storage: 'local', type });
+			result.push({ uri, storage: PromptsStorage.local, type });
 		}
 		const userHome = this.userDataService.currentProfile.promptsHome;
-		result.push({ uri: userHome, storage: 'user', type });
+		result.push({ uri: userHome, storage: PromptsStorage.user, type });
 
 		return result;
 	}
@@ -171,13 +168,13 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return undefined;
 	}
 
-	public async resolvePromptSlashCommand(data: IChatPromptSlashCommand, token: CancellationToken): Promise<IPromptParserResult | undefined> {
+	public async resolvePromptSlashCommand(data: IChatPromptSlashCommand, token: CancellationToken): Promise<ParsedPromptFile | undefined> {
 		const promptUri = await this.getPromptPath(data);
 		if (!promptUri) {
 			return undefined;
 		}
 		try {
-			return await this.parse(promptUri, PromptsType.prompt, token);
+			return await this.parseNew(promptUri, token);
 		} catch (error) {
 			this.logger.error(`[resolvePromptSlashCommand] Failed to parse prompt file: ${promptUri}`, error);
 			return undefined;
@@ -229,77 +226,88 @@ export class PromptsService extends Disposable implements IPromptsService {
 	private async computeCustomChatModes(token: CancellationToken): Promise<readonly ICustomChatMode[]> {
 		const modeFiles = await this.listPromptFiles(PromptsType.mode, token);
 
-		const metadataList = await Promise.all(
+		const customChatModes = await Promise.all(
 			modeFiles.map(async ({ uri }): Promise<ICustomChatMode> => {
-				let parser: PromptParser | undefined;
-				try {
-					// Note! this can be (and should be) improved by using shared parser instances
-					// 		 that the `getSyntaxParserFor` method provides for opened documents.
-					parser = this.instantiationService.createInstance(
-						PromptParser,
-						uri,
-						{ allowNonPromptFiles: true, languageId: MODE_LANGUAGE_ID, updateOnChange: false },
-					).start(token);
+				const ast = await this.parseNew(uri, token);
 
-					const completed = await parser.settled();
-					if (!completed) {
-						throw new Error(localize('promptParser.notCompleted', "Prompt parser for {0} did not complete.", uri.toString()));
+				let metadata: any | undefined;
+				if (ast.header) {
+					const advanced = ast.header.getAttribute('advancedOptions');
+					if (advanced && advanced.value.type === 'object') {
+						metadata = {};
+						for (const [key, value] of Object.entries(advanced.value)) {
+							if (['string', 'number', 'boolean'].includes(value.type)) {
+								metadata[key] = value;
+							}
+						}
 					}
-
-					const body = await parser.getBody();
-					const nHeaderLines = parser.header?.range.endLineNumber ?? 0;
-					const transformer = new PositionOffsetTransformer(body);
-					const variableReferences = parser.variableReferences.map(ref => {
-						return {
-							name: ref.name,
-							range: transformer.getOffsetRange(ref.range.delta(-nHeaderLines))
-						};
-					}).sort((a, b) => b.range.start - a.range.start); // in reverse order
-
-					const name = getCleanPromptName(uri);
-
-					const metadata = parser.metadata;
-					if (metadata?.promptType !== PromptsType.mode) {
-						return { uri, name, body, variableReferences };
-					}
-					const { description, model, tools } = metadata;
-					return { uri, name, description, model, tools, body, variableReferences };
-				} finally {
-					parser?.dispose();
 				}
+				const toolReferences: IVariableReference[] = [];
+				if (ast.body) {
+					const bodyOffset = ast.body.offset;
+					const bodyVarRefs = ast.body.variableReferences;
+					for (let i = bodyVarRefs.length - 1; i >= 0; i--) { // in reverse order
+						const { name, offset } = bodyVarRefs[i];
+						const range = new OffsetRange(offset - bodyOffset, offset - bodyOffset + name.length + 1);
+						toolReferences.push({ name, range });
+					}
+				}
+
+				const modeInstructions = {
+					content: ast.body?.getContent() ?? '',
+					toolReferences,
+					metadata,
+				} satisfies IChatModeInstructions;
+
+				const name = getCleanPromptName(uri);
+				if (!ast.header) {
+					return { uri, name, modeInstructions };
+				}
+				const { description, model, tools } = ast.header;
+				return { uri, name, description, model, tools, modeInstructions };
+
 			})
 		);
-
-		return metadataList;
+		return customChatModes;
 	}
 
-	public async parse(uri: URI, type: PromptsType, token: CancellationToken): Promise<IPromptParserResult> {
-		let parser: PromptParser | undefined;
-		try {
-			const languageId = getLanguageIdForPromptsType(type);
-			parser = this.instantiationService.createInstance(PromptParser, uri, { allowNonPromptFiles: true, languageId, updateOnChange: false }).start(token);
-			const completed = await parser.settled();
-			if (!completed) {
-				throw new Error(localize('promptParser.notCompleted', "Prompt parser for {0} did not complete.", uri.toString()));
+	public async parseNew(uri: URI, token: CancellationToken): Promise<ParsedPromptFile> {
+		const model = this.modelService.getModel(uri);
+		if (model) {
+			return this.getParsedPromptFile(model);
+		}
+		const fileContent = await this.fileService.readFile(uri);
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		return new NewPromptsParser().parse(uri, fileContent.value.toString());
+	}
+
+	public registerContributedFile(type: PromptsType, name: string, description: string, uri: URI, extension: IExtensionDescription) {
+		const bucket = this.contributedFiles[type];
+		if (bucket.has(uri)) {
+			// keep first registration per extension (handler filters duplicates per extension already)
+			return Disposable.None;
+		}
+		bucket.set(uri, { uri, name, description, storage: PromptsStorage.extension, type, extension } satisfies IExtensionPromptPath);
+		if (type === PromptsType.mode) {
+			this.cachedCustomChatModes = undefined;
+		}
+		return {
+			dispose: () => {
+				bucket.delete(uri);
 			}
-			const fullContent = await parser.getFullContent();
-			const transformer = new PositionOffsetTransformer(fullContent);
-			const variableReferences = parser.variableReferences.map(ref => {
-				return {
-					name: ref.name,
-					range: transformer.getOffsetRange(ref.range)
-				};
-			}).sort((a, b) => b.range.start - a.range.start); // in reverse order
-			// make a copy, to avoid leaking the parser instance
-			return {
-				uri: parser.uri,
-				metadata: parser.metadata,
-				topError: parser.topError,
-				variableReferences,
-				fileReferences: parser.references.map(ref => ref.uri)
-			};
-		} finally {
-			parser?.dispose();
+		};
+	}
+
+	getPromptLocationLabel(promptPath: IPromptPath): string {
+		switch (promptPath.storage) {
+			case PromptsStorage.local: return this.labelService.getUriLabel(dirname(promptPath.uri), { relative: true });
+			case PromptsStorage.user: return localize('user-data-dir.capitalized', 'User Data');
+			case PromptsStorage.extension: {
+				return localize('extension.with.id', 'Extension: {0}', promptPath.extension.displayName ?? promptPath.extension.id);
+			}
+			default: throw new Error('Unknown prompt storage type');
 		}
 	}
 }
@@ -307,24 +315,4 @@ export class PromptsService extends Disposable implements IPromptsService {
 export function getPromptCommandName(path: string): string {
 	const name = basename(path, PROMPT_FILE_EXTENSION);
 	return name;
-}
-
-/**
- * Utility to add a provided prompt `storage` and
- * `type` attributes to a prompt URI.
- */
-function addType(storage: TPromptsStorage, type: PromptsType): (uri: URI) => IPromptPath {
-	return (uri) => {
-		return { uri, storage, type };
-	};
-}
-
-/**
- * Utility to add a provided prompt `type` to a list of prompt URIs.
- */
-function withType(storage: TPromptsStorage, type: PromptsType): (uris: readonly URI[]) => (readonly IPromptPath[]) {
-	return (uris) => {
-		return uris
-			.map(addType(storage, type));
-	};
 }

@@ -46,18 +46,20 @@ export class McpResourcePickHelper {
 			};
 		}
 
+		const icon = resource.icons.getUrl(22);
 		return {
 			id: resource.uri.toString(),
 			label: resource.title || resource.name,
 			description: resource.description,
 			detail: resource.mcpUri + (resource.sizeInBytes !== undefined ? ' (' + ByteSize.formatSize(resource.sizeInBytes) + ')' : ''),
+			iconPath: icon ? { dark: icon, light: icon } : undefined,
 		};
 	}
 
 	public hasServersWithResources = derived(reader => {
 		let enabled = false;
 		for (const server of this._mcpService.servers.read(reader)) {
-			const cap = server.capabilities.get();
+			const cap = server.capabilities.read(undefined);
 			if (cap === undefined) {
 				enabled = true; // until we know more
 			} else if (cap & McpCapability.Resources) {

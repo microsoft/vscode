@@ -731,7 +731,7 @@ export class McpServerEditor extends EditorPane {
 		if (manifest.packages && manifest.packages.length > 0) {
 			const packagesByType = new Map<RegistryType, IMcpServerPackage[]>();
 			for (const pkg of manifest.packages) {
-				const type = pkg.registry_type;
+				const type = pkg.registryType;
 				let packages = packagesByType.get(type);
 				if (!packages) {
 					packagesByType.set(type, packages = []);
@@ -748,9 +748,9 @@ export class McpServerEditor extends EditorPane {
 				for (let i = 0; i < packages.length; i++) {
 					const pkg = packages[i];
 					append(packagesGrid, $('.package-detail', undefined, $('.detail-label', undefined, localize('packageName', "Package:")), $('.detail-value', undefined, pkg.identifier)));
-					if (pkg.package_arguments && pkg.package_arguments.length > 0) {
+					if (pkg.packageArguments && pkg.packageArguments.length > 0) {
 						const argStrings: string[] = [];
-						for (const arg of pkg.package_arguments) {
+						for (const arg of pkg.packageArguments) {
 							if (arg.type === 'named') {
 								argStrings.push(arg.name);
 								if (arg.value) {
@@ -758,7 +758,7 @@ export class McpServerEditor extends EditorPane {
 								}
 							}
 							if (arg.type === 'positional') {
-								const val = arg.value ?? arg.value_hint;
+								const val = arg.value ?? arg.valueHint;
 								if (val) {
 									argStrings.push(val);
 								}
@@ -766,9 +766,9 @@ export class McpServerEditor extends EditorPane {
 						}
 						append(packagesGrid, $('.package-detail', undefined, $('.detail-label', undefined, localize('packagearguments', "Package Arguments:")), $('code.detail-value', undefined, argStrings.join(' '))));
 					}
-					if (pkg.runtime_arguments && pkg.runtime_arguments.length > 0) {
+					if (pkg.runtimeArguments && pkg.runtimeArguments.length > 0) {
 						const argStrings: string[] = [];
-						for (const arg of pkg.runtime_arguments) {
+						for (const arg of pkg.runtimeArguments) {
 							if (arg.type === 'named') {
 								argStrings.push(arg.name);
 								if (arg.value) {
@@ -776,7 +776,7 @@ export class McpServerEditor extends EditorPane {
 								}
 							}
 							if (arg.type === 'positional') {
-								const val = arg.value ?? arg.value_hint;
+								const val = arg.value ?? arg.valueHint;
 								if (val) {
 									argStrings.push(val);
 								}
@@ -784,8 +784,8 @@ export class McpServerEditor extends EditorPane {
 						}
 						append(packagesGrid, $('.package-detail', undefined, $('.detail-label', undefined, localize('runtimeargs', "Runtime Arguments:")), $('code.detail-value', undefined, argStrings.join(' '))));
 					}
-					if (pkg.environment_variables && pkg.environment_variables.length > 0) {
-						const envStrings = pkg.environment_variables.map((envVar: any) => `${envVar.name}=${envVar.value}`);
+					if (pkg.environmentVariables && pkg.environmentVariables.length > 0) {
+						const envStrings = pkg.environmentVariables.map((envVar: any) => `${envVar.name}=${envVar.value}`);
 						append(packagesGrid, $('.package-detail', undefined, $('.detail-label', undefined, localize('environmentVariables', "Environment Variables:")), $('code.detail-value', undefined, envStrings.join(' '))));
 					}
 					if (i < packages.length - 1) {

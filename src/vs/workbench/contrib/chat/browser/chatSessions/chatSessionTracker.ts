@@ -11,10 +11,10 @@ import { ChatEditorInput } from '../chatEditorInput.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { ChatSessionItemWithProvider, getChatSessionType, isChatSession } from './common.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider } from '../../common/chatSessionsService.js';
-import { ILocalChatSessionItem } from '../chatSessions.js';
 import { IChatService } from '../../common/chatService.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { IChatModel } from '../../common/chatModel.js';
+import { ChatSessionUri } from '../../common/chatUri.js';
 
 export class ChatSessionTracker extends Disposable {
 	private readonly _onDidChangeEditors = this._register(new Emitter<{ sessionType: string; kind: GroupModelChangeKind }>());
@@ -74,7 +74,7 @@ export class ChatSessionTracker extends Disposable {
 		}
 
 		const localEditors = this.getLocalEditorsForSessionType(provider.chatSessionType);
-		const hybridSessions: (ILocalChatSessionItem & ChatSessionItemWithProvider)[] = [];
+		const hybridSessions: ChatSessionItemWithProvider[] = [];
 
 		localEditors.forEach((editor, index) => {
 			const group = this.findGroupForEditor(editor);
@@ -99,13 +99,11 @@ export class ChatSessionTracker extends Disposable {
 				}
 			}
 
-			const hybridSession: ILocalChatSessionItem & ChatSessionItemWithProvider = {
-				id: `${provider.chatSessionType}-local-${index}`,
+			const parsed = ChatSessionUri.parse(editor.resource);
+			const hybridSession: ChatSessionItemWithProvider = {
+				id: parsed?.sessionId || editor.sessionId || `${provider.chatSessionType}-local-${index}`,
 				label: editor.getName(),
 				iconPath: Codicon.chatSparkle,
-				editor,
-				group,
-				sessionType: 'editor',
 				status,
 				provider,
 				timing: {

@@ -31,7 +31,8 @@ export interface IMcpHostDelegate {
 	readonly priority: number;
 	waitForInitialProviderPromises(): Promise<void>;
 	canStart(collectionDefinition: McpCollectionDefinition, serverDefinition: McpServerDefinition): boolean;
-	start(collectionDefinition: McpCollectionDefinition, serverDefinition: McpServerDefinition, resolvedLaunch: McpServerLaunch): IMcpMessageTransport;
+	substituteVariables(serverDefinition: McpServerDefinition, launch: McpServerLaunch): Promise<McpServerLaunch>;
+	start(collectionDefinition: McpCollectionDefinition, serverDefinition: McpServerDefinition, resolvedLaunch: McpServerLaunch, options?: { errorOnUserInteraction?: boolean }): IMcpMessageTransport;
 }
 
 export interface IMcpResolveConnectionOptions {
@@ -57,6 +58,9 @@ export interface IMcpResolveConnectionOptions {
 
 	/** If set, try to launch with debugging when dev mode is configured */
 	debug?: boolean;
+
+	/** If true, throw an error if any user interaction would be required during startup. */
+	errorOnUserInteraction?: boolean;
 }
 
 export interface IMcpRegistry {

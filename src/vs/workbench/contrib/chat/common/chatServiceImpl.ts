@@ -14,6 +14,7 @@ import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposa
 import { revive } from '../../../../base/common/marshalling.js';
 import { autorun, derived, IObservable, ObservableMap } from '../../../../base/common/observable.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
+import { isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { OffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
 import { localize } from '../../../../nls.js';
@@ -72,6 +73,7 @@ export class ChatService extends Disposable implements IChatService {
 
 	private readonly _sessionModels = new ObservableMap<string, ChatModel>();
 	private readonly _contentProviderSessionModels = new Map<string, Map<string, { readonly model: IChatModel; readonly disposables: DisposableStore }>>();
+	private readonly _modelToExternalSession = new Map<string /* internal model sessionId */, { chatSessionType: string; chatSessionId: string }>();
 	private readonly _pendingRequests = this._register(new DisposableMap<string, CancellableRequest>());
 	private _persistedSessions: ISerializableChatsData;
 
@@ -92,6 +94,8 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _sessionFollowupCancelTokens = this._register(new DisposableMap<string, CancellationTokenSource>());
 	private readonly _chatServiceTelemetry: ChatServiceTelemetry;
 	private readonly _chatSessionStore: ChatSessionStore;
+
+	private _mcpServersInteractionMessageShown = new WeakSet<ChatModel>();
 
 	readonly requestInProgressObs: IObservable<boolean>;
 
@@ -158,6 +162,10 @@ export class ChatService extends Disposable implements IChatService {
 			const models = this._sessionModels.observable.read(reader).values();
 			return Array.from(models).some(model => model.requestInProgressObs.read(reader));
 		});
+	}
+
+	public get editingSessions() {
+		return [...this._sessionModels.values()].map(v => v.editingSession).filter(isDefined);
 	}
 
 	isEnabled(location: ChatAgentLocation): boolean {
@@ -464,6 +472,8 @@ export class ChatService extends Disposable implements IChatService {
 		const content = await this.chatSessionService.provideChatSessionContent(chatSessionType, parsed.sessionId, CancellationToken.None);
 
 		const model = this._startSession(undefined, location, true, CancellationToken.None, chatSessionType);
+		// Record mapping from internal model session id to external contributed chat session identity
+		this._modelToExternalSession.set(model.sessionId, { chatSessionType, chatSessionId: parsed.sessionId });
 		if (!this._contentProviderSessionModels.has(chatSessionType)) {
 			this._contentProviderSessionModels.set(chatSessionType, new Map());
 		}
@@ -472,6 +482,7 @@ export class ChatService extends Disposable implements IChatService {
 
 		disposables.add(model.onDidDispose(() => {
 			this._contentProviderSessionModels?.get(chatSessionType)?.delete(parsed.sessionId);
+			this._modelToExternalSession.delete(model.sessionId);
 			content.dispose();
 		}));
 
@@ -565,6 +576,17 @@ export class ChatService extends Disposable implements IChatService {
 		}
 
 		return model;
+	}
+
+	getChatSessionFromInternalId(modelSessionId: string): { chatSessionType: string; chatSessionId: string; isUntitled: boolean } | undefined {
+		const data = this._modelToExternalSession.get(modelSessionId);
+		if (!data) {
+			return;
+		}
+		return {
+			...data,
+			isUntitled: data.chatSessionId.startsWith('untitled-'), // TODO(jospicer)
+		};
 	}
 
 	async resendRequest(request: IChatRequestModel, options?: IChatSendRequestOptions): Promise<void> {
@@ -798,7 +820,7 @@ export class ChatService extends Disposable implements IChatService {
 							rejectedConfirmationData: options?.rejectedConfirmationData,
 							userSelectedModelId: options?.userSelectedModelId,
 							userSelectedTools: options?.userSelectedTools?.get(),
-							modeInstructions: options?.modeInfo?.instructions,
+							modeInstructions: options?.modeInfo?.modeInstructions,
 							editedFileEvents: request.editedFileEvents
 						} satisfies IChatAgentRequest;
 					};
@@ -831,7 +853,8 @@ export class ChatService extends Disposable implements IChatService {
 
 					const agent = (detectedAgent ?? agentPart?.agent ?? defaultAgent)!;
 					const command = detectedCommand ?? agentSlashCommandPart?.command;
-					await Promise.all([
+
+					const [, autostartResult] = await Promise.all([
 						this.extensionService.activateByEvent(`onChatParticipant:${agent.id}`),
 						this.mcpService.autostart(token),
 					]);
@@ -844,6 +867,21 @@ export class ChatService extends Disposable implements IChatService {
 						pendingRequest.requestId = requestProps.requestId;
 					}
 					completeResponseCreated();
+
+					// Check if there are MCP servers requiring interaction and show message if not shown yet
+					if (!this._mcpServersInteractionMessageShown.has(model) && autostartResult.serversRequiringInteraction.length > 0) {
+						this._mcpServersInteractionMessageShown.add(model);
+						progressCallback([{
+							kind: 'mcpServersInteractionRequired',
+							servers: autostartResult.serversRequiringInteraction,
+							startCommand: {
+								id: 'mcp.startServersWithInteraction',
+								title: localize('chat.startMcpServers', 'Start MCP Servers'),
+								arguments: []
+							}
+						}]);
+					}
+
 					const agentResult = await this.chatAgentService.invokeAgent(agent.id, requestProps, progressCallback, history, token);
 					rawResult = agentResult;
 					agentOrCommandFollowups = this.chatAgentService.getFollowups(agent.id, requestProps, agentResult, history, followupsCancelToken);
