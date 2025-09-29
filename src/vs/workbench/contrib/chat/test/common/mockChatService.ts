@@ -81,6 +81,9 @@ export class MockChatService implements IChatService {
 	getQueuedRequestCount(sessionId: string): number {
 		return 0;
 	}
+	removeQueuedRequest(sessionId: string, requestId: string): void {
+		// no-op for mock
+	}
 	clearSession(sessionId: string): Promise<void> {
 		throw new Error('Method not implemented.');
 	}

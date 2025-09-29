@@ -78,6 +78,7 @@ import { handleModeSwitch } from './actions/chatActions.js';
 import { ChatTreeItem, ChatViewId, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewOptions } from './chat.js';
 import { ChatAccessibilityProvider } from './chatAccessibilityProvider.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
+import { ChatQueuedMessagesWidget } from './chatContentParts/chatQueuedMessagesWidget.js';
 import { ChatTodoListWidget } from './chatContentParts/chatTodoListWidget.js';
 import { ChatInputPart, IChatInputStyles } from './chatInputPart.js';
 import { ChatListDelegate, ChatListItemRenderer, IChatListItemTemplate, IChatRendererDelegate } from './chatListRenderer.js';
@@ -282,6 +283,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private readonly welcomePart: MutableDisposable<ChatViewWelcomePart> = this._register(new MutableDisposable());
 	private readonly historyViewStore = this._register(new DisposableStore());
 	private readonly chatTodoListWidget: ChatTodoListWidget;
+	private readonly chatQueuedMessagesWidget: ChatQueuedMessagesWidget;
 	private historyList: WorkbenchList<IChatHistoryListItem> | undefined;
 
 	private bodyDimension: dom.Dimension | undefined;
@@ -507,6 +509,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this._codeBlockModelCollection = this._register(instantiationService.createInstance(CodeBlockModelCollection, undefined));
 		this.chatTodoListWidget = this._register(this.instantiationService.createInstance(ChatTodoListWidget));
+		this.chatQueuedMessagesWidget = this._register(this.instantiationService.createInstance(ChatQueuedMessagesWidget));
+		this.chatQueuedMessagesWidget = this._register(this.instantiationService.createInstance(ChatQueuedMessagesWidget));
 
 		this._register(this.configurationService.onDidChangeConfiguration((e) => {
 			if (e.affectsConfiguration('chat.renderRelatedFiles')) {
@@ -667,7 +671,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	get contentHeight(): number {
-		return this.input.contentHeight + this.tree.contentHeight + this.chatTodoListWidget.height;
+		return this.input.contentHeight + this.tree.contentHeight + this.chatTodoListWidget.height + this.chatQueuedMessagesWidget.height;
 	}
 
 	get attachmentModel(): ChatAttachmentModel {
@@ -709,10 +713,22 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}));
 
 		if (renderInputOnTop) {
+			dom.append(this.container, this.chatQueuedMessagesWidget.domNode);
+			this._register(this.chatQueuedMessagesWidget.onDidChangeHeight(() => {
+				if (this.bodyDimension) {
+					this.layout(this.bodyDimension.height, this.bodyDimension.width);
+				}
+			}));
 			this.createInput(this.container, { renderFollowups, renderStyle });
 			this.listContainer = dom.append(this.container, $(`.interactive-list`));
 		} else {
 			this.listContainer = dom.append(this.container, $(`.interactive-list`));
+			dom.append(this.container, this.chatQueuedMessagesWidget.domNode);
+			this._register(this.chatQueuedMessagesWidget.onDidChangeHeight(() => {
+				if (this.bodyDimension) {
+					this.layout(this.bodyDimension.height, this.bodyDimension.width);
+				}
+			}));
 			this.createInput(this.container, { renderFollowups, renderStyle });
 		}
 
@@ -1164,6 +1180,23 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (todos.length > 0) {
 			this.chatTodoListWidget.render(sessionId);
 		}
+	}
+
+	private renderChatQueuedMessagesWidget(): void {
+		const sessionId = this.viewModel?.sessionId;
+		if (!sessionId) {
+			this.chatQueuedMessagesWidget.render(sessionId);
+			return;
+		}
+
+		// Check if queued messages feature is enabled
+		const queueMessagesEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.QueueMessagesEnabled);
+		if (!queueMessagesEnabled) {
+			this.chatQueuedMessagesWidget.render(undefined);
+			return;
+		}
+
+		this.chatQueuedMessagesWidget.render(sessionId);
 	}
 
 	private getWelcomeViewContent(additionalMessage: string | IMarkdownString | undefined, expEmptyState?: boolean): IChatViewWelcomeContent {
@@ -1995,6 +2028,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.queueState = { length: event.length, totalCharacters: event.totalCharacters };
 		this.updateQueueInputs(event.length, event.totalCharacters);
 
+		// Render queued messages widget
+		this.renderChatQueuedMessagesWidget();
+
 		switch (event.kind) {
 			case ChatQueueUpdateKind.Enqueued:
 				this.chatAccessibilityService.announceQueued(event.length);
@@ -2018,9 +2054,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private updateQueueInputs(length: number, totalCharacters: number): void {
-		for (const part of [this.inputPartDisposable.value, this.inlineInputPartDisposable.value]) {
-			part?.updateQueuedState(length, totalCharacters);
-		}
+		// Removed - queue state is now handled by ChatQueuedMessagesWidget
 	}
 
 	private applyQueueStateFromModel(): void {
@@ -2495,9 +2529,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		const inputHeight = this.inputPart.inputPartHeight;
 		const chatTodoListWidgetHeight = this.chatTodoListWidget.height;
+		const chatQueuedMessagesWidgetHeight = this.chatQueuedMessagesWidget.height;
 		const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight >= this.tree.scrollHeight - 2;
 
-		const contentHeight = Math.max(0, height - inputHeight - chatTodoListWidgetHeight);
+		const contentHeight = Math.max(0, height - inputHeight - chatTodoListWidgetHeight - chatQueuedMessagesWidgetHeight);
 		if (this.viewOptions.renderStyle === 'compact' || this.viewOptions.renderStyle === 'minimal') {
 			this.listContainer.style.removeProperty('--chat-current-response-min-height');
 		} else {
@@ -2563,8 +2598,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.input.layout(possibleMaxHeight, width);
 				const inputPartHeight = this.input.inputPartHeight;
 				const chatTodoListWidgetHeight = this.chatTodoListWidget.height;
-				const newHeight = Math.min(renderHeight + diff, possibleMaxHeight - inputPartHeight - chatTodoListWidgetHeight);
-				this.layout(newHeight + inputPartHeight + chatTodoListWidgetHeight, width);
+				const chatQueuedMessagesWidgetHeight = this.chatQueuedMessagesWidget.height;
+				const newHeight = Math.min(renderHeight + diff, possibleMaxHeight - inputPartHeight - chatTodoListWidgetHeight - chatQueuedMessagesWidgetHeight);
+				this.layout(newHeight + inputPartHeight + chatTodoListWidgetHeight + chatQueuedMessagesWidgetHeight, width);
 			});
 		}));
 	}
@@ -2608,6 +2644,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.input.layout(this._dynamicMessageLayoutData.maxHeight, width);
 		const inputHeight = this.input.inputPartHeight;
 		const chatTodoListWidgetHeight = this.chatTodoListWidget.height;
+		const chatQueuedMessagesWidgetHeight = this.chatQueuedMessagesWidget.height;
 
 		const totalMessages = this.viewModel.getItems();
 		// grab the last N messages
@@ -2621,7 +2658,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.layout(
 			Math.min(
 				// we add an additional 18px in order to show that there is scrollable content
-				inputHeight + chatTodoListWidgetHeight + listHeight + (totalMessages.length > 2 ? 18 : 0),
+				inputHeight + chatTodoListWidgetHeight + chatQueuedMessagesWidgetHeight + listHeight + (totalMessages.length > 2 ? 18 : 0),
 				this._dynamicMessageLayoutData.maxHeight
 			),
 			width

@@ -2716,6 +2716,166 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	min-width: 0;
 }
 
+/* Queued Messages Widget */
+.chat-queued-messages-widget {
+	position: sticky;
+	bottom: 0;
+	z-index: 2;
+	background-color: var(--vscode-sideBar-background);
+	border-top: 1px solid var(--vscode-chat-requestBorder);
+	margin-bottom: 8px;
+}
+
+.chat-queued-messages-widget .queued-messages-expand {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	cursor: pointer;
+	padding: 6px 8px;
+	justify-content: space-between;
+	width: 100%;
+}
+
+.chat-queued-messages-widget .queued-messages-expand:focus:not(:focus-visible) {
+	outline: none;
+}
+
+.chat-queued-messages-widget .queued-messages-expand .queued-messages-title-section {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	flex: 1;
+}
+
+.chat-queued-messages-widget .queued-messages-expand:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.chat-queued-messages-widget .expand-icon {
+	flex-shrink: 0;
+	font-size: 12px;
+}
+
+.chat-queued-messages-widget .queued-messages-title {
+	font-weight: normal;
+	font-size: var(--vscode-chat-font-size-body-s);
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-queued-messages-widget .queued-messages-container {
+	padding: 0 8px 8px 8px;
+	max-height: calc(6.5 * 24px);
+	overflow-y: auto;
+	overscroll-behavior: contain;
+	scrollbar-width: thin;
+	scrollbar-color: var(--vscode-scrollbarSlider-background) transparent;
+}
+
+.chat-queued-messages-widget .queued-messages-container::-webkit-scrollbar {
+	width: 8px;
+}
+
+.chat-queued-messages-widget .queued-messages-container::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+.chat-queued-messages-widget .queued-messages-container::-webkit-scrollbar-thumb {
+	background-color: var(--vscode-scrollbarSlider-background);
+	border-radius: 4px;
+	border: 2px solid transparent;
+	background-clip: content-box;
+}
+
+.chat-queued-messages-widget .queued-messages-container::-webkit-scrollbar-thumb:hover {
+	background-color: var(--vscode-scrollbarSlider-hoverBackground);
+}
+
+.chat-queued-messages-widget .queued-messages-list {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.chat-queued-messages-widget .queued-message-item {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 4px 6px;
+	background-color: var(--vscode-input-background);
+	border: 1px solid var(--vscode-input-border);
+	border-radius: 3px;
+	min-height: 24px;
+	position: relative;
+}
+
+.chat-queued-messages-widget .queued-message-item:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.chat-queued-messages-widget .queued-message-preview {
+	flex: 1;
+	font-size: var(--vscode-chat-font-size-body-s);
+	color: var(--vscode-foreground);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.chat-queued-messages-widget .queued-message-attachments {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	flex-shrink: 0;
+}
+
+.chat-queued-messages-widget .queued-message-attachments .codicon {
+	font-size: 12px;
+}
+
+.chat-queued-messages-widget .queued-message-delete-button-container {
+	display: flex;
+	align-items: center;
+	opacity: 0;
+	transition: opacity 0.2s ease;
+}
+
+.chat-queued-messages-widget .queued-message-item:hover .queued-message-delete-button-container,
+.chat-queued-messages-widget .queued-message-item:focus-within .queued-message-delete-button-container,
+.chat-queued-messages-widget .queued-message-delete-button-container:focus-within {
+	opacity: 1;
+}
+
+.chat-queued-messages-widget .queued-message-delete-button-container .monaco-button {
+	padding: 2px;
+	min-width: unset;
+	background-color: transparent;
+	color: var(--vscode-foreground);
+	border: none;
+	border-radius: 3px;
+	height: 16px;
+	width: 16px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	cursor: pointer;
+}
+
+.chat-queued-messages-widget .queued-message-delete-button-container .monaco-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground) !important;
+}
+
+.chat-queued-messages-widget .queued-message-delete-button-container .monaco-button:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+}
+
+.chat-queued-messages-widget .queued-message-delete-button-container .monaco-button .codicon {
+	font-size: 12px;
+	color: var(--vscode-foreground);
+}
+
 .interactive-session .interactive-response .chat-used-context-list.chat-thinking-items {
 	color: var(--vscode-descriptionForeground);
 	padding-top: 0;

@@ -1420,6 +1420,31 @@ export class ChatService extends Disposable implements IChatService {
 		return this._queuedRequests.get(sessionId)?.entries.length ?? 0;
 	}
 
+	removeQueuedRequest(sessionId: string, requestId: string): void {
+		const state = this._queuedRequests.get(sessionId);
+		if (!state) {
+			return;
+		}
+
+		const index = state.entries.findIndex(entry => entry.id === requestId);
+		if (index === -1) {
+			return;
+		}
+
+		const [removedEntry] = state.entries.splice(index, 1);
+		state.totalCharacters -= removedEntry.length;
+
+		// Reject the deferred promise for the removed request
+		removedEntry.deferred.error(new Error('Queued request removed by user.'));
+
+		// Clean up empty state
+		if (state.entries.length === 0) {
+			this._queuedRequests.delete(sessionId);
+		}
+
+		this.emitQueueChange(sessionId, ChatQueueUpdateKind.Dropped, removedEntry);
+	}
+
 	public hasSessions(): boolean {
 		return this._chatSessionStore.hasSessions();
 	}

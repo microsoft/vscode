@@ -759,6 +759,7 @@ export interface IChatService {
 	onDidChangeQueue: Event<IChatQueueChangedEvent>;
 	getQueuedRequests(sessionId: string): ReadonlyArray<IChatQueuedRequestSummary>;
 	getQueuedRequestCount(sessionId: string): number;
+	removeQueuedRequest(sessionId: string, requestId: string): void;
 }
 
 export const KEYWORD_ACTIVIATION_SETTING_ID = 'accessibility.voice.keywordActivation';
