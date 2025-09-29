@@ -64,6 +64,7 @@ class DefaultLoopbackFlow implements IMsalFlow {
 			prompt: loginHint ? undefined : 'select_account',
 			windowHandle,
 			claims,
+			redirectUri
 		});
 	}
 }
@@ -91,6 +92,7 @@ class UrlHandlerFlow implements IMsalFlow {
 			prompt: loginHint ? undefined : 'select_account',
 			windowHandle,
 			claims,
+			redirectUri
 		});
 	}
 }
