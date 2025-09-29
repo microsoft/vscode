@@ -48,6 +48,7 @@ import { ITerminalGroupService, ITerminalService } from '../../terminal/browser/
 import { ITerminalProfileResolverService } from '../../terminal/common/terminal.js';
 
 import { ConfiguringTask, ContributedTask, CustomTask, ExecutionEngine, InMemoryTask, InstancePolicy, ITaskEvent, ITaskIdentifier, ITaskInactiveEvent, ITaskProcessEndedEvent, ITaskSet, JsonSchemaVersion, KeyedTaskIdentifier, RerunAllRunningTasksCommandId, RuntimeType, Task, TASK_RUNNING_STATE, TaskDefinition, TaskEventKind, TaskGroup, TaskRunSource, TaskSettingId, TaskSorter, TaskSourceKind, TasksSchemaProperties, USER_TASKS_GROUP_KEY } from '../common/tasks.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../chat/common/constants.js';
 import { CustomExecutionSupportedContext, ICustomizationProperties, IProblemMatcherRunOptions, ITaskFilter, ITaskProvider, ITaskService, IWorkspaceFolderTaskResult, ProcessExecutionSupportedContext, ServerlessWebContext, ShellExecutionSupportedContext, TaskCommandsRegistered, TaskExecutionSupportedContext, TasksAvailableContext } from '../common/taskService.js';
 import { ITaskExecuteResult, ITaskResolver, ITaskSummary, ITaskSystem, ITaskSystemInfo, ITaskTerminateResponse, TaskError, TaskErrors, TaskExecuteKind, Triggers, VerifiedTask } from '../common/taskSystem.js';
 import { getTemplates as getTaskTemplates } from '../common/taskTemplates.js';
@@ -87,7 +88,6 @@ import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { CHAT_OPEN_ACTION_ID } from '../../chat/browser/actions/chatActions.js';
 import { IChatAgentService } from '../../chat/common/chatAgents.js';
 import { IChatService } from '../../chat/common/chatService.js';
-import { ChatAgentLocation, ChatModeKind } from '../../chat/common/constants.js';
 import { configureTaskIcon, isWorkspaceFolder, ITaskQuickPickEntry, QUICKOPEN_DETAIL_CONFIG, QUICKOPEN_SKIP_CONFIG, TaskQuickPick } from './taskQuickPick.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import * as dom from '../../../../base/browser/dom.js';
@@ -204,7 +204,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	private static readonly RecentlyUsedTasks_KeyV2 = 'workbench.tasks.recentlyUsedTasks2';
 	private static readonly PersistentTasks_Key = 'workbench.tasks.persistentTasks';
 	private static readonly IgnoreTask010DonotShowAgain_key = 'workbench.tasks.ignoreTask010Shown';
-	private static readonly LongRunningTaskNotificationThreshold = 60000; // 1 minute in milliseconds
 
 	public _serviceBrand: undefined;
 	public static OutputChannelId: string = 'tasks';
@@ -252,6 +251,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	private _onDidChangeTaskProviders = this._register(new Emitter<void>());
 	public onDidChangeTaskProviders = this._onDidChangeTaskProviders.event;
 	private readonly _taskRunStartTimes = new Map<string, number>();
+	private readonly _taskRunSources = new Map<string, TaskRunSource>();
 
 	private _activatedTaskProviders: Set<string> = new Set();
 
@@ -401,6 +401,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					const processEndedEvent = e as ITaskProcessEndedEvent;
 					const startTime = this._taskRunStartTimes.get(e.taskId);
 					this._taskRunStartTimes.delete(e.taskId);
+					this._taskRunSources.delete(e.taskId);
 					const durationMs = processEndedEvent.durationMs ?? (startTime !== undefined ? Date.now() - startTime : undefined);
 					if (durationMs !== undefined) {
 						this._handleLongRunningTaskCompletion(processEndedEvent, durationMs);
@@ -410,6 +411,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				case TaskEventKind.Inactive: {
 					const processEndedEvent = e as ITaskInactiveEvent;
 					const startTime = this._taskRunStartTimes.get(e.taskId);
+					this._taskRunStartTimes.delete(e.taskId);
+					this._taskRunSources.delete(e.taskId);
 					const durationMs = processEndedEvent.durationMs ?? (startTime !== undefined ? Date.now() - startTime : undefined);
 					if (durationMs !== undefined) {
 						this._handleLongRunningTaskCompletion(processEndedEvent, durationMs);
@@ -418,6 +421,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				}
 				case TaskEventKind.Terminated:
 					this._taskRunStartTimes.delete(e.taskId);
+					this._taskRunSources.delete(e.taskId);
 					break;
 			}
 			if (e.kind === TaskEventKind.Changed) {
@@ -491,9 +495,20 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async _handleLongRunningTaskCompletion(event: ITaskProcessEndedEvent | ITaskInactiveEvent, durationMs: number): Promise<void> {
-		if (durationMs < AbstractTaskService.LongRunningTaskNotificationThreshold) {
+		const notificationThreshold = this._configurationService.getValue<number>(TaskSettingId.NotifyWindowOnTaskCompletion);
+		// If threshold is 0, notifications are disabled
+		if (notificationThreshold === 0 || durationMs < notificationThreshold) {
 			return;
 		}
+
+		const taskRunSource = this._taskRunSources.get(event.taskId);
+		const chatNotificationsEnabled = this._configurationService.getValue<boolean>(ChatConfiguration.NotifyWindowOnResponseReceived);
+
+		// If task was run by chat agent and chat response notifications are enabled, avoid duplicate notifications
+		if (taskRunSource === TaskRunSource.ChatAgent && chatNotificationsEnabled) {
+			return;
+		}
+
 		const terminalForTask = this._terminalService.instances.find(i => i.instanceId === event.terminalId);
 		if (!terminalForTask) {
 			return;
@@ -503,15 +518,13 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (targetWindow.document.hasFocus()) {
 			return;
 		}
-		if (!this._configurationService.getValue<boolean>(TaskSettingId.NotifyWindowOnTaskCompletion)) {
-			return;
-		}
 
 		const durationText = this._formatTaskDuration(durationMs);
 		const message = taskLabel
 			? nls.localize('task.longRunningTaskCompletedWithLabel', 'Task "{0}" finished in {1}.', taskLabel, durationText)
 			: nls.localize('task.longRunningTaskCompleted', 'Task finished in {0}.', durationText);
 		this._taskRunStartTimes.delete(event.taskId);
+		this._taskRunSources.delete(event.taskId);
 		this._hostService.focus(targetWindow, { mode: FocusMode.Notify });
 		const notification = await dom.triggerNotification(message);
 		if (notification) {
@@ -2085,6 +2098,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async _handleExecuteResult(executeResult: ITaskExecuteResult, runSource?: TaskRunSource): Promise<ITaskSummary> {
+		if (runSource && executeResult.task._id) {
+			this._taskRunSources.set(executeResult.task._id, runSource);
+		}
+
 		if (runSource === TaskRunSource.User) {
 			await this._setRecentlyUsedTask(executeResult.task);
 		}

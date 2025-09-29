@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.105.0",
-  "distro": "b10e7ad06fc4826bae04a4dffd57d22f7c72997e",
+  "distro": "9e823daeded19d4a7c8f7e3ba36ca5d3c68d8350",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -110,6 +110,7 @@
     "node-pty": "1.1.0-beta35",
     "open": "^10.1.2",
     "tas-client-umd": "0.2.0",
+    "undici": "^7.9.0",
     "v8-inspect-profiler": "^0.1.1",
     "vscode-oniguruma": "1.7.0",
     "vscode-regexpp": "^3.1.0",
@@ -158,7 +159,7 @@
     "css-loader": "^6.9.1",
     "debounce": "^1.0.0",
     "deemon": "^1.13.6",
-    "electron": "37.3.1",
+    "electron": "37.5.1",
     "eslint": "^9.11.1",
     "eslint-formatter-compact": "^8.40.0",
     "eslint-plugin-header": "3.1.1",

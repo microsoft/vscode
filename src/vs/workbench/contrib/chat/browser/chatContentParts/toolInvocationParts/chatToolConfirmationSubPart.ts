@@ -25,11 +25,11 @@ import { ChatContextKeys } from '../../../common/chatContextKeys.js';
 import { IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService.js';
 import { CodeBlockModelCollection } from '../../../common/codeBlockModelCollection.js';
 import { createToolInputUri, createToolSchemaUri, ILanguageModelToolsService } from '../../../common/languageModelToolsService.js';
-import { AcceptToolConfirmationActionId } from '../../actions/chatToolActions.js';
+import { AcceptToolConfirmationActionId, SkipToolConfirmationActionId } from '../../actions/chatToolActions.js';
 import { IChatCodeBlockInfo, IChatWidgetService } from '../../chat.js';
 import { renderFileWidgets } from '../../chatInlineAnchorWidget.js';
 import { ICodeBlockRenderOptions } from '../../codeBlockPart.js';
-import { ChatCustomConfirmationWidget, IChatConfirmationButton, ChatConfirmationWidget } from '../chatConfirmationWidget.js';
+import { ChatConfirmationWidget, ChatCustomConfirmationWidget, IChatConfirmationButton } from '../chatConfirmationWidget.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { IChatMarkdownAnchorService } from '../chatMarkdownAnchorService.js';
 import { ChatMarkdownContentPart, EditorPool } from '../chatMarkdownContentPart.js';
@@ -66,6 +66,11 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 	) {
 		super(toolInvocation);
 
+		// Tag for sub-agent styling
+		if (toolInvocation.fromSubAgent) {
+			context.container.classList.add('from-sub-agent');
+		}
+
 		if (!toolInvocation.confirmationMessages) {
 			throw new Error('Confirmation messages are missing');
 		}
@@ -73,6 +78,9 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 		const allowLabel = localize('allow', "Allow");
 		const allowKeybinding = keybindingService.lookupKeybinding(AcceptToolConfirmationActionId)?.getLabel();
 		const allowTooltip = allowKeybinding ? `${allowLabel} (${allowKeybinding})` : allowLabel;
+		const skipLabel = localize('skip.detail', 'Proceed without running this tool');
+		const skipKeybinding = keybindingService.lookupKeybinding(SkipToolConfirmationActionId)?.getLabel();
+		const skipTooltip = skipKeybinding ? `${skipLabel} (${skipKeybinding})` : skipLabel;
 
 		const enum ConfirmationOutcome {
 			Allow,
@@ -95,7 +103,7 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 			},
 			{
 				label: localize('skip', "Skip"),
-				tooltip: localize('skip.detail', 'Proceed without running this tool'),
+				tooltip: skipTooltip,
 				data: ConfirmationOutcome.Skip,
 				isSecondary: true,
 			}];

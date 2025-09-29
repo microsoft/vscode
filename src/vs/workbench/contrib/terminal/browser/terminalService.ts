@@ -29,16 +29,14 @@ import { IThemeService, Themable } from '../../../../platform/theme/common/theme
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { VirtualWorkspaceContext } from '../../../common/contextkeys.js';
-import { IEditableData } from '../../../common/views.js';
-import { IViewsService } from '../../../services/views/common/viewsService.js';
+
 import { ICreateTerminalOptions, IDetachedTerminalInstance, IDetachedXTermOptions, IRequestAddInstanceToGroupEvent, ITerminalConfigurationService, ITerminalEditorService, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalInstanceHost, ITerminalInstanceService, ITerminalLocationOptions, ITerminalService, ITerminalServiceNativeDelegate, TerminalConnectionState, TerminalEditorLocation } from './terminal.js';
 import { getCwdForSplit } from './terminalActions.js';
 import { TerminalEditorInput } from './terminalEditorInput.js';
 import { getColorStyleContent, getUriClasses } from './terminalIcon.js';
 import { TerminalProfileQuickpick } from './terminalProfileQuickpick.js';
 import { getInstanceFromResource, getTerminalUri, parseTerminalUri } from './terminalUri.js';
-import { TerminalViewPane } from './terminalView.js';
-import { IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalProcessExtHostProxy, ITerminalProfileService, TERMINAL_VIEW_ID } from '../common/terminal.js';
+import { IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalProcessExtHostProxy, ITerminalProfileService } from '../common/terminal.js';
 import { TerminalContextKeys } from '../common/terminalContextKey.js';
 import { columnToEditorGroup } from '../../../services/editor/common/editorGroupColumn.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
@@ -79,8 +77,6 @@ export class TerminalService extends Disposable implements ITerminalService {
 	private _terminalCountContextKey: IContextKey<number>;
 	private _nativeDelegate?: ITerminalServiceNativeDelegate;
 	private _shutdownWindowCount?: number;
-
-	private _editable: { instance: ITerminalInstance; data: IEditableData } | undefined;
 
 	get isProcessSupportRegistered(): boolean { return !!this._processSupportContextKey.get(); }
 
@@ -126,8 +122,6 @@ export class TerminalService extends Disposable implements ITerminalService {
 		// Fallback to the last recorded active terminal if neither have focus
 		return this._activeInstance;
 	}
-
-	private _editingTerminal: ITerminalInstance | undefined;
 
 	private readonly _onDidCreateInstance = this._register(new Emitter<ITerminalInstance>());
 	get onDidCreateInstance(): Event<ITerminalInstance> { return this._onDidCreateInstance.event; }
@@ -175,7 +169,6 @@ export class TerminalService extends Disposable implements ITerminalService {
 		@IDialogService private _dialogService: IDialogService,
 		@IInstantiationService private _instantiationService: IInstantiationService,
 		@IRemoteAgentService private _remoteAgentService: IRemoteAgentService,
-		@IViewsService private _viewsService: IViewsService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITerminalConfigurationService private readonly _terminalConfigService: ITerminalConfigurationService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
@@ -588,24 +581,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 		await this.revealTerminal(instance, preserveFocus);
 	}
 
-	setEditable(instance: ITerminalInstance, data?: IEditableData | null): void {
-		if (!data) {
-			this._editable = undefined;
-		} else {
-			this._editable = { instance: instance, data };
-		}
-		const pane = this._viewsService.getActiveViewWithId<TerminalViewPane>(TERMINAL_VIEW_ID);
-		const isEditing = this.isEditable(instance);
-		pane?.terminalTabbedView?.setEditable(isEditing);
-	}
 
-	isEditable(instance: ITerminalInstance | undefined): boolean {
-		return !!this._editable && (this._editable.instance === instance || !instance);
-	}
-
-	getEditableData(instance: ITerminalInstance): IEditableData | undefined {
-		return this._editable && this._editable.instance === instance ? this._editable.data : undefined;
-	}
 
 	requestStartExtensionTerminal(proxy: ITerminalProcessExtHostProxy, cols: number, rows: number): Promise<ITerminalLaunchError | undefined> {
 		// The initial request came from the extension host, no need to wait for it
@@ -1229,13 +1205,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 		this._terminalGroupService.setContainer(terminalContainer);
 	}
 
-	getEditingTerminal(): ITerminalInstance | undefined {
-		return this._editingTerminal;
-	}
 
-	setEditingTerminal(instance: ITerminalInstance | undefined) {
-		this._editingTerminal = instance;
-	}
 
 	createOnInstanceEvent<T>(getEvent: (instance: ITerminalInstance) => Event<T>): DynamicListEventMultiplexer<ITerminalInstance, T> {
 		return new DynamicListEventMultiplexer(this.instances, this.onDidCreateInstance, this.onDidDisposeInstance, getEvent);
