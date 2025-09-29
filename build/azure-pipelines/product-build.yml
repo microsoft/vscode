@@ -307,12 +307,10 @@ extends:
             - template: build/azure-pipelines/linux/product-build-linux-node-modules.yml@self
               parameters:
                 NPM_ARCH: arm64
-                JOB_SUFFIX: ARM64
                 VSCODE_ARCH: arm64
             - template: build/azure-pipelines/linux/product-build-linux-node-modules.yml@self
               parameters:
                 NPM_ARCH: arm
-                JOB_SUFFIX: ARMHF
                 VSCODE_ARCH: armhf
             - template: build/azure-pipelines/darwin/product-build-darwin-node-modules.yml@self
               parameters:

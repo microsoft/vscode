@@ -1,14 +1,12 @@
 parameters:
   - name: NPM_ARCH
     type: string
-  - name: JOB_SUFFIX
-    type: string
   - name: VSCODE_ARCH
     type: string
 
 jobs:
   - job: LinuxNodeModules_${{ parameters.VSCODE_ARCH }}
-    displayName: Linux (${{ parameters.JOB_SUFFIX }})
+    displayName: Linux (${{ upper(parameters.VSCODE_ARCH) }})
     pool:
       name: 1es-ubuntu-22.04-x64
       os: linux
