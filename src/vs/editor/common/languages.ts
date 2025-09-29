@@ -1034,6 +1034,7 @@ export type LifetimeSummary = {
 	sameShapeReplacements?: boolean;
 	typingInterval: number;
 	typingIntervalCharacterCount: number;
+	selectedSuggestionInfo: boolean;
 };
 
 export interface CodeAction {

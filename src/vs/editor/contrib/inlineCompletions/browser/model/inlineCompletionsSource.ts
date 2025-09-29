@@ -16,9 +16,10 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { StringEdit } from '../../../../common/core/edits/stringEdit.js';
 import { Position } from '../../../../common/core/position.js';
-import { InlineCompletionEndOfLifeReasonKind, InlineCompletionTriggerKind, InlineCompletionsProvider } from '../../../../common/languages.js';
+import { InlineCompletionEndOfLifeReasonKind, InlineCompletionTriggerKind, InlineCompletionsProvider, ProviderId } from '../../../../common/languages.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
 import { ITextModel } from '../../../../common/model.js';
 import { offsetEditFromContentChanges } from '../../../../common/model/textModelStringEdit.js';
@@ -35,6 +36,7 @@ export class InlineCompletionsSource extends Disposable {
 	private readonly _updateOperation = this._register(new MutableDisposable<UpdateOperation>());
 
 	private readonly _loggingEnabled;
+	private readonly _sendRequestData;
 
 	private readonly _structuredFetchLogger;
 
@@ -77,10 +79,12 @@ export class InlineCompletionsSource extends Disposable {
 		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
 		@ILogService private readonly _logService: ILogService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 		this._loggingEnabled = observableConfigValue('editor.inlineSuggest.logFetch', false, this._configurationService).recomputeInitiallyAndOnChange(this._store);
+		this._sendRequestData = observableConfigValue('editor.inlineSuggest.requestInformation', true, this._configurationService).recomputeInitiallyAndOnChange(this._store);
 		this._structuredFetchLogger = this._register(this._instantiationService.createInstance(StructuredLogger.cast<
 			{ kind: 'start'; requestId: number; context: unknown } & IRecordableEditorLogEntry
 			| { kind: 'end'; error: unknown; durationMs: number; result: unknown; requestId: number } & IRecordableLogEntry
@@ -138,6 +142,9 @@ export class InlineCompletionsSource extends Disposable {
 		const promise = (async () => {
 			this._loadingCount.set(this._loadingCount.get() + 1, undefined);
 			const store = new DisposableStore();
+			const inlineSuggestionsProviders = providers.filter(p => p.providerId);
+			const requestResponseInfo = new RequestResponseData(context, requestInfo, inlineSuggestionsProviders);
+
 			try {
 				const recommendedDebounceValue = this._debounceValue.get(this._textModel);
 				const debounceValue = findLastMax(
@@ -153,6 +160,7 @@ export class InlineCompletionsSource extends Disposable {
 				}
 
 				if (source.token.isCancellationRequested || this._store.isDisposed || this._textModel.getVersionId() !== request.versionId) {
+					requestResponseInfo.setNoSuggestionReasonIfNotSet('canceled:beforeFetch');
 					return false;
 				}
 
@@ -176,6 +184,7 @@ export class InlineCompletionsSource extends Disposable {
 				runWhenCancelled(source.token, () => providerResult.cancelAndDispose({ kind: 'tokenCancellation' }));
 
 				let shouldStopEarly = false;
+				let invalidSuggestion = false;
 
 				const suggestions: InlineSuggestionItem[] = [];
 				for await (const list of providerResult.lists) {
@@ -187,9 +196,11 @@ export class InlineCompletionsSource extends Disposable {
 
 					for (const item of list.inlineSuggestionsData) {
 						if (!context.includeInlineEdits && (item.isInlineEdit || item.showInlineEditMenu)) {
+							invalidSuggestion = true;
 							continue;
 						}
 						if (!context.includeInlineCompletions && !(item.isInlineEdit || item.showInlineEditMenu)) {
+							invalidSuggestion = true;
 							continue;
 						}
 
@@ -225,6 +236,13 @@ export class InlineCompletionsSource extends Disposable {
 					this._log({ sourceId: 'InlineCompletions.fetch', kind: 'end', requestId, durationMs: (Date.now() - startTime.getTime()), error, result, time: Date.now(), didAllProvidersReturn });
 				}
 
+				requestResponseInfo.setRequestUuid(providerResult.contextWithUuid.requestUuid);
+				if (source.token.isCancellationRequested) {
+					requestResponseInfo.setNoSuggestionReasonIfNotSet('canceled:whileFetching');
+				} else if (suggestions.length === 0) {
+					requestResponseInfo.setNoSuggestionReasonIfNotSet(invalidSuggestion ? 'invalid' : 'noSuggestion');
+				}
+
 				const remainingTimeToWait = context.earliestShownDateTime - Date.now();
 				if (remainingTimeToWait > 0) {
 					await wait(remainingTimeToWait, source.token);
@@ -232,8 +250,17 @@ export class InlineCompletionsSource extends Disposable {
 
 				if (source.token.isCancellationRequested || this._store.isDisposed || this._textModel.getVersionId() !== request.versionId
 					|| userJumpedToActiveCompletion.get()  /* In the meantime the user showed interest for the active completion so dont hide it */) {
+					requestResponseInfo.setNoSuggestionReasonIfNotSet(
+						source.token.isCancellationRequested ? 'canceled:afterMinShowDelay' :
+							this._store.isDisposed ? 'canceled:disposed' :
+								this._textModel.getVersionId() !== request.versionId ? 'canceled:documentChanged' :
+									userJumpedToActiveCompletion.get() ? 'canceled:userJumped' :
+										'unknown'
+					);
 					return false;
 				}
+
+				requestResponseInfo.setSuggestions(suggestions);
 
 				const endTime = new Date();
 				this._debounceValue.update(this._textModel, endTime.getTime() - startTime.getTime());
@@ -262,6 +289,7 @@ export class InlineCompletionsSource extends Disposable {
 			} finally {
 				this._loadingCount.set(this._loadingCount.get() - 1, undefined);
 				store.dispose();
+				this.sendInlineCompletionsRequestTelemetry(requestResponseInfo);
 			}
 
 			return true;
@@ -306,6 +334,50 @@ export class InlineCompletionsSource extends Disposable {
 		});
 	}
 
+	private sendInlineCompletionsRequestTelemetry(
+		requestResponseInfo: RequestResponseData
+	): void {
+		if (!this._sendRequestData.get()) {
+			return;
+		}
+
+		const requestResponseKind = requestResponseInfo.noSuggestionReason ?? ((!!requestResponseInfo.requestUuid && (requestResponseInfo.suggestionCount ?? 0) > 0) ? 'suggestion' : undefined);
+		if (requestResponseInfo.requestUuid === undefined || requestResponseKind === undefined) {
+			return;
+		}
+
+		type InlineCompletionRequest = {
+			opportunityId: string;
+			isExplicit: boolean;
+			kind: string;
+			selectedSuggestionInfo: boolean;
+			suggestionCount: number | undefined;
+			providers: string;
+			providersWithSuggestion: string | undefined;
+		};
+		type InlineCompletionRequestClassification = {
+			owner: 'benibenj';
+			comment: 'Information accepting completion items';
+			opportunityId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The id of the opportunity' };
+			isExplicit: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the inline completion was triggered explicitly by the user' };
+			kind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind of inline completion result' };
+			selectedSuggestionInfo: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the inline completion was requested with information about the selected suggestion' };
+			suggestionCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of suggestions provided' };
+			providers: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Extension available for the request' };
+			providersWithSuggestion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The providers that provided a suggestion' };
+		};
+
+		this._telemetryService.publicLog2<InlineCompletionRequest, InlineCompletionRequestClassification>('inlineCompletionsRequestResponse', {
+			opportunityId: requestResponseInfo.requestUuid,
+			isExplicit: requestResponseInfo.context.triggerKind === InlineCompletionTriggerKind.Explicit,
+			kind: requestResponseKind,
+			selectedSuggestionInfo: !!requestResponseInfo.context.selectedSuggestionInfo,
+			suggestionCount: requestResponseInfo.suggestionCount,
+			providers: requestResponseInfo.providers.map(p => p.providerId?.toString()).filter(isDefined).join(','),
+			providersWithSuggestion: requestResponseInfo.providersWithSuggestion?.map(providerId => providerId.toString()).join(','),
+		});
+	}
+
 	public clearSuggestWidgetInlineCompletions(tx: ITransaction): void {
 		if (this._updateOperation.value?.request.context.selectedSuggestionInfo) {
 			this._updateOperation.clear();
@@ -337,6 +409,32 @@ class UpdateRequest {
 
 	public get isExplicitRequest() {
 		return this.context.triggerKind === InlineCompletionTriggerKind.Explicit;
+	}
+}
+
+class RequestResponseData {
+	public requestUuid: string | undefined;
+	public noSuggestionReason: string | undefined;
+	public suggestionCount: number | undefined;
+	public providersWithSuggestion: ProviderId[] | undefined;
+
+	constructor(
+		public readonly context: InlineCompletionContextWithoutUuid,
+		public readonly requestInfo: InlineSuggestRequestInfo,
+		public readonly providers: InlineCompletionsProvider[],
+	) { }
+
+	setRequestUuid(uuid: string) {
+		this.requestUuid = uuid;
+	}
+
+	setNoSuggestionReasonIfNotSet(type: string) {
+		this.noSuggestionReason ??= type;
+	}
+
+	setSuggestions(suggestions: InlineSuggestionItem[]) {
+		this.suggestionCount = suggestions.filter(s => !!s.source.provider.providerId).length;
+		this.providersWithSuggestion = Array.from(new Set(suggestions.map(s => s.source.provider.providerId))).filter(isDefined);
 	}
 }
 
