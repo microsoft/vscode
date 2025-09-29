@@ -3234,7 +3234,18 @@ export namespace ChatPromptReference {
 		}
 		let toolReferences;
 		if (isPromptFileVariableEntry(variable) || isPromptTextVariableEntry(variable)) {
-			toolReferences = variable.toolReferences?.map(ref => ChatLanguageModelToolReference.to(ref));
+			if (variable.toolReferences) {
+				toolReferences = [];
+				for (const v of variable.toolReferences) {
+					if (v.kind === 'tool') {
+						toolReferences.push(ChatLanguageModelToolReference.to(v));
+					} else if (v.kind === 'toolset') {
+						toolReferences.push(...v.value.map(ChatLanguageModelToolReference.to));
+					} else {
+						throw new Error('Invalid tool reference in prompt variables');
+					}
+				}
+			}
 		}
 
 		return {
