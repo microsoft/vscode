@@ -1611,7 +1611,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (chatEditingSession) {
 			if (chatEditingSession.chatSessionId !== this._lastEditingSessionId) {
 				this._workingSetCollapsed = true;
-
 			}
 			this._lastEditingSessionId = chatEditingSession.chatSessionId;
 		}
