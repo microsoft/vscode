@@ -32,11 +32,8 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { nativeHoverDelegate } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { McpGalleryManifestStatus } from '../../../../platform/mcp/common/mcpGalleryManifest.js';
 import { mcpAutoStartConfig, McpAutoStartValue } from '../../../../platform/mcp/common/mcpManagement.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
-import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { defaultCheckboxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
@@ -65,7 +62,7 @@ import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
 import { McpCommandIds } from '../common/mcpCommandIds.js';
 import { McpContextKeys } from '../common/mcpContextKeys.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
-import { HasInstalledMcpServersContext, IMcpSamplingService, IMcpServer, IMcpServerStartOpts, IMcpService, InstalledMcpServersViewId, LazyCollectionState, McpCapability, McpCollectionDefinition, McpConnectionState, McpDefinitionReference, mcpPromptPrefix, McpServerCacheState, McpServersGalleryStatusContext, McpStartServerInteraction } from '../common/mcpTypes.js';
+import { HasInstalledMcpServersContext, IMcpSamplingService, IMcpServer, IMcpServerStartOpts, IMcpService, InstalledMcpServersViewId, LazyCollectionState, McpCapability, McpCollectionDefinition, McpConnectionState, McpDefinitionReference, mcpPromptPrefix, McpServerCacheState, McpStartServerInteraction } from '../common/mcpTypes.js';
 import { McpAddConfigurationCommand } from './mcpCommandsAddConfiguration.js';
 import { McpResourceQuickAccess, McpResourceQuickPick } from './mcpResourceQuickAccess.js';
 import './media/mcpServerAction.css';
@@ -853,6 +850,10 @@ export class McpBrowseCommand extends Action2 {
 				id: extensionsFilterSubMenu,
 				group: '1_predefined',
 				order: 1,
+			}, {
+				id: MenuId.ViewTitle,
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', InstalledMcpServersViewId)),
+				group: 'navigation',
 			}],
 		});
 	}
@@ -869,27 +870,6 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		category
 	},
 });
-
-export class BrowseMcpServersPageCommand extends Action2 {
-	constructor() {
-		super({
-			id: McpCommandIds.BrowsePage,
-			title: localize2('mcp.command.open', "Browse MCP Servers"),
-			icon: Codicon.globe,
-			menu: [{
-				id: MenuId.ViewTitle,
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', InstalledMcpServersViewId), McpServersGalleryStatusContext.isEqualTo(McpGalleryManifestStatus.Unavailable)),
-				group: 'navigation',
-			}],
-		});
-	}
-
-	async run(accessor: ServicesAccessor) {
-		const productService = accessor.get(IProductService);
-		const openerService = accessor.get(IOpenerService);
-		return openerService.open(productService.quality === 'insider' ? 'https://code.visualstudio.com/insider/mcp' : 'https://code.visualstudio.com/mcp');
-	}
-}
 
 export class ShowInstalledMcpServersCommand extends Action2 {
 	constructor() {
