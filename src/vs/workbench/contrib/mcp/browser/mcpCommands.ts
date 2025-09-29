@@ -845,7 +845,9 @@ export class McpBrowseCommand extends Action2 {
 		super({
 			id: McpCommandIds.Browse,
 			title: localize2('mcp.command.browse', "MCP Servers"),
+			tooltip: localize2('mcp.command.browse.tooltip', "Browse MCP Servers"),
 			category,
+			icon: Codicon.globe,
 			menu: [{
 				id: extensionsFilterSubMenu,
 				group: '1_predefined',
@@ -866,7 +868,7 @@ export class McpBrowseCommand extends Action2 {
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: McpCommandIds.Browse,
-		title: localize2('mcp.command.browse.mcp', "Browse Servers"),
+		title: localize2('mcp.command.browse.mcp', "Browse MCP Servers"),
 		category
 	},
 });
