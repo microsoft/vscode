@@ -153,6 +153,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		if (this._state === state) {
 			return;
 		}
+		// this._state = state;
 		switch (state) {
 			case OverlayState.Off: {
 				this._setVisible(false);
@@ -191,8 +192,15 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			this._pendingShowOperation = true;
 			this._show();
 		} else {
+			this._cancelPendingShow();
 			this._hide();
 		}
+	}
+
+	private _cancelPendingShow(): void {
+		const showFn = this._show as typeof this._show & { clear: () => void };
+		showFn.clear();
+		this._pendingShowOperation = false;
 	}
 
 	@debounce(100)
@@ -205,7 +213,6 @@ export class TerminalStickyScrollOverlay extends Disposable {
 	}
 
 	private _hide(): void {
-		this._pendingShowOperation = false;
 		this._element?.classList.toggle(CssClasses.Visible, false);
 	}
 
@@ -509,7 +516,6 @@ export class TerminalStickyScrollOverlay extends Disposable {
 	private _shouldLoadWebgl(): boolean {
 		return this._terminalConfigurationService.config.gpuAcceleration === 'auto' || this._terminalConfigurationService.config.gpuAcceleration === 'on';
 	}
-
 	private _getTheme(isHovering: boolean): ITheme {
 		const theme = this._themeService.getColorTheme();
 		return {
