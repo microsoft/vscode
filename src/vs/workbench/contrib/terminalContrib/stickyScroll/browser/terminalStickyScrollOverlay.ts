@@ -153,7 +153,6 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		if (this._state === state) {
 			return;
 		}
-		// this._state = state;
 		switch (state) {
 			case OverlayState.Off: {
 				this._setVisible(false);
