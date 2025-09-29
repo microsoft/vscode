@@ -8486,6 +8486,7 @@ declare namespace monaco.languages {
 	}
 
 	export interface DocumentRangeSemanticTokensProvider {
+		onDidChange?: IEvent<void>;
 		getLegend(): SemanticTokensLegend;
 		provideDocumentRangeSemanticTokens(model: editor.ITextModel, range: Range, token: CancellationToken): ProviderResult<SemanticTokens>;
 	}
