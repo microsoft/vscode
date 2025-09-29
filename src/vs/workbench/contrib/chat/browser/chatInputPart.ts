@@ -82,7 +82,7 @@ import { IChatFollowup } from '../common/chatService.js';
 import { ChatRequestVariableSet, IChatRequestVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemChangeRangeVariableEntry, isSCMHistoryItemChangeVariableEntry, isSCMHistoryItemVariableEntry } from '../common/chatVariableEntries.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
 import { ChatInputHistoryMaxEntries, IChatHistoryEntry, IChatInputState, IChatWidgetHistoryService } from '../common/chatWidgetHistoryService.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, TodoListWidgetPositionSettingId, validateChatMode } from '../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, validateChatMode } from '../common/constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
 import { ILanguageModelToolsService } from '../common/languageModelToolsService.js';
 import { PromptsType } from '../common/promptSyntax/promptTypes.js';
@@ -240,6 +240,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private relatedFilesContainer!: HTMLElement;
 
 	private chatEditingSessionWidgetContainer!: HTMLElement;
+	private chatInputTodoListWidgetContainer!: HTMLElement;
 
 	private _inputPartHeight: number;
 	get inputPartHeight() {
@@ -1070,6 +1071,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (this.options.renderStyle === 'compact') {
 			elements = dom.h('.interactive-input-part', [
 				dom.h('.interactive-input-and-edit-session', [
+					dom.h('.chat-todo-list-widget-container@chatInputTodoListWidgetContainer'),
 					dom.h('.chat-editing-session@chatEditingSessionWidgetContainer'),
 					dom.h('.interactive-input-and-side-toolbar@inputAndSideToolbar', [
 						dom.h('.chat-input-container@inputContainer', [
@@ -1088,6 +1090,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		} else {
 			elements = dom.h('.interactive-input-part', [
 				dom.h('.interactive-input-followups@followupsContainer'),
+				dom.h('.chat-todo-list-widget-container@chatInputTodoListWidgetContainer'),
 				dom.h('.chat-editing-session@chatEditingSessionWidgetContainer'),
 				dom.h('.interactive-input-and-side-toolbar@inputAndSideToolbar', [
 					dom.h('.chat-input-container@inputContainer', [
@@ -1117,6 +1120,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const toolbarsContainer = elements.inputToolbars;
 		const attachmentToolbarContainer = elements.attachmentToolbar;
 		this.chatEditingSessionWidgetContainer = elements.chatEditingSessionWidgetContainer;
+		this.chatInputTodoListWidgetContainer = elements.chatInputTodoListWidgetContainer;
 		if (this.options.enableImplicitContext) {
 			this._implicitContext = this._register(
 				this.instantiationService.createInstance(ChatImplicitContext),
@@ -1582,6 +1586,25 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 	}
 
+	async renderChatTodoListWidget(chatSessionId: string) {
+		if (!this._chatInputTodoListWidget.value) {
+			const widget = this._chatEditingTodosDisposables.add(this.instantiationService.createInstance(ChatTodoListWidget));
+			this._chatInputTodoListWidget.value = widget;
+
+			// Add the widget's DOM node to the dedicated todo list container
+			dom.clearNode(this.chatInputTodoListWidgetContainer);
+			dom.append(this.chatInputTodoListWidgetContainer, widget.domNode);
+
+			// Listen to height changes
+			this._chatEditingTodosDisposables.add(widget.onDidChangeHeight(() => {
+				this._onDidChangeHeight.fire();
+			}));
+		}
+
+		// Render the widget with the current session
+		this._chatInputTodoListWidget.value.render(chatSessionId);
+	}
+
 	async renderChatEditingSessionState(chatEditingSession: IChatEditingSession | null) {
 		dom.setVisibility(Boolean(chatEditingSession), this.chatEditingSessionWidgetContainer);
 
@@ -1622,49 +1645,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 		}
 
-		// Optionally render a todo list above the working set using ChatTodoListWidget
-		const todoListWidgetPosition = this.configurationService.getValue<string>(TodoListWidgetPositionSettingId) || 'default';
-		if (todoListWidgetPosition === 'chat-input' && chatEditingSession) {
-			// Render the todo list widget in the chat input area
-			if (!this._chatInputTodoListWidget.value) {
-				// Create the widget instance
-				const widget = this._chatEditingTodosDisposables.add(this.instantiationService.createInstance(ChatTodoListWidget));
-				this._chatInputTodoListWidget.value = widget;
-
-				// Add the widget's DOM node as the first child of the container
-				const firstChild = this.chatEditingSessionWidgetContainer.firstChild;
-				if (firstChild) {
-					this.chatEditingSessionWidgetContainer.insertBefore(widget.domNode, firstChild);
-				} else {
-					dom.append(this.chatEditingSessionWidgetContainer, widget.domNode);
-				}
-
-				// Listen to height changes
-				this._chatEditingTodosDisposables.add(widget.onDidChangeHeight(() => {
-					this._onDidChangeHeight.fire();
-				}));
-			}
-
-			// Render the widget with the current session
-			this._chatInputTodoListWidget.value.render(chatEditingSession.chatSessionId);
-		}
-
-		// If there is no working set to render, clear only the working set container and return
-		if (!this.options.renderWorkingSet || entries.length === 0) {
-			const existingWorkingSet = this.chatEditingSessionWidgetContainer.querySelector('.chat-editing-session-container.show-file-icons') as HTMLElement | null;
-			if (existingWorkingSet) {
-				existingWorkingSet.remove();
-			}
+		if (!chatEditingSession || !this.options.renderWorkingSet || entries.length === 0) {
+			dom.clearNode(this.chatEditingSessionWidgetContainer);
 			this._chatEditsDisposables.clear();
 			this._chatEditList = undefined;
 			return;
 		}
 
-		// Ensure we have a session for working set rendering beyond this point
-		if (!chatEditingSession) {
-			return;
-		}
-
+		// Summary of number of files changed
 		const innerContainer = this.chatEditingSessionWidgetContainer.querySelector('.chat-editing-session-container.show-file-icons') as HTMLElement ?? dom.append(this.chatEditingSessionWidgetContainer, $('.chat-editing-session-container.show-file-icons'));
 
 		entries.sort((a, b) => {
@@ -1898,7 +1886,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const followupsWidth = width - data.inputPartHorizontalPadding;
 		this.followupsContainer.style.width = `${followupsWidth}px`;
 
-		this._inputPartHeight = data.inputPartVerticalPadding + data.followupsHeight + inputEditorHeight + data.inputEditorBorder + data.attachmentsHeight + data.toolbarsHeight + data.chatEditingStateHeight;
+		this._inputPartHeight = data.inputPartVerticalPadding + data.followupsHeight + inputEditorHeight + data.inputEditorBorder + data.attachmentsHeight + data.toolbarsHeight + data.chatEditingStateHeight + data.todoListWidgetContainerHeight;
 		this._followupsHeight = data.followupsHeight;
 		this._editSessionWidgetHeight = data.chatEditingStateHeight;
 
@@ -1936,6 +1924,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			toolbarsHeight: this.options.renderStyle === 'compact' ? 0 : 22,
 			chatEditingStateHeight: this.chatEditingSessionWidgetContainer.offsetHeight,
 			sideToolbarWidth: this.inputSideToolbarContainer ? dom.getTotalWidth(this.inputSideToolbarContainer) + 4 /*gap*/ : 0,
+			todoListWidgetContainerHeight: this.chatInputTodoListWidgetContainer.offsetHeight,
 		};
 	}
 

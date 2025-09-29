@@ -1262,6 +1262,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// Handle 'chat-input' - hide the standalone widget to avoid duplication
 		if (todoListWidgetPosition === 'chat-input') {
 			this.chatTodoListWidget.domNode.style.display = 'none';
+			this.inputPart.renderChatTodoListWidget(sessionId);
 			this._onDidChangeContentHeight.fire();
 			return;
 		}
