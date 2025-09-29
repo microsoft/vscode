@@ -211,7 +211,7 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 			iconTheme = session.iconPath;
 		}
 
-		const renderDescriptionOnSecondRow = this.configurationService.getValue(ChatConfiguration.ShowAgentSessionsViewDescription) && session.provider.chatSessionType !== 'local';
+		const renderDescriptionOnSecondRow = this.configurationService.getValue<boolean>(ChatConfiguration.ShowAgentSessionsViewDescription) && session.provider.chatSessionType !== 'local';
 
 		if (renderDescriptionOnSecondRow && session.description) {
 			templateData.container.classList.toggle('multiline', true);
@@ -251,23 +251,14 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 				} : undefined) :
 			undefined;
 
-		// Handle custom icon rendering
-		if (iconTheme) {
-			templateData.customIcon.className = `chat-session-custom-icon ${ThemeIcon.asClassName(iconTheme)}`;
-			// ensure no stale inline color remains
-			templateData.customIcon.style.color = '';
-			templateData.customIcon.style.display = 'flex';
-		} else {
-			// No icon for this item: hide the element so a recycled template doesn't show a stale icon from a previous row
-			templateData.customIcon.style.display = 'none';
-		}
+		templateData.customIcon.className = iconTheme ? `chat-session-custom-icon ${ThemeIcon.asClassName(iconTheme)}` : '';
 
 		// Set the icon label
 		templateData.iconLabel.setLabel(
 			session.label,
-			!renderDescriptionOnSecondRow && 'description' in session && typeof session.description === 'string' ? session.description : undefined,
+			!renderDescriptionOnSecondRow && typeof session.description === 'string' ? session.description : undefined,
 			{
-				title: !renderDescriptionOnSecondRow || !session.description ? tooltipContent as any : undefined, // match IconLabel API (string | IMarkdownString)
+				title: !renderDescriptionOnSecondRow || !session.description ? tooltipContent : undefined,
 				matches: createMatches(element.filterData)
 			}
 		);

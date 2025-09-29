@@ -169,16 +169,15 @@
 	text-align: center;
 }
 
-/* Custom chat session icon that bypasses file icon theme */
+/* Chat session icon */
 .chat-sessions-tree-container .chat-session-item .chat-session-custom-icon {
 	flex-shrink: 0;
 	width: 16px;
 	height: 16px;
 	margin-right: 6px;
 	font-size: 16px;
-	color: var(--vscode-icon-foreground);
+	display: flex;
 }
-
 
 /* Timestamp styling - similar to timeline pane */
 .chat-sessions-tree-container .chat-session-item .timestamp-container {
