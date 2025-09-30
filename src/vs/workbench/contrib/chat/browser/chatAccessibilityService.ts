@@ -64,9 +64,9 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 		if (!response || !responseContent) {
 			return;
 		}
-		this._showOSNotification(widget, container, responseContent.substring(0, 20));
-		const errorDetails = isPanelChat && response.errorDetails ? ` ${response.errorDetails.message}` : '';
 		const plainTextResponse = renderAsPlaintext(new MarkdownString(responseContent));
+		this._showOSNotification(widget, container, plainTextResponse);
+		const errorDetails = isPanelChat && response.errorDetails ? ` ${response.errorDetails.message}` : '';
 		if (!isVoiceInput || this._configurationService.getValue(AccessibilityVoiceSettingId.AutoSynthesize) !== 'on') {
 			status(plainTextResponse + errorDetails);
 		}
@@ -100,9 +100,13 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 			this.notifications.delete(ds);
 		}
 
-
-		const notification = await dom.triggerNotification(localize('chat.responseReceivedNotification', "Chat response received: {0}", responseContent), {
-			detail: localize('chat.responseReceivedNotification.detail', "Click to focus chat"),
+		const chatTitle = widget.viewModel?.model.title || localize('chat.defaultTitle', "Chat");
+		const maxDetailLength = 100;
+		const truncatedResponse = responseContent.length > maxDetailLength
+			? responseContent.substring(0, maxDetailLength) + '...'
+			: responseContent + '...';
+		const notification = await dom.triggerNotification(chatTitle, {
+			detail: truncatedResponse,
 			sticky: false,
 		});
 
