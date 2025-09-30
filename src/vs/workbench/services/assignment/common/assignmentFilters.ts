@@ -10,7 +10,7 @@ import { ExtensionIdentifier } from '../../../../platform/extensions/common/exte
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { IChatEntitlementService } from '../../chat/common/chatEntitlementService.js';
+import { IChatEntitlementService } from '../../../../platform/chatEntitlement/common/chatEntitlement.js';
 
 export enum ExtensionsFilter {
 

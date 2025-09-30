@@ -34,7 +34,7 @@ import { ChatAgentNameService, ChatAgentService, IChatAgentNameService, IChatAge
 import { CodeMapperService, ICodeMapperService } from '../common/chatCodeMapperService.js';
 import '../common/chatColors.js';
 import { IChatEditingService } from '../common/chatEditingService.js';
-import { ChatEntitlement, IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../../../platform/chatEntitlement/common/chatEntitlement.js';
 import { IChatLayoutService } from '../common/chatLayoutService.js';
 import { ChatModeService, IChatModeService } from '../common/chatModes.js';
 import { ChatResponseResourceFileSystemProvider } from '../common/chatResponseResourceFileSystemProvider.js';

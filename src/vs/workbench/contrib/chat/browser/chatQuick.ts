@@ -30,7 +30,7 @@ import { IChatProgress, IChatService } from '../common/chatService.js';
 import { ChatAgentLocation } from '../common/constants.js';
 import { IQuickChatOpenOptions, IQuickChatService, showChatView } from './chat.js';
 import { ChatWidget } from './chatWidget.js';
-import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
+import { IChatEntitlementService } from '../../../../platform/chatEntitlement/common/chatEntitlement.js';
 
 export class QuickChatService extends Disposable implements IQuickChatService {
 	readonly _serviceBrand: undefined;

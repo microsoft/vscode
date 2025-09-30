@@ -138,7 +138,7 @@ import { TerminalEditorInput } from '../../contrib/terminal/browser/terminalEdit
 import { IEnvironmentVariableService } from '../../contrib/terminal/common/environmentVariable.js';
 import { EnvironmentVariableService } from '../../contrib/terminal/common/environmentVariableService.js';
 import { IRegisterContributedProfileArgs, IShellLaunchConfigResolveOptions, ITerminalProfileProvider, ITerminalProfileResolverService, ITerminalProfileService, type ITerminalConfiguration } from '../../contrib/terminal/common/terminal.js';
-import { ChatEntitlement, IChatEntitlementService } from '../../services/chat/common/chatEntitlementService.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../../platform/chatEntitlement/common/chatEntitlement.js';
 import { IDecoration, IDecorationData, IDecorationsProvider, IDecorationsService, IResourceDecorationChangeEvent } from '../../services/decorations/common/decorations.js';
 import { CodeEditorService } from '../../services/editor/browser/codeEditorService.js';
 import { EditorPaneService } from '../../services/editor/browser/editorPaneService.js';

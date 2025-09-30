@@ -101,6 +101,7 @@ import { IWebWorkerDescriptor } from '../../../base/browser/webWorkerFactory.js'
 import { ITreeSitterLibraryService } from '../../common/services/treeSitter/treeSitterLibraryService.js';
 import { StandaloneTreeSitterLibraryService } from './standaloneTreeSitterLibraryService.js';
 import { IDataChannelService, NullDataChannelService } from '../../../platform/dataChannel/common/dataChannel.js';
+import { IChatEntitlementService, NullChatEntitlementService } from '../../../platform/chatEntitlement/common/chatEntitlement.js';
 
 class SimpleModel implements IResolvedTextEditorModel {
 
@@ -1169,6 +1170,7 @@ registerSingleton(IAccessibilitySignalService, StandaloneAccessbilitySignalServi
 registerSingleton(ITreeSitterLibraryService, StandaloneTreeSitterLibraryService, InstantiationType.Eager);
 registerSingleton(ILoggerService, NullLoggerService, InstantiationType.Eager);
 registerSingleton(IDataChannelService, NullDataChannelService, InstantiationType.Eager);
+registerSingleton(IChatEntitlementService, NullChatEntitlementService, InstantiationType.Eager);
 
 /**
  * We don't want to eagerly instantiate services because embedders get a one time chance
