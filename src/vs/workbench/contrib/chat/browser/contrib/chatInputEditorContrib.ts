@@ -281,9 +281,12 @@ class InputEditorDecorations extends Disposable {
 		}
 
 		if (slashPromptPart) {
-			// Add hover message with description if available
-			const description = this.promptDescriptionsCache.get(slashPromptPart.slashPromptCommand.command);
-			const hoverMessage = description ? new MarkdownString(description) : undefined;
+			// Add hover message with description if available, fallback to detail
+			const cachedDescription = this.promptDescriptionsCache.get(slashPromptPart.slashPromptCommand.command);
+			// Use cached description if available and non-empty, otherwise use the detail as fallback
+			const hoverMessage = (cachedDescription && cachedDescription.trim()) 
+				? new MarkdownString(cachedDescription) 
+				: new MarkdownString(slashPromptPart.slashPromptCommand.detail);
 			textDecorations.push({ range: slashPromptPart.editorRange, hoverMessage });
 		}
 
