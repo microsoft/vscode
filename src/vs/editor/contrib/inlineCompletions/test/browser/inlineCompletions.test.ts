@@ -761,4 +761,46 @@ suite('Multi Cursor Support', () => {
 			}
 		);
 	});
+
+	test('Does not trigger on delete when experimental.triggerOnDelete is false', async function () {
+		const provider = new MockInlineCompletionsProvider();
+		await withAsyncTestCodeEditorAndInlineCompletionsModel('foobar',
+			{ fakeClock: true, provider, inlineSuggest: { enabled: true, experimental: { triggerOnDelete: false } } },
+			async ({ editor, editorViewModel, model, context }) => {
+				// Set cursor at the end
+				editor.setPosition({ lineNumber: 1, column: 7 });
+				
+				provider.setReturnValue({ insertText: 'foobar123', range: new Range(1, 1, 1, 7) });
+				
+				// Delete a character - should NOT trigger inline completions
+				context.leftDelete();
+				await timeout(1000);
+
+				// Provider should not be called
+				assert.deepStrictEqual(provider.getAndClearCallHistory(), []);
+			}
+		);
+	});
+
+	test('Triggers on delete when experimental.triggerOnDelete is true', async function () {
+		const provider = new MockInlineCompletionsProvider();
+		await withAsyncTestCodeEditorAndInlineCompletionsModel('foobar',
+			{ fakeClock: true, provider, inlineSuggest: { enabled: true, experimental: { triggerOnDelete: true } } },
+			async ({ editor, editorViewModel, model, context }) => {
+				// Set cursor at the end
+				editor.setPosition({ lineNumber: 1, column: 7 });
+				
+				provider.setReturnValue({ insertText: 'fooba123', range: new Range(1, 1, 1, 6) });
+				
+				// Delete a character - should trigger inline completions
+				context.leftDelete();
+				await timeout(1000);
+
+				// Provider should be called
+				assert.deepStrictEqual(provider.getAndClearCallHistory(), [
+					{ position: '(1,6)', text: 'fooba', triggerKind: 0, }
+				]);
+			}
+		);
+	});
 });
