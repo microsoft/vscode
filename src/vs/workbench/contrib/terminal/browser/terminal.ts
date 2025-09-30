@@ -349,7 +349,6 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	 * Creates a raw terminal instance, this should not be used outside of the terminal part.
 	 */
 	getInstanceFromId(terminalId: number): ITerminalInstance | undefined;
-	getInstanceFromIndex(terminalIndex: number): ITerminalInstance;
 
 	/**
 	 * An owner of terminals might be created after reconnection has occurred,
