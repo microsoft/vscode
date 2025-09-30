@@ -281,7 +281,10 @@ class InputEditorDecorations extends Disposable {
 		}
 
 		if (slashPromptPart) {
-			textDecorations.push({ range: slashPromptPart.editorRange });
+			// Add hover message with description if available
+			const description = this.promptDescriptionsCache.get(slashPromptPart.slashPromptCommand.command);
+			const hoverMessage = description ? new MarkdownString(description) : undefined;
+			textDecorations.push({ range: slashPromptPart.editorRange, hoverMessage });
 		}
 
 		this.widget.inputEditor.setDecorationsByType(decorationDescription, slashCommandTextDecorationType, textDecorations);
