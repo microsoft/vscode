@@ -1166,9 +1166,9 @@ suite('OAuth', () => {
 				await fetchResourceMetadata(targetResource, resourceMetadataUrl, { fetch: fetchStub });
 				assert.fail('Should have thrown an error');
 			} catch (error: any) {
-				assert.match(error.message, /length:/);
-				assert.match(error.message, /https:\/\/different\.com\/other/);
-				assert.match(error.message, /https:\/\/example\.com\/api/);
+				assert.ok(/length:/.test(error.message), 'Error message should include length information');
+				assert.ok(/https:\/\/different\.com\/other/.test(error.message), 'Error message should include actual resource value');
+				assert.ok(/https:\/\/example\.com\/api/.test(error.message), 'Error message should include expected resource value');
 			}
 		});
 	});
