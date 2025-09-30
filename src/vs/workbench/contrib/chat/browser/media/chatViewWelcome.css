@@ -50,7 +50,7 @@
 
 	.new-welcome-view & > .chat-welcome-view-input-part {
 		max-width: 650px;
-		margin-bottom: 48px;
+		margin-bottom: 8px; /* Reduced margin to make room for prompts below */
 	}
 }
 
@@ -243,6 +243,23 @@ div.chat-welcome-view {
 		background-color: var(--vscode-list-hoverBackground);
 		border-color: var(--vscode-focusBorder);
 	}
+}
+
+/* Fresh login view - move prompts below input box instead of at bottom */
+.new-welcome-view .chat-welcome-view-suggested-prompts {
+	position: relative; /* Change from absolute to relative positioning */
+	bottom: auto;
+	left: auto;
+	right: auto;
+	margin-top: 8px; /* Space below input box */
+	margin-bottom: 48px; /* Space at bottom to maintain overall spacing */
+	justify-content: center; /* Center the prompt tiles */
+	padding: 0 12px; /* Remove extra top padding since title is hidden */
+}
+
+/* Hide the title for fresh login view */
+.new-welcome-view .chat-welcome-view-suggested-prompts .chat-welcome-view-suggested-prompts-title {
+	display: none;
 }
 
 
