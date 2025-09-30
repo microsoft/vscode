@@ -977,7 +977,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	setValue(value: string, transient: boolean): void {
 		this.inputEditor.setValue(value);
 		// always leave cursor at the end
-		this.inputEditor.setPosition(this.inputEditor.getModel()!.getPositionAt(value.length));
+		this.inputEditor.setPosition(getLastPosition(this.inputEditor.getModel()!));
 
 		if (!transient) {
 			this.saveCurrentValue(this.getInputState());
