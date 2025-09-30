@@ -284,8 +284,8 @@ class InputEditorDecorations extends Disposable {
 			// Add hover message with description if available, fallback to detail
 			const cachedDescription = this.promptDescriptionsCache.get(slashPromptPart.slashPromptCommand.command);
 			// Use cached description if available and non-empty, otherwise use the detail as fallback
-			const hoverMessage = (cachedDescription && cachedDescription.trim()) 
-				? new MarkdownString(cachedDescription) 
+			const hoverMessage = cachedDescription?.trim()
+				? new MarkdownString(cachedDescription)
 				: new MarkdownString(slashPromptPart.slashPromptCommand.detail);
 			textDecorations.push({ range: slashPromptPart.editorRange, hoverMessage });
 		}
