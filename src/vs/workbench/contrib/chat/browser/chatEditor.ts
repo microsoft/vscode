@@ -210,7 +210,7 @@ export class ChatEditor extends EditorPane {
 		const chatSessionType = getChatSessionType(input);
 		if (chatSessionType !== 'local') {
 			// Show single loading state for contributed sessions
-			const loadingMessage = nls.localize('chatEditor.loadingSession', "Loading session...");
+			const loadingMessage = nls.localize('chatEditor.loadingSession', "Loading ...");
 			this.showLoadingInChatWidget(loadingMessage);
 
 			try {
