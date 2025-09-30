@@ -97,6 +97,8 @@ const QUICKOPEN_HISTORY_LIMIT_CONFIG = 'task.quickOpen.history';
 const PROBLEM_MATCHER_NEVER_CONFIG = 'task.problemMatchers.neverPrompt';
 const USE_SLOW_PICKER = 'task.quickOpen.showAll';
 
+const TaskTerminalType = 'Task';
+
 export namespace ConfigureTaskAction {
 	export const ID = 'workbench.action.tasks.configureTaskRunner';
 	export const TEXT = nls.localize2('ConfigureTaskRunnerAction.label', "Configure Task");
@@ -438,18 +440,17 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		this._waitForAllSupportedExecutions = new Promise(resolve => {
 			Event.once(this._onDidRegisterAllSupportedExecutions.event)(() => resolve());
 		});
-		if (this._terminalService.getReconnectedTerminals('Task')?.length) {
-			this._attemptTaskReconnection();
-		} else {
-			this._terminalService.whenConnected.then(() => {
-				if (this._terminalService.getReconnectedTerminals('Task')?.length) {
-					this._attemptTaskReconnection();
-				} else {
-					this._tasksReconnected = true;
-					this._onDidReconnectToTasks.fire();
-				}
-			});
-		}
+
+		this._terminalService.whenConnected.then(() => {
+			const reconnectedInstances = this._terminalService.instances.filter(e => e.reconnectionProperties?.ownerId === TaskTerminalType);
+			if (reconnectedInstances.length) {
+				this._attemptTaskReconnection();
+			} else {
+				this._tasksReconnected = true;
+				this._onDidReconnectToTasks.fire();
+			}
+		});
+
 		this._upgrade();
 	}
 

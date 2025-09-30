@@ -354,6 +354,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	/**
 	 * An owner of terminals might be created after reconnection has occurred,
 	 * so store them to be requested/adopted later
+	 * @deprecated Use {@link onDidReconnectToSession}
 	 */
 	getReconnectedTerminals(reconnectionOwner: string): ITerminalInstance[] | undefined;
 
