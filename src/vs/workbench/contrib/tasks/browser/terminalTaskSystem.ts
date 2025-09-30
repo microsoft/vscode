@@ -1139,7 +1139,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		if (this._activeTasks[task.getMapKey()]) {
 			this._activeTasks[task.getMapKey()].terminal = terminal;
 		} else {
-			console.warn('No active tasks found for the terminal.');
+			this._logService.warn('No active tasks found for the terminal.');
 		}
 		this._fireTaskEvent(TaskEvent.changed());
 		return promise;
