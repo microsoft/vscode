@@ -1387,14 +1387,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 
 	private async _reconnectToTerminal(task: Task): Promise<ITerminalInstance | undefined> {
 		const reconnectedInstances = this._terminalService.instances.filter(e => e.reconnectionProperties?.ownerId === TaskTerminalType);
-		for (let i = 0; i < reconnectedInstances.length; i++) {
-			const terminal = reconnectedInstances[i];
-			if (getReconnectionData(terminal)?.lastTask === task.getCommonTaskId()) {
-				reconnectedInstances.splice(i, 1);
-				return terminal;
-			}
-		}
-		return undefined;
+		return reconnectedInstances.find(e => getReconnectionData(e)?.lastTask === task.getCommonTaskId());
 	}
 
 	private async _doCreateTerminal(task: Task, group: string | undefined, launchConfigs: IShellLaunchConfig): Promise<ITerminalInstance> {
@@ -1436,7 +1429,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			return;
 		}
 		const reconnectedInstances = this._terminalService.instances.filter(e => e.reconnectionProperties?.ownerId === TaskTerminalType);
-		console.log('TerminalTaskSystem, connect', reconnectedInstances);
 		this._logService.trace(`Attempting reconnection of ${reconnectedInstances.length} terminals`);
 		if (!reconnectedInstances.length) {
 			this._logService.trace(`No terminals to reconnect to so returning`);
