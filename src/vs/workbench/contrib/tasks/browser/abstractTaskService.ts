@@ -503,7 +503,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 		const taskRunSource = this._taskRunSources.get(event.taskId);
 
-		// Only notify for manually run tasks
+		// Only notify for manually run tasks (not automatic, system, or chat agent tasks)
+		// If taskRunSource is undefined, we don't know how the task was run, so don't notify
 		if (taskRunSource !== TaskRunSource.User) {
 			return;
 		}
