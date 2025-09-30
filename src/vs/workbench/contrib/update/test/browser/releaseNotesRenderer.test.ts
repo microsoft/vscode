@@ -12,6 +12,8 @@ import { IExtensionService } from '../../../../services/extensions/common/extens
 import { SimpleSettingRenderer } from '../../../markdown/browser/markdownSettingRenderer.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
 import { renderReleaseNotesMarkdown } from '../../browser/releaseNotesEditor.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { Emitter } from '../../../../../base/common/event.js';
 
 
 suite('Release notes renderer', () => {
@@ -62,7 +64,7 @@ Navigation End -->
 		const testSettingId = 'editor.wordWrap';
 		instantiationService.stub(IPreferencesService, <Partial<IPreferencesService>>{
 			_serviceBrand: undefined,
-			onDidDefaultSettingsContentChanged: { event: () => { /* noop */ } },
+			onDidDefaultSettingsContentChanged: new Emitter<URI>().event,
 			userSettingsResource: undefined as any,
 			workspaceSettingsResource: null,
 			getFolderSettingsResource: () => null,
