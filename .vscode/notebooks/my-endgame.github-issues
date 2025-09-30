@@ -10,6 +10,11 @@
     "value": "$MILESTONE=milestone:\"September 2025\"\n\n$MINE=assignee:@me"
   },
   {
+    "kind": 2,
+    "language": "github-issues",
+    "value": "$NOT_TEAM_MEMBERS=-author:aeschli -author:alexdima -author:alexr00 -author:AmandaSilver -author:bamurtaugh -author:bpasero -author:chrmarti -author:Chuxel -author:claudiaregio -author:connor4312 -author:dbaeumer -author:deepak1556 -author:devinvalenciano -author:digitarald -author:DonJayamanne -author:egamma -author:fiveisprime -author:ntrogh -author:hediet -author:isidorn -author:joaomoreno -author:jrieken -author:kieferrm -author:lramos15 -author:lszomoru -author:meganrogge -author:misolori -author:mjbvz -author:rebornix -author:roblourens -author:rzhao271 -author:sandy081 -author:sbatten -author:stevencl -author:TylerLeonhardt -author:Tyriar -author:weinand -author:amunger -author:karthiknadig -author:eleanorjboyd -author:Yoyokrazy  -author:ulugbekna -author:aiday-mar -author:bhavyaus -author:justschen -author:benibenj -author:luabud -author:anthonykim1 -author:joshspicer -author:osortega -author:hawkticehurst -author:pierceboggan -author:benvillalobos -author:dileepyavan -author:dineshc-msft -author:dmitrivMS -author:eli-w-king -author:jo-oikawa -author:jruales -author:jytjyt05 -author:kycutler -author:mrleemurray -author:pwang347 -author:vijayupadya"
+  },
+  {
     "kind": 1,
     "language": "markdown",
     "value": "# Preparation"
@@ -157,7 +162,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "org:microsoft $MILESTONE -$MINE is:issue is:closed reason:completed sort:updated-asc label:bug -label:unreleased -label:verified -label:z-author-verified -label:on-testplan -label:*duplicate -label:duplicate -label:invalid -label:*as-designed -label:*out-of-scope -label:error-telemetry -label:verification-steps-needed -label:verification-found -author:aeschli -author:alexdima -author:alexr00 -author:AmandaSilver -author:andreamah -author:bamurtaugh -author:bpasero -author:chrmarti -author:Chuxel -author:claudiaregio -author:connor4312 -author:dbaeumer -author:deepak1556 -author:devinvalenciano -author:digitarald -author:DonJayamanne -author:egamma -author:fiveisprime -author:ntrogh -author:hediet -author:isidorn -author:joaomoreno -author:jrieken -author:kieferrm -author:lramos15 -author:lszomoru -author:meganrogge -author:misolori -author:mjbvz -author:rebornix -author:roblourens -author:rzhao271 -author:sandy081 -author:sbatten -author:stevencl -author:tanhakabir -author:TylerLeonhardt -author:Tyriar -author:weinand -author:amunger -author:karthiknadig -author:eleanorjboyd -author:Yoyokrazy -author:paulacamargo25 -author:ulugbekna -author:aiday-mar -author:bhavyaus -author:justschen -author:benibenj -author:luabud -author:anthonykim1 -author:joshspicer -author:osortega -author:hawkticehurst -author:pierceboggan"
+    "value": "org:microsoft $MILESTONE -$MINE is:issue is:closed reason:completed sort:updated-asc label:bug -label:unreleased -label:verified -label:z-author-verified -label:on-testplan -label:*duplicate -label:duplicate -label:invalid -label:*as-designed -label:*out-of-scope -label:error-telemetry -label:verification-steps-needed -label:verification-found $NOT_TEAM_MEMBERS"
   },
   {
     "kind": 1,
