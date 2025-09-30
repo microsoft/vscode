@@ -72,6 +72,10 @@ export function connectProxyResolver(
 		},
 		proxyResolveTelemetry: () => { },
 		isUseHostProxyEnabled,
+		getNetworkInterfaceCheckInterval: () => {
+			const intervalSeconds = getExtHostConfigValue<number>(configProvider, isRemote, 'http.experimental.networkInterfaceCheckInterval', 300);
+			return intervalSeconds * 1000;
+		},
 		loadAdditionalCertificates: async () => {
 			const promises: Promise<string[]>[] = [];
 			if (initData.remote.isRemote) {
