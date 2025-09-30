@@ -177,6 +177,12 @@
 	font-size: 12px;
 }
 
+/* Hidden state - invisible and non-interactive but maintains exact same layout space */
+.erdos-ai-file-changes-bar.hidden {
+	opacity: 0;
+	pointer-events: none;
+}
+
 .erdos-ai-file-changes-bar .file-changes-header {
 	display: flex;
 	align-items: center;

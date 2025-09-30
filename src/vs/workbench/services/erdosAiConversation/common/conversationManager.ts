@@ -21,6 +21,7 @@ export interface IConversationManager {
 
 	// Events
 	readonly onMessageAdded: Event<ConversationMessage>;
+	readonly onConversationSwitch: Event<number>;
 
 	setMessageIdGenerator(generator: () => number): void;
 	getCurrentConversation(): Conversation | null;

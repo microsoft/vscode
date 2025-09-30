@@ -58,6 +58,7 @@ import { debugIconStartForeground } from '../../debug/browser/debugColors.js';
 import { CellEditState, CellFindMatchWithIndex, CellFocusMode, CellLayoutContext, CellRevealRangeType, CellRevealType, IActiveNotebookEditorDelegate, IBaseCellEditorOptions, ICellOutputViewModel, ICellViewModel, ICommonCellInfo, IDisplayOutputLayoutUpdateRequest, IFocusNotebookCellOptions, IInsetRenderOutput, IModelDecorationsChangeAccessor, INotebookCellOverlayChangeAccessor, INotebookDeltaDecoration, INotebookEditor, INotebookEditorContribution, INotebookEditorContributionDescription, INotebookEditorCreationOptions, INotebookEditorDelegate, INotebookEditorMouseEvent, INotebookEditorOptions, INotebookEditorViewState, INotebookViewCellsUpdateEvent, INotebookViewZoneChangeAccessor, INotebookWebviewMessage, RenderOutputType, ScrollToRevealBehavior } from './notebookBrowser.js';
 import { NotebookEditorExtensionsRegistry } from './notebookEditorExtensions.js';
 import { INotebookEditorService } from './services/notebookEditorService.js';
+import { INotebookZoneManager } from '../../../services/erdosAi/common/notebookZoneManager.js';
 import { notebookDebug } from './notebookLogger.js';
 import { NotebookCellStateChangedEvent, NotebookLayoutChangedEvent, NotebookLayoutInfo } from './notebookViewEvents.js';
 import { CellContextKeyManager } from './view/cellParts/cellContextKeys.js';
@@ -310,6 +311,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
 		@INotebookRendererMessagingService private readonly notebookRendererMessaging: INotebookRendererMessagingService,
 		@INotebookEditorService private readonly notebookEditorService: INotebookEditorService,
+		@INotebookZoneManager private readonly notebookZoneManager: INotebookZoneManager,
 		@INotebookKernelService private readonly notebookKernelService: INotebookKernelService,
 		@INotebookService private readonly _notebookService: INotebookService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -423,6 +425,18 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}));
 
 		this.notebookEditorService.addNotebookEditor(this);
+		
+		// Register with NotebookZoneManager for virtual scrolling
+		if (this.hasModel()) {
+			this.notebookZoneManager.registerNotebookEditor(this.textModel!.uri, this);
+		}
+		
+		// Register when model gets attached later
+		this._register(this.onDidAttachViewModel(() => {
+			if (this.hasModel()) {
+				this.notebookZoneManager.registerNotebookEditor(this.textModel!.uri, this);
+			}
+		}));
 
 		const id = generateUuid();
 		this._overlayContainer.id = `notebook-${id}`;
@@ -3236,6 +3250,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._webview = null;
 
 		this.notebookEditorService.removeNotebookEditor(this);
+		this.notebookZoneManager.removeNotebookEditor(this);
 		dispose(this._contributions.values());
 		this._contributions.clear();
 

@@ -239,6 +239,7 @@ import './contrib/contextmenu/browser/contextmenu.contribution.js';
 import './contrib/erdosModalDialogs/browser/erdosModalDialogs.contribution.js';
 import './contrib/erdosAi/browser/erdosAi.contribution.js';
 import './services/erdosAi/browser/notebookDiffService.contribution.js';
+import './services/erdosAi/browser/notebookZoneManager.contribution.js';
 import './contrib/erdosHelp/browser/erdosHelp.contribution.js';
 import './contrib/erdosDatabaseClient/browser/erdosDatabaseClient.contribution.js';
 import './contrib/erdosEnvironment/browser/erdosEnvironment.contribution.js';

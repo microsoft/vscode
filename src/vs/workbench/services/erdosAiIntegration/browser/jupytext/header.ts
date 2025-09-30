@@ -187,7 +187,7 @@ export function metadataAndCellToHeader(
     }
 
     if (rootLevelMetadata && Object.keys(rootLevelMetadata).length > 0) {
-        const yamlString = yamlDump(rootLevelMetadata, { flowLevel: -1, sortKeys: false });
+        const yamlString = yamlDump(rootLevelMetadata, { flowLevel: -1, sortKeys: true });
         header.push(...yamlString.split('\n').filter((line: string) => line.trim() !== ''));
     }
 
@@ -428,7 +428,7 @@ export function metadataToMetadataAndCell(
     
     // Move remaining metadata (i.e. frontmatter) to the first notebook cell
     if (nb.metadata && Object.keys(nb.metadata).length > 0 && fmt.root_level_metadata_as_raw_cell !== false) {
-        const frontmatter = yamlDump(nb.metadata, { sortKeys: false });
+        const frontmatter = yamlDump(nb.metadata, { sortKeys: true });
         nb.cells.unshift(newRawCell("---\n" + frontmatter + "---"));
     }
     
@@ -475,7 +475,7 @@ export function metadataAndCellToMetadata(
                                 metadata.jupytext = {};
                             }
                             metadata.jupytext.root_level_metadata_filter = 
-                                "-" + Object.keys(frontmatter).join(",-");
+                                "-" + Object.keys(frontmatter).sort().join(",-");
                         }
                         metadata = recursiveUpdate(frontmatter, metadata, false);
                     }

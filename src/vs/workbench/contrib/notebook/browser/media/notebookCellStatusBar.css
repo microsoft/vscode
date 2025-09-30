@@ -4,10 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-workbench .notebookOverlay .cell-statusbar-container {
-	height: 22px;
+	height: 28px;
 	font-size: 12px;
 	display: flex;
-	position: relative;
+	position: absolute;
+	bottom: 2px;
+	left: 0;
+	right: 0;
 	overflow: hidden;
 	cursor: default;
 }

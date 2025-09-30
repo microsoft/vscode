@@ -166,6 +166,12 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 		});
 		disposables.push(diffSectionDisposable);
 
+		// Listen for diff sections being created
+		const sectionsCreatedDisposable = services.fileChangeTracker.onDiffSectionsCreated(() => {
+			refreshFileChanges();
+		});
+		disposables.push(sectionsCreatedDisposable);
+
 		// Listen for widget button actions (may include auto-accept)
 		if (props.erdosAiService.onWidgetButtonAction) {
 			const widgetActionDisposable = props.erdosAiService.onWidgetButtonAction(() => {

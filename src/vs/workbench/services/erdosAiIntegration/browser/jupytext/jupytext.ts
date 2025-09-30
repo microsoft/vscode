@@ -621,7 +621,7 @@ export function writes(
     let formatName = format.format_name;
 
     if (ext === ".ipynb") {
-        return JSON.stringify(dropTextRepresentationMetadata(notebook, metadata), null, 2);
+        return deterministicJSONStringify(dropTextRepresentationMetadata(notebook, metadata), 2);
     }
 
     if (!formatName) {
@@ -658,6 +658,24 @@ export function write(
 }
 
 // Utility functions
+
+function deterministicJSONStringify(obj: any, space?: string | number): string {
+    /**
+     * JSON.stringify with consistent property ordering for objects
+     */
+    return JSON.stringify(obj, (key, value) => {
+        if (value && typeof value === 'object' && !Array.isArray(value)) {
+            // Sort object keys for consistent ordering
+            const sortedObj: Record<string, any> = {};
+            const sortedKeys = Object.keys(value).sort();
+            for (const sortedKey of sortedKeys) {
+                sortedObj[sortedKey] = value[sortedKey];
+            }
+            return sortedObj;
+        }
+        return value;
+    }, space);
+}
 
 function dropTextRepresentationMetadata(notebook: NotebookNode, metadata?: Record<string, any>): NotebookNode {
     /**

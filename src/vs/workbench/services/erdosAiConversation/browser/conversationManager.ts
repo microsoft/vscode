@@ -34,6 +34,9 @@ export class ConversationManager extends Disposable implements IConversationMana
 
     private readonly _onMessageAdded = new Emitter<any>();
     readonly onMessageAdded: Event<any> = this._onMessageAdded.event;
+    
+    private readonly _onConversationSwitch = new Emitter<number>();
+    readonly onConversationSwitch: Event<number> = this._onConversationSwitch.event;
 
     constructor(
         @IFileService private readonly fileService: IFileService,
@@ -281,13 +284,11 @@ export class ConversationManager extends Disposable implements IConversationMana
 
         const paths = this.getConversationPaths(nextIndex);
         await this.createConversationDirectory(paths);
-
         await this.saveConversationLog(conversation);
-
         await this.updateConversationNamesCSV(conversationInfo);
-
         this.currentConversation = conversation;
         this.messageStore.clear();
+        this._onConversationSwitch.fire(nextIndex);
 
         return conversation;
     }
@@ -383,6 +384,7 @@ export class ConversationManager extends Disposable implements IConversationMana
             return false;
         }
 
+        this._onConversationSwitch.fire(id);
         this.currentConversation = conversation;
         this.messageStore.loadMessages(conversation.messages);
         return true;

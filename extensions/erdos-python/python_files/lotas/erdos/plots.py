@@ -89,20 +89,14 @@ class Plot:
 
     def show(self) -> None:
         """Show the plot."""
-        logger.debug(f"🎯 Plot.show() called for plot {self._comm.comm_id}")
         
         if self._closed:
-            logger.debug(f"📂 Plot was closed, opening it first")
             self._open()
         else:
-            logger.debug(f"📤 Sending PlotFrontendEvent.Show to frontend")
             try:
                 self._comm.send_event(PlotFrontendEvent.Show, {})
-                logger.debug(f"Show event sent successfully")
             except Exception as e:
-                logger.error(f"Error sending show event: {e}")
                 import traceback
-                logger.error(traceback.format_exc())
 
     def update(self) -> None:
         """Notify the frontend that the plot needs to be rerendered."""

@@ -54,11 +54,6 @@ export const FileChangesBar: React.FC<FileChangesBarProps> = ({
 		loadTrackedFiles();
 	}, [fileChangeTracker, currentConversation?.info.id, refreshTrigger]);
 
-	// Don't render if there are no tracked files
-	if (isLoading || trackedFiles.length === 0) {
-		return null;
-	}
-
 	const handleHeaderClick = () => {
 		setIsExpanded(!isExpanded);
 	};
@@ -94,21 +89,23 @@ export const FileChangesBar: React.FC<FileChangesBarProps> = ({
 
 	const totalFiles = trackedFiles.length;
 	const fileText = totalFiles === 1 ? 'file' : 'files';
+	const hasFiles = !isLoading && totalFiles > 0;
 
+	// Always render the full structure, but use opacity and pointer-events to hide when no files
 	return (
-		<div className="erdos-ai-file-changes-bar show-file-icons">
+		<div className={`erdos-ai-file-changes-bar show-file-icons ${!hasFiles ? 'hidden' : ''}`}>
 			<div 
 				className="file-changes-header"
-				onClick={handleHeaderClick}
-				title={`${totalFiles} ${fileText} have been edited and not yet accepted`}
+				onClick={hasFiles ? handleHeaderClick : undefined}
+				title={hasFiles ? `${totalFiles} ${fileText} have been edited and not yet accepted` : undefined}
 			>
 				<span className={`codicon codicon-chevron-${isExpanded ? 'down' : 'right'}`}></span>
 				<span className="mode-label-text">
-					{totalFiles} {fileText} edited
+					{hasFiles ? `${totalFiles} ${fileText} edited` : '0 files edited'}
 				</span>
 			</div>
 
-			{isExpanded && (
+			{isExpanded && hasFiles && (
 				<div className="file-changes-list">
 				{trackedFiles.map((file, index) => {
 					const fileIcon = getFileIcon(file);

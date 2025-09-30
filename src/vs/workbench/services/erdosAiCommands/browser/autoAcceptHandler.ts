@@ -12,6 +12,12 @@ import { IAutoAcceptHandler, IWidgetDecisionSetter } from '../common/autoAcceptH
 import { IErdosAiSettingsService } from '../../erdosAiSettings/common/settingsService.js';
 import { IConversationManager } from '../../erdosAiConversation/common/conversationManager.js';
 import { ICommonUtils } from '../../erdosAiUtils/common/commonUtils.js';
+import { INotebookService } from '../../../contrib/notebook/common/notebookService.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { SnapshotContext } from '../../../services/workingCopy/common/fileWorkingCopy.js';
+import { streamToBuffer } from '../../../../base/common/buffer.js';
+import { ISearchReplaceCommandHandler } from '../common/searchReplaceCommandHandler.js';
+import { INotebookEditorModelResolverService } from '../../../contrib/notebook/common/notebookEditorModelResolverService.js';
 
 export class AutoAcceptHandler implements IAutoAcceptHandler {
 	readonly _serviceBrand: undefined;
@@ -24,7 +30,10 @@ export class AutoAcceptHandler implements IAutoAcceptHandler {
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IConversationManager private readonly conversationManager: IConversationManager,
-		@ICommonUtils private readonly commonUtils: ICommonUtils
+		@ICommonUtils private readonly commonUtils: ICommonUtils,
+		@INotebookService private readonly notebookService: INotebookService,
+		@ISearchReplaceCommandHandler private readonly searchReplaceCommandHandler: ISearchReplaceCommandHandler,
+		@INotebookEditorModelResolverService private readonly notebookEditorModelResolverService: INotebookEditorModelResolverService
 	) {}
 	
 	/**
@@ -141,12 +150,28 @@ export class AutoAcceptHandler implements IAutoAcceptHandler {
 		} else {
 			// Create new tracking file
 			const fileUri = URI.file(resolvedFilePath);
-			let acceptedContent = '';
+			const isNotebook = this.commonUtils.getFileExtension(resolvedFilePath).toLowerCase() === 'ipynb';
+			let acceptedContent = isNotebook ? '{"cells": []}' : '';
 			
 			const fileExists = await this.fileService.exists(fileUri);
 			if (fileExists) {
-				const currentContent = await this.fileService.readFile(fileUri);
-				acceptedContent = currentContent.value.toString();
+				if (isNotebook) {
+					// For notebooks, ensure IDs exist in both disk and model before tracking
+					await this.ensureNotebookHasCellIds(resolvedFilePath);
+					
+					// Now get the content with IDs for accepted baseline
+					const snapshotStream = await this.notebookService.createNotebookTextDocumentSnapshot(
+						fileUri,
+						SnapshotContext.Save,
+						new CancellationTokenSource().token
+					);
+					const buffer = await streamToBuffer(snapshotStream);
+					acceptedContent = buffer.toString();
+				} else {
+					// For regular files, use disk content
+					const currentContent = await this.fileService.readFile(fileUri);
+					acceptedContent = currentContent.value.toString();
+				}
 			}
 			
 			fileTracking = {
@@ -169,5 +194,108 @@ export class AutoAcceptHandler implements IAutoAcceptHandler {
 			hash = hash & hash; // Convert to 32bit integer
 		}
 		return Math.abs(hash).toString(16).substring(0, 12);
+	}
+
+	/**
+	 * Ensure a notebook file has cell IDs before tracking operations
+	 */
+	private async ensureNotebookHasCellIds(filePath: string): Promise<void> {
+		const uri = URI.file(filePath);
+		const fileExists = await this.fileService.exists(uri);
+		
+		if (!fileExists) {
+			return; // Nothing to do for non-existent files
+		}
+			
+		// Get current model content (or file content if no model)
+		let notebookJson: string;
+		const notebookModel = this.notebookService.getNotebookTextModel(uri);
+		if (notebookModel) {
+			// Get content from model using VSCode's serialization
+			const snapshotStream = await this.notebookService.createNotebookTextDocumentSnapshot(
+				uri,
+				SnapshotContext.Save,
+				new CancellationTokenSource().token
+			);
+			const buffer = await streamToBuffer(snapshotStream);
+			notebookJson = buffer.toString();
+		} else {
+			const fileContent = await this.fileService.readFile(uri);
+			notebookJson = fileContent.value.toString();
+		}
+		
+		const notebookWithIds = this.addCellIds(notebookJson);
+			
+		// Only update if IDs were actually added
+		if (notebookWithIds !== notebookJson) {
+			// Apply changes to the notebook model and save using VS Code's serialization
+			const modelRef = await this.notebookEditorModelResolverService.resolve(uri, 'jupyter-notebook');
+			const notebookModel = modelRef.object.notebook;
+			
+			// Parse the updated notebook structure
+			const updatedNotebook = JSON.parse(notebookWithIds);
+			
+			// Convert cells to VS Code format
+			const newCells = updatedNotebook.cells.map((cell: any, cellIndex: number) => {
+				const vscodeMetadata: any = {};
+				if (cell.cell_type === 'code' && cell.execution_count !== undefined) {
+					vscodeMetadata.execution_count = cell.execution_count;
+				}
+				if (cell.metadata) {
+					vscodeMetadata.metadata = cell.metadata;
+				}
+				
+				const newCellData = {
+					cellKind: cell.cell_type === 'markdown' ? 1 : 2,
+					source: Array.isArray(cell.source) ? cell.source.join('') : cell.source,
+					language: cell.cell_type === 'code' ? 'python' : 'markdown',
+					mime: cell.cell_type === 'markdown' ? 'text/markdown' : 'text/x-python',
+					metadata: vscodeMetadata,
+					outputs: cell.outputs || []
+				};
+				return newCellData;
+			});
+			
+			// Replace all cells in the model
+			notebookModel.applyEdits([{
+				editType: 1,
+				index: 0,
+				count: notebookModel.cells.length,
+				cells: newCells
+			}], true, undefined, () => undefined, undefined, true);
+			
+			// Save the model using VS Code's proper serialization
+			await modelRef.object.save();
+			
+			// Dispose the model reference
+			modelRef.dispose();
+			
+			// Open in editor to show the updated content
+			await this.searchReplaceCommandHandler.openDocumentInEditor(filePath);
+		}
+	}
+
+	/**
+	 * Add unique IDs to notebook cells for tracking changes
+	 */
+	private addCellIds(notebookJson: string): string {
+		const notebook = JSON.parse(notebookJson);
+		
+		if (!notebook.cells || !Array.isArray(notebook.cells)) {
+			return notebookJson;
+		}
+
+		notebook.cells.forEach((cell: { metadata: any }, index: number) => {
+			// Add ID if not already present - flat structure for .ipynb JSON format
+			if (!cell.metadata) {
+				cell.metadata = {};
+			}
+			if (!cell.metadata.erdosAi_cellId) {
+				const newId = `cell2_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 9)}`;
+				cell.metadata.erdosAi_cellId = newId;
+			}
+		});
+
+		return JSON.stringify(notebook, null, 2);
 	}
 }

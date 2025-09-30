@@ -7,7 +7,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { URI } from '../../../../base/common/uri.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { INotebookEditor } from '../../../contrib/notebook/browser/notebookBrowser.js';
-import { NotebookDiffHighlightContribution } from '../../../contrib/notebook/browser/contrib/diff/notebookDiffHighlight.js';
+import { NotebookDiffHighlightContribution, NotebookAutoAcceptContribution } from '../../../contrib/notebook/browser/contrib/diff/notebookDiffHighlight.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { INotebookEditorService } from '../../../contrib/notebook/browser/services/notebookEditorService.js';
 import { getNotebookEditorFromEditorPane } from '../../../contrib/notebook/browser/notebookBrowser.js';
@@ -43,9 +43,9 @@ export interface INotebookDiffService {
 	notebookApplyFileChangeHighlighting(uri: URI, conversationId: string, cellDiffs: ICellDiffData[]): void;
 
 	/**
-	 * Apply auto-accept highlighting to a notebook with Accept/Reject buttons
+	 * Apply only auto-accept decorations (green highlighting) to a notebook without zone widgets
 	 */
-	notebookApplyAutoAcceptHighlighting(uri: URI, conversationId: string, cellDiffs: ICellDiffData[], fileChangeTracker: any): void;
+	notebookApplyAutoAcceptDecorations(uri: URI, conversationId: string, cellDiffs: ICellDiffData[], fileChangeTracker: any): void;
 
 	/**
 	 * Clear diff highlighting for a notebook
@@ -108,7 +108,6 @@ export class NotebookDiffService extends Disposable implements INotebookDiffServ
 	}
 
 	public notebookClearFileHighlighting(uri: URI): void {
-		// Use the same method as notebookApplyAutoAcceptHighlighting for consistency
 		const editor = this.findNotebookEditorForUri(uri);
 		if (!editor) {
 			return;
@@ -127,13 +126,13 @@ export class NotebookDiffService extends Disposable implements INotebookDiffServ
 			return;
 		}
 
-		const contribution = editor.getContribution<NotebookDiffHighlightContribution>(NotebookDiffHighlightContribution.id);
+		const contribution = editor.getContribution<NotebookAutoAcceptContribution>(NotebookAutoAcceptContribution.id);
 		if (contribution) {
 			contribution.clearAutoAcceptHighlighting();
 		}
 	}
 
-	public notebookApplyAutoAcceptHighlighting(uri: URI, conversationId: string, cellDiffs: ICellDiffData[], fileChangeTracker: any): void {
+	public notebookApplyAutoAcceptDecorations(uri: URI, conversationId: string, cellDiffs: ICellDiffData[], fileChangeTracker: any): void {		
 		// Use the public method to find the editor
 		const editor = this.findNotebookEditorForUri(uri);
 		if (!editor) {
@@ -141,14 +140,14 @@ export class NotebookDiffService extends Disposable implements INotebookDiffServ
 		}
 
 		// Always get a fresh contribution from the editor - no caching
-		const contribution = editor.getContribution<NotebookDiffHighlightContribution>(NotebookDiffHighlightContribution.id);
+		const contribution = editor.getContribution<NotebookAutoAcceptContribution>(NotebookAutoAcceptContribution.id);
 		
 		if (!contribution) {
 			return;
 		}
 
-		// Apply the auto-accept highlighting with Accept/Reject buttons
-		contribution.applyAutoAcceptHighlighting(uri, conversationId, cellDiffs, fileChangeTracker);
+		// Apply only the auto-accept decorations (green highlighting), no zone widgets
+		contribution.applyAutoAcceptDecorations(cellDiffs, uri);
 	}
 
 	public notebookClearAllFileHighlighting(): void {

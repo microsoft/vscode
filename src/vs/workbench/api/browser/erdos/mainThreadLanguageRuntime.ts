@@ -999,7 +999,10 @@ class ExtHostLanguageRuntimeSessionAdapter extends Disposable implements ILangua
 				const result = data.result as Record<string, any>;
 				
 				if (result.data && typeof result.data === 'string' && result.mime_type && result.mime_type.startsWith('image/')) {					
-					// Create plot result in Erdos format
+					// First, forward the original RPC response so the RPC layer gets its result
+					this.emitDidReceiveClientMessage(message);
+					
+					// Then, also create and send an update event with pre_render for immediate display
 					const plotResult = {
 						data: result.data,
 						mime_type: result.mime_type,
@@ -1010,21 +1013,25 @@ class ExtHostLanguageRuntimeSessionAdapter extends Disposable implements ILangua
 						}
 					};
 					
-					// Create update event data with pre_render for immediate display
 					const updateEventData = {
 						pre_render: plotResult
 					};
 					
-					// Modify the comm data message to include the update event for erdos.plot
-					const erdosCommDataMsg: ILanguageRuntimeMessageCommData = {
-						...message,
+					// Create update event message (without parent_id since it's an event, not a response)
+					const updateEventMsg: ILanguageRuntimeMessageCommData = {
+						id: `update-${message.comm_id}-${Date.now()}`,
+						when: message.when,
+						type: message.type,
+						event_clock: message.event_clock,
+						comm_id: message.comm_id,
+						parent_id: '', // Update events don't have parent_id
 						data: {
 							method: 'update',
 							params: updateEventData
 						}
 					};
 					
-					this.emitDidReceiveClientMessage(erdosCommDataMsg);
+					this.emitDidReceiveClientMessage(updateEventMsg);
 					
 					// ALSO send plot data to Quarto if this is a Quarto execution
 					if (message.parent_id && this._mainRuntime.isQuartoExecution(message.parent_id)) {
@@ -1041,7 +1048,14 @@ class ExtHostLanguageRuntimeSessionAdapter extends Disposable implements ILangua
 						};
 						this.sendToQuartoExtension(quartoOutputMessage);
 					}
+				} else {
+					// For all other plot comm data (including JSON-RPC responses like get_intrinsic_size),
+					// forward directly to the client
+					this.emitDidReceiveClientMessage(message);
 				}
+			} else {
+				// No data object, forward directly to the client
+				this.emitDidReceiveClientMessage(message);
 			}
 		}
 	}
@@ -1163,7 +1177,7 @@ class ExtHostRuntimeClientInstance<Input, Output>
 						phase: 'response_timeout'
 					};
 					
-					console.error('🔌 RPC RESPONSE TIMEOUT DEBUG:', JSON.stringify({
+					console.error('RPC RESPONSE TIMEOUT DEBUG:', JSON.stringify({
 						...contextInfo,
 						message: errorMessage,
 						request: request
@@ -1208,7 +1222,7 @@ class ExtHostRuntimeClientInstance<Input, Output>
 					request: request
 				};
 				
-				console.error('🔌 RPC TIMEOUT DEBUG:', JSON.stringify({
+				console.error('RPC TIMEOUT DEBUG:', JSON.stringify({
 					...contextInfo,
 					message: errorMessage
 				}, null, 2));
@@ -1270,7 +1284,6 @@ class ExtHostRuntimeClientInstance<Input, Output>
 			const pending = this._pendingRpcs.get(message.parent_id)!;
 
 			const responseKeys = Object.keys(message.data);
-
 
 			if (pending.responseKeys.length === 0 || pending.responseKeys.some((key: string) => responseKeys.includes(key))) {
 				pending.promise.complete(message);

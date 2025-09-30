@@ -272,7 +272,6 @@ export class PlotClientInstance extends Disposable implements IErdosPlotClient, 
 					preRender.settings,
 					currentRenderRequest
 				)) {
-					// The settings match, return without queueing a render request
 					return;
 				}
 

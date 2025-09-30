@@ -23,7 +23,8 @@ export interface IFileChangeTracker {
 	applyFileChangeHighlighting(uri: URI, fileChange: any): Promise<void>;
 	clearAllFileHighlighting(): void;
 	applyAutoAcceptHighlighting(uri: URI): Promise<void>;
-	acceptAutoAcceptChanges(uri: URI): Promise<void>;
+	acceptAllAutoAcceptChanges(uri: URI): Promise<void>;
+	rejectAllAutoAcceptChanges(uri: URI): Promise<void>;
 	acceptDiffSection(uri: URI, diffSectionId: string): Promise<void>;
 	rejectDiffSection(uri: URI, diffSectionId: string): Promise<void>;
 	clearAutoAcceptHighlighting(uri: URI): void;
@@ -34,9 +35,20 @@ export interface IFileChangeTracker {
 		deletedLines: number;
 		uri: URI;
 	}>>;
+	acceptAllExceptConversation(conversationId: number): Promise<void>;
+
+	/**
+	 * Get the notebook editor for a given URI (for notebook-specific operations)
+	 */
+	getNotebookEditorForUri(uri: URI): any; // INotebookEditor | undefined, but avoiding import cycles
 
 	/**
 	 * Event fired when a diff section is accepted or rejected
 	 */
 	readonly onDiffSectionChanged: Event<{ uri: URI; action: 'accept' | 'reject'; sectionId: string }>;
+
+	/**
+	 * Event fired when diff sections are created/available for a file
+	 */
+	readonly onDiffSectionsCreated: Event<{ uri: URI; sectionIds: string[] }>;
 }

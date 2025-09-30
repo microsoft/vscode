@@ -269,6 +269,7 @@
 
 .monaco-workbench .notebookOverlay .cell .cell-editor-part {
 	position: relative;
+	padding-bottom: 22px; /* Reserve space for absolutely positioned status bar */
 }
 
 .monaco-workbench .notebookOverlay .cell .monaco-progress-container {

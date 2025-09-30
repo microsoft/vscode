@@ -13,12 +13,14 @@ import { ICodeEditor, MouseTargetType } from '../../../../editor/browser/editorB
 import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Range } from '../../../../editor/common/core/range.js';
+import { CellMetadata } from '../common/cellMetadata.js';
 import { IModelDeltaDecoration, IModelDecorationOptions } from '../../../../editor/common/model.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { ICommonUtils } from '../../erdosAiUtils/common/commonUtils.js';
 import { IFileChangeTracker } from '../common/fileChangeTracker.js';
 import { IFileResolverService } from '../../erdosAiUtils/common/fileResolverService.js';
 import { IConversationManager } from '../../erdosAiConversation/common/conversationManager.js';
+import { INotebookZoneManager } from '../common/notebookZoneManager.js';
 import { ZoneWidget } from '../../../../editor/contrib/zoneWidget/browser/zoneWidget.js';
 import * as dom from '../../../../base/browser/dom.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
@@ -28,9 +30,12 @@ import { IWorkspaceContextService } from '../../../../platform/workspace/common/
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { INotebookDiffService, ICellDiffData } from './notebookDiffService.js';
 import { INotebookService } from '../../../contrib/notebook/common/notebookService.js';
+import { INotebookEditor } from '../../../contrib/notebook/browser/notebookBrowser.js';
+import { NotebookAutoAcceptDiffZoneWidget } from '../../../contrib/notebook/browser/contrib/diff/notebookDiffHighlight.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { SnapshotContext } from '../../../services/workingCopy/common/fileWorkingCopy.js';
 import { streamToBuffer } from '../../../../base/common/buffer.js';
+import { CellUri } from '../../../contrib/notebook/common/notebookCommon.js';
 
 /**
  * Zone widget for displaying deleted content (original diff system)
@@ -331,10 +336,11 @@ interface NotebookStoredSectionInfo {
 }
 
 export class FileChangeTracker extends Disposable implements IFileChangeTracker {
-	readonly _serviceBrand: undefined
-
+	readonly _serviceBrand: undefined;
 	private readonly _onDiffSectionChanged = new Emitter<{ uri: URI; action: 'accept' | 'reject'; sectionId: string }>();
 	readonly onDiffSectionChanged = this._onDiffSectionChanged.event;
+	private readonly _onDiffSectionsCreated = new Emitter<{ uri: URI; sectionIds: string[] }>();
+	readonly onDiffSectionsCreated = this._onDiffSectionsCreated.event;
 	private readonly conversationFileHighlighting = new Map<number, boolean>();
 	private readonly fileDecorations = new Map<string, string[]>();
 	private readonly fileDeletedContentZones = new Map<string, Map<number, DeletedContentZoneWidget>>();
@@ -342,11 +348,46 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 	private readonly editorClickHandlers = new Map<string, IDisposable>();
 	private readonly autoAcceptDecorations = new Map<string, string[]>();
 	private readonly autoAcceptZones = new Map<string, Map<number, AutoAcceptDiffZoneWidget>>();
+	private readonly notebookAutoAcceptZones = new Map<string, Map<string, NotebookAutoAcceptDiffZoneWidget>>(); // notebook zones with cell-based keys
 	private readonly storedSectionInfo = new Map<string, StoredSectionInfo>(); // sectionId -> info
 	private readonly notebookStoredSectionInfo = new Map<string, NotebookStoredSectionInfo>(); // sectionId -> notebook info
 	private modelContentChangeTimeout: any;
 	private currentActiveEditor: string | null = null;
-	private readonly notebookOperationsInProgress = new Set<string>(); // Track notebook URIs currently in programmatic operations
+	private readonly notebookOperationsInProgress = new Map<string, number>(); // Track notebook URIs with operation start timestamps
+
+	/**
+	 * Check if a notebook operation can proceed, allowing operations after 1 second timeout
+	 */
+	private canProceedWithNotebookOperation(uri: string): boolean {
+		const existingTimestamp = this.notebookOperationsInProgress.get(uri);
+		if (!existingTimestamp) {
+			return true; // No operation in progress
+		}
+		
+		const now = Date.now();
+		const elapsed = now - existingTimestamp;
+		
+		if (elapsed > 1000) { // 1 second timeout
+			this.notebookOperationsInProgress.delete(uri); // Clean up old entry
+			return true;
+		}
+		
+		return false;
+	}
+
+	/**
+	 * Mark a notebook operation as started
+	 */
+	private startNotebookOperation(uri: string): void {
+		this.notebookOperationsInProgress.set(uri, Date.now());
+	}
+
+	/**
+	 * Mark a notebook operation as completed
+	 */
+	private completeNotebookOperation(uri: string): void {
+		this.notebookOperationsInProgress.delete(uri);
+	}
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
@@ -362,9 +403,30 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IThemeService private readonly themeService: IThemeService,
 		@INotebookDiffService private readonly notebookDiffService: INotebookDiffService,
-		@INotebookService private readonly notebookService: INotebookService
+		@INotebookService private readonly notebookService: INotebookService,
+		@INotebookZoneManager private readonly notebookZoneManager: INotebookZoneManager
 	) {
 		super();
+		
+		this._register(this.conversationManager.onConversationSwitch(async (conversationId) => {
+			await this.acceptAllExceptConversation(conversationId);
+		}));
+	}
+
+	/**
+	 * Helper method to convert notebook cell URIs to notebook file URIs
+	 */
+	private convertCellUriToFileUri(uri: URI): URI {
+		if (uri.scheme === 'vscode-notebook-cell') {
+			const cellData = CellUri.parse(uri);
+			if (cellData) {
+				return cellData.notebook;
+			} else {
+				this.logService.warn(`Failed to parse notebook cell URI: ${uri.toString()}`);
+				return uri; // Return original if parsing fails
+			}
+		}
+		return uri; // Return as-is if not a cell URI
 	}
 
 	async initializeFileChangeTracking(conversationId: number): Promise<void> {
@@ -379,16 +441,13 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 		// Apply highlighting to all currently open file models
 		this.modelService.getModels().forEach(async model => {
 			// Convert notebook cell URIs to notebook file URIs for tracking lookup
-			let fileUri = model.uri;
-			if (model.uri.scheme === 'vscode-notebook-cell') {
-				fileUri = URI.file(model.uri.fsPath);
-			}
+			const fileUri = this.convertCellUriToFileUri(model.uri);
 			
 			if (fileUri.scheme === 'file') {
 				const hasAutoAcceptTracking = await this.hasAutoAcceptTracking(model.uri);
 				
 				if (hasAutoAcceptTracking) {
-					await this.applyAutoAcceptHighlighting(model.uri);
+					await this.applyAutoAcceptHighlighting(fileUri); // Use converted fileUri
 				}
 			}
 		});
@@ -435,7 +494,9 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 			return;
 		}
 
-		const originalContent = fileChange.previous_content || '';
+		// For notebooks, default to valid empty JSON if previous_content is missing (new file creation)
+		const isNotebook = this.commonUtils.getFileExtension(uri.fsPath).toLowerCase() === 'ipynb';
+		const originalContent = fileChange.previous_content || (isNotebook ? '{"cells": []}' : '');
 
 		let currentContent: string;
 		const model = this.modelService.getModel(uri);
@@ -454,9 +515,6 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 			this.clearFileHighlighting(uri);
 			return;
 		}
-
-		// Check if this is a notebook file
-		const isNotebook = this.commonUtils.getFileExtension(uri.fsPath).toLowerCase() === 'ipynb';
 
 		if (isNotebook) {
 			// For notebooks, use VSCode's REAL serialization process for current content
@@ -521,6 +579,363 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 		});
 
 		return { lines, lineMapping };
+	}
+
+	/**
+	 * Extract cells from notebook JSON with their IDs and content
+	 */
+	private extractNotebookCells(notebookJson: string, uri: URI, isCurrentVersion: boolean): Map<string, {
+		cellIndex: number;
+		cellType: string;
+		sourceLines: string[];
+		cellId: string;
+	}> {
+		const notebook = JSON.parse(notebookJson);
+		const cells = new Map<string, {
+			cellIndex: number;
+			cellType: string;
+			sourceLines: string[];
+			cellId: string;
+		}>();
+
+		if (!notebook.cells || !Array.isArray(notebook.cells)) {
+			return cells;
+		}
+
+		notebook.cells.forEach((cell: any, cellIndex: number) => {
+			// Only process code and markdown cells
+			if (cell.cell_type === 'code' || cell.cell_type === 'markdown') {
+				// Only check flat Jupyter format since this function processes Jupyter JSON
+				let cellId = cell.metadata?.erdosAi_cellId;
+				
+				if (!cellId) {
+					// Generate a temporary ID for cells without one
+					cellId = `temp_${cellIndex}_${Math.random().toString(36).substr(2, 9)}`;
+					if (!cell.metadata) {
+						cell.metadata = {};
+					}
+					// Store in flat format for Jupyter compatibility
+					cell.metadata.erdosAi_cellId = cellId;
+					
+					// Persist the temp ID back to the VSCode notebook model (only for current version)
+					if (isCurrentVersion) {
+						const notebookModel = this.notebookService.getNotebookTextModel(uri);
+						if (notebookModel && notebookModel.cells[cellIndex]) {
+							const vscodeCell = notebookModel.cells[cellIndex];
+							const updatedMetadata = {
+								...vscodeCell.metadata,
+								metadata: {
+									...((vscodeCell.metadata as any).metadata || {}),
+									erdosAi_cellId: cellId
+								}
+							};
+							
+							// Get cell source content
+							const cellSource = vscodeCell.textBuffer ? vscodeCell.textBuffer.getLinesContent().join('\n') : '';
+							
+							// Replace the cell with itself but with updated metadata
+							const updatedCell = {
+								cellKind: vscodeCell.cellKind,
+								source: cellSource,
+								language: vscodeCell.language,
+								mime: vscodeCell.mime,
+								metadata: updatedMetadata,
+								outputs: vscodeCell.outputs || []
+							};
+							
+							// Apply cell replacement with updated metadata
+							notebookModel.applyEdits([{
+								editType: 1, // CellEditType.Replace
+								index: cellIndex,
+								count: 1,
+								cells: [updatedCell]
+							}], true, undefined, () => undefined, undefined, true);
+						}
+					}
+				}
+
+				const source = cell.source || [];
+				const sourceLines = Array.isArray(source) ? source : [source];
+				
+				// Clean lines by removing trailing newlines
+				const cleanLines = sourceLines.map((line: string) => 
+					typeof line === 'string' ? line.replace(/\n$/, '') : String(line).replace(/\n$/, '')
+				);
+
+				cells.set(cellId, {
+					cellIndex,
+					cellType: cell.cell_type,
+					sourceLines: cleanLines,
+					cellId: cellId
+				});
+			}
+		});
+
+		return cells;
+	}
+
+	/**
+	 * Compute cell-based diff for notebooks without flat text conversion
+	 */
+	private async computeNotebookCellBasedDiff(originalJson: string, currentJson: string, uri: URI): Promise<Array<{
+		cellId: string;
+		cellIndex: number;
+		diffType: 'modified' | 'added' | 'deleted';
+		lineDiffs?: Array<{
+			type: 'added' | 'deleted' | 'unchanged';
+			content: string;
+			lineNumber: number;
+		}>;
+	}>> {
+		
+		// Extract cells from both versions (they should already have erdosAi_cellId)
+		// Pass false for originalJson (don't persist temp IDs to old versions)
+		// Pass true for currentJson (persist temp IDs to current notebook model)
+		const originalCells = this.extractNotebookCells(originalJson, uri, false);
+		const currentCells = this.extractNotebookCells(currentJson, uri, true);
+			
+		const cellDiffs: Array<{
+			cellId: string;
+			cellIndex: number;
+			diffType: 'modified' | 'added' | 'deleted';
+			lineDiffs?: Array<{
+				type: 'added' | 'deleted' | 'unchanged';
+				content: string;
+				lineNumber: number;
+			}>;
+		}> = [];
+
+		// Find all unique cell IDs
+		const allCellIds = new Set([...originalCells.keys(), ...currentCells.keys()]);
+
+		for (const cellId of allCellIds) {
+			const originalCell = originalCells.get(cellId);
+			const currentCell = currentCells.get(cellId);
+			
+
+			if (originalCell && currentCell) {
+				// Cell exists in both - check if modified
+				const originalContent = originalCell.sourceLines.join('\n');
+				const currentContent = currentCell.sourceLines.join('\n');
+				
+
+				if (originalContent !== currentContent) {
+					// Cell was modified - compute line-level diff using the same algorithm as regular files
+					const lineDiffEntries = await this.computeLineDiff(originalContent, currentContent);
+					
+					// Pass ALL diff entries (including unchanged) - let the UI filter what to display
+					const lineDiffs = lineDiffEntries.map(entry => ({
+						type: entry.type,
+						content: entry.content,
+						lineNumber: entry.type === 'deleted' ? entry.oldLine : entry.newLine
+					}));
+
+					// Only add to cellDiffs if there are actual changes
+					if (lineDiffs.length > 0) {
+						cellDiffs.push({
+							cellId,
+							cellIndex: currentCell.cellIndex,
+							diffType: 'modified',
+							lineDiffs
+						});
+					}
+				}
+			} else if (originalCell && !currentCell) {
+				// Cell was deleted
+				const lineDiffs = originalCell.sourceLines.map((line, index) => ({
+					type: 'deleted' as const,
+					content: line,
+					lineNumber: index + 1
+				}));
+
+				cellDiffs.push({
+					cellId,
+					cellIndex: originalCell.cellIndex,
+					diffType: 'deleted',
+					lineDiffs
+				});
+			} else if (!originalCell && currentCell) {
+				// Cell was added
+				const lineDiffs = currentCell.sourceLines.map((line, index) => ({
+					type: 'added' as const,
+					content: line,
+					lineNumber: index + 1
+				}));
+
+				cellDiffs.push({
+					cellId,
+					cellIndex: currentCell.cellIndex,
+					diffType: 'added',
+					lineDiffs
+				});
+			}
+		}
+
+		// Sort by cell index for consistent ordering
+		return cellDiffs.sort((a, b) => a.cellIndex - b.cellIndex);
+	}
+
+	/**
+	 * Get the notebook editor for a given URI (public interface method)
+	 */
+	public getNotebookEditorForUri(uri: URI): INotebookEditor | undefined {
+		return this.notebookDiffService.findNotebookEditorForUri(uri);
+	}
+
+	/**
+	 * Get the Monaco editor for a specific notebook cell
+	 */
+	private getCellEditor(uri: URI, cellIndex: number): ICodeEditor | undefined {
+		// Use the notebook diff service to find the notebook editor
+		const notebookEditor = this.notebookDiffService.findNotebookEditorForUri(uri);
+		if (!notebookEditor) {
+			return undefined;
+		}
+		
+		// Get the cell at the specified index
+		const cell = notebookEditor.cellAt(cellIndex);
+		if (!cell) {
+			return undefined;
+		}
+		
+		if (!cell.editorAttached) {
+			return undefined;
+		}
+		
+		// Find the editor for this cell from the notebook's code editors
+		const editorPair = notebookEditor.codeEditors.find(([vm,]) => vm.handle === cell.handle);
+		if (editorPair) {
+			return editorPair[1];
+		}
+		
+		return undefined;
+	}
+
+	/**
+	 * Identify diff sections within a single notebook cell (replicates identifyDiffSections per-cell)
+	 */
+	private notebookIdentifyDiffSections(cellLineDiffs: Array<{
+		type: 'added' | 'deleted' | 'unchanged';
+		content: string;
+		lineNumber: number;
+	}>, cellIndex: number): Array<{
+		sectionId: string;
+		type: 'added-only' | 'deleted-only' | 'combined';
+		zoneLineNumber: number;
+		addedLines: Array<{ lineNumber: number; content: string }>;
+		deletedLines: string[];
+		startLine: number;
+		endLine: number;
+	}> {
+		const sections: Array<{
+			sectionId: string;
+			type: 'added-only' | 'deleted-only' | 'combined';
+			zoneLineNumber: number;
+			addedLines: Array<{ lineNumber: number; content: string }>;
+			deletedLines: string[];
+			startLine: number;
+			endLine: number;
+		}> = [];
+
+		// Group consecutive added and deleted entries (same logic as regular files)
+		let i = 0;
+		while (i < cellLineDiffs.length) {
+			const entry = cellLineDiffs[i];
+			
+			if (entry.type === 'added' || entry.type === 'deleted') {
+				// Start a new section
+				const addedLines: Array<{ lineNumber: number; content: string }> = [];
+				const deletedLines: string[] = [];
+				let startLine = entry.lineNumber;
+				let endLine = startLine;
+
+				// Collect consecutive added OR deleted lines
+				while (i < cellLineDiffs.length && (cellLineDiffs[i].type === 'added' || cellLineDiffs[i].type === 'deleted')) {
+					const currentEntry = cellLineDiffs[i];
+					
+					if (currentEntry.type === 'added') {
+						addedLines.push({
+							lineNumber: currentEntry.lineNumber,
+							content: currentEntry.content
+						});
+						endLine = Math.max(endLine, currentEntry.lineNumber);
+					} else if (currentEntry.type === 'deleted') {
+						deletedLines.push(currentEntry.content);
+					}
+					
+					i++;
+				}
+
+				// Determine section type and zone line number (same logic as regular files)
+				let sectionType: 'added-only' | 'deleted-only' | 'combined';
+				let zoneLineNumber: number;
+
+				if (addedLines.length > 0 && deletedLines.length > 0) {
+					// Combined section: both added and deleted lines
+					sectionType = 'combined';
+					zoneLineNumber = addedLines[addedLines.length - 1].lineNumber; // After last added line
+				} else if (addedLines.length > 0) {
+					// Added-only section
+					sectionType = 'added-only';
+					zoneLineNumber = addedLines[addedLines.length - 1].lineNumber; // After last added line
+				} else {
+					// Deleted-only section
+					sectionType = 'deleted-only';
+					// For notebook cells, place at the start of the deleted range
+					zoneLineNumber = startLine;
+				}
+
+				// Create section ID for this cell
+				const sectionId = `notebook-cell-${cellIndex}-section-${sectionType}-${startLine}-${endLine}`;
+				
+				// Store section info for accept/reject operations
+				const storedInfo: NotebookStoredSectionInfo = {
+					type: sectionType
+				};
+				
+				if (addedLines.length > 0) {
+					storedInfo.addedLines = addedLines.map(line => ({
+						currentCellLineNumber: line.lineNumber,
+						currentCellNumber: cellIndex,
+						content: line.content,
+						acceptedCellLineNumber: line.lineNumber,
+						acceptedCellNumber: cellIndex
+					}));
+				}
+				
+				if (deletedLines.length > 0) {
+					// For consistency with regular files, insert deleted lines as a block at the zone position
+					const baseInsertPosition = sectionType === 'deleted-only' ? zoneLineNumber : startLine;
+					
+					storedInfo.deletedLines = deletedLines.map((content, index) => {
+						const deletedLineInfo = {
+							content,
+							acceptedCellLineNumber: startLine + index,
+							acceptedCellNumber: cellIndex,
+							currentCellLineNumber: baseInsertPosition + index, // Insert as block at zone position (like regular files)
+							currentCellNumber: cellIndex
+						};
+						return deletedLineInfo;
+					});
+				}
+				
+				this.notebookStoredSectionInfo.set(sectionId, storedInfo);
+
+				sections.push({
+					sectionId,
+					type: sectionType,
+					zoneLineNumber,
+					addedLines,
+					deletedLines,
+					startLine,
+					endLine
+				});
+			} else {
+				i++;
+			}
+		}
+
+		return sections;
 	}
 
 	/**
@@ -1011,18 +1426,35 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 	}
 
 	private clearAutoAcceptZones(uriString: string): void {
+		// Clear regular file zones
 		const zoneMap = this.autoAcceptZones.get(uriString);
 		if (zoneMap) {
 			for (const zone of zoneMap.values()) {
 				// Clear stored section info for this zone's section
 				if (zone._diffSectionId) {
 					this.storedSectionInfo.delete(zone._diffSectionId);
-					this.notebookStoredSectionInfo.delete(zone._diffSectionId);
 				}
 				zone.dispose();
 			}
 			this.autoAcceptZones.delete(uriString);
 		}
+		
+		// Clear notebook zones
+		const notebookZoneMap = this.notebookAutoAcceptZones.get(uriString);
+		if (notebookZoneMap) {
+			for (const zone of notebookZoneMap.values()) {
+				// Clear stored section info for this zone's section
+				if (zone._diffSectionId) {
+					this.notebookStoredSectionInfo.delete(zone._diffSectionId);
+				}
+				zone.dispose();
+			}
+			this.notebookAutoAcceptZones.delete(uriString);
+		}
+		
+		// Clear zones from the NotebookZoneManager
+		const uri = URI.parse(uriString);
+		this.notebookZoneManager.clearZones(uri);
 	}
 
 	private async handleEditorVisibilityChange(): Promise<void> {
@@ -1065,17 +1497,14 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 			const resource = editorPane.input?.resource;
 			if (resource) {
 				// Convert notebook cell URIs to notebook file URIs for tracking lookup
-				let fileUri = resource;
-				if (resource.scheme === 'vscode-notebook-cell') {
-					fileUri = URI.file(resource.fsPath);
-				}
+				const fileUri = this.convertCellUriToFileUri(resource);
 				
 				if (fileUri.scheme === 'file') {
 					const hasAutoAcceptTracking = await this.hasAutoAcceptTracking(resource);
 					
 					if (hasAutoAcceptTracking) {
 						// Only apply auto-accept highlighting if file has auto-accept tracking
-						await this.applyAutoAcceptHighlighting(resource);
+						await this.applyAutoAcceptHighlighting(fileUri); // Use converted fileUri
 					} else {
 						// Apply main diff highlighting if no auto-accept tracking
 						const currentConversation = this.conversationManager.getCurrentConversation();
@@ -1149,10 +1578,7 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 			if (hasAutoAcceptTracking) {
 				// Only apply auto-accept highlighting if file has auto-accept tracking
 				// Convert notebook cell URIs to file URIs for auto-accept highlighting
-				let targetUri = uri;
-				if (uri.scheme === 'vscode-notebook-cell') {
-					targetUri = URI.file(uri.fsPath);
-				}
+				const targetUri = this.convertCellUriToFileUri(uri);
 				await this.applyAutoAcceptHighlighting(targetUri);
 			} else {
 				// Only apply main diff highlighting if no auto-accept tracking
@@ -1186,7 +1612,7 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 			if (uri) {
 				// Skip notebook files that are currently in programmatic operations
 				if (this.commonUtils.getFileExtension(uri.fsPath).toLowerCase() === 'ipynb' && 
-					this.notebookOperationsInProgress.has(uri.toString())) {
+					!this.canProceedWithNotebookOperation(uri.toString())) {
 					continue;
 				}
 				await this.applyFileChangeHighlighting(uri, change);
@@ -1219,12 +1645,7 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 
 	private async hasAutoAcceptTracking(uri: URI): Promise<boolean> {
 		// Convert notebook cell URIs to notebook file URIs
-		let fileUri = uri;
-		if (uri.scheme === 'vscode-notebook-cell') {
-			// Extract the notebook file path from the cell URI
-			const notebookPath = uri.fsPath; // This gives us the notebook file path
-			fileUri = URI.file(notebookPath);
-		}
+		const fileUri = this.convertCellUriToFileUri(uri);
 		
 		// Skip auto-accept tracking for other in-memory URIs (like diff widgets)
 		if (fileUri.scheme !== 'file') {
@@ -1258,21 +1679,23 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 		return result;
 	}
 
-	async applyAutoAcceptHighlighting(uri: URI): Promise<void> {
-		const uriString = uri.toString();
-		const filePath = uri.fsPath;
+	async applyAutoAcceptHighlighting(uri: URI): Promise<void> {		
+		// Convert notebook cell URIs to file URIs FIRST - safety net for all callers
+		const targetUri = this.convertCellUriToFileUri(uri);
+		const uriString = targetUri.toString();
+		const filePath = targetUri.fsPath;
 		
 		// Check if this is a notebook file
-		const isNotebook = this.commonUtils.getFileExtension(uri.fsPath).toLowerCase() === 'ipynb';
+		const isNotebook = this.commonUtils.getFileExtension(targetUri.fsPath).toLowerCase() === 'ipynb';
 		
 		// Skip notebook files that are currently in programmatic operations
-		if (isNotebook && this.notebookOperationsInProgress.has(uriString)) {
+		if (isNotebook && !this.canProceedWithNotebookOperation(uriString)) {
 			return;
 		}
 		
 		if (isNotebook) {
 			// Handle notebook auto-accept highlighting
-			await this.notebookApplyAutoAcceptHighlighting(uri);
+			await this.notebookApplyAutoAcceptHighlighting(targetUri);
 			return;
 		}
 		
@@ -1381,7 +1804,7 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 				try {
 					zone.dispose();
 				} catch (error) {
-					console.log(`[FileChangeTracker] Error disposing zone:`, JSON.stringify(error.message));
+					console.error(`[FileChangeTracker] Error disposing zone:`, JSON.stringify(error.message));
 				}
 			}
 			this.autoAcceptZones.delete(uriString);
@@ -1418,6 +1841,10 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 			
 			this.autoAcceptZones.set(uriString, newZoneMap);
 		}
+		
+		// Always fire onDiffSectionsCreated event to notify UI components like the floating bar
+		const sectionIds = sections.map(section => section.sectionId);
+		this._onDiffSectionsCreated.fire({ uri, sectionIds });
 	}
 
 	private identifyDiffSections(diffEntries: Array<{
@@ -1607,7 +2034,7 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 		}
 	}
 
-	async acceptAutoAcceptChanges(uri: URI): Promise<void> {
+	async acceptAllAutoAcceptChanges(uri: URI): Promise<void> {
 		const filePath = uri.fsPath;
 		
 		const workspace = this.workspaceContextService.getWorkspace();
@@ -1631,22 +2058,148 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 		const trackingContent = await this.fileService.readFile(fileTrackingPath);
 		const fileTracking = JSON.parse(trackingContent.value.toString());
 		
-		// Update original content to current content
-		const currentContent = await this.fileService.readFile(uri);
-		fileTracking.accepted_content = currentContent.value.toString();
+	// Update original content to current content
+	const isNotebook = this.commonUtils.getFileExtension(uri.fsPath).toLowerCase() === 'ipynb';
+	
+	if (isNotebook) {
+		// For notebooks, check if model exists before trying to get snapshot
+		const notebookModel = this.notebookService.getNotebookTextModel(uri);
+		if (!notebookModel) {
+			return;
+		}
+		
+		// For notebooks, use VSCode's serialization and add cell IDs
+		const snapshotStream = await this.notebookService.createNotebookTextDocumentSnapshot(
+			uri, 
+			SnapshotContext.Save,
+			new CancellationTokenSource().token
+		);
+		const buffer = await streamToBuffer(snapshotStream);
+		const currentContent = buffer.toString();
+			
+			// Store current content as accepted (cells should already have erdosAi_cellId)
+			fileTracking.accepted_content = currentContent;
+		} else {
+			// For regular files, use disk content
+			const currentContent = await this.fileService.readFile(uri);
+			fileTracking.accepted_content = currentContent.value.toString();
+		}
 		
 		const trackingDataToWrite = JSON.stringify(fileTracking, null, 2);
 		await this.fileService.writeFile(fileTrackingPath, VSBuffer.fromString(trackingDataToWrite));
 		
-		// Clear decorations - use appropriate method for file type
-		const isNotebook = this.commonUtils.getFileExtension(uri.fsPath).toLowerCase() === 'ipynb';
+		// Clear all auto-accept highlighting, zones, and state
 		if (isNotebook) {
-			// Clear notebook auto-accept highlighting only
+			// Clear all notebook auto-accept state
+			this.clearAutoAcceptZones(uri.toString());
 			this.notebookDiffService.notebookClearAutoAcceptHighlighting(uri);
+			this.completeNotebookOperation(uri.toString());
 		} else {
-			// Clear regular file auto-accept highlighting
-			this.clearAutoAcceptHighlighting(uri);
+			// Clear all regular file auto-accept state
+			this.clearAutoAcceptHighlighting(uri); // This already calls clearAutoAcceptZones internally
 		}
+
+		// Check if file should be cleaned up from tracking (no more diffs)
+		await this.cleanupFileIfNoDiffs(uri);
+	}
+
+	async rejectAllAutoAcceptChanges(uri: URI): Promise<void> {
+		const filePath = uri.fsPath;
+		
+		const workspace = this.workspaceContextService.getWorkspace();
+		const isEmptyWindow = !workspace.configuration && workspace.folders.length === 0;
+		const workspaceId = workspace.id;
+		
+		const storageRoot = isEmptyWindow ?
+			URI.joinPath(this.environmentService.userRoamingDataHome, 'emptyWindowErdosAi') :
+			URI.joinPath(this.environmentService.workspaceStorageHome, workspaceId, 'erdosAi');
+		
+		const trackingDir = URI.joinPath(storageRoot, 'auto-accept-tracking');
+		const fileMapPath = URI.joinPath(trackingDir, 'file-map.json');
+		
+		const mapContent = await this.fileService.readFile(fileMapPath);
+		const fileMap = JSON.parse(mapContent.value.toString());
+		const fileHash = fileMap[filePath];
+		
+		if (!fileHash) return;
+		
+		const fileTrackingPath = URI.joinPath(trackingDir, 'files', `${fileHash}.json`);
+		const trackingContent = await this.fileService.readFile(fileTrackingPath);
+		const fileTracking = JSON.parse(trackingContent.value.toString());
+		
+		// Revert current content back to accepted content
+		const isNotebook = this.commonUtils.getFileExtension(uri.fsPath).toLowerCase() === 'ipynb';
+		
+		if (isNotebook) {
+			// For notebooks, apply the accepted content to the notebook model
+			const notebookEditor = this.notebookDiffService.findNotebookEditorForUri(uri);
+			if (!notebookEditor || !notebookEditor.hasModel()) {
+				return;
+			}
+			
+			const notebookModel = notebookEditor.textModel!;
+			const acceptedNotebook = JSON.parse(fileTracking.accepted_content);
+			
+			// Replace all cells with the accepted content
+			const newCells = acceptedNotebook.cells.map((cell: any, cellIndex: number) => {
+				const vscodeMetadata: any = {};
+				if (cell.cell_type === 'code' && cell.execution_count !== undefined) {
+					vscodeMetadata.execution_count = cell.execution_count;
+				}
+				if (cell.metadata) {
+					vscodeMetadata.metadata = cell.metadata;  // Nest Jupyter metadata under 'metadata' property
+				}
+				
+				const newCellData = {
+					cellKind: cell.cell_type === 'markdown' ? 1 : 2, // 1 = markdown, 2 = code
+					source: Array.isArray(cell.source) ? cell.source.join('') : cell.source,
+					language: cell.cell_type === 'code' ? 'python' : 'markdown',
+					mime: cell.cell_type === 'markdown' ? 'text/markdown' : 'text/x-python',
+					metadata: vscodeMetadata,
+					outputs: cell.outputs || []
+				};
+				return newCellData;
+			});
+			
+			// Replace all cells atomically
+			notebookModel.applyEdits([{
+				editType: 1, // CellEditType.Replace
+				index: 0,
+				count: notebookModel.cells.length,
+				cells: newCells
+			}], true, undefined, () => undefined, undefined, true);
+		} else {
+			// For regular files, replace the content in the Monaco model
+			const model = this.modelService.getModel(uri);
+			if (!model) {
+				return;
+			}
+			
+			const fullRange = model.getFullModelRange();
+			model.pushEditOperations([], [{
+				range: fullRange,
+				text: fileTracking.accepted_content
+			}], () => null);
+			
+			// Force a flush to ensure changes are applied
+			if (model.pushStackElement) {
+				model.pushStackElement();
+			}
+		}
+		
+		// Clear all auto-accept highlighting, zones, and state
+		if (isNotebook) {
+			// Clear all notebook auto-accept state
+			this.clearAutoAcceptZones(uri.toString());
+			this.notebookDiffService.notebookClearAutoAcceptHighlighting(uri);
+			this.completeNotebookOperation(uri.toString());
+		} else {
+			// Clear all regular file auto-accept state
+			this.clearAutoAcceptHighlighting(uri); // This already calls clearAutoAcceptZones internally
+		}
+
+		// Check if file should be cleaned up from tracking (no more diffs)
+		await this.cleanupFileIfNoDiffs(uri);
 	}
 
 	clearAutoAcceptHighlighting(uri: URI): void {
@@ -1668,10 +2221,19 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 
 	async acceptDiffSection(uri: URI, diffSectionId: string): Promise<void> {
 		// Check if this is a notebook file
-		const isNotebook = this.commonUtils.getFileExtension(uri.fsPath).toLowerCase() === 'ipynb';
+		const fileExtension = this.commonUtils.getFileExtension(uri.fsPath);
+		const isNotebook = fileExtension.toLowerCase() === 'ipynb';
 			
 		if (isNotebook) {
-			await this.notebookAcceptDiffSection(uri, diffSectionId);
+			try {
+				await this.notebookAcceptDiffSection(uri, diffSectionId);
+			} catch (error) {
+				console.error(`ACCEPT_DIFF_SECTION: notebookAcceptDiffSection ERROR: ${JSON.stringify({
+					message: error.message,
+					stack: error.stack,
+					name: error.name
+				})}`);
+			}
 			return;
 		}
 			
@@ -1726,12 +2288,20 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 	}
 
 	async rejectDiffSection(uri: URI, diffSectionId: string): Promise<void> {
-		
 		// Check if this is a notebook file
-		const isNotebook = this.commonUtils.getFileExtension(uri.fsPath).toLowerCase() === 'ipynb';
+		const fileExtension = this.commonUtils.getFileExtension(uri.fsPath);
+		const isNotebook = fileExtension.toLowerCase() === 'ipynb';
 			
 		if (isNotebook) {
-			await this.notebookRejectDiffSection(uri, diffSectionId);
+			try {
+				await this.notebookRejectDiffSection(uri, diffSectionId);
+			} catch (error) {
+				console.error(`REJECT_DIFF_SECTION: notebookRejectDiffSection ERROR: ${JSON.stringify({
+					message: error.message,
+					stack: error.stack,
+					name: error.name
+				})}`);
+			}
 			return;
 		}
 		
@@ -1740,8 +2310,6 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 		if (!storedInfo) {
 			throw new Error(`No stored section info found for: ${diffSectionId}`);
 		}
-		
-		console.log(`[REJECT_DEBUG] Rejecting section ${diffSectionId} of type: ${storedInfo.type}, addedLines: ${storedInfo.addedLines?.length || 0}, deletedLines: ${storedInfo.deletedLines?.length || 0}`);
 		
 		// Load model to get current content
 		const model = this.modelService.getModel(uri);
@@ -1756,7 +2324,6 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 		if (storedInfo.addedLines && storedInfo.addedLines.length > 0) {
 			// Remove added lines from current file by line number (not content)
 			const lineNumbersToRemove = storedInfo.addedLines.map(line => line.lineNumber);
-			console.log(`[REJECT_DEBUG] Removing added lines at positions: ${lineNumbersToRemove.join(', ')}`);
 			currentContent = this.removeLinesFromContent(currentContent, lineNumbersToRemove);
 		}
 		
@@ -1766,7 +2333,6 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 				lineNumber: line.insertPosition,
 				content: line.content
 			}));
-			console.log(`[REJECT_DEBUG] Re-inserting deleted lines at positions: ${linesToInsert.map(l => l.lineNumber).join(', ')}`);
 			
 			currentContent = this.insertLinesIntoContent(currentContent, linesToInsert);
 		}
@@ -1785,21 +2351,16 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 			
 		// Remove the stored section info since it's now rejected
 		this.storedSectionInfo.delete(diffSectionId);
-		console.log(`[REJECT_DEBUG] After removing rejected section - remaining sections: ${Array.from(this.storedSectionInfo.keys()).join(', ')}`);
 		
 		// Refresh highlighting (the rejected section should disappear)
-		console.log(`[REJECT_DEBUG] Starting refresh highlighting for remaining sections`);
 		await this.applyAutoAcceptHighlighting(uri);
-		console.log(`[REJECT_DEBUG] Completed refresh highlighting`);
 		
 		// Check if file should be cleaned up (no more diffs)
 		await this.cleanupFileIfNoDiffs(uri);
 			
 		// Fire event to notify that diff section was rejected
 		this._onDiffSectionChanged.fire({ uri, action: 'reject', sectionId: diffSectionId });
-		console.log(`[REJECT_DEBUG] Completed reject for section: ${diffSectionId}`);
 	}
-
 
 	private async loadSectionData(uri: URI): Promise<{
 		fileTracking: any;
@@ -1930,32 +2491,45 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 		const trackingContent = await this.fileService.readFile(fileTrackingPath);
 		const fileTracking = JSON.parse(trackingContent.value.toString());
 		
-		// Get current content and compute diff
-		const isNotebook = this.commonUtils.getFileExtension(uri.fsPath).toLowerCase() === 'ipynb';
-		let diffEntries;
+	// Get current content and compute diff
+	const isNotebook = this.commonUtils.getFileExtension(uri.fsPath).toLowerCase() === 'ipynb';
+	let diffEntries;
+	let currentContent: string;
+	
+	if (isNotebook) {
+		// For notebooks, check if model exists before trying to get snapshot
+		const notebookModel = this.notebookService.getNotebookTextModel(uri);
+		if (!notebookModel) {
+			return;
+		}
 		
-		if (isNotebook) {
-			// For notebooks, use VSCode's real serialization process
-			const snapshotStream = await this.notebookService.createNotebookTextDocumentSnapshot(
-				uri, 
-				SnapshotContext.Save,
-				new CancellationTokenSource().token
-			);
-			const buffer = await streamToBuffer(snapshotStream);
-			const currentContent = buffer.toString();
+		// For notebooks, use VSCode's real serialization process
+		const snapshotStream = await this.notebookService.createNotebookTextDocumentSnapshot(
+			uri, 
+			SnapshotContext.Save,
+			new CancellationTokenSource().token
+		);
+		const buffer = await streamToBuffer(snapshotStream);
+		currentContent = buffer.toString();
 			
 			// Use flat line approach like other notebook methods
 			const oldData = this.notebookExtractLines(fileTracking.accepted_content);
 			const newData = this.notebookExtractLines(currentContent);
 			const flatOldContent = oldData.lines.join('\n');
-			const flatNewContent = newData.lines.join('\n');
+			const flatNewContent = newData.lines.join('\n');			
 			diffEntries = await this.computeLineDiff(flatOldContent, flatNewContent);
 		} else {
-			// For regular files, use disk content
-			const currentContent = await this.fileService.readFile(uri);
-			diffEntries = await this.computeLineDiff(fileTracking.accepted_content, currentContent.value.toString());
-		}
-		
+			// For regular files, use Monaco model if available (like in reject), otherwise disk content
+			const model = this.modelService.getModel(uri);
+			if (model) {
+				currentContent = model.getValue();
+			} else {
+				const fileContent = await this.fileService.readFile(uri);
+				currentContent = fileContent.value.toString();
+			}
+			
+			diffEntries = await this.computeLineDiff(fileTracking.accepted_content, currentContent);
+		}				
 		// Check if there are any remaining diffs
 		const hasChanges = diffEntries.some(entry => entry.type === 'added' || entry.type === 'deleted');
 		
@@ -1975,8 +2549,8 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 			// Clear auto-accept highlighting
 			const isNotebook = this.commonUtils.getFileExtension(uri.fsPath).toLowerCase() === 'ipynb';
 			if (isNotebook) {
-				// For notebooks, clear only auto-accept highlighting (not regular diff highlighting)
-				console.log(`[ZONE DISPOSAL] Clearing notebook auto-accept highlighting - no diffs remain for ${uri.toString()}`);
+				// For notebooks, clear FileChangeTracker's zones AND contribution's highlighting
+				this.clearAutoAcceptHighlighting(uri); // This clears FileChangeTracker's zones
 				this.notebookDiffService.notebookClearAutoAcceptHighlighting(uri);
 			} else {
 				// For regular files, use the regular clear method
@@ -2035,23 +2609,37 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 					const trackingContent = await this.fileService.readFile(fileTrackingPath);
 					const fileTracking = JSON.parse(trackingContent.value.toString());
 					
-					const uri = URI.file(filePath);
+				const uri = URI.file(filePath);
+				
+				// Check if file still exists on disk
+				const fileExists = await this.fileService.exists(uri);
+				if (!fileExists) {
+					// File was deleted, skip it
+					continue;
+				}
+				
+				// Get current content
+				let currentContent: string;
+				const isNotebook = this.commonUtils.getFileExtension(uri.fsPath).toLowerCase() === 'ipynb';
+				
+				if (isNotebook) {
+					// For notebooks, check if model exists before trying to get snapshot
+					const notebookModel = this.notebookService.getNotebookTextModel(uri);
+					if (!notebookModel) {
+						// Notebook not loaded, skip it (can't get proper serialized content without loading)
+						continue;
+					}
 					
-					// Get current content
-					let currentContent: string;
-					const isNotebook = this.commonUtils.getFileExtension(uri.fsPath).toLowerCase() === 'ipynb';
+					// For notebooks, use VSCode's REAL serialization process
+					const snapshotStream = await this.notebookService.createNotebookTextDocumentSnapshot(
+						uri, 
+						SnapshotContext.Save,
+						new CancellationTokenSource().token
+					);
 					
-					if (isNotebook) {
-						// For notebooks, use VSCode's REAL serialization process
-						const snapshotStream = await this.notebookService.createNotebookTextDocumentSnapshot(
-							uri, 
-							SnapshotContext.Save,
-							new CancellationTokenSource().token
-						);
-						
-						const buffer = await streamToBuffer(snapshotStream);
-						currentContent = buffer.toString();
-					} else {
+					const buffer = await streamToBuffer(snapshotStream);
+					currentContent = buffer.toString();
+				} else {
 						// For regular files, use Monaco model if available, otherwise from disk
 						const model = this.modelService.getModel(uri);
 						if (model) {
@@ -2117,6 +2705,38 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 		}
 	}
 
+	async acceptAllExceptConversation(conversationId: number): Promise<void> {
+		const workspace = this.workspaceContextService.getWorkspace();
+		const isEmptyWindow = !workspace.configuration && workspace.folders.length === 0;
+		const workspaceId = workspace.id;
+		
+		const storageRoot = isEmptyWindow ?
+			URI.joinPath(this.environmentService.userRoamingDataHome, 'emptyWindowErdosAi') :
+			URI.joinPath(this.environmentService.workspaceStorageHome, workspaceId, 'erdosAi');
+		
+		const trackingDir = URI.joinPath(storageRoot, 'auto-accept-tracking');
+		const fileMapPath = URI.joinPath(trackingDir, 'file-map.json');
+		
+		const mapExists = await this.fileService.exists(fileMapPath);
+		if (!mapExists) {
+			return;
+		}
+		
+		const mapContent = await this.fileService.readFile(fileMapPath);
+		const fileMap = JSON.parse(mapContent.value.toString());
+		
+		for (const [filePath, fileHash] of Object.entries(fileMap)) {
+			const fileTrackingPath = URI.joinPath(trackingDir, 'files', `${fileHash}.json`);
+			const trackingContent = await this.fileService.readFile(fileTrackingPath);
+			const fileTracking = JSON.parse(trackingContent.value.toString());
+			
+			if (!fileTracking.conversations.includes(conversationId)) {
+				const uri = URI.file(filePath);
+				await this.acceptAllAutoAcceptChanges(uri);
+			}
+		}
+	}
+
 	private calculateAcceptedInsertPosition(diffEntries: Array<{
 		type: 'added' | 'deleted' | 'unchanged';
 		content: string;
@@ -2164,283 +2784,310 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 	 */
 	private async notebookApplyAutoAcceptHighlighting(uri: URI): Promise<void> {
 		// Set notebook operation guard to prevent interference from regular diff highlighting
-		this.notebookOperationsInProgress.add(uri.toString());
+		this.startNotebookOperation(uri.toString());
 		
-		try {
-			const filePath = uri.fsPath;
+		const filePath = uri.fsPath;		
+		const workspace = this.workspaceContextService.getWorkspace();
+		const isEmptyWindow = !workspace.configuration && workspace.folders.length === 0;
+		const workspaceId = workspace.id;
+		
+		const storageRoot = isEmptyWindow ?
+			URI.joinPath(this.environmentService.userRoamingDataHome, 'emptyWindowErdosAi') :
+			URI.joinPath(this.environmentService.workspaceStorageHome, workspaceId, 'erdosAi');
+		
+		const trackingDir = URI.joinPath(storageRoot, 'auto-accept-tracking');
+		const fileMapPath = URI.joinPath(trackingDir, 'file-map.json');
+		
+		const mapContent = await this.fileService.readFile(fileMapPath);
+		const fileMap = JSON.parse(mapContent.value.toString());
+		const fileHash = fileMap[filePath];
+		
+		if (!fileHash) {
+			this.completeNotebookOperation(uri.toString());
+			return;
+		}
+		
+		const fileTrackingPath = URI.joinPath(trackingDir, 'files', `${fileHash}.json`);
+		const trackingContent = await this.fileService.readFile(fileTrackingPath);
+		const fileTracking = JSON.parse(trackingContent.value.toString());
+		
+		
+	// Debug: Check what's in the VSCode notebook model BEFORE serialization
+	const notebookModel = this.notebookService.getNotebookTextModel(uri);
+	if (!notebookModel) {
+		return;
+	}
+	
+	// Get current notebook content using VSCode's notebook serialization process
+	const snapshotStream = await this.notebookService.createNotebookTextDocumentSnapshot(
+		uri, 
+		SnapshotContext.Save,
+		new CancellationTokenSource().token
+	);
+		const buffer = await streamToBuffer(snapshotStream);
+		const notebookCurrentContent = buffer.toString();
+		const cellBasedDiffs = await this.computeNotebookCellBasedDiff(fileTracking.accepted_content, notebookCurrentContent, uri);
+		
+		// If no differences found, clear auto-accept highlighting and return
+		if (cellBasedDiffs.length === 0) {
+			this.clearAutoAcceptZones(uri.toString());
+			this.notebookDiffService.notebookClearAutoAcceptHighlighting(uri);
+			this.completeNotebookOperation(uri.toString());
+			return;
+		}
+		
+		// Get current notebook editor to create empty cells for deleted cells (if needed)
+		const notebookEditor = this.notebookDiffService.findNotebookEditorForUri(uri);
+		if (notebookEditor && notebookEditor.hasModel()) {
+			const notebookModel = notebookEditor.textModel!;
 			
-			const workspace = this.workspaceContextService.getWorkspace();
-			const isEmptyWindow = !workspace.configuration && workspace.folders.length === 0;
-			const workspaceId = workspace.id;
-			
-			const storageRoot = isEmptyWindow ?
-				URI.joinPath(this.environmentService.userRoamingDataHome, 'emptyWindowErdosAi') :
-				URI.joinPath(this.environmentService.workspaceStorageHome, workspaceId, 'erdosAi');
-			
-			const trackingDir = URI.joinPath(storageRoot, 'auto-accept-tracking');
-			const fileMapPath = URI.joinPath(trackingDir, 'file-map.json');
-			
-			const mapContent = await this.fileService.readFile(fileMapPath);
-			const fileMap = JSON.parse(mapContent.value.toString());
-			const fileHash = fileMap[filePath];
-			
-			if (!fileHash) {
-				return;
-			}
-			
-			const fileTrackingPath = URI.joinPath(trackingDir, 'files', `${fileHash}.json`);
-			const trackingContent = await this.fileService.readFile(fileTrackingPath);
-			const fileTracking = JSON.parse(trackingContent.value.toString());
-			
-			
-			// Get current notebook content using VSCode's REAL serialization process
-			// Use VSCode's actual notebook serialization service - the same process used for saving
-			const snapshotStream = await this.notebookService.createNotebookTextDocumentSnapshot(
-				uri, 
-				SnapshotContext.Save, // Use the Save context enum value
-				new CancellationTokenSource().token
-			);
-			
-			// Convert the VSBufferReadableStream to string using VSCode's streamToBuffer utility
-			const buffer = await streamToBuffer(snapshotStream);
-			const notebookCurrentContent = buffer.toString();
-			
-			// Compare with accepted content to generate diffs
-			const oldData = this.notebookExtractLines(fileTracking.accepted_content);
-			const newData = this.notebookExtractLines(notebookCurrentContent);
+			// Create empty cells for any deleted cells (cells that exist in accepted but not current)
+			// Only create if the cell doesn't already exist at that index WITH THE SAME ID
+			for (const cellDiff of cellBasedDiffs) {
+				if (cellDiff.diffType === 'deleted') {
+					// Check if there's already a cell at this index with the SAME cell ID
+					const existingCell = notebookModel.cells[cellDiff.cellIndex];
+					const existingCellId = existingCell ? (existingCell.metadata as CellMetadata)?.metadata?.erdosAi_cellId : null;
+					const isSameCell = existingCellId === cellDiff.cellId;
+					
+					if (!existingCell || !isSameCell) {
+						// Determine cell type from the original cell content in accepted content
+						// Pass false since we don't want to persist temp IDs for accepted content
+						const originalCells = this.extractNotebookCells(fileTracking.accepted_content, uri, false);
+						const originalCell = Array.from(originalCells.values()).find(cell => 
+							cell.cellId === cellDiff.cellId
+						);
 						
-			const flatOldContent = oldData.lines.join('\n');
-			const flatNewContent = newData.lines.join('\n');
-			
-			// If content is identical, no need to continue - clear auto-accept highlighting and return
-			if (flatOldContent === flatNewContent) {
-				this.notebookDiffService.notebookClearAutoAcceptHighlighting(uri);
-				return;
-			}
-			
-			// Compute flat line diff
-			const flatDiffEntries = await this.computeLineDiff(flatOldContent, flatNewContent);
-			
-			// DEBUG: Show if we're recreating zone widgets from the same diffs after accepting sections
-			const diffSummary = flatDiffEntries.filter(e => e.type !== 'unchanged').map(e => `${e.type}:${e.content.substring(0, 20)}`).join(', ');
-			console.log(`[ZONE DISPOSAL] applyAutoAcceptHighlighting found ${flatDiffEntries.filter(e => e.type !== 'unchanged').length} diffs: ${diffSummary}`);
-					
-			// Generate notebook-specific stored section info for accept/reject operations (inlined)
-			// Clear existing notebook stored sections
-			this.notebookStoredSectionInfo.clear();
-			
-			let sectionsCreated = 0;
-
-			// Group consecutive added and deleted entries by cell
-			let i = 0;
-			while (i < flatDiffEntries.length) {
-				const entry = flatDiffEntries[i];
-							
-				if (entry.type === 'added' || entry.type === 'deleted') {
-					// Start a new section
-					const addedLines: Array<{
-						currentCellLineNumber: number;
-						currentCellNumber: number;
-						content: string;
-						acceptedCellLineNumber: number;
-						acceptedCellNumber: number;
-					}> = [];
-					
-					const deletedLines: Array<{
-						content: string;
-						acceptedCellLineNumber: number;
-						acceptedCellNumber: number;
-						currentCellLineNumber: number;
-						currentCellNumber: number;
-					}> = [];
-					
-					let sectionStartLine = entry.newLine > 0 ? entry.newLine : entry.oldLine;
-					let sectionEndLine = sectionStartLine;
-
-					// Collect consecutive added OR deleted lines
-					while (i < flatDiffEntries.length && (flatDiffEntries[i].type === 'added' || flatDiffEntries[i].type === 'deleted')) {
-						const currentEntry = flatDiffEntries[i];
-											
-						if (currentEntry.type === 'added') {
-							// Map to current and accepted cell coordinates
-							const currentMapping = newData.lineMapping[currentEntry.newLine - 1];
-							
-							if (currentMapping) {
-								// Find corresponding position in accepted content
-								// For added lines, we need to find where they should be inserted in accepted content
-								const acceptedCellNumber = currentMapping.cellIndex; // Same cell in both
-								const acceptedCellLineNumber = currentMapping.lineInCell + 1; // Same relative position
-								
-								addedLines.push({
-									currentCellLineNumber: currentMapping.lineInCell + 1,
-									currentCellNumber: currentMapping.cellIndex,
-									content: currentEntry.content,
-									acceptedCellLineNumber,
-									acceptedCellNumber
-								});
-							}
-							
-							sectionEndLine = Math.max(sectionEndLine, currentEntry.newLine);
-						} else if (currentEntry.type === 'deleted') {
-							// Map to accepted and current cell coordinates
-							const acceptedMapping = oldData.lineMapping[currentEntry.oldLine - 1];
-													
-							if (acceptedMapping) {
-								// Find where to reinsert in current content if rejected
-								// For deleted lines, find next available position in current content
-								const currentCellNumber = acceptedMapping.cellIndex; // Same cell in both
-								const currentCellLineNumber = acceptedMapping.lineInCell + 1; // Same relative position
-								
-								const deletedLineInfo = {
-									content: currentEntry.content,
-									acceptedCellLineNumber: acceptedMapping.lineInCell + 1,
-									acceptedCellNumber: acceptedMapping.cellIndex,
-									currentCellLineNumber,
-									currentCellNumber
-								};
-								
-								deletedLines.push(deletedLineInfo);
-							}
-						}
+						const cellKind = originalCell?.cellType === 'markdown' ? 1 : 2; // 1 = markdown, 2 = code
 						
-						i++;
-					}
-					
-					// Determine section type
-					let sectionType: 'added-only' | 'deleted-only' | 'combined';
-					if (addedLines.length > 0 && deletedLines.length > 0) {
-						sectionType = 'combined';
-					} else if (addedLines.length > 0) {
-						sectionType = 'added-only';
+						const cellMetadata = {
+							metadata: {
+								erdosAi_cellId: cellDiff.cellId // Preserve the original cell ID - properly nested inside metadata!
+							}
+						};
+						const newCellData = {
+							cellKind: cellKind,
+							source: '', // Empty content
+							language: cellKind === 2 ? 'python' : 'markdown',
+							mime: cellKind === 1 ? 'text/markdown' : 'text/x-python',
+							metadata: cellMetadata,
+							outputs: []
+						};
+						
+						// Create empty cell at the appropriate position
+						notebookModel.applyEdits([{
+							editType: 1, // CellEditType.Replace  
+							index: cellDiff.cellIndex,
+							count: 0, // Insert, don't replace
+							cells: [newCellData]
+						}], true, undefined, () => undefined, undefined, true);
 					} else {
-						sectionType = 'deleted-only';
+						// The same cell already exists at this index - this means the cell is in the current notebook
+						// It shouldn't be marked as "deleted", so this is unexpected
+						console.warn(`[DELETED_CELL] Same cell already exists at index ${cellDiff.cellIndex}, skipping ghost cell creation (cell not actually deleted)`);
 					}
-
-					// Create section ID
-					const sectionId = `notebook-section-${sectionType}-${sectionStartLine}-${sectionEndLine}`;
-
-					// Store notebook section info
-					const storedInfo: NotebookStoredSectionInfo = {
-						type: sectionType
-					};
-					
-					if (addedLines.length > 0) {
-						storedInfo.addedLines = addedLines;
-					}
-					
-					if (deletedLines.length > 0) {
-						storedInfo.deletedLines = deletedLines;
-					}
-					
-					this.notebookStoredSectionInfo.set(sectionId, storedInfo);
-					sectionsCreated++;
-				} else {
-					i++;
 				}
 			}
-			
-			if (sectionsCreated > 0) {
-				const sectionSummary = Array.from(this.notebookStoredSectionInfo.entries()).map(([id, info]) => 
-					`${id}(${info.type}:+${info.addedLines?.length ?? 0}-${info.deletedLines?.length ?? 0})`
-				).join(', ');
-				console.log(`[REJECT_DEBUG] Generated ${sectionsCreated} new notebook sections after reject: ${sectionSummary}`);
-
-				// Fire onDiffSectionChanged events for each created section to notify UI components
-				for (const [sectionId] of this.notebookStoredSectionInfo.entries()) {
-					// Fire event to notify that diff section was created/available
-					// Use 'accept' action since these are auto-accept sections being made available
-					this._onDiffSectionChanged.fire({ uri, action: 'accept', sectionId });
-				}
-			} else {
-				console.log(`[REJECT_DEBUG] No new notebook sections generated after reject - file should be clean`);
+		}
+		
+		// Clear existing notebook stored sections
+		this.notebookStoredSectionInfo.clear();
+		
+		let sectionsCreated = 0;
+		
+		// Create sections for each cell diff using proper section identification
+		for (const cellDiff of cellBasedDiffs) {		
+			if (!cellDiff.lineDiffs || cellDiff.lineDiffs.length === 0) {
+				continue;
 			}
+					
+			// Use the proper section identification logic (same as regular files)
+			const cellSections = this.notebookIdentifyDiffSections(cellDiff.lineDiffs, cellDiff.cellIndex);
 			
-			// Map flat line diffs back to notebook cells
-			const cellDiffArray: Array<{
-				cellIndex: number;
-				type: 'modified';
-				lineDiffs: Array<{
-					type: 'added' | 'deleted';
+			// Create stored info for each section within this cell
+			for (const section of cellSections) {
+				const addedLines: Array<{
+					currentCellLineNumber: number;
+					currentCellNumber: number;
 					content: string;
-					lineNumber: number;
-					sectionId?: string;
-				}>;
-			}> = [];
-			
-			// Create a mapping from cell/line to section ID for zone widgets
-			const cellLineToSectionId = new Map<string, string>(); // "cellIndex:lineNumber" -> sectionId
-			
-			for (const [sectionId, storedInfo] of this.notebookStoredSectionInfo.entries()) {
-				if (storedInfo.deletedLines) {
-					for (const deletedLine of storedInfo.deletedLines) {
-						const key = `${deletedLine.currentCellNumber}:${deletedLine.currentCellLineNumber}`;
-						cellLineToSectionId.set(key, sectionId);
-					}
+					acceptedCellLineNumber: number;
+					acceptedCellNumber: number;
+				}> = [];
+				
+				const deletedLines: Array<{
+					content: string;
+					acceptedCellLineNumber: number;
+					acceptedCellNumber: number;
+					currentCellLineNumber: number;
+					currentCellNumber: number;
+				}> = [];
+				
+				// Convert section data to stored info format
+				for (const addedLine of section.addedLines) {
+					addedLines.push({
+						currentCellLineNumber: addedLine.lineNumber,
+						currentCellNumber: cellDiff.cellIndex,
+						content: addedLine.content,
+						acceptedCellLineNumber: addedLine.lineNumber,
+						acceptedCellNumber: cellDiff.cellIndex
+					});
 				}
-				if (storedInfo.addedLines) {
-					for (const addedLine of storedInfo.addedLines) {
-						const key = `${addedLine.currentCellNumber}:${addedLine.currentCellLineNumber}`;
-						cellLineToSectionId.set(key, sectionId);
+				
+				for (const deletedContent of section.deletedLines) {
+					// Find the line number for this deleted content
+					const deletedLineDiff = cellDiff.lineDiffs.find(diff => 
+						diff.type === 'deleted' && diff.content === deletedContent
+					);
+					if (deletedLineDiff) {
+						deletedLines.push({
+								content: deletedContent,
+								acceptedCellLineNumber: deletedLineDiff.lineNumber,
+								acceptedCellNumber: cellDiff.cellIndex,
+								currentCellLineNumber: deletedLineDiff.lineNumber,
+								currentCellNumber: cellDiff.cellIndex
+							});
+						}
 					}
+					
+				// Store notebook section info
+				const storedInfo: NotebookStoredSectionInfo = {
+					type: section.type
+				};
+				
+				if (addedLines.length > 0) {
+					storedInfo.addedLines = addedLines;
 				}
+				
+				if (deletedLines.length > 0) {
+					storedInfo.deletedLines = deletedLines;
+				}
+				
+				this.notebookStoredSectionInfo.set(section.sectionId, storedInfo);
+				sectionsCreated++;
 			}
-						
-			// Group diff entries by cell
-			const cellDiffMap = new Map<number, Array<{
+		}
+		
+		if (sectionsCreated > 0) {
+			// Fire onDiffSectionsCreated event to notify UI components like the floating bar
+			const sectionIds = Array.from(this.notebookStoredSectionInfo.keys());
+			this._onDiffSectionsCreated.fire({ uri, sectionIds });
+		}
+		
+		// Process each cell exactly like regular files: Step 1 - Apply decorations, Step 2 - Apply zones
+		// Group cell diffs by cellIndex first to get raw diffEntries per cell
+		const cellDiffMap = new Map<number, Array<{
+			type: 'added' | 'deleted' | 'unchanged';
+			content: string;
+			lineNumber: number;
+		}>>();
+		
+		for (const cellDiff of cellBasedDiffs) {
+			if (!cellDiffMap.has(cellDiff.cellIndex)) {
+				cellDiffMap.set(cellDiff.cellIndex, []);
+			}
+			
+			// Add all line diffs for this cell (including unchanged)
+			const lineDiffs = (cellDiff.lineDiffs || []).map(lineDiff => ({
+				type: lineDiff.type,
+				content: lineDiff.content,
+				lineNumber: lineDiff.lineNumber
+			}));
+			
+			cellDiffMap.get(cellDiff.cellIndex)!.push(...lineDiffs);
+		}
+		
+		// Step 1: Apply decorations (green highlighting for added lines) - like applyAutoAcceptDecorations
+		const cellDiffArray: Array<{
+			cellIndex: number;
+			type: 'modified';
+			lineDiffs: Array<{
 				type: 'added' | 'deleted';
 				content: string;
 				lineNumber: number;
 				sectionId?: string;
-			}>>();
+			}>;
+		}> = [];
+		
+		for (const [cellIndex, cellLineDiffs] of cellDiffMap) {
+			// Filter for added lines only (like applyAutoAcceptDecorations does)
+			const addedLineDiffs = cellLineDiffs
+				.filter(diff => diff.type === 'added')
+				.map(diff => ({
+					type: 'added' as const,
+					content: diff.content,
+					lineNumber: diff.lineNumber
+				}));
 			
-			for (const flatDiff of flatDiffEntries) {
-				if (flatDiff.type === 'added' || flatDiff.type === 'deleted') {
-					// Find which cell this line belongs to
-					const lineInfo = flatDiff.type === 'added' 
-						? newData.lineMapping[flatDiff.newLine - 1]
-						: oldData.lineMapping[flatDiff.oldLine - 1];
-					
-					if (lineInfo) {
-						const cellIndex = lineInfo.cellIndex;
-						const lineInCell = lineInfo.lineInCell + 1; // Convert to 1-based
-						
-						// Find the section ID for this cell/line combination
-						const key = `${cellIndex}:${lineInCell}`;
-						const sectionId = cellLineToSectionId.get(key);
-						
-						if (!cellDiffMap.has(cellIndex)) {
-							cellDiffMap.set(cellIndex, []);
-						}
-						
-						cellDiffMap.get(cellIndex)!.push({
-							type: flatDiff.type,
-							content: flatDiff.content,
-							lineNumber: lineInCell,
-							sectionId
-						});
-					}
-				}
-			}
-			
-			// Convert map to array format
-			for (const [cellIndex, lineDiffs] of cellDiffMap) {
+			if (addedLineDiffs.length > 0) {
 				cellDiffArray.push({
 					cellIndex,
 					type: 'modified',
-					lineDiffs
+					lineDiffs: addedLineDiffs
 				});
 			}
-			
-			// Apply auto-accept highlighting using the notebook diff service
-			const conversationId = this.conversationManager.getCurrentConversation()?.info.id?.toString() || 'unknown';
-			this.notebookDiffService.notebookApplyAutoAcceptHighlighting(uri, conversationId, cellDiffArray, this);
-			
-		} catch (error) {
-			this.logService.error('Failed to apply notebook auto-accept highlighting:', error);
-		} finally {
-			// Always clear the notebook operation guard
-			this.notebookOperationsInProgress.delete(uri.toString());
 		}
+		
+		// Apply green decorations for added lines using the notebook service
+		const conversationId = this.conversationManager.getCurrentConversation()?.info.id?.toString() || 'unknown';
+		this.notebookDiffService.notebookApplyAutoAcceptDecorations(uri, conversationId, cellDiffArray, this);
+		await this.notebookApplyAutoAcceptDeletedZones(uri, cellDiffMap);
+		this.completeNotebookOperation(uri.toString());
+	}
+
+	/**
+	 * Apply auto-accept zone widgets for notebook files (deleted content + buttons)
+	 */
+	private async notebookApplyAutoAcceptDeletedZones(uri: URI, cellDiffMap: Map<number, Array<{
+		type: 'added' | 'deleted' | 'unchanged';
+		content: string;
+		lineNumber: number;
+	}>>): Promise<void> {
+		// Clear existing notebook auto-accept zones for this file (exactly like regular files do)
+		this.clearAutoAcceptZones(uri.toString());
+		
+		// Create zone widgets directly for each section, just like regular files do
+		const notebookNewZoneMap = new Map<string, NotebookAutoAcceptDiffZoneWidget>();
+		
+		for (const [cellIndex, cellLineDiffs] of cellDiffMap) {
+			// Run identifyDiffSections equivalent for this cell
+			// Note: originalCellContent not available here, but whole-cell detection was already done in the first pass
+			const cellSections = this.notebookIdentifyDiffSections(cellLineDiffs, cellIndex);
+			
+			// Create zone widgets directly for each section (like regular files)
+			if (cellSections.length > 0) {
+				for (const section of cellSections) {
+					try {
+						// Create notebook zone widget in virtual state (no Monaco view zone yet)
+						// The NotebookZoneManager will create actual zones when cells become visible
+						const cellEditor = this.getCellEditor(uri, cellIndex);
+						
+						// Create zone widget with a dummy editor - it won't create actual Monaco zones yet
+						const dummyEditor = cellEditor || null;
+						const notebookZone = new NotebookAutoAcceptDiffZoneWidget(
+							dummyEditor,
+							section.zoneLineNumber,
+							section.deletedLines,
+							section.sectionId,
+							this,
+							uri,
+							cellIndex,
+							this.themeService
+						);
+						
+						const zoneKey = `${cellIndex}-${section.zoneLineNumber}`;
+						notebookNewZoneMap.set(zoneKey, notebookZone);
+					} catch (error) {
+						this.logService.error(`Failed to create notebook auto-accept zone at cell ${cellIndex}, line ${section.zoneLineNumber}:`, error);
+					}
+				}
+			}
+		}
+		
+		// Store notebook zones for disposal (exactly like regular files do)
+		this.notebookAutoAcceptZones.set(uri.toString(), notebookNewZoneMap);
+		
+		// ALWAYS update the NotebookZoneManager map whenever this method is called
+		this.notebookZoneManager.updateZoneMap(uri, notebookNewZoneMap);
 	}
 
 	/**
@@ -2454,7 +3101,7 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 			this.logService.error(`No stored notebook section info found for: ${diffSectionId}`);
 			return;
 		}
-				
+						
 		// Load tracking data (notebook-specific version, inlined)
 		let fileTracking: any;
 		let fileTrackingPath: URI;
@@ -2498,38 +3145,128 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 			this.logService.error(`Failed to parse accepted_content as JSON:`, error);
 			return;
 		}
-				
+		
+		
+		// Get current notebook model to see what cells actually exist
+		const notebookEditor = this.notebookDiffService.findNotebookEditorForUri(uri);
+		if (!notebookEditor || !notebookEditor.hasModel()) {
+			return;
+		}
+		
+		const currentNotebook = notebookEditor.textModel!;
+		
+		// Step 0: Add any new cells from current notebook to accepted notebook (by cell ID)
+		// Create EMPTY cells at their proper positions - Step 2 will add the actual content
+		// Rebuild cells array to match current notebook order
+		const newAcceptedCells: any[] = [];
+		const newlyCreatedCellIds = new Set<string>();
+		for (let i = 0; i < currentNotebook.cells.length; i++) {
+			const currentCell = currentNotebook.cells[i];
+			const currentCellId = (currentCell.metadata as CellMetadata)?.metadata?.erdosAi_cellId;
+			
+			if (!currentCellId) {
+				continue;
+			}
+			
+			// Find existing cell in accepted by ID
+			const existingAcceptedCell = acceptedNotebook.cells.find((cell: any) => {
+				const cellId = cell.metadata?.erdosAi_cellId;
+				return cellId === currentCellId;
+			});
+			
+			if (existingAcceptedCell) {
+				// Cell exists, keep it at this position
+				newAcceptedCells.push(existingAcceptedCell);
+			} else {
+				// Cell doesn't exist, create empty cell at this position
+				const newCell = {
+					cell_type: currentCell.cellKind === 1 ? "markdown" : "code",
+					metadata: { erdosAi_cellId: currentCellId },
+					source: []
+				};
+				newAcceptedCells.push(newCell);
+				newlyCreatedCellIds.add(currentCellId);
+			}
+		}
+		
+		// Replace the accepted cells array with the reordered one
+		acceptedNotebook.cells = newAcceptedCells;
+			
 		// Step 1: Remove deleted lines from accepted content
 		if (storedInfo.deletedLines && storedInfo.deletedLines.length > 0) {
-			for (const deletedLine of storedInfo.deletedLines) {
+			// IMPORTANT: Don't remove lines for "added-only" sections - they represent new content, not deletions
+			if (storedInfo.type === 'added-only') {
+			} else {
+				// Sort deleted lines in reverse order (highest line number first) to avoid index shifting
+				const sortedDeletedLines = [...storedInfo.deletedLines].sort((a, b) => {
+					if (a.acceptedCellNumber !== b.acceptedCellNumber) {
+						return b.acceptedCellNumber - a.acceptedCellNumber; // Higher cell number first
+					}
+					return b.acceptedCellLineNumber - a.acceptedCellLineNumber; // Higher line number first
+				});
 				
-				const cell = acceptedNotebook.cells[deletedLine.acceptedCellNumber];
-				if (cell && cell.source) {
-					// Remove line from cell source (1-based to 0-based)
-					const lineIndex = deletedLine.acceptedCellLineNumber - 1;
-					
-					if (lineIndex >= 0 && lineIndex < cell.source.length) {
-						cell.source.splice(lineIndex, 1);
-					} else {
-						this.logService.error(`Invalid line index ${lineIndex} for cell with ${cell.source.length} lines`);
+				for (const deletedLine of sortedDeletedLines) {
+					const cell = acceptedNotebook.cells[deletedLine.acceptedCellNumber];
+					if (cell && cell.source) {
+						// Remove line from cell source (1-based to 0-based)
+						const lineIndex = deletedLine.acceptedCellLineNumber - 1;
+						
+						if (lineIndex >= 0 && lineIndex < cell.source.length) {
+							cell.source.splice(lineIndex, 1);
+						} else {
+							this.logService.error(`Invalid line index ${lineIndex} for cell with ${cell.source.length} lines`);
+						}
 					}
 				}
 			}
 		}
+		
+		// After removing deleted lines, clean up any empty cells in accepted content
+		// BUT: Don't delete cells that were just created in Step 0 (they are intentionally empty)
+		const cellsToDeleteFromEditor: number[] = [];
+		acceptedNotebook.cells = acceptedNotebook.cells.filter((cell: any, index: number) => {
+			const cellId = cell.metadata?.erdosAi_cellId;
+			const isNewlyCreated = newlyCreatedCellIds.has(cellId);
 			
+			if (!cell.source || (Array.isArray(cell.source) && cell.source.length === 0)) {
+				if (isNewlyCreated) {
+					return true; // Keep newly created empty cells
+				} else {
+					cellsToDeleteFromEditor.push(index);
+					return false; // Remove empty cells that had content deleted
+				}
+			}
+			return true; // Keep non-empty cells
+		});
+		
+		// Delete empty cells from the actual notebook editor (in reverse order to avoid index shifting)
+		if (cellsToDeleteFromEditor.length > 0) {
+			for (let i = cellsToDeleteFromEditor.length - 1; i >= 0; i--) {
+				const cellIndexToDelete = cellsToDeleteFromEditor[i];
+				currentNotebook.applyEdits([{
+					editType: 1, // CellEditType.Replace
+					index: cellIndexToDelete,
+					count: 1,
+					cells: []
+				}], true, undefined, () => undefined, undefined, true);
+			}
+		}
+		
 		// Step 2: Add added lines to accepted content
+		// Note: "added-only" sections for new cells are handled by the special case above and return early
+		// This step handles added lines in existing cells (modifications to existing cells)
 		if (storedInfo.addedLines && storedInfo.addedLines.length > 0) {
 			for (const addedLine of storedInfo.addedLines) {
 				
 				const cell = acceptedNotebook.cells[addedLine.acceptedCellNumber];
-				if (cell && cell.source) {
+				if (cell && Array.isArray(cell.source)) {
 					
 					// Insert line into cell source (1-based to 0-based)
 					const lineIndex = addedLine.acceptedCellLineNumber - 1;
 					const insertIndex = Math.max(0, Math.min(lineIndex, cell.source.length));
 					cell.source.splice(insertIndex, 0, addedLine.content);
 				} else {
-					this.logService.error(`Cell ${addedLine.acceptedCellNumber} not found or has no source`);
+					this.logService.error(`Cell ${addedLine.acceptedCellNumber} not found or has no source array`);
 				}
 			}
 		}
@@ -2542,7 +3279,6 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 		this.notebookStoredSectionInfo.delete(diffSectionId);
 		
 		// Refresh highlighting (the accepted section should disappear)
-		console.log(`[ZONE DISPOSAL] About to refresh highlighting after accepting ${diffSectionId}`);
 		await this.applyAutoAcceptHighlighting(uri);
 		
 		// Check if file should be cleaned up (no more diffs)
@@ -2555,17 +3291,14 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 	/**
 	 * Reject notebook diff section by modifying the current notebook
 	 */
-	private async notebookRejectDiffSection(uri: URI, diffSectionId: string): Promise<void> {
-		console.log(`[REJECT_DEBUG] Starting reject for notebook section: ${diffSectionId}`);
-		console.log(`[REJECT_DEBUG] Before reject - stored notebook sections: ${Array.from(this.notebookStoredSectionInfo.keys()).join(', ')}`);
-		
+	private async notebookRejectDiffSection(uri: URI, diffSectionId: string): Promise<void> {		
 		// Get stored notebook section information
 		const storedInfo = this.notebookStoredSectionInfo.get(diffSectionId);
 		if (!storedInfo) {
 			throw new Error(`No stored notebook section info found for: ${diffSectionId}`);
 		}
 		
-		console.log(`[REJECT_DEBUG] Rejecting notebook section ${diffSectionId} of type: ${storedInfo.type}, addedLines: ${storedInfo.addedLines?.length || 0}, deletedLines: ${storedInfo.deletedLines?.length || 0}`);
+		const cellIndex = storedInfo.addedLines?.[0]?.currentCellNumber ?? storedInfo.deletedLines?.[0]?.currentCellNumber ?? -1;
 		
 		// Get current notebook editor
 		const notebookEditor = this.notebookDiffService.findNotebookEditorForUri(uri);
@@ -2574,6 +3307,74 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 		}
 		
 		const notebookModel = notebookEditor.textModel!;
+		
+		// Load tracking data (notebook-specific version, inlined)
+		let notebookFileTracking: any;
+		let notebookFileTrackingPath: URI;
+		
+		try {
+			const filePath = uri.fsPath;
+			const workspace = this.workspaceContextService.getWorkspace();
+			const isEmptyWindow = !workspace.configuration && workspace.folders.length === 0;
+			const workspaceId = workspace.id;
+			
+			const storageRoot = isEmptyWindow ?
+				URI.joinPath(this.environmentService.userRoamingDataHome, 'emptyWindowErdosAi') :
+				URI.joinPath(this.environmentService.workspaceStorageHome, workspaceId, 'erdosAi');
+			
+			const trackingDir = URI.joinPath(storageRoot, 'auto-accept-tracking');
+			const fileMapPath = URI.joinPath(trackingDir, 'file-map.json');
+			
+			// Load file map
+			const mapContent = await this.fileService.readFile(fileMapPath);
+			const fileMap = JSON.parse(mapContent.value.toString());
+			const fileHash = fileMap[filePath];
+			
+			if (!fileHash) {
+				return;
+			}
+			
+			// Load tracking data
+			notebookFileTrackingPath = URI.joinPath(trackingDir, 'files', `${fileHash}.json`);
+			const trackingContent = await this.fileService.readFile(notebookFileTrackingPath);
+			notebookFileTracking = JSON.parse(trackingContent.value.toString());
+		} catch (error) {
+			console.error('Failed to load notebook section data:', error);
+			return;
+		}
+		
+	// Special case: If this is an "added-only" section, check if it's for an entirely new cell
+	if (storedInfo.type === 'added-only') {
+		const acceptedNotebook = JSON.parse(notebookFileTracking.accepted_content);
+		const currentCell = notebookModel.cells[cellIndex];
+		
+		if (currentCell) {
+			const currentCellId = (currentCell.metadata as CellMetadata)?.metadata?.erdosAi_cellId;
+			const acceptedCellExists = acceptedNotebook.cells.some((cell: any) => {
+				const cellId = cell.metadata?.erdosAi_cellId;
+				return cellId === currentCellId;
+			});
+
+				if (!acceptedCellExists && currentCellId) {
+					notebookModel.applyEdits([{
+						editType: 1, // CellEditType.Replace
+						index: cellIndex,
+						count: 1,
+						cells: []
+					}], true, undefined, () => undefined, undefined, true);
+					
+					// Clean up stored info and refresh highlighting
+					this.notebookStoredSectionInfo.delete(diffSectionId);
+					
+					// Mark notebook operation as complete before calling applyAutoAcceptHighlighting
+					this.completeNotebookOperation(uri.toString());					
+					await this.applyAutoAcceptHighlighting(uri);
+					await this.cleanupFileIfNoDiffs(uri);
+					
+					return;
+				}
+			}
+		}
 		
 		// Apply inverse changes to current notebook model using batched approach (same as regular files)
 		// Group changes by cell for atomic operations
@@ -2609,8 +3410,9 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 					});
 				}
 				
+				const insertIndex = deletedLine.currentCellLineNumber - 1; // Convert to 0-based
 				cellChanges.get(deletedLine.currentCellNumber)!.deletedLinesToInsert.push({
-					insertIndex: deletedLine.currentCellLineNumber - 1, // Convert to 0-based
+					insertIndex: insertIndex,
 					content: deletedLine.content
 				});
 			}
@@ -2620,10 +3422,20 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 		for (const [cellNumber, changes] of cellChanges) {
 			const cell = notebookModel.cells[cellNumber];
 			if (!cell || !cell.textModel) {
+				console.error(`[NOTEBOOK_REJECT_DEBUG] ERROR: Cell ${cellNumber} not found or has no text model`);
 				continue;
 			}
 			
 			let currentLines = cell.textBuffer.getLinesContent();
+			
+			// Special case: if the cell only contains empty lines and we're inserting deleted lines,
+			// clear the empty lines first to avoid trailing empties
+			if (changes.deletedLinesToInsert.length > 0) {
+				const onlyEmptyLines = currentLines.every(line => line.trim() === '');
+				if (onlyEmptyLines) {
+					currentLines = [];
+				}
+			}
 			
 			// Remove added lines (in reverse order to avoid index shifting)
 			const sortedRemovals = changes.addedLinesToRemove.sort((a, b) => b.lineIndex - a.lineIndex);
@@ -2639,10 +3451,9 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 				const insertIndex = Math.max(0, Math.min(insertion.insertIndex, currentLines.length));
 				currentLines.splice(insertIndex, 0, insertion.content);
 			}
-			
+						
 			// Apply all changes atomically to the cell
-			const newContent = currentLines.join('\n');
-			
+			const newContent = currentLines.join('\n');			
 			const fullRange = cell.textModel.getFullModelRange();
 			cell.textModel.pushEditOperations([], [{
 				range: fullRange,
@@ -2654,23 +3465,5 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 				cell.textModel.pushStackElement();
 			}
 		}
-			
-		// Remove the stored section info since it's now rejected
-		this.notebookStoredSectionInfo.delete(diffSectionId);
-		console.log(`[REJECT_DEBUG] After removing rejected notebook section - remaining sections: ${Array.from(this.notebookStoredSectionInfo.keys()).join(', ')}`);
-		
-		// Refresh highlighting (the rejected section should disappear)
-		console.log(`[REJECT_DEBUG] Starting refresh highlighting for remaining notebook sections`);
-		await this.applyAutoAcceptHighlighting(uri);
-		console.log(`[REJECT_DEBUG] Completed refresh highlighting for notebook`);
-		
-		// Check if file should be cleaned up (no more diffs)
-		await this.cleanupFileIfNoDiffs(uri);
-			
-		// Fire event to notify that diff section was rejected
-		this._onDiffSectionChanged.fire({ uri, action: 'reject', sectionId: diffSectionId });
-		console.log(`[REJECT_DEBUG] Completed reject for notebook section: ${diffSectionId}`);
-			
 	}
-
 }

@@ -12,6 +12,7 @@ import { Event } from '../../../../base/common/event.js';
 import { EditorGroupView } from '../../../browser/parts/editor/editorGroupView.js';
 import { IFileChangeTracker } from '../../../services/erdosAi/common/fileChangeTracker.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IConversationManager } from '../../../services/erdosAiConversation/common/conversationManager.js';
 import { AutoAcceptFloatingBar } from './components/autoAcceptFloatingBar.js';
 import { ErdosReactRenderer } from '../../../../base/browser/erdosReactRenderer.js';
 import React from 'react';
@@ -29,6 +30,7 @@ class AutoAcceptOverlayController {
 		@IInstantiationService instaService: IInstantiationService,
 		@IFileChangeTracker fileChangeTracker: IFileChangeTracker,
 		@IEditorService editorService: IEditorService,
+		@IConversationManager conversationManager: IConversationManager,
 	) {
 		this._domNode.classList.add('erdos-ai-auto-accept-editor-overlay');
 		this._domNode.style.position = 'absolute';
@@ -46,7 +48,8 @@ class AutoAcceptOverlayController {
 		this._reactRenderer.render(
 			React.createElement(AutoAcceptFloatingBar, {
 				fileChangeTracker: fileChangeTracker,
-				editorService: editorService
+				editorService: editorService,
+				conversationManager: conversationManager
 			})
 		);
 

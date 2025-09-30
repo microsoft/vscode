@@ -17,9 +17,10 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { DocumentInfo, MatchOptions, MatchResult } from '../common/documentUtils.js';
 import { IDocumentManager } from '../common/documentManager.js';
 import { INotebookService } from '../../../contrib/notebook/common/notebookService.js';
-import { CellKind } from '../../../contrib/notebook/common/notebookCommon.js';
 import { SnapshotContext } from '../../../services/workingCopy/common/fileWorkingCopy.js';
 import { IJupytextService } from '../../erdosAiIntegration/common/jupytextService.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { streamToBuffer } from '../../../../base/common/buffer.js';
 
 export class DocumentManager extends Disposable implements IDocumentManager {
 	readonly _serviceBrand: undefined;
@@ -124,37 +125,19 @@ export class DocumentManager extends Disposable implements IDocumentManager {
 			let content = '';
 			if (includeContent) {
 				let rawContent = '';				
-				// For notebook files, use notebook service to get unsaved content
+				// For notebook files, use VSCode's serialization to get proper Jupyter JSON format (flat metadata)
 				if (this.commonUtils.getFileExtension(resource.fsPath).toLowerCase() === 'ipynb') {
 					try {
-						const notebookModel = this.notebookService.getNotebookTextModel(resource);
-						if (notebookModel) {
-							// Create snapshot and convert to JSON
-							const snapshot = notebookModel.createSnapshot({ 
-								context: SnapshotContext.Backup, 
-								outputSizeLimit: Number.MAX_SAFE_INTEGER 
-							});
-							
-							// Convert to JSON format (same as .ipynb file format)
-							const notebookJson = {
-								cells: snapshot.cells.map(cell => ({
-									cell_type: cell.cellKind === CellKind.Markup ? 'markdown' : 'code',
-									metadata: cell.metadata || {},
-									source: Array.isArray(cell.source) ? cell.source : [cell.source],
-									...(cell.cellKind === CellKind.Code && { // Only for code cells
-										execution_count: null,
-										outputs: cell.outputs || []
-									})
-								})),
-								metadata: snapshot.metadata || {},
-								nbformat: 4,
-								nbformat_minor: 5
-							};
-							
-							rawContent = JSON.stringify(notebookJson, null, 2);
-						}
+						// Use the same serialization method as when writing to disk
+						const snapshotStream = await this.notebookService.createNotebookTextDocumentSnapshot(
+							resource,
+							SnapshotContext.Save,
+							new CancellationTokenSource().token
+						);
+						const buffer = await streamToBuffer(snapshotStream);
+						rawContent = buffer.toString();
 					} catch (error) {
-						// If notebook model fails, fall back to file system
+						// If notebook snapshot fails, fall back to file system
 						try {
 							const fileContent = await this.fileService.readFile(resource);
 							if (fileContent) {
@@ -360,19 +343,55 @@ export class DocumentManager extends Disposable implements IDocumentManager {
 				return parts.reduce((acc, part) => acc + '/' + part, base);
 			},
 			getFileContent: async (uri: URI) => {
-				try {
-					if (uri.scheme === 'file') {
+				if (uri.scheme === 'file') {
+					const isNotebook = this.commonUtils.getFileExtension(uri.fsPath).toLowerCase() === 'ipynb';
+					
+					if (isNotebook) {
+						// For notebooks, check if model exists first
+						const notebookModel = this.notebookService.getNotebookTextModel(uri);
+						if (notebookModel) {
+							// For notebooks, use VSCode's serialization to get proper Jupyter JSON format (flat metadata)
+							// This ensures previous_content is saved in the same format as when writing to disk
+							const snapshotStream = await this.notebookService.createNotebookTextDocumentSnapshot(
+								uri,
+								SnapshotContext.Save,
+								new CancellationTokenSource().token
+							);
+							const buffer = await streamToBuffer(snapshotStream);
+							const content = buffer.toString();
+							
+							return content;
+						} else {
+							// Notebook not loaded, read from disk if it exists
+							const fileExists = await this.fileService.exists(uri);
+							if (fileExists) {
+								const fileContent = await this.fileService.readFile(uri);
+								return fileContent.value.toString();
+							}
+							return '';
+						}
+					} else {
+						// For regular files, check if file exists first
+						const fileExists = await this.fileService.exists(uri);
 						
-						const fileModel = await this.textModelService.createModelReference(uri);
-						const content = fileModel.object.textEditorModel.getValue();
-						fileModel.dispose();
-						
-						return content;
+						if (fileExists) {
+							// Try to use the text model if available
+							try {
+								const fileModel = await this.textModelService.createModelReference(uri);
+								const content = fileModel.object.textEditorModel.getValue();
+								fileModel.dispose();
+								return content;
+							} catch (error) {
+								// Fall back to reading from disk
+								const fileContent = await this.fileService.readFile(uri);
+								const content = fileContent.value.toString();
+								return content;
+							}
+						}
+						return '';
 					}
-					return '';
-				} catch (error) {
-					return '';
 				}
+				return '';
 			}
 		};
 

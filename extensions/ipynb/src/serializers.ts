@@ -51,23 +51,24 @@ export function sortObjectPropertiesRecursively(obj: any): any {
 export function getCellMetadata(options: { cell: NotebookCell | NotebookCellData } | { metadata?: { [key: string]: any } }): CellMetadata {
 	if ('cell' in options) {
 		const cell = options.cell;
-		const metadata = {
+		const metadata: CellMetadata = {
 			execution_count: null,
 			// it contains the cell id, and the cell metadata, along with other nb cell metadata
 			...(cell.metadata ?? {})
-		} satisfies CellMetadata;
+		};
+		
 		if (cell.kind === NotebookCellKindMarkup) {
-			delete (metadata as any).execution_count;
+			delete (metadata as Partial<CellMetadata>).execution_count;
 		}
 		return metadata;
 	} else {
 		const cell = options;
-		const metadata = {
+		const metadata: CellMetadata = {
 			// it contains the cell id, and the cell metadata, along with other nb cell metadata
 			...(cell.metadata ?? {})
 		};
 
-		return metadata as CellMetadata;
+		return metadata;
 	}
 }
 
@@ -114,7 +115,7 @@ function createCodeCellFromNotebookCell(cell: NotebookCellData, preferredLanguag
 }
 
 function createRawCellFromNotebookCell(cell: NotebookCellData): nbformat.IRawCell {
-	const cellMetadata = getCellMetadata({ cell });
+	const cellMetadata: CellMetadata = getCellMetadata({ cell });
 	const rawCell: any = {
 		cell_type: 'raw',
 		source: splitCellSourceIntoMultilineString(cell.value),
@@ -374,7 +375,7 @@ function convertOutputMimeToJupyterOutput(mime: string, value: Uint8Array) {
 }
 
 export function createMarkdownCellFromNotebookCell(cell: NotebookCellData): nbformat.IMarkdownCell {
-	const cellMetadata = getCellMetadata({ cell });
+	const cellMetadata: CellMetadata = getCellMetadata({ cell });
 	const markdownCell: any = {
 		cell_type: 'markdown',
 		source: splitCellSourceIntoMultilineString(cell.value),

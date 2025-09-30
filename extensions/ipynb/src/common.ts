@@ -45,6 +45,9 @@ export interface CellOutputMetadata {
 /**
  * Metadata we store in VS Code cells.
  * This contains the original metadata from the Jupyter cells.
+ * 
+ * IMPORTANT: erdosAi_cellId should ONLY be in the nested 'metadata' property,
+ * never at the top level of CellMetadata.
  */
 export interface CellMetadata {
 	/**
@@ -56,12 +59,17 @@ export interface CellMetadata {
 	 */
 	attachments?: nbformat.IAttachments;
 	/**
-	 * Stores cell metadata.
+	 * Stores cell metadata (nested structure from .ipynb).
+	 * This includes erdosAi_cellId and other Jupyter cell metadata.
 	 */
-	metadata?: Partial<nbformat.ICellMetadata> & { vscode?: { languageId?: string } };
+	metadata?: Partial<nbformat.ICellMetadata> & { vscode?: { languageId?: string }, erdosAi_cellId?: string };
 	/**
 	 * The code cell's prompt number. Will be null if the cell has not been run.
 	 */
 	execution_count?: number | null;
+	/**
+	 * Explicitly disallow erdosAi_cellId at top level - it belongs in nested metadata.
+	 */
+	erdosAi_cellId?: never;
 }
 

@@ -15,4 +15,5 @@ export interface ISearchReplaceCommandHandler {
 	extractAndProcessSearchReplaceContent(accumulatedContent: string, callId: string): { content: string; isComplete: boolean };
 	validateAndProcessSearchReplace(functionCall: any, messageId: number, relatedToId: number, requestId: string): Promise<{success: boolean, errorMessage?: string}>;
 	executeSearchReplace(args: any, context: any): Promise<any>;
+	openDocumentInEditor(filePath: string): Promise<void>;
 }

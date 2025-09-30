@@ -6,6 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { IFileChangeTracker } from '../../../../services/erdosAi/common/fileChangeTracker.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IConversationManager } from '../../../../services/erdosAiConversation/common/conversationManager.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { useErdosReactServicesContext } from '../../../../../base/browser/erdosReactRendererContext.js';
@@ -16,6 +17,7 @@ import { ICommonUtils } from '../../../../services/erdosAiUtils/common/commonUti
 interface AutoAcceptFloatingBarProps {
 	fileChangeTracker: IFileChangeTracker;
 	editorService: IEditorService;
+	conversationManager: IConversationManager;
 	onRefreshFileChanges?: () => void;
 }
 
@@ -35,6 +37,7 @@ interface DiffSection {
 export const AutoAcceptFloatingBar: React.FC<AutoAcceptFloatingBarProps> = ({
 	fileChangeTracker,
 	editorService,
+	conversationManager,
 	onRefreshFileChanges
 }) => {
 	const services = useErdosReactServicesContext();
@@ -156,8 +159,13 @@ export const AutoAcceptFloatingBar: React.FC<AutoAcceptFloatingBarProps> = ({
 	useEffect(() => {
 		refreshData();
 
-		// Listen for diff section changes
+		// Listen for diff section changes (accept/reject)
 		const disposable = fileChangeTracker.onDiffSectionChanged(() => {
+			refreshData();
+		});
+
+		// Listen for diff sections being created
+		const sectionsCreatedDisposable = fileChangeTracker.onDiffSectionsCreated(() => {
 			refreshData();
 		});
 
@@ -166,11 +174,18 @@ export const AutoAcceptFloatingBar: React.FC<AutoAcceptFloatingBarProps> = ({
 			refreshData();
 		});
 
+		// Listen for conversation switch events
+		const conversationDisposable = conversationManager.onConversationSwitch(() => {
+			refreshData();
+		});
+
 		return () => {
 			disposable.dispose();
+			sectionsCreatedDisposable.dispose();
 			editorDisposable.dispose();
+			conversationDisposable.dispose();
 		};
-	}, [fileChangeTracker, editorService]);
+	}, [fileChangeTracker, editorService, conversationManager]);
 
 	// Navigation functions
 	const navigateToPreviousDiff = () => {
@@ -242,14 +257,12 @@ export const AutoAcceptFloatingBar: React.FC<AutoAcceptFloatingBarProps> = ({
 	// Action functions
 	const handleUndo = async () => {
 		const currentUri = getCurrentEditorUri();
-		if (!currentUri || diffSections.length === 0) return;
+		if (!currentUri) return;
 
-		// Reject all diff sections in current file
-		for (const section of diffSections) {
-			await fileChangeTracker.rejectDiffSection(currentUri, section.sectionId);
-		}
+		// Reject all changes by reverting current content back to accepted content
+		await fileChangeTracker.rejectAllAutoAcceptChanges(currentUri);
 
-		// Refresh data after rejecting sections
+		// Refresh data after rejecting changes
 		await refreshData();
 		
 		// Trigger FileChangesBar refresh
@@ -260,14 +273,12 @@ export const AutoAcceptFloatingBar: React.FC<AutoAcceptFloatingBarProps> = ({
 
 	const handleKeep = async () => {
 		const currentUri = getCurrentEditorUri();
-		if (!currentUri || diffSections.length === 0) return;
+		if (!currentUri) return;
 
-		// Accept all diff sections in current file
-		for (const section of diffSections) {
-			await fileChangeTracker.acceptDiffSection(currentUri, section.sectionId);
-		}
+		// Accept all changes by updating accepted_content to current content
+		await fileChangeTracker.acceptAllAutoAcceptChanges(currentUri);
 
-		// Refresh data after accepting sections
+		// Refresh data after accepting changes
 		await refreshData();
 		
 		// Trigger FileChangesBar refresh

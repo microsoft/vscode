@@ -7,7 +7,6 @@ import './notebookDiffHighlight.css';
 
 import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { throttle } from '../../../../../../base/common/decorators.js';
-import { Event } from '../../../../../../base/common/event.js';
 import { IModelDeltaDecoration } from '../../../../../../editor/common/model.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { INotebookEditor, INotebookEditorContribution, ICellViewModel } from '../../notebookBrowser.js';
@@ -49,7 +48,7 @@ class NotebookDeletedContentZoneWidget extends NotebookZoneWidget {
 		editor: ICodeEditor,
 		lineNumber: number,
 		deletedLines: string[],
-		themeService: IThemeService
+		private readonly _themeService: IThemeService
 	) {
 		super(editor, {
 			showFrame: false,
@@ -63,6 +62,13 @@ class NotebookDeletedContentZoneWidget extends NotebookZoneWidget {
 
 	protected override _fillContainer(container: HTMLElement): void {
 		const fontInfo = this.editor.getOption(EditorOption.fontInfo);
+		const theme = this._themeService.getColorTheme();
+		
+		// Get the actual notebook cell background color from the theme
+		const cellEditorBg = theme.getColor('notebook.cellEditorBackground');
+		const editorBg = theme.getColor('editor.background');
+		const backgroundColor = cellEditorBg?.toString() || editorBg?.toString() || '#1E1E1E';
+		
 		container.style.fontSize = `${fontInfo.fontSize}px`;
 		container.style.lineHeight = `${fontInfo.lineHeight}px`;
 		container.style.fontFamily = fontInfo.fontFamily;
@@ -71,7 +77,7 @@ class NotebookDeletedContentZoneWidget extends NotebookZoneWidget {
 		container.style.padding = '0';
 		container.style.margin = '0';
 		container.style.border = 'none';
-		container.style.backgroundColor = 'transparent';
+		container.style.backgroundColor = backgroundColor;
 
 		const layoutInfo = this.editor.getLayoutInfo();
 		
@@ -97,7 +103,7 @@ class NotebookDeletedContentZoneWidget extends NotebookZoneWidget {
 			backgroundElement.style.left = '0';
 			backgroundElement.style.right = '0';
 			backgroundElement.style.height = '100%';
-			backgroundElement.style.backgroundColor = 'rgba(255, 0, 0, 0.1)';
+			backgroundElement.style.backgroundColor = 'rgba(255, 0, 0, 0.15)';
 			backgroundElement.style.pointerEvents = 'none';
 			backgroundElement.style.zIndex = '-1';
 			
@@ -115,45 +121,110 @@ class NotebookDeletedContentZoneWidget extends NotebookZoneWidget {
 }
 
 /**
- * Zone widget for displaying auto-accept diff sections in notebook cells with Accept/Reject buttons
- * Uses NotebookZoneWidget for proper disposal when virtualized
+ * Virtual scrolling-aware zone widget for displaying auto-accept diff sections in notebook cells
+ * Registers with NotebookAutoAcceptContribution for proper virtual scrolling management
  */
-class NotebookAutoAcceptDiffZoneWidget extends NotebookZoneWidget {
-	private _deletedLines: string[];
-	private _diffSectionId: string;
+export class NotebookAutoAcceptDiffZoneWidget extends Disposable {
+	public _deletedLines: string[];
+	public _diffSectionId: string;
 	private _fileChangeTracker: IFileChangeTracker;
 	private _uri: URI;
+	public lineNumber: number;
+	public cellHandle: number;
+	
+	public _actualZoneId: string | null = null;
+	public _isVisible = false;
+	public _domNode: HTMLElement | null = null;
 
 	constructor(
-		editor: ICodeEditor,
+		editor: ICodeEditor | null,
 		lineNumber: number,
 		deletedLines: string[],
 		diffSectionId: string,
 		fileChangeTracker: IFileChangeTracker,
 		uri: URI,
 		cellIndex: number,
-		themeService: IThemeService
+		private readonly _themeService: IThemeService
 	) {
-		super(editor, {
-			showFrame: false,
-			showArrow: false,
-			showSash: false,
-			className: 'erdos-ai-notebook-auto-accept-diff-zone-widget',
-			keepEditorSelection: true,
-			isResizeable: false,
-			ordinal: 10000
-		});
+		super();
 		
+		this.lineNumber = lineNumber;
 		this._deletedLines = deletedLines;
 		this._diffSectionId = diffSectionId;
 		this._fileChangeTracker = fileChangeTracker;
 		this._uri = uri;
-		this.create();
+		
+		// Get cell handle from the cell index - FileChangeTracker knows which notebook this is
+		const notebookEditor = this._getNotebookEditor();
+		if (notebookEditor) {
+			const cell = notebookEditor.cellAt(cellIndex);
+			this.cellHandle = cell?.handle ?? -1;
+			
+		} else {
+			this.cellHandle = -1;
+		}
 	}
 
-	protected override _fillContainer(container: HTMLElement): void {
-		const fontInfo = this.editor.getOption(EditorOption.fontInfo);
-		const layoutInfo = this.editor.getLayoutInfo();
+	private _getNotebookEditor(): INotebookEditor | undefined {
+		return this._fileChangeTracker.getNotebookEditorForUri(this._uri);
+	}
+
+
+	/**
+	 * Called by NotebookAutoAcceptContribution when cell becomes visible
+	 */
+	public createActualZone(editor: ICodeEditor): void {
+		if (this._actualZoneId) {
+			return; // Already created
+		}
+				
+		// Create DOM node FIRST, before calling changeViewZones (like git diff system)
+			const domNode = this._createDomNode(editor);
+			const heightInLines = this._deletedLines.length + 1; // Content + buttons
+			
+		editor.changeViewZones(accessor => {
+			const viewZoneData = {
+				afterLineNumber: this.lineNumber, // Position after the line, not before
+				heightInLines: heightInLines,
+				domNode: domNode,
+				ordinal: 10000
+			};
+			
+			this._actualZoneId = accessor.addZone(viewZoneData);
+			this._domNode = domNode;
+		});
+		this._isVisible = true;
+	}
+
+	/**
+	 * Called by NotebookAutoAcceptContribution when cell goes out of view
+	 */
+	public removeActualZone(editor: ICodeEditor): void {
+		if (!this._actualZoneId) {
+			return;
+		}
+		
+		editor.changeViewZones(accessor => {
+			accessor.removeZone(this._actualZoneId!);
+		});
+		this._actualZoneId = null;
+		this._domNode = null;
+		this._isVisible = false;
+	}
+
+
+	private _createDomNode(editor: ICodeEditor): HTMLElement {
+		const container = document.createElement('div');
+		container.className = 'erdos-ai-notebook-auto-accept-diff-zone-widget';
+		
+		const fontInfo = editor.getOption(EditorOption.fontInfo);
+		const layoutInfo = editor.getLayoutInfo();
+		const theme = this._themeService.getColorTheme();
+		
+		// Get the actual notebook cell background color from the theme
+		const cellEditorBg = theme.getColor('notebook.cellEditorBackground');
+		const editorBg = theme.getColor('editor.background');
+		const backgroundColor = cellEditorBg?.toString() || editorBg?.toString() || '#1E1E1E';
 		
 		container.style.fontSize = `${fontInfo.fontSize}px`;
 		container.style.lineHeight = `${fontInfo.lineHeight}px`;
@@ -181,12 +252,13 @@ class NotebookAutoAcceptDiffZoneWidget extends NotebookZoneWidget {
 				lineElement.style.textOverflow = 'ellipsis';
 				lineElement.style.lineHeight = `${fontInfo.lineHeight}px`;
 				lineElement.style.position = 'relative';
-				lineElement.style.paddingLeft = `${layoutInfo.contentLeft}px`;
+				// Remove extra padding - notebook cells may have different layout
+				lineElement.style.paddingLeft = '0px';
 				
 				const backgroundElement = dom.$('.deleted-line-background');
 				backgroundElement.style.position = 'absolute';
 				backgroundElement.style.top = '0';
-				backgroundElement.style.left = `${layoutInfo.contentLeft}px`;
+				backgroundElement.style.left = '0'; // Start from beginning since we removed padding
 				backgroundElement.style.right = '0';
 				backgroundElement.style.height = '100%';
 				backgroundElement.style.backgroundColor = 'rgba(255, 0, 0, 0.15)';
@@ -209,7 +281,7 @@ class NotebookAutoAcceptDiffZoneWidget extends NotebookZoneWidget {
 		buttonContainer.style.padding = '0';
 		buttonContainer.style.margin = '0';
 		buttonContainer.style.paddingLeft = `${layoutInfo.contentLeft}px`;
-		buttonContainer.style.backgroundColor = 'var(--vscode-editor-background)';
+		buttonContainer.style.backgroundColor = backgroundColor;
 		buttonContainer.style.height = `${buttonHeight}px`;
 
 		const acceptButton = dom.$('button.auto-accept-button.accept');
@@ -227,6 +299,8 @@ class NotebookAutoAcceptDiffZoneWidget extends NotebookZoneWidget {
 		acceptButton.style.borderRadius = '0 0 0 4px'; // Bottom left corner rounded
 		acceptButton.style.cursor = 'pointer';
 		acceptButton.style.minWidth = '50px';
+		acceptButton.style.pointerEvents = 'auto'; // Ensure pointer events work
+		acceptButton.style.zIndex = '1000'; // High z-index to be above other elements
 		
 		const rejectButton = dom.$('button.auto-accept-button.reject');
 		rejectButton.textContent = 'Reject';
@@ -243,78 +317,86 @@ class NotebookAutoAcceptDiffZoneWidget extends NotebookZoneWidget {
 		rejectButton.style.borderRadius = '0 0 4px 0'; // Bottom right corner rounded
 		rejectButton.style.cursor = 'pointer';
 		rejectButton.style.minWidth = '50px';
+		rejectButton.style.pointerEvents = 'auto'; // Ensure pointer events work
+		rejectButton.style.zIndex = '1000'; // High z-index to be above other elements
 		
-		// Button event handlers
-		acceptButton.addEventListener('click', () => {
-			this._fileChangeTracker.acceptDiffSection(this._uri, this._diffSectionId);
+		acceptButton.addEventListener('click', (e) => {
+			this._handleAccept();
 		});
 		
-		rejectButton.addEventListener('click', () => {
-			this._fileChangeTracker.rejectDiffSection(this._uri, this._diffSectionId);
+		rejectButton.addEventListener('click', (e) => {
+			this._handleReject();
 		});
 		
 		buttonContainer.appendChild(acceptButton);
 		buttonContainer.appendChild(rejectButton);
 		container.appendChild(buttonContainer);
 		
-		const totalHeight = (this._deletedLines.length * fontInfo.lineHeight) + 24; // 24px for button area
-		container.style.height = `${totalHeight}px`;
-		
-		const ariaLabel = `Auto-accepted notebook diff section (${this._deletedLines.length} deleted lines): ${this._deletedLines.join(', ')}`;
-		container.setAttribute('aria-label', ariaLabel);
+		return container;
 	}
 
-	public showAt(lineNumber: number): void {
-		const totalLines = this._deletedLines.length + 1; // +1 for button row
-		super.show({ lineNumber, column: 1 }, totalLines);
+	private _handleAccept(): void {
+		this._fileChangeTracker.acceptDiffSection(this._uri, this._diffSectionId);
+	}
+
+	private _handleReject(): void {		
+		this._fileChangeTracker.rejectDiffSection(this._uri, this._diffSectionId);
+	}
+
+	public isVisible(): boolean {
+		return this._isVisible;
+	}
+
+	public override dispose(): void {
+		// Clean up actual zone if it exists
+		if (this._actualZoneId && this._domNode) {
+			// Find the editor and properly remove the zone
+		const notebookEditor = this._getNotebookEditor();
+		if (notebookEditor) {
+				// Find the Monaco editor for this specific cell using the cell handle
+				const editorPair = notebookEditor.codeEditors.find(([vm,]) => vm.handle === this.cellHandle);
+				const cellEditor = editorPair?.[1];
+				if (cellEditor) {
+					this.removeActualZone(cellEditor);
+				}
+			}
+		}
+		
+		super.dispose();
 	}
 }
 
-export class NotebookDiffHighlightContribution extends Disposable implements INotebookEditorContribution {
-	static readonly id: string = 'workbench.notebook.diffHighlight';
+/**
+ * Auto-accept contribution for managing auto-accept zones and decorations in notebooks
+ */
+export class NotebookAutoAcceptContribution extends Disposable implements INotebookEditorContribution {
+	static readonly id: string = 'workbench.notebook.autoAccept';
 	
 	private _currentDiffData: INotebookDiffData | undefined;
-	private _cellDecorationIds = new Map<ICellViewModel, string[]>();
 	
-	// Zone widget management (using ZoneWidget like regular files)
-	private _cellZoneWidgets = new Map<string, Map<string, NotebookDeletedContentZoneWidget>>(); // cellIndex -> (lineNumber -> zoneWidget)
-	private _deletedLinesByPosition = new Map<string, Map<string, string[]>>(); // cellIndex -> (lineNumber -> deletedLines[])
-	private _cellMouseHandlers = new Map<string, IDisposable>(); // cellIndex -> mouse handler
-	private _expandedZones = new Set<string>(); // cellIndex:lineNumber tracking expanded zones
-
-	// Auto-accept zone widget management 
-	private _autoAcceptZoneWidgets = new Map<string, Map<string, NotebookAutoAcceptDiffZoneWidget>>(); // cellIndex -> (lineNumber -> zoneWidget)
 	private _autoAcceptCellDecorationIds = new Map<ICellViewModel, string[]>(); // Separate from regular diff decorations
-	private _fileChangeTracker: IFileChangeTracker | undefined;
 	
 	// Track pending Event.toPromise calls to prevent disposable leaks
 	private _pendingEditorAttachPromises = new Map<string, { promise: Promise<void>; cancel: () => void; }>(); // cellIndex -> promise info
 
 	constructor(
 		private readonly _notebookEditor: INotebookEditor,
-		@IThemeService private readonly _themeService: IThemeService
+		@IFileChangeTracker private readonly _fileChangeTracker: IFileChangeTracker
 	) {
 		super();
 		
 		// Listen for model changes to reapply decorations when notebook is reopened
 		this._register(this._notebookEditor.onDidChangeModel(() => {
-			this._clearAllDecorations();
+			this.clearAutoAcceptHighlighting();
 			if (this._currentDiffData && this._notebookEditor.hasModel()) {
-				// Process deleted lines data again
-				this._processDeletedLines(this._currentDiffData.cellDiffs);
-				// Reapply decorations
-				this._applyDiffDecorations();
-				// Update mouse handlers
-				this._updateCellMouseHandlers();
+				// Reapply auto-accept highlighting
+				const uri = this._notebookEditor.textModel?.uri;
+				if (uri) {
+					this._fileChangeTracker.applyAutoAcceptHighlighting(uri);
+				}
 			}
 		}));
-		
-		// Listen for visible range changes to apply decorations to newly visible cells
-		this._register(this._notebookEditor.onDidChangeVisibleRanges(() => this._updateVisibleCells()));
-		
-		// Listen for cell changes to update mouse handlers
-		this._register(this._notebookEditor.onDidChangeViewCells(() => this._updateCellMouseHandlers()));
-		
+				
 		// Listen for cell state changes (e.g., markdown render -> edit mode) to refresh highlighting
 		this._register(this._notebookEditor.onDidChangeViewCells(() => {
 			// Set up state change listeners for all cells
@@ -339,21 +421,205 @@ export class NotebookDiffHighlightContribution extends Disposable implements INo
 				this._register(cellViewModel.onDidChangeState((e: any) => {
 					if (e.editStateChanged && this._fileChangeTracker) {
 						// When cell switches between rendered and edit mode, refresh auto-accept highlighting
-						this._refreshAutoAcceptHighlighting();
+						const uri = this._notebookEditor.textModel?.uri;
+						if (uri) {
+							this._fileChangeTracker.applyAutoAcceptHighlighting(uri);
+						}
 					}
 				}));
 			});
 		}
 	}
 
-	private _refreshAutoAcceptHighlighting(): void {
-		if (this._currentDiffData && this._fileChangeTracker) {
-			// Get the notebook URI
-			const uri = this._notebookEditor.textModel?.uri;
-			if (uri) {
-				// Trigger a refresh of auto-accept highlighting through the file change tracker
-				this._fileChangeTracker.applyAutoAcceptHighlighting(uri);
+
+
+	/**
+	 * Apply only auto-accept decorations (green highlighting) without zone widgets
+	 */
+	public applyAutoAcceptDecorations(cellDiffs: ICellDiffData[], uri: URI): void {
+		// Store current diff data for use by other methods
+		this._currentDiffData = {
+			uri: uri.toString(),
+			conversationId: 'decorations-only', // Not used for decorations
+			cellDiffs
+		};
+
+		// Clear existing decorations first
+		this.clearAutoAcceptHighlighting();
+
+		// Apply only decorations, not zone widgets
+		this._applyAutoAcceptDecorations(cellDiffs, uri);
+	}
+
+	public clearAutoAcceptHighlighting(): void {
+		// Clear only auto-accept elements, leave regular diff highlighting intact
+		
+		// Clear auto-accept cell decorations separately from regular diff decorations
+		this._autoAcceptCellDecorationIds.forEach((decorationIds, cell) => {
+			if (decorationIds.length > 0) {
+				cell.deltaModelDecorations(decorationIds, []);
 			}
+		});
+		this._autoAcceptCellDecorationIds.clear();
+
+		// Cancel any pending editor attachment promises to prevent disposable leaks
+		this._pendingEditorAttachPromises.forEach((promiseInfo, cellIndexStr) => {
+			promiseInfo.cancel();
+		});
+		this._pendingEditorAttachPromises.clear();
+	}
+
+
+	/**
+	 * Set up mouse handlers for cells with auto-accept zones that are currently visible
+	 */
+
+	/**
+	 * Apply auto-accept decorations with green highlighting for added lines
+	 * Uses cell.deltaModelDecorations() to persist through virtualization
+	 */
+	private _applyAutoAcceptDecorations(cellDiffs: ICellDiffData[], uri: URI): void {
+		if (!this._notebookEditor.hasModel()) {
+			return;
+		}
+
+		// Process each cell diff for auto-accept decorations
+		cellDiffs.forEach((cellDiff, index) => {
+			const cell = this._notebookEditor.cellAt(cellDiff.cellIndex);
+			
+			if (cell) {
+				this._applyAutoAcceptCellDecorations(cell, cellDiff.lineDiffs);
+			}
+		});
+	}
+
+	/**
+	 * Apply auto-accept decorations to a specific cell (green highlighting for added lines)
+	 */
+	private _applyAutoAcceptCellDecorations(cell: ICellViewModel, lineDiffs: Array<{ type: 'added' | 'deleted'; content: string; lineNumber: number; sectionId?: string; }>): void {		
+		const newDecorations: IModelDeltaDecoration[] = [];
+
+		lineDiffs.forEach((lineDiff, index) => {
+			const range = new Range(lineDiff.lineNumber, 1, lineDiff.lineNumber, 1);
+			
+			if (lineDiff.type === 'added') {
+				// Auto-accepted added lines get green highlighting
+				newDecorations.push({
+					range,
+					options: {
+						description: 'Erdos AI Auto-Accept - Added Line',
+						isWholeLine: true,
+						className: 'erdos-ai-auto-accept-added',
+						glyphMarginClassName: 'erdos-ai-auto-accept-glyph-added',
+						overviewRuler: {
+							color: 'rgba(0, 255, 0, 0.6)',
+							position: 2 // OverviewRulerLane.Right
+						}
+					}
+				});
+			} else if (lineDiff.type === 'deleted') {
+				// Deleted lines get red glyph margin indicators (no content shown yet)
+				newDecorations.push({
+					range,
+					options: {
+						description: 'Erdos AI Auto-Accept - Deleted Line',
+						glyphMarginClassName: 'erdos-ai-diff-deleted-arrow',
+						glyphMarginHoverMessage: { value: `Auto-accepted deletion: ${lineDiff.content}` },
+						overviewRuler: {
+							color: 'rgba(255, 0, 0, 0.8)',
+							position: 2 // OverviewRulerLane.Right
+						}
+					}
+				});
+			}
+		});
+
+		// Apply decorations using the cell's deltaModelDecorations method
+		// Use separate map for auto-accept decorations to prevent clearing by regular diff operations
+		const oldDecorations = this._autoAcceptCellDecorationIds.get(cell) ?? [];
+		const decorationIds = cell.deltaModelDecorations(oldDecorations, newDecorations);
+		this._autoAcceptCellDecorationIds.set(cell, decorationIds);
+	}
+
+	override dispose(): void {
+		// Cancel any pending promises before clearing decorations
+		this._pendingEditorAttachPromises.forEach((promiseInfo, cellIndexStr) => {
+			promiseInfo.cancel();
+		});
+		this._pendingEditorAttachPromises.clear();
+		
+		this.clearAutoAcceptHighlighting();
+		super.dispose();
+	}
+}
+
+export class NotebookDiffHighlightContribution extends Disposable implements INotebookEditorContribution {
+	static readonly id: string = 'workbench.notebook.diffHighlight';
+	
+	private _currentDiffData: INotebookDiffData | undefined;
+	private _cellDecorationIds = new Map<ICellViewModel, string[]>();
+	
+	// Zone widget management (using ZoneWidget like regular files)
+	private _cellZoneWidgets = new Map<string, Map<string, NotebookDeletedContentZoneWidget>>(); // cellIndex -> (lineNumber -> zoneWidget)
+	private _deletedLinesByPosition = new Map<string, Map<string, string[]>>(); // cellIndex -> (lineNumber -> deletedLines[])
+	private _cellMouseHandlers = new Map<string, IDisposable>(); // cellIndex -> mouse handler
+	private _expandedZones = new Set<string>(); // cellIndex:lineNumber tracking expanded zones
+
+	constructor(
+		private readonly _notebookEditor: INotebookEditor,
+		@IThemeService private readonly _themeService: IThemeService
+	) {
+		super();
+		
+		// Listen for model changes to reapply decorations when notebook is reopened
+		this._register(this._notebookEditor.onDidChangeModel(() => {
+			this._clearAllDecorations();
+			if (this._currentDiffData && this._notebookEditor.hasModel()) {
+				// Process deleted lines data again
+				this._processDeletedLines(this._currentDiffData.cellDiffs);
+				// Reapply decorations
+				this._applyDiffDecorations();
+			}
+		}));
+		
+		// Listen for scroll events with throttling to apply decorations to newly visible cells
+		let lastScrollTime = 0;
+		this._register(this._notebookEditor.onDidScroll(() => {
+			const now = Date.now();
+			if (now - lastScrollTime >= 100) {
+				lastScrollTime = now;
+				this._updateVisibleCells();
+			}
+		}));
+		
+		// Listen for cell state changes (e.g., markdown render -> edit mode) to refresh highlighting
+		this._register(this._notebookEditor.onDidChangeViewCells(() => {
+			// Set up state change listeners for all cells
+			this._setupCellStateChangeListeners();
+		}));
+		
+		// Initial setup of cell state change listeners
+		this._setupCellStateChangeListeners();
+	}
+
+	private _setupCellStateChangeListeners(): void {
+		if (!this._notebookEditor.hasModel()) {
+			return;
+		}
+
+		// Listen for state changes on all cell view models via the view model
+		const viewModel = this._notebookEditor.getViewModel();
+		if (viewModel) {
+			const viewCells = viewModel.viewCells;
+			viewCells.forEach((cellViewModel: ICellViewModel, index: number) => {
+				// Listen for cell state changes (Preview <-> Editing)
+				this._register(cellViewModel.onDidChangeState((e: any) => {
+					if (e.editStateChanged) {
+						// When cell switches between rendered and edit mode, refresh highlighting
+						this._applyDiffDecorations();
+					}
+				}));
+			});
 		}
 	}
 
@@ -379,7 +645,7 @@ export class NotebookDiffHighlightContribution extends Disposable implements INo
 	}
 
 	public clearFileHighlighting(): void {
-		// Clear only regular diff highlighting, leave auto-accept highlighting intact
+		// Clear only regular diff highlighting
 		this._currentDiffData = undefined;
 		
 		// Clear only regular diff decorations
@@ -409,56 +675,6 @@ export class NotebookDiffHighlightContribution extends Disposable implements INo
 		this._expandedZones.clear();
 	}
 
-	public clearAutoAcceptHighlighting(): void {
-		// Clear only auto-accept elements, leave regular diff highlighting intact
-		this._fileChangeTracker = undefined;
-		
-		// Clear auto-accept zone widgets for each cell
-		this._autoAcceptZoneWidgets.forEach((cellZoneWidgets, cellIndexStr) => {
-			cellZoneWidgets.forEach((zoneWidget, lineNumber) => {
-				zoneWidget.dispose();
-			});
-		});
-		this._autoAcceptZoneWidgets.clear();
-		
-		// Clear auto-accept cell decorations separately from regular diff decorations
-		this._autoAcceptCellDecorationIds.forEach((decorationIds, cell) => {
-			if (decorationIds.length > 0) {
-				cell.deltaModelDecorations(decorationIds, []);
-			}
-		});
-		this._autoAcceptCellDecorationIds.clear();
-
-		// Cancel any pending editor attachment promises to prevent disposable leaks
-		this._pendingEditorAttachPromises.forEach((promiseInfo, cellIndexStr) => {
-			promiseInfo.cancel();
-		});
-		this._pendingEditorAttachPromises.clear();
-	}
-
-	public applyAutoAcceptHighlighting(uri: URI, conversationId: string, cellDiffs: ICellDiffData[], fileChangeTracker: IFileChangeTracker): void {
-		// Store the file change tracker for button interactions
-		this._fileChangeTracker = fileChangeTracker;
-		
-		// Store the diff data
-		this._currentDiffData = {
-			uri: uri.toString(),
-			conversationId,
-			cellDiffs
-		};
-
-		// Clear existing decorations and zones
-		this._clearAllDecorations();
-
-		// Apply auto-accept decorations with green highlighting for added lines
-		this._applyAutoAcceptDecorations(cellDiffs, uri);
-		
-		// Apply auto-accept zone widgets for deleted content with Accept/Reject buttons
-		this._applyAutoAcceptZoneWidgets(cellDiffs, uri);
-
-		// Set up mouse handlers for cells with auto-accept zones
-		this._updateCellMouseHandlers();
-	}
 
 	/**
 	 * Process deleted lines data for zone widget management
@@ -572,7 +788,7 @@ export class NotebookDiffHighlightContribution extends Disposable implements INo
 				editor,
 				lineNumber,
 				deletedLines,
-				null as any // We don't need theme service for our implementation
+				this._themeService
 			);
 
 			// Show the zone widget at the specified line
@@ -668,14 +884,6 @@ export class NotebookDiffHighlightContribution extends Disposable implements INo
 
 		this._applyDiffDecorations();
 		this._updateCellMouseHandlers();
-		
-		// If we have a file change tracker (auto-accept mode), recreate auto-accept zone widgets for visible cells
-		if (this._fileChangeTracker) {
-			// First, clean up zone widgets for cells that are no longer visible
-			this._cleanupInvisibleAutoAcceptZoneWidgets();
-			// Then recreate zone widgets for currently visible cells
-			this._applyAutoAcceptZoneWidgets(this._currentDiffData.cellDiffs, URI.parse(this._currentDiffData.uri));
-		}
 	}
 
 	private _applyDiffDecorations(): void {
@@ -754,276 +962,18 @@ export class NotebookDiffHighlightContribution extends Disposable implements INo
 		});
 		this._cellZoneWidgets.clear();
 
-		// Clear auto-accept zone widgets for each cell
-		let autoAcceptZoneWidgetsDisposed = 0;
-		this._autoAcceptZoneWidgets.forEach((cellZoneWidgets, cellIndexStr) => {
-			cellZoneWidgets.forEach((zoneWidget, lineNumber) => {
-				zoneWidget.dispose();
-				autoAcceptZoneWidgetsDisposed++;
-			});
-		});
-		this._autoAcceptZoneWidgets.clear();
-		
-		// Clear auto-accept cell decorations separately from regular diff decorations
-		this._autoAcceptCellDecorationIds.forEach((decorationIds, cell) => {
-			if (decorationIds.length > 0) {
-				cell.deltaModelDecorations(decorationIds, []);
-			}
-		});
-		this._autoAcceptCellDecorationIds.clear();
-
 		// Clear mouse handlers
 		this._cellMouseHandlers.forEach((handler, cellIndex) => {
 			handler.dispose();
 		});
 		this._cellMouseHandlers.clear();
 
-		// Cancel any pending editor attachment promises to prevent disposable leaks
-		this._pendingEditorAttachPromises.forEach((promiseInfo, cellIndexStr) => {
-			promiseInfo.cancel();
-		});
-		this._pendingEditorAttachPromises.clear();
-
 		// Clear tracking data
 		this._deletedLinesByPosition.clear();
 		this._expandedZones.clear();
 	}
 
-	/**
-	 * Apply auto-accept decorations with green highlighting for added lines
-	 * Uses cell.deltaModelDecorations() to persist through virtualization
-	 */
-	private _applyAutoAcceptDecorations(cellDiffs: ICellDiffData[], uri: URI): void {
-		if (!this._notebookEditor.hasModel()) {
-			return;
-		}
-
-		// Process each cell diff for auto-accept decorations
-		cellDiffs.forEach((cellDiff, index) => {
-			const cell = this._notebookEditor.cellAt(cellDiff.cellIndex);
-			
-			if (cell) {
-				this._applyAutoAcceptCellDecorations(cell, cellDiff.lineDiffs);
-			}
-		});
-	}
-
-	/**
-	 * Apply auto-accept decorations to a specific cell (green highlighting for added lines)
-	 */
-	private _applyAutoAcceptCellDecorations(cell: ICellViewModel, lineDiffs: Array<{ type: 'added' | 'deleted'; content: string; lineNumber: number; sectionId?: string; }>): void {		
-		const newDecorations: IModelDeltaDecoration[] = [];
-
-		lineDiffs.forEach((lineDiff, index) => {
-			const range = new Range(lineDiff.lineNumber, 1, lineDiff.lineNumber, 1);
-			
-			if (lineDiff.type === 'added') {
-				// Auto-accepted added lines get green highlighting
-				newDecorations.push({
-					range,
-					options: {
-						description: 'Erdos AI Auto-Accept - Added Line',
-						isWholeLine: true,
-						className: 'erdos-ai-auto-accept-added',
-						glyphMarginClassName: 'erdos-ai-auto-accept-glyph-added',
-						overviewRuler: {
-							color: 'rgba(0, 255, 0, 0.6)',
-							position: 2 // OverviewRulerLane.Right
-						}
-					}
-				});
-			} else if (lineDiff.type === 'deleted') {
-				// Deleted lines get red glyph margin indicators (no content shown yet)
-				newDecorations.push({
-					range,
-					options: {
-						description: 'Erdos AI Auto-Accept - Deleted Line',
-						glyphMarginClassName: 'erdos-ai-diff-deleted-arrow',
-						glyphMarginHoverMessage: { value: `Auto-accepted deletion: ${lineDiff.content}` },
-						overviewRuler: {
-							color: 'rgba(255, 0, 0, 0.8)',
-							position: 2 // OverviewRulerLane.Right
-						}
-					}
-				});
-			}
-		});
-
-		// Apply decorations using the cell's deltaModelDecorations method
-		// Use separate map for auto-accept decorations to prevent clearing by regular diff operations
-		const oldDecorations = this._autoAcceptCellDecorationIds.get(cell) ?? [];
-		const decorationIds = cell.deltaModelDecorations(oldDecorations, newDecorations);
-		this._autoAcceptCellDecorationIds.set(cell, decorationIds);
-	}
-
-	/**
-	 * Apply auto-accept zone widgets for deleted content with Accept/Reject buttons
-	 * Uses the same approach as regular diff highlighting but shows zone widgets immediately
-	 */
-	private _applyAutoAcceptZoneWidgets(cellDiffs: ICellDiffData[], uri: URI): void {
-		if (!this._notebookEditor.hasModel()) {
-			return;
-		}
-
-		// Process each cell diff to create auto-accept zone widgets immediately
-		// (unlike regular diff which waits for glyph clicks)
-		cellDiffs.forEach((cellDiff, index) => {
-			// Find deleted lines in this cell
-			const deletedLines = cellDiff.lineDiffs.filter(diff => diff.type === 'deleted');
-			
-			if (deletedLines.length > 0) {
-				// Group deleted lines by line number and section ID for zone widget creation
-				const deletedLinesByPosition = new Map<number, { content: string[]; sectionId?: string; }>();
-				
-				for (const deletedLine of deletedLines) {
-					const lineNumber = deletedLine.lineNumber;
-					if (!deletedLinesByPosition.has(lineNumber)) {
-						deletedLinesByPosition.set(lineNumber, { content: [], sectionId: deletedLine.sectionId });
-					}
-					deletedLinesByPosition.get(lineNumber)!.content.push(deletedLine.content);
-				}
-
-				// Create auto-accept zone widgets for each position with deleted content
-				for (const [lineNumber, { content: deletedContent, sectionId }] of deletedLinesByPosition) {
-					// Fire and forget - don't await to avoid blocking other zone widget creation
-					this._createAutoAcceptZoneWidget(cellDiff.cellIndex, lineNumber, deletedContent, uri, sectionId).catch(error => {
-						// Log error but don't block other zone widgets
-						console.warn(`Failed to create auto-accept zone widget for cell ${cellDiff.cellIndex}, line ${lineNumber}:`, error);
-					});
-				}
-			}
-		});
-	}
-
-	/**
-	 * Create auto-accept zone widget for a specific cell and line
-	 * Uses the same approach as regular diff highlighting, with proper editor attachment waiting
-	 */
-	private async _createAutoAcceptZoneWidget(cellIndex: number, lineNumber: number, deletedLines: string[], uri: URI, sectionId?: string): Promise<void> {
-		// Find the Monaco editor for this cell (same approach as regular diff highlighting)
-		const cell = this._notebookEditor.cellAt(cellIndex);
-		if (!cell) {
-			return;
-		}
-
-		const cellIndexStr = cellIndex.toString();
-
-		// Wait for editor attachment if not already attached, with proper disposable tracking
-		if (!cell.editorAttached) {
-			// Check if we already have a pending promise for this cell
-			let pendingPromiseInfo = this._pendingEditorAttachPromises.get(cellIndexStr);
-			
-			if (!pendingPromiseInfo) {
-				// Create a new cancelable promise for editor attachment
-				const cancelablePromise = Event.toPromise(cell.onDidChangeEditorAttachState);
-				pendingPromiseInfo = {
-					promise: cancelablePromise,
-					cancel: () => cancelablePromise.cancel()
-				};
-				this._pendingEditorAttachPromises.set(cellIndexStr, pendingPromiseInfo);
-			}
-			
-			try {
-				await pendingPromiseInfo.promise;
-			} catch (error) {
-				// Cell might have been disposed or removed during waiting
-				return;
-			} finally {
-				// Clean up the pending promise once it's resolved or rejected
-				this._pendingEditorAttachPromises.delete(cellIndexStr);
-			}
-		}
-
-		const editorPair = this._notebookEditor.codeEditors.find(([vm,]) => vm.handle === cell.handle);
-		if (!editorPair) {
-			// Even after waiting, editor might not be available (cell disposed, etc.)
-			return;
-		}
-
-		const editor = editorPair[1];
-		const lineNumberStr = lineNumber.toString();
-
-		// Get or create auto-accept zone widget map for this cell
-		if (!this._autoAcceptZoneWidgets.has(cellIndexStr)) {
-			this._autoAcceptZoneWidgets.set(cellIndexStr, new Map<string, NotebookAutoAcceptDiffZoneWidget>());
-		}
-		const cellZoneWidgets = this._autoAcceptZoneWidgets.get(cellIndexStr)!;
-
-		// Check if zone widget already exists
-		const existingZoneWidget = cellZoneWidgets.get(lineNumberStr);
-		if (existingZoneWidget) {
-			// Zone widget already exists, don't create duplicate
-			return;
-		}
-
-		// Use the provided section ID or create a fallback one
-		const finalSectionId = sectionId || `notebook-auto-accept-${cellIndex}-${lineNumber}`;
-		
-		// Creating zone widget for deleted lines
-		
-		const zoneWidget = new NotebookAutoAcceptDiffZoneWidget(
-			editor,
-			lineNumber,
-			deletedLines,
-			finalSectionId,
-			this._fileChangeTracker!,
-			uri,
-			cellIndex,
-			this._themeService
-		);
-
-		// Show the zone widget immediately (unlike regular diff which waits for clicks)
-		zoneWidget.showAt(lineNumber);
-		
-		cellZoneWidgets.set(lineNumberStr, zoneWidget);
-	}
-
-	/**
-	 * Clean up auto-accept zone widgets for cells that are no longer visible
-	 */
-	private _cleanupInvisibleAutoAcceptZoneWidgets(): void {
-		if (!this._notebookEditor.hasModel()) {
-			return;
-		}
-
-		// Get currently visible cell editors (same approach as regular diff highlighting)
-		const visibleEditorHandles = new Set(
-			this._notebookEditor.codeEditors.map(([vm,]) => vm.handle)
-		);
-
-		// Clean up zone widgets for cells that no longer have visible editors
-		const cellIndicesToRemove: string[] = [];
-		this._autoAcceptZoneWidgets.forEach((cellZoneWidgets, cellIndexStr) => {
-			const cellIndex = parseInt(cellIndexStr);
-			const cell = this._notebookEditor.cellAt(cellIndex);
-			
-			if (!cell || !visibleEditorHandles.has(cell.handle)) {
-				// This cell is no longer visible or doesn't have an editor, dispose its zone widgets
-				cellZoneWidgets.forEach((zoneWidget, lineNumber) => {
-					try {
-						zoneWidget.dispose();
-					} catch (error) {
-						// Zone widget might already be disposed due to virtualization
-						console.warn(`Failed to dispose auto-accept zone widget for invisible cell ${cellIndexStr}, line ${lineNumber}:`, error);
-					}
-				});
-				cellIndicesToRemove.push(cellIndexStr);
-			}
-		});
-
-		// Remove the cleaned up cell entries
-		cellIndicesToRemove.forEach(cellIndexStr => {
-			this._autoAcceptZoneWidgets.delete(cellIndexStr);
-		});
-	}
-
 	override dispose(): void {
-		// Cancel any pending promises before clearing decorations
-		this._pendingEditorAttachPromises.forEach((promiseInfo, cellIndexStr) => {
-			promiseInfo.cancel();
-		});
-		this._pendingEditorAttachPromises.clear();
-		
 		this._clearAllDecorations();
 		super.dispose();
 	}
@@ -1031,3 +981,4 @@ export class NotebookDiffHighlightContribution extends Disposable implements INo
 }
 
 registerNotebookContribution(NotebookDiffHighlightContribution.id, NotebookDiffHighlightContribution);
+registerNotebookContribution(NotebookAutoAcceptContribution.id, NotebookAutoAcceptContribution);

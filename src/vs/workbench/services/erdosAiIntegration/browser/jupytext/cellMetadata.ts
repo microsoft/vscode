@@ -113,7 +113,9 @@ export function metadataToRmdOptions(
         }
     }
     
-    for (const optName in metadata) {
+    // Sort keys to ensure deterministic output order
+    const sortedOptNames = Object.keys(metadata).sort();
+    for (const optName of sortedOptNames) {
         const optValue = metadata[optName];
         const trimmedOptName = optName.trim();
         
@@ -679,16 +681,29 @@ export function metadataToText(
 
     if (plainJson) {
         if (Object.keys(filteredMetadata).length > 0) {
-            text.push(JSON.stringify(filteredMetadata));
+            // Sort keys to ensure deterministic output order even in JSON mode
+            const sortedMetadata: Record<string, any> = {};
+            const sortedKeys = Object.keys(filteredMetadata).sort();
+            for (const key of sortedKeys) {
+                sortedMetadata[key] = filteredMetadata[key];
+            }
+            text.push(JSON.stringify(sortedMetadata));
         }
     } else {
-        for (const key in filteredMetadata) {
+        // Sort keys to ensure deterministic output order
+        const sortedKeys = Object.keys(filteredMetadata).sort();
+        for (const key of sortedKeys) {
             if (key === "incorrectly_encoded_metadata") {
                 text.push(filteredMetadata[key]);
             } else if (filteredMetadata[key] === null) {
                 text.push(key);
             } else {
-                text.push(`${key}=${JSON.stringify(filteredMetadata[key])}`);
+                // Use deterministic JSON.stringify for consistent ordering
+                const value = filteredMetadata[key];
+                const jsonValue = (value && typeof value === 'object' && !Array.isArray(value)) 
+                    ? JSON.stringify(value, Object.keys(value).sort()) 
+                    : JSON.stringify(value);
+                text.push(`${key}=${jsonValue}`);
             }
         }
     }

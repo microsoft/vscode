@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import hashlib
 import io
+import json
 import logging
 from typing import TYPE_CHECKING, cast
 
@@ -32,7 +33,8 @@ class FigureManagerErdos(FigureManagerBase):
 
         super().__init__(canvas, num)
 
-        self._plots_service = cast("ErdosIPyKernel", ErdosIPyKernel.instance()).plots_service
+        kernel_instance = ErdosIPyKernel.instance()
+        self._plots_service = cast("ErdosIPyKernel", kernel_instance).plots_service
         self._plot = self._plots_service.create_plot(canvas.render, canvas.intrinsic_size)
 
     @property
@@ -90,8 +92,6 @@ class FigureCanvasErdos(FigureCanvasAgg):
             self.manager.update()
 
     def render(self, size: PlotSize | None, pixel_ratio: float, format_: str) -> bytes:
-        logger.debug(f"🎨 FigureCanvasErdos.render() called")
-        logger.debug(f"🎨 Render params: size={size}, pixel_ratio={pixel_ratio}, format={format_}")
         
         try:
             self._set_device_pixel_ratio(pixel_ratio)
@@ -100,17 +100,14 @@ class FigureCanvasErdos(FigureCanvasAgg):
                 self.figure.set_layout_engine("tight")
 
             if size is None:
-                logger.debug(f"🎨 Using intrinsic size: {self.intrinsic_size}")
                 self.figure.set_size_inches(*self.intrinsic_size, forward=False)
                 bbox_inches = "tight"
             else:
                 width_in = size.width * self.device_pixel_ratio / self.figure.dpi
                 height_in = size.height * self.device_pixel_ratio / self.figure.dpi
-                logger.debug(f"🎨 Setting figure size: {width_in:.2f}x{height_in:.2f} inches")
                 self.figure.set_size_inches(width_in, height_in, forward=False)
                 bbox_inches = None
 
-            logger.debug(f"🎨 Rendering with DPI: {self.figure.dpi}")
             with io.BytesIO() as figure_buffer:
                 self.print_figure(
                     figure_buffer,
@@ -120,7 +117,6 @@ class FigureCanvasErdos(FigureCanvasAgg):
                 )
                 rendered = figure_buffer.getvalue()
 
-            logger.debug(f"✅ Render complete, size: {len(rendered)} bytes")
             
             self.draw(is_rendering=True)
             self._previous_hash = self._hash_buffer_rgba()
@@ -129,9 +125,7 @@ class FigureCanvasErdos(FigureCanvasAgg):
             return rendered
             
         except Exception as e:
-            logger.error(f"❌ Error in render(): {e}")
             import traceback
-            logger.error(traceback.format_exc())
             raise
 
     def _hash_buffer_rgba(self) -> str:

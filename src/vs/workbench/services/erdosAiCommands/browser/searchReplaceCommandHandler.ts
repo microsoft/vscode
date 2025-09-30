@@ -20,6 +20,7 @@ import { IDocumentManager } from '../../erdosAiDocument/common/documentManager.j
 import { IJupytextService } from '../../erdosAiIntegration/common/jupytextService.js';
 import { IFileResolverService } from '../../erdosAiUtils/common/fileResolverService.js';
 import { IFileChangeTracker } from '../../erdosAi/common/fileChangeTracker.js';
+import { INotebookEditorModelResolverService } from '../../../contrib/notebook/common/notebookEditorModelResolverService.js';
 
 export class SearchReplaceCommandHandler extends Disposable implements ISearchReplaceCommandHandler {
 	readonly _serviceBrand: undefined;
@@ -36,7 +37,8 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 		@ICommonUtils private readonly commonUtils: ICommonUtils,
 		@IJupytextService private readonly jupytextService: IJupytextService,
 		@IFileResolverService private readonly fileResolverService: IFileResolverService,
-		@IFileChangeTracker private readonly fileChangeTracker: IFileChangeTracker
+		@IFileChangeTracker private readonly fileChangeTracker: IFileChangeTracker,
+		@INotebookEditorModelResolverService private readonly notebookEditorModelResolverService: INotebookEditorModelResolverService,
 	) {
 		super();
 	}
@@ -262,10 +264,10 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 					currentContent = effectiveContent;
 					
 					// For .ipynb files, handle jupytext conversion for append mode
-					const isNotebook = this.commonUtils.getFileExtension(filePath).toLowerCase() === 'ipynb';
+					const isNotebookAppend = this.commonUtils.getFileExtension(filePath).toLowerCase() === 'ipynb';
 					let workingContent = currentContent;
 					
-					if (isNotebook) {
+					if (isNotebookAppend) {
 						try {
 							// Convert original JSON to jupytext format for appending
 							const jupytextContent = this.jupytextService.convertNotebookToText(
@@ -342,42 +344,99 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 				
 				const flexiblePattern = this.createFlexibleWhitespacePattern(oldString);
 				const regex = new RegExp(flexiblePattern, 'g');
-				newContent = workingContent.replace(regex, newString);
+				// Use custom replacement that preserves metadata from matched content
+				newContent = workingContent.replace(regex, (match: string) => {
+					return this.preserveMetadataInReplacement(match, newString);
+				});
 			}
 
-			// For .ipynb files, convert jupytext back to notebook JSON format
+			// For .ipynb files, convert jupytext back to notebook JSON and apply to model
 			let processedContent = newContent;
-			const isNotebook = this.commonUtils.getFileExtension(filePath).toLowerCase() === 'ipynb';
+			const isNotebookConvert = this.commonUtils.getFileExtension(filePath).toLowerCase() === 'ipynb';
 			
-			if (isNotebook) {
-				try {
-					// For notebooks, newContent is in jupytext format and needs to be converted back to JSON
-					const notebookJson = this.jupytextService.convertTextToNotebook(
-						newContent, 
-						{ extension: '.py', format_name: 'percent' }
-					);
-					processedContent = notebookJson;
-				} catch (error) {
-					console.error(`[SEARCH_REPLACE_COMMAND_DEBUG] Failed to convert jupytext back to notebook format:`, error);
-					this.logService.error('Failed to convert jupytext back to notebook format:', error);
-					// Fall back to original content if conversion fails
-					processedContent = currentContent;
-				}
-			}
-			
-			if (isCreateMode) {
-				try {
+			if (isNotebookConvert) {
+				// For notebooks, newContent is in jupytext format - convert to notebook structure
+				const notebookJson = this.jupytextService.convertTextToNotebook(
+					newContent, 
+					{ extension: '.py', format_name: 'percent' }
+				);
+				processedContent = notebookJson;
+				
+				if (isCreateMode) {
 					const parentDir = URI.joinPath(uri, '..');
 					if (parentDir.path && parentDir.path !== uri.path) {
 						await this.fileService.createFolder(parentDir);
 					}
-				} catch (error) {
 				}
-			}
 			
-			await this.fileService.writeFile(uri, VSBuffer.fromString(processedContent));
-			fileWritten = true;
-			modificationMade = true;
+				// For notebooks, apply changes to the model and let VS Code serialize properly
+				// Get or create the notebook model
+				let modelRef;
+				if (isCreateMode) {
+					// For CREATE MODE, use untitled resource with associated file path
+					modelRef = await this.notebookEditorModelResolverService.resolve(
+						{ untitledResource: uri },
+						'jupyter-notebook'
+					);
+				} else {
+					// For existing files, resolve normally
+					modelRef = await this.notebookEditorModelResolverService.resolve(uri, 'jupyter-notebook');
+				}
+				const notebookModel = modelRef.object.notebook;
+				
+				// Parse the new notebook structure
+				const newNotebook = JSON.parse(notebookJson);
+					
+				// Convert cells to VS Code format
+				const newCells = newNotebook.cells.map((cell: any, cellIndex: number) => {
+					const vscodeMetadata: any = {};
+					if (cell.cell_type === 'code' && cell.execution_count !== undefined) {
+						vscodeMetadata.execution_count = cell.execution_count;
+					}
+					if (cell.metadata) {
+						vscodeMetadata.metadata = cell.metadata;
+					}
+							
+					const newCellData = {
+						cellKind: cell.cell_type === 'markdown' ? 1 : 2,
+						source: Array.isArray(cell.source) ? cell.source.join('') : cell.source,
+						language: cell.cell_type === 'code' ? 'python' : 'markdown',
+						mime: cell.cell_type === 'markdown' ? 'text/markdown' : 'text/x-python',
+						metadata: vscodeMetadata,
+						outputs: cell.outputs || []
+					};
+					return newCellData;
+				});
+				
+				// Replace all cells in the model
+				notebookModel.applyEdits([{
+					editType: 1,
+					index: 0,
+					count: notebookModel.cells.length,
+					cells: newCells
+				}], true, undefined, () => undefined, undefined, true);
+				
+				// Save the model using VS Code's proper serialization
+				await modelRef.object.save();
+				
+				// Dispose the model reference
+				modelRef.dispose();
+				
+				fileWritten = true;
+				modificationMade = true;
+			} else {
+				// For regular files, write directly
+				if (isCreateMode) {
+					const parentDir = URI.joinPath(uri, '..');
+					if (parentDir.path && parentDir.path !== uri.path) {
+						await this.fileService.createFolder(parentDir);
+					}
+				}
+				
+				await this.fileService.writeFile(uri, VSBuffer.fromString(processedContent));
+				fileWritten = true;
+				modificationMade = true;
+			}
 			
 			if (isCreateMode) {
 				// For file creation, record the final processed content (JSON for .ipynb)
@@ -415,28 +474,42 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 					m.output === "Response pending..."
 				);
 				
-				if (existingOutputMessage) {
+				if (existingOutputMessage && 'success' in existingOutputMessage) {
 					existingOutputMessage.output = completionMessage;
 					existingOutputMessage.timestamp = new Date().toISOString();
-					(existingOutputMessage as any).success = true;
+					existingOutputMessage.success = true;
 					
 					await this.conversationManager.saveConversationLog(currentConversation);
 				}
 			}
 			
-			if (modificationMade && fileWritten) {
+		if (modificationMade && fileWritten) {
+			// For regular files (not notebooks), open in editor to refresh
+			// Notebooks were already handled above with proper model updates
+			const isNotebook = this.commonUtils.getFileExtension(filePath).toLowerCase() === 'ipynb';
+			if (!isNotebook) {
 				await this.openDocumentInEditor(filePath);
-				
-				// Trigger diff highlighting after successful search_replace
-				const conversation = this.conversationManager.getCurrentConversation();
-				if (conversation) {
-					try {
-						await this.fileChangeTracker.initializeFileChangeTracking(conversation.info.id);
-					} catch (error) {
-						this.logService.error('Failed to trigger diff highlighting:', error);
+			} else {
+				// For notebooks, just open the editor to show the updated model
+				await this.editorService.openEditor({ 
+					resource: uri,
+					options: {
+						preserveFocus: false,
+						revealIfVisible: true
 					}
+				});
+			}
+			
+			// Trigger diff highlighting after successful search_replace
+			const conversation = this.conversationManager.getCurrentConversation();
+			if (conversation) {
+				try {
+					await this.fileChangeTracker.initializeFileChangeTracking(conversation.info.id);
+				} catch (error) {
+					this.logService.error('Failed to trigger diff highlighting:', error);
 				}
 			}
+		}
 			
 		} catch (error) {
 			const conversationForError = this.conversationManager.getCurrentConversation();
@@ -447,10 +520,10 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 					m.output === "Response pending..."
 				);
 				
-				if (existingOutputMessage) {
+				if (existingOutputMessage && 'success' in existingOutputMessage) {
 					existingOutputMessage.output = `Failed to apply search replace: ${error instanceof Error ? error.message : String(error)}`;
 					existingOutputMessage.timestamp = new Date().toISOString();
-					(existingOutputMessage as any).success = false;
+					existingOutputMessage.success = false;
 					
 					await this.conversationManager.saveConversationLog(conversationForError);
 				}
@@ -473,6 +546,54 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 		return cleanedLines.join('\n');
 	}
 
+	private preserveMetadataInReplacement(matchedContent: string, replacementString: string): string {
+		// For deletion operations (empty replacement string), return the replacement as-is
+		if (replacementString === '') {
+			return replacementString;
+		}
+		
+		// Extract metadata from the matched content and apply it to the replacement string
+		const matchedLines = matchedContent.split('\n');
+		const replacementLines = replacementString.split('\n');
+		
+		const result: string[] = [];
+		
+		for (let i = 0; i < replacementLines.length; i++) {
+			const replacementLine = replacementLines[i];
+			const matchedLine = i < matchedLines.length ? matchedLines[i] : '';
+			
+			// Check if this is a notebook cell header line (handles [markdown], execution_count, etc.)
+			if (replacementLine.match(/^# %%/) && matchedLine.match(/^# %%/)) {
+				// Extract metadata from matched content
+				const matchedMetadata = matchedLine.match(/metadata=(\{.*\})/);
+				
+				// Check if replacement line has metadata placeholder
+				const replacementMetadata = replacementLine.match(/metadata=(\{.*\})/);
+				
+				if (matchedMetadata) {
+					if (replacementMetadata) {
+						// Replace the metadata in the replacement line with the matched metadata
+						const preservedLine = replacementLine.replace(
+							/metadata=\{.*\}/,
+							`metadata=${matchedMetadata[1]}`
+						);
+						result.push(preservedLine);
+					} else {
+						// Add metadata to replacement line that doesn't have it
+						const preservedLine = replacementLine + ` metadata=${matchedMetadata[1]}`;
+						result.push(preservedLine);
+					}
+				} else {
+					result.push(replacementLine);
+				}
+			} else {
+				result.push(replacementLine);
+			}
+		}
+		
+		return result.join('\n');
+	}
+
 	private createFlexibleWhitespacePattern(text: string): string {
 		if (!text) {
 			return '';
@@ -484,6 +605,24 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 		
 		const flexibleLines = lines.map(line => {
 			const lineTrimmed = line.replace(/[ \t]*$/, '');
+			
+			// Handle notebook cell headers with flexible attribute and metadata matching
+			// Pattern: # %% [cell_type] [attributes...] metadata={...}
+			if (lineTrimmed.match(/^# %% \w+/)) {
+				// Check if this line has metadata
+				const metadataMatch = lineTrimmed.match(/^(# %% \w+)(.*)(\s+metadata=)\\\{.*\\\}(.*)$/);
+				if (metadataMatch) {
+					const cellTypePrefix = metadataMatch[1]; // "# %% execution_count"
+					// const attributes = metadataMatch[2]; // " id=\"51ac2ebf\"" (not used - handled by .*)
+					const metadataPrefix = metadataMatch[3]; // " metadata="
+					const suffix = metadataMatch[4] || ''; // anything after metadata
+					
+					// Make attributes and metadata content flexible
+					// This allows any attributes (id, etc.) and any metadata content
+					return cellTypePrefix + '.*' + metadataPrefix + '\\{.*\\}' + suffix + '[ \\t]*';
+				}
+			}
+			
 			return lineTrimmed + '[ \\t]*';
 		});
 		
@@ -576,44 +715,69 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 		}
 	}
 
-	private async openDocumentInEditor(filePath: string): Promise<void> {
-		try {
-			const resolverContext = this.fileResolverService.createResolverContext();
-			const pathResult = await this.commonUtils.resolveFile(filePath, resolverContext);
-			if (!pathResult.found || !pathResult.uri) {
-				throw new Error(`Could not resolve file: ${filePath}`);
-			}
+	public async openDocumentInEditor(filePath: string): Promise<void> {
+		const resolverContext = this.fileResolverService.createResolverContext();
+		const pathResult = await this.commonUtils.resolveFile(filePath, resolverContext);
+		if (!pathResult.found || !pathResult.uri) {
+			throw new Error(`Could not resolve file: ${filePath}`);
+		}
 
-			const uri = pathResult.uri;
+		const uri = pathResult.uri;
+		
+		// Handle notebook models differently from regular text models
+		const fileExtension = this.commonUtils.getFileExtension(filePath);
+		const lowerExt = fileExtension.toLowerCase();
+		const isNotebook = lowerExt === 'ipynb';
+		
+		if (isNotebook) {			
+			// For notebooks, get model reference and force load from disk
+			const modelRef = await this.notebookEditorModelResolverService.resolve(uri, 'jupyter-notebook');
 			
+			// Force reload from disk with load() - revert()'s externalResolver doesn't properly pass force:true!
+			await modelRef.object.load({ forceReadFromFile: true });
+			
+			// Now do a soft revert to clear dirty state and fire events without reloading again
+			await modelRef.object.revert({ soft: true });
+			
+			// Now open the editor (model is already up to date and clean)
+			await this.editorService.openEditor({ 
+				resource: uri,
+				options: {
+					preserveFocus: false,
+					revealIfVisible: true
+				}
+			});
+		} else {
+			// Handle regular text models
 			const existingModel = this.modelService.getModel(uri);
 			
 			if (existingModel) {
-				try {
-					const fileContent = await this.fileService.readFile(uri);
-					const diskContent = fileContent.value.toString();
+				const fileContent = await this.fileService.readFile(uri);
+				const diskContent = fileContent.value.toString();
+				
+				const currentContent = existingModel.getValue();
+				if (currentContent !== diskContent) {
+					const textFileModel = this.textFileService.files.get(uri);
 					
-					const currentContent = existingModel.getValue();
-					if (currentContent !== diskContent) {
-						const textFileModel = this.textFileService.files.get(uri);
-						
-						if (textFileModel) {
-							(textFileModel as any).ignoreDirtyOnModelContentChange = true;
-							
-							existingModel.setValue(diskContent);
-							
-							(textFileModel as any).ignoreDirtyOnModelContentChange = false;
-							
-							if (textFileModel.isDirty()) {
-								(textFileModel as any).setDirty(false);
-							}
-							
-						} else {
-							existingModel.setValue(diskContent);
+					if (textFileModel) {
+						// Set internal flag to prevent dirty state change during setValue
+						if ('ignoreDirtyOnModelContentChange' in textFileModel) {
+							(textFileModel as { ignoreDirtyOnModelContentChange: boolean }).ignoreDirtyOnModelContentChange = true;
 						}
+						
+						existingModel.setValue(diskContent);
+						
+						if ('ignoreDirtyOnModelContentChange' in textFileModel) {
+							(textFileModel as { ignoreDirtyOnModelContentChange: boolean }).ignoreDirtyOnModelContentChange = false;
+						}
+						
+						if (textFileModel.isDirty() && 'setDirty' in textFileModel) {
+							(textFileModel as { setDirty: (dirty: boolean) => void }).setDirty(false);
+						}
+						
+					} else {
+						existingModel.setValue(diskContent);
 					}
-				} catch (error) {
-					this.logService.error('Failed to refresh file content:', error);
 				}
 			}
 			
@@ -624,9 +788,6 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 					revealIfVisible: true
 				}
 			});
-			
-		} catch (error) {
-			this.logService.error('Failed to open document in editor:', error);
 		}
 	}
 
@@ -638,17 +799,11 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 			const historyDir = URI.joinPath(workspaceFolder.uri, '.vscode', 'erdosai');
 			const historyFile = URI.joinPath(historyDir, 'script_history.json');
 			
-			try {
-				await this.fileService.createFolder(historyDir);
-			} catch (error) {
-			}
+			await this.fileService.createFolder(historyDir);
 			
 			let history: any[] = [];
-			try {
-				const content = await this.fileService.readFile(historyFile);
-				history = JSON.parse(content.value.toString());
-			} catch (error) {
-			}
+			const content = await this.fileService.readFile(historyFile);
+			history = JSON.parse(content.value.toString());
 			
 			const entry = {
 				file_path: filePath,
@@ -682,12 +837,12 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 				return { success: false, errorMessage: errorMsg };
 			}
 
-		const filePath = args.file_path;
-		let oldString = args.old_string;
-		let newString = args.new_string;
-		const replaceAll = args.replace_all || false;
+			const filePath = args.file_path;
+			let oldString = args.old_string;
+			let newString = args.new_string;
+			const replaceAll = args.replace_all || false;
 
-		// Validate required arguments (like Rao lines 894-948)
+			// Validate required arguments
 			// Note: oldString can be empty string for file creation, so check for null/undefined only
 			if (!filePath || oldString === null || oldString === undefined || newString === null || newString === undefined) {
 				const errorMsg = 'Missing required arguments: file_path, old_string, and new_string are all required';
@@ -847,8 +1002,8 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 			
 			// Simulate the replacement to get new content
 			const newContent = replaceAll ? 
-				effectiveContent.replace(new RegExp(flexiblePattern, 'g'), newString) :
-				effectiveContent.replace(new RegExp(flexiblePattern), newString);
+				effectiveContent.replace(new RegExp(flexiblePattern, 'g'), (match: string) => this.preserveMetadataInReplacement(match, newString)) :
+				effectiveContent.replace(new RegExp(flexiblePattern), (match: string) => this.preserveMetadataInReplacement(match, newString));				
 			
 			// Check if this is a notebook file - use special notebook diff algorithm
 			if (isNotebook) {
@@ -1420,8 +1575,8 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 			}
 
 			const newContent = replaceAll ? 
-			effectiveContent.replace(new RegExp(flexiblePattern, 'g'), newString) :
-			effectiveContent.replace(new RegExp(flexiblePattern), newString);
+			effectiveContent.replace(new RegExp(flexiblePattern, 'g'), (match: string) => this.preserveMetadataInReplacement(match, newString)) :
+			effectiveContent.replace(new RegExp(flexiblePattern), (match: string) => this.preserveMetadataInReplacement(match, newString));
 			
 			try {
 				const { diffStorage } = await import('../../erdosAiUtils/browser/diffUtils.js');
@@ -1495,4 +1650,5 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 			};
 		}
 	}
+
 }
