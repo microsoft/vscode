@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../../../base/browser/dom.js';
-import { $, append, getActiveWindow } from '../../../../../../base/browser/dom.js';
+import { $, append } from '../../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
 import { ActionBar } from '../../../../../../base/browser/ui/actionbar/actionbar.js';
 import { InputBox, MessageType } from '../../../../../../base/browser/ui/inputbox/inputBox.js';
 import { IAsyncDataSource, ITreeNode, ITreeRenderer } from '../../../../../../base/browser/ui/tree/tree.js';
 import { timeout } from '../../../../../../base/common/async.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { FuzzyScore } from '../../../../../../base/common/filters.js';
+import { FuzzyScore, createMatches } from '../../../../../../base/common/filters.js';
 import { createSingleCallFunction } from '../../../../../../base/common/functional.js';
 import { isMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
@@ -19,7 +19,6 @@ import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../..
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
 import Severity from '../../../../../../base/common/severity.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
-import { URI } from '../../../../../../base/common/uri.js';
 import { MarkdownRenderer } from '../../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import * as nls from '../../../../../../nls.js';
 import { getActionBarActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
@@ -29,11 +28,10 @@ import { IContextKeyService } from '../../../../../../platform/contextkey/common
 import { IContextViewService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { ILogService } from '../../../../../../platform/log/common/log.js';
 import product from '../../../../../../platform/product/common/product.js';
 import { defaultInputBoxStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
-import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { IResourceLabel, ResourceLabels } from '../../../../../browser/labels.js';
+import { IconLabel } from '../../../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { IEditableData } from '../../../../../common/views.js';
 import { IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
 import { IChatService } from '../../../common/chatService.js';
@@ -51,13 +49,14 @@ import { getLocalHistoryDateFormatter } from '../../../../localHistory/browser/l
 
 interface ISessionTemplateData {
 	readonly container: HTMLElement;
-	readonly resourceLabel: IResourceLabel;
+	readonly iconLabel: IconLabel;
 	readonly actionBar: ActionBar;
 	readonly elementDisposable: DisposableStore;
 	readonly timestamp: HTMLElement;
 	readonly descriptionRow: HTMLElement;
 	readonly descriptionLabel: HTMLElement;
 	readonly statisticsLabel: HTMLElement;
+	readonly customIcon: HTMLElement;
 }
 
 export interface IGettingStartedItem {
@@ -110,13 +109,9 @@ export class GettingStartedRenderer implements IListRenderer<IGettingStartedItem
 
 export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionItem, FuzzyScore, ISessionTemplateData> {
 	static readonly TEMPLATE_ID = 'session';
-	private appliedIconColorStyles = new Set<string>();
 	private markdownRenderer: MarkdownRenderer;
 
 	constructor(
-		private readonly labels: ResourceLabels,
-		@IThemeService private readonly themeService: IThemeService,
-		@ILogService private readonly logService: ILogService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
@@ -130,54 +125,7 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 	) {
 		super();
 
-		// Listen for theme changes to clear applied styles
-		this._register(this.themeService.onDidColorThemeChange(() => {
-			this.appliedIconColorStyles.clear();
-		}));
-
 		this.markdownRenderer = instantiationService.createInstance(MarkdownRenderer, {});
-	}
-
-	private applyIconColorStyle(iconId: string, colorId: string): void {
-		const styleKey = `${iconId}-${colorId}`;
-		if (this.appliedIconColorStyles.has(styleKey)) {
-			return; // Already applied
-		}
-
-		const colorTheme = this.themeService.getColorTheme();
-		const color = colorTheme.getColor(colorId);
-
-		if (color) {
-			// Target the ::before pseudo-element where the actual icon is rendered
-			const css = `.monaco-workbench .chat-session-item .monaco-icon-label.codicon-${iconId}::before { color: ${color} !important; }`;
-			const activeWindow = getActiveWindow();
-
-			const styleId = `chat-sessions-icon-${styleKey}`;
-			const existingStyle = activeWindow.document.getElementById(styleId);
-			if (existingStyle) {
-				existingStyle.textContent = css;
-			} else {
-				const styleElement = activeWindow.document.createElement('style');
-				styleElement.id = styleId;
-				styleElement.textContent = css;
-				activeWindow.document.head.appendChild(styleElement);
-
-				// Clean up on dispose
-				this._register({
-					dispose: () => {
-						const activeWin = getActiveWindow();
-						const style = activeWin.document.getElementById(styleId);
-						if (style) {
-							style.remove();
-						}
-					}
-				});
-			}
-
-			this.appliedIconColorStyles.add(styleKey);
-		} else {
-			this.logService.debug('No color found for colorId:', colorId);
-		}
 	}
 
 	get templateId(): string {
@@ -189,7 +137,9 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 
 		// Create a container that holds the label, timestamp, and actions
 		const contentContainer = append(element, $('.session-content'));
-		const resourceLabel = this.labels.create(contentContainer, { supportHighlights: true });
+		// Custom icon element rendered separately from label text
+		const customIcon = append(contentContainer, $('.chat-session-custom-icon'));
+		const iconLabel = new IconLabel(contentContainer, { supportHighlights: true, supportIcons: true });
 		const descriptionRow = append(element, $('.description-row'));
 		const descriptionLabel = append(descriptionRow, $('span.description'));
 		const statisticsLabel = append(descriptionRow, $('span.statistics'));
@@ -204,7 +154,8 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 
 		return {
 			container: element,
-			resourceLabel,
+			iconLabel,
+			customIcon,
 			actionBar,
 			elementDisposable,
 			timestamp,
@@ -217,7 +168,7 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 	statusToIcon(status?: ChatSessionStatus) {
 		switch (status) {
 			case ChatSessionStatus.InProgress:
-				return Codicon.loading;
+				return ThemeIcon.modify(Codicon.loading, 'spin');
 			case ChatSessionStatus.Completed:
 				return Codicon.pass;
 			case ChatSessionStatus.Failed:
@@ -253,7 +204,6 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 		templateData.actionBar.clear();
 
 		// Handle different icon types
-		let iconResource: URI | undefined;
 		let iconTheme: ThemeIcon | undefined;
 		if (!session.iconPath && session.id !== LocalChatSessionsProvider.HISTORY_NODE_ID) {
 			iconTheme = this.statusToIcon(session.status);
@@ -261,11 +211,7 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 			iconTheme = session.iconPath;
 		}
 
-		if (iconTheme?.color?.id) {
-			this.applyIconColorStyle(iconTheme.id, iconTheme.color.id);
-		}
-
-		const renderDescriptionOnSecondRow = this.configurationService.getValue(ChatConfiguration.ShowAgentSessionsViewDescription) && session.provider.chatSessionType !== 'local';
+		const renderDescriptionOnSecondRow = this.configurationService.getValue<boolean>(ChatConfiguration.ShowAgentSessionsViewDescription) && session.provider.chatSessionType !== 'local';
 
 		if (renderDescriptionOnSecondRow && session.description) {
 			templateData.container.classList.toggle('multiline', true);
@@ -305,17 +251,17 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 				} : undefined) :
 			undefined;
 
-		// Set the resource label
-		templateData.resourceLabel.setResource({
-			name: session.label,
-			description: !renderDescriptionOnSecondRow && 'description' in session && typeof session.description === 'string' ? session.description : '',
-			resource: iconResource
-		}, {
-			fileKind: undefined,
-			icon: iconTheme,
-			// Set tooltip on resourceLabel only for single-row items
-			title: !renderDescriptionOnSecondRow || !session.description ? tooltipContent : undefined
-		});
+		templateData.customIcon.className = iconTheme ? `chat-session-custom-icon ${ThemeIcon.asClassName(iconTheme)}` : '';
+
+		// Set the icon label
+		templateData.iconLabel.setLabel(
+			session.label,
+			!renderDescriptionOnSecondRow && typeof session.description === 'string' ? session.description : undefined,
+			{
+				title: !renderDescriptionOnSecondRow || !session.description ? tooltipContent : undefined,
+				matches: createMatches(element.filterData)
+			}
+		);
 
 		// For two-row items, set tooltip on the container instead
 		if (renderDescriptionOnSecondRow && session.description && tooltipContent) {
@@ -398,7 +344,6 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 
 	disposeElement(_element: ITreeNode<IChatSessionItem, FuzzyScore>, _index: number, templateData: ISessionTemplateData): void {
 		templateData.elementDisposable.clear();
-		templateData.resourceLabel.clear();
 		templateData.actionBar.clear();
 	}
 
@@ -531,7 +476,7 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 
 	disposeTemplate(templateData: ISessionTemplateData): void {
 		templateData.elementDisposable.dispose();
-		templateData.resourceLabel.dispose();
+		templateData.iconLabel.dispose();
 		templateData.actionBar.dispose();
 	}
 }
@@ -577,11 +522,13 @@ export class SessionsDataSource implements IAsyncDataSource<IChatSessionItemProv
 				// Add hybrid local editor sessions for this provider using the centralized service
 				if (this.provider.chatSessionType !== 'local') {
 					const hybridSessions = await this.sessionTracker.getHybridSessionsForProvider(this.provider);
-					itemsWithProvider.push(...(hybridSessions as ChatSessionItemWithProvider[]));
-				}
-
-				// For non-local providers, apply time-based sorting and grouping
-				if (this.provider.chatSessionType !== 'local') {
+					const existingIds = new Set(itemsWithProvider.map(s => s.id));
+					hybridSessions.forEach(session => {
+						if (!existingIds.has(session.id)) {
+							itemsWithProvider.push(session as ChatSessionItemWithProvider);
+							existingIds.add(session.id);
+						}
+					});
 					processSessionsWithTimeGrouping(itemsWithProvider);
 				}
 

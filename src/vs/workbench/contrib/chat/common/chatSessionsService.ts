@@ -21,6 +21,12 @@ export const enum ChatSessionStatus {
 	InProgress = 2
 }
 
+export interface IChatSessionCommandContribution {
+	name: string;
+	description: string;
+	when?: string;
+}
+
 export interface IChatSessionsExtensionPoint {
 	readonly type: string;
 	readonly name: string;
@@ -32,6 +38,7 @@ export interface IChatSessionsExtensionPoint {
 		supportsFileAttachments?: boolean;
 		supportsToolAttachments?: boolean;
 	};
+	readonly commands?: IChatSessionCommandContribution[];
 }
 export interface IChatSessionItem {
 	id: string;
@@ -75,8 +82,6 @@ export interface IChatSessionItemProvider {
 	provideChatSessionItems(token: CancellationToken): Promise<IChatSessionItem[]>;
 	provideNewChatSessionItem?(options: {
 		request: IChatAgentRequest;
-		prompt?: string;
-		history?: any[];
 		metadata?: any;
 	}, token: CancellationToken): Promise<IChatSessionItem>;
 }
@@ -99,8 +104,6 @@ export interface IChatSessionsService {
 	getAllChatSessionItemProviders(): IChatSessionItemProvider[];
 	provideNewChatSessionItem(chatSessionType: string, options: {
 		request: IChatAgentRequest;
-		prompt?: string;
-		history?: any[];
 		metadata?: any;
 	}, token: CancellationToken): Promise<IChatSessionItem>;
 	provideChatSessionItems(chatSessionType: string, token: CancellationToken): Promise<IChatSessionItem[]>;

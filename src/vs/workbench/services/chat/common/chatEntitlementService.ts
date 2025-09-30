@@ -469,6 +469,7 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 type EntitlementClassification = {
 	tid: { classification: 'EndUserPseudonymizedInformation'; purpose: 'BusinessInsight'; comment: 'The anonymized analytics id returned by the service'; endpoint: 'GoogleAnalyticsId' };
 	entitlement: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Flag indicating the chat entitlement state' };
+	sku: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The SKU of the chat entitlement' };
 	quotaChat: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of chat requests available to the user' };
 	quotaPremiumChat: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of premium chat requests available to the user' };
 	quotaCompletions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of code completions available to the user' };
@@ -480,6 +481,7 @@ type EntitlementClassification = {
 type EntitlementEvent = {
 	entitlement: ChatEntitlement;
 	tid: string;
+	sku: string | undefined;
 	quotaChat: number | undefined;
 	quotaPremiumChat: number | undefined;
 	quotaCompletions: number | undefined;
@@ -533,6 +535,8 @@ interface IEntitlements {
 
 export interface IQuotaSnapshot {
 	readonly total: number;
+
+	readonly remaining: number;
 	readonly percentRemaining: number;
 
 	readonly overageEnabled: boolean;
@@ -782,10 +786,11 @@ export class ChatEntitlementRequests extends Disposable {
 		this.telemetryService.publicLog2<EntitlementEvent, EntitlementClassification>('chatInstallEntitlement', {
 			entitlement: entitlements.entitlement,
 			tid: entitlementsResponse.analytics_tracking_id,
-			quotaChat: entitlementsResponse?.quota_snapshots?.chat?.remaining,
-			quotaPremiumChat: entitlementsResponse?.quota_snapshots?.premium_interactions?.remaining,
-			quotaCompletions: entitlementsResponse?.quota_snapshots?.completions?.remaining,
-			quotaResetDate: entitlementsResponse.quota_reset_date_utc ?? entitlementsResponse.quota_reset_date ?? entitlementsResponse.limited_user_reset_date
+			sku: entitlements.sku,
+			quotaChat: entitlements.quotas?.chat?.remaining,
+			quotaPremiumChat: entitlements.quotas?.premiumChat?.remaining,
+			quotaCompletions: entitlements.quotas?.completions?.remaining,
+			quotaResetDate: entitlements.quotas?.resetDate
 		});
 
 		return entitlements;
@@ -814,6 +819,7 @@ export class ChatEntitlementRequests extends Disposable {
 		if (response.monthly_quotas?.chat && typeof response.limited_user_quotas?.chat === 'number') {
 			quotas.chat = {
 				total: response.monthly_quotas.chat,
+				remaining: response.limited_user_quotas.chat,
 				percentRemaining: Math.min(100, Math.max(0, (response.limited_user_quotas.chat / response.monthly_quotas.chat) * 100)),
 				overageEnabled: false,
 				overageCount: 0,
@@ -824,6 +830,7 @@ export class ChatEntitlementRequests extends Disposable {
 		if (response.monthly_quotas?.completions && typeof response.limited_user_quotas?.completions === 'number') {
 			quotas.completions = {
 				total: response.monthly_quotas.completions,
+				remaining: response.limited_user_quotas.completions,
 				percentRemaining: Math.min(100, Math.max(0, (response.limited_user_quotas.completions / response.monthly_quotas.completions) * 100)),
 				overageEnabled: false,
 				overageCount: 0,
@@ -840,6 +847,7 @@ export class ChatEntitlementRequests extends Disposable {
 				}
 				const quotaSnapshot: IQuotaSnapshot = {
 					total: rawQuotaSnapshot.entitlement,
+					remaining: rawQuotaSnapshot.remaining,
 					percentRemaining: Math.min(100, Math.max(0, rawQuotaSnapshot.percent_remaining)),
 					overageEnabled: rawQuotaSnapshot.overage_permitted,
 					overageCount: rawQuotaSnapshot.overage_count,
@@ -1081,11 +1089,15 @@ type ChatEntitlementClassification = {
 	chatHidden: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether chat is hidden or not.' };
 	chatEntitlement: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The current chat entitlement of the user.' };
 	chatAnonymous: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user is anonymously using chat.' };
+	chatRegistered: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user is registered for chat.' };
+	chatDisabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether chat is disabled or not.' };
 };
 type ChatEntitlementEvent = {
 	chatHidden: boolean;
 	chatEntitlement: ChatEntitlement;
 	chatAnonymous: boolean;
+	chatRegistered: boolean;
+	chatDisabled: boolean;
 };
 
 export class ChatEntitlementContext extends Disposable {
@@ -1261,7 +1273,9 @@ export class ChatEntitlementContext extends Disposable {
 		this.logService.trace(`[chat entitlement context] updateContext(): ${JSON.stringify(state)}`);
 		this.telemetryService.publicLog2<ChatEntitlementEvent, ChatEntitlementClassification>('chatEntitlements', {
 			chatHidden: Boolean(state.hidden),
+			chatDisabled: Boolean(state.disabled),
 			chatEntitlement: state.entitlement,
+			chatRegistered: Boolean(state.registered),
 			chatAnonymous: isAnonymous(this.configurationService, state.entitlement, state)
 		});
 

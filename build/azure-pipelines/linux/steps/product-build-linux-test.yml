@@ -5,8 +5,6 @@ parameters:
     type: boolean
   - name: VSCODE_RUN_REMOTE_TESTS
     type: boolean
-  - name: VSCODE_TEST_ARTIFACT_NAME
-    type: string
 
 steps:
   - script: npm exec -- npm-run-all -lp "electron $(VSCODE_ARCH)" "playwright-install"
@@ -138,44 +136,6 @@ steps:
     displayName: Diagnostics after smoke test run (processes, max_user_watches, number of opened file handles)
     continueOnError: true
     condition: succeededOrFailed()
-
-  - template: ../common/publish-artifact.yml@self
-    parameters:
-      targetPath: .build/crashes
-      ${{ if eq(parameters.VSCODE_TEST_ARTIFACT_NAME, '') }}:
-        artifactName: crash-dump-linux-$(VSCODE_ARCH)-$(System.JobAttempt)
-      ${{ else }}:
-        artifactName: crash-dump-linux-$(VSCODE_ARCH)-${{ parameters.VSCODE_TEST_ARTIFACT_NAME }}-$(System.JobAttempt)
-      displayName: "Publish Crash Reports"
-      sbomEnabled: false
-      continueOnError: true
-      condition: failed()
-
-  # In order to properly symbolify above crash reports
-  # (if any), we need the compiled native modules too
-  - template: ../common/publish-artifact.yml@self
-    parameters:
-      targetPath: node_modules
-      ${{ if eq(parameters.VSCODE_TEST_ARTIFACT_NAME, '') }}:
-        artifactName: node-modules-linux-$(VSCODE_ARCH)-$(System.JobAttempt)
-      ${{ else }}:
-        artifactName: node-modules-linux-$(VSCODE_ARCH)-${{ parameters.VSCODE_TEST_ARTIFACT_NAME }}-$(System.JobAttempt)
-      displayName: "Publish Node Modules"
-      sbomEnabled: false
-      continueOnError: true
-      condition: failed()
-
-  - template: ../common/publish-artifact.yml@self
-    parameters:
-      targetPath: .build/logs
-      ${{ if eq(parameters.VSCODE_TEST_ARTIFACT_NAME, '') }}:
-        artifactName: logs-linux-$(VSCODE_ARCH)-$(System.JobAttempt)
-      ${{ else }}:
-        artifactName: logs-linux-$(VSCODE_ARCH)-${{ parameters.VSCODE_TEST_ARTIFACT_NAME }}-$(System.JobAttempt)
-      displayName: "Publish Log Files"
-      sbomEnabled: false
-      continueOnError: true
-      condition: succeededOrFailed()
 
   - task: PublishTestResults@2
     displayName: Publish Tests Results
