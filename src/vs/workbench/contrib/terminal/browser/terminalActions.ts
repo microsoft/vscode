@@ -299,7 +299,7 @@ export function registerTerminalActions() {
 		title: localize2('workbench.action.terminal.newInActiveWorkspace', 'Create New Terminal (In Active Workspace)'),
 		run: async (c) => {
 			if (c.service.isProcessSupportRegistered) {
-				const instance = await c.service.createTerminal({ location: c.service.defaultLocation });
+				const instance = await c.service.createTerminal({ location: c.configService.defaultLocation });
 				if (!instance) {
 					return;
 				}

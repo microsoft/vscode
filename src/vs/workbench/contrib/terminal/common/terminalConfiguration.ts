@@ -11,7 +11,7 @@ import { localize } from '../../../../nls.js';
 import { ConfigurationScope, Extensions, IConfigurationRegistry, type IConfigurationPropertySchema } from '../../../../platform/configuration/common/configurationRegistry.js';
 import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { TerminalLocationString, TerminalSettingId } from '../../../../platform/terminal/common/terminal.js';
+import { TerminalLocationConfigValue, TerminalSettingId } from '../../../../platform/terminal/common/terminal.js';
 import { terminalColorSchema, terminalIconSchema } from '../../../../platform/terminal/common/terminalPlatformConfiguration.js';
 import { ConfigurationKeyValuePairs, IConfigurationMigrationRegistry, Extensions as WorkbenchExtensions } from '../../../common/configuration.js';
 import { terminalContribConfiguration, TerminalContribSettingId } from '../terminalContribExports.js';
@@ -115,7 +115,7 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	},
 	[TerminalSettingId.DefaultLocation]: {
 		type: 'string',
-		enum: [TerminalLocationString.Editor, TerminalLocationString.TerminalView],
+		enum: [TerminalLocationConfigValue.Editor, TerminalLocationConfigValue.TerminalView],
 		enumDescriptions: [
 			localize('terminal.integrated.defaultLocation.editor', "Create terminals in the editor"),
 			localize('terminal.integrated.defaultLocation.view', "Create terminals in the terminal view")

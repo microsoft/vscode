@@ -296,7 +296,6 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	readonly instances: readonly ITerminalInstance[];
 	/** Gets detached terminal instances created via {@link createDetachedXterm}. */
 	readonly detachedInstances: Iterable<IDetachedTerminalInstance>;
-	readonly defaultLocation: TerminalLocation;
 
 	readonly isProcessSupportRegistered: boolean;
 	readonly connectionState: TerminalConnectionState;
@@ -414,6 +413,11 @@ export interface ITerminalConfigurationService {
 	 * A typed and partially validated representation of the terminal configuration.
 	 */
 	readonly config: Readonly<ITerminalConfiguration>;
+
+	/**
+	 * The default location for terminals.
+	 */
+	readonly defaultLocation: TerminalLocation;
 
 	/**
 	 * Fires when something within the terminal configuration changes.
