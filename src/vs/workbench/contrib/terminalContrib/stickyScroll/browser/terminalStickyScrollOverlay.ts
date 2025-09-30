@@ -228,7 +228,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		this._currentStickyCommand = undefined;
 
 		// No command or clear command
-		if (!command || (command.command && this._isClearCommand(command.command))) {
+		if (!command || this._isClearCommand(command)) {
 			this._setVisible(false);
 			return;
 		}
@@ -521,8 +521,11 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		};
 	}
 
-	private _isClearCommand(command: string): boolean {
-		const trimmedCommand = command.trim().toLowerCase();
+	private _isClearCommand(command: ITerminalCommand | ICurrentPartialCommand): boolean {
+		if (!command.command) {
+			return false;
+		}
+		const trimmedCommand = command.command.trim().toLowerCase();
 		const clearCommands = [
 			'clear',
 			'cls',
