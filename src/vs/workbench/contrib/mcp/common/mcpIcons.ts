@@ -25,6 +25,7 @@ interface IIcon {
 	sizes: { width: number; height: number }[];
 }
 
+export type ParsedMcpIcons = IIcon[];
 export type StoredMcpIcons = Dto<IIcon>[];
 
 
@@ -68,8 +69,8 @@ function validateIcon(icon: MCP.Icon, launch: McpServerLaunch, logger: ILogger):
 	return;
 }
 
-export function parseAndValidateMcpIcon(icons: MCP.Icons, launch: McpServerLaunch, logger: ILogger): StoredMcpIcons {
-	const result: StoredMcpIcons = [];
+export function parseAndValidateMcpIcon(icons: MCP.Icons, launch: McpServerLaunch, logger: ILogger): ParsedMcpIcons {
+	const result: ParsedMcpIcons = [];
 	for (const icon of icons.icons || []) {
 		const uri = validateIcon(icon, launch, logger);
 		if (!uri) {
@@ -92,9 +93,12 @@ export function parseAndValidateMcpIcon(icons: MCP.Icons, launch: McpServerLaunc
 }
 
 export class McpIcons implements IMcpIcons {
-
 	public static fromStored(icons: StoredMcpIcons | undefined) {
-		return new McpIcons(icons?.map(i => ({ src: URI.revive(i.src), sizes: i.sizes })) || []);
+		return McpIcons.fromParsed(icons?.map(i => ({ src: URI.revive(i.src), sizes: i.sizes })));
+	}
+
+	public static fromParsed(icons: ParsedMcpIcons | undefined) {
+		return new McpIcons(icons || []);
 	}
 
 	protected constructor(private readonly _icons: IIcon[]) { }
