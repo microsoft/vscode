@@ -11,6 +11,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { isNumber } from '../../../../../base/common/types.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { SpeechTimeoutDefault } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { ISpeechService, AccessibilityVoiceSettingId, ISpeechToTextEvent, SpeechToTextStatus } from '../../../speech/common/speechService.js';
@@ -18,6 +19,8 @@ import type { IMarker, IDecoration } from '@xterm/xterm';
 import { alert } from '../../../../../base/browser/ui/aria/aria.js';
 import { ITerminalService } from '../../../terminal/browser/terminal.js';
 
+
+export const TERMINAL_DICTATION_IN_PROGRESS = new RawContextKey<boolean>('terminalDictation.inProgress', false);
 
 const symbolMap: { [key: string]: string } = {
 	'Ampersand': '&',
@@ -56,6 +59,7 @@ export class TerminalVoiceSession extends Disposable {
 	private _ghostTextMarker: IMarker | undefined;
 	private static _instance: TerminalVoiceSession | undefined = undefined;
 	private _acceptTranscriptionScheduler: RunOnceScheduler | undefined;
+	private readonly _terminalDictationInProgress: IContextKey<boolean>;
 	static getInstance(instantiationService: IInstantiationService): TerminalVoiceSession {
 		if (!TerminalVoiceSession._instance) {
 			TerminalVoiceSession._instance = instantiationService.createInstance(TerminalVoiceSession);
@@ -69,11 +73,13 @@ export class TerminalVoiceSession extends Disposable {
 		@ISpeechService private readonly _speechService: ISpeechService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
 		this._register(this._terminalService.onDidChangeActiveInstance(() => this.stop()));
 		this._register(this._terminalService.onDidDisposeInstance(() => this.stop()));
 		this._disposables = this._register(new DisposableStore());
+		this._terminalDictationInProgress = TERMINAL_DICTATION_IN_PROGRESS.bindTo(contextKeyService);
 	}
 
 	async start(): Promise<void> {
@@ -96,6 +102,7 @@ export class TerminalVoiceSession extends Disposable {
 			}
 			switch (e.status) {
 				case SpeechToTextStatus.Started:
+					this._terminalDictationInProgress.set(true);
 					if (!this._decoration) {
 						this._createDecoration();
 					}
@@ -133,6 +140,7 @@ export class TerminalVoiceSession extends Disposable {
 		this._cancellationTokenSource?.cancel();
 		this._disposables.clear();
 		this._input = '';
+		this._terminalDictationInProgress.reset();
 	}
 
 	private _sendText(): void {
