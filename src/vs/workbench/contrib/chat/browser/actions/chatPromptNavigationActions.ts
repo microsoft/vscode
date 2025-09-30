@@ -20,7 +20,7 @@ export function registerChatPromptNavigationActions() {
 				id: 'workbench.action.chat.nextUserPrompt',
 				title: localize2('interactive.nextUserPrompt.label', "Next User Prompt"),
 				keybinding: {
-					primary: KeyMod.CtrlCmd | KeyCode.RightArrow,
+					primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
 					weight: KeybindingWeight.WorkbenchContrib,
 					when: ChatContextKeys.inChatSession,
 				},
@@ -41,7 +41,7 @@ export function registerChatPromptNavigationActions() {
 				id: 'workbench.action.chat.previousUserPrompt',
 				title: localize2('interactive.previousUserPrompt.label', "Previous User Prompt"),
 				keybinding: {
-					primary: KeyMod.CtrlCmd | KeyCode.LeftArrow,
+					primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
 					weight: KeybindingWeight.WorkbenchContrib,
 					when: ChatContextKeys.inChatSession,
 				},
