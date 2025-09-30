@@ -516,8 +516,10 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 			return;
 		}
 
-		if (isNotebook) {
-			// For notebooks, use VSCode's REAL serialization process for current content
+	if (isNotebook) {
+		// For notebooks, use VSCode's REAL serialization process for current content
+		let notebookCurrentContent: string;
+		try {
 			const snapshotStream = await this.notebookService.createNotebookTextDocumentSnapshot(
 				uri, 
 				SnapshotContext.Save,
@@ -525,12 +527,15 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 			);
 			
 			const buffer = await streamToBuffer(snapshotStream);
-			const notebookCurrentContent = buffer.toString();
-			
-			// Handle notebook files with consolidated diff processing
-			await this.notebookApplyDiffDecorations(uri, originalContent, notebookCurrentContent);
+			notebookCurrentContent = buffer.toString();
+		} catch (error) {
 			return;
 		}
+		
+		// Handle notebook files with consolidated diff processing
+		await this.notebookApplyDiffDecorations(uri, originalContent, notebookCurrentContent);
+		return;
+	}
 
 		const diffEntries = await this.computeLineDiff(originalContent, currentContent);
 
@@ -2069,13 +2074,18 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 		}
 		
 		// For notebooks, use VSCode's serialization and add cell IDs
-		const snapshotStream = await this.notebookService.createNotebookTextDocumentSnapshot(
-			uri, 
-			SnapshotContext.Save,
-			new CancellationTokenSource().token
-		);
-		const buffer = await streamToBuffer(snapshotStream);
-		const currentContent = buffer.toString();
+		let currentContent: string;
+		try {
+			const snapshotStream = await this.notebookService.createNotebookTextDocumentSnapshot(
+				uri, 
+				SnapshotContext.Save,
+				new CancellationTokenSource().token
+			);
+			const buffer = await streamToBuffer(snapshotStream);
+			currentContent = buffer.toString();
+		} catch (error) {
+			return;
+		}
 			
 			// Store current content as accepted (cells should already have erdosAi_cellId)
 			fileTracking.accepted_content = currentContent;
@@ -2504,13 +2514,17 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 		}
 		
 		// For notebooks, use VSCode's real serialization process
-		const snapshotStream = await this.notebookService.createNotebookTextDocumentSnapshot(
-			uri, 
-			SnapshotContext.Save,
-			new CancellationTokenSource().token
-		);
-		const buffer = await streamToBuffer(snapshotStream);
-		currentContent = buffer.toString();
+		try {
+			const snapshotStream = await this.notebookService.createNotebookTextDocumentSnapshot(
+				uri, 
+				SnapshotContext.Save,
+				new CancellationTokenSource().token
+			);
+			const buffer = await streamToBuffer(snapshotStream);
+			currentContent = buffer.toString();
+		} catch (error) {
+			return;
+		}
 			
 			// Use flat line approach like other notebook methods
 			const oldData = this.notebookExtractLines(fileTracking.accepted_content);
@@ -2622,15 +2636,16 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 				let currentContent: string;
 				const isNotebook = this.commonUtils.getFileExtension(uri.fsPath).toLowerCase() === 'ipynb';
 				
-				if (isNotebook) {
-					// For notebooks, check if model exists before trying to get snapshot
-					const notebookModel = this.notebookService.getNotebookTextModel(uri);
-					if (!notebookModel) {
-						// Notebook not loaded, skip it (can't get proper serialized content without loading)
-						continue;
-					}
-					
-					// For notebooks, use VSCode's REAL serialization process
+			if (isNotebook) {
+				// For notebooks, check if model exists before trying to get snapshot
+				const notebookModel = this.notebookService.getNotebookTextModel(uri);
+				if (!notebookModel) {
+					// Notebook not loaded, skip it (can't get proper serialized content without loading)
+					continue;
+				}
+				
+				// For notebooks, use VSCode's REAL serialization process
+				try {
 					const snapshotStream = await this.notebookService.createNotebookTextDocumentSnapshot(
 						uri, 
 						SnapshotContext.Save,
@@ -2639,6 +2654,9 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 					
 					const buffer = await streamToBuffer(snapshotStream);
 					currentContent = buffer.toString();
+				} catch (error) {
+					continue;
+				}
 				} else {
 						// For regular files, use Monaco model if available, otherwise from disk
 						const model = this.modelService.getModel(uri);
@@ -2812,20 +2830,26 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 		const fileTracking = JSON.parse(trackingContent.value.toString());
 		
 		
-	// Debug: Check what's in the VSCode notebook model BEFORE serialization
-	const notebookModel = this.notebookService.getNotebookTextModel(uri);
-	if (!notebookModel) {
-		return;
-	}
-	
-	// Get current notebook content using VSCode's notebook serialization process
-	const snapshotStream = await this.notebookService.createNotebookTextDocumentSnapshot(
-		uri, 
-		SnapshotContext.Save,
-		new CancellationTokenSource().token
-	);
-		const buffer = await streamToBuffer(snapshotStream);
-		const notebookCurrentContent = buffer.toString();
+		const notebookModel = this.notebookService.getNotebookTextModel(uri);
+		if (!notebookModel) {
+			this.completeNotebookOperation(uri.toString());
+			return;
+		}
+		
+		// Get current notebook content using VSCode's notebook serialization process
+		let notebookCurrentContent: string;
+		try {
+			const snapshotStream = await this.notebookService.createNotebookTextDocumentSnapshot(
+				uri, 
+				SnapshotContext.Save,
+				new CancellationTokenSource().token
+			);
+			const buffer = await streamToBuffer(snapshotStream);
+			notebookCurrentContent = buffer.toString();
+		} catch (error) {
+			this.completeNotebookOperation(uri.toString());
+			return;
+		}
 		const cellBasedDiffs = await this.computeNotebookCellBasedDiff(fileTracking.accepted_content, notebookCurrentContent, uri);
 		
 		// If no differences found, clear auto-accept highlighting and return

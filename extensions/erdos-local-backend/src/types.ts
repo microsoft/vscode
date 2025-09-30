@@ -49,7 +49,8 @@ export interface ILocalBackendService {
         contextData: any,
         onData: (data: StreamData) => void,
         onError: (error: Error) => void,
-        onComplete: () => void
+        onComplete: () => void,
+        webSearchEnabled?: boolean
     ): Promise<void>;
 }
 
@@ -67,6 +68,7 @@ export interface IErdosLocalBackendExtensionService {
         contextData: any,
         onData: (data: StreamData) => void,
         onError: (error: Error) => void,
-        onComplete: () => void
+        onComplete: () => void,
+        webSearchEnabled?: boolean
     ): Promise<void>;
 }

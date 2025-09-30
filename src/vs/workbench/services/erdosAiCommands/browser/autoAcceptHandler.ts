@@ -245,13 +245,29 @@ export class AutoAcceptHandler implements IAutoAcceptHandler {
 					vscodeMetadata.metadata = cell.metadata;
 				}
 				
+				// CRITICAL: Preserve outputs from the existing cell model by matching cell IDs
+				// When adding cell IDs, we must not clear outputs
+				const cellId = cell.metadata?.erdosAi_cellId;
+				const existingCell = cellId ? notebookModel.cells.find(c => {
+					const cellMetadata = c.metadata;
+					if (cellMetadata && typeof cellMetadata === 'object' && 'metadata' in cellMetadata) {
+						const nestedMetadata = cellMetadata.metadata;
+						if (nestedMetadata && typeof nestedMetadata === 'object' && 'erdosAi_cellId' in nestedMetadata) {
+							return nestedMetadata.erdosAi_cellId === cellId;
+						}
+					}
+					return false;
+				}) : undefined;
+				
+				const preservedOutputs = existingCell?.outputs || [];
+				
 				const newCellData = {
 					cellKind: cell.cell_type === 'markdown' ? 1 : 2,
 					source: Array.isArray(cell.source) ? cell.source.join('') : cell.source,
 					language: cell.cell_type === 'code' ? 'python' : 'markdown',
 					mime: cell.cell_type === 'markdown' ? 'text/markdown' : 'text/x-python',
 					metadata: vscodeMetadata,
-					outputs: cell.outputs || []
+					outputs: preservedOutputs
 				};
 				return newCellData;
 			});

@@ -111,33 +111,52 @@ export class SSEParser extends Disposable implements ISSEParser {
         return null;
     }
 
-    public handleDataLine(data: any): StreamData | null {
+	public handleDataLine(data: any): StreamData | null {
+		if (data.delta !== undefined && typeof data.delta === 'string' && data.delta.length > 0) {
 
-        if (data.delta !== undefined && typeof data.delta === 'string' && data.delta.length > 0) {
+			if (data.field && data.call_id) {
+				return this.handleFieldDelta(data);
+			}
+			
+			return {
+				type: 'content',
+				content: data.delta,
+				delta: data.delta
+			};
+		}
 
-            if (data.field && data.call_id) {
-                return this.handleFieldDelta(data);
-            }
-            
-            return {
-                type: 'content',
-                content: data.delta,
-                delta: data.delta
-            };
-        }
+		if (data.action === 'function_call' && data.function_call) {
+			const functionCall = data.function_call;
+			return {
+				type: 'function_call',
+				functionCall: {
+					name: functionCall.name,
+					arguments: functionCall.arguments,
+					call_id: functionCall.call_id,
+					msg_id: functionCall.msg_id || 0
+				}
+			} as StreamData;
+		}
 
-        if (data.action === 'function_call' && data.function_call) {
-            const functionCall = data.function_call;
-            return {
-                type: 'function_call',
-                functionCall: {
-                    name: functionCall.name,
-                    arguments: functionCall.arguments,
-                    call_id: functionCall.call_id,
-                    msg_id: functionCall.msg_id || 0
-                }
-            } as StreamData;
-        }
+		// Handle web_search_call events
+		if (data.web_search_call && data.web_search_call.query) {
+			// Convert web_search_call to a function_call format so it's displayed
+			return {
+				type: 'function_call',
+				functionCall: {
+					name: 'web_search',
+					arguments: JSON.stringify({ query: data.web_search_call.query }),
+					call_id: data.web_search_call.id || 'web_search_' + Date.now(),
+					msg_id: 0
+				}
+			} as StreamData;
+		}
+
+		// Handle web_search_results events - the search results are used by the AI model on the backend
+		// We don't need to display them separately
+		if (data.web_search_results) {
+			return null;
+		}
 
         if (data.field && data.call_id && data.isComplete === true) {
 

@@ -113,8 +113,9 @@ export class FileCommandHandler extends Disposable implements IFileCommandHandle
 		} catch (error) {
 			this.logService.error('Failed to accept file command:', error);
 			
+			// Even setup errors should continue_silent so AI can respond
 			return {
-				status: 'error',
+				status: 'continue_silent',
 				data: {
 					error: error instanceof Error ? error.message : String(error),
 					related_to_id: messageId,
@@ -132,31 +133,20 @@ export class FileCommandHandler extends Disposable implements IFileCommandHandle
 		requestId: string,
 		successMessage?: string
 	): Promise<{status: string, data: any}> {
-		
 		// Update conversation with result
 		await this.conversationManager.replacePendingFunctionCallOutput(callId, result, isSuccess);
 		await this.conversationManager.updateConversationDisplay();
 		
-		if (isSuccess && !result.startsWith('Error:')) {
-			return {
-				status: 'continue_silent',
-				data: {
-					message: successMessage || 'Execution completed - returning control to orchestrator',
-					related_to_id: relatedToId,
-					request_id: requestId
-				}
-			};
-		} else {
-			const errorMessage = result.startsWith('Error:') ? result : `Error: ${result}`;
-			return {
-				status: 'error',
-				data: {
-					error: errorMessage,
-					related_to_id: relatedToId,
-					request_id: requestId
-				}
-			};
-		}
+		// Python/R code errors should ALWAYS continue_silent so AI can respond
+		// The error output has already been saved to function_call_output above
+		return {
+			status: 'continue_silent',
+			data: {
+				message: successMessage || 'Execution completed - returning control to orchestrator',
+				related_to_id: relatedToId,
+				request_id: requestId
+			}
+		};
 	}
 
 	async cancelFileCommand(messageId: number, requestId: string): Promise<{status: string, data: any}> {
@@ -202,8 +192,9 @@ export class FileCommandHandler extends Disposable implements IFileCommandHandle
 		} catch (error) {
 			this.logService.error('Failed to cancel file command:', error);
 			
+			// Even cancellation errors should continue_silent so AI can respond
 			return {
-				status: 'error',
+				status: 'continue_silent',
 				data: {
 					error: error instanceof Error ? error.message : String(error),
 					related_to_id: messageId,

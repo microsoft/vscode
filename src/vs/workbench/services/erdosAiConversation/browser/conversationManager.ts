@@ -782,6 +782,15 @@ export class ConversationManager extends Disposable implements IConversationMana
 						cancelled: true
 					}, undefined);
 					if (messageId > 0) {
+						// Fire onMessageAdded so the UI gets updated with the cancelled message
+						// Note: We do this here (not in completeStreamingMessage) because textStreamHandler
+						// already fires onMessageAdded for normal completions. Only cancelled messages need it here.
+						const finalConversation = this.getCurrentConversation();
+						const completedMessage = finalConversation?.messages.find((m: ConversationMessage) => m.id === messageId);
+						if (completedMessage) {
+							this._onMessageAdded.fire(completedMessage);
+						}
+						
 						return;
 					}
 				} catch (error) {

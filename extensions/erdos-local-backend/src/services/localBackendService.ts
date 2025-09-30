@@ -44,7 +44,7 @@ export class LocalBackendService implements ILocalBackendService {
 
 	// Constants for supported models
 	private static readonly OPENAI_CHEAP_MODEL = 'gpt-4.1-mini';
-	private static readonly ANTHROPIC_CHEAP_MODEL = 'claude-sonnet-4-20250514';
+	private static readonly ANTHROPIC_CHEAP_MODEL = 'claude-sonnet-4-5-20250929';
 	private static readonly SAGEMAKER_MODEL = 'Qwen/Qwen3-Coder-30B-A3B-Instruct';
 
 	private readonly streamingService: StreamingService;
@@ -1835,7 +1835,8 @@ export class LocalBackendService implements ILocalBackendService {
 		contextData: any,
 		onData: (data: StreamData) => void,
 		onError: (error: Error) => void,
-		onComplete: () => void
+		onComplete: () => void,
+		webSearchEnabled: boolean = false
 	): Promise<void> {
 		// Validate basic request
 		const validationError = this.validateBasicRequest(messages);
@@ -1900,7 +1901,7 @@ export class LocalBackendService implements ILocalBackendService {
 		};
 		
 		// Call the full processing method with context
-		await this.makeAiApiCallStreaming(fullRequest, request_id, outputStream, false);
+		await this.makeAiApiCallStreaming(fullRequest, request_id, outputStream, webSearchEnabled);
 		
 		// Complete the request
 		onComplete();

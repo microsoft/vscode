@@ -226,6 +226,16 @@ export class KBApi implements ErdosSupervisorApi {
 
 		const logFile = path.join(os.tmpdir(), `kernelBridge-${sessionId}.log`);
 		const outFile = path.join(os.tmpdir(), `kernelBridge-${sessionId}.out.log`);
+		
+		// Create kernel temp directory in OS temp
+		const kernelTempDir = path.join(os.tmpdir(), 'erdos-kernels');
+		if (!fs.existsSync(kernelTempDir)) {
+			try {
+				fs.mkdirSync(kernelTempDir, { recursive: true });
+			} catch (err) {
+				this.log(`Failed to create kernel temp directory: ${kernelTempDir}`);
+			}
+		}
 
 		const wrapperName = os.platform() === 'win32' ? 'supervisor-wrapper.bat' : 'supervisor-wrapper.sh';
 		let wrapperPath = path.join(this._context.extensionPath, 'resources', wrapperName);
@@ -256,7 +266,7 @@ export class KBApi implements ErdosSupervisorApi {
 
 		const logLevel = config.get<string>('logLevel') ?? 'warn';
 
-		shellArgs.push('node', shellPath, '--connection-file', connectionFile, '--log-file', logFile);
+		shellArgs.push('node', shellPath, '--connection-file', connectionFile, '--log-file', logFile, '--temp-dir', kernelTempDir);
 		this.debugLog('START_FINAL_COMMAND', { 
 			wrapperPath, 
 			shellArgs, 

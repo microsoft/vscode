@@ -23,7 +23,7 @@ const MODEL_PROVIDER_MAPPING: Record<string, 'openai' | 'anthropic' | 'sagemaker
 	'o4-mini': 'openai',
 	
 	// Anthropic Models
-	'claude-sonnet-4-20250514': 'anthropic',
+	'claude-sonnet-4-5-20250929': 'anthropic',
 	'claude-3-5-haiku-latest': 'anthropic',
 	
 	// SageMaker Models
@@ -46,7 +46,7 @@ export class ErdosAiSettingsService extends Disposable implements IErdosAiSettin
 		const openAiBYOKEnabled = await this.getBYOKOpenAiEnabled();
 		const sagemakerBYOKEnabled = await this.getBYOKSagemakerEnabled();
 		
-		const claudeModels = ['claude-sonnet-4-20250514'];
+		const claudeModels = ['claude-sonnet-4-5-20250929'];
 		const openaiModels = ['gpt-5-mini'];
 		const sagemakerModels = ['Qwen/Qwen3-Coder-30B-A3B-Instruct'];
 		
@@ -87,7 +87,7 @@ export class ErdosAiSettingsService extends Disposable implements IErdosAiSettin
 		}
 		
 		// Otherwise, use the first available model as default
-		const defaultModel = availableModels[0] || 'claude-sonnet-4-20250514';
+		const defaultModel = availableModels[0] || 'claude-sonnet-4-5-20250929';
 		
 		// If we're using a different model than configured, update the configuration
 		if (defaultModel !== configuredModel) {

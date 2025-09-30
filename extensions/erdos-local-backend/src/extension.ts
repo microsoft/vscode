@@ -155,7 +155,7 @@ async function startProxyServer(context: vscode.ExtensionContext) {
             }
         });
 
-        app.use(express.json());
+        app.use(express.json({ limit: '100mb' }));
 
         // Handle AI query streaming
         app.post('/ai/query', async (req: express.Request, res: express.Response) => {            
@@ -221,6 +221,10 @@ async function startProxyServer(context: vscode.ExtensionContext) {
                     byok_keys
                 };
                 
+                // Get webSearchEnabled setting from VSCode configuration
+                const erdosAiConfig = vscode.workspace.getConfiguration('erdosAi');
+                const webSearchEnabled = erdosAiConfig.get<boolean>('webSearchEnabled', false);
+                
                 await service.processStreamingQuery(
                     conversation || [],
                     provider,
@@ -239,7 +243,8 @@ async function startProxyServer(context: vscode.ExtensionContext) {
                     },
                     () => {
                         res.end();
-                    }
+                    },
+                    webSearchEnabled
                 );
             }
         });

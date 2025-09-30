@@ -932,13 +932,15 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 			const branch = branches.find(b => b.messageId === decision.messageId);
 			
 			if (branch) {
-				// Complete the branch with the result from the command handler
-				await this.branchManager.completeBranch(branch.id, {
-					type: result.status === 'error' ? 'error' : 'success',
+				const completionData: any = {
+					type: result.status === 'error' ? ('error' as const) : ('success' as const),
 					status: result.status,
 					data: result.data,
 					...(result.status === 'error' && { error: result.data?.error })
-				});
+				};
+				
+				// Complete the branch with the result from the command handler
+				await this.branchManager.completeBranch(branch.id, completionData);
 			}
 		}
 	}

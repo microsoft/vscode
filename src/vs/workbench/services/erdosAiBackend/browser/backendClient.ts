@@ -150,12 +150,19 @@ export class BackendClient extends Disposable implements IBackendClient {
 
 		const sorted_conversation = messages.sort((a, b) => (a.id || 0) - (b.id || 0));
 
+		// Filter out web_search function calls before sending to backend
+		// web_search is handled entirely by the AI provider and should not be in conversation history
+		// We keep them in the local conversation log for UI display, but exclude them from all API calls
+		const filtered_conversation = sorted_conversation.filter((msg: ConversationMessage) => {
+			return !(msg.function_call && msg.function_call.name === 'web_search');
+		});
+
 		// Get current interaction mode
 		const interactionMode = await this.settingsService.getInteractionMode();
 
 		const requestData: any = {
 			request_type: requestType,
-			conversation: sorted_conversation,
+			conversation: filtered_conversation,
 			provider: provider,
 			model: model,
 			temperature: temperature,
@@ -415,6 +422,10 @@ export class BackendClient extends Disposable implements IBackendClient {
 		
 		const requestBody = await this.buildRequestData('ai_api_call', messages, provider, model, temperature, requestId, contextData);
 		
+		// Get settings for headers
+		const securityMode = await this.settingsService.getSecurityMode();
+		const webSearchEnabled = await this.settingsService.getWebSearchEnabled();
+		
 		try {
 			
 			const response = await fetch(`${config.url}/ai/query`, {
@@ -425,8 +436,8 @@ export class BackendClient extends Disposable implements IBackendClient {
 					'Content-Type': 'application/json',
 					'Accept': 'text/event-stream',
 					'Cache-Control': 'no-cache',
-					'X-Rao-Security-Mode': 'secure',
-					'X-Rao-Web-Search-Enabled': 'false',
+					'X-Rao-Security-Mode': securityMode === 'secure' ? 'secure' : 'standard',
+					'X-Rao-Web-Search-Enabled': webSearchEnabled ? 'true' : 'false',
 				},
 				body: JSON.stringify(requestBody),
 			});
@@ -810,14 +821,18 @@ export class BackendClient extends Disposable implements IBackendClient {
 
 		const url = `${this.config.url}/ai/query`;
 
+		// Get settings for headers
+		const securityMode = await this.settingsService.getSecurityMode();
+		const webSearchEnabled = await this.settingsService.getWebSearchEnabled();
+
 		try {
 			const response = await fetch(url, {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json',
 					'Accept': 'text/event-stream',
-					'X-Rao-Security-Mode': 'standard',
-					'X-Rao-Web-Search-Enabled': 'false'
+					'X-Rao-Security-Mode': securityMode === 'secure' ? 'secure' : 'standard',
+					'X-Rao-Web-Search-Enabled': webSearchEnabled ? 'true' : 'false'
 				},
 				body: JSON.stringify(requestBody)
 			});
@@ -1044,7 +1059,11 @@ export class BackendClient extends Disposable implements IBackendClient {
 	): Promise<void> {
 		try {
 			const config = await this.getBackendConfig();
-						
+			
+			// Get settings for headers
+			const securityMode = await this.settingsService.getSecurityMode();
+			const webSearchEnabled = await this.settingsService.getWebSearchEnabled();
+					
 			const response = await fetch(`${config.url}/ai/query`, {
 				method: 'POST',
 				mode: 'cors',
@@ -1052,8 +1071,8 @@ export class BackendClient extends Disposable implements IBackendClient {
 					'Content-Type': 'application/json',
 					'Accept': 'text/event-stream',
 					'Cache-Control': 'no-cache',
-					'X-Rao-Security-Mode': 'secure',
-					'X-Rao-Web-Search-Enabled': 'false',
+					'X-Rao-Security-Mode': securityMode === 'secure' ? 'secure' : 'standard',
+					'X-Rao-Web-Search-Enabled': webSearchEnabled ? 'true' : 'false',
 				},
 				body: JSON.stringify(requestBody),
 			});

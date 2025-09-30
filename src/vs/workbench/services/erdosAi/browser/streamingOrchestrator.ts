@@ -216,6 +216,13 @@ export class StreamingOrchestrator extends Disposable implements IStreamingOrche
 
 	// New parallel branch event handlers
 	private async handleFunctionCallEvent(event: FunctionCallStreamEvent): Promise<void> {
+		// Complete any ongoing text streaming before processing function call
+		// This ensures text before the function call is saved as a complete message
+		// Any subsequent text will start a new message after the function call
+		if (this.textStreamHandler.hasActiveContent()) {
+			await this.textStreamHandler.completeTextMessage(this.currentUserMessageId);
+		}
+		
 		// Start new batch if this is the first function call in the response
 		if (!this.currentBatchId) {
 			this.currentBatchId = this.branchManager.startNewBatch(this.currentRequestId, this.currentUserMessageId);
@@ -237,7 +244,7 @@ export class StreamingOrchestrator extends Disposable implements IStreamingOrche
 			const isInteractive = this.isInteractiveFunction(event.functionCall.name);
 			
 			if (!isInteractive) {
-				this._onFunctionCallDisplayMessage.fire({
+				const displayMessage = {
 					id: branch.messageId,
 					function_call: {
 						name: event.functionCall.name,
@@ -246,14 +253,26 @@ export class StreamingOrchestrator extends Disposable implements IStreamingOrche
 						msg_id: branch.messageId
 					},
 					timestamp: new Date().toISOString()
-				});
+				};
+				
+				this._onFunctionCallDisplayMessage.fire(displayMessage);
 			}
 		}
 		
 		// Check if this is a pending synthetic call that shouldn't be executed yet
 		const isPendingSynthetic = this.pendingSyntheticCalls.has(event.functionCall.call_id);
 		
-		if (!isPendingSynthetic) {
+		// Check if this is a provider-handled function (executed by AI provider, not us)
+		const isProviderHandled = this.isProviderHandledFunction(event.functionCall.name);
+		
+		if (isProviderHandled) {
+			// Provider-handled functions (like web_search) are executed by the AI provider
+			// We just display them and mark them as complete immediately
+			this.branchManager.completeBranch(branchId, {
+				type: 'success',
+				status: 'success'
+			});
+		} else if (!isPendingSynthetic) {
 			// Execute branch immediately - this creates widgets for interactive functions
 			this.executeBranchAsync(branchId);
 		}
@@ -523,6 +542,14 @@ export class StreamingOrchestrator extends Disposable implements IStreamingOrche
 			'run_file'
 		];
 		return interactiveFunctions.includes(functionName);
+	}
+
+	private isProviderHandledFunction(functionName: string): boolean {
+		// Functions that are executed by the AI provider (Anthropic/OpenAI), not by us
+		const providerHandledFunctions = [
+			'web_search'
+		];
+		return providerHandledFunctions.includes(functionName);
 	}
 
 	fireWidgetButtonAction(messageId: number, action: string): void {

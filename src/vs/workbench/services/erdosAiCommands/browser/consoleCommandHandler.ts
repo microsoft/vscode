@@ -28,7 +28,6 @@ export class ConsoleCommandHandler extends Disposable implements IConsoleCommand
 
 	async acceptConsoleCommand(messageId: number, command: string, requestId: string): Promise<{status: string, data: any}> {
 		try {
-			
 			const currentConversation = this.conversationManager.getCurrentConversation();
 			if (!currentConversation) {
 				throw new Error('No active conversation');
@@ -83,7 +82,9 @@ export class ConsoleCommandHandler extends Disposable implements IConsoleCommand
 				await this.conversationManager.replacePendingFunctionCallOutput(callId, consoleOutput, true);
 				await this.conversationManager.updateConversationDisplay();
 				
-				// Always continue after successful console command execution
+				// Always continue after console command execution, even if the code had errors
+				// Python/R code errors are captured in consoleOutput and saved to function_call_output
+				// The AI needs to see these errors and respond to them
 				const relatedToId = functionCallMessage.related_to || messageId;
 				
 				return {
@@ -96,15 +97,17 @@ export class ConsoleCommandHandler extends Disposable implements IConsoleCommand
 				};
 				
 			} catch (executionError) {
-				
+				// This catch block should only be hit for FATAL errors (session not available, etc.)
+				// Not for Python/R code errors, which are handled as normal output above
 				const errorOutput = `Error executing command: ${executionError instanceof Error ? executionError.message : 'Unknown error'}`;
 				await this.conversationManager.replacePendingFunctionCallOutput(callId, errorOutput, false);
 				await this.conversationManager.updateConversationDisplay();
 				
+				// Even fatal errors should continue_silent so AI can respond
 				return {
-					status: 'error',
+					status: 'continue_silent',
 					data: {
-						error: executionError instanceof Error ? executionError.message : String(executionError),
+						message: 'Console command encountered error - returning control to orchestrator',
 						related_to_id: functionCallMessage.related_to || messageId,
 						request_id: requestId
 					}
@@ -114,8 +117,9 @@ export class ConsoleCommandHandler extends Disposable implements IConsoleCommand
 		} catch (error) {
 			this.logService.error('Failed to accept console command:', error);
 			
+			// Even setup errors should continue_silent so AI can respond
 			return {
-				status: 'error',
+				status: 'continue_silent',
 				data: {
 					error: error instanceof Error ? error.message : String(error),
 					related_to_id: messageId,
@@ -127,8 +131,6 @@ export class ConsoleCommandHandler extends Disposable implements IConsoleCommand
 
 	async cancelConsoleCommand(messageId: number, requestId: string): Promise<{status: string, data: any}> {
 		try {
-			this.logService.info(`Cancelling console command for message ${messageId}`);
-			
 			const currentConversation = this.conversationManager.getCurrentConversation();
 			if (!currentConversation) {
 				throw new Error('No active conversation');
@@ -167,8 +169,9 @@ export class ConsoleCommandHandler extends Disposable implements IConsoleCommand
 		} catch (error) {
 			this.logService.error('Failed to cancel console command:', error);
 			
+			// Even cancellation errors should continue_silent so AI can respond
 			return {
-				status: 'error',
+				status: 'continue_silent',
 				data: {
 					error: error instanceof Error ? error.message : String(error),
 					related_to_id: messageId,
@@ -249,18 +252,14 @@ export class ConsoleCommandHandler extends Disposable implements IConsoleCommand
 				};
 				
 				disposables.push(finalSession.onDidReceiveRuntimeMessageOutput((message: ILanguageRuntimeMessageOutput) => {
-					this.logService.info(`[${language.toUpperCase()} OUTPUT] Received message with parent_id: ${message.parent_id}, executionId: ${executionId}`);
 					if (message.parent_id === executionId) {
 						const messageData = message.data['text/plain'] || message.data || '';
-						this.logService.info(`[${language.toUpperCase()} OUTPUT] Captured output: ${messageData}`);
 						outputBuffer += messageData;
 					}
 				}));
 				
 				disposables.push(finalSession.onDidReceiveRuntimeMessageState((message: any) => {
-					this.logService.info(`[${language.toUpperCase()} STATE] Received state message with parent_id: ${message.parent_id}, executionId: ${executionId}, state: ${message.state}`);
 					if (message.parent_id === executionId && message.state === 'idle') {
-						this.logService.info(`[${language.toUpperCase()} STATE] Execution completed, resolving with output: ${outputBuffer}`);
 						cleanup();
 						const finalOutput = (outputBuffer + resultBuffer).trim();
 						resolve(finalOutput || `${language.toUpperCase()} code executed successfully`);
@@ -270,7 +269,6 @@ export class ConsoleCommandHandler extends Disposable implements IConsoleCommand
 				disposables.push(finalSession.onDidReceiveRuntimeMessageResult((message: ILanguageRuntimeMessageResult) => {
 					if (message.parent_id === executionId) {
 						const messageData = message.data['text/plain'] || message.data || '';
-						this.logService.info(`[${language.toUpperCase()} RESULT] Captured result: ${messageData}`);
 						resultBuffer += messageData;
 					}
 				}));
@@ -296,8 +294,6 @@ export class ConsoleCommandHandler extends Disposable implements IConsoleCommand
 					}
 				}));
 				
-				this.logService.info(`[${language.toUpperCase()} EXECUTION] Executing ${language} command with executionId: ${executionId}`);
-				this.logService.info(`[${language.toUpperCase()} EXECUTION] Command: ${command.substring(0, 200)}...`);
 				finalSession.execute(
 					command,
 					executionId,

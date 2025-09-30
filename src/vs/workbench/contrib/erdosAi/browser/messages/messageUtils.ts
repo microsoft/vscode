@@ -163,6 +163,10 @@ export function formatFunctionCallMessage(functionCall: any, commonUtils: ICommo
 			const searchReplaceFilename = searchReplaceFilePath ? commonUtils.getBasename(searchReplaceFilePath) : 'unknown';
 			return `Model failed to edit ${searchReplaceFilename}`;
 
+		case 'web_search':
+			const searchQuery = args.query || 'unknown';
+			return `Searched the web for "${searchQuery}"`;
+
 		default:
 			return functionCall.name.replace(/_/g, ' ');
 	}
@@ -237,7 +241,7 @@ export function filterMessagesForDisplay(messagesToFilter: ConversationMessage[]
 		if (message.function_call && message.function_call.name) {
 			const functionName = message.function_call.name;
 			
-			const nonWidgetFunctions = ['grep', 'read_file', 'view_image', 'search_for_file', 'list_dir', 'retrieve_documentation'];
+			const nonWidgetFunctions = ['grep', 'read_file', 'view_image', 'search_for_file', 'list_dir', 'retrieve_documentation', 'web_search'];
 			if (nonWidgetFunctions.includes(functionName)) {
 				return true;
 			}

@@ -18,7 +18,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IErdosNotebookOutputWebviewService } from '../../erdosOutputWebview/browser/notebookOutputWebviewService.js';
-import { ERDOS_NOTEBOOK_CONSOLE_MIRRORING_KEY } from '../../erdosNotebook/browser/erdosNotebookExperimentalConfig.js';
+import { ERDOS_NOTEBOOK_PLOT_MIRRORING_KEY } from '../../erdosNotebook/browser/erdosNotebookExperimentalConfig.js';
 
 /**
  * ErdosPlotsService - basic implementation for the plots service
@@ -314,11 +314,11 @@ export class ErdosPlotsService extends Disposable implements IErdosPlotsService 
 	private handleRuntimeOutputMessage(message: ILanguageRuntimeMessageOutput, session: any): void {
 		// Check if this is a plot message
 		if (message.kind === RuntimeOutputKind.StaticImage || message.kind === RuntimeOutputKind.PlotWidget) {			
-			// Only create plots in the plots pane if console mirroring is enabled
-			const consoleMirroringEnabled = this._configurationService.getValue<boolean>(ERDOS_NOTEBOOK_CONSOLE_MIRRORING_KEY) ?? true;
+			// Only create plots in the plots pane if plot mirroring is enabled
+			const plotMirroringEnabled = this._configurationService.getValue<boolean>(ERDOS_NOTEBOOK_PLOT_MIRRORING_KEY) ?? true;
 			
-			if (!consoleMirroringEnabled) {
-				// Console mirroring is disabled, so don't show plots in the plots pane
+			if (!plotMirroringEnabled) {
+				// Plot mirroring is disabled, so don't show plots in the plots pane
 				// Plots will still show in notebook cells via the normal notebook rendering path
 				return;
 			}

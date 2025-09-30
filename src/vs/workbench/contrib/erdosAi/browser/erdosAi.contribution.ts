@@ -421,13 +421,13 @@ configurationRegistry.registerConfiguration({
 		},
 		'erdosAi.selectedModel': {
 			type: 'string',
-			default: 'claude-sonnet-4-20250514',
+			default: 'claude-sonnet-4-5-20250929',
 			enum: [
-				'claude-sonnet-4-20250514',
+				'claude-sonnet-4-5-20250929',
 				'gpt-5-mini'
 			],
 			enumDescriptions: [
-				nls.localize('erdosAi.selectedModel.claude', "claude-sonnet-4-20250514 (Superior coding and analysis - recommended)"),
+				nls.localize('erdosAi.selectedModel.claude45', "claude-sonnet-4-5-20250929 (Superior coding and analysis - recommended)"),
 				nls.localize('erdosAi.selectedModel.gpt5', "gpt-5-mini (Reasoning tier)")
 			],
 			description: nls.localize('erdosAi.selectedModel', "Select the AI model to use for interactions."),

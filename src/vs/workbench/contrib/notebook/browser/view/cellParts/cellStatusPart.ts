@@ -27,11 +27,12 @@ import { CellContentPart } from '../cellPart.js';
 import { ClickTargetType, IClickTarget } from './cellWidgets.js';
 import { CodeCellViewModel } from '../../viewModel/codeCellViewModel.js';
 import { CellStatusbarAlignment, INotebookCellStatusBarItem } from '../../../common/notebookCommon.js';
-import { IHoverDelegate, IHoverDelegateOptions } from '../../../../../../base/browser/ui/hover/hoverDelegate.js';
+import { IHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegate.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { HoverPosition } from '../../../../../../base/browser/ui/hover/hoverWidget.js';
 import type { IManagedHoverTooltipMarkdownString } from '../../../../../../base/browser/ui/hover/hover.js';
+import { WorkbenchHoverDelegate } from '../../../../../../platform/hover/browser/hover.js';
 
 const $ = DOM.$;
 
@@ -73,27 +74,13 @@ export class CellEditorStatusBar extends CellContentPart {
 
 		this.itemsDisposable = this._register(new DisposableStore());
 
-		this.hoverDelegate = new class implements IHoverDelegate {
-			private _lastHoverHideTime: number = 0;
-
-			readonly showHover = (options: IHoverDelegateOptions) => {
-				options.position = options.position ?? {};
-				options.position.hoverPosition = HoverPosition.ABOVE;
-				return hoverService.showInstantHover(options);
+		this.hoverDelegate = this._register(_instantiationService.createInstance(WorkbenchHoverDelegate, 'element', undefined, (options) => {
+			return {
+				position: {
+					hoverPosition: HoverPosition.ABOVE
+				}
 			};
-
-			readonly placement = 'element';
-
-			get delay(): number {
-				return Date.now() - this._lastHoverHideTime < 200
-					? 0  // show instantly when a hover was recently shown
-					: configurationService.getValue<number>('workbench.hover.delay');
-			}
-
-			onDidHideHover() {
-				this._lastHoverHideTime = Date.now();
-			}
-		};
+		}));
 
 		this._register(this._themeService.onDidColorThemeChange(() => this.currentContext && this.updateContext(this.currentContext)));
 

@@ -190,7 +190,6 @@ export class RuntimeNotebookCellExecution extends Disposable {
 			return;
 		}
 
-
 		// Convert the message data entries into output items.
 		const outputItems = toOutputItems(message.data);
 

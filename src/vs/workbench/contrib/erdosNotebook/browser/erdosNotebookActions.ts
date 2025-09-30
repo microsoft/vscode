@@ -10,7 +10,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { NOTEBOOK_IS_ACTIVE_EDITOR } from '../../notebook/common/notebookContextKeys.js';
-import { ERDOS_NOTEBOOK_CONSOLE_MIRRORING_KEY } from './erdosNotebookExperimentalConfig.js';
+import { ERDOS_NOTEBOOK_CONSOLE_MIRRORING_KEY, ERDOS_NOTEBOOK_PLOT_MIRRORING_KEY } from './erdosNotebookExperimentalConfig.js';
 
 const NOTEBOOK_ACTIONS_CATEGORY = localize2('notebookActions.category', "Notebook");
 
@@ -49,9 +49,49 @@ class ToggleNotebookConsoleMirroringAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const configurationService = accessor.get(IConfigurationService);
-		const currentValue = configurationService.getValue<boolean>(ERDOS_NOTEBOOK_CONSOLE_MIRRORING_KEY) ?? true;
+		const currentValue = configurationService.getValue<boolean>(ERDOS_NOTEBOOK_CONSOLE_MIRRORING_KEY) ?? false;
 		const newValue = !currentValue;		
 		await configurationService.updateValue(ERDOS_NOTEBOOK_CONSOLE_MIRRORING_KEY, newValue);
+	}
+}
+
+/**
+ * Action to toggle the plot mirroring for notebooks.
+ * When enabled, plots generated in notebook cells are displayed in both the notebook and the Plots pane.
+ * When disabled, plots are only shown in the notebook cells.
+ */
+class ToggleNotebookPlotMirroringAction extends Action2 {
+	static readonly ID = 'erdosNotebook.togglePlotMirroring';
+
+	constructor() {
+		super({
+			id: ToggleNotebookPlotMirroringAction.ID,
+			title: localize2('erdosNotebook.togglePlotMirroring', 'Toggle Plot Mirroring'),
+			icon: Codicon.graph,
+			category: NOTEBOOK_ACTIONS_CATEGORY,
+			f1: true,
+			toggled: {
+				condition: ContextKeyExpr.equals(`config.${ERDOS_NOTEBOOK_PLOT_MIRRORING_KEY}`, true),
+				title: localize('erdosNotebook.plotMirroringEnabled', 'Plot Mirroring Enabled'),
+				tooltip: localize('erdosNotebook.plotMirroringEnabled.tooltip', 'Notebook plots are displayed in the Plots pane')
+			},
+			tooltip: localize('erdosNotebook.plotMirroringDisabled.tooltip', 'Notebook plots are not displayed in the Plots pane'),
+			menu: [
+				{
+					id: MenuId.NotebookEditorLayoutConfigure,
+					group: 'notebookLayoutDetails',
+					order: 5,
+					when: NOTEBOOK_IS_ACTIVE_EDITOR,
+				}
+			]
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+		const currentValue = configurationService.getValue<boolean>(ERDOS_NOTEBOOK_PLOT_MIRRORING_KEY) ?? true;
+		const newValue = !currentValue;		
+		await configurationService.updateValue(ERDOS_NOTEBOOK_PLOT_MIRRORING_KEY, newValue);
 	}
 }
 
@@ -60,4 +100,5 @@ class ToggleNotebookConsoleMirroringAction extends Action2 {
  */
 export function registerErdosNotebookActions(): void {
 	registerAction2(ToggleNotebookConsoleMirroringAction);
+	registerAction2(ToggleNotebookPlotMirroringAction);
 }

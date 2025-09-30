@@ -106,7 +106,7 @@ export class ApiKeyManager extends Disposable implements IApiKeyManager {
 		this.inMemoryKey = key;
 		
 		try {
-			this.configurationService.updateValue('erdosAi.selectedModel', 'claude-sonnet-4-20250514', ConfigurationTarget.USER);
+			this.configurationService.updateValue('erdosAi.selectedModel', 'claude-sonnet-4-5-20250929', ConfigurationTarget.USER);
 		} catch (error) {
 			this.logService.warn('Failed to set default model:', error);
 		}

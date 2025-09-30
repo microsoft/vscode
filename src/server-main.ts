@@ -314,6 +314,16 @@ async function startKernelSupervisor() {
 		}
 	}
 
+	// Create kernel temp directory in OS temp
+	const kernelTempDir = path.join(os.tmpdir(), 'erdos-kernels');
+	if (!fs.existsSync(kernelTempDir)) {
+		try {
+			fs.mkdirSync(kernelTempDir, { recursive: true });
+		} catch (err) {
+			console.error(`Failed to create kernel temp directory: ${kernelTempDir}`, err);
+		}
+	}
+
 	process.env['ERDOS_SUPERVISOR_CONNECTION_FILE'] = connectionFile;
 
 	const supervisorPaths = [
@@ -336,7 +346,8 @@ async function startKernelSupervisor() {
 		
 		const supervisorProcess = spawn('node', [supervisorPath, 
 			'--connection-file', connectionFile, 
-			'--log-file', logFile
+			'--log-file', logFile,
+			'--temp-dir', kernelTempDir
 		], {
 			env: { ...process.env, PORT: '8080' }
 		});
