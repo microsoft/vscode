@@ -509,6 +509,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 	private _shouldLoadWebgl(): boolean {
 		return this._terminalConfigurationService.config.gpuAcceleration === 'auto' || this._terminalConfigurationService.config.gpuAcceleration === 'on';
 	}
+
 	private _getTheme(isHovering: boolean): ITheme {
 		const theme = this._themeService.getColorTheme();
 		return {
