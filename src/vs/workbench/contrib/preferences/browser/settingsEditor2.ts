@@ -564,8 +564,8 @@ export class SettingsEditor2 extends EditorPane {
 		this.layoutSplitView(dimension);
 
 		const innerWidth = Math.min(this.headerContainer.clientWidth, dimension.width) - 24 * 2; // 24px padding on left and right;
-		// minus padding inside inputbox, countElement width, controls width, extra padding before countElement
-		const monacoWidth = innerWidth - 10 - this.countElement.clientWidth - this.controlsElement.clientWidth - 12;
+		// minus padding inside inputbox, controls width, and extra padding before countElement
+		const monacoWidth = innerWidth - 10 - this.controlsElement.clientWidth - 12;
 		this.searchWidget.layout(new DOM.Dimension(monacoWidth, 20));
 
 		this.rootElement.classList.toggle('narrow-width', dimension.width < SettingsEditor2.NARROW_TOTAL_WIDTH);
@@ -2018,8 +2018,8 @@ export class SettingsEditor2 extends EditorPane {
 
 			if (this.countElement.style.display !== 'block') {
 				this.countElement.style.display = 'block';
-				this.layout(this.dimension);
 			}
+			this.layout(this.dimension);
 			this.rootElement.classList.toggle('no-results', count === 0);
 			this.splitView.el.style.visibility = count === 0 ? 'hidden' : 'visible';
 		}
