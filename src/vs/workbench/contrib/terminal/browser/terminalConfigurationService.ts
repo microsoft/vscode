@@ -11,6 +11,7 @@ import { ITerminalConfigurationService, LinuxDistro } from './terminal.js';
 import type { IXtermCore } from './xterm-private.js';
 import { DEFAULT_BOLD_FONT_WEIGHT, DEFAULT_FONT_WEIGHT, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, FontWeight, ITerminalConfiguration, MAXIMUM_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, MINIMUM_LETTER_SPACING, TERMINAL_CONFIG_SECTION, type ITerminalFont } from '../common/terminal.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
+import { TerminalLocation, TerminalLocationConfigValue } from '../../../../platform/terminal/common/terminal.js';
 
 // #region TerminalConfigurationService
 
@@ -21,6 +22,13 @@ export class TerminalConfigurationService extends Disposable implements ITermina
 
 	protected _config!: Readonly<ITerminalConfiguration>;
 	get config() { return this._config; }
+
+	get defaultLocation(): TerminalLocation {
+		if (this.config.defaultLocation === TerminalLocationConfigValue.Editor) {
+			return TerminalLocation.Editor;
+		}
+		return TerminalLocation.Panel;
+	}
 
 	private readonly _onConfigChanged = new Emitter<void>();
 	get onConfigChanged(): Event<void> { return this._onConfigChanged.event; }
