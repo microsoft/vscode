@@ -191,6 +191,9 @@ export class ChatViewWelcomePart extends Disposable {
 			// Render suggested prompts for both new user and regular modes
 			if (content.suggestedPrompts && content.suggestedPrompts.length) {
 				const suggestedPromptsContainer = dom.append(this.element, $('.chat-welcome-view-suggested-prompts'));
+				const titleElement = dom.append(suggestedPromptsContainer, $('.chat-welcome-view-suggested-prompts-title'));
+				titleElement.textContent = localize('chatWidget.suggestedActions', 'Suggested Actions');
+
 				for (const prompt of content.suggestedPrompts) {
 					const promptElement = dom.append(suggestedPromptsContainer, $('.chat-welcome-view-suggested-prompt'));
 					// Make the prompt element keyboard accessible
