@@ -400,23 +400,23 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				case TaskEventKind.ProcessEnded: {
 					const processEndedEvent = e as ITaskProcessEndedEvent;
 					const startTime = this._taskRunStartTimes.get(e.taskId);
-					this._taskRunStartTimes.delete(e.taskId);
-					this._taskRunSources.delete(e.taskId);
 					const durationMs = processEndedEvent.durationMs ?? (startTime !== undefined ? Date.now() - startTime : undefined);
 					if (durationMs !== undefined) {
 						this._handleLongRunningTaskCompletion(processEndedEvent, durationMs);
 					}
+					this._taskRunStartTimes.delete(e.taskId);
+					this._taskRunSources.delete(e.taskId);
 					break;
 				}
 				case TaskEventKind.Inactive: {
 					const processEndedEvent = e as ITaskInactiveEvent;
 					const startTime = this._taskRunStartTimes.get(e.taskId);
-					this._taskRunStartTimes.delete(e.taskId);
-					this._taskRunSources.delete(e.taskId);
 					const durationMs = processEndedEvent.durationMs ?? (startTime !== undefined ? Date.now() - startTime : undefined);
 					if (durationMs !== undefined) {
 						this._handleLongRunningTaskCompletion(processEndedEvent, durationMs);
 					}
+					this._taskRunStartTimes.delete(e.taskId);
+					this._taskRunSources.delete(e.taskId);
 					break;
 				}
 				case TaskEventKind.Terminated:
@@ -523,8 +523,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		const message = taskLabel
 			? nls.localize('task.longRunningTaskCompletedWithLabel', 'Task "{0}" finished in {1}.', taskLabel, durationText)
 			: nls.localize('task.longRunningTaskCompleted', 'Task finished in {0}.', durationText);
-		this._taskRunStartTimes.delete(event.taskId);
-		this._taskRunSources.delete(event.taskId);
 		this._hostService.focus(targetWindow, { mode: FocusMode.Notify });
 		const notification = await dom.triggerNotification(message);
 		if (notification) {
