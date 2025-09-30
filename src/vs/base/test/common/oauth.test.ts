@@ -877,7 +877,7 @@ suite('OAuth', () => {
 			const targetResource = 'https://example.com/api';
 			const resourceMetadataUrl = 'https://example.com/.well-known/oauth-protected-resource';
 			const sameOriginHeaders = {
-				'Authorization': 'Bearer token123',
+				'X-Test-Header': 'test-value',
 				'X-Custom-Header': 'value'
 			};
 			const expectedMetadata = {
@@ -898,7 +898,7 @@ suite('OAuth', () => {
 
 			const headers = fetchStub.firstCall.args[1].headers;
 			assert.strictEqual(headers['Accept'], 'application/json');
-			assert.strictEqual(headers['Authorization'], 'Bearer token123');
+			assert.strictEqual(headers['X-Test-Header'], 'test-value');
 			assert.strictEqual(headers['X-Custom-Header'], 'value');
 		});
 
@@ -906,7 +906,7 @@ suite('OAuth', () => {
 			const targetResource = 'https://example.com/api';
 			const resourceMetadataUrl = 'https://other-domain.com/.well-known/oauth-protected-resource';
 			const sameOriginHeaders = {
-				'Authorization': 'Bearer token123'
+				'X-Test-Header': 'test-value'
 			};
 			const expectedMetadata = {
 				resource: 'https://example.com/api'
@@ -926,7 +926,7 @@ suite('OAuth', () => {
 
 			const headers = fetchStub.firstCall.args[1].headers;
 			assert.strictEqual(headers['Accept'], 'application/json');
-			assert.strictEqual(headers['Authorization'], undefined);
+			assert.strictEqual(headers['X-Test-Header'], undefined);
 		});
 
 		test('should throw error when fetch returns non-200 status', async () => {
@@ -940,7 +940,7 @@ suite('OAuth', () => {
 
 			await assert.rejects(
 				async () => fetchResourceMetadata(targetResource, resourceMetadataUrl, { fetch: fetchStub }),
-				/Failed to fetch resource metadata: 404 Not Found/
+				/Failed to fetch resource metadata from.*404 Not Found/
 			);
 		});
 
@@ -950,12 +950,13 @@ suite('OAuth', () => {
 
 			fetchStub.resolves({
 				status: 500,
+				statusText: 'Internal Server Error',
 				text: async () => { throw new Error('Cannot read response'); }
 			});
 
 			await assert.rejects(
 				async () => fetchResourceMetadata(targetResource, resourceMetadataUrl, { fetch: fetchStub }),
-				/Failed to fetch resource metadata: 500 Unknown error/
+				/Failed to fetch resource metadata from.*500 Internal Server Error/
 			);
 		});
 
@@ -1099,7 +1100,7 @@ suite('OAuth', () => {
 			const targetResource = 'https://example.com:8080/api';
 			const resourceMetadataUrl = 'https://example.com:9090/.well-known/oauth-protected-resource';
 			const sameOriginHeaders = {
-				'Authorization': 'Bearer token123'
+				'X-Test-Header': 'test-value'
 			};
 			const metadata = {
 				resource: 'https://example.com:8080/api'
@@ -1119,14 +1120,14 @@ suite('OAuth', () => {
 
 			// Different ports mean different origins
 			const headers = fetchStub.firstCall.args[1].headers;
-			assert.strictEqual(headers['Authorization'], undefined);
+			assert.strictEqual(headers['X-Test-Header'], undefined);
 		});
 
 		test('should handle same origin with different protocols', async () => {
 			const targetResource = 'http://example.com/api';
 			const resourceMetadataUrl = 'https://example.com/.well-known/oauth-protected-resource';
 			const sameOriginHeaders = {
-				'Authorization': 'Bearer token123'
+				'X-Test-Header': 'test-value'
 			};
 			const metadata = {
 				resource: 'http://example.com/api'
@@ -1146,7 +1147,7 @@ suite('OAuth', () => {
 
 			// Different protocols mean different origins
 			const headers = fetchStub.firstCall.args[1].headers;
-			assert.strictEqual(headers['Authorization'], undefined);
+			assert.strictEqual(headers['X-Test-Header'], undefined);
 		});
 
 		test('should include error details in message with length information', async () => {
@@ -1170,6 +1171,139 @@ suite('OAuth', () => {
 				assert.ok(/https:\/\/different\.com\/other/.test(error.message), 'Error message should include actual resource value');
 				assert.ok(/https:\/\/example\.com\/api/.test(error.message), 'Error message should include expected resource value');
 			}
+		});
+
+		test('should fallback to well-known URI with path when no resourceMetadataUrl provided', async () => {
+			const targetResource = 'https://example.com/api/v1';
+			const expectedMetadata = {
+				resource: 'https://example.com/api/v1',
+				scopes_supported: ['read', 'write']
+			};
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => expectedMetadata,
+				text: async () => JSON.stringify(expectedMetadata)
+			});
+
+			const result = await fetchResourceMetadata(
+				targetResource,
+				undefined,
+				{ fetch: fetchStub }
+			);
+
+			assert.deepStrictEqual(result, expectedMetadata);
+			assert.strictEqual(fetchStub.callCount, 1);
+			// Should try path-appended version first
+			assert.strictEqual(fetchStub.firstCall.args[0], 'https://example.com/.well-known/oauth-protected-resource/api/v1');
+		});
+
+		test('should fallback to well-known URI at root when path version fails', async () => {
+			const targetResource = 'https://example.com/api/v1';
+			const expectedMetadata = {
+				resource: 'https://example.com/api/v1',
+				scopes_supported: ['read', 'write']
+			};
+
+			// First call fails, second succeeds
+			fetchStub.onFirstCall().resolves({
+				status: 404,
+				text: async () => 'Not Found',
+				statusText: 'Not Found'
+			});
+
+			fetchStub.onSecondCall().resolves({
+				status: 200,
+				json: async () => expectedMetadata,
+				text: async () => JSON.stringify(expectedMetadata)
+			});
+
+			const result = await fetchResourceMetadata(
+				targetResource,
+				undefined,
+				{ fetch: fetchStub }
+			);
+
+			assert.deepStrictEqual(result, expectedMetadata);
+			assert.strictEqual(fetchStub.callCount, 2);
+			// First attempt with path
+			assert.strictEqual(fetchStub.firstCall.args[0], 'https://example.com/.well-known/oauth-protected-resource/api/v1');
+			// Second attempt at root
+			assert.strictEqual(fetchStub.secondCall.args[0], 'https://example.com/.well-known/oauth-protected-resource');
+		});
+
+		test('should throw error when all well-known URIs fail', async () => {
+			const targetResource = 'https://example.com/api/v1';
+
+			fetchStub.resolves({
+				status: 404,
+				text: async () => 'Not Found',
+				statusText: 'Not Found'
+			});
+
+			await assert.rejects(
+				async () => fetchResourceMetadata(targetResource, undefined, { fetch: fetchStub }),
+				(error: any) => {
+					assert.ok(error instanceof AggregateError, 'Should be an AggregateError');
+					assert.strictEqual(error.errors.length, 2, 'Should contain 2 errors');
+					assert.ok(/Failed to fetch resource metadata from.*\/api\/v1.*404/.test(error.errors[0].message), 'First error should mention /api/v1 and 404');
+					assert.ok(/Failed to fetch resource metadata from.*\.well-known.*404/.test(error.errors[1].message), 'Second error should mention .well-known and 404');
+					return true;
+				}
+			); assert.strictEqual(fetchStub.callCount, 2);
+		});
+
+		test('should not append path when target resource is root', async () => {
+			const targetResource = 'https://example.com/';
+			const expectedMetadata = {
+				resource: 'https://example.com/',
+				scopes_supported: ['read']
+			};
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => expectedMetadata,
+				text: async () => JSON.stringify(expectedMetadata)
+			});
+
+			const result = await fetchResourceMetadata(
+				targetResource,
+				undefined,
+				{ fetch: fetchStub }
+			);
+
+			assert.deepStrictEqual(result, expectedMetadata);
+			assert.strictEqual(fetchStub.callCount, 1);
+			// Both URLs should be the same when path is /
+			assert.strictEqual(fetchStub.firstCall.args[0], 'https://example.com/.well-known/oauth-protected-resource');
+		});
+
+		test('should include same-origin headers when using well-known fallback', async () => {
+			const targetResource = 'https://example.com/api';
+			const sameOriginHeaders = {
+				'X-Test-Header': 'test-value',
+				'X-Custom-Header': 'value'
+			};
+			const expectedMetadata = {
+				resource: 'https://example.com/api'
+			};
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => expectedMetadata,
+				text: async () => JSON.stringify(expectedMetadata)
+			});
+
+			await fetchResourceMetadata(
+				targetResource,
+				undefined,
+				{ fetch: fetchStub, sameOriginHeaders }
+			);
+
+			const headers = fetchStub.firstCall.args[1].headers;
+			assert.strictEqual(headers['Accept'], 'application/json');
+			assert.strictEqual(headers['X-Test-Header'], 'test-value');
+			assert.strictEqual(headers['X-Custom-Header'], 'value');
 		});
 	});
 });

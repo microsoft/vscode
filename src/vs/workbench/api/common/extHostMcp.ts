@@ -345,11 +345,11 @@ export class McpHTTPHandle extends Disposable {
 				}
 			}
 		}
-		// Second, fetch that url's well-known server metadata
+		// Second, fetch the resource metadata either from the challenge URL or from well-known URIs
 		let serverMetadataUrl: string | undefined;
 		let scopesSupported: string[] | undefined;
 		let resource: IAuthorizationProtectedResourceMetadata | undefined;
-		if (resourceMetadataChallenge) {
+		try {
 			const resourceMetadata = await fetchResourceMetadata(mcpUrl, resourceMetadataChallenge, {
 				sameOriginHeaders: {
 					...Object.fromEntries(this._launch.headers),
@@ -363,6 +363,8 @@ export class McpHTTPHandle extends Disposable {
 			this._log(LogLevel.Debug, `Using auth server metadata url: ${serverMetadataUrl}`);
 			scopesSupported = resourceMetadata.scopes_supported;
 			resource = resourceMetadata;
+		} catch (e) {
+			this._log(LogLevel.Debug, `Could not fetch resource metadata: ${String(e)}`);
 		}
 
 		const baseUrl = new URL(originalResponse.url).origin;
