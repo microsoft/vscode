@@ -21,6 +21,10 @@ import { PromptFileRewriter } from './promptFileRewriter.js';
 import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
+import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
+import { PROMPT_SAVE_ANALYZE_COMMAND, PROMPT_SAVE_CHECK_COMMAND, IAnalyzeConversationArgs, IPromptTaskSave } from '../../common/promptSaveContract.js';
 
 /**
  * Action ID for the `Save Prompt` action.
@@ -65,6 +69,9 @@ class SaveToPromptAction extends Action2 {
 	): Promise<void> {
 		const logService = accessor.get(ILogService);
 		const editorService = accessor.get(IEditorService);
+		const commandService = accessor.get(ICommandService);
+		const progressService = accessor.get(IProgressService);
+		const quickInputService = accessor.get(IQuickInputService);
 		const rewriter = accessor.get(IInstantiationService).createInstance(PromptFileRewriter);
 
 		const logPrefix = 'save to prompt';
@@ -72,9 +79,74 @@ class SaveToPromptAction extends Action2 {
 		const mode = chatWidget.input.currentModeObs.get();
 		const model = chatWidget.input.selectedLanguageModel;
 
+		// Try to get LLM-powered analysis
+		let analysis: IPromptTaskSave | undefined;
+		try {
+			// Check if prompt analysis is available
+			const isAvailable = await commandService.executeCommand<boolean>(PROMPT_SAVE_CHECK_COMMAND);
+
+			if (isAvailable) {
+				// Extract conversation turns
+				const viewModel = chatWidget.viewModel;
+				const turns: Array<{ role: 'user' | 'assistant'; content: string }> = [];
+
+				if (viewModel) {
+					for (const request of viewModel.model.getRequests()) {
+						const { message, response: responseModel } = request;
+
+						if (isSaveToPromptSlashCommand(message)) {
+							continue;
+						}
+
+						if (responseModel === undefined) {
+							continue;
+						}
+
+						turns.push({
+							role: 'user',
+							content: request.message.text
+						});
+
+						turns.push({
+							role: 'assistant',
+							content: responseModel.response.getMarkdown()
+						});
+					}
+				}
+
+				// Only call analysis if we have conversation data
+				if (turns.length > 0) {
+					const args: IAnalyzeConversationArgs = { turns };
+
+					analysis = await progressService.withProgress(
+						{
+							location: ProgressLocation.Notification,
+							title: 'Analyzing conversation...'
+						},
+						async () => {
+							return await commandService.executeCommand<IPromptTaskSave>(
+								PROMPT_SAVE_ANALYZE_COMMAND,
+								args
+							);
+						}
+					);
+				}
+			}
+		} catch (error) {
+			// Silently fall back to default behavior
+			logService.debug(`[${logPrefix}]: LLM analysis failed, using default behavior`, error);
+		}
+
 		const output = [];
 		output.push('---');
-		output.push(`description: New prompt created from chat session`);
+
+		// Use LLM-suggested description if available
+		if (analysis) {
+			output.push(`description: ${analysis.description}`);
+		} else {
+			output.push(`description: New prompt created from chat session`);
+		}
+
 		output.push(`mode: ${mode.kind}`);
 		if (mode.kind === ChatModeKind.Agent) {
 			const toolAndToolsetMap = chatWidget.input.selectedToolsModel.entriesMap.get();
@@ -88,33 +160,65 @@ class SaveToPromptAction extends Action2 {
 		const viewModel = chatWidget.viewModel;
 		if (viewModel) {
 
-			for (const request of viewModel.model.getRequests()) {
-				const { message, response: responseModel } = request;
+			// Use LLM-extracted prompt if available
+			if (analysis) {
+				output.push(analysis.prompt);
+			} else {
+				// Fallback to current behavior
+				for (const request of viewModel.model.getRequests()) {
+					const { message, response: responseModel } = request;
 
-				if (isSaveToPromptSlashCommand(message)) {
-					continue;
+					if (isSaveToPromptSlashCommand(message)) {
+						continue;
+					}
+
+					if (responseModel === undefined) {
+						logService.warn(`[${logPrefix}]: skipping request '${request.id}' with no response`);
+						continue;
+					}
+
+					const { response } = responseModel;
+
+					output.push(`<user>`);
+					output.push(request.message.text);
+					output.push(`</user>`);
+					output.push();
+					output.push(`<assistant>`);
+					output.push(response.getMarkdown());
+					output.push(`</assistant>`);
+					output.push();
 				}
-
-				if (responseModel === undefined) {
-					logService.warn(`[${logPrefix}]: skipping request '${request.id}' with no response`);
-					continue;
-				}
-
-				const { response } = responseModel;
-
-				output.push(`<user>`);
-				output.push(request.message.text);
-				output.push(`</user>`);
-				output.push();
-				output.push(`<assistant>`);
-				output.push(response.getMarkdown());
-				output.push(`</assistant>`);
-				output.push();
 			}
+
 			const promptText = output.join('\n');
 
-			const untitledPath = 'new.prompt.md';
-			const untitledResource = URI.from({ scheme: Schemas.untitled, path: untitledPath });
+			// Get filename suggestion from user
+			let filename = 'new.prompt.md';
+			if (analysis) {
+				const suggestedFilename = `${analysis.title}.prompt.md`;
+
+				const userFilename = await quickInputService.input({
+					prompt: 'Enter a filename for the prompt',
+					value: suggestedFilename,
+					validateInput: async (value) => {
+						// Validate kebab-case format
+						const basename = value.replace(/\.prompt\.md$/, '');
+						if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(basename)) {
+							return 'Filename must be in kebab-case format (e.g., "my-prompt-name")';
+						}
+						return null;
+					}
+				});
+
+				if (userFilename) {
+					filename = userFilename.endsWith('.prompt.md') ? userFilename : `${userFilename}.prompt.md`;
+				} else {
+					// User cancelled
+					return;
+				}
+			}
+
+			const untitledResource = URI.from({ scheme: Schemas.untitled, path: filename });
 
 			const editor = await editorService.openEditor({
 				resource: untitledResource,
