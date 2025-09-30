@@ -1056,6 +1056,7 @@ export function registerChatActions() {
 			super({
 				id: ACTION_ID_OPEN_CHAT,
 				title: localize2('interactiveSession.open', "New Chat Editor"),
+				icon: Codicon.plus,
 				f1: true,
 				category: CHAT_CATEGORY,
 				precondition: ChatContextKeys.enabled,
