@@ -20,7 +20,8 @@ export async function askForPromptFileName(
 	accessor: ServicesAccessor,
 	type: PromptsType,
 	selectedFolder: URI,
-	existingFileName?: string
+	existingFileName?: string,
+	suggestedName?: string
 ): Promise<string | undefined> {
 	const quickInputService = accessor.get(IQuickInputService);
 	const fileService = accessor.get(IFileService);
@@ -64,7 +65,7 @@ export async function askForPromptFileName(
 		return undefined;
 	};
 	const placeHolder = existingFileName ? getPlaceholderStringForRename(type) : getPlaceholderStringForNew(type);
-	const result = await quickInputService.input({ placeHolder, validateInput, value: existingFileName });
+	const result = await quickInputService.input({ placeHolder, validateInput, value: suggestedName || existingFileName });
 	if (!result) {
 		return undefined;
 	}

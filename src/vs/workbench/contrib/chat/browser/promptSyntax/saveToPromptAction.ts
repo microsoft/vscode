@@ -13,7 +13,7 @@ import { PromptsConfig } from '../../common/promptSyntax/config/config.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { chatSubcommandLeader, IParsedChatRequest } from '../../common/chatParserTypes.js';
-import { PROMPT_LANGUAGE_ID } from '../../common/promptSyntax/promptTypes.js';
+import { PROMPT_LANGUAGE_ID, PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { IChatWidget } from '../chat.js';
 import { ChatModeKind } from '../../common/constants.js';
@@ -23,8 +23,12 @@ import { URI } from '../../../../../base/common/uri.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
-import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { PROMPT_SAVE_ANALYZE_COMMAND, PROMPT_SAVE_CHECK_COMMAND, IAnalyzeConversationArgs, IPromptTaskSave } from '../../common/promptSaveContract.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { askForPromptSourceFolder } from './pickers/askForPromptSourceFolder.js';
+import { askForPromptFileName } from './pickers/askForPromptName.js';
 
 /**
  * Action ID for the `Save Prompt` action.
@@ -71,7 +75,6 @@ class SaveToPromptAction extends Action2 {
 		const editorService = accessor.get(IEditorService);
 		const commandService = accessor.get(ICommandService);
 		const progressService = accessor.get(IProgressService);
-		const quickInputService = accessor.get(IQuickInputService);
 		const rewriter = accessor.get(IInstantiationService).createInstance(PromptFileRewriter);
 
 		const logPrefix = 'save to prompt';
@@ -192,32 +195,58 @@ class SaveToPromptAction extends Action2 {
 
 			const promptText = output.join('\n');
 
-			// Get filename suggestion from user
-			let filename = 'new.prompt.md';
+			// If analysis succeeded, use location picker and direct file save
 			if (analysis) {
-				const suggestedFilename = `${analysis.title}.prompt.md`;
+				try {
+					const fileService = accessor.get(IFileService);
+					const openerService = accessor.get(IOpenerService);
+					const instaService = accessor.get(IInstantiationService);
 
-				const userFilename = await quickInputService.input({
-					prompt: 'Enter a filename for the prompt',
-					value: suggestedFilename,
-					validateInput: async (value) => {
-						// Validate kebab-case format
-						const basename = value.replace(/\.prompt\.md$/, '');
-						if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(basename)) {
-							return 'Filename must be in kebab-case format (e.g., "my-prompt-name")';
-						}
-						return null;
+					// Step 1: Ask for location using existing picker
+					const selectedFolder = await instaService.invokeFunction(
+						askForPromptSourceFolder,
+						PromptsType.prompt
+					);
+
+					if (!selectedFolder) {
+						// User cancelled location selection
+						return;
 					}
-				});
 
-				if (userFilename) {
-					filename = userFilename.endsWith('.prompt.md') ? userFilename : `${userFilename}.prompt.md`;
-				} else {
-					// User cancelled
+					// Step 2: Ask for filename with suggested title pre-filled
+					const fileName = await instaService.invokeFunction(
+						askForPromptFileName,
+						PromptsType.prompt,
+						selectedFolder.uri,
+						undefined,
+						analysis.title
+					);
+
+					if (!fileName) {
+						// User cancelled filename input
+						return;
+					}
+
+					// Step 3: Create folder if needed
+					await fileService.createFolder(selectedFolder.uri);
+
+					// Step 4: Write file directly
+					const promptUri = URI.joinPath(selectedFolder.uri, fileName);
+					await fileService.writeFile(promptUri, VSBuffer.fromString(promptText));
+
+					// Step 5: Open in editor
+					await openerService.open(promptUri);
+
+					logService.info(`[${logPrefix}]: Saved prompt to ${promptUri.toString()}`);
 					return;
+				} catch (error) {
+					logService.warn(`[${logPrefix}]: Direct save failed, falling back to untitled`, error);
+					// Fall through to untitled document fallback
 				}
 			}
 
+			// Fallback: Open as untitled document
+			const filename = analysis ? `${analysis.title}.prompt.md` : 'new.prompt.md';
 			const untitledResource = URI.from({ scheme: Schemas.untitled, path: filename });
 
 			const editor = await editorService.openEditor({
