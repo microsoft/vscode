@@ -198,7 +198,7 @@ export function registerContextualInstanceAction(
 	return registerTerminalAction({
 		...options,
 		run: async (c, accessor, focusedInstanceArgs, allInstanceArgs) => {
-			let instances = getSelectedInstances2(accessor, allInstanceArgs);
+			let instances = getSelectedViewInstances2(accessor, allInstanceArgs);
 			if (!instances) {
 				const activeInstance = (
 					options.activeInstanceType === 'view'
@@ -722,7 +722,7 @@ export function registerTerminalActions() {
 				getResourceOrActiveInstance(c, args)?.changeIcon();
 				return;
 			}
-			for (const terminal of getSelectedInstances(accessor) ?? []) {
+			for (const terminal of getSelectedViewInstances(accessor) ?? []) {
 				icon = await terminal.changeIcon(icon);
 			}
 		}
@@ -747,7 +747,7 @@ export function registerTerminalActions() {
 				getResourceOrActiveInstance(c, args)?.changeColor();
 				return;
 			}
-			for (const terminal of getSelectedInstances(accessor) ?? []) {
+			for (const terminal of getSelectedViewInstances(accessor) ?? []) {
 				const skipQuickPick = i !== 0;
 				// Always show the quickpick on the first iteration
 				color = await terminal.changeColor(color, skipQuickPick);
@@ -779,7 +779,7 @@ export function registerTerminalActions() {
 		run: async (c, accessor) => {
 			const terminalGroupService = accessor.get(ITerminalGroupService);
 			const notificationService = accessor.get(INotificationService);
-			const instances = getSelectedInstances(accessor);
+			const instances = getSelectedViewInstances(accessor);
 			const firstInstance = instances?.[0];
 			if (!firstInstance) {
 				return;
@@ -1093,7 +1093,7 @@ export function registerTerminalActions() {
 			when: TerminalContextKeys.tabsFocus
 		},
 		run: async (c, accessor) => {
-			const instances = getSelectedInstances(accessor);
+			const instances = getSelectedViewInstances(accessor);
 			if (instances) {
 				const promises: Promise<void>[] = [];
 				for (const t of instances) {
@@ -1124,7 +1124,7 @@ export function registerTerminalActions() {
 		title: localize2('workbench.action.terminal.joinInstance', 'Join Terminals'),
 		precondition: ContextKeyExpr.and(sharedWhenClause.terminalAvailable, TerminalContextKeys.tabsSingularSelection.toNegated()),
 		run: async (c, accessor) => {
-			const instances = getSelectedInstances(accessor);
+			const instances = getSelectedViewInstances(accessor);
 			if (instances && instances.length > 1) {
 				c.groupService.joinInstances(instances);
 			}
@@ -1328,7 +1328,7 @@ export function registerTerminalActions() {
 		},
 		run: async (c, accessor) => {
 			const disposePromises: Promise<void>[] = [];
-			for (const terminal of getSelectedInstances(accessor, true) ?? []) {
+			for (const terminal of getSelectedViewInstances(accessor, true) ?? []) {
 				disposePromises.push(c.service.safeDisposeTerminal(terminal));
 			}
 			await Promise.all(disposePromises);
@@ -1447,7 +1447,7 @@ interface IRemoteTerminalPick extends IQuickPickItem {
 	term: IRemoteTerminalAttachTarget;
 }
 
-function getSelectedInstances2(accessor: ServicesAccessor, args?: unknown): ITerminalInstance[] | undefined {
+function getSelectedViewInstances2(accessor: ServicesAccessor, args?: unknown): ITerminalInstance[] | undefined {
 	const terminalService = accessor.get(ITerminalService);
 	const result: ITerminalInstance[] = [];
 	const context = parseActionArgs(args);
@@ -1465,9 +1465,8 @@ function getSelectedInstances2(accessor: ServicesAccessor, args?: unknown): ITer
 	return undefined;
 }
 
-function getSelectedInstances(accessor: ServicesAccessor, args?: unknown, args2?: unknown): ITerminalInstance[] | undefined {
+function getSelectedViewInstances(accessor: ServicesAccessor, args?: unknown, args2?: unknown): ITerminalInstance[] | undefined {
 	const listService = accessor.get(IListService);
-	const terminalService = accessor.get(ITerminalService);
 	const terminalGroupService = accessor.get(ITerminalGroupService);
 	const result: ITerminalInstance[] = [];
 
@@ -1486,16 +1485,17 @@ function getSelectedInstances(accessor: ServicesAccessor, args?: unknown, args2?
 	}
 	const focused = list.getFocus();
 
+	const viewInstances = terminalGroupService.instances;
 	if (focused.length === 1 && !selections.includes(focused[0])) {
 		// focused length is always a max of 1
 		// if the focused one is not in the selected list, return that item
-		result.push(terminalService.getInstanceFromIndex(focused[0]) as ITerminalInstance);
+		result.push(viewInstances[focused[0]]);
 		return result;
 	}
 
 	// multi-select
 	for (const selection of selections) {
-		result.push(terminalService.getInstanceFromIndex(selection) as ITerminalInstance);
+		result.push(viewInstances[selection]);
 	}
 	return result.filter(r => !!r);
 }

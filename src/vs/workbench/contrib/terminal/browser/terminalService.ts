@@ -746,10 +746,6 @@ export class TerminalService extends Disposable implements ITerminalService {
 		}
 	}
 
-	getInstanceFromIndex(terminalIndex: number): ITerminalInstance {
-		return this.instances[terminalIndex];
-	}
-
 	getInstanceFromResource(resource: URI | undefined): ITerminalInstance | undefined {
 		return getInstanceFromResource(this.instances, resource);
 	}
