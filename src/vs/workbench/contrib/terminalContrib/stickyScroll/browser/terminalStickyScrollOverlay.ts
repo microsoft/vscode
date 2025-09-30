@@ -6,21 +6,24 @@
 import type { SerializeAddon as SerializeAddonType } from '@xterm/addon-serialize';
 import type { WebglAddon as WebglAddonType } from '@xterm/addon-webgl';
 import type { LigaturesAddon as LigaturesAddonType } from '@xterm/addon-ligatures';
-import type { IBufferLine, IMarker, ITerminalOptions, ITheme, Terminal as RawXtermTerminal, Terminal as XTermTerminal } from '@xterm/xterm';
+import type { IBufferLine, IDecoration, IMarker, ITerminalOptions, ITheme, Terminal as RawXtermTerminal, Terminal as XTermTerminal } from '@xterm/xterm';
 import { $, addDisposableListener, addStandardDisposableListener, getWindow } from '../../../../../base/browser/dom.js';
 import { debounce, throttle } from '../../../../../base/common/decorators.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, MutableDisposable, combinedDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { removeAnsiEscapeCodes } from '../../../../../base/common/strings.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import './media/stickyScroll.css';
 import { localize } from '../../../../../nls.js';
 import { IMenu, IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { ICommandDetectionCapability, ITerminalCommand } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ICurrentPartialCommand } from '../../../../../platform/terminal/common/capabilities/commandDetection/terminalCommand.js';
+import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { ITerminalConfigurationService, ITerminalInstance, IXtermColorProvider, IXtermTerminal } from '../../../terminal/browser/terminal.js';
 import { openContextMenu } from '../../../terminal/browser/terminalContextMenu.js';
@@ -30,6 +33,9 @@ import { terminalStrings } from '../../../terminal/common/terminalStrings.js';
 import { TerminalStickyScrollSettingId } from '../common/terminalStickyScrollConfiguration.js';
 import { terminalStickyScrollBackground, terminalStickyScrollHoverBackground } from './terminalStickyScrollColorRegistry.js';
 import { XtermAddonImporter } from '../../../terminal/browser/xterm/xtermAddonImporter.js';
+import { terminalDecorationError, terminalDecorationIncomplete, terminalDecorationSuccess } from '../../../terminal/browser/terminalIcons.js';
+import { updateLayout, DecorationSelector, getTerminalDecorationHoverContent } from '../../../terminal/browser/xterm/decorationStyles.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 
 const enum OverlayState {
 	/** Initial state/disabled by the alt buffer. */
@@ -57,6 +63,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 	private _currentStickyCommand?: ITerminalCommand | ICurrentPartialCommand;
 	private _currentContent?: string;
 	private _contextMenu: IMenu;
+	private _currentDecoration?: IDecoration;
 
 	private readonly _refreshListeners = this._register(new MutableDisposable());
 
@@ -74,6 +81,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
+		@IHoverService private readonly _hoverService: IHoverService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IMenuService menuService: IMenuService,
 		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
@@ -92,6 +100,10 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		this._register(Event.runAndSubscribe(configurationService.onDidChangeConfiguration, e => {
 			if (!e || e.affectsConfiguration(TerminalStickyScrollSettingId.MaxLineCount)) {
 				this._rawMaxLineCount = configurationService.getValue(TerminalStickyScrollSettingId.MaxLineCount);
+			}
+			if (!e || e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationsEnabled)) {
+				// Refresh to update decoration visibility when settings change
+				this._refresh();
 			}
 		}));
 
@@ -207,6 +219,12 @@ export class TerminalStickyScrollOverlay extends Disposable {
 	private _hide(): void {
 		this._pendingShowOperation = false;
 		this._element?.classList.toggle(CssClasses.Visible, false);
+		
+		// Clear decoration when hiding
+		if (this._currentDecoration) {
+			this._currentDecoration.dispose();
+			this._currentDecoration = undefined;
+		}
 	}
 
 	private _refresh(): void {
@@ -338,6 +356,9 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		if (content) {
 			this._currentStickyCommand = command;
 			this._setVisible(true);
+
+			// Register command decoration to show status marker
+			this._registerCommandDecoration(command);
 
 			// Position the sticky scroll such that it never overlaps the prompt/output of the
 			// following command. This must happen after setVisible to ensure the element is
@@ -520,6 +541,99 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			selectionBackground: undefined,
 			selectionInactiveBackground: undefined
 		};
+	}
+
+	private _registerCommandDecoration(command: ITerminalCommand | ICurrentPartialCommand): void {
+		if (!this._stickyScrollOverlay) {
+			return;
+		}
+
+		// Check if decorations are enabled in settings
+		const showDecorations = this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationsEnabled);
+		const shouldShowGutterDecorations = (showDecorations === 'both' || showDecorations === 'gutter');
+		if (!shouldShowGutterDecorations) {
+			return;
+		}
+
+		// Clear previous decoration
+		if (this._currentDecoration) {
+			this._currentDecoration.dispose();
+			this._currentDecoration = undefined;
+		}
+
+		// For partial commands, use the command start marker
+		const marker = 'getOutput' in command ? command.marker : command.commandStartMarker;
+		if (!marker) {
+			return;
+		}
+
+		// Create a marker at line 0 (first line) since sticky scroll always shows at the top
+		const stickyMarker = this._stickyScrollOverlay.registerMarker(0);
+		if (!stickyMarker) {
+			return;
+		}
+
+		// Register the decoration
+		const decoration = this._stickyScrollOverlay.registerDecoration({
+			marker: stickyMarker,
+			overviewRulerOptions: undefined // No overview ruler for sticky scroll
+		});
+
+		if (!decoration) {
+			return;
+		}
+
+		this._currentDecoration = decoration;
+
+		// Set up decoration rendering
+		decoration.onRender(element => {
+			// Configure the element styling
+			updateLayout(this._configurationService, element);
+			this._updateDecorationClasses(element, command);
+			
+			// Add hover support
+			this._addDecorationHover(element, command);
+		});
+	}
+
+	private _updateDecorationClasses(element: HTMLElement, command: ITerminalCommand | ICurrentPartialCommand): void {
+		// Clear existing classes
+		element.className = '';
+		
+		// Add base classes
+		element.classList.add(DecorationSelector.CommandDecoration, DecorationSelector.Codicon, DecorationSelector.XtermDecoration);
+
+		// Determine command status and add appropriate icon
+		const isPartialCommand = !('getOutput' in command);
+		if (isPartialCommand) {
+			// For partial commands, show incomplete icon
+			element.classList.add(DecorationSelector.DefaultColor, DecorationSelector.Default);
+			element.classList.add(...ThemeIcon.asClassNameArray(terminalDecorationIncomplete));
+		} else {
+			// For completed commands, show status based on exit code
+			const exitCode = command.exitCode;
+			if (exitCode === undefined) {
+				element.classList.add(DecorationSelector.DefaultColor, DecorationSelector.Default);
+				element.classList.add(...ThemeIcon.asClassNameArray(terminalDecorationIncomplete));
+			} else if (exitCode) {
+				element.classList.add(DecorationSelector.ErrorColor);
+				element.classList.add(...ThemeIcon.asClassNameArray(terminalDecorationError));
+			} else {
+				element.classList.add(...ThemeIcon.asClassNameArray(terminalDecorationSuccess));
+			}
+		}
+	}
+
+	private _addDecorationHover(element: HTMLElement, command: ITerminalCommand | ICurrentPartialCommand): void {
+		// Only add hover for completed commands with status information
+		const isPartialCommand = !('getOutput' in command);
+		if (isPartialCommand && command.exitCode === undefined) {
+			return;
+		}
+
+		this._hoverService.setupDelayedHover(element, () => ({
+			content: new MarkdownString(getTerminalDecorationHoverContent(command as ITerminalCommand))
+		}));
 	}
 }
 
