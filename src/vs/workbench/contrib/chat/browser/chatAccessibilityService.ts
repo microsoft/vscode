@@ -104,7 +104,7 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 		const maxDetailLength = 100;
 		const truncatedResponse = responseContent.length > maxDetailLength
 			? responseContent.substring(0, maxDetailLength) + '...'
-			: responseContent + '...';
+			: responseContent;
 		const notification = await dom.triggerNotification(chatTitle, {
 			detail: truncatedResponse,
 			sticky: false,
