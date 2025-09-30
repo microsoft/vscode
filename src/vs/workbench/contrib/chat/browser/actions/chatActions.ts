@@ -66,14 +66,13 @@ import { IChatSessionItem, IChatSessionsService } from '../../common/chatSession
 import { ChatSessionUri } from '../../common/chatUri.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/chatViewModel.js';
 import { IChatWidgetHistoryService } from '../../common/chatWidgetHistoryService.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, VIEWLET_ID } from '../../common/constants.js';
 import { ILanguageModelChatSelector, ILanguageModelsService } from '../../common/languageModels.js';
 import { CopilotUsageExtensionFeatureId } from '../../common/languageModelStats.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
 import { ChatViewId, IChatWidget, IChatWidgetService, showChatView, showCopilotView } from '../chat.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatEditorInput, shouldShowClearEditingSessionConfirmation, showClearEditingSessionConfirmation } from '../chatEditorInput.js';
-import { VIEWLET_ID } from '../chatSessions/view/chatSessionsView.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { convertBufferToScreenshotVariable } from '../contrib/screenshot.js';
 import { clearChatEditor } from './chatClear.js';
@@ -86,6 +85,7 @@ export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
 
 export const ACTION_ID_NEW_CHAT = `workbench.action.chat.newChat`;
 export const ACTION_ID_NEW_EDIT_SESSION = `workbench.action.chat.newEditSession`;
+export const ACTION_ID_OPEN_CHAT = 'workbench.action.openChat';
 export const CHAT_OPEN_ACTION_ID = 'workbench.action.chat.open';
 export const CHAT_SETUP_ACTION_ID = 'workbench.action.chat.triggerSetup';
 const TOGGLE_CHAT_ACTION_ID = 'workbench.action.chat.toggle';
@@ -1054,7 +1054,7 @@ export function registerChatActions() {
 	registerAction2(class NewChatEditorAction extends Action2 {
 		constructor() {
 			super({
-				id: `workbench.action.openChat`,
+				id: ACTION_ID_OPEN_CHAT,
 				title: localize2('interactiveSession.open', "New Chat Editor"),
 				f1: true,
 				category: CHAT_CATEGORY,

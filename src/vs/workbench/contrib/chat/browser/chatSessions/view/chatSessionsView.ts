@@ -25,12 +25,11 @@ import { IChatEntitlementService } from '../../../../../services/chat/common/cha
 import { IExtensionService } from '../../../../../services/extensions/common/extensions.js';
 import { IWorkbenchLayoutService } from '../../../../../services/layout/browser/layoutService.js';
 import { IChatSessionsService, IChatSessionItemProvider, IChatSessionsExtensionPoint } from '../../../common/chatSessionsService.js';
-import { ChatConfiguration } from '../../../common/constants.js';
+import { ChatConfiguration, VIEWLET_ID } from '../../../common/constants.js';
+import { ACTION_ID_OPEN_CHAT } from '../../actions/chatActions.js';
 import { ChatSessionTracker } from '../chatSessionTracker.js';
 import { LocalChatSessionsProvider } from '../localChatSessionsProvider.js';
 import { SessionsViewPane } from './sessionsViewPane.js';
-
-export const VIEWLET_ID = 'workbench.view.chat.sessions';
 
 export class ChatSessionsView extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.chatSessions';
@@ -286,7 +285,7 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 					if (provider.chatSessionType === 'local') {
 						const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 						this._register(viewsRegistry.registerViewWelcomeContent(viewDescriptor.id, {
-							content: nls.localize('chatSessions.noResults', "No local chat sessions\n[Start a Chat](command:workbench.action.openChat)"),
+							content: nls.localize('chatSessions.noResults', "No local chat sessions\n[Start a Chat](command:{0})", ACTION_ID_OPEN_CHAT),
 						}));
 					}
 				}
