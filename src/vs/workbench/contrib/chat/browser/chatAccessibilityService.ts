@@ -92,6 +92,11 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 			return;
 		}
 
+		// Don't show notification if there's no meaningful content
+		if (!responseContent || !responseContent.trim()) {
+			return;
+		}
+
 		await this._hostService.focus(targetWindow, { mode: FocusMode.Notify });
 
 		// Dispose any previous unhandled notifications to avoid replacement/coalescing.
