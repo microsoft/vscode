@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
+import * as nls from '../../../../nls.js';
 import { raceCancellationError } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IContextKeyService, IScopedContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -75,6 +76,32 @@ export class ChatEditor extends EditorPane {
 		const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
 		ChatContextKeys.inChatEditor.bindTo(this._scopedContextKeyService).set(true);
 
+		// Local stylesheet for transient/loading UI
+		const styleElement = document.createElement('style');
+		styleElement.className = 'chat-editor-styles';
+		parent.appendChild(styleElement);
+		styleElement.textContent += `
+			.chat-loading-overlay {
+				position: absolute;
+				inset: 0;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				background: var(--vscode-editor-background);
+				z-index: 1000;
+			}
+			.chat-loading-overlay .chat-loading-content {
+				display: flex;
+				align-items: center;
+				gap: 8px;
+				color: var(--vscode-editor-foreground);
+			}
+			.chat-loading-overlay .codicon {
+				font-size: 16px;
+			}
+		`;
+		this._register({ dispose: () => styleElement.remove() });
+
 		this._widget = this._register(
 			scopedInstantiationService.createInstance(
 				ChatWidget,
@@ -133,33 +160,28 @@ export class ChatEditor extends EditorPane {
 			return;
 		}
 
-		// Remove any existing loading container
-		this.hideLoadingInChatWidget();
+		// If already showing, just update text
+		if (this._loadingContainer) {
+			const existingText = this._loadingContainer.querySelector('.chat-loading-content span');
+			if (existingText) {
+				existingText.textContent = message;
+				return; // aria-live will announce the text change
+			}
+			this.hideLoadingInChatWidget(); // unexpected structure
+		}
 
-		// Create loading container
+		// Mark container busy for assistive technologies
+		this._editorContainer.setAttribute('aria-busy', 'true');
+
 		this._loadingContainer = dom.append(this._editorContainer, dom.$('.chat-loading-overlay'));
-		this._loadingContainer.style.position = 'absolute';
-		this._loadingContainer.style.top = '0';
-		this._loadingContainer.style.left = '0';
-		this._loadingContainer.style.right = '0';
-		this._loadingContainer.style.bottom = '0';
-		this._loadingContainer.style.background = 'var(--vscode-editor-background)';
-		this._loadingContainer.style.display = 'flex';
-		this._loadingContainer.style.alignItems = 'center';
-		this._loadingContainer.style.justifyContent = 'center';
-		this._loadingContainer.style.zIndex = '1000';
-
+		// Accessibility: announce loading state politely without stealing focus
+		this._loadingContainer.setAttribute('role', 'status');
+		this._loadingContainer.setAttribute('aria-live', 'polite');
+		// Rely on live region text content instead of aria-label to avoid duplicate announcements
+		this._loadingContainer.tabIndex = -1; // ensure it isn't focusable
 		const loadingContent = dom.append(this._loadingContainer, dom.$('.chat-loading-content'));
-		loadingContent.style.display = 'flex';
-		loadingContent.style.alignItems = 'center';
-		loadingContent.style.gap = '8px';
-		loadingContent.style.color = 'var(--vscode-editor-foreground)';
-
-		// Add loading icon
-		const icon = dom.append(loadingContent, dom.$('.codicon.codicon-loading.codicon-modifier-spin'));
-		icon.style.fontSize = '16px';
-
-		// Add loading text
+		const spinner = dom.append(loadingContent, dom.$('.codicon.codicon-loading.codicon-modifier-spin'));
+		spinner.setAttribute('aria-hidden', 'true');
 		const text = dom.append(loadingContent, dom.$('span'));
 		text.textContent = message;
 	}
@@ -168,6 +190,9 @@ export class ChatEditor extends EditorPane {
 		if (this._loadingContainer) {
 			this._loadingContainer.remove();
 			this._loadingContainer = undefined;
+		}
+		if (this._editorContainer) {
+			this._editorContainer.removeAttribute('aria-busy');
 		}
 	}
 
@@ -184,8 +209,9 @@ export class ChatEditor extends EditorPane {
 		let isContributedChatSession = false;
 		const chatSessionType = getChatSessionType(input);
 		if (chatSessionType !== 'local') {
-			// Show single loading state for GitHub Copilot sessions
-			this.showLoadingInChatWidget('Loading session...');
+			// Show single loading state for contributed sessions
+			const loadingMessage = nls.localize('chatEditor.loadingSession', "Loading session...");
+			this.showLoadingInChatWidget(loadingMessage);
 
 			try {
 				await raceCancellationError(this.chatSessionsService.canResolveContentProvider(chatSessionType), token);
