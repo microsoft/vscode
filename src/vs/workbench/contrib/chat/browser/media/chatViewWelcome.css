@@ -247,14 +247,14 @@ div.chat-welcome-view {
 
 /* Fresh login view - move prompts below input box instead of at bottom */
 .new-welcome-view .chat-welcome-view-suggested-prompts {
-	position: relative; /* Change from absolute to relative positioning */
+	position: relative;
 	bottom: auto;
 	left: auto;
 	right: auto;
-	margin-top: 8px; /* Space below input box */
-	margin-bottom: 48px; /* Space at bottom to maintain overall spacing */
-	justify-content: center; /* Center the prompt tiles */
-	padding: 0 12px; /* Remove extra top padding since title is hidden */
+	margin-top: 8px;
+	margin-bottom: 48px;
+	justify-content: center;
+	padding: 0 12px;
 }
 
 /* Hide the title for fresh login view */
