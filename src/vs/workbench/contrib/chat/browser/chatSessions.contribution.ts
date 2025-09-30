@@ -23,11 +23,10 @@ import { IChatAgentData, IChatAgentRequest, IChatAgentService } from '../common/
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { ChatSession, ChatSessionStatus, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionsExtensionPoint, IChatSessionsService } from '../common/chatSessionsService.js';
 import { ChatSessionUri } from '../common/chatUri.js';
-import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
+import { ChatAgentLocation, ChatModeKind, VIEWLET_ID } from '../common/constants.js';
 import { CHAT_CATEGORY } from './actions/chatActions.js';
 import { IChatEditorOptions } from './chatEditor.js';
 import { NEW_CHAT_SESSION_ACTION_ID } from './chatSessions/common.js';
-import { VIEWLET_ID } from './chatSessions/view/chatSessionsView.js';
 
 const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsExtensionPoint[]>({
 	extensionPoint: 'chatSessions',
@@ -68,6 +67,30 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 						supportsToolAttachments: {
 							description: localize('chatSessionsExtPoint.supportsToolAttachments', 'Whether this chat session supports attaching tools or tool references.'),
 							type: 'boolean'
+						}
+					}
+				},
+				commands: {
+					markdownDescription: localize('chatCommandsDescription', "Commands available for this chat session, which the user can invoke with a `/`."),
+					type: 'array',
+					items: {
+						additionalProperties: false,
+						type: 'object',
+						defaultSnippets: [{ body: { name: '', description: '' } }],
+						required: ['name'],
+						properties: {
+							name: {
+								description: localize('chatCommand', "A short name by which this command is referred to in the UI, e.g. `fix` or `explain` for commands that fix an issue or explain code. The name should be unique among the commands provided by this participant."),
+								type: 'string'
+							},
+							description: {
+								description: localize('chatCommandDescription', "A description of this command."),
+								type: 'string'
+							},
+							when: {
+								description: localize('chatCommandWhen', "A condition which must be true to enable this command."),
+								type: 'string'
+							},
 						}
 					}
 				}
@@ -145,6 +168,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 						when: contribution.when,
 						capabilities: contribution.capabilities,
 						extensionDescription: ext.description,
+						commands: contribution.commands
 					};
 					this._register(this.registerContribution(c));
 				}
@@ -359,7 +383,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			isDefault: false,
 			isCore: false,
 			isDynamic: true,
-			slashCommands: [],
+			slashCommands: contribution.commands ?? [],
 			locations: [ChatAgentLocation.Chat],
 			modes: [ChatModeKind.Agent, ChatModeKind.Ask],
 			disambiguation: [],
@@ -565,4 +589,3 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 }
 
 registerSingleton(IChatSessionsService, ChatSessionsService, InstantiationType.Delayed);
-

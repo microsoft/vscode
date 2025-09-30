@@ -66,14 +66,13 @@ import { IChatSessionItem, IChatSessionsService } from '../../common/chatSession
 import { ChatSessionUri } from '../../common/chatUri.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/chatViewModel.js';
 import { IChatWidgetHistoryService } from '../../common/chatWidgetHistoryService.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, VIEWLET_ID } from '../../common/constants.js';
 import { ILanguageModelChatSelector, ILanguageModelsService } from '../../common/languageModels.js';
 import { CopilotUsageExtensionFeatureId } from '../../common/languageModelStats.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
 import { ChatViewId, IChatWidget, IChatWidgetService, showChatView, showCopilotView } from '../chat.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatEditorInput, shouldShowClearEditingSessionConfirmation, showClearEditingSessionConfirmation } from '../chatEditorInput.js';
-import { VIEWLET_ID } from '../chatSessions/view/chatSessionsView.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { convertBufferToScreenshotVariable } from '../contrib/screenshot.js';
 import { clearChatEditor } from './chatClear.js';
@@ -86,6 +85,7 @@ export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
 
 export const ACTION_ID_NEW_CHAT = `workbench.action.chat.newChat`;
 export const ACTION_ID_NEW_EDIT_SESSION = `workbench.action.chat.newEditSession`;
+export const ACTION_ID_OPEN_CHAT = 'workbench.action.openChat';
 export const CHAT_OPEN_ACTION_ID = 'workbench.action.chat.open';
 export const CHAT_SETUP_ACTION_ID = 'workbench.action.chat.triggerSetup';
 const TOGGLE_CHAT_ACTION_ID = 'workbench.action.chat.toggle';
@@ -1054,7 +1054,7 @@ export function registerChatActions() {
 	registerAction2(class NewChatEditorAction extends Action2 {
 		constructor() {
 			super({
-				id: `workbench.action.openChat`,
+				id: ACTION_ID_OPEN_CHAT,
 				title: localize2('interactiveSession.open', "New Chat Editor"),
 				f1: true,
 				category: CHAT_CATEGORY,
@@ -2025,5 +2025,71 @@ registerAction2(class EditToolApproval extends Action2 {
 		if (selection) {
 			toolsService.setToolAutoConfirmation(toolId, selection.id);
 		}
+	}
+});
+
+// Register actions for chat welcome history context menu
+MenuRegistry.appendMenuItem(MenuId.ChatWelcomeHistoryContext, {
+	command: {
+		id: 'workbench.action.chat.toggleChatHistoryVisibility',
+		title: localize('chat.showChatHistory.label', "✓ Chat History")
+	},
+	group: '1_modify',
+	order: 1,
+	when: ContextKeyExpr.equals('chatHistoryVisible', true)
+});
+
+MenuRegistry.appendMenuItem(MenuId.ChatWelcomeHistoryContext, {
+	command: {
+		id: 'workbench.action.chat.toggleChatHistoryVisibility',
+		title: localize('chat.hideChatHistory.label', "Chat History")
+	},
+	group: '1_modify',
+	order: 1,
+	when: ContextKeyExpr.equals('chatHistoryVisible', false)
+});
+
+registerAction2(class ToggleChatHistoryVisibilityAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.toggleChatHistoryVisibility',
+			title: localize2('chat.toggleChatHistoryVisibility.label', "Chat History"),
+			category: CHAT_CATEGORY,
+			precondition: ChatContextKeys.enabled
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const chatWidgetService = accessor.get(IChatWidgetService);
+		const widgets = chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat);
+		const widget = widgets?.[0];
+		if (widget) {
+			widget.toggleHistoryVisibility();
+		}
+	}
+});
+
+registerAction2(class OpenChatEmptyStateSettingsAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.openChatEmptyStateSettings',
+			title: localize2('chat.openChatEmptyStateSettings.label', "Configure Empty State"),
+			menu: [
+				{
+					id: MenuId.ChatWelcomeHistoryContext,
+					group: '2_settings',
+					order: 1
+				}
+			],
+			category: CHAT_CATEGORY,
+			precondition: ChatContextKeys.enabled
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const preferencesService = accessor.get(IPreferencesService);
+		await preferencesService.openUserSettings({
+			query: 'chat.emptyState chat.promptFilesRecommendations'
+		});
 	}
 });

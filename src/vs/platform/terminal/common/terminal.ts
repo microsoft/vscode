@@ -657,12 +657,6 @@ export interface IShellLaunchConfig {
 	 * This allows extensions to control shell integration for terminals they create.
 	 */
 	shellIntegrationNonce?: string;
-
-	/**
-	 * For task terminals, controls whether to preserve the task name after task completion.
-	 * When true, prevents process title changes from overriding the task name.
-	 */
-	preserveTaskName?: boolean;
 }
 
 export interface ITerminalTabAction {
@@ -685,7 +679,7 @@ export enum TerminalLocation {
 	Editor = 2
 }
 
-export const enum TerminalLocationString {
+export const enum TerminalLocationConfigValue {
 	TerminalView = 'view',
 	Editor = 'editor'
 }

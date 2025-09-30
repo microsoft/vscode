@@ -726,6 +726,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 					characterCountModified: lifetimeSummary.characterCountModified,
 					disjointReplacements: lifetimeSummary.disjointReplacements,
 					sameShapeReplacements: lifetimeSummary.sameShapeReplacements,
+					selectedSuggestionInfo: lifetimeSummary.selectedSuggestionInfo,
 					extensionId,
 					extensionVersion,
 					groupId,
@@ -1393,6 +1394,7 @@ type InlineCompletionEndOfLifeEvent = {
 	typingIntervalCharacterCount: number;
 	superseded: boolean;
 	editorType: string;
+	selectedSuggestionInfo: boolean;
 	viewKind: string | undefined;
 	cursorColumnDistance: number | undefined;
 	cursorLineDistance: number | undefined;
@@ -1420,6 +1422,7 @@ type InlineCompletionsEndOfLifeClassification = {
 	timeUntilProviderRequest: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The time it took for the inline completion to be requested from the provider' };
 	timeUntilProviderResponse: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The time it took for the inline completion to be shown after the request' };
 	reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason for the inline completion ending' };
+	selectedSuggestionInfo: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the inline completion was requested with a selected suggestion' };
 	partiallyAccepted: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How often the inline completion was partially accepted by the user' };
 	partiallyAcceptedCountSinceOriginal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How often the inline completion was partially accepted since the original request' };
 	partiallyAcceptedRatioSinceOriginal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The percentage of characters accepted since the original request' };

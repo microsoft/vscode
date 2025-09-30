@@ -4406,6 +4406,11 @@ export interface IInlineSuggestOptions {
 		*/
 		suppressInlineSuggestions?: string;
 
+		/**
+		* @internal
+		*/
+		requestInformation?: boolean;
+
 		showOnSuggestConflict?: 'always' | 'never' | 'whenSuggestListIsIncomplete';
 	};
 }
@@ -4444,6 +4449,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 			experimental: {
 				suppressInlineSuggestions: '',
 				showOnSuggestConflict: 'never',
+				requestInformation: true,
 			},
 		};
 
@@ -4493,6 +4499,15 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					default: defaults.experimental.suppressInlineSuggestions,
 					tags: ['experimental'],
 					description: nls.localize('inlineSuggest.suppressInlineSuggestions', "Suppresses inline completions for specified extension IDs -- comma separated."),
+					experiment: {
+						mode: 'auto'
+					}
+				},
+				'editor.inlineSuggest.experimental.requestInformation': {
+					type: 'boolean',
+					default: defaults.experimental.requestInformation,
+					tags: ['experimental'],
+					description: nls.localize('inlineSuggest.requestInformation', "Controls whether to send request information from the inline suggestion provider."),
 					experiment: {
 						mode: 'auto'
 					}
@@ -4574,6 +4589,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 			experimental: {
 				suppressInlineSuggestions: EditorStringOption.string(input.experimental?.suppressInlineSuggestions, this.defaultValue.experimental.suppressInlineSuggestions),
 				showOnSuggestConflict: stringSet(input.experimental?.showOnSuggestConflict, this.defaultValue.experimental.showOnSuggestConflict, ['always', 'never', 'whenSuggestListIsIncomplete']),
+				requestInformation: boolean(input.experimental?.requestInformation, this.defaultValue.experimental.requestInformation),
 			},
 		};
 	}

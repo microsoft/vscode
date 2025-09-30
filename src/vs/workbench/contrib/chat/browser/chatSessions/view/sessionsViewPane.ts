@@ -47,6 +47,7 @@ import { IChatEditorOptions } from '../../chatEditor.js';
 import { ChatEditorInput } from '../../chatEditorInput.js';
 import { ChatViewPane } from '../../chatViewPane.js';
 import { ChatSessionTracker } from '../chatSessionTracker.js';
+import { ACTION_ID_OPEN_CHAT } from '../../actions/chatActions.js';
 import { ChatSessionItemWithProvider, findExistingChatEditorByUri, isLocalChatSessionItem, getSessionItemContextOverlay, NEW_CHAT_SESSION_ACTION_ID } from '../common.js';
 import { LocalChatSessionsProvider } from '../localChatSessionsProvider.js';
 import { GettingStartedDelegate, GettingStartedRenderer, IGettingStartedItem, SessionsDataSource, SessionsDelegate, SessionsRenderer } from './sessionsTreeRenderer.js';
@@ -295,8 +296,7 @@ export class SessionsViewPane extends ViewPane {
 		const accessibilityProvider = new SessionsAccessibilityProvider();
 
 		// Use the existing ResourceLabels service for consistent styling
-		const labels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
-		const renderer = this.instantiationService.createInstance(SessionsRenderer, labels);
+		const renderer = this.instantiationService.createInstance(SessionsRenderer);
 		this._register(renderer);
 
 		const getResourceForElement = (element: ChatSessionItemWithProvider): URI | null => {
@@ -376,7 +376,7 @@ export class SessionsViewPane extends ViewPane {
 				if (this.provider?.chatSessionType && this.provider.chatSessionType !== 'local') {
 					this.commandService.executeCommand(`workbench.action.chat.openNewSessionEditor.${this.provider?.chatSessionType}`);
 				} else {
-					this.commandService.executeCommand('workbench.action.openChat');
+					this.commandService.executeCommand(ACTION_ID_OPEN_CHAT);
 				}
 			}
 		}));

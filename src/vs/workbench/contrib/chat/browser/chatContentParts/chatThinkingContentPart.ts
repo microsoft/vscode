@@ -272,7 +272,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		if (this.fixedScrollingMode) {
 			let finalLabel: string;
 			if (this.lastExtractedTitle) {
-				finalLabel = localize('chat.thinking.fixed.done.withHeader', 'Done: {0}{1}', this.lastExtractedTitle, (!this.perItemCollapsedMode && this.hasMultipleItems) ? '...' : '');
+				finalLabel = localize('chat.thinking.fixed.done.withHeader', '{0}{1}', this.lastExtractedTitle, (!this.perItemCollapsedMode && this.hasMultipleItems) ? '...' : '');
 			} else {
 				finalLabel = localize('chat.thinking.fixed.done.generic', 'Thought for a few seconds');
 			}

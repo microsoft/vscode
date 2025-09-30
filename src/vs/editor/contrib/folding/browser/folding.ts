@@ -242,6 +242,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 		this.localToDispose.add(this.hiddenRangeModel.onDidChange(hr => this.onHiddenRangesChanges(hr)));
 
 		this.updateScheduler = new Delayer<FoldingModel>(this.updateDebounceInfo.get(model));
+		this.localToDispose.add(this.updateScheduler);
 
 		this.cursorChangedScheduler = new RunOnceScheduler(() => this.revealCursor(), 200);
 		this.localToDispose.add(this.cursorChangedScheduler);

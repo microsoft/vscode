@@ -46,11 +46,13 @@ export class McpResourcePickHelper {
 			};
 		}
 
+		const icon = resource.icons.getUrl(22);
 		return {
 			id: resource.uri.toString(),
 			label: resource.title || resource.name,
 			description: resource.description,
 			detail: resource.mcpUri + (resource.sizeInBytes !== undefined ? ' (' + ByteSize.formatSize(resource.sizeInBytes) + ')' : ''),
+			iconPath: icon ? { dark: icon, light: icon } : undefined,
 		};
 	}
 

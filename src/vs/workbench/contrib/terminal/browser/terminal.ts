@@ -38,6 +38,7 @@ import type { TerminalEditorInput } from './terminalEditorInput.js';
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalConfigurationService = createDecorator<ITerminalConfigurationService>('terminalConfigurationService');
 export const ITerminalEditorService = createDecorator<ITerminalEditorService>('terminalEditorService');
+export const ITerminalEditingService = createDecorator<ITerminalEditingService>('terminalEditingService');
 export const ITerminalGroupService = createDecorator<ITerminalGroupService>('terminalGroupService');
 export const ITerminalInstanceService = createDecorator<ITerminalInstanceService>('terminalInstanceService');
 
@@ -97,6 +98,48 @@ export interface ITerminalInstanceService {
 
 	getRegisteredBackends(): IterableIterator<ITerminalBackend>;
 	didRegisterBackend(backend: ITerminalBackend): void;
+}
+
+/**
+ * A service responsible for managing terminal editing state and functionality. This includes
+ * tracking which terminal is currently being edited and managing editable data associated with
+ * terminal instances.
+ */
+export interface ITerminalEditingService {
+	readonly _serviceBrand: undefined;
+
+	/**
+	 * Get the editable data for a terminal instance.
+	 * @param instance The terminal instance.
+	 * @returns The editable data if the instance is editable, undefined otherwise.
+	 */
+	getEditableData(instance: ITerminalInstance): IEditableData | undefined;
+
+	/**
+	 * Set the editable data for a terminal instance.
+	 * @param instance The terminal instance.
+	 * @param data The editable data to set, or null to clear.
+	 */
+	setEditable(instance: ITerminalInstance, data: IEditableData | null): void;
+
+	/**
+	 * Check if a terminal instance is currently editable.
+	 * @param instance The terminal instance to check.
+	 * @returns True if the instance is editable, false otherwise.
+	 */
+	isEditable(instance: ITerminalInstance | undefined): boolean;
+
+	/**
+	 * Get the terminal instance that is currently being edited.
+	 * @returns The terminal instance being edited, or undefined if none.
+	 */
+	getEditingTerminal(): ITerminalInstance | undefined;
+
+	/**
+	 * Set the terminal instance that is currently being edited.
+	 * @param instance The terminal instance to set as editing, or undefined to clear.
+	 */
+	setEditingTerminal(instance: ITerminalInstance | undefined): void;
 }
 
 export const enum Direction {
@@ -253,7 +296,6 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	readonly instances: readonly ITerminalInstance[];
 	/** Gets detached terminal instances created via {@link createDetachedXterm}. */
 	readonly detachedInstances: Iterable<IDetachedTerminalInstance>;
-	readonly defaultLocation: TerminalLocation;
 
 	readonly isProcessSupportRegistered: boolean;
 	readonly connectionState: TerminalConnectionState;
@@ -307,7 +349,6 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	 * Creates a raw terminal instance, this should not be used outside of the terminal part.
 	 */
 	getInstanceFromId(terminalId: number): ITerminalInstance | undefined;
-	getInstanceFromIndex(terminalIndex: number): ITerminalInstance;
 
 	/**
 	 * An owner of terminals might be created after reconnection has occurred,
@@ -337,9 +378,6 @@ export interface ITerminalService extends ITerminalInstanceHost {
 
 	requestStartExtensionTerminal(proxy: ITerminalProcessExtHostProxy, cols: number, rows: number): Promise<ITerminalLaunchError | undefined>;
 	isAttachedToTerminal(remoteTerm: IRemoteTerminalAttachTarget): boolean;
-	getEditableData(instance: ITerminalInstance): IEditableData | undefined;
-	setEditable(instance: ITerminalInstance, data: IEditableData | null): void;
-	isEditable(instance: ITerminalInstance | undefined): boolean;
 	safeDisposeTerminal(instance: ITerminalInstance): Promise<void>;
 
 	getDefaultInstanceHost(): ITerminalInstanceHost;
@@ -347,9 +385,6 @@ export interface ITerminalService extends ITerminalInstanceHost {
 
 	resolveLocation(location?: ITerminalLocationOptions): Promise<TerminalLocation | undefined>;
 	setNativeDelegate(nativeCalls: ITerminalServiceNativeDelegate): void;
-
-	getEditingTerminal(): ITerminalInstance | undefined;
-	setEditingTerminal(instance: ITerminalInstance | undefined): void;
 
 	/**
 	 * Creates an instance event listener that listens to all instances, dynamically adding new
@@ -377,6 +412,11 @@ export interface ITerminalConfigurationService {
 	 * A typed and partially validated representation of the terminal configuration.
 	 */
 	readonly config: Readonly<ITerminalConfiguration>;
+
+	/**
+	 * The default location for terminals.
+	 */
+	readonly defaultLocation: TerminalLocation;
 
 	/**
 	 * Fires when something within the terminal configuration changes.

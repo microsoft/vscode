@@ -19,7 +19,7 @@ export class McpGalleryManifestService extends Disposable implements IMcpGallery
 	}
 
 	constructor(
-		@IProductService protected readonly productService: IProductService,
+		@IProductService private readonly productService: IProductService,
 	) {
 		super();
 	}
@@ -33,22 +33,19 @@ export class McpGalleryManifestService extends Disposable implements IMcpGallery
 
 	protected createMcpGalleryManifest(url: string): IMcpGalleryManifest {
 		url = url.endsWith('/') ? url.slice(0, -1) : url;
-		const isVSCodeGalleryUrl = this.productService.extensionsGallery?.mcpUrl === url;
 		const isProductGalleryUrl = this.productService.mcpGallery?.serviceUrl === url;
-		const version = isVSCodeGalleryUrl ? undefined : 'v0';
-		const serversUrl = isVSCodeGalleryUrl ? url : `${url}/${version}/servers`;
+		const version = 'v0';
+		const serversUrl = `${url}/${version}/servers`;
 		const resources = [
 			{
 				id: serversUrl,
 				type: McpGalleryResourceType.McpServersQueryService
-			}
-		];
-		if (!isVSCodeGalleryUrl) {
-			resources.push({
+			},
+			{
 				id: `${serversUrl}/{id}`,
 				type: McpGalleryResourceType.McpServerResourceUri
-			});
-		}
+			}
+		];
 
 		if (isProductGalleryUrl) {
 			resources.push({
