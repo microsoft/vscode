@@ -330,8 +330,11 @@ export class LanguageModelsService implements ILanguageModelsService {
 	) {
 		this._hasUserSelectableModels = ChatContextKeys.languageModelsAreUserSelectable.bindTo(_contextKeyService);
 		this._modelPickerUserPreferences = this._storageService.getObject<Record<string, boolean>>('chatModelPickerPreferences', StorageScope.PROFILE, this._modelPickerUserPreferences);
-
-
+		// If the user doesn't have access to manage models, clear out any stored preferences
+		if (!_contextKeyService.contextMatchesRules(ChatContextKeys.manageModelsEnabled)) {
+			this._modelPickerUserPreferences = {};
+			this._storageService.remove('chatModelPickerPreferences', StorageScope.PROFILE);
+		}
 
 		this._store.add(this.onDidChangeLanguageModels(() => {
 			this._hasUserSelectableModels.set(this._modelCache.size > 0 && Array.from(this._modelCache.values()).some(model => model.isUserSelectable));

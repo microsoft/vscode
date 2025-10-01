@@ -40,6 +40,15 @@ export namespace ChatContextKeys {
 
 	export const supported = ContextKeyExpr.or(IsWebContext.negate(), RemoteNameContext.notEqualsTo(''), ContextKeyExpr.has('config.chat.experimental.serverlessWebEnabled'));
 	export const enabled = new RawContextKey<boolean>('chatIsEnabled', false, { type: 'boolean', description: localize('chatIsEnabled', "True when chat is enabled because a default chat participant is activated with an implementation.") });
+	/**
+	 * True when the user can use BYOK / the manage models feature
+	 */
+	export const manageModelsEnabled = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.or(
+		ChatContextKeys.Entitlement.planFree,
+		ChatContextKeys.Entitlement.planPro,
+		ChatContextKeys.Entitlement.planProPlus,
+		ChatContextKeys.Entitlement.internal
+	));
 
 	/**
 	 * True when the chat widget is locked to the coding agent session.
