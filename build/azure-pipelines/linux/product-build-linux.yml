@@ -33,28 +33,28 @@ jobs:
       outputs:
         - ${{ if or(eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}:
           - output: pipelineArtifact
-            targetPath: .build/crashes
+            targetPath: $(Build.SourcesDirectory)/.build/crashes
             artifactName: crash-dump-linux-$(VSCODE_ARCH)-$(System.JobAttempt)
             displayName: Publish Crash Reports
             sbomEnabled: false
             isProduction: false
             condition: failed()
           - output: pipelineArtifact
-            targetPath: node_modules
+            targetPath: $(Build.SourcesDirectory)/node_modules
             artifactName: node-modules-linux-$(VSCODE_ARCH)-$(System.JobAttempt)
             displayName: Publish Node Modules
             sbomEnabled: false
             isProduction: false
             condition: failed()
           - output: pipelineArtifact
-            targetPath: .build/logs
+            targetPath: $(Build.SourcesDirectory)/.build/logs
             artifactName: logs-linux-$(VSCODE_ARCH)-$(System.JobAttempt)
             displayName: Publish Log Files
             sbomEnabled: false
             isProduction: false
             condition: succeededOrFailed()
         - output: pipelineArtifact
-          targetPath: $(CLIENT_PATH)
+          targetPath: $(Build.SourcesDirectory)/$(CLIENT_PATH)
           artifactName: $(ARTIFACT_PREFIX)vscode_client_linux_$(VSCODE_ARCH)_archive-unsigned
           displayName: Publish client archive
           sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-linux-$(VSCODE_ARCH)
@@ -62,7 +62,7 @@ jobs:
           sbomPackageVersion: $(Build.SourceVersion)
           condition: and(succeededOrFailed(), ne(variables['CLIENT_PATH'], ''))
         - output: pipelineArtifact
-          targetPath: $(SERVER_PATH)
+          targetPath: $(Build.SourcesDirectory)/$(SERVER_PATH)
           artifactName: $(ARTIFACT_PREFIX)vscode_server_linux_$(VSCODE_ARCH)_archive-unsigned
           displayName: Publish server archive
           sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)
@@ -70,7 +70,7 @@ jobs:
           sbomPackageVersion: $(Build.SourceVersion)
           condition: and(succeededOrFailed(), ne(variables['SERVER_PATH'], ''))
         - output: pipelineArtifact
-          targetPath: $(WEB_PATH)
+          targetPath: $(Build.SourcesDirectory)/$(WEB_PATH)
           artifactName: $(ARTIFACT_PREFIX)vscode_web_linux_$(VSCODE_ARCH)_archive-unsigned
           displayName: Publish web server archive
           sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)-web
@@ -78,7 +78,7 @@ jobs:
           sbomPackageVersion: $(Build.SourceVersion)
           condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''))
         - output: pipelineArtifact
-          targetPath: $(DEB_PATH)
+          targetPath: $(Build.SourcesDirectory)/$(DEB_PATH)
           artifactName: $(ARTIFACT_PREFIX)vscode_client_linux_$(VSCODE_ARCH)_deb-package
           displayName: Publish deb package
           sbomBuildDropPath: .build/linux/deb
@@ -86,7 +86,7 @@ jobs:
           sbomPackageVersion: $(Build.SourceVersion)
           condition: and(succeededOrFailed(), ne(variables['DEB_PATH'], ''))
         - output: pipelineArtifact
-          targetPath: $(RPM_PATH)
+          targetPath: $(Build.SourcesDirectory)/$(RPM_PATH)
           artifactName: $(ARTIFACT_PREFIX)vscode_client_linux_$(VSCODE_ARCH)_rpm-package
           displayName: Publish rpm package
           sbomBuildDropPath: .build/linux/rpm
@@ -94,8 +94,8 @@ jobs:
           sbomPackageVersion: $(Build.SourceVersion)
           condition: and(succeededOrFailed(), ne(variables['RPM_PATH'], ''))
         - output: pipelineArtifact
-          targetPath: $(SNAP_PATH)
-          artifactName: vscode_client_linux_$(VSCODE_ARCH)_snap
+          targetPath: $(Build.SourcesDirectory)/$(SNAP_PATH)
+          artifactName: $(ARTIFACT_PREFIX)vscode_client_linux_$(VSCODE_ARCH)_snap
           displayName: Publish snap package
           sbomBuildDropPath: $(SNAP_EXTRACTED_PATH)
           sbomPackageName: "VS Code Linux $(VSCODE_ARCH) SNAP"
