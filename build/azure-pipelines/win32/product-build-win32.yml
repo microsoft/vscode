@@ -24,74 +24,74 @@ jobs:
     templateContext:
       outputParentDirectory: $(Build.SourcesDirectory)/.build/win32-$(VSCODE_ARCH)
       outputs:
-        - ${{ if or(eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}:
-          - output: pipelineArtifact
-            targetPath: $(Build.SourcesDirectory)/.build/crashes
-            artifactName: crash-dump-windows-$(VSCODE_ARCH)-$(System.JobAttempt)
-            displayName: Publish Crash Reports
-            sbomEnabled: false
-            isProduction: false
-            condition: failed()
-          - output: pipelineArtifact
-            targetPath: $(Build.SourcesDirectory)/node_modules
-            artifactName: node-modules-windows-$(VSCODE_ARCH)-$(System.JobAttempt)
-            displayName: Publish Node Modules
-            sbomEnabled: false
-            isProduction: false
-            condition: failed()
-          - output: pipelineArtifact
-            targetPath: $(Build.SourcesDirectory)/.build/logs
-            artifactName: logs-windows-$(VSCODE_ARCH)-$(System.JobAttempt)
-            displayName: Publish Log Files
-            sbomEnabled: false
-            isProduction: false
-            condition: succeededOrFailed()
+        # - ${{ if or(eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}:
+        #   - output: pipelineArtifact
+        #     targetPath: $(Build.SourcesDirectory)/.build/crashes
+        #     artifactName: crash-dump-windows-$(VSCODE_ARCH)-$(System.JobAttempt)
+        #     displayName: Publish Crash Reports
+        #     sbomEnabled: false
+        #     isProduction: false
+        #     condition: failed()
+        #   - output: pipelineArtifact
+        #     targetPath: $(Build.SourcesDirectory)/node_modules
+        #     artifactName: node-modules-windows-$(VSCODE_ARCH)-$(System.JobAttempt)
+        #     displayName: Publish Node Modules
+        #     sbomEnabled: false
+        #     isProduction: false
+        #     condition: failed()
+        #   - output: pipelineArtifact
+        #     targetPath: $(Build.SourcesDirectory)/.build/logs
+        #     artifactName: logs-windows-$(VSCODE_ARCH)-$(System.JobAttempt)
+        #     displayName: Publish Log Files
+        #     sbomEnabled: false
+        #     isProduction: false
+        #     condition: succeededOrFailed()
+        # - output: pipelineArtifact
+        #   targetPath: $(Build.SourcesDirectory)/.build/node-cpuprofile
+        #   artifactName: $(ARTIFACT_PREFIX)node-cpuprofile-$(VSCODE_ARCH)
+        #   displayName: Publish Codesign cpu profile
+        #   sbomEnabled: false
+        #   isProduction: false
         - output: pipelineArtifact
-          targetPath: $(Build.SourcesDirectory)/.build/node-cpuprofile
-          artifactName: $(ARTIFACT_PREFIX)node-cpuprofile-$(VSCODE_ARCH)
-          displayName: Publish Codesign cpu profile
-          sbomEnabled: false
-          isProduction: false
-        - output: pipelineArtifact
-          targetPath: $(Build.SourcesDirectory)/$(SYSTEM_SETUP_PATH)
+          targetPath: $(Build.SourcesDirectory)/.build/win32-$(VSCODE_ARCH)/system-setup/VSCodeSetup-$(VSCODE_ARCH)-$(VSCODE_VERSION).exe
           artifactName: $(ARTIFACT_PREFIX)vscode_client_win32_$(VSCODE_ARCH)_setup
           displayName: Publish system setup
           sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)
           sbomPackageName: "VS Code Windows $(VSCODE_ARCH) System Setup"
           sbomPackageVersion: $(Build.SourceVersion)
           condition: and(succeededOrFailed(), ne(variables['SYSTEM_SETUP_PATH'], ''))
-        - output: pipelineArtifact
-          targetPath: $(Build.SourcesDirectory)/$(USER_SETUP_PATH)
-          artifactName: $(ARTIFACT_PREFIX)vscode_client_win32_$(VSCODE_ARCH)_user-setup
-          displayName: Publish user setup
-          sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)
-          sbomPackageName: "VS Code Windows $(VSCODE_ARCH) User Setup"
-          sbomPackageVersion: $(Build.SourceVersion)
-          condition: and(succeededOrFailed(), ne(variables['USER_SETUP_PATH'], ''))
-        - output: pipelineArtifact
-          targetPath: $(Build.SourcesDirectory)/$(CLIENT_PATH)
-          artifactName: $(ARTIFACT_PREFIX)vscode_client_win32_$(VSCODE_ARCH)_archive
-          displayName: Publish archive
-          sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)
-          sbomPackageName: "VS Code Windows $(VSCODE_ARCH)"
-          sbomPackageVersion: $(Build.SourceVersion)
-          condition: and(succeededOrFailed(), ne(variables['CLIENT_PATH'], ''))
-        - output: pipelineArtifact
-          targetPath: $(Build.SourcesDirectory)/$(SERVER_PATH)
-          artifactName: $(ARTIFACT_PREFIX)vscode_server_win32_$(VSCODE_ARCH)_archive
-          displayName: Publish server archive
-          sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-win32-$(VSCODE_ARCH)
-          sbomPackageName: "VS Code Windows $(VSCODE_ARCH) Server"
-          sbomPackageVersion: $(Build.SourceVersion)
-          condition: and(succeededOrFailed(), ne(variables['SERVER_PATH'], ''))
-        - output: pipelineArtifact
-          targetPath: $(Build.SourcesDirectory)/$(WEB_PATH)
-          artifactName: $(ARTIFACT_PREFIX)vscode_web_win32_$(VSCODE_ARCH)_archive
-          displayName: Publish web server archive
-          sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-win32-$(VSCODE_ARCH)-web
-          sbomPackageName: "VS Code Windows $(VSCODE_ARCH) Web"
-          sbomPackageVersion: $(Build.SourceVersion)
-          condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''))
+        # - output: pipelineArtifact
+        #   targetPath: $(Build.SourcesDirectory)/$(USER_SETUP_PATH)
+        #   artifactName: $(ARTIFACT_PREFIX)vscode_client_win32_$(VSCODE_ARCH)_user-setup
+        #   displayName: Publish user setup
+        #   sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)
+        #   sbomPackageName: "VS Code Windows $(VSCODE_ARCH) User Setup"
+        #   sbomPackageVersion: $(Build.SourceVersion)
+        #   condition: and(succeededOrFailed(), ne(variables['USER_SETUP_PATH'], ''))
+        # - output: pipelineArtifact
+        #   targetPath: $(Build.SourcesDirectory)/$(CLIENT_PATH)
+        #   artifactName: $(ARTIFACT_PREFIX)vscode_client_win32_$(VSCODE_ARCH)_archive
+        #   displayName: Publish archive
+        #   sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)
+        #   sbomPackageName: "VS Code Windows $(VSCODE_ARCH)"
+        #   sbomPackageVersion: $(Build.SourceVersion)
+        #   condition: and(succeededOrFailed(), ne(variables['CLIENT_PATH'], ''))
+        # - output: pipelineArtifact
+        #   targetPath: $(Build.SourcesDirectory)/$(SERVER_PATH)
+        #   artifactName: $(ARTIFACT_PREFIX)vscode_server_win32_$(VSCODE_ARCH)_archive
+        #   displayName: Publish server archive
+        #   sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-win32-$(VSCODE_ARCH)
+        #   sbomPackageName: "VS Code Windows $(VSCODE_ARCH) Server"
+        #   sbomPackageVersion: $(Build.SourceVersion)
+        #   condition: and(succeededOrFailed(), ne(variables['SERVER_PATH'], ''))
+        # - output: pipelineArtifact
+        #   targetPath: $(Build.SourcesDirectory)/$(WEB_PATH)
+        #   artifactName: $(ARTIFACT_PREFIX)vscode_web_win32_$(VSCODE_ARCH)_archive
+        #   displayName: Publish web server archive
+        #   sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-win32-$(VSCODE_ARCH)-web
+        #   sbomPackageName: "VS Code Windows $(VSCODE_ARCH) Web"
+        #   sbomPackageVersion: $(Build.SourceVersion)
+        #   condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''))
     steps:
       - template: ./steps/product-build-win32-compile.yml@self
         parameters:

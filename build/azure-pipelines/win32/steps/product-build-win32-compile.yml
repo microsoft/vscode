@@ -272,6 +272,7 @@ steps:
 
         echo "##vso[task.setvariable variable=SYSTEM_SETUP_PATH]$SystemSetupPath"
         echo "##vso[task.setvariable variable=USER_SETUP_PATH]$UserSetupPath"
+        echo "##vso[task.setvariable variable=VSCODE_VERSION]$Version"
       condition: succeededOrFailed()
       displayName: Move setup packages
 
