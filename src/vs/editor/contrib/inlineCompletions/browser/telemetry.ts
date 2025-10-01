@@ -5,8 +5,8 @@
 
 import { DataChannelForwardingTelemetryService } from '../../../../platform/dataChannel/browser/forwardingTelemetryService.js';
 
-export function sendInlineCompletionsEndOfLifeTelemetry(dataChannel: DataChannelForwardingTelemetryService, endOfLLifeSummary: InlineCompletionEndOfLifeEvent) {
-	dataChannel.publicLog2<InlineCompletionEndOfLifeEvent, InlineCompletionsEndOfLifeClassification>('inlineCompletion.endOfLife', endOfLLifeSummary);
+export function sendInlineCompletionsEndOfLifeTelemetry(dataChannel: DataChannelForwardingTelemetryService, endOfLifeSummary: InlineCompletionEndOfLifeEvent) {
+	dataChannel.publicLog2<InlineCompletionEndOfLifeEvent, InlineCompletionsEndOfLifeClassification>('inlineCompletion.endOfLife', endOfLifeSummary);
 }
 
 export type InlineCompletionEndOfLifeEvent = {
