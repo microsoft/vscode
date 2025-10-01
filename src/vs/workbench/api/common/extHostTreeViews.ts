@@ -16,7 +16,7 @@ import { asPromise } from '../../../base/common/async.js';
 import * as extHostTypes from './extHostTypes.js';
 import { isUndefinedOrNull, isString } from '../../../base/common/types.js';
 import { equals, coalesce } from '../../../base/common/arrays.js';
-import { ILogService } from '../../../platform/log/common/log.js';
+import { ILogService, LogLevel } from '../../../platform/log/common/log.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { MarkdownString, ViewBadge, DataTransfer } from './extHostTypeConverters.js';
 import { IMarkdownString, isMarkdownString } from '../../../base/common/htmlContent.js';
@@ -411,13 +411,16 @@ class ExtHostTreeView<T> extends Disposable {
 					refreshingPromise = null;
 					const childrenToClear = Array.from(this._nodesToClear);
 					this._nodesToClear.clear();
+					this._debugLogRefresh('start', elements, childrenToClear);
 					return this._refresh(elements).then(() => {
+						this._debugLogRefresh('done', elements, undefined);
 						this._clearNodes(childrenToClear);
 						return _promiseCallback();
 					}).catch(e => {
 						const message = e instanceof Error ? e.message : JSON.stringify(e);
 						this._clearNodes(childrenToClear);
 						this._logService.error(`Unable to refresh tree view ${this._viewId}: ${message}`);
+						this._debugLogRefresh('error', elements, undefined);
 						return _promiseCallback();
 					});
 				});
@@ -426,6 +429,48 @@ class ExtHostTreeView<T> extends Disposable {
 				this._proxy.$setMessage(this._viewId, MarkdownString.fromStrict(this._message) ?? '');
 			}
 		}));
+	}
+
+	private _debugCollectHandles(elements: (T | Root)[]): { changed: string[]; roots: string[]; clearing?: string[] } {
+		const changed: string[] = [];
+		for (const el of elements) {
+			if (!el) {
+				changed.push('<root>');
+				continue;
+			}
+			const node = this._nodes.get(el as T);
+			if (node) {
+				changed.push(node.item.handle);
+			}
+		}
+		const roots = this._roots?.map(r => r.item.handle) ?? [];
+		return { changed, roots };
+	}
+
+	private _debugLogRefresh(phase: 'start' | 'done' | 'error', elements: (T | Root)[], childrenToClear: TreeNode[] | undefined): void {
+		if (!this._isDebugLogging()) {
+			return;
+		}
+		try {
+			const snapshot = this._debugCollectHandles(elements);
+			if (childrenToClear) {
+				snapshot.clearing = childrenToClear.map(n => n.item.handle);
+			}
+			const changedCount = snapshot.changed.length;
+			const nodesToClearLen = childrenToClear ? childrenToClear.length : 0;
+			this._logService.debug(`[TreeView:${this._viewId}] refresh ${phase} changed=${changedCount} nodesToClear=${nodesToClearLen} elements.size=${this._elements.size} nodes.size=${this._nodes.size} handles=${JSON.stringify(snapshot)}`);
+		} catch {
+			this._logService.debug(`[TreeView:${this._viewId}] refresh ${phase} (snapshot failed)`);
+		}
+	}
+
+	private _isDebugLogging(): boolean {
+		try {
+			const level = this._logService.getLevel();
+			return (level === LogLevel.Debug) || (level === LogLevel.Trace);
+		} catch {
+			return false;
+		}
 	}
 
 	async getChildren(parentHandle: TreeItemHandle | Root): Promise<ITreeItem[] | undefined> {
