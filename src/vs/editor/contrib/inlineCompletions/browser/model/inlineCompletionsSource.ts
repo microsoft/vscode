@@ -13,19 +13,20 @@ import { derived, IObservable, IObservableWithChange, ITransaction, observableVa
 import { observableReducerSettable } from '../../../../../base/common/observableInternal/experimental/reducer.js';
 import { isDefined } from '../../../../../base/common/types.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { DataChannelForwardingTelemetryService, forwardToChannelIf, isCopilotLikeExtension } from '../../../../../platform/dataChannel/browser/forwardingTelemetryService.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
-import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { StringEdit } from '../../../../common/core/edits/stringEdit.js';
 import { Position } from '../../../../common/core/position.js';
-import { InlineCompletionEndOfLifeReasonKind, InlineCompletionTriggerKind, InlineCompletionsProvider, ProviderId } from '../../../../common/languages.js';
+import { InlineCompletionEndOfLifeReasonKind, InlineCompletionTriggerKind, InlineCompletionsProvider } from '../../../../common/languages.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
 import { ITextModel } from '../../../../common/model.js';
 import { offsetEditFromContentChanges } from '../../../../common/model/textModelStringEdit.js';
 import { IFeatureDebounceInformation } from '../../../../common/services/languageFeatureDebounce.js';
 import { IModelContentChangedEvent } from '../../../../common/textModelEvents.js';
 import { formatRecordableLogEntry, IRecordableEditorLogEntry, IRecordableLogEntry, StructuredLogger } from '../structuredLogger.js';
+import { InlineCompletionEndOfLifeEvent, sendInlineCompletionsEndOfLifeTelemetry } from '../telemetry.js';
 import { wait } from '../utils.js';
 import { InlineSuggestionIdentity, InlineSuggestionItem } from './inlineSuggestionItem.js';
 import { InlineCompletionContextWithoutUuid, InlineSuggestRequestInfo, provideInlineCompletions, runWhenCancelled } from './provideInlineCompletions.js';
@@ -80,11 +81,10 @@ export class InlineCompletionsSource extends Disposable {
 		@ILogService private readonly _logService: ILogService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 		this._loggingEnabled = observableConfigValue('editor.inlineSuggest.logFetch', false, this._configurationService).recomputeInitiallyAndOnChange(this._store);
-		this._sendRequestData = observableConfigValue('editor.inlineSuggest.requestInformation', true, this._configurationService).recomputeInitiallyAndOnChange(this._store);
+		this._sendRequestData = observableConfigValue('editor.inlineSuggest.emptyResponseInformation', true, this._configurationService).recomputeInitiallyAndOnChange(this._store);
 		this._structuredFetchLogger = this._register(this._instantiationService.createInstance(StructuredLogger.cast<
 			{ kind: 'start'; requestId: number; context: unknown } & IRecordableEditorLogEntry
 			| { kind: 'end'; error: unknown; durationMs: number; result: unknown; requestId: number } & IRecordableLogEntry
@@ -184,7 +184,7 @@ export class InlineCompletionsSource extends Disposable {
 				runWhenCancelled(source.token, () => providerResult.cancelAndDispose({ kind: 'tokenCancellation' }));
 
 				let shouldStopEarly = false;
-				let invalidSuggestion = false;
+				let producedSuggestion = false;
 
 				const suggestions: InlineSuggestionItem[] = [];
 				for await (const list of providerResult.lists) {
@@ -195,12 +195,13 @@ export class InlineCompletionsSource extends Disposable {
 					store.add(toDisposable(() => list.removeRef(list.inlineSuggestionsData.length === 0 ? { kind: 'empty' } : { kind: 'notTaken' })));
 
 					for (const item of list.inlineSuggestionsData) {
+						producedSuggestion = true;
 						if (!context.includeInlineEdits && (item.isInlineEdit || item.showInlineEditMenu)) {
-							invalidSuggestion = true;
+							item.setNotShownReason('notInlineEditRequested');
 							continue;
 						}
 						if (!context.includeInlineCompletions && !(item.isInlineEdit || item.showInlineEditMenu)) {
-							invalidSuggestion = true;
+							item.setNotShownReason('notInlineCompletionRequested');
 							continue;
 						}
 
@@ -237,10 +238,17 @@ export class InlineCompletionsSource extends Disposable {
 				}
 
 				requestResponseInfo.setRequestUuid(providerResult.contextWithUuid.requestUuid);
-				if (source.token.isCancellationRequested) {
-					requestResponseInfo.setNoSuggestionReasonIfNotSet('canceled:whileFetching');
-				} else if (suggestions.length === 0) {
-					requestResponseInfo.setNoSuggestionReasonIfNotSet(invalidSuggestion ? 'invalid' : 'noSuggestion');
+				if (producedSuggestion) {
+					requestResponseInfo.setHasProducedSuggestion();
+					if (suggestions.length > 0 && source.token.isCancellationRequested) {
+						suggestions.forEach(s => s.setNotShownReasonIfNotSet('canceled:whileAwaitingOtherProviders'));
+					}
+				} else {
+					if (source.token.isCancellationRequested) {
+						requestResponseInfo.setNoSuggestionReasonIfNotSet('canceled:whileFetching');
+					} else {
+						requestResponseInfo.setNoSuggestionReasonIfNotSet('noSuggestion');
+					}
 				}
 
 				const remainingTimeToWait = context.earliestShownDateTime - Date.now();
@@ -250,17 +258,15 @@ export class InlineCompletionsSource extends Disposable {
 
 				if (source.token.isCancellationRequested || this._store.isDisposed || this._textModel.getVersionId() !== request.versionId
 					|| userJumpedToActiveCompletion.get()  /* In the meantime the user showed interest for the active completion so dont hide it */) {
-					requestResponseInfo.setNoSuggestionReasonIfNotSet(
+					const notShownReason =
 						source.token.isCancellationRequested ? 'canceled:afterMinShowDelay' :
 							this._store.isDisposed ? 'canceled:disposed' :
 								this._textModel.getVersionId() !== request.versionId ? 'canceled:documentChanged' :
 									userJumpedToActiveCompletion.get() ? 'canceled:userJumped' :
-										'unknown'
-					);
+										'unknown';
+					suggestions.forEach(s => s.setNotShownReasonIfNotSet(notShownReason));
 					return false;
 				}
-
-				requestResponseInfo.setSuggestions(suggestions);
 
 				const endTime = new Date();
 				this._debounceValue.update(this._textModel, endTime.getTime() - startTime.getTime());
@@ -341,41 +347,54 @@ export class InlineCompletionsSource extends Disposable {
 			return;
 		}
 
-		const requestResponseKind = requestResponseInfo.noSuggestionReason ?? ((!!requestResponseInfo.requestUuid && (requestResponseInfo.suggestionCount ?? 0) > 0) ? 'suggestion' : undefined);
-		if (requestResponseInfo.requestUuid === undefined || requestResponseKind === undefined) {
+		if (requestResponseInfo.requestUuid === undefined || requestResponseInfo.hasProducedSuggestion) {
 			return;
 		}
 
-		type InlineCompletionRequest = {
-			opportunityId: string;
-			isExplicit: boolean;
-			kind: string;
-			selectedSuggestionInfo: boolean;
-			suggestionCount: number | undefined;
-			providers: string;
-			providersWithSuggestion: string | undefined;
-		};
-		type InlineCompletionRequestClassification = {
-			owner: 'benibenj';
-			comment: 'Information accepting completion items';
-			opportunityId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The id of the opportunity' };
-			isExplicit: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the inline completion was triggered explicitly by the user' };
-			kind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind of inline completion result' };
-			selectedSuggestionInfo: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the inline completion was requested with information about the selected suggestion' };
-			suggestionCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of suggestions provided' };
-			providers: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Extension available for the request' };
-			providersWithSuggestion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The providers that provided a suggestion' };
+		const emptyEndOfLifeEvent: InlineCompletionEndOfLifeEvent = {
+			id: requestResponseInfo.requestUuid,
+			opportunityId: requestResponseInfo.requestUuid,
+			noSuggestionReason: requestResponseInfo.noSuggestionReason ?? 'unknown',
+			extensionId: 'vscode-core',
+			extensionVersion: '0.0.0',
+			groupId: 'empty',
+			shown: false,
+			editorType: requestResponseInfo.requestInfo.editorType,
+			requestReason: requestResponseInfo.requestInfo.reason,
+			typingInterval: requestResponseInfo.requestInfo.typingInterval,
+			typingIntervalCharacterCount: requestResponseInfo.requestInfo.typingIntervalCharacterCount,
+			languageId: requestResponseInfo.requestInfo.languageId,
+			selectedSuggestionInfo: !!requestResponseInfo.context.selectedSuggestionInfo,
+			availableProviders: requestResponseInfo.providers.map(p => p.providerId?.toString()).filter(isDefined).join(','),
+			...forwardToChannelIf(requestResponseInfo.providers.some(p => isCopilotLikeExtension(p.providerId?.extensionId))),
+			timeUntilProviderRequest: undefined,
+			timeUntilProviderResponse: undefined,
+			viewKind: undefined,
+			preceeded: undefined,
+			error: undefined,
+			superseded: undefined,
+			reason: undefined,
+			correlationId: undefined,
+			shownDuration: undefined,
+			shownDurationUncollapsed: undefined,
+			timeUntilShown: undefined,
+			partiallyAccepted: undefined,
+			partiallyAcceptedCountSinceOriginal: undefined,
+			partiallyAcceptedRatioSinceOriginal: undefined,
+			partiallyAcceptedCharactersSinceOriginal: undefined,
+			cursorColumnDistance: undefined,
+			cursorLineDistance: undefined,
+			lineCountOriginal: undefined,
+			lineCountModified: undefined,
+			characterCountOriginal: undefined,
+			characterCountModified: undefined,
+			disjointReplacements: undefined,
+			sameShapeReplacements: undefined,
+			notShownReason: undefined,
 		};
 
-		this._telemetryService.publicLog2<InlineCompletionRequest, InlineCompletionRequestClassification>('inlineCompletionsRequestResponse', {
-			opportunityId: requestResponseInfo.requestUuid,
-			isExplicit: requestResponseInfo.context.triggerKind === InlineCompletionTriggerKind.Explicit,
-			kind: requestResponseKind,
-			selectedSuggestionInfo: !!requestResponseInfo.context.selectedSuggestionInfo,
-			suggestionCount: requestResponseInfo.suggestionCount,
-			providers: requestResponseInfo.providers.map(p => p.providerId?.toString()).filter(isDefined).join(','),
-			providersWithSuggestion: requestResponseInfo.providersWithSuggestion?.map(providerId => providerId.toString()).join(','),
-		});
+		const dataChannel = this._instantiationService.createInstance(DataChannelForwardingTelemetryService);
+		sendInlineCompletionsEndOfLifeTelemetry(dataChannel, emptyEndOfLifeEvent);
 	}
 
 	public clearSuggestWidgetInlineCompletions(tx: ITransaction): void {
@@ -415,8 +434,7 @@ class UpdateRequest {
 class RequestResponseData {
 	public requestUuid: string | undefined;
 	public noSuggestionReason: string | undefined;
-	public suggestionCount: number | undefined;
-	public providersWithSuggestion: ProviderId[] | undefined;
+	public hasProducedSuggestion = false;
 
 	constructor(
 		public readonly context: InlineCompletionContextWithoutUuid,
@@ -432,9 +450,8 @@ class RequestResponseData {
 		this.noSuggestionReason ??= type;
 	}
 
-	setSuggestions(suggestions: InlineSuggestionItem[]) {
-		this.suggestionCount = suggestions.filter(s => !!s.source.provider.providerId).length;
-		this.providersWithSuggestion = Array.from(new Set(suggestions.map(s => s.source.provider.providerId))).filter(isDefined);
+	setHasProducedSuggestion() {
+		this.hasProducedSuggestion = true;
 	}
 }
 

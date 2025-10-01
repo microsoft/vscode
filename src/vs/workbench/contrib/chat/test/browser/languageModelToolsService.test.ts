@@ -25,6 +25,7 @@ import { MockChatService } from '../common/mockChatService.js';
 import { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { ChatConfiguration } from '../../common/constants.js';
+import { URI } from '../../../../../base/common/uri.js';
 
 // --- Test helpers to reduce repetition and improve readability ---
 
@@ -112,6 +113,94 @@ suite('LanguageModelToolsService', () => {
 		instaService.stub(IChatService, chatService);
 		service = store.add(instaService.createInstance(LanguageModelToolsService));
 	});
+
+	function setupToolsForTest(service: LanguageModelToolsService, store: any) {
+
+		// Create a variety of tools and tool sets for testing
+		// Some with toolReferenceName, some without, some from extensions, mcp snd user defined
+
+		const tool1: IToolData = {
+			id: 'tool1',
+			toolReferenceName: 'tool1RefName',
+			modelDescription: 'Test Tool 1',
+			displayName: 'Tool1 Display Name',
+			source: ToolDataSource.Internal,
+			canBeReferencedInPrompt: true,
+		};
+		store.add(service.registerToolData(tool1));
+
+		const tool2: IToolData = {
+			id: 'tool2',
+			modelDescription: 'Test Tool 2',
+			displayName: 'Tool2 Display Name',
+			source: ToolDataSource.Internal,
+			canBeReferencedInPrompt: true,
+		};
+		store.add(service.registerToolData(tool2));
+
+		/** Extension Tool 1 */
+
+		const extTool1: IToolData = {
+			id: 'extTool1',
+			toolReferenceName: 'extTool1RefName',
+			modelDescription: 'Test Extension Tool 1',
+			displayName: 'ExtTool1 Display Name',
+			source: { type: 'extension', label: 'My Extension', extensionId: new ExtensionIdentifier('my.extension') },
+			canBeReferencedInPrompt: true,
+		};
+		store.add(service.registerToolData(extTool1));
+
+		/** Internal Tool Set with internalToolSetTool1 */
+
+		const internalToolSetTool1: IToolData = {
+			id: 'internalToolSetTool1',
+			toolReferenceName: 'internalToolSetTool1RefName',
+			modelDescription: 'Test Internal Tool Set 1',
+			displayName: 'InternalToolSet1 Display Name',
+			source: ToolDataSource.Internal,
+		};
+		store.add(service.registerToolData(internalToolSetTool1));
+
+		const internalToolSet = store.add(service.createToolSet(
+			ToolDataSource.Internal,
+			'internalToolSet',
+			'internalToolSetRefName',
+			{ description: 'Test Set' }
+		));
+		store.add(internalToolSet.addTool(internalToolSetTool1));
+
+		/** User Tool Set with tool1 */
+
+		const userToolSet = store.add(service.createToolSet(
+			{ type: 'user', label: "User", file: URI.file('/test/userToolSet.json') },
+			'userToolSet',
+			'userToolSetRefName',
+			{ description: 'Test Set' }
+		));
+		store.add(userToolSet.addTool(tool1));
+
+		/** MCP tool in a MCP tool set */
+
+		const mcpDataSource: ToolDataSource = { type: 'mcp', label: 'My MCP Server', serverLabel: "MCP Server", instructions: undefined, collectionId: 'testMCPCollection', definitionId: 'testMCPDefId' };
+		const mcpTool1: IToolData = {
+			id: 'mcpTool1',
+			toolReferenceName: 'mcpTool1RefName',
+			modelDescription: 'Test MCP Tool 1',
+			displayName: 'McpTool1 Display Name',
+			source: mcpDataSource,
+			canBeReferencedInPrompt: true,
+		};
+		store.add(service.registerToolData(mcpTool1));
+
+		const mcpToolSet = store.add(service.createToolSet(
+			mcpDataSource,
+			'mcpToolSet',
+			'mcpToolSetRefName',
+			{ description: 'MCP Test ToolSet' }
+		));
+		store.add(mcpToolSet.addTool(mcpTool1));
+	}
+
 
 	test('registerToolData', () => {
 		const toolData: IToolData = {
@@ -1412,4 +1501,82 @@ suite('LanguageModelToolsService', () => {
 		);
 		assert.strictEqual(result.content[0].value, 'workspace result');
 	});
+
+	test('getQualifiedToolNames', () => {
+		setupToolsForTest(service, store);
+
+		const qualifiedNames = Array.from(service.getQualifiedToolNames()).sort();
+
+		const expectedNames = [
+			'tool1RefName',
+			'Tool2 Display Name',
+			'my.extension/extTool1RefName',
+			'mcpToolSetRefName/*',
+			'mcpToolSetRefName/mcpTool1RefName',
+			'internalToolSetRefName',
+			'internalToolSetRefName/internalToolSetTool1RefName',
+		].sort();
+
+		assert.deepStrictEqual(qualifiedNames, expectedNames, 'getQualifiedToolNames should return correct qualified names');
+	});
+
+	test('getDeprecatedQualifiedToolNames', () => {
+		setupToolsForTest(service, store);
+
+		const deprecatedNames = service.getDeprecatedQualifiedToolNames();
+
+		// Tools in internal tool sets should have their qualified names with toolset prefix, tools sets keep their name
+		assert.strictEqual(deprecatedNames.get('internalToolSetTool1RefName'), 'internalToolSetRefName/internalToolSetTool1RefName');
+		assert.strictEqual(deprecatedNames.get('internalToolSetRefName'), undefined);
+
+		// For extension tools, the qualified name includes the extension ID
+		assert.strictEqual(deprecatedNames.get('extTool1RefName'), 'my.extension/extTool1RefName');
+
+		// For MCP tool sets, the qualified name includes the /* suffix
+		assert.strictEqual(deprecatedNames.get('mcpToolSetRefName'), 'mcpToolSetRefName/*');
+		assert.strictEqual(deprecatedNames.get('mcpTool1RefName'), 'mcpToolSetRefName/mcpTool1RefName');
+
+		// Internal tool sets and user tools sets and tools without namespace changes should not appear
+		assert.strictEqual(deprecatedNames.get('Tool2 Display Name'), undefined);
+		assert.strictEqual(deprecatedNames.get('tool1RefName'), undefined);
+		assert.strictEqual(deprecatedNames.get('userToolSetRefName'), undefined);
+	});
+
+	test('getToolByQualifiedName', () => {
+		setupToolsForTest(service, store);
+
+		// Test finding tools by their qualified names
+		const tool1 = service.getToolByQualifiedName('tool1RefName');
+		assert.ok(tool1);
+		assert.strictEqual(tool1.id, 'tool1');
+
+		const tool2 = service.getToolByQualifiedName('Tool2 Display Name');
+		assert.ok(tool2);
+		assert.strictEqual(tool2.id, 'tool2');
+
+		const extTool = service.getToolByQualifiedName('my.extension/extTool1RefName');
+		assert.ok(extTool);
+		assert.strictEqual(extTool.id, 'extTool1');
+
+		const mcpTool = service.getToolByQualifiedName('mcpToolSetRefName/mcpTool1RefName');
+		assert.ok(mcpTool);
+		assert.strictEqual(mcpTool.id, 'mcpTool1');
+
+
+		const mcpToolSet = service.getToolByQualifiedName('mcpToolSetRefName/*');
+		assert.ok(mcpToolSet);
+		assert.strictEqual(mcpToolSet.id, 'mcpToolSet');
+
+		const internalToolSet = service.getToolByQualifiedName('internalToolSetRefName/internalToolSetTool1RefName');
+		assert.ok(internalToolSet);
+		assert.strictEqual(internalToolSet.id, 'internalToolSetTool1');
+
+		// Test finding tools within tool sets
+		const toolInSet = service.getToolByQualifiedName('internalToolSetRefName');
+		assert.ok(toolInSet);
+		assert.strictEqual(toolInSet!.id, 'internalToolSet');
+
+	});
+
+
 });
