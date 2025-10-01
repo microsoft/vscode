@@ -295,6 +295,11 @@ export function truncate(value: string, maxLength = 20, ellipsis = true): string
 	return value.length <= maxLength ? value : `${value.substring(0, maxLength)}${ellipsis ? '\u2026' : ''}`;
 }
 
+export function subject(value: string): string {
+	const index = value.indexOf('\n');
+	return index === -1 ? value : truncate(value, index, false);
+}
+
 function normalizePath(path: string): string {
 	// Windows & Mac are currently being handled
 	// as case insensitive file systems in VS Code.
