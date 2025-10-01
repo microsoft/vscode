@@ -279,6 +279,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	}
 
 	private _setFoldingHoverListeners(): void {
+		this._foldingIconStore.clear();
 		const showFoldingControls: 'mouseover' | 'always' | 'never' = this._editor.getOption(EditorOption.showFoldingControls);
 		if (showFoldingControls !== 'mouseover') {
 			return;
