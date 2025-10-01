@@ -281,13 +281,20 @@ class InputEditorDecorations extends Disposable {
 		}
 
 		if (slashPromptPart) {
-			// Add hover message with description if available, fallback to detail
+			// Add hover message with description if available
 			const cachedDescription = this.promptDescriptionsCache.get(slashPromptPart.slashPromptCommand.command);
-			// Use cached description if available and non-empty, otherwise use the detail as fallback
-			const hoverMessage = cachedDescription?.trim()
-				? new MarkdownString(cachedDescription)
-				: new MarkdownString(slashPromptPart.slashPromptCommand.detail);
-			textDecorations.push({ range: slashPromptPart.editorRange, hoverMessage });
+			// Show description if loaded, otherwise trigger load and show description once available
+			if (cachedDescription === undefined) {
+				// Not loaded yet - trigger load but don't show hover yet
+				this.loadPromptDescription(slashPromptPart.slashPromptCommand.command);
+				textDecorations.push({ range: slashPromptPart.editorRange });
+			} else if (cachedDescription.trim()) {
+				// Have description - show it
+				textDecorations.push({ range: slashPromptPart.editorRange, hoverMessage: new MarkdownString(cachedDescription) });
+			} else {
+				// No description available - don't show hover
+				textDecorations.push({ range: slashPromptPart.editorRange });
+			}
 		}
 
 		this.widget.inputEditor.setDecorationsByType(decorationDescription, slashCommandTextDecorationType, textDecorations);
