@@ -15,7 +15,7 @@ import { ExtHostCommands, CommandsConverter } from './extHostCommands.js';
 import { asPromise } from '../../../base/common/async.js';
 import * as extHostTypes from './extHostTypes.js';
 import { isUndefinedOrNull, isString } from '../../../base/common/types.js';
-import { equals, coalesce } from '../../../base/common/arrays.js';
+import { equals, coalesce, distinct } from '../../../base/common/arrays.js';
 import { ILogService, LogLevel } from '../../../platform/log/common/log.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { MarkdownString, ViewBadge, DataTransfer } from './extHostTypeConverters.js';
@@ -406,6 +406,7 @@ class ExtHostTreeView<T> extends Disposable {
 		}, 200, true);
 		this._register(onDidChangeData(({ message, elements }) => {
 			if (elements.length) {
+				elements = distinct(elements);
 				this._refreshQueue = this._refreshQueue.then(() => {
 					const _promiseCallback = promiseCallback;
 					refreshingPromise = null;
@@ -726,8 +727,9 @@ class ExtHostTreeView<T> extends Disposable {
 		const cts = new CancellationTokenSource(this._refreshCancellationSource.token);
 
 		try {
-			const parentNode = parentElement ? this._nodes.get(parentElement) : undefined;
 			const elements = await this._dataProvider.getChildren(parentElement);
+			const parentNode = parentElement ? this._nodes.get(parentElement) : undefined;
+
 			if (cts.token.isCancellationRequested) {
 				return undefined;
 			}
