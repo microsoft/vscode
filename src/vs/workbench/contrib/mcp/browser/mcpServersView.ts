@@ -244,7 +244,7 @@ export class McpServersListView extends AbstractExtensionsListView<IWorkbenchMcp
 			.appendMarkdown(localize('mcp.gallery.enableDialog.setting', "This feature is currently in preview. You can disable it anytime using the setting [{0}]({1}).", mcpGalleryServiceEnablementConfig, settingsCommandLink)),
 			{
 				actionHandler: (content: string) => {
-					this.openerService.open(URI.parse(content), { allowCommands: true });
+					this.openerService.open(URI.parse(content), { allowCommands: ['workbench.action.openSettings'] });
 				}
 			}));
 		description.appendChild(markdownResult.element);
