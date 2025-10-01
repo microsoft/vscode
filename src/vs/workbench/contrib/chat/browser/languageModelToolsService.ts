@@ -720,60 +720,57 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		return result;
 	}
 
-	*getQualifiedToolNames(): Iterable<string> {
-		for (const tool of this.getTools()) {
-			if (tool.canBeReferencedInPrompt) {
-				yield getToolReferenceName(tool);
+	private *getPromptReferencableTools(): Iterable<[IToolData | ToolSet, string]> {
+		const coveredByToolSets = new Set<IToolData>();
+		for (const toolSet of this.toolSets.get()) {
+			if (toolSet.source.type !== 'user') {
+				yield [toolSet, getToolSetReferenceName(toolSet)];
+				for (const tool of toolSet.getTools()) {
+					yield [tool, getToolReferenceName(tool, toolSet)];
+					coveredByToolSets.add(tool);
+				}
 			}
 		}
-		for (const toolSet of this.toolSets.get()) {
-			yield getToolSetReferenceName(toolSet);
-			for (const tool of toolSet.getTools()) {
-				yield getToolReferenceName(tool, toolSet);
+		for (const tool of this.getTools()) {
+			if (tool.canBeReferencedInPrompt && !coveredByToolSets.has(tool)) {
+				yield [tool, getToolReferenceName(tool)];
 			}
+		}
+	}
+
+	*getQualifiedToolNames(): Iterable<string> {
+		for (const [, toolReferenceName] of this.getPromptReferencableTools()) {
+			yield toolReferenceName;
 		}
 	}
 
 	getDeprecatedQualifiedToolNames(): Map<string, string> {
 		const result = new Map<string, string>();
-		const add = (name: string, qualifiedName: string) => {
-			if (name !== qualifiedName) {
-				result.set(name, qualifiedName);
+		const add = (name: string, toolReferenceName: string) => {
+			if (name !== toolReferenceName) {
+				result.set(name, toolReferenceName);
 			}
 		};
-		for (const tool of this.getTools()) {
-			if (tool.canBeReferencedInPrompt) {
-				add(tool.toolReferenceName ?? tool.displayName, getToolReferenceName(tool));
-			}
-		}
-		for (const toolSet of this.toolSets.get()) {
-			add(toolSet.referenceName, getToolSetReferenceName(toolSet));
-			for (const tool of toolSet.getTools()) {
-				add(tool.toolReferenceName ?? tool.displayName, getToolReferenceName(tool, toolSet));
+		for (const [tool, toolReferenceName] of this.getPromptReferencableTools()) {
+			if (tool instanceof ToolSet) {
+				add(tool.referenceName, toolReferenceName);
+			} else {
+				add(tool.toolReferenceName ?? tool.displayName, toolReferenceName);
 			}
 		}
 		return result;
 	}
 
 	getToolByQualifiedName(qualifiedName: string): IToolData | ToolSet | undefined {
-		for (const tool of this.getTools()) {
-			if (tool.canBeReferencedInPrompt) {
-				if (qualifiedName === getToolReferenceName(tool) || qualifiedName === (tool.toolReferenceName ?? tool.displayName) /* legacy */) {
-					if (matchesToolReferenceName(tool, qualifiedName)) {
-						return tool;
-					}
-				}
+		for (const [tool, toolReferenceName] of this.getPromptReferencableTools()) {
+			if (qualifiedName === toolReferenceName) {
+				return tool;
 			}
-			for (const toolSet of this.toolSets.get()) {
-				if (qualifiedName === getToolSetReferenceName(toolSet) || qualifiedName === toolSet.referenceName /* legacy */) {
-					return toolSet;
-				}
-				for (const tool of toolSet.getTools()) {
-					if (qualifiedName === getToolReferenceName(tool) || qualifiedName === (tool.toolReferenceName ?? tool.displayName) /* legacy */) {
-						return tool;
-					}
-				}
+			// legacy: check for the old name
+			if (qualifiedName === (tool instanceof ToolSet ? tool.referenceName : tool.toolReferenceName ?? tool.displayName)) {
+				return tool;
 			}
+
 		}
 		return undefined;
 	}
@@ -803,10 +800,6 @@ function getToolSetReferenceName(toolSet: ToolSet) {
 	return toolSet.referenceName;
 }
 
-function matchesToolReferenceName(tool: IToolData, name: string, toolSet?: ToolSet) {
-	const toolName = tool.toolReferenceName ?? tool.displayName;
-	return name === toolName || (toolSet && name === `${toolSet.referenceName}/${toolName}`);
-}
 
 type LanguageModelToolInvokedEvent = {
 	result: 'success' | 'error' | 'userCancelled';
