@@ -4409,7 +4409,7 @@ export interface IInlineSuggestOptions {
 		/**
 		* @internal
 		*/
-		requestInformation?: boolean;
+		emptyResponseInformation?: boolean;
 
 		showOnSuggestConflict?: 'always' | 'never' | 'whenSuggestListIsIncomplete';
 	};
@@ -4449,7 +4449,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 			experimental: {
 				suppressInlineSuggestions: '',
 				showOnSuggestConflict: 'never',
-				requestInformation: true,
+				emptyResponseInformation: true,
 			},
 		};
 
@@ -4503,11 +4503,11 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 						mode: 'auto'
 					}
 				},
-				'editor.inlineSuggest.experimental.requestInformation': {
+				'editor.inlineSuggest.experimental.emptyResponseInformation': {
 					type: 'boolean',
-					default: defaults.experimental.requestInformation,
+					default: defaults.experimental.emptyResponseInformation,
 					tags: ['experimental'],
-					description: nls.localize('inlineSuggest.requestInformation', "Controls whether to send request information from the inline suggestion provider."),
+					description: nls.localize('inlineSuggest.emptyResponseInformation', "Controls whether to send request information from the inline suggestion provider."),
 					experiment: {
 						mode: 'auto'
 					}
@@ -4589,7 +4589,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 			experimental: {
 				suppressInlineSuggestions: EditorStringOption.string(input.experimental?.suppressInlineSuggestions, this.defaultValue.experimental.suppressInlineSuggestions),
 				showOnSuggestConflict: stringSet(input.experimental?.showOnSuggestConflict, this.defaultValue.experimental.showOnSuggestConflict, ['always', 'never', 'whenSuggestListIsIncomplete']),
-				requestInformation: boolean(input.experimental?.requestInformation, this.defaultValue.experimental.requestInformation),
+				emptyResponseInformation: boolean(input.experimental?.emptyResponseInformation, this.defaultValue.experimental.emptyResponseInformation),
 			},
 		};
 	}

@@ -10,6 +10,7 @@ import { CancellationError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { isNumber, isObject } from '../../../../../base/common/types.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { PromptInputState } from '../../../../../platform/terminal/common/capabilities/commandDetection/promptInputModel.js';
@@ -55,6 +56,15 @@ export class ToolTerminalCreator {
 			instance,
 			shellIntegrationQuality: ShellIntegrationQuality.None,
 		};
+
+		// Ensure the shell process launches successfully
+		const initResult = await Promise.any([
+			instance.processReady,
+			Event.toPromise(instance.onExit),
+		]);
+		if (!isNumber(initResult) && isObject(initResult) && 'message' in initResult) {
+			throw new Error(initResult.message);
+		}
 
 		// Wait for shell integration when the fallback case has not been hit or when shell
 		// integration injection is enabled. Note that it's possible for the fallback case to happen
