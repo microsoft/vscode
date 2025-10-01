@@ -105,7 +105,7 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 			this.notifications.delete(ds);
 		}
 
-		const chatTitle = widget.viewModel?.model.title || localize('chat.defaultTitle', "Chat");
+		const chatTitle = widget.viewModel?.model.title || localize('chat.untitledChat', "Untitled Chat");
 		const maxDetailLength = 100;
 		const truncatedResponse = responseContent.length > maxDetailLength
 			? responseContent.substring(0, maxDetailLength) + '...'
