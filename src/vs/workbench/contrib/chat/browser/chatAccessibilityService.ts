@@ -72,6 +72,9 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 		}
 	}
 	acceptElicitation(elicitation: IChatElicitationRequest): void {
+		if (elicitation.state !== 'pending') {
+			return;
+		}
 		const title = typeof elicitation.title === 'string' ? elicitation.title : elicitation.title.value;
 		const message = typeof elicitation.message === 'string' ? elicitation.message : elicitation.message.value;
 		alert(title + ' ' + message);
