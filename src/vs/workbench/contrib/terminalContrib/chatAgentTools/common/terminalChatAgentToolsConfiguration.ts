@@ -51,7 +51,7 @@ const terminalChatAgentProfileSchema: IJSONSchema = {
 	required: ['path'],
 	properties: {
 		path: {
-			description: localize('terminalChatAgentProfile.path', "A single path to a shell executable."),
+			description: localize('terminalChatAgentProfile.path', "A path to a shell executable."),
 			type: 'string',
 		},
 		...terminalProfileBaseProperties,
