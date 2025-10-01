@@ -17,7 +17,7 @@ import { EditSourceData, IDocumentWithAnnotatedEdits, createDocWithJustReason } 
 import { IAiEditTelemetryService } from './aiEditTelemetry/aiEditTelemetryService.js';
 import { ArcTracker } from '../../common/arcTracker.js';
 import type { ScmRepoBridge } from './editSourceTrackingImpl.js';
-import { forwardToChannelIf, isCopilotLikeExtension } from './forwardingTelemetryService.js';
+import { forwardToChannelIf, isCopilotLikeExtension } from '../../../../../platform/dataChannel/browser/forwardingTelemetryService.js';
 import { ProviderId } from '../../../../../editor/common/languages.js';
 
 export class InlineEditArcTelemetrySender extends Disposable {
