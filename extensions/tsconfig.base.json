@@ -1,5 +1,6 @@
 {
 	"compilerOptions": {
+		"baseUrl": ".",
 		"esModuleInterop": true,
 		"target": "ES2024",
 		"lib": [
@@ -15,6 +16,12 @@
 		"noImplicitOverride": true,
 		"noUnusedLocals": true,
 		"noUnusedParameters": true,
-		"forceConsistentCasingInFileNames": true
+		"forceConsistentCasingInFileNames": true,
+		"paths": {
+			"vscode": ["../src/vscode-dts/vscode.d.ts"]
+		},
+		"types": [
+			"node"
+		]
 	}
 }

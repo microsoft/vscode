@@ -12,7 +12,8 @@
 		"strict": true,
 		"skipLibCheck": true,
 		"paths": {
-			"*": ["./node_modules/*"]
+			"*": ["./node_modules/*"],
+			"vscode": ["../../src/vscode-dts/vscode.d.ts"]
 		}
 	},
 	"include": [

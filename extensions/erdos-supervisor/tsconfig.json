@@ -10,6 +10,7 @@
 		"typeRoots": ["./node_modules/@types"],
 		"paths": {
 			"*": ["./node_modules/*"],
+			"vscode": ["../../src/vscode-dts/vscode.d.ts"]
 		},
 		"useUnknownInCatchVariables": false,
 		"noImplicitAny": false,

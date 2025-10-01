@@ -20,7 +20,10 @@
 		"typeRoots": ["./types", "./node_modules/@types"],
 		"types": [
 			"node"
-		]
+		],
+		"paths": {
+			"vscode": ["../../src/vscode-dts/vscode.d.ts"]
+		}
 	},
 	"include": [
 		"src/**/*"

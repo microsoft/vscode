@@ -8,6 +8,9 @@
 		"rootDir": "src",
 		"strict": true,
 		"typeRoots": ["./node_modules/@types"],
+		"paths": {
+			"vscode": ["../../src/vscode-dts/vscode.d.ts"]
+		},
 		"esModuleInterop": true,
 		"useUnknownInCatchVariables": false,
 		"noImplicitAny": false
@@ -17,4 +20,3 @@
 		"../../src/vscode-dts/vscode.d.ts"
 	]
 }
-

@@ -3,8 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export const ttPolicy = (typeof window !== 'undefined') ?
-	window.trustedTypes?.createPolicy('notebookRenderer', {
-		createHTML: value => value,
-		createScript: value => value,
-	}) : undefined;
+interface NotebookTrustedTypePolicyFactory {
+	createPolicy(name: string, rules: {
+		createHTML(value: string): string;
+		createScript(value: string): string;
+	}): {
+		createHTML(value: string): string;
+		createScript(value: string): string;
+	};
+}
+
+const trustedTypesFactory: NotebookTrustedTypePolicyFactory | undefined =
+	typeof window !== 'undefined'
+		? (window as unknown as { trustedTypes?: NotebookTrustedTypePolicyFactory }).trustedTypes
+		: undefined;
+
+export const ttPolicy = trustedTypesFactory?.createPolicy('notebookRenderer', {
+	createHTML: (value: string) => value,
+	createScript: (value: string) => value,
+});

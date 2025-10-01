@@ -1663,6 +1663,8 @@ export class DatabaseClientAPI implements IDatabaseClientAPI {
         // 2. The contrib system can't execute extension commands with Node arguments anyway
         // 3. Double-click actions are handled by the contrib system's _handleNodeDoubleClick method
         
+        const tooltip = typeof node.tooltip === 'string' ? node.tooltip : node.tooltip?.value;
+
         return {
             id: node.getCacheKey(),
             label: node.label,
@@ -1671,7 +1673,7 @@ export class DatabaseClientAPI implements IDatabaseClientAPI {
             collapsibleState: node.collapsibleState,
             iconPath: iconPath,
             description: node.description,
-            tooltip: node.tooltip
+            tooltip
         };
     }
 

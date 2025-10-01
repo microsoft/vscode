@@ -13,7 +13,8 @@
 			"./node_modules/@types"
 		],
 		"paths": {
-			"*": ["./node_modules/*"]
+			"*": ["./node_modules/*"],
+			"vscode": ["../../src/vscode-dts/vscode.d.ts"]
 		}
 	},
 	"include": [
