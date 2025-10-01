@@ -28,7 +28,7 @@ import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatService } from '../../common/chatService.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ChatSessionUri } from '../../common/chatUri.js';
-import { ChatConfiguration } from '../../common/constants.js';
+import { ChatConfiguration, VIEWLET_ID } from '../../common/constants.js';
 import { ChatViewId, IChatWidgetService } from '../chat.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
@@ -36,7 +36,6 @@ import { ChatSessionItemWithProvider, findExistingChatEditorByUri, isLocalChatSe
 import { ChatViewPane } from '../chatViewPane.js';
 import { ACTION_ID_OPEN_CHAT, CHAT_CATEGORY } from './chatActions.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { VIEWLET_ID } from '../chatSessions/view/chatSessionsView.js';
 
 export interface IChatSessionContext {
 	sessionId: string;

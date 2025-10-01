@@ -402,7 +402,9 @@ function createTypeScriptBuilder(config, projectFile, cmd) {
                         messageText: `CYCLIC dependency: ${error}`
                     });
                 }
+                delete oldErrors[filename];
                 newErrors[filename] = cyclicDepErrors;
+                cyclicDepErrors.forEach(d => onError(d));
             }
         }).then(() => {
             // store the build versions to not rebuilt the next time

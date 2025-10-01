@@ -54,6 +54,7 @@ export const basicMarkupHtmlTags = Object.freeze([
 	'rp',
 	'rt',
 	'ruby',
+	's',
 	'samp',
 	'small',
 	'small',

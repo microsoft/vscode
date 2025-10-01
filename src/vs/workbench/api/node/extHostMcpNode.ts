@@ -78,7 +78,7 @@ export class NodeExtHostMpcService extends ExtHostMcpService {
 		let child: ChildProcessWithoutNullStreams;
 		try {
 			const home = homedir();
-			let cwd = launch.cwd ? untildify(launch.cwd, home) : home;
+			let cwd = launch.cwd ? untildify(launch.cwd, home) : (defaultCwd?.fsPath || home);
 			if (!path.isAbsolute(cwd)) {
 				cwd = defaultCwd ? path.join(defaultCwd.fsPath, cwd) : path.join(home, cwd);
 			}

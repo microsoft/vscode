@@ -156,6 +156,7 @@ export const USER_LOCAL_AND_REMOTE_SETTINGS = [
 	'http.systemCertificates',
 	'http.experimental.systemCertificatesV2',
 	'http.fetchAdditionalSupport',
+	'http.experimental.networkInterfaceCheckInterval',
 ];
 
 let proxyConfiguration: IConfigurationNode[] = [];
@@ -269,6 +270,17 @@ function registerProxyConfigurations(useHostProxy = true, useHostProxyDefault = 
 					default: true,
 					markdownDescription: localize('fetchAdditionalSupport', "Controls whether Node.js' fetch implementation should be extended with additional support. Currently proxy support ({1}) and system certificates ({2}) are added when the corresponding settings are enabled. When during [remote development](https://aka.ms/vscode-remote) the {0} setting is disabled this setting can be configured in the local and the remote settings separately.", '`#http.useLocalProxyConfiguration#`', '`#http.proxySupport#`', '`#http.systemCertificates#`'),
 					restricted: true
+				},
+				'http.experimental.networkInterfaceCheckInterval': {
+					type: 'number',
+					default: 300,
+					minimum: -1,
+					tags: ['experimental'],
+					markdownDescription: localize('networkInterfaceCheckInterval', "Controls the interval in seconds for checking network interface changes to invalidate the proxy cache. Set to -1 to disable. When during [remote development](https://aka.ms/vscode-remote) the {0} setting is disabled this setting can be configured in the local and the remote settings separately.", '`#http.useLocalProxyConfiguration#`'),
+					restricted: true,
+					experiment: {
+						mode: 'auto'
+					}
 				}
 			}
 		}

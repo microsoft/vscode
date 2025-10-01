@@ -19,7 +19,7 @@ export class McpGalleryManifestService extends Disposable implements IMcpGallery
 	}
 
 	constructor(
-		@IProductService protected readonly productService: IProductService,
+		@IProductService private readonly productService: IProductService,
 	) {
 		super();
 	}
