@@ -250,9 +250,8 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 
 		super.create(parent);
 
-		const contentArea = this.getContentArea();
-		if (contentArea) {
-			this.createEmptyPaneMessage(contentArea);
+		if (this.contentArea) {
+			this.createEmptyPaneMessage(this.contentArea);
 		}
 
 		this.updateCompositeBar();
