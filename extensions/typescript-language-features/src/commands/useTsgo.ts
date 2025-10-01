@@ -68,7 +68,5 @@ async function updateTsgoSetting(enable: boolean): Promise<void> {
 		}
 	}
 
-	// Update the setting, restart the extension host, and enable the TypeScript Go extension
 	await tsConfig.update('experimental.useTsgo', enable, target);
-	await vscode.commands.executeCommand('workbench.action.restartExtensionHost');
 }
