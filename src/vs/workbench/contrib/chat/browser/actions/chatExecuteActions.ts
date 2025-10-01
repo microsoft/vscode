@@ -796,7 +796,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			const instantiationService = accessor.get(IInstantiationService);
 			const requestParser = instantiationService.createInstance(ChatRequestParser);
 
-			const isChatSessionsExperimentEnabled = configurationService.getValue<boolean>(ChatConfiguration.UseChatSessionsForCloudButton);
+			const isChatSessionsExperimentEnabled = configurationService.getValue<boolean>(ChatConfiguration.UseCloudButtonV2);
 			if (isChatSessionsExperimentEnabled) {
 				return await this.createWithChatSessions(chatSessionsService, chatAgentService, quickPickService, widget, userPrompt);
 			}
