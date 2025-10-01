@@ -101,7 +101,7 @@ function cloneGlobalStyleSheet(globalStylesheet: HTMLStyleElement, globalStylesh
 		clone.sheet?.insertRule(rule.cssText, clone.sheet?.cssRules.length);
 	}
 
-	disposables.add(sharedMutationObserver.observe(globalStylesheet, disposables, { childList: true, characterData: isFirefox })(() => {
+	disposables.add(sharedMutationObserver.observe(globalStylesheet, disposables, { childList: true, subtree: isFirefox })(() => {
 		clone.textContent = globalStylesheet.textContent;
 	}));
 
