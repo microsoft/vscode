@@ -859,7 +859,7 @@ export class InlineChatController1 implements IEditorContribution {
 		} else {
 			// real response -> no message
 			this._ui.value.widget.updateStatus('');
-			alert('Response was empty');
+			alert(localize('responseWasEmpty', "Response was empty"));
 		}
 
 		const position = await this._strategy.renderChanges();
