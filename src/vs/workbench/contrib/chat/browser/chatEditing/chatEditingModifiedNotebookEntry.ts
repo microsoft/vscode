@@ -449,7 +449,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 			await this._applyEdits(async () => {
 				const snapshot = createSnapshot(this.originalModel, this.transientOptions, this.configurationService);
 				this.restoreSnapshotInModifiedModel(snapshot);
-				if (this._allEditsAreFromUs && Array.from(this.cellEntryMap.values()).every(entry => entry.allEditsAreFromUs)) {
+				if (this.modifiedModel.uri.scheme !== Schemas.untitled && this._allEditsAreFromUs && Array.from(this.cellEntryMap.values()).every(entry => entry.allEditsAreFromUs)) {
 					// save the file after discarding so that the dirty indicator goes away
 					// and so that an intermediate saved state gets reverted
 					await this.modifiedResourceRef.object.save({ reason: SaveReason.EXPLICIT, skipSaveParticipants: true });
