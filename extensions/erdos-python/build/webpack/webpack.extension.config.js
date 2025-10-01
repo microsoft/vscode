@@ -81,6 +81,11 @@ const config = {
         extensions: ['.ts', '.js'],
         plugins: [new tsconfig_paths_webpack_plugin.TsconfigPathsPlugin({ configFile: configFileName })],
         conditionNames: ['import', 'require', 'node'],
+        extensionAlias: {
+            '.js': ['.ts', '.js'],
+            '.cjs': ['.cts', '.cjs'],
+            '.mjs': ['.mts', '.mjs'],
+        },
     },
     output: {
         filename: '[name].js',

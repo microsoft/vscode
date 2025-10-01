@@ -21,8 +21,7 @@ export async function* pythonRuntimeDiscoverer(
     try {
         // Try to use the proper Python Extension Environments API
         try {
-            // @ts-expect-error NodeNext expects explicit extensions, but webpack resolves the .ts source.
-            const { PythonExtension } = await import('../api/types');
+            const { PythonExtension } = await import('../api/types.js');
             const pythonApi = await PythonExtension.api();
             
             // Trigger environment discovery to ensure we have up-to-date environments
