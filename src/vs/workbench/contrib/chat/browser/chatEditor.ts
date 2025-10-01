@@ -7,6 +7,9 @@ import * as dom from '../../../../base/browser/dom.js';
 import * as nls from '../../../../nls.js';
 import { raceCancellationError } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IContextKeyService, IScopedContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -75,32 +78,6 @@ export class ChatEditor extends EditorPane {
 		this._scopedContextKeyService = this._register(this.contextKeyService.createScoped(parent));
 		const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
 		ChatContextKeys.inChatEditor.bindTo(this._scopedContextKeyService).set(true);
-
-		// Local stylesheet for transient/loading UI
-		const styleElement = document.createElement('style');
-		styleElement.className = 'chat-editor-styles';
-		parent.appendChild(styleElement);
-		styleElement.textContent += `
-			.chat-loading-overlay {
-				position: absolute;
-				inset: 0;
-				display: flex;
-				align-items: center;
-				justify-content: center;
-				background: var(--vscode-editor-background);
-				z-index: 1000;
-			}
-			.chat-loading-overlay .chat-loading-content {
-				display: flex;
-				align-items: center;
-				gap: 8px;
-				color: var(--vscode-editor-foreground);
-			}
-			.chat-loading-overlay .codicon {
-				font-size: 16px;
-			}
-		`;
-		this._register({ dispose: () => styleElement.remove() });
 
 		this._widget = this._register(
 			scopedInstantiationService.createInstance(
@@ -180,8 +157,9 @@ export class ChatEditor extends EditorPane {
 		// Rely on live region text content instead of aria-label to avoid duplicate announcements
 		this._loadingContainer.tabIndex = -1; // ensure it isn't focusable
 		const loadingContent = dom.append(this._loadingContainer, dom.$('.chat-loading-content'));
-		const spinner = dom.append(loadingContent, dom.$('.codicon.codicon-loading.codicon-modifier-spin'));
+		const spinner = renderIcon(ThemeIcon.modify(Codicon.loading, 'spin'));
 		spinner.setAttribute('aria-hidden', 'true');
+		loadingContent.appendChild(spinner);
 		const text = dom.append(loadingContent, dom.$('span'));
 		text.textContent = message;
 	}
@@ -210,7 +188,7 @@ export class ChatEditor extends EditorPane {
 		const chatSessionType = getChatSessionType(input);
 		if (chatSessionType !== 'local') {
 			// Show single loading state for contributed sessions
-			const loadingMessage = nls.localize('chatEditor.loadingSession', "Loading ...");
+			const loadingMessage = nls.localize('chatEditor.loadingSession', "Loading...");
 			this.showLoadingInChatWidget(loadingMessage);
 
 			try {

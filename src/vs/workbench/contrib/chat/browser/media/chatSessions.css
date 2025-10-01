@@ -274,3 +274,25 @@
 .chat-sessions-view .loading-message .loading-icon {
 	font-size: 16px;
 }
+
+/* Chat editor loading overlay styles */
+.chat-loading-overlay {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: var(--vscode-editor-background);
+	z-index: 1000;
+}
+
+.chat-loading-overlay .chat-loading-content {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	color: var(--vscode-editor-foreground);
+}
+
+.chat-loading-overlay .codicon {
+	font-size: 16px;
+}
