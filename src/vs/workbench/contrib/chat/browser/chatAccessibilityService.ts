@@ -65,8 +65,8 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 			return;
 		}
 		const plainTextResponse = renderAsPlaintext(new MarkdownString(responseContent));
-		const errorDetails = isPanelChat && response.errorDetails ? ` ${response.errorDetails.message}` : undefined;
-		this._showOSNotification(widget, container, errorDetails ?? plainTextResponse);
+		const errorDetails = isPanelChat && response.errorDetails ? ` ${response.errorDetails.message}` : '';
+		this._showOSNotification(widget, container, plainTextResponse + errorDetails);
 		if (!isVoiceInput || this._configurationService.getValue(AccessibilityVoiceSettingId.AutoSynthesize) !== 'on') {
 			status(plainTextResponse + errorDetails);
 		}
