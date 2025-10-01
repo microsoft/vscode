@@ -4412,6 +4412,11 @@ export interface IInlineSuggestOptions {
 		requestInformation?: boolean;
 
 		showOnSuggestConflict?: 'always' | 'never' | 'whenSuggestListIsIncomplete';
+
+		/**
+		* @internal
+		*/
+		triggerOnDelete?: boolean;
 	};
 }
 
@@ -4450,6 +4455,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 				suppressInlineSuggestions: '',
 				showOnSuggestConflict: 'never',
 				requestInformation: true,
+				triggerOnDelete: true,
 			},
 		};
 
@@ -4531,6 +4537,15 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 						mode: 'auto'
 					}
 				},
+				'editor.inlineSuggest.experimental.triggerOnDelete': {
+					type: 'boolean',
+					default: defaults.experimental.triggerOnDelete,
+					tags: ['experimental'],
+					description: nls.localize('inlineSuggest.triggerOnDelete', "Controls whether inline suggestions are triggered when deleting code."),
+					experiment: {
+						mode: 'auto'
+					}
+				},
 				'editor.inlineSuggest.fontFamily': {
 					type: 'string',
 					default: defaults.fontFamily,
@@ -4590,6 +4605,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 				suppressInlineSuggestions: EditorStringOption.string(input.experimental?.suppressInlineSuggestions, this.defaultValue.experimental.suppressInlineSuggestions),
 				showOnSuggestConflict: stringSet(input.experimental?.showOnSuggestConflict, this.defaultValue.experimental.showOnSuggestConflict, ['always', 'never', 'whenSuggestListIsIncomplete']),
 				requestInformation: boolean(input.experimental?.requestInformation, this.defaultValue.experimental.requestInformation),
+				triggerOnDelete: boolean(input.experimental?.triggerOnDelete, this.defaultValue.experimental.triggerOnDelete),
 			},
 		};
 	}

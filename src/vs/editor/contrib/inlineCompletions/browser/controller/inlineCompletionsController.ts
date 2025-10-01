@@ -66,6 +66,7 @@ export class InlineCompletionsController extends Disposable {
 	private readonly _suggestWidgetAdapter;
 
 	private readonly _enabledInConfig;
+	private readonly _triggerOnDeleteInConfig;
 	private readonly _isScreenReaderEnabled;
 	private readonly _editorDictationInProgress;
 	private readonly _enabled;
@@ -106,6 +107,7 @@ export class InlineCompletionsController extends Disposable {
 			() => this.model.get()?.selectedInlineCompletion.get()?.getSingleTextEdit(),
 		));
 		this._enabledInConfig = observableFromEvent(this, this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineSuggest).enabled);
+		this._triggerOnDeleteInConfig = observableFromEvent(this, this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineSuggest).experimental.triggerOnDelete);
 		this._isScreenReaderEnabled = observableFromEvent(this, this._accessibilityService.onDidChangeScreenReaderOptimized, () => this._accessibilityService.isScreenReaderOptimized());
 		this._editorDictationInProgress = observableFromEvent(this,
 			this._contextKeyService.onDidChangeContext,
@@ -224,6 +226,12 @@ export class InlineCompletionsController extends Disposable {
 				'acceptSelectedSuggestion',
 			]);
 			if (commands.has(e.commandId) && editor.hasTextFocus() && this._enabled.get()) {
+				// Check if delete commands should trigger inline completions
+				const isDeleteCommand = e.commandId === CoreEditingCommands.DeleteLeft.id || e.commandId === CoreEditingCommands.DeleteRight.id;
+				if (isDeleteCommand && !this._triggerOnDeleteInConfig.get()) {
+					return;
+				}
+
 				let noDelay = false;
 				if (e.commandId === inlineSuggestCommitId) {
 					noDelay = true;
