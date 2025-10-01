@@ -431,7 +431,7 @@ class ExtHostTreeView<T> extends Disposable {
 		}));
 	}
 
-	private _debugCollectHandles(elements: (T | Root)[]): { changed: string[]; roots: string[] } {
+	private _debugCollectHandles(elements: (T | Root)[]): { changed: string[]; roots: string[]; clearing?: string[] } {
 		const changed: string[] = [];
 		for (const el of elements) {
 			if (!el) {
@@ -452,7 +452,7 @@ class ExtHostTreeView<T> extends Disposable {
 			return;
 		}
 		try {
-			const snapshot: any = this._debugCollectHandles(elements);
+			const snapshot = this._debugCollectHandles(elements);
 			if (childrenToClear) {
 				snapshot.clearing = childrenToClear.map(n => n.item.handle);
 			}
