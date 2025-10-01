@@ -473,6 +473,39 @@ suite('ExtHostDiagnostics', () => {
 		assert.strictEqual(callCount, 3); // same but un-equal array
 	});
 
+	test('getDiagnostics does not tolerate sparse diagnostic arrays', function () {
+		const diags = new ExtHostDiagnostics(new class implements IMainContext {
+			getProxy(): any {
+				return new DiagnosticsShape();
+			}
+			set(): any {
+				return null;
+			}
+			dispose(): void { }
+			assertRegistered(): void { }
+			drain() {
+				return undefined!;
+			}
+		}, new NullLogService(), fileSystemInfoService, new class extends mock<IExtHostDocumentsAndEditors>() {
+			override getDocument() {
+				return undefined;
+			}
+		});
+
+		const collection = diags.createDiagnosticCollection(nullExtensionDescription.identifier, 'sparse');
+		const uri = URI.parse('sparse:uri');
+		const diag = new Diagnostic(new Range(0, 0, 0, 0), 'holey');
+		const sparseDiagnostics: Diagnostic[] = new Array(3);
+		sparseDiagnostics[1] = diag;
+
+		collection.set(uri, sparseDiagnostics);
+
+		const result = diags.getDiagnostics(uri);
+		assert.strictEqual(result.length, 1);
+		const resultWithPossibleHoles = [...result] as (vscode.Diagnostic | undefined)[];
+		assert.strictEqual(resultWithPossibleHoles.some(item => item === undefined), false);
+	});
+
 	test('Version id is set whenever possible', function () {
 
 		const all: [UriComponents, IMarkerData[]][] = [];
