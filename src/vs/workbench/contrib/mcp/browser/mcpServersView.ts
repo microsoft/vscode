@@ -234,15 +234,19 @@ export class McpServersListView extends AbstractExtensionsListView<IWorkbenchMcp
 		const title = dom.append(welcomeContent, dom.$('.mcp-welcome-title'));
 		title.textContent = localize('mcp.welcome.title', "MCP Servers");
 
+		const settingsCommandLink = createCommandUri('workbench.action.openSettings', { query: `@id:${mcpGalleryServiceEnablementConfig}` }).toString();
 		const description = dom.append(welcomeContent, dom.$('.mcp-welcome-description'));
 		const markdownResult = this._register(renderMarkdown(new MarkdownString(
-			localize('mcp.welcome.descriptionWithLink', "Browse and install Model Context Protocol (MCP) servers directly from VS Code to extend agent mode with extra tools for connecting to databases, invoking APIs and performing specialized tasks."),
-			{ isTrusted: true }
-		), {
-			actionHandler: (content: string) => {
-				this.openerService.open(URI.parse(content));
-			}
-		}));
+			localize('mcp.welcome.descriptionWithLink', "Browse and install [Model Context Protocol (MCP) servers](https://code.visualstudio.com/docs/copilot/customization/mcp-servers) directly from VS Code to extend agent mode with extra tools for connecting to databases, invoking APIs and performing specialized tasks."),
+			true,
+		)
+			.appendMarkdown('\n\n')
+			.appendMarkdown(localize('mcp.gallery.enableDialog.setting', "This feature is currently in preview. You can disable it anytime using the setting [{0}]({1}).", mcpGalleryServiceEnablementConfig, settingsCommandLink)),
+			{
+				actionHandler: (content: string) => {
+					this.openerService.open(URI.parse(content), { allowCommands: ['workbench.action.openSettings'] });
+				}
+			}));
 		description.appendChild(markdownResult.element);
 
 		const buttonContainer = dom.append(welcomeContent, dom.$('.mcp-welcome-button-container'));
@@ -253,7 +257,6 @@ export class McpServersListView extends AbstractExtensionsListView<IWorkbenchMcp
 		button.label = localize('mcp.welcome.enableGalleryButton', "Enable MCP Servers Marketplace");
 
 		this._register(button.onDidClick(async () => {
-			const settingsCommandLink = createCommandUri('workbench.action.openSettings', { query: `@id:${mcpGalleryServiceEnablementConfig}` }).toString();
 
 			const { result } = await this.dialogService.prompt({
 				type: 'info',
