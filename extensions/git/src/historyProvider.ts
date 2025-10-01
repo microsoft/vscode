@@ -6,7 +6,7 @@
 
 import { CancellationToken, Disposable, Event, EventEmitter, FileDecoration, FileDecorationProvider, SourceControlHistoryItem, SourceControlHistoryItemChange, SourceControlHistoryOptions, SourceControlHistoryProvider, ThemeIcon, Uri, window, LogOutputChannel, SourceControlHistoryItemRef, l10n, SourceControlHistoryItemRefsChangeEvent, workspace, ConfigurationChangeEvent } from 'vscode';
 import { Repository, Resource } from './repository';
-import { IDisposable, deltaHistoryItemRefs, dispose, filterEvent, truncate } from './util';
+import { IDisposable, deltaHistoryItemRefs, dispose, filterEvent, subject, truncate } from './util';
 import { toMultiFileDiffEditorUris } from './uri';
 import { AvatarQuery, AvatarQueryCommit, Branch, LogOptions, Ref, RefType } from './api/git';
 import { emojify, ensureEmojis } from './emoji';
@@ -290,18 +290,13 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 				const messageWithLinks = await provideSourceControlHistoryItemMessageLinks(
 					this.historyItemDetailProviderRegistry, this.repository, message) ?? message;
 
-				const newLineIndex = message.indexOf('\n');
-				const subject = newLineIndex !== -1
-					? `${truncate(message, newLineIndex, false)}`
-					: message;
-
 				const avatarUrl = commitAvatars?.get(commit.hash);
 				const references = this._resolveHistoryItemRefs(commit);
 
 				historyItems.push({
 					id: commit.hash,
 					parentIds: commit.parents,
-					subject,
+					subject: subject(message),
 					message: messageWithLinks,
 					author: commit.authorName,
 					authorEmail: commit.authorEmail,
