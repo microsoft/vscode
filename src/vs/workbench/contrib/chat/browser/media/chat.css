@@ -1369,6 +1369,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: flex;
 	flex-direction: column;
 	gap: 4px;
+	position: relative;
 }
 
 .interactive-session .interactive-input-part.compact {
@@ -2515,8 +2516,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .chat-row-disabled-overlay.disabled,
 .chat-input-overlay.disabled {
 	position: absolute;
-	width: 100%;
-	height: 100%;
+	inset: 0;
 	background-color: var(--vscode-sideBar-background);
 	opacity: 0.6;
 	display: flex;
