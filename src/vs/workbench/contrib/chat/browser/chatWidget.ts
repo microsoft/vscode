@@ -1339,7 +1339,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		const welcomeContent: IChatViewWelcomeContent = {
-			title: localize('expChatTitle', 'Welcome to Visual Studio Code'),
+			title: localize('expChatTitle', 'Ask, Edit, and Build'),
 			message: new MarkdownString(localize('expchatMessage', "Let's get started")),
 			icon: Codicon.chatSparkle,
 			inputPart: this.inputPart.element,
