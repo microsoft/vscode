@@ -307,8 +307,9 @@ function normalizePath(path: string): string {
 		path = path.toLowerCase();
 	}
 
-	// Remove trailing separator
-	if (path.charAt(path.length - 1) === sep) {
+	// Trailing separator
+	if (/[/\\]$/.test(path)) {
+		// Remove trailing separator
 		path = path.substring(0, path.length - 1);
 	}
 
