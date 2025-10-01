@@ -3144,6 +3144,13 @@ export interface IEditorInlayHintsOptions {
 	 * Set to 0 to have an unlimited length.
 	 */
 	maximumLength?: number;
+
+	/**
+	 * Maximum length for a single inlay hint item.
+	 * Limits the number of characters rendered for each individual item.
+	 * Set to 0 to never truncate individual items.
+	 */
+	maximumItemLength?: number;
 }
 
 /**
@@ -3154,7 +3161,7 @@ export type EditorInlayHintsOptions = Readonly<Required<IEditorInlayHintsOptions
 class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, IEditorInlayHintsOptions, EditorInlayHintsOptions> {
 
 	constructor() {
-		const defaults: EditorInlayHintsOptions = { enabled: 'on', fontSize: 0, fontFamily: '', padding: false, maximumLength: 43 };
+		const defaults: EditorInlayHintsOptions = { enabled: 'on', fontSize: 0, fontFamily: '', padding: false, maximumLength: 43, maximumItemLength: 0 };
 		super(
 			EditorOption.inlayHints, 'inlayHints', defaults,
 			{
@@ -3189,6 +3196,11 @@ class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, IEditor
 					type: 'number',
 					default: defaults.maximumLength,
 					markdownDescription: nls.localize('inlayHints.maximumLength', "Maximum overall length of inlay hints, for a single line, before they get truncated by the editor. Set to `0` to never truncate")
+				},
+				'editor.inlayHints.maximumItemLength': {
+					type: 'number',
+					default: defaults.maximumItemLength,
+					markdownDescription: nls.localize('inlayHints.maximumItemLength', "Maximum length of an individual inlay hint item before it gets truncated by the editor. Set to `0` to never truncate items")
 				}
 			}
 		);
@@ -3208,6 +3220,7 @@ class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, IEditor
 			fontFamily: EditorStringOption.string(input.fontFamily, this.defaultValue.fontFamily),
 			padding: boolean(input.padding, this.defaultValue.padding),
 			maximumLength: EditorIntOption.clampedInt(input.maximumLength, this.defaultValue.maximumLength, 0, Number.MAX_SAFE_INTEGER),
+			maximumItemLength: EditorIntOption.clampedInt(input.maximumItemLength, this.defaultValue.maximumItemLength, 0, Number.MAX_SAFE_INTEGER),
 		};
 	}
 }
