@@ -1018,6 +1018,7 @@ export type LifetimeSummary = {
 	timeUntilShown: number | undefined;
 	timeUntilProviderRequest: number;
 	timeUntilProviderResponse: number;
+	notShownReason: string | undefined;
 	editorType: string;
 	viewKind: string | undefined;
 	error: string | undefined;
@@ -1035,6 +1036,7 @@ export type LifetimeSummary = {
 	typingInterval: number;
 	typingIntervalCharacterCount: number;
 	selectedSuggestionInfo: boolean;
+	availableProviders: string;
 };
 
 export interface CodeAction {

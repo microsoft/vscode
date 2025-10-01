@@ -36,10 +36,11 @@ import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions
 import { ExtHostContext, ExtHostLanguageFeaturesShape, HoverWithId, ICallHierarchyItemDto, ICodeActionDto, ICodeActionProviderMetadataDto, IdentifiableInlineCompletion, IdentifiableInlineCompletions, IDocumentDropEditDto, IDocumentDropEditProviderMetadata, IDocumentFilterDto, IIndentationRuleDto, IInlayHintDto, ILanguageConfigurationDto, ILanguageWordDefinitionDto, ILinkDto, ILocationDto, ILocationLinkDto, IOnEnterRuleDto, IPasteEditDto, IPasteEditProviderMetadataDto, IRegExpDto, ISignatureHelpProviderMetadataDto, ISuggestDataDto, ISuggestDataDtoField, ISuggestResultDtoField, ITypeHierarchyItemDto, IWorkspaceSymbolDto, MainContext, MainThreadLanguageFeaturesShape } from '../common/extHost.protocol.js';
 import { InlineCompletionEndOfLifeReasonKind } from '../common/extHostTypes.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
-import { DataChannelForwardingTelemetryService, forwardToChannelIf, isCopilotLikeExtension } from '../../contrib/editTelemetry/browser/telemetry/forwardingTelemetryService.js';
+import { DataChannelForwardingTelemetryService, forwardToChannelIf, isCopilotLikeExtension } from '../../../platform/dataChannel/browser/forwardingTelemetryService.js';
 import { IAiEditTelemetryService } from '../../contrib/editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { EditDeltaInfo } from '../../../editor/common/textModelEditSource.js';
 import { IInlineCompletionsUnificationService } from '../../services/inlineCompletions/common/inlineCompletionsUnification.js';
+import { InlineCompletionEndOfLifeEvent, sendInlineCompletionsEndOfLifeTelemetry } from '../../../editor/contrib/inlineCompletions/browser/telemetry.js';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageFeatures)
 export class MainThreadLanguageFeatures extends Disposable implements MainThreadLanguageFeaturesShape {
@@ -730,6 +731,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 					extensionId,
 					extensionVersion,
 					groupId,
+					availableProviders: lifetimeSummary.availableProviders,
 					partiallyAccepted: lifetimeSummary.partiallyAccepted,
 					partiallyAcceptedCountSinceOriginal: lifetimeSummary.partiallyAcceptedCountSinceOriginal,
 					partiallyAcceptedRatioSinceOriginal: lifetimeSummary.partiallyAcceptedRatioSinceOriginal,
@@ -737,12 +739,14 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 					superseded: reason.kind === InlineCompletionEndOfLifeReasonKind.Ignored && !!reason.supersededBy,
 					reason: reason.kind === InlineCompletionEndOfLifeReasonKind.Accepted ? 'accepted'
 						: reason.kind === InlineCompletionEndOfLifeReasonKind.Rejected ? 'rejected'
-							: 'ignored',
+							: reason.kind === InlineCompletionEndOfLifeReasonKind.Ignored ? 'ignored' : undefined,
+					noSuggestionReason: undefined,
+					notShownReason: lifetimeSummary.notShownReason,
 					...forwardToChannelIf(isCopilotLikeExtension(extensionId)),
 				};
 
-				const telemetryService = this._instantiationService.createInstance(DataChannelForwardingTelemetryService);
-				telemetryService.publicLog2<InlineCompletionEndOfLifeEvent, InlineCompletionsEndOfLifeClassification>('inlineCompletion.endOfLife', endOfLifeSummary);
+				const dataChannelForwardingTelemetryService = this._instantiationService.createInstance(DataChannelForwardingTelemetryService);
+				sendInlineCompletionsEndOfLifeTelemetry(dataChannelForwardingTelemetryService, endOfLifeSummary);
 			},
 			disposeInlineCompletions: (completions: IdentifiableInlineCompletions, reason: languages.InlineCompletionsDisposeReason): void => {
 				this._proxy.$freeInlineCompletionsList(handle, completions.pid, reason);
@@ -1364,84 +1368,3 @@ export class MainThreadDocumentRangeSemanticTokensProvider implements languages.
 		throw new Error(`Unexpected`);
 	}
 }
-
-type InlineCompletionEndOfLifeEvent = {
-	/**
-	 * @deprecated To be removed at one point in favor of opportunityId
-	 */
-	id: string;
-	opportunityId: string;
-	correlationId: string | undefined;
-	extensionId: string;
-	extensionVersion: string;
-	groupId: string | undefined;
-	shown: boolean;
-	shownDuration: number;
-	shownDurationUncollapsed: number;
-	timeUntilShown: number | undefined;
-	timeUntilProviderRequest: number;
-	timeUntilProviderResponse: number;
-	reason: 'accepted' | 'rejected' | 'ignored';
-	partiallyAccepted: number;
-	partiallyAcceptedCountSinceOriginal: number;
-	partiallyAcceptedRatioSinceOriginal: number;
-	partiallyAcceptedCharactersSinceOriginal: number;
-	preceeded: boolean;
-	requestReason: string;
-	languageId: string;
-	error: string | undefined;
-	typingInterval: number;
-	typingIntervalCharacterCount: number;
-	superseded: boolean;
-	editorType: string;
-	selectedSuggestionInfo: boolean;
-	viewKind: string | undefined;
-	cursorColumnDistance: number | undefined;
-	cursorLineDistance: number | undefined;
-	lineCountOriginal: number | undefined;
-	lineCountModified: number | undefined;
-	characterCountOriginal: number | undefined;
-	characterCountModified: number | undefined;
-	disjointReplacements: number | undefined;
-	sameShapeReplacements: boolean | undefined;
-};
-
-type InlineCompletionsEndOfLifeClassification = {
-	owner: 'benibenj';
-	comment: 'Inline completions ended';
-	id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier for the inline completion request' };
-	opportunityId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Unique identifier for an opportunity to show an inline completion or NES' };
-	correlationId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The correlation identifier for the inline completion' };
-	extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier for the extension that contributed the inline completion' };
-	extensionVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The version of the extension that contributed the inline completion' };
-	groupId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The group ID of the extension that contributed the inline completion' };
-	shown: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the inline completion was shown to the user' };
-	shownDuration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The duration for which the inline completion was shown' };
-	shownDurationUncollapsed: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The duration for which the inline completion was shown without collapsing' };
-	timeUntilShown: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The time it took for the inline completion to be shown after the request' };
-	timeUntilProviderRequest: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The time it took for the inline completion to be requested from the provider' };
-	timeUntilProviderResponse: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The time it took for the inline completion to be shown after the request' };
-	reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason for the inline completion ending' };
-	selectedSuggestionInfo: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the inline completion was requested with a selected suggestion' };
-	partiallyAccepted: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How often the inline completion was partially accepted by the user' };
-	partiallyAcceptedCountSinceOriginal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How often the inline completion was partially accepted since the original request' };
-	partiallyAcceptedRatioSinceOriginal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The percentage of characters accepted since the original request' };
-	partiallyAcceptedCharactersSinceOriginal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The character count accepted since the original request' };
-	preceeded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the inline completion was preceeded by another one' };
-	languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language ID of the document where the inline completion was shown' };
-	requestReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason for the inline completion request' };
-	error: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The error message if the inline completion failed' };
-	typingInterval: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The average typing interval of the user at the moment the inline completion was requested' };
-	typingIntervalCharacterCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The character count involved in the typing interval calculation' };
-	superseded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the inline completion was superseded by another one' };
-	editorType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of the editor where the inline completion was shown' };
-	viewKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind of the view where the inline completion was shown' };
-	cursorColumnDistance: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The distance in columns from the cursor to the inline suggestion' };
-	cursorLineDistance: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The distance in lines from the cursor to the inline suggestion' };
-	lineCountOriginal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of lines in the original text' };
-	lineCountModified: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of lines in the modified text' };
-	characterCountOriginal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of characters in the original text' };
-	characterCountModified: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of characters in the modified text' };
-	disjointReplacements: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of inner replacements made by the inline completion' };
-	sameShapeReplacements: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether all inner replacements are the same shape' };
-};
