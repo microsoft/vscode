@@ -440,7 +440,9 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 						messageText: `CYCLIC dependency: ${error}`
 					});
 				}
+				delete oldErrors[filename];
 				newErrors[filename] = cyclicDepErrors;
+				cyclicDepErrors.forEach(d => onError(d));
 			}
 
 		}).then(() => {

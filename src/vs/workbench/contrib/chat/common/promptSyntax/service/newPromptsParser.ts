@@ -75,16 +75,18 @@ export class PromptHeader {
 			const node = parse(lines, yamlErrors);
 			const attributes = [];
 			const errors: ParseError[] = yamlErrors.map(err => ({ message: err.message, range: this.asRange(err), code: err.code }));
-			if (node?.type === 'object') {
-				for (const property of node.properties) {
-					attributes.push({
-						key: property.key.value,
-						range: this.asRange({ start: property.key.start, end: property.value.end }),
-						value: this.asValue(property.value)
-					});
+			if (node) {
+				if (node.type !== 'object') {
+					errors.push({ message: 'Invalid header, expecting <key: value> pairs', range: this.range, code: 'INVALID_YAML' });
+				} else {
+					for (const property of node.properties) {
+						attributes.push({
+							key: property.key.value,
+							range: this.asRange({ start: property.key.start, end: property.value.end }),
+							value: this.asValue(property.value)
+						});
+					}
 				}
-			} else {
-				errors.push({ message: 'Invalid header, expecting <key: value> pairs', range: this.range, code: 'INVALID_YAML' });
 			}
 			this._parsed = { node, attributes, errors };
 		}

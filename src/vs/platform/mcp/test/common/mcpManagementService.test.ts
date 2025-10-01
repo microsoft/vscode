@@ -33,11 +33,11 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 		test('basic NPM package configuration', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
-					registry_type: RegistryType.NODE,
-					registry_base_url: 'https://registry.npmjs.org',
+					registryType: RegistryType.NODE,
+					registryBaseUrl: 'https://registry.npmjs.org',
 					identifier: '@modelcontextprotocol/server-brave-search',
 					version: '1.0.2',
-					environment_variables: [{
+					environmentVariables: [{
 						name: 'BRAVE_API_KEY',
 						value: 'test-key'
 					}]
@@ -58,8 +58,8 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 		test('NPM package without version', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
-					registry_type: RegistryType.NODE,
-					registry_base_url: 'https://registry.npmjs.org',
+					registryType: RegistryType.NODE,
+					registryBaseUrl: 'https://registry.npmjs.org',
 					identifier: '@modelcontextprotocol/everything',
 					version: ''
 				}]
@@ -77,17 +77,17 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 		test('NPM package with environment variables containing variables', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
-					registry_type: RegistryType.NODE,
+					registryType: RegistryType.NODE,
 					identifier: 'test-server',
 					version: '1.0.0',
-					environment_variables: [{
+					environmentVariables: [{
 						name: 'API_KEY',
 						value: 'key-{api_token}',
 						variables: {
 							api_token: {
 								description: 'Your API token',
-								is_secret: true,
-								is_required: true
+								isSecret: true,
+								isRequired: true
 							}
 						}
 					}]
@@ -110,15 +110,15 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 		test('environment variable with empty value should create input variable (GitHub issue #266106)', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
-					registry_type: RegistryType.NODE,
+					registryType: RegistryType.NODE,
 					identifier: '@modelcontextprotocol/server-brave-search',
 					version: '1.0.2',
-					environment_variables: [{
+					environmentVariables: [{
 						name: 'BRAVE_API_KEY',
 						value: '', // Empty value should create input variable
 						description: 'Brave Search API Key',
-						is_required: true,
-						is_secret: true
+						isRequired: true,
+						isSecret: true
 					}]
 				}]
 			};
@@ -142,10 +142,10 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 		test('environment variable with choices but empty value should create pick input (GitHub issue #266106)', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
-					registry_type: RegistryType.NODE,
+					registryType: RegistryType.NODE,
 					identifier: 'test-server',
 					version: '1.0.0',
-					environment_variables: [{
+					environmentVariables: [{
 						name: 'SSL_MODE',
 						value: '', // Empty value should create input variable
 						description: 'SSL connection mode',
@@ -175,16 +175,16 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 		test('NPM package with package arguments', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
-					registry_type: RegistryType.NODE,
+					registryType: RegistryType.NODE,
 					identifier: 'snyk',
 					version: '1.1298.0',
-					package_arguments: [
-						{ type: 'positional', value: 'mcp', value_hint: 'command', is_repeated: false },
+					packageArguments: [
+						{ type: 'positional', value: 'mcp', valueHint: 'command', isRepeated: false },
 						{
 							type: 'named',
 							name: '-t',
 							value: 'stdio',
-							is_repeated: false
+							isRepeated: false
 						}
 					]
 				}]
@@ -203,11 +203,11 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 		test('basic Python package configuration', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
-					registry_type: RegistryType.PYTHON,
-					registry_base_url: 'https://pypi.org',
+					registryType: RegistryType.PYTHON,
+					registryBaseUrl: 'https://pypi.org',
 					identifier: 'weather-mcp-server',
 					version: '0.5.0',
-					environment_variables: [{
+					environmentVariables: [{
 						name: 'WEATHER_API_KEY',
 						value: 'test-key'
 					}, {
@@ -233,7 +233,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 		test('Python package without version', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
-					registry_type: RegistryType.PYTHON,
+					registryType: RegistryType.PYTHON,
 					identifier: 'weather-mcp-server',
 					version: ''
 				}]
@@ -251,25 +251,25 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 		test('basic Docker package configuration', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
-					registry_type: RegistryType.DOCKER,
-					registry_base_url: 'https://docker.io',
+					registryType: RegistryType.DOCKER,
+					registryBaseUrl: 'https://docker.io',
 					identifier: 'mcp/filesystem',
 					version: '1.0.2',
-					runtime_arguments: [{
+					runtimeArguments: [{
 						type: 'named',
 						name: '--mount',
 						value: 'type=bind,src=/host/path,dst=/container/path',
-						is_repeated: false
+						isRepeated: false
 					}],
-					environment_variables: [{
+					environmentVariables: [{
 						name: 'LOG_LEVEL',
 						value: 'info'
 					}],
-					package_arguments: [{
+					packageArguments: [{
 						type: 'positional',
 						value: '/project',
-						value_hint: 'directory',
-						is_repeated: false
+						valueHint: 'directory',
+						isRepeated: false
 					}]
 				}]
 			};
@@ -293,19 +293,19 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 		test('Docker package with variables in runtime arguments', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
-					registry_type: RegistryType.DOCKER,
+					registryType: RegistryType.DOCKER,
 					identifier: 'example/database-manager-mcp',
 					version: '3.1.0',
-					runtime_arguments: [{
+					runtimeArguments: [{
 						type: 'named',
 						name: '-e',
 						value: 'DB_TYPE={db_type}',
-						is_repeated: false,
+						isRepeated: false,
 						variables: {
 							db_type: {
 								description: 'Type of database',
 								choices: ['postgres', 'mysql', 'mongodb', 'redis'],
-								is_required: true
+								isRequired: true
 							}
 						}
 					}]
@@ -331,23 +331,23 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 		test('Docker package arguments without values should create input variables (GitHub issue #266106)', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
-					registry_type: RegistryType.DOCKER,
+					registryType: RegistryType.DOCKER,
 					identifier: 'example/database-manager-mcp',
 					version: '3.1.0',
-					package_arguments: [{
+					packageArguments: [{
 						type: 'named',
 						name: '--host',
 						description: 'Database host',
 						default: 'localhost',
-						is_required: true,
-						is_repeated: false
+						isRequired: true,
+						isRepeated: false
 						// Note: No 'value' field - should create input variable
 					}, {
 						type: 'positional',
-						value_hint: 'database_name',
+						valueHint: 'database_name',
 						description: 'Name of the database to connect to',
-						is_required: true,
-						is_repeated: false
+						isRequired: true,
+						isRepeated: false
 						// Note: No 'value' field - should create input variable
 					}]
 				}]
@@ -382,13 +382,13 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 		test('Docker Hub backward compatibility', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
-					registry_type: RegistryType.DOCKER_HUB,
+					registryType: RegistryType.DOCKER,
 					identifier: 'example/test-image',
 					version: '1.0.0'
 				}]
 			};
 
-			const result = service.testGetMcpServerConfigurationFromManifest(manifest, RegistryType.DOCKER_HUB);
+			const result = service.testGetMcpServerConfigurationFromManifest(manifest, RegistryType.DOCKER);
 
 			assert.strictEqual(result.config.type, McpServerType.LOCAL);
 			if (result.config.type === McpServerType.LOCAL) {
@@ -405,11 +405,11 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 		test('basic NuGet package configuration', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
-					registry_type: RegistryType.NUGET,
-					registry_base_url: 'https://api.nuget.org',
+					registryType: RegistryType.NUGET,
+					registryBaseUrl: 'https://api.nuget.org',
 					identifier: 'Knapcode.SampleMcpServer',
 					version: '0.5.0',
-					environment_variables: [{
+					environmentVariables: [{
 						name: 'WEATHER_CHOICES',
 						value: 'sunny,cloudy,rainy'
 					}]
@@ -429,19 +429,19 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 		test('NuGet package with package arguments', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
-					registry_type: RegistryType.NUGET,
+					registryType: RegistryType.NUGET,
 					identifier: 'Knapcode.SampleMcpServer',
 					version: '0.4.0-beta',
-					package_arguments: [{
+					packageArguments: [{
 						type: 'positional',
 						value: 'mcp',
-						value_hint: 'command',
-						is_repeated: false
+						valueHint: 'command',
+						isRepeated: false
 					}, {
 						type: 'positional',
 						value: 'start',
-						value_hint: 'action',
-						is_repeated: false
+						valueHint: 'action',
+						isRepeated: false
 					}]
 				}]
 			};
@@ -489,8 +489,8 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 						variables: {
 							api_key: {
 								description: 'API key for authentication',
-								is_required: true,
-								is_secret: true
+								isRequired: true,
+								isSecret: true
 							}
 						}
 					}, {
@@ -538,8 +538,8 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 					headers: [{
 						name: 'Authorization',
 						description: 'API token for authentication',
-						is_secret: true,
-						is_required: true
+						isSecret: true,
+						isRequired: true
 						// Note: No 'value' field - should create input variable
 					}, {
 						name: 'X-Custom-Header',
@@ -582,10 +582,10 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 		test('multiple variables in single value', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
-					registry_type: RegistryType.NODE,
+					registryType: RegistryType.NODE,
 					identifier: 'test-server',
 					version: '1.0.0',
-					environment_variables: [{
+					environmentVariables: [{
 						name: 'CONNECTION_STRING',
 						value: 'server={host};port={port};database={db_name}',
 						variables: {
@@ -600,7 +600,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 							},
 							db_name: {
 								description: 'Database name',
-								is_required: true
+								isRequired: true
 							}
 						}
 					}]
@@ -630,14 +630,14 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 		test('variable with choices creates pick input', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
-					registry_type: RegistryType.NODE,
+					registryType: RegistryType.NODE,
 					identifier: 'test-server',
 					version: '1.0.0',
-					runtime_arguments: [{
+					runtimeArguments: [{
 						type: 'named',
 						name: '--log-level',
 						value: '{level}',
-						is_repeated: false,
+						isRepeated: false,
 						variables: {
 							level: {
 								description: 'Log level',
@@ -660,14 +660,14 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 		test('variables in package arguments', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
-					registry_type: RegistryType.DOCKER,
+					registryType: RegistryType.DOCKER,
 					identifier: 'test-image',
 					version: '1.0.0',
-					package_arguments: [{
+					packageArguments: [{
 						type: 'named',
 						name: '--host',
 						value: '{db_host}',
-						is_repeated: false,
+						isRepeated: false,
 						variables: {
 							db_host: {
 								description: 'Database host',
@@ -677,12 +677,12 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 					}, {
 						type: 'positional',
 						value: '{database_name}',
-						value_hint: 'database_name',
-						is_repeated: false,
+						valueHint: 'database_name',
+						isRepeated: false,
 						variables: {
 							database_name: {
 								description: 'Name of the database to connect to',
-								is_required: true
+								isRequired: true
 							}
 						}
 					}]
@@ -705,15 +705,15 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 		test('positional arguments with value_hint should create input variables (GitHub issue #266106)', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
-					registry_type: RegistryType.NODE,
+					registryType: RegistryType.NODE,
 					identifier: '@example/math-tool',
 					version: '2.0.1',
-					package_arguments: [{
+					packageArguments: [{
 						type: 'positional',
-						value_hint: 'calculation_type',
+						valueHint: 'calculation_type',
 						description: 'Type of calculation to enable',
-						is_required: true,
-						is_repeated: false
+						isRequired: true,
+						isRepeated: false
 						// Note: No 'value' field, only value_hint - should create input variable
 					}]
 				}]
@@ -750,7 +750,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 		test('manifest with no matching package type should use first package', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
-					registry_type: RegistryType.PYTHON,
+					registryType: RegistryType.PYTHON,
 					identifier: 'python-server',
 					version: '1.0.0'
 				}]
@@ -768,11 +768,11 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 		test('manifest with matching package type should use that package', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
-					registry_type: RegistryType.PYTHON,
+					registryType: RegistryType.PYTHON,
 					identifier: 'python-server',
 					version: '1.0.0'
 				}, {
-					registry_type: RegistryType.NODE,
+					registryType: RegistryType.NODE,
 					identifier: 'node-server',
 					version: '2.0.0'
 				}]
@@ -789,7 +789,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 		test('undefined environment variables should be omitted', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
-					registry_type: RegistryType.NODE,
+					registryType: RegistryType.NODE,
 					identifier: 'test-server',
 					version: '1.0.0'
 				}]
@@ -805,13 +805,13 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 		test('named argument without value should only add name', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
-					registry_type: RegistryType.NODE,
+					registryType: RegistryType.NODE,
 					identifier: 'test-server',
 					version: '1.0.0',
-					runtime_arguments: [{
+					runtimeArguments: [{
 						type: 'named',
 						name: '--verbose',
-						is_repeated: false
+						isRepeated: false
 					}]
 				}]
 			};
@@ -826,13 +826,13 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 		test('positional argument with undefined value should use value_hint', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
-					registry_type: RegistryType.NODE,
+					registryType: RegistryType.NODE,
 					identifier: 'test-server',
 					version: '1.0.0',
-					package_arguments: [{
+					packageArguments: [{
 						type: 'positional',
-						value_hint: 'target_directory',
-						is_repeated: false
+						valueHint: 'target_directory',
+						isRepeated: false
 					}]
 				}]
 			};
@@ -849,17 +849,17 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 		test('should use explicit variables instead of auto-generating when both are possible', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
-					registry_type: RegistryType.NODE,
+					registryType: RegistryType.NODE,
 					identifier: 'test-server',
 					version: '1.0.0',
-					environment_variables: [{
+					environmentVariables: [{
 						name: 'API_KEY',
 						value: 'Bearer {api_key}',
 						description: 'Should not be used', // This should be ignored since we have explicit variables
 						variables: {
 							api_key: {
 								description: 'Your API key',
-								is_secret: true
+								isSecret: true
 							}
 						}
 					}]

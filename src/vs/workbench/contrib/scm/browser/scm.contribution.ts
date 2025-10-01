@@ -47,9 +47,7 @@ import { SCMAccessibilityHelp } from './scmAccessibilityHelp.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { SCMHistoryItemContextContribution } from './scmHistoryChatContext.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../base/common/actions.js';
-import { CHAT_SETUP_ACTION_ID } from '../../chat/browser/actions/chatActions.js';
+import { CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID } from '../../chat/browser/actions/chatActions.js';
 import product from '../../../../platform/product/common/product.js';
 
 ModesRegistry.registerLanguage({
@@ -668,11 +666,8 @@ registerAction2(class extends Action2 {
 
 	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
 		const commandService = accessor.get(ICommandService);
-		const telemetryService = accessor.get(ITelemetryService);
 
-		telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: CHAT_SETUP_ACTION_ID, from: 'scmResolveConflicts' });
-
-		const result = await commandService.executeCommand(CHAT_SETUP_ACTION_ID);
+		const result = await commandService.executeCommand(CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID);
 		if (!result) {
 			return;
 		}

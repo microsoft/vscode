@@ -6,7 +6,7 @@
 import type { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { isNumber } from '../../../../../../base/common/types.js';
 import type { ICommandDetectionCapability, ITerminalCommand } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
@@ -61,10 +61,27 @@ export class RichExecuteStrategy implements ITerminalExecuteStrategy {
 			// Record where the command started. If the marker gets disposed, re-created it where
 			// the cursor is. This can happen in prompts where they clear the line and rerender it
 			// like powerlevel10k's transient prompt
-			this._onDidCreateStartMarker.fire(this._startMarker = store.add(xterm.raw.registerMarker()));
-			store.add(this._startMarker.onDispose(() => {
-				this._log(`Start marker was disposed, recreating`);
-				this._onDidCreateStartMarker.fire(this._startMarker = store.add(xterm.raw.registerMarker()));
+			const recreateStartMarker = () => {
+				if (store.isDisposed) {
+					return;
+				}
+				const marker = xterm.raw.registerMarker();
+				if (!marker) {
+					this._startMarker = undefined;
+					this._onDidCreateStartMarker.fire(undefined);
+					return;
+				}
+				this._startMarker = marker;
+				this._onDidCreateStartMarker.fire(marker);
+				store.add(marker);
+				store.add(marker.onDispose(() => {
+					recreateStartMarker();
+				}));
+			};
+			recreateStartMarker();
+			store.add(toDisposable(() => {
+				this._startMarker = undefined;
+				this._onDidCreateStartMarker.fire(undefined);
 			}));
 
 			// Execute the command

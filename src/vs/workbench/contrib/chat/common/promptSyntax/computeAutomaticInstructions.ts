@@ -7,7 +7,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { match, splitGlobAware } from '../../../../../base/common/glob.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { basename, joinPath } from '../../../../../base/common/resources.js';
+import { basename, dirname, joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -255,6 +255,8 @@ export class ComputeAutomaticInstructions {
 			this._logService.trace('[InstructionsContextComputer] No readFile tool available, skipping instructions with patterns list.');
 			return [];
 		}
+		const searchNestedAgentMd = this._configurationService.getValue(PromptsConfig.USE_NESTED_AGENT_MD);
+		const agentsMdPromise = searchNestedAgentMd ? this._promptsService.findAgentMDsInWorkspace(token) : Promise.resolve([]);
 
 		const entries: string[] = [];
 		for (const { uri } of instructionFiles) {
@@ -265,6 +267,17 @@ export class ComputeAutomaticInstructions {
 				entries.push(`| '${getFilePath(uri)}' | ${applyTo} | ${description} |`);
 			}
 		}
+
+		const agentsMdFiles = await agentsMdPromise;
+		for (const uri of agentsMdFiles) {
+			if (uri) {
+				const folderName = this._labelService.getUriLabel(dirname(uri), { relative: true });
+				const description = folderName.trim().length === 0 ? localize('instruction.file.description.agentsmd.root', 'Instructions for the workspace') : localize('instruction.file.description.agentsmd.folder', 'Instructions for folder \'{0}\'', folderName);
+				entries.push(`| '${getFilePath(uri)}' |    | ${description} |`);
+			}
+		}
+
+
 		if (entries.length === 0) {
 			return entries;
 		}

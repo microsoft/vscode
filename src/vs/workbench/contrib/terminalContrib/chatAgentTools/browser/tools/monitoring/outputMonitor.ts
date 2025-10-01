@@ -27,6 +27,7 @@ import { IConfirmationPrompt, IExecution, IPollingResult, OutputMonitorState, Po
 import { getTextResponseFromStream } from './utils.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TerminalChatAgentToolsSettingId } from '../../../common/terminalChatAgentToolsConfiguration.js';
+import { ILogService } from '../../../../../../../platform/log/common/log.js';
 
 export interface IOutputMonitor extends Disposable {
 	readonly pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
@@ -85,6 +86,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		@IChatService private readonly _chatService: IChatService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 
@@ -119,7 +121,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 							continue;
 						} else {
 							this._promptPart?.hide();
-							this._promptPart?.dispose();
 							this._promptPart = undefined;
 							break;
 						}
@@ -154,7 +155,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				resources
 			};
 			this._promptPart?.hide();
-			this._promptPart?.dispose();
 			this._promptPart = undefined;
 			this._onDidFinishCommand.fire();
 		}
@@ -237,7 +237,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		]);
 
 		if (race.kind === 'decision') {
-			try { continuePollingPart?.hide(); continuePollingPart?.dispose?.(); } catch { /* noop */ }
+			try { continuePollingPart?.hide(); } catch { /* noop */ }
 			continuePollingPart = undefined;
 
 			// User explicitly declined to keep waiting, so finish with the timed-out result
@@ -255,7 +255,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			const r = race.r;
 
 			if (r === OutputMonitorState.Idle || r === OutputMonitorState.Cancelled || r === OutputMonitorState.Timeout) {
-				try { continuePollingPart?.hide(); continuePollingPart?.dispose?.(); } catch { /* noop */ }
+				try { continuePollingPart?.hide(); } catch { /* noop */ }
 				continuePollingPart = undefined;
 				continuePollingDecisionP = undefined;
 
@@ -315,7 +315,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 				const recentlyIdle = consecutiveIdleEvents >= PollingConsts.MinIdleEvents;
 				const isActive = execution.isActive ? await execution.isActive() : undefined;
-
+				this._logService.trace(`OutputMonitor: waitForIdle check: waited=${waited}ms, recentlyIdle=${recentlyIdle}, isActive=${isActive}`);
 				// Keep polling if still active with no recent data
 				if (recentlyIdle && isActive === true) {
 					consecutiveIdleEvents = 0;
@@ -391,7 +391,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		}
 		const lastFiveLines = execution.getOutput(this._lastPromptMarker).trimEnd().split('\n').slice(-5).join('\n');
 		const promptText =
-			`Analyze the following terminal output. If it contains a prompt requesting user input (such as a confirmation, selection, or yes/no question) and that prompt has NOT already been answered, extract the prompt text. The prompt may ask to choose from a set. If so, extract the possible options as a JSON object with keys 'prompt', 'options' (an array of strings or an object with option to description mappings), and 'freeFormInput': false. If no options are provided, and free form input is requested, for example: Password:, return the word freeFormInput. For example, if the options are "[Y] Yes  [A] Yes to All  [N] No  [L] No to All  [C] Cancel", the option to description mappings would be {"Y": "Yes", "A": "Yes to All", "N": "No", "L": "No to All", "C": "Cancel"}. If there is no such prompt, return null.
+			`Analyze the following terminal output. If it contains a prompt requesting user input (such as a confirmation, selection, or yes/no question) and that prompt has NOT already been answered, extract the prompt text. The prompt may ask to choose from a set. If so, extract the possible options as a JSON object with keys 'prompt', 'options' (an array of strings or an object with option to description mappings), and 'freeFormInput': false. If no options are provided, and free form input is requested, for example: Password:, return the word freeFormInput. For example, if the options are "[Y] Yes  [A] Yes to All  [N] No  [L] No to All  [C] Cancel", the option to description mappings would be {"Y": "Yes", "A": "Yes to All", "N": "No", "L": "No to All", "C": "Cancel"}. If there is no such prompt, return null. If the option is ambiguous, like "any key", return null.
 			Examples:
 			1. Output: "Do you want to overwrite? (y/n)"
 				Response: {"prompt": "Do you want to overwrite?", "options": ["y", "n"], "freeFormInput": false}
@@ -519,7 +519,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			const inputDataDisposable = this._register(execution.instance.onDidInputData((data) => {
 				if (!data || data === '\r' || data === '\n' || data === '\r\n') {
 					part.hide();
-					part.dispose();
 					inputDataDisposable.dispose();
 					this._state = OutputMonitorState.PollingForIdle;
 					resolve(true);
@@ -564,7 +563,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		const inputPromise = new Promise<string | undefined>(resolve => {
 			inputDataDisposable = this._register(execution.instance.onDidInputData(() => {
 				part.hide();
-				part.dispose();
 				inputDataDisposable.dispose();
 				this._state = OutputMonitorState.PollingForIdle;
 				resolve(undefined);
@@ -612,7 +610,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				async (value: IAction | true) => {
 					thePart.state = 'accepted';
 					thePart.hide();
-					thePart.dispose();
 					this._promptPart = undefined;
 					try {
 						const r = await (onAccept ? onAccept(value) : undefined);
@@ -624,7 +621,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				async () => {
 					thePart.state = 'rejected';
 					thePart.hide();
-					thePart.dispose();
 					this._promptPart = undefined;
 					try {
 						const r = await (onReject ? onReject() : undefined);
@@ -637,14 +633,12 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				moreActions,
 				() => this._outputMonitorTelemetryCounters.inputToolManualShownCount++
 			));
+
 			chatModel.acceptResponseProgress(request, thePart);
 			this._promptPart = thePart;
 		});
 
-		this._register(token.onCancellationRequested(() => {
-			part.hide();
-			part.dispose();
-		}));
+		this._register(token.onCancellationRequested(() => part.hide()));
 
 		return { promise, part };
 	}

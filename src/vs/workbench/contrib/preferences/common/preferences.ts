@@ -12,8 +12,8 @@ import { RawContextKey } from '../../../../platform/contextkey/common/contextkey
 import { IExtensionGalleryService, IGalleryExtension } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { ISearchResult, ISettingsEditorModel } from '../../../services/preferences/common/preferences.js';
-import { IChatEntitlementService } from '../../chat/common/chatEntitlementService.js';
 
 export interface IWorkbenchSettingsConfiguration {
 	workbench: {

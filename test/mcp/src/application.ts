@@ -332,9 +332,9 @@ export async function getApplication() {
 export class ApplicationService {
 	private _application: Application | undefined;
 	private _closing: Promise<void> | undefined;
-	private _listeners: ((app: Application | undefined) => void)[] = [];
+	private _listeners: ((app: Application | undefined) => Promise<void> | void)[] = [];
 
-	onApplicationChange(listener: (app: Application | undefined) => void): void {
+	onApplicationChange(listener: (app: Application | undefined) => Promise<void> | void): void {
 		this._listeners.push(listener);
 	}
 
@@ -361,19 +361,19 @@ export class ApplicationService {
 						this._application.code.driver.browserContext.removeAllListeners();
 						await this._application.stop();
 						this._application = undefined;
-						this._runAllListeners();
+						await this._runAllListeners();
 					}
 				})();
 			});
-			this._runAllListeners();
+			await this._runAllListeners();
 		}
 		return this._application;
 	}
 
-	private _runAllListeners() {
+	private async _runAllListeners() {
 		for (const listener of this._listeners) {
 			try {
-				listener(this._application);
+				await listener(this._application);
 			} catch (error) {
 				console.error('Error occurred in application change listener:', error);
 			}

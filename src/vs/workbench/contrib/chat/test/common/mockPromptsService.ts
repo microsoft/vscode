@@ -5,10 +5,13 @@
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../base/common/event.js';
+import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
+import { IExtensionDescription } from '../../../../../platform/extensions/common/extensions.js';
+import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { ParsedPromptFile } from '../../common/promptSyntax/service/newPromptsParser.js';
-import { ICustomChatMode, IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
+import { ICustomChatMode, IPromptPath, IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 
 export class MockPromptsService implements IPromptsService {
 	_serviceBrand: undefined;
@@ -30,6 +33,7 @@ export class MockPromptsService implements IPromptsService {
 	// Stub implementations for required interface methods
 	getSyntaxParserFor(_model: any): any { throw new Error('Not implemented'); }
 	listPromptFiles(_type: any): Promise<readonly any[]> { throw new Error('Not implemented'); }
+	listPromptFilesForStorage(type: PromptsType, storage: PromptsStorage, token: CancellationToken): Promise<readonly IPromptPath[]> { throw new Error('Not implemented'); }
 	getSourceFolders(_type: any): readonly any[] { throw new Error('Not implemented'); }
 	asPromptSlashCommand(_command: string): any { return undefined; }
 	resolvePromptSlashCommand(_data: any, _token: CancellationToken): Promise<any> { throw new Error('Not implemented'); }
@@ -38,5 +42,9 @@ export class MockPromptsService implements IPromptsService {
 	parseNew(_uri: URI, _token: CancellationToken): Promise<any> { throw new Error('Not implemented'); }
 	getPromptFileType(_resource: URI): any { return undefined; }
 	getParsedPromptFile(textModel: ITextModel): ParsedPromptFile { throw new Error('Not implemented'); }
+	registerContributedFile(type: PromptsType, name: string, description: string, uri: URI, extension: IExtensionDescription): IDisposable { throw new Error('Not implemented'); }
+	getPromptLocationLabel(promptPath: IPromptPath): string { throw new Error('Not implemented'); }
+	findAgentMDsInWorkspace(token: CancellationToken): Promise<URI[]> { throw new Error('Not implemented'); }
+
 	dispose(): void { }
 }

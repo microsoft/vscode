@@ -839,7 +839,7 @@ export class SCMHistoryItemChangeAttachmentWidget extends AbstractChatAttachment
 		super(attachment, options, container, contextResourceLabels, hoverDelegate, currentLanguageModel, commandService, openerService);
 
 		const nameSuffix = `\u00A0$(${Codicon.gitCommit.id})${attachment.historyItem.displayId ?? attachment.historyItem.id}`;
-		this.label.setFile(attachment.value, { fileKind: FileKind.FILE, nameSuffix });
+		this.label.setFile(attachment.value, { fileKind: FileKind.FILE, hidePath: true, nameSuffix });
 
 		this.element.ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
 		this._store.add(hoverService.setupManagedHover(hoverDelegate, this.element, () => getHistoryItemHoverContent(themeService, attachment.historyItem), { trapFocus: true }));
@@ -879,7 +879,7 @@ export class SCMHistoryItemChangeRangeAttachmentWidget extends AbstractChatAttac
 		const historyItemEndId = attachment.historyItemChangeEnd.historyItem.displayId ?? attachment.historyItemChangeEnd.historyItem.id;
 
 		const nameSuffix = `\u00A0$(${Codicon.gitCommit.id})${historyItemStartId}..${historyItemEndId}`;
-		this.label.setFile(attachment.value, { fileKind: FileKind.FILE, nameSuffix });
+		this.label.setFile(attachment.value, { fileKind: FileKind.FILE, hidePath: true, nameSuffix });
 
 		this.element.ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
 

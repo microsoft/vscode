@@ -123,9 +123,8 @@ export class PanelPart extends AbstractPaneCompositePart {
 		container.style.borderRightColor = borderColor;
 		container.style.borderBottomColor = borderColor;
 
-		const title = this.getTitleArea();
-		if (title) {
-			title.style.borderTopColor = this.getColor(PANEL_BORDER) || this.getColor(contrastBorder) || '';
+		if (this.titleArea) {
+			this.titleArea.style.borderTopColor = this.getColor(PANEL_BORDER) || this.getColor(contrastBorder) || '';
 		}
 	}
 

@@ -401,6 +401,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					const processEndedEvent = e as ITaskProcessEndedEvent;
 					const startTime = this._taskRunStartTimes.get(e.taskId);
 					this._taskRunStartTimes.delete(e.taskId);
+					this._taskRunSources.delete(e.taskId);
 					const durationMs = processEndedEvent.durationMs ?? (startTime !== undefined ? Date.now() - startTime : undefined);
 					if (durationMs !== undefined) {
 						this._handleLongRunningTaskCompletion(processEndedEvent, durationMs);
@@ -410,6 +411,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				case TaskEventKind.Inactive: {
 					const processEndedEvent = e as ITaskInactiveEvent;
 					const startTime = this._taskRunStartTimes.get(e.taskId);
+					this._taskRunStartTimes.delete(e.taskId);
+					this._taskRunSources.delete(e.taskId);
 					const durationMs = processEndedEvent.durationMs ?? (startTime !== undefined ? Date.now() - startTime : undefined);
 					if (durationMs !== undefined) {
 						this._handleLongRunningTaskCompletion(processEndedEvent, durationMs);
@@ -493,8 +496,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	private async _handleLongRunningTaskCompletion(event: ITaskProcessEndedEvent | ITaskInactiveEvent, durationMs: number): Promise<void> {
 		const notificationThreshold = this._configurationService.getValue<number>(TaskSettingId.NotifyWindowOnTaskCompletion);
-		// If threshold is 0, notifications are disabled
-		if (notificationThreshold === 0 || durationMs < notificationThreshold) {
+		// If threshold is -1, notifications are disabled
+		// If threshold is 0, always show notifications (no minimum duration)
+		// Otherwise, only show if duration meets or exceeds the threshold
+		if (notificationThreshold === -1 || (notificationThreshold > 0 && durationMs < notificationThreshold)) {
 			return;
 		}
 

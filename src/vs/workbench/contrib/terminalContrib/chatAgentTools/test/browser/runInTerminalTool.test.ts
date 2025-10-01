@@ -30,6 +30,9 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 	get commandLineAutoApprover() { return this._commandLineAutoApprover; }
 	get sessionTerminalAssociations() { return this._sessionTerminalAssociations; }
 
+	getCopilotShellOrProfile() {
+		return this._getCopilotShellOrProfile();
+	}
 	setBackendOs(os: OperatingSystem) {
 		this._osBackend = Promise.resolve(os);
 	}
@@ -924,6 +927,25 @@ suite('RunInTerminalTool', () => {
 			ok(autoApproveInfo);
 			ok(autoApproveInfo.value.includes('Auto approved by rule '), 'should contain singular "rule", not plural');
 			strictEqual(count(autoApproveInfo.value, 'echo'), 1);
+		});
+	});
+
+	suite('getCopilotShellOrProfile', () => {
+		test('should return custom profile when configured', async () => {
+			runInTerminalTool.setBackendOs(OperatingSystem.Windows);
+			const customProfile = Object.freeze({ path: 'C:\\Windows\\System32\\powershell.exe', args: ['-NoProfile'] });
+			setConfig(TerminalChatAgentToolsSettingId.TerminalProfileWindows, customProfile);
+
+			const result = await runInTerminalTool.getCopilotShellOrProfile();
+			strictEqual(result, customProfile);
+		});
+
+		test('should fall back to default shell when no custom profile is configured', async () => {
+			runInTerminalTool.setBackendOs(OperatingSystem.Linux);
+			setConfig(TerminalChatAgentToolsSettingId.TerminalProfileLinux, null);
+
+			const result = await runInTerminalTool.getCopilotShellOrProfile();
+			strictEqual(result, 'pwsh'); // From the mock ITerminalProfileResolverService
 		});
 	});
 });

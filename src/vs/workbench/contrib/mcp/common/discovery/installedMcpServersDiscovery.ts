@@ -120,7 +120,7 @@ export class InstalledMcpServersDiscovery extends Disposable implements IMcpDisc
 					},
 					remoteAuthority: mcpConfigPath?.remoteAuthority ?? null,
 					serverDefinitions: observableValue(this, serverDefinitions),
-					trustBehavior: mcpConfigPath?.workspaceFolder ? McpServerTrust.Kind.TrustedOnNonce : McpServerTrust.Kind.Trusted,
+					trustBehavior: McpServerTrust.Kind.Trusted,
 					configTarget: mcpConfigPath?.target ?? ConfigurationTarget.USER,
 					scope: mcpConfigPath?.scope ?? StorageScope.PROFILE,
 				}));

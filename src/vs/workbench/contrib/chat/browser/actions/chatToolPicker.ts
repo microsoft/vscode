@@ -307,7 +307,7 @@ export async function showToolsPicker(
 						},
 					});
 				}
-				return {
+				const bucket: IBucketTreeItem = {
 					itemType: 'bucket',
 					ordinal: BucketOrdinal.Mcp,
 					id: key,
@@ -316,8 +316,14 @@ export async function showToolsPicker(
 					collapsed,
 					children,
 					buttons,
-					iconClass: ThemeIcon.asClassName(Codicon.mcp)
 				};
+				const iconURI = mcpServer.serverMetadata.get()?.icons.getUrl(22);
+				if (iconURI) {
+					bucket.iconPath = { dark: iconURI, light: iconURI };
+				} else {
+					bucket.iconClass = ThemeIcon.asClassName(Codicon.mcp);
+				}
+				return bucket;
 			} else if (source.type === 'extension') {
 				return {
 					itemType: 'bucket',
