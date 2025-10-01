@@ -526,11 +526,11 @@ export function setupTerminalMenus(): void {
 				item: {
 					command: {
 						id: TerminalCommandId.StartVoice,
-						title: localize('workbench.action.terminal.startVoice', "Start Voice"),
+						title: localize('workbench.action.terminal.startVoice', "Start Dictation"),
 					},
 					group: 'navigation',
 					order: 9,
-					when: ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
+					when: ContextKeyExpr.and(ContextKeyExpr.equals('view', TERMINAL_VIEW_ID), TerminalContextKeys.terminalDictationInProgress.toNegated()),
 					isHiddenByDefault: true
 				},
 			},
@@ -539,11 +539,11 @@ export function setupTerminalMenus(): void {
 				item: {
 					command: {
 						id: TerminalCommandId.StopVoice,
-						title: localize('workbench.action.terminal.stopVoice', "Stop Voice"),
+						title: localize('workbench.action.terminal.stopVoice', "Stop Dictation"),
 					},
 					group: 'navigation',
 					order: 9,
-					when: ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
+					when: ContextKeyExpr.and(ContextKeyExpr.equals('view', TERMINAL_VIEW_ID), TerminalContextKeys.terminalDictationInProgress),
 					isHiddenByDefault: true
 				},
 			},
@@ -761,7 +761,7 @@ export function setupTerminalMenus(): void {
 			},
 			group: 'navigation',
 			order: 9,
-			when: ContextKeyExpr.and(ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal), HasSpeechProvider),
+			when: ContextKeyExpr.and(ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal), HasSpeechProvider, TerminalContextKeys.terminalDictationInProgress.negate()),
 			isHiddenByDefault: true
 		});
 		MenuRegistry.appendMenuItem(menuId, {
@@ -772,7 +772,7 @@ export function setupTerminalMenus(): void {
 			},
 			group: 'navigation',
 			order: 10,
-			when: ContextKeyExpr.and(ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal), HasSpeechProvider),
+			when: ContextKeyExpr.and(ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal), HasSpeechProvider, TerminalContextKeys.terminalDictationInProgress),
 			isHiddenByDefault: true
 		});
 	}
