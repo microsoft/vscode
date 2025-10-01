@@ -88,6 +88,7 @@ export const ACTION_ID_NEW_EDIT_SESSION = `workbench.action.chat.newEditSession`
 export const ACTION_ID_OPEN_CHAT = 'workbench.action.openChat';
 export const CHAT_OPEN_ACTION_ID = 'workbench.action.chat.open';
 export const CHAT_SETUP_ACTION_ID = 'workbench.action.chat.triggerSetup';
+export const CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID = 'workbench.action.chat.triggerSetupSupportAnonymousAction';
 const TOGGLE_CHAT_ACTION_ID = 'workbench.action.chat.toggle';
 const CHAT_CLEAR_HISTORY_ACTION_ID = 'workbench.action.chat.clearHistory';
 
@@ -1849,17 +1850,14 @@ MenuRegistry.appendMenuItem(MenuId.EditorContext, {
 	function registerGenerateCodeCommand(coreCommand: string, actualCommand: string): void {
 		CommandsRegistry.registerCommand(coreCommand, async accessor => {
 			const commandService = accessor.get(ICommandService);
-			const telemetryService = accessor.get(ITelemetryService);
 			const editorGroupService = accessor.get(IEditorGroupsService);
-
-			telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: CHAT_SETUP_ACTION_ID, from: 'editor' });
 
 			if (editorGroupService.activeGroup.activeEditor) {
 				// Pinning the editor helps when the Chat extension welcome kicks in after install to keep context
 				editorGroupService.activeGroup.pinEditor(editorGroupService.activeGroup.activeEditor);
 			}
 
-			const result = await commandService.executeCommand(CHAT_SETUP_ACTION_ID);
+			const result = await commandService.executeCommand(CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID);
 			if (!result) {
 				return;
 			}
