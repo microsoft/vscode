@@ -20,8 +20,8 @@ You are my setup automation assistant. Your task is to follow the steps below to
 
 3. Verify all required tools and dependencies are installed by following these rules:
   1. For all tools that should exist on the PATH, check their versions. <example> `toolA --version; toolB --version; [...] toolZ --version` </example>
-  3. For other installations, try AT MOST twice to find the installation by searching common install locations.
-  4. If a tool is not found, mark it as missing.
+  3. For other installations, attempt to find the installation by searching all common install locations. If the installation is not found, adjust your search parameters or locations and try once more. If the installation is still not found after two thorough searches, proceed to the next step.
+  4. If a tool is not found after these attempts, mark it as missing.
 
 4. Display a summary of what I have and what I need to install. In the <example> markdown format. If a section is empty, omit it.
 
