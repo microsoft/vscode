@@ -415,7 +415,9 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			throw err;
 		} finally {
 			toolInvocation?.complete(toolResult);
-			this.informScreenReader(toolInvocation?.pastTenseMessage ?? `${tool.data.displayName} finished`);
+			if (ChatContextKeys.requestInProgress.getValue(this._contextKeyService)) {
+				this.informScreenReader(toolInvocation?.pastTenseMessage ?? `${tool.data.displayName} finished`);
+			}
 			if (store) {
 				this.cleanupCallDisposables(requestId, store);
 			}
