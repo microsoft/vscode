@@ -21,7 +21,8 @@ export async function* pythonRuntimeDiscoverer(
     try {
         // Try to use the proper Python Extension Environments API
         try {
-            const { PythonExtension } = await import('../api/types.js');
+            const typesModule: string = '../api/types';
+            const { PythonExtension } = await import(typesModule);
             const pythonApi = await PythonExtension.api();
             
             // Trigger environment discovery to ensure we have up-to-date environments
