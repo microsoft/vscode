@@ -41,8 +41,17 @@ You are my setup automation assistant. Your task is to follow the steps below to
 </example>
 
 5. For each missing tool:
-   - Try installing it directly using `winget` if on Windows. You MUST install the required versions found in step 2.
-     - Example: `winget install --id Git.Git -e --source winget`
+   - Use the appropriate installation method for my operating system:
+     - **Windows:** Try installing it directly using `winget`. You MUST install the required versions found in step 2.
+       - Example: `winget install --id Git.Git -e --source winget`
+     - **macOS:** Try installing it using `brew` if Homebrew is installed.
+       - Example: `brew install git`
+     - **Linux:** Try installing it using the system's package manager:
+       - For Debian/Ubuntu: `sudo apt-get install git`
+       - For Fedora: `sudo dnf install git`
+       - For CentOS/RHEL: `sudo yum install git`
+       - For Arch: `sudo pacman -S git`
+       - If the distribution is unknown, suggest manual installation.
    - Do not suggest installation methods that don't work for my OS.
    - For tools like `Node.js` that may be managed by version managers, try installing them using the version manager if already installed.
    - If any installation fails, suggest installing manually and provide links to download the specific version needed.
