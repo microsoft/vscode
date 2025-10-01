@@ -43,8 +43,8 @@ export abstract class Part extends Component implements ISerializableView {
 
 	private parent: HTMLElement | undefined;
 	private headerArea: HTMLElement | undefined;
-	private titleArea: HTMLElement | undefined;
-	private contentArea: HTMLElement | undefined;
+	protected titleArea: HTMLElement | undefined;
+	protected contentArea: HTMLElement | undefined;
 	private footerArea: HTMLElement | undefined;
 	private partLayout: PartLayout | undefined;
 
@@ -99,29 +99,12 @@ export abstract class Part extends Component implements ISerializableView {
 	}
 
 	/**
-	 * Returns the title area container.
-	 */
-	protected getTitleArea(): HTMLElement | undefined {
-		return this.titleArea;
-	}
-
-	/**
 	 * Subclasses override to provide a content area implementation.
 	 */
 	protected createContentArea(parent: HTMLElement, options?: object): HTMLElement | undefined {
 		return undefined;
 	}
 
-	/**
-	 * Returns the content area container.
-	 */
-	protected getContentArea(): HTMLElement | undefined {
-		return this.contentArea;
-	}
-
-	/**
-	 * Sets the header area
-	 */
 	protected setHeaderArea(headerContainer: HTMLElement): void {
 		if (this.headerArea) {
 			throw new Error('Header already exists');
@@ -140,9 +123,6 @@ export abstract class Part extends Component implements ISerializableView {
 		this.relayout();
 	}
 
-	/**
-	 * Sets the footer area
-	 */
 	protected setFooterArea(footerContainer: HTMLElement): void {
 		if (this.footerArea) {
 			throw new Error('Footer already exists');
@@ -161,9 +141,6 @@ export abstract class Part extends Component implements ISerializableView {
 		this.relayout();
 	}
 
-	/**
-	 * removes the header area
-	 */
 	protected removeHeaderArea(): void {
 		if (this.headerArea) {
 			this.headerArea.remove();
@@ -173,9 +150,6 @@ export abstract class Part extends Component implements ISerializableView {
 		}
 	}
 
-	/**
-	 * removes the footer area
-	 */
 	protected removeFooterArea(): void {
 		if (this.footerArea) {
 			this.footerArea.remove();
