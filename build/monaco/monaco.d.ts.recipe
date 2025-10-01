@@ -130,6 +130,7 @@ export type IModel = ITextModel;
 
 declare namespace monaco.languages {
 
+#include(vs/editor/common/textModelEditSource): EditDeltaInfo
 #include(vs/base/common/glob): IRelativePattern
 #include(vs/editor/common/languageSelector): LanguageSelector, LanguageFilter
 #includeAll(vs/editor/standalone/browser/standaloneLanguages;languages.=>;editorCommon.=>editor.;model.=>editor.;IMarkerData=>editor.IMarkerData):
