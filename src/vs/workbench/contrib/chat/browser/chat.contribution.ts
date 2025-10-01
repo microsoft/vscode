@@ -682,9 +682,9 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			scope: ConfigurationScope.WINDOW
 		},
-		[ChatConfiguration.UseChatSessionsForCloudButton]: {
+		[ChatConfiguration.UseCloudButtonV2]: {
 			type: 'boolean',
-			description: nls.localize('chat.useChatSessionsForCloudButton', "Controls whether the 'Delegate to coding agent' button uses the new chat sessions API."),
+			description: nls.localize('chat.useCloudButtonV2', "Experimental implementation of 'cloud button'"),
 			default: false,
 			tags: ['experimental'],
 
