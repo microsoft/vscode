@@ -9,7 +9,8 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { HasSpeechProvider, SpeechToTextInProgress } from '../../../speech/common/speechService.js';
 import { registerActiveInstanceAction, sharedWhenClause } from '../../../terminal/browser/terminalActions.js';
 import { TerminalCommandId } from '../../../terminal/common/terminal.js';
-import { TERMINAL_DICTATION_IN_PROGRESS, TerminalVoiceSession } from './terminalVoice.js';
+import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
+import { TerminalVoiceSession } from './terminalVoice.js';
 
 export function registerTerminalVoiceActions() {
 	registerActiveInstanceAction({
@@ -30,7 +31,7 @@ export function registerTerminalVoiceActions() {
 	registerActiveInstanceAction({
 		id: TerminalCommandId.StopVoice,
 		title: localize2('workbench.action.terminal.stopDictation', "Stop Dictation in Terminal"),
-		precondition: TERMINAL_DICTATION_IN_PROGRESS,
+		precondition: TerminalContextKeys.terminalDictationInProgress,
 		f1: true,
 		run: (activeInstance, c, accessor) => {
 			const instantiationService = accessor.get(IInstantiationService);
