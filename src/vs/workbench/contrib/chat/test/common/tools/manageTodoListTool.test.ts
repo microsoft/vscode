@@ -16,10 +16,10 @@ suite('ManageTodoListTool Description Field Setting', () => {
 		const schema = toolData.inputSchema as any;
 		const properties = schema?.properties?.todoList?.items?.properties;
 		const required = schema?.properties?.todoList?.items?.required;
-		
+
 		assert.ok(properties, 'Schema properties should be defined');
 		assert.ok(required, 'Schema required fields should be defined');
-		
+
 		return { properties, required };
 	}
 
