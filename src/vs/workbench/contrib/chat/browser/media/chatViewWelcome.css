@@ -192,6 +192,7 @@ div.chat-welcome-view {
 	flex-wrap: wrap;
 	justify-content: flex-start;
 	row-gap: 8px;
+	column-gap: 8px;
 	padding: 32px 12px 12px 12px; /* Extra top padding for title */
 
 	.chat-welcome-view-suggested-prompts-title {
@@ -219,7 +220,8 @@ div.chat-welcome-view {
 		border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
 		max-width: 260px;
 		width: fit-content;
-		margin: 0 4px;
+		margin: 0;
+		flex: 0 0 auto;
 
 		& > .chat-welcome-view-suggested-prompt-title {
 			font-size: 14px;
@@ -234,7 +236,7 @@ div.chat-welcome-view {
 			overflow: hidden;
 			text-overflow: ellipsis;
 			white-space: nowrap;
-			flex: 1;
+			flex: 0 1 auto;
 			min-width: 0;
 		}
 	}
