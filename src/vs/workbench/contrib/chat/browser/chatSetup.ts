@@ -323,9 +323,17 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 				if (ready === 'error' || ready === 'timedout') {
 					let warningMessage: string;
 					if (ready === 'timedout') {
-						warningMessage = localize('chatTookLongWarning', "Chat took too long to get ready. Please ensure you are signed in to {0} and that the extension `{1}` is installed and enabled.", defaultChat.provider.default.name, defaultChat.chatExtensionId);
+						if (this.chatEntitlementService.anonymous) {
+							warningMessage = localize('chatTookLongWarningAnonymous', "Chat took too long to get ready. Please ensure that the extension `{0}` is installed and enabled.", defaultChat.chatExtensionId);
+						} else {
+							warningMessage = localize('chatTookLongWarning', "Chat took too long to get ready. Please ensure you are signed in to {0} and that the extension `{1}` is installed and enabled.", defaultChat.provider.default.name, defaultChat.chatExtensionId);
+						}
 					} else {
-						warningMessage = localize('chatFailedWarning', "Chat failed to get ready. Please ensure you are signed in to {0} and that the extension `{1}` is installed and enabled.", defaultChat.provider.default.name, defaultChat.chatExtensionId);
+						if (this.chatEntitlementService.anonymous) {
+							warningMessage = localize('chatFailedWarningAnonymous', "Chat failed to get ready. Please ensure that the extension `{0}` is installed and enabled.", defaultChat.chatExtensionId);
+						} else {
+							warningMessage = localize('chatFailedWarning', "Chat failed to get ready. Please ensure you are signed in to {0} and that the extension `{1}` is installed and enabled.", defaultChat.provider.default.name, defaultChat.chatExtensionId);
+						}
 					}
 
 					this.logService.warn(warningMessage, {
