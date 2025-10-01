@@ -543,7 +543,7 @@ class ChatStatusDashboard extends Disposable {
 
 				let commandId: string;
 				if (newUser && anonymousUser) {
-					commandId = 'workbench.action.chat.triggerSetupAnonymously';
+					commandId = 'workbench.action.chat.triggerSetupAnonymousWithoutDialog';
 				} else {
 					commandId = 'workbench.action.chat.triggerSetup';
 				}
