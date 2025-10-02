@@ -7,10 +7,9 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { basename, relativePath } from '../../../../../base/common/resources.js';
+import { basename } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { assertType } from '../../../../../base/common/types.js';
-import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
@@ -24,7 +23,6 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IRemoteCodingAgent, IRemoteCodingAgentsService } from '../../../remoteCodingAgents/common/remoteCodingAgentsService.js';
 import { IChatAgent, IChatAgentHistoryEntry, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys, ChatContextKeyExprs } from '../../common/chatContextKeys.js';
@@ -34,7 +32,7 @@ import { chatVariableLeader } from '../../common/chatParserTypes.js';
 import { ChatRequestParser } from '../../common/chatRequestParser.js';
 import { IChatPullRequestContent, IChatService } from '../../common/chatService.js';
 import { IChatSessionsExtensionPoint, IChatSessionsService } from '../../common/chatSessionsService.js';
-import { ChatRequestVariableSet, isChatRequestFileEntry } from '../../common/chatVariableEntries.js';
+import { ChatRequestVariableSet } from '../../common/chatVariableEntries.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, } from '../../common/constants.js';
 import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
@@ -724,34 +722,6 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			});
 		}
 	}
-
-	/**
-	 * Converts full URIs from the user's systems into workspace-relative paths for coding agent.
-	 */
-	private extractRelativeFromAttachedContext(attachedContext: ChatRequestVariableSet, workspaceContextService: IWorkspaceContextService): string[] {
-		const workspaceFolder = workspaceContextService.getWorkspace().folders[0];
-		if (!workspaceFolder) {
-			return [];
-		}
-		if (!attachedContext) {
-			return [];
-		}
-		const relativePaths: string[] = [];
-		for (const contextEntry of attachedContext.asArray()) {
-			if (isChatRequestFileEntry(contextEntry)) { // TODO: Extend for more variable types as needed
-				if (!(contextEntry.value instanceof URI)) {
-					continue;
-				}
-				const fileUri = contextEntry.value;
-				const relativePathResult = relativePath(workspaceFolder.uri, fileUri);
-				if (relativePathResult) {
-					relativePaths.push(relativePathResult);
-				}
-			}
-		}
-		return relativePaths;
-	}
-
 	async run(accessor: ServicesAccessor, ...args: any[]) {
 		const contextKeyService = accessor.get(IContextKeyService);
 		const remoteJobCreatingKey = ChatContextKeys.remoteJobCreating.bindTo(contextKeyService);
@@ -767,7 +737,6 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			const quickPickService = accessor.get(IQuickInputService);
 			const remoteCodingAgentService = accessor.get(IRemoteCodingAgentsService);
 			const chatSessionsService = accessor.get(IChatSessionsService);
-			const workspaceContextService = accessor.get(IWorkspaceContextService);
 
 			const widget = widgetService.lastFocusedWidget;
 			if (!widget) {
@@ -826,10 +795,6 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			}
 
 			let summary: string = '';
-			const relativeAttachedContext = this.extractRelativeFromAttachedContext(attachedContext, workspaceContextService);
-			if (relativeAttachedContext.length) {
-				summary += `\n\n${localize('attachedFiles', "The user has attached the following files from their workspace:")}\n${relativeAttachedContext.map(file => `- ${file}`).join('\n')}\n\n`;
-			}
 
 			// -- summarize context if necessary
 			if (defaultAgent && chatRequests.length > 1) {
@@ -846,7 +811,6 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			if (title) {
 				summary += `\nTITLE: ${title}\n`;
 			}
-
 
 			const isChatSessionsExperimentEnabled = configurationService.getValue<boolean>(ChatConfiguration.UseCloudButtonV2);
 			if (isChatSessionsExperimentEnabled) {
