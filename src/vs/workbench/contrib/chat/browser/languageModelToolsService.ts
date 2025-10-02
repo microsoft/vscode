@@ -606,47 +606,47 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	toToolAndToolSetEnablementMap(enabledQualifiedToolOrToolSetNames: readonly string[]): IToolAndToolSetEnablementMap {
 		const toolOrToolSetNames = new Set(enabledQualifiedToolOrToolSetNames);
 		const result = new Map<ToolSet | IToolData, boolean>();
-		for (const tool of this.getTools()) {
-			if (tool.canBeReferencedInPrompt) {
-				const enabled = toolOrToolSetNames.has(getToolReferenceName(tool)) || /* legacy */ toolOrToolSetNames.has(tool.toolReferenceName ?? tool.displayName);
+
+		for (const [tool, toolReferenceName] of this.getPromptReferencableTools()) {
+			if (tool instanceof ToolSet) {
+				const enabled = toolOrToolSetNames.has(toolReferenceName) || toolOrToolSetNames.has(tool.referenceName);
 				result.set(tool, enabled);
+				if (enabled) {
+					for (const memberTool of tool.getTools()) {
+						result.set(memberTool, true);
+					}
+				}
+			} else {
+				if (!result.has(tool)) { // already set via an enabled toolset
+					const enabled = toolOrToolSetNames.has(toolReferenceName) || toolOrToolSetNames.has(tool.toolReferenceName ?? tool.displayName);
+					result.set(tool, enabled);
+				}
 			}
 		}
-		for (const toolSet of this.toolSets.get()) {
-			const toolSetEnabled = toolOrToolSetNames.has(getToolSetReferenceName(toolSet)) || /* legacy */ toolOrToolSetNames.has(toolSet.referenceName);
-			result.set(toolSet, toolSetEnabled);
-			for (const tool of toolSet.getTools()) {
-				const enabled = toolSetEnabled || toolOrToolSetNames.has(getToolReferenceName(tool, toolSet)) || /* legacy */ toolOrToolSetNames.has(tool.toolReferenceName ?? tool.displayName);
-				result.set(tool, enabled);
+		// also add all user tool sets (not part of the prompt referencable tools)
+		for (const toolSet of this._toolSets) {
+			if (toolSet.source.type === 'user') {
+				const enabled = Iterable.every(toolSet.getTools(), t => result.get(t) === true);
+				result.set(toolSet, enabled);
 			}
 		}
 		return result;
 	}
 
 	toQualifiedToolNames(map: IToolAndToolSetEnablementMap): string[] {
-		const toolsCoveredBySets = new Set<IToolData>();
-		for (const item of map.keys()) {
-			if (item instanceof ToolSet) {
-				for (const tool of item.getTools()) {
-					toolsCoveredBySets.add(tool);
-				}
-			}
-		}
-
 		const result: string[] = [];
-		for (const tool of this.getTools()) {
-			if (map.get(tool) && !toolsCoveredBySets.has(tool)) {
-				result.push(getToolReferenceName(tool));
-			}
-		}
-		for (const toolSet of this.toolSets.get()) {
-			if (map.get(toolSet)) {
-				result.push(getToolSetReferenceName(toolSet));
-			} else {
-				for (const tool of toolSet.getTools()) {
-					if (map.get(tool)) {
-						result.push(getToolReferenceName(tool, toolSet));
+		const toolsCoveredByEnabledToolSet = new Set<IToolData>();
+		for (const [tool, toolReferenceName] of this.getPromptReferencableTools()) {
+			if (tool instanceof ToolSet) {
+				if (map.get(tool)) {
+					result.push(toolReferenceName);
+					for (const memberTool of tool.getTools()) {
+						toolsCoveredByEnabledToolSet.add(memberTool);
 					}
+				}
+			} else {
+				if (map.get(tool) && !toolsCoveredByEnabledToolSet.has(tool)) {
+					result.push(toolReferenceName);
 				}
 			}
 		}
@@ -655,16 +655,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 	toToolReferences(variableReferences: readonly IVariableReference[]): ChatRequestToolReferenceEntry[] {
 		const toolsOrToolSetByName = new Map<string, ToolSet | IToolData>();
-		for (const tool of this.getTools()) {
-			if (tool.canBeReferencedInPrompt) {
-				toolsOrToolSetByName.set(getToolReferenceName(tool), tool);
-			}
-		}
-		for (const toolSet of this.toolSets.get()) {
-			toolsOrToolSetByName.set(getToolSetReferenceName(toolSet), toolSet);
-			for (const tool of toolSet.getTools()) {
-				toolsOrToolSetByName.set(getToolReferenceName(tool, toolSet), tool);
-			}
+		for (const [tool, toolReferenceName] of this.getPromptReferencableTools()) {
+			toolsOrToolSetByName.set(toolReferenceName, tool);
 		}
 
 		const result: ChatRequestToolReferenceEntry[] = [];
