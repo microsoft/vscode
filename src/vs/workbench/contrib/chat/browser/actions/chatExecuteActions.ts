@@ -648,14 +648,14 @@ export class CreateRemoteAgentJobAction extends Action2 {
 	private async createWithChatSessions(
 		chatSessionsService: IChatSessionsService,
 		chatService: IChatService,
-		chatAgentService: IChatAgentService,
 		quickPickService: IQuickInputService,
-		chatModel: IChatModel,
-		requestParser: ChatRequestParser,
 		sessionId: string,
-		widget: IChatWidget,
 		attachedContext: ChatRequestVariableSet,
 		userPrompt: string,
+		chatSummary?: {
+			prompt?: string;
+			history?: string;
+		}
 	) {
 		const contributions = chatSessionsService.getAllChatSessionContributions();
 		const agent = await this.pickCodingAgent(quickPickService, contributions);
@@ -665,45 +665,10 @@ export class CreateRemoteAgentJobAction extends Action2 {
 		// TODO(jospicer): The previous chat history doesn't get sent to chat participants!
 		const { type } = agent;
 
-		const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Chat);
-		const chatRequests = chatModel.getRequests();
-
-		// Generate summarized user prompt if necessary
-		let chatUserPromptSummary: string | undefined = undefined;
-		let title: string | undefined = undefined;
-
-		if (defaultAgent && userPrompt.length > 10_000) {
-			({ title, summarizedUserPrompt: chatUserPromptSummary } = await this.generateSummarizedUserPrompt(
-				sessionId,
-				userPrompt,
-				attachedContext,
-				title,
-				chatAgentService,
-				defaultAgent,
-				chatUserPromptSummary
-			));
-		}
-
-		// Generate chat history summary if there are previous requests
-		let chatHistorySummary: string = '';
-		if (defaultAgent && chatRequests.length > 0) {
-			({ title, summary: chatHistorySummary } = await this.generateSummarizedChatHistory(
-				chatRequests,
-				sessionId,
-				title,
-				chatAgentService,
-				defaultAgent,
-				chatHistorySummary
-			));
-		}
-
 		await chatService.sendRequest(sessionId, userPrompt, {
 			agentIdSilent: type,
 			attachedContext: attachedContext.asArray(),
-			chatSummary: {
-				prompt: chatUserPromptSummary,
-				history: chatHistorySummary
-			},
+			chatSummary,
 		});
 	}
 
@@ -834,22 +799,6 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			const instantiationService = accessor.get(IInstantiationService);
 			const requestParser = instantiationService.createInstance(ChatRequestParser);
 
-			const isChatSessionsExperimentEnabled = configurationService.getValue<boolean>(ChatConfiguration.UseCloudButtonV2);
-			if (isChatSessionsExperimentEnabled) {
-				return await this.createWithChatSessions(
-					chatSessionsService,
-					chatService,
-					chatAgentService,
-					quickPickService,
-					chatModel,
-					requestParser,
-					sessionId,
-					widget,
-					attachedContext,
-					userPrompt
-				);
-			}
-
 			// Add the request to the model first
 			const parsedRequest = requestParser.parseChatRequest(sessionId, userPrompt, ChatAgentLocation.Chat);
 			const addedRequest = chatModel.addRequest(
@@ -896,6 +845,24 @@ export class CreateRemoteAgentJobAction extends Action2 {
 
 			if (title) {
 				summary += `\nTITLE: ${title}\n`;
+			}
+
+
+			const isChatSessionsExperimentEnabled = configurationService.getValue<boolean>(ChatConfiguration.UseCloudButtonV2);
+			if (isChatSessionsExperimentEnabled) {
+				await chatService.removeRequest(sessionId, addedRequest.id);
+				return await this.createWithChatSessions(
+					chatSessionsService,
+					chatService,
+					quickPickService,
+					sessionId,
+					attachedContext,
+					userPrompt,
+					{
+						prompt: summarizedUserPrompt,
+						history: summary,
+					},
+				);
 			}
 
 			chatModel.acceptResponseProgress(addedRequest, {
