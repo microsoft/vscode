@@ -96,7 +96,7 @@ export class TypeScriptVersionManager extends Disposable {
 	private getBundledPickItem(): QuickPickItem {
 		const bundledVersion = this.versionProvider.defaultVersion;
 		return {
-			label: (!this.useWorkspaceTsdkSetting || !vscode.workspace.isTrusted
+			label: (this.currentVersion.eq(bundledVersion)
 				? '• '
 				: '') + vscode.l10n.t("Use VS Code's Version"),
 			description: bundledVersion.displayName,
@@ -111,7 +111,7 @@ export class TypeScriptVersionManager extends Disposable {
 	private getLocalPickItems(): QuickPickItem[] {
 		return this.versionProvider.localVersions.map(version => {
 			return {
-				label: (this.useWorkspaceTsdkSetting && vscode.workspace.isTrusted && this.currentVersion.eq(version)
+				label: (this.currentVersion.eq(version)
 					? '• '
 					: '') + vscode.l10n.t("Use Workspace Version"),
 				description: version.displayName,
