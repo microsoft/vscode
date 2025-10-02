@@ -389,9 +389,6 @@ export class InlineCompletionsSource extends Disposable {
 			return;
 		}
 
-		if (requestResponseInfo.requestUuid === undefined || requestResponseInfo.hasProducedSuggestion) {
-			return;
-		}
 
 		if (!isCompletionsEnabled(this._completionsEnabled, this._textModel.getLanguageId())) {
 			return;
