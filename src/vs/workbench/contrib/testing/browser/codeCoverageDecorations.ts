@@ -249,6 +249,101 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 		}));
 	}
 
+	/**
+	 * Navigate to the next missed (uncovered) line from the current cursor position.
+	 * @returns true if navigation occurred, false if no missed line was found
+	 */
+	public goToNextMissedLine(): boolean {
+		return this.navigateToMissedLine(true);
+	}
+
+	/**
+	 * Navigate to the previous missed (uncovered) line from the current cursor position.
+	 * @returns true if navigation occurred, false if no missed line was found
+	 */
+	public goToPreviousMissedLine(): boolean {
+		return this.navigateToMissedLine(false);
+	}
+
+	private isMissedLine(detail: CoverageDetailsWithBranch): boolean {
+		if (detail.type === DetailType.Statement) {
+			return !detail.count;
+		} else if (detail.type === DetailType.Branch) {
+			return !detail.detail.branches![detail.branch].count;
+		}
+		return false;
+	}
+
+	private navigateToMissedLine(next: boolean): boolean {
+		const model = this.editor.getModel();
+		const position = this.editor.getPosition();
+		if (!model || !position || !this.details) {
+			return false;
+		}
+
+		// Collect all missed line decorations sorted by line number
+					: detail.metadata.detail.type === DetailType.Branch
+						? (() => {
+							const branchDetail = detail.metadata.detail.detail;
+							const branchIndex = detail.metadata.detail.branch;
+							const branches = branchDetail.branches;
+							if (branches && branches[branchIndex]) {
+								return !branches[branchIndex].count;
+							}
+							return false;
+						})()
+						: false;
+			// Check if this is a missed line (CLASS_MISS in lineNumberClassName)
+			if (options.lineNumberClassName?.includes(CLASS_MISS)) {
+				const range = detail.range;
+				const isMissed = this.isMissedLine(detail.metadata.detail);
+
+				if (isMissed && !range.isEmpty()) {
+					missedLines.push({ lineNumber: range.startLineNumber, range });
+				}
+			}
+		}
+
+		if (missedLines.length === 0) {
+			return false;
+		if (next) {
+			// Find the first missed line after the current line
+			targetLine = missedLines.find(l => l.lineNumber > currentLine);
+			// If no line found after, wrap around to the first missed line
+			if (!targetLine) {
+				targetLine = missedLines[0];
+			}
+		} else {
+			// Find the last missed line before the current line
+			for (let i = missedLines.length - 1; i >= 0; i--) {
+				if (missedLines[i].lineNumber < currentLine) {
+			// If no line found after, wrap around to the first missed line
+			if (!targetLine) {
+				targetLine = missedLines[0];
+			}
+			// If no line found before, wrap around to the last missed line
+			if (!targetLine) {
+				targetLine = missedLines[missedLines.length - 1];
+			}
+		}
+					break;
+				}
+			}
+			// If no line found before, wrap around to the last missed line
+			if (!targetLine) {
+				targetLine = missedLines[missedLines.length - 1];
+			}
+		}
+
+		if (targetLine) {
+			this.editor.setPosition(new Position(targetLine.lineNumber, 1));
+			this.editor.revealLineInCenter(targetLine.lineNumber);
+			return true;
+		}
+
+		return false;
+	}
+
 	private async apply(model: ITextModel, coverage: FileCoverage, testId: TestId | undefined, showInlineByDefault: boolean) {
 		const details = this.details = await this.loadDetails(coverage, testId, model);
 		if (!details) {
@@ -638,6 +733,23 @@ class CoverageToolbarWidget extends Disposable implements IOverlayWidget {
 
 		this.actionBar.push(toggleAction);
 
+		// Navigation buttons for missed coverage lines
+		this.actionBar.push(new ActionWithIcon(
+			'goToPreviousMissed',
+			localize('testing.goToPreviousMissedLine', 'Go to Previous Uncovered Line'),
+			Codicon.arrowUp,
+			undefined,
+			() => this.commandService.executeCommand(TestCommandId.CoverageGoToPreviousMissedLine),
+		));
+
+		this.actionBar.push(new ActionWithIcon(
+			'goToNextMissed',
+			localize('testing.goToNextMissedLine', 'Go to Next Uncovered Line'),
+			Codicon.arrowDown,
+			undefined,
+			() => this.commandService.executeCommand(TestCommandId.CoverageGoToNextMissedLine),
+		));
+
 		if (current.testId) {
 			const testItem = current.coverage.fromResult.getTestById(current.testId.toString());
 			assert(!!testItem, 'got coverage for an unreported test');
@@ -901,6 +1013,78 @@ registerAction2(class ToggleCoverageInExplorer extends Action2 {
 		const config = accessor.get(IConfigurationService);
 		const value = getTestingConfiguration(config, TestingConfigKeys.ShowCoverageInExplorer);
 		config.updateValue(TestingConfigKeys.ShowCoverageInExplorer, !value);
+	}
+});
+
+registerAction2(class GoToNextMissedCoverageLine extends Action2 {
+	constructor() {
+		super({
+			id: TestCommandId.CoverageGoToNextMissedLine,
+			title: localize2('testing.goToNextMissedLine', "Go to Next Uncovered Line"),
+			metadata: {
+				description: localize2('testing.goToNextMissedLineDesc', 'Navigate to the next line that is not covered by tests.')
+			},
+			category: Categories.Test,
+			icon: Codicon.arrowDown,
+			f1: true,
+			precondition: TestingContextKeys.hasCoverageInFile,
+			keybinding: {
+				when: ActiveEditorContext,
+				weight: KeybindingWeight.EditorContrib,
+				primary: KeyMod.Alt | KeyCode.F9,
+			},
+			menu: [
+				{ id: MenuId.CommandPalette, when: TestingContextKeys.isTestCoverageOpen },
+				{ id: MenuId.EditorTitle, when: TestingContextKeys.hasCoverageInFile, group: 'coverage@2' },
+			]
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const codeEditorService = accessor.get(ICodeEditorService);
+		const activeEditor = codeEditorService.getActiveCodeEditor();
+		if (!activeEditor) {
+			return;
+		}
+
+		const contribution = activeEditor.getContribution<CodeCoverageDecorations>(CodeCoverageDecorations.ID);
+		contribution?.goToNextMissedLine();
+	}
+});
+
+registerAction2(class GoToPreviousMissedCoverageLine extends Action2 {
+	constructor() {
+		super({
+			id: TestCommandId.CoverageGoToPreviousMissedLine,
+			title: localize2('testing.goToPreviousMissedLine', "Go to Previous Uncovered Line"),
+			metadata: {
+				description: localize2('testing.goToPreviousMissedLineDesc', 'Navigate to the previous line that is not covered by tests.')
+			},
+			category: Categories.Test,
+			icon: Codicon.arrowUp,
+			f1: true,
+			precondition: TestingContextKeys.hasCoverageInFile,
+			keybinding: {
+				when: ActiveEditorContext,
+				weight: KeybindingWeight.EditorContrib,
+				primary: KeyMod.Alt | KeyMod.Shift | KeyCode.F9,
+			},
+			menu: [
+				{ id: MenuId.CommandPalette, when: TestingContextKeys.isTestCoverageOpen },
+				{ id: MenuId.EditorTitle, when: TestingContextKeys.hasCoverageInFile, group: 'coverage@3' },
+			]
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const codeEditorService = accessor.get(ICodeEditorService);
+		const activeEditor = codeEditorService.getActiveCodeEditor();
+		if (!activeEditor) {
+			return;
+		}
+
+		const contribution = activeEditor.getContribution<CodeCoverageDecorations>(CodeCoverageDecorations.ID);
+		contribution?.goToPreviousMissedLine();
 	}
 });
 
