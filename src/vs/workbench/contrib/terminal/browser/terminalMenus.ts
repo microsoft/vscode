@@ -761,7 +761,7 @@ export function setupTerminalMenus(): void {
 			},
 			group: 'navigation',
 			order: 9,
-			when: ContextKeyExpr.and(ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal), HasSpeechProvider, TerminalContextKeys.terminalDictationInProgress.negate()),
+			when: ContextKeyExpr.and(ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal), TerminalContextKeys.terminalDictationInProgress.negate()),
 			isHiddenByDefault: true
 		});
 		MenuRegistry.appendMenuItem(menuId, {
