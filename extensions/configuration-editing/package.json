@@ -111,6 +111,10 @@
         "url": "vscode://schemas/settings/folder"
       },
       {
+        "fileMatch": "/.vscode/settings.local.json",
+        "url": "vscode://schemas/settings/folder-local"
+      },
+      {
         "fileMatch": "/.vscode/launch.json",
         "url": "vscode://schemas/launch"
       },
