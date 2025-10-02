@@ -1529,7 +1529,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		// Set loading guard to prevent infinite loop
-		this._isLoadingPromptDescriptions = true; try {
+		this._isLoadingPromptDescriptions = true;
+		try {
 			// Get all available prompt files with their metadata
 			const promptCommands = await this.promptsService.findPromptSlashCommands();
 
