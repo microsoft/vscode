@@ -279,14 +279,14 @@ suite('RunInTerminalTool', () => {
 
 		suite('auto approved', () => {
 			for (const command of autoApprovedTestCases) {
-				test(command, async () => {
+				test(command.replaceAll('\n', '\\n'), async () => {
 					assertAutoApproved(await executeToolTest({ command: command }));
 				});
 			}
 		});
 		suite('confirmation required', () => {
 			for (const command of confirmationRequiredTestCases) {
-				test(command, async () => {
+				test(command.replaceAll('\n', '\\n'), async () => {
 					assertConfirmationRequired(await executeToolTest({ command: command }));
 				});
 			}
