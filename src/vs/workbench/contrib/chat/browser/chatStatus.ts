@@ -425,8 +425,6 @@ class ChatStatusDashboard extends Disposable {
 
 			this.createQuotaIndicator(this.element, disposables, localize('quotaDisabled', "Disabled"), localize('completionsLabel', "Code completions"), false); // TODO@bpasero revisit this in the future when Completions are supported
 			this.createQuotaIndicator(this.element, disposables, localize('quotaLimited', "Limited"), localize('chatsLabel', "Chat messages"), false);
-
-			this.element.appendChild($('div.description', undefined, localize('anonymousFooter', "Sign in to increase allowance.")));
 		}
 
 		// Chat sessions
