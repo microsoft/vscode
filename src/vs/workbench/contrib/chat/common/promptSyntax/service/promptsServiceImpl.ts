@@ -28,7 +28,7 @@ import { ResourceMap } from '../../../../../../base/common/map.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 import { IChatModeInstructions, IVariableReference } from '../../chatModes.js';
-import { dirname } from '../../../../../../base/common/resources.js';
+import { dirname, isEqual } from '../../../../../../base/common/resources.js';
 import { IExtensionDescription } from '../../../../../../platform/extensions/common/extensions.js';
 import { Delayer } from '../../../../../../base/common/async.js';
 
@@ -190,23 +190,32 @@ export class PromptsService extends Disposable implements IPromptsService {
 			return data.promptPath.uri;
 		}
 
-		const files = await this.listPromptFiles(PromptsType.prompt, CancellationToken.None);
+		const promptPaths = await this.listPromptFiles(PromptsType.prompt, CancellationToken.None);
 		const command = data.command;
-		const result = files.find(file => getPromptCommandName(file.uri.path) === command);
+		const result = promptPaths.find(promptPath => getCommandNameFromPromptPath(promptPath) === command);
 		if (result) {
 			return result.uri;
 		}
-		const textModel = this.modelService.getModels().find(model => model.getLanguageId() === PROMPT_LANGUAGE_ID && getPromptCommandName(model.uri.path) === command);
+		const textModel = this.modelService.getModels().find(model => model.getLanguageId() === PROMPT_LANGUAGE_ID && getCommandNameFromURI(model.uri) === command);
 		if (textModel) {
 			return textModel.uri;
 		}
 		return undefined;
 	}
 
+	public async getPromptCommandName(uri: URI): Promise<string> {
+		const promptPaths = await this.listPromptFiles(PromptsType.prompt, CancellationToken.None);
+		const promptPath = promptPaths.find(promptPath => isEqual(promptPath.uri, uri));
+		if (!promptPath) {
+			return getCommandNameFromURI(uri);
+		}
+		return getCommandNameFromPromptPath(promptPath);
+	}
+
 	public async findPromptSlashCommands(): Promise<IChatPromptSlashCommand[]> {
 		const promptFiles = await this.listPromptFiles(PromptsType.prompt, CancellationToken.None);
 		return promptFiles.map(promptPath => {
-			const command = getPromptCommandName(promptPath.uri.path);
+			const command = getCommandNameFromPromptPath(promptPath);
 			return {
 				command,
 				detail: localize('prompt.file.detail', 'Prompt file: {0}', this.labelService.getUriLabel(promptPath.uri, { relative: true })),
@@ -325,9 +334,12 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 }
 
-export function getPromptCommandName(path: string): string {
-	const name = basename(path, PROMPT_FILE_EXTENSION);
-	return name;
+function getCommandNameFromPromptPath(promptPath: IPromptPath): string {
+	return promptPath.name ?? getCommandNameFromURI(promptPath.uri);
+}
+
+function getCommandNameFromURI(uri: URI): string {
+	return basename(uri.fsPath, PROMPT_FILE_EXTENSION);
 }
 
 export class ChatModeUpdateTracker extends Disposable {
