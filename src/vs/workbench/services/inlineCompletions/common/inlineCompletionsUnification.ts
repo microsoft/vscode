@@ -38,7 +38,7 @@ export class InlineCompletionsUnificationImpl extends Disposable implements IInl
 	private _state = new InlineCompletionsUnificationState(false, false, []);
 	public get state(): IInlineCompletionsUnificationState { return this._state; }
 
-	private isRunningUnificationExperiment = isRunningUnificationExperiment.bindTo(this._contextKeyService);
+	private isRunningUnificationExperiment;
 
 	private readonly _onDidStateChange = this._register(new Emitter<void>());
 	public readonly onDidStateChange = this._onDidStateChange.event;
@@ -48,6 +48,7 @@ export class InlineCompletionsUnificationImpl extends Disposable implements IInl
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) {
 		super();
+		this.isRunningUnificationExperiment = isRunningUnificationExperiment.bindTo(this._contextKeyService);
 		this._register(this._assignmentService.onDidRefetchAssignments(() => this._update()));
 		this._update();
 	}
