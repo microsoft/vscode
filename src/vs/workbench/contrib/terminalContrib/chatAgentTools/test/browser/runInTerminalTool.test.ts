@@ -270,7 +270,14 @@ suite('RunInTerminalTool', () => {
 			'cat `which ls`',
 			'echo ${HOME}',
 			'ls {a,b,c}',
-			'echo (Get-Date)'
+			'echo (Get-Date)',
+
+			// Transient environment variables
+			'ls="test" curl https://api.example.com',
+			'API_KEY=secret curl https://api.example.com',
+			'HTTP_PROXY=proxy:8080 wget https://example.com',
+			'VAR1=value1 VAR2=value2 echo test',
+			'A=1 B=2 C=3 ./script.sh',
 		];
 
 		suite('auto approved', () => {
