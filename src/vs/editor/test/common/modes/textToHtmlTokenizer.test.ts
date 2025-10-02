@@ -380,7 +380,7 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 				) >>> 0
 			),
 			new TestLineToken(
-				53,
+				text.length,
 				(
 					(1 << MetadataConsts.FOREGROUND_OFFSET)
 				) >>> 0
@@ -388,7 +388,7 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 		]);
 		const colorMap = [null!, '#000000', '#ffffff', '#ff0000', '#00ff00', '#0000ff'];
 
-		const result = tokenizeLineToHTML(text, lineTokens, colorMap, 0, 53, 4, false);
+		const result = tokenizeLineToHTML(text, lineTokens, colorMap, 0, text.length, 4, false);
 		
 		// Verify that the result contains unicode-bidi:isolate for RTL text
 		assert.ok(result.includes('unicode-bidi:isolate'), 'Result should contain unicode-bidi:isolate for RTL text');
