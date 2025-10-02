@@ -317,15 +317,7 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 			// Find the last missed line before the current line
 			for (let i = missedLines.length - 1; i >= 0; i--) {
 				if (missedLines[i].lineNumber < currentLine) {
-			// If no line found after, wrap around to the first missed line
-			if (!targetLine) {
-				targetLine = missedLines[0];
-			}
-			// If no line found before, wrap around to the last missed line
-			if (!targetLine) {
-				targetLine = missedLines[missedLines.length - 1];
-			}
-		}
+					targetLine = missedLines[i];
 					break;
 				}
 			}
