@@ -30,7 +30,7 @@ import { IChatAgentHistoryEntry, IChatAgentService } from '../../common/chatAgen
 import { ChatContextKeys, ChatContextKeyExprs } from '../../common/chatContextKeys.js';
 import { IChatModel, IChatRequestModel, toChatHistoryContent } from '../../common/chatModel.js';
 import { IChatMode, IChatModeService } from '../../common/chatModes.js';
-import { chatAgentLeader, chatVariableLeader } from '../../common/chatParserTypes.js';
+import { chatVariableLeader } from '../../common/chatParserTypes.js';
 import { ChatRequestParser } from '../../common/chatRequestParser.js';
 import { IChatPullRequestContent, IChatService } from '../../common/chatService.js';
 import { IChatSessionsExtensionPoint, IChatSessionsService } from '../../common/chatSessionsService.js';
@@ -647,9 +647,14 @@ export class CreateRemoteAgentJobAction extends Action2 {
 
 	private async createWithChatSessions(
 		chatSessionsService: IChatSessionsService,
+		chatService: IChatService,
 		chatAgentService: IChatAgentService,
 		quickPickService: IQuickInputService,
+		chatModel: IChatModel,
+		requestParser: ChatRequestParser,
+		sessionId: string,
 		widget: IChatWidget,
+		attachedContext: ChatRequestVariableSet,
 		userPrompt: string,
 	) {
 		const contributions = chatSessionsService.getAllChatSessionContributions();
@@ -657,17 +662,12 @@ export class CreateRemoteAgentJobAction extends Action2 {
 		if (!agent) {
 			throw new Error('No coding agent selected');
 		}
-		// TODO(jospicer): The chat history doesn't get sent to chat participants!
-		const { name, type } = agent;
-		const chatAgent = chatAgentService.getAgent(type);
-		if (!chatAgent) {
-			throw new Error(`Could not find chat agent with type ${type}`);
-		}
-		const trimmed = userPrompt.trim();
-		const mentionPrefix = `${chatAgentLeader}${name}`;
-		const finalPrompt = trimmed.startsWith(mentionPrefix) ? trimmed : `${mentionPrefix} ${trimmed}`;
-		widget.setInput(finalPrompt);
-		widget.acceptInput();
+		// TODO(jospicer): The previous chat history doesn't get sent to chat participants!
+		const { type } = agent;
+		await chatService.sendRequest(sessionId, userPrompt, {
+			agentIdSilent: type,
+			attachedContext: attachedContext.asArray(),
+		});
 	}
 
 	private async createWithLegacy(
@@ -760,6 +760,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			const configurationService = accessor.get(IConfigurationService);
 			const widgetService = accessor.get(IChatWidgetService);
 			const chatAgentService = accessor.get(IChatAgentService);
+			const chatService = accessor.get(IChatService);
 			const commandService = accessor.get(ICommandService);
 			const quickPickService = accessor.get(IQuickInputService);
 			const remoteCodingAgentService = accessor.get(IRemoteCodingAgentsService);
@@ -770,8 +771,8 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			if (!widget) {
 				return;
 			}
-			const session = widget.viewModel?.sessionId;
-			if (!session) {
+			const sessionId = widget.viewModel?.sessionId;
+			if (!sessionId) {
 				return;
 			}
 			const chatModel = widget.viewModel?.model;
@@ -789,7 +790,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 				userPrompt = 'implement this.';
 			}
 
-			const attachedContext = widget.input.getAttachedAndImplicitContext(session);
+			const attachedContext = widget.input.getAttachedAndImplicitContext(sessionId);
 			widget.input.acceptInput(true);
 
 			const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Chat);
@@ -798,11 +799,22 @@ export class CreateRemoteAgentJobAction extends Action2 {
 
 			const isChatSessionsExperimentEnabled = configurationService.getValue<boolean>(ChatConfiguration.UseCloudButtonV2);
 			if (isChatSessionsExperimentEnabled) {
-				return await this.createWithChatSessions(chatSessionsService, chatAgentService, quickPickService, widget, userPrompt);
+				return await this.createWithChatSessions(
+					chatSessionsService,
+					chatService,
+					chatAgentService,
+					quickPickService,
+					chatModel,
+					requestParser,
+					sessionId,
+					widget,
+					attachedContext,
+					userPrompt
+				);
 			}
 
 			// Add the request to the model first
-			const parsedRequest = requestParser.parseChatRequest(session, userPrompt, ChatAgentLocation.Chat);
+			const parsedRequest = requestParser.parseChatRequest(sessionId, userPrompt, ChatAgentLocation.Chat);
 			const addedRequest = chatModel.addRequest(
 				parsedRequest,
 				{ variables: attachedContext.asArray() },
@@ -826,7 +838,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 
 				const userPromptEntry: IChatAgentHistoryEntry = {
 					request: {
-						sessionId: session,
+						sessionId,
 						requestId: generateUuid(),
 						agentId: '',
 						message: userPrompt,
@@ -861,7 +873,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 				const historyEntries: IChatAgentHistoryEntry[] = chatRequests
 					.map(req => ({
 						request: {
-							sessionId: session,
+							sessionId,
 							requestId: req.id,
 							agentId: req.response?.agent?.id ?? '',
 							message: req.message.text,
