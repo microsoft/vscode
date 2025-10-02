@@ -20,6 +20,7 @@ export enum ChatConfiguration {
 	ShowAgentSessionsViewDescription = 'chat.showAgentSessionsViewDescription',
 	EmptyStateHistoryEnabled = 'chat.emptyState.history.enabled',
 	NotifyWindowOnResponseReceived = 'chat.notifyWindowOnResponseReceived',
+	DelegateToCodingAgentInSecondaryMenu = 'chat.delegateToCodingAgentInSecondaryMenu',
 }
 
 /**

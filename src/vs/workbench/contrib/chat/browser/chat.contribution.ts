@@ -106,7 +106,6 @@ import { ChatSetupContribution, ChatTeardownContribution } from './chatSetup.js'
 import { ChatStatusBarEntry } from './chatStatus.js';
 import { ChatVariablesService } from './chatVariables.js';
 import { ChatWidget, ChatWidgetService } from './chatWidget.js';
-import { ChatExecuteMenuContribution } from './chatExecuteMenuContribution.js';
 import { ChatCodeBlockContextProviderService } from './codeBlockContextProviderService.js';
 import { ChatDynamicVariableModel } from './contrib/chatDynamicVariables.js';
 import { ChatImplicitContextContribution } from './contrib/chatImplicitContext.js';
@@ -672,6 +671,11 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 
 		},
+		[ChatConfiguration.DelegateToCodingAgentInSecondaryMenu]: {
+			type: 'boolean',
+			description: nls.localize('chat.delegateToCodingAgentInSecondaryMenu', "Controls whether the 'Delegate to Coding Agent' action appears in the secondary send menu instead of the primary toolbar."),
+			default: false,
+		},
 		[ChatConfiguration.ShowAgentSessionsViewDescription]: {
 			type: 'boolean',
 			description: nls.localize('chat.showAgentSessionsViewDescription', "Controls whether session descriptions are displayed on a second row in the Chat Sessions view."),
@@ -913,7 +917,6 @@ registerWorkbenchContribution2(SimpleBrowserOverlay.ID, SimpleBrowserOverlay, Wo
 registerWorkbenchContribution2(ChatEditingEditorContextKeys.ID, ChatEditingEditorContextKeys, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatTransferContribution.ID, ChatTransferContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatContextContributions.ID, ChatContextContributions, WorkbenchPhase.AfterRestored);
-registerWorkbenchContribution2(ChatExecuteMenuContribution.ID, ChatExecuteMenuContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatResponseResourceFileSystemProvider.ID, ChatResponseResourceFileSystemProvider, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(PromptUrlHandler.ID, PromptUrlHandler, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatSessionsView.ID, ChatSessionsView, WorkbenchPhase.AfterRestored);
