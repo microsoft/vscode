@@ -281,7 +281,11 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 			return false;
 		}
 
-		// Collect all missed line decorations sorted by line number
+		// Collect all missed line decorations
+		const missedLines: { lineNumber: number; range: Range }[] = [];
+		for (const [, { detail, options }] of this.decorationIds) {
+			const isMissed = detail.metadata.detail.type === DetailType.Statement
+				? !detail.metadata.detail.count
 					: detail.metadata.detail.type === DetailType.Branch
 						? (() => {
 							const branchDetail = detail.metadata.detail.detail;
@@ -304,8 +308,16 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 			}
 		}
 
+		// Sort missed lines by line number
+		missedLines.sort((a, b) => a.lineNumber - b.lineNumber);
+
 		if (missedLines.length === 0) {
 			return false;
+		}
+
+		const currentLine = position.lineNumber;
+		let targetLine: { lineNumber: number; range: Range } | undefined;
+
 		if (next) {
 			// Find the first missed line after the current line
 			targetLine = missedLines.find(l => l.lineNumber > currentLine);
