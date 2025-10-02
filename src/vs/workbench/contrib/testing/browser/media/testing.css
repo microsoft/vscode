@@ -200,7 +200,9 @@
 	animation: codicon-spin 1.25s steps(20) infinite;
 	/* GPU acceleration hints to reduce CPU load */
 	will-change: transform;
+	/* Isolate element to prevent layout recalculations */
 	contain: layout style paint;
+	/* Force GPU compositing layer */
 	transform: translateZ(0);
 }
 
