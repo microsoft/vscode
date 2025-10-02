@@ -30,6 +30,7 @@ import { EditDeltaInfo } from '../../../../../editor/common/textModelEditSource.
 import { localize } from '../../../../../nls.js';
 import { getFlatContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -97,6 +98,8 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IAiEditTelemetryService private readonly aiEditTelemetryService: IAiEditTelemetryService,
+		@IClipboardService private readonly clipboardService: IClipboardService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) {
 		super();
 
@@ -300,6 +303,9 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				scrollable.scanDomNode();
 			}
 
+			// Add context menu handlers for all KaTeX elements (both inline and block)
+			this._register(this.setupKatexContextMenus());
+
 			orderedDisposablesList.reverse().forEach(d => this._register(d));
 		};
 
@@ -322,6 +328,93 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 	override dispose(): void {
 		this._isDisposed = true;
 		super.dispose();
+	}
+
+	private setupKatexContextMenus(): IDisposable {
+		const disposables = new DisposableStore();
+
+		// Find all KaTeX elements (both inline and block)
+		const katexElements = this.domNode.querySelectorAll('.katex');
+		for (const katexElement of katexElements) {
+			if (!dom.isHTMLElement(katexElement)) {
+				continue;
+			}
+
+			// Add hover style to indicate it's interactive
+			katexElement.style.cursor = 'context-menu';
+
+			disposables.add(dom.addDisposableListener(katexElement, dom.EventType.CONTEXT_MENU, (domEvent) => {
+				const event = new StandardMouseEvent(dom.getWindow(domEvent), domEvent);
+				dom.EventHelper.stop(domEvent, true);
+
+				this.contextMenuService.showContextMenu({
+					getAnchor: () => event,
+					getActions: () => {
+						const actions = [];
+
+						// Extract LaTeX source from the annotation element
+						const latexSource = this.extractLatexSource(katexElement);
+						if (latexSource) {
+							actions.push({
+								id: 'chat.copyLatexSource',
+								label: localize('chat.copyLatexSource', "Copy LaTeX Source"),
+								class: undefined,
+								enabled: true,
+								run: () => this.clipboardService.writeText(latexSource)
+							});
+						}
+
+						// Extract MathML
+						const mathML = this.extractMathML(katexElement);
+						if (mathML) {
+							actions.push({
+								id: 'chat.copyMathML',
+								label: localize('chat.copyMathML', "Copy MathML"),
+								class: undefined,
+								enabled: true,
+								run: () => this.clipboardService.writeText(mathML)
+							});
+						}
+
+						// Copy TeX Commands (formatted with delimiters)
+						if (latexSource) {
+							const isDisplayMode = katexElement.closest('.katex-display') !== null;
+							const delimiter = isDisplayMode ? '$$' : '$';
+							const texCommands = `${delimiter}${latexSource}${delimiter}`;
+							actions.push({
+								id: 'chat.copyTexCommands',
+								label: localize('chat.copyTexCommands', "Copy TeX Commands"),
+								class: undefined,
+								enabled: true,
+								run: () => this.clipboardService.writeText(texCommands)
+							});
+						}
+
+						return actions;
+					}
+				});
+			}));
+		}
+
+		return disposables;
+	}
+
+	private extractLatexSource(katexElement: HTMLElement): string | null {
+		// KaTeX stores the original LaTeX source in the annotation element
+		const annotation = katexElement.querySelector('annotation[encoding="application/x-tex"]');
+		if (annotation) {
+			return annotation.textContent || null;
+		}
+		return null;
+	}
+
+	private extractMathML(katexElement: HTMLElement): string | null {
+		// Extract the MathML content
+		const mathMLElement = katexElement.querySelector('.katex-mathml math');
+		if (mathMLElement) {
+			return mathMLElement.outerHTML;
+		}
+		return null;
 	}
 
 	private renderCodeBlockPill(sessionId: string, requestId: string, inUndoStop: string | undefined, codemapperUri: URI | undefined, isStreaming: boolean): IDisposableReference<CollapsedCodeBlock> {

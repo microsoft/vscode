@@ -20,4 +20,19 @@
 		width: fit-content;
 		overflow: hidden;
 	}
+
+	/* Interactive math equation styling */
+	.katex {
+		transition: background-color 0.1s ease-in-out;
+		border-radius: 3px;
+		padding: 2px 4px;
+	}
+
+	.katex:hover {
+		background-color: var(--vscode-editor-hoverHighlightBackground);
+	}
+
+	.katex-display .katex {
+		padding: 4px 8px;
+	}
 }
