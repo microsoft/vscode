@@ -100,6 +100,7 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 	private renderViewAllFileChangesButton(container: HTMLElement): IDisposable {
 		const button = container.appendChild($('.chat-view-changes-icon'));
 		button.classList.add(...ThemeIcon.asClassNameArray(Codicon.diffMultiple));
+		button.title = localize('chatMultiDiff.openAllChanges', 'Open Changes');
 
 		return dom.addDisposableListener(button, 'click', (e) => {
 			const source = URI.parse(`multi-diff-editor:${new Date().getMilliseconds().toString() + Math.random().toString()}`);

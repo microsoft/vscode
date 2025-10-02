@@ -5,18 +5,21 @@
 
 import { booleanComparator, compareBy, compareUndefinedSmallest, numberComparator } from '../../../../../base/common/arrays.js';
 import { findLastMax } from '../../../../../base/common/arraysFind.js';
+import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { equalsIfDefined, itemEquals } from '../../../../../base/common/equals.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { derived, IObservable, IObservableWithChange, ITransaction, observableValue, recordChangesLazy, transaction } from '../../../../../base/common/observable.js';
 // eslint-disable-next-line local/code-no-deep-import-of-internal
 import { observableReducerSettable } from '../../../../../base/common/observableInternal/experimental/reducer.js';
-import { isDefined } from '../../../../../base/common/types.js';
+import { isDefined, isObject } from '../../../../../base/common/types.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { DataChannelForwardingTelemetryService, forwardToChannelIf, isCopilotLikeExtension } from '../../../../../platform/dataChannel/browser/forwardingTelemetryService.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
+import product from '../../../../../platform/product/common/product.js';
 import { StringEdit } from '../../../../common/core/edits/stringEdit.js';
 import { Position } from '../../../../common/core/position.js';
 import { InlineCompletionEndOfLifeReasonKind, InlineCompletionTriggerKind, InlineCompletionsProvider } from '../../../../common/languages.js';
@@ -72,6 +75,8 @@ export class InlineCompletionsSource extends Disposable {
 	public readonly inlineCompletions = this._state.map(this, v => v.inlineCompletions);
 	public readonly suggestWidgetInlineCompletions = this._state.map(this, v => v.suggestWidgetInlineCompletions);
 
+	private _completionsEnabled: Record<string, boolean> | undefined = undefined;
+
 	constructor(
 		private readonly _textModel: ITextModel,
 		private readonly _versionId: IObservableWithChange<number | null, IModelContentChangedEvent | undefined>,
@@ -81,6 +86,7 @@ export class InlineCompletionsSource extends Disposable {
 		@ILogService private readonly _logService: ILogService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) {
 		super();
 		this._loggingEnabled = observableConfigValue('editor.inlineSuggest.logFetch', false, this._configurationService).recomputeInitiallyAndOnChange(this._store);
@@ -93,6 +99,25 @@ export class InlineCompletionsSource extends Disposable {
 		));
 
 		this.clearOperationOnTextModelChange.recomputeInitiallyAndOnChange(this._store);
+
+		const enablementSetting = product.defaultChatAgent?.completionsEnablementSetting ?? undefined;
+		if (enablementSetting) {
+			this._updateCompletionsEnablement(enablementSetting);
+			this._register(this._configurationService.onDidChangeConfiguration(e => {
+				if (e.affectsConfiguration(enablementSetting)) {
+					this._updateCompletionsEnablement(enablementSetting);
+				}
+			}));
+		}
+	}
+
+	private _updateCompletionsEnablement(enalementSetting: string) {
+		const result = this._configurationService.getValue<Record<string, boolean>>(enalementSetting);
+		if (!isObject(result)) {
+			this._completionsEnabled = undefined;
+		} else {
+			this._completionsEnabled = result;
+		}
 	}
 
 	public readonly clearOperationOnTextModelChange = derived(this, reader => {
@@ -140,10 +165,22 @@ export class InlineCompletionsSource extends Disposable {
 		const source = new CancellationTokenSource();
 
 		const promise = (async () => {
-			this._loadingCount.set(this._loadingCount.get() + 1, undefined);
 			const store = new DisposableStore();
+
+			this._loadingCount.set(this._loadingCount.get() + 1, undefined);
+			let didDecrease = false;
+			const decreaseLoadingCount = () => {
+				if (!didDecrease) {
+					didDecrease = true;
+					this._loadingCount.set(this._loadingCount.get() - 1, undefined);
+				}
+			};
+			const loadingReset = store.add(new RunOnceScheduler(() => decreaseLoadingCount(), 10 * 1000));
+			loadingReset.schedule();
+
 			const inlineSuggestionsProviders = providers.filter(p => p.providerId);
 			const requestResponseInfo = new RequestResponseData(context, requestInfo, inlineSuggestionsProviders);
+
 
 			try {
 				const recommendedDebounceValue = this._debounceValue.get(this._textModel);
@@ -247,7 +284,8 @@ export class InlineCompletionsSource extends Disposable {
 					if (source.token.isCancellationRequested) {
 						requestResponseInfo.setNoSuggestionReasonIfNotSet('canceled:whileFetching');
 					} else {
-						requestResponseInfo.setNoSuggestionReasonIfNotSet('noSuggestion');
+						const completionsQuotaExceeded = this._contextKeyService.getContextKeyValue<boolean>('completionsQuotaExceeded');
+						requestResponseInfo.setNoSuggestionReasonIfNotSet(completionsQuotaExceeded ? 'completionsQuotaExceeded' : 'noSuggestion');
 					}
 				}
 
@@ -293,8 +331,8 @@ export class InlineCompletionsSource extends Disposable {
 					v.suggestWidgetInlineCompletions.dispose();
 				});
 			} finally {
-				this._loadingCount.set(this._loadingCount.get() - 1, undefined);
 				store.dispose();
+				decreaseLoadingCount();
 				this.sendInlineCompletionsRequestTelemetry(requestResponseInfo);
 			}
 
@@ -343,11 +381,20 @@ export class InlineCompletionsSource extends Disposable {
 	private sendInlineCompletionsRequestTelemetry(
 		requestResponseInfo: RequestResponseData
 	): void {
-		if (!this._sendRequestData.get()) {
+		if (!this._sendRequestData.get() && !this._contextKeyService.getContextKeyValue<boolean>('isRunningUnificationExperiment')) {
 			return;
 		}
 
 		if (requestResponseInfo.requestUuid === undefined || requestResponseInfo.hasProducedSuggestion) {
+			return;
+		}
+
+
+		if (!isCompletionsEnabled(this._completionsEnabled, this._textModel.getLanguageId())) {
+			return;
+		}
+
+		if (!requestResponseInfo.providers.some(p => isCopilotLikeExtension(p.providerId?.extensionId))) {
 			return;
 		}
 
@@ -457,6 +504,18 @@ class RequestResponseData {
 
 function isSubset<T>(set1: Set<T>, set2: Set<T>): boolean {
 	return [...set1].every(item => set2.has(item));
+}
+
+function isCompletionsEnabled(completionsEnablementObject: Record<string, boolean> | undefined, modeId: string = '*'): boolean {
+	if (completionsEnablementObject === undefined) {
+		return false; // default to disabled if setting is not available
+	}
+
+	if (typeof completionsEnablementObject[modeId] !== 'undefined') {
+		return Boolean(completionsEnablementObject[modeId]); // go with setting if explicitly defined
+	}
+
+	return Boolean(completionsEnablementObject['*']); // fallback to global setting otherwise
 }
 
 class UpdateOperation implements IDisposable {
