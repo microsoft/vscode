@@ -158,7 +158,6 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 	protected badge!: HTMLElement;
 	protected override readonly options: ICompositeBarActionViewItemOptions;
 
-	private labelContainer: HTMLElement | undefined;
 	private badgeContent: HTMLElement | undefined;
 	private readonly badgeDisposable = this._register(new MutableDisposable<DisposableStore>());
 	private mouseUpTimeout: Timeout | undefined;
@@ -396,32 +395,12 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 	protected override updateLabel(): void {
 		this.label.className = 'action-label';
 
-		if (this.compositeBarActionItem?.classNames) {
+		if (this.compositeBarActionItem.classNames) {
 			this.label.classList.add(...this.compositeBarActionItem.classNames);
 		}
 
 		if (!this.options.icon) {
 			this.label.textContent = this.action.label;
-		}
-
-		const hasUriIcon = this.compositeBarActionItem?.classNames?.includes('uri-icon');
-		if (hasUriIcon && !this.labelContainer) {
-			this.addHighContrastContainer();
-		} else if (!hasUriIcon && this.labelContainer) {
-			this.removeHighContrastContainer();
-		}
-	}
-
-	private addHighContrastContainer(): void {
-		this.labelContainer = $('.action-label-hc-container');
-		this.label.replaceWith(this.labelContainer);
-		this.labelContainer.appendChild(this.label);
-	}
-
-	private removeHighContrastContainer(): void {
-		if (this.labelContainer) {
-			this.labelContainer.replaceWith(this.label);
-			this.labelContainer = undefined;
 		}
 	}
 
