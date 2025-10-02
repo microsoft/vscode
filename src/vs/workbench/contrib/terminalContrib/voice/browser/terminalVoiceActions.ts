@@ -3,14 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction } from '../../../../../base/common/actions.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IExtensionManagementService } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { EnablementState, IWorkbenchExtensionEnablementService } from '../../../../services/extensionManagement/common/extensionManagement.js';
 import { HasSpeechProvider, SpeechToTextInProgress } from '../../../speech/common/speechService.js';
 import { registerActiveInstanceAction, sharedWhenClause } from '../../../terminal/browser/terminalActions.js';
@@ -30,7 +29,7 @@ export function registerTerminalVoiceActions() {
 		run: async (activeInstance, c, accessor) => {
 			const contextKeyService = accessor.get(IContextKeyService);
 			const commandService = accessor.get(ICommandService);
-			const notificationService = accessor.get(INotificationService);
+			const dialogService = accessor.get(IDialogService);
 			const workbenchExtensionEnablementService = accessor.get(IWorkbenchExtensionEnablementService);
 			const extensionManagementService = accessor.get(IExtensionManagementService);
 			if (HasSpeechProvider.getValue(contextKeyService)) {
@@ -41,39 +40,23 @@ export function registerTerminalVoiceActions() {
 			const extensions = await extensionManagementService.getInstalled();
 			const extension = extensions.find(extension => extension.identifier.id === 'ms-vscode.vscode-speech');
 			const extensionIsDisabled = extension && !workbenchExtensionEnablementService.isEnabled(extension);
-			const learnMoreAction = {
-				label: localize('viewExtension', "View Extension"),
-				run: () => commandService.executeCommand('workbench.extensions.search', '@id:ms-vscode.vscode-speech'),
-				id: '',
-				tooltip: '',
-				class: undefined,
-				enabled: true
-			};
-
-			const actions: IAction[] = [];
+			let run: () => Promise<unknown>;
 			let message: string;
+			let primaryButton: string;
 			if (extensionIsDisabled) {
-				message = localize('terminal.voice.enableSpeechExtension', "You must enable the Speech extension to use Dictation in the Terminal.");
-				actions.push({
-					id: 'enableSpeechExtension',
-					tooltip: '',
-					class: undefined,
-					enabled: true,
-					label: localize('enableSpeechExtension', "Enable for Workspace"),
-					run: () => workbenchExtensionEnablementService.setEnablement([extension], EnablementState.EnabledWorkspace),
-				}, learnMoreAction);
+				message = localize('terminal.voice.enableSpeechExtension', "Would you like to enable the speech extension?");
+				primaryButton = localize('enableExtension', "Enable Extension");
+				run = () => workbenchExtensionEnablementService.setEnablement([extension], EnablementState.EnabledWorkspace);
 			} else {
-				message = localize('terminal.voice.installSpeechExtension', "You must install the Speech extension to use Dictation in the Terminal.");
-				actions.push({
-					id: 'installSpeechExtension',
-					label: localize('installSpeechExtension', "Install Speech Extension"),
-					run: () => commandService.executeCommand('workbench.extensions.installExtension', 'ms-vscode.vscode-speech'),
-					tooltip: '',
-					class: undefined,
-					enabled: true
-				}, learnMoreAction);
+				message = localize('terminal.voice.installSpeechExtension', "Would you like to install 'VS Code Speech' extension from 'Microsoft'?");
+				run = () => commandService.executeCommand('workbench.extensions.installExtension', 'ms-vscode.vscode-speech');
+				primaryButton = localize('installExtension', "Install Extension");
 			}
-			notificationService.notify({ severity: Severity.Info, message, actions: { primary: actions } });
+			const detail = localize('terminal.voice.detail', "Microphone support requires this extension.");
+			const confirmed = await dialogService.confirm({ message, primaryButton, type: 'info', detail });
+			if (confirmed.confirmed) {
+				await run();
+			}
 		},
 		menu: [
 			{
