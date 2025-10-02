@@ -402,7 +402,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 	}
 
 	private async _onDidClickPreviewLink(href: string, ctrlKey?: boolean, metaKey?: boolean, middleButton?: boolean) {
-		// Check if user wants to open in new tab (Ctrl/Cmd+Click or middle-click)
+		// Check if user wants to open in new tab (Ctrl+Click on Windows/Linux, Cmd+Click on macOS, or middle-click)
 		const openInNewTab = ctrlKey || metaKey || middleButton;
 		
 		const config = vscode.workspace.getConfiguration('markdown', this.resource);
