@@ -2168,7 +2168,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this._welcomeRenderScheduler.schedule();
 			this.refreshParsedInput();
 			this.renderFollowups();
-			// Widget visibility is now controlled by response start events, not mode changes
+			// Show widget if switching to mode with handoffs AND chat has existing responses
+			const currentMode = this.input.currentModeObs.get();
+			const hasExistingContent = this.viewModel && this.viewModel.getItems().length > 0;
+			if (currentMode?.handoffs?.get() && hasExistingContent) {
+				this.renderChatSuggestNextWidget();
+			}
 		}));
 
 		this._register(autorun(r => {
