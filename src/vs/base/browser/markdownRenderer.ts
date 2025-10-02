@@ -876,11 +876,18 @@ function fillInIncompleteTokensOnce(tokens: marked.TokensList): marked.TokensLis
 	}
 
 	if (!newTokens && lastToken?.type === 'paragraph') {
-		// Only operates on a single token, because any newline that follows this should break these patterns
-		const newToken = completeSingleLinePattern(lastToken as marked.Tokens.Paragraph);
-		if (newToken) {
-			newTokens = [newToken];
+		// Check for incomplete fenced code blocks first
+		const newCodeBlockToken = completeCodeBlock(lastToken as marked.Tokens.Paragraph);
+		if (newCodeBlockToken) {
+			newTokens = [newCodeBlockToken];
 			i = tokens.length - 1;
+		} else {
+			// Only operates on a single token, because any newline that follows this should break these patterns
+			const newToken = completeSingleLinePattern(lastToken as marked.Tokens.Paragraph);
+			if (newToken) {
+				newTokens = [newToken];
+				i = tokens.length - 1;
+			}
 		}
 	}
 
@@ -903,6 +910,26 @@ function fillInIncompleteTokensOnce(tokens: marked.TokensList): marked.TokensLis
 	return null;
 }
 
+function completeCodeBlock(token: marked.Token): marked.Token | undefined {
+	// Check if the token is a paragraph that starts with ```
+	// This indicates an incomplete fenced code block
+	if (token.type === 'paragraph' || token.type === 'text') {
+		const raw = token.raw;
+		// Match opening fence: ``` optionally followed by language id, then newline and content
+		const fenceMatch = raw.match(/^```(\w*)\n([\s\S]*)$/);
+		if (fenceMatch) {
+			// Found an incomplete fenced code block
+			// Complete it by adding closing backticks
+			const completedText = raw + '\n```';
+			const completed = marked.lexer(completedText);
+			// The lexer should now recognize it as a code block
+			if (completed.length > 0 && completed[0].type === 'code') {
+				return completed[0];
+			}
+		}
+	}
+	return undefined;
+}
 
 function completeCodespan(token: marked.Token): marked.Token {
 	return completeWithString(token, '`');

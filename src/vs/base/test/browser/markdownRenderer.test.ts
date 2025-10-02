@@ -1006,5 +1006,64 @@ suite('MarkdownRenderer', () => {
 				assert.deepStrictEqual(newTokens, tokens);
 			});
 		});
+
+		suite('fenced code blocks', () => {
+			test('complete code block', () => {
+				const complete = '```javascript\nconst x = 1;\n```';
+				const tokens = marked.marked.lexer(complete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				assert.deepStrictEqual(newTokens, tokens);
+			});
+
+			test('incomplete code block without closing fence', () => {
+				const incomplete = '```javascript\nconst x = 1;\nconst y = 2;';
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + '\n```');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('incomplete code block with language id', () => {
+				const incomplete = '```typescript\nfunction test() {\n  return true;';
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + '\n```');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('incomplete code block without language id', () => {
+				const incomplete = '```\nsome code\nmore code';
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + '\n```');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('incomplete code block with single line', () => {
+				const incomplete = '```python\nprint("hello")';
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + '\n```');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('incomplete code block with leading text', () => {
+				const incomplete = 'Here is some code:\n```javascript\nconst x = 1;';
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				// The incomplete code block is the last token, so it should be completed
+				assert.strictEqual(newTokens.length, 2);
+				assert.strictEqual(newTokens[0].type, 'paragraph');
+				assert.strictEqual(newTokens[1].type, 'code');
+			});
+		});
 	});
 });
+
+
