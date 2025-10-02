@@ -1666,7 +1666,7 @@ declare module 'vscode' {
 		/**
 		 * An {@link Event} which fires upon cancellation.
 		 */
-		onCancellationRequested: Event<any>;
+		readonly onCancellationRequested: Event<any>;
 	}
 
 	/**
@@ -8608,7 +8608,7 @@ declare module 'vscode' {
 		/**
 		 * Fires when a secret is stored or deleted.
 		 */
-		onDidChange: Event<SecretStorageChangeEvent>;
+		readonly onDidChange: Event<SecretStorageChangeEvent>;
 	}
 
 	/**
@@ -13074,7 +13074,7 @@ declare module 'vscode' {
 		 * (Examples include: an explicit call to {@link QuickInput.hide},
 		 * the user pressing Esc, some other input UI opening, etc.)
 		 */
-		onDidHide: Event<void>;
+		readonly onDidHide: Event<void>;
 
 		/**
 		 * Dispose of this input UI and any associated resources. If it is still
@@ -18225,7 +18225,7 @@ declare module 'vscode' {
 		 * Fired when a user has changed whether this is a default profile. The
 		 * event contains the new value of {@link isDefault}
 		 */
-		onDidChangeDefault: Event<boolean>;
+		readonly onDidChangeDefault: Event<boolean>;
 
 		/**
 		 * Whether this profile supports continuous running of requests. If so,
@@ -18604,7 +18604,7 @@ declare module 'vscode' {
 		 * An event fired when the editor is no longer interested in data
 		 * associated with the test run.
 		 */
-		onDidDispose: Event<void>;
+		readonly onDidDispose: Event<void>;
 	}
 
 	/**
@@ -19680,7 +19680,7 @@ declare module 'vscode' {
 		 * The passed {@link ChatResultFeedback.result result} is guaranteed to have the same properties as the result that was
 		 * previously returned from this chat participant's handler.
 		 */
-		onDidReceiveFeedback: Event<ChatResultFeedback>;
+		readonly onDidReceiveFeedback: Event<ChatResultFeedback>;
 
 		/**
 		 * Dispose this participant and free resources.
@@ -20723,7 +20723,7 @@ declare module 'vscode' {
 		/**
 		 * An event that fires when access information changes.
 		 */
-		onDidChange: Event<void>;
+		readonly onDidChange: Event<void>;
 
 		/**
 		 * Checks if a request can be made to a language model.
