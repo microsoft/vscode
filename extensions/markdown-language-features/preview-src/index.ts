@@ -320,6 +320,19 @@ document.addEventListener('dblclick', event => {
 
 const passThroughLinkSchemes = ['http:', 'https:', 'mailto:', 'vscode:', 'vscode-insiders:'];
 
+/**
+ * Extracts modifier keys from a mouse event to determine if the user wants to open a link in a new tab.
+ * @param event The mouse event to extract modifiers from
+ * @returns An object containing the modifier key states
+ */
+function getClickModifiers(event: MouseEvent) {
+	return {
+		ctrlKey: event.ctrlKey,
+		metaKey: event.metaKey,
+		middleButton: event.button === 1
+	};
+}
+
 const handleLinkClick = (event: MouseEvent) => {
 	if (!event) {
 		return;
@@ -345,9 +358,7 @@ const handleLinkClick = (event: MouseEvent) => {
 			if (!/^[a-z\-]+:/i.test(hrefText)) {
 				messaging.postMessage('openLink', { 
 					href: hrefText,
-					ctrlKey: event.ctrlKey,
-					metaKey: event.metaKey,
-					middleButton: event.button === 1
+					...getClickModifiers(event)
 				});
 				event.preventDefault();
 				event.stopPropagation();
