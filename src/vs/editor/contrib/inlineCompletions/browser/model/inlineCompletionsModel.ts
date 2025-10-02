@@ -400,6 +400,7 @@ export class InlineCompletionsModel extends Disposable {
 			reason,
 			typingInterval: typingInterval.averageInterval,
 			typingIntervalCharacterCount: typingInterval.characterCount,
+			availableProviders: [],
 		};
 
 		let context: InlineCompletionContextWithoutUuid = {
@@ -432,6 +433,7 @@ export class InlineCompletionsModel extends Disposable {
 			? { providers: [changeSummary.provider], label: 'single:' + changeSummary.provider.providerId?.toString() }
 			: { providers: this._languageFeaturesService.inlineCompletionsProvider.all(this.textModel), label: undefined }; // TODO: should use inlineCompletionProviders
 		const availableProviders = this.getAvailableProviders(providers.providers);
+		requestInfo.availableProviders = availableProviders.map(p => p.providerId).filter(isDefined);
 
 		return this._source.fetch(availableProviders, providers.label, context, itemToPreserve?.identity, changeSummary.shouldDebounce, userJumpedToActiveCompletion, requestInfo);
 	});

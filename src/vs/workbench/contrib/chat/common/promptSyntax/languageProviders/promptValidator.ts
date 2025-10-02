@@ -130,7 +130,7 @@ export class PromptValidator {
 			}
 			case PromptsType.instructions:
 				this.validateApplyTo(attributes, report);
-				this.validateExcludeMode(attributes, report);
+				this.validateExcludeAgent(attributes, report);
 				break;
 
 			case PromptsType.mode:
@@ -292,13 +292,13 @@ export class PromptValidator {
 		}
 	}
 
-	private validateExcludeMode(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): undefined {
-		const attribute = attributes.find(attr => attr.key === 'excludeMode');
+	private validateExcludeAgent(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): undefined {
+		const attribute = attributes.find(attr => attr.key === 'excludeAgent');
 		if (!attribute) {
 			return;
 		}
 		if (attribute.value.type !== 'array') {
-			report(toMarker(localize('promptValidator.excludeModeMustBeArray', "The 'excludeMode' attribute must be an array."), attribute.value.range, MarkerSeverity.Error));
+			report(toMarker(localize('promptValidator.excludeAgentMustBeArray', "The 'excludeAgent' attribute must be an array."), attribute.value.range, MarkerSeverity.Error));
 			return;
 		}
 	}
@@ -306,7 +306,7 @@ export class PromptValidator {
 
 const validAttributeNames = {
 	[PromptsType.prompt]: ['description', 'model', 'tools', 'mode'],
-	[PromptsType.instructions]: ['description', 'applyTo', 'excludeMode'],
+	[PromptsType.instructions]: ['description', 'applyTo', 'excludeAgent'],
 	[PromptsType.mode]: ['description', 'model', 'tools', 'advancedOptions']
 };
 const validAttributeNamesNoExperimental = {
@@ -320,7 +320,7 @@ export function getValidAttributeNames(promptType: PromptsType, includeExperimen
 }
 
 export function isExperimentalAttribute(attributeName: string): boolean {
-	return attributeName === 'advancedOptions' || attributeName === 'excludeMode';
+	return attributeName === 'advancedOptions' || attributeName === 'excludeAgent';
 }
 
 function toMarker(message: string, range: Range, severity = MarkerSeverity.Error): IMarkerData {

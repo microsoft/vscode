@@ -235,7 +235,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.notifyWindowOnConfirmation': {
 			type: 'boolean',
-			description: nls.localize('chat.notifyWindowOnConfirmation', "Controls whether a chat session should notify the user when a confirmation is needed while the window is not in focus. This includes a window badge as well as notification toast."),
+			description: nls.localize('chat.notifyWindowOnConfirmation', "Controls whether a chat session should present the user with an OS notification when a confirmation is needed while the window is not in focus. This includes a window badge as well as notification toast."),
 			default: true,
 		},
 		[ChatConfiguration.GlobalAutoApprove]: {
@@ -315,8 +315,8 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.NotifyWindowOnResponseReceived]: {
 			type: 'boolean',
-			default: false,
-			description: nls.localize('chat.notifyWindowOnResponseReceived', "Controls whether a chat session should notify the user when a response is received while the window is not in focus. This includes a window badge as well as notification toast."),
+			default: true,
+			description: nls.localize('chat.notifyWindowOnResponseReceived', "Controls whether a chat session should present the user with an OS notification when a response is received while the window is not in focus. This includes a window badge as well as notification toast."),
 		},
 		'chat.checkpoints.enabled': {
 			type: 'boolean',
@@ -661,6 +661,12 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.todoListTool.writeOnly', "When enabled, the todo tool operates in write-only mode, requiring the agent to remember todos in context."),
 			tags: ['experimental']
 		},
+		'chat.todoListTool.descriptionField': {
+			type: 'boolean',
+			default: true,
+			description: nls.localize('chat.todoListTool.descriptionField', "When enabled, todo items include detailed descriptions for implementation context. This provides more information but uses additional tokens and may slow down responses."),
+			tags: ['experimental']
+		},
 		[ChatConfiguration.ThinkingStyle]: {
 			type: 'string',
 			default: product.quality === 'insider' ? 'fixedScrolling' : 'collapsed',
@@ -682,9 +688,9 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			scope: ConfigurationScope.WINDOW
 		},
-		[ChatConfiguration.UseChatSessionsForCloudButton]: {
+		[ChatConfiguration.UseCloudButtonV2]: {
 			type: 'boolean',
-			description: nls.localize('chat.useChatSessionsForCloudButton', "Controls whether the 'Delegate to coding agent' button uses the new chat sessions API."),
+			description: nls.localize('chat.useCloudButtonV2', "Experimental implementation of 'cloud button'"),
 			default: false,
 			tags: ['experimental'],
 
