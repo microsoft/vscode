@@ -653,7 +653,7 @@ configurationRegistry.registerConfiguration({
 						nls.localize('chat.agent.todoList.position.off', "Hide the todo list (still shows the tool calls for tracking todo progress)."),
 						nls.localize('chat.agent.todoList.position.chatInput', "Show todo list widget near the chat input.")
 					],
-					description: nls.localize('chat.agent.todoList.position', "Controls the position of the todo list widget in chat.")
+					description: nls.localize('chat.agent.todoList.position', "Controls the position of the todo list in the chat view, which opens when the agent has created todo items and updates as it makes progress.")
 				}
 			},
 			default: {
