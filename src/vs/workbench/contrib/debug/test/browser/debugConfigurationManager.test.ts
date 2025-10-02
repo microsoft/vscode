@@ -61,7 +61,7 @@ suite('debugConfigurationManager', () => {
 			new TestExtensionService(),
 			new TestHistoryService(),
 			new UriIdentityService(fileService),
-			new ContextKeyService(configurationService),
+			disposables.add(new ContextKeyService(configurationService)),
 			new NullLogService());
 	});
 

@@ -10,25 +10,22 @@ import { coalesce } from '../../../../base/common/arrays.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { UriList } from '../../../../base/common/dataTransfer.js';
-import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Mimes } from '../../../../base/common/mime.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../nls.js';
-import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { CodeDataTransfers, containsDragType, extractEditorsDropData, extractMarkerDropData, extractNotebookCellOutputDropData, extractSymbolDropData } from '../../../../platform/dnd/browser/dnd.js';
-import { IFileService } from '../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
 import { ISharedWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
-import { IChatRequestVariableEntry } from '../common/chatModel.js';
+import { IChatRequestVariableEntry } from '../common/chatVariableEntries.js';
 import { IChatWidgetService } from './chat.js';
-import { ImageTransferData, resolveEditorAttachContext, resolveImageAttachContext, resolveMarkerAttachContext, resolveNotebookOutputAttachContext, resolveSymbolsAttachContext } from './chatAttachmentResolve.js';
+import { IChatAttachmentResolveService, ImageTransferData } from './chatAttachmentResolveService.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { IChatInputStyles } from './chatInputPart.js';
 import { convertStringToUInt8Array } from './imageUtils.js';
+import { extractSCMHistoryItemDropData } from '../../scm/browser/scmHistoryChatContext.js';
 
 enum ChatDragAndDropType {
 	FILE_INTERNAL,
@@ -38,7 +35,8 @@ enum ChatDragAndDropType {
 	SYMBOL,
 	HTML,
 	MARKER,
-	NOTEBOOK_CELL_OUTPUT
+	NOTEBOOK_CELL_OUTPUT,
+	SCM_HISTORY_ITEM
 }
 
 const IMAGE_DATA_REGEX = /^data:image\/[a-z]+;base64,/;
@@ -49,23 +47,33 @@ export class ChatDragAndDrop extends Themable {
 	private readonly overlays: Map<HTMLElement, { overlay: HTMLElement; disposable: IDisposable }> = new Map();
 	private overlayText?: HTMLElement;
 	private overlayTextBackground: string = '';
+	private disableOverlay: boolean = false;
 
 	constructor(
 		private readonly attachmentModel: ChatAttachmentModel,
 		private readonly styles: IChatInputStyles,
 		@IThemeService themeService: IThemeService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IFileService private readonly fileService: IFileService,
-		@IEditorService private readonly editorService: IEditorService,
-		@IDialogService private readonly dialogService: IDialogService,
-		@ITextModelService private readonly textModelService: ITextModelService,
 		@ISharedWebContentExtractorService private readonly webContentExtractorService: ISharedWebContentExtractorService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@ILogService private readonly logService: ILogService,
+		@IChatAttachmentResolveService private readonly chatAttachmentResolveService: IChatAttachmentResolveService
 	) {
 		super(themeService);
 
 		this.updateStyles();
+
+		this._register(toDisposable(() => {
+			this.overlays.forEach(({ overlay, disposable }) => {
+				disposable.dispose();
+				overlay.remove();
+			});
+
+			this.overlays.clear();
+			this.currentActiveTarget = undefined;
+			this.overlayText?.remove();
+			this.overlayText = undefined;
+		}));
 	}
 
 	addOverlay(target: HTMLElement, overlayContainer: HTMLElement): void {
@@ -88,6 +96,10 @@ export class ChatDragAndDrop extends Themable {
 		}
 	}
 
+	setDisabledOverlay(disable: boolean) {
+		this.disableOverlay = disable;
+	}
+
 	private currentActiveTarget: HTMLElement | undefined = undefined;
 	private createOverlay(target: HTMLElement, overlayContainer: HTMLElement): { overlay: HTMLElement; disposable: IDisposable } {
 		const overlay = document.createElement('div');
@@ -97,6 +109,10 @@ export class ChatDragAndDrop extends Themable {
 
 		const disposable = new DragAndDropObserver(target, {
 			onDragOver: (e) => {
+				if (this.disableOverlay) {
+					return;
+				}
+
 				e.stopPropagation();
 				e.preventDefault();
 
@@ -114,6 +130,9 @@ export class ChatDragAndDrop extends Themable {
 
 			},
 			onDragLeave: (e) => {
+				if (this.disableOverlay) {
+					return;
+				}
 				if (target === this.currentActiveTarget) {
 					this.currentActiveTarget = undefined;
 				}
@@ -121,6 +140,9 @@ export class ChatDragAndDrop extends Themable {
 				this.onDragLeave(e, target);
 			},
 			onDrop: (e) => {
+				if (this.disableOverlay) {
+					return;
+				}
 				e.stopPropagation();
 				e.preventDefault();
 
@@ -172,6 +194,8 @@ export class ChatDragAndDrop extends Themable {
 		// This is an estimation based on the datatransfer types/items
 		if (containsDragType(e, CodeDataTransfers.NOTEBOOK_CELL_OUTPUT)) {
 			return ChatDragAndDropType.NOTEBOOK_CELL_OUTPUT;
+		} else if (containsDragType(e, CodeDataTransfers.SCM_HISTORY_ITEM)) {
+			return ChatDragAndDropType.SCM_HISTORY_ITEM;
 		} else if (containsImageDragType(e)) {
 			return this.extensionService.extensions.some(ext => isProposedApiEnabled(ext, 'chatReferenceBinaryData')) ? ChatDragAndDropType.IMAGE : undefined;
 		} else if (containsDragType(e, 'text/html')) {
@@ -207,6 +231,7 @@ export class ChatDragAndDrop extends Themable {
 			case ChatDragAndDropType.MARKER: return localize('problem', 'Problem');
 			case ChatDragAndDropType.HTML: return localize('url', 'URL');
 			case ChatDragAndDropType.NOTEBOOK_CELL_OUTPUT: return localize('notebookOutput', 'Output');
+			case ChatDragAndDropType.SCM_HISTORY_ITEM: return localize('scmHistoryItem', 'Change');
 		}
 	}
 
@@ -218,24 +243,31 @@ export class ChatDragAndDrop extends Themable {
 		if (containsDragType(e, CodeDataTransfers.NOTEBOOK_CELL_OUTPUT)) {
 			const notebookOutputData = extractNotebookCellOutputDropData(e);
 			if (notebookOutputData) {
-				return resolveNotebookOutputAttachContext(notebookOutputData, this.editorService);
+				return this.chatAttachmentResolveService.resolveNotebookOutputAttachContext(notebookOutputData);
+			}
+		}
+
+		if (containsDragType(e, CodeDataTransfers.SCM_HISTORY_ITEM)) {
+			const scmHistoryItemData = extractSCMHistoryItemDropData(e);
+			if (scmHistoryItemData) {
+				return this.chatAttachmentResolveService.resolveSourceControlHistoryItemAttachContext(scmHistoryItemData);
 			}
 		}
 
 		const markerData = extractMarkerDropData(e);
 		if (markerData) {
-			return resolveMarkerAttachContext(markerData);
+			return this.chatAttachmentResolveService.resolveMarkerAttachContext(markerData);
 		}
 
 		if (containsDragType(e, CodeDataTransfers.SYMBOLS)) {
 			const symbolsData = extractSymbolDropData(e);
-			return resolveSymbolsAttachContext(symbolsData);
+			return this.chatAttachmentResolveService.resolveSymbolsAttachContext(symbolsData);
 		}
 
 		const editorDragData = extractEditorsDropData(e);
 		if (editorDragData.length > 0) {
 			return coalesce(await Promise.all(editorDragData.map(editorInput => {
-				return resolveEditorAttachContext(editorInput, this.fileService, this.editorService, this.textModelService, this.extensionService, this.dialogService);
+				return this.chatAttachmentResolveService.resolveEditorAttachContext(editorInput);
 			})));
 		}
 
@@ -244,7 +276,7 @@ export class ChatDragAndDrop extends Themable {
 			const uriList = UriList.parse(internal);
 			if (uriList.length) {
 				return coalesce(await Promise.all(
-					uriList.map(uri => resolveEditorAttachContext({ resource: URI.parse(uri) }, this.fileService, this.editorService, this.textModelService, this.extensionService, this.dialogService))
+					uriList.map(uri => this.chatAttachmentResolveService.resolveEditorAttachContext({ resource: URI.parse(uri) }))
 				));
 			}
 		}
@@ -335,7 +367,7 @@ export class ChatDragAndDrop extends Themable {
 			imageTransferData.push(...imageTransferDataFromUrl.filter(data => !!data));
 		}
 
-		return await resolveImageAttachContext(imageTransferData);
+		return await this.chatAttachmentResolveService.resolveImageAttachContext(imageTransferData);
 	}
 
 	private setOverlay(target: HTMLElement, type: ChatDragAndDropType | undefined): void {

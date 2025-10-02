@@ -16,7 +16,7 @@ import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlCon
 import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, observableFromEvent } from '../../../../base/common/observable.js';
+import { autorun, derived, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { isUriComponents, URI } from '../../../../base/common/uri.js';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, isCodeEditor, MouseTargetType, OverlayWidgetPositionPreference } from '../../../../editor/browser/editorBrowser.js';
@@ -38,7 +38,7 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { bindContextKey, observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
-import { IQuickInputService, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputButton, IQuickInputService, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
 import { ActiveEditorContext } from '../../../common/contextkeys.js';
 import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
 import { getTestingConfiguration, TestingConfigKeys } from '../common/configuration.js';
@@ -71,6 +71,7 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 	}>();
 	private hoveredSubject?: unknown;
 	private details?: CoverageDetailsModel;
+	private readonly hasInlineCoverageDetails = observableValue('hasInlineCoverageDetails', false);
 
 	constructor(
 		private readonly editor: ICodeEditor,
@@ -117,6 +118,12 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 			TestingContextKeys.hasCoverageInFile,
 			contextKeyService,
 			reader => !!fileCoverage.read(reader)?.file,
+		));
+
+		this._register(bindContextKey(
+			TestingContextKeys.hasInlineCoverageDetails,
+			contextKeyService,
+			reader => this.hasInlineCoverageDetails.read(reader),
 		));
 
 		this._register(autorun(reader => {
@@ -245,8 +252,12 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 	private async apply(model: ITextModel, coverage: FileCoverage, testId: TestId | undefined, showInlineByDefault: boolean) {
 		const details = this.details = await this.loadDetails(coverage, testId, model);
 		if (!details) {
+			this.hasInlineCoverageDetails.set(false, undefined);
 			return this.clear();
 		}
+
+		// Update context key to indicate inline coverage details are available
+		this.hasInlineCoverageDetails.set(details.ranges.length > 0, undefined);
 
 		this.displayedStore.clear();
 
@@ -326,6 +337,7 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 		this.loadingCancellation = undefined;
 		this.displayedStore.clear();
 		this.hoveredStore.clear();
+		this.hasInlineCoverageDetails.set(false, undefined);
 	}
 
 	private async loadDetails(coverage: FileCoverage, testId: TestId | undefined, textModel: ITextModel) {
@@ -724,7 +736,7 @@ registerAction2(class ToggleInlineCoverage extends Action2 {
 			icon: testingCoverageReport,
 			menu: [
 				{ id: MenuId.CommandPalette, when: TestingContextKeys.isTestCoverageOpen },
-				{ id: MenuId.EditorTitle, when: ContextKeyExpr.and(TestingContextKeys.hasCoverageInFile, TestingContextKeys.coverageToolbarEnabled.notEqualsTo(true)), group: 'navigation' },
+				{ id: MenuId.EditorTitle, when: ContextKeyExpr.and(TestingContextKeys.hasInlineCoverageDetails, TestingContextKeys.coverageToolbarEnabled.notEqualsTo(true)), group: 'navigation' },
 			]
 		});
 	}
@@ -791,6 +803,7 @@ registerAction2(class FilterCoverageToTestInEditor extends Action2 {
 	run(accessor: ServicesAccessor, coverageOrUri?: FileCoverage | URI, editor?: ICodeEditor): void {
 		const testCoverageService = accessor.get(ITestCoverageService);
 		const quickInputService = accessor.get(IQuickInputService);
+		const commandService = accessor.get(ICommandService);
 		const activeEditor = isCodeEditor(editor) ? editor : accessor.get(ICodeEditorService).getActiveCodeEditor();
 		let coverage: FileCoverage | undefined;
 		if (coverageOrUri instanceof FileCoverage) {
@@ -811,23 +824,30 @@ registerAction2(class FilterCoverageToTestInEditor extends Action2 {
 		const result = coverage.fromResult;
 		const previousSelection = testCoverageService.filterToTest.get();
 
-		type TItem = { label: string; testId: TestId | undefined };
+		type TItem = { label: string; testId: TestId | undefined; buttons?: IQuickInputButton[] };
 
+		const buttons: IQuickInputButton[] = [{
+			iconClass: 'codicon-go-to-file',
+			tooltip: 'Go to Test',
+		}];
 		const items: QuickPickInput<TItem>[] = [
 			{ label: coverUtils.labels.allTests, testId: undefined },
 			{ type: 'separator' },
-			...tests.map(id => ({ label: coverUtils.getLabelForItem(result, id, commonPrefix), testId: id })),
+			...tests.map(id => ({ label: coverUtils.getLabelForItem(result, id, commonPrefix), testId: id, buttons })),
 		];
 
 		// These handle the behavior that reveals the start of coverage when the
 		// user picks from the quickpick. Scroll position is restored if the user
-		// exits without picking an item, or picks "all tets".
+		// exits without picking an item, or picks "all tests".
 		const scrollTop = activeEditor?.getScrollTop() || 0;
 		const revealScrollCts = new MutableDisposable<CancellationTokenSource>();
 
 		quickInputService.pick(items, {
-			activeItem: items.find((item): item is TItem => 'item' in item && item.item === coverage),
+			activeItem: items.find((item): item is TItem => 'testId' in item && item.testId?.toString() === previousSelection?.toString()),
 			placeHolder: coverUtils.labels.pickShowCoverage,
+			onDidTriggerItemButton: (context) => {
+				commandService.executeCommand('vscode.revealTest', context.item.testId?.toString());
+			},
 			onDidFocus: (entry) => {
 				if (!entry.testId) {
 					revealScrollCts.clear();
@@ -855,6 +875,32 @@ registerAction2(class FilterCoverageToTestInEditor extends Action2 {
 			revealScrollCts.dispose();
 			testCoverageService.filterToTest.set(selected ? selected.testId : previousSelection, undefined);
 		});
+	}
+});
+
+registerAction2(class ToggleCoverageInExplorer extends Action2 {
+	constructor() {
+		super({
+			id: TestCommandId.CoverageToggleInExplorer,
+			title: localize2('testing.toggleCoverageInExplorerTitle', "Toggle Coverage in Explorer"),
+			metadata: {
+				description: localize2('testing.toggleCoverageInExplorerDesc', 'Toggle the display of test coverage in the File Explorer view.')
+			},
+			category: Categories.Test,
+			toggled: {
+				condition: ContextKeyExpr.equals('config.testing.showCoverageInExplorer', true),
+				title: localize('testing.hideCoverageInExplorer', "Hide Coverage in Explorer"),
+			},
+			menu: [
+				{ id: MenuId.CommandPalette, when: TestingContextKeys.isTestCoverageOpen },
+			]
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const config = accessor.get(IConfigurationService);
+		const value = getTestingConfiguration(config, TestingConfigKeys.ShowCoverageInExplorer);
+		config.updateValue(TestingConfigKeys.ShowCoverageInExplorer, !value);
 	}
 });
 

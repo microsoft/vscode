@@ -23,6 +23,7 @@ import { getRepositoryResourceCount } from './util.js';
 import { autorun, autorunWithStore, derived, IObservable, observableFromEvent } from '../../../../base/common/observable.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { Command } from '../../../../editor/common/languages.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 
 const ActiveRepositoryContextKeys = {
 	ActiveRepositoryName: new RawContextKey<string>('scmActiveRepositoryName', ''),
@@ -108,7 +109,6 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 		}));
 
 		this._register(autorunWithStore((reader, store) => {
-			this._repositories.read(reader);
 			const repository = this.scmViewService.activeRepository.read(reader);
 			const commands = repository?.provider.statusBarCommands.read(reader);
 
@@ -150,12 +150,12 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 			const tooltip = `${label}${command.tooltip ? ` - ${command.tooltip}` : ''}`;
 
 			// Get a repository agnostic name for the status bar action, derive this from the
-			// first command argument which is in the form "git.<command>/<number>"
+			// first command argument which is in the form of "<extension>.<command>/<number>"
 			let repoAgnosticActionName = command.arguments?.[0];
 			if (repoAgnosticActionName && typeof repoAgnosticActionName === 'string') {
 				repoAgnosticActionName = repoAgnosticActionName
 					.substring(0, repoAgnosticActionName.lastIndexOf('/'))
-					.replace(/^git\./, '');
+					.replace(/^(?:git\.|remoteHub\.)/, '');
 				if (repoAgnosticActionName.length > 1) {
 					repoAgnosticActionName = repoAgnosticActionName[0].toLocaleUpperCase() + repoAgnosticActionName.slice(1);
 				}
@@ -179,9 +179,13 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 
 		// Source control provider status bar entry
 		if (this.scmService.repositoryCount > 1) {
+			const icon = ThemeIcon.isThemeIcon(repository.provider.iconPath)
+				? `$(${repository.provider.iconPath.id})`
+				: '$(repo)';
+
 			const repositoryStatusbarEntry: IStatusbarEntry = {
 				name: localize('status.scm.provider', "Source Control Provider"),
-				text: `$(repo) ${repository.provider.name}`,
+				text: `${icon} ${repository.provider.name}`,
 				ariaLabel: label,
 				tooltip: label,
 				command: 'scm.setActiveProvider'

@@ -170,7 +170,8 @@ export async function activate(context: vscode.ExtensionContext, telemetryReport
 		},
 		{
 			supportsMultipleAccounts: true,
-			supportedIssuers: [
+			supportedAuthorizationServers: [
+				vscode.Uri.parse('https://login.microsoftonline.com/*'),
 				vscode.Uri.parse('https://login.microsoftonline.com/*/v2.0')
 			]
 		}

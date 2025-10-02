@@ -5,11 +5,11 @@
 
 import * as dom from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
-import { renderStringAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
+import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { Action, IAction, Separator, SubmenuAction } from '../../../../base/common/actions.js';
 import { equals } from '../../../../base/common/arrays.js';
 import { mapFindFirst } from '../../../../base/common/arraysFind.js';
-import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { RunOnceScheduler, Throttler, timeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { stripIcons } from '../../../../base/common/iconLabels.js';
@@ -403,10 +403,21 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 			}
 		}));
 
+		const msgThrottler = this._register(new Throttler());
+		this._register(this.results.onTestChanged(ev => {
+			if (ev.reason !== TestResultItemChangeReason.NewMessage) {
+				return;
+			}
+
+			msgThrottler.queue(() => {
+				this.applyResults();
+				return timeout(100);
+			});
+		}));
+
 		this._register(Event.any(
 			this.results.onResultsChanged,
 			editor.onDidChangeModel,
-			Event.filter(this.results.onTestChanged, c => c.reason === TestResultItemChangeReason.NewMessage),
 			this.testService.showInlineOutput.onDidChange,
 		)(() => this.applyResults()));
 
@@ -1367,11 +1378,17 @@ class TestErrorContentWidget extends Disposable implements IContentWidget {
 		super();
 
 		const setMarginTop = () => {
-			const lineHeight = editor.getOption(EditorOption.lineHeight);
+			const lineHeight = editor.getLineHeightForPosition(position);
 			this.node.root.style.marginTop = (lineHeight - ERROR_CONTENT_WIDGET_HEIGHT) / 2 + 'px';
 		};
 
 		setMarginTop();
+		this._register(editor.onDidChangeLineHeight(e => {
+			if (e.affects(position)) {
+				setMarginTop();
+			}
+		}));
+
 		this._register(editor.onDidChangeConfiguration(e => {
 			if (e.hasChanged(EditorOption.lineHeight)) {
 				setMarginTop();
@@ -1382,15 +1399,15 @@ class TestErrorContentWidget extends Disposable implements IContentWidget {
 		if (message.expected !== undefined && message.actual !== undefined) {
 			text = `${truncateMiddle(message.actual.replace(/\s+/g, ' '), 30)} != ${truncateMiddle(message.expected.replace(/\s+/g, ' '), 30)}`;
 		} else {
-			const msg = renderStringAsPlaintext(message.message);
+			const msg = renderAsPlaintext(message.message);
 			const lf = msg.indexOf('\n');
 			text = lf === -1 ? msg : msg.slice(0, lf);
 		}
 
-		this.node.root.addEventListener('click', e => {
+		this._register(dom.addDisposableListener(this.node.root, dom.EventType.CLICK, e => {
 			this.peekOpener.peekUri(uri);
 			e.preventDefault();
-		});
+		}));
 
 		const ctrl = TestingOutputPeekController.get(editor);
 		if (ctrl) {

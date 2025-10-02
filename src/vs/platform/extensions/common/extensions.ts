@@ -104,7 +104,7 @@ export interface ICodeActionContribution {
 export interface IAuthenticationContribution {
 	readonly id: string;
 	readonly label: string;
-	readonly issuerGlobs?: string[];
+	readonly authorizationServerGlobs?: string[];
 }
 
 export interface IWalkthroughStep {
@@ -196,6 +196,7 @@ export interface IToolSetContribution {
 export interface IMcpCollectionContribution {
 	readonly id: string;
 	readonly label: string;
+	readonly when?: string;
 }
 
 export interface IExtensionContributions {
@@ -299,7 +300,7 @@ export interface IRelaxedExtensionManifest {
 	icon?: string;
 	categories?: string[];
 	keywords?: string[];
-	activationEvents?: string[];
+	activationEvents?: readonly string[];
 	extensionDependencies?: string[];
 	extensionPack?: string[];
 	extensionKind?: ExtensionKind | ExtensionKind[];

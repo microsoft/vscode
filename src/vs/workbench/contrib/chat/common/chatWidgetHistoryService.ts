@@ -9,9 +9,9 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { Memento } from '../../../common/memento.js';
 import { ModifiedFileEntryState } from './chatEditingService.js';
-import { IChatRequestVariableEntry } from './chatModel.js';
 import { CHAT_PROVIDER_ID } from './chatParticipantContribTypes.js';
-import { ChatAgentLocation, ChatMode } from './constants.js';
+import { IChatRequestVariableEntry } from './chatVariableEntries.js';
+import { ChatAgentLocation, ChatModeKind } from './constants.js';
 
 export interface IChatHistoryEntry {
 	text: string;
@@ -23,7 +23,12 @@ export interface IChatInputState {
 	[key: string]: any;
 	chatContextAttachments?: ReadonlyArray<IChatRequestVariableEntry>;
 	chatWorkingSet?: ReadonlyArray<{ uri: URI; state: ModifiedFileEntryState }>;
-	chatMode?: ChatMode;
+
+	/**
+	 * This should be a mode id (ChatMode | string).
+	 * { id: string } is the old IChatMode. This is deprecated but may still be in persisted data.
+	 */
+	chatMode?: ChatModeKind | string | { id: string };
 }
 
 export const IChatWidgetHistoryService = createDecorator<IChatWidgetHistoryService>('IChatWidgetHistoryService');
@@ -72,7 +77,7 @@ export class ChatWidgetHistoryService implements IChatWidgetHistoryService {
 
 	private getKey(location: ChatAgentLocation): string {
 		// Preserve history for panel by continuing to use the same old provider id. Use the location as a key for other chat locations.
-		return location === ChatAgentLocation.Panel ? CHAT_PROVIDER_ID : location;
+		return location === ChatAgentLocation.Chat ? CHAT_PROVIDER_ID : location;
 	}
 
 	saveHistory(location: ChatAgentLocation, history: IChatHistoryEntry[]): void {

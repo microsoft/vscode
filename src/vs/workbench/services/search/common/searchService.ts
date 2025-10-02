@@ -22,7 +22,7 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { EditorResourceAccessor, SideBySideEditor } from '../../../common/editor.js';
 import { IEditorService } from '../../editor/common/editorService.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
-import { DEFAULT_MAX_SEARCH_RESULTS, deserializeSearchError, FileMatch, IAITextQuery, ICachedSearchStats, IFileMatch, IFileQuery, IFileSearchStats, IFolderQuery, IProgressMessage, ISearchComplete, ISearchEngineStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, isFileMatch, isProgressMessage, ITextQuery, pathIncludedInQuery, QueryType, SEARCH_RESULT_LANGUAGE_ID, SearchError, SearchErrorCode, SearchProviderType } from './search.js';
+import { DEFAULT_MAX_SEARCH_RESULTS, deserializeSearchError, FileMatch, IAITextQuery, ICachedSearchStats, IFileMatch, IFileQuery, IFileSearchStats, IFolderQuery, IProgressMessage, isAIKeyword, ISearchComplete, ISearchEngineStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, isFileMatch, isProgressMessage, ITextQuery, pathIncludedInQuery, QueryType, SEARCH_RESULT_LANGUAGE_ID, SearchError, SearchErrorCode, SearchProviderType } from './search.js';
 import { getTextSearchMatchWithModelContext, editorMatchesToTextSearchResults } from './searchHelpers.js';
 
 export class SearchService extends Disposable implements ISearchService {
@@ -94,7 +94,7 @@ export class SearchService extends Disposable implements ISearchService {
 		const onProviderProgress = (progress: ISearchProgressItem) => {
 			// Match
 			if (onProgress) { // don't override open editor results
-				if (isFileMatch(progress)) {
+				if (isFileMatch(progress) || isAIKeyword(progress)) {
 					onProgress(progress);
 				} else {
 					onProgress(<IProgressMessage>progress);
@@ -278,9 +278,6 @@ export class SearchService extends Disposable implements ISearchService {
 			return this.getSearchProvider(query.type).has(scheme);
 		});
 
-		if (query.type === QueryType.aiText && !someSchemeHasProvider) {
-			return [];
-		}
 		await Promise.all([...fqs.keys()].map(async scheme => {
 			if (query.onlyFileScheme && scheme !== Schemas.file) {
 				return;

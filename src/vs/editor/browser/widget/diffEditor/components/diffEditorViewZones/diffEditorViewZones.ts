@@ -10,7 +10,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { IObservable, autorun, derived, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
-import { assertIsDefined } from '../../../../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../../../../base/common/types.js';
 import { applyFontInfo } from '../../../../config/domFontInfo.js';
 import { CodeEditorWidget } from '../../../codeEditor/codeEditorWidget.js';
 import { diffDeleteDecoration, diffRemoveIcon } from '../../registrations.contribution.js';
@@ -26,11 +26,11 @@ import { Position } from '../../../../../common/core/position.js';
 import { DetailedLineRangeMapping } from '../../../../../common/diff/rangeMapping.js';
 import { ScrollType } from '../../../../../common/editorCommon.js';
 import { BackgroundTokenizationState } from '../../../../../common/tokenizationTextModelPart.js';
-import { InlineDecoration, InlineDecorationType } from '../../../../../common/viewModel.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { DiffEditorOptions } from '../../diffEditorOptions.js';
 import { Range } from '../../../../../common/core/range.js';
+import { InlineDecoration, InlineDecorationType } from '../../../../../common/viewModel/inlineDecorations.js';
 
 /**
  * Ensures both editors have the same height by aligning unchanged lines.
@@ -239,7 +239,7 @@ export class DiffEditorViewZones extends Disposable {
 						let zoneId: string | undefined = undefined;
 						alignmentViewZonesDisposables.add(
 							new InlineDiffDeletedCodeMargin(
-								() => assertIsDefined(zoneId),
+								() => assertReturnsDefined(zoneId),
 								marginDomNode,
 								this._editors.modified,
 								a.diff,
@@ -395,8 +395,8 @@ export class DiffEditorViewZones extends Disposable {
 		this._register(autorun(reader => {
 			/** @description update scroll modified */
 			const newScrollTopModified = this._originalScrollTop.read(reader)
-				- (this._originalScrollOffsetAnimated.get() - this._modifiedScrollOffsetAnimated.read(reader))
-				- (this._originalTopPadding.get() - this._modifiedTopPadding.read(reader));
+				- (this._originalScrollOffsetAnimated.read(undefined) - this._modifiedScrollOffsetAnimated.read(reader))
+				- (this._originalTopPadding.read(undefined) - this._modifiedTopPadding.read(reader));
 			if (newScrollTopModified !== this._editors.modified.getScrollTop()) {
 				this._editors.modified.setScrollTop(newScrollTopModified, ScrollType.Immediate);
 			}
@@ -405,8 +405,8 @@ export class DiffEditorViewZones extends Disposable {
 		this._register(autorun(reader => {
 			/** @description update scroll original */
 			const newScrollTopOriginal = this._modifiedScrollTop.read(reader)
-				- (this._modifiedScrollOffsetAnimated.get() - this._originalScrollOffsetAnimated.read(reader))
-				- (this._modifiedTopPadding.get() - this._originalTopPadding.read(reader));
+				- (this._modifiedScrollOffsetAnimated.read(undefined) - this._originalScrollOffsetAnimated.read(reader))
+				- (this._modifiedTopPadding.read(undefined) - this._originalTopPadding.read(reader));
 			if (newScrollTopOriginal !== this._editors.original.getScrollTop()) {
 				this._editors.original.setScrollTop(newScrollTopOriginal, ScrollType.Immediate);
 			}
@@ -419,8 +419,8 @@ export class DiffEditorViewZones extends Disposable {
 
 			let deltaOrigToMod = 0;
 			if (m) {
-				const trueTopOriginal = this._editors.original.getTopForLineNumber(m.lineRangeMapping.original.startLineNumber, true) - this._originalTopPadding.get();
-				const trueTopModified = this._editors.modified.getTopForLineNumber(m.lineRangeMapping.modified.startLineNumber, true) - this._modifiedTopPadding.get();
+				const trueTopOriginal = this._editors.original.getTopForLineNumber(m.lineRangeMapping.original.startLineNumber, true) - this._originalTopPadding.read(undefined);
+				const trueTopModified = this._editors.modified.getTopForLineNumber(m.lineRangeMapping.modified.startLineNumber, true) - this._modifiedTopPadding.read(undefined);
 				deltaOrigToMod = trueTopModified - trueTopOriginal;
 			}
 
@@ -438,9 +438,9 @@ export class DiffEditorViewZones extends Disposable {
 			}
 
 			if (this._editors.modified.hasTextFocus()) {
-				this._originalScrollOffset.set(this._modifiedScrollOffset.get() - deltaOrigToMod, undefined, true);
+				this._originalScrollOffset.set(this._modifiedScrollOffset.read(undefined) - deltaOrigToMod, undefined, true);
 			} else {
-				this._modifiedScrollOffset.set(this._originalScrollOffset.get() + deltaOrigToMod, undefined, true);
+				this._modifiedScrollOffset.set(this._originalScrollOffset.read(undefined) + deltaOrigToMod, undefined, true);
 			}
 		}));
 	}

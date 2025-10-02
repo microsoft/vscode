@@ -158,18 +158,18 @@ suite('Types', () => {
 	});
 
 	test('assertIsDefined / assertAreDefined', () => {
-		assert.throws(() => types.assertIsDefined(undefined));
-		assert.throws(() => types.assertIsDefined(null));
-		assert.throws(() => types.assertAllDefined(null, undefined));
-		assert.throws(() => types.assertAllDefined(true, undefined));
-		assert.throws(() => types.assertAllDefined(undefined, false));
+		assert.throws(() => types.assertReturnsDefined(undefined));
+		assert.throws(() => types.assertReturnsDefined(null));
+		assert.throws(() => types.assertReturnsAllDefined(null, undefined));
+		assert.throws(() => types.assertReturnsAllDefined(true, undefined));
+		assert.throws(() => types.assertReturnsAllDefined(undefined, false));
 
-		assert.strictEqual(types.assertIsDefined(true), true);
-		assert.strictEqual(types.assertIsDefined(false), false);
-		assert.strictEqual(types.assertIsDefined('Hello'), 'Hello');
-		assert.strictEqual(types.assertIsDefined(''), '');
+		assert.strictEqual(types.assertReturnsDefined(true), true);
+		assert.strictEqual(types.assertReturnsDefined(false), false);
+		assert.strictEqual(types.assertReturnsDefined('Hello'), 'Hello');
+		assert.strictEqual(types.assertReturnsDefined(''), '');
 
-		const res = types.assertAllDefined(1, true, 'Hello');
+		const res = types.assertReturnsAllDefined(1, true, 'Hello');
 		assert.strictEqual(res[0], 1);
 		assert.strictEqual(res[1], true);
 		assert.strictEqual(res[2], 'Hello');

@@ -17,7 +17,7 @@ import { RemoteAgentConnectionContext } from '../../platform/remote/common/remot
 import { IPtyHostService, IShellLaunchConfig, ITerminalProfile } from '../../platform/terminal/common/terminal.js';
 import { IGetTerminalLayoutInfoArgs, ISetTerminalLayoutInfoArgs } from '../../platform/terminal/common/terminalProcess.js';
 import { IWorkspaceFolder } from '../../platform/workspace/common/workspace.js';
-import { createURITransformer } from '../../workbench/api/node/uriTransformer.js';
+import { createURITransformer } from '../../base/common/uriTransformer.js';
 import { CLIServerBase, ICommandsExecuter } from '../../workbench/api/node/extHostCLIServer.js';
 import { IEnvironmentVariableCollection } from '../../platform/terminal/common/environmentVariable.js';
 import { MergedEnvironmentVariableCollection } from '../../platform/terminal/common/environmentVariableCollection.js';
@@ -128,6 +128,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 
 			case RemoteTerminalChannelRequest.Start: return this._ptyHostService.start.apply(this._ptyHostService, args);
 			case RemoteTerminalChannelRequest.Input: return this._ptyHostService.input.apply(this._ptyHostService, args);
+			case RemoteTerminalChannelRequest.SendSignal: return this._ptyHostService.sendSignal.apply(this._ptyHostService, args);
 			case RemoteTerminalChannelRequest.AcknowledgeDataEvent: return this._ptyHostService.acknowledgeDataEvent.apply(this._ptyHostService, args);
 			case RemoteTerminalChannelRequest.Shutdown: return this._ptyHostService.shutdown.apply(this._ptyHostService, args);
 			case RemoteTerminalChannelRequest.Resize: return this._ptyHostService.resize.apply(this._ptyHostService, args);

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, Dimension, addDisposableListener, append, hide, setParentFlowTo, show } from '../../../../base/browser/dom.js';
+import { $, Dimension, append, hide, setParentFlowTo, show } from '../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
@@ -17,7 +17,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, MutableDisposable, dispose, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas, matchesScheme } from '../../../../base/common/network.js';
-import { isNative, language } from '../../../../base/common/platform.js';
+import { isNative } from '../../../../base/common/platform.js';
 import { isUndefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -72,7 +72,7 @@ import {
 } from './extensionsActions.js';
 import { Delegate } from './extensionsList.js';
 import { ExtensionData, ExtensionsGridView, ExtensionsTree, getExtensions } from './extensionsViewer.js';
-import { ExtensionRecommendationWidget, ExtensionStatusWidget, ExtensionWidget, InstallCountWidget, RatingsWidget, RemoteBadgeWidget, SponsorWidget, PublisherWidget, onClick, ExtensionKindIndicatorWidget } from './extensionsWidgets.js';
+import { ExtensionRecommendationWidget, ExtensionStatusWidget, ExtensionWidget, InstallCountWidget, RatingsWidget, RemoteBadgeWidget, SponsorWidget, PublisherWidget, onClick, ExtensionKindIndicatorWidget, ExtensionIconWidget } from './extensionsWidgets.js';
 import { ExtensionContainers, ExtensionEditorTab, ExtensionState, IExtension, IExtensionContainer, IExtensionsWorkbenchService } from '../common/extensions.js';
 import { ExtensionsInput, IExtensionEditorOptions } from '../common/extensionsInput.js';
 import { DEFAULT_MARKDOWN_STYLES, renderMarkdownDocument } from '../../markdown/browser/markdownDocumentRenderer.js';
@@ -87,10 +87,10 @@ import { ByteSize, IFileService } from '../../../../platform/files/common/files.
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 import { IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
-
-function toDateString(date: Date) {
-	return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}, ${date.toLocaleTimeString(language, { hourCycle: 'h23' })}`;
-}
+import { ShowCurrentReleaseNotesActionId } from '../../update/common/update.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { fromNow } from '../../../../base/common/date.js';
 
 class NavBar extends Disposable {
 
@@ -153,8 +153,6 @@ interface IActiveElement {
 }
 
 interface IExtensionEditorTemplate {
-	iconContainer: HTMLElement;
-	icon: HTMLImageElement;
 	name: HTMLElement;
 	preview: HTMLElement;
 	builtin: HTMLElement;
@@ -273,7 +271,7 @@ export class ExtensionEditor extends EditorPane {
 		const header = append(root, $('.header'));
 
 		const iconContainer = append(header, $('.icon-container'));
-		const icon = append(iconContainer, $<HTMLImageElement>('img.icon', { draggable: false, alt: '' }));
+		const iconWidget = this.instantiationService.createInstance(ExtensionIconWidget, iconContainer);
 		const remoteBadge = this.instantiationService.createInstance(RemoteBadgeWidget, iconContainer, true);
 
 		const details = append(header, $('.details'));
@@ -313,6 +311,7 @@ export class ExtensionEditor extends EditorPane {
 		const sponsorWidget = this.instantiationService.createInstance(SponsorWidget, sponsorContainer);
 
 		const widgets: ExtensionWidget[] = [
+			iconWidget,
 			remoteBadge,
 			versionWidget,
 			publisherWidget,
@@ -430,8 +429,6 @@ export class ExtensionEditor extends EditorPane {
 			content,
 			description,
 			header,
-			icon,
-			iconContainer,
 			name,
 			navbar,
 			preview,
@@ -544,9 +541,6 @@ export class ExtensionEditor extends EditorPane {
 		template.extension = extension;
 		template.gallery = gallery;
 		template.manifest = null;
-
-		this.transientDisposables.add(addDisposableListener(template.icon, 'error', () => template.icon.src = extension.iconUrlFallback, { once: true }));
-		template.icon.src = extension.iconUrl;
 
 		template.name.textContent = extension.displayName;
 		template.name.classList.toggle('clickable', !!extension.url);
@@ -736,9 +730,12 @@ export class ExtensionEditor extends EditorPane {
 				// Only allow links with specific schemes
 				if (matchesScheme(link, Schemas.http) || matchesScheme(link, Schemas.https) || matchesScheme(link, Schemas.mailto)) {
 					this.openerService.open(link);
-				}
-				if (matchesScheme(link, Schemas.command) && extension.type === ExtensionType.System) {
-					this.openerService.open(link, { allowCommands: true });
+				} else if (matchesScheme(link, Schemas.command) && extension.type === ExtensionType.System) {
+					this.openerService.open(link, {
+						allowCommands: [
+							ShowCurrentReleaseNotesActionId
+						]
+					});
 				}
 			}));
 
@@ -756,7 +753,16 @@ export class ExtensionEditor extends EditorPane {
 			return '';
 		}
 
-		const content = await renderMarkdownDocument(contents, this.extensionService, this.languageService, { shouldSanitize: extension.type !== ExtensionType.System, token });
+		const allowedLinkProtocols = [Schemas.http, Schemas.https, Schemas.mailto];
+		const content = await renderMarkdownDocument(contents, this.extensionService, this.languageService, {
+			sanitizerConfig: {
+				allowedLinkProtocols: {
+					override: extension.type === ExtensionType.System
+						? [...allowedLinkProtocols, Schemas.command]
+						: allowedLinkProtocols
+				}
+			}
+		}, token);
 		if (token?.isCancellationRequested) {
 			return '';
 		}
@@ -764,7 +770,7 @@ export class ExtensionEditor extends EditorPane {
 		return this.renderBody(content);
 	}
 
-	private renderBody(body: string): string {
+	private renderBody(body: TrustedHTML): string {
 		const nonce = generateUuid();
 		const colorMap = TokenizationRegistry.getColorMap();
 		const css = colorMap ? generateTokensCSSForColorMap(colorMap) : '';
@@ -1076,36 +1082,38 @@ class AdditionalDetailsWidget extends Disposable {
 	}
 
 	private renderExtensionResources(container: HTMLElement, extension: IExtension): void {
-		const resources: [string, URI][] = [];
-		if (extension.url) {
-			resources.push([localize('Marketplace', "Marketplace"), URI.parse(extension.url)]);
+		const resources: [string, ThemeIcon, URI][] = [];
+		if (extension.repository) {
+			try {
+				resources.push([localize('repository', "Repository"), ThemeIcon.fromId(Codicon.repo.id), URI.parse(extension.repository)]);
+			} catch (error) {/* Ignore */ }
 		}
 		if (extension.supportUrl) {
 			try {
-				resources.push([localize('issues', "Issues"), URI.parse(extension.supportUrl)]);
-			} catch (error) {/* Ignore */ }
-		}
-		if (extension.repository) {
-			try {
-				resources.push([localize('repository', "Repository"), URI.parse(extension.repository)]);
+				resources.push([localize('issues', "Issues"), ThemeIcon.fromId(Codicon.issues.id), URI.parse(extension.supportUrl)]);
 			} catch (error) {/* Ignore */ }
 		}
 		if (extension.licenseUrl) {
 			try {
-				resources.push([localize('license', "License"), URI.parse(extension.licenseUrl)]);
+				resources.push([localize('license', "License"), ThemeIcon.fromId(Codicon.linkExternal.id), URI.parse(extension.licenseUrl)]);
 			} catch (error) {/* Ignore */ }
 		}
 		if (extension.publisherUrl) {
-			resources.push([extension.publisherDisplayName, extension.publisherUrl]);
+			resources.push([extension.publisherDisplayName, ThemeIcon.fromId(Codicon.linkExternal.id), extension.publisherUrl]);
+		}
+		if (extension.url) {
+			resources.push([localize('Marketplace', "Marketplace"), ThemeIcon.fromId(Codicon.linkExternal.id), URI.parse(extension.url)]);
 		}
 		if (resources.length || extension.publisherSponsorLink) {
 			const extensionResourcesContainer = append(container, $('.resources-container.additional-details-element'));
 			append(extensionResourcesContainer, $('.additional-details-title', undefined, localize('resources', "Resources")));
 			const resourcesElement = append(extensionResourcesContainer, $('.resources'));
-			for (const [label, uri] of resources) {
-				const resource = append(resourcesElement, $('a.resource', { tabindex: '0' }, label));
-				this.disposables.add(onClick(resource, () => this.openerService.open(uri)));
-				this.disposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), resource, uri.toString()));
+			for (const [label, icon, uri] of resources) {
+				const resourceElement = append(resourcesElement, $('.resource'));
+				append(resourceElement, $(ThemeIcon.asCSSSelector(icon)));
+				append(resourceElement, $('a', { tabindex: '0' }, label));
+				this.disposables.add(onClick(resourceElement, () => this.openerService.open(uri)));
+				this.disposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), resourceElement, uri.toString()));
 			}
 		}
 	}
@@ -1131,7 +1139,9 @@ class AdditionalDetailsWidget extends Disposable {
 			append(installInfo,
 				$('.more-info-entry', undefined,
 					$('div.more-info-entry-name', undefined, localize('last updated', "Last Updated")),
-					$('div', undefined, toDateString(new Date(extension.installedTimestamp)))
+					$('div', {
+						'title': new Date(extension.installedTimestamp).toString()
+					}, fromNow(extension.installedTimestamp, true, true, true))
 				)
 			);
 		}
@@ -1220,11 +1230,15 @@ class AdditionalDetailsWidget extends Disposable {
 			append(moreInfo,
 				$('.more-info-entry', undefined,
 					$('div.more-info-entry-name', undefined, localize('published', "Published")),
-					$('div', undefined, toDateString(new Date(gallery.releaseDate)))
+					$('div', {
+						'title': new Date(gallery.releaseDate).toString()
+					}, fromNow(gallery.releaseDate, true, true, true))
 				),
 				$('.more-info-entry', undefined,
 					$('div.more-info-entry-name', undefined, localize('last released', "Last Released")),
-					$('div', undefined, toDateString(new Date(gallery.lastUpdated)))
+					$('div', {
+						'title': new Date(gallery.lastUpdated).toString()
+					}, fromNow(gallery.lastUpdated, true, true, true))
 				)
 			);
 		}

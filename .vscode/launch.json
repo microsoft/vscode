@@ -252,8 +252,10 @@
 			"env": {
 				"VSCODE_EXTHOST_WILL_SEND_SOCKET": null,
 				"VSCODE_SKIP_PRELAUNCH": "1",
+				"VSCODE_DEV_DEBUG_OBSERVABLES": "1",
 			},
 			"cleanUp": "wholeBrowser",
+			"killBehavior": "polite",
 			"runtimeArgs": [
 				"--inspect-brk=5875",
 				"--no-cached-data",
@@ -296,6 +298,7 @@
 				"VSCODE_EXTHOST_WILL_SEND_SOCKET": null,
 				"VSCODE_SKIP_PRELAUNCH": "1",
 				"VSCODE_DEV_DEBUG": "1",
+				"VSCODE_DEV_DEBUG_OBSERVABLES": "1",
 			},
 			"cleanUp": "wholeBrowser",
 			"runtimeArgs": [

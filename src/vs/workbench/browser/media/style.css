@@ -49,6 +49,7 @@ body {
 	font-size: 13px;
 	line-height: 1.4em;
 	position: relative;
+	inset: 0;
 	z-index: 1;
 	overflow: hidden;
 	color: var(--vscode-foreground);
@@ -214,7 +215,7 @@ body {
 	position: absolute;
 	top: 0;
 	bottom: 0;
-	right: 6px;
+	right: 4px;
 	margin: auto;
 	pointer-events: none;
 }

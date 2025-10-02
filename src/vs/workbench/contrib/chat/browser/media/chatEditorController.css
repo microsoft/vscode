@@ -15,7 +15,7 @@
 }
 
 .chat-diff-change-content-widget .monaco-action-bar {
-	padding: 0;
+	padding: 2px;
 	border-radius: 2px;
 	background-color: var(--vscode-button-background);
 	color: var(--vscode-button-foreground);
@@ -30,11 +30,11 @@
 .chat-diff-change-content-widget .monaco-action-bar .action-item .action-label.codicon {
 	width: unset;
 	padding: 2px;
-	font-size: 12px;
-	line-height: 14px;
+	font-size: 16px;
+	line-height: 16px;
 	color: var(--vscode-button-foreground);
 }
 
 .chat-diff-change-content-widget .monaco-action-bar .action-item .action-label.codicon[class*='codicon-'] {
-	font-size: 12px;
+	font-size: 16px;
 }

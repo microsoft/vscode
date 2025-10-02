@@ -57,6 +57,7 @@ export interface IExtHostTunnelService extends ExtHostTunnelServiceShape {
 	setTunnelFactory(provider: vscode.RemoteAuthorityResolver | undefined, managedRemoteAuthority: vscode.ManagedResolvedAuthority | undefined): Promise<IDisposable>;
 	registerPortsAttributesProvider(portSelector: PortAttributesSelector, provider: vscode.PortAttributesProvider): IDisposable;
 	registerTunnelProvider(provider: vscode.TunnelProvider, information: vscode.TunnelInformation): Promise<IDisposable>;
+	hasTunnelProvider(): Promise<boolean>;
 }
 
 export const IExtHostTunnelService = createDecorator<IExtHostTunnelService>('IExtHostTunnelService');
@@ -167,6 +168,10 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 			this._forwardPortProvider = undefined;
 			this._proxy.$setTunnelProvider(undefined, false);
 		}));
+	}
+
+	hasTunnelProvider(): Promise<boolean> {
+		return this._proxy.$hasTunnelProvider();
 	}
 
 	/**

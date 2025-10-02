@@ -30,7 +30,7 @@ function normalizeURL(url: string | URI): URI {
  */
 export function testUrlMatchesGlob(uri: string | URI, globUrl: string): boolean {
 	const normalizedUrl = normalizeURL(uri);
-	let normalizedGlobUrl = normalizeURL(globUrl);
+	let normalizedGlobUrl: URI;
 
 	const globHasScheme = /^[^./:]*:\/\//.test(globUrl);
 	// if the glob does not have a scheme we assume the scheme is http or https
@@ -40,6 +40,8 @@ export function testUrlMatchesGlob(uri: string | URI, globUrl: string): boolean 
 			return false;
 		}
 		normalizedGlobUrl = normalizeURL(`${normalizedUrl.scheme}://${globUrl}`);
+	} else {
+		normalizedGlobUrl = normalizeURL(globUrl);
 	}
 
 	return (

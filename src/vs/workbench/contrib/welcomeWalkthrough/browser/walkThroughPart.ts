@@ -26,13 +26,14 @@ import { RawContextKey, IContextKey, IContextKeyService } from '../../../../plat
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { isObject } from '../../../../base/common/types.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
-import { IEditorOptions as ICodeEditorOptions, EditorOption } from '../../../../editor/common/config/editorOptions.js';
+import { EditorOption, IEditorOptions as ICodeEditorOptions } from '../../../../editor/common/config/editorOptions.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { UILabelProvider } from '../../../../base/common/keybindingLabels.js';
 import { OS, OperatingSystem } from '../../../../base/common/platform.js';
 import { deepClone } from '../../../../base/common/objects.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
-import { addDisposableListener, Dimension, isHTMLAnchorElement, isHTMLButtonElement, isHTMLElement, safeInnerHtml, size } from '../../../../base/browser/dom.js';
+import { addDisposableListener, Dimension, isHTMLAnchorElement, isHTMLButtonElement, isHTMLElement, size } from '../../../../base/browser/dom.js';
+import * as domSanitize from '../../../../base/browser/domSanitize.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
@@ -287,7 +288,7 @@ export class WalkThroughPart extends EditorPane {
 
 				const content = model.main;
 				if (!input.resource.path.endsWith('.md')) {
-					safeInnerHtml(this.content, content, { ALLOW_UNKNOWN_PROTOCOLS: true });
+					this.safeSetInnerHtml(this.content, content);
 
 					this.updateSizeClasses();
 					this.decorateContent();
@@ -302,7 +303,7 @@ export class WalkThroughPart extends EditorPane {
 				const innerContent = document.createElement('div');
 				innerContent.classList.add('walkThroughContent'); // only for markdown files
 				const markdown = this.expandMacros(content);
-				safeInnerHtml(innerContent, markdown, { ALLOW_UNKNOWN_PROTOCOLS: true });
+				this.safeSetInnerHtml(innerContent, markdown);
 				this.content.appendChild(innerContent);
 
 				model.snippets.forEach((snippet, i) => {
@@ -325,7 +326,8 @@ export class WalkThroughPart extends EditorPane {
 					this.contentDisposables.push(editor);
 
 					const updateHeight = (initial: boolean) => {
-						const lineHeight = editor.getOption(EditorOption.lineHeight);
+						const position = editor.getPosition();
+						const lineHeight = position ? editor.getLineHeightForPosition(position) : editor.getOption(EditorOption.lineHeight);
 						const height = `${Math.max(model.getLineCount() + 1, 4) * lineHeight}px`;
 						if (div.style.height !== height) {
 							div.style.height = height;
@@ -342,7 +344,7 @@ export class WalkThroughPart extends EditorPane {
 						if (innerContent) {
 							const targetTop = div.getBoundingClientRect().top;
 							const containerTop = innerContent.getBoundingClientRect().top;
-							const lineHeight = editor.getOption(EditorOption.lineHeight);
+							const lineHeight = editor.getLineHeightForPosition(e.position);
 							const lineTop = (targetTop + (e.position.lineNumber - 1) * lineHeight) - containerTop;
 							const lineBottom = lineTop + lineHeight;
 							const scrollDimensions = this.scrollbar.getScrollDimensions();
@@ -377,6 +379,20 @@ export class WalkThroughPart extends EditorPane {
 				this.contentDisposables.push(Gesture.addTarget(innerContent));
 				this.contentDisposables.push(addDisposableListener(innerContent, TouchEventType.Change, e => this.onTouchChange(e as GestureEvent)));
 			});
+	}
+
+	private safeSetInnerHtml(node: HTMLElement, content: string) {
+		domSanitize.safeSetInnerHtml(node, content, {
+			allowedAttributes: {
+				augment: [
+					'id',
+					'class',
+					'style',
+					'data-command',
+					'data-href',
+				]
+			}
+		});
 	}
 
 	private getEditorOptions(language: string): ICodeEditorOptions {
@@ -480,3 +496,4 @@ export class WalkThroughPart extends EditorPane {
 		super.dispose();
 	}
 }
+

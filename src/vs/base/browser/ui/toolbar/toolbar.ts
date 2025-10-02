@@ -61,7 +61,7 @@ export class ToolBar extends Disposable {
 	private readonly element: HTMLElement;
 
 	private _onDidChangeDropdownVisibility = this._register(new EventMultiplexer<boolean>());
-	readonly onDidChangeDropdownVisibility = this._onDidChangeDropdownVisibility.event;
+	get onDidChangeDropdownVisibility() { return this._onDidChangeDropdownVisibility.event; }
 	private readonly disposables = this._register(new DisposableStore());
 
 	constructor(container: HTMLElement, contextMenuProvider: IContextMenuProvider, options: IToolBarOptions = { orientation: ActionsOrientation.HORIZONTAL }) {

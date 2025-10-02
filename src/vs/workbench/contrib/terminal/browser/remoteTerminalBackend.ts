@@ -93,6 +93,7 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 			const pty = this._ptys.get(e.id);
 			if (pty) {
 				pty.handleExit(e.event);
+				pty.dispose();
 				this._ptys.delete(e.id);
 			}
 		});

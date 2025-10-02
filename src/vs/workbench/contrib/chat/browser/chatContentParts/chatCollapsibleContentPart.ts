@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { $ } from '../../../../../base/browser/dom.js';
 import { ButtonWithIcon } from '../../../../../base/browser/ui/button/button.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
@@ -13,7 +14,6 @@ import { localize } from '../../../../../nls.js';
 import { IChatRendererContent } from '../../common/chatViewModel.js';
 import { ChatTreeItem } from '../chat.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
-import { $ } from './chatReferencesContentPart.js';
 
 
 export abstract class ChatCollapsibleContentPart extends Disposable implements IChatContentPart {
@@ -25,9 +25,10 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 
 	protected readonly hasFollowingContent: boolean;
 	protected _isExpanded = observableValue<boolean>(this, false);
+	protected _collapseButton: ButtonWithIcon | undefined;
 
 	constructor(
-		private readonly title: IMarkdownString | string,
+		private title: IMarkdownString | string,
 		protected readonly context: IChatContentPartRenderContext,
 	) {
 		super();
@@ -55,6 +56,7 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 			buttonSecondaryHoverBackground: undefined,
 			buttonSeparator: undefined
 		}));
+		this._collapseButton = collapseButton;
 		this._domNode = $('.chat-used-context', undefined, buttonElement);
 		collapseButton.label = referencesLabel;
 
@@ -103,5 +105,13 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 
 	protected setExpanded(value: boolean): void {
 		this._isExpanded.set(value, undefined);
+	}
+
+	protected setTitle(title: string): void {
+		this.title = title;
+		if (this._collapseButton) {
+			this._collapseButton.label = title;
+			this.updateAriaLabel(this._collapseButton.element, title, this.isExpanded());
+		}
 	}
 }

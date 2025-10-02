@@ -1,9 +1,10 @@
 steps:
+  - template: ../common/checkout.yml@self
+
   - task: NodeTool@0
     inputs:
       versionSource: fromFile
       versionFilePath: .nvmrc
-      nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
   - template: ../distro/download-distro.yml@self
 
@@ -68,8 +69,9 @@ steps:
 
   - script: |
       set -e
-      unzip $(Pipeline.Workspace)/unsigned_vscode_client_darwin_x64_archive/VSCode-darwin-x64.zip -d $(agent.builddirectory)/VSCode-darwin-x64
-      unzip $(Pipeline.Workspace)/unsigned_vscode_client_darwin_arm64_archive/VSCode-darwin-arm64.zip -d $(agent.builddirectory)/VSCode-darwin-arm64
+      unzip $(Pipeline.Workspace)/unsigned_vscode_client_darwin_x64_archive/VSCode-darwin-x64.zip -d $(agent.builddirectory)/VSCode-darwin-x64 &
+      unzip $(Pipeline.Workspace)/unsigned_vscode_client_darwin_arm64_archive/VSCode-darwin-arm64.zip -d $(agent.builddirectory)/VSCode-darwin-arm64 &
+      wait
       DEBUG=* node build/darwin/create-universal-app.js $(agent.builddirectory)
     displayName: Create Universal App
 
@@ -141,11 +143,11 @@ steps:
     displayName: Rename x64 build to its legacy name
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
 
-  - task: 1ES.PublishPipelineArtifact@1
-    inputs:
+  - template: ../common/publish-artifact.yml@self
+    parameters:
       targetPath: $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-universal.zip
       artifactName: vscode_client_darwin_$(VSCODE_ARCH)_archive
+      displayName: Publish client archive
       sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/VSCode-darwin-$(VSCODE_ARCH)
       sbomPackageName: "VS Code macOS $(VSCODE_ARCH)"
       sbomPackageVersion: $(Build.SourceVersion)
-    displayName: Publish client archive

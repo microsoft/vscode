@@ -9,35 +9,39 @@ import { EqualityComparer, Event, IDisposable, strictEquals } from '../commonFac
 import { DebugOwner, DebugNameData, IDebugNameData } from '../debugName.js';
 import { getLogger } from '../logging/logging.js';
 import { BaseObservable } from './baseObservable.js';
+import { DebugLocation } from '../debugLocation.js';
 
 
 export function observableFromEvent<T, TArgs = unknown>(
 	owner: DebugOwner,
 	event: Event<TArgs>,
-	getValue: (args: TArgs | undefined) => T
+	getValue: (args: TArgs | undefined) => T,
+	debugLocation?: DebugLocation,
 ): IObservable<T>;
 export function observableFromEvent<T, TArgs = unknown>(
 	event: Event<TArgs>,
-	getValue: (args: TArgs | undefined) => T
+	getValue: (args: TArgs | undefined) => T,
 ): IObservable<T>;
 export function observableFromEvent(...args:
-	[owner: DebugOwner, event: Event<any>, getValue: (args: any | undefined) => any] |
+	[owner: DebugOwner, event: Event<any>, getValue: (args: any | undefined) => any, debugLocation?: DebugLocation] |
 	[event: Event<any>, getValue: (args: any | undefined) => any]
 ): IObservable<any> {
 	let owner;
 	let event;
 	let getValue;
-	if (args.length === 3) {
-		[owner, event, getValue] = args;
-	} else {
+	let debugLocation;
+	if (args.length === 2) {
 		[event, getValue] = args;
+	} else {
+		[owner, event, getValue, debugLocation] = args;
 	}
 	return new FromEventObservable(
 		new DebugNameData(owner, undefined, getValue),
 		event,
 		getValue,
 		() => FromEventObservable.globalTransaction,
-		strictEquals
+		strictEquals,
+		debugLocation ?? DebugLocation.ofCaller()
 	);
 }
 
@@ -46,12 +50,13 @@ export function observableFromEventOpts<T, TArgs = unknown>(
 		equalsFn?: EqualityComparer<T>;
 	},
 	event: Event<TArgs>,
-	getValue: (args: TArgs | undefined) => T
+	getValue: (args: TArgs | undefined) => T,
+	debugLocation = DebugLocation.ofCaller()
 ): IObservable<T> {
 	return new FromEventObservable(
 		new DebugNameData(options.owner, options.debugName, options.debugReferenceFn ?? getValue),
 		event,
-		getValue, () => FromEventObservable.globalTransaction, options.equalsFn ?? strictEquals
+		getValue, () => FromEventObservable.globalTransaction, options.equalsFn ?? strictEquals, debugLocation
 	);
 }
 
@@ -67,9 +72,10 @@ export class FromEventObservable<TArgs, T> extends BaseObservable<T> {
 		private readonly event: Event<TArgs>,
 		public readonly _getValue: (args: TArgs | undefined) => T,
 		private readonly _getTransaction: () => ITransaction | undefined,
-		private readonly _equalityComparator: EqualityComparer<T>
+		private readonly _equalityComparator: EqualityComparer<T>,
+		debugLocation: DebugLocation
 	) {
-		super();
+		super(debugLocation);
 	}
 
 	private getDebugName(): string | undefined {
@@ -141,8 +147,12 @@ export class FromEventObservable<TArgs, T> extends BaseObservable<T> {
 		}
 	}
 
-	public debugSetValue(value: unknown) {
+	public debugSetValue(value: unknown): void {
 		this._value = value as any;
+	}
+
+	public debugGetState() {
+		return { value: this._value, hasValue: this._hasValue };
 	}
 }
 

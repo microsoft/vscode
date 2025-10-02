@@ -8,7 +8,7 @@ import { debounce } from '../../../../base/common/decorators.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, MandatoryMutableDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ILogService } from '../../../log/common/log.js';
-import { CommandInvalidationReason, ICommandDetectionCapability, ICommandInvalidationRequest, IHandleCommandOptions, ISerializedCommandDetectionCapability, ISerializedTerminalCommand, ITerminalCommand, IXtermMarker, TerminalCapability } from './capabilities.js';
+import { CommandInvalidationReason, ICommandDetectionCapability, ICommandInvalidationRequest, IHandleCommandOptions, ISerializedCommandDetectionCapability, ISerializedTerminalCommand, ITerminalCommand, TerminalCapability } from './capabilities.js';
 import { ITerminalOutputMatcher } from '../terminal.js';
 import { ICurrentPartialCommand, PartialTerminalCommand, TerminalCommand } from './commandDetection/terminalCommand.js';
 import { PromptInputModel, type IPromptInputModel } from './commandDetection/promptInputModel.js';
@@ -290,15 +290,19 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	handlePromptStart(options?: IHandleCommandOptions): void {
 		// Adjust the last command's finished marker when needed. The standard position for the
 		// finished marker `D` to appear is at the same position as the following prompt started
-		// `A`.
+		// `A`. Only do this when it would not extend past the current cursor position.
 		const lastCommand = this.commands.at(-1);
-		if (lastCommand?.endMarker && lastCommand?.executedMarker && lastCommand.endMarker.line === lastCommand.executedMarker.line) {
+		if (
+			lastCommand?.endMarker &&
+			lastCommand?.executedMarker &&
+			lastCommand.endMarker.line === lastCommand.executedMarker.line &&
+			lastCommand.executedMarker.line < this._terminal.buffer.active.baseY + this._terminal.buffer.active.cursorY
+		) {
 			this._logService.debug('CommandDetectionCapability#handlePromptStart adjusted commandFinished', `${lastCommand.endMarker.line} -> ${lastCommand.executedMarker.line + 1}`);
 			lastCommand.endMarker = cloneMarker(this._terminal, lastCommand.executedMarker, 1);
 		}
 
 		this._currentCommand.promptStartMarker = options?.marker || (lastCommand?.endMarker ? cloneMarker(this._terminal, lastCommand.endMarker) : this._terminal.registerMarker(0));
-
 		this._logService.debug('CommandDetectionCapability#handlePromptStart', this._terminal.buffer.active.cursorX, this._currentCommand.promptStartMarker?.line);
 	}
 
@@ -391,10 +395,11 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		if (newCommand) {
 			this._commands.push(newCommand);
 			this._onBeforeCommandFinished.fire(newCommand);
-			if (!this._currentCommand.isInvalid) {
-				this._logService.debug('CommandDetectionCapability#onCommandFinished', newCommand);
-				this._onCommandFinished.fire(newCommand);
-			}
+			// NOTE: onCommandFinished used to not fire if the command was invalid, but this causes
+			// problems especially with the associated execution event never firing in the extension
+			// API. See https://github.com/microsoft/vscode/issues/252489
+			this._logService.debug('CommandDetectionCapability#onCommandFinished', newCommand);
+			this._onCommandFinished.fire(newCommand);
 		}
 		this._currentCommand = new PartialTerminalCommand(this._terminal);
 		this._handleCommandStartOptions = undefined;
@@ -1047,6 +1052,6 @@ function getXtermLineContent(buffer: IBuffer, lineStart: number, lineEnd: number
 	return content;
 }
 
-function cloneMarker(xterm: Terminal, marker: IXtermMarker, offset: number = 0): IXtermMarker | undefined {
+function cloneMarker(xterm: Terminal, marker: IMarker, offset: number = 0): IMarker | undefined {
 	return xterm.registerMarker(marker.line - (xterm.buffer.active.baseY + xterm.buffer.active.cursorY) + offset);
 }

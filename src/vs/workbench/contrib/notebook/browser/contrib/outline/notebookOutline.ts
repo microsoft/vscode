@@ -740,7 +740,7 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 		const notebookEditorOptions: INotebookEditorOptions = {
 			...options,
 			override: this._editor.input?.editorId,
-			cellRevealType: CellRevealType.NearTopIfOutsideViewport,
+			cellRevealType: CellRevealType.Top,
 			selection: entry.position,
 			viewState: undefined,
 		};
@@ -875,7 +875,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		[NotebookSetting.outlineShowCodeCellSymbols]: {
 			type: 'boolean',
 			default: true,
-			markdownDescription: localize('outline.showCodeCellSymbols', "When enabled, notebook outline shows code cell symbols. Relies on `notebook.outline.showCodeCells` being enabled.")
+			markdownDescription: localize('outline.showCodeCellSymbols', "When enabled, notebook outline shows code cell symbols. Relies on `#notebook.outline.showCodeCells#` being enabled.")
 		},
 		[NotebookSetting.breadcrumbsShowCodeCells]: {
 			type: 'boolean',

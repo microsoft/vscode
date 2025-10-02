@@ -210,6 +210,7 @@ export interface IWindowSettings {
 	readonly clickThroughInactive: boolean;
 	readonly newWindowProfile: string;
 	readonly density: IDensitySettings;
+	readonly border: 'off' | 'default' | 'system' | string /* color in RGB or other formats */;
 }
 
 export interface IDensitySettings {
@@ -473,5 +474,6 @@ export function zoomLevelToZoomFactor(zoomLevel = 0): number {
 	return Math.pow(1.2, zoomLevel);
 }
 
-export const DEFAULT_WINDOW_SIZE = { width: 1200, height: 800 } as const;
+export const DEFAULT_EMPTY_WINDOW_SIZE = { width: 1200, height: 800 } as const;
+export const DEFAULT_WORKSPACE_WINDOW_SIZE = { width: 1440, height: 900 } as const;
 export const DEFAULT_AUX_WINDOW_SIZE = { width: 1024, height: 768 } as const;

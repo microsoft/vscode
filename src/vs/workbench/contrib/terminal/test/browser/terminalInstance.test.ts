@@ -15,7 +15,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { TerminalCapabilityStore } from '../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
-import { GeneralShellType, ITerminalChildProcess, ITerminalProfile } from '../../../../../platform/terminal/common/terminal.js';
+import { GeneralShellType, ITerminalChildProcess, ITerminalProfile, TitleEventSource } from '../../../../../platform/terminal/common/terminal.js';
 import { IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { IViewDescriptorService } from '../../../../common/views.js';
 import { ITerminalConfigurationService, ITerminalInstance, ITerminalInstanceService } from '../../browser/terminal.js';
@@ -83,6 +83,7 @@ class TestTerminalChildProcess extends Disposable implements ITerminalChildProce
 	async start(): Promise<undefined> { return undefined; }
 	shutdown(immediate: boolean): void { }
 	input(data: string): void { }
+	sendSignal(signal: string): void { }
 	resize(cols: number, rows: number): void { }
 	clearBuffer(): void { }
 	acknowledgeDataEvent(charCount: number): void { }
@@ -148,6 +149,46 @@ suite('Workbench - TerminalInstance', () => {
 			// //Wait for the teminalInstance._xtermReadyPromise to resolve
 			await new Promise(resolve => setTimeout(resolve, 100));
 			deepStrictEqual(terminalInstance.shellLaunchConfig.env, { TEST: 'TEST' });
+		});
+
+		test('should preserve title for task terminals', async () => {
+			const instantiationService = workbenchInstantiationService({
+				configurationService: () => new TestConfigurationService({
+					files: {},
+					terminal: {
+						integrated: {
+							fontFamily: 'monospace',
+							scrollback: 1000,
+							fastScrollSensitivity: 2,
+							mouseWheelScrollSensitivity: 1,
+							unicodeVersion: '6',
+							shellIntegration: {
+								enabled: true
+							}
+						}
+					},
+				})
+			}, store);
+			instantiationService.set(ITerminalProfileResolverService, new MockTerminalProfileResolverService());
+			instantiationService.stub(IViewDescriptorService, new TestViewDescriptorService());
+			instantiationService.stub(IEnvironmentVariableService, store.add(instantiationService.createInstance(EnvironmentVariableService)));
+			instantiationService.stub(ITerminalInstanceService, store.add(new TestTerminalInstanceService()));
+
+			const taskTerminal = store.add(instantiationService.createInstance(TerminalInstance, terminalShellTypeContextKey, {
+				type: 'Task',
+				name: 'Test Task Name'
+			}));
+
+
+			// Simulate setting the title via API (as the task system would do)
+			await taskTerminal.rename('Test Task Name');
+			strictEqual(taskTerminal.title, 'Test Task Name');
+
+			// Simulate a process title change (which happens when task completes)
+			await taskTerminal.rename('some-process-name', TitleEventSource.Process);
+
+			// Verify that the task name is preserved
+			strictEqual(taskTerminal.title, 'Test Task Name', 'Task terminal should preserve API-set title');
 		});
 	});
 	suite('parseExitResult', () => {
@@ -382,6 +423,127 @@ suite('Workbench - TerminalInstance', () => {
 				strictEqual(terminalLabelComputer.title, 'process ~ root2');
 				strictEqual(terminalLabelComputer.description, 'root2');
 			}
+		});
+	});
+
+	suite('getCwdResource', () => {
+		let mockFileService: any;
+		let mockPathService: any;
+
+		function createMockTerminalInstance(options: {
+			cwd?: string;
+			remoteAuthority?: string;
+			fileExists?: boolean;
+		}): Pick<ITerminalInstance, 'getCwdResource' | 'capabilities' | 'remoteAuthority'> {
+			const capabilities = store.add(new TerminalCapabilityStore());
+
+			if (options.cwd) {
+				const mockCwdDetection = {
+					getCwd: () => options.cwd
+				};
+				capabilities.add(TerminalCapability.CwdDetection, mockCwdDetection as any);
+			}
+
+			// Mock file service
+			mockFileService = {
+				exists: async (resource: URI) => options.fileExists !== false
+			};
+
+			// Mock path service
+			mockPathService = {
+				fileURI: async (path: string) => {
+					if (options.remoteAuthority) {
+						return URI.parse(`vscode-remote://${options.remoteAuthority}${path}`);
+					}
+					return URI.file(path);
+				}
+			};
+
+			return {
+				capabilities,
+				remoteAuthority: options.remoteAuthority,
+				async getCwdResource(): Promise<URI | undefined> {
+					const cwd = this.capabilities.get(TerminalCapability.CwdDetection)?.getCwd();
+					if (!cwd) {
+						return undefined;
+					}
+					let resource: URI;
+					if (this.remoteAuthority) {
+						resource = await mockPathService.fileURI(cwd);
+					} else {
+						resource = URI.file(cwd);
+					}
+					if (await mockFileService.exists(resource)) {
+						return resource;
+					}
+					return undefined;
+				}
+			};
+		}
+
+		test('should return undefined when no CwdDetection capability', async () => {
+			const instance = createMockTerminalInstance({});
+
+			const result = await instance.getCwdResource();
+			strictEqual(result, undefined);
+		});
+
+		test('should return undefined when CwdDetection capability returns no cwd', async () => {
+			const instance = createMockTerminalInstance({ cwd: undefined });
+
+			const result = await instance.getCwdResource();
+			strictEqual(result, undefined);
+		});
+
+		test('should return URI.file for local terminal when file exists', async () => {
+			const testCwd = '/test/path';
+			const instance = createMockTerminalInstance({ cwd: testCwd, fileExists: true });
+
+			const result = await instance.getCwdResource();
+			strictEqual(result?.scheme, 'file');
+			strictEqual(result?.path, testCwd);
+		});
+
+		test('should return undefined when file does not exist', async () => {
+			const testCwd = '/test/nonexistent';
+			const instance = createMockTerminalInstance({ cwd: testCwd, fileExists: false });
+
+			const result = await instance.getCwdResource();
+			strictEqual(result, undefined);
+		});
+
+		test('should use pathService.fileURI for remote terminal', async () => {
+			const testCwd = '/test/remote/path';
+			const instance = createMockTerminalInstance({
+				cwd: testCwd,
+				remoteAuthority: 'test-remote',
+				fileExists: true
+			});
+
+			const result = await instance.getCwdResource();
+			strictEqual(result?.scheme, 'vscode-remote');
+			strictEqual(result?.authority, 'test-remote');
+			strictEqual(result?.path, testCwd);
+		});
+
+		test('should handle Windows paths correctly', async () => {
+			const testCwd = isWindows ? 'C:\\test\\path' : '/test/path';
+			const instance = createMockTerminalInstance({ cwd: testCwd, fileExists: true });
+
+			const result = await instance.getCwdResource();
+			strictEqual(result?.scheme, 'file');
+			if (isWindows) {
+				strictEqual(result?.path, '/C:/test/path');
+			} else {
+				strictEqual(result?.path, testCwd);
+			}
+		});
+
+		test('should handle empty cwd string', async () => {
+			const instance = createMockTerminalInstance({ cwd: '' });
+
+			const result = await instance.getCwdResource();
+			strictEqual(result, undefined);
 		});
 	});
 });

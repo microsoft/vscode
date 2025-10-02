@@ -3,37 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './emptyTextEditorHint.css';
 import { $, addDisposableListener, getActiveWindow } from '../../../../../base/browser/dom.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../../../editor/browser/editorBrowser.js';
-import { localize } from '../../../../../nls.js';
-import { ChangeLanguageAction } from '../../../../browser/parts/editor/editorStatus.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { PLAINTEXT_LANGUAGE_ID } from '../../../../../editor/common/languages/modesRegistry.js';
-import { IEditorContribution } from '../../../../../editor/common/editorCommon.js';
-import { Schemas } from '../../../../../base/common/network.js';
-import { Event } from '../../../../../base/common/event.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { ConfigurationChangedEvent, EditorOption } from '../../../../../editor/common/config/editorOptions.js';
-import { EditorContributionInstantiation, registerEditorContribution } from '../../../../../editor/browser/editorExtensions.js';
-import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
-import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IContentActionHandler, renderFormattedText } from '../../../../../base/browser/formattedTextRenderer.js';
-import { ApplyFileSnippetAction } from '../../../snippets/browser/commands/fileTemplateSnippets.js';
-import { IInlineChatSessionService } from '../../../inlineChat/browser/inlineChatSessionService.js';
-import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../../base/common/actions.js';
+import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
-import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
+import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../../base/common/actions.js';
+import { Event } from '../../../../../base/common/event.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../../../editor/browser/editorBrowser.js';
+import { EditorContributionInstantiation, registerEditorContribution } from '../../../../../editor/browser/editorExtensions.js';
+import { ConfigurationChangedEvent, EditorOption } from '../../../../../editor/common/config/editorOptions.js';
+import { Position } from '../../../../../editor/common/core/position.js';
+import { IEditorContribution } from '../../../../../editor/common/editorCommon.js';
+import { PLAINTEXT_LANGUAGE_ID } from '../../../../../editor/common/languages/modesRegistry.js';
+import { localize } from '../../../../../nls.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { ChangeLanguageAction } from '../../../../browser/parts/editor/editorStatus.js';
 import { LOG_MODE_ID, OUTPUT_MODE_ID } from '../../../../services/output/common/output.js';
 import { SEARCH_RESULT_LANGUAGE_ID } from '../../../../services/search/common/search.js';
+import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { IChatAgentService } from '../../../chat/common/chatAgents.js';
-import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
-import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { ChatAgentLocation } from '../../../chat/common/constants.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { Position } from '../../../../../editor/common/core/position.js';
+import { IInlineChatSessionService } from '../../../inlineChat/browser/inlineChatSessionService.js';
+import './emptyTextEditorHint.css';
 
 export const emptyTextEditorHintSetting = 'workbench.editor.empty.hint';
 export class EmptyTextEditorHintContribution extends Disposable implements IEditorContribution {
@@ -112,7 +110,7 @@ export class EmptyTextEditorHintContribution extends Disposable implements IEdit
 			return false;
 		}
 
-		const hasEditorAgents = Boolean(this.chatAgentService.getDefaultAgent(ChatAgentLocation.Editor));
+		const hasEditorAgents = Boolean(this.chatAgentService.getDefaultAgent(ChatAgentLocation.EditorInline));
 		const shouldRenderDefaultHint = model?.uri.scheme === Schemas.untitled && languageId === PLAINTEXT_LANGUAGE_ID;
 		return hasEditorAgents || shouldRenderDefaultHint;
 	}
@@ -144,7 +142,6 @@ class EmptyTextEditorHintContentWidget extends Disposable implements IContentWid
 
 	constructor(
 		private readonly editor: ICodeEditor,
-		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
@@ -203,7 +200,7 @@ class EmptyTextEditorHintContentWidget extends Disposable implements IContentWid
 	}
 
 	private getHint() {
-		const hasInlineChatProvider = this.chatAgentService.getActivatedAgents().filter(candidate => candidate.locations.includes(ChatAgentLocation.Editor)).length > 0;
+		const hasInlineChatProvider = this.chatAgentService.getActivatedAgents().filter(candidate => candidate.locations.includes(ChatAgentLocation.EditorInline)).length > 0;
 
 		const hintHandler: IContentActionHandler = {
 			disposables: this._store,
@@ -213,12 +210,9 @@ class EmptyTextEditorHintContentWidget extends Disposable implements IContentWid
 						hasInlineChatProvider ? askSomething(event.browserEvent) : languageOnClickOrTap(event.browserEvent);
 						break;
 					case '1':
-						hasInlineChatProvider ? languageOnClickOrTap(event.browserEvent) : snippetOnClickOrTap(event.browserEvent);
+						hasInlineChatProvider ? languageOnClickOrTap(event.browserEvent) : this.disableHint();
 						break;
 					case '2':
-						hasInlineChatProvider ? snippetOnClickOrTap(event.browserEvent) : chooseEditorOnClickOrTap(event.browserEvent);
-						break;
-					case '3':
 						this.disableHint();
 						break;
 				}
@@ -247,33 +241,7 @@ class EmptyTextEditorHintContentWidget extends Disposable implements IContentWid
 			this.editor.focus();
 		};
 
-		const snippetOnClickOrTap = async (e: UIEvent) => {
-			e.stopPropagation();
-
-			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', {
-				id: ApplyFileSnippetAction.Id,
-				from: 'hint'
-			});
-			await this.commandService.executeCommand(ApplyFileSnippetAction.Id);
-		};
-
-		const chooseEditorOnClickOrTap = async (e: UIEvent) => {
-			e.stopPropagation();
-
-			const activeEditorInput = this.editorGroupsService.activeGroup.activeEditor;
-			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', {
-				id: 'welcome.showNewFileEntries',
-				from: 'hint'
-			});
-			const newEditorSelected = await this.commandService.executeCommand('welcome.showNewFileEntries', { from: 'hint' });
-
-			// Close the active editor as long as it is untitled (swap the editors out)
-			if (newEditorSelected && activeEditorInput !== null && activeEditorInput.resource?.scheme === Schemas.untitled) {
-				this.editorGroupsService.activeGroup.closeEditor(activeEditorInput, { preserveFocus: true });
-			}
-		};
-
-		const keybindingsLookup = hasInlineChatProvider ? [askSomethingCommandId, ChangeLanguageAction.ID, ApplyFileSnippetAction.Id] : [ChangeLanguageAction.ID, ApplyFileSnippetAction.Id, 'welcome.showNewFileEntries'];
+		const keybindingsLookup = [askSomethingCommandId, ChangeLanguageAction.ID];
 		const keybindingLabels = keybindingsLookup.map(id => this.keybindingService.lookupKeybinding(id)?.getLabel());
 
 		const hintMsg = (hasInlineChatProvider ? localize({
@@ -282,13 +250,13 @@ class EmptyTextEditorHintContentWidget extends Disposable implements IContentWid
 				'Preserve double-square brackets and their order',
 				'language refers to a programming language'
 			]
-		}, '[[Open chat]] ({0}), or [[select a language]] ({1}), or [[fill with template]] ({2}) to get started.\nStart typing to dismiss or [[don\'t show]] this again.', keybindingLabels.at(0) ?? '', keybindingLabels.at(1) ?? '', keybindingLabels.at(2) ?? '') : localize({
+		}, '[[Generate code]] ({0}), or [[select a language]] ({1}). Start typing to dismiss or [[don\'t show]] this again.', keybindingLabels.at(0) ?? '', keybindingLabels.at(1) ?? '') : localize({
 			key: 'emptyTextEditorHintWithoutInlineChat',
 			comment: [
 				'Preserve double-square brackets and their order',
 				'language refers to a programming language'
 			]
-		}, '[[Select a language]] ({0}), or [[fill with template]] ({1}), or [[open a different editor]] ({2}) to get started.\nStart typing to dismiss or [[don\'t show]] this again.', keybindingLabels.at(0) ?? '', keybindingLabels.at(1) ?? '', keybindingLabels.at(2) ?? '')).replaceAll(' ()', '');
+		}, '[[Select a language]] ({0}) to get started. Start typing to dismiss or [[don\'t show]] this again.', keybindingLabels.at(1) ?? '')).replaceAll(' ()', '');
 		const hintElement = renderFormattedText(hintMsg, {
 			actionHandler: hintHandler,
 			renderCodeSegments: false,
@@ -296,8 +264,8 @@ class EmptyTextEditorHintContentWidget extends Disposable implements IContentWid
 		hintElement.style.fontStyle = 'italic';
 
 		const ariaLabel = hasInlineChatProvider ?
-			localize('defaultHintAriaLabelWithInlineChat', 'Execute {0} to ask a question, execute {1} to select a language, or execute {2} to fill with template and get started. Start typing to dismiss.', ...keybindingLabels) :
-			localize('defaultHintAriaLabelWithoutInlineChat', 'Execute {0} to select a language, execute {1} to fill with template, or execute {2} to open a different editor and get started. Start typing to dismiss.', ...keybindingLabels);
+			localize('defaultHintAriaLabelWithInlineChat', 'Execute {0} to ask a question, execute {1} to select a language and get started. Start typing to dismiss.', ...keybindingLabels) :
+			localize('defaultHintAriaLabelWithoutInlineChat', 'Execute {0} to select a language and get started. Start typing to dismiss.', ...keybindingLabels);
 		for (const anchor of hintElement.querySelectorAll('a')) {
 			anchor.style.cursor = 'pointer';
 		}

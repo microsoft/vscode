@@ -10,6 +10,7 @@ import '../../common/services/languageFeatureDebounce.js';
 import '../../common/services/semanticTokensStylingService.js';
 import '../../common/services/languageFeaturesService.js';
 import '../../browser/services/hoverService/hoverService.js';
+import '../../browser/services/inlineCompletionsService.js';
 
 import * as strings from '../../../base/common/strings.js';
 import * as dom from '../../../base/browser/dom.js';
@@ -50,7 +51,7 @@ import { ILayoutService } from '../../../platform/layout/browser/layoutService.j
 import { StandaloneServicesNLS } from '../../common/standaloneStrings.js';
 import { basename } from '../../../base/common/resources.js';
 import { ICodeEditorService } from '../../browser/services/codeEditorService.js';
-import { ConsoleLogger, ILogService } from '../../../platform/log/common/log.js';
+import { ConsoleLogger, ILoggerService, ILogService, NullLoggerService } from '../../../platform/log/common/log.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustTransitionParticipant, IWorkspaceTrustUriInfo } from '../../../platform/workspace/common/workspaceTrust.js';
 import { EditorOption } from '../../common/config/editorOptions.js';
 import { ICodeEditor, IDiffEditor } from '../../browser/editorBrowser.js';
@@ -99,6 +100,7 @@ import { ResourceMap } from '../../../base/common/map.js';
 import { IWebWorkerDescriptor } from '../../../base/browser/webWorkerFactory.js';
 import { ITreeSitterLibraryService } from '../../common/services/treeSitter/treeSitterLibraryService.js';
 import { StandaloneTreeSitterLibraryService } from './standaloneTreeSitterLibraryService.js';
+import { IDataChannelService, NullDataChannelService } from '../../../platform/dataChannel/common/dataChannel.js';
 
 class SimpleModel implements IResolvedTextEditorModel {
 
@@ -228,6 +230,7 @@ class StandaloneEnvironmentService implements IEnvironmentService {
 	readonly debugExtensionHost: IExtensionHostDebugParams = { port: null, break: false };
 	readonly isExtensionDevelopment: boolean = false;
 	readonly disableExtensions: boolean | string[] = false;
+	readonly disableExperiments: boolean = false;
 	readonly enableExtensions?: readonly string[] | undefined = undefined;
 	readonly extensionDevelopmentLocationURI?: URI[] | undefined = undefined;
 	readonly extensionDevelopmentKind?: ExtensionKind[] | undefined = undefined;
@@ -591,8 +594,8 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 		return '';
 	}
 
-	public registerSchemaContribution(contribution: KeybindingsSchemaContribution): void {
-		// noop
+	public registerSchemaContribution(contribution: KeybindingsSchemaContribution): IDisposable {
+		return Disposable.None;
 	}
 
 	/**
@@ -1128,6 +1131,7 @@ export interface IEditorOverrideServices {
 	[index: string]: any;
 }
 
+
 registerSingleton(ILogService, StandaloneLogService, InstantiationType.Eager);
 registerSingleton(IConfigurationService, StandaloneConfigurationService, InstantiationType.Eager);
 registerSingleton(ITextResourceConfigurationService, StandaloneResourceConfigurationService, InstantiationType.Eager);
@@ -1163,6 +1167,8 @@ registerSingleton(IContextMenuService, StandaloneContextMenuService, Instantiati
 registerSingleton(IMenuService, MenuService, InstantiationType.Eager);
 registerSingleton(IAccessibilitySignalService, StandaloneAccessbilitySignalService, InstantiationType.Eager);
 registerSingleton(ITreeSitterLibraryService, StandaloneTreeSitterLibraryService, InstantiationType.Eager);
+registerSingleton(ILoggerService, NullLoggerService, InstantiationType.Eager);
+registerSingleton(IDataChannelService, NullDataChannelService, InstantiationType.Eager);
 
 /**
  * We don't want to eagerly instantiate services because embedders get a one time chance

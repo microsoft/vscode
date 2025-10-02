@@ -21,6 +21,24 @@ declare module 'vscode' {
 		 * @return A {@link Disposable} that unregisters this provider when being disposed.
 		 */
 		export function registerInlineCompletionItemProvider(selector: DocumentSelector, provider: InlineCompletionItemProvider, metadata: InlineCompletionItemProviderMetadata): Disposable;
+
+		/**
+		 * temporary: to be removed
+		 */
+		export const inlineCompletionsUnificationState: InlineCompletionsUnificationState;
+		/**
+		 * temporary: to be removed
+		 */
+		export const onDidChangeCompletionsUnificationState: Event<void>;
+	}
+
+	/**
+	 * temporary: to be removed
+	 */
+	export interface InlineCompletionsUnificationState {
+		codeUnification: boolean;
+		modelUnification: boolean;
+		expAssignments: string[];
 	}
 
 	export interface InlineCompletionItem {
@@ -46,10 +64,19 @@ declare module 'vscode' {
 		action?: Command;
 
 		displayLocation?: InlineCompletionDisplayLocation;
+
+		/** Used for telemetry. Can be an arbitrary string. */
+		correlationId?: string;
+	}
+
+	export enum InlineCompletionDisplayLocationKind {
+		Code = 1,
+		Label = 2
 	}
 
 	export interface InlineCompletionDisplayLocation {
 		range: Range;
+		kind: InlineCompletionDisplayLocationKind;
 		label: string;
 	}
 
@@ -64,10 +91,16 @@ declare module 'vscode' {
 		 * If some inline completion provider registered by such an extension returns a result, this provider is not asked.
 		 */
 		yieldTo?: string[];
+		/**
+		 * Can override the extension id for the yieldTo mechanism. Used for testing, so that yieldTo can be tested within one extension.
+		*/
+		groupId?: string;
 
 		debounceDelayMs?: number;
 
 		displayName?: string;
+
+		excludes?: string[];
 	}
 
 	export interface InlineCompletionItemProvider {
@@ -92,12 +125,15 @@ declare module 'vscode' {
 		// eslint-disable-next-line local/vscode-dts-provider-naming
 		handleEndOfLifetime?(completionItem: InlineCompletionItem, reason: InlineCompletionEndOfLifeReason): void;
 
+		/**
+		 * Is called when an inline completion list is no longer being used (same reference as the list returned by provideInlineEditsForRange).
+		*/
+		// eslint-disable-next-line local/vscode-dts-provider-naming
+		handleListEndOfLifetime?(list: InlineCompletionList, reason: InlineCompletionsDisposeReason): void;
+
 		onDidChange?: Event<void>;
 
 		// #region Deprecated methods
-
-		/** @deprecated */
-		provideInlineEditsForRange?(document: TextDocument, range: Range, context: InlineCompletionContext, token: CancellationToken): ProviderResult<InlineCompletionItem[] | InlineCompletionList>;
 
 		/**
 		 * Is called when an inline completion item was accepted partially.
@@ -133,10 +169,24 @@ declare module 'vscode' {
 		userTypingDisagreed: boolean;
 	};
 
+	export enum InlineCompletionsDisposeReasonKind {
+		Other = 0,
+		Empty = 1,
+		TokenCancellation = 2,
+		LostRace = 3,
+		NotTaken = 4,
+	}
+
+	export type InlineCompletionsDisposeReason = { kind: InlineCompletionsDisposeReasonKind };
+
 	export interface InlineCompletionContext {
 		readonly userPrompt?: string;
 
 		readonly requestUuid: string;
+
+		readonly requestIssuedDateTime: number;
+
+		readonly earliestShownDateTime: number;
 	}
 
 	export interface PartialAcceptInfo {
@@ -159,7 +209,7 @@ declare module 'vscode' {
 		/**
 		 * A list of commands associated with the inline completions of this list.
 		 */
-		commands?: Command[];
+		commands?: Array<Command | { command: Command; icon: ThemeIcon }>;
 
 		/**
 		 * When set and the user types a suggestion without deviating from it, the inline suggestion is not updated.

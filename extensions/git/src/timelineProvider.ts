@@ -94,7 +94,7 @@ export class GitTimelineItem extends TimelineItem {
 		if (hash && shortHash) {
 			this.tooltip.appendMarkdown(`---\n\n`);
 
-			this.tooltip.appendMarkdown(`[\`$(git-commit) ${shortHash} \`](command:git.viewCommit?${encodeURIComponent(JSON.stringify([uri, hash]))} "${l10n.t('Open Commit')}")`);
+			this.tooltip.appendMarkdown(`[\`$(git-commit) ${shortHash} \`](command:git.viewCommit?${encodeURIComponent(JSON.stringify([uri, hash, uri]))} "${l10n.t('Open Commit')}")`);
 			this.tooltip.appendMarkdown('&nbsp;');
 			this.tooltip.appendMarkdown(`[$(copy)](command:git.copyContentToClipboard?${encodeURIComponent(JSON.stringify(hash))} "${l10n.t('Copy Commit Hash')}")`);
 

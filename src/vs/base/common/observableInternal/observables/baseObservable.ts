@@ -5,7 +5,9 @@
 
 import { IObservableWithChange, IObserver, IReader, IObservable } from '../base.js';
 import { DisposableStore } from '../commonFacade/deps.js';
+import { DebugLocation } from '../debugLocation.js';
 import { DebugOwner, getFunctionName } from '../debugName.js';
+import { debugGetDependencyGraph } from '../logging/debugGetDependencyGraph.js';
 import { getLogger, logObservable } from '../logging/logging.js';
 import type { keepObserved, recomputeInitiallyAndOnChange } from '../utils/utils.js';
 import { derivedOpts } from './derived.js';
@@ -27,6 +29,11 @@ export function _setRecomputeInitiallyAndOnChange(recomputeInitiallyAndOnChange:
 let _keepObserved: typeof keepObserved;
 export function _setKeepObserved(keepObserved: typeof _keepObserved) {
 	_keepObserved = keepObserved;
+}
+
+let _debugGetDependencyGraph: typeof debugGetDependencyGraph;
+export function _setDebugGetDependencyGraph(debugGetDependencyGraph: typeof _debugGetDependencyGraph) {
+	_debugGetDependencyGraph = debugGetDependencyGraph;
 }
 
 export abstract class ConvenientObservable<T, TChange> implements IObservableWithChange<T, TChange> {
@@ -53,7 +60,7 @@ export abstract class ConvenientObservable<T, TChange> implements IObservableWit
 	/** @sealed */
 	public map<TNew>(fn: (value: T, reader: IReader) => TNew): IObservable<TNew>;
 	public map<TNew>(owner: DebugOwner, fn: (value: T, reader: IReader) => TNew): IObservable<TNew>;
-	public map<TNew>(fnOrOwner: DebugOwner | ((value: T, reader: IReader) => TNew), fnOrUndefined?: (value: T, reader: IReader) => TNew): IObservable<TNew> {
+	public map<TNew>(fnOrOwner: DebugOwner | ((value: T, reader: IReader) => TNew), fnOrUndefined?: (value: T, reader: IReader) => TNew, debugLocation: DebugLocation = DebugLocation.ofCaller()): IObservable<TNew> {
 		const owner = fnOrUndefined === undefined ? undefined : fnOrOwner as DebugOwner;
 		const fn = fnOrUndefined === undefined ? fnOrOwner as (value: T, reader: IReader) => TNew : fnOrUndefined;
 
@@ -79,7 +86,8 @@ export abstract class ConvenientObservable<T, TChange> implements IObservableWit
 				},
 				debugReferenceFn: fn,
 			},
-			(reader) => fn(this.read(reader), reader)
+			(reader) => fn(this.read(reader), reader),
+			debugLocation,
 		);
 	}
 
@@ -119,14 +127,18 @@ export abstract class ConvenientObservable<T, TChange> implements IObservableWit
 	protected get debugValue() {
 		return this.get();
 	}
+
+	debugGetDependencyGraph(): string {
+		return _debugGetDependencyGraph(this);
+	}
 }
 
 export abstract class BaseObservable<T, TChange = void> extends ConvenientObservable<T, TChange> {
 	protected readonly _observers = new Set<IObserver>();
 
-	constructor() {
+	constructor(debugLocation: DebugLocation) {
 		super();
-		getLogger()?.handleObservableCreated(this);
+		getLogger()?.handleObservableCreated(this, debugLocation);
 	}
 
 	public addObserver(observer: IObserver): void {
@@ -157,7 +169,7 @@ export abstract class BaseObservable<T, TChange = void> extends ConvenientObserv
 		const hadLogger = !!getLogger();
 		logObservable(this);
 		if (!hadLogger) {
-			getLogger()?.handleObservableCreated(this);
+			getLogger()?.handleObservableCreated(this, DebugLocation.ofCaller());
 		}
 		return this;
 	}

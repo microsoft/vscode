@@ -30,7 +30,9 @@ declare module 'vscode' {
 		provideHistoryItems(options: SourceControlHistoryOptions, token: CancellationToken): ProviderResult<SourceControlHistoryItem[]>;
 		provideHistoryItemChanges(historyItemId: string, historyItemParentId: string | undefined, token: CancellationToken): ProviderResult<SourceControlHistoryItemChange[]>;
 
+		resolveHistoryItem(historyItemId: string, token: CancellationToken): ProviderResult<SourceControlHistoryItem>;
 		resolveHistoryItemChatContext(historyItemId: string, token: CancellationToken): ProviderResult<string>;
+		resolveHistoryItemChangeRangeChatContext(historyItemId: string, historyItemParentId: string, path: string, token: CancellationToken): ProviderResult<string>;
 		resolveHistoryItemRefsCommonAncestor(historyItemRefs: string[], token: CancellationToken): ProviderResult<string>;
 	}
 
@@ -38,6 +40,7 @@ declare module 'vscode' {
 		readonly skip?: number;
 		readonly limit?: number | { id?: string };
 		readonly historyItemRefs?: readonly string[];
+		readonly filterText?: string;
 	}
 
 	export interface SourceControlHistoryItemStatistics {

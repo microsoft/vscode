@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { basicMarkupHtmlTags, hookDomPurifyHrefAndSrcSanitizer } from '../../../../base/browser/dom.js';
-import dompurify from '../../../../base/browser/dompurify/dompurify.js';
-import { allowedMarkdownAttr } from '../../../../base/browser/markdownRenderer.js';
+import { sanitizeHtml } from '../../../../base/browser/domSanitize.js';
+import { allowedMarkdownHtmlAttributes, allowedMarkdownHtmlTags } from '../../../../base/browser/markdownRenderer.js';
+import { raceCancellationError } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import * as marked from '../../../../base/common/marked/marked.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -157,51 +157,76 @@ pre code {
 }
 `;
 
-const allowedProtocols = [Schemas.http, Schemas.https, Schemas.command];
-function sanitize(documentContent: string, allowUnknownProtocols: boolean): string {
+const defaultAllowedLinkProtocols = Object.freeze([
+	Schemas.http,
+	Schemas.https,
+]);
 
-	const hook = hookDomPurifyHrefAndSrcSanitizer(allowedProtocols, true);
+function sanitize(documentContent: string, sanitizerConfig: MarkdownDocumentSanitizerConfig | undefined): TrustedHTML {
+	return sanitizeHtml(documentContent, {
+		allowedLinkProtocols: {
+			override: sanitizerConfig?.allowedLinkProtocols?.override ?? defaultAllowedLinkProtocols,
+		},
+		allowRelativeLinkPaths: sanitizerConfig?.allowRelativeLinkPaths,
+		allowedMediaProtocols: sanitizerConfig?.allowedMediaProtocols,
+		allowRelativeMediaPaths: sanitizerConfig?.allowRelativeMediaPaths,
+		allowedTags: {
+			override: allowedMarkdownHtmlTags,
+			augment: sanitizerConfig?.allowedTags?.augment
+		},
+		allowedAttributes: {
+			override: [
+				...allowedMarkdownHtmlAttributes,
+				'name',
+				'id',
+				'class',
+				'role',
+				'tabindex',
+				'placeholder',
+			],
+			augment: sanitizerConfig?.allowedAttributes?.augment ?? [],
+		}
+	});
+}
 
-	try {
-		return dompurify.sanitize(documentContent, {
-			...{
-				ALLOWED_TAGS: [
-					...basicMarkupHtmlTags,
-					'checkbox',
-					'checklist',
-				],
-				ALLOWED_ATTR: [
-					...allowedMarkdownAttr,
-					'data-command', 'name', 'id', 'role', 'tabindex',
-					'x-dispatch',
-					'required', 'checked', 'placeholder', 'when-checked', 'checked-on',
-				],
-			},
-			...(allowUnknownProtocols ? { ALLOW_UNKNOWN_PROTOCOLS: true } : {}),
-		});
-	} finally {
-		hook.dispose();
-	}
+interface MarkdownDocumentSanitizerConfig {
+	readonly allowedLinkProtocols?: {
+		readonly override: readonly string[] | '*';
+	};
+	readonly allowRelativeLinkPaths?: boolean;
+
+	readonly allowedMediaProtocols?: {
+		readonly override: readonly string[] | '*';
+	};
+	readonly allowRelativeMediaPaths?: boolean;
+
+	readonly allowedTags?: {
+		readonly augment: readonly string[];
+	};
+
+	readonly allowedAttributes?: {
+		readonly augment: readonly string[];
+	};
 }
 
 interface IRenderMarkdownDocumentOptions {
-	readonly shouldSanitize?: boolean;
-	readonly allowUnknownProtocols?: boolean;
-	readonly markedExtensions?: marked.MarkedExtension[];
-	readonly token?: CancellationToken;
+	readonly sanitizerConfig?: MarkdownDocumentSanitizerConfig;
+	readonly markedExtensions?: readonly marked.MarkedExtension[];
 }
 
 /**
- * Renders a string of markdown as a document.
+ * Renders a string of markdown for use in an external document context.
  *
- * Uses VS Code's syntax highlighting code blocks.
+ * Uses VS Code's syntax highlighting code blocks. Also does not attach all the hooks and customization that normal
+ * markdown renderer.
  */
 export async function renderMarkdownDocument(
 	text: string,
 	extensionService: IExtensionService,
 	languageService: ILanguageService,
-	options?: IRenderMarkdownDocumentOptions
-): Promise<string> {
+	options?: IRenderMarkdownDocumentOptions,
+	token: CancellationToken = CancellationToken.None,
+): Promise<TrustedHTML> {
 	const m = new marked.Marked(
 		MarkedHighlight.markedHighlight({
 			async: true,
@@ -211,7 +236,7 @@ export async function renderMarkdownDocument(
 				}
 
 				await extensionService.whenInstalledExtensionsRegistered();
-				if (options?.token?.isCancellationRequested) {
+				if (token?.isCancellationRequested) {
 					return '';
 				}
 
@@ -223,12 +248,8 @@ export async function renderMarkdownDocument(
 		...(options?.markedExtensions ?? []),
 	);
 
-	const raw = await m.parse(text, { async: true });
-	if (options?.shouldSanitize ?? true) {
-		return sanitize(raw, options?.allowUnknownProtocols ?? false);
-	} else {
-		return raw;
-	}
+	const raw = await raceCancellationError(m.parse(text, { async: true }), token ?? CancellationToken.None);
+	return sanitize(raw, options?.sanitizerConfig);
 }
 
 namespace MarkedHighlight {

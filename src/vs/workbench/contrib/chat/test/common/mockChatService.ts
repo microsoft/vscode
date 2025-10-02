@@ -5,6 +5,7 @@
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
+import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ChatModel, IChatModel, IChatRequestModel, IChatRequestVariableData, ISerializableChatData } from '../../common/chatModel.js';
 import { IParsedChatRequest } from '../../common/chatParserTypes.js';
@@ -12,8 +13,13 @@ import { IChatCompleteResponse, IChatDetail, IChatProviderInfo, IChatSendRequest
 import { ChatAgentLocation } from '../../common/constants.js';
 
 export class MockChatService implements IChatService {
+	getChatSessionFromInternalId(modelSessionId: string): { chatSessionType: string; chatSessionId: string; isUntitled: boolean } | undefined {
+		throw new Error('Method not implemented.');
+	}
+	requestInProgressObs = observableValue('name', false);
 	edits2Enabled: boolean = false;
 	_serviceBrand: undefined;
+	editingSessions = [];
 	transferredSessionData: IChatTransferredSessionData | undefined;
 	onDidSubmitRequest: Event<{ chatSessionId: string }> = Event.None;
 
@@ -41,7 +47,13 @@ export class MockChatService implements IChatService {
 	async getOrRestoreSession(sessionId: string): Promise<IChatModel | undefined> {
 		throw new Error('Method not implemented.');
 	}
+	getPersistedSessionTitle(sessionId: string): string | undefined {
+		throw new Error('Method not implemented.');
+	}
 	loadSessionFromContent(data: ISerializableChatData): IChatModel | undefined {
+		throw new Error('Method not implemented.');
+	}
+	loadSessionForResource(resource: URI, position: ChatAgentLocation, token: CancellationToken): Promise<IChatModel | undefined> {
 		throw new Error('Method not implemented.');
 	}
 	/**

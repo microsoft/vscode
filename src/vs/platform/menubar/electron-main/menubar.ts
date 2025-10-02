@@ -467,10 +467,10 @@ export class Menubar extends Disposable {
 			const { response } = await this.nativeHostMainService.showMessageBox(this.windowsMainService.getFocusedWindow()?.id, {
 				type: 'question',
 				buttons: [
-					nls.localize({ key: 'quit', comment: ['&& denotes a mnemonic'] }, "&&Quit"),
+					isMacintosh ? nls.localize({ key: 'quit', comment: ['&& denotes a mnemonic'] }, "&&Quit") : nls.localize({ key: 'exit', comment: ['&& denotes a mnemonic'] }, "&&Exit"),
 					nls.localize('cancel', "Cancel")
 				],
-				message: nls.localize('quitMessage', "Are you sure you want to quit?")
+				message: isMacintosh ? nls.localize('quitMessageMac', "Are you sure you want to quit?") : nls.localize('quitMessage', "Are you sure you want to exit?")
 			});
 
 			return response === 0;
@@ -480,9 +480,8 @@ export class Menubar extends Disposable {
 	}
 
 	private shouldDrawMenu(menuId: string): boolean {
-		// We need to draw an empty menu to override the electron default
 		if (!isMacintosh && !this.showNativeMenu) {
-			return false;
+			return false; // We need to draw an empty menu to override the electron default
 		}
 
 		switch (menuId) {

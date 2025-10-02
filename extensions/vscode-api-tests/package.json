@@ -49,7 +49,9 @@
     "treeViewActiveItem",
     "treeViewReveal",
     "tunnels",
-    "workspaceTrust"
+    "workspaceTrust",
+    "inlineCompletionsAdditions",
+    "devDeviceId"
   ],
   "private": true,
   "activationEvents": [],
@@ -59,9 +61,10 @@
   },
   "icon": "media/icon.png",
   "contributes": {
-    "languageModels": [
+    "languageModelChatProviders": [
       {
-        "vendor": "test-lm-vendor"
+        "vendor": "test-lm-vendor",
+        "displayName": "Test LM Vendor"
       }
     ],
     "chatParticipants": [
@@ -75,6 +78,9 @@
             "name": "hello",
             "description": "Hello"
           }
+        ],
+        "modes": [
+          "agent", "ask", "edit"
         ]
       },
       {
@@ -83,6 +89,17 @@
         "description": "test",
         "commands": []
       }
+    ],
+    "languageModelTools": [
+			{
+				"name": "requires_confirmation_tool",
+				"toolReferenceName": "requires_confirmation_tool",
+				"displayName": "Requires Confirmation Tool",
+				"modelDescription": "A noop tool to trigger confirmation.",
+				"canBeReferencedInPrompt": true,
+				"icon": "$(files)",
+				"inputSchema": {}
+			}
     ],
     "configuration": {
       "type": "object",

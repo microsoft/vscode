@@ -9,8 +9,8 @@ const minorNodeVersion = parseInt(nodeVersion[2]);
 const patchNodeVersion = parseInt(nodeVersion[3]);
 
 if (!process.env['VSCODE_SKIP_NODE_VERSION_CHECK']) {
-	if (majorNodeVersion < 20 || (majorNodeVersion === 20 && minorNodeVersion < 18) || (majorNodeVersion === 20 && minorNodeVersion === 18 && patchNodeVersion < 1)) {
-		console.error('\x1b[1;31m*** Please use Node.js v20.18.1 or later for development.\x1b[0;0m');
+	if (majorNodeVersion < 22 || (majorNodeVersion === 22 && minorNodeVersion < 15) || (majorNodeVersion === 22 && minorNodeVersion === 15 && patchNodeVersion < 1)) {
+		console.error('\x1b[1;31m*** Please use Node.js v22.15.1 or later for development.\x1b[0;0m');
 		throw new Error();
 	}
 }
@@ -28,6 +28,8 @@ const os = require('os');
 if (process.platform === 'win32') {
 	if (!hasSupportedVisualStudioVersion()) {
 		console.error('\x1b[1;31m*** Invalid C/C++ Compiler Toolchain. Please check https://github.com/microsoft/vscode/wiki/How-to-Contribute#prerequisites.\x1b[0;0m');
+		console.error('\x1b[1;31m*** If you have Visual Studio installed in a custom location, you can specify it via the environment variable:\x1b[0;0m');
+		console.error('\x1b[1;31m*** set vs2022_install=<path> (or vs2019_install for older versions)\x1b[0;0m');
 		throw new Error();
 	}
 	installHeaders();
@@ -43,15 +45,18 @@ function hasSupportedVisualStudioVersion() {
 	const path = require('path');
 	// Translated over from
 	// https://source.chromium.org/chromium/chromium/src/+/master:build/vs_toolchain.py;l=140-175
-	const supportedVersions = ['2022', '2019', '2017'];
+	const supportedVersions = ['2022', '2019'];
 
 	const availableVersions = [];
 	for (const version of supportedVersions) {
+		// Check environment variable first (explicit override)
 		let vsPath = process.env[`vs${version}_install`];
 		if (vsPath && fs.existsSync(vsPath)) {
 			availableVersions.push(version);
 			break;
 		}
+
+		// Check default installation paths
 		const programFiles86Path = process.env['ProgramFiles(x86)'];
 		const programFiles64Path = process.env['ProgramFiles'];
 
@@ -72,6 +77,7 @@ function hasSupportedVisualStudioVersion() {
 			}
 		}
 	}
+
 	return availableVersions.length;
 }
 

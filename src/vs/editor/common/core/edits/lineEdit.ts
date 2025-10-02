@@ -7,7 +7,7 @@ import { compareBy, groupAdjacentBy, numberComparator } from '../../../../base/c
 import { assert, checkAdjacentItems } from '../../../../base/common/assert.js';
 import { splitLines } from '../../../../base/common/strings.js';
 import { LineRange } from '../ranges/lineRange.js';
-import { StringEdit, StringReplacement } from './stringEdit.js';
+import { BaseStringEdit, StringEdit, StringReplacement } from './stringEdit.js';
 import { Position } from '../position.js';
 import { Range } from '../range.js';
 import { TextReplacement, TextEdit } from './textEdit.js';
@@ -17,10 +17,10 @@ export class LineEdit {
 	public static readonly empty = new LineEdit([]);
 
 	public static deserialize(data: SerializedLineEdit): LineEdit {
-		return new LineEdit(data.map(e => SingleLineEdit.deserialize(e)));
+		return new LineEdit(data.map(e => LineReplacement.deserialize(e)));
 	}
 
-	public static fromEdit(edit: StringEdit, initialValue: AbstractText): LineEdit {
+	public static fromStringEdit(edit: BaseStringEdit, initialValue: AbstractText): LineEdit {
 		const textEdit = TextEdit.fromStringEdit(edit, initialValue);
 		return LineEdit.fromTextEdit(textEdit, initialValue);
 	}
@@ -28,7 +28,7 @@ export class LineEdit {
 	public static fromTextEdit(edit: TextEdit, initialValue: AbstractText): LineEdit {
 		const edits = edit.replacements;
 
-		const result: SingleLineEdit[] = [];
+		const result: LineReplacement[] = [];
 
 		const currentEdits: TextReplacement[] = [];
 		for (let i = 0; i < edits.length; i++) {
@@ -42,14 +42,14 @@ export class LineEdit {
 			const singleEdit = TextReplacement.joinReplacements(currentEdits, initialValue);
 			currentEdits.length = 0;
 
-			const singleLineEdit = SingleLineEdit.fromSingleTextEdit(singleEdit, initialValue);
+			const singleLineEdit = LineReplacement.fromSingleTextEdit(singleEdit, initialValue);
 			result.push(singleLineEdit);
 		}
 
 		return new LineEdit(result);
 	}
 
-	public static createFromUnsorted(edits: readonly SingleLineEdit[]): LineEdit {
+	public static createFromUnsorted(edits: readonly LineReplacement[]): LineEdit {
 		const result = edits.slice();
 		result.sort(compareBy(i => i.lineRange.startLineNumber, numberComparator));
 		return new LineEdit(result);
@@ -59,14 +59,18 @@ export class LineEdit {
 		/**
 		 * Have to be sorted by start line number and non-intersecting.
 		*/
-		public readonly edits: readonly SingleLineEdit[]
+		public readonly replacements: readonly LineReplacement[]
 	) {
-		assert(checkAdjacentItems(edits, (i1, i2) => i1.lineRange.endLineNumberExclusive <= i2.lineRange.startLineNumber));
+		assert(checkAdjacentItems(replacements, (i1, i2) => i1.lineRange.endLineNumberExclusive <= i2.lineRange.startLineNumber));
+	}
+
+	public isEmpty(): boolean {
+		return this.replacements.length === 0;
 	}
 
 	public toEdit(initialValue: AbstractText): StringEdit {
 		const edits: StringReplacement[] = [];
-		for (const edit of this.edits) {
+		for (const edit of this.replacements) {
 			const singleEdit = edit.toSingleEdit(initialValue);
 			edits.push(singleEdit);
 		}
@@ -74,17 +78,17 @@ export class LineEdit {
 	}
 
 	public toString(): string {
-		return this.edits.map(e => e.toString()).join(',');
+		return this.replacements.map(e => e.toString()).join(',');
 	}
 
 	public serialize(): SerializedLineEdit {
-		return this.edits.map(e => e.serialize());
+		return this.replacements.map(e => e.serialize());
 	}
 
 	public getNewLineRanges(): LineRange[] {
 		const ranges: LineRange[] = [];
 		let offset = 0;
-		for (const e of this.edits) {
+		for (const e of this.replacements) {
 			ranges.push(LineRange.ofLength(e.lineRange.startLineNumber + offset, e.newLines.length),);
 			offset += e.newLines.length - e.lineRange.length;
 		}
@@ -93,7 +97,7 @@ export class LineEdit {
 
 	public mapLineNumber(lineNumber: number): number {
 		let lineDelta = 0;
-		for (const e of this.edits) {
+		for (const e of this.replacements) {
 			if (e.lineRange.endLineNumberExclusive > lineNumber) {
 				break;
 			}
@@ -110,9 +114,20 @@ export class LineEdit {
 		);
 	}
 
+
+	/** TODO improve, dont require originalLines */
+	public mapBackLineRange(lineRange: LineRange, originalLines: string[]): LineRange {
+		const i = this.inverse(originalLines);
+		return i.mapLineRange(lineRange);
+	}
+
+	public touches(other: LineEdit): boolean {
+		return this.replacements.some(e1 => other.replacements.some(e2 => e1.lineRange.intersect(e2.lineRange)));
+	}
+
 	public rebase(base: LineEdit): LineEdit {
 		return new LineEdit(
-			this.edits.map(e => new SingleLineEdit(base.mapLineRange(e.lineRange), e.newLines)),
+			this.replacements.map(e => new LineReplacement(base.mapLineRange(e.lineRange), e.newLines)),
 		);
 	}
 
@@ -139,7 +154,7 @@ export class LineEdit {
 		let lineDelta = 0;
 		let first = true;
 
-		for (const edits of groupAdjacentBy(this.edits, (e1, e2) => e1.lineRange.distanceToRange(e2.lineRange) <= 5)) {
+		for (const edits of groupAdjacentBy(this.replacements, (e1, e2) => e1.lineRange.distanceToRange(e2.lineRange) <= 5)) {
 			if (!first) {
 				pushSeperator();
 			} else {
@@ -182,7 +197,7 @@ export class LineEdit {
 
 		let currentLineIndex = 0;
 
-		for (const edit of this.edits) {
+		for (const edit of this.replacements) {
 			while (currentLineIndex < edit.lineRange.startLineNumber - 1) {
 				result.push(lines[currentLineIndex]);
 				currentLineIndex++;
@@ -203,20 +218,24 @@ export class LineEdit {
 		return result;
 	}
 
-	public toSingleEdit() {
-
+	public inverse(originalLines: string[]): LineEdit {
+		const newRanges = this.getNewLineRanges();
+		return new LineEdit(this.replacements.map((e, idx) => new LineReplacement(
+			newRanges[idx],
+			originalLines.slice(e.lineRange.startLineNumber - 1, e.lineRange.endLineNumberExclusive - 1),
+		)));
 	}
 }
 
-export class SingleLineEdit {
-	public static deserialize(e: SerializedSingleLineEdit): SingleLineEdit {
-		return new SingleLineEdit(
+export class LineReplacement {
+	public static deserialize(e: SerializedLineReplacement): LineReplacement {
+		return new LineReplacement(
 			LineRange.ofLength(e[0], e[1] - e[0]),
 			e[2],
 		);
 	}
 
-	public static fromSingleTextEdit(edit: TextReplacement, initialValue: AbstractText): SingleLineEdit {
+	public static fromSingleTextEdit(edit: TextReplacement, initialValue: AbstractText): LineReplacement {
 		// 1: ab[cde
 		// 2: fghijk
 		// 3: lmn]opq
@@ -262,7 +281,7 @@ export class SingleLineEdit {
 			newLines.pop();
 		}
 
-		return new SingleLineEdit(new LineRange(startLineNumber, endLineNumberEx), newLines);
+		return new LineReplacement(new LineRange(startLineNumber, endLineNumberEx), newLines);
 	}
 
 	constructor(
@@ -335,7 +354,7 @@ export class SingleLineEdit {
 		return `${this.lineRange}->${JSON.stringify(this.newLines)}`;
 	}
 
-	public serialize(): SerializedSingleLineEdit {
+	public serialize(): SerializedLineReplacement {
 		return [
 			this.lineRange.startLineNumber,
 			this.lineRange.endLineNumberExclusive,
@@ -343,7 +362,7 @@ export class SingleLineEdit {
 		];
 	}
 
-	public removeCommonSuffixPrefixLines(initialValue: AbstractText): SingleLineEdit {
+	public removeCommonSuffixPrefixLines(initialValue: AbstractText): LineReplacement {
 		let startLineNumber = this.lineRange.startLineNumber;
 		let endLineNumberEx = this.lineRange.endLineNumberExclusive;
 
@@ -368,7 +387,7 @@ export class SingleLineEdit {
 		if (trimStartCount === 0 && trimEndCount === 0) {
 			return this;
 		}
-		return new SingleLineEdit(new LineRange(startLineNumber, endLineNumberEx), this.newLines.slice(trimStartCount, this.newLines.length - trimEndCount));
+		return new LineReplacement(new LineRange(startLineNumber, endLineNumberEx), this.newLines.slice(trimStartCount, this.newLines.length - trimEndCount));
 	}
 
 	public toLineEdit(): LineEdit {
@@ -376,5 +395,18 @@ export class SingleLineEdit {
 	}
 }
 
-export type SerializedLineEdit = SerializedSingleLineEdit[];
-export type SerializedSingleLineEdit = [startLineNumber: number, endLineNumber: number, newLines: readonly string[]];
+export type SerializedLineEdit = SerializedLineReplacement[];
+export type SerializedLineReplacement = [startLineNumber: number, endLineNumber: number, newLines: readonly string[]];
+
+export namespace SerializedLineReplacement {
+	export function is(thing: unknown): thing is SerializedLineReplacement {
+		return (
+			Array.isArray(thing)
+			&& thing.length === 3
+			&& typeof thing[0] === 'number'
+			&& typeof thing[1] === 'number'
+			&& Array.isArray(thing[2])
+			&& thing[2].every((e: any) => typeof e === 'string')
+		);
+	}
+}

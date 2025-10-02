@@ -3,41 +3,45 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from '../../../../nls.js';
-import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { getWindowId } from '../../../../base/browser/dom.js';
 import { List } from '../../../../base/browser/ui/list/listWidget.js';
-import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { IListService } from '../../../../platform/list/browser/listService.js';
-import { IDebugService, IEnablement, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_VARIABLES_FOCUSED, EDITOR_CONTRIBUTION_ID, IDebugEditorContribution, CONTEXT_IN_DEBUG_MODE, CONTEXT_EXPRESSION_SELECTED, IConfig, IStackFrame, IThread, IDebugSession, CONTEXT_DEBUG_STATE, IDebugConfiguration, CONTEXT_JUMP_TO_CURSOR_SUPPORTED, REPL_VIEW_ID, CONTEXT_DEBUGGERS_AVAILABLE, State, getStateLabel, CONTEXT_BREAKPOINT_INPUT_FOCUSED, CONTEXT_FOCUSED_SESSION_IS_ATTACH, VIEWLET_ID, CONTEXT_DISASSEMBLY_VIEW_FOCUS, CONTEXT_IN_DEBUG_REPL, CONTEXT_STEP_INTO_TARGETS_SUPPORTED, isFrameDeemphasized } from '../common/debug.js';
-import { Expression, Variable, Breakpoint, FunctionBreakpoint, DataBreakpoint, Thread } from '../common/debugModel.js';
-import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
-import { ICodeEditor, isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
-import { MenuRegistry, MenuId, Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
-import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { openBreakpointSource } from './breakpointsView.js';
-import { INotificationService } from '../../../../platform/notification/common/notification.js';
-import { InputFocusedContext } from '../../../../platform/contextkey/common/contextkeys.js';
-import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
-import { ActiveEditorContext, PanelFocusContext, ResourceContextKey } from '../../../common/contextkeys.js';
-import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
-import { ITextResourcePropertiesService } from '../../../../editor/common/services/textResourceConfiguration.js';
-import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
-import { ViewContainerLocation } from '../../../common/views.js';
-import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { mainWindow } from '../../../../base/browser/window.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { deepClone } from '../../../../base/common/objects.js';
 import { isWeb, isWindows } from '../../../../base/common/platform.js';
-import { saveAllBeforeDebugStart } from '../common/debugUtils.js';
-import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
-import { showLoadedScriptMenu } from '../common/loadedScriptsPicker.js';
-import { showDebugSessionMenu } from './debugSessionPicker.js';
-import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
+import { ICodeEditor, isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
+import { ITextResourcePropertiesService } from '../../../../editor/common/services/textResourceConfiguration.js';
+import * as nls from '../../../../nls.js';
 import { ILocalizedString } from '../../../../platform/action/common/action.js';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { InputFocusedContext } from '../../../../platform/contextkey/common/contextkeys.js';
+import { IExtensionHostDebugService } from '../../../../platform/debug/common/extensionHostDebug.js';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IListService } from '../../../../platform/list/browser/listService.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { ActiveEditorContext, PanelFocusContext, ResourceContextKey } from '../../../common/contextkeys.js';
+import { ViewContainerLocation } from '../../../common/views.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
+import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
+import { CONTEXT_BREAKPOINT_INPUT_FOCUSED, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_DEBUG_STATE, CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DISASSEMBLY_VIEW_FOCUS, CONTEXT_EXPRESSION_SELECTED, CONTEXT_FOCUSED_SESSION_IS_ATTACH, CONTEXT_IN_DEBUG_MODE, CONTEXT_IN_DEBUG_REPL, CONTEXT_JUMP_TO_CURSOR_SUPPORTED, CONTEXT_STEP_INTO_TARGETS_SUPPORTED, CONTEXT_VARIABLES_FOCUSED, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, DataBreakpointSetType, EDITOR_CONTRIBUTION_ID, getStateLabel, IConfig, IDataBreakpointInfoResponse, IDebugConfiguration, IDebugEditorContribution, IDebugService, IDebugSession, IEnablement, IExceptionBreakpoint, isFrameDeemphasized, IStackFrame, IThread, REPL_VIEW_ID, State, VIEWLET_ID } from '../common/debug.js';
+import { Breakpoint, DataBreakpoint, Expression, FunctionBreakpoint, Thread, Variable } from '../common/debugModel.js';
+import { saveAllBeforeDebugStart } from '../common/debugUtils.js';
+import { showLoadedScriptMenu } from '../common/loadedScriptsPicker.js';
+import { openBreakpointSource } from './breakpointsView.js';
+import { showDebugSessionMenu } from './debugSessionPicker.js';
 
 export const ADD_CONFIGURATION_ID = 'debug.addConfiguration';
 export const COPY_ADDRESS_ID = 'editor.debug.action.copyAddress';
@@ -81,6 +85,11 @@ export const CALLSTACK_DOWN_ID = 'workbench.action.debug.callStackDown';
 export const ADD_TO_WATCH_ID = 'debug.addToWatchExpressions';
 export const COPY_EVALUATE_PATH_ID = 'debug.copyEvaluatePath';
 export const COPY_VALUE_ID = 'workbench.debug.viewlet.action.copyValue';
+export const BREAK_WHEN_VALUE_CHANGES_ID = 'debug.breakWhenValueChanges';
+export const BREAK_WHEN_VALUE_IS_ACCESSED_ID = 'debug.breakWhenValueIsAccessed';
+export const BREAK_WHEN_VALUE_IS_READ_ID = 'debug.breakWhenValueIsRead';
+export const TOGGLE_EXCEPTION_BREAKPOINTS_ID = 'debug.toggleExceptionBreakpoints';
+export const ATTACH_TO_CURRENT_CODE_RENDERER = 'debug.attachToCurrentCodeRenderer';
 
 export const DEBUG_COMMAND_CATEGORY: ILocalizedString = nls.localize2('debug', 'Debug');
 export const RESTART_LABEL = nls.localize2('restartDebug', "Restart");
@@ -115,6 +124,12 @@ export const SELECT_DEBUG_SESSION_LABEL = nls.localize2('selectDebugSession', "S
 
 export const DEBUG_QUICK_ACCESS_PREFIX = 'debug ';
 export const DEBUG_CONSOLE_QUICK_ACCESS_PREFIX = 'debug consoles ';
+
+let dataBreakpointInfoResponse: IDataBreakpointInfoResponse | undefined;
+
+export function setDataBreakpointInfoResponse(resp: IDataBreakpointInfoResponse | undefined) {
+	dataBreakpointInfoResponse = resp;
+}
 
 interface CallStackContext {
 	sessionId: string;
@@ -902,6 +917,36 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
+CommandsRegistry.registerCommand({
+	id: BREAK_WHEN_VALUE_CHANGES_ID,
+	handler: async (accessor: ServicesAccessor) => {
+		const debugService = accessor.get(IDebugService);
+		if (dataBreakpointInfoResponse) {
+			await debugService.addDataBreakpoint({ description: dataBreakpointInfoResponse.description, src: { type: DataBreakpointSetType.Variable, dataId: dataBreakpointInfoResponse.dataId! }, canPersist: !!dataBreakpointInfoResponse.canPersist, accessTypes: dataBreakpointInfoResponse.accessTypes, accessType: 'write' });
+		}
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: BREAK_WHEN_VALUE_IS_ACCESSED_ID,
+	handler: async (accessor: ServicesAccessor) => {
+		const debugService = accessor.get(IDebugService);
+		if (dataBreakpointInfoResponse) {
+			await debugService.addDataBreakpoint({ description: dataBreakpointInfoResponse.description, src: { type: DataBreakpointSetType.Variable, dataId: dataBreakpointInfoResponse.dataId! }, canPersist: !!dataBreakpointInfoResponse.canPersist, accessTypes: dataBreakpointInfoResponse.accessTypes, accessType: 'readWrite' });
+		}
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: BREAK_WHEN_VALUE_IS_READ_ID,
+	handler: async (accessor: ServicesAccessor) => {
+		const debugService = accessor.get(IDebugService);
+		if (dataBreakpointInfoResponse) {
+			await debugService.addDataBreakpoint({ description: dataBreakpointInfoResponse.description, src: { type: DataBreakpointSetType.Variable, dataId: dataBreakpointInfoResponse.dataId! }, canPersist: !!dataBreakpointInfoResponse.canPersist, accessTypes: dataBreakpointInfoResponse.accessTypes, accessType: 'read' });
+		}
+	}
+});
+
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'debug.removeBreakpoint',
 	weight: KeybindingWeight.WorkbenchContrib,
@@ -1035,6 +1080,90 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
+registerAction2(class ToggleExceptionBreakpointsAction extends Action2 {
+	constructor() {
+		super({
+			id: TOGGLE_EXCEPTION_BREAKPOINTS_ID,
+			title: nls.localize2('toggleExceptionBreakpoints', "Toggle Exception Breakpoints"),
+			category: DEBUG_COMMAND_CATEGORY,
+			f1: true,
+			precondition: CONTEXT_DEBUGGERS_AVAILABLE
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const debugService = accessor.get(IDebugService);
+		const quickInputService = accessor.get(IQuickInputService);
+
+		// Get the focused session or the first available session
+		const debugModel = debugService.getModel();
+		const session = debugService.getViewModel().focusedSession || debugModel.getSessions()[0];
+		const exceptionBreakpoints = session ? debugModel.getExceptionBreakpointsForSession(session.getId()) : debugModel.getExceptionBreakpoints();
+		if (exceptionBreakpoints.length === 0) {
+			return;
+		}
+
+		// If only one exception breakpoint type, toggle it directly
+		if (exceptionBreakpoints.length === 1) {
+			const breakpoint = exceptionBreakpoints[0];
+			await debugService.enableOrDisableBreakpoints(!breakpoint.enabled, breakpoint);
+			return;
+		}
+
+		// Multiple exception breakpoint types - show quickpick for selection
+		interface IExceptionBreakpointItem extends IQuickPickItem {
+			breakpoint: IExceptionBreakpoint;
+		}
+
+		const disposables = new DisposableStore();
+		const quickPick = disposables.add(quickInputService.createQuickPick<IExceptionBreakpointItem>());
+		quickPick.placeholder = nls.localize('selectExceptionBreakpointsPlaceholder', "Pick enabled exception breakpoints");
+		quickPick.canSelectMany = true;
+		quickPick.matchOnDescription = true;
+		quickPick.matchOnDetail = true;
+
+		// Create quickpick items from exception breakpoints
+		quickPick.items = exceptionBreakpoints.map(bp => ({
+			label: bp.label,
+			description: bp.description,
+			picked: bp.enabled,
+			breakpoint: bp
+		}));
+
+		quickPick.selectedItems = quickPick.items.filter(item => item.picked);
+
+		disposables.add(quickPick.onDidAccept(() => {
+			const selectedItems = quickPick.selectedItems;
+			const toEnable: IExceptionBreakpoint[] = [];
+			const toDisable: IExceptionBreakpoint[] = [];
+
+			// Determine which breakpoints need to be toggled
+			for (const bp of exceptionBreakpoints) {
+				const isSelected = selectedItems.some(item => item.breakpoint === bp);
+				if (isSelected && !bp.enabled) {
+					toEnable.push(bp);
+				} else if (!isSelected && bp.enabled) {
+					toDisable.push(bp);
+				}
+			}
+
+			// Toggle the breakpoints
+			const promises: Promise<void>[] = [];
+			for (const bp of toEnable) {
+				promises.push(debugService.enableOrDisableBreakpoints(true, bp));
+			}
+			for (const bp of toDisable) {
+				promises.push(debugService.enableOrDisableBreakpoints(false, bp));
+			}
+
+			Promise.all(promises).then(() => disposables.dispose());
+		}));
+
+		disposables.add(quickPick.onDidHide(() => disposables.dispose()));
+		quickPick.show();
+	}
+});
+
 // When there are no debug extensions, open the debug viewlet when F5 is pressed so the user can read the limitations
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'debug.openView',
@@ -1045,5 +1174,27 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: async (accessor) => {
 		const paneCompositeService = accessor.get(IPaneCompositePartService);
 		await paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true);
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: ATTACH_TO_CURRENT_CODE_RENDERER,
+			title: nls.localize2('attachToCurrentCodeRenderer', "Attach to Current Code Renderer"),
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<any> {
+		const env = accessor.get(IEnvironmentService);
+		if (!env.isExtensionDevelopment && !env.extensionTestsLocationURI) {
+			throw new Error('Refusing to attach to renderer outside of development context');
+		}
+
+		const windowId = getWindowId(mainWindow);
+		const extDebugService = accessor.get(IExtensionHostDebugService);
+		const result = await extDebugService.attachToCurrentWindowRenderer(windowId);
+
+		return result;
 	}
 });

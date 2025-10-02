@@ -5,8 +5,9 @@
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, observableFromEvent } from '../../../../base/common/observable.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { URI } from '../../../../base/common/uri.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IDataChannelService } from '../../../../platform/dataChannel/common/dataChannel.js';
 
 export interface IRecordableLogEntry {
 	sourceId: string;
@@ -14,7 +15,7 @@ export interface IRecordableLogEntry {
 }
 
 export interface IRecordableEditorLogEntry extends IRecordableLogEntry {
-	modelUri: string;
+	modelUri: URI; // This has to be a URI, so that it gets translated automatically in remote scenarios
 	modelVersion: number;
 }
 
@@ -24,7 +25,6 @@ export type LogEntryData = IEventFetchEnd;
 export interface IDocumentEventDataSetChangeReason {
 	sourceId: 'TextModel.setChangeReason';
 	source: 'inlineSuggestion.accept' | 'snippet' | string;
-	detailedSource?: string;
 }
 
 interface IDocumentEventFetchStart {
@@ -53,7 +53,7 @@ interface IFetchResult {
  * The sourceLabel must not contain '@'!
 */
 export function formatRecordableLogEntry<T extends IRecordableLogEntry>(entry: T): string {
-	return entry.sourceId + ' @@ ' + JSON.stringify({ ...entry, sourceId: undefined });
+	return entry.sourceId + ' @@ ' + JSON.stringify({ ...entry, modelUri: (entry as any).modelUri?.toString(), sourceId: undefined });
 }
 
 export class StructuredLogger<T extends IRecordableLogEntry> extends Disposable {
@@ -62,24 +62,24 @@ export class StructuredLogger<T extends IRecordableLogEntry> extends Disposable 
 	}
 
 	public readonly isEnabled;
-	private readonly _contextKeyValue;
+	private readonly _isEnabledContextKeyValue;
 
 	constructor(
-		private readonly _contextKey: string,
+		private readonly _key: string,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@ICommandService private readonly _commandService: ICommandService
+		@IDataChannelService private readonly _dataChannelService: IDataChannelService,
 	) {
 		super();
-		this._contextKeyValue = observableContextKey<string>(this._contextKey, this._contextKeyService).recomputeInitiallyAndOnChange(this._store);
-		this.isEnabled = this._contextKeyValue.map(v => v !== undefined);
+		this._isEnabledContextKeyValue = observableContextKey<boolean>('structuredLogger.enabled:' + this._key, this._contextKeyService).recomputeInitiallyAndOnChange(this._store);
+		this.isEnabled = this._isEnabledContextKeyValue.map(v => v !== undefined);
 	}
 
 	public log(data: T): boolean {
-		const commandId = this._contextKeyValue.get();
-		if (!commandId) {
+		const enabled = this._isEnabledContextKeyValue.get();
+		if (!enabled) {
 			return false;
 		}
-		this._commandService.executeCommand(commandId, data);
+		this._dataChannelService.getDataChannel<T>('structuredLogger:' + this._key).sendData(data);
 		return true;
 	}
 }

@@ -5,7 +5,9 @@
 
 import type { IStringDictionary } from '../../../../../base/common/collections.js';
 import { localize } from '../../../../../nls.js';
-import type { IConfigurationPropertySchema } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { IConfigurationPropertySchema, IConfigurationNode, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
+import product from '../../../../../platform/product/common/product.js';
 import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
 
 export const enum TerminalSuggestSettingId {
@@ -19,6 +21,7 @@ export const enum TerminalSuggestSettingId {
 	CdPath = 'terminal.integrated.suggest.cdPath',
 	InlineSuggestion = 'terminal.integrated.suggest.inlineSuggestion',
 	UpArrowNavigatesHistory = 'terminal.integrated.suggest.upArrowNavigatesHistory',
+	SelectionMode = 'terminal.integrated.suggest.selectionMode',
 }
 
 export const windowsDefaultExecutableExtensions: string[] = [
@@ -52,10 +55,7 @@ export interface ITerminalSuggestConfiguration {
 	suggestOnTriggerCharacters: boolean;
 	runOnEnter: 'never' | 'exactMatch' | 'exactMatchIgnoreExtension' | 'always';
 	windowsExecutableExtensions: { [key: string]: boolean };
-	providers: {
-		'terminal-suggest': boolean;
-		'pwsh-shell-integration': boolean;
-	};
+	providers: { [key: string]: boolean };
 	showStatusBar: boolean;
 	cdPath: 'off' | 'relative' | 'absolute';
 	inlineSuggestion: 'off' | 'alwaysOnTopExceptExactMatch' | 'alwaysOnTop';
@@ -64,9 +64,9 @@ export interface ITerminalSuggestConfiguration {
 export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	[TerminalSuggestSettingId.Enabled]: {
 		restricted: true,
-		markdownDescription: localize('suggest.enabled', "Enables terminal intellisense suggestions (preview) for supported shells ({0}) when {1} is set to {2}.\n\nIf shell integration is installed manually, {3} needs to be set to {4} before calling the shell integration script.", 'PowerShell v7+, zsh, bash, fish', `\`#${TerminalSettingId.ShellIntegrationEnabled}#\``, '`true`', '`VSCODE_SUGGEST`', '`1`'),
+		markdownDescription: localize('suggest.enabled', "Enables terminal intellisense suggestions (preview) for supported shells ({0}) when {1} is set to {2}.", 'PowerShell v7+, zsh, bash, fish', `\`#${TerminalSettingId.ShellIntegrationEnabled}#\``, '`true`'),
 		type: 'boolean',
-		default: false,
+		default: product.quality !== 'stable',
 		tags: ['preview'],
 	},
 	[TerminalSuggestSettingId.Providers]: {
@@ -74,11 +74,6 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 		markdownDescription: localize('suggest.providers', "Providers are enabled by default. Omit them by setting the id of the provider to `false`."),
 		type: 'object',
 		properties: {},
-		default: {
-			'terminal-suggest': true,
-			'pwsh-shell-integration': true,
-			'lsp': true,
-		},
 		tags: ['preview'],
 	},
 	[TerminalSuggestSettingId.QuickSuggestions]: {
@@ -119,15 +114,26 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 	[TerminalSuggestSettingId.RunOnEnter]: {
 		restricted: true,
 		markdownDescription: localize('suggest.runOnEnter', "Controls whether suggestions should run immediately when `Enter` (not `Tab`) is used to accept the result."),
-		enum: ['ignore', 'never', 'exactMatch', 'exactMatchIgnoreExtension', 'always'],
+		enum: ['never', 'exactMatch', 'exactMatchIgnoreExtension', 'always'],
 		markdownEnumDescriptions: [
-			localize('runOnEnter.ignore', "Ignore suggestions and send the enter directly to the shell without completing. This is used as the default value so the suggest widget is as unobtrusive as possible."),
 			localize('runOnEnter.never', "Never run on `Enter`."),
 			localize('runOnEnter.exactMatch', "Run on `Enter` when the suggestion is typed in its entirety."),
 			localize('runOnEnter.exactMatchIgnoreExtension', "Run on `Enter` when the suggestion is typed in its entirety or when a file is typed without its extension included."),
 			localize('runOnEnter.always', "Always run on `Enter`.")
 		],
-		default: 'ignore',
+		default: 'never',
+		tags: ['preview']
+	},
+	[TerminalSuggestSettingId.SelectionMode]: {
+		markdownDescription: localize('terminal.integrated.selectionMode', "Controls how suggestion selection works in the integrated terminal."),
+		type: 'string',
+		enum: ['partial', 'always', 'never'],
+		markdownEnumDescriptions: [
+			localize('terminal.integrated.selectionMode.partial', "Partially select a suggestion when automatically triggering IntelliSense. `Tab` can be used to accept the first suggestion, only after navigating the suggestions via `Down` will `Enter` also accept the active suggestion."),
+			localize('terminal.integrated.selectionMode.always', "Always select a suggestion when automatically triggering IntelliSense. `Enter` or `Tab` can be used to accept the first suggestion."),
+			localize('terminal.integrated.selectionMode.never', "Never select a suggestion when automatically triggering IntelliSense. The list must be navigated via `Down` before `Enter` or `Tab` can be used to accept the active suggestion."),
+		],
+		default: 'partial',
 		tags: ['preview']
 	},
 	[TerminalSuggestSettingId.WindowsExecutableExtensions]: {
@@ -179,6 +185,63 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 		default: true,
 		tags: ['preview']
 	},
+
 };
 
+let terminalSuggestProvidersConfiguration: IConfigurationNode | undefined;
 
+export function registerTerminalSuggestProvidersConfiguration(availableProviders?: string[]) {
+	const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+
+	const oldProvidersConfiguration = terminalSuggestProvidersConfiguration;
+
+	const providersProperties: IStringDictionary<IConfigurationPropertySchema> = {};
+
+	const lspProviderId = 'lsp';
+	const defaultValue: IStringDictionary<boolean> = {
+		[lspProviderId]: product.quality !== 'stable',
+	};
+	providersProperties[lspProviderId] ??= {
+		type: 'boolean',
+		description: localize('suggest.provider.lsp.description', "Enable or disable the LSP-based provider. This enables language server protocol-specific argument completion."),
+		default: product.quality !== 'stable',
+	};
+
+	if (availableProviders) {
+		for (const providerId of availableProviders) {
+			if (providerId in defaultValue) {
+				continue;
+			}
+			providersProperties[providerId] = {
+				type: 'boolean',
+				description: localize('suggest.provider.description', "Whether to enable this provider."),
+				default: true
+			};
+			defaultValue[providerId] = true;
+		}
+	}
+
+	terminalSuggestProvidersConfiguration = {
+		id: 'terminalSuggestProviders',
+		order: 100,
+		title: localize('terminalSuggestProvidersConfigurationTitle', "Terminal Suggest Providers"),
+		type: 'object',
+		properties: {
+			[TerminalSuggestSettingId.Providers]: {
+				restricted: true,
+				markdownDescription: localize('suggest.providers', "Providers are enabled by default. Omit them by setting the id of the provider to `false`."),
+				type: 'object',
+				properties: providersProperties,
+				default: defaultValue,
+				tags: ['preview'],
+			}
+		}
+	};
+
+	registry.updateConfigurations({
+		add: [terminalSuggestProvidersConfiguration],
+		remove: oldProvidersConfiguration ? [oldProvidersConfiguration] : []
+	});
+}
+
+registerTerminalSuggestProvidersConfiguration([]);

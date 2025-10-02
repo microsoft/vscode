@@ -108,7 +108,6 @@ interface WatchEvent {
 
 export default class TypeScriptServiceClient extends Disposable implements ITypeScriptServiceClient {
 
-
 	private readonly _onReady?: { promise: Promise<void>; resolve: () => void; reject: () => void };
 	private _configuration: TypeScriptServiceConfiguration;
 	private readonly pluginPathsProvider: TypeScriptPluginPathsProvider;
@@ -631,6 +630,10 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this.loadingIndicator.reset();
 
 		this.serverState = ServerState.None;
+
+		if (this.isDisposed) {
+			return;
+		}
 
 		if (restart) {
 			const diff = Date.now() - this.lastStart;

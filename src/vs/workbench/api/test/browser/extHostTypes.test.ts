@@ -783,4 +783,21 @@ suite('ExtHostTypes', function () {
 		m.content = 'Hello';
 		assert.deepStrictEqual(m.content, [new types.LanguageModelTextPart('Hello')]);
 	});
+
+	test('LanguageModelToolResultPart2 instanceof LanguageModelToolResultPart', function () {
+		// Test that LanguageModelToolResultPart2 extends LanguageModelToolResultPart for instanceof checks
+		const part1 = new types.LanguageModelToolResultPart('call1', [new types.LanguageModelTextPart('text')]);
+		const part2 = new types.LanguageModelToolResultPart2('call2', [new types.LanguageModelTextPart('text')]);
+
+		// Basic instanceof checks
+		assert.ok(part1 instanceof types.LanguageModelToolResultPart);
+		assert.ok(part2 instanceof types.LanguageModelToolResultPart, 'LanguageModelToolResultPart2 should be instanceof LanguageModelToolResultPart');
+		assert.ok(part2 instanceof types.LanguageModelToolResultPart2);
+
+		// Verify properties are accessible
+		assert.strictEqual(part1.callId, 'call1');
+		assert.strictEqual(part2.callId, 'call2');
+		assert.strictEqual(part1.isError, false);
+		assert.strictEqual(part2.isError, false);
+	});
 });

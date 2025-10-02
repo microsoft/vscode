@@ -5,6 +5,7 @@
 
 import * as cp from 'child_process';
 import * as os from 'os';
+import * as playwright from 'playwright';
 import { IElement, ILocaleInfo, ILocalizedStrings, ILogFile } from './driver';
 import { Logger, measureAndLog } from './logger';
 import { launch as launchPlaywrightBrowser } from './playwrightBrowser';
@@ -14,14 +15,17 @@ import { teardown } from './processes';
 import { Quality } from './application';
 
 export interface LaunchOptions {
+	// Allows you to override the Playwright instance
+	playwright?: typeof playwright;
 	codePath?: string;
 	readonly workspacePath: string;
-	userDataDir: string;
-	readonly extensionsPath: string;
+	userDataDir?: string;
+	readonly extensionsPath?: string;
 	readonly logger: Logger;
 	logsPath: string;
 	crashesPath: string;
 	verbose?: boolean;
+	useInMemorySecretStorage?: boolean;
 	readonly extraArgs?: string[];
 	readonly remote?: boolean;
 	readonly web?: boolean;
@@ -30,6 +34,7 @@ export interface LaunchOptions {
 	readonly headless?: boolean;
 	readonly browser?: 'chromium' | 'webkit' | 'firefox' | 'chromium-msedge' | 'chromium-chrome';
 	readonly quality: Quality;
+	version: { major: number; minor: number; patch: number };
 }
 
 interface ICodeInstance {
@@ -89,7 +94,7 @@ export async function launch(options: LaunchOptions): Promise<Code> {
 		const { serverProcess, driver } = await measureAndLog(() => launchPlaywrightBrowser(options), 'launch playwright (browser)', options.logger);
 		registerInstance(serverProcess, options.logger, 'server');
 
-		return new Code(driver, options.logger, serverProcess, undefined, options.quality);
+		return new Code(driver, options.logger, serverProcess, undefined, options.quality, options.version);
 	}
 
 	// Electron smoke tests (playwright)
@@ -97,7 +102,7 @@ export async function launch(options: LaunchOptions): Promise<Code> {
 		const { electronProcess, driver } = await measureAndLog(() => launchPlaywrightElectron(options), 'launch playwright (electron)', options.logger);
 		const { safeToKill } = registerInstance(electronProcess, options.logger, 'electron');
 
-		return new Code(driver, options.logger, electronProcess, safeToKill, options.quality);
+		return new Code(driver, options.logger, electronProcess, safeToKill, options.quality, options.version);
 	}
 }
 
@@ -110,7 +115,8 @@ export class Code {
 		readonly logger: Logger,
 		private readonly mainProcess: cp.ChildProcess,
 		private readonly safeToKill: Promise<void> | undefined,
-		readonly quality: Quality
+		readonly quality: Quality,
+		readonly version: { major: number; minor: number; patch: number }
 	) {
 		this.driver = new Proxy(driver, {
 			get(target, prop) {
@@ -131,6 +137,10 @@ export class Code {
 		});
 	}
 
+	get editContextEnabled(): boolean {
+		return !(this.quality === Quality.Stable && this.version.major === 1 && this.version.minor < 101);
+	}
+
 	async startTracing(name: string): Promise<void> {
 		return await this.driver.startTracing(name);
 	}
@@ -139,7 +149,20 @@ export class Code {
 		return await this.driver.stopTracing(name, persist);
 	}
 
-	async sendKeybinding(keybinding: string, accept?: () => Promise<void> | void): Promise<void> {
+	/**
+	 * Dispatch a keybinding to the application.
+	 * @param keybinding The keybinding to dispatch, e.g. 'ctrl+shift+p'.
+	 * @param accept The acceptance function to await before returning. Wherever
+	 * possible this should verify that the keybinding did what was expected,
+	 * otherwise it will likely be a cause of difficult to investigate race
+	 * conditions. This is particularly insidious when used in the automation
+	 * library as it can surface across many test suites.
+	 *
+	 * This requires an async function even when there's no implementation to
+	 * force the author to think about the accept callback and prevent mistakes
+	 * like not making it async.
+	 */
+	async dispatchKeybinding(keybinding: string, accept: () => Promise<void>): Promise<void> {
 		await this.driver.sendKeybinding(keybinding, accept);
 	}
 
