@@ -214,6 +214,12 @@ export interface IInstallableMcpServer {
 	readonly inputs?: IMcpServerVariable[];
 }
 
+export type McpServerConfiguration = Omit<IInstallableMcpServer, 'name'>;
+export interface McpServerConfigurationParseResult {
+	readonly mcpServerConfiguration: McpServerConfiguration;
+	readonly notices: string[];
+}
+
 export const IMcpManagementService = createDecorator<IMcpManagementService>('IMcpManagementService');
 export interface IMcpManagementService {
 	readonly _serviceBrand: undefined;
@@ -229,7 +235,7 @@ export interface IMcpManagementService {
 	updateMetadata(local: ILocalMcpServer, server: IGalleryMcpServer, profileLocation?: URI): Promise<ILocalMcpServer>;
 	uninstall(server: ILocalMcpServer, options?: UninstallOptions): Promise<void>;
 
-	getMcpServerConfigurationFromManifest(manifest: IGalleryMcpServerConfiguration, packageType: RegistryType): Omit<IInstallableMcpServer, 'name'>;
+	getMcpServerConfigurationFromManifest(manifest: IGalleryMcpServerConfiguration, packageType: RegistryType): McpServerConfigurationParseResult;
 }
 
 export const IAllowedMcpServersService = createDecorator<IAllowedMcpServersService>('IAllowedMcpServersService');
