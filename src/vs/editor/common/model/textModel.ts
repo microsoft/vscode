@@ -655,7 +655,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 	public getFormattingOptions(): FormattingOptions {
 		return {
-			tabSize: this._options.indentSize,
+			tabSize: this._options.tabSize,
 			insertSpaces: this._options.insertSpaces
 		};
 	}
