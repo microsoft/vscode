@@ -609,7 +609,7 @@ class SetupTool extends Disposable implements IToolImpl {
 		return result;
 	}
 
-	async prepareToolInvocation?(parameters: any, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
+	async prepareToolInvocation?(parameters: unknown, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		return undefined;
 	}
 }

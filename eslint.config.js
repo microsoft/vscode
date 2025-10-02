@@ -173,6 +173,12 @@ export default tseslint.config(
 						'PascalCase'
 					]
 				}
+			],
+			'@typescript-eslint/no-explicit-any': [
+				'warn',
+				{
+					'ignoreRestArgs': false
+				}
 			]
 		}
 	},
