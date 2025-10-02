@@ -16,7 +16,7 @@ async function testHoverFor(value: string, expectedHoverContent: string[], uri =
 
 	const workspace = {
 		settings: {},
-		folders: [{ name: 'x', uri: uri.substr(0, uri.lastIndexOf('/')) }]
+		folders: [{ name: 'x', uri: uri.substring(0, uri.lastIndexOf('/')) }]
 	};
 
 	const document = TextDocument.create(uri, 'html', 0, value);
