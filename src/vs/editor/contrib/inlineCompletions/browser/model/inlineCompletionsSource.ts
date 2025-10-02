@@ -115,8 +115,9 @@ export class InlineCompletionsSource extends Disposable {
 		const result = this._configurationService.getValue<Record<string, boolean>>(enalementSetting);
 		if (!isObject(result)) {
 			this._completionsEnabled = undefined;
+		} else {
+			this._completionsEnabled = result;
 		}
-		this._completionsEnabled = result;
 	}
 
 	public readonly clearOperationOnTextModelChange = derived(this, reader => {
