@@ -79,6 +79,7 @@ export function registerTerminalVoiceActions() {
 			{
 				id: MenuId.ViewTitle,
 				group: 'voice',
+				order: 9,
 				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', TERMINAL_VIEW_ID), TerminalContextKeys.terminalDictationInProgress.toNegated()),
 				isHiddenByDefault: true
 			},
