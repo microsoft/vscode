@@ -1057,6 +1057,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				);
 				dom.append(this.welcomeMessageContainer, this.welcomePart.value.element);
 
+				// Adaptive compression (no hardcoded breakpoints)
+				this.setupAdaptiveWelcomeCompression();
+
 				// Add right-click context menu to the entire welcome container
 				this._register(dom.addDisposableListener(this.welcomeMessageContainer, dom.EventType.CONTEXT_MENU, (e) => {
 					e.preventDefault();
@@ -1079,6 +1082,73 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (numItems === 0) {
 			this.refreshHistoryList();
 		}
+	}
+
+	// --- Adaptive welcome compression (dynamic, measurement-based) -------------------------
+	private _welcomeCompressionRO: ResizeObserver | undefined;
+	private _welcomeCompressionRAF: number | undefined;
+
+	private setupAdaptiveWelcomeCompression(): void {
+		if (this._welcomeCompressionRO) { return; }
+		const container = this.welcomeMessageContainer;
+		if (!container) { return; }
+		const win = dom.getWindow(container);
+
+		const BUFFER = 4; // px tolerance for visual collision
+		const OVERFLOW_TOL = 2; // px tolerance for scroll overflow
+
+		const measureAndApply = () => {
+			// Reset state for fresh measurement
+			container.classList.remove('compress-history');
+			const welcomeView = container.querySelector<HTMLElement>('.chat-welcome-view');
+			if (!welcomeView) { return; }
+			const stageClasses = ['compress-title', 'compress-icon', 'compress-disclaimer', 'compress-message'];
+			stageClasses.forEach(c => welcomeView.classList.remove(c));
+
+			const promptsEl = welcomeView.querySelector<HTMLElement>('.chat-welcome-view-suggested-prompts');
+			const isAgent = !!welcomeView.querySelector('.chat-welcome-view-indicator-container');
+			if (!promptsEl || isAgent) { return; }
+
+			// Helper to test current fit (overlap or overflow or history collision)
+			const fits = () => {
+				const msgBlocks = welcomeView.querySelectorAll<HTMLElement>('.chat-welcome-view-message, .chat-welcome-new-view-message, .chat-welcome-view-disclaimer');
+				let maxBottom = -1;
+				msgBlocks.forEach(el => { const r = el.getBoundingClientRect(); if (r.height > 0) { maxBottom = Math.max(maxBottom, r.bottom); } });
+				if (maxBottom !== -1) {
+					const promptsTop = promptsEl.getBoundingClientRect().top;
+					if (maxBottom + BUFFER > promptsTop) { return false; }
+				}
+				if (container.scrollHeight - container.clientHeight > OVERFLOW_TOL) { return false; }
+				const historyRootLocal = container.querySelector<HTMLElement>('.chat-welcome-history-root:not(.chat-welcome-history-hidden)');
+				if (historyRootLocal) {
+					const hRect = historyRootLocal.getBoundingClientRect();
+					const pRect = promptsEl.getBoundingClientRect();
+					if (hRect.bottom + BUFFER > pRect.top) { return false; }
+				}
+				return true;
+			};
+
+			// Escalate stages in order until layout fits
+			for (const cls of stageClasses) {
+				if (fits()) { break; }
+				welcomeView.classList.add(cls);
+			}
+
+			// After staged compression, if still overflow/history collision, hide history
+			const historyRoot = container.querySelector<HTMLElement>('.chat-welcome-history-root:not(.chat-welcome-history-hidden)');
+			if (historyRoot && !fits()) {
+				container.classList.add('compress-history');
+			}
+		};
+
+		win.requestAnimationFrame(measureAndApply);
+
+		this._welcomeCompressionRO = new ResizeObserver(() => {
+			if (this._welcomeCompressionRAF) { win.cancelAnimationFrame(this._welcomeCompressionRAF); }
+			this._welcomeCompressionRAF = win.requestAnimationFrame(measureAndApply);
+		});
+		this._welcomeCompressionRO.observe(container);
+		this._register({ dispose: () => { this._welcomeCompressionRO?.disconnect(); this._welcomeCompressionRO = undefined; } });
 	}
 
 	private updateEmptyStateWithHistoryContext(): void {

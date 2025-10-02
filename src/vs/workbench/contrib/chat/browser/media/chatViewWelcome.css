@@ -192,7 +192,7 @@ div.chat-welcome-view {
 	flex-wrap: wrap;
 	justify-content: flex-start;
 	gap: 8px;
-	padding: 32px 18px 8px 18px; /* Extra top padding for title */
+	padding: 32px 16px 8px 16px;
 
 	.chat-welcome-view-suggested-prompts-title {
 		position: absolute;
@@ -373,4 +373,18 @@ div.chat-welcome-view {
 .chat-history-item-hover {
 	max-width: 300px;
 	word-wrap: break-word;
+}
+
+.interactive-session .chat-welcome-view-container { /* ensure only once */
+	container-type: size;
+}
+
+.chat-welcome-view.compress-title > .chat-welcome-view-title { display: none; }
+.chat-welcome-view.compress-icon > .chat-welcome-view-icon { display: none; }
+.chat-welcome-view.compress-disclaimer > .chat-welcome-view-disclaimer { display: none; }
+.chat-welcome-view.compress-message > .chat-welcome-view-message,
+.chat-welcome-view.compress-message > .chat-welcome-new-view-message { display: none; }
+
+.chat-welcome-view-container.compress-history > .chat-welcome-history-root:not(.chat-welcome-history-hidden) {
+	display: none;
 }
