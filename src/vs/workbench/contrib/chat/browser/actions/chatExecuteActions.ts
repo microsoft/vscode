@@ -873,7 +873,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 				const historyEntries: IChatAgentHistoryEntry[] = chatRequests
 					.map(req => ({
 						request: {
-							sessionId: sessionId,
+							sessionId,
 							requestId: req.id,
 							agentId: req.response?.agent?.id ?? '',
 							message: req.message.text,
