@@ -396,7 +396,7 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 	protected override updateLabel(): void {
 		this.label.className = 'action-label';
 
-		if (this.compositeBarActionItem.classNames) {
+		if (this.compositeBarActionItem?.classNames) {
 			this.label.classList.add(...this.compositeBarActionItem.classNames);
 		}
 
@@ -404,7 +404,7 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 			this.label.textContent = this.action.label;
 		}
 
-		const hasUriIcon = this.compositeBarActionItem.classNames?.includes('uri-icon');
+		const hasUriIcon = this.compositeBarActionItem?.classNames?.includes('uri-icon');
 		if (hasUriIcon && !this.labelContainer) {
 			this.labelContainer = $('.action-label-hc-container');
 			this.label.replaceWith(this.labelContainer);
