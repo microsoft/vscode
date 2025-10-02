@@ -494,7 +494,6 @@ function mergeAdjacentBidiTokens(lineContent: string, tokens: LinePart[]): LineP
 			// This token contains RTL text
 			// Check if following tokens contain only weak/neutral characters
 			let endIndex = token.endIndex;
-			let mergedMetadata = token.metadata;
 			let j = i + 1;
 
 			while (j < tokens.length) {
@@ -514,7 +513,6 @@ function mergeAdjacentBidiTokens(lineContent: string, tokens: LinePart[]): LineP
 				if (onlyWeakNeutral && !nextToken.containsRTL) {
 					// Merge this token with the RTL token
 					endIndex = nextToken.endIndex;
-					// Preserve metadata from the RTL token
 					j++;
 				} else {
 					// Stop merging
@@ -524,7 +522,8 @@ function mergeAdjacentBidiTokens(lineContent: string, tokens: LinePart[]): LineP
 
 			if (j > i + 1) {
 				// We merged multiple tokens
-				result.push(new LinePart(endIndex, token.type, mergedMetadata, true));
+				// Use the RTL token's type for the merged token
+				result.push(new LinePart(endIndex, token.type, token.metadata, true));
 				i = j;
 			} else {
 				// No merge, just add the token
