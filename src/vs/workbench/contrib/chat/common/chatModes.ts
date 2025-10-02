@@ -99,6 +99,7 @@ export class ChatModeService extends Disposable implements IChatModeService {
 						description: cachedMode.description,
 						tools: cachedMode.customTools,
 						model: cachedMode.model,
+						handoffs: cachedMode.handoffs,
 						modeInstructions: cachedMode.modeInstructions ?? { content: cachedMode.body ?? '', toolReferences: [] },
 						handOffs: cachedMode.handOffs
 					};
@@ -201,10 +202,10 @@ export interface IChatModeData {
 	readonly description?: string;
 	readonly kind: ChatModeKind;
 	readonly customTools?: readonly string[];
-	readonly model?: string;
-	readonly modeInstructions?: IChatModeInstructions;
-	readonly body?: string; /* deprecated */
-	readonly handOffs?: readonly IHandOff[];
+		readonly model?: string;
+		readonly modeInstructions?: IChatModeInstructions;
+		readonly body?: string; /* deprecated */
+		readonly handOffs?: readonly IHandOff[];
 	readonly uri?: URI;
 }
 
@@ -303,9 +304,9 @@ export class CustomChatMode implements IChatMode {
 		this._descriptionObservable = observableValue('description', customChatMode.description);
 		this._customToolsObservable = observableValue('customTools', customChatMode.tools);
 		this._modelObservable = observableValue('model', customChatMode.model);
+		this._handoffsObservable = observableValue('handOffs', customChatMode.handOffs);
 		this._modeInstructions = observableValue('_modeInstructions', customChatMode.modeInstructions);
 		this._uriObservable = observableValue('uri', customChatMode.uri);
-		this._handoffsObservable = observableValue('handoffs', customChatMode.handOffs);
 	}
 
 	/**
@@ -317,6 +318,7 @@ export class CustomChatMode implements IChatMode {
 			this._descriptionObservable.set(newData.description, tx);
 			this._customToolsObservable.set(newData.tools, tx);
 			this._modelObservable.set(newData.model, tx);
+			this._handoffsObservable.set(newData.handOffs, tx);
 			this._modeInstructions.set(newData.modeInstructions, tx);
 			this._uriObservable.set(newData.uri, tx);
 		});
