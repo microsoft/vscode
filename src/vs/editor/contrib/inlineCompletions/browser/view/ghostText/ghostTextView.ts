@@ -135,18 +135,13 @@ export class GhostTextView extends Disposable {
 			});
 
 			// Tokenize additional lines (multi-line ghost text)
-			// We tokenize these lines as if they continue from the original line
+			// Tokenize all additional lines
+			const allAdditionalLinesTokens = syntaxHighlightingEnabled && additionalLines.length > 0
+				? textModel.tokenization.tokenizeLinesAt(ghostText.lineNumber, additionalLines.map(l => l.content))
+				: null;
+			
 			const tokenizedAdditionalLines: LineData[] = additionalLines.map((l, idx) => {
-				let content: LineTokens;
-				if (syntaxHighlightingEnabled) {
-					// For additional lines, tokenize them in sequence starting from the ghost text line
-					// This maintains proper state flow for multi-line completions
-					const linesToTokenize = additionalLines.slice(0, idx + 1).map(line => line.content);
-					const allTokenized = textModel.tokenization.tokenizeLinesAt(ghostText.lineNumber, linesToTokenize);
-					content = allTokenized?.[idx] ?? LineTokens.createEmpty(l.content, this._languageService.languageIdCodec);
-				} else {
-					content = LineTokens.createEmpty(l.content, this._languageService.languageIdCodec);
-				}
+				let content = allAdditionalLinesTokens?.[idx] ?? LineTokens.createEmpty(l.content, this._languageService.languageIdCodec);
 				
 				if (idx === additionalLines.length - 1 && additionalLinesOriginalSuffix) {
 					const t = TokenWithTextArray.fromLineTokens(textModel.tokenization.getLineTokens(additionalLinesOriginalSuffix.lineNumber));
