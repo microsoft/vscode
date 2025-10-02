@@ -501,7 +501,7 @@ export async function showToolsPicker(
 						traverse(item.children);
 					}
 				} else if (isToolTreeItem(item)) {
-					result.set(item.tool, item.checked);
+					result.set(item.tool, item.checked || result.get(item.tool) === true); // tools can be in user tool sets and other buckets
 				}
 			}
 		};

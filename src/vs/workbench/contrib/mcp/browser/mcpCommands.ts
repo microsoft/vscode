@@ -847,7 +847,7 @@ export class McpBrowseCommand extends Action2 {
 			title: localize2('mcp.command.browse', "MCP Servers"),
 			tooltip: localize2('mcp.command.browse.tooltip', "Browse MCP Servers"),
 			category,
-			icon: Codicon.globe,
+			icon: Codicon.search,
 			menu: [{
 				id: extensionsFilterSubMenu,
 				group: '1_predefined',

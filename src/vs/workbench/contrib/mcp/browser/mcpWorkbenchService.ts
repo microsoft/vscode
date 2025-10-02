@@ -713,7 +713,9 @@ export class MCPContextsInitialisation extends Disposable implements IWorkbenchC
 		this._register(mcpGalleryManifestService.onDidChangeMcpGalleryManifestStatus(status => mcpServersGalleryStatus.set(status)));
 
 		const hasInstalledMcpServersContextKey = HasInstalledMcpServersContext.bindTo(contextKeyService);
-		hasInstalledMcpServersContextKey.set(mcpWorkbenchService.local.length > 0);
-		this._register(mcpWorkbenchService.onChange(() => hasInstalledMcpServersContextKey.set(mcpWorkbenchService.local.length > 0)));
+		mcpWorkbenchService.queryLocal().finally(() => {
+			hasInstalledMcpServersContextKey.set(mcpWorkbenchService.local.length > 0);
+			this._register(mcpWorkbenchService.onChange(() => hasInstalledMcpServersContextKey.set(mcpWorkbenchService.local.length > 0)));
+		});
 	}
 }

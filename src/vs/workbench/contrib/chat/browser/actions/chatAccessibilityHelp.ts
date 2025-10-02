@@ -170,7 +170,7 @@ function getChatFocusKeybindingLabel(keybindingService: IKeybindingService, type
 	let kbs;
 	const fallback = ' (unassigned keybinding)';
 	if (focus === 'input') {
-		kbs = keybindingService.lookupKeybindings('workbench.chat.action.focusInput');
+		kbs = keybindingService.lookupKeybindings('workbench.action.chat.focusInput');
 	} else if (focus === 'lastFocused') {
 		kbs = keybindingService.lookupKeybindings('workbench.chat.action.focusLastFocused');
 	} else {
@@ -181,17 +181,17 @@ function getChatFocusKeybindingLabel(keybindingService: IKeybindingService, type
 	}
 	let kb;
 	if (type === 'agentView' || type === 'panelChat') {
-		if (focus) {
-			kb = kbs.find(kb => kb.getAriaLabel()?.includes('DownArrow'))?.getAriaLabel();
-		} else {
+		if (focus !== 'input') {
 			kb = kbs.find(kb => kb.getAriaLabel()?.includes('UpArrow'))?.getAriaLabel();
+		} else {
+			kb = kbs.find(kb => kb.getAriaLabel()?.includes('DownArrow'))?.getAriaLabel();
 		}
 	} else {
 		// Quick chat
-		if (focus) {
-			kb = kbs.find(kb => kb.getAriaLabel()?.includes('UpArrow'))?.getAriaLabel();
-		} else {
+		if (focus !== 'input') {
 			kb = kbs.find(kb => kb.getAriaLabel()?.includes('DownArrow'))?.getAriaLabel();
+		} else {
+			kb = kbs.find(kb => kb.getAriaLabel()?.includes('UpArrow'))?.getAriaLabel();
 		}
 	}
 	return !!kb ? ` (${kb})` : fallback;

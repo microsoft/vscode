@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import * as vscode from 'vscode';
 import { Api, getExtensionApi } from './api';
 import { CommandManager } from './commands/commandManager';
-import { DisableTsgoCommand } from './commands/useTsgo';
+import { DisableTsgoCommand, tsNativeExtensionId } from './commands/useTsgo';
 import { registerBaseCommands } from './commands/index';
 import { ElectronServiceConfigurationProvider } from './configuration/configuration.electron';
 import { ExperimentationTelemetryReporter, IExperimentationTelemetryReporter } from './experimentTelemetryReporter';
@@ -25,7 +25,7 @@ import { onCaseInsensitiveFileSystem } from './utils/fs.electron';
 import { Lazy } from './utils/lazy';
 import { getPackageInfo } from './utils/packageInfo';
 import * as temp from './utils/temp.electron';
-import { conditionalRegistration, requireGlobalConfiguration } from './languageFeatures/util/dependentRegistration';
+import { conditionalRegistration, requireGlobalConfiguration, requireHasVsCodeExtension } from './languageFeatures/util/dependentRegistration';
 import { DisposableStore } from './utils/dispose';
 
 export function activate(
@@ -55,6 +55,7 @@ export function activate(
 
 	context.subscriptions.push(conditionalRegistration([
 		requireGlobalConfiguration('typescript', 'experimental.useTsgo'),
+		requireHasVsCodeExtension(tsNativeExtensionId),
 	], () => {
 		// TSGO. Only register a small set of features that don't use TS Server
 		const disposables = new DisposableStore();
