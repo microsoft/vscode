@@ -48,8 +48,8 @@ export function registerTerminalVoiceActions() {
 				enabled: true
 			};
 
-			const actions = [];
-			let message;
+			const actions: INotificationAction[] = [];
+			let message: string;
 			if (extensionIsDisabled) {
 				message = localize('terminal.voice.enableSpeechExtension', "You must enable the Speech extension to use Dictation in the Terminal.");
 				actions.push({
