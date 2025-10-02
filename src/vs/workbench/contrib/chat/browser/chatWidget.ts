@@ -1146,7 +1146,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this._welcomeCompressionRAF = win.requestAnimationFrame(measureAndApply);
 		});
 		this._welcomeCompressionRO.observe(container);
-		this._register({ dispose: () => { this._welcomeCompressionRO?.disconnect(); this._welcomeCompressionRO = undefined; } });
+		this._register({ dispose: () => {
+			this._welcomeCompressionRO?.disconnect();
+			this._welcomeCompressionRO = undefined;
+			if (this._welcomeCompressionRAF) {
+				win.cancelAnimationFrame(this._welcomeCompressionRAF);
+				this._welcomeCompressionRAF = undefined;
+			}
+		} });
 	}
 
 	private updateEmptyStateWithHistoryContext(): void {
