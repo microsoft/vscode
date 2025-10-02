@@ -54,7 +54,7 @@ export function registerTerminalVoiceActions() {
 			}
 			const detail = localize('terminal.voice.detail', "Microphone support requires this extension.");
 			const confirmed = await dialogService.confirm({ message, primaryButton, type: 'info', detail });
-			if (confirmed.confirmed && run) {
+			if (confirmed.confirmed) {
 				await run();
 			}
 		}
