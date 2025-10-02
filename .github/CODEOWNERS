@@ -29,12 +29,25 @@ src/vs/base/browser/domSanitize.ts @mjbvz
 src/vs/base/parts/sandbox/** @bpasero @deepak1556
 src/vs/base/parts/storage/** @bpasero @deepak1556
 src/vs/platform/backup/** @bpasero
+src/vs/platform/editor/** @bpasero @benibenj
 src/vs/platform/files/** @bpasero @deepak1556
 src/vs/base/node/pfs.ts @bpasero @deepak1556
 src/vs/code/** @bpasero @deepak1556
-src/vs/workbench/contrib/update/browser/releaseNotesEditor.ts @alexr00 @joaomoreno
+src/vs/workbench/services/auxiliaryWindow/** @bpasero
+src/vs/workbench/services/editor/** @bpasero @benibenj
+src/vs/workbench/services/files/** @bpasero
+src/vs/workbench/services/history/** @bpasero
+src/vs/workbench/services/host/** @bpasero
+src/vs/workbench/services/layout/** @bpasero @benibenj
+src/vs/workbench/services/lifecycle/** @bpasero
+src/vs/workbench/services/notification/** @bpasero
+src/vs/workbench/services/untitled/** @bpasero
 src/vs/workbench/services/textfile/** @bpasero
 src/vs/workbench/services/workingCopy/** @bpasero
+src/vs/workbench/common/** @bpasero @benibenj @sandy081
+src/vs/workbench/browser/** @bpasero @benibenj @sandy081
+src/vs/workbench/electron-browser/** @bpasero @benibenj @sandy081
+src/vs/workbench/contrib/update/browser/releaseNotesEditor.ts @alexr00 @joaomoreno
 
 # ensure the API police is aware of changes to the vscode-dts file
 # this is only about the final API, not about proposed API changes
