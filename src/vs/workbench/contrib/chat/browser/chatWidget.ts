@@ -2504,7 +2504,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				}
 			}
 
-			this.chatService.setChatSessionTitle(this.viewModel.sessionId, truncate(requestInputs.input, ChatEditorInputTitleMaxLength));
 			const result = await this.chatService.sendRequest(this.viewModel.sessionId, requestInputs.input, {
 				userSelectedModelId: this.input.currentLanguageModel,
 				location: this.location,
