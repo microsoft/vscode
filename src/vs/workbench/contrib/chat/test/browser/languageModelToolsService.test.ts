@@ -493,7 +493,7 @@ suite('LanguageModelToolsService', () => {
 
 		// Test with some enabled tool
 		{
-			// creating a map my hand is a no-go, we just do it for this test
+			// creating a map by hand is a no-go, we just do it for this test
 			const map = new Map<IToolData | ToolSet, boolean>([[tool1, true], [extTool1, true], [mcpToolSet, true], [mcpTool1, true]]);
 			const qualifiedNames = service.toQualifiedToolNames(map);
 			const expectedQualifiedNames = ['tool1RefName', 'my.extension/extTool1RefName', 'mcpToolSetRefName/*'];
@@ -501,7 +501,7 @@ suite('LanguageModelToolsService', () => {
 		}
 		// Test with user data
 		{
-			// creating a map my hand is a no-go, we just do it for this test
+			// creating a map by hand is a no-go, we just do it for this test
 			const map = new Map<IToolData | ToolSet, boolean>([[tool1, true], [userToolSet, true], [internalToolSet, false], [internalTool, true]]);
 			const qualifiedNames = service.toQualifiedToolNames(map);
 			const expectedQualifiedNames = ['tool1RefName', 'internalToolSetRefName/internalToolSetTool1RefName'];
@@ -509,7 +509,7 @@ suite('LanguageModelToolsService', () => {
 		}
 		// Test with unknown tool and tool set
 		{
-			// creating a map my hand is a no-go, we just do it for this test
+			// creating a map by hand is a no-go, we just do it for this test
 			const map = new Map<IToolData | ToolSet, boolean>([[unknownTool, true], [unknownToolSet, true], [internalToolSet, true], [internalTool, true]]);
 			const qualifiedNames = service.toQualifiedToolNames(map);
 			const expectedQualifiedNames = ['internalToolSetRefName'];
@@ -552,7 +552,7 @@ suite('LanguageModelToolsService', () => {
 			const qualifiedNames = ['tool1RefName'];
 			const result1 = service.toToolAndToolSetEnablementMap(qualifiedNames);
 			assert.strictEqual(result1.size, numOfTools, `Expected ${numOfTools} tools and tool sets`);
-			assert.strictEqual([...result1.entries()].filter(([_, enabled]) => enabled).length, 1, 'Expected 1 tool to be enabled`');
+			assert.strictEqual([...result1.entries()].filter(([_, enabled]) => enabled).length, 1, 'Expected 1 tool to be enabled');
 			assert.strictEqual(result1.get(tool1), true, 'tool1 should be enabled');
 
 			const qualifiedNames1 = service.toQualifiedToolNames(result1);
@@ -564,7 +564,7 @@ suite('LanguageModelToolsService', () => {
 			const qualifiedNames = ['my.extension/extTool1RefName', 'mcpToolSetRefName/*', 'internalToolSetRefName/internalToolSetTool1RefName'];
 			const result1 = service.toToolAndToolSetEnablementMap(qualifiedNames);
 			assert.strictEqual(result1.size, numOfTools, `Expected ${numOfTools} tools and tool sets`);
-			assert.strictEqual([...result1.entries()].filter(([_, enabled]) => enabled).length, 4, 'Expected 4 tools to be enabled`');
+			assert.strictEqual([...result1.entries()].filter(([_, enabled]) => enabled).length, 4, 'Expected 4 tools to be enabled');
 			assert.strictEqual(result1.get(extTool1), true, 'extTool1 should be enabled');
 			assert.strictEqual(result1.get(mcpToolSet), true, 'mcpToolSet should be enabled');
 			assert.strictEqual(result1.get(mcpTool1), true, 'mcpTool1 should be enabled because the set is enabled');
@@ -577,7 +577,7 @@ suite('LanguageModelToolsService', () => {
 		{
 			const result1 = service.toToolAndToolSetEnablementMap(allQualifiedNames);
 			assert.strictEqual(result1.size, numOfTools, `Expected ${numOfTools} tools and tool sets`);
-			assert.strictEqual([...result1.entries()].filter(([_, enabled]) => enabled).length, 8, 'Expected 8 tools to be enabled`');
+			assert.strictEqual([...result1.entries()].filter(([_, enabled]) => enabled).length, 8, 'Expected 8 tools to be enabled');
 
 			const qualifiedNames1 = service.toQualifiedToolNames(result1);
 			const expectedQualifiedNames = ['tool1RefName', 'Tool2 Display Name', 'my.extension/extTool1RefName', 'mcpToolSetRefName/*', 'internalToolSetRefName'];
@@ -588,7 +588,7 @@ suite('LanguageModelToolsService', () => {
 			const qualifiedNames: string[] = [];
 			const result1 = service.toToolAndToolSetEnablementMap(qualifiedNames);
 			assert.strictEqual(result1.size, numOfTools, `Expected ${numOfTools} tools and tool sets`);
-			assert.strictEqual([...result1.entries()].filter(([_, enabled]) => enabled).length, 0, 'Expected 0 tools to be enabled`');
+			assert.strictEqual([...result1.entries()].filter(([_, enabled]) => enabled).length, 0, 'Expected 0 tools to be enabled');
 
 			const qualifiedNames1 = service.toQualifiedToolNames(result1);
 			assert.deepStrictEqual(qualifiedNames1.sort(), qualifiedNames.sort(), 'toQualifiedToolNames should return the original enabled names');
@@ -598,7 +598,7 @@ suite('LanguageModelToolsService', () => {
 			const qualifiedNames: string[] = ['unknownToolRefName'];
 			const result1 = service.toToolAndToolSetEnablementMap(qualifiedNames);
 			assert.strictEqual(result1.size, numOfTools, `Expected ${numOfTools} tools and tool sets`);
-			assert.strictEqual([...result1.entries()].filter(([_, enabled]) => enabled).length, 0, 'Expected 0 tools to be enabled`');
+			assert.strictEqual([...result1.entries()].filter(([_, enabled]) => enabled).length, 0, 'Expected 0 tools to be enabled');
 
 			const qualifiedNames1 = service.toQualifiedToolNames(result1);
 			assert.deepStrictEqual(qualifiedNames1.sort(), [], 'toQualifiedToolNames should return no enabled names');
@@ -608,7 +608,7 @@ suite('LanguageModelToolsService', () => {
 			const qualifiedNames: string[] = ['extTool1RefName', 'mcpToolSetRefName', 'internalToolSetTool1RefName'];
 			const result1 = service.toToolAndToolSetEnablementMap(qualifiedNames);
 			assert.strictEqual(result1.size, numOfTools, `Expected ${numOfTools} tools and tool sets`);
-			assert.strictEqual([...result1.entries()].filter(([_, enabled]) => enabled).length, 4, 'Expected 4 tools to be enabled`');
+			assert.strictEqual([...result1.entries()].filter(([_, enabled]) => enabled).length, 4, 'Expected 4 tools to be enabled');
 			assert.strictEqual(result1.get(extTool1), true, 'extTool1 should be enabled');
 			assert.strictEqual(result1.get(mcpToolSet), true, 'mcpToolSet should be enabled');
 			assert.strictEqual(result1.get(mcpTool1), true, 'mcpTool1 should be enabled because the set is enabled');
@@ -623,7 +623,7 @@ suite('LanguageModelToolsService', () => {
 			const qualifiedNames = ['Tool2 Display Name'];
 			const result1 = service.toToolAndToolSetEnablementMap(qualifiedNames);
 			assert.strictEqual(result1.size, numOfTools, `Expected ${numOfTools} tools and tool sets`);
-			assert.strictEqual([...result1.entries()].filter(([_, enabled]) => enabled).length, 2, 'Expected 1 tool and user tool set to be enabled`');
+			assert.strictEqual([...result1.entries()].filter(([_, enabled]) => enabled).length, 2, 'Expected 1 tool and user tool set to be enabled');
 			assert.strictEqual(result1.get(tool2), true, 'tool2 should be enabled');
 			assert.strictEqual(result1.get(userToolSet), true, 'userToolSet should be enabled');
 
