@@ -28,6 +28,7 @@ import { RenderLineInput, renderViewLine } from '../../../../../common/viewLayou
 import { GhostText, GhostTextReplacement, IGhostTextLine } from '../../model/ghostText.js';
 import { RangeSingleLine } from '../../../../../common/core/ranges/rangeSingleLine.js';
 import { ColumnRange } from '../../../../../common/core/ranges/columnRange.js';
+import { OffsetRange } from '../../../../../common/core/ranges/offsetRange.js';
 import { addDisposableListener, getWindow, isHTMLElement, n } from '../../../../../../base/browser/dom.js';
 import './ghostTextView.css';
 import { IMouseEvent, StandardMouseEvent } from '../../../../../../base/browser/mouseEvent.js';
@@ -108,13 +109,45 @@ export class GhostTextView extends Disposable {
 			const { inlineTexts, additionalLines, hiddenRange, additionalLinesOriginalSuffix } = computeGhostTextViewData(ghostText, textModel, GHOST_TEXT_CLASS_NAME + extraClassNames);
 
 			const currentLine = textModel.getLineContent(ghostText.lineNumber);
-			const edit = new StringEdit(inlineTexts.map(t => StringReplacement.insert(t.column - 1, t.text)));
-			const tokens = syntaxHighlightingEnabled ? textModel.tokenization.tokenizeLinesAt(ghostText.lineNumber, [edit.apply(currentLine), ...additionalLines.map(l => l.content)]) : undefined;
-			const newRanges = edit.getNewRanges();
-			const inlineTextsWithTokens = inlineTexts.map((t, idx) => ({ ...t, tokens: tokens?.[0]?.getTokensInRange(newRanges[idx]) }));
+			
+			// For consistent syntax highlighting, tokenize each inline text segment independently
+			// using the context at its insertion point, rather than tokenizing the full modified line.
+			// This prevents the tokenization from changing based on the content/length of the ghost text.
+			const inlineTextsWithTokens = inlineTexts.map(t => {
+				if (!syntaxHighlightingEnabled) {
+					return { ...t, tokens: undefined };
+				}
+				
+				// Build a line with the text inserted at the correct position
+				// This provides proper tokenization context from the prefix
+				const prefix = currentLine.substring(0, t.column - 1);
+				const lineToTokenize = prefix + t.text;
+				
+				// Tokenize the constructed line
+				const tokenized = textModel.tokenization.tokenizeLinesAt(ghostText.lineNumber, [lineToTokenize]);
+				if (!tokenized?.[0]) {
+					return { ...t, tokens: undefined };
+				}
+				
+				// Extract only the tokens for the inserted text portion
+				const insertedRange = new OffsetRange(prefix.length, lineToTokenize.length);
+				return { ...t, tokens: tokenized[0].getTokensInRange(insertedRange) };
+			});
 
+			// Tokenize additional lines (multi-line ghost text)
+			// We tokenize these lines as if they continue from the original line
 			const tokenizedAdditionalLines: LineData[] = additionalLines.map((l, idx) => {
-				let content = tokens?.[idx + 1] ?? LineTokens.createEmpty(l.content, this._languageService.languageIdCodec);
+				let content: LineTokens;
+				if (syntaxHighlightingEnabled) {
+					// For additional lines, tokenize them in sequence starting from the ghost text line
+					// This maintains proper state flow for multi-line completions
+					const linesToTokenize = additionalLines.slice(0, idx + 1).map(line => line.content);
+					const allTokenized = textModel.tokenization.tokenizeLinesAt(ghostText.lineNumber, linesToTokenize);
+					content = allTokenized?.[idx] ?? LineTokens.createEmpty(l.content, this._languageService.languageIdCodec);
+				} else {
+					content = LineTokens.createEmpty(l.content, this._languageService.languageIdCodec);
+				}
+				
 				if (idx === additionalLines.length - 1 && additionalLinesOriginalSuffix) {
 					const t = TokenWithTextArray.fromLineTokens(textModel.tokenization.getLineTokens(additionalLinesOriginalSuffix.lineNumber));
 					const existingContent = t.slice(additionalLinesOriginalSuffix.columnRange.toZeroBasedOffsetRange());
