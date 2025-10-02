@@ -41,7 +41,7 @@ import { IViewsService } from '../../../../../services/views/common/viewsService
 import { IChatService } from '../../../common/chatService.js';
 import { IChatSessionItemProvider } from '../../../common/chatSessionsService.js';
 import { ChatSessionUri } from '../../../common/chatUri.js';
-import { ChatConfiguration } from '../../../common/constants.js';
+import { ChatConfiguration, ChatEditorInputTitleMaxLength } from '../../../common/constants.js';
 import { IChatWidgetService, ChatViewId } from '../../chat.js';
 import { IChatEditorOptions } from '../../chatEditor.js';
 import { ChatEditorInput } from '../../chatEditorInput.js';
@@ -493,7 +493,7 @@ export class SessionsViewPane extends ViewPane {
 			const options: IChatEditorOptions = {
 				pinned: true,
 				ignoreInView: true,
-				preferredTitle: truncate(session.label, 30),
+				preferredTitle: truncate(session.label, ChatEditorInputTitleMaxLength),
 				preserveFocus: true,
 			};
 			await this.editorService.openEditor({
