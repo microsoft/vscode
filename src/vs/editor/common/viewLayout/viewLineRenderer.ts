@@ -436,6 +436,111 @@ class ResolvedRenderLineInput {
 	}
 }
 
+/**
+ * Determines if a character is a weak or neutral character in the Unicode Bidirectional Algorithm.
+ * These characters don't have a strong directionality and should be included with adjacent RTL text.
+ */
+function isWeakOrNeutralChar(charCode: number): boolean {
+	// Common weak/neutral characters that should be part of RTL runs:
+	// Exclamation mark (!), comma (,), period (.), colon (:), semicolon (;)
+	// Question mark (?), quotes, parentheses, brackets, etc.
+	return (
+		charCode === CharCode.ExclamationMark || // !
+		charCode === CharCode.Comma ||           // ,
+		charCode === CharCode.Period ||          // .
+		charCode === CharCode.Colon ||           // :
+		charCode === CharCode.Semicolon ||       // ;
+		charCode === CharCode.QuestionMark ||    // ?
+		charCode === CharCode.SingleQuote ||     // '
+		charCode === CharCode.DoubleQuote ||     // "
+		charCode === CharCode.OpenParen ||       // (
+		charCode === CharCode.CloseParen ||      // )
+		charCode === CharCode.OpenSquareBracket || // [
+		charCode === CharCode.CloseSquareBracket || // ]
+		charCode === CharCode.OpenCurlyBrace ||  // {
+		charCode === CharCode.CloseCurlyBrace || // }
+		charCode === CharCode.LessThan ||        // <
+		charCode === CharCode.GreaterThan ||     // >
+		charCode === CharCode.Slash ||           // /
+		charCode === CharCode.Backslash ||       // \
+		charCode === CharCode.Pipe ||            // |
+		charCode === CharCode.Dash ||            // -
+		charCode === CharCode.Underline ||       // _
+		charCode === CharCode.Plus ||            // +
+		charCode === CharCode.Equals ||          // =
+		charCode === CharCode.Asterisk ||        // *
+		charCode === CharCode.Ampersand ||       // &
+		charCode === CharCode.AtSign             // @
+	);
+}
+
+/**
+ * Merges adjacent tokens where an RTL token is followed by tokens containing only
+ * weak/neutral characters. This ensures proper bidirectional text rendering by keeping
+ * neutral punctuation marks with the RTL text they follow.
+ */
+function mergeAdjacentBidiTokens(lineContent: string, tokens: LinePart[]): LinePart[] {
+	if (tokens.length <= 1) {
+		return tokens;
+	}
+
+	const result: LinePart[] = [];
+	let i = 0;
+
+	while (i < tokens.length) {
+		const token = tokens[i];
+		
+		if (token.containsRTL) {
+			// This token contains RTL text
+			// Check if following tokens contain only weak/neutral characters
+			let endIndex = token.endIndex;
+			let mergedMetadata = token.metadata;
+			let j = i + 1;
+
+			while (j < tokens.length) {
+				const nextToken = tokens[j];
+				const nextTokenStart = (j > 0 ? tokens[j - 1].endIndex : 0);
+				const nextTokenContent = lineContent.substring(nextTokenStart, nextToken.endIndex);
+
+				// Check if this token contains only weak/neutral characters
+				let onlyWeakNeutral = nextTokenContent.length > 0;
+				for (let k = 0; k < nextTokenContent.length; k++) {
+					if (!isWeakOrNeutralChar(nextTokenContent.charCodeAt(k))) {
+						onlyWeakNeutral = false;
+						break;
+					}
+				}
+
+				if (onlyWeakNeutral && !nextToken.containsRTL) {
+					// Merge this token with the RTL token
+					endIndex = nextToken.endIndex;
+					// Preserve metadata from the RTL token
+					j++;
+				} else {
+					// Stop merging
+					break;
+				}
+			}
+
+			if (j > i + 1) {
+				// We merged multiple tokens
+				result.push(new LinePart(endIndex, token.type, mergedMetadata, true));
+				i = j;
+			} else {
+				// No merge, just add the token
+				result.push(token);
+				i++;
+			}
+		} else {
+			// Not an RTL token, just add it
+			result.push(token);
+			i++;
+		}
+	}
+
+	return result;
+}
+
 function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput {
 	const lineContent = input.lineContent;
 
@@ -458,6 +563,11 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 		// Calling `extractControlCharacters` before adding (possibly empty) line parts
 		// for inline decorations. `extractControlCharacters` removes empty line parts.
 		tokens = extractControlCharacters(lineContent, tokens);
+	}
+	if (input.containsRTL) {
+		// Merge tokens where an RTL token is followed by neutral/weak punctuation
+		// to ensure proper bidirectional rendering
+		tokens = mergeAdjacentBidiTokens(lineContent, tokens);
 	}
 	if (input.renderWhitespace === RenderWhitespace.All ||
 		input.renderWhitespace === RenderWhitespace.Boundary ||
