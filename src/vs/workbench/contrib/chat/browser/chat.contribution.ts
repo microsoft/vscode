@@ -650,7 +650,7 @@ configurationRegistry.registerConfiguration({
 					enum: ['default', 'off', 'chat-input'],
 					enumDescriptions: [
 						nls.localize('chat.agent.todoList.position.default', "Show todo list widget in the default position at the top of the chat panel."),
-						nls.localize('chat.agent.todoList.position.off', "Hide the todo list widget."),
+						nls.localize('chat.agent.todoList.position.off', "Hide the todo list (still shows the tool calls for tracking todo progress)."),
 						nls.localize('chat.agent.todoList.position.chatInput', "Show todo list widget near the chat input.")
 					],
 					description: nls.localize('chat.agent.todoList.position', "Controls the position of the todo list widget in chat.")
