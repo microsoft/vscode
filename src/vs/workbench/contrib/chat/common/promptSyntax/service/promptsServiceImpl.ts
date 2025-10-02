@@ -351,7 +351,7 @@ export class ChatModeUpdateTracker extends Disposable {
 		const trigger = () => delayer.trigger(() => this.onDidChatModeModelChange.fire());
 
 		const filesUpdatedEventRegistration = this._register(fileLocator.createFilesUpdatedEvent(PromptsType.mode));
-		filesUpdatedEventRegistration.event(() => trigger());
+		this._register(filesUpdatedEventRegistration.event(() => trigger()));
 
 		const onAdd = (model: ITextModel) => {
 			if (model.getLanguageId() === MODE_LANGUAGE_ID) {
