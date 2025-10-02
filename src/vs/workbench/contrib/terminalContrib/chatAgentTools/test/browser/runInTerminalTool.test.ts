@@ -270,7 +270,11 @@ suite('RunInTerminalTool', () => {
 			'cat `which ls`',
 			'echo ${HOME}',
 			'ls {a,b,c}',
-			'echo (Get-Date)'
+			'echo (Get-Date)',
+
+			// Dangerous patterns - multi-line
+			'echo "{\n}"',
+			'echo @"\n{\n}"@',
 		];
 
 		suite('auto approved', () => {
