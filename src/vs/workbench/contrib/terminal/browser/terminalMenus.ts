@@ -784,6 +784,7 @@ export function getTerminalActionBarArgs(location: ITerminalLocationOptions, pro
 	className: string;
 	dropdownIcon?: string;
 } {
+	//
 	const dropdownActions: IAction[] = [];
 	const submenuActions: IAction[] = [];
 	const splitLocation = (location === TerminalLocation.Editor || (typeof location === 'object' && 'viewColumn' in location && location.viewColumn === ACTIVE_GROUP)) ? { viewColumn: SIDE_GROUP } : { splitActiveTerminal: true };
