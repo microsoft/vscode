@@ -279,7 +279,7 @@ export interface IChatElicitationRequest {
 	accept(value: IAction | true): Promise<void>;
 	reject?: () => Promise<void>;
 	isHidden?: IObservable<boolean>;
-	hide?: () => void;
+	hide?(): void;
 }
 
 export interface IChatThinkingPart {

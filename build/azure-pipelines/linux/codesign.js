@@ -11,8 +11,8 @@ async function main() {
     // Start the code sign processes in parallel
     // 1. Codesign deb package
     // 2. Codesign rpm package
-    const codesignTask1 = (0, codesign_1.spawnCodesignProcess)(esrpCliDLLPath, 'sign-pgp', '.build/linux/deb', '*.deb');
-    const codesignTask2 = (0, codesign_1.spawnCodesignProcess)(esrpCliDLLPath, 'sign-pgp', '.build/linux/rpm', '*.rpm');
+    const codesignTask1 = (0, codesign_1.spawnCodesignProcess)(esrpCliDLLPath, 'sign-pgp', '.build/linux/out/deb', '*.deb');
+    const codesignTask2 = (0, codesign_1.spawnCodesignProcess)(esrpCliDLLPath, 'sign-pgp', '.build/linux/out/rpm', '*.rpm');
     // Codesign deb package
     (0, codesign_1.printBanner)('Codesign deb package');
     await (0, codesign_1.streamProcessOutputAndCheckResult)('Codesign deb package', codesignTask1);

@@ -205,6 +205,7 @@ export class EditDeltaInfo {
 		return new EditDeltaInfo(linesAdded, 0, charsAdded, 0);
 	}
 
+	/** @internal */
 	public static fromEdit(edit: BaseStringEdit, originalString: StringText): EditDeltaInfo {
 		const lineEdit = LineEdit.fromStringEdit(edit, originalString);
 		const linesAdded = sumBy(lineEdit.replacements, r => r.newLines.length);

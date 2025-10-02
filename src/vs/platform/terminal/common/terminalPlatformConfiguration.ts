@@ -83,7 +83,7 @@ const terminalAutomationProfileSchema: IJSONSchema = {
 	required: ['path'],
 	properties: {
 		path: {
-			description: localize('terminalAutomationProfile.path', 'A single path to a shell executable.'),
+			description: localize('terminalAutomationProfile.path', 'A path to a shell executable.'),
 			type: ['string'],
 			items: {
 				type: 'string'

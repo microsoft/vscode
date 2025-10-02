@@ -127,7 +127,7 @@ suite('PromptValidator', () => {
 				markers.map(m => ({ severity: m.severity, message: m.message })),
 				[
 					{ severity: MarkerSeverity.Error, message: "The 'description' attribute should not be empty." },
-					{ severity: MarkerSeverity.Error, message: "Unknown tool 'tool4'." },
+					{ severity: MarkerSeverity.Warning, message: "Unknown tool 'tool4'." },
 					{ severity: MarkerSeverity.Warning, message: "Unknown model 'MAE 4.2'." },
 				]
 			);
@@ -172,7 +172,7 @@ suite('PromptValidator', () => {
 			assert.deepStrictEqual(
 				markers.map(m => ({ severity: m.severity, message: m.message })),
 				[
-					{ severity: MarkerSeverity.Warning, message: "Tool or toolset 'tool3' is deprecated, use 'my.extension/tool3' instead." },
+					{ severity: MarkerSeverity.Info, message: "Tool or toolset 'tool3' has been renamed, use 'my.extension/tool3' instead." },
 				]
 			);
 		});
@@ -357,7 +357,7 @@ suite('PromptValidator', () => {
 			].join('\n');
 			const markers = await validate(content, PromptsType.prompt);
 			assert.strictEqual(markers.length, 1, 'Expected one warning for unknown tool variable');
-			assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
 			assert.strictEqual(markers[0].message, "Unknown tool or toolset 'toolX'.");
 		});
 

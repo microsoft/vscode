@@ -230,6 +230,10 @@ export class VariablesView extends ViewPane implements IDebugViewWithVariables {
 			return !!e.treeItem.canEdit;
 		}
 
+		if (!session.capabilities?.supportsSetVariable && !session.capabilities?.supportsSetExpression) {
+			return false;
+		}
+
 		return e instanceof Variable && !e.presentationHint?.attributes?.includes('readOnly') && !e.presentationHint?.lazy;
 	}
 

@@ -9,7 +9,9 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IChatTodoListService, IChatTodo } from '../../common/chatTodoListService.js';
+import { TodoListToolDescriptionFieldSettingId } from '../../common/tools/manageTodoListTool.js';
 
 export class ChatTodoListWidget extends Disposable {
 	public readonly domNode: HTMLElement;
@@ -27,7 +29,8 @@ export class ChatTodoListWidget extends Disposable {
 	private _userHasScrolledManually: boolean = false;
 
 	constructor(
-		@IChatTodoListService private readonly chatTodoListService: IChatTodoListService
+		@IChatTodoListService private readonly chatTodoListService: IChatTodoListService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 
@@ -190,8 +193,9 @@ export class ChatTodoListWidget extends Disposable {
 			todoElement.setAttribute('role', 'listitem');
 			todoElement.setAttribute('tabindex', '0');
 
-			// Add tooltip if description exists
-			if (todo.description && todo.description.trim()) {
+			// Add tooltip if description exists and description field is enabled
+			const includeDescription = this.configurationService.getValue<boolean>(TodoListToolDescriptionFieldSettingId) !== false;
+			if (includeDescription && todo.description && todo.description.trim()) {
 				todoElement.title = todo.description;
 			}
 
@@ -219,7 +223,7 @@ export class ChatTodoListWidget extends Disposable {
 			todoContent.appendChild(titleElement);
 			todoContent.appendChild(statusElement);
 
-			const ariaLabel = todo.description && todo.description.trim()
+			const ariaLabel = includeDescription && todo.description && todo.description.trim()
 				? localize('chat.todoList.itemWithDescription', '{0}, {1}, {2}', todo.title, statusText, todo.description)
 				: localize('chat.todoList.item', '{0}, {1}', todo.title, statusText);
 			todoElement.setAttribute('aria-label', ariaLabel);
@@ -397,7 +401,8 @@ export class ChatTodoListWidget extends Disposable {
 				completedText.style.verticalAlign = 'middle';
 				titleElement.appendChild(completedText);
 			}
-			if (currentTodo && currentTodo.description && currentTodo.description.trim()) {
+			const includeDescription = this.configurationService.getValue<boolean>(TodoListToolDescriptionFieldSettingId) !== false;
+			if (includeDescription && currentTodo && currentTodo.description && currentTodo.description.trim()) {
 				title = currentTodo.description;
 			}
 		}

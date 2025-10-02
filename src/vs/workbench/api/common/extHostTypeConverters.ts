@@ -43,7 +43,7 @@ import { IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/c
 import { IChatRequestDraft } from '../../contrib/chat/common/chatEditingService.js';
 import { IChatRequestModeInstructions } from '../../contrib/chat/common/chatModel.js';
 import { IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatMoveMessage, IChatMultiDiffData, IChatPrepareToolInvocationPart, IChatProgressMessage, IChatPullRequestContent, IChatResponseCodeblockUriPart, IChatTaskDto, IChatTaskResult, IChatTextEdit, IChatThinkingPart, IChatToolInvocationSerialized, IChatTreeData, IChatUserActionEvent, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
-import { IChatRequestVariableEntry, isImageVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry } from '../../contrib/chat/common/chatVariableEntries.js';
+import { ChatRequestToolReferenceEntry, IChatRequestVariableEntry, isImageVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry } from '../../contrib/chat/common/chatVariableEntries.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { IToolResult, IToolResultInputOutputDetails, IToolResultOutputDetails, ToolDataSource } from '../../contrib/chat/common/languageModelToolsService.js';
 import * as chatProvider from '../../contrib/chat/common/languageModels.js';
@@ -3234,7 +3234,9 @@ export namespace ChatPromptReference {
 		}
 		let toolReferences;
 		if (isPromptFileVariableEntry(variable) || isPromptTextVariableEntry(variable)) {
-			toolReferences = variable.toolReferences?.map(ref => ChatLanguageModelToolReference.to(ref));
+			if (variable.toolReferences) {
+				toolReferences = ChatLanguageModelToolReferences.to(variable.toolReferences);
+			}
 		}
 
 		return {
@@ -3262,13 +3264,32 @@ export namespace ChatLanguageModelToolReference {
 	}
 }
 
+namespace ChatLanguageModelToolReferences {
+	export function to(variables: readonly ChatRequestToolReferenceEntry[]): vscode.ChatLanguageModelToolReference[] {
+		const toolReferences = [];
+		for (const v of variables) {
+			if (v.kind === 'tool') {
+				toolReferences.push(ChatLanguageModelToolReference.to(v));
+			} else if (v.kind === 'toolset') {
+				toolReferences.push(...v.value.map(ChatLanguageModelToolReference.to));
+			} else {
+				throw new Error('Invalid tool reference in prompt variables');
+			}
+		}
+		return toolReferences;
+	}
+}
+
 export namespace ChatRequestModeInstructions {
 	export function to(mode: IChatRequestModeInstructions | undefined): vscode.ChatRequestModeInstructions | undefined {
-		return mode ? {
-			content: mode.content,
-			toolReferences: mode.toolReferences?.map(ref => ChatLanguageModelToolReference.to(ref)) ?? [],
-			metadata: mode.metadata
-		} : undefined;
+		if (mode) {
+			return {
+				content: mode.content,
+				toolReferences: ChatLanguageModelToolReferences.to(mode.toolReferences),
+				metadata: mode.metadata
+			};
+		}
+		return undefined;
 	}
 }
 

@@ -5,7 +5,7 @@
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
-import { CodeActionContext, CodeActionList, CodeActionProvider, ProviderResult, TextEdit, WorkspaceEdit } from '../../../../../../editor/common/languages.js';
+import { CodeAction, CodeActionContext, CodeActionList, CodeActionProvider, IWorkspaceTextEdit, ProviderResult, TextEdit } from '../../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { localize } from '../../../../../../nls.js';
 import { ILanguageModelToolsService } from '../../languageModelToolsService.js';
@@ -13,6 +13,7 @@ import { getPromptsTypeForLanguageId } from '../promptTypes.js';
 import { IPromptsService } from '../service/promptsService.js';
 import { IValue } from '../service/newPromptsParser.js';
 import { Selection } from '../../../../../../editor/common/core/selection.js';
+import { Lazy } from '../../../../../../base/common/lazy.js';
 
 export class PromptCodeActionProvider implements CodeActionProvider {
 	/**
@@ -38,42 +39,55 @@ export class PromptCodeActionProvider implements CodeActionProvider {
 		if (!toolsAttr || toolsAttr.value.type !== 'array' || !toolsAttr.value.range.containsRange(range)) {
 			return undefined;
 		}
-		for (const item of toolsAttr.value.items) {
-			if (item.range.containsRange(range)) {
-				return this.getToolCodeActions(item, model);
+		return this.getUpdateToolsCodeActions(toolsAttr.value.items, model, range);
+
+	}
+
+	private getUpdateToolsCodeActions(values: readonly IValue[], model: ITextModel, range: Range): CodeActionList | undefined {
+
+		const deprecatedNames = new Lazy(() => this.languageModelToolsService.getDeprecatedQualifiedToolNames());
+		const actions: CodeAction[] = [];
+		const edits: TextEdit[] = [];
+		for (const item of values) {
+			if (item.type !== 'string') {
+				continue;
+			}
+			const newName = deprecatedNames.value.get(item.value);
+			if (newName) {
+				const quote = model.getValueInRange(new Range(item.range.startLineNumber, item.range.startColumn, item.range.endLineNumber, item.range.startColumn + 1));
+				const text = (quote === `'` || quote === '"') ? (quote + newName + quote) : newName;
+				const edit = { range: item.range, text };
+				edits.push(edit);
+
+				if (item.range.containsRange(range)) {
+					actions.push({
+						title: localize('updateToolName', "Update to '{0}'", newName),
+						edit: {
+							edits: [asWorkspaceTextEdit(model, edit)]
+						}
+					});
+				}
 			}
 		}
-		return undefined;
-	}
 
-	private getToolCodeActions(value: IValue, model: ITextModel): CodeActionList | undefined {
-		if (value.type !== 'string') {
-			return undefined;
+		if (edits.length && actions.length === 0 || edits.length > 1) {
+			actions.push({
+				title: localize('updateAllToolNames', "Update all tool names"),
+				edit: {
+					edits: edits.map(edit => asWorkspaceTextEdit(model, edit))
+				}
+			});
 		}
-		const oldName = value.value;
-		const deprecatedNames = this.languageModelToolsService.getDeprecatedQualifiedToolNames();
-		const newName = deprecatedNames.get(oldName);
-		if (newName) {
-			const quote = model.getValueInRange(new Range(value.range.startLineNumber, value.range.startColumn, value.range.endLineNumber, value.range.startColumn + 1));
-			const text = (quote === `'` || quote === '"') ? (quote + newName + quote) : newName;
-			return {
-				actions: [{
-					title: localize('replaceWith', "Replace with '{0}'", newName),
-					edit: asWorkspaceEdit(model, { range: value.range, text: text })
-				}],
-				dispose() { }
-			};
+		if (actions.length) {
+			return { actions, dispose: () => { } };
 		}
 		return undefined;
 	}
-
 }
-function asWorkspaceEdit(model: ITextModel, textEdit: TextEdit): WorkspaceEdit {
+function asWorkspaceTextEdit(model: ITextModel, textEdit: TextEdit): IWorkspaceTextEdit {
 	return {
-		edits: [{
-			versionId: model.getVersionId(),
-			resource: model.uri,
-			textEdit
-		}]
+		versionId: model.getVersionId(),
+		resource: model.uri,
+		textEdit
 	};
 }
