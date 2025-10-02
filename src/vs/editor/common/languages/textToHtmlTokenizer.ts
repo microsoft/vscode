@@ -44,6 +44,7 @@ export function tokenizeLineToHTML(text: string, viewLineTokens: IViewLineTokens
 			continue;
 		}
 
+		const tokenStartIndex = charIndex;
 		let partContent = '';
 
 		for (; charIndex < tokenEndIndex && charIndex < endOffset; charIndex++) {
@@ -115,7 +116,15 @@ export function tokenizeLineToHTML(text: string, viewLineTokens: IViewLineTokens
 			}
 		}
 
-		result += `<span style="${viewLineTokens.getInlineStyle(tokenIndex, colorMap)}">${partContent}</span>`;
+		const tokenText = text.substring(tokenStartIndex, Math.min(charIndex, endOffset));
+		const containsRTL = strings.containsRTL(tokenText);
+		const style = viewLineTokens.getInlineStyle(tokenIndex, colorMap);
+		
+		if (containsRTL) {
+			result += `<span style="unicode-bidi:isolate;${style}">${partContent}</span>`;
+		} else {
+			result += `<span style="${style}">${partContent}</span>`;
+		}
 
 		if (tokenEndIndex > endOffset || charIndex >= endOffset) {
 			break;
@@ -146,7 +155,15 @@ export function _tokenizeToString(text: string, languageIdCodec: ILanguageIdCode
 		for (let j = 0, lenJ = viewLineTokens.getCount(); j < lenJ; j++) {
 			const type = viewLineTokens.getClassName(j);
 			const endIndex = viewLineTokens.getEndOffset(j);
-			result += `<span class="${type}">${strings.escape(line.substring(startOffset, endIndex))}</span>`;
+			const tokenText = line.substring(startOffset, endIndex);
+			const containsRTL = strings.containsRTL(tokenText);
+			const escapedText = strings.escape(tokenText);
+			
+			if (containsRTL) {
+				result += `<span style="unicode-bidi:isolate" class="${type}">${escapedText}</span>`;
+			} else {
+				result += `<span class="${type}">${escapedText}</span>`;
+			}
 			startOffset = endIndex;
 		}
 

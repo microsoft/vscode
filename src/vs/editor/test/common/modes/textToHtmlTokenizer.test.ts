@@ -292,6 +292,126 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 		);
 	});
 
+	test('tokenizeLineToHTML with RTL text', () => {
+		const text = '<p class="myclass" title="العربي">نشاط التدويل!</p>';
+		const lineTokens = new TestLineTokens([
+			new TestLineToken(
+				1,
+				(
+					(1 << MetadataConsts.FOREGROUND_OFFSET)
+				) >>> 0
+			),
+			new TestLineToken(
+				2,
+				(
+					(2 << MetadataConsts.FOREGROUND_OFFSET)
+				) >>> 0
+			),
+			new TestLineToken(
+				3,
+				(
+					(1 << MetadataConsts.FOREGROUND_OFFSET)
+				) >>> 0
+			),
+			new TestLineToken(
+				8,
+				(
+					(3 << MetadataConsts.FOREGROUND_OFFSET)
+				) >>> 0
+			),
+			new TestLineToken(
+				9,
+				(
+					(1 << MetadataConsts.FOREGROUND_OFFSET)
+				) >>> 0
+			),
+			new TestLineToken(
+				18,
+				(
+					(4 << MetadataConsts.FOREGROUND_OFFSET)
+				) >>> 0
+			),
+			new TestLineToken(
+				19,
+				(
+					(1 << MetadataConsts.FOREGROUND_OFFSET)
+				) >>> 0
+			),
+			new TestLineToken(
+				25,
+				(
+					(3 << MetadataConsts.FOREGROUND_OFFSET)
+				) >>> 0
+			),
+			new TestLineToken(
+				26,
+				(
+					(1 << MetadataConsts.FOREGROUND_OFFSET)
+				) >>> 0
+			),
+			new TestLineToken(
+				33,
+				(
+					(4 << MetadataConsts.FOREGROUND_OFFSET)
+				) >>> 0
+			),
+			new TestLineToken(
+				34,
+				(
+					(1 << MetadataConsts.FOREGROUND_OFFSET)
+				) >>> 0
+			),
+			new TestLineToken(
+				49,
+				(
+					(4 << MetadataConsts.FOREGROUND_OFFSET)
+				) >>> 0
+			),
+			new TestLineToken(
+				50,
+				(
+					(1 << MetadataConsts.FOREGROUND_OFFSET)
+				) >>> 0
+			),
+			new TestLineToken(
+				52,
+				(
+					(2 << MetadataConsts.FOREGROUND_OFFSET)
+				) >>> 0
+			),
+			new TestLineToken(
+				53,
+				(
+					(1 << MetadataConsts.FOREGROUND_OFFSET)
+				) >>> 0
+			)
+		]);
+		const colorMap = [null!, '#000000', '#ffffff', '#ff0000', '#00ff00', '#0000ff'];
+
+		const result = tokenizeLineToHTML(text, lineTokens, colorMap, 0, 53, 4, false);
+		
+		// Verify that the result contains unicode-bidi:isolate for RTL text
+		assert.ok(result.includes('unicode-bidi:isolate'), 'Result should contain unicode-bidi:isolate for RTL text');
+		
+		// Verify structure contains Arabic text
+		assert.ok(result.includes('العربي'), 'Result should contain Arabic text from title attribute');
+		assert.ok(result.includes('نشاط'), 'Result should contain Arabic text from paragraph content');
+	});
+
+	test('_tokenizeToString with RTL text', () => {
+		const mode = disposables.add(instantiationService.createInstance(Mode));
+		const support = TokenizationRegistry.get(mode.languageId)!;
+
+		const actual = _tokenizeToString('<p>نشاط التدويل!</p>', new LanguageIdCodec(), support);
+		
+		// Verify that the result contains unicode-bidi:isolate for RTL text
+		assert.ok(actual.includes('unicode-bidi:isolate'), 'Result should contain unicode-bidi:isolate for RTL text');
+		
+		// Verify structure
+		assert.ok(actual.includes('monaco-tokenized-source'), 'Result should contain monaco-tokenized-source class');
+		assert.ok(actual.includes('نشاط'), 'Result should contain Arabic text');
+	});
+
 });
 
 class Mode extends Disposable {
