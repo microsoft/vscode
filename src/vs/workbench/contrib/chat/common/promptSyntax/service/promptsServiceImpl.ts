@@ -293,13 +293,18 @@ export class PromptsService extends Disposable implements IPromptsService {
 			return Disposable.None;
 		}
 		bucket.set(uri, { uri, name, description, storage: PromptsStorage.extension, type, extension } satisfies IExtensionPromptPath);
-		if (type === PromptsType.mode) {
-			this.cachedCustomChatModes = undefined;
-			this.onDidChangeCustomChatModesEmitter?.fire();
-		}
+
+		const updateModesIfRequired = () => {
+			if (type === PromptsType.mode) {
+				this.cachedCustomChatModes = undefined;
+				this.onDidChangeCustomChatModesEmitter?.fire();
+			}
+		};
+		updateModesIfRequired();
 		return {
 			dispose: () => {
 				bucket.delete(uri);
+				updateModesIfRequired();
 			}
 		};
 	}
