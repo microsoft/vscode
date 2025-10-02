@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../../../nls.js';
-import { getPromptsTypeForLanguageId, PROMPT_LANGUAGE_ID, PromptsType } from '../promptTypes.js';
+import { getPromptsTypeForLanguageId, MODE_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptsType } from '../promptTypes.js';
 import { type URI } from '../../../../../../base/common/uri.js';
 import { basename } from '../../../../../../base/common/path.js';
 import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { Event } from '../../../../../../base/common/event.js';
+import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { type ITextModel } from '../../../../../../editor/common/model.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
@@ -30,6 +30,7 @@ import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetR
 import { IChatModeInstructions, IVariableReference } from '../../chatModes.js';
 import { dirname } from '../../../../../../base/common/resources.js';
 import { IExtensionDescription } from '../../../../../../platform/extensions/common/extensions.js';
+import { Delayer } from '../../../../../../base/common/async.js';
 
 /**
  * Provides prompt services.
@@ -62,7 +63,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	/**
 	 * Lazily created event that is fired when the custom chat modes change.
 	 */
-	private onDidChangeCustomChatModesEvent: Event<void> | undefined;
+	private onDidChangeCustomChatModesEmitter: Emitter<void> | undefined;
 
 	constructor(
 		@ILogService public readonly logger: ILogService,
@@ -87,13 +88,15 @@ export class PromptsService extends Disposable implements IPromptsService {
 	 * Emitter for the custom chat modes change event.
 	 */
 	public get onDidChangeCustomChatModes(): Event<void> {
-		if (!this.onDidChangeCustomChatModesEvent) {
-			this.onDidChangeCustomChatModesEvent = this._register(this.fileLocator.createFilesUpdatedEvent(PromptsType.mode)).event;
-			this._register(this.onDidChangeCustomChatModesEvent(() => {
+		if (!this.onDidChangeCustomChatModesEmitter) {
+			const emitter = this.onDidChangeCustomChatModesEmitter = this._register(new Emitter<void>());
+			const chatModelTracker = this._register(new ChatModeUpdateTracker(this.fileLocator, this.modelService));
+			this._register(chatModelTracker.onDidChangeContent(() => {
 				this.cachedCustomChatModes = undefined; // reset cached custom chat modes
+				emitter.fire();
 			}));
 		}
-		return this.onDidChangeCustomChatModesEvent;
+		return this.onDidChangeCustomChatModesEmitter.event;
 	}
 
 	public getPromptFileType(uri: URI): PromptsType | undefined {
@@ -215,7 +218,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	public async getCustomChatModes(token: CancellationToken): Promise<readonly ICustomChatMode[]> {
 		if (!this.cachedCustomChatModes) {
 			const customChatModes = this.computeCustomChatModes(token);
-			if (!this.onDidChangeCustomChatModesEvent) {
+			if (!this.onDidChangeCustomChatModesEmitter) {
 				return customChatModes;
 			}
 			this.cachedCustomChatModes = customChatModes;
@@ -227,7 +230,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const modeFiles = await this.listPromptFiles(PromptsType.mode, token);
 
 		const customChatModes = await Promise.all(
-			modeFiles.map(async ({ uri }): Promise<ICustomChatMode> => {
+			modeFiles.map(async ({ uri, name: modeName }): Promise<ICustomChatMode> => {
 				const ast = await this.parseNew(uri, token);
 
 				let metadata: any | undefined;
@@ -259,7 +262,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 					metadata,
 				} satisfies IChatModeInstructions;
 
-				const name = getCleanPromptName(uri);
+				const name = modeName ?? getCleanPromptName(uri);
 				if (!ast.header) {
 					return { uri, name, modeInstructions };
 				}
@@ -290,12 +293,18 @@ export class PromptsService extends Disposable implements IPromptsService {
 			return Disposable.None;
 		}
 		bucket.set(uri, { uri, name, description, storage: PromptsStorage.extension, type, extension } satisfies IExtensionPromptPath);
-		if (type === PromptsType.mode) {
-			this.cachedCustomChatModes = undefined;
-		}
+
+		const updateModesIfRequired = () => {
+			if (type === PromptsType.mode) {
+				this.cachedCustomChatModes = undefined;
+				this.onDidChangeCustomChatModesEmitter?.fire();
+			}
+		};
+		updateModesIfRequired();
 		return {
 			dispose: () => {
 				bucket.delete(uri);
+				updateModesIfRequired();
 			}
 		};
 	}
@@ -319,4 +328,55 @@ export class PromptsService extends Disposable implements IPromptsService {
 export function getPromptCommandName(path: string): string {
 	const name = basename(path, PROMPT_FILE_EXTENSION);
 	return name;
+}
+
+export class ChatModeUpdateTracker extends Disposable {
+
+	private static readonly CHAT_MODE_UPDATE_DELAY_MS = 200;
+
+	private readonly listeners = new ResourceMap<IDisposable>();
+	private readonly onDidChatModeModelChange: Emitter<void>;
+
+	public get onDidChangeContent(): Event<void> {
+		return this.onDidChatModeModelChange.event;
+	}
+
+	constructor(
+		fileLocator: PromptFilesLocator,
+		@IModelService modelService: IModelService,
+	) {
+		super();
+		this.onDidChatModeModelChange = this._register(new Emitter<void>());
+		const delayer = this._register(new Delayer<void>(ChatModeUpdateTracker.CHAT_MODE_UPDATE_DELAY_MS));
+		const trigger = () => delayer.trigger(() => this.onDidChatModeModelChange.fire());
+
+		const filesUpdatedEventRegistration = this._register(fileLocator.createFilesUpdatedEvent(PromptsType.mode));
+		this._register(filesUpdatedEventRegistration.event(() => trigger()));
+
+		const onAdd = (model: ITextModel) => {
+			if (model.getLanguageId() === MODE_LANGUAGE_ID) {
+				this.listeners.set(model.uri, model.onDidChangeContent(() => trigger()));
+			}
+		};
+		const onRemove = (languageId: string, uri: URI) => {
+			if (languageId === MODE_LANGUAGE_ID) {
+				this.listeners.get(uri)?.dispose();
+				this.listeners.delete(uri);
+				trigger();
+			}
+		};
+		this._register(modelService.onModelAdded(model => onAdd(model)));
+		this._register(modelService.onModelLanguageChanged(e => {
+			onRemove(e.oldLanguageId, e.model.uri);
+			onAdd(e.model);
+		}));
+		this._register(modelService.onModelRemoved(model => onRemove(model.getLanguageId(), model.uri)));
+	}
+
+	public override dispose(): void {
+		super.dispose();
+		this.listeners.forEach(listener => listener.dispose());
+		this.listeners.clear();
+	}
+
 }
