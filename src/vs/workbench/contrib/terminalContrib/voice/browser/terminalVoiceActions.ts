@@ -37,7 +37,7 @@ export function registerTerminalVoiceActions() {
 				return;
 			}
 			const extensions = await extensionManagementService.getInstalled();
-			const extension = extensions.filter(extension => (extension.identifier.id === 'ms-vscode.vscode-speech'))?.[0];
+			const extension = extensions.find(extension => extension.identifier.id === 'ms-vscode.vscode-speech');
 			const extensionIsDisabled = extension && !workbenchExtensionEnablementService.isEnabled(extension);
 			const learnMoreAction = {
 				label: localize('viewExtension', "View Extension"),
