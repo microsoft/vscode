@@ -55,14 +55,14 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 	}
 
 	$registerLanguageModelProvider(vendor: string): void {
-		const dipsosables = new DisposableStore();
-		dipsosables.add(this._chatProviderService.registerLanguageModelProvider(vendor, {
-			onDidChange: Event.filter(this._lmProviderChange.event, e => e.vendor === vendor, dipsosables) as unknown as Event<void>,
+		const disposables = this._store.add(new DisposableStore());
+		disposables.add(this._chatProviderService.registerLanguageModelProvider(vendor, {
+			onDidChange: Event.filter(this._lmProviderChange.event, e => e.vendor === vendor, disposables) as unknown as Event<void>,
 			provideLanguageModelChatInfo: async (options, token) => {
 				const modelsAndIdentifiers = await this._proxy.$provideLanguageModelChatInfo(vendor, options, token);
 				modelsAndIdentifiers.forEach(m => {
 					if (m.metadata.auth) {
-						dipsosables.add(this._registerAuthenticationProvider(m.metadata.extension, m.metadata.auth));
+						disposables.add(this._registerAuthenticationProvider(m.metadata.extension, m.metadata.auth));
 					}
 				});
 				return modelsAndIdentifiers;
@@ -96,7 +96,7 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 				return this._proxy.$provideTokenLength(modelId, str, token);
 			},
 		}));
-		this._providerRegistrations.set(vendor, dipsosables);
+		this._providerRegistrations.set(vendor, disposables);
 	}
 
 	$onLMProviderChange(vendor: string): void {
