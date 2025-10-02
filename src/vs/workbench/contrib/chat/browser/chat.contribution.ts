@@ -315,7 +315,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.NotifyWindowOnResponseReceived]: {
 			type: 'boolean',
-			default: false,
+			default: true,
 			description: nls.localize('chat.notifyWindowOnResponseReceived', "Controls whether a chat session should notify the user when a response is received while the window is not in focus. This includes a window badge as well as notification toast."),
 		},
 		'chat.checkpoints.enabled': {
@@ -682,9 +682,9 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			scope: ConfigurationScope.WINDOW
 		},
-		[ChatConfiguration.UseChatSessionsForCloudButton]: {
+		[ChatConfiguration.UseCloudButtonV2]: {
 			type: 'boolean',
-			description: nls.localize('chat.useChatSessionsForCloudButton', "Controls whether the 'Delegate to coding agent' button uses the new chat sessions API."),
+			description: nls.localize('chat.useCloudButtonV2', "Experimental implementation of 'cloud button'"),
 			default: false,
 			tags: ['experimental'],
 
