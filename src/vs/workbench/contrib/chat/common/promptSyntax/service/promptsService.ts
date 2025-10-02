@@ -103,6 +103,11 @@ export interface ICustomChatMode {
 	readonly model?: string;
 
 	/**
+	 * Handoff suggestions in the form of promptId -> user-facing description.
+	 */
+	readonly handoffs?: Record<string, string>;
+
+	/**
 	 * Contents of the custom chat mode file body and other mode instructions.
 	 */
 	readonly modeInstructions: IChatModeInstructions;

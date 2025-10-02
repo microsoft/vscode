@@ -307,7 +307,7 @@ export class PromptValidator {
 const validAttributeNames = {
 	[PromptsType.prompt]: ['description', 'model', 'tools', 'mode'],
 	[PromptsType.instructions]: ['description', 'applyTo', 'excludeAgent'],
-	[PromptsType.mode]: ['description', 'model', 'tools', 'advancedOptions']
+	[PromptsType.mode]: ['description', 'model', 'tools', 'advancedOptions', 'handoffs']
 };
 const validAttributeNamesNoExperimental = {
 	[PromptsType.prompt]: validAttributeNames[PromptsType.prompt].filter(name => !isExperimentalAttribute(name)),
