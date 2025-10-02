@@ -838,7 +838,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 
 				const userPromptEntry: IChatAgentHistoryEntry = {
 					request: {
-						sessionId: sessionId,
+						sessionId,
 						requestId: generateUuid(),
 						agentId: '',
 						message: userPrompt,
