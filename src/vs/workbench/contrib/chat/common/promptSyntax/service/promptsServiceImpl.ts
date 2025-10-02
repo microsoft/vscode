@@ -278,19 +278,24 @@ export class PromptsService extends Disposable implements IPromptsService {
 					metadata,
 				} satisfies IChatModeInstructions;
 
-				const name = modeName ?? getCleanPromptName(uri);
-				if (!ast.header) {
-					return { uri, name, modeInstructions };
-				}
-				const { description, model, tools, handOffs } = ast.header;
-				return { uri, name, description, model, tools, handOffs, modeInstructions };
-
-			})
-		);
-		return customChatModes;
-	}
-
-	public async parseNew(uri: URI, token: CancellationToken): Promise<ParsedPromptFile> {
+			const name = modeName ?? getCleanPromptName(uri);
+			if (!ast.header) {
+				return { uri, name, modeInstructions };
+			}
+			const { description, model, tools, handOffs } = ast.header;
+			return {
+				uri,
+				name,
+				description,
+				model,
+				tools,
+				...(handOffs !== undefined ? { handOffs } : {}),
+				modeInstructions
+			};
+		})
+	);
+	return customChatModes;
+}	public async parseNew(uri: URI, token: CancellationToken): Promise<ParsedPromptFile> {
 		const model = this.modelService.getModel(uri);
 		if (model) {
 			return this.getParsedPromptFile(model);
