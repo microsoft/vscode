@@ -5,6 +5,7 @@
 
 import { booleanComparator, compareBy, compareUndefinedSmallest, numberComparator } from '../../../../../base/common/arrays.js';
 import { findLastMax } from '../../../../../base/common/arraysFind.js';
+import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { equalsIfDefined, itemEquals } from '../../../../../base/common/equals.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -140,10 +141,22 @@ export class InlineCompletionsSource extends Disposable {
 		const source = new CancellationTokenSource();
 
 		const promise = (async () => {
-			this._loadingCount.set(this._loadingCount.get() + 1, undefined);
 			const store = new DisposableStore();
+
+			this._loadingCount.set(this._loadingCount.get() + 1, undefined);
+			let didDecrease = false;
+			const decreaseLoadingCount = () => {
+				if (!didDecrease) {
+					didDecrease = true;
+					this._loadingCount.set(this._loadingCount.get() - 1, undefined);
+				}
+			};
+			const loadingReset = store.add(new RunOnceScheduler(() => decreaseLoadingCount(), 10 * 1000));
+			loadingReset.schedule();
+
 			const inlineSuggestionsProviders = providers.filter(p => p.providerId);
 			const requestResponseInfo = new RequestResponseData(context, requestInfo, inlineSuggestionsProviders);
+
 
 			try {
 				const recommendedDebounceValue = this._debounceValue.get(this._textModel);
@@ -293,8 +306,8 @@ export class InlineCompletionsSource extends Disposable {
 					v.suggestWidgetInlineCompletions.dispose();
 				});
 			} finally {
-				this._loadingCount.set(this._loadingCount.get() - 1, undefined);
 				store.dispose();
+				decreaseLoadingCount();
 				this.sendInlineCompletionsRequestTelemetry(requestResponseInfo);
 			}
 
