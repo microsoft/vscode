@@ -1408,8 +1408,9 @@ export namespace CoreNavigationCommands {
 			startLineNumber, viewModel.getLineMinColumn(startLineNumber),
 			endLineNumber, viewModel.getLineMaxColumn(endLineNumber)
 		);
-	}		private _computeDesiredScrollTop(viewModel: IViewModel, args: EditorScroll_.ParsedArguments): number {
+	}
 
+	private _computeDesiredScrollTop(viewModel: IViewModel, args: EditorScroll_.ParsedArguments): number {
 			if (args.unit === EditorScroll_.Unit.Line) {
 				// scrolling by model lines
 				const futureViewport = viewModel.viewLayout.getFutureViewport();
