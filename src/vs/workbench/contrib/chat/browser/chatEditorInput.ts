@@ -9,6 +9,7 @@ import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isEqual } from '../../../../base/common/resources.js';
+import { truncate } from '../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import * as nls from '../../../../nls.js';
@@ -141,7 +142,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		return ChatEditorInput.TypeID;
 	}
 
-	override getName(): string {
+	private getFullName(): string {
 		// If we have a resolved model, use its title
 		if (this.model?.title) {
 			return this.model.title;
@@ -165,6 +166,11 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		// Fall back to default naming pattern
 		const defaultName = nls.localize('chatEditorName', "Chat") + (this.inputCount > 0 ? ` ${this.inputCount + 1}` : '');
 		return defaultName;
+	}
+
+	override getName(): string {
+		// The displayed name of the tab should always be truncated.
+		return truncate(this.getFullName(), 20);
 	}
 
 	override getIcon(): ThemeIcon {
