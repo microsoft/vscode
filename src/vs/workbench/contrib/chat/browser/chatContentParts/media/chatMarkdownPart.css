@@ -22,17 +22,18 @@
 	}
 
 	/* Interactive math equation styling */
-	.katex {
+	.katex.interactive-katex {
 		transition: background-color 0.1s ease-in-out;
 		border-radius: 3px;
 		padding: 2px 4px;
+		cursor: context-menu;
 	}
 
-	.katex:hover {
+	.katex.interactive-katex:hover {
 		background-color: var(--vscode-editor-hoverHighlightBackground);
 	}
 
-	.katex-display .katex {
+	.katex-display .katex.interactive-katex {
 		padding: 4px 8px;
 	}
 }

@@ -340,81 +340,36 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				continue;
 			}
 
-			// Add hover style to indicate it's interactive
-			katexElement.style.cursor = 'context-menu';
+			// Mark element as having math content for CSS styling
+			katexElement.classList.add('interactive-katex');
 
 			disposables.add(dom.addDisposableListener(katexElement, dom.EventType.CONTEXT_MENU, (domEvent) => {
 				const event = new StandardMouseEvent(dom.getWindow(domEvent), domEvent);
-				dom.EventHelper.stop(domEvent, true);
+				
+				// Extract LaTeX source from the annotation element
+				const annotation = katexElement.querySelector('annotation[encoding="application/x-tex"]');
+				const latexSource = annotation?.textContent;
 
-				this.contextMenuService.showContextMenu({
-					getAnchor: () => event,
-					getActions: () => {
-						const actions = [];
-
-						// Extract LaTeX source from the annotation element
-						const latexSource = this.extractLatexSource(katexElement);
-						if (latexSource) {
-							actions.push({
-								id: 'chat.copyLatexSource',
-								label: localize('chat.copyLatexSource', "Copy LaTeX Source"),
+				if (latexSource) {
+					// Show context menu with copy math option
+					this.contextMenuService.showContextMenu({
+						getAnchor: () => event,
+						getActions: () => {
+							return [{
+								id: 'chat.copyMathSource',
+								label: localize('chat.copyMathSource', "Copy Math Source"),
 								class: undefined,
 								enabled: true,
 								run: () => this.clipboardService.writeText(latexSource)
-							});
+							}];
 						}
-
-						// Extract MathML
-						const mathML = this.extractMathML(katexElement);
-						if (mathML) {
-							actions.push({
-								id: 'chat.copyMathML',
-								label: localize('chat.copyMathML', "Copy MathML"),
-								class: undefined,
-								enabled: true,
-								run: () => this.clipboardService.writeText(mathML)
-							});
-						}
-
-						// Copy TeX Commands (formatted with delimiters)
-						if (latexSource) {
-							const isDisplayMode = katexElement.closest('.katex-display') !== null;
-							const delimiter = isDisplayMode ? '$$' : '$';
-							const texCommands = `${delimiter}${latexSource}${delimiter}`;
-							actions.push({
-								id: 'chat.copyTexCommands',
-								label: localize('chat.copyTexCommands', "Copy TeX Commands"),
-								class: undefined,
-								enabled: true,
-								run: () => this.clipboardService.writeText(texCommands)
-							});
-						}
-
-						return actions;
-					}
-				});
+					});
+					dom.EventHelper.stop(domEvent, true);
+				}
 			}));
 		}
 
 		return disposables;
-	}
-
-	private extractLatexSource(katexElement: HTMLElement): string | null {
-		// KaTeX stores the original LaTeX source in the annotation element
-		const annotation = katexElement.querySelector('annotation[encoding="application/x-tex"]');
-		if (annotation) {
-			return annotation.textContent || null;
-		}
-		return null;
-	}
-
-	private extractMathML(katexElement: HTMLElement): string | null {
-		// Extract the MathML content
-		const mathMLElement = katexElement.querySelector('.katex-mathml math');
-		if (mathMLElement) {
-			return mathMLElement.outerHTML;
-		}
-		return null;
 	}
 
 	private renderCodeBlockPill(sessionId: string, requestId: string, inUndoStop: string | undefined, codemapperUri: URI | undefined, isStreaming: boolean): IDisposableReference<CollapsedCodeBlock> {
