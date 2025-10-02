@@ -72,7 +72,6 @@ export function registerTerminalVoiceActions() {
 				}, learnMoreAction);
 			}
 			notificationService.notify({ severity: Severity.Info, message, actions: { primary: actions } });
-			return;
 		}
 	});
 
