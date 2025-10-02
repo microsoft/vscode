@@ -354,8 +354,12 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			this.onDidChangeWorkspaceFolders({ added: workspace.workspaceFolders || [], removed: [] }),
 			this.onDidChangeVisibleTextEditors(window.visibleTextEditors),
 			this.scanWorkspaceFolders(),
-			// Restore previously opened repositories
-			...this._openedRepositoriesManager.repositories.map(r => this.openRepository(r, false, false))
+			// Restore previously opened repositories with error handling
+			...this._openedRepositoriesManager.repositories.map(r =>
+				this.openRepository(r, false, false).catch(err => {
+					this.logger.warn(`[Model][doInitialScan] Failed to restore previously opened repository: ${r}. Error: ${err && err.message ? err.message : err}`);
+				})
+			)
 		]);
 
 		if (config.get<boolean>('showProgress', true)) {
