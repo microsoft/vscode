@@ -406,10 +406,20 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 
 		const hasUriIcon = this.compositeBarActionItem?.classNames?.includes('uri-icon');
 		if (hasUriIcon && !this.labelContainer) {
-			this.labelContainer = $('.action-label-hc-container');
-			this.label.replaceWith(this.labelContainer);
-			this.labelContainer.appendChild(this.label);
+			this.addHighContrastContainer();
 		} else if (!hasUriIcon && this.labelContainer) {
+			this.removeHighContrastContainer();
+		}
+	}
+
+	private addHighContrastContainer(): void {
+		this.labelContainer = $('.action-label-hc-container');
+		this.label.replaceWith(this.labelContainer);
+		this.labelContainer.appendChild(this.label);
+	}
+
+	private removeHighContrastContainer(): void {
+		if (this.labelContainer) {
 			this.labelContainer.replaceWith(this.label);
 			this.labelContainer = undefined;
 		}
