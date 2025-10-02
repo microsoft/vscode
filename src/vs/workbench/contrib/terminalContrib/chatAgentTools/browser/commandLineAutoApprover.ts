@@ -29,6 +29,7 @@ export interface ICommandApprovalResultWithReason {
 export type ICommandApprovalResult = 'approved' | 'denied' | 'noMatch';
 
 const neverMatchRegex = /(?!.*)/;
+const transientEnvVarRegex = /^[A-Z_][A-Z0-9_]*=/i;
 
 export class CommandLineAutoApprover extends Disposable {
 	private _denyListRules: IAutoApproveRule[] = [];
@@ -75,6 +76,15 @@ export class CommandLineAutoApprover extends Disposable {
 	}
 
 	isCommandAutoApproved(command: string, shell: string, os: OperatingSystem): ICommandApprovalResultWithReason {
+		// Check if the command has a transient environment variable assignment prefix which we
+		// always deny for now as it can easily lead to execute other commands
+		if (transientEnvVarRegex.test(command)) {
+			return {
+				result: 'denied',
+				reason: `Command '${command}' is denied because it contains transient environment variables`
+			};
+		}
+
 		// Check the deny list to see if this command requires explicit approval
 		for (const rule of this._denyListRules) {
 			if (this._commandMatchesRule(rule, command, shell, os)) {
