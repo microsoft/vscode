@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IAction } from '../../../../../base/common/actions.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -48,7 +49,7 @@ export function registerTerminalVoiceActions() {
 				enabled: true
 			};
 
-			const actions: INotificationAction[] = [];
+			const actions: IAction[] = [];
 			let message: string;
 			if (extensionIsDisabled) {
 				message = localize('terminal.voice.enableSpeechExtension', "You must enable the Speech extension to use Dictation in the Terminal.");
