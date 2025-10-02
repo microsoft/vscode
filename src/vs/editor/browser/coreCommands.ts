@@ -1372,16 +1372,14 @@ export namespace CoreNavigationCommands {
 	}
 
 	private _adjustVisibleRangeForCursorSurroundingLines(viewModel: IViewModel, visibleRange: Range): Range {
-		// Access cursorSurroundingLines from the configuration
-		// We need to cast viewModel to access the private _configuration
-		const viewModelImpl = viewModel as any;
-		if (!viewModelImpl._configuration) {
+		// Access cursorSurroundingLines from the configuration in a type-safe way
+		if (typeof (viewModel as any).getOption !== 'function') {
+			// Fallback: cannot access options, return original range
 			return visibleRange;
 		}
 		
-		const options = viewModelImpl._configuration.options;
-		const cursorSurroundingLines: number = options.get(EditorOption.cursorSurroundingLines);
-		const cursorSurroundingLinesStyle: 'default' | 'all' = options.get(EditorOption.cursorSurroundingLinesStyle);
+		const cursorSurroundingLines: number = (viewModel as any).getOption(EditorOption.cursorSurroundingLines);
+		const cursorSurroundingLinesStyle: 'default' | 'all' = (viewModel as any).getOption(EditorOption.cursorSurroundingLinesStyle);
 		
 		// For editorScroll with revealCursor, we should respect cursorSurroundingLines
 		// regardless of cursorSurroundingLinesStyle (unlike mouse-initiated scrolls)
