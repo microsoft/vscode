@@ -493,8 +493,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._welcomeRenderScheduler = this._register(new RunOnceScheduler(() => this.renderWelcomeViewContentIfNeeded(), 10));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ChatConfiguration.EmptyStateHistoryEnabled)) {
+				// Sync local visibility flag with persisted setting
+				this._historyVisible = this.configurationService.getValue<boolean>(ChatConfiguration.EmptyStateHistoryEnabled);
 				this.updateEmptyStateWithHistoryContext();
-				this._welcomeRenderScheduler.schedule();
+				// Apply change immediately without requiring window reload
+				this.updateHistorySectionForConfigChange();
 			}
 		}));
 		this.updateEmptyStateWithHistoryContext();
@@ -1064,8 +1067,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					this.contextMenuService.showContextMenu({
 						menuId: MenuId.ChatWelcomeHistoryContext,
 						menuActionOptions: { shouldForwardArgs: true },
+						// Reflect persisted setting value instead of transient widget visibility
 						contextKeyService: this.contextKeyService.createOverlay([
-							['chatHistoryVisible', this._historyVisible]
+							['chatHistoryVisible', this.configurationService.getValue<boolean>(ChatConfiguration.EmptyStateHistoryEnabled)]
 						]),
 						getAnchor: () => ({ x: e.clientX, y: e.clientY }),
 						getActionsContext: () => ({})
@@ -1154,9 +1158,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			this.renderHistoryItems(initialHistoryItems);
 
-			// Add "Chat history..." link at the end
+			// Add "More history..." link at the end (renamed from "Chat history...")
 			const previousChatsLink = dom.append(container, $('.chat-welcome-history-more'));
-			previousChatsLink.textContent = localize('chat.history.showMore', 'Chat history...');
+			previousChatsLink.textContent = localize('chat.history.showMore', 'More history...');
 			previousChatsLink.setAttribute('role', 'button');
 			previousChatsLink.setAttribute('tabindex', '0');
 			previousChatsLink.setAttribute('aria-label', localize('chat.history.showMoreAriaLabel', 'Open chat history'));
@@ -1241,6 +1245,31 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 		const historyItems = await this.computeHistoryItems();
 		this.renderHistoryItems(historyItems);
+	}
+
+	private updateHistorySectionForConfigChange(): void {
+		// Called when the persisted setting changes to reflect immediately
+		const showHistorySetting = this.configurationService.getValue<boolean>(ChatConfiguration.EmptyStateHistoryEnabled);
+		const historyRoot = this.welcomeMessageContainer?.querySelector<HTMLElement>('.chat-welcome-history-root');
+		if (!showHistorySetting) {
+			// Remove existing section if present
+			if (historyRoot) {
+				historyRoot.remove();
+				this.welcomeMessageContainer.classList.remove('has-chat-history');
+				this.historyList = undefined;
+			}
+			return;
+		}
+		// If enabling and in empty state and not locked, render if not already there
+		const numItems = this.viewModel?.getItems().length ?? 0;
+		if (numItems === 0 && !historyRoot && !this._lockedToCodingAgent) {
+			this.renderWelcomeHistorySection();
+			// Ensure history section appears at top (prepend) even when added after initial render
+			const newHistoryRoot = this.welcomeMessageContainer?.querySelector<HTMLElement>('.chat-welcome-history-root');
+			if (newHistoryRoot && this.welcomeMessageContainer.firstChild !== newHistoryRoot) {
+				this.welcomeMessageContainer.insertBefore(newHistoryRoot, this.welcomeMessageContainer.firstChild);
+			}
+		}
 	}
 
 	private renderChatTodoListWidget(): void {

@@ -2028,25 +2028,16 @@ registerAction2(class EditToolApproval extends Action2 {
 	}
 });
 
-// Register actions for chat welcome history context menu
+// Register single toggled checkbox-style menu item for history visibility
 MenuRegistry.appendMenuItem(MenuId.ChatWelcomeHistoryContext, {
 	command: {
 		id: 'workbench.action.chat.toggleChatHistoryVisibility',
-		title: localize('chat.showChatHistory.label', "✓ Chat History")
+		title: localize('chat.chatHistory.label', "Chat History"),
+		// Use configuration-based toggled state for native checkbox rendering
+		toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.EmptyStateHistoryEnabled}`, true)
 	},
-	group: '1_modify',
-	order: 1,
-	when: ContextKeyExpr.equals('chatHistoryVisible', true)
-});
-
-MenuRegistry.appendMenuItem(MenuId.ChatWelcomeHistoryContext, {
-	command: {
-		id: 'workbench.action.chat.toggleChatHistoryVisibility',
-		title: localize('chat.hideChatHistory.label', "Chat History")
-	},
-	group: '1_modify',
-	order: 1,
-	when: ContextKeyExpr.equals('chatHistoryVisible', false)
+	group: '0_history',
+	order: 1
 });
 
 registerAction2(class ToggleChatHistoryVisibilityAction extends Action2 {
@@ -2060,12 +2051,10 @@ registerAction2(class ToggleChatHistoryVisibilityAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const chatWidgetService = accessor.get(IChatWidgetService);
-		const widgets = chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat);
-		const widget = widgets?.[0];
-		if (widget) {
-			widget.toggleHistoryVisibility();
-		}
+		// Toggle persisted empty state chat history setting instead of transient widget visibility
+		const configurationService = accessor.get(IConfigurationService);
+		const current = configurationService.getValue<boolean>(ChatConfiguration.EmptyStateHistoryEnabled);
+		await configurationService.updateValue(ChatConfiguration.EmptyStateHistoryEnabled, !current);
 	}
 });
 
