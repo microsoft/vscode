@@ -277,19 +277,23 @@ suite('RunInTerminalTool', () => {
 			'cat `which ls`',
 			'echo ${HOME}',
 			'ls {a,b,c}',
-			'echo (Get-Date)'
+			'echo (Get-Date)',
+
+			// Dangerous patterns - multi-line
+			'echo "{\n}"',
+			'echo @"\n{\n}"@',
 		];
 
 		suite('auto approved', () => {
 			for (const command of autoApprovedTestCases) {
-				test(command, async () => {
+				test(command.replaceAll('\n', '\\n'), async () => {
 					assertAutoApproved(await executeToolTest({ command: command }));
 				});
 			}
 		});
 		suite('confirmation required', () => {
 			for (const command of confirmationRequiredTestCases) {
-				test(command, async () => {
+				test(command.replaceAll('\n', '\\n'), async () => {
 					assertConfirmationRequired(await executeToolTest({ command: command }));
 				});
 			}
