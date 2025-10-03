@@ -69,7 +69,7 @@ import { ChatMode, IChatModeService } from '../common/chatModes.js';
 import { ChatRequestAgentPart, ChatRequestToolPart } from '../common/chatParserTypes.js';
 import { IChatProgress, IChatService } from '../common/chatService.js';
 import { IChatRequestToolEntry } from '../common/chatVariableEntries.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, validateChatMode } from '../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../common/constants.js';
 import { ILanguageModelsService } from '../common/languageModels.js';
 import { CHAT_CATEGORY, CHAT_OPEN_ACTION_ID, CHAT_SETUP_ACTION_ID, CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID } from './actions/chatActions.js';
 import { ChatViewId, IChatWidgetService, showCopilotView } from './chat.js';
@@ -1198,24 +1198,23 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: CHAT_SETUP_ACTION_ID, from: 'url', detail: params.get('referrer') ?? undefined });
 
 				const modeParam = params.get('mode');
-				let modeToUse: ChatModeKind | string | undefined = validateChatMode(modeParam);
-
-				// If it's not a builtin mode, check if it's a valid custom mode
-				if (!modeToUse && modeParam) {
+				let modeToUse: ChatModeKind | string | undefined;
+				if (modeParam) {
 					const chatModeService = this.instantiationService.invokeFunction(accessor => accessor.get(IChatModeService));
+
 					// check if the given param is a valid mode ID
-					let foundModel = chatModeService.findModeById(modeParam);
-					if (!foundModel) {
+					let foundMode = chatModeService.findModeById(modeParam);
+					if (!foundMode) {
 						// if not, check if the given param is a valid mode name, note the name is case sensitive
-						foundModel = chatModeService.findModeByName(modeParam);
+						foundMode = chatModeService.findModeByName(modeParam);
 					}
 
-					if (foundModel) {
-						modeToUse = foundModel.id;
+					if (foundMode) {
+						modeToUse = foundMode.id;
 					}
 				}
 
-				// execute the command to change the mode in panel, note that the command only support model IDs, not names
+				// execute the command to change the mode in panel, note that the command only support mode IDs, not names
 				await this.commandService.executeCommand(CHAT_SETUP_ACTION_ID, modeToUse);
 
 				return true;
