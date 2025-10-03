@@ -133,8 +133,14 @@
 }
 
 
-.chat-sessions-tree-container .chat-session-item .monaco-icon-label.codicon-loading::before {
-	animation: codicon-spin 1.5s steps(30) infinite;
+/* Chat session icon */
+.chat-sessions-tree-container .chat-session-item .chat-session-custom-icon {
+	flex-shrink: 0;
+	width: 16px;
+	height: 16px;
+	margin-right: 6px;
+	font-size: 16px;
+	display: flex;
 }
 
 /* Needed for showing the timestamp on hover, from timeline pane */

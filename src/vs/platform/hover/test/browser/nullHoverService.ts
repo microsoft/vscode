@@ -13,6 +13,7 @@ export const NullHoverService: IHoverService = {
 	showDelayedHover: () => undefined,
 	setupDelayedHover: () => Disposable.None,
 	setupDelayedHoverAtMouse: () => Disposable.None,
+	// eslint-disable-next-line local/code-no-any-casts
 	setupManagedHover: () => Disposable.None as any,
 	showAndFocusLastHover: () => undefined,
 	showManagedHover: () => undefined

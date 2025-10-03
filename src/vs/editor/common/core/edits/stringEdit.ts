@@ -20,6 +20,7 @@ export abstract class BaseStringEdit<T extends BaseStringReplacement<T> = BaseSt
 		}
 		let result = edits[0];
 		for (let i = 1; i < edits.length; i++) {
+			// eslint-disable-next-line local/code-no-any-casts
 			result = result.compose(edits[i]) as any;
 		}
 		return result;

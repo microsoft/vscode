@@ -74,7 +74,7 @@ jobs:
         retryCountOnTaskFailure: 5
         displayName: Install build dependencies
 
-      - template: ../cli/cli-win32-sign.yml@self
+      - template: ./steps/product-build-win32-cli-sign.yml@self
         parameters:
           VSCODE_CLI_ARTIFACTS:
             - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:

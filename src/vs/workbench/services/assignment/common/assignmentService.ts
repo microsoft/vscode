@@ -211,6 +211,7 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 			this.productService.version,
 			this.productService.nameLong,
 			this.telemetryService.machineId,
+			this.telemetryService.devDeviceId,
 			targetPopulation
 		);
 

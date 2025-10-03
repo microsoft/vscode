@@ -94,6 +94,7 @@ export class MicrosoftAuthenticationTelemetryReporter implements IExperimentatio
 		if (typeof error === 'string') {
 			errorMessage = error;
 		} else {
+			// eslint-disable-next-line local/code-no-any-casts
 			const authError: AuthError = error as any;
 			// don't set error message or stack because it contains PII
 			errorCode = authError.errorCode;

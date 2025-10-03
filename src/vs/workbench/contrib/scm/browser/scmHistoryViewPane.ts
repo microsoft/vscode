@@ -1016,7 +1016,7 @@ class SCMHistoryTreeDragAndDrop implements ITreeDragAndDrop<TreeElement> {
 	private _getTreeElementLabel(element: TreeElement): string | undefined {
 		if (isSCMHistoryItemViewModelTreeElement(element)) {
 			const historyItem = element.historyItemViewModel.historyItem;
-			return getHistoryItemEditorTitle(historyItem);
+			return historyItem.displayId ?? historyItem.id;
 		}
 
 		return undefined;

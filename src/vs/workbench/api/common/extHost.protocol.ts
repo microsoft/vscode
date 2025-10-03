@@ -1369,7 +1369,7 @@ export type IChatAgentHistoryEntryDto = {
 };
 
 export interface ExtHostChatAgentsShape2 {
-	$invokeAgent(handle: number, request: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[] }, token: CancellationToken): Promise<IChatAgentResult | undefined>;
+	$invokeAgent(handle: number, request: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[]; chatSessionContext?: { chatSessionType: string; chatSessionId: string; isUntitled: boolean } }, token: CancellationToken): Promise<IChatAgentResult | undefined>;
 	$provideFollowups(request: Dto<IChatAgentRequest>, handle: number, result: IChatAgentResult, context: { history: IChatAgentHistoryEntryDto[] }, token: CancellationToken): Promise<IChatFollowup[]>;
 	$acceptFeedback(handle: number, result: IChatAgentResult, voteAction: IChatVoteAction): void;
 	$acceptAction(handle: number, result: IChatAgentResult, action: IChatUserActionEvent): void;
@@ -2103,7 +2103,9 @@ export class IdObject {
 	_id?: number;
 	private static _n = 0;
 	static mixin<T extends object>(object: T): T & IdObject {
+		// eslint-disable-next-line local/code-no-any-casts
 		(<any>object)._id = IdObject._n++;
+		// eslint-disable-next-line local/code-no-any-casts
 		return <any>object;
 	}
 }
@@ -3151,7 +3153,7 @@ export interface MainThreadChatSessionsShape extends IDisposable {
 	$registerChatSessionItemProvider(handle: number, chatSessionType: string): void;
 	$unregisterChatSessionItemProvider(handle: number): void;
 	$onDidChangeChatSessionItems(handle: number): void;
-
+	$onDidCommitChatSessionItem(handle: number, original: string, modified: string): void;
 	$registerChatSessionContentProvider(handle: number, chatSessionType: string): void;
 	$unregisterChatSessionContentProvider(handle: number): void;
 
@@ -3164,7 +3166,7 @@ export interface MainThreadChatSessionsShape extends IDisposable {
 
 export interface ExtHostChatSessionsShape {
 	$provideChatSessionItems(providerHandle: number, token: CancellationToken): Promise<Dto<IChatSessionItem>[]>;
-	$provideNewChatSessionItem(providerHandle: number, options: { request: IChatAgentRequest; prompt?: string; history?: any[]; metadata?: any }, token: CancellationToken): Promise<Dto<IChatSessionItem>>;
+	$provideNewChatSessionItem(providerHandle: number, options: { request: IChatAgentRequest; metadata?: any }, token: CancellationToken): Promise<Dto<IChatSessionItem>>;
 
 	$provideChatSessionContent(providerHandle: number, sessionId: string, token: CancellationToken): Promise<ChatSessionDto>;
 	$interruptChatSessionActiveResponse(providerHandle: number, sessionId: string, requestId: string): Promise<void>;

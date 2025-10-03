@@ -252,6 +252,7 @@ export class TestNativeWorkingCopyBackupService extends NativeWorkingCopyBackupS
 		const logService = new NullLogService();
 		const fileService = new FileService(logService);
 		const lifecycleService = new TestLifecycleService();
+		// eslint-disable-next-line local/code-no-any-casts
 		super(environmentService as any, fileService, logService, lifecycleService);
 
 		const inMemoryFileSystemProvider = this._register(new InMemoryFileSystemProvider());

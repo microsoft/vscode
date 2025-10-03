@@ -242,6 +242,7 @@ export class GlobalEditorPointerMoveMonitor extends Disposable {
 
 		// Add a <<capture>> keydown event listener that will cancel the monitoring
 		// if something other than a modifier key is pressed
+		// eslint-disable-next-line local/code-no-any-casts
 		this._keydownListener = dom.addStandardDisposableListener(<any>initialElement.ownerDocument, 'keydown', (e) => {
 			const chord = e.toKeyCodeChord();
 			if (chord.isModifierKey()) {
@@ -381,6 +382,7 @@ class RefCountedCssRule {
 	private getCssText(className: string, properties: CssProperties): string {
 		let str = `.${className} {`;
 		for (const prop in properties) {
+			// eslint-disable-next-line local/code-no-any-casts
 			const value = (properties as any)[prop] as string | ThemeColor;
 			let cssValue;
 			if (typeof value === 'object') {

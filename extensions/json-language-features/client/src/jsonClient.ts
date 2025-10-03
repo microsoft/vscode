@@ -772,6 +772,7 @@ function getSchemaId(schema: JSONSchemaSettings, settingsLocation?: Uri): string
 }
 
 function isThenable<T>(obj: ProviderResult<T>): obj is Thenable<T> {
+	// eslint-disable-next-line local/code-no-any-casts
 	return obj && (<any>obj)['then'];
 }
 

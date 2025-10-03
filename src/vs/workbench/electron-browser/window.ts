@@ -32,7 +32,7 @@ import { IWorkspaceFolderCreationData } from '../../platform/workspaces/common/w
 import { IIntegrityService } from '../services/integrity/common/integrity.js';
 import { isWindows, isMacintosh } from '../../base/common/platform.js';
 import { IProductService } from '../../platform/product/common/productService.js';
-import { INotificationService, NotificationPriority, Severity } from '../../platform/notification/common/notification.js';
+import { INotificationService, NeverShowAgainScope, NotificationPriority, Severity } from '../../platform/notification/common/notification.js';
 import { IKeybindingService } from '../../platform/keybinding/common/keybinding.js';
 import { INativeWorkbenchEnvironmentService } from '../services/environment/electron-browser/environmentService.js';
 import { IAccessibilityService, AccessibilitySupport } from '../../platform/accessibility/common/accessibility.js';
@@ -79,6 +79,7 @@ import { getWorkbenchContribution } from '../common/contributions.js';
 import { DynamicWorkbenchSecurityConfiguration } from '../common/configuration.js';
 import { nativeHoverDelegate } from '../../platform/hover/browser/hover.js';
 import { WINDOW_ACTIVE_BORDER, WINDOW_INACTIVE_BORDER } from '../common/theme.js';
+import { IContextMenuService } from '../../platform/contextview/browser/contextView.js';
 
 export class NativeWindow extends BaseWindow {
 
@@ -111,7 +112,7 @@ export class NativeWindow extends BaseWindow {
 		@IOpenerService private readonly openerService: IOpenerService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@ITunnelService private readonly tunnelService: ITunnelService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
 		@IProductService private readonly productService: IProductService,
@@ -127,9 +128,10 @@ export class NativeWindow extends BaseWindow {
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IUtilityProcessWorkerWorkbenchService private readonly utilityProcessWorkerWorkbenchService: IUtilityProcessWorkerWorkbenchService,
-		@IHostService hostService: IHostService
+		@IHostService hostService: IHostService,
+		@IContextMenuService contextMenuService: IContextMenuService,
 	) {
-		super(mainWindow, undefined, hostService, nativeEnvironmentService);
+		super(mainWindow, undefined, hostService, nativeEnvironmentService, contextMenuService, layoutService);
 
 		this.configuredWindowZoomLevel = this.resolveConfiguredWindowZoomLevel();
 
@@ -738,6 +740,32 @@ export class NativeWindow extends BaseWindow {
 
 					break;
 				}
+			}
+		}
+
+		// macOS 11 warning
+		if (isMacintosh) {
+			const majorVersion = this.nativeEnvironmentService.os.release.split('.')[0];
+			const eolReleases = new Map<string, string>([
+				['20', 'macOS Big Sur'],
+			]);
+
+			if (eolReleases.has(majorVersion)) {
+				const message = localize('macoseolmessage', "{0} on {1} will soon stop receiving updates. Consider upgrading your macOS version.", this.productService.nameLong, eolReleases.get(majorVersion));
+
+				this.notificationService.prompt(
+					Severity.Warning,
+					message,
+					[{
+						label: localize('learnMore', "Learn More"),
+						run: () => this.openerService.open(URI.parse('https://aka.ms/vscode-faq-old-macOS'))
+					}],
+					{
+						neverShowAgain: { id: 'macoseol', isSecondary: true, scope: NeverShowAgainScope.APPLICATION },
+						priority: NotificationPriority.URGENT,
+						sticky: true
+					}
+				);
 			}
 		}
 

@@ -279,11 +279,16 @@ export interface IPresentationOptions {
 	 * Controls whether the terminal that the task runs in is closed when the task completes.
 	 */
 	close?: boolean;
+
+	/**
+	 * Controls whether to preserve the task name in the terminal after task completion.
+	 */
+	preserveTerminalName?: boolean;
 }
 
 export namespace PresentationOptions {
 	export const defaults: IPresentationOptions = {
-		echo: true, reveal: RevealKind.Always, revealProblems: RevealProblemKind.Never, focus: false, panel: PanelKind.Shared, showReuseMessage: true, clear: false
+		echo: true, reveal: RevealKind.Always, revealProblems: RevealProblemKind.Never, focus: false, panel: PanelKind.Shared, showReuseMessage: true, clear: false, preserveTerminalName: false
 	};
 }
 
@@ -647,6 +652,7 @@ export abstract class CommonTask {
 	}
 
 	public clone(): Task {
+		// eslint-disable-next-line local/code-no-any-casts
 		return this.fromObject(Object.assign({}, <any>this));
 	}
 
@@ -687,6 +693,7 @@ export abstract class CommonTask {
 	public getTaskExecution(): ITaskExecution {
 		const result: ITaskExecution = {
 			id: this._id,
+			// eslint-disable-next-line local/code-no-any-casts
 			task: <any>this
 		};
 		return result;
@@ -1230,7 +1237,8 @@ export const enum TaskRunSource {
 	User,
 	FolderOpen,
 	ConfigurationChange,
-	Reconnect
+	Reconnect,
+	ChatAgent
 }
 
 export namespace TaskEvent {

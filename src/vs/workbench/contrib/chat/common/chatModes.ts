@@ -233,6 +233,7 @@ function isCachedChatModeData(data: unknown): data is IChatModeData {
 		return false;
 	}
 
+	// eslint-disable-next-line local/code-no-any-casts
 	const mode = data as any;
 	return typeof mode.id === 'string' &&
 		typeof mode.name === 'string' &&

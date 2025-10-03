@@ -810,6 +810,7 @@ export class RawDebugSession implements IDisposable {
 			this.notificationService.error(userMessage);
 		}
 		const result = new errors.ErrorNoTelemetry(userMessage);
+		// eslint-disable-next-line local/code-no-any-casts
 		(<any>result).showUser = error?.showUser;
 
 		return result;

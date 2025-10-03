@@ -233,6 +233,7 @@ if (TRACK_DISPOSABLES) {
 		trackDisposable(x: IDisposable): void {
 			const stack = new Error('Potentially leaked disposable').stack!;
 			setTimeout(() => {
+				// eslint-disable-next-line local/code-no-any-casts
 				if (!(x as any)[__is_disposable_tracked__]) {
 					console.log(stack);
 				}
@@ -242,6 +243,7 @@ if (TRACK_DISPOSABLES) {
 		setParent(child: IDisposable, parent: IDisposable | null): void {
 			if (child && child !== Disposable.None) {
 				try {
+					// eslint-disable-next-line local/code-no-any-casts
 					(child as any)[__is_disposable_tracked__] = true;
 				} catch {
 					// noop
@@ -252,6 +254,7 @@ if (TRACK_DISPOSABLES) {
 		markAsDisposed(disposable: IDisposable): void {
 			if (disposable && disposable !== Disposable.None) {
 				try {
+					// eslint-disable-next-line local/code-no-any-casts
 					(disposable as any)[__is_disposable_tracked__] = true;
 				} catch {
 					// noop
@@ -311,6 +314,7 @@ export interface IDisposable {
  * Check if `thing` is {@link IDisposable disposable}.
  */
 export function isDisposable<E extends any>(thing: E): thing is E & IDisposable {
+	// eslint-disable-next-line local/code-no-any-casts
 	return typeof thing === 'object' && thing !== null && typeof (<IDisposable><any>thing).dispose === 'function' && (<IDisposable><any>thing).dispose.length === 0;
 }
 
@@ -367,19 +371,36 @@ export function combinedDisposable(...disposables: IDisposable[]): IDisposable {
 	return parent;
 }
 
+class FunctionDisposable implements IDisposable {
+	private _isDisposed: boolean;
+	private readonly _fn: () => void;
+
+	constructor(fn: () => void) {
+		this._isDisposed = false;
+		this._fn = fn;
+		trackDisposable(this);
+	}
+
+	dispose() {
+		if (this._isDisposed) {
+			return;
+		}
+		if (!this._fn) {
+			throw new Error(`Unbound disposable context: Need to use an arrow function to preserve the value of this`);
+		}
+		this._isDisposed = true;
+		markAsDisposed(this);
+		this._fn();
+	}
+}
+
 /**
  * Turn a function that implements dispose into an {@link IDisposable}.
  *
  * @param fn Clean up function, guaranteed to be called only **once**.
  */
 export function toDisposable(fn: () => void): IDisposable {
-	const self = trackDisposable({
-		dispose: createSingleCallFunction(() => {
-			markAsDisposed(self);
-			fn();
-		})
-	});
-	return self;
+	return new FunctionDisposable(fn);
 }
 
 /**

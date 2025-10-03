@@ -538,11 +538,15 @@ export class BrowserHostService extends Disposable implements IHostService {
 		}
 
 		// Safari and Edge 14 are all using webkit prefix
+		// eslint-disable-next-line local/code-no-any-casts
 		if ((<any>targetWindow.document).webkitIsFullScreen !== undefined) {
 			try {
+				// eslint-disable-next-line local/code-no-any-casts
 				if (!(<any>targetWindow.document).webkitIsFullScreen) {
+					// eslint-disable-next-line local/code-no-any-casts
 					(<any>target).webkitRequestFullscreen(); // it's async, but doesn't return a real promise.
 				} else {
+					// eslint-disable-next-line local/code-no-any-casts
 					(<any>targetWindow.document).webkitExitFullscreen(); // it's async, but doesn't return a real promise.
 				}
 			} catch {

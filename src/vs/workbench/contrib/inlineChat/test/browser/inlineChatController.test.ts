@@ -157,6 +157,7 @@ suite('InlineChatController', function () {
 			[IContextKeyService, new MockContextKeyService()],
 			[IViewsService, new class extends TestViewsService {
 				override async openView<T extends IView>(id: string, focus?: boolean | undefined): Promise<T | null> {
+					// eslint-disable-next-line local/code-no-any-casts
 					return { widget: chatWidget ?? null } as any;
 				}
 			}()],
@@ -621,9 +622,10 @@ suite('InlineChatController', function () {
 		store.add(targetModel);
 		chatWidget = new class extends mock<IChatWidget>() {
 			override get viewModel() {
+				// eslint-disable-next-line local/code-no-any-casts
 				return { model: targetModel } as any;
 			}
-			override focusLastMessage() { }
+			override focusResponseItem() { }
 		};
 
 		const r = ctrl.joinCurrentRun();
@@ -669,9 +671,10 @@ suite('InlineChatController', function () {
 		store.add(targetModel);
 		chatWidget = new class extends mock<IChatWidget>() {
 			override get viewModel() {
+				// eslint-disable-next-line local/code-no-any-casts
 				return { model: targetModel } as any;
 			}
-			override focusLastMessage() { }
+			override focusResponseItem() { }
 		};
 
 		const r = ctrl.joinCurrentRun();

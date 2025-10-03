@@ -1210,6 +1210,7 @@ function normalizeOldFields(raw: ISerializableChatDataIn): void {
 		}
 	}
 
+	// eslint-disable-next-line local/code-no-any-casts
 	if ((raw.initialLocation as any) === 'editing-session') {
 		raw.initialLocation = ChatAgentLocation.Chat;
 	}
@@ -1522,6 +1523,7 @@ export class ChatModel extends Disposable implements IChatModel {
 					modelId: raw.modelId,
 				});
 				request.shouldBeRemovedOnSend = raw.isHidden ? { requestId: raw.requestId } : raw.shouldBeRemovedOnSend;
+				// eslint-disable-next-line local/code-no-any-casts
 				if (raw.response || raw.result || (raw as any).responseErrorDetails) {
 					const agent = (raw.agent && 'metadata' in raw.agent) ? // Check for the new format, ignore entries in the old format
 						reviveSerializedAgent(raw.agent) : undefined;
@@ -1851,6 +1853,7 @@ export class ChatModel extends Disposable implements IChatModel {
 									metadata: item.metadata
 								};
 							} else {
+								// eslint-disable-next-line local/code-no-any-casts
 								return item as any; // TODO
 							}
 						})
@@ -1966,15 +1969,15 @@ export interface IChatAgentEditedFileEvent {
 export namespace ChatResponseResource {
 	export const scheme = 'vscode-chat-response-resource';
 
-	export function createUri(sessionId: string, requestId: string, toolCallId: string, index: number, basename?: string): URI {
+	export function createUri(sessionId: string, toolCallId: string, index: number, basename?: string): URI {
 		return URI.from({
 			scheme: ChatResponseResource.scheme,
 			authority: sessionId,
-			path: `/tool/${requestId}/${toolCallId}/${index}` + (basename ? `/${basename}` : ''),
+			path: `/tool/${toolCallId}/${index}` + (basename ? `/${basename}` : ''),
 		});
 	}
 
-	export function parseUri(uri: URI): undefined | { sessionId: string; requestId: string; toolCallId: string; index: number } {
+	export function parseUri(uri: URI): undefined | { sessionId: string; toolCallId: string; index: number } {
 		if (uri.scheme !== ChatResponseResource.scheme) {
 			return undefined;
 		}
@@ -1984,14 +1987,13 @@ export namespace ChatResponseResource {
 			return undefined;
 		}
 
-		const [, kind, requestId, toolCallId, index] = parts;
+		const [, kind, toolCallId, index] = parts;
 		if (kind !== 'tool') {
 			return undefined;
 		}
 
 		return {
 			sessionId: uri.authority,
-			requestId: requestId,
 			toolCallId: toolCallId,
 			index: Number(index),
 		};

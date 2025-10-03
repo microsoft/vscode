@@ -59,6 +59,7 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 
 	function file(file: Vinyl): void {
 		// support gulp-sourcemaps
+		// eslint-disable-next-line local/code-no-any-casts
 		if ((<any>file).sourceMap) {
 			emitSourceMapsInStream = false;
 		}
@@ -80,6 +81,7 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 	}
 
 	function isExternalModule(sourceFile: ts.SourceFile): boolean {
+		// eslint-disable-next-line local/code-no-any-casts
 		return (<any>sourceFile).externalModuleIndicator
 			|| /declare\s+module\s+('|")(.+)\1/.test(sourceFile.getText());
 	}
@@ -221,6 +223,7 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 
 										[tsSMC, inputSMC].forEach((consumer) => {
 											(<SourceMapConsumer & { sources: string[] }>consumer).sources.forEach((sourceFile: any) => {
+												// eslint-disable-next-line local/code-no-any-casts
 												(<any>smg)._sources.add(sourceFile);
 												const sourceContent = consumer.sourceContentFor(sourceFile);
 												if (sourceContent !== null) {
@@ -239,6 +242,7 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 									}
 								}
 
+								// eslint-disable-next-line local/code-no-any-casts
 								(<any>vinyl).sourceMap = sourceMap;
 							}
 						}
@@ -440,7 +444,9 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 						messageText: `CYCLIC dependency: ${error}`
 					});
 				}
+				delete oldErrors[filename];
 				newErrors[filename] = cyclicDepErrors;
+				cyclicDepErrors.forEach(d => onError(d));
 			}
 
 		}).then(() => {
@@ -584,6 +590,7 @@ class LanguageServiceHost implements ts.LanguageServiceHost {
 		let result = this._snapshots[filename];
 		if (!result && resolve) {
 			try {
+				// eslint-disable-next-line local/code-no-any-casts
 				result = new VinylScriptSnapshot(new Vinyl(<any>{
 					path: filename,
 					contents: fs.readFileSync(filename),

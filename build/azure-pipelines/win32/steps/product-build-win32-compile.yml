@@ -16,7 +16,7 @@ parameters:
     default: false
 
 steps:
-  - template: ../common/checkout.yml@self
+  - template: ../../common/checkout.yml@self
 
   - task: NodeTool@0
     inputs:
@@ -28,7 +28,7 @@ steps:
       versionSpec: "3.x"
       addToPath: true
 
-  - template: ../distro/download-distro.yml@self
+  - template: ../../distro/download-distro.yml@self
 
   - task: AzureKeyVault@2
     displayName: "Azure Key Vault: Get Secrets"
@@ -87,40 +87,6 @@ steps:
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Authentication
 
-  # Remove once https://github.com/parcel-bundler/watcher/pull/202 is merged.
-  - pwsh: |
-      $includes = @'
-        {
-          'target_defaults': {
-            'conditions': [
-              ['OS=="win"', {
-                "msvs_settings": {
-                  "VCCLCompilerTool": {
-                    "AdditionalOptions": [
-                      "/guard:cf",
-                      "/w34244",
-                      "/w34267",
-                    ]
-                  },
-                  "VCLinkerTool": {
-                    "AdditionalOptions": [
-                      "/guard:cf",
-                    ]
-                  }
-                }
-              }]
-            ]
-          }
-        }
-      '@
-
-      if (!(Test-Path "~/.gyp")) {
-        mkdir "~/.gyp"
-      }
-      echo $includes > "~/.gyp/include.gypi"
-    displayName: Create include.gypi
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
@@ -151,7 +117,7 @@ steps:
   - powershell: node build/azure-pipelines/distro/mixin-quality
     displayName: Mixin distro quality
 
-  - template: ../common/install-builtin-extensions.yml@self
+  - template: ../../common/install-builtin-extensions.yml@self
 
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
     - powershell: node build\lib\policies win32

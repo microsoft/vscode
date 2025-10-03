@@ -1374,6 +1374,7 @@ export class ChangeLanguageAction extends Action2 {
 
 				// If the association is already being made in the workspace, make sure to target workspace settings
 				let target = ConfigurationTarget.USER;
+				// eslint-disable-next-line local/code-no-any-casts
 				if (fileAssociationsConfig.workspaceValue && !!(fileAssociationsConfig.workspaceValue as any)[associationKey]) {
 					target = ConfigurationTarget.WORKSPACE;
 				}

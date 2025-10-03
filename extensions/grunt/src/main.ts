@@ -120,6 +120,7 @@ class FolderDetector {
 	}
 
 	public async getTask(_task: vscode.Task): Promise<vscode.Task | undefined> {
+		// eslint-disable-next-line local/code-no-any-casts
 		const taskDefinition = <any>_task.definition;
 		const gruntTask = taskDefinition.task;
 		if (gruntTask) {

@@ -121,6 +121,7 @@ export class ResourceMap<T> implements Map<URI, T> {
 			clb = clb.bind(thisArg);
 		}
 		for (const [_, entry] of this.map) {
+			// eslint-disable-next-line local/code-no-any-casts
 			clb(entry.value, entry.uri, <any>this);
 		}
 	}

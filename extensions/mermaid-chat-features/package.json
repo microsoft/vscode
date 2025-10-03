@@ -1,5 +1,5 @@
 {
-  "name": "marmaid-chat-features",
+  "name": "mermaid-chat-features",
   "displayName": "%displayName%",
   "description": "%description%",
   "version": "1.0.0",
@@ -26,6 +26,20 @@
   "browser": "./dist/browser/extension",
   "activationEvents": [],
   "contributes": {
+    "configuration": {
+      "title": "Mermaid Chat Features",
+      "properties": {
+        "mermaid-chat.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "%config.enabled.description%",
+          "scope": "application",
+          "tags": [
+            "experimental"
+          ]
+        }
+      }
+    },
     "chatOutputRenderers": [
       {
         "viewType": "vscode.chatMermaidDiagram",
@@ -42,6 +56,7 @@
         "canBeReferencedInPrompt": true,
         "modelDescription": "Renders a Mermaid diagram from Mermaid.js markup.",
         "userDescription": "Render a Mermaid.js diagrams from markup.",
+        "when": "config.mermaid-chat.enabled",
         "inputSchema": {
           "type": "object",
           "properties": {

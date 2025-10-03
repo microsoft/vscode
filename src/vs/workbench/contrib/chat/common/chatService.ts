@@ -279,7 +279,7 @@ export interface IChatElicitationRequest {
 	accept(value: IAction | true): Promise<void>;
 	reject?: () => Promise<void>;
 	isHidden?: IObservable<boolean>;
-	hide?: () => void;
+	hide?(): void;
 }
 
 export interface IChatThinkingPart {
@@ -351,6 +351,7 @@ export interface IChatToolInvocation {
 	progress: IObservable<{ message?: string | IMarkdownString; progress: number | undefined }>;
 	readonly toolId: string;
 	readonly toolCallId: string;
+	readonly fromSubAgent?: boolean;
 
 	isCompletePromise: Promise<void>;
 	isComplete: boolean;
@@ -382,6 +383,7 @@ export interface IChatToolInvocationSerialized {
 	toolCallId: string;
 	toolId: string;
 	source: ToolDataSource;
+	readonly fromSubAgent?: boolean;
 	kind: 'toolInvocationSerialized';
 }
 
@@ -700,9 +702,10 @@ export interface IChatService {
 	loadSessionFromContent(data: IExportableChatData | ISerializableChatData | URI): IChatModel | undefined;
 	loadSessionForResource(resource: URI, location: ChatAgentLocation, token: CancellationToken): Promise<IChatModel | undefined>;
 	readonly editingSessions: IChatEditingSession[];
+	getChatSessionFromInternalId(sessionId: string): { chatSessionType: string; chatSessionId: string; isUntitled: boolean } | undefined;
 
 	/**
-	 * Returns whether the request was accepted.
+	 * Returns whether the request was accepted.`
 	 */
 	sendRequest(sessionId: string, message: string, options?: IChatSendRequestOptions): Promise<IChatSendRequestData | undefined>;
 
