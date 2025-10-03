@@ -1225,11 +1225,12 @@ export class ChangeLanguageAction extends Action2 {
 			picks.unshift(configureLanguageAssociations);
 		}
 
-		// Offer to "Auto Detect"
-		const autoDetectLanguage: IQuickPickItem = {
-			label: localize('autoDetect', "Auto Detect")
-		};
-		picks.unshift(autoDetectLanguage);
+		// Offer to "Auto Detect", but only if the document has long enough text.
+		let autoDetectLanguage: IQuickPickItem | undefined = undefined;
+		if (textModel && textModel.getValueLength() > 20) {
+			autoDetectLanguage = { label: localize('autoDetect', "Auto Detect") };
+			picks.unshift(autoDetectLanguage);
+		}
 
 		const pick = typeof languageMode === 'string' ? { label: languageMode } : await quickInputService.pick(picks, { placeHolder: localize('pickLanguage', "Select Language Mode"), matchOnDescription: true });
 		if (!pick) {
