@@ -41,7 +41,7 @@ import { IViewsService } from '../../../../../services/views/common/viewsService
 import { IChatService } from '../../../common/chatService.js';
 import { IChatSessionItemProvider } from '../../../common/chatSessionsService.js';
 import { ChatSessionUri } from '../../../common/chatUri.js';
-import { ChatConfiguration } from '../../../common/constants.js';
+import { ChatConfiguration, ChatEditorTitleMaxLength } from '../../../common/constants.js';
 import { IChatWidgetService, ChatViewId } from '../../chat.js';
 import { IChatEditorOptions } from '../../chatEditor.js';
 import { ChatEditorInput } from '../../chatEditorInput.js';
@@ -494,7 +494,7 @@ export class SessionsViewPane extends ViewPane {
 				pinned: true,
 				ignoreInView: true,
 				title: {
-					preferred: truncate(session.label, 30),
+					preferred: truncate(session.label, ChatEditorTitleMaxLength),
 				},
 				preserveFocus: true,
 			};

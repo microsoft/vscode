@@ -14,7 +14,7 @@ function isCancellationToken(value: any): value is vscode.CancellationToken {
 	return value && typeof value.isCancellationRequested === 'boolean' && typeof value.onCancellationRequested === 'function';
 }
 
-interface RequestArgs {
+export interface RequestArgs {
 	readonly file?: unknown;
 	readonly $traceId?: unknown;
 }
