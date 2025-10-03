@@ -92,8 +92,6 @@ import './media/chat.css';
 import './media/chatAgentHover.css';
 import './media/chatViewWelcome.css';
 import { ChatViewWelcomePart, IChatSuggestedPrompts, IChatViewWelcomeContent } from './viewsWelcome/chatViewWelcomeController.js';
-import { ChatEditorInput } from './chatEditorInput.js';
-import { getChatSessionType } from './chatSessions/common.js';
 
 const $ = dom.$;
 
@@ -1292,19 +1290,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private isLocalChatSession(): boolean {
-		// Check if this is a Chat View widget (always local)
-		if ('viewId' in this.viewContext && this.viewContext.viewId === 'workbench.panel.chat.view.copilot') {
-			return true;
+		// If the widget is locked to a coding agent, it means it's a non-local session
+		// (external provider). The ChatEditor calls lockToCodingAgent for non-local sessions.
+		if (this._lockedToCodingAgent) {
+			return false;
 		}
 
-		// For editor-based widgets, check the session type of the active editor
-		const activeEditor = this.editorService.activeEditor;
-		if (activeEditor instanceof ChatEditorInput) {
-			const sessionType = getChatSessionType(activeEditor);
-			return sessionType === 'local';
-		}
-
-		// Default to true for backwards compatibility (e.g., quick chat, inline chat)
+		// Otherwise, it's a local session (Chat View, quick chat, inline chat, or local editor)
 		return true;
 	}
 
