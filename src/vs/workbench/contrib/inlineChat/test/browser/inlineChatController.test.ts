@@ -56,7 +56,7 @@ import { ChatVariablesService } from '../../../chat/browser/chatVariables.js';
 import { ChatWidget, ChatWidgetService } from '../../../chat/browser/chatWidget.js';
 import { ChatAgentService, IChatAgentData, IChatAgentNameService, IChatAgentService } from '../../../chat/common/chatAgents.js';
 import { IChatEditingService, IChatEditingSession } from '../../../chat/common/chatEditingService.js';
-import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
+import { IChatEntitlementService } from '../../../../../platform/chatEntitlement/common/chatEntitlement.js';
 import { IChatLayoutService } from '../../../chat/common/chatLayoutService.js';
 import { IChatModeService } from '../../../chat/common/chatModes.js';
 import { IChatTodo, IChatTodoListService } from '../../../chat/common/chatTodoListService.js';
