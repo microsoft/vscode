@@ -9,6 +9,7 @@ import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isEqual } from '../../../../base/common/resources.js';
+import { truncate } from '../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import * as nls from '../../../../nls.js';
@@ -20,14 +21,14 @@ import { EditorInput, IEditorCloseHandler } from '../../../common/editor/editorI
 import { IChatEditingSession, ModifiedFileEntryState } from '../common/chatEditingService.js';
 import { IChatModel } from '../common/chatModel.js';
 import { IChatService } from '../common/chatService.js';
-import { ChatAgentLocation } from '../common/constants.js';
+import { ChatAgentLocation, ChatEditorTitleMaxLength } from '../common/constants.js';
 import { IClearEditingSessionConfirmationOptions } from './actions/chatActions.js';
 import type { IChatEditorOptions } from './chatEditor.js';
 
 const ChatEditorIcon = registerIcon('chat-editor-label-icon', Codicon.chatSparkle, nls.localize('chatEditorLabelIcon', 'Icon of the chat editor label.'));
 
 export class ChatEditorInput extends EditorInput implements IEditorCloseHandler {
-	/** Mapping of <inputName> to set of active editor counts */
+	/** Maps input name strings to sets of active editor counts */
 	static readonly countsInUseMap = new Map<string, Set<number>>();
 
 	static readonly TypeID: string = 'workbench.input.chatSession';
@@ -93,7 +94,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		// Only allocate a count if we don't already have a custom title
 		if (!this.hasCustomTitle) {
 			this.inputCount = ChatEditorInput.getNextCount(this.inputName);
-			ChatEditorInput.countsInUseMap.get(this.inputName)!.add(this.inputCount);
+			ChatEditorInput.countsInUseMap.get(this.inputName)?.add(this.inputCount);
 			this._register(toDisposable(() => {
 				// Only remove if we haven't already removed it due to custom title
 				if (!this.hasCustomTitle) {
@@ -156,7 +157,8 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	override getName(): string {
 		// If we have a resolved model, use its title
 		if (this.model?.title) {
-			return this.model.title;
+			// Only truncate if the default title is being used (don't truncate custom titles)
+			return this.model.hasCustomTitle ? this.model.title : truncate(this.model.title, ChatEditorTitleMaxLength);
 		}
 
 		// If we have a sessionId but no resolved model, try to get the title from persisted sessions
