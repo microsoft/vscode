@@ -30,9 +30,11 @@ import { IHoverService } from '../../../../../../platform/hover/browser/hover.js
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import product from '../../../../../../platform/product/common/product.js';
 import { defaultInputBoxStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
+import { HoverPosition } from '../../../../../../base/browser/ui/hover/hoverWidget.js';
+import { IWorkbenchLayoutService, Position } from '../../../../../services/layout/browser/layoutService.js';
+import { ViewContainerLocation, IViewDescriptorService, IEditableData } from '../../../../../common/views.js';
 import { IResourceLabel, ResourceLabels } from '../../../../../browser/labels.js';
 import { IconLabel } from '../../../../../../base/browser/ui/iconLabel/iconLabel.js';
-import { IEditableData } from '../../../../../common/views.js';
 import { IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
 import { IChatService } from '../../../common/chatService.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService } from '../../../common/chatSessionsService.js';
@@ -46,6 +48,8 @@ import { IListRenderer, IListVirtualDelegate } from '../../../../../../base/brow
 import { ChatSessionTracker } from '../chatSessionTracker.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { getLocalHistoryDateFormatter } from '../../../../localHistory/browser/localHistory.js';
+
+
 
 interface ISessionTemplateData {
 	readonly container: HTMLElement;
@@ -122,6 +126,8 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IChatService private readonly chatService: IChatService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
+		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 	) {
 		super();
 
@@ -130,6 +136,22 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 
 	get templateId(): string {
 		return SessionsRenderer.TEMPLATE_ID;
+	}
+
+	private getHoverPosition(): HoverPosition {
+		const viewLocation = this.viewDescriptorService.getViewLocationById('workbench.panel.chatSessions');
+		const sideBarPosition = this.layoutService.getSideBarPosition();
+
+		let hoverPosition: HoverPosition;
+		if (viewLocation === ViewContainerLocation.Sidebar) {
+			hoverPosition = sideBarPosition === Position.LEFT ? HoverPosition.RIGHT : HoverPosition.LEFT;
+		} else if (viewLocation === ViewContainerLocation.AuxiliaryBar) {
+			hoverPosition = sideBarPosition === Position.LEFT ? HoverPosition.LEFT : HoverPosition.RIGHT;
+		} else {
+			hoverPosition = HoverPosition.RIGHT;
+		}
+
+		return hoverPosition;
 	}
 
 	renderTemplate(container: HTMLElement): ISessionTemplateData {
@@ -267,11 +289,19 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 		if (renderDescriptionOnSecondRow && session.description && tooltipContent) {
 			if (typeof tooltipContent === 'string') {
 				templateData.elementDisposable.add(
-					this.hoverService.setupDelayedHover(templateData.container, { content: tooltipContent })
+					this.hoverService.setupDelayedHover(templateData.container, () => ({
+						content: tooltipContent,
+						appearance: { showPointer: true },
+						position: { hoverPosition: this.getHoverPosition() }
+					}), { groupId: 'chat.sessions' })
 				);
 			} else if (tooltipContent && typeof tooltipContent === 'object' && 'markdown' in tooltipContent) {
 				templateData.elementDisposable.add(
-					this.hoverService.setupDelayedHover(templateData.container, { content: tooltipContent.markdown })
+					this.hoverService.setupDelayedHover(templateData.container, () => ({
+						content: tooltipContent.markdown,
+						appearance: { showPointer: true },
+						position: { hoverPosition: this.getHoverPosition() }
+					}), { groupId: 'chat.sessions' })
 				);
 			}
 		}
@@ -288,9 +318,11 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 			if (session.timing?.startTime) {
 				const fullDateTime = getLocalHistoryDateFormatter().format(session.timing.startTime);
 				templateData.elementDisposable.add(
-					this.hoverService.setupDelayedHover(templateData.timestamp, {
-						content: nls.localize('chat.sessions.lastActivity', 'Last Activity: {0}', fullDateTime)
-					})
+					this.hoverService.setupDelayedHover(templateData.timestamp, () => ({
+						content: nls.localize('chat.sessions.lastActivity', 'Last Activity: {0}', fullDateTime),
+						appearance: { showPointer: true },
+						position: { hoverPosition: this.getHoverPosition() }
+					}), { groupId: 'chat.sessions' })
 				);
 			}
 		} else {
