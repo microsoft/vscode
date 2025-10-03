@@ -643,6 +643,27 @@ suite('Color', () => {
 		});
 	});
 
+	suite('formatHexA for color picker', () => {
+		test('should preserve alpha information for transparent colors', () => {
+			// Test case from issue: rgba(0, 0, 0, 0) should become #00000000, not #000000
+			const transparentBlack = new Color(new RGBA(0, 0, 0, 0));
+			assert.strictEqual(Color.Format.CSS.formatHexA(transparentBlack), '#00000000');
+			
+			// Semi-transparent black
+			const semiTransparentBlack = new Color(new RGBA(0, 0, 0, 0.5));
+			assert.strictEqual(Color.Format.CSS.formatHexA(semiTransparentBlack), '#00000080');
+			
+			// Opaque black should not include alpha when compact=true
+			const opaqueBlack = new Color(new RGBA(0, 0, 0, 1));
+			assert.strictEqual(Color.Format.CSS.formatHexA(opaqueBlack, true), '#000000');
+			assert.strictEqual(Color.Format.CSS.formatHexA(opaqueBlack, false), '#000000ff');
+			
+			// Transparent red
+			const transparentRed = new Color(new RGBA(255, 0, 0, 0));
+			assert.strictEqual(Color.Format.CSS.formatHexA(transparentRed), '#ff000000');
+		});
+	});
+
 	const rgbaFromInt = (int: number) => new Color(new RGBA(
 		(int >> 24) & 0xff,
 		(int >> 16) & 0xff,
