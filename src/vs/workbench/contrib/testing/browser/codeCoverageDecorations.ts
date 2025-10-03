@@ -281,63 +281,49 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 			return false;
 		}
 
-		// Collect all missed line decorations
-		const missedLines: { lineNumber: number; range: Range }[] = [];
+		const currentLine = position.lineNumber;
+		let closestBefore: { lineNumber: number; range: Range } | undefined;
+		let closestAfter: { lineNumber: number; range: Range } | undefined;
+		let firstMissed: { lineNumber: number; range: Range } | undefined;
+		let lastMissed: { lineNumber: number; range: Range } | undefined;
+
+		// Find the closest missed line before and after the current position
 		for (const [, { detail, options }] of this.decorationIds) {
-			const isMissed = detail.metadata.detail.type === DetailType.Statement
-				? !detail.metadata.detail.count
-					: detail.metadata.detail.type === DetailType.Branch
-						? (() => {
-							const branchDetail = detail.metadata.detail.detail;
-							const branchIndex = detail.metadata.detail.branch;
-							const branches = branchDetail.branches;
-							if (branches && branches[branchIndex]) {
-								return !branches[branchIndex].count;
-							}
-							return false;
-						})()
-						: false;
 			// Check if this is a missed line (CLASS_MISS in lineNumberClassName)
 			if (options.lineNumberClassName?.includes(CLASS_MISS)) {
 				const range = detail.range;
-				const isMissed = this.isMissedLine(detail.metadata.detail);
+				if (range.isEmpty()) {
+					continue;
+				}
 
-				if (isMissed && !range.isEmpty()) {
-					missedLines.push({ lineNumber: range.startLineNumber, range });
+				const lineNumber = range.startLineNumber;
+				const missedLine = { lineNumber, range };
+
+				// Track first and last missed lines for wrap-around
+				if (!firstMissed || lineNumber < firstMissed.lineNumber) {
+					firstMissed = missedLine;
+				}
+				if (!lastMissed || lineNumber > lastMissed.lineNumber) {
+					lastMissed = missedLine;
+				}
+
+				// Track closest before and after current line
+				if (lineNumber < currentLine) {
+					if (!closestBefore || lineNumber > closestBefore.lineNumber) {
+						closestBefore = missedLine;
+					}
+				} else if (lineNumber > currentLine) {
+					if (!closestAfter || lineNumber < closestAfter.lineNumber) {
+						closestAfter = missedLine;
+					}
 				}
 			}
 		}
 
-		// Sort missed lines by line number
-		missedLines.sort((a, b) => a.lineNumber - b.lineNumber);
-
-		if (missedLines.length === 0) {
-			return false;
-		}
-
-		const currentLine = position.lineNumber;
-		let targetLine: { lineNumber: number; range: Range } | undefined;
-
-		if (next) {
-			// Find the first missed line after the current line
-			targetLine = missedLines.find(l => l.lineNumber > currentLine);
-			// If no line found after, wrap around to the first missed line
-			if (!targetLine) {
-				targetLine = missedLines[0];
-			}
-		} else {
-			// Find the last missed line before the current line
-			for (let i = missedLines.length - 1; i >= 0; i--) {
-				if (missedLines[i].lineNumber < currentLine) {
-					targetLine = missedLines[i];
-					break;
-				}
-			}
-			// If no line found before, wrap around to the last missed line
-			if (!targetLine) {
-				targetLine = missedLines[missedLines.length - 1];
-			}
-		}
+		// Determine target line based on direction
+		const targetLine = next
+			? (closestAfter || firstMissed)  // Next: closest after, or wrap to first
+			: (closestBefore || lastMissed);  // Previous: closest before, or wrap to last
 
 		if (targetLine) {
 			this.editor.setPosition(new Position(targetLine.lineNumber, 1));
