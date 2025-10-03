@@ -1855,8 +1855,6 @@ export class ChatModel extends Disposable implements IChatModel {
 							} else {
 								return item as any; // TODO
 							}
-
-
 						})
 						: undefined,
 					responseId: r.response?.id,
