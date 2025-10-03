@@ -26,7 +26,7 @@ import { IQuickInputService } from '../../../../../platform/quickinput/common/qu
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IRemoteCodingAgent, IRemoteCodingAgentsService } from '../../../remoteCodingAgents/common/remoteCodingAgentsService.js';
-import { IChatAgentHistoryEntry, IChatAgentService } from '../../common/chatAgents.js';
+import { IChatAgent, IChatAgentHistoryEntry, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys, ChatContextKeyExprs } from '../../common/chatContextKeys.js';
 import { IChatModel, IChatRequestModel, toChatHistoryContent } from '../../common/chatModel.js';
 import { IChatMode, IChatModeService } from '../../common/chatModes.js';
@@ -648,14 +648,14 @@ export class CreateRemoteAgentJobAction extends Action2 {
 	private async createWithChatSessions(
 		chatSessionsService: IChatSessionsService,
 		chatService: IChatService,
-		chatAgentService: IChatAgentService,
 		quickPickService: IQuickInputService,
-		chatModel: IChatModel,
-		requestParser: ChatRequestParser,
 		sessionId: string,
-		widget: IChatWidget,
 		attachedContext: ChatRequestVariableSet,
 		userPrompt: string,
+		chatSummary?: {
+			prompt?: string;
+			history?: string;
+		}
 	) {
 		const contributions = chatSessionsService.getAllChatSessionContributions();
 		const agent = await this.pickCodingAgent(quickPickService, contributions);
@@ -664,9 +664,11 @@ export class CreateRemoteAgentJobAction extends Action2 {
 		}
 		// TODO(jospicer): The previous chat history doesn't get sent to chat participants!
 		const { type } = agent;
+
 		await chatService.sendRequest(sessionId, userPrompt, {
 			agentIdSilent: type,
 			attachedContext: attachedContext.asArray(),
+			chatSummary,
 		});
 	}
 
@@ -797,22 +799,6 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			const instantiationService = accessor.get(IInstantiationService);
 			const requestParser = instantiationService.createInstance(ChatRequestParser);
 
-			const isChatSessionsExperimentEnabled = configurationService.getValue<boolean>(ChatConfiguration.UseCloudButtonV2);
-			if (isChatSessionsExperimentEnabled) {
-				return await this.createWithChatSessions(
-					chatSessionsService,
-					chatService,
-					chatAgentService,
-					quickPickService,
-					chatModel,
-					requestParser,
-					sessionId,
-					widget,
-					attachedContext,
-					userPrompt
-				);
-			}
-
 			// Add the request to the model first
 			const parsedRequest = requestParser.parseChatRequest(sessionId, userPrompt, ChatAgentLocation.Chat);
 			const addedRequest = chatModel.addRequest(
@@ -836,23 +822,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 					)
 				});
 
-				const userPromptEntry: IChatAgentHistoryEntry = {
-					request: {
-						sessionId,
-						requestId: generateUuid(),
-						agentId: '',
-						message: userPrompt,
-						command: undefined,
-						variables: { variables: attachedContext.asArray() },
-						location: ChatAgentLocation.Chat,
-						editedFileEvents: [],
-					},
-					response: [],
-					result: {}
-				};
-				const historyEntries = [userPromptEntry];
-				title = await chatAgentService.getChatTitle(defaultAgent.id, historyEntries, CancellationToken.None);
-				summarizedUserPrompt = await chatAgentService.getChatSummary(defaultAgent.id, historyEntries, CancellationToken.None);
+				({ title, summarizedUserPrompt } = await this.generateSummarizedUserPrompt(sessionId, userPrompt, attachedContext, title, chatAgentService, defaultAgent, summarizedUserPrompt));
 			}
 
 			let summary: string = '';
@@ -870,32 +840,29 @@ export class CreateRemoteAgentJobAction extends Action2 {
 						CreateRemoteAgentJobAction.markdownStringTrustedOptions
 					)
 				});
-				const historyEntries: IChatAgentHistoryEntry[] = chatRequests
-					.map(req => ({
-						request: {
-							sessionId,
-							requestId: req.id,
-							agentId: req.response?.agent?.id ?? '',
-							message: req.message.text,
-							command: req.response?.slashCommand?.name,
-							variables: req.variableData,
-							location: ChatAgentLocation.Chat,
-							editedFileEvents: req.editedFileEvents,
-						},
-						response: toChatHistoryContent(req.response!.response.value),
-						result: req.response?.result ?? {}
-					}));
-
-				// TODO: Determine a cutoff point where we stop including earlier history
-				//      For example, if the user has already delegated to a coding agent once,
-				// 		 prefer the conversation afterwards.
-
-				title ??= await chatAgentService.getChatTitle(defaultAgent.id, historyEntries, CancellationToken.None);
-				summary += await chatAgentService.getChatSummary(defaultAgent.id, historyEntries, CancellationToken.None);
+				({ title, summary } = await this.generateSummarizedChatHistory(chatRequests, sessionId, title, chatAgentService, defaultAgent, summary));
 			}
 
 			if (title) {
 				summary += `\nTITLE: ${title}\n`;
+			}
+
+
+			const isChatSessionsExperimentEnabled = configurationService.getValue<boolean>(ChatConfiguration.UseCloudButtonV2);
+			if (isChatSessionsExperimentEnabled) {
+				await chatService.removeRequest(sessionId, addedRequest.id);
+				return await this.createWithChatSessions(
+					chatSessionsService,
+					chatService,
+					quickPickService,
+					sessionId,
+					attachedContext,
+					userPrompt,
+					{
+						prompt: summarizedUserPrompt,
+						history: summary,
+					},
+				);
 			}
 
 			chatModel.acceptResponseProgress(addedRequest, {
@@ -915,6 +882,52 @@ export class CreateRemoteAgentJobAction extends Action2 {
 		} finally {
 			remoteJobCreatingKey.set(false);
 		}
+	}
+
+	private async generateSummarizedChatHistory(chatRequests: IChatRequestModel[], sessionId: string, title: string | undefined, chatAgentService: IChatAgentService, defaultAgent: IChatAgent, summary: string) {
+		const historyEntries: IChatAgentHistoryEntry[] = chatRequests
+			.map(req => ({
+				request: {
+					sessionId: sessionId,
+					requestId: req.id,
+					agentId: req.response?.agent?.id ?? '',
+					message: req.message.text,
+					command: req.response?.slashCommand?.name,
+					variables: req.variableData,
+					location: ChatAgentLocation.Chat,
+					editedFileEvents: req.editedFileEvents,
+				},
+				response: toChatHistoryContent(req.response!.response.value),
+				result: req.response?.result ?? {}
+			}));
+
+		// TODO: Determine a cutoff point where we stop including earlier history
+		//      For example, if the user has already delegated to a coding agent once,
+		// 		 prefer the conversation afterwards.
+		title ??= await chatAgentService.getChatTitle(defaultAgent.id, historyEntries, CancellationToken.None);
+		summary += await chatAgentService.getChatSummary(defaultAgent.id, historyEntries, CancellationToken.None);
+		return { title, summary };
+	}
+
+	private async generateSummarizedUserPrompt(sessionId: string, userPrompt: string, attachedContext: ChatRequestVariableSet, title: string | undefined, chatAgentService: IChatAgentService, defaultAgent: IChatAgent, summarizedUserPrompt: string | undefined) {
+		const userPromptEntry: IChatAgentHistoryEntry = {
+			request: {
+				sessionId: sessionId,
+				requestId: generateUuid(),
+				agentId: '',
+				message: userPrompt,
+				command: undefined,
+				variables: { variables: attachedContext.asArray() },
+				location: ChatAgentLocation.Chat,
+				editedFileEvents: [],
+			},
+			response: [],
+			result: {}
+		};
+		const historyEntries = [userPromptEntry];
+		title = await chatAgentService.getChatTitle(defaultAgent.id, historyEntries, CancellationToken.None);
+		summarizedUserPrompt = await chatAgentService.getChatSummary(defaultAgent.id, historyEntries, CancellationToken.None);
+		return { title, summarizedUserPrompt };
 	}
 }
 

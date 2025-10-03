@@ -682,6 +682,14 @@ export interface IChatSendRequestOptions {
 	 * The label of the confirmation action that was selected.
 	 */
 	confirmation?: string;
+
+	/**
+	 * Summary data for chat sessions context
+	 */
+	chatSummary?: {
+		prompt?: string;
+		history?: string;
+	};
 }
 
 export const IChatService = createDecorator<IChatService>('IChatService');

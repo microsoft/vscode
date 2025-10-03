@@ -822,7 +822,8 @@ export class ChatService extends Disposable implements IChatService {
 							userSelectedModelId: options?.userSelectedModelId,
 							userSelectedTools: options?.userSelectedTools?.get(),
 							modeInstructions: options?.modeInfo?.modeInstructions,
-							editedFileEvents: request.editedFileEvents
+							editedFileEvents: request.editedFileEvents,
+							chatSummary: options?.chatSummary
 						} satisfies IChatAgentRequest;
 					};
 

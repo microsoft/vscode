@@ -148,6 +148,14 @@ export interface IChatAgentRequest {
 	userSelectedTools?: UserSelectedTools;
 	modeInstructions?: IChatRequestModeInstructions;
 	editedFileEvents?: IChatAgentEditedFileEvent[];
+
+	/**
+	 * Summary data for chat sessions context
+	 */
+	chatSummary?: {
+		prompt?: string;
+		history?: string;
+	};
 }
 
 export interface IChatQuestion {

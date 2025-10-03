@@ -170,7 +170,11 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 				this._pendingProgress.set(request.requestId, progress);
 				try {
 					const chatSessionContext = this._chatService.getChatSessionFromInternalId(request.sessionId);
-					return await this._proxy.$invokeAgent(handle, request, { history, chatSessionContext }, token) ?? {};
+					return await this._proxy.$invokeAgent(handle, request, {
+						history,
+						chatSessionContext,
+						chatSummary: request.chatSummary
+					}, token) ?? {};
 				} finally {
 					this._pendingProgress.delete(request.requestId);
 				}
