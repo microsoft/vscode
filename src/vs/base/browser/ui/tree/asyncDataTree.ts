@@ -302,6 +302,7 @@ class AsyncFindController<TInput, T, TFilterData> extends FindController<T, TFil
 		contextViewProvider: IContextViewProvider,
 		options: IAbstractTreeOptions<IAsyncDataTreeNode<TInput, T>, TFilterData>,
 	) {
+		// eslint-disable-next-line local/code-no-any-casts
 		super(tree as any, filter, contextViewProvider, options);
 		// Always make sure to end the session before disposing
 		this.disposables.add(toDisposable(async () => {
@@ -413,6 +414,7 @@ class AsyncFindController<TInput, T, TFilterData> extends FindController<T, TFil
 			return true;
 		}
 
+		// eslint-disable-next-line local/code-no-any-casts
 		return !FuzzyScore.isDefault(node.filterData as any as FuzzyScore);
 	}
 }
@@ -429,9 +431,11 @@ function asObjectTreeOptions<TInput, T, TFilterData>(options?: IAsyncDataTreeOpt
 		dnd: options.dnd && new AsyncDataTreeNodeListDragAndDrop(options.dnd),
 		multipleSelectionController: options.multipleSelectionController && {
 			isSelectionSingleChangeEvent(e) {
+				// eslint-disable-next-line local/code-no-any-casts
 				return options.multipleSelectionController!.isSelectionSingleChangeEvent({ ...e, element: e.element } as any);
 			},
 			isSelectionRangeChangeEvent(e) {
+				// eslint-disable-next-line local/code-no-any-casts
 				return options.multipleSelectionController!.isSelectionRangeChangeEvent({ ...e, element: e.element } as any);
 			}
 		},

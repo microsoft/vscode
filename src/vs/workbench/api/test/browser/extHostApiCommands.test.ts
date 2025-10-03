@@ -867,6 +867,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			provideCompletionItems(): any {
 				const a = new types.CompletionItem('item1');
 				const b = new types.CompletionItem('item2');
+				// eslint-disable-next-line local/code-no-any-casts
 				return new types.CompletionList(<any>[a, b], true);
 			}
 		}, []));

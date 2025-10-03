@@ -873,6 +873,7 @@ class KeybindingsJsonSchema {
 			'commandNames': {
 				'type': 'string',
 				'enum': this.commandsEnum,
+				// eslint-disable-next-line local/code-no-any-casts
 				'enumDescriptions': <any>this.commandsEnumDescriptions,
 				'description': nls.localize('keybindings.json.command', "Name of the command to execute"),
 			},
@@ -884,6 +885,7 @@ class KeybindingsJsonSchema {
 					{
 						'type': 'string',
 						'enum': this.removalCommandsEnum,
+						// eslint-disable-next-line local/code-no-any-casts
 						'enumDescriptions': <any>this.commandsEnumDescriptions,
 						'description': nls.localize('keybindings.json.removalCommand', "Name of the command to remove keyboard shortcut for"),
 					},

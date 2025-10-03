@@ -5,4 +5,5 @@
 
 import { webcrypto } from 'crypto';
 
+// eslint-disable-next-line local/code-no-any-casts
 export const crypto = webcrypto as any as Crypto;

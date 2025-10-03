@@ -91,6 +91,7 @@ registerTerminalAction({
 			}
 			escapedData = escapedData.slice(0, match.index) + String.fromCharCode(parseInt(match[1], 16)) + escapedData.slice(match.index + 4);
 		}
+		// eslint-disable-next-line local/code-no-any-casts
 		const xterm = instance.xterm as any as IInternalXtermTerminal;
 		xterm._writeText(escapedData);
 	}

@@ -129,6 +129,7 @@ export function fixWin32DirectoryPermissions(): NodeJS.ReadWriteStream {
 export function setExecutableBit(pattern?: string | string[]): NodeJS.ReadWriteStream {
 	const setBit = es.mapSync<VinylFile, VinylFile>(f => {
 		if (!f.stat) {
+			// eslint-disable-next-line local/code-no-any-casts
 			f.stat = { isFile() { return true; } } as any;
 		}
 		f.stat!.mode = /* 100755 */ 33261;
@@ -353,6 +354,7 @@ export interface FilterStream extends NodeJS.ReadWriteStream {
 }
 
 export function filter(fn: (data: any) => boolean): FilterStream {
+	// eslint-disable-next-line local/code-no-any-casts
 	const result = <FilterStream><any>es.through(function (data) {
 		if (fn(data)) {
 			this.emit('data', data);

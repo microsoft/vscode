@@ -117,6 +117,7 @@ function fromLocalWebpack(extensionPath: string, webpackConfigFileName: string, 
 				path: filePath,
 				stat: fs.statSync(filePath),
 				base: extensionPath,
+				// eslint-disable-next-line local/code-no-any-casts
 				contents: fs.createReadStream(filePath) as any
 			}));
 
@@ -215,6 +216,7 @@ function fromLocalNormal(extensionPath: string): Stream {
 					path: filePath,
 					stat: fs.statSync(filePath),
 					base: extensionPath,
+					// eslint-disable-next-line local/code-no-any-casts
 					contents: fs.createReadStream(filePath) as any
 				}));
 

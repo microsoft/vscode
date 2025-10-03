@@ -105,8 +105,10 @@ function toTsTriggerReason(context: vscode.SignatureHelpContext): Proto.Signatur
 		case vscode.SignatureHelpTriggerKind.TriggerCharacter:
 			if (context.triggerCharacter) {
 				if (context.isRetrigger) {
+					// eslint-disable-next-line local/code-no-any-casts
 					return { kind: 'retrigger', triggerCharacter: context.triggerCharacter as any };
 				} else {
+					// eslint-disable-next-line local/code-no-any-casts
 					return { kind: 'characterTyped', triggerCharacter: context.triggerCharacter as any };
 				}
 			} else {

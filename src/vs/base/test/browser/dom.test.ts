@@ -404,6 +404,7 @@ suite('dom', () => {
 
 	suite('SafeTriangle', () => {
 		const fakeElement = (left: number, right: number, top: number, bottom: number): HTMLElement => {
+			// eslint-disable-next-line local/code-no-any-casts
 			return { getBoundingClientRect: () => ({ left, right, top, bottom }) } as any;
 		};
 

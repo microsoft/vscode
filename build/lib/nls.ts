@@ -40,6 +40,7 @@ function collect(ts: typeof import('typescript'), node: ts.Node, fn: (node: ts.N
 }
 
 function clone<T extends object>(object: T): T {
+	// eslint-disable-next-line local/code-no-any-casts
 	const result = {} as any as T;
 	for (const id in object) {
 		result[id] = object[id];
@@ -503,11 +504,13 @@ module _nls {
 			ts,
 			typescript,
 			javascriptFile.contents!.toString(),
+			// eslint-disable-next-line local/code-no-any-casts
 			(<any>javascriptFile).sourceMap,
 			options
 		);
 
 		const result = fileFrom(javascriptFile, javascript);
+		// eslint-disable-next-line local/code-no-any-casts
 		(<any>result).sourceMap = sourcemap;
 
 		if (nlsKeys) {

@@ -54,6 +54,7 @@ export class PointerEventHandler extends MouseHandler {
 	}
 
 	private onTap(event: GestureEvent): void {
+		// eslint-disable-next-line local/code-no-any-casts
 		if (!event.initialTarget || !this.viewHelper.linesContentDomNode.contains(<any>event.initialTarget)) {
 			return;
 		}
@@ -94,6 +95,7 @@ export class PointerEventHandler extends MouseHandler {
 	}
 
 	protected override _onMouseDown(e: EditorMouseEvent, pointerId: number): void {
+		// eslint-disable-next-line local/code-no-any-casts
 		if ((e.browserEvent as any).pointerType === 'touch') {
 			return;
 		}

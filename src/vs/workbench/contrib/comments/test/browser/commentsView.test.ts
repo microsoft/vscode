@@ -90,6 +90,7 @@ export class TestViewDescriptorService implements Partial<IViewDescriptorService
 		return {
 			id: 'comments',
 			title: { value: 'Comments', original: 'Comments' },
+			// eslint-disable-next-line local/code-no-any-casts
 			ctorDescriptor: {} as any
 		};
 	}

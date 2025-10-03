@@ -494,6 +494,7 @@ suite('Glob', () => {
 		assert.strictEqual(glob.match(expression, 'test.js', hasSibling), null);
 
 		expression = {
+			// eslint-disable-next-line local/code-no-any-casts
 			'**/*.js': {
 			} as any
 		};
@@ -514,6 +515,7 @@ suite('Glob', () => {
 			'**/*.js': { when: '$(basename).ts' },
 			'**/*.as': true,
 			'**/*.foo': false,
+			// eslint-disable-next-line local/code-no-any-casts
 			'**/*.bananas': { bananas: true } as any
 		};
 
@@ -758,6 +760,7 @@ suite('Glob', () => {
 	});
 
 	test('expression with other falsy value', function () {
+		// eslint-disable-next-line local/code-no-any-casts
 		const expr = { '**/*.js': 0 } as any;
 
 		assert.strictEqual(glob.match(expr, 'foo.js'), '**/*.js');
