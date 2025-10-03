@@ -154,7 +154,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 
 	override getName(): string {
 		// If we have a resolved model, use its title (unless we're generating a default title)
-		if (this.model?.title && !this.options.generateDefaultTitle) {
+		if (this.model?.title) {
 			// Only truncate if the default title is being used (don't truncate custom titles)
 			return this.model.hasCustomTitle ? this.model.title : truncate(this.model.title, ChatEditorInputTitleMaxLength);
 		}
