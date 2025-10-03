@@ -23,8 +23,9 @@ const copyrightHeaderLines = [
 
 /**
  * @param {string[] | NodeJS.ReadWriteStream} some
+ * @param {boolean} runEslint
  */
-function hygiene(some) {
+function hygiene(some, runEslint = true) {
 	const eslint = require('./gulp-eslint');
 	const gulpstylelint = require('./stylelint');
 	const formatter = require('./lib/formatter');
@@ -155,7 +156,7 @@ function hygiene(some) {
 	const unicodeFilterStream = filter(unicodeFilter, { restore: true });
 
 	const result = input
-		.pipe(filter((f) => f.stat && !f.stat.isDirectory()))
+		.pipe(filter((f) => Boolean(f.stat && !f.stat.isDirectory())))
 		.pipe(snapshotFilter)
 		.pipe(yarnLockFilter)
 		.pipe(productJsonFilter)
@@ -174,16 +175,19 @@ function hygiene(some) {
 		result.pipe(filter(tsFormattingFilter)).pipe(formatting)
 	];
 
-	streams.push(
-		result
-			.pipe(filter(eslintFilter))
-			.pipe(
-				eslint((results) => {
-					errorCount += results.warningCount;
-					errorCount += results.errorCount;
-				})
-			)
-	);
+	if (runEslint) {
+		streams.push(
+			result
+				.pipe(filter(eslintFilter))
+				.pipe(
+					eslint((results) => {
+						errorCount += results.warningCount;
+						errorCount += results.errorCount;
+					})
+				)
+		);
+	}
+
 	streams.push(
 		result.pipe(filter(stylelintFilter)).pipe(gulpstylelint(((message, isError) => {
 			if (isError) {
