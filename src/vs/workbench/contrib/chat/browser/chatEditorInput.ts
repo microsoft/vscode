@@ -27,7 +27,7 @@ import type { IChatEditorOptions } from './chatEditor.js';
 const ChatEditorIcon = registerIcon('chat-editor-label-icon', Codicon.chatSparkle, nls.localize('chatEditorLabelIcon', 'Icon of the chat editor label.'));
 
 export class ChatEditorInput extends EditorInput implements IEditorCloseHandler {
-	/** Mapping of <inputName> to set of active editor counts */
+	/** Maps input name strings to sets of active editor counts */
 	static readonly countsInUseMap = new Map<string, Set<number>>();
 
 	static readonly TypeID: string = 'workbench.input.chatSession';
