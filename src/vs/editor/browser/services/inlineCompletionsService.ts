@@ -195,17 +195,17 @@ export class SnoozeInlineCompletion extends Action2 {
 		const inlineCompletionsService = accessor.get(IInlineCompletionsService);
 		const storageService = accessor.get(IStorageService);
 
-		let durationMinutes: number | undefined;
+		let durationMs: number | undefined;
 		if (args.length > 0 && typeof args[0] === 'number') {
-			durationMinutes = args[0];
+			durationMs = args[0] * 60_000;
 		}
 
-		if (!durationMinutes) {
-			durationMinutes = await this.getDurationFromUser(quickInputService, storageService);
+		if (!durationMs) {
+			durationMs = await this.getDurationFromUser(quickInputService, storageService);
 		}
 
-		if (durationMinutes) {
-			inlineCompletionsService.setSnoozeDuration(durationMinutes);
+		if (durationMs) {
+			inlineCompletionsService.setSnoozeDuration(durationMs);
 		}
 	}
 
