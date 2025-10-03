@@ -14,6 +14,8 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { ContextKeyService } from '../../../../platform/contextkey/browser/contextKeyService.js';
 import { TestConfigurationService } from '../../../../platform/configuration/test/common/testConfigurationService.js';
 
+const MINUTES_TO_MS = 60_000;
+
 suite('InlineCompletionsService', function () {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -23,7 +25,7 @@ suite('InlineCompletionsService', function () {
 		const contextKeyService = new ContextKeyService(configService);
 		const service = new InlineCompletionsService(contextKeyService, NullTelemetryService);
 
-		const fiveMinutesInMs = 5 * 60_000;
+		const fiveMinutesInMs = 5 * MINUTES_TO_MS;
 		service.setSnoozeDuration(fiveMinutesInMs);
 
 		assert.ok(service.isSnoozing(), 'Service should be snoozing');
@@ -81,7 +83,7 @@ suite('InlineCompletionsService', function () {
 		assert.ok(inlineCompletionsService.isSnoozing(), 'Service should be snoozing after action is run');
 
 		// Verify that the snooze time is approximately 5 minutes (in milliseconds)
-		const expectedDurationMs = 5 * 60_000;
+		const expectedDurationMs = 5 * MINUTES_TO_MS;
 		const actualDurationMs = inlineCompletionsService.snoozeTimeLeft;
 
 		// Allow for a small time difference due to execution time
@@ -194,7 +196,7 @@ suite('InlineCompletionsService', function () {
 		assert.ok(inlineCompletionsService.isSnoozing(), 'Service should be snoozing');
 
 		// Verify that the snooze time is approximately 10 minutes
-		const expectedDurationMs = 10 * 60_000;
+		const expectedDurationMs = 10 * MINUTES_TO_MS;
 		const actualDurationMs = inlineCompletionsService.snoozeTimeLeft;
 
 		assert.ok(actualDurationMs > expectedDurationMs - 100, `Snooze time should be close to ${expectedDurationMs}ms`);
