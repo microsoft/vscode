@@ -60,7 +60,7 @@ import { getNWords } from '../common/chatWordCounter.js';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../common/constants.js';
 import { MarkUnhelpfulActionId } from './actions/chatTitleActions.js';
-import { ChatTreeItem, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidgetService } from './chat.js';
+import { ChatTreeItem, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidgetService } from './chat.js';
 import { ChatAgentHover, getChatAgentHoverOptions } from './chatAgentHover.js';
 import { ChatAgentCommandContentPart } from './chatContentParts/chatAgentCommandContentPart.js';
 import { ChatAttachmentsContentPart } from './chatContentParts/chatAttachmentsContentPart.js';
@@ -213,6 +213,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@IHoverService private readonly hoverService: IHoverService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
+		@IChatAccessibilityService private readonly chatAccessibilityService: IChatAccessibilityService,
 	) {
 		super();
 
@@ -1560,6 +1561,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						const itemPart = templateData.instantiationService.createInstance(ChatThinkingContentPart, itemContent, context);
 						itemPart.addDisposable(itemPart.onDidChangeHeight(() => this.updateItemHeight(templateData)));
 						this._currentThinkingPart = itemPart;
+						// Announce new thinking for accessibility
+						this.chatAccessibilityService.acceptThinking(localize('chat.thinking.started', 'Thinking...'));
 					}
 				}
 			}
@@ -1572,6 +1575,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				const part = templateData.instantiationService.createInstance(ChatThinkingContentPart, content, context);
 				part.addDisposable(part.onDidChangeHeight(() => this.updateItemHeight(templateData)));
 				this._currentThinkingPart = part;
+				// Announce new thinking for accessibility
+				this.chatAccessibilityService.acceptThinking(localize('chat.thinking.started', 'Thinking...'));
 			}
 			return this._currentThinkingPart;
 

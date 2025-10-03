@@ -81,6 +81,12 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 		this._accessibilitySignalService.playSignal(AccessibilitySignal.chatUserActionRequired, { allowManyInParallel: true });
 	}
 
+	acceptThinking(content: string): void {
+		if (this._configurationService.getValue('accessibility.verboseChatProgressUpdates')) {
+			alert(content);
+		}
+	}
+
 	private async _showOSNotification(widget: ChatWidget, container: HTMLElement, responseContent: string): Promise<void> {
 		if (!this._configurationService.getValue(ChatConfiguration.NotifyWindowOnResponseReceived)) {
 			return;

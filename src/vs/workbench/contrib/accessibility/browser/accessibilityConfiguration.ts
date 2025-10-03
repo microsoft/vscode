@@ -848,7 +848,7 @@ export function registerAccessibilityConfiguration() {
 			[AccessibilityWorkbenchSettingId.VerboseChatProgressUpdates]: {
 				'type': 'boolean',
 				'default': true,
-				'markdownDescription': localize('accessibility.verboseChatProgressUpdates', "Controls whether verbose progress announcements should be made when a chat request is in progress, including information like searched text for <search term> with X results, created file <file_name>, or read file <file path>.")
+				'markdownDescription': localize('accessibility.verboseChatProgressUpdates', "Controls whether verbose progress announcements should be made when a chat request is in progress, including information like searched text for <search term> with X results, created file <file_name>, read file <file path>, and thinking (chain of thought).")
 			}
 		}
 	});

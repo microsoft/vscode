@@ -114,6 +114,7 @@ export interface IChatAccessibilityService {
 	acceptRequest(): number;
 	acceptResponse(widget: ChatWidget, container: HTMLElement, response: IChatResponseViewModel | string | undefined, requestId: number, isVoiceInput?: boolean): void;
 	acceptElicitation(message: IChatElicitationRequest): void;
+	acceptThinking(content: string): void;
 }
 
 export interface IChatCodeBlockInfo {
