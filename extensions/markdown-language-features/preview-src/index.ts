@@ -305,7 +305,7 @@ document.addEventListener('dblclick', event => {
 	}
 
 	// Disable double-click to switch editor for .copilotmd files
-	if (documentResource && documentResource.endsWith('.copilotmd')) {
+	if (documentResource.endsWith('.copilotmd')) {
 		return;
 	}
 
