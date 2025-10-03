@@ -29,6 +29,7 @@ function createServerHost(
 	const fs = apiClient?.vscode.workspace.fileSystem;
 
 	// Internals
+	// eslint-disable-next-line local/code-no-any-casts
 	const combinePaths: (path: string, ...paths: (string | undefined)[]) => string = (ts as any).combinePaths;
 	const byteOrderMarkIndicator = '\uFEFF';
 	const matchFiles: (
@@ -41,13 +42,19 @@ function createServerHost(
 		depth: number | undefined,
 		getFileSystemEntries: (path: string) => { files: readonly string[]; directories: readonly string[] },
 		realpath: (path: string) => string
+		// eslint-disable-next-line local/code-no-any-casts
 	) => string[] = (ts as any).matchFiles;
+	// eslint-disable-next-line local/code-no-any-casts
 	const generateDjb2Hash = (ts as any).generateDjb2Hash;
 
 	// Legacy web
+	// eslint-disable-next-line local/code-no-any-casts
 	const memoize: <T>(callback: () => T) => () => T = (ts as any).memoize;
+	// eslint-disable-next-line local/code-no-any-casts
 	const ensureTrailingDirectorySeparator: (path: string) => string = (ts as any).ensureTrailingDirectorySeparator;
+	// eslint-disable-next-line local/code-no-any-casts
 	const getDirectoryPath: (path: string) => string = (ts as any).getDirectoryPath;
+	// eslint-disable-next-line local/code-no-any-casts
 	const directorySeparator: string = (ts as any).directorySeparator;
 	const executingFilePath = findArgument(args, '--executingFilePath') || location + '';
 	const getExecutingDirectoryPath = memoize(() => memoize(() => ensureTrailingDirectorySeparator(getDirectoryPath(executingFilePath))));

@@ -3172,6 +3172,7 @@ export class ChatResponseAnchorPart implements vscode.ChatResponseAnchorPart {
 	resolve?(token: vscode.CancellationToken): Thenable<void>;
 
 	constructor(value: vscode.Uri | vscode.Location | vscode.SymbolInformation, title?: string) {
+		// eslint-disable-next-line local/code-no-any-casts
 		this.value = value as any;
 		this.value2 = value;
 		this.title = title;

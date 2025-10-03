@@ -682,6 +682,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	}
 
 	private _getTerminalDimensions(): { width: number; height: number } {
+		// eslint-disable-next-line local/code-no-any-casts
 		const cssCellDims = (this._terminal as any as { _core: IXtermCore })._core._renderService.dimensions.css.cell;
 		return {
 			width: cssCellDims.width,
@@ -707,6 +708,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			return this._cachedFontInfo;
 		}
 
+		// eslint-disable-next-line local/code-no-any-casts
 		const core = (this._terminal as any)._core as IXtermCore;
 		const font = this._terminalConfigurationService.getFont(dom.getActiveWindow(), core);
 		let lineHeight: number = font.lineHeight;
@@ -781,6 +783,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 	private _ensureSuggestWidget(terminal: Terminal): SimpleSuggestWidget<TerminalCompletionModel, TerminalCompletionItem> {
 		if (!this._suggestWidget) {
+			// eslint-disable-next-line local/code-no-any-casts
 			this._suggestWidget = this._register(this._instantiationService.createInstance(
 				SimpleSuggestWidget,
 				this._container!,

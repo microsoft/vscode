@@ -303,6 +303,7 @@ export class SearchModelImpl extends Disposable implements ISearchModel {
 		this.searchResult.setCachedSearchComplete(completed, ai);
 
 		const options: IPatternInfo = Object.assign({}, this._searchQuery.contentPattern);
+		// eslint-disable-next-line local/code-no-any-casts
 		delete (options as any).pattern;
 
 		const stats = completed && completed.stats as ITextSearchStats;

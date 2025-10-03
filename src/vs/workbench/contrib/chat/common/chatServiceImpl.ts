@@ -436,6 +436,7 @@ export class ChatService extends Disposable implements IChatService {
 		// This handles the case where getName() is called before initialization completes
 		// Access the internal synchronous index method via reflection
 		// This is a workaround for the timing issue where initialization hasn't completed
+		// eslint-disable-next-line local/code-no-any-casts
 		const internalGetIndex = (this._chatSessionStore as any).internalGetIndex;
 		if (typeof internalGetIndex === 'function') {
 			const indexData = internalGetIndex.call(this._chatSessionStore);

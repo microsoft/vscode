@@ -354,6 +354,7 @@ export function getFlatNode(root: FlatNode | undefined, offset: number, includeN
 			|| (includeNodeBoundary && nodeStart <= offset && nodeEnd >= offset)) {
 			return getFlatNodeChildren(child.children) ?? child;
 		}
+		// eslint-disable-next-line local/code-no-any-casts
 		else if ('close' in <any>child) {
 			// We have an HTML node in this case.
 			// In case this node is an invalid unpaired HTML node,

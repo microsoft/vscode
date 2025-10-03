@@ -376,6 +376,7 @@ suite('RunInTerminalTool', () => {
 
 			// Verify that auto-approve information is included
 			ok(result?.toolSpecificData, 'Expected toolSpecificData to be defined');
+			// eslint-disable-next-line local/code-no-any-casts
 			const terminalData = result!.toolSpecificData as any;
 			ok(terminalData.autoApproveInfo, 'Expected autoApproveInfo to be defined for auto-approved background command');
 			ok(terminalData.autoApproveInfo.value, 'Expected autoApproveInfo to have a value');
@@ -829,6 +830,7 @@ suite('RunInTerminalTool', () => {
 	suite('chat session disposal cleanup', () => {
 		test('should dispose associated terminals when chat session is disposed', () => {
 			const sessionId = 'test-session-123';
+			// eslint-disable-next-line local/code-no-any-casts
 			const mockTerminal: ITerminalInstance = {
 				dispose: () => { /* Mock dispose */ },
 				processId: 12345
@@ -852,10 +854,12 @@ suite('RunInTerminalTool', () => {
 		test('should not affect other sessions when one session is disposed', () => {
 			const sessionId1 = 'test-session-1';
 			const sessionId2 = 'test-session-2';
+			// eslint-disable-next-line local/code-no-any-casts
 			const mockTerminal1: ITerminalInstance = {
 				dispose: () => { /* Mock dispose */ },
 				processId: 12345
 			} as any;
+			// eslint-disable-next-line local/code-no-any-casts
 			const mockTerminal2: ITerminalInstance = {
 				dispose: () => { /* Mock dispose */ },
 				processId: 67890

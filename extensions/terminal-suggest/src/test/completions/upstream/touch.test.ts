@@ -17,6 +17,7 @@ const allOptions = [
 	'-r <file>',
 	'-t <timestamp>',
 ];
+// eslint-disable-next-line local/code-no-any-casts
 const expectedCompletions = [{ label: 'touch', description: (touchSpec as any).description }];
 
 export const touchTestSuiteSpec: ISuiteSpec = {

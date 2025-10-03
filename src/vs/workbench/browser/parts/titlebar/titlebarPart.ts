@@ -491,6 +491,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 				// Check if the locale is RTL, macOS will move traffic lights in RTL locales
 				// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/Locale/textInfo
 
+				// eslint-disable-next-line local/code-no-any-casts
 				const localeInfo = safeIntl.Locale(platformLocale).value as any;
 				if (localeInfo?.textInfo?.direction === 'rtl') {
 					primaryWindowControlsLocation = 'right';

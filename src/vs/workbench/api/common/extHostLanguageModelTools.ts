@@ -218,6 +218,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 		}
 
 		// todo: 'any' cast because TS can't handle the overloads
+		// eslint-disable-next-line local/code-no-any-casts
 		const extensionResult = await raceCancellation(Promise.resolve((item.tool.invoke as any)(options, token, progress!)), token);
 		if (!extensionResult) {
 			throw new CancellationError();

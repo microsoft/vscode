@@ -560,6 +560,7 @@ export function sortObjectPropertiesRecursively(obj: any): any {
 	}
 	if (obj !== undefined && obj !== null && typeof obj === 'object' && Object.keys(obj).length > 0) {
 		return (
+			// eslint-disable-next-line local/code-no-any-casts
 			Object.keys(obj)
 				.sort()
 				.reduce<Record<string, any>>((sortedObj, prop) => {

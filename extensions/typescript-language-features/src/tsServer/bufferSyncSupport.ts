@@ -183,6 +183,7 @@ class SyncedBuffer {
 			.filter(x => x.languages.indexOf(this.document.languageId) >= 0);
 
 		if (tsPluginsForDocument.length) {
+			// eslint-disable-next-line local/code-no-any-casts
 			(args as any).plugins = tsPluginsForDocument.map(plugin => plugin.name);
 		}
 

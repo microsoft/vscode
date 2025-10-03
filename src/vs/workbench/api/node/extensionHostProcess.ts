@@ -104,6 +104,7 @@ function patchProcess(allowExit: boolean) {
 	} as (code?: number) => never;
 
 	// override Electron's process.crash() method
+	// eslint-disable-next-line local/code-no-any-casts
 	(process as any /* bypass layer checker */).crash = function () {
 		const err = new Error('An extension called process.crash() and this was prevented.');
 		console.warn(err.stack);
@@ -115,6 +116,7 @@ function patchProcess(allowExit: boolean) {
 	// Refs https://github.com/microsoft/vscode/issues/151012#issuecomment-1156593228
 	process.env['ELECTRON_RUN_AS_NODE'] = '1';
 
+	// eslint-disable-next-line local/code-no-any-casts
 	process.on = <any>function (event: string, listener: (...args: any[]) => void) {
 		if (event === 'uncaughtException') {
 			const actualListener = listener;
