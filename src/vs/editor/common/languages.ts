@@ -457,6 +457,7 @@ export namespace CompletionItemKinds {
 	const data = new Map<string, CompletionItemKind>();
 	data.set('method', CompletionItemKind.Method);
 	data.set('function', CompletionItemKind.Function);
+	// eslint-disable-next-line local/code-no-any-casts
 	data.set('constructor', <any>CompletionItemKind.Constructor);
 	data.set('field', CompletionItemKind.Field);
 	data.set('variable', CompletionItemKind.Variable);

@@ -31,6 +31,7 @@ export function startWorkerSession(
 	pathMapper: PathMapper,
 	logger: Logger,
 ): void {
+	// eslint-disable-next-line local/code-no-any-casts
 	const indent: (str: string) => string = (ts as any).server.indent;
 
 	const worker = new class WorkerSession extends ts.server.Session<{}> {

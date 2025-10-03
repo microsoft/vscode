@@ -425,7 +425,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this._register(this.hostService.onDidChangeActiveWindow(() => this.onActiveWindowChanged()));
 
 		// WCO changes
+		// eslint-disable-next-line local/code-no-any-casts
 		if (isWeb && typeof (navigator as any).windowControlsOverlay === 'object') {
+			// eslint-disable-next-line local/code-no-any-casts
 			this._register(addDisposableListener((navigator as any).windowControlsOverlay, 'geometrychange', () => this.onDidChangeWCO()));
 		}
 

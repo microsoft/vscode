@@ -213,7 +213,9 @@ function minifyTask(src, sourceMapBaseUrl) {
                     cb(undefined, f);
                 }
             }, cb);
-        }), esbuildFilter.restore, svgFilter, svgmin(), svgFilter.restore, gulp_sourcemaps_1.default.write('./', {
+        }), esbuildFilter.restore, svgFilter, svgmin(), svgFilter.restore, 
+        // eslint-disable-next-line local/code-no-any-casts
+        gulp_sourcemaps_1.default.write('./', {
             sourceMappingURL,
             sourceRoot: undefined,
             includeContent: true,

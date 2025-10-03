@@ -466,7 +466,9 @@ export function extractNotebookCellOutputDropData(e: DragEvent): NotebookCellOut
  * in a safe way without crashing the application when running in the web.
  */
 export function getPathForFile(file: File): string | undefined {
+	// eslint-disable-next-line local/code-no-any-casts
 	if (isNative && typeof (globalThis as any).vscode?.webUtils?.getPathForFile === 'function') {
+		// eslint-disable-next-line local/code-no-any-casts
 		return (globalThis as any).vscode.webUtils.getPathForFile(file);
 	}
 

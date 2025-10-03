@@ -821,6 +821,7 @@ export class TimelinePane extends ViewPane {
 			return;
 		}
 
+		// eslint-disable-next-line local/code-no-any-casts
 		this.tree.setChildren(null, this.getItems() as any);
 		this._isEmpty = !this.hasVisibleItems;
 

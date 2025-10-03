@@ -223,6 +223,7 @@ export class ViewGpuContext extends Disposable {
 					}
 					for (const r of rule.style) {
 						if (!supportsCssRule(r, rule.style)) {
+							// eslint-disable-next-line local/code-no-any-casts
 							problemRules.push(`${r}: ${rule.style[r as any]}`);
 							return false;
 						}

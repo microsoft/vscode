@@ -794,6 +794,7 @@ async function excludeCharFromBeingHighlighted(configurationService: IConfigurat
 
 	let value: Record<string, boolean>;
 	if ((typeof existingValue === 'object') && existingValue) {
+		// eslint-disable-next-line local/code-no-any-casts
 		value = existingValue as any;
 	} else {
 		value = {};
@@ -812,6 +813,7 @@ async function excludeLocaleFromBeingHighlighted(configurationService: IConfigur
 	let value: Record<string, boolean>;
 	if ((typeof existingValue === 'object') && existingValue) {
 		// Copy value, as the existing value is read only
+		// eslint-disable-next-line local/code-no-any-casts
 		value = Object.assign({}, existingValue as any);
 	} else {
 		value = {};

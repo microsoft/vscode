@@ -24,6 +24,7 @@ export interface CallbackTask extends BaseTask {
 export type Task = PromiseTask | StreamTask | CallbackTask;
 
 function _isPromise(p: Promise<void> | NodeJS.ReadWriteStream): p is Promise<void> {
+	// eslint-disable-next-line local/code-no-any-casts
 	if (typeof (<any>p).then === 'function') {
 		return true;
 	}

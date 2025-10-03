@@ -63,6 +63,7 @@ export function getExtensionHostDebugSession(session: IDebugSession): IDebugSess
 	}
 
 	if (type === 'vslsShare') {
+		// eslint-disable-next-line local/code-no-any-casts
 		type = (<any>session.configuration).adapterProxy.configuration.type;
 	}
 
