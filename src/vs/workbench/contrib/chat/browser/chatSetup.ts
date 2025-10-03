@@ -65,7 +65,7 @@ import { IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAge
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementRequests, ChatEntitlementService, IChatEntitlementService, isProUser } from '../../../services/chat/common/chatEntitlementService.js';
 import { ChatModel, ChatRequestModel, IChatRequestModel, IChatRequestVariableData } from '../common/chatModel.js';
-import { ChatMode } from '../common/chatModes.js';
+import { ChatMode, IChatModeService } from '../common/chatModes.js';
 import { ChatRequestAgentPart, ChatRequestToolPart } from '../common/chatParserTypes.js';
 import { IChatProgress, IChatService } from '../common/chatService.js';
 import { IChatRequestToolEntry } from '../common/chatVariableEntries.js';
@@ -961,7 +961,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				});
 			}
 
-			override async run(accessor: ServicesAccessor, mode?: ChatModeKind, options?: { forceSignInDialog?: boolean; additionalScopes?: readonly string[]; forceAnonymous?: ChatSetupAnonymous }): Promise<boolean> {
+			override async run(accessor: ServicesAccessor, mode?: ChatModeKind | string, options?: { forceSignInDialog?: boolean; additionalScopes?: readonly string[]; forceAnonymous?: ChatSetupAnonymous }): Promise<boolean> {
 				const viewsService = accessor.get(IViewsService);
 				const layoutService = accessor.get(IWorkbenchLayoutService);
 				const instantiationService = accessor.get(IInstantiationService);
@@ -1197,7 +1197,26 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				const params = new URLSearchParams(url.query);
 				this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: CHAT_SETUP_ACTION_ID, from: 'url', detail: params.get('referrer') ?? undefined });
 
-				await this.commandService.executeCommand(CHAT_SETUP_ACTION_ID, validateChatMode(params.get('mode')));
+				const modeParam = params.get('mode');
+				let modeToUse: ChatModeKind | string | undefined = validateChatMode(modeParam);
+
+				// If it's not a builtin mode, check if it's a valid custom mode
+				if (!modeToUse && modeParam) {
+					const chatModeService = this.instantiationService.invokeFunction(accessor => accessor.get(IChatModeService));
+					// check if the given param is a valid mode ID
+					let foundModel = chatModeService.findModeById(modeParam);
+					if (!foundModel) {
+						// if not, check if the given param is a valid mode name, note the name is case sensitive
+						foundModel = chatModeService.findModeByName(modeParam);
+					}
+
+					if (foundModel) {
+						modeToUse = foundModel.id;
+					}
+				}
+
+				// execute the command to change the mode in panel, note that the command only support model IDs, not names
+				await this.commandService.executeCommand(CHAT_SETUP_ACTION_ID, modeToUse);
 
 				return true;
 			}
