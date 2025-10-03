@@ -72,7 +72,7 @@ import { ChatRequestVariableSet, IChatRequestVariableEntry, isPromptFileVariable
 import { ChatViewModel, IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
 import { IChatInputState } from '../common/chatWidgetHistoryService.js';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, TodoListWidgetPositionSettingId } from '../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../common/constants.js';
 import { ILanguageModelToolsService, IToolData, ToolSet } from '../common/languageModelToolsService.js';
 import { ComputeAutomaticInstructions } from '../common/promptSyntax/computeAutomaticInstructions.js';
 import { PromptsConfig } from '../common/promptSyntax/config/config.js';
@@ -1248,7 +1248,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 
-		const todoListWidgetPosition = this.configurationService.getValue<string>(TodoListWidgetPositionSettingId) || 'default';
+		const todoListConfig = this.configurationService.getValue<{ position?: string }>(ChatConfiguration.TodoList);
+		const todoListWidgetPosition = todoListConfig?.position || 'default';
 
 		// Handle 'off' - hide the widget and return
 		if (todoListWidgetPosition === 'off') {
@@ -1320,7 +1321,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const disclaimerMessage = expEmptyState
 			? this.chatDisclaimer
 			: localize('chatMessage', "Chat is powered by AI, so mistakes are possible. Review output carefully before use.");
-		const icon = expEmptyState ? Codicon.chatSparkle : Codicon.copilotLarge;
+		const icon = Codicon.chatSparkle;
 
 
 		if (this.isLockedToCodingAgent) {
@@ -1341,7 +1342,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		if (this.input.currentModeKind === ChatModeKind.Ask) {
 			return {
-				title: localize('chatDescription', "Ask about your code."),
+				title: localize('chatDescription', "Ask about your code"),
 				message: new MarkdownString(disclaimerMessage),
 				icon,
 				additionalMessage,
@@ -1352,7 +1353,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const message = expEmptyState ? disclaimerMessage : `${editsHelpMessage}\n\n${disclaimerMessage}`;
 
 			return {
-				title: localize('editsTitle', "Edit in context."),
+				title: localize('editsTitle', "Edit in context"),
 				message: new MarkdownString(message),
 				icon,
 				additionalMessage,
@@ -1363,7 +1364,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const message = expEmptyState ? disclaimerMessage : `${agentHelpMessage}\n\n${disclaimerMessage}`;
 
 			return {
-				title: localize('agentTitle', "Build with agent mode."),
+				title: localize('agentTitle', "Build with agent mode"),
 				message: new MarkdownString(message),
 				icon,
 				additionalMessage,
@@ -1381,9 +1382,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		const welcomeContent: IChatViewWelcomeContent = {
-			title: localize('expChatTitle', 'Welcome to Copilot'),
+			title: localize('expChatTitle', 'Build with agent mode'),
 			message: new MarkdownString(localize('expchatMessage', "Let's get started")),
-			icon: Codicon.copilotLarge,
+			icon: Codicon.chatSparkle,
 			inputPart: this.inputPart.element,
 			additionalMessage,
 			isNew: true,
@@ -1529,7 +1530,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		// Set loading guard to prevent infinite loop
-		this._isLoadingPromptDescriptions = true; try {
+		this._isLoadingPromptDescriptions = true;
+		try {
 			// Get all available prompt files with their metadata
 			const promptCommands = await this.promptsService.findPromptSlashCommands();
 
