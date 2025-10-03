@@ -626,7 +626,7 @@ export class Dialog extends Disposable {
 
 			if (typeof cancelId === 'number' && buttonMap[cancelId]) {
 				const cancelButton = buttonMap.splice(cancelId, 1)[0];
-				buttonMap.splice(1, 0, cancelButton);
+				buttonMap.push(cancelButton);
 			}
 
 			buttonMap.reverse();
