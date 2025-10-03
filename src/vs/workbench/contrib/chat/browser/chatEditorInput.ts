@@ -93,7 +93,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		// Only allocate a count if we don't already have a custom title
 		if (!this.hasCustomTitle) {
 			this.inputCount = ChatEditorInput.getNextCount(this.inputName);
-			ChatEditorInput.countsInUseMap.get(this.inputName)!.add(this.inputCount);
+			ChatEditorInput.countsInUseMap.get(this.inputName)?.add(this.inputCount);
 			this._register(toDisposable(() => {
 				// Only remove if we haven't already removed it due to custom title
 				if (!this.hasCustomTitle) {
