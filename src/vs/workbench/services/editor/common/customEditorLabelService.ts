@@ -159,11 +159,10 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 	private readonly _filenameCaptureExpression = /(?<filename>^\.*[^.]*)/;
 	private applyTemplate(template: string, resource: URI, relevantPath: string): string {
 		let parsedPath: undefined | ParsedPath;
-		return template.replace(this._parsedTemplateExpression, (match: string, variable: string, ...args: [{ dirnameN?: string; extnameN?: string }]) => {
+		return template.replace(this._parsedTemplateExpression, (match: string, variable: string, ...args: unknown[]) => {
 			parsedPath = parsedPath ?? parsePath(resource.path);
 			// named group matches
-			const dirnameN = args[0].dirnameN ?? '0';
-			const extnameN = args[0].extnameN ?? '0';
+			const { dirnameN = '0', extnameN = '0' } = args.pop() as { dirnameN?: string; extnameN?: string };
 
 			if (variable === 'filename') {
 				const { filename } = this._filenameCaptureExpression.exec(parsedPath.base)?.groups ?? {};

@@ -115,7 +115,7 @@ export interface ISandboxContext {
 	resolveConfiguration(): Promise<ISandboxConfiguration>;
 }
 
-export interface ISandboxGlobal {
+interface ISandboxGlobal {
 	vscode: {
 		readonly ipcRenderer: IpcRenderer;
 		readonly ipcMessagePort: IpcMessagePort;
