@@ -90,10 +90,15 @@ export class StatsStatusBar extends Disposable {
 
 
 	private _createStatusBar() {
-		const mode = this._configurationService.getValue<string>(STATS_SETTING_ID);
-		const percent = mode === 'premiumQuota'
-			? derived(this, () => this._getPremiumQuotaPercent())
-			: this._statsFeature.aiRate.map(v => v * 100);
+		const mode = derived(this, () => this._configurationService.getValue<string>(STATS_SETTING_ID));
+		const percent = derived(this, () => {
+			const currentMode = mode.get();
+			if (currentMode === 'premiumQuota') {
+				return this._getPremiumQuotaPercent();
+			} else {
+				return this._statsFeature.aiRate.get() * 100;
+			}
+		});
 
 		return n.div({
 			style: {
