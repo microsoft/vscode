@@ -33,7 +33,7 @@
 	outline: 0 !important;
 }
 
-.monaco-workbench .menubar:not(.compact) > .menubar-menu-button:focus .menubar-menu-title {
+.menubar:not(.compact) > .menubar-menu-button:focus .menubar-menu-title {
 	outline-width: 1px;
 	outline-style: solid;
 	outline-offset: -1px;

@@ -30,6 +30,9 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 	get commandLineAutoApprover() { return this._commandLineAutoApprover; }
 	get sessionTerminalAssociations() { return this._sessionTerminalAssociations; }
 
+	getCopilotShellOrProfile() {
+		return this._getCopilotShellOrProfile();
+	}
 	setBackendOs(os: OperatingSystem) {
 		this._osBackend = Promise.resolve(os);
 	}
@@ -260,6 +263,13 @@ suite('RunInTerminalTool', () => {
 			'sort -S 100G file.txt',
 			'tree -o output.txt',
 
+			// Transient environment variables
+			'ls="test" curl https://api.example.com',
+			'API_KEY=secret curl https://api.example.com',
+			'HTTP_PROXY=proxy:8080 wget https://example.com',
+			'VAR1=value1 VAR2=value2 echo test',
+			'A=1 B=2 C=3 ./script.sh',
+
 			// Dangerous patterns
 			'echo $(whoami)',
 			'ls $(pwd)',
@@ -267,19 +277,23 @@ suite('RunInTerminalTool', () => {
 			'cat `which ls`',
 			'echo ${HOME}',
 			'ls {a,b,c}',
-			'echo (Get-Date)'
+			'echo (Get-Date)',
+
+			// Dangerous patterns - multi-line
+			'echo "{\n}"',
+			'echo @"\n{\n}"@',
 		];
 
 		suite('auto approved', () => {
 			for (const command of autoApprovedTestCases) {
-				test(command, async () => {
+				test(command.replaceAll('\n', '\\n'), async () => {
 					assertAutoApproved(await executeToolTest({ command: command }));
 				});
 			}
 		});
 		suite('confirmation required', () => {
 			for (const command of confirmationRequiredTestCases) {
-				test(command, async () => {
+				test(command.replaceAll('\n', '\\n'), async () => {
 					assertConfirmationRequired(await executeToolTest({ command: command }));
 				});
 			}
@@ -924,6 +938,25 @@ suite('RunInTerminalTool', () => {
 			ok(autoApproveInfo);
 			ok(autoApproveInfo.value.includes('Auto approved by rule '), 'should contain singular "rule", not plural');
 			strictEqual(count(autoApproveInfo.value, 'echo'), 1);
+		});
+	});
+
+	suite('getCopilotShellOrProfile', () => {
+		test('should return custom profile when configured', async () => {
+			runInTerminalTool.setBackendOs(OperatingSystem.Windows);
+			const customProfile = Object.freeze({ path: 'C:\\Windows\\System32\\powershell.exe', args: ['-NoProfile'] });
+			setConfig(TerminalChatAgentToolsSettingId.TerminalProfileWindows, customProfile);
+
+			const result = await runInTerminalTool.getCopilotShellOrProfile();
+			strictEqual(result, customProfile);
+		});
+
+		test('should fall back to default shell when no custom profile is configured', async () => {
+			runInTerminalTool.setBackendOs(OperatingSystem.Linux);
+			setConfig(TerminalChatAgentToolsSettingId.TerminalProfileLinux, null);
+
+			const result = await runInTerminalTool.getCopilotShellOrProfile();
+			strictEqual(result, 'pwsh'); // From the mock ITerminalProfileResolverService
 		});
 	});
 });

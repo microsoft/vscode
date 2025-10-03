@@ -20,7 +20,7 @@ import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurati
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { McpAccessValue, McpAutoStartValue, mcpAccessConfig, mcpAutoStartConfig, mcpGalleryServiceUrlConfig } from '../../../../platform/mcp/common/mcpManagement.js';
+import { McpAccessValue, McpAutoStartValue, mcpAccessConfig, mcpAutoStartConfig, mcpGalleryServiceEnablementConfig, mcpGalleryServiceUrlConfig } from '../../../../platform/mcp/common/mcpManagement.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
 import { Extensions, IConfigurationMigrationRegistry } from '../../../common/configuration.js';
@@ -52,11 +52,12 @@ import { ILanguageModelStatsService, LanguageModelStatsService } from '../common
 import { ILanguageModelToolsService } from '../common/languageModelToolsService.js';
 import { PromptsConfig } from '../common/promptSyntax/config/config.js';
 import { INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, MODE_DEFAULT_SOURCE_FOLDER, MODE_FILE_EXTENSION, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../common/promptSyntax/config/promptFileLocations.js';
-import { registerPromptFileContributions } from '../common/promptSyntax/promptFileContributions.js';
+import { PromptLanguageFeaturesProvider } from '../common/promptSyntax/promptFileContributions.js';
 import { INSTRUCTIONS_DOCUMENTATION_URL, MODE_DOCUMENTATION_URL, PROMPT_DOCUMENTATION_URL } from '../common/promptSyntax/promptTypes.js';
 import { IPromptsService } from '../common/promptSyntax/service/promptsService.js';
 import { PromptsService } from '../common/promptSyntax/service/promptsServiceImpl.js';
 import { LanguageModelToolsExtensionPointHandler } from '../common/tools/languageModelToolsContribution.js';
+import { ChatPromptFilesExtensionPointHandler } from '../common/promptSyntax/chatPromptFilesContribution.js';
 import { BuiltinToolsContribution } from '../common/tools/tools.js';
 import { IVoiceChatService, VoiceChatService } from '../common/voiceChatService.js';
 import { registerChatAccessibilityActions } from './actions/chatAccessibilityActions.js';
@@ -71,6 +72,7 @@ import { registerChatDeveloperActions } from './actions/chatDeveloperActions.js'
 import { ChatSubmitAction, registerChatExecuteActions } from './actions/chatExecuteActions.js';
 import { registerChatFileTreeActions } from './actions/chatFileTreeActions.js';
 import { ChatGettingStartedContribution } from './actions/chatGettingStarted.js';
+import { registerChatPromptNavigationActions } from './actions/chatPromptNavigationActions.js';
 import { registerChatExportActions } from './actions/chatImportExport.js';
 import { registerLanguageModelActions } from './actions/chatLanguageModelActions.js';
 import { registerMoveActions } from './actions/chatMoveActions.js';
@@ -233,7 +235,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.notifyWindowOnConfirmation': {
 			type: 'boolean',
-			description: nls.localize('chat.notifyWindowOnConfirmation', "Controls whether a chat session should notify the user when a confirmation is needed while the window is not in focus. This includes a window badge as well as notification toast."),
+			description: nls.localize('chat.notifyWindowOnConfirmation', "Controls whether a chat session should present the user with an OS notification when a confirmation is needed while the window is not in focus. This includes a window badge as well as notification toast."),
 			default: true,
 		},
 		[ChatConfiguration.GlobalAutoApprove]: {
@@ -307,14 +309,14 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.EmptyStateHistoryEnabled]: {
 			type: 'boolean',
-			default: true,
+			default: product.quality === 'insiders',
 			description: nls.localize('chat.emptyState.history.enabled', "Show recent chat history on the empty chat state."),
 			tags: ['experimental']
 		},
 		[ChatConfiguration.NotifyWindowOnResponseReceived]: {
 			type: 'boolean',
-			default: false,
-			description: nls.localize('chat.notifyWindowOnResponseReceived', "Controls whether a chat session should notify the user when a response is received while the window is not in focus. This includes a window badge as well as notification toast."),
+			default: true,
+			description: nls.localize('chat.notifyWindowOnResponseReceived', "Controls whether a chat session should present the user with an OS notification when a response is received while the window is not in focus. This includes a window badge as well as notification toast."),
 		},
 		'chat.checkpoints.enabled': {
 			type: 'boolean',
@@ -454,6 +456,13 @@ configurationRegistry.registerConfiguration({
 			default: Object.fromEntries(allDiscoverySources.map(k => [k, false])),
 			markdownDescription: nls.localize('mcp.discovery.enabled', "Configures discovery of Model Context Protocol servers from configuration from various other applications."),
 		},
+		[mcpGalleryServiceEnablementConfig]: {
+			type: 'boolean',
+			default: false,
+			tags: ['preview'],
+			description: nls.localize('chat.mcp.gallery.enabled', "Enables the default Marketplace for Model Context Protocol (MCP) servers."),
+			included: product.quality === 'stable'
+		},
 		[mcpGalleryServiceUrlConfig]: {
 			type: 'string',
 			description: nls.localize('mcp.gallery.serviceUrl', "Configure the MCP Gallery service URL to connect to"),
@@ -583,6 +592,15 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			restricted: true,
 			disallowConfigurationDefault: true,
+			tags: ['prompts', 'reusable prompts', 'prompt snippets', 'instructions']
+		},
+		[PromptsConfig.USE_NESTED_AGENT_MD]: {
+			type: 'boolean',
+			title: nls.localize('chat.useNestedAgentMd.title', "Use nested AGENTS.MD files",),
+			markdownDescription: nls.localize('chat.useNestedAgentMd.description', "Controls whether instructions `AGENTS.MD` files found in the workspace are listed in all chat requests.",),
+			default: false,
+			restricted: true,
+			disallowConfigurationDefault: true,
 			tags: ['experimental', 'prompts', 'reusable prompts', 'prompt snippets', 'instructions']
 		},
 		[PromptsConfig.PROMPT_FILES_SUGGEST_KEY]: {
@@ -622,16 +640,25 @@ configurationRegistry.registerConfiguration({
 				mode: 'auto'
 			}
 		},
-		'chat.todoListWidget.position': {
-			type: 'string',
-			default: 'default',
-			enum: ['default', 'off', 'chat-input'],
-			enumDescriptions: [
-				nls.localize('chat.todoListWidget.position.default', "Show todo list widget in the default position at the top of the chat panel."),
-				nls.localize('chat.todoListWidget.position.off', "Hide the todo list widget."),
-				nls.localize('chat.todoListWidget.position.chatInput', "Show todo list widget near the chat input.")
-			],
-			description: nls.localize('chat.todoListWidget.position', "Controls the position of the todo list widget in chat."),
+		[ChatConfiguration.TodoList]: {
+			type: 'object',
+			description: nls.localize('chat.agent.todoList', "Configures the todo list widget in chat."),
+			properties: {
+				position: {
+					type: 'string',
+					default: 'default',
+					enum: ['default', 'off', 'chat-input'],
+					enumDescriptions: [
+						nls.localize('chat.agent.todoList.position.default', "Show todo list in the top of the chat panel."),
+						nls.localize('chat.agent.todoList.position.off', "Hide the todo list (still shows the tool calls for tracking todo progress)."),
+						nls.localize('chat.agent.todoList.position.chatInput', "Show todo list above the chat input.")
+					],
+					description: nls.localize('chat.agent.todoList.position', "Controls the position of the todo list in the chat view, which opens when the agent has created todo items and updates as it makes progress.")
+				}
+			},
+			default: {
+				position: 'default'
+			},
 			tags: ['experimental'],
 			experiment: {
 				mode: 'auto'
@@ -641,6 +668,12 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: false,
 			description: nls.localize('chat.todoListTool.writeOnly', "When enabled, the todo tool operates in write-only mode, requiring the agent to remember todos in context."),
+			tags: ['experimental']
+		},
+		'chat.todoListTool.descriptionField': {
+			type: 'boolean',
+			default: true,
+			description: nls.localize('chat.todoListTool.descriptionField', "When enabled, todo items include detailed descriptions for implementation context. This provides more information but uses additional tokens and may slow down responses."),
 			tags: ['experimental']
 		},
 		[ChatConfiguration.ThinkingStyle]: {
@@ -664,9 +697,9 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			scope: ConfigurationScope.WINDOW
 		},
-		[ChatConfiguration.UseChatSessionsForCloudButton]: {
+		[ChatConfiguration.UseCloudButtonV2]: {
 			type: 'boolean',
-			description: nls.localize('chat.useChatSessionsForCloudButton', "Controls whether the 'Delegate to coding agent' button uses the new chat sessions API."),
+			description: nls.localize('chat.useCloudButtonV2', "Experimental implementation of 'cloud button'"),
 			default: false,
 			tags: ['experimental'],
 
@@ -894,6 +927,7 @@ registerWorkbenchContribution2(ChatResolverContribution.ID, ChatResolverContribu
 registerWorkbenchContribution2(ChatSlashStaticSlashCommandsContribution.ID, ChatSlashStaticSlashCommandsContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ChatExtensionPointHandler.ID, ChatExtensionPointHandler, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(LanguageModelToolsExtensionPointHandler.ID, LanguageModelToolsExtensionPointHandler, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(ChatPromptFilesExtensionPointHandler.ID, ChatPromptFilesExtensionPointHandler, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatCompatibilityNotifier.ID, ChatCompatibilityNotifier, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(CopilotTitleBarMenuRendering.ID, CopilotTitleBarMenuRendering, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(CodeBlockActionRendering.ID, CodeBlockActionRendering, WorkbenchPhase.BlockRestore);
@@ -917,6 +951,7 @@ registerWorkbenchContribution2(PromptUrlHandler.ID, PromptUrlHandler, WorkbenchP
 registerWorkbenchContribution2(ChatSessionsView.ID, ChatSessionsView, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatEditingNotebookFileSystemProviderContrib.ID, ChatEditingNotebookFileSystemProviderContrib, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(UserToolSetsContributions.ID, UserToolSetsContributions, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2(PromptLanguageFeaturesProvider.ID, PromptLanguageFeaturesProvider, WorkbenchPhase.Eventually);
 
 registerChatActions();
 registerChatAccessibilityActions();
@@ -924,6 +959,7 @@ registerChatCopyActions();
 registerChatCodeBlockActions();
 registerChatCodeCompareBlockActions();
 registerChatFileTreeActions();
+registerChatPromptNavigationActions();
 registerChatTitleActions();
 registerChatExecuteActions();
 registerQuickChatActions();
@@ -965,10 +1001,6 @@ registerSingleton(IChatAttachmentResolveService, ChatAttachmentResolveService, I
 registerSingleton(IChatTodoListService, ChatTodoListService, InstantiationType.Delayed);
 registerSingleton(IChatOutputRendererService, ChatOutputRendererService, InstantiationType.Delayed);
 registerSingleton(IChatLayoutService, ChatLayoutService, InstantiationType.Delayed);
-
-
-registerPromptFileContributions();
-
 
 registerAction2(ConfigureToolSets);
 registerAction2(RenameChatSessionAction);

@@ -4406,6 +4406,11 @@ export interface IInlineSuggestOptions {
 		*/
 		suppressInlineSuggestions?: string;
 
+		/**
+		* @internal
+		*/
+		emptyResponseInformation?: boolean;
+
 		showOnSuggestConflict?: 'always' | 'never' | 'whenSuggestListIsIncomplete';
 	};
 }
@@ -4433,7 +4438,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 			fontFamily: 'default',
 			syntaxHighlightingEnabled: true,
 			minShowDelay: 0,
-			suppressInSnippetMode: false,
+			suppressInSnippetMode: true,
 			edits: {
 				enabled: true,
 				showCollapsed: false,
@@ -4444,6 +4449,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 			experimental: {
 				suppressInlineSuggestions: '',
 				showOnSuggestConflict: 'never',
+				emptyResponseInformation: true,
 			},
 		};
 
@@ -4493,6 +4499,15 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					default: defaults.experimental.suppressInlineSuggestions,
 					tags: ['experimental'],
 					description: nls.localize('inlineSuggest.suppressInlineSuggestions', "Suppresses inline completions for specified extension IDs -- comma separated."),
+					experiment: {
+						mode: 'auto'
+					}
+				},
+				'editor.inlineSuggest.experimental.emptyResponseInformation': {
+					type: 'boolean',
+					default: defaults.experimental.emptyResponseInformation,
+					tags: ['experimental'],
+					description: nls.localize('inlineSuggest.emptyResponseInformation', "Controls whether to send request information from the inline suggestion provider."),
 					experiment: {
 						mode: 'auto'
 					}
@@ -4574,6 +4589,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 			experimental: {
 				suppressInlineSuggestions: EditorStringOption.string(input.experimental?.suppressInlineSuggestions, this.defaultValue.experimental.suppressInlineSuggestions),
 				showOnSuggestConflict: stringSet(input.experimental?.showOnSuggestConflict, this.defaultValue.experimental.showOnSuggestConflict, ['always', 'never', 'whenSuggestListIsIncomplete']),
+				emptyResponseInformation: boolean(input.experimental?.emptyResponseInformation, this.defaultValue.experimental.emptyResponseInformation),
 			},
 		};
 	}

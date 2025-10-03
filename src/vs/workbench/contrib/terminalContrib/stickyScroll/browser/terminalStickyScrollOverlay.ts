@@ -227,8 +227,8 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		// scroll.
 		this._currentStickyCommand = undefined;
 
-		// No command
-		if (!command) {
+		// No command or clear command
+		if (!command || this._isClearCommand(command)) {
 			this._setVisible(false);
 			return;
 		}
@@ -520,6 +520,20 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			selectionBackground: undefined,
 			selectionInactiveBackground: undefined
 		};
+	}
+
+	private _isClearCommand(command: ITerminalCommand | ICurrentPartialCommand): boolean {
+		if (!command.command) {
+			return false;
+		}
+		const trimmedCommand = command.command.trim().toLowerCase();
+		const clearCommands = [
+			'clear',
+			'cls',
+			'clear-host',
+		];
+
+		return clearCommands.includes(trimmedCommand);
 	}
 }
 

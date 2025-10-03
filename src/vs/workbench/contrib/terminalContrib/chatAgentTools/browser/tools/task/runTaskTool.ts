@@ -9,17 +9,16 @@ import { localize } from '../../../../../../../nls.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../../chat/common/languageModelToolsService.js';
 import { ITaskService, ITaskSummary, Task, TasksAvailableContext } from '../../../../../tasks/common/taskService.js';
+import { TaskRunSource } from '../../../../../tasks/common/tasks.js';
 import { ITerminalService } from '../../../../../terminal/browser/terminal.js';
 import { collectTerminalResults, getTaskDefinition, getTaskForTool, resolveDependencyTasks } from '../../taskHelpers.js';
-import { createCommandUri, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
+import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { toolResultDetailsFromResponse, toolResultMessageFromResponse } from './taskHelpers.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
 import { TaskToolClassification, TaskToolEvent } from './taskToolsTelemetry.js';
-import { TaskSettingId } from '../../../../../tasks/common/tasks.js';
-import { OutputMonitorState } from '../monitoring/types.js';
 
 interface IRunTaskToolInput extends IToolInvocation {
 	id: string;
@@ -54,7 +53,7 @@ export class RunTaskTool implements IToolImpl {
 			return { content: [{ kind: 'text', value: `The task ${taskLabel} is already running.` }], toolResultMessage: new MarkdownString(localize('copilotChat.taskAlreadyRunning', 'The task `{0}` is already running.', taskLabel)) };
 		}
 
-		const raceResult = await Promise.race([this._tasksService.run(task), timeout(3000)]);
+		const raceResult = await Promise.race([this._tasksService.run(task, undefined, TaskRunSource.ChatAgent), timeout(3000)]);
 		const result: ITaskSummary | undefined = raceResult && typeof raceResult === 'object' ? raceResult as ITaskSummary : undefined;
 
 		const dependencyTasks = await resolveDependencyTasks(task, args.workspaceFolder, this._configurationService, this._tasksService);
@@ -98,13 +97,6 @@ export class RunTaskTool implements IToolImpl {
 		const uniqueDetails = Array.from(new Set(details)).join('\n\n');
 		const toolResultDetails = toolResultDetailsFromResponse(terminalResults);
 		const toolResultMessage = toolResultMessageFromResponse(result, taskLabel, toolResultDetails, terminalResults);
-		const taskFinished = terminalResults.length > 0 && terminalResults.every(r => r.state === OutputMonitorState.Idle);
-		if (taskFinished && !this._configurationService.getValue<boolean>(TaskSettingId.NotifyWindowOnTaskCompletion)) {
-			const settingsCommandUri = createCommandUri('workbench.action.openSettings', { query: `@id:${TaskSettingId.NotifyWindowOnTaskCompletion}` });
-			toolResultMessage.supportThemeIcons = true;
-			toolResultMessage.isTrusted = { enabledCommands: ['workbench.action.openSettings'] };
-			toolResultMessage.appendMarkdown(`\n\n$(info) Enable [long running task notifications](${settingsCommandUri})`);
-		}
 
 		return {
 			content: [{ kind: 'text', value: uniqueDetails }],

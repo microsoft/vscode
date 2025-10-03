@@ -32,7 +32,7 @@ import { IWorkspaceFolderCreationData } from '../../platform/workspaces/common/w
 import { IIntegrityService } from '../services/integrity/common/integrity.js';
 import { isWindows, isMacintosh } from '../../base/common/platform.js';
 import { IProductService } from '../../platform/product/common/productService.js';
-import { INotificationService, NotificationPriority, Severity } from '../../platform/notification/common/notification.js';
+import { INotificationService, NeverShowAgainScope, NotificationPriority, Severity } from '../../platform/notification/common/notification.js';
 import { IKeybindingService } from '../../platform/keybinding/common/keybinding.js';
 import { INativeWorkbenchEnvironmentService } from '../services/environment/electron-browser/environmentService.js';
 import { IAccessibilityService, AccessibilitySupport } from '../../platform/accessibility/common/accessibility.js';
@@ -738,6 +738,32 @@ export class NativeWindow extends BaseWindow {
 
 					break;
 				}
+			}
+		}
+
+		// macOS 11 warning
+		if (isMacintosh) {
+			const majorVersion = this.nativeEnvironmentService.os.release.split('.')[0];
+			const eolReleases = new Map<string, string>([
+				['20', 'macOS Big Sur'],
+			]);
+
+			if (eolReleases.has(majorVersion)) {
+				const message = localize('macoseolmessage', "{0} on {1} will soon stop receiving updates. Consider upgrading your macOS version.", this.productService.nameLong, eolReleases.get(majorVersion));
+
+				this.notificationService.prompt(
+					Severity.Warning,
+					message,
+					[{
+						label: localize('learnMore', "Learn More"),
+						run: () => this.openerService.open(URI.parse('https://aka.ms/vscode-faq-old-macOS'))
+					}],
+					{
+						neverShowAgain: { id: 'macoseol', isSecondary: true, scope: NeverShowAgainScope.APPLICATION },
+						priority: NotificationPriority.URGENT,
+						sticky: true
+					}
+				);
 			}
 		}
 

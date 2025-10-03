@@ -169,8 +169,14 @@
 	text-align: center;
 }
 
-.chat-sessions-tree-container .chat-session-item .monaco-icon-label.codicon-loading::before {
-	animation: codicon-spin 1.5s steps(30) infinite;
+/* Chat session icon */
+.chat-sessions-tree-container .chat-session-item .chat-session-custom-icon {
+	flex-shrink: 0;
+	width: 16px;
+	height: 16px;
+	margin-right: 6px;
+	font-size: 16px;
+	display: flex;
 }
 
 /* Timestamp styling - similar to timeline pane */
@@ -229,8 +235,10 @@
 
 /* Hide twisties for elements that don't have children */
 .chat-sessions-tree-container .monaco-list-row .monaco-tl-twistie {
-	visibility: hidden;
-	width: 0;
+	/* Ultra-small indent to separate parent/child without large gutter */
+	visibility: hidden; /* keep layout space */
+	width: 3px;
+	min-width: 3px;
 	padding: 0;
 	margin: 0;
 }
