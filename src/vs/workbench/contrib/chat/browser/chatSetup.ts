@@ -1205,7 +1205,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					// check if the given param is a valid mode ID
 					let foundMode = chatModeService.findModeById(modeParam);
 					if (!foundMode) {
-						// if not, check if the given param is a valid mode name, note the name is case sensitive
+						// if not, check if the given param is a valid mode name, note the name is case insensitive
 						foundMode = chatModeService.findModeByName(modeParam);
 					}
 
