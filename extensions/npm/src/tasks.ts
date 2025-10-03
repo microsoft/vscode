@@ -58,8 +58,10 @@ export class NpmTaskProvider implements TaskProvider {
 	}
 
 	public async resolveTask(_task: Task): Promise<Task | undefined> {
+		// eslint-disable-next-line local/code-no-any-casts
 		const npmTask = (<any>_task.definition).script;
 		if (npmTask) {
+			// eslint-disable-next-line local/code-no-any-casts
 			const kind: INpmTaskDefinition = (<any>_task.definition);
 			let packageJsonUri: Uri;
 			if (_task.scope === undefined || _task.scope === TaskScope.Global || _task.scope === TaskScope.Workspace) {

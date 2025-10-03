@@ -233,8 +233,11 @@ function* findAllReferencesInClass(node) {
 function findAllReferences(node) {
     const sourceFile = node.getSourceFile();
     const position = node.getStart();
+    // eslint-disable-next-line local/code-no-any-casts
     const name = ts.getTouchingPropertyName(sourceFile, position);
+    // eslint-disable-next-line local/code-no-any-casts
     const options = { use: ts.FindAllReferences.FindReferencesUse.References };
+    // eslint-disable-next-line local/code-no-any-casts
     return ts.FindAllReferences.Core.getReferencedSymbolsForNode(position, name, program, [sourceFile], cancellationToken, options) ?? [];
 }
 var DefinitionKind;

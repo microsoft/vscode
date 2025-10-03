@@ -525,6 +525,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 						extensionId: extension.description.identifier,
 						originalContainerId: key,
 						group: item.group,
+						// eslint-disable-next-line local/code-no-any-casts
 						remoteAuthority: item.remoteName || (<any>item).remoteAuthority, // TODO@roblou - delete after remote extensions are updated
 						virtualWorkspace: item.virtualWorkspace,
 						hideByDefault: initialVisibility === InitialVisibility.Hidden,

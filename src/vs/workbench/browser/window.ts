@@ -32,6 +32,7 @@ import { createSingleCallFunction } from '../../base/common/functional.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { IWorkbenchEnvironmentService } from '../services/environment/common/environmentService.js';
 import { MarkdownString } from '../../base/common/htmlContent.js';
+import { IContextMenuService } from '../../platform/contextview/browser/contextView.js';
 
 export abstract class BaseWindow extends Disposable {
 
@@ -42,7 +43,9 @@ export abstract class BaseWindow extends Disposable {
 		targetWindow: CodeWindow,
 		dom = { getWindowsCount, getWindows }, /* for testing */
 		@IHostService protected readonly hostService: IHostService,
-		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService,
+		@IContextMenuService protected readonly contextMenuService: IContextMenuService,
+		@IWorkbenchLayoutService protected readonly layoutService: IWorkbenchLayoutService,
 	) {
 		super();
 
@@ -50,6 +53,7 @@ export abstract class BaseWindow extends Disposable {
 		this.enableMultiWindowAwareTimeout(targetWindow, dom);
 
 		this.registerFullScreenListeners(targetWindow.vscodeWindowId);
+		this.registerContextMenuListeners(targetWindow);
 	}
 
 	//#region focus handling in multi-window applications
@@ -138,6 +142,7 @@ export abstract class BaseWindow extends Disposable {
 				// this can happen for timeouts on unfocused windows
 				let didClear = false;
 
+				// eslint-disable-next-line local/code-no-any-casts
 				const handle = (window as any).vscodeOriginalSetTimeout.apply(this, [(...args: unknown[]) => {
 					if (didClear) {
 						return;
@@ -147,6 +152,7 @@ export abstract class BaseWindow extends Disposable {
 
 				const timeoutDisposable = toDisposable(() => {
 					didClear = true;
+					// eslint-disable-next-line local/code-no-any-casts
 					(window as any).vscodeOriginalClearTimeout(handle);
 					timeoutDisposables.delete(timeoutDisposable);
 				});
@@ -170,17 +176,6 @@ export abstract class BaseWindow extends Disposable {
 	}
 
 	//#endregion
-
-	private registerFullScreenListeners(targetWindowId: number): void {
-		this._register(this.hostService.onDidChangeFullScreen(({ windowId, fullscreen }) => {
-			if (windowId === targetWindowId) {
-				const targetWindow = getWindowById(targetWindowId);
-				if (targetWindow) {
-					setFullscreen(fullscreen, targetWindow.window);
-				}
-			}
-		}));
-	}
 
 	//#region Confirm on Shutdown
 
@@ -212,6 +207,29 @@ export abstract class BaseWindow extends Disposable {
 	}
 
 	//#endregion
+
+	private registerFullScreenListeners(targetWindowId: number): void {
+		this._register(this.hostService.onDidChangeFullScreen(({ windowId, fullscreen }) => {
+			if (windowId === targetWindowId) {
+				const targetWindow = getWindowById(targetWindowId);
+				if (targetWindow) {
+					setFullscreen(fullscreen, targetWindow.window);
+				}
+			}
+		}));
+	}
+
+	private registerContextMenuListeners(targetWindow: Window): void {
+		if (targetWindow !== mainWindow) {
+			// we only need to listen in the main window as the code
+			// will go by the active container and update accordingly
+			return;
+		}
+
+		const update = (visible: boolean) => this.layoutService.activeContainer.classList.toggle('context-menu-visible', visible);
+		this._register(this.contextMenuService.onDidShowContextMenu(() => update(true)));
+		this._register(this.contextMenuService.onDidHideContextMenu(() => update(false)));
+	}
 }
 
 export class BrowserWindow extends BaseWindow {
@@ -223,11 +241,12 @@ export class BrowserWindow extends BaseWindow {
 		@ILabelService private readonly labelService: ILabelService,
 		@IProductService private readonly productService: IProductService,
 		@IBrowserWorkbenchEnvironmentService private readonly browserEnvironmentService: IBrowserWorkbenchEnvironmentService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IHostService hostService: IHostService
+		@IHostService hostService: IHostService,
+		@IContextMenuService contextMenuService: IContextMenuService,
 	) {
-		super(mainWindow, undefined, hostService, browserEnvironmentService);
+		super(mainWindow, undefined, hostService, browserEnvironmentService, contextMenuService, layoutService);
 
 		this.registerListeners();
 		this.create();

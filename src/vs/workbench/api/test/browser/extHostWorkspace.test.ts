@@ -538,6 +538,7 @@ suite('ExtHostWorkspace', function () {
 		const sub = ws.onDidChangeWorkspace(e => {
 			try {
 				assert.throws(() => {
+					// eslint-disable-next-line local/code-no-any-casts
 					(<any>e).added = [];
 				});
 				// assert.throws(() => {

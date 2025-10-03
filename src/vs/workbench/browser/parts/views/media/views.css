@@ -101,7 +101,7 @@
 	max-width: 300px;
 }
 
-.monaco-workbench:not(.reduce-motion) .pane > .pane-body .welcome-view-content > .button-container {
+.monaco-workbench.monaco-enable-motion .pane > .pane-body .welcome-view-content > .button-container {
 	transition: 0.2s max-width ease-out;
 }
 

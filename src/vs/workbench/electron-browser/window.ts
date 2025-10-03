@@ -79,6 +79,7 @@ import { getWorkbenchContribution } from '../common/contributions.js';
 import { DynamicWorkbenchSecurityConfiguration } from '../common/configuration.js';
 import { nativeHoverDelegate } from '../../platform/hover/browser/hover.js';
 import { WINDOW_ACTIVE_BORDER, WINDOW_INACTIVE_BORDER } from '../common/theme.js';
+import { IContextMenuService } from '../../platform/contextview/browser/contextView.js';
 
 export class NativeWindow extends BaseWindow {
 
@@ -111,7 +112,7 @@ export class NativeWindow extends BaseWindow {
 		@IOpenerService private readonly openerService: IOpenerService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@ITunnelService private readonly tunnelService: ITunnelService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
 		@IProductService private readonly productService: IProductService,
@@ -127,9 +128,10 @@ export class NativeWindow extends BaseWindow {
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IUtilityProcessWorkerWorkbenchService private readonly utilityProcessWorkerWorkbenchService: IUtilityProcessWorkerWorkbenchService,
-		@IHostService hostService: IHostService
+		@IHostService hostService: IHostService,
+		@IContextMenuService contextMenuService: IContextMenuService,
 	) {
-		super(mainWindow, undefined, hostService, nativeEnvironmentService);
+		super(mainWindow, undefined, hostService, nativeEnvironmentService, contextMenuService, layoutService);
 
 		this.configuredWindowZoomLevel = this.resolveConfiguredWindowZoomLevel();
 

@@ -122,6 +122,7 @@ export class ChatMcpServersInteractionContentPart extends Disposable implements 
 
 	hasSameContent(other: IChatRendererContent): boolean {
 		// Simple implementation that checks if it's the same type
+		// eslint-disable-next-line local/code-no-any-casts
 		return (other as any).kind === 'mcpServersInteractionRequired';
 	}
 

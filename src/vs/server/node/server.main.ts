@@ -17,6 +17,7 @@ import product from '../../platform/product/common/product.js';
 import * as perf from '../../base/common/performance.js';
 
 perf.mark('code/server/codeLoaded');
+// eslint-disable-next-line local/code-no-any-casts
 (<any>global).vscodeServerCodeLoadedTime = performance.now();
 
 const errorReporter: ErrorReporter = {

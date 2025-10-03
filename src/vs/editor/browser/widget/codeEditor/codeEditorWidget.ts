@@ -1029,6 +1029,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}
 		const codeEditorState = s as editorCommon.ICodeEditorViewState | null;
 		if (codeEditorState && codeEditorState.cursorState && codeEditorState.viewState) {
+			// eslint-disable-next-line local/code-no-any-casts
 			const cursorState = <any>codeEditorState.cursorState;
 			if (Array.isArray(cursorState)) {
 				if (cursorState.length > 0) {

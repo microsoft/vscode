@@ -171,6 +171,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		}
 		this._clearModelCache(vendor);
 		// TODO @lramos15 - Remove this old prepare method support in debt week
+		// eslint-disable-next-line local/code-no-any-casts
 		const modelInformation: vscode.LanguageModelChatInformation[] = (data.provider.provideLanguageModelChatInformation ? await data.provider.provideLanguageModelChatInformation(options, token) : await (data.provider as any).prepareLanguageModelChatInformation(options, token)) ?? [];
 		const modelMetadataAndIdentifier: ILanguageModelChatMetadataAndIdentifier[] = modelInformation.map((m): ILanguageModelChatMetadataAndIdentifier => {
 			let auth;

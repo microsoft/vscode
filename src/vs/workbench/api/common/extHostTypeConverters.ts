@@ -459,6 +459,7 @@ export function fromRangeOrRangeWithMessage(ranges: vscode.Range[] | vscode.Deco
 				hoverMessage: Array.isArray(r.hoverMessage)
 					? MarkdownString.fromMany(r.hoverMessage)
 					: (r.hoverMessage ? MarkdownString.from(r.hoverMessage) : undefined),
+				// eslint-disable-next-line local/code-no-any-casts
 				renderOptions: <any> /* URI vs Uri */r.renderOptions
 			};
 		});
@@ -851,6 +852,7 @@ export namespace DocumentSymbol {
 			result.tags = info.tags.map(SymbolTag.to);
 		}
 		if (info.children) {
+			// eslint-disable-next-line local/code-no-any-casts
 			result.children = info.children.map(to) as any;
 		}
 		return result;
@@ -3136,19 +3138,28 @@ export namespace ChatAgentRequest {
 		};
 
 		if (!isProposedApiEnabled(extension, 'chatParticipantPrivate')) {
+			// eslint-disable-next-line local/code-no-any-casts
 			delete (requestWithAllProps as any).id;
+			// eslint-disable-next-line local/code-no-any-casts
 			delete (requestWithAllProps as any).attempt;
+			// eslint-disable-next-line local/code-no-any-casts
 			delete (requestWithAllProps as any).enableCommandDetection;
+			// eslint-disable-next-line local/code-no-any-casts
 			delete (requestWithAllProps as any).isParticipantDetected;
+			// eslint-disable-next-line local/code-no-any-casts
 			delete (requestWithAllProps as any).location;
+			// eslint-disable-next-line local/code-no-any-casts
 			delete (requestWithAllProps as any).location2;
+			// eslint-disable-next-line local/code-no-any-casts
 			delete (requestWithAllProps as any).editedFileEvents;
+			// eslint-disable-next-line local/code-no-any-casts
 			delete (requestWithAllProps as any).sessionId;
 		}
 
 		if (!isProposedApiEnabled(extension, 'chatParticipantAdditions')) {
 			delete requestWithAllProps.acceptedConfirmationData;
 			delete requestWithAllProps.rejectedConfirmationData;
+			// eslint-disable-next-line local/code-no-any-casts
 			delete (requestWithAllProps as any).tools;
 		}
 

@@ -371,6 +371,7 @@ export class ExtHostSCMInputBox implements vscode.SourceControlInputBox {
 	showValidationMessage(message: string | vscode.MarkdownString, type: vscode.SourceControlInputBoxValidationType) {
 		checkProposedApiEnabled(this._extension, 'scmValidation');
 
+		// eslint-disable-next-line local/code-no-any-casts
 		this.#proxy.$showValidationMessage(this._sourceControlHandle, message, type as any);
 	}
 

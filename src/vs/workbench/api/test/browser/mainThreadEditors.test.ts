@@ -112,6 +112,7 @@ suite('MainThreadEditors', () => {
 		services.set(IEditorGroupsService, new TestEditorGroupsService());
 		services.set(ITextFileService, new class extends mock<ITextFileService>() {
 			override isDirty() { return false; }
+			// eslint-disable-next-line local/code-no-any-casts
 			override files = <any>{
 				onDidSave: Event.None,
 				onDidRevert: Event.None,

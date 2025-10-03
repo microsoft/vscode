@@ -20,6 +20,7 @@ import { INLSConfiguration } from './vs/nls.js';
 import { IServerAPI } from './vs/server/node/remoteExtensionHostAgentServer.js';
 
 perf.mark('code/server/start');
+// eslint-disable-next-line local/code-no-any-casts
 (globalThis as any).vscodeServerStartTime = performance.now();
 
 // Do a quick parse to determine if a server or the cli needs to be started
@@ -138,6 +139,7 @@ if (shouldSpawnCli) {
 		console.log(output);
 
 		perf.mark('code/server/started');
+		// eslint-disable-next-line local/code-no-any-casts
 		(globalThis as any).vscodeServerListenTime = performance.now();
 
 		await getRemoteExtensionHostAgentServer();

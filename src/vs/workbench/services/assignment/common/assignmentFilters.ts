@@ -101,6 +101,7 @@ export class CopilotAssignmentFilterProvider extends Disposable implements IExpe
 
 			copilotExtensionVersion = copilotExtension?.version;
 			copilotChatExtensionVersion = copilotChatExtension?.version;
+			// eslint-disable-next-line local/code-no-any-casts
 			copilotCompletionsVersion = (copilotChatExtension as any)?.completionsCoreVersion;
 		} catch (error) {
 			this._logService.error('Failed to update extension version assignments', error);

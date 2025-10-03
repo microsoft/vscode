@@ -66,6 +66,7 @@ abstract class MergeEditorAction2 extends Action2 {
 				return;
 			}
 
+			// eslint-disable-next-line local/code-no-any-casts
 			return this.runWithMergeEditor({
 				viewModel: vm,
 				inputModel: activeEditorPane.inputModel.get()!,

@@ -32,6 +32,7 @@ suite('ChatTodoListWidget Accessibility', () => {
 		};
 
 		// Mock the configuration service
+		// eslint-disable-next-line local/code-no-any-casts
 		mockConfigurationService = {
 			_serviceBrand: undefined,
 			getValue: (key: string) => key === 'chat.todoListTool.descriptionField' ? true : undefined
@@ -140,6 +141,7 @@ suite('ChatTodoListWidget Accessibility', () => {
 			setTodos: (sessionId: string, todos: IChatTodo[]) => { }
 		};
 
+		// eslint-disable-next-line local/code-no-any-casts
 		const emptyConfigurationService: IConfigurationService = {
 			_serviceBrand: undefined,
 			getValue: (key: string) => key === 'chat.todoListTool.descriptionField' ? true : undefined
