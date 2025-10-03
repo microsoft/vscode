@@ -9,6 +9,7 @@ import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isEqual } from '../../../../base/common/resources.js';
+import { truncate } from '../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import * as nls from '../../../../nls.js';
@@ -20,7 +21,7 @@ import { EditorInput, IEditorCloseHandler } from '../../../common/editor/editorI
 import { IChatEditingSession, ModifiedFileEntryState } from '../common/chatEditingService.js';
 import { IChatModel } from '../common/chatModel.js';
 import { IChatService } from '../common/chatService.js';
-import { ChatAgentLocation } from '../common/constants.js';
+import { ChatAgentLocation, ChatEditorTitleMaxLength } from '../common/constants.js';
 import { IClearEditingSessionConfirmationOptions } from './actions/chatActions.js';
 import type { IChatEditorOptions } from './chatEditor.js';
 
@@ -144,7 +145,8 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	override getName(): string {
 		// If we have a resolved model, use its title
 		if (this.model?.title) {
-			return this.model.title;
+			// Only truncate if the default title is being used (don't truncate custom titles)
+			return this.model.hasCustomTitle ? this.model.title : truncate(this.model.title, ChatEditorTitleMaxLength);
 		}
 
 		// If we have a sessionId but no resolved model, try to get the title from persisted sessions
