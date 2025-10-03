@@ -935,6 +935,43 @@ export class CommandCenter {
 		}
 	}
 
+	@command('git.openMergeEditorForCurrentFile')
+	async openMergeEditorForCurrentFile(): Promise<void> {
+		// Get the active text editor
+		const activeEditor = window.activeTextEditor;
+		if (!activeEditor) {
+			window.showInformationMessage(l10n.t('No active text editor found.'));
+			return;
+		}
+
+		const uri = activeEditor.document.uri;
+		
+		// Check if the file has merge conflicts
+		if (!this.hasConflictMarkers(activeEditor.document)) {
+			window.showInformationMessage(l10n.t('No merge conflicts found in the current file.'));
+			return;
+		}
+
+		// Open the merge editor for this file
+		await this.openMergeEditor(uri);
+	}
+
+	private hasConflictMarkers(document: TextDocument): boolean {
+		const conflictMarkerStart = '<<<<<<<';
+		const conflictMarkerEnd = '>>>>>>>';
+		
+		let foundStart = false;
+		for (let lineIdx = 0; lineIdx < document.lineCount; lineIdx++) {
+			const lineStr = document.lineAt(lineIdx).text;
+			if (lineStr.startsWith(conflictMarkerStart)) {
+				foundStart = true;
+			} else if (foundStart && lineStr.startsWith(conflictMarkerEnd)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	async cloneRepository(url?: string, parentPath?: string, options: { recursive?: boolean; ref?: string } = {}): Promise<void> {
 		if (!url || typeof url !== 'string') {
 			url = await pickRemoteSource({
