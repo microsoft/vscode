@@ -13,21 +13,25 @@ import { autorun, derived } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { nativeHoverDelegate } from '../../../../../platform/hover/browser/hover.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IStatusbarService, StatusbarAlignment } from '../../../../services/statusbar/browser/statusbar.js';
-import { AI_STATS_SETTING_ID } from '../settingIds.js';
-import type { AiStatsFeature } from './aiStatsFeature.js';
+import { IChatEntitlementService } from '../../../chat/common/chatEntitlementService.js';
+import { STATS_SETTING_ID } from '../settingIds.js';
+import type { StatsFeature } from './statsFeature.js';
 import './media.css';
 
-export class AiStatsStatusBar extends Disposable {
-	public static readonly hot = createHotClass(AiStatsStatusBar);
+export class StatsStatusBar extends Disposable {
+	public static readonly hot = createHotClass(StatsStatusBar);
 
 	constructor(
-		private readonly _aiStatsFeature: AiStatsFeature,
+		private readonly _statsFeature: StatsFeature,
 		@IStatusbarService private readonly _statusbarService: IStatusbarService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
 	) {
 		super();
 
@@ -37,8 +41,8 @@ export class AiStatsStatusBar extends Disposable {
 			const store = this._register(new DisposableStore());
 
 			reader.store.add(this._statusbarService.addEntry({
-				name: localize('inlineSuggestions', "Inline Suggestions"),
-				ariaLabel: localize('inlineSuggestionsStatusBar', "Inline suggestions status bar"),
+				name: localize('editorStats', "Editor Statistics"),
+				ariaLabel: localize('editorStatsStatusBar', "Editor statistics status bar"),
 				text: '',
 				tooltip: {
 					element: async (_token) => {
@@ -50,27 +54,47 @@ export class AiStatsStatusBar extends Disposable {
 					markdownNotSupportedFallback: undefined,
 				},
 				content: statusBarItem.element,
-			}, 'aiStatsStatusBar', StatusbarAlignment.RIGHT, 100));
+			}, 'statsStatusBar', StatusbarAlignment.RIGHT, 100));
 		}));
 	}
 
 	private _sendHoverTelemetry(): void {
+		const mode = this._configurationService.getValue<string>(STATS_SETTING_ID);
 		this._telemetryService.publicLog2<{
-			aiRate: number;
+			mode: string;
+			aiRate?: number;
+			premiumQuotaPercent?: number;
 		}, {
 			owner: 'hediet';
-			comment: 'Fired when the AI stats status bar hover tooltip is shown';
-			aiRate: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The current AI rate percentage' };
+			comment: 'Fired when the stats status bar hover tooltip is shown';
+			mode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The stats mode being displayed' };
+			aiRate?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The current AI rate percentage' };
+			premiumQuotaPercent?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The premium quota percentage used' };
 		}>(
-			'aiStatsStatusBar.hover',
+			'statsStatusBar.hover',
 			{
-				aiRate: this._aiStatsFeature.aiRate.get(),
+				mode,
+				aiRate: mode === 'aiStats' ? this._statsFeature.aiRate.get() : undefined,
+				premiumQuotaPercent: mode === 'premiumQuota' ? this._getPremiumQuotaPercent() : undefined,
 			}
 		);
 	}
 
+	private _getPremiumQuotaPercent(): number {
+		const premiumQuota = this._chatEntitlementService.quotas.premiumChat;
+		if (!premiumQuota || premiumQuota.unlimited) {
+			return 0;
+		}
+		return 100 - (premiumQuota.percentRemaining ?? 0);
+	}
+
 
 	private _createStatusBar() {
+		const mode = this._configurationService.getValue<string>(STATS_SETTING_ID);
+		const percent = mode === 'premiumQuota'
+			? derived(this, () => this._getPremiumQuotaPercent())
+			: this._statsFeature.aiRate.map(v => v * 100);
+
 		return n.div({
 			style: {
 				height: '100%',
@@ -83,7 +107,7 @@ export class AiStatsStatusBar extends Disposable {
 		}, [
 			n.div(
 				{
-					class: 'ai-stats-status-bar',
+					class: 'stats-status-bar',
 					style: {
 						display: 'flex',
 						flexDirection: 'column',
@@ -110,7 +134,7 @@ export class AiStatsStatusBar extends Disposable {
 					}, [
 						n.div({
 							style: {
-								width: this._aiStatsFeature.aiRate.map(v => `${v * 100}%`),
+								width: percent.map(v => `${v}%`),
 								backgroundColor: 'currentColor',
 							}
 						})
@@ -121,10 +145,20 @@ export class AiStatsStatusBar extends Disposable {
 	}
 
 	private _createStatusBarHover() {
-		const aiRatePercent = this._aiStatsFeature.aiRate.map(r => `${Math.round(r * 100)}%`);
+		const mode = this._configurationService.getValue<string>(STATS_SETTING_ID);
+
+		if (mode === 'premiumQuota') {
+			return this._createPremiumQuotaHover();
+		} else {
+			return this._createAiStatsHover();
+		}
+	}
+
+	private _createAiStatsHover() {
+		const aiRatePercent = this._statsFeature.aiRate.map(r => `${Math.round(r * 100)}%`);
 
 		return n.div({
-			class: 'ai-stats-status-bar',
+			class: 'stats-status-bar',
 		}, [
 			n.div({
 				class: 'header',
@@ -137,12 +171,12 @@ export class AiStatsStatusBar extends Disposable {
 					n.div({ style: { marginLeft: 'auto' } }, actionBar([
 						{
 							action: {
-								id: 'aiStats.statusBar.settings',
+								id: 'stats.statusBar.settings',
 								label: '',
 								enabled: true,
-								run: () => openSettingsCommand({ ids: [AI_STATS_SETTING_ID] }).run(this._commandService),
+								run: () => openSettingsCommand({ ids: [STATS_SETTING_ID] }).run(this._commandService),
 								class: ThemeIcon.asClassName(Codicon.gear),
-								tooltip: localize('aiStats.statusBar.configure', "Configure")
+								tooltip: localize('stats.statusBar.configure', "Configure")
 							},
 							options: { icon: true, label: false, hoverDelegate: nativeHoverDelegate }
 						}
@@ -154,25 +188,51 @@ export class AiStatsStatusBar extends Disposable {
 				n.div({ style: { flex: 1, paddingRight: '4px' } }, [
 					localize('text1', "AI vs Typing Average: {0}", aiRatePercent.get()),
 				]),
-				/*
-				TODO: Write article that explains the ratio and link to it.
-
-				n.div({ style: { marginLeft: 'auto' } }, actionBar([
-					{
-						action: {
-							id: 'aiStatsStatusBar.openSettings',
-							label: '',
-							enabled: true,
-							run: () => { },
-							class: ThemeIcon.asClassName(Codicon.info),
-							tooltip: ''
-						},
-						options: { icon: true, label: true, }
-					}
-				]))*/
 			]),
 			n.div({ style: { flex: 1, paddingRight: '4px' } }, [
-				localize('text2', "Accepted inline suggestions today: {0}", this._aiStatsFeature.acceptedInlineSuggestionsToday.get()),
+				localize('text2', "Accepted inline suggestions today: {0}", this._statsFeature.acceptedInlineSuggestionsToday.get()),
+			]),
+		]);
+	}
+
+	private _createPremiumQuotaHover() {
+		const premiumQuota = this._chatEntitlementService.quotas.premiumChat;
+		const percentUsed = this._getPremiumQuotaPercent();
+		const remaining = premiumQuota?.remaining ?? 0;
+		const total = premiumQuota?.total ?? 0;
+		const unlimited = premiumQuota?.unlimited ?? false;
+
+		return n.div({
+			class: 'stats-status-bar',
+		}, [
+			n.div({
+				class: 'header',
+				style: {
+					minWidth: '200px',
+				}
+			},
+				[
+					n.div({ style: { flex: 1 } }, [localize('premiumQuotaStatusBarHeader', "Copilot Premium Quota")]),
+					n.div({ style: { marginLeft: 'auto' } }, actionBar([
+						{
+							action: {
+								id: 'stats.statusBar.settings',
+								label: '',
+								enabled: true,
+								run: () => openSettingsCommand({ ids: [STATS_SETTING_ID] }).run(this._commandService),
+								class: ThemeIcon.asClassName(Codicon.gear),
+								tooltip: localize('stats.statusBar.configure', "Configure")
+							},
+							options: { icon: true, label: false, hoverDelegate: nativeHoverDelegate }
+						}
+					]))
+				]
+			),
+
+			n.div({ style: { flex: 1, paddingRight: '4px' } }, [
+				unlimited
+					? localize('premiumQuotaUnlimited', "Unlimited premium requests")
+					: localize('premiumQuotaUsed', "Premium requests used: {0}% ({1} of {2})", Math.round(percentUsed), total - remaining, total),
 			]),
 		]);
 	}

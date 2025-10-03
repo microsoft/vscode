@@ -13,9 +13,9 @@ import { isAiEdit, isUserEdit } from '../../../../../editor/common/textModelEdit
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { AnnotatedDocuments } from '../helpers/annotatedDocuments.js';
-import { AiStatsStatusBar } from './aiStatsStatusBar.js';
+import { StatsStatusBar } from './statsStatusBar.js';
 
-export class AiStatsFeature extends Disposable {
+export class StatsFeature extends Disposable {
 	private readonly _data: IValue<IData>;
 	private readonly _dataVersion = observableValue(this, 0);
 
@@ -32,7 +32,7 @@ export class AiStatsFeature extends Disposable {
 		this.aiRate.recomputeInitiallyAndOnChange(this._store);
 
 		this._register(autorun(reader => {
-			reader.store.add(this._instantiationService.createInstance(AiStatsStatusBar.hot.read(reader), this));
+			reader.store.add(this._instantiationService.createInstance(StatsStatusBar.hot.read(reader), this));
 		}));
 
 

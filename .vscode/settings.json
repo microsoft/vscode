@@ -214,7 +214,7 @@
 	// --- Workbench ---
 	// "application.experimental.rendererProfiling": true, // https://github.com/microsoft/vscode/issues/265654
 
-	"editor.aiStats.enabled": true, // Team selfhosting on ai stats
+	"editor.stats.enabled": "aiStats", // Team selfhosting on stats (options: "off", "aiStats", "premiumQuota")
 	"chat.checkpoints.showFileChanges": true,
 	"chat.emptyState.history.enabled": true,
 	"github.copilot.chat.advanced.taskTools.enabled": true,
