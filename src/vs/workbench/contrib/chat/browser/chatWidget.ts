@@ -1154,9 +1154,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			this.renderHistoryItems(initialHistoryItems);
 
-			// Add "Chat history..." link at the end
+			// Add "More history..." link at the end
 			const previousChatsLink = dom.append(container, $('.chat-welcome-history-more'));
-			previousChatsLink.textContent = localize('chat.history.showMore', 'Chat history...');
+			previousChatsLink.textContent = localize('chat.history.showMore', 'More history...');
 			previousChatsLink.setAttribute('role', 'button');
 			previousChatsLink.setAttribute('tabindex', '0');
 			previousChatsLink.setAttribute('aria-label', localize('chat.history.showMoreAriaLabel', 'Open chat history'));
