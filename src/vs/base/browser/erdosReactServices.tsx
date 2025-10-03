@@ -48,8 +48,8 @@ import { IExecutionHistoryService } from '../../workbench/services/executionHist
 import { IErdosTopActionBarService } from '../../workbench/services/erdosTopActionBar/browser/erdosTopActionBarService.js';
 import { IErdosWebviewPreloadService } from '../../workbench/services/erdosWebviewPreloads/browser/erdosWebviewPreloadService.js';
 import { IErdosNotebookOutputWebviewService } from '../../workbench/contrib/erdosOutputWebview/browser/notebookOutputWebviewService.js';
-import { IErdosHelpService } from '../../workbench/contrib/erdosHelp/browser/erdosHelpService.js';
-import { IErdosHelpSearchService } from '../../workbench/contrib/erdosHelp/browser/erdosHelpSearchService.js';
+import { IErdosHelpService } from '../../workbench/contrib/erdosHelp/browser/services/helpService.js';
+import { ITopicQueryService } from '../../workbench/contrib/erdosHelp/browser/topicQueryService.js';
 import { IFunctionParserService } from '../../workbench/services/erdosAiCommands/common/functionParserService.js';
 import { IFileResolverService } from '../../workbench/services/erdosAiUtils/common/fileResolverService.js';
 import { ISearchService } from '../../workbench/services/search/common/search.js';
@@ -103,7 +103,7 @@ export class ErdosReactServices {
 		@IErdosConsoleService public readonly erdosConsoleService: IErdosConsoleService,
 		@IExecutionHistoryService public readonly executionHistoryService: IExecutionHistoryService,
 		@IErdosHelpService public readonly erdosHelpService: IErdosHelpService,
-		@IErdosHelpSearchService public readonly erdosHelpSearchService: IErdosHelpSearchService,
+		@ITopicQueryService public readonly topicQueryService: ITopicQueryService,
 
 		@IErdosModalDialogsService public readonly erdosModalDialogsService: IErdosModalDialogsService,
 		@IErdosNewFolderService public readonly erdosNewFolderService: IErdosNewFolderService,

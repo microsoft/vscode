@@ -1,0 +1,22 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (C) 2025 Lotas Inc. All rights reserved.
+ *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.help-toolbar {
+	width: 100%;
+}
+
+.help-toolbar .toolbar-separator-wrapper {
+	display: flex;
+	align-items: center;
+	padding: 0 8px;
+}
+
+.help-toolbar .toolbar-separator {
+	width: 1px;
+	height: 24px;
+	background-color: var(--vscode-widget-border);
+	opacity: 0.4;
+}
+

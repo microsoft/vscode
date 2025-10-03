@@ -14,7 +14,8 @@ export class HelpClientInstance extends Disposable {
 
 	constructor(
 		client: IRuntimeClientInstance<any, any>,
-		readonly languageId: string
+		readonly languageId: string,
+		readonly sessionId: string
 	) {
 		super();
 		this._comm = new ErdosHelpComm(client, { 

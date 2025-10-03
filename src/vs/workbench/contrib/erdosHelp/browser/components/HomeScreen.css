@@ -1,0 +1,71 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (C) 2025 Lotas Inc. All rights reserved.
+ *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.help-welcome-page {
+	height: 100%;
+	overflow-y: auto;
+	background-color: var(--vscode-sideBar-background);
+}
+
+.help-welcome-content {
+	max-width: 800px;
+	margin: 0 auto;
+	padding: 32px 24px;
+}
+
+.help-welcome-header {
+	text-align: center;
+	margin-bottom: 32px;
+}
+
+.help-welcome-title {
+	color: var(--vscode-foreground);
+	font-size: 28px;
+	font-weight: 300;
+	margin: 0 0 8px 0;
+	letter-spacing: -0.5px;
+}
+
+.help-welcome-subtitle {
+	color: var(--vscode-descriptionForeground);
+	font-size: 14px;
+	margin: 0;
+	font-weight: 400;
+}
+
+.help-welcome-search {
+	margin-bottom: 32px;
+}
+
+.recent-history-section {
+	margin-top: 24px;
+}
+
+.recent-history-list {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.recent-history-item {
+	display: flex;
+	padding: 4px 0;
+	background: none;
+	border: none;
+	cursor: pointer;
+	text-align: left;
+}
+
+.recent-history-item:hover .history-item-title {
+	text-decoration: underline;
+}
+
+.history-item-title {
+	color: var(--vscode-textLink-foreground);
+	font-size: 13px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}

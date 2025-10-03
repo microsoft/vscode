@@ -60,7 +60,7 @@ export class FunctionParserService extends Disposable implements IFunctionParser
 			}
 
 			// Create help client instance with the session's actual language ID
-			const helpClient = new HelpClientInstance(client, targetSession.runtimeMetadata.languageId);
+			const helpClient = new HelpClientInstance(client, targetSession.runtimeMetadata.languageId, targetSession.sessionId);
 
 			try {
 				// Call the parseFunctions method via the help comm

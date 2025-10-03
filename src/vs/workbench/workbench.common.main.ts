@@ -240,7 +240,7 @@ import './contrib/erdosModalDialogs/browser/erdosModalDialogs.contribution.js';
 import './contrib/erdosAi/browser/erdosAi.contribution.js';
 import './services/erdosAi/browser/notebookDiffService.contribution.js';
 import './services/erdosAi/browser/notebookZoneManager.contribution.js';
-import './contrib/erdosHelp/browser/erdosHelp.contribution.js';
+import './contrib/erdosHelp/browser/documentationPanel.registration.js';
 import './contrib/erdosDatabaseClient/browser/erdosDatabaseClient.contribution.js';
 import './contrib/erdosEnvironment/browser/erdosEnvironment.contribution.js';
 // --- End Erdos ---
@@ -490,7 +490,7 @@ import './contrib/editTelemetry/browser/editTelemetry.contribution.js';
 
 import './contrib/erdosConsole/browser/erdosConsole.contribution.js';
 import './contrib/erdosConsole/browser/erdosConsoleView.js';
-import './contrib/erdosHelp/browser/erdosHelp.contribution.js';
+import './contrib/erdosHelp/browser/documentationPanel.registration.js';
 import './contrib/erdosRuntimeSessions/browser/erdosRuntimeSessions.contribution.js';
 import './contrib/languageRuntime/browser/languageRuntime.contribution.js';
 import './contrib/erdosIPyWidgets/browser/erdosIPyWidgets.contribution.js';

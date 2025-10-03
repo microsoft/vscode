@@ -173,7 +173,6 @@ export interface CallContext {
 	};
 	conversationUtilities?: {
 		getCurrentConversationIndex(): number;
-		analyzeConversationHistory(filePath: string, currentLog: any[]): Promise<{ prevReadSameFile: boolean; prevMaxLines: number; }>;
 		getNextMessageId(): number;
 		readConversationLog(conversationIndex?: number): Promise<any[]>;
 		writeConversationLog(log: any[], conversationIndex?: number): Promise<boolean>;

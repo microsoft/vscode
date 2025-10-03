@@ -28,10 +28,6 @@ export interface IConversationUtilities {
 	getCurrentConversationIndex(): number;
 	setCurrentConversationIndex(index: number): boolean;
 	findHighestConversationIndex(): Promise<number>;
-	analyzeConversationHistory(filePath: string, currentLog: ConversationLogEntry[]): Promise<{
-		prevReadSameFile: boolean;
-		prevMaxLines: number;
-	}>;
 	readConversationLog(conversationIndex?: number): Promise<ConversationLogEntry[]>;
 	writeConversationLog(log: ConversationLogEntry[], conversationIndex?: number): Promise<boolean>;
 	isConversationEmpty(conversationIndex?: number): Promise<boolean>;

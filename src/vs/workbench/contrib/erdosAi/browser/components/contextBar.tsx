@@ -11,7 +11,7 @@ import { IFileDialogService } from '../../../../../platform/dialogs/common/dialo
 import { URI } from '../../../../../base/common/uri.js';
 import { getIconClasses } from '../../../../../editor/common/services/getIconClasses.js';
 import { FileKind } from '../../../../../platform/files/common/files.js';
-import { IErdosHelpSearchService } from '../../../erdosHelp/browser/erdosHelpSearchService.js';
+import { IErdosHelpService } from '../../../erdosHelp/browser/services/helpService.js';
 import { IErdosAiServiceCore } from '../../../../services/erdosAi/common/erdosAiServiceCore.js';
 import { LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
 import { DraggedEditorIdentifier } from '../../../../browser/dnd.js';
@@ -22,7 +22,7 @@ interface ContextBarProps {
 	contextService: IContextService;
 	fileService: IFileService;
 	fileDialogService: IFileDialogService;
-	helpSearchService: IErdosHelpSearchService;
+	helpService: IErdosHelpService;
 	erdosAiService: IErdosAiServiceCore;
 }
 
@@ -397,7 +397,7 @@ export const ContextBar: React.FC<ContextBarProps> = ({
 	contextService,
 	fileService, 
 	fileDialogService,
-	helpSearchService,
+	helpService,
 	erdosAiService
 }) => {
 	const services = useErdosReactServicesContext();
@@ -504,7 +504,12 @@ export const ContextBar: React.FC<ContextBarProps> = ({
 	const searchDocs = async (query: string) => {
 		try {
 			// Use the proper help search service - same as help pane
-			const searchResults = await helpSearchService.searchAllRuntimes(query);
+			const clients = helpService.getHelpClients();
+			const searchResults: any[] = [];
+			for (const client of clients) {
+				const topics = await helpService.searchHelpTopics(client.languageId, query);
+				topics.forEach((topic: any) => searchResults.push({ topic, languageId: client.languageId }));
+			}
 			
 			if (!Array.isArray(searchResults) || searchResults.length === 0) {
 				return [];

@@ -18,7 +18,7 @@ import { ErdosAi, ErdosAiRef } from './erdosAiMain.js';
 import { IReactComponentContainer, ISize, ErdosReactRenderer } from '../../../../base/browser/erdosReactRenderer.js';
 import { IErdosAiServiceCore } from '../../../services/erdosAi/common/erdosAiServiceCore.js';
 import { IErdosAiAuthService } from '../../../services/erdosAi/common/erdosAiAuthService.js';
-import { IErdosHelpSearchService } from '../../erdosHelp/browser/erdosHelpSearchService.js';
+import { IErdosHelpService } from '../../erdosHelp/browser/services/helpService.js';
 import { ErdosViewPane } from '../../../browser/erdosViewPane/erdosViewPane.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -86,7 +86,7 @@ export class ErdosAiViewPane extends ErdosViewPane implements IReactComponentCon
 		@IOpenerService openerService: IOpenerService,
 		@IErdosAiServiceCore private readonly erdosAiService: IErdosAiServiceCore,
 		@IErdosAiAuthService private readonly erdosAiAuthService: IErdosAiAuthService,
-		@IErdosHelpSearchService private readonly helpSearchService: IErdosHelpSearchService,
+		@IErdosHelpService private readonly helpService: IErdosHelpService,
 		@IThemeService themeService: IThemeService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IFileService private readonly fileService: IFileService,
@@ -136,11 +136,11 @@ export class ErdosAiViewPane extends ErdosViewPane implements IReactComponentCon
 				ref={this._erdosAiRef}
 				reactComponentContainer={this}
 				erdosAiService={this.erdosAiService}
-				erdosAiAuthService={this.erdosAiAuthService}
-				erdosAiFullService={this.erdosAiService}
-				helpSearchService={this.helpSearchService}
-				fileService={this.fileService}
-				fileDialogService={this.fileDialogService}
+			erdosAiAuthService={this.erdosAiAuthService}
+			erdosAiFullService={this.erdosAiService}
+			helpService={this.helpService}
+			fileService={this.fileService}
+			fileDialogService={this.fileDialogService}
 				textFileService={this.textFileService}
 				textModelService={this.textModelService}
 				markdownRenderer={this.markdownRenderer}

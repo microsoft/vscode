@@ -5,8 +5,7 @@
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IHelpContentService } from '../common/helpContentService.js';
-import { IErdosHelpService } from '../../../contrib/erdosHelp/browser/erdosHelpService.js';
-import { IErdosHelpSearchService } from '../../../contrib/erdosHelp/browser/erdosHelpSearchService.js';
+import { IErdosHelpService } from '../../../contrib/erdosHelp/browser/services/helpService.js';
 import { IWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { URI } from '../../../../base/common/uri.js';
 
@@ -15,7 +14,6 @@ export class HelpContentService extends Disposable implements IHelpContentServic
 
 	constructor(
 		@IErdosHelpService private readonly helpService: IErdosHelpService,
-		@IErdosHelpSearchService private readonly helpSearchService: IErdosHelpSearchService,
 		@IWebContentExtractorService private readonly webContentExtractorService: IWebContentExtractorService
 	) {
 		super();
@@ -31,14 +29,20 @@ export class HelpContentService extends Disposable implements IHelpContentServic
 			// Find the best matching topic using the same search as help pane
 			let searchResults: Array<{topic: string, languageId: string}> = [];
 			
-			if (language) {
-				const langId = language.toLowerCase() === 'python' ? 'python' : 'r';
-				const topics = await this.helpSearchService.searchRuntime(langId, topic);
-				searchResults = topics.map(t => ({ topic: t, languageId: langId }));
-			} else {
-				const allResults = await this.helpSearchService.searchAllRuntimes(topic);
-				searchResults = allResults.map(r => ({ topic: r.topic, languageId: r.languageId }));
+		if (language) {
+			const langId = language.toLowerCase() === 'python' ? 'python' : 'r';
+			const topics = await this.helpService.searchHelpTopics(langId, topic);
+			searchResults = topics.map((t: any) => ({ topic: t, languageId: langId }));
+		} else {
+			// Search all help clients
+			const clients = this.helpService.getHelpClients();
+			const allResults: any[] = [];
+			for (const client of clients) {
+				const topics = await this.helpService.searchHelpTopics(client.languageId, topic);
+				topics.forEach((r: any) => allResults.push({ topic: r, languageId: client.languageId }));
 			}
+			searchResults = allResults.map((r: any) => ({ topic: r.topic, languageId: r.languageId }));
+		}
 
 			if (searchResults.length === 0) {
 				return `Help topic: ${topic}\n\nNo help topics found.`;

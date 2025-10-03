@@ -6,7 +6,7 @@ import React, { useState, useEffect } from 'react';
 import { IErdosAiAuthService } from '../../../../services/erdosAi/common/erdosAiAuthService.js';
 import { IErdosAiServiceCore } from '../../../../services/erdosAi/common/erdosAiServiceCore.js';
 import { IErdosAiSettingsService } from '../../../../services/erdosAiSettings/common/settingsService.js';
-import { IErdosHelpSearchService } from '../../../erdosHelp/browser/erdosHelpSearchService.js';
+import { IErdosHelpService } from '../../../erdosHelp/browser/services/helpService.js';
 import { isWindows } from '../../../../../base/common/platform.js';
 
 // Helper function to calculate and set textarea height (from MessageRenderer.tsx)
@@ -31,7 +31,7 @@ export interface SettingsPanelProps {
 	readonly erdosAiAuthService: IErdosAiAuthService;
 	readonly erdosAiService: IErdosAiServiceCore;
 	readonly erdosAiSettingsService: IErdosAiSettingsService;
-	readonly erdosHelpSearchService: IErdosHelpSearchService;
+	readonly erdosHelpService: IErdosHelpService;
 	readonly onClose: () => void;
 }
 
@@ -39,7 +39,7 @@ export interface SettingsPanelProps {
  * Settings panel component for configuring Erdos AI preferences
  */
 export const SettingsPanel = (props: SettingsPanelProps) => {
-	const { erdosHelpSearchService } = props;
+	const { erdosHelpService } = props;
 	const [hasApiKey, setHasApiKey] = useState(false);
 	const [userProfile, setUserProfile] = useState<any>(null);
 	const [subscriptionStatus, setSubscriptionStatus] = useState<any>(null);
@@ -1136,8 +1136,8 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
 															</div>
 														</div>
 													</div>
-													<div className="console-language-icons">
-														{erdosHelpSearchService?.getActiveHelpRuntimes().map(language => {
+										<div className="console-language-icons">
+											{erdosHelpService?.getHelpClients().map((language: any) => {
 															const isActive = newConsoleFunctionLanguage === language.languageId;
 															return (
 																<button

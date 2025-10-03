@@ -31,36 +31,7 @@ export class ReadFileHandler extends BaseFunctionHandler {
 			endLine = startLine + 199;
 		}
 
-		const baseMaxLines = 50;
-		const baseMaxChars = 5000;
 		const absoluteMaxLines = 250;
-		const absoluteMaxChars = 25000;
-
-		let maxLines = baseMaxLines;
-		let maxChars = baseMaxChars;
-
-		let prevReadSameFile = false;
-		let prevMaxLines = baseMaxLines;
-
-		if (context.conversationUtilities) {
-			try {
-				const currentLog = await context.conversationUtilities.readConversationLog();
-				const analysisResult = await context.conversationUtilities.analyzeConversationHistory(filename, currentLog);
-				prevReadSameFile = analysisResult.prevReadSameFile;
-				prevMaxLines = analysisResult.prevMaxLines;
-			} catch (error) {
-			}
-		}
-
-		if (prevReadSameFile) {
-			maxLines = prevMaxLines * 2;
-			maxChars = baseMaxChars * (maxLines / baseMaxLines);
-
-			if (maxLines > absoluteMaxLines) {
-				maxLines = absoluteMaxLines;
-				maxChars = absoluteMaxChars;
-			}
-		}
 
 		let fileContent: string;
 		let endLineToRead: number;
@@ -109,58 +80,21 @@ export class ReadFileHandler extends BaseFunctionHandler {
 					fileContent = `Error: Invalid line range. Start line (${startLine}) is greater than end line (${endLine!}).`;
 					endLineToRead = startLine;
 				} else {
+					// Respect user's exact request, but cap at absoluteMaxLines
 					const userRequestedRange = endLine! - startLine + 1;
-					const shouldRespectExactRange = userRequestedRange <= 50;
-
-					if (shouldRespectExactRange) {
-						endLineToRead = endLine!;
-						const requestedLines = allLines.slice(startLine - 1, endLine!);
-						const result = requestedLines.join('\n');
-						const header = `File: ${filename}\nLines ${startLine}-${endLineToRead} (of ${allLines.length} total lines):\n\n`;
-						fileContent = header + result;
-					} else {
-						let linesToRead = Math.min(endLine! - startLine + 1, maxLines);
-
-						if ((endLine! - startLine + 1) >= 200 && linesToRead < 200) {
-							linesToRead = 200;
-						}
-
-						endLineToRead = startLine + linesToRead - 1;
-						const requestedLines = allLines.slice(startLine - 1, endLineToRead);
-						const totalChars = requestedLines.reduce((sum: number, line: string) => sum + line.length + 1, 0);
-
-						let result = requestedLines.join('\n');
-
-						if (endLineToRead < endLine! || totalChars > maxChars) {
-							if (totalChars > maxChars) {
-								let charsCount = 0;
-								let linesIncluded = 0;
-								for (let i = 0; i < requestedLines.length; i++) {
-									const lineLen = requestedLines[i].length + 1;
-									if (charsCount + lineLen <= maxChars) {
-										charsCount += lineLen;
-										linesIncluded = i + 1;
-									} else {
-										break;
-									}
-								}
-
-								if (linesIncluded === 0) {
-									linesIncluded = 1;
-								}
-								const truncatedLines = requestedLines.slice(0, linesIncluded);
-								result = truncatedLines.join('\n');
-								const truncatedLine = startLine + linesIncluded;
-								result += `\n\n...[Truncated due to length at line ${truncatedLine}. If more lines are needed, start reading from here. The number of lines you can read doubles on each call.]`;
-							} else {
-								const truncatedLine = endLineToRead + 1;
-								result += `\n\n...[Truncated due to length at line ${truncatedLine}. If more lines are needed, start reading from here. The number of lines you can read doubles on each call.]`;
-							}
-						}
-
-						const header = `File: ${filename}\nLines ${startLine}-${endLineToRead} (of ${allLines.length} total lines):\n\n`;
-						fileContent = header + result;
+					const linesToRead = Math.min(userRequestedRange, absoluteMaxLines);
+					endLineToRead = startLine + linesToRead - 1;
+					
+					const requestedLines = allLines.slice(startLine - 1, endLineToRead);
+					let result = requestedLines.join('\n');
+					
+					// Add truncation message if we had to cap the range
+					if (endLineToRead < endLine!) {
+						result += `\n\n...[Truncated at line ${endLineToRead + 1} due to ${absoluteMaxLines} line limit. Request lines ${endLineToRead + 1}-${endLine} in a new read_file call.]`;
 					}
+					
+					const header = `File: ${filename}\nLines ${startLine}-${endLineToRead} (of ${allLines.length} total lines):\n\n`;
+					fileContent = header + result;
 				}
 			}
 		}

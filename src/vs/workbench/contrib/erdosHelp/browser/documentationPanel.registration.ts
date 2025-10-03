@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (C) 2023 Posit Software, PBC. All rights reserved.
+ *  Copyright (C) 2025 Lotas Inc. All rights reserved.
  *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
  *--------------------------------------------------------------------------------------------*/
 
@@ -13,24 +13,23 @@ import { ErdosHelpFocused } from '../../../common/contextkeys.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
-import { ErdosHelpView } from './erdosHelpView.js';
-import { IErdosHelpService, ERDOS_HELP_VIEW_ID } from './erdosHelpService.js';
-import { IErdosHelpSearchService, ErdosHelpSearchService } from './erdosHelpSearchService.js';
-import { ERDOS_HELP_COPY, ERDOS_HELP_FIND } from './erdosHelpIdentifiers.js';
+import { HelpView } from './views/helpView.js';
+import { IErdosHelpService, ERDOS_HELP_VIEW_ID } from './services/helpService.js';
+import { ITopicQueryService, TopicQueryService } from './topicQueryService.js';
+import { DOC_PANEL_COPY_ACTION, DOC_PANEL_FIND_ACTION } from './documentationPanelConstants.js';
 import { ICommandAndKeybindingRule, KeybindingWeight, KeybindingsRegistry } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
 import { ViewContainer, IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions, IViewsRegistry } from '../../../common/views.js';
 import { registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
-import { LookupHelpTopic, ShowHelpAtCursor } from './erdosHelpActions.js';
+import { DisplayTopicAtPosition, SearchDocumentation } from './topicLookupCommands.js';
 
-const erdosHelpViewIcon = registerIcon('erdos-help-view-icon', Codicon.book, nls.localize('erdosHelpViewIcon', 'View icon of the Erdos help view.'));
+const documentationPanelIcon = registerIcon('erdos-help-view-icon', Codicon.book, nls.localize('erdosHelpViewIcon', 'View icon of the Erdos help view.'));
 
-// Register the help search service
 import { registerSingleton, InstantiationType } from '../../../../platform/instantiation/common/extensions.js';
-registerSingleton(IErdosHelpSearchService, ErdosHelpSearchService, InstantiationType.Delayed);
+registerSingleton(ITopicQueryService, TopicQueryService, InstantiationType.Delayed);
 
-const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(
+const PANEL_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(
 	ViewContainerExtensions.ViewContainersRegistry
 ).registerViewContainer(
 	{
@@ -39,7 +38,7 @@ const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(
 			value: nls.localize('erdos.help', "Help"),
 			original: 'Help'
 		},
-		icon: erdosHelpViewIcon,
+		icon: documentationPanelIcon,
 		order: 2,
 		ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [ERDOS_HELP_VIEW_ID, { mergeViewWithContainerWhenSingleView: true }]),
 		storageId: ERDOS_HELP_VIEW_ID,
@@ -58,10 +57,10 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 		value: nls.localize('erdos.help', "Help"),
 		original: 'Help'
 	},
-	containerIcon: erdosHelpViewIcon,
+	containerIcon: documentationPanelIcon,
 	canMoveView: true,
 	canToggleVisibility: false,
-	ctorDescriptor: new SyncDescriptor(ErdosHelpView),
+	ctorDescriptor: new SyncDescriptor(HelpView),
 	openCommandActionDescriptor: {
 		id: 'workbench.action.erdos.openHelp',
 		keybindings: {
@@ -69,10 +68,10 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 		},
 		order: 1,
 	}
-}], VIEW_CONTAINER);
+}], PANEL_CONTAINER);
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: ERDOS_HELP_COPY,
+	id: DOC_PANEL_COPY_ACTION,
 	weight: KeybindingWeight.WorkbenchContrib,
 	primary: KeyMod.CtrlCmd | KeyCode.KeyC,
 	when: ErdosHelpFocused,
@@ -80,16 +79,16 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 } satisfies ICommandAndKeybindingRule);
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: ERDOS_HELP_FIND,
+	id: DOC_PANEL_FIND_ACTION,
 	weight: KeybindingWeight.WorkbenchContrib,
 	primary: KeyMod.CtrlCmd | KeyCode.KeyF,
 	when: ErdosHelpFocused,
-	handler: accessor => {
+	handler: (accessor: any) => {
 		accessor.get(IErdosHelpService).find();
 	}
 } satisfies ICommandAndKeybindingRule);
 
-class ErdosHelpContribution extends Disposable implements IWorkbenchContribution {
+class DocumentationPanelBootstrap extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.erdosHelp';
 
@@ -97,26 +96,24 @@ class ErdosHelpContribution extends Disposable implements IWorkbenchContribution
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super();
-		this.registerActions();
+		this.initializeCommands();
 	}
 
-	private registerActions(): void {
-		registerAction2(ShowHelpAtCursor);
-		registerAction2(LookupHelpTopic);
+	private initializeCommands(): void {
+		registerAction2(DisplayTopicAtPosition);
+		registerAction2(SearchDocumentation);
 
-		// Register help search command
-		CommandsRegistry.registerCommand('erdos.help.searchTopics', async (accessor, languageId: string, query: string) => {
-			const helpService = accessor.get(IErdosHelpService);
-			return await helpService.searchHelpTopics(languageId, query);
+		CommandsRegistry.registerCommand('erdos.help.searchTopics', async (accessor: any, languageId: string, query: string) => {
+			const helpAccess = accessor.get(IErdosHelpService);
+			return await helpAccess.searchHelpTopics(languageId, query);
 		});
 
-		// Register show help topic command
-		CommandsRegistry.registerCommand('erdos.help.showTopic', async (accessor, languageId: string, topic: string) => {
-			const helpService = accessor.get(IErdosHelpService);
-			return await helpService.showHelpTopic(languageId, topic);
+		CommandsRegistry.registerCommand('erdos.help.showTopic', async (accessor: any, languageId: string, topic: string) => {
+			const helpAccess = accessor.get(IErdosHelpService);
+			return await helpAccess.showHelpTopic(languageId, topic);
 		});
 	}
 }
 
-registerWorkbenchContribution2(ErdosHelpContribution.ID, ErdosHelpContribution, WorkbenchPhase.BlockStartup);
+registerWorkbenchContribution2(DocumentationPanelBootstrap.ID, DocumentationPanelBootstrap, WorkbenchPhase.BlockStartup);
 

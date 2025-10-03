@@ -148,6 +148,6 @@ class HelpService:
         url = f"{self._pydoc_thread.url}get?key={key}"
 
         event = ShowHelpParams(content=url, kind=ShowHelpKind.Url, focus=True)
-        if self._comm is not None:
-            self._comm.send_event(name=HelpFrontendEvent.ShowHelp.value, payload=event.dict())
+        for comm in self._comms.values():
+            comm.send_event(name=HelpFrontendEvent.ShowHelp.value, payload=event.dict())
 

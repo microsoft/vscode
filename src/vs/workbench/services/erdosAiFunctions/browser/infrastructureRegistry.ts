@@ -14,7 +14,7 @@ import { ICommonUtils } from '../../erdosAiUtils/common/commonUtils.js';
 import { CallContext } from '../common/functionTypes.js';
 import { DocumentInfo, MatchResult } from '../../erdosAiDocument/common/documentUtils.js';
 import { IHelpContentService } from '../../erdosAiUtils/common/helpContentService.js';
-import { IErdosHelpSearchService } from '../../../contrib/erdosHelp/browser/erdosHelpSearchService.js';
+import { IErdosHelpService } from '../../../contrib/erdosHelp/browser/services/helpService.js';
 import { IFileService } from '../../../../../vs/platform/files/common/files.js';
 import { IWorkspaceContextService } from '../../../../../vs/platform/workspace/common/workspace.js';
 import { IEnvironmentService } from '../../../../../vs/platform/environment/common/environment.js';
@@ -46,9 +46,9 @@ export class InfrastructureRegistry extends Disposable implements IInfrastructur
     private outputLimiter: OutputLimiter;
     private commonUtils: ICommonUtils;
     private helpContentService: IHelpContentService;
-    private helpSearchService: IErdosHelpSearchService;
     private jupytextService: IJupytextService;
     private fileResolverService: IFileResolverService;
+    private helpService: IErdosHelpService;
 
     public conversationManager?: any;
     public messageIdManager?: IMessageIdManager;
@@ -73,7 +73,7 @@ export class InfrastructureRegistry extends Disposable implements IInfrastructur
         @IMessageIdManager messageIdManager: IMessageIdManager,
         @IErdosPlotsService plotsService: IErdosPlotsService,
         @IHelpContentService helpContentService: IHelpContentService,
-        @IErdosHelpSearchService helpSearchService: IErdosHelpSearchService
+		@IErdosHelpService helpService: IErdosHelpService
     ) {
         super();
         this.fileSystemUtils = fileSystemUtilsService;
@@ -82,9 +82,9 @@ export class InfrastructureRegistry extends Disposable implements IInfrastructur
         this.messageIdManager = messageIdManager;
         this.plotsService = plotsService;
         this.helpContentService = helpContentService;
-        this.helpSearchService = helpSearchService;
         this.jupytextService = jupytextService;
         this.fileResolverService = fileResolverService;
+        this.helpService = helpService;
         
         this.documentManager = instantiationService.createInstance(DocumentManager);
         
@@ -208,14 +208,20 @@ export class InfrastructureRegistry extends Disposable implements IInfrastructur
             },
 
             helpSearchService: {
-                searchAllRuntimes: (query: string) => this.helpSearchService.searchAllRuntimes(query),
-                searchRuntime: (languageId: string, query: string) => this.helpSearchService.searchRuntime(languageId, query)
+                searchAllRuntimes: async (query: string) => {
+					const clients = this.helpService.getHelpClients();
+					const results: any[] = [];
+					for (const client of clients) {
+						const topics = await this.helpService.searchHelpTopics(client.languageId, query);
+						topics.forEach((topic: any) => results.push({ topic, languageId: client.languageId }));
+					}
+					return results;
+				},
+                searchRuntime: (languageId: string, query: string) => this.helpService.searchHelpTopics(languageId, query)
             },
 
             conversationUtilities: {
                 getCurrentConversationIndex: () => this.conversationUtilities.getCurrentConversationIndex(),
-                analyzeConversationHistory: (filePath: string, currentLog: any[]) => 
-                    this.conversationUtilities.analyzeConversationHistory(filePath, currentLog),
                 getNextMessageId: () => conversationManager.getNextMessageId ? conversationManager.getNextMessageId() : 0,
                 readConversationLog: (conversationIndex?: number) => 
                     this.conversationUtilities.readConversationLog(conversationIndex),

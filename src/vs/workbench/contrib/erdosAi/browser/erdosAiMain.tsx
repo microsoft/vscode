@@ -6,7 +6,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { IReactComponentContainer } from '../../../../base/browser/erdosReactRenderer.js';
 import { IErdosAiServiceCore } from '../../../services/erdosAi/common/erdosAiServiceCore.js';
 import { IErdosAiAuthService } from '../../../services/erdosAi/common/erdosAiAuthService.js';
-import { IErdosHelpSearchService } from '../../erdosHelp/browser/erdosHelpSearchService.js';
+import { IErdosHelpService } from '../../erdosHelp/browser/services/helpService.js';
 import { ConversationMessage, Conversation } from '../../../services/erdosAi/common/conversationTypes.js';
 import { StreamData } from '../../../services/erdosAiBackend/browser/streamingParser.js';
 import { SettingsPanel } from './components/settingsPanel.js';
@@ -40,7 +40,7 @@ export interface ErdosAiProps {
 	readonly erdosAiService: IErdosAiServiceCore;
 	readonly erdosAiAuthService: IErdosAiAuthService;
 	readonly erdosAiFullService: IErdosAiServiceCore;
-	readonly helpSearchService: IErdosHelpSearchService;
+	readonly helpService: IErdosHelpService;
 	readonly fileService?: IFileService;
 	readonly fileDialogService?: IFileDialogService;
 	readonly textFileService?: ITextFileService;
@@ -666,7 +666,7 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 				erdosAiAuthService={props.erdosAiAuthService}
 				erdosAiService={props.erdosAiFullService}
 				erdosAiSettingsService={props.erdosAiSettingsService}
-				erdosHelpSearchService={props.helpSearchService}
+				erdosHelpService={props.helpService}
 				onClose={() => setShowSettings(false)}
 			/>
 		);
@@ -947,7 +947,7 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 				onSendMessage={handleSendMessage}
 				onCancelStreaming={handleCancelStreaming}
 				contextService={services.contextService}
-				helpSearchService={props.helpSearchService}
+				helpService={props.helpService}
 				fileService={props.fileService!}
 			/>
 		</div>
