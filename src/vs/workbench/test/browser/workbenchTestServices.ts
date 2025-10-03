@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IContextMenuDelegate } from '../../../base/browser/contextmenu.js';
 import { IDimension } from '../../../base/browser/dom.js';
 import { Direction, IViewSize } from '../../../base/browser/ui/grid/grid.js';
 import { mainWindow } from '../../../base/browser/window.js';
@@ -58,7 +59,7 @@ import { ConfigurationTarget, IConfigurationService, IConfigurationValue } from 
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyValue, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { ContextMenuService } from '../../../platform/contextview/browser/contextMenuService.js';
-import { IContextMenuService, IContextViewService } from '../../../platform/contextview/browser/contextView.js';
+import { IContextMenuMenuDelegate, IContextMenuService, IContextViewService } from '../../../platform/contextview/browser/contextView.js';
 import { ContextViewService } from '../../../platform/contextview/browser/contextViewService.js';
 import { IDiagnosticInfo, IDiagnosticInfoOptions } from '../../../platform/diagnostics/common/diagnostics.js';
 import { ConfirmResult, IDialogService, IFileDialogService, IOpenDialogOptions, IPickAndOpenOptions, ISaveDialogOptions } from '../../../platform/dialogs/common/dialogs.js';
@@ -2195,4 +2196,16 @@ export class TestChatEntitlementService implements IChatEntitlementService {
 	readonly anonymous = false;
 	onDidChangeAnonymous = Event.None;
 	readonly anonymousObs = observableValue({}, false);
+}
+
+export class TestContextMenuService implements IContextMenuService {
+
+	_serviceBrand: undefined;
+
+	readonly onDidShowContextMenu = Event.None;
+	readonly onDidHideContextMenu = Event.None;
+
+	showContextMenu(delegate: IContextMenuDelegate | IContextMenuMenuDelegate): void {
+		throw new Error('Method not implemented.');
+	}
 }

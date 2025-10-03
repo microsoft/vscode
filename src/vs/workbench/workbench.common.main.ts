@@ -195,9 +195,6 @@ import './contrib/preferences/browser/preferencesSearch.js';
 // Performance
 import './contrib/performance/browser/performance.contribution.js';
 
-// Context Menus
-import './contrib/contextmenu/browser/contextmenu.contribution.js';
-
 // Notebook
 import './contrib/notebook/browser/notebook.contribution.js';
 
