@@ -499,12 +499,14 @@ export class InterceptorElectricCharOperation {
 
 export class SimpleCharacterTypeOperation {
 
-	public static getEdits(config: CursorConfiguration, prevEditOperationType: EditOperationType, selections: Selection[], ch: string, isDoingComposition: boolean): EditOperationResult {
+	public static getEdits(config: CursorConfiguration, model: ITextModel, prevEditOperationType: EditOperationType, selections: Selection[], ch: string, isDoingComposition: boolean): EditOperationResult {
 		// A simple character type
 		const commands: ICommand[] = [];
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const ChosenReplaceCommand = config.inputMode === 'overtype' && !isDoingComposition ? ReplaceOvertypeCommand : ReplaceCommand;
-			commands[i] = new ChosenReplaceCommand(selections[i], ch);
+			const textToReplace = model.getValueInRange(selections[i]);
+			const charWithPreservedCase = selections.length > 1 && /^[A-Z]/.test(textToReplace) ? ch.toUpperCase() : ch;
+			commands[i] = new ChosenReplaceCommand(selections[i], charWithPreservedCase);
 		}
 
 		const opType = getTypingOperation(ch, prevEditOperationType);
