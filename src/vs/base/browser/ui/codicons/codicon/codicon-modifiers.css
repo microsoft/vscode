@@ -18,25 +18,15 @@
 .codicon-gear.codicon-modifier-spin,
 .codicon-notebook-state-executing.codicon-modifier-spin {
 	/* Use steps to throttle FPS to reduce CPU usage */
-	animation: codicon-spin 1.5s steps(20) infinite;
+	animation: codicon-spin 1.5s steps(30) infinite;
 	/* GPU acceleration hints to reduce CPU load */
 	will-change: transform;
 	/* Isolate element to prevent layout recalculations */
 	contain: layout style paint;
-	/* Force GPU compositing layer */
-	transform: translateZ(0);
 }
 
 .codicon-modifier-disabled {
 	opacity: 0.4;
-}
-
-/* Disable spinning animations when reduce-motion is enabled */
-.monaco-workbench.reduce-motion .codicon-sync.codicon-modifier-spin,
-.monaco-workbench.reduce-motion .codicon-loading.codicon-modifier-spin,
-.monaco-workbench.reduce-motion .codicon-gear.codicon-modifier-spin,
-.monaco-workbench.reduce-motion .codicon-notebook-state-executing.codicon-modifier-spin {
-	animation: none;
 }
 
 /* custom speed & easing for loading icon */
