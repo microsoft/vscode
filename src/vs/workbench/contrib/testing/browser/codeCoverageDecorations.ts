@@ -60,6 +60,8 @@ const TOGGLE_INLINE_COMMAND_ID = 'testing.toggleInlineCoverage';
 const BRANCH_MISS_INDICATOR_CHARS = 4;
 
 export class CodeCoverageDecorations extends Disposable implements IEditorContribution {
+	public static readonly ID = 'editor.contrib.coverageDecorations';
+
 	private loadingCancellation?: CancellationTokenSource;
 	private readonly displayedStore = this._register(new DisposableStore());
 	private readonly hoveredStore = this._register(new DisposableStore());
@@ -263,15 +265,6 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 	 */
 	public goToPreviousMissedLine(): boolean {
 		return this.navigateToMissedLine(false);
-	}
-
-	private isMissedLine(detail: CoverageDetailsWithBranch): boolean {
-		if (detail.type === DetailType.Statement) {
-			return !detail.count;
-		} else if (detail.type === DetailType.Branch) {
-			return !detail.detail.branches![detail.branch].count;
-		}
-		return false;
 	}
 
 	private navigateToMissedLine(next: boolean): boolean {
