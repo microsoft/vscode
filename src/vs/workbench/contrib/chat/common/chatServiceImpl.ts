@@ -885,7 +885,10 @@ export class ChatService extends Disposable implements IChatService {
 					const agentResult = await this.chatAgentService.invokeAgent(agent.id, requestProps, progressCallback, history, token);
 					rawResult = agentResult;
 					agentOrCommandFollowups = this.chatAgentService.getFollowups(agent.id, requestProps, agentResult, history, followupsCancelToken);
-					chatTitlePromise = model.getRequests().length === 1 && !model.customTitle ? this.chatAgentService.getChatTitle(defaultAgent.id, this.getHistoryEntriesFromModel(model.getRequests(), model.sessionId, location, agent.id), CancellationToken.None) : undefined;
+
+					// Use the default agent for the location to generate a title, otherwise the agent may be a specialized/contributed one that isn't suitable for title generation.
+					const defaultAgentForTitle = this.chatAgentService.getDefaultAgent(location);
+					chatTitlePromise = model.getRequests().length === 1 && !model.customTitle && defaultAgentForTitle ? this.chatAgentService.getChatTitle(defaultAgentForTitle.id, this.getHistoryEntriesFromModel(model.getRequests(), model.sessionId, location, agent.id), CancellationToken.None) : undefined;
 				} else if (commandPart && this.chatSlashCommandService.hasCommand(commandPart.slashCommand.command)) {
 					if (commandPart.slashCommand.silent !== true) {
 						request = model.addRequest(parsedRequest, { variables: [] }, attempt, options?.modeInfo);

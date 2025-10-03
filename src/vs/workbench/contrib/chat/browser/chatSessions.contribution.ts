@@ -296,6 +296,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				try {
 					const options: IChatEditorOptions = {
 						override: ChatEditorInput.EditorID,
+						contributionName: contribution.displayName,
 						pinned: true,
 					};
 					const untitledId = `untitled-${generateUuid()}`;

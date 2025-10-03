@@ -32,6 +32,7 @@ import { ChatWidget, IChatViewState } from './chatWidget.js';
 export interface IChatEditorOptions extends IEditorOptions {
 	target?: { sessionId: string } | { data: IExportableChatData | ISerializableChatData };
 	preferredTitle?: string;
+	contributionName?: string;
 	ignoreInView?: boolean;
 }
 
