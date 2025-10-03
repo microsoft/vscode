@@ -75,21 +75,21 @@ jobs:
           sbomPackageName: "VS Code Linux $(VSCODE_ARCH) Web"
           sbomPackageVersion: $(Build.SourceVersion)
         - output: pipelineArtifact
-          targetPath: $(Build.SourcesDirectory)/.build/linux/out/$(DEB_PACKAGE_NAME)
+          targetPath: $(Build.SourcesDirectory)/.build/linux/out/deb/$(DEB_PACKAGE_NAME)
           artifactName: vscode_client_linux_$(VSCODE_ARCH)_deb-package
           displayName: Publish deb package
           sbomBuildDropPath: .build/linux/deb
           sbomPackageName: "VS Code Linux $(VSCODE_ARCH) DEB"
           sbomPackageVersion: $(Build.SourceVersion)
         - output: pipelineArtifact
-          targetPath: $(Build.SourcesDirectory)/.build/linux/out/$(RPM_PACKAGE_NAME)
+          targetPath: $(Build.SourcesDirectory)/.build/linux/out/rpm/$(RPM_PACKAGE_NAME)
           artifactName: vscode_client_linux_$(VSCODE_ARCH)_rpm-package
           displayName: Publish rpm package
           sbomBuildDropPath: .build/linux/rpm
           sbomPackageName: "VS Code Linux $(VSCODE_ARCH) RPM"
           sbomPackageVersion: $(Build.SourceVersion)
         - output: pipelineArtifact
-          targetPath: $(Build.SourcesDirectory)/.build/linux/out/$(SNAP_PACKAGE_NAME)
+          targetPath: $(Build.SourcesDirectory)/.build/linux/out/snap/$(SNAP_PACKAGE_NAME)
           artifactName: vscode_client_linux_$(VSCODE_ARCH)_snap
           displayName: Publish snap package
           sbomBuildDropPath: $(SNAP_EXTRACTED_PATH)
