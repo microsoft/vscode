@@ -140,16 +140,16 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 		const viewLocation = this.viewDescriptorService.getViewLocationById('workbench.panel.chatSessions');
 		const sideBarPosition = this.layoutService.getSideBarPosition();
 
-		let hoverPosition: HoverPosition;
 		if (viewLocation === ViewContainerLocation.Sidebar) {
-			hoverPosition = sideBarPosition === Position.LEFT ? HoverPosition.RIGHT : HoverPosition.LEFT;
+			const hoverPosition = sideBarPosition === Position.LEFT ? HoverPosition.RIGHT : HoverPosition.LEFT;
+			return hoverPosition;
 		} else if (viewLocation === ViewContainerLocation.AuxiliaryBar) {
-			hoverPosition = sideBarPosition === Position.LEFT ? HoverPosition.LEFT : HoverPosition.RIGHT;
+			const hoverPosition = sideBarPosition === Position.LEFT ? HoverPosition.LEFT : HoverPosition.RIGHT;
+			return hoverPosition;
 		} else {
-			hoverPosition = HoverPosition.RIGHT;
+			const hoverPosition = HoverPosition.RIGHT;
+			return hoverPosition;
 		}
-
-		return hoverPosition;
 	}
 
 	renderTemplate(container: HTMLElement): ISessionTemplateData {
