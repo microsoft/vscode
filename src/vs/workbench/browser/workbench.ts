@@ -205,6 +205,7 @@ export class Workbench extends Layout {
 			const lifecycleService = accessor.get(ILifecycleService);
 
 			// TODO@Sandeep debt around cyclic dependencies
+			// eslint-disable-next-line local/code-no-any-casts
 			const configurationService = accessor.get(IConfigurationService) as any;
 			if (typeof configurationService.acquireInstantiationService === 'function') {
 				configurationService.acquireInstantiationService(instantiationService);

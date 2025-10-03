@@ -16,6 +16,7 @@ const allOptions = [
 	'-r',
 	'-v',
 ];
+// eslint-disable-next-line local/code-no-any-casts
 const expectedCompletions = [{ label: 'rm', description: (rmSpec as any).description }];
 export const rmTestSuiteSpec: ISuiteSpec = {
 	name: 'rm',

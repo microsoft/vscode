@@ -735,7 +735,9 @@ export function reviveSerializedAgent(raw: ISerializableChatAgentData): IChatAge
 	const agent = 'name' in raw ?
 		raw :
 		{
+			// eslint-disable-next-line local/code-no-any-casts
 			...(raw as any),
+			// eslint-disable-next-line local/code-no-any-casts
 			name: (raw as any).id,
 		};
 

@@ -90,10 +90,14 @@ export interface ServiceIdentifier<T> {
 }
 
 function storeServiceDependency(id: Function, target: Function, index: number): void {
+	// eslint-disable-next-line local/code-no-any-casts
 	if ((target as any)[_util.DI_TARGET] === target) {
+		// eslint-disable-next-line local/code-no-any-casts
 		(target as any)[_util.DI_DEPENDENCIES].push({ id, index });
 	} else {
+		// eslint-disable-next-line local/code-no-any-casts
 		(target as any)[_util.DI_DEPENDENCIES] = [{ id, index }];
+		// eslint-disable-next-line local/code-no-any-casts
 		(target as any)[_util.DI_TARGET] = target;
 	}
 }
@@ -107,6 +111,7 @@ export function createDecorator<T>(serviceId: string): ServiceIdentifier<T> {
 		return _util.serviceIds.get(serviceId)!;
 	}
 
+	// eslint-disable-next-line local/code-no-any-casts
 	const id = <any>function (target: Function, key: string, index: number) {
 		if (arguments.length !== 3) {
 			throw new Error('@IServiceName-decorator can only be used to decorate a parameter');

@@ -212,6 +212,7 @@ registerEditorSettingMigration('editor.experimentalEditContextEnabled', (value, 
 registerEditorSettingMigration('codeActionsOnSave', (value, read, write) => {
 	if (value && typeof value === 'object') {
 		let toBeModified = false;
+		// eslint-disable-next-line local/code-no-any-casts
 		const newValue = {} as any;
 		for (const entry of Object.entries(value)) {
 			if (typeof entry[1] === 'boolean') {

@@ -54,6 +54,7 @@ suite('TokenStore', () => {
 			{ startOffsetInclusive: 6, length: 2, token: 4 }
 		], TokenQuality.Accurate);
 
+		// eslint-disable-next-line local/code-no-any-casts
 		const root = store.root as any;
 		assert.ok(root.children);
 		assert.strictEqual(root.children.length, 2);
@@ -74,6 +75,7 @@ suite('TokenStore', () => {
 			{ startOffsetInclusive: 7, length: 1, token: 8 }
 		], TokenQuality.Accurate);
 
+		// eslint-disable-next-line local/code-no-any-casts
 		const root = store.root as any;
 		assert.ok(root.children);
 		assert.strictEqual(root.children.length, 2);
@@ -95,6 +97,7 @@ suite('TokenStore', () => {
 			{ startOffsetInclusive: 3, length: 3, token: 4 }
 		], TokenQuality.Accurate);
 
+		// eslint-disable-next-line local/code-no-any-casts
 		const tokens = store.root as any;
 		assert.strictEqual(tokens.children[0].token, 1);
 		assert.strictEqual(tokens.children[1].token, 4);
@@ -114,6 +117,7 @@ suite('TokenStore', () => {
 			{ startOffsetInclusive: 6, length: 3, token: 5 }
 		], TokenQuality.Accurate);
 
+		// eslint-disable-next-line local/code-no-any-casts
 		const tokens = store.root as any;
 		assert.strictEqual(tokens.children[0].token, 1);
 		assert.strictEqual(tokens.children[1].token, 4);
@@ -132,6 +136,7 @@ suite('TokenStore', () => {
 			{ startOffsetInclusive: 0, length: 3, token: 4 }
 		], TokenQuality.Accurate);
 
+		// eslint-disable-next-line local/code-no-any-casts
 		const tokens = store.root as any;
 		assert.strictEqual(tokens.children[0].token, 4);
 		assert.strictEqual(tokens.children[1].token, 2);
@@ -150,6 +155,7 @@ suite('TokenStore', () => {
 			{ startOffsetInclusive: 6, length: 3, token: 4 }
 		], TokenQuality.Accurate);
 
+		// eslint-disable-next-line local/code-no-any-casts
 		const tokens = store.root as any;
 		assert.strictEqual(tokens.children[0].token, 1);
 		assert.strictEqual(tokens.children[1].token, 2);
@@ -168,6 +174,7 @@ suite('TokenStore', () => {
 			{ startOffsetInclusive: 3, length: 5, token: 4 }
 		], TokenQuality.Accurate);
 
+		// eslint-disable-next-line local/code-no-any-casts
 		const tokens = store.root as any;
 		assert.strictEqual(tokens.children[0].token, 1);
 		assert.strictEqual(tokens.children[0].length, 3);
@@ -193,6 +200,7 @@ suite('TokenStore', () => {
 			{ startOffsetInclusive: 3, length: 3, token: 9 }
 		], TokenQuality.Accurate);
 
+		// eslint-disable-next-line local/code-no-any-casts
 		const root = store.root as any;
 		// Verify the structure remains balanced
 		assert.strictEqual(root.children.length, 3);
@@ -223,6 +231,7 @@ suite('TokenStore', () => {
 			{ startOffsetInclusive: 16, length: 4, token: 10 }
 		], TokenQuality.Accurate);
 
+		// eslint-disable-next-line local/code-no-any-casts
 		const root = store.root as any;
 		// Verify the structure remains balanced
 		assert.strictEqual(root.children.length, 2);

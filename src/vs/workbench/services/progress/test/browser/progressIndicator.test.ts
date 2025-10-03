@@ -78,6 +78,7 @@ suite('Progress Indicator', () => {
 			testOnScopeOpened(scopeId: string) { super.onScopeOpened(scopeId); }
 			testOnScopeClosed(scopeId: string): void { super.onScopeClosed(scopeId); }
 		}());
+		// eslint-disable-next-line local/code-no-any-casts
 		const testObject = disposables.add(new ScopedProgressIndicator((<any>testProgressBar), progressScope));
 
 		// Active: Show (Infinite)

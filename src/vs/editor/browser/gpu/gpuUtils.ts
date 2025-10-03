@@ -49,6 +49,7 @@ export function observeDevicePixelDimensions(element: HTMLElement, parentWindow:
 		}
 	});
 	try {
+		// eslint-disable-next-line local/code-no-any-casts
 		observer.observe(element, { box: ['device-pixel-content-box'] } as any);
 	} catch {
 		observer.disconnect();

@@ -76,6 +76,7 @@ suite('FindController', () => {
 	serviceCollection.set(IStorageService, new InMemoryStorageService());
 
 	if (platform.isMacintosh) {
+		// eslint-disable-next-line local/code-no-any-casts
 		serviceCollection.set(IClipboardService, <any>{
 			readFindText: () => clipboardState,
 			writeFindText: (value: any) => { clipboardState = value; }

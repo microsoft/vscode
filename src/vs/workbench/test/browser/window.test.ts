@@ -39,6 +39,7 @@ suite('Window', () => {
 			const clearTimeoutCalls: number[] = [];
 
 			function createWindow(id: number, slow?: boolean) {
+				// eslint-disable-next-line local/code-no-any-casts
 				const res = {
 					setTimeout: function (callback: Function, delay: number, ...args: any[]): number {
 						setTimeoutCalls.push(id);

@@ -115,6 +115,7 @@ export interface ISandboxContext {
 	resolveConfiguration(): Promise<ISandboxConfiguration>;
 }
 
+// eslint-disable-next-line local/code-no-any-casts
 const vscodeGlobal = (globalThis as any).vscode;
 export const ipcRenderer: IpcRenderer = vscodeGlobal.ipcRenderer;
 export const ipcMessagePort: IpcMessagePort = vscodeGlobal.ipcMessagePort;

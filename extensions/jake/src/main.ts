@@ -120,8 +120,10 @@ class FolderDetector {
 	}
 
 	public async getTask(_task: vscode.Task): Promise<vscode.Task | undefined> {
+		// eslint-disable-next-line local/code-no-any-casts
 		const jakeTask = (<any>_task.definition).task;
 		if (jakeTask) {
+			// eslint-disable-next-line local/code-no-any-casts
 			const kind: JakeTaskDefinition = (<any>_task.definition);
 			const options: vscode.ShellExecutionOptions = { cwd: this.workspaceFolder.uri.fsPath };
 			const task = new vscode.Task(kind, this.workspaceFolder, jakeTask, 'jake', new vscode.ShellExecution(await this._jakeCommand, [jakeTask], options));

@@ -131,11 +131,13 @@ export function isStandalone(): boolean {
 // e.g. visible is true even in fullscreen mode where the controls are hidden
 // See docs at https://developer.mozilla.org/en-US/docs/Web/API/WindowControlsOverlay/visible
 export function isWCOEnabled(): boolean {
+	// eslint-disable-next-line local/code-no-any-casts
 	return (navigator as any)?.windowControlsOverlay?.visible;
 }
 
 // Returns the bounding rect of the titlebar area if it is supported and defined
 // See docs at https://developer.mozilla.org/en-US/docs/Web/API/WindowControlsOverlay/getTitlebarAreaRect
 export function getWCOTitlebarAreaRect(targetWindow: Window): DOMRect | undefined {
+	// eslint-disable-next-line local/code-no-any-casts
 	return (targetWindow.navigator as any)?.windowControlsOverlay?.getTitlebarAreaRect();
 }

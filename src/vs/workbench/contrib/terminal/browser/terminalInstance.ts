@@ -2142,6 +2142,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (isWindows) {
 			for (let i = this.xterm.raw.buffer.active.viewportY; i < this.xterm.raw.buffer.active.length; i++) {
 				const line = this.xterm.raw.buffer.active.getLine(i);
+				// eslint-disable-next-line local/code-no-any-casts
 				(line as any)._line.isWrapped = false;
 			}
 		}

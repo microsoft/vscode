@@ -90,6 +90,7 @@ export class DataChannelForwardingTelemetryService extends InterceptingTelemetry
 			}
 
 			if (forward) {
+				// eslint-disable-next-line local/code-no-any-casts
 				dataChannelService.getDataChannel<IEditTelemetryData>('editTelemetry').sendData({ eventName, data: data as any });
 			}
 		});

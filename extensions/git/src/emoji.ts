@@ -24,6 +24,7 @@ export async function ensureEmojis() {
 
 async function loadEmojiMap() {
 	const context = getExtensionContext();
+	// eslint-disable-next-line local/code-no-any-casts
 	const uri = (Uri as any).joinPath(context.extensionUri, 'resources', 'emojis.json');
 	emojiMap = JSON.parse(new TextDecoder('utf8').decode(await workspace.fs.readFile(uri)));
 }

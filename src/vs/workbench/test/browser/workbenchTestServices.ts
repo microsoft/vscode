@@ -301,6 +301,7 @@ export function workbenchInstantiationService(
 	instantiationService.stub(IDialogService, new TestDialogService());
 	const accessibilityService = new TestAccessibilityService();
 	instantiationService.stub(IAccessibilityService, accessibilityService);
+	// eslint-disable-next-line local/code-no-any-casts
 	instantiationService.stub(IAccessibilitySignalService, {
 		playSignal: async () => { },
 		isSoundEnabled(signal: unknown) { return false; },
@@ -692,6 +693,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	focus() { }
 }
 
+// eslint-disable-next-line local/code-no-any-casts
 const activeViewlet: PaneComposite = {} as any;
 
 export class TestPaneCompositeService extends Disposable implements IPaneCompositePartService {
@@ -1058,6 +1060,7 @@ export class TestEditorService extends Disposable implements EditorServiceImpl {
 	}
 	createScoped(editorGroupsContainer: IEditorGroupsContainer): IEditorService { return this; }
 	getEditors() { return []; }
+	// eslint-disable-next-line local/code-no-any-casts
 	findEditors() { return [] as any; }
 	openEditor(editor: EditorInput, options?: IEditorOptions, group?: PreferredGroup): Promise<IEditorPane | undefined>;
 	openEditor(editor: IResourceEditorInput | IUntitledTextResourceEditorInput, group?: PreferredGroup): Promise<IEditorPane | undefined>;
@@ -1960,6 +1963,7 @@ export class TestTerminalProfileResolverService implements ITerminalProfileResol
 
 export class TestTerminalConfigurationService extends TerminalConfigurationService {
 	get fontMetrics() { return this._fontMetrics; }
+	// eslint-disable-next-line local/code-no-any-casts
 	setConfig(config: Partial<ITerminalConfiguration>) { this._config = config as any; }
 }
 
@@ -1977,6 +1981,7 @@ export class TestQuickInputService implements IQuickInputService {
 	pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: false }, token?: CancellationToken): Promise<T>;
 	async pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: Omit<IPickOptions<T>, 'canPickMany'>, token?: CancellationToken): Promise<T | undefined> {
 		if (Array.isArray(picks)) {
+			// eslint-disable-next-line local/code-no-any-casts
 			return <any>{ label: 'selectedPick', description: 'pick description', value: 'selectedPick' };
 		} else {
 			return undefined;
