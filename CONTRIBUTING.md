@@ -97,9 +97,3 @@ If you are interested in writing code to fix issues, please see [How to Contribu
 ## Thank You
 
 Your contributions to open source, large or small, make great projects like this possible. Thank you for taking the time to contribute.
-
-## Installing Python via winget
-`winget install --id Python.Python.3.12 --exact --source winget`
-
-## Installing Visual Studio Build Tools and Required Packages via winget
-`winget install --id Microsoft.VisualStudio.2022.BuildTools -e --source winget --override "--add Microsoft.VisualStudio.Component.Windows11SDK.22621 --add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Component.VC.Runtimes.x86.x64.Spectre --add Microsoft.VisualStudio.Component.VC.ATL.Spectre --add Microsoft.VisualStudio.Component.VC.ATLMFC.Spectre"`
