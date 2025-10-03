@@ -177,13 +177,14 @@ export default tseslint.config(
 			]
 		}
 	},
+	// vscode TS: strict no explicit `any`
 	{
 		files: [
-			// 'src/vs/base/common/extpath.ts',
-			// 'src/vs/base/common/glob.ts',
-			// 'src/vs/base/common/path.ts',
-			// 'src/vs/base/common/stream.ts',
-			// 'src/vs/base/node/pfs.ts',
+			'src/vs/base/common/extpath.ts',
+			'src/vs/base/common/glob.ts',
+			'src/vs/base/common/path.ts',
+			'src/vs/base/common/stream.ts',
+			'src/vs/base/node/pfs.ts',
 			// 'src/vs/base/parts/contextmenu/**',
 			// 'src/vs/base/parts/ipc/**',
 			// 'src/vs/base/parts/sandbox/**',
