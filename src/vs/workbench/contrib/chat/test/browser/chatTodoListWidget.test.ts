@@ -180,3 +180,177 @@ suite('ChatTodoListWidget Accessibility', () => {
 		assert.strictEqual(todoListContainer?.getAttribute('aria-labelledby'), 'todo-list-title');
 	});
 });
+
+suite('ChatTodoListWidget Inline Editing', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	let widget: ChatTodoListWidget;
+	let mockTodoListService: IChatTodoListService;
+	let mockConfigurationService: IConfigurationService;
+	let storedTodos: IChatTodo[];
+
+	const sampleTodos: IChatTodo[] = [
+		{ id: 1, title: 'First task', status: 'not-started' },
+		{ id: 2, title: 'Second task', status: 'in-progress', description: 'This is a task description' },
+		{ id: 3, title: 'Third task', status: 'completed' }
+	];
+
+	setup(() => {
+		storedTodos = [...sampleTodos.map(t => ({ ...t }))];
+
+		// Mock the todo list service with state
+		mockTodoListService = {
+			_serviceBrand: undefined,
+			getTodos: (sessionId: string) => storedTodos,
+			setTodos: (sessionId: string, todos: IChatTodo[]) => {
+				storedTodos = todos;
+			}
+		};
+
+		// Mock the configuration service
+		// eslint-disable-next-line local/code-no-any-casts
+		mockConfigurationService = {
+			_serviceBrand: undefined,
+			getValue: (key: string) => key === 'chat.todoListTool.descriptionField' ? true : undefined
+		} as any;
+
+		widget = store.add(new ChatTodoListWidget(mockTodoListService, mockConfigurationService));
+		mainWindow.document.body.appendChild(widget.domNode);
+	});
+
+	teardown(() => {
+		if (widget.domNode.parentNode) {
+			widget.domNode.parentNode.removeChild(widget.domNode);
+		}
+	});
+
+	test('title elements are clickable for editing', () => {
+		widget.render('test-session');
+
+		const titleElements = widget.domNode.querySelectorAll('.todo-title');
+		assert.ok(titleElements.length > 0, 'Should have title elements');
+
+		// Check that title elements have the proper data attributes
+		const firstTitle = titleElements[0] as HTMLElement;
+		assert.strictEqual(firstTitle.getAttribute('data-todo-id'), '1');
+		assert.strictEqual(firstTitle.getAttribute('data-field'), 'title');
+	});
+
+	test('description elements are clickable for editing', () => {
+		widget.render('test-session');
+
+		const descElements = widget.domNode.querySelectorAll('.todo-description');
+		assert.ok(descElements.length > 0, 'Should have description elements');
+
+		// Check that description elements have the proper data attributes
+		const firstDesc = descElements[0] as HTMLElement;
+		assert.strictEqual(firstDesc.getAttribute('data-todo-id'), '2');
+		assert.strictEqual(firstDesc.getAttribute('data-field'), 'description');
+	});
+
+	test('edit input has proper accessibility attributes', (done) => {
+		widget.render('test-session');
+
+		const titleElement = widget.domNode.querySelector('.todo-title') as HTMLElement;
+		assert.ok(titleElement, 'Should have a title element');
+
+		// Simulate click to enter edit mode
+		titleElement.click();
+
+		// Wait for edit mode to be rendered
+		setTimeout(() => {
+			const editInput = widget.domNode.querySelector('.todo-edit-input') as HTMLInputElement;
+			assert.ok(editInput, 'Should have an edit input after clicking title');
+			assert.ok(editInput.getAttribute('aria-label')?.includes('Edit todo title'));
+			assert.ok(editInput.getAttribute('aria-describedby')?.includes('todo-edit-validation'));
+			done();
+		}, 50);
+	});
+
+	test('edit input shows validation message for empty title', (done) => {
+		widget.render('test-session');
+
+		const titleElement = widget.domNode.querySelector('.todo-title') as HTMLElement;
+		titleElement.click();
+
+		setTimeout(() => {
+			const editInput = widget.domNode.querySelector('.todo-edit-input') as HTMLInputElement;
+			assert.ok(editInput, 'Should have an edit input');
+
+			// Clear the input to trigger validation
+			editInput.value = '';
+			editInput.dispatchEvent(new Event('input'));
+
+			setTimeout(() => {
+				const validationMessage = widget.domNode.querySelector('.todo-edit-validation') as HTMLElement;
+				assert.ok(validationMessage, 'Should have a validation message element');
+				assert.ok(validationMessage.textContent?.includes('cannot be empty'), 'Should show empty validation message');
+
+				const container = editInput.closest('.todo-edit-container');
+				assert.ok(container?.classList.contains('todo-edit-error'), 'Should have error class');
+				done();
+			}, 50);
+		}, 50);
+	});
+
+	test('edit input shows validation message for too long title', (done) => {
+		widget.render('test-session');
+
+		const titleElement = widget.domNode.querySelector('.todo-title') as HTMLElement;
+		titleElement.click();
+
+		setTimeout(() => {
+			const editInput = widget.domNode.querySelector('.todo-edit-input') as HTMLInputElement;
+			assert.ok(editInput, 'Should have an edit input');
+
+			// Set a very long title to trigger validation
+			editInput.value = 'a'.repeat(201);
+			editInput.dispatchEvent(new Event('input'));
+
+			setTimeout(() => {
+				const validationMessage = widget.domNode.querySelector('.todo-edit-validation') as HTMLElement;
+				assert.ok(validationMessage.textContent?.includes('200 characters'), 'Should show length validation message');
+
+				const container = editInput.closest('.todo-edit-container');
+				assert.ok(container?.classList.contains('todo-edit-error'), 'Should have error class');
+				done();
+			}, 50);
+		}, 50);
+	});
+
+	test('todo item has editing class when in edit mode', (done) => {
+		widget.render('test-session');
+
+		const titleElement = widget.domNode.querySelector('.todo-title') as HTMLElement;
+		const todoItem = titleElement.closest('.todo-item');
+		assert.ok(todoItem, 'Should have a todo item');
+		assert.ok(!todoItem.classList.contains('todo-item-editing'), 'Should not have editing class initially');
+
+		titleElement.click();
+
+		setTimeout(() => {
+			widget.render('test-session'); // Re-render to apply editing class
+			const updatedTodoItem = widget.domNode.querySelector('.todo-item-editing');
+			assert.ok(updatedTodoItem, 'Should have editing class after entering edit mode');
+			done();
+		}, 50);
+	});
+
+	test('screen reader announcements are made for edit mode', (done) => {
+		widget.render('test-session');
+
+		const titleElement = widget.domNode.querySelector('.todo-title') as HTMLElement;
+		titleElement.click();
+
+		setTimeout(() => {
+			// Check for screen reader announcement
+			const announcement = widget.domNode.querySelector('.todo-screen-reader-announcement') as HTMLElement;
+			if (announcement) {
+				assert.ok(announcement.textContent?.includes('Editing'), 'Should announce edit mode');
+				assert.strictEqual(announcement.getAttribute('role'), 'status');
+				assert.strictEqual(announcement.getAttribute('aria-live'), 'polite');
+			}
+			done();
+		}, 50);
+	});
+});
