@@ -49,8 +49,6 @@ import { ChatSessionTracker } from '../chatSessionTracker.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { getLocalHistoryDateFormatter } from '../../../../localHistory/browser/localHistory.js';
 
-
-
 interface ISessionTemplateData {
 	readonly container: HTMLElement;
 	readonly iconLabel: IconLabel;
