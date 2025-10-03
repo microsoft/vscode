@@ -283,6 +283,7 @@ export class SingleTsServer extends Disposable implements ITypeScriptServer {
 		}
 
 		this._requestQueue.enqueue(requestInfo);
+		// eslint-disable-next-line local/code-no-any-casts
 		if (args && typeof (args as any).$traceId === 'string') {
 			const queueLength = this._requestQueue.length - 1;
 			const pendingResponses = this._pendingResponses.size;
@@ -298,6 +299,7 @@ export class SingleTsServer extends Disposable implements ITypeScriptServer {
 				data.pendingCommands = this.getPendingCommands();
 			}
 
+			// eslint-disable-next-line local/code-no-any-casts
 			this._telemetryReporter.logTraceEvent('TSServer.enqueueRequest', (args as any).$traceId, JSON.stringify(data));
 		}
 		this.sendNextRequests();

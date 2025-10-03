@@ -144,6 +144,7 @@ export class AiEditTelemetryAdapter extends Disposable {
 				feature,
 				source: providerId,
 				modelId: data.props.$modelId,
+				// eslint-disable-next-line local/code-no-any-casts
 				modeId: data.props.$$mode as any,
 				editDeltaInfo: EditDeltaInfo.fromEdit(edit, _prev),
 			});

@@ -406,6 +406,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		}
 		hoverOverlay.title = hoverTitle;
 
+		// eslint-disable-next-line local/code-no-any-casts
 		const scrollBarWidth = (this._xterm.raw as any as { _core: IXtermCore })._core.viewport?.scrollBarWidth;
 		if (scrollBarWidth !== undefined) {
 			this._element.style.right = `${scrollBarWidth}px`;

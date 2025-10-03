@@ -59,6 +59,7 @@ function checkFunctionForAwaitBeforeReader(
 			if (awaitPositions.length > 0) {
 				const methodName = getMethodName(node);
 				context.report({
+					// eslint-disable-next-line local/code-no-any-casts
 					node: node as any as ESTree.Node,
 					message: `Reader method '${methodName}' should not be called after 'await'. The reader becomes invalid after async operations.`
 				});

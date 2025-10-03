@@ -17,6 +17,7 @@
 	type IMainWindowSandboxGlobals = import('../../../base/parts/sandbox/electron-browser/globals.js').IMainWindowSandboxGlobals;
 	type IDesktopMain = import('../../../workbench/electron-browser/desktop.main.js').IDesktopMain;
 
+	// eslint-disable-next-line local/code-no-any-casts
 	const preloadGlobals: IMainWindowSandboxGlobals = (window as any).vscode; // defined by preload.ts
 	const safeProcess = preloadGlobals.process;
 
@@ -126,6 +127,7 @@
 				titleDiv.style.left = '0';
 				titleDiv.style.top = '0';
 				titleDiv.style.backgroundColor = `${colorInfo.titleBarBackground}`;
+				// eslint-disable-next-line local/code-no-any-casts
 				(titleDiv.style as any)['-webkit-app-region'] = 'drag';
 				splash.appendChild(titleDiv);
 

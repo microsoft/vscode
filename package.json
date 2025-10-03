@@ -1,6 +1,6 @@
 {
   "name": "code-oss-dev",
-  "version": "1.105.0",
+  "version": "1.106.0",
   "distro": "7eefb0edc90d0589e8f481c8ed3cfe00bd65c738",
   "author": {
     "name": "Microsoft Corporation"
@@ -119,7 +119,7 @@
     "yazl": "^2.4.3"
   },
   "devDependencies": {
-    "@playwright/test": "^1.53.2",
+    "@playwright/test": "^1.55.1",
     "@stylistic/eslint-plugin-ts": "^2.8.0",
     "@types/cookie": "^0.3.3",
     "@types/debug": "^4.1.5",

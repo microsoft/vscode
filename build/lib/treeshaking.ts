@@ -307,15 +307,19 @@ const enum NodeColor {
 }
 
 function getColor(node: ts.Node): NodeColor {
+	// eslint-disable-next-line local/code-no-any-casts
 	return (<any>node).$$$color || NodeColor.White;
 }
 function setColor(node: ts.Node, color: NodeColor): void {
+	// eslint-disable-next-line local/code-no-any-casts
 	(<any>node).$$$color = color;
 }
 function markNeededSourceFile(node: ts.SourceFile): void {
+	// eslint-disable-next-line local/code-no-any-casts
 	(<any>node).$$$neededSourceFile = true;
 }
 function isNeededSourceFile(node: ts.SourceFile): boolean {
+	// eslint-disable-next-line local/code-no-any-casts
 	return Boolean((<any>node).$$$neededSourceFile);
 }
 function nodeOrParentIsBlack(node: ts.Node): boolean {
@@ -684,6 +688,7 @@ function markNodes(ts: typeof import('typescript'), languageService: ts.Language
 		if (nodeOrParentIsBlack(node)) {
 			continue;
 		}
+		// eslint-disable-next-line local/code-no-any-casts
 		const symbol: ts.Symbol | undefined = (<any>node).symbol;
 		if (!symbol) {
 			continue;
@@ -912,8 +917,11 @@ function getRealNodeSymbol(ts: typeof import('typescript'), checker: ts.TypeChec
 
 	// Use some TypeScript internals to avoid code duplication
 	type ObjectLiteralElementWithName = ts.ObjectLiteralElement & { name: ts.PropertyName; parent: ts.ObjectLiteralExpression | ts.JsxAttributes };
+	// eslint-disable-next-line local/code-no-any-casts
 	const getPropertySymbolsFromContextualType: (node: ObjectLiteralElementWithName, checker: ts.TypeChecker, contextualType: ts.Type, unionSymbolOk: boolean) => ReadonlyArray<ts.Symbol> = (<any>ts).getPropertySymbolsFromContextualType;
+	// eslint-disable-next-line local/code-no-any-casts
 	const getContainingObjectLiteralElement: (node: ts.Node) => ObjectLiteralElementWithName | undefined = (<any>ts).getContainingObjectLiteralElement;
+	// eslint-disable-next-line local/code-no-any-casts
 	const getNameFromPropertyName: (name: ts.PropertyName) => string | undefined = (<any>ts).getNameFromPropertyName;
 
 	// Go to the original declaration for cases:

@@ -182,6 +182,7 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 				const shouldReact = this._changeTracker ? this._changeTracker.handleChange({
 					changedObservable: observable,
 					change,
+					// eslint-disable-next-line local/code-no-any-casts
 					didChange: (o): this is any => o === observable as any,
 				}, this._changeSummary!) : true;
 				if (shouldReact) {

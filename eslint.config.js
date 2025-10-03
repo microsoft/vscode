@@ -82,6 +82,7 @@ export default tseslint.config(
 			'local/code-no-nls-in-standalone-editor': 'warn',
 			'local/code-no-potentially-unsafe-disposables': 'warn',
 			'local/code-no-dangerous-type-assertions': 'warn',
+			'local/code-no-any-casts': 'warn',
 			'local/code-no-standalone-editor': 'warn',
 			'local/code-no-unexternalized-strings': 'warn',
 			'local/code-must-use-super-dispose': 'warn',

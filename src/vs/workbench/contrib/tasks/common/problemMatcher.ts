@@ -358,6 +358,7 @@ abstract class AbstractLineMatcher implements ILineMatcher {
 			if (trim) {
 				value = Strings.trim(value)!;
 			}
+			// eslint-disable-next-line local/code-no-any-casts
 			(data as any)[property] += endOfLine + value;
 		}
 	}
@@ -370,6 +371,7 @@ abstract class AbstractLineMatcher implements ILineMatcher {
 				if (trim) {
 					value = Strings.trim(value)!;
 				}
+				// eslint-disable-next-line local/code-no-any-casts
 				(data as any)[property] = value;
 			}
 		}
@@ -1010,6 +1012,7 @@ export class ProblemPatternParser extends Parser {
 		function copyProperty(result: IProblemPattern, source: Config.IProblemPattern, resultKey: keyof IProblemPattern, sourceKey: keyof Config.IProblemPattern) {
 			const value = source[sourceKey];
 			if (typeof value === 'number') {
+				// eslint-disable-next-line local/code-no-any-casts
 				(result as any)[resultKey] = value;
 			}
 		}
@@ -1900,6 +1903,7 @@ class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {
 				}
 				const matcher = this.get('tsc-watch');
 				if (matcher) {
+					// eslint-disable-next-line local/code-no-any-casts
 					(<any>matcher).tscWatch = true;
 				}
 				resolve(undefined);

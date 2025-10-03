@@ -422,7 +422,7 @@
 	opacity: 0; /* hidden initially */
 	z-index: 34;
 }
-.monaco-workbench:not(.reduce-motion) .pane-body.integrated-terminal .terminal-drop-overlay {
+.monaco-workbench.monaco-enable-motion .pane-body.integrated-terminal .terminal-drop-overlay {
 	transition: left 70ms ease-out, right 70ms ease-out, top 70ms ease-out, bottom 70ms ease-out, opacity 150ms ease-out;
 }
 .monaco-workbench .pane-body.integrated-terminal .terminal-group > .monaco-split-view2.horizontal .terminal-drop-overlay.drop-before {

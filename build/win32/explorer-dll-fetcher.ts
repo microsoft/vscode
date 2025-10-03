@@ -60,6 +60,7 @@ async function main(outputDir?: string): Promise<void> {
 		throw new Error('Required build env not set');
 	}
 
+	// eslint-disable-next-line local/code-no-any-casts
 	await downloadExplorerDll(outputDir, (product as any).quality, arch);
 }
 

@@ -256,6 +256,7 @@
 			console.error(error);
 		}
 	} else {
+		// eslint-disable-next-line local/code-no-any-casts
 		(window as any).vscode = globals;
 	}
 }());

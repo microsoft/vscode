@@ -8,6 +8,7 @@ import cdSpec from '../../completions/cd';
 import { testPaths, type ISuiteSpec } from '../helpers';
 
 const expectedCompletions = ['-'];
+// eslint-disable-next-line local/code-no-any-casts
 const cdExpectedCompletions = [{ label: 'cd', description: (cdSpec as any).description }];
 export const cdTestSuiteSpec: ISuiteSpec = {
 	name: 'cd',

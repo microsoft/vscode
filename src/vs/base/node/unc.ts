@@ -17,6 +17,7 @@ function processUNCHostAllowlist(): Set<string> {
 	// The property `process.uncHostAllowlist` is not available in official node.js
 	// releases, only in our own builds, so we have to probe for availability
 
+	// eslint-disable-next-line local/code-no-any-casts
 	return (process as any).uncHostAllowlist;
 }
 
@@ -90,6 +91,7 @@ export function disableUNCAccessRestrictions(): void {
 		return;
 	}
 
+	// eslint-disable-next-line local/code-no-any-casts
 	(process as any).restrictUNCAccess = false;
 }
 
@@ -98,5 +100,6 @@ export function isUNCAccessRestrictionsDisabled(): boolean {
 		return true;
 	}
 
+	// eslint-disable-next-line local/code-no-any-casts
 	return (process as any).restrictUNCAccess === false;
 }

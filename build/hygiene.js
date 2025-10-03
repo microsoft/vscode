@@ -23,9 +23,9 @@ const copyrightHeaderLines = [
 
 /**
  * @param {string[] | NodeJS.ReadWriteStream} some
- * @param {boolean} linting
+ * @param {boolean} runEslint
  */
-function hygiene(some, linting = true) {
+function hygiene(some, runEslint = true) {
 	const eslint = require('./gulp-eslint');
 	const gulpstylelint = require('./stylelint');
 	const formatter = require('./lib/formatter');
@@ -156,7 +156,7 @@ function hygiene(some, linting = true) {
 	const unicodeFilterStream = filter(unicodeFilter, { restore: true });
 
 	const result = input
-		.pipe(filter((f) => !f.stat.isDirectory()))
+		.pipe(filter((f) => Boolean(f.stat && !f.stat.isDirectory())))
 		.pipe(snapshotFilter)
 		.pipe(yarnLockFilter)
 		.pipe(productJsonFilter)
@@ -175,7 +175,7 @@ function hygiene(some, linting = true) {
 		result.pipe(filter(tsFormattingFilter)).pipe(formatting)
 	];
 
-	if (linting) {
+	if (runEslint) {
 		streams.push(
 			result
 				.pipe(filter(eslintFilter))
@@ -186,17 +186,18 @@ function hygiene(some, linting = true) {
 					})
 				)
 		);
-		streams.push(
-			result.pipe(filter(stylelintFilter)).pipe(gulpstylelint(((message, isError) => {
-				if (isError) {
-					console.error(message);
-					errorCount++;
-				} else {
-					console.warn(message);
-				}
-			})))
-		);
 	}
+
+	streams.push(
+		result.pipe(filter(stylelintFilter)).pipe(gulpstylelint(((message, isError) => {
+			if (isError) {
+				console.error(message);
+				errorCount++;
+			} else {
+				console.warn(message);
+			}
+		})))
+	);
 
 	let count = 0;
 	return es.merge(...streams).pipe(
