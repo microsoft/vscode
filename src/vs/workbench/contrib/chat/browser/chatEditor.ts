@@ -34,7 +34,6 @@ export interface IChatEditorOptions extends IEditorOptions {
 	preferredTitle?: string;
 	contributionName?: string;
 	ignoreInView?: boolean;
-	generateDefaultTitle?: boolean;
 }
 
 export class ChatEditor extends EditorPane {
