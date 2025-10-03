@@ -161,7 +161,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		if (uri.scheme === Schemas.untitled) {
 			const untitledModel = this.untitledTextEditorService.get(uri);
 			if (untitledModel && !untitledModel.hasLanguageSetExplicitly) {
-				languageId = 'plaintext';
+				languageId = PLAINTEXT_LANGUAGE_ID;
 			}
 		}
 
