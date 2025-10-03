@@ -777,8 +777,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 				dotAccessorContext = { range, text };
 			}
 		}
-		// eslint-disable-next-line local/code-no-any-casts
-		const isIncomplete = !!response.body.isIncomplete || (response.metadata as any)?.isIncomplete;
+		const isIncomplete = !!response.body.isIncomplete || !!(response.metadata as Record<string, unknown>)?.isIncomplete;
 		const entries = response.body.entries;
 		const metadata = response.metadata;
 		const defaultCommitCharacters = Object.freeze(response.body.defaultCommitCharacters);
