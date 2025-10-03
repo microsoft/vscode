@@ -17,7 +17,7 @@
 	type IMainWindowSandboxGlobals = import('../../../base/parts/sandbox/electron-browser/globals.js').IMainWindowSandboxGlobals;
 	type IDesktopMain = import('../../../workbench/electron-browser/desktop.main.js').IDesktopMain;
 
-	const preloadGlobals: IMainWindowSandboxGlobals = (window as any).vscode; // defined by preload.ts
+	const preloadGlobals = (window as unknown as { vscode: IMainWindowSandboxGlobals }).vscode; // defined by preload.ts
 	const safeProcess = preloadGlobals.process;
 
 	//#region Splash Screen Helpers
@@ -126,7 +126,7 @@
 				titleDiv.style.left = '0';
 				titleDiv.style.top = '0';
 				titleDiv.style.backgroundColor = `${colorInfo.titleBarBackground}`;
-				(titleDiv.style as any)['-webkit-app-region'] = 'drag';
+				(titleDiv.style as CSSStyleDeclaration & { '-webkit-app-region': string })['-webkit-app-region'] = 'drag';
 				splash.appendChild(titleDiv);
 
 				if (colorInfo.titleBarBorder) {

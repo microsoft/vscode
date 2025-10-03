@@ -61,10 +61,12 @@ function checkFunctionForObservableGetCalls(
 		if (node.type === 'CallExpression' && isObservableGetCall(node)) {
 			// Flag .get() calls since we're always in a reactive context here
 			context.report({
+				// eslint-disable-next-line local/code-no-any-casts
 				node: node as any as ESTree.Node,
 				message: `Observable '.get()' should not be used in reactive context. Use '.read(${readerName})' instead to properly track dependencies or '.read(undefined)' to be explicit about an untracked read.`,
 				fix: (fixer) => {
 					const memberExpression = node.callee as TSESTree.MemberExpression;
+					// eslint-disable-next-line local/code-no-any-casts
 					return fixer.replaceText(node as any, `${context.getSourceCode().getText(memberExpression.object as any)}.read(undefined)`);
 				}
 			});
@@ -131,6 +133,7 @@ function isReactiveFunctionWithReader(callee: TSESTree.Node): boolean {
 function walkChildren(node: TSESTree.Node, cb: (child: TSESTree.Node) => void) {
 	const keys = visitorKeys.KEYS[node.type] || [];
 	for (const key of keys) {
+		// eslint-disable-next-line local/code-no-any-casts
 		const child = (node as any)[key];
 		if (Array.isArray(child)) {
 			for (const item of child) {

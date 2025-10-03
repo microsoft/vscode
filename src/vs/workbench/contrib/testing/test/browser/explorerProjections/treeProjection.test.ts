@@ -39,6 +39,7 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 			getStateById: () => ({ state: { state: 0 }, computedState: 0 }),
 		};
 
+		// eslint-disable-next-line local/code-no-any-casts
 		harness = ds.add(new TestTreeTestHarness(l => new TestHierarchicalByLocationProjection({}, l, resultsService as any)));
 	});
 
@@ -133,6 +134,7 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 		resultsService.getStateById = () => [undefined, resultInState(TestResultState.Queued)];
 		onTestChanged.fire({
 			reason: TestResultItemChangeReason.OwnStateChange,
+			// eslint-disable-next-line local/code-no-any-casts
 			result: null as any,
 			previousState: TestResultState.Unset,
 			item: resultInState(TestResultState.Queued),
@@ -149,6 +151,7 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 		resultsService.getStateById = () => [undefined, resultInState(TestResultState.Failed)];
 		onTestChanged.fire({
 			reason: TestResultItemChangeReason.OwnStateChange,
+			// eslint-disable-next-line local/code-no-any-casts
 			result: null as any,
 			previousState: TestResultState.Queued,
 			item: resultInState(TestResultState.Unset),

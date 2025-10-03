@@ -179,6 +179,7 @@ export function findFreePortFaster(startPort: number, giveUpAfter: number, timeo
 			doResolve(startPort, resolve);
 		});
 		server.on('error', err => {
+			// eslint-disable-next-line local/code-no-any-casts
 			if (err && ((<any>err).code === 'EADDRINUSE' || (<any>err).code === 'EACCES') && (countTried < giveUpAfter)) {
 				startPort++;
 				countTried++;

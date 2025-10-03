@@ -251,6 +251,7 @@ export function minifyTask(src: string, sourceMapBaseUrl?: string): (cb: any) =>
 			svgFilter,
 			svgmin(),
 			svgFilter.restore,
+			// eslint-disable-next-line local/code-no-any-casts
 			sourcemaps.write('./', {
 				sourceMappingURL,
 				sourceRoot: undefined,

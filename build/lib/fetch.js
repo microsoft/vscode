@@ -48,6 +48,7 @@ async function fetchUrl(url, options, retries = 10, retryDelay = 1000) {
         try {
             const response = await fetch(url, {
                 ...options.nodeFetchOptions,
+                // eslint-disable-next-line local/code-no-any-casts
                 signal: controller.signal /* Typings issue with lib.dom.d.ts */
             });
             if (verbose) {

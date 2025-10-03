@@ -291,6 +291,7 @@ export class FastDomNode<T extends HTMLElement> {
 			return;
 		}
 		this._contain = contain;
+		// eslint-disable-next-line local/code-no-any-casts
 		(<any>this.domNode.style).contain = this._contain;
 	}
 

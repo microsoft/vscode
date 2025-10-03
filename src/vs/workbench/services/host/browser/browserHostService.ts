@@ -538,12 +538,25 @@ export class BrowserHostService extends Disposable implements IHostService {
 		}
 
 		// Safari and Edge 14 are all using webkit prefix
-		if ((<any>targetWindow.document).webkitIsFullScreen !== undefined) {
+
+		interface WebkitDocument extends Document {
+			webkitFullscreenElement: Element | null;
+			webkitExitFullscreen(): Promise<void>;
+			webkitIsFullScreen: boolean;
+		}
+
+		interface WebkitHTMLElement extends HTMLElement {
+			webkitRequestFullscreen(): Promise<void>;
+		}
+
+		const webkitDocument = targetWindow.document as WebkitDocument;
+		const webkitElement = target as WebkitHTMLElement;
+		if (webkitDocument.webkitIsFullScreen !== undefined) {
 			try {
-				if (!(<any>targetWindow.document).webkitIsFullScreen) {
-					(<any>target).webkitRequestFullscreen(); // it's async, but doesn't return a real promise.
+				if (!webkitDocument.webkitIsFullScreen) {
+					webkitElement.webkitRequestFullscreen(); // it's async, but doesn't return a real promise
 				} else {
-					(<any>targetWindow.document).webkitExitFullscreen(); // it's async, but doesn't return a real promise.
+					webkitDocument.webkitExitFullscreen(); // it's async, but doesn't return a real promise
 				}
 			} catch {
 				this.logService.warn('toggleFullScreen(): requestFullscreen/exitFullscreen failed');

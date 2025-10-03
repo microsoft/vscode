@@ -978,6 +978,7 @@ suite('LanguageModelToolsService', () => {
 
 		// Should have tool result details because alwaysDisplayInputOutput = true
 		assert.ok(result.toolResultDetails, 'should have toolResultDetails');
+		// eslint-disable-next-line local/code-no-any-casts
 		const details = result.toolResultDetails as any; // Type assertion needed for test
 
 		// Test formatToolInput - should be formatted JSON
@@ -1008,6 +1009,7 @@ suite('LanguageModelToolsService', () => {
 			configurationService: () => configurationService
 		}, store);
 		instaService.stub(IChatService, chatService);
+		// eslint-disable-next-line local/code-no-any-casts
 		instaService.stub(ITelemetryService, testTelemetryService as any);
 		const testService = store.add(instaService.createInstance(LanguageModelToolsService));
 
@@ -1514,6 +1516,7 @@ suite('LanguageModelToolsService', () => {
 		// Change the correct configuration key
 		configurationService.setUserConfiguration('chat.extensionTools.enabled', false);
 		// Fire the configuration change event manually
+		// eslint-disable-next-line local/code-no-any-casts
 		configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true, affectedKeys: new Set(['chat.extensionTools.enabled']) } as any as IConfigurationChangeEvent);
 
 		// Wait a bit for the scheduler

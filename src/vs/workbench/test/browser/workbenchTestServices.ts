@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IContextMenuDelegate } from '../../../base/browser/contextmenu.js';
 import { IDimension } from '../../../base/browser/dom.js';
 import { Direction, IViewSize } from '../../../base/browser/ui/grid/grid.js';
 import { mainWindow } from '../../../base/browser/window.js';
@@ -58,7 +59,7 @@ import { ConfigurationTarget, IConfigurationService, IConfigurationValue } from 
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyValue, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { ContextMenuService } from '../../../platform/contextview/browser/contextMenuService.js';
-import { IContextMenuService, IContextViewService } from '../../../platform/contextview/browser/contextView.js';
+import { IContextMenuMenuDelegate, IContextMenuService, IContextViewService } from '../../../platform/contextview/browser/contextView.js';
 import { ContextViewService } from '../../../platform/contextview/browser/contextViewService.js';
 import { IDiagnosticInfo, IDiagnosticInfoOptions } from '../../../platform/diagnostics/common/diagnostics.js';
 import { ConfirmResult, IDialogService, IFileDialogService, IOpenDialogOptions, IPickAndOpenOptions, ISaveDialogOptions } from '../../../platform/dialogs/common/dialogs.js';
@@ -301,6 +302,7 @@ export function workbenchInstantiationService(
 	instantiationService.stub(IDialogService, new TestDialogService());
 	const accessibilityService = new TestAccessibilityService();
 	instantiationService.stub(IAccessibilityService, accessibilityService);
+	// eslint-disable-next-line local/code-no-any-casts
 	instantiationService.stub(IAccessibilitySignalService, {
 		playSignal: async () => { },
 		isSoundEnabled(signal: unknown) { return false; },
@@ -692,6 +694,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	focus() { }
 }
 
+// eslint-disable-next-line local/code-no-any-casts
 const activeViewlet: PaneComposite = {} as any;
 
 export class TestPaneCompositeService extends Disposable implements IPaneCompositePartService {
@@ -1058,6 +1061,7 @@ export class TestEditorService extends Disposable implements EditorServiceImpl {
 	}
 	createScoped(editorGroupsContainer: IEditorGroupsContainer): IEditorService { return this; }
 	getEditors() { return []; }
+	// eslint-disable-next-line local/code-no-any-casts
 	findEditors() { return [] as any; }
 	openEditor(editor: EditorInput, options?: IEditorOptions, group?: PreferredGroup): Promise<IEditorPane | undefined>;
 	openEditor(editor: IResourceEditorInput | IUntitledTextResourceEditorInput, group?: PreferredGroup): Promise<IEditorPane | undefined>;
@@ -1960,6 +1964,7 @@ export class TestTerminalProfileResolverService implements ITerminalProfileResol
 
 export class TestTerminalConfigurationService extends TerminalConfigurationService {
 	get fontMetrics() { return this._fontMetrics; }
+	// eslint-disable-next-line local/code-no-any-casts
 	setConfig(config: Partial<ITerminalConfiguration>) { this._config = config as any; }
 }
 
@@ -1977,6 +1982,7 @@ export class TestQuickInputService implements IQuickInputService {
 	pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: false }, token?: CancellationToken): Promise<T>;
 	async pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: Omit<IPickOptions<T>, 'canPickMany'>, token?: CancellationToken): Promise<T | undefined> {
 		if (Array.isArray(picks)) {
+			// eslint-disable-next-line local/code-no-any-casts
 			return <any>{ label: 'selectedPick', description: 'pick description', value: 'selectedPick' };
 		} else {
 			return undefined;
@@ -2195,4 +2201,16 @@ export class TestChatEntitlementService implements IChatEntitlementService {
 	readonly anonymous = false;
 	onDidChangeAnonymous = Event.None;
 	readonly anonymousObs = observableValue({}, false);
+}
+
+export class TestContextMenuService implements IContextMenuService {
+
+	_serviceBrand: undefined;
+
+	readonly onDidShowContextMenu = Event.None;
+	readonly onDidHideContextMenu = Event.None;
+
+	showContextMenu(delegate: IContextMenuDelegate | IContextMenuMenuDelegate): void {
+		throw new Error('Method not implemented.');
+	}
 }
