@@ -34,7 +34,7 @@ export interface IChatEditorOptions extends IEditorOptions {
 	title?: {
 		preferred?: string;
 		fallback?: string;
-	},
+	};
 	ignoreInView?: boolean;
 }
 
