@@ -65,6 +65,45 @@ export class CloseWindowAction extends Action2 {
 	}
 }
 
+export class CloseAllOtherWindowsAction extends Action2 {
+
+	static readonly ID = 'workbench.action.closeAllOtherWindows';
+
+	constructor() {
+		super({
+			id: CloseAllOtherWindowsAction.ID,
+			title: {
+				...localize2('closeAllOtherWindows', "Close All Other Windows"),
+				mnemonicTitle: localize({ key: 'miCloseAllOtherWindows', comment: ['&& denotes a mnemonic'] }, "Close All &&Other Windows"),
+			},
+			f1: true,
+			menu: {
+				id: MenuId.MenubarFileMenu,
+				group: '6_close',
+				order: 5
+			}
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const nativeHostService = accessor.get(INativeHostService);
+
+		const currentWindowId = getActiveWindow().vscodeWindowId;
+		const windows = await nativeHostService.getWindows({ includeAuxiliaryWindows: true });
+
+		// Close all windows except the current one
+		const closePromises: Promise<void>[] = [];
+		for (const window of windows) {
+			if (window.id !== currentWindowId) {
+				closePromises.push(nativeHostService.closeWindow({ targetWindowId: window.id }));
+			}
+		}
+
+		// Wait for all windows to close
+		await Promise.allSettled(closePromises);
+	}
+}
+
 abstract class BaseZoomAction extends Action2 {
 
 	private static readonly ZOOM_LEVEL_SETTING_KEY = 'window.zoomLevel';
