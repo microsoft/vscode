@@ -217,8 +217,27 @@
 	color: currentColor !important;
 }
 
+.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .custom-view-tree-node-item-resourceLabel .monaco-icon-label-container {
+	display: flex;
+}
+
 .customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .custom-view-tree-node-item-resourceLabel .monaco-icon-label-container > .monaco-icon-name-container {
 	flex: 1;
+}
+
+.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel.custom-view-tree-node-item-right .monaco-icon-name-container {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel.custom-view-tree-node-item-right .monaco-icon-description-container {
+	float: right;
+}
+
+.customview-tree .monaco-list .monaco-list-row:hover .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel.custom-view-tree-node-item-right .monaco-icon-description-container,
+.customview-tree .monaco-list .monaco-list-row.selected .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel.custom-view-tree-node-item-right .monaco-icon-description-container,
+.customview-tree .monaco-list .monaco-list-row.focused .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel.custom-view-tree-node-item-right .monaco-icon-description-container {
+	display: none;
 }
 
 .customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .custom-view-tree-node-item-resourceLabel::after {
