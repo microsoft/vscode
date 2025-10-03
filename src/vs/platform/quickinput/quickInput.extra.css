@@ -1,0 +1,16 @@
+/* Quick Open: show end of path (left-side ellipsis) */
+.qo-path {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  /* left-side ellipsis trick so the tail of the path remains visible */
+  direction: rtl;
+  text-align: left;
+}
+.qo-path span {
+  direction: ltr;
+  display: inline-block;
+  width: 100%;
+}
