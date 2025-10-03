@@ -92,6 +92,8 @@ import './media/chat.css';
 import './media/chatAgentHover.css';
 import './media/chatViewWelcome.css';
 import { ChatViewWelcomePart, IChatSuggestedPrompts, IChatViewWelcomeContent } from './viewsWelcome/chatViewWelcomeController.js';
+import { ChatEditorInput } from './chatEditorInput.js';
+import { getChatSessionType } from './chatSessions/common.js';
 
 const $ = dom.$;
 
@@ -1257,6 +1259,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 
+		// Only show todo list for local chat sessions
+		if (!this.isLocalChatSession()) {
+			this.chatTodoListWidget.domNode.style.display = 'none';
+			this._onDidChangeContentHeight.fire();
+			return;
+		}
+
 		const todoListConfig = this.configurationService.getValue<{ position?: string }>(ChatConfiguration.TodoList);
 		const todoListWidgetPosition = todoListConfig?.position || 'default';
 
@@ -1280,6 +1289,23 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (todos.length > 0) {
 			this.chatTodoListWidget.render(sessionId);
 		}
+	}
+
+	private isLocalChatSession(): boolean {
+		// Check if this is a Chat View widget (always local)
+		if ('viewId' in this.viewContext && this.viewContext.viewId === 'workbench.panel.chat.view.copilot') {
+			return true;
+		}
+
+		// For editor-based widgets, check the session type of the active editor
+		const activeEditor = this.editorService.activeEditor;
+		if (activeEditor instanceof ChatEditorInput) {
+			const sessionType = getChatSessionType(activeEditor);
+			return sessionType === 'local';
+		}
+
+		// Default to true for backwards compatibility (e.g., quick chat, inline chat)
+		return true;
 	}
 
 	private _getGenerateInstructionsMessage(): IMarkdownString {
