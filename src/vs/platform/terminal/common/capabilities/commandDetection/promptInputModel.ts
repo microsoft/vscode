@@ -546,6 +546,12 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		// Retrieve the positions of all cells with the same style as `lastNonWhitespaceCell`
 		const positionsWithGhostStyle = styleMap.get(this._getCellStyleAsString(lastNonWhitespaceCell));
 		if (positionsWithGhostStyle) {
+			// Ghost text must start exactly at the cursor
+			// This avoids misclassifying a right prompt as ghost text when it
+			// introduces a new color/style not seen earlier in the line.
+			if (positionsWithGhostStyle[0] !== buffer.cursorX) {
+				return -1;
+			}
 			// Ensure these positions are contiguous
 			for (let i = 1; i < positionsWithGhostStyle.length; i++) {
 				if (positionsWithGhostStyle[i] !== positionsWithGhostStyle[i - 1] + 1) {
@@ -553,7 +559,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 					return -1;
 				}
 			}
-			// Calculate the ghost text start index
+			// Calculate the ghost text start index relative to command start.
 			if (buffer.baseY + buffer.cursorY === this._commandStartMarker?.line) {
 				ghostTextIndex = positionsWithGhostStyle[0] - this._commandStartX;
 			} else {
@@ -566,10 +572,11 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		if (ghostTextIndex !== -1) {
 			for (let checkPos = buffer.cursorX; checkPos >= this._commandStartX; checkPos--) {
 				const checkCell = line.getCell(checkPos);
-				if (!checkCell?.getChars.length) {
+				const chars = checkCell?.getChars();
+				if (!checkCell || !chars || !chars.trim().length) {
 					continue;
 				}
-				if (checkCell && checkCell.getCode() !== 0 && this._cellStylesMatch(lastNonWhitespaceCell, checkCell)) {
+				if (checkCell.getCode() !== 0 && this._cellStylesMatch(lastNonWhitespaceCell, checkCell)) {
 					return -1;
 				}
 			}
