@@ -1296,7 +1296,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return false;
 		}
 
-		// Otherwise, it's a local session (Chat View, quick chat, inline chat, or local editor)
+		// Otherwise, it's a local session (Chat View, quick chat, inline chat, or local editor session)
 		return true;
 	}
 
