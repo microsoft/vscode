@@ -133,6 +133,8 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 	}
 
 	renderTemplate(container: HTMLElement): ISessionTemplateData {
+		container.parentElement!.classList.toggle('align-icon-with-twisty', true);
+
 		const element = append(container, $('.chat-session-item'));
 
 		// Create a container that holds the label, timestamp, and actions
@@ -361,6 +363,10 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 		}
 
 		// Create a simple container that mimics the file explorer's structure
+
+		// These should not be called explorer-item.
+		// They should have their own class name.
+		// Also, might make sense to share these styles across explorer and sessions tree
 		const editContainer = DOM.append(container, DOM.$('.explorer-item.explorer-item-edited'));
 
 		// Add the icon

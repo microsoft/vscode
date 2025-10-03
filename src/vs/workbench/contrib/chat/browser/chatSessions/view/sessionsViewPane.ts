@@ -286,7 +286,7 @@ export class SessionsViewPane extends ViewPane {
 		}
 
 		this.treeContainer = DOM.append(container, DOM.$('.chat-sessions-tree-container'));
-		this.treeContainer.classList.add('file-icon-themable-tree');
+		this.treeContainer.classList.add('file-icon-themable-tree', 'customview-tree');
 		// Create message element for empty state
 		this.messageElement = append(container, $('.chat-sessions-message'));
 		this.messageElement.style.display = 'none';
@@ -309,7 +309,7 @@ export class SessionsViewPane extends ViewPane {
 		};
 
 		this.tree = this.instantiationService.createInstance(
-			WorkbenchAsyncDataTree,
+			WorkbenchAsyncDataTree<IChatSessionItemProvider, ChatSessionItemWithProvider, FuzzyScore>,
 			'ChatSessions',
 			this.treeContainer,
 			delegate,
@@ -345,14 +345,12 @@ export class SessionsViewPane extends ViewPane {
 				accessibilityProvider,
 				identityProvider,
 				multipleSelectionSupport: false,
-				overrideStyles: {
-					listBackground: undefined
-				},
+				overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 				paddingBottom: SessionsDelegate.ITEM_HEIGHT,
-				setRowLineHeight: false
-
+				setRowLineHeight: false,
+				indent: 16,
 			}
-		) as WorkbenchAsyncDataTree<IChatSessionItemProvider, ChatSessionItemWithProvider, FuzzyScore>;
+		);
 
 		// Set the input
 		this.tree.setInput(this.provider);
@@ -385,7 +383,6 @@ export class SessionsViewPane extends ViewPane {
 		// Handle icons and twisties correctly
 		const onDidChangeFileIconTheme = (theme: IFileIconTheme) => {
 			if (this.treeContainer) {
-				this.treeContainer.classList.toggle('align-icons-and-twisties', theme.hasFileIcons && !theme.hasFolderIcons);
 				this.treeContainer.classList.toggle('hide-arrows', theme.hidesExplorerArrows === true);
 			}
 		};
