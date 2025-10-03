@@ -53,14 +53,13 @@ import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/w
 import { EditorResourceAccessor } from '../../../../workbench/common/editor.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { ViewContainerLocation } from '../../../common/views.js';
-import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchLayoutService, Position } from '../../../services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { checkModeOption } from '../common/chat.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentService } from '../common/chatAgents.js';
-import { ChatContextKeyExprs, ChatContextKeys } from '../common/chatContextKeys.js';
+import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, inChatEditingSessionContextKey, ModifiedFileEntryState } from '../common/chatEditingService.js';
-import { ChatEntitlement, IChatEntitlementService } from '../common/chatEntitlementService.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { IChatLayoutService } from '../common/chatLayoutService.js';
 import { IChatModel, IChatResponseModel } from '../common/chatModel.js';
 import { IChatModeService } from '../common/chatModes.js';
@@ -665,34 +664,27 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._register(this.onDidChangeParsedInput(() => this.updateChatInputContext()));
 
 		// Listen to entitlement and sentiment changes instead of context keys
-		this._register(this.chatEntitlementService.onDidChangeEntitlement(() => this.handleChatSetupTriggerChange()));
-		this._register(this.chatEntitlementService.onDidChangeSentiment(() => this.handleChatSetupTriggerChange()));
+		this._register(this.chatEntitlementService.onDidChangeEntitlement(() => {
+			if (!this.shouldShowChatSetup()) {
+				this.resetWelcomeViewInput();
+			}
+		}));
+		this._register(this.chatEntitlementService.onDidChangeSentiment(() => {
+			if (!this.shouldShowChatSetup()) {
+				this.resetWelcomeViewInput();
+			}
+		}));
 	}
 
-	private handleChatSetupTriggerChange(): void {
+	private resetWelcomeViewInput(): void {
 		// reset the input in welcome view if it was rendered in experimental mode
-		if (this.container.classList.contains('new-welcome-view') && !this.shouldShowChatSetup()) {
+		if (this.container.classList.contains('new-welcome-view')) {
 			this.container.classList.remove('new-welcome-view');
 			const renderFollowups = this.viewOptions.renderFollowups ?? false;
 			const renderStyle = this.viewOptions.renderStyle;
 			this.createInput(this.container, { renderFollowups, renderStyle });
 			this.input.setChatMode(this.lastWelcomeViewChatMode ?? ChatModeKind.Ask);
 		}
-		this._register(this.contextKeyService.onDidChangeContext(e => {
-			if (e.affectsSome(new Set([
-				ChatContextKeys.Setup.installed.key,
-				ChatContextKeys.Entitlement.canSignUp.key
-			]))) {
-				// reset the input in welcome view if it was rendered in experimental mode
-				if (this.container.classList.contains('new-welcome-view') && !this.contextKeyService.contextMatchesRules(ChatContextKeyExprs.chatSetupTriggerContext)) {
-					this.container.classList.remove('new-welcome-view');
-					const renderFollowups = this.viewOptions.renderFollowups ?? false;
-					const renderStyle = this.viewOptions.renderStyle;
-					this.createInput(this.container, { renderFollowups, renderStyle });
-					this.input.setChatMode(this.lastWelcomeViewChatMode ?? ChatModeKind.Ask);
-				}
-			}
-		}));
 	}
 
 	private _lastSelectedAgent: IChatAgentData | undefined;
@@ -950,12 +942,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 
 			// reset the input in welcome view if it was rendered in experimental mode
-			if (this.container.classList.contains('new-welcome-view') && this.viewModel?.getItems().length) {
-				this.container.classList.remove('new-welcome-view');
-				const renderFollowups = this.viewOptions.renderFollowups ?? false;
-				const renderStyle = this.viewOptions.renderStyle;
-				this.createInput(this.container, { renderFollowups, renderStyle });
-				this.input.setChatMode(this.lastWelcomeViewChatMode ?? ChatModeKind.Ask);
+			if (this.viewModel?.getItems().length) {
+				this.resetWelcomeViewInput();
 				this.focusInput();
 			}
 
@@ -1043,7 +1031,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				additionalMessage = this._getGenerateInstructionsMessage();
 			}
 			if (this.shouldShowChatSetup()) {
-				welcomeContent = this.getExpWelcomeViewContent();
+				welcomeContent = this.getNewWelcomeViewContent();
 				this.container.classList.add('new-welcome-view');
 			}
 			else if (expEmptyState) {
