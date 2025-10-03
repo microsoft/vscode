@@ -28,6 +28,7 @@ import { IWorkspaceContextService } from '../../../../platform/workspace/common/
 import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
 import { isEmptyObject } from '../../../../base/common/types.js';
 import { PLAINTEXT_LANGUAGE_ID } from '../../../../editor/common/languages/modesRegistry.js';
+import { IUntitledTextEditorService } from '../../../services/untitled/common/untitledTextEditorService.js';
 
 const promptedRecommendationsStorageKey = 'fileBasedRecommendations/promptedRecommendations';
 const recommendationsStorageKey = 'extensionsAssistant/recommendations';
@@ -83,6 +84,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		@IExtensionRecommendationNotificationService private readonly extensionRecommendationNotificationService: IExtensionRecommendationNotificationService,
 		@IExtensionIgnoredRecommendationsService private readonly extensionIgnoredRecommendationsService: IExtensionIgnoredRecommendationsService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IUntitledTextEditorService private readonly untitledTextEditorService: IUntitledTextEditorService,
 	) {
 		super();
 		this.fileOpenRecommendations = {};
@@ -153,7 +155,15 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		const matchedRecommendations: IStringDictionary<IFileOpenCondition[]> = {};
 		const unmatchedRecommendations: IStringDictionary<IFileOpenCondition[]> = {};
 		let listenOnLanguageChange = false;
-		const languageId = model.getLanguageId();
+		let languageId = model.getLanguageId();
+
+		// Avoid language-specific recommendations for untitled files when language is auto-detected.
+		if (uri.scheme === Schemas.untitled) {
+			const untitledModel = this.untitledTextEditorService.get(uri);
+			if (untitledModel && !untitledModel.hasLanguageSetExplicitly) {
+				languageId = 'plaintext';
+			}
+		}
 
 		for (const [extensionId, conditions] of extensionRecommendationEntries) {
 			const conditionsByPattern: IFileOpenCondition[] = [];
