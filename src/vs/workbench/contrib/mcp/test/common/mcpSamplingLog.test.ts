@@ -15,6 +15,7 @@ import { IMcpServer } from "../../common/mcpTypes.js";
 
 suite("MCP - Sampling Log", () => {
 	const ds = ensureNoDisposablesAreLeakedInTestSuite();
+	// eslint-disable-next-line local/code-no-any-casts
 	const fakeServer: IMcpServer = {
 		definition: { id: "testServer" },
 		readDefinitions: () => ({
@@ -48,6 +49,7 @@ suite("MCP - Sampling Log", () => {
 		// storage.testEmitWillSaveState(WillSaveStateReason.NONE);
 		await storage.flush();
 		assert.deepStrictEqual(
+			// eslint-disable-next-line local/code-no-any-casts
 			(storage.getObject("mcp.sampling.logs", StorageScope.APPLICATION) as any),
 			[
 				[
@@ -90,6 +92,7 @@ suite("MCP - Sampling Log", () => {
 		);
 
 		await storage.flush();
+		// eslint-disable-next-line local/code-no-any-casts
 		const data = (storage.getObject("mcp.sampling.logs", StorageScope.APPLICATION) as any)[0][1];
 
 		// Verify the bin for the current day has 2 requests
@@ -122,6 +125,7 @@ suite("MCP - Sampling Log", () => {
 		);
 
 		await storage.flush();
+		// eslint-disable-next-line local/code-no-any-casts
 		const data = (storage.getObject("mcp.sampling.logs", StorageScope.APPLICATION) as any)[0][1];
 
 		// Verify the bins: day 2 should have 1 request, day 1 should have 1 request
@@ -140,6 +144,7 @@ suite("MCP - Sampling Log", () => {
 		);
 
 		await storage.flush();
+		// eslint-disable-next-line local/code-no-any-casts
 		const updatedData = (storage.getObject("mcp.sampling.logs", StorageScope.APPLICATION) as any)[0][1];
 
 		// Verify the bins have shifted correctly
@@ -160,6 +165,7 @@ suite("MCP - Sampling Log", () => {
 		}
 
 		await storage.flush();
+		// eslint-disable-next-line local/code-no-any-casts
 		const data = (storage.getObject("mcp.sampling.logs", StorageScope.APPLICATION) as any)[0][1];
 
 		// Verify only the last 30 requests are kept
@@ -211,6 +217,7 @@ suite("MCP - Sampling Log", () => {
 		);
 
 		await storage.flush();
+		// eslint-disable-next-line local/code-no-any-casts
 		const data = (storage.getObject("mcp.sampling.logs", StorageScope.APPLICATION) as any)[0][1];
 
 		// Verify all requests are stored correctly
@@ -221,6 +228,7 @@ suite("MCP - Sampling Log", () => {
 	});
 
 	test("handles multiple servers", async () => {
+		// eslint-disable-next-line local/code-no-any-casts
 		const fakeServer2: IMcpServer = {
 			definition: { id: "testServer2" },
 			readDefinitions: () => ({
@@ -243,6 +251,7 @@ suite("MCP - Sampling Log", () => {
 		);
 
 		await storage.flush();
+		// eslint-disable-next-line local/code-no-any-casts
 		const storageData = (storage.getObject("mcp.sampling.logs", StorageScope.APPLICATION) as any);
 
 		// Verify both servers have their data stored

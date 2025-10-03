@@ -77,6 +77,8 @@ export class AiStatsStatusBar extends Disposable {
 				display: 'flex',
 				alignItems: 'center',
 				justifyContent: 'center',
+				marginLeft: '3px',
+				marginRight: '3px',
 			}
 		}, [
 			n.div(

@@ -241,6 +241,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			},
 		}));
 		this._updateSmoothScrolling();
+		// eslint-disable-next-line local/code-no-any-casts
 		this._core = (this.raw as any)._core as IXtermCore;
 
 		this._register(this._configurationService.onDidChangeConfiguration(async e => {

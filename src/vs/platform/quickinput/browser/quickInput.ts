@@ -1163,11 +1163,11 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 			return; // needs to be enabled
 		}
 
-		if (this.activeItems[0]) {
+		if (this.activeItems[0] && !this._canSelectMany) {
 			this._selectedItems = [this.activeItems[0]];
 			this.onDidChangeSelectionEmitter.fire(this.selectedItems);
-			this.handleAccept(inBackground ?? false);
 		}
+		this.handleAccept(inBackground ?? false);
 	}
 }
 

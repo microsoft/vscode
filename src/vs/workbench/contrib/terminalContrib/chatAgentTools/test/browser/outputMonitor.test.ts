@@ -14,6 +14,7 @@ import { ILanguageModelsService } from '../../../../chat/common/languageModels.j
 import { IChatService } from '../../../../chat/common/chatService.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { ChatModel } from '../../../../chat/common/chatModel.js';
+import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 
 suite('OutputMonitor', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -36,6 +37,7 @@ suite('OutputMonitor', () => {
 				onDidInputData: dataEmitter.event,
 				onData: dataEmitter.event,
 				focus: () => { },
+				// eslint-disable-next-line local/code-no-any-casts
 				registerMarker: () => ({ id: 1 } as any)
 			},
 			sessionId: '1'
@@ -51,6 +53,7 @@ suite('OutputMonitor', () => {
 		instantiationService.stub(
 			IChatService,
 			{
+				// eslint-disable-next-line local/code-no-any-casts
 				getSession: () => ({
 					sessionId: '1',
 					onDidDispose: { event: () => { }, dispose: () => { } },
@@ -64,7 +67,7 @@ suite('OutputMonitor', () => {
 				} as any)
 			}
 		);
-
+		instantiationService.stub(ILogService, new NullLogService());
 		cts = new CancellationTokenSource();
 	});
 

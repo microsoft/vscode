@@ -9,7 +9,7 @@ import { IWorkbenchContributionsRegistry, registerWorkbenchContribution2, Extens
 import { QuickDiffWorkbenchController } from './quickDiffDecorator.js';
 import { VIEWLET_ID, ISCMService, VIEW_PANE_ID, ISCMProvider, ISCMViewService, REPOSITORIES_VIEW_PANE_ID, HISTORY_VIEW_PANE_ID } from '../common/scm.js';
 import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
-import { MenuRegistry, MenuId } from '../../../../platform/actions/common/actions.js';
+import { MenuRegistry, MenuId, registerAction2, Action2 } from '../../../../platform/actions/common/actions.js';
 import { SCMActiveResourceContextKeyController, SCMActiveRepositoryController } from './activity.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry.js';
@@ -46,6 +46,9 @@ import { AccessibleViewRegistry } from '../../../../platform/accessibility/brows
 import { SCMAccessibilityHelp } from './scmAccessibilityHelp.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { SCMHistoryItemContextContribution } from './scmHistoryChatContext.js';
+import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
+import { CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID } from '../../chat/browser/actions/chatActions.js';
+import product from '../../../../platform/product/common/product.js';
 
 ModesRegistry.registerLanguage({
 	id: 'scminput',
@@ -641,6 +644,43 @@ MenuRegistry.appendMenuItem(MenuId.EditorLineNumberContext, {
 		ContextKeyExpr.equals('config.scm.diffDecorations', 'gutter')),
 	group: '9_quickDiffDecorations'
 });
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'scm.editor.triggerSetup',
+			title: localize('scmEditorResolveMergeConflict', "Resolve Conflicts with AI"),
+			icon: Codicon.chatSparkle,
+			f1: false,
+			menu: {
+				id: MenuId.EditorContent,
+				when: ContextKeyExpr.and(
+					ChatContextKeys.Setup.hidden.negate(),
+					ChatContextKeys.Setup.disabled.negate(),
+					ChatContextKeys.Setup.installed.negate(),
+					ContextKeyExpr.equals('git.activeResourceHasMergeConflicts', true)
+				)
+			}
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+		const commandService = accessor.get(ICommandService);
+
+		const result = await commandService.executeCommand(CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID);
+		if (!result) {
+			return;
+		}
+
+		const command = product.defaultChatAgent?.resolveMergeConflictsCommand;
+		if (!command) {
+			return;
+		}
+
+		await commandService.executeCommand(command, ...args);
+	}
+});
+
 
 registerSingleton(ISCMService, SCMService, InstantiationType.Delayed);
 registerSingleton(ISCMViewService, SCMViewService, InstantiationType.Delayed);

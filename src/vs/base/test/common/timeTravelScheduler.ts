@@ -265,6 +265,7 @@ function setInterval(scheduler: Scheduler, handler: TimerHandler, interval: numb
 }
 
 function overwriteGlobals(scheduler: Scheduler): IDisposable {
+	// eslint-disable-next-line local/code-no-any-casts
 	globalThis.setTimeout = ((handler: TimerHandler, timeout?: number) => setTimeout(scheduler, handler, timeout)) as any;
 	globalThis.clearTimeout = (timeoutId: any) => {
 		if (typeof timeoutId === 'object' && timeoutId && 'dispose' in timeoutId) {
@@ -274,6 +275,7 @@ function overwriteGlobals(scheduler: Scheduler): IDisposable {
 		}
 	};
 
+	// eslint-disable-next-line local/code-no-any-casts
 	globalThis.setInterval = ((handler: TimerHandler, timeout: number) => setInterval(scheduler, handler, timeout)) as any;
 	globalThis.clearInterval = (timeoutId: any) => {
 		if (typeof timeoutId === 'object' && timeoutId && 'dispose' in timeoutId) {
@@ -306,11 +308,13 @@ function createDateClass(scheduler: Scheduler): DateConstructor {
 		if (args.length === 0) {
 			return new OriginalDate(scheduler.now);
 		}
+		// eslint-disable-next-line local/code-no-any-casts
 		return new (OriginalDate as any)(...args);
 	}
 
 	for (const prop in OriginalDate) {
 		if (OriginalDate.hasOwnProperty(prop)) {
+			// eslint-disable-next-line local/code-no-any-casts
 			(SchedulerDate as any)[prop] = (OriginalDate as any)[prop];
 		}
 	}
@@ -326,6 +330,7 @@ function createDateClass(scheduler: Scheduler): DateConstructor {
 	SchedulerDate.UTC = OriginalDate.UTC;
 	SchedulerDate.prototype.toUTCString = OriginalDate.prototype.toUTCString;
 
+	// eslint-disable-next-line local/code-no-any-casts
 	return SchedulerDate as any;
 }
 

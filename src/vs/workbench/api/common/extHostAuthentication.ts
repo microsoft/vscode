@@ -88,18 +88,6 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		const keys: (keyof vscode.AuthenticationGetSessionOptions)[] = Object.keys(options) as (keyof vscode.AuthenticationGetSessionOptions)[];
 		const optionsStr = keys.sort().map(key => `${key}:${!!options[key]}`).join(', ');
 
-		// old shape, remove next milestone
-		if (
-			'scopes' in scopesOrRequest
-			&& typeof scopesOrRequest.scopes === 'string'
-			&& !scopesOrRequest.fallbackScopes
-		) {
-			scopesOrRequest = {
-				wwwAuthenticate: scopesOrRequest.wwwAuthenticate,
-				fallbackScopes: scopesOrRequest.scopes
-			};
-		}
-
 		let singlerKey: string;
 		if (isAuthenticationWwwAuthenticateRequest(scopesOrRequest)) {
 			const challenge = scopesOrRequest as vscode.AuthenticationWwwAuthenticateRequest;
@@ -112,12 +100,14 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		}
 
 		return await this._getSessionTaskSingler.getOrCreate(singlerKey, async () => {
+			await this._proxy.$ensureProvider(providerId);
 			const extensionName = requestingExtension.displayName || requestingExtension.name;
 			return this._proxy.$getSession(providerId, scopesOrRequest, extensionId, extensionName, options);
 		});
 	}
 
 	async getAccounts(providerId: string) {
+		await this._proxy.$ensureProvider(providerId);
 		return await this._proxy.$getAccounts(providerId);
 	}
 

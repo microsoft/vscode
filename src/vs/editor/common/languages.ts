@@ -26,6 +26,7 @@ import { ContiguousMultilineTokens } from './tokens/contiguousMultilineTokens.js
 import { localize } from '../../nls.js';
 import { ExtensionIdentifier } from '../../platform/extensions/common/extensions.js';
 import { IMarkerData } from '../../platform/markers/common/markers.js';
+import { EditDeltaInfo } from './textModelEditSource.js';
 
 /**
  * @internal
@@ -456,6 +457,7 @@ export namespace CompletionItemKinds {
 	const data = new Map<string, CompletionItemKind>();
 	data.set('method', CompletionItemKind.Method);
 	data.set('function', CompletionItemKind.Function);
+	// eslint-disable-next-line local/code-no-any-casts
 	data.set('constructor', <any>CompletionItemKind.Constructor);
 	data.set('field', CompletionItemKind.Field);
 	data.set('variable', CompletionItemKind.Variable);
@@ -886,7 +888,7 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 	 * Will be called when an item is shown.
 	 * @param updatedInsertText Is useful to understand bracket completion.
 	*/
-	handleItemDidShow?(completions: T, item: T['items'][number], updatedInsertText: string): void;
+	handleItemDidShow?(completions: T, item: T['items'][number], updatedInsertText: string, editDeltaInfo: EditDeltaInfo): void;
 
 	/**
 	 * Will be called when an item is partially accepted. TODO: also handle full acceptance here!
@@ -1018,6 +1020,7 @@ export type LifetimeSummary = {
 	timeUntilShown: number | undefined;
 	timeUntilProviderRequest: number;
 	timeUntilProviderResponse: number;
+	notShownReason: string | undefined;
 	editorType: string;
 	viewKind: string | undefined;
 	error: string | undefined;
@@ -1034,6 +1037,8 @@ export type LifetimeSummary = {
 	sameShapeReplacements?: boolean;
 	typingInterval: number;
 	typingIntervalCharacterCount: number;
+	selectedSuggestionInfo: boolean;
+	availableProviders: string;
 };
 
 export interface CodeAction {

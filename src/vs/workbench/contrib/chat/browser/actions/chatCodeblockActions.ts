@@ -188,6 +188,7 @@ export function registerChatCodeBlockActions() {
 					modelId: request?.modelId,
 					presentation: 'codeBlock',
 					applyCodeBlockSuggestionId: undefined,
+					source: undefined,
 				});
 			}
 		}
@@ -254,6 +255,7 @@ export function registerChatCodeBlockActions() {
 				modelId: request?.modelId,
 				presentation: 'codeBlock',
 				applyCodeBlockSuggestionId: undefined,
+				source: undefined,
 			});
 		}
 
@@ -410,6 +412,7 @@ export function registerChatCodeBlockActions() {
 					modelId: request?.modelId,
 					presentation: 'codeBlock',
 					applyCodeBlockSuggestionId: undefined,
+					source: undefined,
 				});
 			}
 		}

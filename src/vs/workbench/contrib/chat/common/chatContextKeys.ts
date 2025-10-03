@@ -45,6 +45,8 @@ export namespace ChatContextKeys {
 	 * True when the chat widget is locked to the coding agent session.
 	 */
 	export const lockedToCodingAgent = new RawContextKey<boolean>('lockedToCodingAgent', false, { type: 'boolean', description: localize('lockedToCodingAgent', "True when the chat widget is locked to the coding agent session.") });
+	export const withinEditSessionDiff = new RawContextKey<boolean>('withinEditSessionDiff', false, { type: 'boolean', description: localize('withinEditSessionDiff', "True when the chat widget dispatches to the edit session chat.") });
+	export const filePartOfEditSession = new RawContextKey<boolean>('filePartOfEditSession', false, { type: 'boolean', description: localize('filePartOfEditSession', "True when the chat widget is within a file with an edit session.") });
 
 	export const extensionParticipantRegistered = new RawContextKey<boolean>('chatPanelExtensionParticipantRegistered', false, { type: 'boolean', description: localize('chatPanelExtensionParticipantRegistered', "True when a default chat participant is registered for the panel from an extension.") });
 	export const panelParticipantRegistered = new RawContextKey<boolean>('chatPanelParticipantRegistered', false, { type: 'boolean', description: localize('chatParticipantRegistered', "True when a default chat participant is registered for the panel.") });
@@ -95,5 +97,13 @@ export namespace ChatContextKeyExprs {
 	export const inEditingMode = ContextKeyExpr.or(
 		ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Edit),
 		ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
+	);
+
+	/**
+	 * Context expression that indicates when the welcome/setup view should be shown
+	 */
+	export const chatSetupTriggerContext = ContextKeyExpr.or(
+		ChatContextKeys.Setup.installed.negate(),
+		ChatContextKeys.Entitlement.canSignUp
 	);
 }

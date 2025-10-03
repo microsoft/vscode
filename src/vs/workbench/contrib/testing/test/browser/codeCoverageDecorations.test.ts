@@ -16,6 +16,7 @@ import { CoverageDetails, DetailType } from '../../common/testTypes.js';
 suite('Code Coverage Decorations', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	// eslint-disable-next-line local/code-no-any-casts
 	const textModel = { getValueInRange: () => '' } as any as ITextModel;
 	const assertRanges = async (model: CoverageDetailsModel) => await assertSnapshot(model.ranges.map(r => ({
 		range: r.range.toString(),

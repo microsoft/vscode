@@ -6,7 +6,7 @@
 import type { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable, toDisposable, type IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
 import { waitForIdle, waitForIdleWithPromptHeuristics, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
@@ -20,7 +20,7 @@ import { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
  */
 export class NoneExecuteStrategy implements ITerminalExecuteStrategy {
 	readonly type = 'none';
-	private _startMarker: IXtermMarker | undefined;
+	private readonly _startMarker = new MutableDisposable<IXtermMarker>();
 
 
 	private readonly _onDidCreateStartMarker = new Emitter<IXtermMarker | undefined>;
@@ -54,13 +54,31 @@ export class NoneExecuteStrategy implements ITerminalExecuteStrategy {
 				throw new CancellationError();
 			}
 
-			// Record where the command started. If the marker gets disposed, re-created it where
+			// Record where the command started. If the marker gets disposed, re-create it where
 			// the cursor is. This can happen in prompts where they clear the line and rerender it
 			// like powerlevel10k's transient prompt
-			this._onDidCreateStartMarker.fire(this._startMarker = store.add(xterm.raw.registerMarker()));
-			store.add(this._startMarker.onDispose(() => {
-				this._log(`Start marker was disposed, recreating`);
-				this._onDidCreateStartMarker.fire(this._startMarker = store.add(xterm.raw.registerMarker()));
+			const markerListener = new MutableDisposable<IDisposable>();
+			const recreateStartMarker = () => {
+				if (store.isDisposed) {
+					return;
+				}
+				const marker = xterm.raw.registerMarker();
+				this._startMarker.value = marker ?? undefined;
+				this._onDidCreateStartMarker.fire(marker);
+				if (!marker) {
+					markerListener.clear();
+					return;
+				}
+				markerListener.value = marker.onDispose(() => {
+					this._log(`Start marker was disposed, recreating`);
+					recreateStartMarker();
+				});
+			};
+			recreateStartMarker();
+			store.add(toDisposable(() => {
+				markerListener.dispose();
+				this._startMarker.clear();
+				this._onDidCreateStartMarker.fire(undefined);
 			}));
 
 			if (this._hasReceivedUserInput()) {
@@ -91,7 +109,7 @@ export class NoneExecuteStrategy implements ITerminalExecuteStrategy {
 			let output: string | undefined;
 			const additionalInformationLines: string[] = [];
 			try {
-				output = xterm.getContentsAsText(this._startMarker, endMarker);
+				output = xterm.getContentsAsText(this._startMarker.value, endMarker);
 				this._log('Fetched output via markers');
 			} catch {
 				this._log('Failed to fetch output via markers');

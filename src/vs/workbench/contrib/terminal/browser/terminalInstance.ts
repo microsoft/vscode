@@ -2142,6 +2142,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (isWindows) {
 			for (let i = this.xterm.raw.buffer.active.viewportY; i < this.xterm.raw.buffer.active.length; i++) {
 				const line = this.xterm.raw.buffer.active.getLine(i);
+				// eslint-disable-next-line local/code-no-any-casts
 				(line as any)._line.isWrapped = false;
 			}
 		}
@@ -2251,11 +2252,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return this._processManager.updateProperty(type, value);
 	}
 
-	async rename(title?: string) {
-		this._setTitle(title, TitleEventSource.Api);
+	async rename(title?: string, source?: TitleEventSource) {
+		this._setTitle(title, source ?? TitleEventSource.Api);
 	}
 
 	private _setTitle(title: string | undefined, eventSource: TitleEventSource): void {
+		if ((this._shellLaunchConfig?.type === 'Task' || this._titleSource === TitleEventSource.Api) && eventSource === TitleEventSource.Process) {
+			return;
+		}
+
 		const reset = !title;
 		title = this._updateTitleProperties(title, eventSource);
 		const titleChanged = title !== this._title;

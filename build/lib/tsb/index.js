@@ -134,10 +134,12 @@ function create(projectPath, existingOptions, config, onError = _defaultOnError)
         const transpiler = !config.transpileWithEsbuild
             ? new transpiler_1.TscTranspiler(logFn, printDiagnostic, projectPath, cmdLine)
             : new transpiler_1.ESBuildTranspiler(logFn, printDiagnostic, projectPath, cmdLine);
+        // eslint-disable-next-line local/code-no-any-casts
         result = (() => createTranspileStream(transpiler));
     }
     else {
         const _builder = builder.createTypeScriptBuilder({ logFn }, projectPath, cmdLine);
+        // eslint-disable-next-line local/code-no-any-casts
         result = ((token) => createCompileStream(_builder, token));
     }
     result.src = (opts) => {

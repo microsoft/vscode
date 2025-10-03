@@ -252,11 +252,14 @@ export class PortsAttributes extends Disposable {
 	}
 
 	private hasStartEnd(value: number | PortRange | RegExp | HostAndPort): value is PortRange {
+		// eslint-disable-next-line local/code-no-any-casts
 		return ((<any>value).start !== undefined) && ((<any>value).end !== undefined);
 	}
 
 	private hasHostAndPort(value: number | PortRange | RegExp | HostAndPort): value is HostAndPort {
+		// eslint-disable-next-line local/code-no-any-casts
 		return ((<any>value).host !== undefined) && ((<any>value).port !== undefined)
+			// eslint-disable-next-line local/code-no-any-casts
 			&& isString((<any>value).host) && isNumber((<any>value).port);
 	}
 
@@ -292,6 +295,7 @@ export class PortsAttributes extends Disposable {
 			if (attributesKey === undefined) {
 				continue;
 			}
+			// eslint-disable-next-line local/code-no-any-casts
 			const setting = (<any>settingValue)[attributesKey];
 			let key: number | PortRange | RegExp | HostAndPort | undefined = undefined;
 			if (Number(attributesKey)) {
@@ -328,6 +332,7 @@ export class PortsAttributes extends Disposable {
 			});
 		}
 
+		// eslint-disable-next-line local/code-no-any-casts
 		const defaults = <any>this.configurationService.getValue(PortsAttributes.DEFAULTS);
 		if (defaults) {
 			this.defaultPortAttributes = {
@@ -390,6 +395,7 @@ export class PortsAttributes extends Disposable {
 			newRemoteValue[`${port}`] = {};
 		}
 		for (const attribute in attributes) {
+			// eslint-disable-next-line local/code-no-any-casts
 			newRemoteValue[`${port}`][attribute] = (<any>attributes)[attribute];
 		}
 

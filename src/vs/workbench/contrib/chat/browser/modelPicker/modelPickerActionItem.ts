@@ -75,8 +75,8 @@ function getModelPickerActionBarActionProvider(commandService: ICommandService, 
 				});
 			}
 
-			// Add upgrade option if entitlement is free
-			if (chatEntitlementService.entitlement === ChatEntitlement.Free) {
+			// Add sign-in / upgrade option if entitlement is anonymous / free
+			if (chatEntitlementService.anonymous || chatEntitlementService.entitlement === ChatEntitlement.Free) {
 				additionalActions.push({
 					id: 'moreModels',
 					label: localize('chat.moreModels', "Add Premium Models"),
@@ -84,7 +84,7 @@ function getModelPickerActionBarActionProvider(commandService: ICommandService, 
 					tooltip: localize('chat.moreModels.tooltip', "Add premium models"),
 					class: undefined,
 					run: () => {
-						const commandId = 'workbench.action.chat.upgradePlan';
+						const commandId = chatEntitlementService.anonymous ? 'workbench.action.chat.triggerSetup' : 'workbench.action.chat.upgradePlan';
 						commandService.executeCommand(commandId);
 					}
 				});

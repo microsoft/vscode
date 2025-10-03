@@ -310,6 +310,7 @@ export class Derived<T, TChangeSummary = any, TChange = void> extends BaseObserv
 				shouldReact = this._changeTracker ? this._changeTracker.handleChange({
 					changedObservable: observable,
 					change,
+					// eslint-disable-next-line local/code-no-any-casts
 					didChange: (o): this is any => o === observable as any,
 				}, this._changeSummary!) : true;
 			} catch (e) {
@@ -410,6 +411,7 @@ export class Derived<T, TChangeSummary = any, TChange = void> extends BaseObserv
 	}
 
 	public debugSetValue(newValue: unknown) {
+		// eslint-disable-next-line local/code-no-any-casts
 		this._value = newValue as any;
 	}
 

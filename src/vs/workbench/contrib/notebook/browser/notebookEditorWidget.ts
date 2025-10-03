@@ -105,6 +105,7 @@ import { NotebookHorizontalTracker } from './viewParts/notebookHorizontalTracker
 import { NotebookCellEditorPool } from './view/notebookCellEditorPool.js';
 import { InlineCompletionsController } from '../../../../editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController.js';
 import { NotebookCellLayoutManager } from './notebookCellLayoutManager.js';
+import { FloatingEditorToolbar } from '../../../../editor/contrib/floatingMenu/browser/floatingMenu.js';
 
 const $ = DOM.$;
 
@@ -113,6 +114,7 @@ export function getDefaultNotebookCreationOptions(): INotebookEditorCreationOpti
 	const skipContributions = [
 		'editor.contrib.review',
 		FloatingEditorClickMenu.ID,
+		FloatingEditorToolbar.ID,
 		'editor.contrib.dirtydiff',
 		'editor.contrib.testingOutputPeek',
 		'editor.contrib.testingDecorations',

@@ -27,7 +27,7 @@ import { TestLoggerService, TestStorageService } from '../../../../test/common/w
 import { McpRegistry } from '../../common/mcpRegistry.js';
 import { IMcpHostDelegate, IMcpMessageTransport } from '../../common/mcpRegistryTypes.js';
 import { McpServerConnection } from '../../common/mcpServerConnection.js';
-import { LazyCollectionState, McpCollectionDefinition, McpServerDefinition, McpServerTransportStdio, McpServerTransportType, McpServerTrust, McpStartServerInteraction } from '../../common/mcpTypes.js';
+import { LazyCollectionState, McpCollectionDefinition, McpServerDefinition, McpServerLaunch, McpServerTransportStdio, McpServerTransportType, McpServerTrust, McpStartServerInteraction } from '../../common/mcpTypes.js';
 import { TestMcpMessageTransport } from './mcpRegistryTypes.js';
 
 class TestConfigurationResolverService implements Partial<IConfigurationResolverService> {
@@ -65,6 +65,7 @@ class TestConfigurationResolverService implements Partial<IConfigurationResolver
 
 		// If variables are provided, include those too
 		for (const [k, v] of result.entries()) {
+			// eslint-disable-next-line local/code-no-any-casts
 			parsed.resolve({ id: '${' + k + '}' } as any, v);
 		}
 
@@ -74,6 +75,10 @@ class TestConfigurationResolverService implements Partial<IConfigurationResolver
 
 class TestMcpHostDelegate implements IMcpHostDelegate {
 	priority = 0;
+
+	substituteVariables(serverDefinition: McpServerDefinition, launch: McpServerLaunch): Promise<McpServerLaunch> {
+		return Promise.resolve(launch);
+	}
 
 	canStart(): boolean {
 		return true;
@@ -204,11 +209,13 @@ suite('Workbench - MCP - Registry', () => {
 		assert.strictEqual(registry.collections.get().length, 1);
 
 		configurationService.setUserConfiguration(mcpAccessConfig, McpAccessValue.None);
+		// eslint-disable-next-line local/code-no-any-casts
 		configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
 
 		assert.strictEqual(registry.collections.get().length, 0);
 
 		configurationService.setUserConfiguration(mcpAccessConfig, McpAccessValue.All);
+		// eslint-disable-next-line local/code-no-any-casts
 		configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
 	});
 
@@ -252,13 +259,16 @@ suite('Workbench - MCP - Registry', () => {
 
 		assert.ok(connection);
 		assert.strictEqual(connection.definition, definition);
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.strictEqual((connection.launchDefinition as any).command, '/test/workspace/cmd');
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.strictEqual((connection.launchDefinition as any).env.PATH, 'interactiveValue0');
 		connection.dispose();
 
 		const connection2 = await registry.resolveConnection({ collectionRef: testCollection, definitionRef: definition, logger, trustNonceBearer }) as McpServerConnection;
 
 		assert.ok(connection2);
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.strictEqual((connection2.launchDefinition as any).env.PATH, 'interactiveValue0');
 		connection2.dispose();
 
@@ -267,6 +277,7 @@ suite('Workbench - MCP - Registry', () => {
 		const connection3 = await registry.resolveConnection({ collectionRef: testCollection, definitionRef: definition, logger, trustNonceBearer }) as McpServerConnection;
 
 		assert.ok(connection3);
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.strictEqual((connection3.launchDefinition as any).env.PATH, 'interactiveValue4');
 		connection3.dispose();
 	});

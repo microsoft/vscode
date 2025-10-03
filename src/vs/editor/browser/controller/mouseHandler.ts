@@ -245,6 +245,7 @@ export class MouseHandler extends ViewEventHandler {
 		if (!this.viewHelper.viewDomNode.contains(target)) {
 			const shadowRoot = dom.getShadowRoot(this.viewHelper.viewDomNode);
 			if (shadowRoot) {
+				// eslint-disable-next-line local/code-no-any-casts
 				target = (<any>shadowRoot).elementsFromPoint(e.posx, e.posy).find(
 					(el: Element) => this.viewHelper.viewDomNode.contains(el)
 				);

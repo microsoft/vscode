@@ -46,14 +46,14 @@ import { NullWorkbenchAssignmentService } from '../../../../services/assignment/
 import { IExtensionService, nullExtensionDescription } from '../../../../services/extensions/common/extensions.js';
 import { TextModelResolverService } from '../../../../services/textmodelResolver/common/textModelResolverService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { TestViewsService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { TestChatEntitlementService, TestViewsService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { TestContextService, TestExtensionService } from '../../../../test/common/workbenchTestServices.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { IChatAccessibilityService, IChatWidget, IChatWidgetService } from '../../../chat/browser/chat.js';
 import { ChatInputBoxContentProvider } from '../../../chat/browser/chatEdinputInputContentProvider.js';
 import { ChatLayoutService } from '../../../chat/browser/chatLayoutService.js';
 import { ChatVariablesService } from '../../../chat/browser/chatVariables.js';
-import { ChatWidgetService } from '../../../chat/browser/chatWidget.js';
+import { ChatWidget, ChatWidgetService } from '../../../chat/browser/chatWidget.js';
 import { ChatAgentService, IChatAgentData, IChatAgentNameService, IChatAgentService } from '../../../chat/common/chatAgents.js';
 import { IChatEditingService, IChatEditingSession } from '../../../chat/common/chatEditingService.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
@@ -157,6 +157,7 @@ suite('InlineChatController', function () {
 			[IContextKeyService, new MockContextKeyService()],
 			[IViewsService, new class extends TestViewsService {
 				override async openView<T extends IView>(id: string, focus?: boolean | undefined): Promise<T | null> {
+					// eslint-disable-next-line local/code-no-any-casts
 					return { widget: chatWidget ?? null } as any;
 				}
 			}()],
@@ -191,7 +192,7 @@ suite('InlineChatController', function () {
 				}
 			}],
 			[IChatAccessibilityService, new class extends mock<IChatAccessibilityService>() {
-				override acceptResponse(response: IChatResponseViewModel | undefined, requestId: number): void { }
+				override acceptResponse(widget: ChatWidget, container: HTMLElement, response: IChatResponseViewModel | undefined, requestId: number): void { }
 				override acceptRequest(): number { return -1; }
 				override acceptElicitation(): void { }
 			}],
@@ -223,6 +224,7 @@ suite('InlineChatController', function () {
 				override getTodos(sessionId: string): IChatTodo[] { return []; }
 				override setTodos(sessionId: string, todos: IChatTodo[]): void { }
 			}],
+			[IChatEntitlementService, new SyncDescriptor(TestChatEntitlementService)],
 		);
 
 		instaService = store.add((store.add(workbenchInstantiationService(undefined, store))).createChild(serviceCollection));
@@ -620,9 +622,10 @@ suite('InlineChatController', function () {
 		store.add(targetModel);
 		chatWidget = new class extends mock<IChatWidget>() {
 			override get viewModel() {
+				// eslint-disable-next-line local/code-no-any-casts
 				return { model: targetModel } as any;
 			}
-			override focusLastMessage() { }
+			override focusResponseItem() { }
 		};
 
 		const r = ctrl.joinCurrentRun();
@@ -668,9 +671,10 @@ suite('InlineChatController', function () {
 		store.add(targetModel);
 		chatWidget = new class extends mock<IChatWidget>() {
 			override get viewModel() {
+				// eslint-disable-next-line local/code-no-any-casts
 				return { model: targetModel } as any;
 			}
-			override focusLastMessage() { }
+			override focusResponseItem() { }
 		};
 
 		const r = ctrl.joinCurrentRun();

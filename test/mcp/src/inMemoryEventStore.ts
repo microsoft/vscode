@@ -2,8 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { EventStore } from '@modelcontextprotocol/sdk/server/streamableHttp';
-import { JSONRPCMessage } from '@modelcontextprotocol/sdk/types';
+import { EventStore } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { JSONRPCMessage } from '@modelcontextprotocol/sdk/types.js';
 
 /**
  * Simple in-memory implementation of the EventStore interface for resumability

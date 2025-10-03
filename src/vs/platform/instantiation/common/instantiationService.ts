@@ -325,6 +325,7 @@ export class InstantiationService implements IInstantiationService {
 				// early listeners that we kept are now being subscribed to
 				// the real service
 				for (const [key, values] of earlyListeners) {
+					// eslint-disable-next-line local/code-no-any-casts
 					const candidate = <Event<any>>(<any>result)[key];
 					if (typeof candidate === 'function') {
 						for (const value of values) {

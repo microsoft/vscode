@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+// version: 2
+
 declare module 'vscode' {
 	/**
 	 * Represents the status of a chat session.
@@ -34,6 +36,13 @@ declare module 'vscode' {
 		readonly onDidChangeChatSessionItems: Event<void>;
 
 		/**
+		 * Event that the provider can fire to signal that the current (original) chat session should be replaced with a new (modified) chat session.
+		 * The UI can use this information to gracefully migrate the user to the new session.
+		 */
+		readonly onDidCommitChatSessionItem: Event<{ original: ChatSessionItem /** untitled */; modified: ChatSessionItem /** newly created */ }>;
+
+		/**
+		 * DEPRECATED: Will be removed!
 		 * Creates a new chat session.
 		 *
 		 * @param options Options for the new session including an optional initial prompt and history
@@ -45,16 +54,6 @@ declare module 'vscode' {
 			 * The chat request that initiated the session creation
 			 */
 			readonly request: ChatRequest;
-
-			/**
-			 * Initial prompt to initiate the session
-			 */
-			readonly prompt?: string;
-
-			/**
-			 * History to initialize the session with
-			 */
-			readonly history?: ReadonlyArray<ChatRequestTurn | ChatResponseTurn>;
 
 			/**
 			 * Additional metadata to use for session creation
@@ -190,7 +189,20 @@ declare module 'vscode' {
 		 *
 		 * @returns A disposable that unregisters the provider when disposed.
 		 */
-		export function registerChatSessionContentProvider(chatSessionType: string, provider: ChatSessionContentProvider, capabilities?: ChatSessionCapabilities): Disposable;
+		export function registerChatSessionContentProvider(chatSessionType: string, provider: ChatSessionContentProvider, chatParticipant: ChatParticipant, capabilities?: ChatSessionCapabilities): Disposable;
+	}
+
+	export interface ChatContext {
+		readonly chatSessionContext?: ChatSessionContext;
+		readonly chatSummary?: {
+			readonly prompt?: string;
+			readonly history?: string;
+		};
+	}
+
+	export interface ChatSessionContext {
+		readonly chatSessionItem: ChatSessionItem; // Maps to URI of chat session editor (could be 'untitled-1', etc..)
+		readonly isUntitled: boolean;
 	}
 
 	export interface ChatSessionCapabilities {

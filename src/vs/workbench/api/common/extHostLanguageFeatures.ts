@@ -194,6 +194,7 @@ class CodeLensAdapter {
 
 function convertToLocationLinks(value: vscode.Location | vscode.Location[] | vscode.LocationLink[] | undefined | null): languages.LocationLink[] {
 	if (Array.isArray(value)) {
+		// eslint-disable-next-line local/code-no-any-casts
 		return (<any>value).map(typeConvert.DefinitionLink.from);
 	} else if (value) {
 		return [typeConvert.DefinitionLink.from(value)];
@@ -710,6 +711,7 @@ class DocumentFormattingAdapter {
 
 		const document = this._documents.getDocument(resource);
 
+		// eslint-disable-next-line local/code-no-any-casts
 		const value = await this._provider.provideDocumentFormattingEdits(document, <any>options, token);
 		if (Array.isArray(value)) {
 			return value.map(typeConvert.TextEdit.from);
@@ -730,6 +732,7 @@ class RangeFormattingAdapter {
 		const document = this._documents.getDocument(resource);
 		const ran = typeConvert.Range.to(range);
 
+		// eslint-disable-next-line local/code-no-any-casts
 		const value = await this._provider.provideDocumentRangeFormattingEdits(document, ran, <any>options, token);
 		if (Array.isArray(value)) {
 			return value.map(typeConvert.TextEdit.from);
@@ -742,6 +745,7 @@ class RangeFormattingAdapter {
 
 		const document = this._documents.getDocument(resource);
 		const _ranges = <Range[]>ranges.map(typeConvert.Range.to);
+		// eslint-disable-next-line local/code-no-any-casts
 		const value = await this._provider.provideDocumentRangesFormattingEdits(document, _ranges, <any>options, token);
 		if (Array.isArray(value)) {
 			return value.map(typeConvert.TextEdit.from);
@@ -764,6 +768,7 @@ class OnTypeFormattingAdapter {
 		const document = this._documents.getDocument(resource);
 		const pos = typeConvert.Position.to(position);
 
+		// eslint-disable-next-line local/code-no-any-casts
 		const value = await this._provider.provideOnTypeFormattingEdits(document, pos, ch, <any>options, token);
 		if (Array.isArray(value)) {
 			return value.map(typeConvert.TextEdit.from);

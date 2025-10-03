@@ -10,7 +10,7 @@ import { IContextKey, IContextKeyService } from '../../../../platform/contextkey
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { ITerminalConfigurationService, ITerminalGroupService, ITerminalInstance, ITerminalService, TerminalDataTransfers } from './terminal.js';
+import { ITerminalConfigurationService, ITerminalGroupService, ITerminalInstance, ITerminalService, ITerminalEditingService, TerminalDataTransfers } from './terminal.js';
 import { localize } from '../../../../nls.js';
 import * as DOM from '../../../../base/browser/dom.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -81,6 +81,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
+		@ITerminalEditingService private readonly _terminalEditingService: ITerminalEditingService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IDecorationsService decorationsService: IDecorationsService,
 		@IThemeService private readonly _themeService: IThemeService,
@@ -154,7 +155,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 				await instance.focusWhenReady();
 			}
 
-			if (this._terminalService.getEditingTerminal()?.instanceId === e.element?.instanceId) {
+			if (this._terminalEditingService.getEditingTerminal()?.instanceId === e.element?.instanceId) {
 				return;
 			}
 
@@ -166,7 +167,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		// on left click, if focus mode = single click, focus the element
 		// unless multi-selection is in progress
 		this.disposables.add(this.onMouseClick(async e => {
-			if (this._terminalService.getEditingTerminal()?.instanceId === e.element?.instanceId) {
+			if (this._terminalEditingService.getEditingTerminal()?.instanceId === e.element?.instanceId) {
 				return;
 			}
 
@@ -220,7 +221,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 	}
 
 	refresh(cancelEditing: boolean = true): void {
-		if (cancelEditing && this._terminalService.isEditable(undefined)) {
+		if (cancelEditing && this._terminalEditingService.isEditable(undefined)) {
 			this.domFocus();
 		}
 
@@ -258,6 +259,7 @@ class TerminalTabsRenderer extends Disposable implements IListRenderer<ITerminal
 		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
+		@ITerminalEditingService private readonly _terminalEditingService: ITerminalEditingService,
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IListService private readonly _listService: IListService,
@@ -405,7 +407,7 @@ class TerminalTabsRenderer extends Disposable implements IListRenderer<ITerminal
 			},
 			extraClasses
 		});
-		const editableData = this._terminalService.getEditableData(instance);
+		const editableData = this._terminalEditingService.getEditableData(instance);
 		template.label.element.classList.toggle('editable-tab', !!editableData);
 		if (editableData) {
 			template.elementDisposables.add(this._renderInputBox(template.label.element.querySelector('.monaco-icon-label-container')!, instance, editableData));
@@ -597,6 +599,7 @@ class TerminalTabsDragAndDrop extends Disposable implements IListDragAndDrop<ITe
 	constructor(
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
+		@ITerminalEditingService private readonly _terminalEditingService: ITerminalEditingService,
 		@IListService private readonly _listService: IListService,
 	) {
 		super();
@@ -604,7 +607,7 @@ class TerminalTabsDragAndDrop extends Disposable implements IListDragAndDrop<ITe
 	}
 
 	getDragURI(instance: ITerminalInstance): string | null {
-		if (this._terminalService.getEditingTerminal()?.instanceId === instance.instanceId) {
+		if (this._terminalEditingService.getEditingTerminal()?.instanceId === instance.instanceId) {
 			return null;
 		}
 
@@ -630,6 +633,7 @@ class TerminalTabsDragAndDrop extends Disposable implements IListDragAndDrop<ITe
 			return;
 		}
 		// Attach terminals type to event
+		// eslint-disable-next-line local/code-no-any-casts
 		const terminals: ITerminalInstance[] = dndData.filter(e => 'instanceId' in (e as any));
 		if (terminals.length > 0) {
 			originalEvent.dataTransfer.setData(TerminalDataTransfers.Terminals, JSON.stringify(terminals.map(e => e.resource.toString())));

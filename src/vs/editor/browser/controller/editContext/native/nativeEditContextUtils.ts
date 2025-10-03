@@ -78,9 +78,11 @@ export class FocusTracker extends Disposable {
 }
 
 export function editContextAddDisposableListener<K extends keyof EditContextEventHandlersEventMap>(target: EventTarget, type: K, listener: (this: GlobalEventHandlers, ev: EditContextEventHandlersEventMap[K]) => any, options?: boolean | AddEventListenerOptions): IDisposable {
+	// eslint-disable-next-line local/code-no-any-casts
 	target.addEventListener(type, listener as any, options);
 	return {
 		dispose() {
+			// eslint-disable-next-line local/code-no-any-casts
 			target.removeEventListener(type, listener as any);
 		}
 	};

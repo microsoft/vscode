@@ -163,6 +163,6 @@ async function moveToPanelChat(accessor: ServicesAccessor, model: IChatModel | u
 		for (const request of model.getRequests().slice()) {
 			await chatService.adoptRequest(widget.viewModel.model.sessionId, request);
 		}
-		widget.focusLastMessage();
+		widget.focusResponseItem();
 	}
 }

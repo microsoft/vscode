@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Disposable, EventEmitter, SourceControlHistoryItemRef, l10n, workspace, Uri, DiagnosticSeverity, env } from 'vscode';
-import { dirname, sep, relative } from 'path';
+import { dirname, normalize, sep, relative } from 'path';
 import { Readable } from 'stream';
 import { promises as fs, createReadStream } from 'fs';
 import byline from 'byline';
@@ -39,6 +39,7 @@ export function combinedDisposable(disposables: IDisposable[]): IDisposable {
 export const EmptyDisposable = toDisposable(() => null);
 
 export function fireEvent<T>(event: Event<T>): Event<T> {
+	// eslint-disable-next-line local/code-no-any-casts
 	return (listener: (e: T) => any, thisArgs?: any, disposables?: Disposable[]) => event(_ => (listener as any).call(thisArgs), null, disposables);
 }
 
@@ -110,6 +111,7 @@ export function once(fn: (...args: any[]) => any): (...args: any[]) => any {
 
 export function assign<T>(destination: T, ...sources: any[]): T {
 	for (const source of sources) {
+		// eslint-disable-next-line local/code-no-any-casts
 		Object.keys(source).forEach(key => (destination as any)[key] = source[key]);
 	}
 
@@ -236,6 +238,7 @@ export function readBytes(stream: Readable, bytes: number): Promise<Buffer> {
 			bytesRead += bytesToRead;
 
 			if (bytesRead === bytes) {
+				// eslint-disable-next-line local/code-no-any-casts
 				(stream as any).destroy(); // Will trigger the close event eventually
 			}
 		});
@@ -295,14 +298,26 @@ export function truncate(value: string, maxLength = 20, ellipsis = true): string
 	return value.length <= maxLength ? value : `${value.substring(0, maxLength)}${ellipsis ? '\u2026' : ''}`;
 }
 
+export function subject(value: string): string {
+	const index = value.indexOf('\n');
+	return index === -1 ? value : truncate(value, index, false);
+}
+
 function normalizePath(path: string): string {
 	// Windows & Mac are currently being handled
 	// as case insensitive file systems in VS Code.
 	if (isWindows || isMacintosh) {
-		return path.toLowerCase();
+		path = path.toLowerCase();
 	}
 
-	return path;
+	// Trailing separator
+	if (/[/\\]$/.test(path)) {
+		// Remove trailing separator
+		path = path.substring(0, path.length - 1);
+	}
+
+	// Normalize the path
+	return normalize(path);
 }
 
 export function isDescendant(parent: string, descendant: string): boolean {
@@ -310,11 +325,16 @@ export function isDescendant(parent: string, descendant: string): boolean {
 		return true;
 	}
 
+	// Normalize the paths
+	parent = normalizePath(parent);
+	descendant = normalizePath(descendant);
+
+	// Ensure parent ends with separator
 	if (parent.charAt(parent.length - 1) !== sep) {
 		parent += sep;
 	}
 
-	return normalizePath(descendant).startsWith(normalizePath(parent));
+	return descendant.startsWith(parent);
 }
 
 export function pathEquals(a: string, b: string): boolean {

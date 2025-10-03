@@ -14,7 +14,7 @@ import * as nls from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ISerializedCommandDetectionCapability, ITerminalCapabilityStore } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { IMergedEnvironmentVariableCollection } from '../../../../platform/terminal/common/environmentVariable.js';
-import { ICreateContributedTerminalProfileOptions, IExtensionTerminalProfile, IFixedTerminalDimensions, ITerminalLaunchResult, IProcessDataEvent, IProcessProperty, IProcessPropertyMap, IProcessReadyEvent, IProcessReadyWindowsPty, IShellLaunchConfig, ITerminalBackend, ITerminalContributions, ITerminalEnvironment, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalTabAction, ProcessPropertyType, TerminalIcon, TerminalLocationString, TitleEventSource } from '../../../../platform/terminal/common/terminal.js';
+import { ICreateContributedTerminalProfileOptions, IExtensionTerminalProfile, IFixedTerminalDimensions, ITerminalLaunchResult, IProcessDataEvent, IProcessProperty, IProcessPropertyMap, IProcessReadyEvent, IProcessReadyWindowsPty, IShellLaunchConfig, ITerminalBackend, ITerminalContributions, ITerminalEnvironment, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalTabAction, ProcessPropertyType, TerminalIcon, TerminalLocationConfigValue, TitleEventSource } from '../../../../platform/terminal/common/terminal.js';
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
 import { IEnvironmentVariableInfo } from './environmentVariable.js';
 import { IExtensionPointDescriptor } from '../../../services/extensions/common/extensionsRegistry.js';
@@ -196,7 +196,7 @@ export interface ITerminalConfiguration {
 		separator: string;
 	};
 	bellDuration: number;
-	defaultLocation: TerminalLocationString;
+	defaultLocation: TerminalLocationConfigValue;
 	customGlyphs: boolean;
 	persistentSessionReviveProcess: 'onExit' | 'onExitAndWindowClose' | 'never';
 	ignoreProcessNames: string[];
@@ -634,10 +634,10 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 export const terminalContributionsDescriptor: IExtensionPointDescriptor<ITerminalContributions> = {
 	extensionPoint: 'terminal',
 	defaultExtensionKind: ['workspace'],
-	activationEventsGenerator: (contribs: ITerminalContributions[], result: { push(item: string): void }) => {
+	activationEventsGenerator: function* (contribs: readonly ITerminalContributions[]) {
 		for (const contrib of contribs) {
 			for (const profileContrib of (contrib.profiles ?? [])) {
-				result.push(`onTerminalProfile:${profileContrib.id}`);
+				yield `onTerminalProfile:${profileContrib.id}`;
 			}
 		}
 	},

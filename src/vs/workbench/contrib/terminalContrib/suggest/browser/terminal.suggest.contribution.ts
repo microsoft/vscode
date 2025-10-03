@@ -153,11 +153,17 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		xterm.loadAddon(addon);
 		this._loadLspCompletionAddon(xterm);
 
+		let container: HTMLElement | null = null;
 		if (this._ctx.instance.target === TerminalLocation.Editor) {
-			addon.setContainerWithOverflow(xterm.element!);
+			container = xterm.element!;
 		} else {
-			addon.setContainerWithOverflow(dom.findParentWithClass(xterm.element!, 'panel')!);
+			container = dom.findParentWithClass(xterm.element!, 'panel');
+			if (!container) {
+				// Fallback for sidebar or unknown location
+				container = xterm.element!;
+			}
 		}
+		addon.setContainerWithOverflow(container);
 		addon.setScreen(xterm.element!.querySelector('.xterm-screen')!);
 
 		this.add(dom.addDisposableListener(this._ctx.instance.domElement, dom.EventType.FOCUS_OUT, (e) => {

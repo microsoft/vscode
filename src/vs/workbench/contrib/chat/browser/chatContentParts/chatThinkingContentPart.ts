@@ -14,14 +14,21 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { MarkdownRenderer, IMarkdownRenderResult } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
 import { localize } from '../../../../../nls.js';
+import { ButtonWithIcon } from '../../../../../base/browser/ui/button/button.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+
+function stripImSepMarkers(text: string): string {
+	return text.replace(/<\|im_sep\|>(\*{4,})?/g, '');
+}
 
 function extractTextFromPart(content: IChatThinkingPart): string {
 	const raw = Array.isArray(content.value) ? content.value.join('') : (content.value || '');
-	return raw.replace(/<\|im_sep\|>\*{4,}/g, '').trim();
+	return stripImSepMarkers(raw).trim();
 }
 
 function extractTitleFromThinkingContent(content: string): string | undefined {
-	const headerMatch = content.match(/^\*\*([^*]+)\*\*\s*\n\n/);
+	const headerMatch = content.match(/^\*\*([^*]+)\*\*\s*/);
 	return headerMatch ? headerMatch[1].trim() : undefined;
 }
 
@@ -35,10 +42,17 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private defaultTitle = localize('chat.thinking.header', 'Thinking...');
 	private readonly renderer: MarkdownRenderer;
 	private textContainer!: HTMLElement;
-	private currentHeaderElement: HTMLElement | undefined;
 	private markdownResult: IMarkdownRenderResult | undefined;
 	private wrapper!: HTMLElement;
 	private perItemCollapsedMode: boolean = false;
+	private fixedScrollingMode: boolean = false;
+	private fixedCollapsed: boolean = true;
+	private fixedScrollViewport: HTMLElement | undefined;
+	private fixedContainer: HTMLElement | undefined;
+	private headerButton: ButtonWithIcon | undefined;
+	private caret: HTMLElement | undefined;
+	private lastExtractedTitle: string | undefined;
+	private hasMultipleItems: boolean = false;
 
 	constructor(
 		content: IChatThinkingPart,
@@ -57,10 +71,14 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 		const mode = this.configurationService.getValue<string>('chat.agent.thinkingStyle') ?? 'none';
 		this.perItemCollapsedMode = mode === 'collapsedPerItem';
+		this.fixedScrollingMode = mode === 'fixedScrolling';
 
 		this.currentTitle = extractedTitle;
+		if (extractedTitle !== this.defaultTitle) {
+			this.lastExtractedTitle = extractedTitle;
+		}
 		this.currentThinkingValue = this.parseContent(initialText);
-		if (mode === 'expanded' || mode === 'collapsedPreview') {
+		if (mode === 'expanded' || mode === 'collapsedPreview' || mode === 'fixedScrolling') {
 			this.setExpanded(true);
 		} else if (mode === 'collapsed') {
 			this.setExpanded(false);
@@ -74,81 +92,121 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 				this.domNode.classList.add('chat-thinking-no-outer-header');
 				this._onDidChangeHeight.fire();
 			}
+		} else if (this.fixedScrollingMode) {
+			const header = this.domNode.querySelector('.chat-used-context-label');
+			if (header) {
+				header.remove();
+				this.domNode.classList.add('chat-thinking-no-outer-header', 'chat-thinking-fixed-mode');
+				this._onDidChangeHeight.fire();
+			}
+			this.currentTitle = this.defaultTitle;
 		}
 
 		const node = this.domNode;
 		node.classList.add('chat-thinking-box');
 		node.tabIndex = 0;
-
 	}
 
 	private parseContent(content: string): string {
-		let cleaned = content.replace(/<\|im_sep\|>\*{4,}/g, '').trim();
+		let cleaned = stripImSepMarkers(content).trim();
 		if (this.perItemCollapsedMode) {
 			cleaned = cleaned.replace(/^\*\*[^*]+\*\*\s*\n+(?:\s*\n)*/, '').trim();
 		}
 		return cleaned;
 	}
 
+	// @TODO: @justschen Convert to template for each setting?
 	protected override initContent(): HTMLElement {
 		this.wrapper = $('.chat-used-context-list.chat-thinking-collapsible');
 		this.wrapper.classList.toggle('chat-thinking-per-item-mode', this.perItemCollapsedMode);
 		if (this.perItemCollapsedMode) {
 			this.createThinkingItemContainer();
+			if (this.currentThinkingValue) {
+				this.renderMarkdown(this.currentThinkingValue);
+			}
+			return this.wrapper;
+		} else if (this.fixedScrollingMode) {
+			this.fixedContainer = $('.chat-thinking-fixed-height-controller');
+			const header = $('.chat-thinking-fixed-header');
+
+			const button = this.headerButton = this._register(new ButtonWithIcon(header, {}));
+			button.label = this.defaultTitle;
+			button.icon = ThemeIcon.modify(Codicon.loading, 'spin');
+			this.caret = $('.codicon.codicon-chevron-right.chat-thinking-fixed-caret');
+			button.element.appendChild(this.caret);
+
+			this.fixedScrollViewport = this.wrapper;
+			this.textContainer = $('.chat-thinking-item.markdown-content');
+			this.wrapper.appendChild(this.textContainer);
+
+			this.fixedContainer.appendChild(header);
+			this.fixedContainer.appendChild(this.wrapper);
+
+			this._register(button.onDidClick(() => this.setFixedCollapsedState(!this.fixedCollapsed, true)));
+
+			if (this.currentThinkingValue) {
+				this.renderMarkdown(this.currentThinkingValue);
+			}
+			this.setFixedCollapsedState(this.fixedCollapsed);
+			return this.fixedContainer;
 		} else {
 			this.textContainer = $('.chat-thinking-item.markdown-content');
 			this.wrapper.appendChild(this.textContainer);
+			if (this.currentThinkingValue) {
+				this.renderMarkdown(this.currentThinkingValue);
+			}
+			return this.wrapper;
 		}
-		if (this.currentThinkingValue) {
-			this.renderMarkdown(this.currentThinkingValue);
+	}
+
+	// handles chevrons outside of icons because the icon is already filled
+	private setFixedCollapsedState(collapsed: boolean, userInitiated?: boolean): void {
+		if (!this.fixedScrollingMode || !this.fixedContainer) {
+			return;
 		}
-		return this.wrapper;
+		this.fixedCollapsed = collapsed;
+		this.fixedContainer.classList.toggle('collapsed', collapsed);
+		if (this.caret) {
+			this.caret.classList.toggle('codicon-chevron-right', collapsed);
+			this.caret.classList.toggle('codicon-chevron-down', !collapsed);
+		}
+		if (this.fixedCollapsed && userInitiated) {
+			const fixedScrollViewport = this.fixedScrollViewport ?? this.wrapper;
+			if (fixedScrollViewport) {
+				fixedScrollViewport.scrollTop = fixedScrollViewport.scrollHeight;
+			}
+		}
+		this._onDidChangeHeight.fire();
 	}
 
 	private createThinkingItemContainer(): void {
 		const itemWrapper = $('.chat-thinking-item-wrapper');
-
 		const header = $('.chat-thinking-item-header');
-
-		const labelSpan = document.createElement('span');
-		labelSpan.classList.add('chat-thinking-item-header-label');
-		labelSpan.textContent = this.currentTitle ?? this.defaultTitle;
-		header.appendChild(labelSpan);
-
-		const icon = $('.codicon.codicon-chevron-right.chat-thinking-item-caret', { 'aria-hidden': 'true' });
-		header.appendChild(icon);
-
-		header.tabIndex = 0;
+		const button = this.headerButton = this._register(new ButtonWithIcon(header, {}));
+		button.label = this.currentTitle ?? this.defaultTitle;
+		button.icon = Codicon.chevronRight;
 
 		const body = $('.chat-thinking-item.markdown-content');
 
-		const toggle = () => {
-			const collapsed = body.classList.toggle('hidden');
+		const setPerItemCollapsedState = (collapsed: boolean) => {
+			body.classList.toggle('hidden', collapsed);
 			itemWrapper.classList.toggle('collapsed', collapsed);
-			icon.classList.toggle('codicon-chevron-right', collapsed);
-			icon.classList.toggle('codicon-chevron-down', !collapsed);
+			if (this.headerButton) {
+				this.headerButton.icon = collapsed ? Codicon.chevronRight : Codicon.chevronDown;
+			}
 			this._onDidChangeHeight.fire();
 		};
 
-		header.addEventListener('click', toggle);
-		header.addEventListener('keydown', e => {
-			if (e.key === 'Enter' || e.key === ' ') {
-				e.preventDefault();
-				toggle();
-			}
-		});
+		const toggle = () => setPerItemCollapsedState(!body.classList.contains('hidden'));
+
+		this._register(button.onDidClick(() => toggle()));
 
 		itemWrapper.appendChild(header);
 		itemWrapper.appendChild(body);
 		this.wrapper.appendChild(itemWrapper);
 
-		body.classList.toggle('hidden', this.perItemCollapsedMode);
-		itemWrapper.classList.toggle('collapsed', this.perItemCollapsedMode);
-		icon.classList.toggle('codicon-chevron-right', this.perItemCollapsedMode);
-		icon.classList.toggle('codicon-chevron-down', !this.perItemCollapsedMode);
-
+		setPerItemCollapsedState(this.perItemCollapsedMode);
 		this.textContainer = body;
-		this.currentHeaderElement = header;
 	}
 
 	private renderMarkdown(content: string): void {
@@ -184,19 +242,68 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		this.currentThinkingValue = next;
 		this.renderMarkdown(next);
 
-		// if title is present now (e.g., arrived mid-stream), update the header label
-		const maybeTitle = extractTitleFromThinkingContent(raw);
-		if (maybeTitle && maybeTitle !== this.currentTitle) {
-			this.setTitle(maybeTitle);
-			this.currentTitle = maybeTitle;
+		if (this.fixedScrollingMode) {
+			const container = this.fixedScrollViewport ?? this.textContainer;
+			if (container) {
+				container.scrollTop = container.scrollHeight;
+			}
+		}
+
+		const extractedTitle = extractTitleFromThinkingContent(raw);
+		if (!extractedTitle || extractedTitle === this.currentTitle) {
+			return;
+		}
+		this.lastExtractedTitle = extractedTitle;
+
+		if (this.fixedScrollingMode && this.headerButton) {
+			const label = localize('chat.thinking.fixed.progress.withHeader', 'Thinking: {0}{1}', this.lastExtractedTitle, (!this.perItemCollapsedMode && this.hasMultipleItems) ? '...' : '');
+			this.headerButton.label = label;
+		} else if (!this.perItemCollapsedMode) {
+			const label = localize('chat.thinking.progress.withHeader', '{0}{1}', this.lastExtractedTitle, (!this.perItemCollapsedMode && this.hasMultipleItems) ? '...' : '');
+			this.setTitle(label);
+			this.currentTitle = label;
+		} else {
+			this.setTitle(this.lastExtractedTitle);
+			this.currentTitle = this.lastExtractedTitle;
 		}
 	}
 
 	public finalizeTitleIfDefault(): void {
+		if (this.fixedScrollingMode) {
+			let finalLabel: string;
+			if (this.lastExtractedTitle) {
+				finalLabel = localize('chat.thinking.fixed.done.withHeader', '{0}{1}', this.lastExtractedTitle, (!this.perItemCollapsedMode && this.hasMultipleItems) ? '...' : '');
+			} else {
+				finalLabel = localize('chat.thinking.fixed.done.generic', 'Thought for a few seconds');
+			}
+			if (this.headerButton) {
+				this.headerButton.label = finalLabel;
+				this.headerButton.icon = Codicon.passFilled;
+			}
+
+			this.currentTitle = finalLabel;
+
+			if (this.fixedContainer) {
+				this.fixedContainer.classList.toggle('finished', true);
+				this.setFixedCollapsedState(true);
+			}
+			return;
+		}
+
 		if (this.currentTitle === this.defaultTitle) {
-			const done = localize('chat.pinned.thinking.header.done', 'Thought for a few seconds...');
-			this.setTitle(done);
-			this.currentTitle = done;
+			const suffix = localize('chat.thinking.fixed.done.generic', 'Thought for a few seconds');
+			this.setTitle(suffix);
+			this.currentTitle = suffix;
+		}
+
+		if (this.fixedScrollingMode) {
+			if (this.fixedContainer) {
+				this.fixedContainer.classList.add('finished');
+				this.setFixedCollapsedState(true);
+				if (this.headerButton) {
+					this.headerButton.icon = Codicon.passFilled;
+				}
+			}
 		}
 	}
 
@@ -206,6 +313,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 	// makes a new text container. when we update, we now update this container.
 	public setupThinkingContainer(content: IChatThinkingPart, context: IChatContentPartRenderContext) {
+		this.hasMultipleItems = true;
 		if (this.perItemCollapsedMode) {
 			this.createThinkingItemContainer();
 		} else {
@@ -217,16 +325,11 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	}
 
 	protected override setTitle(title: string): void {
-		if (!this.perItemCollapsedMode) {
+		if (!this.perItemCollapsedMode && !this.fixedScrollingMode) {
 			super.setTitle(title);
 		}
-		if (this.currentHeaderElement) {
-			const labelSpan = this.currentHeaderElement.querySelector('.chat-thinking-item-header-label');
-			if (labelSpan) {
-				labelSpan.textContent = title;
-			} else {
-				this.currentHeaderElement.textContent = title;
-			}
+		if (this.headerButton) {
+			this.headerButton.label = title;
 		}
 	}
 

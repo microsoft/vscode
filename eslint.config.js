@@ -82,10 +82,13 @@ export default tseslint.config(
 			'local/code-no-nls-in-standalone-editor': 'warn',
 			'local/code-no-potentially-unsafe-disposables': 'warn',
 			'local/code-no-dangerous-type-assertions': 'warn',
+			'local/code-no-any-casts': 'warn',
 			'local/code-no-standalone-editor': 'warn',
 			'local/code-no-unexternalized-strings': 'warn',
 			'local/code-must-use-super-dispose': 'warn',
 			'local/code-declare-service-brand': 'warn',
+			'local/code-no-reader-after-await': 'warn',
+			'local/code-no-observable-get-in-reactive-context': 'warn',
 			'local/code-no-deep-import-of-internal': ['error', { '.*Internal': true, 'searchExtTypesInternal': false }],
 			'local/code-layering': [
 				'warn',
@@ -170,6 +173,93 @@ export default tseslint.config(
 					'format': [
 						'PascalCase'
 					]
+				}
+			]
+		}
+	},
+	// vscode TS: strict no explicit `any`
+	{
+		files: [
+			'src/vs/base/common/extpath.ts',
+			'src/vs/base/common/glob.ts',
+			'src/vs/base/common/path.ts',
+			'src/vs/base/common/stream.ts',
+			'src/vs/base/node/pfs.ts',
+			'src/vs/base/parts/contextmenu/**',
+			// 'src/vs/base/parts/ipc/**',
+			// 'src/vs/base/parts/sandbox/**',
+			'src/vs/base/parts/storage/**',
+			'src/vs/platform/auxiliaryWindow/**',
+			// 'src/vs/platform/backup/**',
+			// 'src/vs/platform/editor/**',
+			// 'src/vs/platform/environment/**',
+			// 'src/vs/platform/files/**',
+			// 'src/vs/platform/ipc/**',
+			// 'src/vs/platform/launch/**',
+			// 'src/vs/platform/lifecycle/**',
+			// 'src/vs/platform/menubar/**',
+			// 'src/vs/platform/native/**',
+			// 'src/vs/platform/sharedProcess/**',
+			// 'src/vs/platform/state/**',
+			// 'src/vs/platform/storage/**',
+			// 'src/vs/platform/utilityProcess/**',
+			// 'src/vs/platform/window/**',
+			// 'src/vs/platform/windows/**',
+			// 'src/vs/platform/workspace/**',
+			// 'src/vs/platform/workspaces/**',
+			'src/bootstrap-cli.ts',
+			'src/bootstrap-esm.ts',
+			'src/bootstrap-fork.ts',
+			'src/bootstrap-import.ts',
+			'src/bootstrap-meta.ts',
+			'src/bootstrap-node.ts',
+			'src/bootstrap-server.ts',
+			'src/cli.ts',
+			'src/main.ts',
+			'src/server-cli.ts',
+			'src/server-main.ts',
+			'src/vs/code/**',
+			'src/vs/workbench/services/activity/**',
+			'src/vs/workbench/services/auxiliaryWindow/**',
+			'src/vs/workbench/services/chat/**',
+			'src/vs/workbench/services/contextmenu/**',
+			'src/vs/workbench/services/dialogs/**',
+			'src/vs/workbench/services/editor/**',
+			// 'src/vs/workbench/services/environment/**',
+			'src/vs/workbench/services/files/**',
+			'src/vs/workbench/services/filesConfiguration/**',
+			'src/vs/workbench/services/history/**',
+			'src/vs/workbench/services/host/**',
+			'src/vs/workbench/services/label/**',
+			'src/vs/workbench/services/layout/**',
+			'src/vs/workbench/services/lifecycle/**',
+			'src/vs/workbench/services/notification/**',
+			'src/vs/workbench/services/path/**',
+			'src/vs/workbench/services/progress/**',
+			// 'src/vs/workbench/services/storage/**',
+			// 'src/vs/workbench/services/textfile/**',
+			// 'src/vs/workbench/services/textmodelResolver/**',
+			// 'src/vs/workbench/services/untitled/**',
+			// 'src/vs/workbench/services/utilityProcess/**',
+			// 'src/vs/workbench/services/views/**',
+			// 'src/vs/workbench/services/workingCopy/**',
+			// 'src/vs/workbench/services/workspaces/**',
+			// 'src/vs/workbench/common/**',
+			// 'src/vs/workbench/browser/**',
+			// 'src/vs/workbench/electron-browser/**',
+			// 'src/vs/workbench/contrib/files/**',
+		],
+		languageOptions: {
+			parser: tseslint.parser,
+		},
+		plugins: {
+			'@typescript-eslint': tseslint.plugin,
+		},
+		rules: {
+			'@typescript-eslint/no-explicit-any': [
+				'warn',
+				{
+					'ignoreRestArgs': false
 				}
 			]
 		}
@@ -307,7 +397,8 @@ export default tseslint.config(
 						'terminate',
 						'trigger',
 						'unregister',
-						'write'
+						'write',
+						'commit'
 					]
 				}
 			]
@@ -824,6 +915,7 @@ export default tseslint.config(
 						'string_decoder',
 						'tas-client-umd',
 						'tls',
+						'undici',
 						'undici-types',
 						'url',
 						'util',
@@ -1421,6 +1513,7 @@ export default tseslint.config(
 	{
 		files: [
 			'extensions/markdown-language-features/**/*.ts',
+			'extensions/mermaid-chat-features/**/*.ts',
 			'extensions/media-preview/**/*.ts',
 			'extensions/simple-browser/**/*.ts',
 			'extensions/typescript-language-features/**/*.ts',
@@ -1440,6 +1533,10 @@ export default tseslint.config(
 					// Media preview
 					'extensions/simple-browser/tsconfig.json',
 					'extensions/simple-browser/preview-src/tsconfig.json',
+
+					// Mermaid chat features
+					'extensions/mermaid-chat-features/tsconfig.json',
+					'extensions/mermaid-chat-features/chat-webview-src/tsconfig.json',
 
 					// TypeScript
 					'extensions/typescript-language-features/tsconfig.json',

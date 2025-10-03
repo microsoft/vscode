@@ -10,10 +10,11 @@ import { CancellationError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { isNumber, isObject } from '../../../../../base/common/types.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { PromptInputState } from '../../../../../platform/terminal/common/capabilities/commandDetection/promptInputModel.js';
-import { ITerminalLogService, TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
+import { ITerminalLogService, ITerminalProfile, TerminalSettingId, type IShellLaunchConfig } from '../../../../../platform/terminal/common/terminal.js';
 import { ITerminalService, type ITerminalInstance } from '../../../terminal/browser/terminal.js';
 import { TerminalChatAgentToolsSettingId } from '../common/terminalChatAgentToolsConfiguration.js';
 
@@ -49,12 +50,21 @@ export class ToolTerminalCreator {
 	) {
 	}
 
-	async createTerminal(shell: string, token: CancellationToken): Promise<IToolTerminal> {
-		const instance = await this._createCopilotTerminal(shell);
+	async createTerminal(shellOrProfile: string | ITerminalProfile, token: CancellationToken): Promise<IToolTerminal> {
+		const instance = await this._createCopilotTerminal(shellOrProfile);
 		const toolTerminal: IToolTerminal = {
 			instance,
 			shellIntegrationQuality: ShellIntegrationQuality.None,
 		};
+
+		// Ensure the shell process launches successfully
+		const initResult = await Promise.any([
+			instance.processReady,
+			Event.toPromise(instance.onExit),
+		]);
+		if (!isNumber(initResult) && isObject(initResult) && 'message' in initResult) {
+			throw new Error(initResult.message);
+		}
 
 		// Wait for shell integration when the fallback case has not been hit or when shell
 		// integration injection is enabled. Note that it's possible for the fallback case to happen
@@ -126,17 +136,30 @@ export class ToolTerminalCreator {
 		}
 	}
 
-	private _createCopilotTerminal(shell: string) {
-		return this._terminalService.createTerminal({
-			config: {
-				executable: shell,
-				icon: ThemeIcon.fromId(Codicon.chatSparkle.id),
-				hideFromUser: true,
-				env: {
-					GIT_PAGER: 'cat', // avoid making `git diff` interactive when called from copilot
-				},
-			},
-		});
+	private _createCopilotTerminal(shellOrProfile: string | ITerminalProfile) {
+		const config: IShellLaunchConfig = {
+			icon: ThemeIcon.fromId(Codicon.chatSparkle.id),
+			hideFromUser: true,
+			env: {
+				// Avoid making `git diff` interactive when called from copilot
+				GIT_PAGER: 'cat',
+			}
+		};
+
+		if (typeof shellOrProfile === 'string') {
+			config.executable = shellOrProfile;
+		} else {
+			config.executable = shellOrProfile.path;
+			config.args = shellOrProfile.args;
+			config.icon = shellOrProfile.icon ?? config.icon;
+			config.color = shellOrProfile.color;
+			config.env = {
+				...config.env,
+				...shellOrProfile.env
+			};
+		}
+
+		return this._terminalService.createTerminal({ config });
 	}
 
 	private _waitForShellIntegration(

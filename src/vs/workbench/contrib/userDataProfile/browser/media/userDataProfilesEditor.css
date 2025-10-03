@@ -431,7 +431,7 @@
 	color: inherit !important;
 }
 
-.monaco-workbench:not(.reduce-motion) .profiles-editor .contents-container .profile-body .profile-tree .monaco-list-row:hover .profile-content-tree-header,
-.monaco-workbench:not(.reduce-motion) .profiles-editor .contents-container .profile-body .profile-tree .monaco-list-row:hover .profile-associations-table .monaco-table > .monaco-split-view2 {
+.monaco-workbench.monaco-enable-motion .profiles-editor .contents-container .profile-body .profile-tree .monaco-list-row:hover .profile-content-tree-header,
+.monaco-workbench.monaco-enable-motion .profiles-editor .contents-container .profile-body .profile-tree .monaco-list-row:hover .profile-associations-table .monaco-table > .monaco-split-view2 {
 	border-color: var(--vscode-tree-tableColumnsBorder) !important;
 }

@@ -15,6 +15,8 @@ parameters:
     type: string
 
 steps:
+  - template: ../common/checkout.yml@self
+
   - task: NodeTool@0
     inputs:
       versionSource: fromFile

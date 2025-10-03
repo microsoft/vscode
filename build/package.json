@@ -43,7 +43,7 @@
     "@types/xml2js": "0.0.33",
     "@vscode/iconv-lite-umd": "0.7.0",
     "@vscode/ripgrep": "^1.15.13",
-    "@vscode/vsce": "2.20.1",
+    "@vscode/vsce": "3.6.1",
     "ansi-colors": "^3.2.3",
     "byline": "^5.0.0",
     "debug": "^4.3.2",
@@ -71,5 +71,10 @@
   "optionalDependencies": {
     "tree-sitter-typescript": "^0.23.2",
     "vscode-gulp-watch": "^5.0.3"
+  },
+  "overrides": {
+    "path-scurry": {
+      "lru-cache": "11.2.1"
+    }
   }
 }

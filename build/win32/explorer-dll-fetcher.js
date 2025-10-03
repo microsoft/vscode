@@ -53,6 +53,7 @@ async function main(outputDir) {
     if (!outputDir) {
         throw new Error('Required build env not set');
     }
+    // eslint-disable-next-line local/code-no-any-casts
     await downloadExplorerDll(outputDir, product_json_1.default.quality, arch);
 }
 if (require.main === module) {
