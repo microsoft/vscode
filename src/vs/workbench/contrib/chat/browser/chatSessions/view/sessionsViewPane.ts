@@ -298,6 +298,7 @@ export class SessionsViewPane extends ViewPane {
 		// Use the existing ResourceLabels service for consistent styling
 		const renderer = this.instantiationService.createInstance(SessionsRenderer);
 		this._register(renderer);
+
 		const getResourceForElement = (element: ChatSessionItemWithProvider): URI | null => {
 			if (element.id === LocalChatSessionsProvider.CHAT_WIDGET_VIEW_ID) {
 				return null;
