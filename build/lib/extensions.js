@@ -151,6 +151,7 @@ function fromLocalWebpack(extensionPath, webpackConfigFileName, disableMangle) {
             path: filePath,
             stat: fs_1.default.statSync(filePath),
             base: extensionPath,
+            // eslint-disable-next-line local/code-no-any-casts
             contents: fs_1.default.createReadStream(filePath)
         }));
         // check for a webpack configuration files, then invoke webpack
@@ -235,6 +236,7 @@ function fromLocalNormal(extensionPath) {
             path: filePath,
             stat: fs_1.default.statSync(filePath),
             base: extensionPath,
+            // eslint-disable-next-line local/code-no-any-casts
             contents: fs_1.default.createReadStream(filePath)
         }));
         event_stream_1.default.readArray(files).pipe(result);
