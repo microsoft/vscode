@@ -20,9 +20,12 @@ import { workbenchInstantiationService } from '../../../../test/browser/workbenc
 import { LanguageModelToolsService } from '../../browser/languageModelToolsService.js';
 import { IChatModel } from '../../common/chatModel.js';
 import { IChatService, IChatToolInputInvocationData } from '../../common/chatService.js';
-import { IToolData, IToolImpl, IToolInvocation, ToolDataSource } from '../../common/languageModelToolsService.js';
+import { IToolData, IToolImpl, IToolInvocation, ToolDataSource, ToolSet } from '../../common/languageModelToolsService.js';
 import { MockChatService } from '../common/mockChatService.js';
 import { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
+import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
+import { ChatConfiguration } from '../../common/constants.js';
+import { URI } from '../../../../../base/common/uri.js';
 
 // --- Test helpers to reduce repetition and improve readability ---
 
@@ -100,6 +103,7 @@ suite('LanguageModelToolsService', () => {
 
 	setup(() => {
 		configurationService = new TestConfigurationService();
+		configurationService.setUserConfiguration(ChatConfiguration.ExtensionToolsEnabled, true);
 		const instaService = workbenchInstantiationService({
 			contextKeyService: () => store.add(new ContextKeyService(configurationService)),
 			configurationService: () => configurationService
@@ -109,6 +113,94 @@ suite('LanguageModelToolsService', () => {
 		instaService.stub(IChatService, chatService);
 		service = store.add(instaService.createInstance(LanguageModelToolsService));
 	});
+
+	function setupToolsForTest(service: LanguageModelToolsService, store: any) {
+
+		// Create a variety of tools and tool sets for testing
+		// Some with toolReferenceName, some without, some from extensions, mcp and user defined
+
+		const tool1: IToolData = {
+			id: 'tool1',
+			toolReferenceName: 'tool1RefName',
+			modelDescription: 'Test Tool 1',
+			displayName: 'Tool1 Display Name',
+			source: ToolDataSource.Internal,
+			canBeReferencedInPrompt: true,
+		};
+		store.add(service.registerToolData(tool1));
+
+		const tool2: IToolData = {
+			id: 'tool2',
+			modelDescription: 'Test Tool 2',
+			displayName: 'Tool2 Display Name',
+			source: ToolDataSource.Internal,
+			canBeReferencedInPrompt: true,
+		};
+		store.add(service.registerToolData(tool2));
+
+		/** Extension Tool 1 */
+
+		const extTool1: IToolData = {
+			id: 'extTool1',
+			toolReferenceName: 'extTool1RefName',
+			modelDescription: 'Test Extension Tool 1',
+			displayName: 'ExtTool1 Display Name',
+			source: { type: 'extension', label: 'My Extension', extensionId: new ExtensionIdentifier('my.extension') },
+			canBeReferencedInPrompt: true,
+		};
+		store.add(service.registerToolData(extTool1));
+
+		/** Internal Tool Set with internalToolSetTool1 */
+
+		const internalToolSetTool1: IToolData = {
+			id: 'internalToolSetTool1',
+			toolReferenceName: 'internalToolSetTool1RefName',
+			modelDescription: 'Test Internal Tool Set 1',
+			displayName: 'InternalToolSet1 Display Name',
+			source: ToolDataSource.Internal,
+		};
+		store.add(service.registerToolData(internalToolSetTool1));
+
+		const internalToolSet = store.add(service.createToolSet(
+			ToolDataSource.Internal,
+			'internalToolSet',
+			'internalToolSetRefName',
+			{ description: 'Test Set' }
+		));
+		store.add(internalToolSet.addTool(internalToolSetTool1));
+
+		/** User Tool Set with tool1 */
+
+		const userToolSet = store.add(service.createToolSet(
+			{ type: 'user', label: "User", file: URI.file('/test/userToolSet.json') },
+			'userToolSet',
+			'userToolSetRefName',
+			{ description: 'Test Set' }
+		));
+		store.add(userToolSet.addTool(tool2));
+
+		/** MCP tool in a MCP tool set */
+
+		const mcpDataSource: ToolDataSource = { type: 'mcp', label: 'My MCP Server', serverLabel: "MCP Server", instructions: undefined, collectionId: 'testMCPCollection', definitionId: 'testMCPDefId' };
+		const mcpTool1: IToolData = {
+			id: 'mcpTool1',
+			toolReferenceName: 'mcpTool1RefName',
+			modelDescription: 'Test MCP Tool 1',
+			displayName: 'McpTool1 Display Name',
+			source: mcpDataSource,
+			canBeReferencedInPrompt: true,
+		};
+		store.add(service.registerToolData(mcpTool1));
+
+		const mcpToolSet = store.add(service.createToolSet(
+			mcpDataSource,
+			'mcpToolSet',
+			'mcpToolSetRefName',
+			{ description: 'MCP Test ToolSet' }
+		));
+		store.add(mcpToolSet.addTool(mcpTool1));
+	}
+
 
 	test('registerToolData', () => {
 		const toolData: IToolData = {
@@ -378,61 +470,193 @@ suite('LanguageModelToolsService', () => {
 		}, 'Expected tool call to be cancelled');
 	});
 
-	test('toToolEnablementMap', () => {
+	test('toQualifiedToolNames', () => {
+		setupToolsForTest(service, store);
+
+		const tool1 = service.getToolByQualifiedName('tool1RefName');
+		const extTool1 = service.getToolByQualifiedName('my.extension/extTool1RefName');
+		const mcpToolSet = service.getToolByQualifiedName('mcpToolSetRefName/*');
+		const mcpTool1 = service.getToolByQualifiedName('mcpToolSetRefName/mcpTool1RefName');
+		const internalToolSet = service.getToolByQualifiedName('internalToolSetRefName');
+		const internalTool = service.getToolByQualifiedName('internalToolSetRefName/internalToolSetTool1RefName');
+		const userToolSet = service.getToolSet('userToolSet');
+		const unknownTool = { id: 'unregisteredTool', toolReferenceName: 'unregisteredToolRefName', modelDescription: 'Unregistered Tool', displayName: 'Unregistered Tool', source: ToolDataSource.Internal, canBeReferencedInPrompt: true } satisfies IToolData;
+		const unknownToolSet = service.createToolSet(ToolDataSource.Internal, 'unknownToolSet', 'unknownToolSetRefName', { description: 'Unknown Test Set' });
+		unknownToolSet.dispose(); // unregister the set
+		assert.ok(tool1);
+		assert.ok(extTool1);
+		assert.ok(mcpTool1);
+		assert.ok(mcpToolSet);
+		assert.ok(internalToolSet);
+		assert.ok(internalTool);
+		assert.ok(userToolSet);
+
+		// Test with some enabled tool
+		{
+			// creating a map by hand is a no-go, we just do it for this test
+			const map = new Map<IToolData | ToolSet, boolean>([[tool1, true], [extTool1, true], [mcpToolSet, true], [mcpTool1, true]]);
+			const qualifiedNames = service.toQualifiedToolNames(map);
+			const expectedQualifiedNames = ['tool1RefName', 'my.extension/extTool1RefName', 'mcpToolSetRefName/*'];
+			assert.deepStrictEqual(qualifiedNames.sort(), expectedQualifiedNames.sort(), 'toQualifiedToolNames should return the original enabled names');
+		}
+		// Test with user data
+		{
+			// creating a map by hand is a no-go, we just do it for this test
+			const map = new Map<IToolData | ToolSet, boolean>([[tool1, true], [userToolSet, true], [internalToolSet, false], [internalTool, true]]);
+			const qualifiedNames = service.toQualifiedToolNames(map);
+			const expectedQualifiedNames = ['tool1RefName', 'internalToolSetRefName/internalToolSetTool1RefName'];
+			assert.deepStrictEqual(qualifiedNames.sort(), expectedQualifiedNames.sort(), 'toQualifiedToolNames should return the original enabled names');
+		}
+		// Test with unknown tool and tool set
+		{
+			// creating a map by hand is a no-go, we just do it for this test
+			const map = new Map<IToolData | ToolSet, boolean>([[unknownTool, true], [unknownToolSet, true], [internalToolSet, true], [internalTool, true]]);
+			const qualifiedNames = service.toQualifiedToolNames(map);
+			const expectedQualifiedNames = ['internalToolSetRefName'];
+			assert.deepStrictEqual(qualifiedNames.sort(), expectedQualifiedNames.sort(), 'toQualifiedToolNames should return the original enabled names');
+		}
+	});
+
+	test('toToolAndToolSetEnablementMap', () => {
+		setupToolsForTest(service, store);
+
+		const allQualifiedNames = [
+			'tool1RefName',
+			'Tool2 Display Name',
+			'my.extension/extTool1RefName',
+			'mcpToolSetRefName/*',
+			'mcpToolSetRefName/mcpTool1RefName',
+			'internalToolSetRefName',
+			'internalToolSetRefName/internalToolSetTool1RefName',
+		];
+		const numOfTools = allQualifiedNames.length + 1; // +1 for userToolSet which has no qualified name but is a tool set
+
+		const tool1 = service.getToolByQualifiedName('tool1RefName');
+		const tool2 = service.getToolByQualifiedName('Tool2 Display Name');
+		const extTool1 = service.getToolByQualifiedName('my.extension/extTool1RefName');
+		const mcpToolSet = service.getToolByQualifiedName('mcpToolSetRefName/*');
+		const mcpTool1 = service.getToolByQualifiedName('mcpToolSetRefName/mcpTool1RefName');
+		const internalToolSet = service.getToolByQualifiedName('internalToolSetRefName');
+		const internalTool = service.getToolByQualifiedName('internalToolSetRefName/internalToolSetTool1RefName');
+		const userToolSet = service.getToolSet('userToolSet');
+		assert.ok(tool1);
+		assert.ok(tool2);
+		assert.ok(extTool1);
+		assert.ok(mcpTool1);
+		assert.ok(mcpToolSet);
+		assert.ok(internalToolSet);
+		assert.ok(internalTool);
+		assert.ok(userToolSet);
+		// Test with enabled tool
+		{
+			const qualifiedNames = ['tool1RefName'];
+			const result1 = service.toToolAndToolSetEnablementMap(qualifiedNames);
+			assert.strictEqual(result1.size, numOfTools, `Expected ${numOfTools} tools and tool sets`);
+			assert.strictEqual([...result1.entries()].filter(([_, enabled]) => enabled).length, 1, 'Expected 1 tool to be enabled');
+			assert.strictEqual(result1.get(tool1), true, 'tool1 should be enabled');
+
+			const qualifiedNames1 = service.toQualifiedToolNames(result1);
+			assert.deepStrictEqual(qualifiedNames1.sort(), qualifiedNames.sort(), 'toQualifiedToolNames should return the original enabled names');
+
+		}
+		// Test with multiple enabled tools
+		{
+			const qualifiedNames = ['my.extension/extTool1RefName', 'mcpToolSetRefName/*', 'internalToolSetRefName/internalToolSetTool1RefName'];
+			const result1 = service.toToolAndToolSetEnablementMap(qualifiedNames);
+			assert.strictEqual(result1.size, numOfTools, `Expected ${numOfTools} tools and tool sets`);
+			assert.strictEqual([...result1.entries()].filter(([_, enabled]) => enabled).length, 4, 'Expected 4 tools to be enabled');
+			assert.strictEqual(result1.get(extTool1), true, 'extTool1 should be enabled');
+			assert.strictEqual(result1.get(mcpToolSet), true, 'mcpToolSet should be enabled');
+			assert.strictEqual(result1.get(mcpTool1), true, 'mcpTool1 should be enabled because the set is enabled');
+			assert.strictEqual(result1.get(internalTool), true, 'internalTool should be enabled because the set is enabled');
+
+			const qualifiedNames1 = service.toQualifiedToolNames(result1);
+			assert.deepStrictEqual(qualifiedNames1.sort(), qualifiedNames.sort(), 'toQualifiedToolNames should return the expected names');
+		}
+		// Test with all enabled tools, redundant names
+		{
+			const result1 = service.toToolAndToolSetEnablementMap(allQualifiedNames);
+			assert.strictEqual(result1.size, numOfTools, `Expected ${numOfTools} tools and tool sets`);
+			assert.strictEqual([...result1.entries()].filter(([_, enabled]) => enabled).length, 8, 'Expected 8 tools to be enabled');
+
+			const qualifiedNames1 = service.toQualifiedToolNames(result1);
+			const expectedQualifiedNames = ['tool1RefName', 'Tool2 Display Name', 'my.extension/extTool1RefName', 'mcpToolSetRefName/*', 'internalToolSetRefName'];
+			assert.deepStrictEqual(qualifiedNames1.sort(), expectedQualifiedNames.sort(), 'toQualifiedToolNames should return the original enabled names');
+		}
+		// Test with no enabled tools
+		{
+			const qualifiedNames: string[] = [];
+			const result1 = service.toToolAndToolSetEnablementMap(qualifiedNames);
+			assert.strictEqual(result1.size, numOfTools, `Expected ${numOfTools} tools and tool sets`);
+			assert.strictEqual([...result1.entries()].filter(([_, enabled]) => enabled).length, 0, 'Expected 0 tools to be enabled');
+
+			const qualifiedNames1 = service.toQualifiedToolNames(result1);
+			assert.deepStrictEqual(qualifiedNames1.sort(), qualifiedNames.sort(), 'toQualifiedToolNames should return the original enabled names');
+		}
+		// Test with unknown tool
+		{
+			const qualifiedNames: string[] = ['unknownToolRefName'];
+			const result1 = service.toToolAndToolSetEnablementMap(qualifiedNames);
+			assert.strictEqual(result1.size, numOfTools, `Expected ${numOfTools} tools and tool sets`);
+			assert.strictEqual([...result1.entries()].filter(([_, enabled]) => enabled).length, 0, 'Expected 0 tools to be enabled');
+
+			const qualifiedNames1 = service.toQualifiedToolNames(result1);
+			assert.deepStrictEqual(qualifiedNames1.sort(), [], 'toQualifiedToolNames should return no enabled names');
+		}
+		// Test with legacy tool names
+		{
+			const qualifiedNames: string[] = ['extTool1RefName', 'mcpToolSetRefName', 'internalToolSetTool1RefName'];
+			const result1 = service.toToolAndToolSetEnablementMap(qualifiedNames);
+			assert.strictEqual(result1.size, numOfTools, `Expected ${numOfTools} tools and tool sets`);
+			assert.strictEqual([...result1.entries()].filter(([_, enabled]) => enabled).length, 4, 'Expected 4 tools to be enabled');
+			assert.strictEqual(result1.get(extTool1), true, 'extTool1 should be enabled');
+			assert.strictEqual(result1.get(mcpToolSet), true, 'mcpToolSet should be enabled');
+			assert.strictEqual(result1.get(mcpTool1), true, 'mcpTool1 should be enabled because the set is enabled');
+			assert.strictEqual(result1.get(internalTool), true, 'internalTool should be enabled');
+
+			const qualifiedNames1 = service.toQualifiedToolNames(result1);
+			const expectedQualifiedNames: string[] = ['my.extension/extTool1RefName', 'mcpToolSetRefName/*', 'internalToolSetRefName/internalToolSetTool1RefName'];
+			assert.deepStrictEqual(qualifiedNames1.sort(), expectedQualifiedNames.sort(), 'toQualifiedToolNames should return the original enabled names');
+		}
+		// Test with tool in user tool set
+		{
+			const qualifiedNames = ['Tool2 Display Name'];
+			const result1 = service.toToolAndToolSetEnablementMap(qualifiedNames);
+			assert.strictEqual(result1.size, numOfTools, `Expected ${numOfTools} tools and tool sets`);
+			assert.strictEqual([...result1.entries()].filter(([_, enabled]) => enabled).length, 2, 'Expected 1 tool and user tool set to be enabled');
+			assert.strictEqual(result1.get(tool2), true, 'tool2 should be enabled');
+			assert.strictEqual(result1.get(userToolSet), true, 'userToolSet should be enabled');
+
+			const qualifiedNames1 = service.toQualifiedToolNames(result1);
+			assert.deepStrictEqual(qualifiedNames1.sort(), qualifiedNames.sort(), 'toQualifiedToolNames should return the original enabled names');
+
+		}
+	});
+
+	test('toToolAndToolSetEnablementMap with extension tool', () => {
+		// Register individual tools
 		const toolData1: IToolData = {
 			id: 'tool1',
 			toolReferenceName: 'refTool1',
 			modelDescription: 'Test Tool 1',
 			displayName: 'Test Tool 1',
-			source: ToolDataSource.Internal,
-		};
-
-		const toolData2: IToolData = {
-			id: 'tool2',
-			toolReferenceName: 'refTool2',
-			modelDescription: 'Test Tool 2',
-			displayName: 'Test Tool 2',
-			source: ToolDataSource.Internal,
-		};
-
-		const toolData3: IToolData = {
-			id: 'tool3',
-			// No toolReferenceName
-			modelDescription: 'Test Tool 3',
-			displayName: 'Test Tool 3',
-			source: ToolDataSource.Internal,
+			source: { type: 'extension', label: "My Extension", extensionId: new ExtensionIdentifier('My.extension') },
+			canBeReferencedInPrompt: true,
 		};
 
 		store.add(service.registerToolData(toolData1));
-		store.add(service.registerToolData(toolData2));
-		store.add(service.registerToolData(toolData3));
 
-		// Test with enabled tools
-		const enabledToolNames = new Set(['refTool1']);
-		const result1 = service.toToolEnablementMap(enabledToolNames);
+		// Test enabling the tool set
+		const enabledNames = [toolData1].map(t => service.getQualifiedToolName(t));
+		const result = service.toToolAndToolSetEnablementMap(enabledNames);
 
-		assert.strictEqual(result1['tool1'], true, 'tool1 should be enabled');
-		assert.strictEqual(result1['tool2'], false, 'tool2 should be disabled');
-		assert.strictEqual(result1['tool3'], false, 'tool3 should be disabled (no reference name)');
+		assert.strictEqual(result.get(toolData1), true, 'individual tool should be enabled');
 
-		// Test with multiple enabled tools
-		const multipleEnabledToolNames = new Set(['refTool1', 'refTool2']);
-		const result2 = service.toToolEnablementMap(multipleEnabledToolNames);
-
-		assert.strictEqual(result2['tool1'], true, 'tool1 should be enabled');
-		assert.strictEqual(result2['tool2'], true, 'tool2 should be enabled');
-		assert.strictEqual(result2['tool3'], false, 'tool3 should be disabled');
-
-		// Test with no enabled tools
-		const noEnabledToolNames = new Set<string>();
-		const result3 = service.toToolEnablementMap(noEnabledToolNames);
-
-		assert.strictEqual(result3['tool1'], false, 'tool1 should be disabled');
-		assert.strictEqual(result3['tool2'], false, 'tool2 should be disabled');
-		assert.strictEqual(result3['tool3'], false, 'tool3 should be disabled');
+		const qualifiedNames = service.toQualifiedToolNames(result);
+		assert.deepStrictEqual(qualifiedNames.sort(), enabledNames.sort(), 'toQualifiedToolNames should return the original enabled names');
 	});
 
-	test('toToolEnablementMap with tool sets', () => {
+	test('toToolAndToolSetEnablementMap with tool sets', () => {
 		// Register individual tools
 		const toolData1: IToolData = {
 			id: 'tool1',
@@ -440,6 +664,7 @@ suite('LanguageModelToolsService', () => {
 			modelDescription: 'Test Tool 1',
 			displayName: 'Test Tool 1',
 			source: ToolDataSource.Internal,
+			canBeReferencedInPrompt: true,
 		};
 
 		const toolData2: IToolData = {
@@ -447,6 +672,7 @@ suite('LanguageModelToolsService', () => {
 			modelDescription: 'Test Tool 2',
 			displayName: 'Test Tool 2',
 			source: ToolDataSource.Internal,
+			canBeReferencedInPrompt: true,
 		};
 
 		store.add(service.registerToolData(toolData1));
@@ -481,33 +707,52 @@ suite('LanguageModelToolsService', () => {
 		store.add(toolSet.addTool(toolSetTool2));
 
 		// Test enabling the tool set
-		const enabledNames = new Set(['refToolSet', 'refTool1']);
-		const result = service.toToolEnablementMap(enabledNames);
+		const enabledNames = [toolSet, toolData1].map(t => service.getQualifiedToolName(t));
+		const result = service.toToolAndToolSetEnablementMap(enabledNames);
 
-		assert.strictEqual(result['tool1'], true, 'individual tool should be enabled');
-		assert.strictEqual(result['tool2'], false);
-		assert.strictEqual(result['toolSetTool1'], true, 'tool set tool 1 should be enabled');
-		assert.strictEqual(result['toolSetTool2'], true, 'tool set tool 2 should be enabled');
+		assert.strictEqual(result.get(toolData1), true, 'individual tool should be enabled');
+		assert.strictEqual(result.get(toolData2), false);
+		assert.strictEqual(result.get(toolSet), true, 'tool set should be enabled');
+		assert.strictEqual(result.get(toolSetTool1), true, 'tool set tool 1 should be enabled');
+		assert.strictEqual(result.get(toolSetTool2), true, 'tool set tool 2 should be enabled');
+
+		const qualifiedNames = service.toQualifiedToolNames(result);
+		assert.deepStrictEqual(qualifiedNames.sort(), enabledNames.sort(), 'toQualifiedToolNames should return the original enabled names');
 	});
 
-	test('toToolEnablementMap with non-existent tool names', () => {
+	test('toToolAndToolSetEnablementMap with non-existent tool names', () => {
 		const toolData: IToolData = {
 			id: 'tool1',
 			toolReferenceName: 'refTool1',
 			modelDescription: 'Test Tool 1',
 			displayName: 'Test Tool 1',
 			source: ToolDataSource.Internal,
+			canBeReferencedInPrompt: true,
 		};
 
 		store.add(service.registerToolData(toolData));
 
-		// Test with non-existent tool names
-		const enabledNames = new Set(['nonExistentTool', 'refTool1']);
-		const result = service.toToolEnablementMap(enabledNames);
+		const unregisteredToolData: IToolData = {
+			id: 'toolX',
+			toolReferenceName: 'refToolX',
+			modelDescription: 'Test Tool X',
+			displayName: 'Test Tool X',
+			source: ToolDataSource.Internal,
+			canBeReferencedInPrompt: true,
+		};
 
-		assert.strictEqual(result['tool1'], true, 'existing tool should be enabled');
+		// Test with non-existent tool names
+		const enabledNames = [toolData, unregisteredToolData].map(t => service.getQualifiedToolName(t));
+		const result = service.toToolAndToolSetEnablementMap(enabledNames);
+
+		assert.strictEqual(result.get(toolData), true, 'existing tool should be enabled');
 		// Non-existent tools should not appear in the result map
-		assert.strictEqual(result['nonExistentTool'], undefined, 'non-existent tool should not be in result');
+		assert.strictEqual(result.get(unregisteredToolData), undefined, 'non-existent tool should not be in result');
+
+		const qualifiedNames = service.toQualifiedToolNames(result);
+		const expectedNames = [service.getQualifiedToolName(toolData)]; // Only the existing tool
+		assert.deepStrictEqual(qualifiedNames.sort(), expectedNames.sort(), 'toQualifiedToolNames should return the original enabled names');
+
 	});
 
 	test('accessibility signal for tool confirmation', async () => {
@@ -733,6 +978,7 @@ suite('LanguageModelToolsService', () => {
 
 		// Should have tool result details because alwaysDisplayInputOutput = true
 		assert.ok(result.toolResultDetails, 'should have toolResultDetails');
+		// eslint-disable-next-line local/code-no-any-casts
 		const details = result.toolResultDetails as any; // Type assertion needed for test
 
 		// Test formatToolInput - should be formatted JSON
@@ -763,6 +1009,7 @@ suite('LanguageModelToolsService', () => {
 			configurationService: () => configurationService
 		}, store);
 		instaService.stub(IChatService, chatService);
+		// eslint-disable-next-line local/code-no-any-casts
 		instaService.stub(ITelemetryService, testTelemetryService as any);
 		const testService = store.add(instaService.createInstance(LanguageModelToolsService));
 
@@ -1269,6 +1516,7 @@ suite('LanguageModelToolsService', () => {
 		// Change the correct configuration key
 		configurationService.setUserConfiguration('chat.extensionTools.enabled', false);
 		// Fire the configuration change event manually
+		// eslint-disable-next-line local/code-no-any-casts
 		configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true, affectedKeys: new Set(['chat.extensionTools.enabled']) } as any as IConfigurationChangeEvent);
 
 		// Wait a bit for the scheduler
@@ -1298,21 +1546,28 @@ suite('LanguageModelToolsService', () => {
 		store.add(mcpToolSet.addTool(mcpTool));
 
 		// Enable the MCP toolset
-		const result = service.toToolAndToolSetEnablementMap(['mcpSetRef']);
+		{
+			const enabledNames = [mcpToolSet].map(t => service.getQualifiedToolName(t));
+			const result = service.toToolAndToolSetEnablementMap(enabledNames);
 
-		let toolSetEnabled = false;
-		let toolEnabled = false;
-		for (const [toolOrSet, enabled] of result) {
-			if ('referenceName' in toolOrSet && toolOrSet.referenceName === 'mcpSetRef') {
-				toolSetEnabled = enabled;
-			}
-			if ('id' in toolOrSet && toolOrSet.id === 'mcpTool') {
-				toolEnabled = enabled;
-			}
+			assert.strictEqual(result.get(mcpToolSet), true, 'MCP toolset should be enabled'); // Ensure the toolset is in the map
+			assert.strictEqual(result.get(mcpTool), true, 'MCP tool should be enabled when its toolset is enabled'); // Ensure the tool is in the map
+
+			const qualifiedNames = service.toQualifiedToolNames(result);
+			assert.deepStrictEqual(qualifiedNames.sort(), enabledNames.sort(), 'toQualifiedToolNames should return the original enabled names');
+		}
+		// Enable a tool from the MCP toolset
+		{
+			const enabledNames = [mcpTool].map(t => service.getQualifiedToolName(t, mcpToolSet));
+			const result = service.toToolAndToolSetEnablementMap(enabledNames);
+
+			assert.strictEqual(result.get(mcpToolSet), false, 'MCP toolset should be disabled'); // Ensure the toolset is in the map
+			assert.strictEqual(result.get(mcpTool), true, 'MCP tool should be enabled'); // Ensure the tool is in the map
+
+			const qualifiedNames = service.toQualifiedToolNames(result);
+			assert.deepStrictEqual(qualifiedNames.sort(), enabledNames.sort(), 'toQualifiedToolNames should return the original enabled names');
 		}
 
-		assert.strictEqual(toolSetEnabled, true, 'MCP toolset should be enabled');
-		assert.strictEqual(toolEnabled, true, 'MCP tool should be enabled when its toolset is enabled');
 	});
 
 	test('shouldAutoConfirm with workspace-specific tool configuration', async () => {
@@ -1343,4 +1598,83 @@ suite('LanguageModelToolsService', () => {
 		);
 		assert.strictEqual(result.content[0].value, 'workspace result');
 	});
+
+	test('getQualifiedToolNames', () => {
+		setupToolsForTest(service, store);
+
+		const qualifiedNames = Array.from(service.getQualifiedToolNames()).sort();
+
+		const expectedNames = [
+			'tool1RefName',
+			'Tool2 Display Name',
+			'my.extension/extTool1RefName',
+			'mcpToolSetRefName/*',
+			'mcpToolSetRefName/mcpTool1RefName',
+			'internalToolSetRefName',
+			'internalToolSetRefName/internalToolSetTool1RefName',
+		].sort();
+
+		assert.deepStrictEqual(qualifiedNames, expectedNames, 'getQualifiedToolNames should return correct qualified names');
+	});
+
+	test('getDeprecatedQualifiedToolNames', () => {
+		setupToolsForTest(service, store);
+
+		const deprecatedNames = service.getDeprecatedQualifiedToolNames();
+
+		// Tools in internal tool sets should have their qualified names with toolset prefix, tools sets keep their name
+		assert.strictEqual(deprecatedNames.get('internalToolSetTool1RefName'), 'internalToolSetRefName/internalToolSetTool1RefName');
+		assert.strictEqual(deprecatedNames.get('internalToolSetRefName'), undefined);
+
+		// For extension tools, the qualified name includes the extension ID
+		assert.strictEqual(deprecatedNames.get('extTool1RefName'), 'my.extension/extTool1RefName');
+
+		// For MCP tool sets, the qualified name includes the /* suffix
+		assert.strictEqual(deprecatedNames.get('mcpToolSetRefName'), 'mcpToolSetRefName/*');
+		assert.strictEqual(deprecatedNames.get('mcpTool1RefName'), 'mcpToolSetRefName/mcpTool1RefName');
+
+		// Internal tool sets and user tools sets and tools without namespace changes should not appear
+		assert.strictEqual(deprecatedNames.get('Tool2 Display Name'), undefined);
+		assert.strictEqual(deprecatedNames.get('tool1RefName'), undefined);
+		assert.strictEqual(deprecatedNames.get('userToolSetRefName'), undefined);
+	});
+
+	test('getToolByQualifiedName', () => {
+		setupToolsForTest(service, store);
+
+		// Test finding tools by their qualified names
+		const tool1 = service.getToolByQualifiedName('tool1RefName');
+		assert.ok(tool1);
+		assert.strictEqual(tool1.id, 'tool1');
+
+		const tool2 = service.getToolByQualifiedName('Tool2 Display Name');
+		assert.ok(tool2);
+		assert.strictEqual(tool2.id, 'tool2');
+
+		const extTool = service.getToolByQualifiedName('my.extension/extTool1RefName');
+		assert.ok(extTool);
+		assert.strictEqual(extTool.id, 'extTool1');
+
+		const mcpTool = service.getToolByQualifiedName('mcpToolSetRefName/mcpTool1RefName');
+		assert.ok(mcpTool);
+		assert.strictEqual(mcpTool.id, 'mcpTool1');
+
+
+		const mcpToolSet = service.getToolByQualifiedName('mcpToolSetRefName/*');
+		assert.ok(mcpToolSet);
+		assert.strictEqual(mcpToolSet.id, 'mcpToolSet');
+
+		const internalToolSet = service.getToolByQualifiedName('internalToolSetRefName/internalToolSetTool1RefName');
+		assert.ok(internalToolSet);
+		assert.strictEqual(internalToolSet.id, 'internalToolSetTool1');
+
+		// Test finding tools within tool sets
+		const toolInSet = service.getToolByQualifiedName('internalToolSetRefName');
+		assert.ok(toolInSet);
+		assert.strictEqual(toolInSet!.id, 'internalToolSet');
+
+	});
+
+
+
 });

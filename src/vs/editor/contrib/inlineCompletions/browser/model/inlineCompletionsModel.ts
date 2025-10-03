@@ -400,6 +400,7 @@ export class InlineCompletionsModel extends Disposable {
 			reason,
 			typingInterval: typingInterval.averageInterval,
 			typingIntervalCharacterCount: typingInterval.characterCount,
+			availableProviders: [],
 		};
 
 		let context: InlineCompletionContextWithoutUuid = {
@@ -432,6 +433,7 @@ export class InlineCompletionsModel extends Disposable {
 			? { providers: [changeSummary.provider], label: 'single:' + changeSummary.provider.providerId?.toString() }
 			: { providers: this._languageFeaturesService.inlineCompletionsProvider.all(this.textModel), label: undefined }; // TODO: should use inlineCompletionProviders
 		const availableProviders = this.getAvailableProviders(providers.providers);
+		requestInfo.availableProviders = availableProviders.map(p => p.providerId).filter(isDefined);
 
 		return this._source.fetch(availableProviders, providers.label, context, itemToPreserve?.identity, changeSummary.shouldDebounce, userJumpedToActiveCompletion, requestInfo);
 	});
@@ -821,6 +823,9 @@ export class InlineCompletionsModel extends Disposable {
 		if (this.showCollapsed.read(reader)) {
 			return false;
 		}
+		if (this._tabShouldIndent.read(reader)) {
+			return false;
+		}
 		if (this._inAcceptFlow.read(reader) && this._appearedInsideViewport.read(reader)) {
 			return true;
 		}
@@ -829,9 +834,6 @@ export class InlineCompletionsModel extends Disposable {
 		}
 		if (this._jumpedToId.read(reader) === s.inlineCompletion.semanticId) {
 			return true;
-		}
-		if (this._tabShouldIndent.read(reader)) {
-			return false;
 		}
 
 		return s.cursorAtInlineEdit.read(reader);

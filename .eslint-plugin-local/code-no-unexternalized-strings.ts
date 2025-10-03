@@ -81,6 +81,7 @@ export = new class NoUnexternalizedStrings implements eslint.Rule.RuleModule {
 				context.report({
 					loc: messageNode.loc,
 					messageId: 'badMessage',
+					// eslint-disable-next-line local/code-no-any-casts
 					data: { message: context.getSourceCode().getText(<any>node) }
 				});
 			}
@@ -128,6 +129,7 @@ export = new class NoUnexternalizedStrings implements eslint.Rule.RuleModule {
 				// report all invalid duplicates (same key, different message)
 				if (values.length > 1) {
 					for (let i = 1; i < values.length; i++) {
+						// eslint-disable-next-line local/code-no-any-casts
 						if (context.getSourceCode().getText(<any>values[i - 1].message) !== context.getSourceCode().getText(<any>values[i].message)) {
 							context.report({ loc: values[i].call.loc, messageId: 'duplicateKey', data: { key } });
 						}

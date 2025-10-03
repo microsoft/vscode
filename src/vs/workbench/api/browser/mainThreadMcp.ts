@@ -71,6 +71,10 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 				}
 				return true;
 			},
+			async substituteVariables(serverDefinition, launch) {
+				const ser = await proxy.$substituteVariables(serverDefinition.variableReplacement?.folder?.uri, McpServerLaunch.toSerialized(launch));
+				return McpServerLaunch.fromSerialized(ser);
+			},
 			start: (_collection, serverDefiniton, resolveLaunch, options) => {
 				const id = ++this._serverIdCounter;
 				const launch = new ExtHostMcpServerLaunch(
@@ -80,7 +84,11 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 				);
 				this._servers.set(id, launch);
 				this._serverDefinitions.set(id, serverDefiniton);
-				proxy.$startMcp(id, resolveLaunch, options?.errorOnUserInteraction);
+				proxy.$startMcp(id, {
+					launch: resolveLaunch,
+					defaultCwd: serverDefiniton.variableReplacement?.folder?.uri,
+					errorOnUserInteraction: options?.errorOnUserInteraction,
+				});
 
 				return launch;
 			},

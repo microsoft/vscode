@@ -43,8 +43,8 @@ import { TestExplorerTreeElement, TestItemTreeElement } from './explorerProjecti
 import * as icons from './icons.js';
 import { TestingExplorerView } from './testingExplorerView.js';
 import { TestResultsView } from './testingOutputPeek.js';
-import { TestingConfigKeys, getTestingConfiguration } from '../common/configuration.js';
 import { TestCommandId, TestExplorerViewMode, TestExplorerViewSorting, Testing, testConfigurationGroupNames } from '../common/constants.js';
+import { getTestingConfiguration, TestingConfigKeys, TestingResultsViewLayout } from '../common/configuration.js';
 import { ITestCoverageService } from '../common/testCoverageService.js';
 import { TestId } from '../common/testId.js';
 import { ITestProfileService, canUseProfileWithTest } from '../common/testProfileService.js';
@@ -1980,6 +1980,31 @@ class PeekRelatedCode extends GoToRelatedCodeAction {
 	}
 }
 
+export class ToggleResultsViewLayoutAction extends Action2 {
+	constructor() {
+		super({
+			id: TestCommandId.ToggleResultsViewLayoutAction,
+			title: localize2('testing.toggleResultsViewLayout', 'Toggle Tree Position'),
+			category,
+			icon: Codicon.arrowSwap,
+			menu: {
+				id: MenuId.ViewTitle,
+				order: ActionOrder.DisplayMode,
+				group: 'navigation',
+				when: ContextKeyExpr.equals('view', Testing.ResultsViewId)
+			}
+		});
+	}
+
+	public override async run(accessor: ServicesAccessor) {
+		const configurationService = accessor.get(IConfigurationService);
+		const currentLayout = getTestingConfiguration(configurationService, TestingConfigKeys.ResultsViewLayout);
+		const newLayout = currentLayout === TestingResultsViewLayout.TreeLeft ? TestingResultsViewLayout.TreeRight : TestingResultsViewLayout.TreeLeft;
+
+		await configurationService.updateValue(TestingConfigKeys.ResultsViewLayout, newLayout);
+	}
+}
+
 export const allTestActions = [
 	CancelTestRefreshAction,
 	CancelTestRunAction,
@@ -2035,6 +2060,7 @@ export const allTestActions = [
 	TestingViewAsListAction,
 	TestingViewAsTreeAction,
 	ToggleInlineTestOutput,
+	ToggleResultsViewLayoutAction,
 	UnhideAllTestsAction,
 	UnhideTestAction,
 	ReRunFailedFromLastRun,

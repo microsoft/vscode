@@ -46,6 +46,7 @@ suite('Workbench - TestProfileService', () => {
 			...profile,
 		};
 
+		// eslint-disable-next-line local/code-no-any-casts
 		t.addProfile({ id: 'ctrlId' } as any, p);
 		return p;
 	};

@@ -32,6 +32,7 @@ suite('Workbench - Testing Explorer Hierarchal by Name Projection', () => {
 			getStateById: () => ({ state: { state: 0 }, computedState: 0 }),
 		};
 
+		// eslint-disable-next-line local/code-no-any-casts
 		harness = new TestTreeTestHarness(l => new ListProjection({}, l, resultsService as any));
 	});
 

@@ -224,9 +224,8 @@ export async function taskProblemPollFn(execution: IExecution, token: Cancellati
 							? new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn)
 							: undefined
 					});
-					const label: string = uri ? uri.path.split('/').pop() ?? uri.toString() : '';
 					const message = marker.message ?? '';
-					problemList.push(`Problem: ${message} in ${label} coming from ${owner}`);
+					problemList.push(`Problem: ${message} in ${uri.fsPath} coming from ${owner} starting on line ${marker.startLineNumber}${marker.startColumn ? `, column ${marker.startColumn} and ending on line ${marker.endLineNumber}${marker.endColumn ? `, column ${marker.endColumn}` : ''}` : ''}`);
 				}
 			}
 			if (problemList.length === 0) {

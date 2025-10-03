@@ -247,8 +247,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		}
 
 		// Take Composite on-DOM and show
-		const contentArea = this.getContentArea();
-		contentArea?.appendChild(compositeContainer);
+		this.contentArea?.appendChild(compositeContainer);
 		show(compositeContainer);
 
 		// Setup action runner
@@ -349,7 +348,10 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		toolBar.context = this.actionsContextProvider();
 
 		// Return fn to set into toolbar
-		return () => toolBar.setActions(prepareActions(primaryActions), prepareActions(secondaryActions), menuIds);
+		return () => {
+			toolBar.setActions(prepareActions(primaryActions), prepareActions(secondaryActions), menuIds);
+			this.titleArea?.classList.toggle('has-actions', primaryActions.length > 0 || secondaryActions.length > 0);
+		};
 	}
 
 	protected getActiveComposite(): IComposite | undefined {

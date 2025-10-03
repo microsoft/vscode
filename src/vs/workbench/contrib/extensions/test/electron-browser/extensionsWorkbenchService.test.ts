@@ -97,8 +97,11 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		instantiationService.stub(IWorkbenchExtensionManagementService, {
 			onDidInstallExtensions: didInstallEvent.event,
+			// eslint-disable-next-line local/code-no-any-casts
 			onInstallExtension: installEvent.event as any,
+			// eslint-disable-next-line local/code-no-any-casts
 			onUninstallExtension: uninstallEvent.event as any,
+			// eslint-disable-next-line local/code-no-any-casts
 			onDidUninstallExtension: didUninstallEvent.event as any,
 			onDidUpdateExtensionMetadata: Event.None,
 			onDidChangeProfile: Event.None,

@@ -762,8 +762,11 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 
 	perf.mark('code/server/ready');
 	const currentTime = performance.now();
+	// eslint-disable-next-line local/code-no-any-casts
 	const vscodeServerStartTime: number = (<any>global).vscodeServerStartTime;
+	// eslint-disable-next-line local/code-no-any-casts
 	const vscodeServerListenTime: number = (<any>global).vscodeServerListenTime;
+	// eslint-disable-next-line local/code-no-any-casts
 	const vscodeServerCodeLoadedTime: number = (<any>global).vscodeServerCodeLoadedTime;
 
 	instantiationService.invokeFunction(async (accessor) => {

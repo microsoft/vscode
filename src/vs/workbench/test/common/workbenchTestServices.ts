@@ -288,6 +288,7 @@ export class TestWorkingCopyFileService implements IWorkingCopyFileService {
 }
 
 export function mock<T>(): Ctor<T> {
+	// eslint-disable-next-line local/code-no-any-casts
 	return function () { } as any;
 }
 

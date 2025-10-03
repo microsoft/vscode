@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .pane-composite-part:not(.empty) > .title.has-composite-bar > .global-actions .actions-container::before {
+.monaco-workbench .pane-composite-part:not(.empty) > .title.has-composite-bar.has-actions > .global-actions .actions-container::before {
 	/* Separate global actions from view actions unless pane is empty */
 	content: '';
 	width: 1px;

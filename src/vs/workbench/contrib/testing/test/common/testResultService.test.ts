@@ -207,6 +207,7 @@ suite('Workbench - Test Results Service', () => {
 		let results: TestResultService;
 
 		class TestTestResultService extends TestResultService {
+			// eslint-disable-next-line local/code-no-any-casts
 			protected override persistScheduler = { schedule: () => this.persistImmediately() } as any;
 		}
 

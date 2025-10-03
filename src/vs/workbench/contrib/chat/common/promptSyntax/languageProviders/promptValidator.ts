@@ -17,13 +17,13 @@ import { ChatModeKind } from '../../constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../languageModels.js';
 import { ILanguageModelToolsService } from '../../languageModelToolsService.js';
 import { getPromptsTypeForLanguageId, PromptsType } from '../promptTypes.js';
-import { IArrayValue, IHeaderAttribute, ParsedPromptFile } from './newPromptsParser.js';
+import { IArrayValue, IHeaderAttribute, ParsedPromptFile } from '../service/newPromptsParser.js';
 import { PromptsConfig } from '../config/config.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Delayer } from '../../../../../../base/common/async.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
-import { IPromptsService } from './promptsService.js';
+import { IPromptsService } from '../service/promptsService.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 
 const MARKERS_OWNER_ID = 'prompts-diagnostics-provider';
@@ -72,10 +72,24 @@ export class PromptValidator {
 
 		// Validate variable references (tool or toolset names)
 		if (body.variableReferences.length) {
-			const available = this.getAvailableToolAndToolSetNames();
+			const headerTools = promptAST.header?.tools;
+			const headerToolsMap = headerTools ? this.languageModelToolsService.toToolAndToolSetEnablementMap(headerTools) : undefined;
+
+			const available = new Set<string>(this.languageModelToolsService.getQualifiedToolNames());
+			const deprecatedNames = this.languageModelToolsService.getDeprecatedQualifiedToolNames();
 			for (const variable of body.variableReferences) {
 				if (!available.has(variable.name)) {
-					report(toMarker(localize('promptValidator.unknownVariableReference', "Unknown tool or toolset '{0}'.", variable.name), variable.range, MarkerSeverity.Warning));
+					if (deprecatedNames.has(variable.name)) {
+						const currentName = deprecatedNames.get(variable.name);
+						report(toMarker(localize('promptValidator.deprecatedVariableReference', "Tool or toolset '{0}' has been renamed, use '{1}' instead.", variable.name, currentName), variable.range, MarkerSeverity.Info));
+					} else {
+						report(toMarker(localize('promptValidator.unknownVariableReference', "Unknown tool or toolset '{0}'.", variable.name), variable.range, MarkerSeverity.Warning));
+					}
+				} else if (headerToolsMap) {
+					const tool = this.languageModelToolsService.getToolByQualifiedName(variable.name);
+					if (tool && headerToolsMap.get(tool) === false) {
+						report(toMarker(localize('promptValidator.disabledTool', "Tool or toolset '{0}' also needs to be enabled in the header.", variable.name), variable.range, MarkerSeverity.Warning));
+					}
 				}
 			}
 		}
@@ -116,7 +130,7 @@ export class PromptValidator {
 			}
 			case PromptsType.instructions:
 				this.validateApplyTo(attributes, report);
-				this.validateExcludeMode(attributes, report);
+				this.validateExcludeAgent(attributes, report);
 				break;
 
 			case PromptsType.mode:
@@ -226,9 +240,6 @@ export class PromptValidator {
 			case 'array':
 				this.validateToolsArray(attribute.value, report);
 				break;
-			case 'object':
-				//this.validateToolsObject(attribute.value, report);
-				break;
 			default:
 				report(toMarker(localize('promptValidator.toolsMustBeArrayOrMap', "The 'tools' attribute must be an array."), attribute.value.range, MarkerSeverity.Error));
 		}
@@ -236,31 +247,21 @@ export class PromptValidator {
 
 	private validateToolsArray(valueItem: IArrayValue, report: (markers: IMarkerData) => void) {
 		if (valueItem.items.length > 0) {
-			const available = this.getAvailableToolAndToolSetNames();
+			const available = new Set<string>(this.languageModelToolsService.getQualifiedToolNames());
+			const deprecatedNames = this.languageModelToolsService.getDeprecatedQualifiedToolNames();
 			for (const item of valueItem.items) {
 				if (item.type !== 'string') {
 					report(toMarker(localize('promptValidator.eachToolMustBeString', "Each tool name in the 'tools' attribute must be a string."), item.range, MarkerSeverity.Error));
 				} else if (item.value && !available.has(item.value)) {
-					report(toMarker(localize('promptValidator.toolNotFound', "Unknown tool '{0}'.", item.value), item.range, MarkerSeverity.Warning));
+					if (deprecatedNames.has(item.value)) {
+						const currentName = deprecatedNames.get(item.value);
+						report(toMarker(localize('promptValidator.toolDeprecated', "Tool or toolset '{0}' has been renamed, use '{1}' instead.", item.value, currentName), item.range, MarkerSeverity.Info));
+					} else {
+						report(toMarker(localize('promptValidator.toolNotFound', "Unknown tool '{0}'.", item.value), item.range, MarkerSeverity.Warning));
+					}
 				}
 			}
 		}
-	}
-
-	private getAvailableToolAndToolSetNames(): Set<string> {
-		const available = new Set<string>();
-		for (const tool of this.languageModelToolsService.getTools()) {
-			if (tool.canBeReferencedInPrompt) {
-				available.add(tool.toolReferenceName ?? tool.displayName);
-			}
-		}
-		for (const toolSet of this.languageModelToolsService.toolSets.get()) {
-			available.add(toolSet.referenceName);
-			for (const tool of toolSet.getTools()) {
-				available.add(tool.toolReferenceName ?? tool.displayName);
-			}
-		}
-		return available;
 	}
 
 	private validateApplyTo(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): undefined {
@@ -291,13 +292,13 @@ export class PromptValidator {
 		}
 	}
 
-	private validateExcludeMode(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): undefined {
-		const attribute = attributes.find(attr => attr.key === 'excludeMode');
+	private validateExcludeAgent(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): undefined {
+		const attribute = attributes.find(attr => attr.key === 'excludeAgent');
 		if (!attribute) {
 			return;
 		}
 		if (attribute.value.type !== 'array') {
-			report(toMarker(localize('promptValidator.excludeModeMustBeArray', "The 'excludeMode' attribute must be an array."), attribute.value.range, MarkerSeverity.Error));
+			report(toMarker(localize('promptValidator.excludeAgentMustBeArray', "The 'excludeAgent' attribute must be an array."), attribute.value.range, MarkerSeverity.Error));
 			return;
 		}
 	}
@@ -305,7 +306,7 @@ export class PromptValidator {
 
 const validAttributeNames = {
 	[PromptsType.prompt]: ['description', 'model', 'tools', 'mode'],
-	[PromptsType.instructions]: ['description', 'applyTo', 'excludeMode'],
+	[PromptsType.instructions]: ['description', 'applyTo', 'excludeAgent'],
 	[PromptsType.mode]: ['description', 'model', 'tools', 'advancedOptions']
 };
 const validAttributeNamesNoExperimental = {
@@ -319,7 +320,7 @@ export function getValidAttributeNames(promptType: PromptsType, includeExperimen
 }
 
 export function isExperimentalAttribute(attributeName: string): boolean {
-	return attributeName === 'advancedOptions' || attributeName === 'excludeMode';
+	return attributeName === 'advancedOptions' || attributeName === 'excludeAgent';
 }
 
 function toMarker(message: string, range: Range, severity = MarkerSeverity.Error): IMarkerData {

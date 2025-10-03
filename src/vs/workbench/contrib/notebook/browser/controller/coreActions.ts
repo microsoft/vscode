@@ -306,6 +306,7 @@ function sendEntryTelemetry(accessor: ServicesAccessor, id: string, context?: an
 }
 
 function isCellToolbarContext(context?: unknown): context is INotebookCellToolbarActionContext {
+	// eslint-disable-next-line local/code-no-any-casts
 	return !!context && !!(context as INotebookActionContext).notebookEditor && (context as any).$mid === MarshalledId.NotebookCellActionContext;
 }
 

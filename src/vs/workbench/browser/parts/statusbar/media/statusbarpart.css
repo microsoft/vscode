@@ -13,7 +13,7 @@
 	overflow: hidden;
 }
 
-.monaco-workbench:not(.reduce-motion) .part.statusbar {
+.monaco-workbench.monaco-enable-motion .part.statusbar {
 	transition: background-color 0.15s ease-out;
 }
 
@@ -177,8 +177,8 @@
 	outline-offset: -1px;
 }
 
-.monaco-workbench:not(.hc-light):not(.hc-black) .part.statusbar > .items-container > .statusbar-item a:hover:not(.disabled) {
-	background-color: var(--vscode-statusBarItem-hoverBackground);
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item a:hover:not(.disabled) {
+	background-color: var(--vscode-statusBarItem-hoverBackground) !important;
 }
 
 /** Status bar entry item kinds */

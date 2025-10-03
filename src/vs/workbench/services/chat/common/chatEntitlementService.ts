@@ -39,7 +39,8 @@ export namespace ChatEntitlementContextKeys {
 		installed: new RawContextKey<boolean>('chatSetupInstalled', false, true),  	// True when the chat extension is installed and enabled.
 		disabled: new RawContextKey<boolean>('chatSetupDisabled', false, true),  	// True when the chat extension is disabled due to any other reason than workspace trust.
 		untrusted: new RawContextKey<boolean>('chatSetupUntrusted', false, true),  	// True when the chat extension is disabled due to workspace trust.
-		later: new RawContextKey<boolean>('chatSetupLater', false, true)  			// True when the user wants to finish setup later.
+		later: new RawContextKey<boolean>('chatSetupLater', false, true),  			// True when the user wants to finish setup later.
+		registered: new RawContextKey<boolean>('chatSetupRegistered', false, true)  // True when the user has registered as Free or Pro user.
 	};
 
 	export const Entitlement = {
@@ -59,6 +60,8 @@ export namespace ChatEntitlementContextKeys {
 
 	export const chatQuotaExceeded = new RawContextKey<boolean>('chatQuotaExceeded', false, true);
 	export const completionsQuotaExceeded = new RawContextKey<boolean>('completionsQuotaExceeded', false, true);
+
+	export const chatAnonymous = new RawContextKey<boolean>('chatAnonymous', false, true);
 }
 
 export const IChatEntitlementService = createDecorator<IChatEntitlementService>('chatEntitlementService');
@@ -120,6 +123,11 @@ export interface IChatSentiment {
 	 * User signals intent to use Chat later.
 	 */
 	later?: boolean;
+
+	/**
+	 * User has registered as Free or Pro user.
+	 */
+	registered?: boolean;
 }
 
 export interface IChatEntitlementService {
@@ -201,7 +209,7 @@ function isAnonymous(configurationService: IConfigurationService, entitlement: C
 		return false; // only consider signed out users
 	}
 
-	if (sentiment.hidden || sentiment.disabled || sentiment.untrusted) {
+	if (sentiment.hidden || sentiment.disabled) {
 		return false; // only consider enabled scenarios
 	}
 
@@ -226,6 +234,8 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 
 		this.chatQuotaExceededContextKey = ChatEntitlementContextKeys.chatQuotaExceeded.bindTo(this.contextKeyService);
 		this.completionsQuotaExceededContextKey = ChatEntitlementContextKeys.completionsQuotaExceeded.bindTo(this.contextKeyService);
+
+		this.anonymousContextKey = ChatEntitlementContextKeys.chatAnonymous.bindTo(this.contextKeyService);
 
 		this.onDidChangeEntitlement = Event.map(
 			Event.filter(
@@ -252,7 +262,8 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 					ChatEntitlementContextKeys.Setup.disabled.key,
 					ChatEntitlementContextKeys.Setup.untrusted.key,
 					ChatEntitlementContextKeys.Setup.installed.key,
-					ChatEntitlementContextKeys.Setup.later.key
+					ChatEntitlementContextKeys.Setup.later.key,
+					ChatEntitlementContextKeys.Setup.registered.key
 				])), this._store
 			), () => { }, this._store
 		);
@@ -359,6 +370,8 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 			const newAnonymousUsage = this.anonymous;
 			if (newAnonymousUsage !== anonymousUsage) {
 				anonymousUsage = newAnonymousUsage;
+				this.anonymousContextKey.set(newAnonymousUsage);
+
 				this._onDidChangeAnonymous.fire();
 			}
 		};
@@ -422,13 +435,16 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 			hidden: this.contextKeyService.getContextKeyValue<boolean>(ChatEntitlementContextKeys.Setup.hidden.key) === true,
 			disabled: this.contextKeyService.getContextKeyValue<boolean>(ChatEntitlementContextKeys.Setup.disabled.key) === true,
 			untrusted: this.contextKeyService.getContextKeyValue<boolean>(ChatEntitlementContextKeys.Setup.untrusted.key) === true,
-			later: this.contextKeyService.getContextKeyValue<boolean>(ChatEntitlementContextKeys.Setup.later.key) === true
+			later: this.contextKeyService.getContextKeyValue<boolean>(ChatEntitlementContextKeys.Setup.later.key) === true,
+			registered: this.contextKeyService.getContextKeyValue<boolean>(ChatEntitlementContextKeys.Setup.registered.key) === true
 		};
 	}
 
 	//#endregion
 
 	//region --- Anonymous
+
+	private readonly anonymousContextKey: IContextKey<boolean>;
 
 	private readonly _onDidChangeAnonymous = this._register(new Emitter<void>());
 	readonly onDidChangeAnonymous = this._onDidChangeAnonymous.event;
@@ -438,6 +454,8 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 	get anonymous(): boolean {
 		return isAnonymous(this.configurationService, this.entitlement, this.sentiment);
 	}
+
+	//#endregion
 
 	async update(token: CancellationToken): Promise<void> {
 		await this.requests?.value.forceResolveEntitlement(undefined, token);
@@ -451,6 +469,7 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 type EntitlementClassification = {
 	tid: { classification: 'EndUserPseudonymizedInformation'; purpose: 'BusinessInsight'; comment: 'The anonymized analytics id returned by the service'; endpoint: 'GoogleAnalyticsId' };
 	entitlement: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Flag indicating the chat entitlement state' };
+	sku: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The SKU of the chat entitlement' };
 	quotaChat: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of chat requests available to the user' };
 	quotaPremiumChat: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of premium chat requests available to the user' };
 	quotaCompletions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of code completions available to the user' };
@@ -462,6 +481,7 @@ type EntitlementClassification = {
 type EntitlementEvent = {
 	entitlement: ChatEntitlement;
 	tid: string;
+	sku: string | undefined;
 	quotaChat: number | undefined;
 	quotaPremiumChat: number | undefined;
 	quotaCompletions: number | undefined;
@@ -515,6 +535,8 @@ interface IEntitlements {
 
 export interface IQuotaSnapshot {
 	readonly total: number;
+
+	readonly remaining: number;
 	readonly percentRemaining: number;
 
 	readonly overageEnabled: boolean;
@@ -764,10 +786,11 @@ export class ChatEntitlementRequests extends Disposable {
 		this.telemetryService.publicLog2<EntitlementEvent, EntitlementClassification>('chatInstallEntitlement', {
 			entitlement: entitlements.entitlement,
 			tid: entitlementsResponse.analytics_tracking_id,
-			quotaChat: entitlementsResponse?.quota_snapshots?.chat?.remaining,
-			quotaPremiumChat: entitlementsResponse?.quota_snapshots?.premium_interactions?.remaining,
-			quotaCompletions: entitlementsResponse?.quota_snapshots?.completions?.remaining,
-			quotaResetDate: entitlementsResponse.quota_reset_date_utc ?? entitlementsResponse.quota_reset_date ?? entitlementsResponse.limited_user_reset_date
+			sku: entitlements.sku,
+			quotaChat: entitlements.quotas?.chat?.remaining,
+			quotaPremiumChat: entitlements.quotas?.premiumChat?.remaining,
+			quotaCompletions: entitlements.quotas?.completions?.remaining,
+			quotaResetDate: entitlements.quotas?.resetDate
 		});
 
 		return entitlements;
@@ -796,6 +819,7 @@ export class ChatEntitlementRequests extends Disposable {
 		if (response.monthly_quotas?.chat && typeof response.limited_user_quotas?.chat === 'number') {
 			quotas.chat = {
 				total: response.monthly_quotas.chat,
+				remaining: response.limited_user_quotas.chat,
 				percentRemaining: Math.min(100, Math.max(0, (response.limited_user_quotas.chat / response.monthly_quotas.chat) * 100)),
 				overageEnabled: false,
 				overageCount: 0,
@@ -806,6 +830,7 @@ export class ChatEntitlementRequests extends Disposable {
 		if (response.monthly_quotas?.completions && typeof response.limited_user_quotas?.completions === 'number') {
 			quotas.completions = {
 				total: response.monthly_quotas.completions,
+				remaining: response.limited_user_quotas.completions,
 				percentRemaining: Math.min(100, Math.max(0, (response.limited_user_quotas.completions / response.monthly_quotas.completions) * 100)),
 				overageEnabled: false,
 				overageCount: 0,
@@ -822,6 +847,7 @@ export class ChatEntitlementRequests extends Disposable {
 				}
 				const quotaSnapshot: IQuotaSnapshot = {
 					total: rawQuotaSnapshot.entitlement,
+					remaining: rawQuotaSnapshot.remaining,
 					percentRemaining: Math.min(100, Math.max(0, rawQuotaSnapshot.percent_remaining)),
 					overageEnabled: rawQuotaSnapshot.overage_permitted,
 					overageCount: rawQuotaSnapshot.overage_count,
@@ -1063,11 +1089,15 @@ type ChatEntitlementClassification = {
 	chatHidden: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether chat is hidden or not.' };
 	chatEntitlement: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The current chat entitlement of the user.' };
 	chatAnonymous: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user is anonymously using chat.' };
+	chatRegistered: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user is registered for chat.' };
+	chatDisabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether chat is disabled or not.' };
 };
 type ChatEntitlementEvent = {
 	chatHidden: boolean;
 	chatEntitlement: ChatEntitlement;
 	chatAnonymous: boolean;
+	chatRegistered: boolean;
+	chatDisabled: boolean;
 };
 
 export class ChatEntitlementContext extends Disposable {
@@ -1094,6 +1124,7 @@ export class ChatEntitlementContext extends Disposable {
 	private readonly installedContext: IContextKey<boolean>;
 	private readonly disabledContext: IContextKey<boolean>;
 	private readonly untrustedContext: IContextKey<boolean>;
+	private readonly registeredContext: IContextKey<boolean>;
 
 	private _state: IChatEntitlementContextState;
 	private suspendedState: IChatEntitlementContextState | undefined = undefined;
@@ -1121,14 +1152,17 @@ export class ChatEntitlementContext extends Disposable {
 		this.proPlusContextKey = ChatEntitlementContextKeys.Entitlement.planProPlus.bindTo(contextKeyService);
 		this.businessContextKey = ChatEntitlementContextKeys.Entitlement.planBusiness.bindTo(contextKeyService);
 		this.enterpriseContextKey = ChatEntitlementContextKeys.Entitlement.planEnterprise.bindTo(contextKeyService);
+
 		this.organisationsContextKey = ChatEntitlementContextKeys.Entitlement.organisations.bindTo(contextKeyService);
 		this.isInternalContextKey = ChatEntitlementContextKeys.Entitlement.internal.bindTo(contextKeyService);
 		this.skuContextKey = ChatEntitlementContextKeys.Entitlement.sku.bindTo(contextKeyService);
+
 		this.hiddenContext = ChatEntitlementContextKeys.Setup.hidden.bindTo(contextKeyService);
 		this.laterContext = ChatEntitlementContextKeys.Setup.later.bindTo(contextKeyService);
 		this.installedContext = ChatEntitlementContextKeys.Setup.installed.bindTo(contextKeyService);
 		this.disabledContext = ChatEntitlementContextKeys.Setup.disabled.bindTo(contextKeyService);
 		this.untrustedContext = ChatEntitlementContextKeys.Setup.untrusted.bindTo(contextKeyService);
+		this.registeredContext = ChatEntitlementContextKeys.Setup.registered.bindTo(contextKeyService);
 
 		this._state = this.storageService.getObject<IChatEntitlementContextState>(ChatEntitlementContext.CHAT_ENTITLEMENT_CONTEXT_STORAGE_KEY, StorageScope.PROFILE) ?? { entitlement: ChatEntitlement.Unknown, organisations: undefined, sku: undefined };
 
@@ -1234,11 +1268,14 @@ export class ChatEntitlementContext extends Disposable {
 		this.installedContext.set(!!state.installed);
 		this.disabledContext.set(!!state.disabled);
 		this.untrustedContext.set(!!state.untrusted);
+		this.registeredContext.set(!!state.registered);
 
 		this.logService.trace(`[chat entitlement context] updateContext(): ${JSON.stringify(state)}`);
 		this.telemetryService.publicLog2<ChatEntitlementEvent, ChatEntitlementClassification>('chatEntitlements', {
 			chatHidden: Boolean(state.hidden),
+			chatDisabled: Boolean(state.disabled),
 			chatEntitlement: state.entitlement,
+			chatRegistered: Boolean(state.registered),
 			chatAnonymous: isAnonymous(this.configurationService, state.entitlement, state)
 		});
 

@@ -19,6 +19,7 @@ const allOptions = [
 	'-p',
 	'-v',
 ];
+// eslint-disable-next-line local/code-no-any-casts
 const expectedCompletions = [{ label: 'mkdir', description: (mkdirSpec as any).description }];
 export const mkdirTestSuiteSpec: ISuiteSpec = {
 	name: 'mkdir',
