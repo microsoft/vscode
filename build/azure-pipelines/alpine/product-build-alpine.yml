@@ -13,41 +13,38 @@ jobs:
       NPM_ARCH: ${{ parameters.VSCODE_ARCH }}
       VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
     templateContext:
+      outputParentDirectory: $(Build.SourcesDirectory)/.build/linux
       outputs:
         - ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
           # keep legacy name
           - output: pipelineArtifact
-            targetPath: $(SERVER_PATH)
+            targetPath: $(Build.SourcesDirectory)/.build/linux/server/vscode-server-linux-alpine.tar.gz
             artifactName: vscode_server_linux_alpine_archive-unsigned
             displayName: Publish x64 server archive
             sbomEnabled: false
             isProduction: false
-            condition: ne(variables['SERVER_PATH'], '')
           # keep legacy name
           - output: pipelineArtifact
-            targetPath: $(WEB_PATH)
+            targetPath: $(Build.SourcesDirectory)/.build/linux/web/vscode-server-linux-alpine-web.tar.gz
             artifactName: vscode_web_linux_alpine_archive-unsigned
             displayName: Publish x64 web server archive
             sbomEnabled: false
             isProduction: false
-            condition: ne(variables['WEB_PATH'], '')
         - ${{ if ne(parameters.VSCODE_ARCH, 'x64') }}:
           - output: pipelineArtifact
-            targetPath: $(SERVER_PATH)
+            targetPath: $(Build.SourcesDirectory)/.build/linux/server/vscode-server-alpine-$(VSCODE_ARCH).tar.gz
             artifactName: vscode_server_alpine_$(VSCODE_ARCH)_archive-unsigned
             displayName: Publish server archive
             sbomBuildDropPath: $(SERVER_DIR_PATH)
             sbomPackageName: "VS Code Alpine $(VSCODE_ARCH) Server"
             sbomPackageVersion: $(Build.SourceVersion)
-            condition: ne(variables['SERVER_PATH'], '')
           - output: pipelineArtifact
-            targetPath: $(WEB_PATH)
+            targetPath: $(Build.SourcesDirectory)/.build/linux/web/vscode-server-alpine-$(VSCODE_ARCH)-web.tar.gz
             artifactName: vscode_web_alpine_$(VSCODE_ARCH)_archive-unsigned
             displayName: Publish web server archive
             sbomBuildDropPath: $(WEB_DIR_PATH)
             sbomPackageName: "VS Code Alpine $(VSCODE_ARCH) Web"
             sbomPackageVersion: $(Build.SourceVersion)
-            condition: ne(variables['WEB_PATH'], '')
     steps:
       - template: ../common/checkout.yml@self
 
