@@ -1852,6 +1852,8 @@ export class ChatModel extends Disposable implements IChatModel {
 									id: item.id,
 									metadata: item.metadata
 								};
+							} else if (item.kind === 'confirmation') {
+								return { ...item, isLive: false };
 							} else {
 								// eslint-disable-next-line local/code-no-any-casts
 								return item as any; // TODO
