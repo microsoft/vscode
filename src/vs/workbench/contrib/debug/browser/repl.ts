@@ -1192,8 +1192,8 @@ registerAction2(class extends Action2 {
 		if (selectedText && selectedText.length > 0) {
 			return clipboardService.writeText(selectedText);
 		} else if (element) {
-			const retvalue = await this.tryEvaluateAndCopy(debugService, element);
-			return retvalue ? clipboardService.writeText(retvalue) : clipboardService.writeText(removeAnsiEscapeCodes(element.toString()));
+			const retValue = await this.tryEvaluateAndCopy(debugService, element);
+			return retValue ? clipboardService.writeText(retValue) : clipboardService.writeText(removeAnsiEscapeCodes(element.toString()));
 		}
 	}
 
