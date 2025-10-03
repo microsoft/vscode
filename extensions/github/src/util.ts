@@ -94,3 +94,24 @@ export function getRepositoryDefaultRemote(repository: Repository): { owner: str
 	const fetchUrl = getRepositoryDefaultRemoteUrl(repository);
 	return fetchUrl ? getRepositoryFromUrl(fetchUrl) : undefined;
 }
+
+export function getRepositoryUpstreamRemote(repository: Repository): { owner: string; repo: string } | undefined {
+	const fetchUrl = getRepositoryUpstreamRemoteUrl(repository);
+	return fetchUrl ? getRepositoryFromUrl(fetchUrl) : undefined;
+}
+
+export function getRepositoryUpstreamRemoteUrl(repository: Repository): string | undefined {
+	const remotes = repository.state.remotes
+		.filter(remote => remote.fetchUrl && getRepositoryFromUrl(remote.fetchUrl));
+
+	if (remotes.length === 0) {
+		return undefined;
+	}
+
+	// upstream -> origin -> first (prioritize upstream for PR/issue links)
+	const remote = remotes.find(remote => remote.name === 'upstream')
+		?? remotes.find(remote => remote.name === 'origin')
+		?? remotes[0];
+
+	return remote.fetchUrl;
+}
