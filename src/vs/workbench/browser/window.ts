@@ -53,7 +53,7 @@ export abstract class BaseWindow extends Disposable {
 		this.enableMultiWindowAwareTimeout(targetWindow, dom);
 
 		this.registerFullScreenListeners(targetWindow.vscodeWindowId);
-		this.registerContextMenuListeners();
+		this.registerContextMenuListeners(targetWindow);
 	}
 
 	//#region focus handling in multi-window applications
@@ -217,7 +217,13 @@ export abstract class BaseWindow extends Disposable {
 		}));
 	}
 
-	private registerContextMenuListeners(): void {
+	private registerContextMenuListeners(targetWindow: Window): void {
+		if (targetWindow !== mainWindow) {
+			// we only need to listen in the main window as the code
+			// will go by the active container and update accordingly
+			return;
+		}
+
 		const update = (visible: boolean) => this.layoutService.activeContainer.classList.toggle('context-menu-visible', visible);
 		this._register(this.contextMenuService.onDidShowContextMenu(() => update(true)));
 		this._register(this.contextMenuService.onDidHideContextMenu(() => update(false)));
