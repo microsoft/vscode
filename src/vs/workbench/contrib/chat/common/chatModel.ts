@@ -14,7 +14,6 @@ import { Schemas } from '../../../../base/common/network.js';
 import { equals } from '../../../../base/common/objects.js';
 import { IObservable, ObservablePromise, observableFromEvent, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
-import { truncate } from '../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI, UriComponents, UriDto, isUriComponents } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -31,7 +30,7 @@ import { IChatEditingService, IChatEditingSession } from './chatEditingService.j
 import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from './chatParserTypes.js';
 import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatResponseClearToPreviousToolInvocationReason, IChatAgentMarkdownContentWithVulnerability, IChatClearToPreviousToolInvocation, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatEditingSessionAction, IChatElicitationRequest, IChatExtensionsContent, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatMcpServersInteractionRequired, IChatMultiDiffData, IChatNotebookEdit, IChatPrepareToolInvocationPart, IChatProgress, IChatProgressMessage, IChatPullRequestContent, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsedContext, IChatWarningMessage, isIUsedContext } from './chatService.js';
 import { ChatRequestToolReferenceEntry, IChatRequestVariableEntry } from './chatVariableEntries.js';
-import { ChatAgentLocation, ChatEditorInputTitleMaxLength, ChatModeKind } from './constants.js';
+import { ChatAgentLocation, ChatModeKind } from './constants.js';
 
 
 export const CHAT_ATTACHABLE_IMAGE_MIME_TYPES: Record<string, string> = {
@@ -1333,7 +1332,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		const message = typeof firstRequestMessage === 'string' ?
 			firstRequestMessage :
 			firstRequestMessage.text;
-		return truncate(message.split('\n')[0], ChatEditorInputTitleMaxLength);
+		return message.split('\n')[0].substring(0, 200);
 	}
 
 	private readonly _onDidDispose = this._register(new Emitter<void>());

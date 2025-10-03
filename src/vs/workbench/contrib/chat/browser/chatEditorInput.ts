@@ -153,7 +153,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	}
 
 	override getName(): string {
-		// If we have a resolved model, use its title (unless we're generating a default title)
+		// If we have a resolved model, use its title
 		if (this.model?.title) {
 			// Only truncate if the default title is being used (don't truncate custom titles)
 			return this.model.hasCustomTitle ? this.model.title : truncate(this.model.title, ChatEditorInputTitleMaxLength);
@@ -208,7 +208,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		}
 
 		this.sessionId = this.model.sessionId;
-		this._register(this.model.onDidChange(async (e) => {
+		this._register(this.model.onDidChange((e) => {
 			// When a custom title is set, we no longer need the numeric count
 			if (e && e.kind === 'setCustomTitle' && !this.hasCustomTitle) {
 				this.hasCustomTitle = true;
