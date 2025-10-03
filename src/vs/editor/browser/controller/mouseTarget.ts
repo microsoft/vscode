@@ -150,6 +150,7 @@ export class MouseTarget {
 	}
 
 	public static toString(target: IMouseTarget): string {
+		// eslint-disable-next-line local/code-no-any-casts
 		return this._typeToString(target.type) + ': ' + target.position + ' - ' + target.range + ' - ' + JSON.stringify((<any>target).detail);
 	}
 }
@@ -989,12 +990,15 @@ export class MouseTargetFactory {
 		const shadowRoot = dom.getShadowRoot(ctx.viewDomNode);
 		let range: Range;
 		if (shadowRoot) {
+			// eslint-disable-next-line local/code-no-any-casts
 			if (typeof (<any>shadowRoot).caretRangeFromPoint === 'undefined') {
 				range = shadowCaretRangeFromPoint(shadowRoot, coords.clientX, coords.clientY);
 			} else {
+				// eslint-disable-next-line local/code-no-any-casts
 				range = (<any>shadowRoot).caretRangeFromPoint(coords.clientX, coords.clientY);
 			}
 		} else {
+			// eslint-disable-next-line local/code-no-any-casts
 			range = (<any>ctx.viewDomNode.ownerDocument).caretRangeFromPoint(coords.clientX, coords.clientY);
 		}
 
@@ -1037,6 +1041,7 @@ export class MouseTargetFactory {
 	 * Most probably Gecko
 	 */
 	private static _doHitTestWithCaretPositionFromPoint(ctx: HitTestContext, coords: ClientCoordinates): HitTestResult {
+		// eslint-disable-next-line local/code-no-any-casts
 		const hitResult: { offsetNode: Node; offset: number } = (<any>ctx.viewDomNode.ownerDocument).caretPositionFromPoint(coords.clientX, coords.clientY);
 
 		if (hitResult.offsetNode.nodeType === hitResult.offsetNode.TEXT_NODE) {
@@ -1089,8 +1094,10 @@ export class MouseTargetFactory {
 	public static doHitTest(ctx: HitTestContext, request: BareHitTestRequest): HitTestResult {
 
 		let result: HitTestResult = new UnknownHitTestResult();
+		// eslint-disable-next-line local/code-no-any-casts
 		if (typeof (<any>ctx.viewDomNode.ownerDocument).caretRangeFromPoint === 'function') {
 			result = this._doHitTestWithCaretRangeFromPoint(ctx, request);
+			// eslint-disable-next-line local/code-no-any-casts
 		} else if ((<any>ctx.viewDomNode.ownerDocument).caretPositionFromPoint) {
 			result = this._doHitTestWithCaretPositionFromPoint(ctx, request.pos.toClientCoordinates(dom.getWindow(ctx.viewDomNode)));
 		}
@@ -1110,6 +1117,7 @@ function shadowCaretRangeFromPoint(shadowRoot: ShadowRoot, x: number, y: number)
 	const range = document.createRange();
 
 	// Get the element under the point
+	// eslint-disable-next-line local/code-no-any-casts
 	let el: HTMLElement | null = (<any>shadowRoot).elementFromPoint(x, y);
 	// When el is not null, it may be div.monaco-mouse-cursor-text Element, which has not childNodes, we don't need to handle it.
 	if (el?.hasChildNodes()) {

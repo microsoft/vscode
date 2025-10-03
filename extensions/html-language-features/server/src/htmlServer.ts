@@ -134,8 +134,10 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	// After the server has started the client sends an initialize request. The server receives
 	// in the passed params the rootPath of the workspace plus the client capabilities
 	connection.onInitialize((params: InitializeParams): InitializeResult => {
+		// eslint-disable-next-line local/code-no-any-casts
 		const initializationOptions = params.initializationOptions as any || {};
 
+		// eslint-disable-next-line local/code-no-any-casts
 		workspaceFolders = (<any>params).workspaceFolders;
 		if (!Array.isArray(workspaceFolders)) {
 			workspaceFolders = [];
@@ -540,6 +542,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	});
 
 	connection.languages.onLinkedEditingRange((params, token) => {
+		// eslint-disable-next-line local/code-no-any-casts
 		return <any> /* todo remove when microsoft/vscode-languageserver-node#700 fixed */ runSafe(runtime, async () => {
 			const document = documents.get(params.textDocument.uri);
 			if (document) {

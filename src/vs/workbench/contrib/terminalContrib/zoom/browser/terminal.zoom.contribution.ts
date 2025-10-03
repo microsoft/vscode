@@ -72,6 +72,7 @@ class TerminalMouseWheelZoomContribution extends Disposable implements ITerminal
 		let gestureAccumulatedDelta = 0;
 
 		raw.attachCustomWheelEventHandler((e: WheelEvent) => {
+			// eslint-disable-next-line local/code-no-any-casts
 			const browserEvent = e as any as IMouseWheelEvent;
 			if (classifier.isPhysicalMouseWheel()) {
 				if (this._hasMouseWheelZoomModifiers(browserEvent)) {

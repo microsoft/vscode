@@ -563,6 +563,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 						messagePort.start();
 						messagePassingProtocol = {
 							onDidReceiveMessage,
+							// eslint-disable-next-line local/code-no-any-casts
 							postMessage: messagePort.postMessage.bind(messagePort) as any
 						};
 					}
@@ -1005,6 +1006,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	}
 
 	public async $startExtensionHost(extensionsDelta: IExtensionDescriptionDelta): Promise<void> {
+		// eslint-disable-next-line local/code-no-any-casts
 		extensionsDelta.toAdd.forEach((extension) => (<any>extension).extensionLocation = URI.revive(extension.extensionLocation));
 
 		const { globalRegistry, myExtensions } = applyExtensionsDelta(this._activationEventsReader, this._globalRegistry, this._myRegistry, extensionsDelta);
@@ -1045,6 +1047,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	}
 
 	public async $deltaExtensions(extensionsDelta: IExtensionDescriptionDelta): Promise<void> {
+		// eslint-disable-next-line local/code-no-any-casts
 		extensionsDelta.toAdd.forEach((extension) => (<any>extension).extensionLocation = URI.revive(extension.extensionLocation));
 
 		// First build up and update the trie and only afterwards apply the delta

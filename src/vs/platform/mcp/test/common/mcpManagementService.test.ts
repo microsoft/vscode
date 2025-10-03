@@ -876,6 +876,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 					registryType: RegistryType.NODE,
 					identifier: 'test-server',
 					version: '1.0.0',
+					// eslint-disable-next-line local/code-no-any-casts
 					runtimeArguments: [{
 						type: 'named',
 						// name is intentionally missing/undefined

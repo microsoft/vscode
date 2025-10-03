@@ -776,6 +776,7 @@ class PolicyDiagnosticsAction extends Action2 {
 				try {
 					const policyServiceConstructorName = policyService.constructor.name;
 					if (policyServiceConstructorName === 'MultiplexPolicyService') {
+						// eslint-disable-next-line local/code-no-any-casts
 						const multiplexService = policyService as any;
 						if (multiplexService.policyServices) {
 							const componentServices = multiplexService.policyServices as ReadonlyArray<any>;

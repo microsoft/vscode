@@ -23,6 +23,7 @@ let documentResource = settings.settings.source;
 
 const vscode = acquireVsCodeApi();
 
+// eslint-disable-next-line local/code-no-any-casts
 const originalState = vscode.getState() ?? {} as any;
 const state = {
 	...originalState,
@@ -249,6 +250,7 @@ window.addEventListener('message', async event => {
 				}
 				newRoot.prepend(...styles);
 
+				// eslint-disable-next-line local/code-no-any-casts
 				morphdom(root, newRoot, {
 					childrenOnly: true,
 					onBeforeElUpdated: (fromEl: Element, toEl: Element) => {
@@ -439,6 +441,7 @@ function domEval(el: Element): void {
 		for (const key of preservedScriptAttributes) {
 			const val = node.getAttribute?.(key);
 			if (val) {
+				// eslint-disable-next-line local/code-no-any-casts
 				scriptTag.setAttribute(key, val as any);
 			}
 		}

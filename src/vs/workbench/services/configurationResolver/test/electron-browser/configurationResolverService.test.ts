@@ -513,6 +513,7 @@ suite('Configuration Resolver Service', () => {
 
 			assert.deepStrictEqual(Object.keys(result), Object.keys(expected));
 			Object.keys(result).forEach(property => {
+				// eslint-disable-next-line local/code-no-any-casts
 				const expectedProperty = (<any>expected)[property];
 				if (isObject(result[property])) {
 					assert.deepStrictEqual({ ...result[property] }, expectedProperty);

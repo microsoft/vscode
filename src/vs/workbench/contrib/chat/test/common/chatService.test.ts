@@ -146,6 +146,7 @@ suite('ChatService', () => {
 		instantiationService.stub(IChatService, new MockChatService());
 		instantiationService.stub(IEnvironmentService, { workspaceStorageHome: URI.file('/test/path/to/workspaceStorage') });
 		instantiationService.stub(ILifecycleService, { onWillShutdown: Event.None });
+		// eslint-disable-next-line local/code-no-any-casts
 		instantiationService.stub(IUserDataProfilesService, {
 			defaultProfile: {
 				globalStorageHome: URI.file('/test/path/to/globalStorage')

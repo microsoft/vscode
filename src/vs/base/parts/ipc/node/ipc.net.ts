@@ -727,6 +727,7 @@ class ZlibInflateStream extends Disposable {
 		super();
 		this._zlibInflate = createInflateRaw(options);
 		this._zlibInflate.on('error', (err) => {
+			// eslint-disable-next-line local/code-no-any-casts
 			this._tracer.traceSocketEvent(SocketDiagnosticsEventType.zlibInflateError, { message: err?.message, code: (<any>err)?.code });
 			this._onError.fire(err);
 		});
@@ -780,6 +781,7 @@ class ZlibDeflateStream extends Disposable {
 			windowBits: 15
 		});
 		this._zlibDeflate.on('error', (err) => {
+			// eslint-disable-next-line local/code-no-any-casts
 			this._tracer.traceSocketEvent(SocketDiagnosticsEventType.zlibDeflateError, { message: err?.message, code: (<any>err)?.code });
 			this._onError.fire(err);
 		});

@@ -165,6 +165,7 @@ export class LanguageConfigurationFileHandler extends Disposable {
 				result = result || {};
 				result.lineComment = source.lineComment;
 			} else if (types.isObject(source.lineComment)) {
+				// eslint-disable-next-line local/code-no-any-casts
 				const lineCommentObj = source.lineComment as any;
 				if (typeof lineCommentObj.comment === 'string') {
 					result = result || {};

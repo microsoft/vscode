@@ -160,10 +160,14 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 			store.add(provider.onDidChangeMcpServerDefinitions(update));
 		}
 		// todo@connor4312: proposed API back-compat
+		// eslint-disable-next-line local/code-no-any-casts
 		if ((provider as any).onDidChangeServerDefinitions) {
+			// eslint-disable-next-line local/code-no-any-casts
 			store.add((provider as any).onDidChangeServerDefinitions(update));
 		}
+		// eslint-disable-next-line local/code-no-any-casts
 		if ((provider as any).onDidChange) {
+			// eslint-disable-next-line local/code-no-any-casts
 			store.add((provider as any).onDidChange(update));
 		}
 

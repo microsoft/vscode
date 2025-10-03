@@ -10,6 +10,7 @@ export function isWeb(): boolean {
 }
 
 export function isWebAndHasSharedArrayBuffers(): boolean {
+	// eslint-disable-next-line local/code-no-any-casts
 	return isWeb() && (globalThis as any)['crossOriginIsolated'];
 }
 

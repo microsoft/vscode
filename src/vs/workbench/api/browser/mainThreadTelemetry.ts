@@ -55,6 +55,7 @@ export class MainThreadTelemetry extends Disposable implements MainThreadTelemet
 	}
 
 	$publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>): void {
+		// eslint-disable-next-line local/code-no-any-casts
 		this.$publicLog(eventName, data as any);
 	}
 }

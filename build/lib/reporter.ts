@@ -105,13 +105,16 @@ export function createReporter(id?: string): IReporter {
 			errorLog.onEnd();
 
 			if (emitError && errors.length > 0) {
+				// eslint-disable-next-line local/code-no-any-casts
 				if (!(errors as any).__logged__) {
 					errorLog.log();
 				}
 
+				// eslint-disable-next-line local/code-no-any-casts
 				(errors as any).__logged__ = true;
 
 				const err = new Error(`Found ${errors.length} errors`);
+				// eslint-disable-next-line local/code-no-any-casts
 				(err as any).__reporter__ = true;
 				this.emit('error', err);
 			} else {

@@ -641,6 +641,7 @@ class WindowsPtyHeuristics extends Disposable {
 					// function an embedder could easily do damage with. Additionally, this
 					// can't really be upstreamed since the event relies on shell integration to
 					// verify the shifting is necessary.
+					// eslint-disable-next-line local/code-no-any-casts
 					(this._terminal as any)._core._bufferService.buffer.lines.onDeleteEmitter.fire({
 						index: this._terminal.buffer.active.baseY,
 						amount: potentialShiftedLineCount

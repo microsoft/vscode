@@ -33,6 +33,7 @@ export = new class implements eslint.Rule.RuleModule {
 			}
 
 			const name = classDeclaration.id.name;
+			// eslint-disable-next-line local/code-no-any-casts
 			const valueText = context.sourceCode.getText(<any>propertyDefinition.value);
 
 			if (valueText.includes(name + '.')) {

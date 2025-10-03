@@ -89,8 +89,10 @@ export function connectProxyResolver(
 				promises.push(certs);
 			}
 			// Using https.globalAgent because it is shared with proxy.test.ts and mutable.
+			// eslint-disable-next-line local/code-no-any-casts
 			if (initData.environment.extensionTestsLocationURI && (https.globalAgent as any).testCertificates?.length) {
 				extHostLogService.trace('ProxyResolver#loadAdditionalCertificates: Loading test certificates');
+				// eslint-disable-next-line local/code-no-any-casts
 				promises.push(Promise.resolve((https.globalAgent as any).testCertificates as string[]));
 			}
 			return (await Promise.all(promises)).flat();
@@ -98,6 +100,7 @@ export function connectProxyResolver(
 		env: process.env,
 	};
 	const { resolveProxyWithRequest, resolveProxyURL } = createProxyResolver(params);
+	// eslint-disable-next-line local/code-no-any-casts
 	const target = (proxyAgent as any).default || proxyAgent;
 	target.resolveProxyURL = resolveProxyURL;
 
@@ -120,10 +123,13 @@ const unsafeHeaders = [
 ];
 
 function patchGlobalFetch(params: ProxyAgentParams, configProvider: ExtHostConfigProvider, mainThreadTelemetry: MainThreadTelemetryShape, initData: IExtensionHostInitData, resolveProxyURL: (url: string) => Promise<string | undefined>, disposables: DisposableStore) {
+	// eslint-disable-next-line local/code-no-any-casts
 	if (!(globalThis as any).__vscodeOriginalFetch) {
 		const originalFetch = globalThis.fetch;
+		// eslint-disable-next-line local/code-no-any-casts
 		(globalThis as any).__vscodeOriginalFetch = originalFetch;
 		const patchedFetch = proxyAgent.createFetchPatch(params, originalFetch, resolveProxyURL);
+		// eslint-disable-next-line local/code-no-any-casts
 		(globalThis as any).__vscodePatchedFetch = patchedFetch;
 		let useElectronFetch = false;
 		if (!initData.remote.isRemote) {
@@ -364,6 +370,7 @@ function configureModuleLoading(extensionService: ExtHostExtensionService, looku
 						cache[request] = undici;
 					} else {
 						const mod = lookup[request];
+						// eslint-disable-next-line local/code-no-any-casts
 						cache[request] = <any>{ ...mod }; // Copy to work around #93167.
 					}
 				}

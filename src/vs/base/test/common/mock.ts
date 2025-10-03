@@ -10,6 +10,7 @@ export interface Ctor<T> {
 }
 
 export function mock<T>(): Ctor<T> {
+	// eslint-disable-next-line local/code-no-any-casts
 	return function () { } as any;
 }
 
@@ -18,6 +19,7 @@ export type MockObject<T, ExceptProps = never> = { [K in keyof T]: K extends Exc
 // Creates an object object that returns sinon mocks for every property. Optionally
 // takes base properties.
 export const mockObject = <T extends object>() => <TP extends Partial<T> = {}>(properties?: TP): MockObject<T, keyof TP> => {
+	// eslint-disable-next-line local/code-no-any-casts
 	return new Proxy({ ...properties } as any, {
 		get(target, key) {
 			if (!target.hasOwnProperty(key)) {

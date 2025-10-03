@@ -597,6 +597,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 	}
 
 	private registerDoneListeners(step: IWalkthroughStep) {
+		// eslint-disable-next-line local/code-no-any-casts
 		if ((step as any).doneOn) {
 			console.error(`wakthrough step`, step, `uses deprecated 'doneOn' property. Adopt 'completionEvents' to silence this warning`);
 			return;

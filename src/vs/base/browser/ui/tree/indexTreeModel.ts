@@ -86,6 +86,7 @@ interface CollapsedStateUpdate {
 type CollapseStateUpdate = CollapsibleStateUpdate | CollapsedStateUpdate;
 
 function isCollapsibleStateUpdate(update: CollapseStateUpdate): update is CollapsibleStateUpdate {
+	// eslint-disable-next-line local/code-no-any-casts
 	return typeof (update as any).collapsible === 'boolean';
 }
 

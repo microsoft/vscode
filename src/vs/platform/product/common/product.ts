@@ -15,6 +15,7 @@ import { ISandboxConfiguration } from '../../../base/parts/sandbox/common/sandbo
 let product: IProductConfiguration;
 
 // Native sandbox environment
+// eslint-disable-next-line local/code-no-any-casts
 const vscodeGlobal = (globalThis as any).vscode;
 if (typeof vscodeGlobal !== 'undefined' && typeof vscodeGlobal.context !== 'undefined') {
 	const configuration: ISandboxConfiguration | undefined = vscodeGlobal.context.configuration();
@@ -55,6 +56,7 @@ else if (globalThis._VSCODE_PRODUCT_JSON && globalThis._VSCODE_PACKAGE_JSON) {
 else {
 
 	// Built time configuration (do NOT modify)
+	// eslint-disable-next-line local/code-no-any-casts
 	product = { /*BUILD->INSERT_PRODUCT_CONFIGURATION*/ } as any;
 
 	// Running out of sources

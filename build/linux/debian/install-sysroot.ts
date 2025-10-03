@@ -82,6 +82,7 @@ async function fetchUrl(options: IFetchOptions, retries = 10, retryDelay = 1000)
 		try {
 			const response = await fetch(`https://api.github.com/repos/Microsoft/vscode-linux-build-agent/releases/tags/v${version}`, {
 				headers: ghApiHeaders,
+				// eslint-disable-next-line local/code-no-any-casts
 				signal: controller.signal as any /* Typings issue with lib.dom.d.ts */
 			});
 			if (response.ok && (response.status >= 200 && response.status < 300)) {

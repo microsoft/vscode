@@ -1171,6 +1171,7 @@ abstract class ComputedEditorOption<K extends EditorOption, V> implements IEdito
 	constructor(id: K) {
 		this.id = id;
 		this.name = '_never_';
+		// eslint-disable-next-line local/code-no-any-casts
 		this.defaultValue = <any>undefined;
 	}
 
@@ -1207,6 +1208,7 @@ class SimpleEditorOption<K extends EditorOption, V> implements IEditorOption<K, 
 		if (typeof input === 'undefined') {
 			return this.defaultValue;
 		}
+		// eslint-disable-next-line local/code-no-any-casts
 		return input as any;
 	}
 
@@ -1387,6 +1389,7 @@ class EditorStringEnumOption<K extends EditorOption, V extends string> extends S
 	constructor(id: K, name: PossibleKeyName<V>, defaultValue: V, allowedValues: ReadonlyArray<V>, schema: IConfigurationPropertySchema | undefined = undefined) {
 		if (typeof schema !== 'undefined') {
 			schema.type = 'string';
+			// eslint-disable-next-line local/code-no-any-casts
 			schema.enum = <any>allowedValues;
 			schema.default = defaultValue;
 		}
@@ -1422,6 +1425,7 @@ class EditorEnumOption<K extends EditorOption, T extends string, V> extends Base
 		if (this._allowedValues.indexOf(<T>input) === -1) {
 			return this.defaultValue;
 		}
+		// eslint-disable-next-line local/code-no-any-casts
 		return this._convert(<any>input);
 	}
 }
@@ -4778,6 +4782,7 @@ class GuideOptions extends BaseEditorOption<EditorOption.guides, IGuidesOptions,
 }
 
 function primitiveSet<T extends string | boolean>(value: unknown, defaultValue: T, allowedValues: T[]): T {
+	// eslint-disable-next-line local/code-no-any-casts
 	const idx = allowedValues.indexOf(value as any);
 	if (idx === -1) {
 		return defaultValue;
