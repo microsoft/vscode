@@ -1226,7 +1226,7 @@ export class ChangeLanguageAction extends Action2 {
 		}
 
 		// Offer to "Auto Detect", but only if the document has long enough text.
-		let autoDetectLanguage: IQuickPickItem | undefined = undefined;
+		let autoDetectLanguage: IQuickPickItem | undefined;
 		if (textModel && textModel.getValueLength() > 20) {
 			autoDetectLanguage = { label: localize('autoDetect', "Auto Detect") };
 			picks.unshift(autoDetectLanguage);
