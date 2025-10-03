@@ -155,7 +155,7 @@ function hygiene(some) {
 	const unicodeFilterStream = filter(unicodeFilter, { restore: true });
 
 	const result = input
-		.pipe(filter((f) => !f.stat?.isDirectory()))
+		.pipe(filter((f) => f.stat && !f.stat.isDirectory()))
 		.pipe(snapshotFilter)
 		.pipe(yarnLockFilter)
 		.pipe(productJsonFilter)
