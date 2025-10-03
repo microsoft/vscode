@@ -1033,8 +1033,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			if (this.shouldShowChatSetup()) {
 				welcomeContent = this.getNewWelcomeViewContent();
 				this.container.classList.add('new-welcome-view');
-			}
-			else if (expEmptyState) {
+			} else if (expEmptyState) {
 				welcomeContent = this.getWelcomeViewContent(additionalMessage, expEmptyState);
 			} else {
 				const tips = this.input.currentModeKind === ChatModeKind.Ask
