@@ -42,7 +42,7 @@ import { IQuickInputButton, IQuickInputService, QuickPickInput } from '../../../
 import { ActiveEditorContext } from '../../../common/contextkeys.js';
 import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
 import { getTestingConfiguration, TestingConfigKeys } from '../common/configuration.js';
-import { TestCommandId } from '../common/constants.js';
+import { TestCommandId, Testing } from '../common/constants.js';
 import { FileCoverage } from '../common/testCoverage.js';
 import { ITestCoverageService } from '../common/testCoverageService.js';
 import { TestId } from '../common/testId.js';
@@ -60,7 +60,7 @@ const TOGGLE_INLINE_COMMAND_ID = 'testing.toggleInlineCoverage';
 const BRANCH_MISS_INDICATOR_CHARS = 4;
 
 export class CodeCoverageDecorations extends Disposable implements IEditorContribution {
-	public static readonly ID = 'editor.contrib.coverageDecorations';
+	public static readonly ID = Testing.CoverageDecorationsContributionId;
 
 	private loadingCancellation?: CancellationTokenSource;
 	private readonly displayedStore = this._register(new DisposableStore());
