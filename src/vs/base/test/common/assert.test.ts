@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ok } from '../../common/assert.js';
+import { ok, assert as commonAssert } from '../../common/assert.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
+import { CancellationError, ReadonlyError } from '../../common/errors.js';
 
 suite('Assert', () => {
 	test('ok', () => {
@@ -31,6 +32,71 @@ suite('Assert', () => {
 		ok('foo');
 		ok({});
 		ok(5);
+	});
+
+	suite('throws a provided error object', () => {
+		test('generic error', () => {
+			const originalError = new Error('Oh no!');
+
+			try {
+				commonAssert(
+					false,
+					originalError,
+				);
+			} catch (thrownError) {
+				assert.strictEqual(
+					thrownError,
+					originalError,
+					'Must throw the provided error instance.',
+				);
+
+				assert.strictEqual(
+					thrownError.message,
+					'Oh no!',
+					'Must throw the provided error instance.',
+				);
+			}
+		});
+
+		test('cancellation error', () => {
+			const originalError = new CancellationError();
+
+			try {
+				commonAssert(
+					false,
+					originalError,
+				);
+			} catch (thrownError) {
+				assert.strictEqual(
+					thrownError,
+					originalError,
+					'Must throw the provided error instance.',
+				);
+			}
+		});
+
+		test('readonly error', () => {
+			const originalError = new ReadonlyError('World');
+
+			try {
+				commonAssert(
+					false,
+					originalError,
+				);
+			} catch (thrownError) {
+				assert.strictEqual(
+					thrownError,
+					originalError,
+					'Must throw the provided error instance.',
+				);
+
+				assert.strictEqual(
+					thrownError.message,
+					'World is read-only and cannot be changed',
+					'Must throw the provided error instance.',
+				);
+			}
+		});
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

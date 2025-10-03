@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
@@ -15,10 +15,10 @@ export const enum ChatViewsWelcomeExtensions {
 }
 
 export interface IChatViewsWelcomeDescriptor {
-	icon?: ThemeIcon;
-	title: string;
-	content: IMarkdownString | ((disposables: DisposableStore) => HTMLElement);
-	when: ContextKeyExpression;
+	readonly icon?: ThemeIcon;
+	readonly title: string;
+	readonly content: IMarkdownString;
+	readonly when: ContextKeyExpression;
 }
 
 export interface IChatViewsWelcomeContributionRegistry {
@@ -27,9 +27,9 @@ export interface IChatViewsWelcomeContributionRegistry {
 	register(descriptor: IChatViewsWelcomeDescriptor): void;
 }
 
-class ChatViewsWelcomeContributionRegistry implements IChatViewsWelcomeContributionRegistry {
+class ChatViewsWelcomeContributionRegistry extends Disposable implements IChatViewsWelcomeContributionRegistry {
 	private readonly descriptors: IChatViewsWelcomeDescriptor[] = [];
-	private readonly _onDidChange = new Emitter<void>();
+	private readonly _onDidChange = this._register(new Emitter<void>());
 	public readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	public register(descriptor: IChatViewsWelcomeDescriptor): void {

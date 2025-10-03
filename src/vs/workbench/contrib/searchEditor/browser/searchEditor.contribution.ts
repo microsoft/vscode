@@ -202,6 +202,7 @@ const translateLegacyConfig = (legacyConfig: LegacySearchEditorArgs & OpenSearch
 		useIgnores: 'useExcludeSettingsAndIgnoreFiles',
 	};
 	Object.entries(legacyConfig).forEach(([key, value]) => {
+		// eslint-disable-next-line local/code-no-any-casts
 		(config as any)[(overrides as any)[key] ?? key] = value;
 	});
 	return config;
@@ -338,11 +339,11 @@ registerAction2(class extends Action2 {
 				weight: KeybindingWeight.EditorContrib
 			},
 			icon: searchRefreshIcon,
-			menu: [{
-				id: MenuId.EditorTitle,
+			menu: [...[MenuId.EditorTitle, MenuId.CompactWindowEditorTitle].map(id => ({
+				id,
 				group: 'navigation',
 				when: ActiveEditorContext.isEqualTo(SearchEditorConstants.SearchEditorID)
-			},
+			})),
 			{
 				id: MenuId.CommandPalette,
 				when: ActiveEditorContext.isEqualTo(SearchEditorConstants.SearchEditorID)

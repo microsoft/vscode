@@ -273,7 +273,9 @@ function getAttributeQuote(editor: TextEditor, attr: Attribute): string {
  */
 function findUrlToken(editor: TextEditor, node: Property, pos: Position): CssToken | undefined {
 	const offset = editor.document.offsetAt(pos);
+	// eslint-disable-next-line local/code-no-any-casts
 	for (let i = 0, il = (node as any).parsedValue.length, url; i < il; i++) {
+		// eslint-disable-next-line local/code-no-any-casts
 		iterateCSSToken((node as any).parsedValue[i], (token: CssToken) => {
 			if (token.type === 'url' && token.start <= offset && token.end >= offset) {
 				url = token;

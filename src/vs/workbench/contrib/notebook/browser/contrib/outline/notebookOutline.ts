@@ -38,7 +38,6 @@ import { OutlineEntry } from '../../viewModel/OutlineEntry.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { IModelDeltaDecoration } from '../../../../../../editor/common/model.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
-import { mainWindow } from '../../../../../../base/browser/window.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { Action2, IMenu, IMenuService, MenuId, MenuItemAction, MenuRegistry, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -54,6 +53,7 @@ import { NotebookOutlineConstants } from '../../viewModel/notebookOutlineEntryFa
 import { INotebookCellOutlineDataSourceFactory } from '../../viewModel/notebookOutlineDataSourceFactory.js';
 import { INotebookExecutionStateService, NotebookExecutionType } from '../../../common/notebookExecutionStateService.js';
 import { ILanguageFeaturesService } from '../../../../../../editor/common/services/languageFeatures.js';
+import { safeIntl } from '../../../../../../base/common/date.js';
 
 class NotebookOutlineTemplate {
 
@@ -101,7 +101,7 @@ class NotebookOutlineRenderer implements ITreeRenderer<OutlineEntry, FuzzyScore,
 		return new NotebookOutlineTemplate(container, iconClass, iconLabel, decoration, actionMenu, elementDisposables);
 	}
 
-	renderElement(node: ITreeNode<OutlineEntry, FuzzyScore>, _index: number, template: NotebookOutlineTemplate, _height: number | undefined): void {
+	renderElement(node: ITreeNode<OutlineEntry, FuzzyScore>, _index: number, template: NotebookOutlineTemplate): void {
 		const extraClasses: string[] = [];
 		const options: IIconLabelValueOptions = {
 			matches: createMatches(node.filterData),
@@ -192,10 +192,10 @@ class NotebookOutlineRenderer implements ITreeRenderer<OutlineEntry, FuzzyScore,
 
 	disposeTemplate(templateData: NotebookOutlineTemplate): void {
 		templateData.iconLabel.dispose();
-		templateData.elementDisposables.clear();
+		templateData.elementDisposables.dispose();
 	}
 
-	disposeElement(element: ITreeNode<OutlineEntry, FuzzyScore>, index: number, templateData: NotebookOutlineTemplate, height: number | undefined): void {
+	disposeElement(element: ITreeNode<OutlineEntry, FuzzyScore>, index: number, templateData: NotebookOutlineTemplate): void {
 		templateData.elementDisposables.clear();
 		DOM.clearNode(templateData.actionMenu);
 	}
@@ -346,6 +346,28 @@ export class NotebookQuickPickProvider implements IQuickPickDataSource<OutlineEn
 	}
 }
 
+/**
+ * Checks if the given outline entry should be filtered out of the outlinePane
+ *
+ * @param entry the OutlineEntry to check
+ * @param showMarkdownHeadersOnly whether to show only markdown headers
+ * @param showCodeCells whether to show code cells
+ * @param showCodeCellSymbols whether to show code cell symbols
+ * @returns true if the entry should be filtered out of the outlinePane, false if the entry should be visible.
+ */
+function filterEntry(entry: OutlineEntry, showMarkdownHeadersOnly: boolean, showCodeCells: boolean, showCodeCellSymbols: boolean): boolean {
+	// if any are true, return true, this entry should NOT be included in the outline
+	if (
+		(showMarkdownHeadersOnly && entry.cell.cellKind === CellKind.Markup && entry.level === NotebookOutlineConstants.NonHeaderOutlineLevel) ||	// show headers only   + cell is mkdn + is level 7 (not header)
+		(!showCodeCells && entry.cell.cellKind === CellKind.Code) ||																				// show code cells off + cell is code
+		(!showCodeCellSymbols && entry.cell.cellKind === CellKind.Code && entry.level > NotebookOutlineConstants.NonHeaderOutlineLevel)				// show symbols off    + cell is code + is level >7 (nb symbol levels)
+	) {
+		return true;
+	}
+
+	return false;
+}
+
 export class NotebookOutlinePaneProvider implements IDataSource<NotebookCellOutline, OutlineEntry> {
 
 	private readonly _disposables = new DisposableStore();
@@ -381,14 +403,14 @@ export class NotebookOutlinePaneProvider implements IDataSource<NotebookCellOutl
 			return undefined;
 		}
 
-		if (!this.filterEntry(newActive)) {
+		if (!filterEntry(newActive, this.showMarkdownHeadersOnly, this.showCodeCells, this.showCodeCellSymbols)) {
 			return newActive;
 		}
 
 		// find a valid parent
 		let parent = newActive.parent;
 		while (parent) {
-			if (this.filterEntry(parent)) {
+			if (filterEntry(parent, this.showMarkdownHeadersOnly, this.showCodeCells, this.showCodeCellSymbols)) {
 				parent = parent.parent;
 			} else {
 				return parent;
@@ -397,25 +419,6 @@ export class NotebookOutlinePaneProvider implements IDataSource<NotebookCellOutl
 
 		// no valid parent found, return undefined
 		return undefined;
-	}
-
-	/**
-	 * Checks if the given outline entry should be filtered out of the outlinePane
-	 *
-	 * @param entry the OutlineEntry to check
-	 * @returns true if the entry should be filtered out of the outlinePane
-	 */
-	private filterEntry(entry: OutlineEntry): boolean {
-		// if any are true, return true, this entry should NOT be included in the outline
-		if (
-			(this.showMarkdownHeadersOnly && entry.cell.cellKind === CellKind.Markup && entry.level === NotebookOutlineConstants.NonHeaderOutlineLevel) ||	// show headers only   + cell is mkdn + is level 7 (not header)
-			(!this.showCodeCells && entry.cell.cellKind === CellKind.Code) ||																				// show code cells off + cell is code
-			(!this.showCodeCellSymbols && entry.cell.cellKind === CellKind.Code && entry.level > NotebookOutlineConstants.NonHeaderOutlineLevel)				// show symbols off    + cell is code + is level >7 (nb symbol levels)
-		) {
-			return true;
-		}
-
-		return false;
 	}
 
 	*getChildren(element: NotebookCellOutline | OutlineEntry): Iterable<OutlineEntry> {
@@ -482,7 +485,7 @@ export class NotebookBreadcrumbsProvider implements IBreadcrumbsDataSource<Outli
 
 class NotebookComparator implements IOutlineComparator<OutlineEntry> {
 
-	private readonly _collator = new DOM.WindowIdleValue<Intl.Collator>(mainWindow, () => new Intl.Collator(undefined, { numeric: true }));
+	private readonly _collator = safeIntl.Collator(undefined, { numeric: true });
 
 	compareByPosition(a: OutlineEntry, b: OutlineEntry): number {
 		return a.index - b.index;
@@ -518,7 +521,9 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 	private _breadcrumbsDataSource!: IBreadcrumbsDataSource<OutlineEntry>;
 
 	// view settings
+	private outlineShowCodeCells: boolean;
 	private outlineShowCodeCellSymbols: boolean;
+	private outlineShowMarkdownHeadersOnly: boolean;
 
 	// getters
 	get activeElement(): OutlineEntry | undefined {
@@ -538,7 +543,13 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 		return this._outlineDataSourceReference?.object?.uri;
 	}
 	get isEmpty(): boolean {
-		return this._outlineDataSourceReference?.object?.isEmpty ?? true;
+		if (!this._outlineDataSourceReference?.object?.entries) {
+			return true;
+		}
+
+		return !this._outlineDataSourceReference.object.entries.some(entry => {
+			return !filterEntry(entry, this.outlineShowMarkdownHeadersOnly, this.outlineShowCodeCells, this.outlineShowCodeCellSymbols);
+		});
 	}
 
 	private checkDelayer() {
@@ -558,7 +569,9 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@INotebookExecutionStateService private readonly _notebookExecutionStateService: INotebookExecutionStateService,
 	) {
+		this.outlineShowCodeCells = this._configurationService.getValue<boolean>(NotebookSetting.outlineShowCodeCells);
 		this.outlineShowCodeCellSymbols = this._configurationService.getValue<boolean>(NotebookSetting.outlineShowCodeCellSymbols);
+		this.outlineShowMarkdownHeadersOnly = this._configurationService.getValue<boolean>(NotebookSetting.outlineShowMarkdownHeadersOnly);
 
 		this.initializeOutline();
 
@@ -615,6 +628,10 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 				e.affectsConfiguration(NotebookSetting.outlineShowCodeCellSymbols) ||
 				e.affectsConfiguration(NotebookSetting.breadcrumbsShowCodeCells)
 			) {
+				this.outlineShowCodeCells = this._configurationService.getValue<boolean>(NotebookSetting.outlineShowCodeCells);
+				this.outlineShowCodeCellSymbols = this._configurationService.getValue<boolean>(NotebookSetting.outlineShowCodeCellSymbols);
+				this.outlineShowMarkdownHeadersOnly = this._configurationService.getValue<boolean>(NotebookSetting.outlineShowMarkdownHeadersOnly);
+
 				this.delayedRecomputeState();
 			}
 		}));
@@ -723,7 +740,7 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 		const notebookEditorOptions: INotebookEditorOptions = {
 			...options,
 			override: this._editor.input?.editorId,
-			cellRevealType: CellRevealType.NearTopIfOutsideViewport,
+			cellRevealType: CellRevealType.Top,
 			selection: entry.position,
 			viewState: undefined,
 		};
@@ -858,7 +875,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		[NotebookSetting.outlineShowCodeCellSymbols]: {
 			type: 'boolean',
 			default: true,
-			markdownDescription: localize('outline.showCodeCellSymbols', "When enabled, notebook outline shows code cell symbols. Relies on `notebook.outline.showCodeCells` being enabled.")
+			markdownDescription: localize('outline.showCodeCellSymbols', "When enabled, notebook outline shows code cell symbols. Relies on `#notebook.outline.showCodeCells#` being enabled.")
 		},
 		[NotebookSetting.breadcrumbsShowCodeCells]: {
 			type: 'boolean',

@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as es from 'event-stream';
-import _debounce = require('debounce');
-import * as _filter from 'gulp-filter';
-import * as rename from 'gulp-rename';
-import * as path from 'path';
-import * as fs from 'fs';
-import * as _rimraf from 'rimraf';
-import * as VinylFile from 'vinyl';
+import es from 'event-stream';
+import _debounce from 'debounce';
+import _filter from 'gulp-filter';
+import rename from 'gulp-rename';
+import path from 'path';
+import fs from 'fs';
+import _rimraf from 'rimraf';
+import VinylFile from 'vinyl';
 import { ThroughStream } from 'through';
-import * as sm from 'source-map';
+import sm from 'source-map';
 import { pathToFileURL } from 'url';
-import * as ternaryStream from 'ternary-stream';
+import ternaryStream from 'ternary-stream';
 
 const root = path.dirname(path.dirname(__dirname));
 
@@ -129,9 +129,10 @@ export function fixWin32DirectoryPermissions(): NodeJS.ReadWriteStream {
 export function setExecutableBit(pattern?: string | string[]): NodeJS.ReadWriteStream {
 	const setBit = es.mapSync<VinylFile, VinylFile>(f => {
 		if (!f.stat) {
+			// eslint-disable-next-line local/code-no-any-casts
 			f.stat = { isFile() { return true; } } as any;
 		}
-		f.stat.mode = /* 100755 */ 33261;
+		f.stat!.mode = /* 100755 */ 33261;
 		return f;
 	});
 
@@ -185,9 +186,7 @@ export function cleanNodeModules(rulePath: string): NodeJS.ReadWriteStream {
 	return es.duplex(input, output);
 }
 
-declare class FileSourceMap extends VinylFile {
-	public sourceMap: sm.RawSourceMap;
-}
+type FileSourceMap = VinylFile & { sourceMap: sm.RawSourceMap };
 
 export function loadSourcemaps(): NodeJS.ReadWriteStream {
 	const input = es.through();
@@ -355,6 +354,7 @@ export interface FilterStream extends NodeJS.ReadWriteStream {
 }
 
 export function filter(fn: (data: any) => boolean): FilterStream {
+	// eslint-disable-next-line local/code-no-any-casts
 	const result = <FilterStream><any>es.through(function (data) {
 		if (fn(data)) {
 			this.emit('data', data);

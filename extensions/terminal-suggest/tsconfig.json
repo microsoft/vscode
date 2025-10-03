@@ -2,20 +2,19 @@
 	"extends": "../tsconfig.base.json",
 	"compilerOptions": {
 		"outDir": "./out",
+		"esModuleInterop": true,
 		"types": [
 			"node"
 		],
-		"target": "es2020",
-		"module": "CommonJS",
-		"moduleResolution": "node",
-		"strict": true,
-		"esModuleInterop": true,
-		"skipLibCheck": true,
+		// Needed to suppress warnings in upstream completions
+		"noImplicitReturns": false,
+		"noUnusedParameters": false
 	},
 	"include": [
 		"src/**/*",
 		"src/completions/index.d.ts",
 		"../../src/vscode-dts/vscode.d.ts",
-		"../../src/vscode-dts/vscode.proposed.terminalCompletionProvider.d.ts"
+		"../../src/vscode-dts/vscode.proposed.terminalCompletionProvider.d.ts",
+		"../../src/vscode-dts/vscode.proposed.terminalShellEnv.d.ts"
 	]
 }

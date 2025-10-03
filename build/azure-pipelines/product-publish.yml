@@ -1,9 +1,16 @@
+parameters:
+  - name: VSCODE_QUALITY
+    type: string
+  - name: VSCODE_SCHEDULEDBUILD
+    type: boolean
+
 steps:
+  - template: ./common/checkout.yml@self
+
   - task: NodeTool@0
     inputs:
       versionSource: fromFile
       versionFilePath: .nvmrc
-      nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
   - task: AzureKeyVault@2
     displayName: "Azure Key Vault: Get Secrets"
@@ -26,6 +33,8 @@ steps:
   - pwsh: |
       npm ci
     workingDirectory: build
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Install build dependencies
 
   - download: current
@@ -72,10 +81,6 @@ steps:
 
   - pwsh: node build/azure-pipelines/common/publish.js
     env:
-      GITHUB_TOKEN: "$(github-distro-mixin-password)"
-      AZURE_TENANT_ID: "$(AZURE_TENANT_ID)"
-      AZURE_CLIENT_ID: "$(AZURE_CLIENT_ID)"
-      AZURE_ID_TOKEN: "$(AZURE_ID_TOKEN)"
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
       PUBLISH_AUTH_TOKENS: "$(PUBLISH_AUTH_TOKENS)"
       RELEASE_TENANT_ID: "$(ESRP_TENANT_ID)"
@@ -85,51 +90,16 @@ steps:
     displayName: Process artifacts
     retryCountOnTaskFailure: 3
 
-  - task: 1ES.PublishPipelineArtifact@1
-    inputs:
+  - template: common/publish-artifact.yml@self
+    parameters:
       targetPath: $(Pipeline.Workspace)/artifacts_processed_$(System.StageAttempt)/artifacts_processed_$(System.StageAttempt).txt
       artifactName: artifacts_processed_$(System.StageAttempt)
+      displayName: Publish the artifacts processed for this stage attempt
       sbomEnabled: false
-    displayName: Publish the artifacts processed for this stage attempt
-    condition: always()
+      condition: always()
 
-  - pwsh: |
-      $ErrorActionPreference = 'Stop'
-
-      # Determine which stages we need to watch
-      $stages = @(
-        if ($env:VSCODE_BUILD_STAGE_WINDOWS -eq 'True') { 'Windows' }
-        if ($env:VSCODE_BUILD_STAGE_LINUX -eq 'True') { 'Linux' }
-        if ($env:VSCODE_BUILD_STAGE_LINUX_LEGACY_SERVER -eq 'True') { 'LinuxLegacyServer' }
-        if ($env:VSCODE_BUILD_STAGE_ALPINE -eq 'True') { 'Alpine' }
-        if ($env:VSCODE_BUILD_STAGE_MACOS -eq 'True') { 'macOS' }
-        if ($env:VSCODE_BUILD_STAGE_WEB -eq 'True') { 'Web' }
-      )
-      Write-Host "Stages to check: $stages"
-
-      # Get the timeline and see if it says the other stage completed
-      $timeline = Invoke-RestMethod "$($env:BUILDS_API_URL)timeline?api-version=6.0" -Headers @{
-        Authorization = "Bearer $env:SYSTEM_ACCESSTOKEN"
-      }  -MaximumRetryCount 5 -RetryIntervalSec 1
-
-      $failedStages = @()
-      foreach ($stage in $stages) {
-        $didStageFail = $timeline.records | Where-Object {
-          $_.name -eq $stage -and $_.type -eq 'stage' -and $_.result -ne 'succeeded' -and $_.result -ne 'succeededWithIssues'
-        }
-
-        if($didStageFail) {
-          $failedStages += $stage
-          Write-Host "'$stage' failed!"
-          Write-Host $didStageFail
-        } else {
-          Write-Host "'$stage' did not fail."
-        }
-      }
-
-      if ($failedStages.Length) {
-        throw "Failed stages: $($failedStages -join ', '). This stage will now fail so that it is easier to retry failed jobs."
-      }
-    env:
-      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-    displayName: Determine if stage should succeed
+  - ${{ if and(in(parameters.VSCODE_QUALITY, 'insider', 'exploration'), eq(parameters.VSCODE_SCHEDULEDBUILD, true)) }}:
+    - script: node build/azure-pipelines/common/releaseBuild.js
+      env:
+        PUBLISH_AUTH_TOKENS: "$(PUBLISH_AUTH_TOKENS)"
+      displayName: Release build

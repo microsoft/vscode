@@ -4,16 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as ts from 'typescript';
-import * as lazy from 'lazy.js';
+import lazy from 'lazy.js';
 import { duplex, through } from 'event-stream';
-import * as File from 'vinyl';
-import * as sm from 'source-map';
-import * as path from 'path';
-import * as sort from 'gulp-sort';
+import File from 'vinyl';
+import sm from 'source-map';
+import path from 'path';
+import sort from 'gulp-sort';
 
-declare class FileSourceMap extends File {
-	public sourceMap: sm.RawSourceMap;
-}
+type FileSourceMap = File & { sourceMap: sm.RawSourceMap };
 
 enum CollectStepResult {
 	Yes,
@@ -42,6 +40,7 @@ function collect(ts: typeof import('typescript'), node: ts.Node, fn: (node: ts.N
 }
 
 function clone<T extends object>(object: T): T {
+	// eslint-disable-next-line local/code-no-any-casts
 	const result = {} as any as T;
 	for (const id in object) {
 		result[id] = object[id];
@@ -248,7 +247,7 @@ module _nls {
 			.concat(importEqualsDeclarations.map(d => d.name))
 
 			// find read-only references to `nls`
-			.map(n => service.getReferencesAtPosition(filename, n.pos + 1))
+			.map(n => service.getReferencesAtPosition(filename, n.pos + 1) ?? [])
 			.flatten()
 			.filter(r => !r.isWriteAccess)
 
@@ -270,14 +269,14 @@ module _nls {
 		// `localize` read-only references
 		const localizeReferences = allLocalizeImportDeclarations
 			.filter(d => d.name.getText() === functionName)
-			.map(n => service.getReferencesAtPosition(filename, n.pos + 1))
+			.map(n => service.getReferencesAtPosition(filename, n.pos + 1) ?? [])
 			.flatten()
 			.filter(r => !r.isWriteAccess);
 
 		// custom named `localize` read-only references
 		const namedLocalizeReferences = allLocalizeImportDeclarations
 			.filter(d => d.propertyName && d.propertyName.getText() === functionName)
-			.map(n => service.getReferencesAtPosition(filename, n.name.pos + 1))
+			.map(n => service.getReferencesAtPosition(filename, n.name.pos + 1) ?? [])
 			.flatten()
 			.filter(r => !r.isWriteAccess);
 
@@ -504,12 +503,14 @@ module _nls {
 		const { javascript, sourcemap, nlsKeys, nlsMessages } = patch(
 			ts,
 			typescript,
-			javascriptFile.contents.toString(),
+			javascriptFile.contents!.toString(),
+			// eslint-disable-next-line local/code-no-any-casts
 			(<any>javascriptFile).sourceMap,
 			options
 		);
 
 		const result = fileFrom(javascriptFile, javascript);
+		// eslint-disable-next-line local/code-no-any-casts
 		(<any>result).sourceMap = sourcemap;
 
 		if (nlsKeys) {

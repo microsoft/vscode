@@ -17,7 +17,7 @@ import { IWorkspaceContextService } from '../../../../../../platform/workspace/c
 import { CommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/commandDetectionCapability.js';
 import { TerminalBuiltinLinkType } from '../../browser/links.js';
 import { TerminalLocalFileLinkOpener, TerminalLocalFolderInWorkspaceLinkOpener, TerminalSearchLinkOpener } from '../../browser/terminalLinkOpeners.js';
-import { TerminalCapability, IXtermMarker } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { TerminalCapabilityStore } from '../../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
@@ -29,6 +29,7 @@ import { ITerminalLogService } from '../../../../../../platform/terminal/common/
 import { importAMDNodeModule } from '../../../../../../amdX.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TerminalCommand } from '../../../../../../platform/terminal/common/capabilities/commandDetection/terminalCommand.js';
+import type { IMarker } from '@xterm/headless';
 
 interface ITerminalLinkActivationResult {
 	source: 'editor' | 'search';
@@ -146,9 +147,10 @@ suite('Workbench - TerminalLinkOpeners', () => {
 				duration: 0,
 				executedX: undefined,
 				startX: undefined,
+				// eslint-disable-next-line local/code-no-any-casts
 				marker: {
 					line: 0
-				} as Partial<IXtermMarker> as any,
+				} as Partial<IMarker> as any,
 			})]);
 			fileService.setFiles([
 				URI.from({ scheme: Schemas.file, path: '/initial/cwd/foo/bar.txt' }),
@@ -285,9 +287,10 @@ suite('Workbench - TerminalLinkOpeners', () => {
 					duration: 0,
 					executedX: undefined,
 					startX: undefined,
+					// eslint-disable-next-line local/code-no-any-casts
 					marker: {
 						line: 0
-					} as Partial<IXtermMarker> as any,
+					} as Partial<IMarker> as any,
 					exitCode: 0,
 					commandStartLineContent: '',
 					markProperties: {}
@@ -547,9 +550,10 @@ suite('Workbench - TerminalLinkOpeners', () => {
 					startX: undefined,
 					timestamp: 0,
 					duration: 0,
+					// eslint-disable-next-line local/code-no-any-casts
 					marker: {
 						line: 0
-					} as Partial<IXtermMarker> as any,
+					} as Partial<IMarker> as any,
 				})]);
 				await opener.open({
 					text: 'file.txt',

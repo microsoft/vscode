@@ -16,6 +16,8 @@ import { DialogService } from '../../../services/dialogs/common/dialogService.js
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { Lazy } from '../../../../base/common/lazy.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { createBrowserAboutDialogDetails } from '../../../../platform/dialogs/browser/dialog.js';
 
 export class DialogHandlerContribution extends Disposable implements IWorkbenchContribution {
 
@@ -32,12 +34,13 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 		@ILayoutService layoutService: ILayoutService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IProductService productService: IProductService,
-		@IClipboardService clipboardService: IClipboardService
+		@IProductService private productService: IProductService,
+		@IClipboardService clipboardService: IClipboardService,
+		@IOpenerService openerService: IOpenerService
 	) {
 		super();
 
-		this.impl = new Lazy(() => new BrowserDialogHandler(logService, layoutService, keybindingService, instantiationService, productService, clipboardService));
+		this.impl = new Lazy(() => new BrowserDialogHandler(logService, layoutService, keybindingService, instantiationService, clipboardService, openerService));
 
 		this.model = (this.dialogService as DialogService).model;
 
@@ -66,7 +69,8 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 					const args = this.currentDialog.args.promptArgs;
 					result = await this.impl.value.prompt(args.prompt);
 				} else {
-					await this.impl.value.about();
+					const aboutDialogDetails = createBrowserAboutDialogDetails(this.productService);
+					await this.impl.value.about(aboutDialogDetails.title, aboutDialogDetails.details, aboutDialogDetails.detailsToCopy);
 				}
 			} catch (error) {
 				result = error;

@@ -5,28 +5,27 @@
 
 import { LogLevel as MsalLogLevel } from '@azure/msal-node';
 import { env, LogLevel, LogOutputChannel } from 'vscode';
+import { MicrosoftAuthenticationTelemetryReporter } from './telemetryReporter';
 
 export class MsalLoggerOptions {
 	piiLoggingEnabled = false;
 
-	constructor(private readonly _output: LogOutputChannel) { }
+	constructor(
+		private readonly _output: LogOutputChannel,
+		private readonly _telemtryReporter: MicrosoftAuthenticationTelemetryReporter
+	) { }
 
 	get logLevel(): MsalLogLevel {
 		return this._toMsalLogLevel(env.logLevel);
 	}
 
-	loggerCallback(level: MsalLogLevel, message: string, containsPii: boolean): void {
-		if (containsPii) {
-			// TODO: Should we still log the message if it contains PII? It's just going to
-			// an output channel that doesn't leave the machine.
-			this._output.debug('Skipped logging message because it may contain PII');
-			return;
-		}
+	loggerCallback(level: MsalLogLevel, message: string, _containsPii: boolean): void {
 
 		// Log to output channel one level lower than the MSAL log level
 		switch (level) {
 			case MsalLogLevel.Error:
 				this._output.error(message);
+				this._telemtryReporter.sendTelemetryErrorEvent(message);
 				return;
 			case MsalLogLevel.Warning:
 				this._output.warn(message);

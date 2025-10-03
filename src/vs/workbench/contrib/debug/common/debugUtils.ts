@@ -63,6 +63,7 @@ export function getExtensionHostDebugSession(session: IDebugSession): IDebugSess
 	}
 
 	if (type === 'vslsShare') {
+		// eslint-disable-next-line local/code-no-any-casts
 		type = (<any>session.configuration).adapterProxy.configuration.type;
 	}
 
@@ -78,11 +79,14 @@ export function isDebuggerMainContribution(dbg: IDebuggerContribution) {
 	return dbg.type && (dbg.label || dbg.program || dbg.runtime);
 }
 
+/**
+ * Note- uses 1-indexed numbers
+ */
 export function getExactExpressionStartAndEnd(lineContent: string, looseStart: number, looseEnd: number): { start: number; end: number } {
 	let matchingExpression: string | undefined = undefined;
 	let startOffset = 0;
 
-	// Some example supported expressions: myVar.prop, a.b.c.d, myVar?.prop, myVar->prop, MyClass::StaticProp, *myVar
+	// Some example supported expressions: myVar.prop, a.b.c.d, myVar?.prop, myVar->prop, MyClass::StaticProp, *myVar, ...foo
 	// Match any character except a set of characters which often break interesting sub-expressions
 	const expression: RegExp = /([^()\[\]{}<>\s+\-/%~#^;=|,`!]|\->)+/g;
 	let result: RegExpExecArray | null = null;
@@ -96,6 +100,15 @@ export function getExactExpressionStartAndEnd(lineContent: string, looseStart: n
 			matchingExpression = result[0];
 			startOffset = start;
 			break;
+		}
+	}
+
+	// Handle spread syntax: if the expression starts with '...', extract just the identifier
+	if (matchingExpression) {
+		const spreadMatch = matchingExpression.match(/^\.\.\.(.+)/);
+		if (spreadMatch) {
+			matchingExpression = spreadMatch[1];
+			startOffset += 3; // Skip the '...' prefix
 		}
 	}
 

@@ -126,14 +126,20 @@ export interface SerializedError {
 	readonly message: string;
 	readonly stack: string;
 	readonly noTelemetry: boolean;
+	readonly code?: string;
 	readonly cause?: SerializedError;
 }
+
+type ErrorWithCode = Error & {
+	code: string | undefined;
+};
 
 export function transformErrorForSerialization(error: Error): SerializedError;
 export function transformErrorForSerialization(error: any): any;
 export function transformErrorForSerialization(error: any): any {
 	if (error instanceof Error) {
 		const { name, message, cause } = error;
+		// eslint-disable-next-line local/code-no-any-casts
 		const stack: string = (<any>error).stacktrace || (<any>error).stack;
 		return {
 			$isError: true,
@@ -141,7 +147,8 @@ export function transformErrorForSerialization(error: any): any {
 			message,
 			stack,
 			noTelemetry: ErrorNoTelemetry.isErrorNoTelemetry(error),
-			cause: cause ? transformErrorForSerialization(cause) : undefined
+			cause: cause ? transformErrorForSerialization(cause) : undefined,
+			code: (<ErrorWithCode>error).code
 		};
 	}
 
@@ -159,6 +166,9 @@ export function transformErrorFromSerialization(data: SerializedError): Error {
 	}
 	error.message = data.message;
 	error.stack = data.stack;
+	if (data.code) {
+		(<ErrorWithCode>error).code = data.code;
+	}
 	if (data.cause) {
 		error.cause = transformErrorFromSerialization(data.cause);
 	}
@@ -183,7 +193,7 @@ export interface V8CallSite {
 	toString(): string;
 }
 
-const canceledName = 'Canceled';
+export const canceledName = 'Canceled';
 
 /**
  * Checks if the given error is a promise in canceled state
@@ -201,6 +211,20 @@ export class CancellationError extends Error {
 	constructor() {
 		super(canceledName);
 		this.name = this.message;
+	}
+}
+
+export class PendingMigrationError extends Error {
+
+	private static readonly _name = 'PendingMigrationError';
+
+	static is(error: unknown): error is PendingMigrationError {
+		return error instanceof PendingMigrationError || (error instanceof Error && error.name === PendingMigrationError._name);
+	}
+
+	constructor(message: string) {
+		super(message);
+		this.name = PendingMigrationError._name;
 	}
 }
 

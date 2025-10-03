@@ -55,7 +55,7 @@ export class WindowsStateHandler extends Disposable {
 	private static readonly windowsStateStorageKey = 'windowsState';
 
 	get state() { return this._state; }
-	private readonly _state = restoreWindowsState(this.stateService.getItem<ISerializedWindowsState>(WindowsStateHandler.windowsStateStorageKey));
+	private readonly _state: IWindowsState;
 
 	private lastClosedState: IWindowState | undefined = undefined;
 
@@ -69,6 +69,8 @@ export class WindowsStateHandler extends Disposable {
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
+
+		this._state = restoreWindowsState(this.stateService.getItem<ISerializedWindowsState>(WindowsStateHandler.windowsStateStorageKey));
 
 		this.registerListeners();
 	}
@@ -370,7 +372,7 @@ export class WindowsStateHandler extends Disposable {
 		// Compute x/y based on display bounds
 		// Note: important to use Math.round() because Electron does not seem to be too happy about
 		// display coordinates that are not absolute numbers.
-		let state = defaultWindowState();
+		let state = defaultWindowState(undefined, isWorkspaceIdentifier(configuration.workspace) || isSingleFolderWorkspaceIdentifier(configuration.workspace));
 		state.x = Math.round(displayToUse.bounds.x + (displayToUse.bounds.width / 2) - (state.width! / 2));
 		state.y = Math.round(displayToUse.bounds.y + (displayToUse.bounds.height / 2) - (state.height! / 2));
 

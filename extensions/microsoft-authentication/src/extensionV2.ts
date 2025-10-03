@@ -7,7 +7,7 @@ import { Environment, EnvironmentParameters } from '@azure/ms-rest-azure-env';
 import Logger from './logger';
 import { MsalAuthProvider } from './node/authProvider';
 import { UriEventHandler } from './UriEventHandler';
-import { authentication, commands, ExtensionContext, l10n, window, workspace, Disposable } from 'vscode';
+import { authentication, commands, ExtensionContext, l10n, window, workspace, Disposable, Uri } from 'vscode';
 import { MicrosoftAuthenticationTelemetryReporter, MicrosoftSovereignCloudAuthenticationTelemetryReporter } from './common/telemetryReporter';
 
 async function initMicrosoftSovereignCloudAuthProvider(
@@ -49,19 +49,18 @@ async function initMicrosoftSovereignCloudAuthProvider(
 		return undefined;
 	}
 
-	const authProvider = new MsalAuthProvider(
+	const authProvider = await MsalAuthProvider.create(
 		context,
 		new MicrosoftSovereignCloudAuthenticationTelemetryReporter(context.extension.packageJSON.aiKey),
 		window.createOutputChannel(l10n.t('Microsoft Sovereign Cloud Authentication'), { log: true }),
 		uriHandler,
 		env
 	);
-	await authProvider.initialize();
 	const disposable = authentication.registerAuthenticationProvider(
 		'microsoft-sovereign-cloud',
 		authProviderName,
 		authProvider,
-		{ supportsMultipleAccounts: true }
+		{ supportsMultipleAccounts: true, supportsChallenges: true }
 	);
 	context.subscriptions.push(disposable);
 	return disposable;
@@ -70,18 +69,24 @@ async function initMicrosoftSovereignCloudAuthProvider(
 export async function activate(context: ExtensionContext, mainTelemetryReporter: MicrosoftAuthenticationTelemetryReporter) {
 	const uriHandler = new UriEventHandler();
 	context.subscriptions.push(uriHandler);
-	const authProvider = new MsalAuthProvider(
+	const authProvider = await MsalAuthProvider.create(
 		context,
 		mainTelemetryReporter,
 		Logger,
 		uriHandler
 	);
-	await authProvider.initialize();
 	context.subscriptions.push(authentication.registerAuthenticationProvider(
 		'microsoft',
 		'Microsoft',
 		authProvider,
-		{ supportsMultipleAccounts: true }
+		{
+			supportsMultipleAccounts: true,
+			supportsChallenges: true,
+			supportedAuthorizationServers: [
+				Uri.parse('https://login.microsoftonline.com/*'),
+				Uri.parse('https://login.microsoftonline.com/*/v2.0')
+			]
+		}
 	));
 
 	let microsoftSovereignCloudAuthProviderDisposable = await initMicrosoftSovereignCloudAuthProvider(context, uriHandler);

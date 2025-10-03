@@ -39,6 +39,7 @@ class TestTerminalChildProcess implements ITerminalChildProcess {
 	async start(): Promise<undefined> { return undefined; }
 	shutdown(immediate: boolean): void { }
 	input(data: string): void { }
+	sendSignal(signal: string): void { }
 	resize(cols: number, rows: number): void { }
 	clearBuffer(): void { }
 	acknowledgeDataEvent(charCount: number): void { }
@@ -51,6 +52,7 @@ class TestTerminalChildProcess implements ITerminalChildProcess {
 
 class TestTerminalInstanceService implements Partial<ITerminalInstanceService> {
 	getBackend() {
+		// eslint-disable-next-line local/code-no-any-casts
 		return {
 			onPtyHostExit: Event.None,
 			onPtyHostUnresponsive: Event.None,
@@ -91,6 +93,7 @@ suite('Workbench - TerminalProcessManager', () => {
 				}
 			}
 		});
+		// eslint-disable-next-line local/code-no-any-casts
 		configurationService.onDidChangeConfigurationEmitter.fire({
 			affectsConfiguration: () => true,
 		} as any);

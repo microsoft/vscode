@@ -227,7 +227,7 @@ class TreeViewDragAndDropController implements ITreeViewDragAndDropController {
 		operationUuid?: string, sourceTreeId?: string, sourceTreeItemHandles?: string[]): Promise<void> {
 		const request = this.dataTransfersCache.add(dataTransfer);
 		try {
-			const dataTransferDto = await typeConvert.DataTransfer.from(dataTransfer);
+			const dataTransferDto = await typeConvert.DataTransfer.fromList(dataTransfer);
 			if (token.isCancellationRequested) {
 				return;
 			}
@@ -375,6 +375,7 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 			const properties = distinct([...Object.keys(current instanceof ResolvableTreeItem ? current.asTreeItem() : current),
 			...Object.keys(treeItem)]);
 			for (const property of properties) {
+				// eslint-disable-next-line local/code-no-any-casts
 				(<any>current)[property] = (<any>treeItem)[property];
 			}
 			if (current instanceof ResolvableTreeItem) {

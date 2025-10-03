@@ -33,14 +33,12 @@ import { ContextScopedFindInput, ContextScopedReplaceInput } from '../../../../p
 import { showHistoryKeybindingHint } from '../../../../platform/history/browser/historyWidgetKeybindingHint.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
-import { INotificationService } from '../../../../platform/notification/common/notification.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { asCssVariable, contrastBorder, editorFindMatchForeground, editorFindMatchHighlightBorder, editorFindMatchHighlightForeground, editorFindRangeHighlightBorder, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { registerIcon, widgetClose } from '../../../../platform/theme/common/iconRegistry.js';
-import { IThemeService, registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
+import { registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { isHighContrast } from '../../../../platform/theme/common/theme.js';
-import { assertIsDefined } from '../../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { defaultInputBoxStyles, defaultToggleStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { Selection } from '../../../common/core/selection.js';
 import { createInstantHoverDelegate, getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
@@ -87,7 +85,6 @@ let MAX_MATCHES_COUNT_WIDTH = 69;
 // let FIND_ALL_CONTROLS_WIDTH = 17/** Find Input margin-left */ + (MAX_MATCHES_COUNT_WIDTH + 3 + 1) /** Match Results */ + 23 /** Button */ * 4 + 2/** sash */;
 
 const FIND_INPUT_AREA_HEIGHT = 33; // The height of Find Widget when Replace Input is not visible.
-const ctrlEnterReplaceAllWarningPromptedKey = 'ctrlEnterReplaceAll.windows.donotask';
 
 const ctrlKeyMod = (platform.isMacintosh ? KeyMod.WinCtrl : KeyMod.CtrlCmd);
 export class FindWidgetViewZone implements IViewZone {
@@ -130,8 +127,6 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 	private readonly _contextViewProvider: IContextViewProvider;
 	private readonly _keybindingService: IKeybindingService;
 	private readonly _contextKeyService: IContextKeyService;
-	private readonly _storageService: IStorageService;
-	private readonly _notificationService: INotificationService;
 
 	private _domNode!: HTMLElement;
 	private _cachedHeight: number | null = null;
@@ -150,7 +145,6 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 	private _isVisible: boolean;
 	private _isReplaceVisible: boolean;
 	private _ignoreChangeEvent: boolean;
-	private _ctrlEnterReplaceAllWarningPrompted: boolean;
 
 	private readonly _findFocusTracker: dom.IFocusTracker;
 	private readonly _findInputFocused: IContextKey<boolean>;
@@ -170,11 +164,9 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		contextViewProvider: IContextViewProvider,
 		keybindingService: IKeybindingService,
 		contextKeyService: IContextKeyService,
-		themeService: IThemeService,
-		storageService: IStorageService,
-		notificationService: INotificationService,
 		private readonly _hoverService: IHoverService,
 		private readonly _findWidgetSearchHistory: IHistory<string> | undefined,
+		private readonly _replaceWidgetHistory: IHistory<string> | undefined,
 	) {
 		super();
 		this._codeEditor = codeEditor;
@@ -183,10 +175,6 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		this._contextViewProvider = contextViewProvider;
 		this._keybindingService = keybindingService;
 		this._contextKeyService = contextKeyService;
-		this._storageService = storageService;
-		this._notificationService = notificationService;
-
-		this._ctrlEnterReplaceAllWarningPrompted = !!storageService.getBoolean(ctrlEnterReplaceAllWarningPromptedKey, StorageScope.PROFILE);
 
 		this._isVisible = false;
 		this._isReplaceVisible = false;
@@ -493,7 +481,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		this._toggleReplaceBtn.setEnabled(this._isVisible && canReplace);
 	}
 
-	private _revealTimeouts: any[] = [];
+	private _revealTimeouts: Timeout[] = [];
 
 	private _reveal(): void {
 		this._revealTimeouts.forEach(e => {
@@ -878,17 +866,6 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 				e.preventDefault();
 				return;
 			} else {
-				if (platform.isWindows && platform.isNative && !this._ctrlEnterReplaceAllWarningPrompted) {
-					// this is the first time when users press Ctrl + Enter to replace all
-					this._notificationService.info(
-						nls.localize('ctrlEnter.keybindingChanged',
-							'Ctrl+Enter now inserts line break instead of replacing all. You can modify the keybinding for editor.action.replaceAll to override this behavior.')
-					);
-
-					this._ctrlEnterReplaceAllWarningPrompted = true;
-					this._storageService.store(ctrlEnterReplaceAllWarningPromptedKey, true, StorageScope.PROFILE, StorageTarget.USER);
-				}
-
 				this._replaceInput.inputBox.insertAtCursor('\n');
 				e.preventDefault();
 				return;
@@ -942,6 +919,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		const flexibleWidth = true;
 		// Find input
 		const findSearchHistoryConfig = this._codeEditor.getOption(EditorOption.find).history;
+		const replaceHistoryConfig = this._codeEditor.getOption(EditorOption.find).replaceHistory;
 		this._findInput = this._register(new ContextScopedFindInput(null, this._contextViewProvider, {
 			width: FIND_INPUT_AREA_WIDTH,
 			label: NLS_FIND_INPUT_LABEL,
@@ -973,9 +951,14 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		this._findInput.setRegex(!!this._state.isRegex);
 		this._findInput.setCaseSensitive(!!this._state.matchCase);
 		this._findInput.setWholeWords(!!this._state.wholeWord);
-		this._register(this._findInput.onKeyDown((e) => this._onFindInputKeyDown(e)));
+		this._register(this._findInput.onKeyDown((e) => {
+			if (e.equals(KeyCode.Enter) && !this._codeEditor.getOption(EditorOption.find).findOnType) {
+				this._state.change({ searchString: this._findInput.getValue() }, true);
+			}
+			this._onFindInputKeyDown(e);
+		}));
 		this._register(this._findInput.inputBox.onDidChange(() => {
-			if (this._ignoreChangeEvent) {
+			if (this._ignoreChangeEvent || !this._codeEditor.getOption(EditorOption.find).findOnType) {
 				return;
 			}
 			this._state.change({ searchString: this._findInput.getValue() }, true);
@@ -1025,7 +1008,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			icon: findPreviousMatchIcon,
 			hoverDelegate,
 			onTrigger: () => {
-				assertIsDefined(this._codeEditor.getAction(FIND_IDS.PreviousMatchFindAction)).run().then(undefined, onUnexpectedError);
+				assertReturnsDefined(this._codeEditor.getAction(FIND_IDS.PreviousMatchFindAction)).run().then(undefined, onUnexpectedError);
 			}
 		}, this._hoverService));
 
@@ -1035,7 +1018,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			icon: findNextMatchIcon,
 			hoverDelegate,
 			onTrigger: () => {
-				assertIsDefined(this._codeEditor.getAction(FIND_IDS.NextMatchFindAction)).run().then(undefined, onUnexpectedError);
+				assertReturnsDefined(this._codeEditor.getAction(FIND_IDS.NextMatchFindAction)).run().then(undefined, onUnexpectedError);
 			}
 		}, this._hoverService));
 
@@ -1112,13 +1095,13 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			label: NLS_REPLACE_INPUT_LABEL,
 			placeholder: NLS_REPLACE_INPUT_PLACEHOLDER,
 			appendPreserveCaseLabel: this._keybindingLabelFor(FIND_IDS.TogglePreserveCaseCommand),
-			history: [],
+			history: replaceHistoryConfig === 'workspace' ? this._replaceWidgetHistory : new Set([]),
 			flexibleHeight,
 			flexibleWidth,
 			flexibleMaxHeight: 118,
 			showHistoryHint: () => showHistoryKeybindingHint(this._keybindingService),
 			inputBoxStyles: defaultInputBoxStyles,
-			toggleStyles: defaultToggleStyles
+			toggleStyles: defaultToggleStyles,
 		}, this._contextKeyService, true));
 		this._replaceInput.setPreserveCase(!!this._state.preserveCase);
 		this._register(this._replaceInput.onKeyDown((e) => this._onReplaceInputKeyDown(e)));

@@ -6,7 +6,6 @@
 import assert from 'assert';
 import { Emitter } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../../../base/test/common/utils.js';
-import { TestFileService } from '../../../../test/browser/workbenchTestServices.js';
 import { ExplorerItem } from '../../common/explorerModel.js';
 import { getContext } from '../../browser/views/explorerView.js';
 import { listInvalidItemForeground } from '../../../../../platform/theme/common/colorRegistry.js';
@@ -15,7 +14,7 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { provideDecorations } from '../../browser/views/explorerDecorationsProvider.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { NullFilesConfigurationService } from '../../../../test/common/workbenchTestServices.js';
+import { NullFilesConfigurationService, TestFileService } from '../../../../test/common/workbenchTestServices.js';
 
 suite('Files - ExplorerView', () => {
 
@@ -92,6 +91,7 @@ suite('Files - ExplorerView', () => {
 			templateDisposables: ds.add(new DisposableStore()),
 			elementDisposables: ds.add(new DisposableStore()),
 			contribs: [],
+			// eslint-disable-next-line local/code-no-any-casts
 			label: <any>{
 				container: label,
 				onDidRender: emitter.event

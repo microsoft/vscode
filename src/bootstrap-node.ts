@@ -3,14 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
-import * as fs from 'fs';
-import { fileURLToPath } from 'url';
+import * as path from 'node:path';
+import * as fs from 'node:fs';
 import { createRequire } from 'node:module';
-import type { IProductConfiguration } from './vs/base/common/product';
+import type { IProductConfiguration } from './vs/base/common/product.js';
 
 const require = createRequire(import.meta.url);
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const isWindows = process.platform === 'win32';
 
 // increase number of stack frames(from 10, https://github.com/v8/v8/wiki/Stack-Trace-API)
 Error.stackTraceLimit = 100;
@@ -97,13 +96,42 @@ export function removeGlobalNodeJsModuleLookupPaths(): void {
 
 		return paths;
 	};
+
+	const originalNodeModulePaths = Module._nodeModulePaths;
+	Module._nodeModulePaths = function (from: string): string[] {
+		let paths: string[] = originalNodeModulePaths(from);
+		if (!isWindows) {
+			return paths;
+		}
+
+		// On Windows, remove drive(s) and users' home directory from search paths,
+		// UNLESS 'from' is explicitly set to one of those.
+		const isDrive = (p: string) => p.length >= 3 && p.endsWith(':\\');
+
+		if (!isDrive(from)) {
+			paths = paths.filter(p => !isDrive(path.dirname(p)));
+		}
+
+		if (process.env.HOMEDRIVE && process.env.HOMEPATH) {
+			const userDir = path.dirname(path.join(process.env.HOMEDRIVE, process.env.HOMEPATH));
+
+			const isUsersDir = (p: string) => path.relative(p, userDir).length === 0;
+
+			// Check if 'from' is the same as 'userDir'
+			if (!isUsersDir(from)) {
+				paths = paths.filter(p => !isUsersDir(path.dirname(p)));
+			}
+		}
+
+		return paths;
+	};
 }
 
 /**
  * Helper to enable portable mode.
  */
 export function configurePortable(product: Partial<IProductConfiguration>): { portableDataPath: string; isPortable: boolean } {
-	const appRoot = path.dirname(__dirname);
+	const appRoot = path.dirname(import.meta.dirname);
 
 	function getApplicationPath(): string {
 		if (process.env['VSCODE_DEV']) {

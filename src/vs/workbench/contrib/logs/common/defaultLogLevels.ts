@@ -38,8 +38,6 @@ export interface IDefaultLogLevelsService {
 	getDefaultLogLevel(extensionId?: string): Promise<LogLevel>;
 
 	setDefaultLogLevel(logLevel: LogLevel, extensionId?: string): Promise<void>;
-
-	migrateLogLevels(): void;
 }
 
 class DefaultLogLevelsService extends Disposable implements IDefaultLogLevelsService {
@@ -146,17 +144,6 @@ class DefaultLogLevelsService extends Disposable implements IDefaultLogLevelsSer
 			}
 		}
 		return !isUndefined(result.default) || result.extensions?.length ? result : undefined;
-	}
-
-	async migrateLogLevels(): Promise<void> {
-		const logLevels = await this._readLogLevelsFromArgv();
-		const regex = /^([^.]+\..+):(.+)$/;
-		if (logLevels.some(extensionLogLevel => regex.test(extensionLogLevel))) {
-			const argvLogLevel = await this._parseLogLevelsFromArgv();
-			if (argvLogLevel) {
-				await this._writeLogLevelsToArgv(argvLogLevel);
-			}
-		}
 	}
 
 	private async _readLogLevelsFromArgv(): Promise<string[]> {

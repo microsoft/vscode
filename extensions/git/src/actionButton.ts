@@ -262,7 +262,6 @@ export class ActionButton {
 		const isCommitInProgress =
 			this.repository.operations.isRunning(OperationKind.Commit) ||
 			this.repository.operations.isRunning(OperationKind.PostCommitCommand) ||
-			this.repository.operations.isRunning(OperationKind.MergeContinue) ||
 			this.repository.operations.isRunning(OperationKind.RebaseContinue);
 
 		const isSyncInProgress =

@@ -7,7 +7,7 @@ import type { IDecoration, ITerminalAddon, Terminal } from '@xterm/xterm';
 import * as dom from '../../../../../base/browser/dom.js';
 import { IAction, Separator } from '../../../../../base/common/actions.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable, dispose, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, dispose, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
@@ -32,7 +32,7 @@ interface IDisposableDecoration { decoration: IDecoration; disposables: IDisposa
 
 export class DecorationAddon extends Disposable implements ITerminalAddon, IDecorationAddon {
 	protected _terminal: Terminal | undefined;
-	private _capabilityDisposables: Map<TerminalCapability, DisposableStore> = new Map();
+	private _capabilityDisposables: DisposableMap<TerminalCapability> = this._register(new DisposableMap());
 	private _decorations: Map<number, IDisposableDecoration> = new Map();
 	private _placeholderDecoration: IDecoration | undefined;
 	private _showGutterDecorations?: boolean;
@@ -77,20 +77,12 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 		this._register(lifecycleService.onWillShutdown(() => this._disposeAllDecorations()));
 	}
 
-	private _removeCapabilityDisposables(c: TerminalCapability): void {
-		const disposables = this._capabilityDisposables.get(c);
-		if (disposables) {
-			dispose(disposables);
-		}
-		this._capabilityDisposables.delete(c);
-	}
-
 	private _createCapabilityDisposables(c: TerminalCapability): void {
-		const store = new DisposableStore();
 		const capability = this._capabilities.get(c);
 		if (!capability || this._capabilityDisposables.has(c)) {
 			return;
 		}
+		const store = new DisposableStore();
 		switch (capability.type) {
 			case TerminalCapability.BufferMarkDetection:
 				store.add(capability.onMarkAdded(mark => this.registerMarkDecoration(mark)));
@@ -104,6 +96,10 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 			}
 		}
 		this._capabilityDisposables.set(c, store);
+	}
+
+	private _removeCapabilityDisposables(c: TerminalCapability): void {
+		this._capabilityDisposables.deleteAndDispose(c);
 	}
 
 	registerMarkDecoration(mark: IMarkProperties): IDecoration | undefined {
@@ -212,11 +208,8 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 	}
 
 	private _getCommandDetectionListeners(capability: ICommandDetectionCapability): IDisposable[] {
-		if (this._capabilityDisposables.has(TerminalCapability.CommandDetection)) {
-			const disposables = this._capabilityDisposables.get(TerminalCapability.CommandDetection)!;
-			dispose(disposables);
-			this._capabilityDisposables.delete(capability.type);
-		}
+		this._removeCapabilityDisposables(TerminalCapability.CommandDetection);
+
 		const commandDetectionListeners = [];
 		// Command started
 		if (capability.executingCommandObject?.marker) {
@@ -228,7 +221,20 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 			this.registerCommandDecoration(command);
 		}
 		commandDetectionListeners.push(capability.onCommandFinished(command => {
-			this.registerCommandDecoration(command);
+			const buffer = this._terminal?.buffer?.active;
+			const marker = command.promptStartMarker;
+
+			// Edge case: Handle case where tsc watch commands clears buffer, but decoration of that tsc command re-appears
+			const shouldRegisterDecoration = (
+				command.exitCode === undefined ||
+				// Only register decoration if the cursor is at or below the promptStart marker.
+				(buffer && marker && buffer.baseY + buffer.cursorY >= marker.line)
+			);
+
+			if (shouldRegisterDecoration) {
+				this.registerCommandDecoration(command);
+			}
+
 			if (command.exitCode) {
 				this._accessibilitySignalService.playSignal(AccessibilitySignal.terminalCommandFailed);
 			} else {

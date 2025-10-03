@@ -21,10 +21,11 @@ interface CodeBlockContent {
 	readonly isComplete: boolean;
 }
 
-interface CodeBlockEntry {
+export interface CodeBlockEntry {
 	readonly model: Promise<ITextModel>;
 	readonly vulns: readonly IMarkdownVulnerability[];
 	readonly codemapperUri?: URI;
+	readonly isEdit?: boolean;
 }
 
 export class CodeBlockModelCollection extends Disposable {
@@ -33,6 +34,7 @@ export class CodeBlockModelCollection extends Disposable {
 		model: Promise<IReference<IResolvedTextEditorModel>>;
 		vulns: readonly IMarkdownVulnerability[];
 		codemapperUri?: URI;
+		isEdit?: boolean;
 	}>();
 
 	/**
@@ -43,6 +45,7 @@ export class CodeBlockModelCollection extends Disposable {
 	private readonly maxModelCount = 100;
 
 	constructor(
+		private readonly tag: string | undefined,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@ITextModelService private readonly textModelService: ITextModelService,
 	) {
@@ -62,7 +65,8 @@ export class CodeBlockModelCollection extends Disposable {
 		return {
 			model: entry.model.then(ref => ref.object.textEditorModel),
 			vulns: entry.vulns,
-			codemapperUri: entry.codemapperUri
+			codemapperUri: entry.codemapperUri,
+			isEdit: entry.isEdit,
 		};
 	}
 
@@ -97,13 +101,12 @@ export class CodeBlockModelCollection extends Disposable {
 			return;
 		}
 
-		entry.model.then(ref => ref.object.dispose());
-
+		entry.model.then(ref => ref.dispose());
 		this._models.delete(key);
 	}
 
 	clear(): void {
-		this._models.forEach(async entry => (await entry.model).dispose());
+		this._models.forEach(async entry => await entry.model.then(ref => ref.dispose()));
 		this._models.clear();
 	}
 
@@ -116,7 +119,7 @@ export class CodeBlockModelCollection extends Disposable {
 
 		const codeblockUri = extractCodeblockUrisFromText(newText);
 		if (codeblockUri) {
-			this.setCodemapperUri(sessionId, chat, codeBlockIndex, codeblockUri.uri);
+			this.setCodemapperUri(sessionId, chat, codeBlockIndex, codeblockUri.uri, codeblockUri.isEdit);
 		}
 
 		if (content.isComplete) {
@@ -143,7 +146,7 @@ export class CodeBlockModelCollection extends Disposable {
 
 		const codeblockUri = extractCodeblockUrisFromText(newText);
 		if (codeblockUri) {
-			this.setCodemapperUri(sessionId, chat, codeBlockIndex, codeblockUri.uri);
+			this.setCodemapperUri(sessionId, chat, codeBlockIndex, codeblockUri.uri, codeblockUri.isEdit);
 			newText = codeblockUri.textWithoutResult;
 		}
 
@@ -152,7 +155,8 @@ export class CodeBlockModelCollection extends Disposable {
 		}
 
 		const textModel = await entry.model;
-		if (textModel.isDisposed()) {
+		if (!textModel || textModel.isDisposed()) {
+			// Somehow we get an undefined textModel sometimes - #237782
 			return entry;
 		}
 
@@ -181,10 +185,11 @@ export class CodeBlockModelCollection extends Disposable {
 		return entry;
 	}
 
-	private setCodemapperUri(sessionId: string, chat: IChatRequestViewModel | IChatResponseViewModel, codeBlockIndex: number, codemapperUri: URI) {
+	private setCodemapperUri(sessionId: string, chat: IChatRequestViewModel | IChatResponseViewModel, codeBlockIndex: number, codemapperUri: URI, isEdit?: boolean) {
 		const entry = this._models.get(this.getKey(sessionId, chat, codeBlockIndex));
 		if (entry) {
 			entry.codemapperUri = codemapperUri;
+			entry.isEdit = isEdit;
 		}
 	}
 
@@ -201,10 +206,11 @@ export class CodeBlockModelCollection extends Disposable {
 
 	private getCodeBlockUri(sessionId: string, chat: IChatRequestViewModel | IChatResponseViewModel, index: number): URI {
 		const metadata = this.getUriMetaData(chat);
+		const indexPart = this.tag ? `${this.tag}-${index}` : `${index}`;
 		return URI.from({
 			scheme: Schemas.vscodeChatCodeBlock,
 			authority: sessionId,
-			path: `/${chat.id}/${index}`,
+			path: `/${chat.id}/${indexPart}`,
 			fragment: metadata ? JSON.stringify(metadata) : undefined,
 		});
 	}
@@ -244,7 +250,8 @@ export class CodeBlockModelCollection extends Disposable {
 
 function fixCodeText(text: string, languageId: string | undefined): string {
 	if (languageId === 'php') {
-		if (!text.trim().startsWith('<')) {
+		// <?php or short tag version <?
+		if (!text.trim().startsWith('<?')) {
 			return `<?php\n${text}`;
 		}
 	}

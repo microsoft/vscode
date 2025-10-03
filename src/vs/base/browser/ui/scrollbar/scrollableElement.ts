@@ -165,8 +165,9 @@ export class MouseWheelClassifier {
 	}
 
 	private _isAlmostInt(value: number): boolean {
+		const epsilon = Number.EPSILON * 100; // Use a small tolerance factor for floating-point errors
 		const delta = Math.abs(Math.round(value) - value);
-		return (delta < 0.01);
+		return (delta < 0.01 + epsilon);
 	}
 }
 
@@ -194,11 +195,14 @@ export abstract class AbstractScrollableElement extends Widget {
 
 	private _revealOnScroll: boolean;
 
+	private _inertialTimeout: TimeoutTimer | null = null;
+	private _inertialSpeed: { X: number; Y: number } = { X: 0, Y: 0 };
+
 	private readonly _onScroll = this._register(new Emitter<ScrollEvent>());
-	public readonly onScroll: Event<ScrollEvent> = this._onScroll.event;
+	public get onScroll(): Event<ScrollEvent> { return this._onScroll.event; }
 
 	private readonly _onWillScroll = this._register(new Emitter<ScrollEvent>());
-	public readonly onWillScroll: Event<ScrollEvent> = this._onWillScroll.event;
+	public get onWillScroll(): Event<ScrollEvent> { return this._onWillScroll.event; }
 
 	public get options(): Readonly<ScrollableElementResolvedOptions> {
 		return this._options;
@@ -270,6 +274,10 @@ export abstract class AbstractScrollableElement extends Widget {
 
 	public override dispose(): void {
 		this._mouseWheelToDispose = dispose(this._mouseWheelToDispose);
+		if (this._inertialTimeout) {
+			this._inertialTimeout.dispose();
+			this._inertialTimeout = null;
+		}
 		super.dispose();
 	}
 
@@ -361,6 +369,37 @@ export abstract class AbstractScrollableElement extends Widget {
 
 	public delegateScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent) {
 		this._onMouseWheel(new StandardWheelEvent(browserEvent));
+	}
+
+	private async _periodicSync(): Promise<void> {
+		let scheduleAgain = false;
+
+		if (this._inertialSpeed.X !== 0 || this._inertialSpeed.Y !== 0) {
+			this._scrollable.setScrollPositionNow({
+				scrollTop: this._scrollable.getCurrentScrollPosition().scrollTop - this._inertialSpeed.Y * 100,
+				scrollLeft: this._scrollable.getCurrentScrollPosition().scrollLeft - this._inertialSpeed.X * 100
+			});
+			this._inertialSpeed.X *= 0.9;
+			this._inertialSpeed.Y *= 0.9;
+			if (Math.abs(this._inertialSpeed.X) < 0.01) {
+				this._inertialSpeed.X = 0;
+			}
+			if (Math.abs(this._inertialSpeed.Y) < 0.01) {
+				this._inertialSpeed.Y = 0;
+			}
+
+			scheduleAgain = (this._inertialSpeed.X !== 0 || this._inertialSpeed.Y !== 0);
+		}
+
+		if (scheduleAgain) {
+			if (!this._inertialTimeout) {
+				this._inertialTimeout = new TimeoutTimer();
+			}
+			this._inertialTimeout.cancelAndSet(() => this._periodicSync(), 1000 / 60);
+		} else {
+			this._inertialTimeout?.dispose();
+			this._inertialTimeout = null;
+		}
 	}
 
 	// -------------------- mouse wheel scrolling --------------------
@@ -455,6 +494,19 @@ export abstract class AbstractScrollableElement extends Widget {
 
 			// Check that we are scrolling towards a location which is valid
 			desiredScrollPosition = this._scrollable.validateScrollPosition(desiredScrollPosition);
+
+			if (this._options.inertialScroll && (deltaX || deltaY)) {
+				let startPeriodic = false;
+				// Only start periodic if it's not running
+				if (this._inertialSpeed.X === 0 && this._inertialSpeed.Y === 0) {
+					startPeriodic = true;
+				}
+				this._inertialSpeed.Y = (deltaY < 0 ? -1 : 1) * (Math.abs(deltaY) ** 1.02);
+				this._inertialSpeed.X = (deltaX < 0 ? -1 : 1) * (Math.abs(deltaX) ** 1.02);
+				if (startPeriodic) {
+					this._periodicSync();
+				}
+			}
 
 			if (futureScrollPosition.scrollLeft !== desiredScrollPosition.scrollLeft || futureScrollPosition.scrollTop !== desiredScrollPosition.scrollTop) {
 
@@ -689,6 +741,7 @@ function resolveOptions(opts: ScrollableElementCreationOptions): ScrollableEleme
 		fastScrollSensitivity: (typeof opts.fastScrollSensitivity !== 'undefined' ? opts.fastScrollSensitivity : 5),
 		scrollPredominantAxis: (typeof opts.scrollPredominantAxis !== 'undefined' ? opts.scrollPredominantAxis : true),
 		mouseWheelSmoothScroll: (typeof opts.mouseWheelSmoothScroll !== 'undefined' ? opts.mouseWheelSmoothScroll : true),
+		inertialScroll: (typeof opts.inertialScroll !== 'undefined' ? opts.inertialScroll : false),
 		arrowSize: (typeof opts.arrowSize !== 'undefined' ? opts.arrowSize : 11),
 
 		listenOnDomNode: (typeof opts.listenOnDomNode !== 'undefined' ? opts.listenOnDomNode : null),

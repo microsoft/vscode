@@ -183,6 +183,7 @@ class SyncedBuffer {
 			.filter(x => x.languages.indexOf(this.document.languageId) >= 0);
 
 		if (tsPluginsForDocument.length) {
+			// eslint-disable-next-line local/code-no-any-casts
 			(args as any).plugins = tsPluginsForDocument.map(plugin => plugin.name);
 		}
 
@@ -191,7 +192,20 @@ class SyncedBuffer {
 	}
 
 	private getProjectRootPath(resource: vscode.Uri): string | undefined {
-		const workspaceRoot = this.client.getWorkspaceRootForResource(resource);
+		let workspaceRoot = this.client.getWorkspaceRootForResource(resource);
+
+		// If we didn't find a real workspace, we still want to try sending along a workspace folder
+		// to prevent TS from loading projects from outside of any workspace.
+		// Just pick the highest level one on the same FS even though the file is outside of it
+		if (!workspaceRoot && vscode.workspace.workspaceFolders) {
+			for (const root of Array.from(vscode.workspace.workspaceFolders).sort((a, b) => a.uri.path.length - b.uri.path.length)) {
+				if (root.uri.scheme === resource.scheme && root.uri.authority === resource.authority) {
+					workspaceRoot = root.uri;
+					break;
+				}
+			}
+		}
+
 		if (workspaceRoot) {
 			const tsRoot = this.client.toTsFilePath(workspaceRoot);
 			return tsRoot?.startsWith(inMemoryResourcePrefix) ? undefined : tsRoot;

@@ -24,7 +24,7 @@ import * as domFontInfo from '../../../browser/config/domFontInfo.js';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../browser/editorBrowser.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import { FontInfo } from '../../../common/config/fontInfo.js';
-import { IDimension } from '../../../common/core/dimension.js';
+import { IDimension } from '../../../common/core/2d/dimension.js';
 import { Position } from '../../../common/core/position.js';
 import { IRange, Range } from '../../../common/core/range.js';
 import { ScrollType } from '../../../common/editorCommon.js';
@@ -692,23 +692,23 @@ class RenameCandidateListView {
 
 		this._listWidget = RenameCandidateListView._createListWidget(this._listContainer, this._candidateViewHeight, opts.fontInfo);
 
-		this._listWidget.onDidChangeFocus(
+		this._disposables.add(this._listWidget.onDidChangeFocus(
 			e => {
 				if (e.elements.length === 1) {
 					opts.onFocusChange(e.elements[0].newSymbolName);
 				}
 			},
 			this._disposables
-		);
+		));
 
-		this._listWidget.onDidChangeSelection(
+		this._disposables.add(this._listWidget.onDidChangeSelection(
 			e => {
 				if (e.elements.length === 1) {
 					opts.onSelectionChange();
 				}
 			},
 			this._disposables
-		);
+		));
 
 		this._disposables.add(
 			this._listWidget.onDidBlur(e => { // @ulugbekna: because list widget otherwise remembers last focused element and returns it as focused element

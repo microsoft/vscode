@@ -13,6 +13,7 @@ import { createSys } from './serverHost';
 import { findArgument, findArgumentStringArray, hasArgument, parseServerMode } from './util/args';
 import { StartSessionOptions, startWorkerSession } from './workerSession';
 
+// eslint-disable-next-line local/code-no-any-casts
 const setSys: (s: ts.System) => void = (ts as any).setSys;
 
 async function initializeSession(
@@ -41,6 +42,12 @@ async function initializeSession(
 		removeEventListener('message', listener);
 	});
 	setSys(sys);
+
+	const localeStr = findArgument(args, '--locale');
+	if (localeStr) {
+		ts.validateLocaleAndSetLanguage(localeStr, sys);
+	}
+
 	startWorkerSession(ts, sys, fs, sessionOptions, ports.tsserver, pathMapper, logger);
 }
 

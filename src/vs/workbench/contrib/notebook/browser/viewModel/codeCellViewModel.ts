@@ -23,6 +23,7 @@ import { CellKind, INotebookFindOptions, NotebookCellOutputsSplice } from '../..
 import { ICellExecutionError, ICellExecutionStateChangedEvent } from '../../common/notebookExecutionStateService.js';
 import { INotebookService } from '../../common/notebookService.js';
 import { BaseCellViewModel } from './baseCellViewModel.js';
+import { IInlineChatSessionService } from '../../../inlineChat/browser/inlineChatSessionService.js';
 
 export const outputDisplayLimit = 500;
 
@@ -145,9 +146,10 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		@INotebookService private readonly _notebookService: INotebookService,
 		@ITextModelService modelService: ITextModelService,
 		@IUndoRedoService undoRedoService: IUndoRedoService,
-		@ICodeEditorService codeEditorService: ICodeEditorService
+		@ICodeEditorService codeEditorService: ICodeEditorService,
+		@IInlineChatSessionService inlineChatSessionService: IInlineChatSessionService
 	) {
-		super(viewType, model, UUID.generateUuid(), viewContext, configurationService, modelService, undoRedoService, codeEditorService);
+		super(viewType, model, UUID.generateUuid(), viewContext, configurationService, modelService, undoRedoService, codeEditorService, inlineChatSessionService);
 		this._outputViewModels = this.model.outputs.map(output => new CellOutputViewModel(this, output, this._notebookService));
 
 		this._register(this.model.onDidChangeOutputs((splice) => {
@@ -175,7 +177,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		}));
 
 		this._outputCollection = new Array(this.model.outputs.length);
-
+		const layoutConfiguration = this.viewContext.notebookOptions.getLayoutConfiguration();
 		this._layoutInfo = {
 			fontInfo: initialNotebookLayoutInfo?.fontInfo || null,
 			editorHeight: 0,
@@ -195,7 +197,10 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			outputIndicatorHeight: 0,
 			bottomToolbarOffset: 0,
 			layoutState: CellLayoutState.Uninitialized,
-			estimatedHasHorizontalScrolling: false
+			estimatedHasHorizontalScrolling: false,
+			outlineWidth: 1,
+			topMargin: layoutConfiguration.cellTopMargin,
+			bottomMargin: layoutConfiguration.cellBottomMargin,
 		};
 	}
 
@@ -294,7 +299,10 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 				outputIndicatorHeight,
 				bottomToolbarOffset,
 				layoutState: newState,
-				estimatedHasHorizontalScrolling: hasHorizontalScrolling
+				estimatedHasHorizontalScrolling: hasHorizontalScrolling,
+				topMargin: notebookLayoutConfiguration.cellTopMargin,
+				bottomMargin: notebookLayoutConfiguration.cellBottomMargin,
+				outlineWidth: 1
 			};
 		} else {
 			const codeIndicatorHeight = notebookLayoutConfiguration.collapsedIndicatorHeight;
@@ -336,7 +344,10 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 				outputIndicatorHeight,
 				bottomToolbarOffset,
 				layoutState: this._layoutInfo.layoutState,
-				estimatedHasHorizontalScrolling: false
+				estimatedHasHorizontalScrolling: false,
+				outlineWidth: 1,
+				topMargin: notebookLayoutConfiguration.cellTopMargin,
+				bottomMargin: notebookLayoutConfiguration.cellBottomMargin,
 			};
 		}
 

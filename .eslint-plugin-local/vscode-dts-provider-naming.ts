@@ -32,6 +32,7 @@ export = new class ApiProviderNaming implements eslint.Rule.RuleModule {
 					return;
 				}
 
+				// eslint-disable-next-line local/code-no-any-casts
 				const methodName = (<any>(<TSESTree.TSMethodSignatureNonComputedName>node).key).name;
 
 				if (!ApiProviderNaming._providerFunctionNames.test(methodName)) {

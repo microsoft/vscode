@@ -75,7 +75,8 @@ const resourceLabelFormattersExtPoint = ExtensionsRegistry.registerExtensionPoin
 	}
 });
 
-const sepRegexp = /\//g;
+const posixPathSeparatorRegexp = /\//g; // on Unix, backslash is a valid filename character
+const winPathSeparatorRegexp = /[\\\/]/g; // on Windows, neither slash nor backslash are valid filename characters
 const labelMatchingRegexp = /\$\{(scheme|authoritySuffix|authority|path|(query)\.(.+?))\}/g;
 
 function hasDriveLetterIgnorePlatform(path: string): boolean {
@@ -208,19 +209,23 @@ export class LabelService extends Disposable implements ILabelService {
 		return bestResult ? bestResult.formatting : undefined;
 	}
 
-	getUriLabel(resource: URI, options: { relative?: boolean; noPrefix?: boolean; separator?: '/' | '\\' } = {}): string {
+	getUriLabel(resource: URI, options: { relative?: boolean; noPrefix?: boolean; separator?: '/' | '\\'; appendWorkspaceSuffix?: boolean } = {}): string {
 		let formatting = this.findFormatting(resource);
 		if (formatting && options.separator) {
 			// mixin separator if defined from the outside
 			formatting = { ...formatting, separator: options.separator };
 		}
 
-		const label = this.doGetUriLabel(resource, formatting, options);
+		let label = this.doGetUriLabel(resource, formatting, options);
 
 		// Without formatting we still need to support the separator
 		// as provided in options (https://github.com/microsoft/vscode/issues/130019)
 		if (!formatting && options.separator) {
-			return label.replace(sepRegexp, options.separator);
+			label = this.adjustPathSeparators(label, options.separator);
+		}
+
+		if (options.appendWorkspaceSuffix && formatting?.workspaceSuffix) {
+			label = this.appendWorkspaceSuffix(label, resource);
 		}
 
 		return label;
@@ -485,7 +490,11 @@ export class LabelService extends Disposable implements ILabelService {
 			label = formatting.authorityPrefix + label;
 		}
 
-		return label.replace(sepRegexp, formatting.separator);
+		return this.adjustPathSeparators(label, formatting.separator);
+	}
+
+	private adjustPathSeparators(label: string, separator: '/' | '\\' | ''): string {
+		return label.replace(this.os === OperatingSystem.Windows ? winPathSeparatorRegexp : posixPathSeparatorRegexp, separator);
 	}
 
 	private appendWorkspaceSuffix(label: string, uri: URI): string {

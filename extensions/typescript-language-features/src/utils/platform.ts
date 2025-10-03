@@ -6,14 +6,14 @@
 import * as vscode from 'vscode';
 
 export function isWeb(): boolean {
-	return 'navigator' in globalThis && vscode.env.uiKind === vscode.UIKind.Web;
+	return !(typeof process === 'object' && !!process.versions.node) && vscode.env.uiKind === vscode.UIKind.Web;
 }
 
 export function isWebAndHasSharedArrayBuffers(): boolean {
+	// eslint-disable-next-line local/code-no-any-casts
 	return isWeb() && (globalThis as any)['crossOriginIsolated'];
 }
 
 export function supportsReadableByteStreams(): boolean {
 	return isWeb() && 'ReadableByteStreamController' in globalThis;
 }
-

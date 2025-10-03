@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as es from 'event-stream';
-import * as fancyLog from 'fancy-log';
-import * as ansiColors from 'ansi-colors';
-import * as fs from 'fs';
-import * as path from 'path';
+import es from 'event-stream';
+import fancyLog from 'fancy-log';
+import ansiColors from 'ansi-colors';
+import fs from 'fs';
+import path from 'path';
 
 class ErrorLog {
 	constructor(public id: string) {
@@ -105,13 +105,16 @@ export function createReporter(id?: string): IReporter {
 			errorLog.onEnd();
 
 			if (emitError && errors.length > 0) {
+				// eslint-disable-next-line local/code-no-any-casts
 				if (!(errors as any).__logged__) {
 					errorLog.log();
 				}
 
+				// eslint-disable-next-line local/code-no-any-casts
 				(errors as any).__logged__ = true;
 
 				const err = new Error(`Found ${errors.length} errors`);
+				// eslint-disable-next-line local/code-no-any-casts
 				(err as any).__reporter__ = true;
 				this.emit('error', err);
 			} else {

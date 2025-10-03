@@ -40,7 +40,9 @@ export = new class ApiVsCodeInComments implements eslint.Rule.RuleModule {
 						}
 
 						// Types for eslint seem incorrect
+						// eslint-disable-next-line local/code-no-any-casts
 						const start = sourceCode.getLocFromIndex(startIndex + match.index) as any as estree.Position;
+						// eslint-disable-next-line local/code-no-any-casts
 						const end = sourceCode.getLocFromIndex(startIndex + match.index + match[0].length) as any as estree.Position;
 						context.report({
 							messageId: 'comment',

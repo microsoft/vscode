@@ -1,9 +1,10 @@
 steps:
+  - template: ../common/checkout.yml@self
+
   - task: NodeTool@0
     inputs:
       versionSource: fromFile
       versionFilePath: .nvmrc
-      nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
   - template: ../distro/download-distro.yml@self
 
@@ -27,7 +28,7 @@ steps:
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Registry
 
-  - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.js web > .build/packagelockhash
+  - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.js web $(node -p process.arch) > .build/packagelockhash
     displayName: Prepare node_modules cache key
 
   - task: Cache@2
@@ -162,12 +163,12 @@ steps:
     condition: and(succeededOrFailed(), notIn(variables['Agent.JobStatus'], 'Succeeded', 'SucceededWithIssues'))
     displayName: Generate artifact prefix
 
-  - task: 1ES.PublishPipelineArtifact@1
-    inputs:
+  - template: ../common/publish-artifact.yml@self
+    parameters:
       targetPath: $(WEB_PATH)
       artifactName: $(ARTIFACT_PREFIX)vscode_web_linux_standalone_archive-unsigned
+      displayName: Publish web archive
       sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-web
       sbomPackageName: "VS Code Web"
       sbomPackageVersion: $(Build.SourceVersion)
-    condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''))
-    displayName: Publish web archive
+      condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''))

@@ -37,11 +37,7 @@ export class TestingExplorerFilter extends BaseActionViewItem {
 	private wrapper!: HTMLDivElement;
 	private readonly focusEmitter = this._register(new Emitter<void>());
 	public readonly onDidFocus = this.focusEmitter.event;
-	private readonly history: StoredValue<{ values: string[]; lastValue: string } | string[]> = this._register(this.instantiationService.createInstance(StoredValue, {
-		key: 'testing.filterHistory2',
-		scope: StorageScope.WORKSPACE,
-		target: StorageTarget.MACHINE
-	}));
+	private readonly history: StoredValue<{ values: string[]; lastValue: string } | string[]>;
 
 	private readonly filtersAction = new Action('markersFiltersAction', localize('testing.filters.menu', "More Filters..."), 'testing-filter-button ' + ThemeIcon.asClassName(testingFilterIcon));
 
@@ -53,6 +49,11 @@ export class TestingExplorerFilter extends BaseActionViewItem {
 		@ITestService private readonly testService: ITestService,
 	) {
 		super(null, action, options);
+		this.history = this._register(instantiationService.createInstance(StoredValue, {
+			key: 'testing.filterHistory2',
+			scope: StorageScope.WORKSPACE,
+			target: StorageTarget.MACHINE
+		}));
 		this.updateFilterActiveState();
 		this._register(testService.excluded.onTestExclusionsChanged(this.updateFilterActiveState, this));
 	}

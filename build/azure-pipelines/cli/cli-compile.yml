@@ -14,19 +14,11 @@ parameters:
 
 steps:
   - ${{ if contains(parameters.VSCODE_CLI_TARGET, '-windows-') }}:
-    - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
-      - pwsh: Write-Host "##vso[task.setvariable variable=VSCODE_CLI_PRODUCT_JSON]$(Build.SourcesDirectory)/product.json"
-        displayName: Set product.json path
-    - ${{ else }}:
-      - pwsh: Write-Host "##vso[task.setvariable variable=VSCODE_CLI_PRODUCT_JSON]$(Build.SourcesDirectory)/.build/distro/mixin/${{ parameters.VSCODE_QUALITY }}/product.json"
-        displayName: Set product.json path
+    - pwsh: Write-Host "##vso[task.setvariable variable=VSCODE_CLI_PRODUCT_JSON]$(Build.SourcesDirectory)/.build/distro/mixin/${{ parameters.VSCODE_QUALITY }}/product.json"
+      displayName: Set product.json path
   - ${{ else }}:
-    - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
-      - script: echo "##vso[task.setvariable variable=VSCODE_CLI_PRODUCT_JSON]$(Build.SourcesDirectory)/product.json"
-        displayName: Set product.json path
-    - ${{ else }}:
-      - script: echo "##vso[task.setvariable variable=VSCODE_CLI_PRODUCT_JSON]$(Build.SourcesDirectory)/.build/distro/mixin/${{ parameters.VSCODE_QUALITY }}/product.json"
-        displayName: Set product.json path
+    - script: echo "##vso[task.setvariable variable=VSCODE_CLI_PRODUCT_JSON]$(Build.SourcesDirectory)/.build/distro/mixin/${{ parameters.VSCODE_QUALITY }}/product.json"
+      displayName: Set product.json path
 
   - ${{ if parameters.VSCODE_CHECK_ONLY }}:
     - script: cargo clippy --target ${{ parameters.VSCODE_CLI_TARGET }} --bin=code
@@ -42,16 +34,21 @@ steps:
       - script: |
           set -e
           if [ -n "$SYSROOT_ARCH" ]; then
-            export VSCODE_SYSROOT_PREFIX='-glibc-2.17'
             export VSCODE_SYSROOT_DIR=$(Build.SourcesDirectory)/.build/sysroots
-            node -e '(async () => { const { getVSCodeSysroot } = require("../build/linux/debian/install-sysroot.js"); await getVSCodeSysroot(process.env["SYSROOT_ARCH"]); })()'
+            node -e '(async () => { const { getVSCodeSysroot } = require("../build/linux/debian/install-sysroot.js"); await getVSCodeSysroot(process.env["SYSROOT_ARCH"], process.env["IS_MUSL"] === "1"); })()'
             if [ "$SYSROOT_ARCH" == "arm64" ]; then
-              export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER="$VSCODE_SYSROOT_DIR/aarch64-linux-gnu/bin/aarch64-linux-gnu-gcc"
-              export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUSTFLAGS="-C link-arg=--sysroot=$VSCODE_SYSROOT_DIR/aarch64-linux-gnu/aarch64-linux-gnu/sysroot"
-              export CC_aarch64_unknown_linux_gnu="$VSCODE_SYSROOT_DIR/aarch64-linux-gnu/bin/aarch64-linux-gnu-gcc --sysroot=$VSCODE_SYSROOT_DIR/aarch64-linux-gnu/aarch64-linux-gnu/sysroot"
-              export PKG_CONFIG_LIBDIR_aarch64_unknown_linux_gnu="$VSCODE_SYSROOT_DIR/aarch64-linux-gnu/aarch64-linux-gnu/sysroot/usr/lib/aarch64-linux-gnu/pkgconfig:$VSCODE_SYSROOT_DIR/aarch64-linux-gnu/aarch64-linux-gnu/sysroot/usr/share/pkgconfig"
-              export PKG_CONFIG_SYSROOT_DIR_aarch64_unknown_linux_gnu="$VSCODE_SYSROOT_DIR/aarch64-linux-gnu/aarch64-linux-gnu/sysroot"
-              export OBJDUMP="$VSCODE_SYSROOT_DIR/aarch64-linux-gnu/aarch64-linux-gnu/bin/objdump"
+              if [ -n "$IS_MUSL" ]; then
+                export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER="$VSCODE_SYSROOT_DIR/output/bin/aarch64-linux-musl-gcc"
+                export CC_aarch64_unknown_linux_musl="$VSCODE_SYSROOT_DIR/output/bin/aarch64-linux-musl-gcc"
+                export CXX_aarch64_unknown_linux_musl="$VSCODE_SYSROOT_DIR/output/bin/aarch64-linux-musl-g++"
+              else
+                export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER="$VSCODE_SYSROOT_DIR/aarch64-linux-gnu/bin/aarch64-linux-gnu-gcc"
+                export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUSTFLAGS="-C link-arg=--sysroot=$VSCODE_SYSROOT_DIR/aarch64-linux-gnu/aarch64-linux-gnu/sysroot"
+                export CC_aarch64_unknown_linux_gnu="$VSCODE_SYSROOT_DIR/aarch64-linux-gnu/bin/aarch64-linux-gnu-gcc --sysroot=$VSCODE_SYSROOT_DIR/aarch64-linux-gnu/aarch64-linux-gnu/sysroot"
+                export PKG_CONFIG_LIBDIR_aarch64_unknown_linux_gnu="$VSCODE_SYSROOT_DIR/aarch64-linux-gnu/aarch64-linux-gnu/sysroot/usr/lib/aarch64-linux-gnu/pkgconfig:$VSCODE_SYSROOT_DIR/aarch64-linux-gnu/aarch64-linux-gnu/sysroot/usr/share/pkgconfig"
+                export PKG_CONFIG_SYSROOT_DIR_aarch64_unknown_linux_gnu="$VSCODE_SYSROOT_DIR/aarch64-linux-gnu/aarch64-linux-gnu/sysroot"
+                export OBJDUMP="$VSCODE_SYSROOT_DIR/aarch64-linux-gnu/aarch64-linux-gnu/bin/objdump"
+              fi
             elif [ "$SYSROOT_ARCH" == "amd64" ]; then
               export CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER="$VSCODE_SYSROOT_DIR/x86_64-linux-gnu/bin/x86_64-linux-gnu-gcc"
               export CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS="-C link-arg=--sysroot=$VSCODE_SYSROOT_DIR/x86_64-linux-gnu/x86_64-linux-gnu/sysroot -C link-arg=-L$VSCODE_SYSROOT_DIR/x86_64-linux-gnu/x86_64-linux-gnu/sysroot/usr/lib/x86_64-linux-gnu"
@@ -72,8 +69,8 @@ steps:
           cargo build --release --target ${{ parameters.VSCODE_CLI_TARGET }} --bin=code
 
           # verify glibc requirement
-          if [ -n "$SYSROOT_ARCH" ]; then
-            glibc_version="2.17"
+          if [ -n "$SYSROOT_ARCH" ] && [ -n "$OBJDUMP" ]; then
+            glibc_version="2.28"
             while IFS= read -r line; do
               if [[ $line == *"GLIBC_"* ]]; then
                 version=$(echo "$line" | awk '{print $5}' | tr -d '()')
@@ -83,9 +80,11 @@ steps:
                 fi
               fi
             done < <("$OBJDUMP" -T "$PWD/target/${{ parameters.VSCODE_CLI_TARGET }}/release/code")
-            if [[ "$glibc_version" != "2.17" ]]; then
-              echo "Error: binary has dependency on GLIBC > 2.17, found $glibc_version"
+            if [[ "$glibc_version" != "2.28" ]]; then
+              echo "Error: binary has dependency on GLIBC > 2.28, found $glibc_version"
               exit 1
+            else
+              echo "Maximum GLIBC version is $glibc_version as expected."
             fi
           fi
         displayName: Compile ${{ parameters.VSCODE_CLI_TARGET }}
@@ -119,22 +118,6 @@ steps:
           ArtifactServices.Symbol.PAT: $(System.AccessToken)
           ArtifactServices.Symbol.UseAAD: false
         displayName: Publish Symbols
-
-      - task: CopyFiles@2
-        inputs:
-          SourceFolder: $(Build.SourcesDirectory)/cli/target/${{ parameters.VSCODE_CLI_TARGET }}/release
-          Contents: 'code.*'
-          TargetFolder: $(Agent.TempDirectory)/binskim-cli
-        displayName: Copy files for BinSkim
-
-      - task: BinSkim@4
-        inputs:
-          InputType: Basic
-          Function: analyze
-          TargetPattern: guardianGlob
-          AnalyzeTargetGlob: $(Agent.TempDirectory)/binskim-cli/*.*
-          AnalyzeSymPath: $(Agent.TempDirectory)/binskim-cli
-        displayName: Run BinSkim
 
       - powershell: |
           . build/azure-pipelines/win32/exec.ps1

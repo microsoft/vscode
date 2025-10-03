@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
+import fs from 'fs';
 import type * as ts from 'typescript';
-import * as path from 'path';
-import * as fancyLog from 'fancy-log';
-import * as ansiColors from 'ansi-colors';
+import path from 'path';
+import fancyLog from 'fancy-log';
+import ansiColors from 'ansi-colors';
 
 const dtsv = '3';
 
@@ -218,6 +218,7 @@ function format(ts: typeof import('typescript'), text: string, endl: string): st
 	const sourceFile = ts.createSourceFile('file.ts', text, ts.ScriptTarget.Latest, /*setParentPointers*/ true);
 
 	// Get the formatting edits on the input sources
+	// eslint-disable-next-line local/code-no-any-casts
 	const edits = (<any>ts).formatting.formatDocument(sourceFile, getRuleProvider(tsfmt), tsfmt);
 
 	// Apply the edits on the input code
@@ -324,6 +325,7 @@ function format(ts: typeof import('typescript'), text: string, endl: string): st
 	function getRuleProvider(options: ts.FormatCodeSettings) {
 		// Share this between multiple formatters using the same options.
 		// This represents the bulk of the space the formatter uses.
+		// eslint-disable-next-line local/code-no-any-casts
 		return (ts as any).formatting.getFormatContext(options);
 	}
 

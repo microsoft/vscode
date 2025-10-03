@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './hover.css';
-import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
 import * as dom from '../../../../base/browser/dom.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
@@ -61,6 +61,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 	private _isLocked: boolean = false;
 	private _enableFocusTraps: boolean = false;
 	private _addedFocusTrap: boolean = false;
+	private _maxHeightRatioRelativeToWindow: number = 0.5;
 
 	private get _targetWindow(): Window {
 		return dom.getWindow(this._target.targetElements[0]);
@@ -127,6 +128,11 @@ export class HoverWidget extends Widget implements IHoverWidget {
 			this._enableFocusTraps = true;
 		}
 
+		const maxHeightRatio = options.appearance?.maxHeightRatio;
+		if (maxHeightRatio !== undefined && maxHeightRatio > 0 && maxHeightRatio <= 1) {
+			this._maxHeightRatioRelativeToWindow = maxHeightRatio;
+		}
+
 		// Default to position above when the position is unspecified or a mouse event
 		this._hoverPosition = options.position?.hoverPosition === undefined
 			? HoverPosition.ABOVE
@@ -165,11 +171,8 @@ export class HoverWidget extends Widget implements IHoverWidget {
 				{ codeBlockFontFamily: this._configurationService.getValue<IEditorOptions>('editor').fontFamily || EDITOR_FONT_DEFAULTS.fontFamily }
 			);
 
-			const { element } = mdRenderer.render(markdown, {
-				actionHandler: {
-					callback: (content) => this._linkHandler(content),
-					disposables: this._messageListeners
-				},
+			const { element, dispose } = mdRenderer.render(markdown, {
+				actionHandler: (content) => this._linkHandler(content),
 				asyncRenderCallback: () => {
 					contentsElement.classList.add('code-hover-contents');
 					this.layout();
@@ -178,6 +181,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 				}
 			});
 			contentsElement.appendChild(element);
+			this._register(toDisposable(dispose));
 		}
 		rowElement.appendChild(contentsElement);
 		this._hover.contentsDomNode.appendChild(rowElement);
@@ -188,7 +192,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 			options.actions.forEach(action => {
 				const keybinding = this._keybindingService.lookupKeybinding(action.commandId);
 				const keybindingLabel = keybinding ? keybinding.getLabel() : null;
-				HoverAction.render(actionsElement, {
+				this._register(HoverAction.render(actionsElement, {
 					label: action.label,
 					commandId: action.commandId,
 					run: e => {
@@ -196,7 +200,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 						this.dispose();
 					},
 					iconClass: action.iconClass
-				}, keybindingLabel);
+				}, keybindingLabel));
 			});
 			statusBarElement.appendChild(actionsElement);
 			this._hover.containerDomNode.appendChild(statusBarElement);
@@ -550,7 +554,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 	}
 
 	private adjustHoverMaxHeight(target: TargetRect): void {
-		let maxHeight = this._targetWindow.innerHeight / 2;
+		let maxHeight = this._targetWindow.innerHeight * this._maxHeightRatioRelativeToWindow;
 
 		// When force position is enabled, restrict max height
 		if (this._forcePosition) {

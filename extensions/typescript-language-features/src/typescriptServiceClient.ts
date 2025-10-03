@@ -108,7 +108,6 @@ interface WatchEvent {
 
 export default class TypeScriptServiceClient extends Disposable implements ITypeScriptServiceClient {
 
-
 	private readonly _onReady?: { promise: Promise<void>; resolve: () => void; reject: () => void };
 	private _configuration: TypeScriptServiceConfiguration;
 	private readonly pluginPathsProvider: TypeScriptPluginPathsProvider;
@@ -632,6 +631,10 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 		this.serverState = ServerState.None;
 
+		if (this.isDisposed) {
+			return;
+		}
+
 		if (restart) {
 			const diff = Date.now() - this.lastStart;
 			this.numberRestarts++;
@@ -836,9 +839,10 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			}
 		}
 
-		for (const root of roots.sort((a, b) => a.uri.fsPath.length - b.uri.fsPath.length)) {
+		// Find the highest level workspace folder that contains the file
+		for (const root of roots.sort((a, b) => a.uri.path.length - b.uri.path.length)) {
 			if (root.uri.scheme === resource.scheme && root.uri.authority === resource.authority) {
-				if (resource.fsPath.startsWith(root.uri.fsPath + path.sep)) {
+				if (resource.path.startsWith(root.uri.path + '/')) {
 					return root.uri;
 				}
 			}

@@ -7,7 +7,6 @@ import * as dom from '../../../../base/browser/dom.js';
 import * as nls from '../../../../nls.js';
 import { renderMarkdown } from '../../../../base/browser/markdownRenderer.js';
 import { IDisposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IResourceLabel, ResourceLabels } from '../../../browser/labels.js';
 import { CommentNode, ResourceWithCommentThreads } from '../common/commentModel.js';
 import { ITreeContextMenuEvent, ITreeFilter, ITreeNode, TreeFilterResult, TreeVisibility } from '../../../../base/browser/ui/tree/tree.js';
@@ -27,7 +26,6 @@ import { Color } from '../../../../base/common/color.js';
 import { IMatch } from '../../../../base/common/filters.js';
 import { FilterOptions } from './commentsFilterOptions.js';
 import { basename } from '../../../../base/common/resources.js';
-import { openLinkFromMarkdown } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { IStyleOverride } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IListStyles } from '../../../../base/browser/ui/list/listWidget.js';
 import { ILocalizedString } from '../../../../platform/action/common/action.js';
@@ -62,7 +60,7 @@ interface ICommentThreadTemplateData {
 		timestamp: TimestampWidget;
 		separator: HTMLElement;
 		commentPreview: HTMLSpanElement;
-		range: HTMLSpanElement;
+		range: HTMLElement;
 	};
 	repliesMetadata: {
 		container: HTMLElement;
@@ -117,7 +115,7 @@ export class ResourceWithCommentsRenderer implements IListRenderer<ITreeNode<Res
 		return { resourceLabel, owner, separator };
 	}
 
-	renderElement(node: ITreeNode<ResourceWithCommentThreads>, index: number, templateData: IResourceTemplateData, height: number | undefined): void {
+	renderElement(node: ITreeNode<ResourceWithCommentThreads>, index: number, templateData: IResourceTemplateData): void {
 		templateData.resourceLabel.setFile(node.element.resource);
 		templateData.separator.innerText = '\u00b7';
 
@@ -183,7 +181,6 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 	constructor(
 		private actionViewItemProvider: IActionViewItemProvider,
 		private menus: CommentsMenus,
-		@IOpenerService private readonly openerService: IOpenerService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IThemeService private themeService: IThemeService
@@ -193,14 +190,25 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		const threadContainer = dom.append(container, dom.$('.comment-thread-container'));
 		const metadataContainer = dom.append(threadContainer, dom.$('.comment-metadata-container'));
 		const metadata = dom.append(metadataContainer, dom.$('.comment-metadata'));
+
+		const icon = dom.append(metadata, dom.$('.icon'));
+		const userNames = dom.append(metadata, dom.$('.user'));
+		const timestamp = new TimestampWidget(this.configurationService, this.hoverService, dom.append(metadata, dom.$('.timestamp-container')));
+		const relevance = dom.append(metadata, dom.$('.relevance'));
+		const separator = dom.append(metadata, dom.$('.separator'));
+		const commentPreview = dom.append(metadata, dom.$('.text'));
+		const rangeContainer = dom.append(metadata, dom.$('.range'));
+		const range = dom.$('p');
+		rangeContainer.appendChild(range);
+
 		const threadMetadata = {
-			icon: dom.append(metadata, dom.$('.icon')),
-			userNames: dom.append(metadata, dom.$('.user')),
-			timestamp: new TimestampWidget(this.configurationService, this.hoverService, dom.append(metadata, dom.$('.timestamp-container'))),
-			relevance: dom.append(metadata, dom.$('.relevance')),
-			separator: dom.append(metadata, dom.$('.separator')),
-			commentPreview: dom.append(metadata, dom.$('.text')),
-			range: dom.append(metadata, dom.$('.range'))
+			icon,
+			userNames,
+			timestamp,
+			relevance,
+			separator,
+			commentPreview,
+			range
 		};
 		threadMetadata.separator.innerText = '\u00b7';
 
@@ -235,14 +243,8 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		}
 	}
 
-	private getRenderedComment(commentBody: IMarkdownString, disposables: DisposableStore) {
-		const renderedComment = renderMarkdown(commentBody, {
-			inline: true,
-			actionHandler: {
-				callback: (link) => openLinkFromMarkdown(this.openerService, link, commentBody.isTrusted),
-				disposables: disposables
-			}
-		});
+	private getRenderedComment(commentBody: IMarkdownString) {
+		const renderedComment = renderMarkdown(commentBody, {}, document.createElement('span'));
 		const images = renderedComment.element.getElementsByTagName('img');
 		for (let i = 0; i < images.length; i++) {
 			const image = images[i];
@@ -269,7 +271,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		}
 	}
 
-	renderElement(node: ITreeNode<CommentNode>, index: number, templateData: ICommentThreadTemplateData, height: number | undefined): void {
+	renderElement(node: ITreeNode<CommentNode>, index: number, templateData: ICommentThreadTemplateData): void {
 		templateData.actionBar.clear();
 
 		const commentCount = node.element.replies.length + 1;
@@ -302,9 +304,12 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		} else {
 			const disposables = new DisposableStore();
 			templateData.disposables.push(disposables);
-			const renderedComment = this.getRenderedComment(originalComment.comment.body, disposables);
+			const renderedComment = this.getRenderedComment(originalComment.comment.body);
 			templateData.disposables.push(renderedComment);
-			templateData.threadMetadata.commentPreview.appendChild(renderedComment.element.firstElementChild ?? renderedComment.element);
+			for (let i = renderedComment.element.children.length - 1; i >= 1; i--) {
+				renderedComment.element.removeChild(renderedComment.element.children[i]);
+			}
+			templateData.threadMetadata.commentPreview.appendChild(renderedComment.element);
 			templateData.disposables.push(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), templateData.threadMetadata.commentPreview, renderedComment.element.textContent ?? ''));
 		}
 

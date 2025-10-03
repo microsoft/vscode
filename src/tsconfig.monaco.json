@@ -8,8 +8,8 @@
 			"wicg-file-system-access"
 		],
 		"paths": {},
-		"module": "amd",
-		"moduleResolution": "node",
+		"module": "esnext",
+		"moduleResolution": "bundler",
 		"removeComments": false,
 		"preserveConstEnums": true,
 		"target": "ES2022",
@@ -17,10 +17,12 @@
 		"declaration": true
 	},
 	"include": [
+		"typings/css.d.ts",
 		"typings/thenable.d.ts",
 		"typings/vscode-globals-product.d.ts",
 		"typings/vscode-globals-nls.d.ts",
 		"typings/editContext.d.ts",
+		"typings/base-common.d.ts",
 		"vs/monaco.d.ts",
 		"vs/editor/*",
 		"vs/base/common/*",

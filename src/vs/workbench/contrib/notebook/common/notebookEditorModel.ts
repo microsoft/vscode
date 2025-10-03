@@ -13,7 +13,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { assertType } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IWriteFileOptions, IFileStatWithMetadata } from '../../../../platform/files/common/files.js';
+import { IWriteFileOptions, IFileStatWithMetadata, FileOperationError, FileOperationResult } from '../../../../platform/files/common/files.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IRevertOptions, ISaveOptions, IUntypedEditorInput } from '../../../common/editor.js';
 import { EditorModel } from '../../../common/editor/editorModel.js';
@@ -27,7 +27,6 @@ import { IFileWorkingCopyManager } from '../../../services/workingCopy/common/fi
 import { IStoredFileWorkingCopy, IStoredFileWorkingCopyModel, IStoredFileWorkingCopyModelContentChangedEvent, IStoredFileWorkingCopyModelFactory, IStoredFileWorkingCopySaveEvent, StoredFileWorkingCopyState } from '../../../services/workingCopy/common/storedFileWorkingCopy.js';
 import { IUntitledFileWorkingCopy, IUntitledFileWorkingCopyModel, IUntitledFileWorkingCopyModelContentChangedEvent, IUntitledFileWorkingCopyModelFactory } from '../../../services/workingCopy/common/untitledFileWorkingCopy.js';
 import { WorkingCopyCapabilities } from '../../../services/workingCopy/common/workingCopy.js';
-import { INotebookSynchronizerService } from './notebookSynchronizerService.js';
 
 //#region --- simple content provider
 
@@ -56,7 +55,6 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 		private readonly _workingCopyManager: IFileWorkingCopyManager<NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModel>,
 		scratchpad: boolean,
 		@IFilesConfigurationService private readonly _filesConfigurationService: IFilesConfigurationService,
-		@INotebookSynchronizerService private readonly _notebookSynchronizerService: INotebookSynchronizerService
 	) {
 		super();
 
@@ -122,9 +120,6 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 
 	async revert(options?: IRevertOptions): Promise<void> {
 		assertType(this.isResolved());
-		if (this._workingCopy) {
-			await this._notebookSynchronizerService.revert(this._workingCopy);
-		}
 		return this._workingCopy!.revert(options);
 	}
 
@@ -141,7 +136,7 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 				} else {
 					this._workingCopy = await this._workingCopyManager.resolve({ untitledResource: this.resource, isScratchpad: this.scratchPad });
 				}
-				this._workingCopy.onDidRevert(() => this._onDidRevertUntitled.fire());
+				this._register(this._workingCopy.onDidRevert(() => this._onDidRevertUntitled.fire()));
 			} else {
 				this._workingCopy = await this._workingCopyManager.resolve(this.resource, {
 					limits: options?.limits,
@@ -238,7 +233,7 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 
 		// Override save behavior to avoid transferring the buffer across the wire 3 times
 		if (saveWithReducedCommunication) {
-			this.setSaveDelegate().catch(console.error);
+			this.setSaveDelegate().catch(error => this._notebookLogService.error('WorkingCopyModel', `Failed to set save delegate: ${error}`));
 		}
 	}
 
@@ -252,7 +247,12 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 
 				if (!serializer) {
 					this._notebookLogService.info('WorkingCopyModel', 'No serializer found for notebook model, checking if provider still needs to be resolved');
-					serializer = await this.getNotebookSerializer();
+					serializer = await this.getNotebookSerializer().catch(error => {
+						this._notebookLogService.error('WorkingCopyModel', `Failed to get notebook serializer: ${error}`);
+						// The serializer was set initially but somehow is no longer available
+						this.save = undefined;
+						throw new NotebookSaveError('Failed to get notebook serializer');
+					});
 				}
 
 				if (token.isCancellationRequested) {
@@ -262,11 +262,11 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 				const stat = await serializer.save(this._notebookModel.uri, this._notebookModel.versionId, options, token);
 				return stat;
 			} catch (error) {
-				if (!token.isCancellationRequested) {
+				if (!token.isCancellationRequested && error.name !== 'Canceled') {
 					type notebookSaveErrorData = {
 						isRemote: boolean;
 						isIPyNbWorkerSerializer: boolean;
-						error: Error;
+						error: string;
 					};
 					type notebookSaveErrorClassification = {
 						owner: 'amunger';
@@ -276,10 +276,11 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 						error: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Info about the error that occurred' };
 					};
 					const isIPynb = this._notebookModel.viewType === 'jupyter-notebook' || this._notebookModel.viewType === 'interactive';
+					const errorMessage = getSaveErrorMessage(error);
 					this._telemetryService.publicLogError2<notebookSaveErrorData, notebookSaveErrorClassification>('notebook/SaveError', {
 						isRemote: this._notebookModel.uri.scheme === Schemas.vscodeRemote,
 						isIPyNbWorkerSerializer: isIPynb && this._configurationService.getValue<boolean>('ipynb.experimental.serialization'),
-						error: error
+						error: errorMessage
 					});
 				}
 
@@ -318,7 +319,8 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 	async getNotebookSerializer(): Promise<INotebookSerializer> {
 		const info = await this._notebookService.withNotebookDataProvider(this.notebookModel.viewType);
 		if (!(info instanceof SimpleNotebookProviderInfo)) {
-			throw new Error('CANNOT open file notebook with this provider');
+			const message = 'CANNOT open notebook with this provider';
+			throw new NotebookSaveError(message);
 		}
 
 		return info.serializer;
@@ -353,3 +355,42 @@ export class NotebookFileWorkingCopyModelFactory implements IStoredFileWorkingCo
 }
 
 //#endregion
+
+class NotebookSaveError extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = 'NotebookSaveError';
+	}
+}
+
+function getSaveErrorMessage(error: Error): string {
+	if (error.name === 'NotebookSaveError') {
+		return error.message;
+	} else if (error instanceof FileOperationError) {
+		switch (error.fileOperationResult) {
+			case FileOperationResult.FILE_IS_DIRECTORY:
+				return 'File is a directory';
+			case FileOperationResult.FILE_NOT_FOUND:
+				return 'File not found';
+			case FileOperationResult.FILE_NOT_MODIFIED_SINCE:
+				return 'File not modified since';
+			case FileOperationResult.FILE_MODIFIED_SINCE:
+				return 'File modified since';
+			case FileOperationResult.FILE_MOVE_CONFLICT:
+				return 'File move conflict';
+			case FileOperationResult.FILE_WRITE_LOCKED:
+				return 'File write locked';
+			case FileOperationResult.FILE_PERMISSION_DENIED:
+				return 'File permission denied';
+			case FileOperationResult.FILE_TOO_LARGE:
+				return 'File too large';
+			case FileOperationResult.FILE_INVALID_PATH:
+				return 'File invalid path';
+			case FileOperationResult.FILE_NOT_DIRECTORY:
+				return 'File not directory';
+			case FileOperationResult.FILE_OTHER_ERROR:
+				return 'File other error';
+		}
+	}
+	return 'Unknown error';
+}

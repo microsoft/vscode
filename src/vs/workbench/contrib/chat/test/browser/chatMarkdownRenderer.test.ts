@@ -7,8 +7,6 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { assertSnapshot } from '../../../../../base/test/common/snapshot.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ChatMarkdownRenderer } from '../../browser/chatMarkdownRenderer.js';
-import { ITrustedDomainService } from '../../../url/browser/trustedDomainService.js';
-import { MockTrustedDomainService } from '../../../url/test/browser/mockTrustedDomainService.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 
 suite('ChatMarkdownRenderer', () => {
@@ -17,7 +15,6 @@ suite('ChatMarkdownRenderer', () => {
 	let testRenderer: ChatMarkdownRenderer;
 	setup(() => {
 		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
-		instantiationService.stub(ITrustedDomainService, new MockTrustedDomainService(['http://allowed.com']));
 		testRenderer = instantiationService.createInstance(ChatMarkdownRenderer, {});
 	});
 
@@ -82,10 +79,18 @@ suite('ChatMarkdownRenderer', () => {
 	});
 
 	test('self-closing elements', async () => {
-		const md = new MarkdownString('<area><hr><br><input type="text" value="test">');
-		md.supportHtml = true;
-		const result = store.add(testRenderer.render(md));
-		await assertSnapshot(result.element.outerHTML);
+		{
+			const md = new MarkdownString('<area><hr><br><input type="text" value="test">');
+			md.supportHtml = true;
+			const result = store.add(testRenderer.render(md));
+			await assertSnapshot(result.element.outerHTML);
+		}
+		{
+			const md = new MarkdownString('<area><hr><br><input type="checkbox">');
+			md.supportHtml = true;
+			const result = store.add(testRenderer.render(md));
+			await assertSnapshot(result.element.outerHTML);
+		}
 	});
 
 	test('html comments', async () => {
@@ -102,8 +107,8 @@ suite('ChatMarkdownRenderer', () => {
 		await assertSnapshot(result.element.outerHTML);
 	});
 
-	test('remote images', async () => {
-		const md = new MarkdownString('<img src="http://allowed.com/image.jpg"> <img src="http://disallowed.com/image.jpg">');
+	test('remote images are disallowed', async () => {
+		const md = new MarkdownString('<img src="http://disallowed.com/image.jpg">');
 		md.supportHtml = true;
 		const result = store.add(testRenderer.render(md));
 		await assertSnapshot(result.element.outerHTML);

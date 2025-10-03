@@ -41,7 +41,6 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 		return this._commentElements.filter(node => node.isEditing)[0];
 	}
 
-
 	constructor(
 		private readonly _parentEditor: LayoutableEditor,
 		readonly owner: string,
@@ -75,6 +74,10 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 			}
 		}
 		this._commentsElement.focus();
+	}
+
+	hasCommentsInEditMode() {
+		return this._commentElements.some(commentNode => commentNode.isEditing);
 	}
 
 	ensureFocusIntoNewEditingComment() {
@@ -129,6 +132,9 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 
 	private _refresh() {
 		const dimensions = dom.getClientArea(this.container);
+		if (dimensions.height === 0 && dimensions.width === 0) {
+			return;
+		}
 		this._onDidResize.fire(dimensions);
 	}
 
@@ -201,6 +207,8 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 		let lastCommentElement: HTMLElement | null = null;
 		const newCommentNodeList: CommentNode<T>[] = [];
 		const newCommentsInEditMode: CommentNode<T>[] = [];
+		const startEditing: Promise<void>[] = [];
+
 		for (let i = newCommentsLen - 1; i >= 0; i--) {
 			const currentComment = commentThread.comments![i];
 			const oldCommentNode = this._commentElements.filter(commentNode => commentNode.comment.uniqueIdInThread === currentComment.uniqueIdInThread);
@@ -220,7 +228,7 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 				}
 
 				if (currentComment.mode === languages.CommentMode.Editing) {
-					await newElement.switchToEditMode();
+					startEditing.push(newElement.switchToEditMode());
 					newCommentsInEditMode.push(newElement);
 				}
 			}
@@ -228,6 +236,8 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 
 		this._commentThread = commentThread;
 		this._commentElements = newCommentNodeList;
+		// Start editing *after* updating the thread and elements to avoid a sequencing issue https://github.com/microsoft/vscode/issues/239191
+		await Promise.all(startEditing);
 
 		if (newCommentsInEditMode.length) {
 			const lastIndex = this._commentElements.indexOf(newCommentsInEditMode[newCommentsInEditMode.length - 1]);

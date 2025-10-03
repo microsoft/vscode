@@ -90,11 +90,6 @@ export class ListService implements IListService {
 
 		return combinedDisposable(
 			widget.onDidFocus(() => this.setLastFocusedList(widget)),
-			widget.onDidBlur(() => {
-				if (this._lastFocusedWidget === widget) {
-					this.setLastFocusedList(undefined);
-				}
-			}),
 			toDisposable(() => this.lists.splice(this.lists.indexOf(registeredList), 1)),
 			widget.onDidDispose(() => {
 				this.lists = this.lists.filter(l => l !== registeredList);
@@ -651,13 +646,6 @@ export class WorkbenchTable<TRow> extends Table<TRow> {
 	}
 }
 
-export interface IOpenResourceOptions {
-	editorOptions: IEditorOptions;
-	sideBySide: boolean;
-	element: any;
-	payload: any;
-}
-
 export interface IOpenEvent<T> {
 	editorOptions: IEditorOptions;
 	sideBySide: boolean;
@@ -865,6 +853,7 @@ export interface IWorkbenchObjectTreeOptions<T, TFilterData> extends IObjectTree
 	readonly accessibilityProvider: IListAccessibilityProvider<T>;
 	readonly overrideStyles?: IStyleOverride<IListStyles>;
 	readonly selectionNavigation?: boolean;
+	readonly scrollToActiveElement?: boolean;
 }
 
 export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void> extends ObjectTree<T, TFilterData> {
@@ -885,6 +874,7 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 		@IListService listService: IListService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
+		// eslint-disable-next-line local/code-no-any-casts
 		const { options: treeOptions, getTypeNavigationMode, disposable } = instantiationService.invokeFunction(workbenchTreeDataPreamble, options as any);
 		super(user, container, delegate, renderers, treeOptions);
 		this.disposables.add(disposable);
@@ -925,6 +915,7 @@ export class WorkbenchCompressibleObjectTree<T extends NonNullable<any>, TFilter
 		@IListService listService: IListService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
+		// eslint-disable-next-line local/code-no-any-casts
 		const { options: treeOptions, getTypeNavigationMode, disposable } = instantiationService.invokeFunction(workbenchTreeDataPreamble, options as any);
 		super(user, container, delegate, renderers, treeOptions);
 		this.disposables.add(disposable);
@@ -971,6 +962,7 @@ export class WorkbenchDataTree<TInput, T, TFilterData = void> extends DataTree<T
 		@IListService listService: IListService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
+		// eslint-disable-next-line local/code-no-any-casts
 		const { options: treeOptions, getTypeNavigationMode, disposable } = instantiationService.invokeFunction(workbenchTreeDataPreamble, options as any);
 		super(user, container, delegate, renderers, dataSource, treeOptions);
 		this.disposables.add(disposable);
@@ -1017,6 +1009,7 @@ export class WorkbenchAsyncDataTree<TInput, T, TFilterData = void> extends Async
 		@IListService listService: IListService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
+		// eslint-disable-next-line local/code-no-any-casts
 		const { options: treeOptions, getTypeNavigationMode, disposable } = instantiationService.invokeFunction(workbenchTreeDataPreamble, options as any);
 		super(user, container, delegate, renderers, dataSource, treeOptions);
 		this.disposables.add(disposable);
@@ -1061,6 +1054,7 @@ export class WorkbenchCompressibleAsyncDataTree<TInput, T, TFilterData = void> e
 		@IListService listService: IListService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
+		// eslint-disable-next-line local/code-no-any-casts
 		const { options: treeOptions, getTypeNavigationMode, disposable } = instantiationService.invokeFunction(workbenchTreeDataPreamble, options as any);
 		super(user, container, virtualDelegate, compressionDelegate, renderers, dataSource, treeOptions);
 		this.disposables.add(disposable);

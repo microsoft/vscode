@@ -15,11 +15,11 @@
   "categories": [
     "Programming Languages"
   ],
-  "enabledApiProposals": [
-    "documentPaste"
-  ],
   "activationEvents": [
     "onLanguage:markdown",
+    "onLanguage:prompt",
+    "onLanguage:instructions",
+    "onLanguage:chatmode",
     "onCommand:markdown.api.render",
     "onCommand:markdown.api.reloadPlugins",
     "onWebviewPanel:markdown.preview"
@@ -126,6 +126,11 @@
         "category": "Markdown"
       },
       {
+        "command": "_markdown.openImage",
+        "title": "%markdown.openImage.title%",
+        "category": "Markdown"
+      },
+      {
         "command": "markdown.showPreview",
         "title": "%markdown.preview.title%",
         "category": "Markdown",
@@ -189,7 +194,11 @@
       "webview/context": [
         {
           "command": "_markdown.copyImage",
-          "when": "webviewId == 'markdown.preview' && webviewSection == 'image'"
+          "when": "webviewId == 'markdown.preview' && (webviewSection == 'image' || webviewSection == 'localImage')"
+        },
+        {
+          "command": "_markdown.openImage",
+          "when": "webviewId == 'markdown.preview' && webviewSection == 'localImage'"
         }
       ],
       "editor/title": [
@@ -244,6 +253,10 @@
         }
       ],
       "commandPalette": [
+        {
+          "command": "_markdown.openImage",
+          "when": "false"
+        },
         {
           "command": "_markdown.copyImage",
           "when": "false"
@@ -431,16 +444,6 @@
             "%configuration.markdown.suggest.paths.includeWorkspaceHeaderCompletions.onDoubleHash%",
             "%configuration.markdown.suggest.paths.includeWorkspaceHeaderCompletions.onSingleOrDoubleHash%"
           ]
-        },
-        "markdown.trace.extension": {
-          "type": "string",
-          "enum": [
-            "off",
-            "verbose"
-          ],
-          "default": "off",
-          "description": "%markdown.trace.extension.desc%",
-          "scope": "window"
         },
         "markdown.trace.server": {
           "type": "string",
@@ -757,23 +760,23 @@
     "watch": "npm run build-preview && gulp watch-extension:markdown-language-features watch-extension:markdown-language-features-languageService",
     "vscode:prepublish": "npm run build-ext && npm run build-preview",
     "build-ext": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:markdown-language-features ./tsconfig.json",
-    "build-notebook": "node ./esbuild-notebook",
-    "build-preview": "node ./esbuild-preview",
+    "build-notebook": "node ./esbuild-notebook.mjs",
+    "build-preview": "node ./esbuild-preview.mjs",
     "compile-web": "npx webpack-cli --config extension-browser.webpack.config --mode none",
-    "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
+    "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch"
   },
   "dependencies": {
-    "@vscode/extension-telemetry": "^0.9.0",
-    "dompurify": "^3.1.7",
+    "@vscode/extension-telemetry": "^0.9.8",
+    "dompurify": "^3.2.4",
     "highlight.js": "^11.8.0",
     "markdown-it": "^12.3.2",
     "markdown-it-front-matter": "^0.2.4",
-    "morphdom": "^2.6.1",
+    "morphdom": "^2.7.4",
     "picomatch": "^2.3.1",
     "punycode": "^2.3.1",
     "vscode-languageclient": "^8.0.2",
     "vscode-languageserver-textdocument": "^1.0.11",
-    "vscode-markdown-languageserver": "^0.5.0-alpha.9",
+    "vscode-markdown-languageserver": "^0.5.0-alpha.12",
     "vscode-uri": "^3.0.3"
   },
   "devDependencies": {
@@ -783,7 +786,7 @@
     "@types/picomatch": "^2.3.0",
     "@types/vscode-notebook-renderer": "^1.60.0",
     "@types/vscode-webview": "^1.57.0",
-    "@vscode/markdown-it-katex": "^1.0.2",
+    "@vscode/markdown-it-katex": "^1.1.1",
     "lodash.throttle": "^4.1.1",
     "vscode-languageserver-types": "^3.17.2",
     "vscode-markdown-languageservice": "^0.3.0-alpha.3"

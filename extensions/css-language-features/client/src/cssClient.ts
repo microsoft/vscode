@@ -15,7 +15,7 @@ namespace CustomDataChangedNotification {
 export type LanguageClientConstructor = (name: string, description: string, clientOptions: LanguageClientOptions) => BaseLanguageClient;
 
 export interface Runtime {
-	TextDecoder: { new(encoding?: string): { decode(buffer: ArrayBuffer): string } };
+	TextDecoder: typeof TextDecoder;
 	fs?: RequestService;
 }
 
@@ -83,6 +83,7 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 					}
 					return r;
 				}
+				// eslint-disable-next-line local/code-no-any-casts
 				const isThenable = <T>(obj: ProviderResult<T>): obj is Thenable<T> => obj && (<any>obj)['then'];
 
 				const r = next(document, position, context, token);

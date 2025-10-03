@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MarkdownRenderOptions, MarkedOptions } from '../../../../base/browser/markdownRenderer.js';
+import { $ } from '../../../../base/browser/dom.js';
+import { MarkdownRenderOptions } from '../../../../base/browser/markdownRenderer.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -14,14 +15,15 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import product from '../../../../platform/product/common/product.js';
 import { REVEAL_IN_EXPLORER_COMMAND_ID } from '../../files/browser/fileConstants.js';
-import { ITrustedDomainService } from '../../url/browser/trustedDomainService.js';
 
-const allowedHtmlTags = [
+export const allowedChatMarkdownHtmlTags = Object.freeze([
 	'b',
 	'blockquote',
 	'br',
 	'code',
+	'del',
 	'em',
 	'h1',
 	'h2',
@@ -31,10 +33,12 @@ const allowedHtmlTags = [
 	'h6',
 	'hr',
 	'i',
+	'ins',
 	'li',
 	'ol',
 	'p',
 	'pre',
+	's',
 	'strong',
 	'sub',
 	'sup',
@@ -52,7 +56,9 @@ const allowedHtmlTags = [
 	// Not in the official list, but used for codicons and other vscode markdown extensions
 	'span',
 	'div',
-];
+
+	'input', // Allowed for rendering checkboxes. Other types of inputs are removed and the inputs are always disabled
+]);
 
 /**
  * This wraps the MarkdownRenderer and applies sanitizer options needed for Chat.
@@ -62,7 +68,6 @@ export class ChatMarkdownRenderer extends MarkdownRenderer {
 		options: IMarkdownRendererOptions | undefined,
 		@ILanguageService languageService: ILanguageService,
 		@IOpenerService openerService: IOpenerService,
-		@ITrustedDomainService private readonly trustedDomainService: ITrustedDomainService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IFileService private readonly fileService: IFileService,
 		@ICommandService private readonly commandService: ICommandService,
@@ -70,17 +75,21 @@ export class ChatMarkdownRenderer extends MarkdownRenderer {
 		super(options ?? {}, languageService, openerService);
 	}
 
-	override render(markdown: IMarkdownString | undefined, options?: MarkdownRenderOptions, markedOptions?: MarkedOptions): IMarkdownRenderResult {
+	override render(markdown: IMarkdownString, options?: MarkdownRenderOptions, outElement?: HTMLElement): IMarkdownRenderResult {
 		options = {
 			...options,
-			remoteImageIsAllowed: (uri) => this.trustedDomainService.isValid(uri),
-			sanitizerOptions: {
+			sanitizerConfig: {
 				replaceWithPlaintext: true,
-				allowedTags: allowedHtmlTags,
+				allowedTags: {
+					override: allowedChatMarkdownHtmlTags,
+				},
+				...options?.sanitizerConfig,
+				allowedLinkSchemes: { augment: [product.urlProtocol] },
+				remoteImageIsAllowed: (_uri) => false,
 			}
 		};
 
-		const mdWithBody: IMarkdownString | undefined = (markdown && markdown.supportHtml) ?
+		const mdWithBody: IMarkdownString = (markdown && markdown.supportHtml) ?
 			{
 				...markdown,
 
@@ -89,7 +98,17 @@ export class ChatMarkdownRenderer extends MarkdownRenderer {
 				value: `<body>\n\n${markdown.value}</body>`,
 			}
 			: markdown;
-		const result = super.render(mdWithBody, options, markedOptions);
+		const result = super.render(mdWithBody, options, outElement);
+
+		// In some cases, the renderer can return top level text nodes  but our CSS expects
+		// all text to be in a <p> for margin to be applied properly.
+		// So just normalize it.
+		result.element.normalize();
+		for (const child of result.element.childNodes) {
+			if (child.nodeType === Node.TEXT_NODE && child.textContent?.trim()) {
+				child.replaceWith($('p', undefined, child.textContent));
+			}
+		}
 		return this.attachCustomHover(result);
 	}
 

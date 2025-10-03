@@ -2,30 +2,44 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { $, isHTMLInputElement, isHTMLTextAreaElement, reset, windowOpenNoOpener } from '../../../../base/browser/dom.js';
+import { $, isHTMLInputElement, isHTMLTextAreaElement, reset } from '../../../../base/browser/dom.js';
 import { createStyleSheet } from '../../../../base/browser/domStylesheets.js';
-import { Button, unthemedButtonStyles } from '../../../../base/browser/ui/button/button.js';
+import { Button, ButtonWithDropdown, unthemedButtonStyles } from '../../../../base/browser/ui/button/button.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { mainWindow } from '../../../../base/browser/window.js';
 import { Delayer, RunOnceScheduler } from '../../../../base/common/async.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { groupBy } from '../../../../base/common/collections.js';
 import { debounce } from '../../../../base/common/decorators.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { isLinuxSnap, isMacintosh } from '../../../../base/common/platform.js';
 import { IProductConfiguration } from '../../../../base/common/product.js';
+import { joinPath } from '../../../../base/common/resources.js';
 import { escape } from '../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
+import { Action } from '../../../../base/common/actions.js';
 import { localize } from '../../../../nls.js';
+import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { getIconsStyleSheet } from '../../../../platform/theme/browser/iconsStyleSheet.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { IssueReporterModel, IssueReporterData as IssueReporterModelData } from './issueReporterModel.js';
-import { IIssueFormService, IssueReporterData, IssueReporterExtensionData, IssueReporterStyles, IssueType } from '../common/issue.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IIssueFormService, IssueReporterData, IssueReporterExtensionData, IssueType } from '../common/issue.js';
 import { normalizeGitHubUrl } from '../common/issueReporterUtil.js';
+import { IssueReporterModel, IssueReporterData as IssueReporterModelData } from './issueReporterModel.js';
+import { IAuthenticationService } from '../../../services/authentication/common/authentication.js';
 
 const MAX_URL_LENGTH = 7500;
+
+// Github API and issues on web has a limit of 65536. If extension data is too large, we will allow users to downlaod and attach it as a file.
+// We round down to be safe.
+// ref https://github.com/github/issues/issues/12858
+
+const MAX_EXTENSION_DATA_LENGTH = 60000;
 
 interface SearchResult {
 	html_url: string;
@@ -52,8 +66,14 @@ export class BaseIssueReporterService extends Disposable {
 	public loadingExtensionData = false;
 	public selectedExtension = '';
 	public delayedSubmit = new Delayer<void>(300);
-	public previewButton!: Button;
+	public publicGithubButton!: Button | ButtonWithDropdown;
+	public internalGithubButton!: Button | ButtonWithDropdown;
 	public nonGitHubIssueUrl = false;
+	public needsUpdate = false;
+	public acknowledged = false;
+	private createAction: Action;
+	private previewAction: Action;
+	private privateAction: Action;
 
 	constructor(
 		public disableExtensions: boolean,
@@ -68,6 +88,11 @@ export class BaseIssueReporterService extends Disposable {
 		public readonly isWeb: boolean,
 		@IIssueFormService public readonly issueFormService: IIssueFormService,
 		@IThemeService public readonly themeService: IThemeService,
+		@IFileService public readonly fileService: IFileService,
+		@IFileDialogService public readonly fileDialogService: IFileDialogService,
+		@IContextMenuService public readonly contextMenuService: IContextMenuService,
+		@IAuthenticationService public readonly authenticationService: IAuthenticationService,
+		@IOpenerService public readonly openerService: IOpenerService
 	) {
 		super();
 		const targetExtension = data.extensionId ? data.enabledExtensions.find(extension => extension.id.toLocaleLowerCase() === data.extensionId?.toLocaleLowerCase()) : undefined;
@@ -83,20 +108,45 @@ export class BaseIssueReporterService extends Disposable {
 			selectedExtension: targetExtension
 		});
 
+		this._register(this.authenticationService.onDidChangeSessions(async () => {
+			const previousAuthState = !!this.data.githubAccessToken;
+
+			let githubAccessToken = '';
+			try {
+				const githubSessions = await this.authenticationService.getSessions('github');
+				const potentialSessions = githubSessions.filter(session => session.scopes.includes('repo'));
+				githubAccessToken = potentialSessions[0]?.accessToken;
+			} catch (e) {
+				// Ignore
+			}
+
+			this.data.githubAccessToken = githubAccessToken;
+
+			const currentAuthState = !!githubAccessToken;
+			if (previousAuthState !== currentAuthState) {
+				this.updateButtonStates();
+			}
+		}));
+
 		const fileOnMarketplace = data.issueSource === IssueSource.Marketplace;
 		const fileOnProduct = data.issueSource === IssueSource.VSCode;
 		this.issueReporterModel.update({ fileOnMarketplace, fileOnProduct });
 
-		//TODO: Handle case where extension is not activated
-		const issueReporterElement = this.getElementById('issue-reporter');
-		if (issueReporterElement) {
-			this.previewButton = new Button(issueReporterElement, unthemedButtonStyles);
-			const issueRepoName = document.createElement('a');
-			issueReporterElement.appendChild(issueRepoName);
-			issueRepoName.id = 'show-repo-name';
-			issueRepoName.classList.add('hidden');
-			this.updatePreviewButtonState();
-		}
+		this.createAction = this._register(new Action('issueReporter.create', localize('create', "Create on GitHub"), undefined, true, async () => {
+			this.delayedSubmit.trigger(async () => {
+				this.createIssue(true); // create issue
+			});
+		}));
+		this.previewAction = this._register(new Action('issueReporter.preview', localize('preview', "Preview on GitHub"), undefined, true, async () => {
+			this.delayedSubmit.trigger(async () => {
+				this.createIssue(false); // preview issue
+			});
+		}));
+		this.privateAction = this._register(new Action('issueReporter.privateCreate', localize('privateCreate', "Create Internally"), undefined, true, async () => {
+			this.delayedSubmit.trigger(async () => {
+				this.createIssue(true, true); // create private issue
+			});
+		}));
 
 		const issueTitle = data.issueTitle;
 		if (issueTitle) {
@@ -128,16 +178,21 @@ export class BaseIssueReporterService extends Disposable {
 		}
 
 		const delayer = new RunOnceScheduler(updateAll, 0);
-		iconsStyleSheet.onDidChange(() => delayer.schedule());
+		this._register(iconsStyleSheet.onDidChange(() => delayer.schedule()));
 		delayer.schedule();
 
 		this.handleExtensionData(data.enabledExtensions);
 		this.setUpTypes();
-		this.applyStyles(data.styles);
 
 		// Handle case where extension is pre-selected through the command
 		if ((data.data || data.uri) && targetExtension) {
 			this.updateExtensionStatus(targetExtension);
+		}
+
+		// initialize the reporting button(s)
+		const issueReporterElement = this.getElementById('issue-reporter');
+		if (issueReporterElement) {
+			this.updateButtonStates();
 		}
 	}
 
@@ -156,83 +211,186 @@ export class BaseIssueReporterService extends Disposable {
 		}
 	}
 
-	// TODO @justschen: After migration to Aux Window, switch to dedicated css.
-	private applyStyles(styles: IssueReporterStyles) {
-		const styleTag = document.createElement('style');
-		const content: string[] = [];
-
-		if (styles.inputBackground) {
-			content.push(`input[type="text"], textarea, select, .issues-container > .issue > .issue-state, .block-info { background-color: ${styles.inputBackground} !important; }`);
+	public updateButtonStates() {
+		const issueReporterElement = this.getElementById('issue-reporter');
+		if (!issueReporterElement) {
+			// shouldn't occur -- throw?
+			return;
 		}
 
-		if (styles.backgroundColor) {
-			content.push(`.monaco-workbench { background-color: ${styles.backgroundColor} !important; }`);
-			content.push(`.issue-reporter-body::-webkit-scrollbar-track { background-color: ${styles.backgroundColor}; }`);
+
+		// public elements section
+		let publicElements = this.getElementById('public-elements');
+		if (!publicElements) {
+			publicElements = document.createElement('div');
+			publicElements.id = 'public-elements';
+			publicElements.classList.add('public-elements');
+			issueReporterElement.appendChild(publicElements);
+		}
+		this.updatePublicGithubButton(publicElements);
+		this.updatePublicRepoLink(publicElements);
+
+
+		// private filing section
+		let internalElements = this.getElementById('internal-elements');
+		if (!internalElements) {
+			internalElements = document.createElement('div');
+			internalElements.id = 'internal-elements';
+			internalElements.classList.add('internal-elements');
+			internalElements.classList.add('hidden');
+			issueReporterElement.appendChild(internalElements);
+		}
+		let filingRow = this.getElementById('internal-top-row');
+		if (!filingRow) {
+			filingRow = document.createElement('div');
+			filingRow.id = 'internal-top-row';
+			filingRow.classList.add('internal-top-row');
+			internalElements.appendChild(filingRow);
+		}
+		this.updateInternalFilingNote(filingRow);
+		this.updateInternalGithubButton(filingRow);
+		this.updateInternalElementsVisibility();
+	}
+
+	private updateInternalFilingNote(container: HTMLElement) {
+		let filingNote = this.getElementById('internal-preview-message');
+		if (!filingNote) {
+			filingNote = document.createElement('span');
+			filingNote.id = 'internal-preview-message';
+			filingNote.classList.add('internal-preview-message');
+			container.appendChild(filingNote);
 		}
 
-		if (styles.inputBorder) {
-			content.push(`input[type="text"], textarea, select { border: 1px solid ${styles.inputBorder}; }`);
+		filingNote.textContent = escape(localize('internalPreviewMessage', 'If your copilot debug logs contain private information:'));
+	}
+
+	private updatePublicGithubButton(container: HTMLElement): void {
+		const issueReporterElement = this.getElementById('issue-reporter');
+		if (!issueReporterElement) {
+			return;
+		}
+
+		// Dispose of the existing button
+		if (this.publicGithubButton) {
+			this.publicGithubButton.dispose();
+		}
+
+		// setup button + dropdown if applicable
+		if (!this.acknowledged && this.needsUpdate) { // * old version and hasn't ack'd
+			this.publicGithubButton = this._register(new Button(container, unthemedButtonStyles));
+			this.publicGithubButton.label = localize('acknowledge', "Confirm Version Acknowledgement");
+			this.publicGithubButton.enabled = false;
+		} else if (this.data.githubAccessToken && this.isPreviewEnabled()) { // * has access token, create by default, preview dropdown
+			this.publicGithubButton = this._register(new ButtonWithDropdown(container, {
+				contextMenuProvider: this.contextMenuService,
+				actions: [this.previewAction],
+				addPrimaryActionToDropdown: false,
+				...unthemedButtonStyles
+			}));
+			this._register(this.publicGithubButton.onDidClick(() => {
+				this.createAction.run();
+			}));
+			this.publicGithubButton.label = localize('createOnGitHub', "Create on GitHub");
+			this.publicGithubButton.enabled = true;
+		} else if (this.data.githubAccessToken && !this.isPreviewEnabled()) { // * Access token but invalid preview state: simple Button (create only)
+			this.publicGithubButton = this._register(new Button(container, unthemedButtonStyles));
+			this._register(this.publicGithubButton.onDidClick(() => {
+				this.createAction.run();
+			}));
+			this.publicGithubButton.label = localize('createOnGitHub', "Create on GitHub");
+			this.publicGithubButton.enabled = true;
+		} else { // * No access token: simple Button (preview only)
+			this.publicGithubButton = this._register(new Button(container, unthemedButtonStyles));
+			this._register(this.publicGithubButton.onDidClick(() => {
+				this.previewAction.run();
+			}));
+			this.publicGithubButton.label = localize('previewOnGitHub', "Preview on GitHub");
+			this.publicGithubButton.enabled = true;
+		}
+
+		// make sure that the repo link is after the button
+		const repoLink = this.getElementById('show-repo-name');
+		if (repoLink) {
+			container.insertBefore(this.publicGithubButton.element, repoLink);
+		}
+	}
+
+	private updatePublicRepoLink(container: HTMLElement): void {
+		let issueRepoName = this.getElementById('show-repo-name') as HTMLAnchorElement;
+		if (!issueRepoName) {
+			issueRepoName = document.createElement('a');
+			issueRepoName.id = 'show-repo-name';
+			issueRepoName.classList.add('hidden');
+			container.appendChild(issueRepoName);
+		}
+
+
+		const selectedExtension = this.issueReporterModel.getData().selectedExtension;
+		if (selectedExtension && selectedExtension.uri) {
+			const urlString = URI.revive(selectedExtension.uri).toString();
+			issueRepoName.href = urlString;
+			issueRepoName.addEventListener('click', (e) => this.openLink(e));
+			issueRepoName.addEventListener('auxclick', (e) => this.openLink(<MouseEvent>e));
+			const gitHubInfo = this.parseGitHubUrl(urlString);
+			issueRepoName.textContent = gitHubInfo ? gitHubInfo.owner + '/' + gitHubInfo.repositoryName : urlString;
+			Object.assign(issueRepoName.style, {
+				alignSelf: 'flex-end',
+				display: 'block',
+				fontSize: '13px',
+				padding: '4px 0px',
+				textDecoration: 'none',
+				width: 'auto'
+			});
+			show(issueRepoName);
+		} else if (issueRepoName) {
+			// clear styles
+			issueRepoName.removeAttribute('style');
+			hide(issueRepoName);
+		}
+	}
+
+	private updateInternalGithubButton(container: HTMLElement): void {
+		const issueReporterElement = this.getElementById('issue-reporter');
+		if (!issueReporterElement) {
+			return;
+		}
+
+		// Dispose of the existing button
+		if (this.internalGithubButton) {
+			this.internalGithubButton.dispose();
+		}
+
+		if (this.data.githubAccessToken && this.data.privateUri) {
+			this.internalGithubButton = this._register(new Button(container, unthemedButtonStyles));
+			this._register(this.internalGithubButton.onDidClick(() => {
+				this.privateAction.run();
+			}));
+
+			this.internalGithubButton.element.id = 'internal-create-btn';
+			this.internalGithubButton.element.classList.add('internal-create-subtle');
+			this.internalGithubButton.label = localize('createInternally', "Create Internally");
+			this.internalGithubButton.enabled = true;
+			this.internalGithubButton.setTitle(this.data.privateUri.path!.slice(1));
+		}
+	}
+
+	private updateInternalElementsVisibility(): void {
+		const container = this.getElementById('internal-elements');
+		if (!container) {
+			// shouldn't happen
+			return;
+		}
+
+		if (this.data.githubAccessToken && this.data.privateUri) {
+			show(container);
+			container.style.display = ''; //todo: necessary even with show?
+			if (this.internalGithubButton) {
+				this.internalGithubButton.enabled = this.publicGithubButton?.enabled ?? false;
+			}
 		} else {
-			content.push(`input[type="text"], textarea, select { border: 1px solid transparent; }`);
+			hide(container);
+			container.style.display = 'none'; //todo: necessary even with hide?
 		}
-
-		if (styles.inputForeground) {
-			content.push(`input[type="text"], textarea, select, .issues-container > .issue > .issue-state, .block-info { color: ${styles.inputForeground} !important; }`);
-		}
-
-		if (styles.inputErrorBorder) {
-			content.push(`.invalid-input, .invalid-input:focus, .validation-error { border: 1px solid ${styles.inputErrorBorder} !important; }`);
-			content.push(`.required-input { color: ${styles.inputErrorBorder}; }`);
-		}
-
-		if (styles.inputErrorBackground) {
-			content.push(`.validation-error { background: ${styles.inputErrorBackground}; }`);
-		}
-
-		if (styles.inputErrorForeground) {
-			content.push(`.validation-error { color: ${styles.inputErrorForeground}; }`);
-		}
-
-		if (styles.inputActiveBorder) {
-			content.push(`input[type='text']:focus, textarea:focus, select:focus, summary:focus, button:focus, a:focus, .workbenchCommand:focus  { border: 1px solid ${styles.inputActiveBorder}; outline-style: none; }`);
-		}
-
-		if (styles.textLinkColor) {
-			content.push(`a, .workbenchCommand { color: ${styles.textLinkColor}; }`);
-		}
-
-		if (styles.textLinkColor) {
-			content.push(`a { color: ${styles.textLinkColor}; }`);
-		}
-
-		if (styles.textLinkActiveForeground) {
-			content.push(`a:hover, .workbenchCommand:hover { color: ${styles.textLinkActiveForeground}; }`);
-		}
-
-		if (styles.sliderActiveColor) {
-			content.push(`.issue-reporter-body::-webkit-scrollbar-thumb:active { background-color: ${styles.sliderActiveColor}; }`);
-		}
-
-		if (styles.sliderHoverColor) {
-			content.push(`.issue-reporter-body::-webkit-scrollbar-thumb { background-color: ${styles.sliderHoverColor}; }`);
-			content.push(`.issue-reporter-body::--webkit-scrollbar-thumb:hover { background-color: ${styles.sliderHoverColor}; }`);
-		}
-
-		if (styles.buttonBackground) {
-			content.push(`.monaco-text-button { background-color: ${styles.buttonBackground} !important; }`);
-		}
-
-		if (styles.buttonForeground) {
-			content.push(`.monaco-text-button { color: ${styles.buttonForeground} !important; }`);
-		}
-
-		if (styles.buttonHoverBackground) {
-			content.push(`.monaco-text-button:not(.disabled):hover, .monaco-text-button:focus { background-color: ${styles.buttonHoverBackground} !important; }`);
-		}
-
-		styleTag.textContent = content.join('\n');
-		this.window.document.head.appendChild(styleTag);
-		this.window.document.body.style.color = styles.color || '';
 	}
 
 	private async updateIssueReporterUri(extension: IssueReporterExtensionData): Promise<void> {
@@ -324,11 +482,8 @@ export class BaseIssueReporterService extends Disposable {
 						if (openReporterData) {
 							if (this.selectedExtension === selectedExtensionId) {
 								this.removeLoading(iconElement, true);
-								// this.configuration.data = openReporterData;
 								this.data = openReporterData;
 							}
-							// else if (this.selectedExtension !== selectedExtensionId) {
-							// }
 						}
 						else {
 							if (!this.loadingExtensionData) {
@@ -355,6 +510,9 @@ export class BaseIssueReporterService extends Disposable {
 						this.updateExtensionStatus(matches[0]);
 					}
 				}
+
+				// Update internal action visibility after explicit selection
+				this.updateInternalElementsVisibility();
 			});
 		}
 
@@ -366,11 +524,25 @@ export class BaseIssueReporterService extends Disposable {
 
 	private async sendReporterMenu(extension: IssueReporterExtensionData): Promise<IssueReporterData | undefined> {
 		try {
-			const data = await this.issueFormService.sendReporterMenu(extension.id);
+			const timeoutPromise = new Promise<undefined>((_, reject) =>
+				setTimeout(() => reject(new Error('sendReporterMenu timed out')), 10000)
+			);
+			const data = await Promise.race([
+				this.issueFormService.sendReporterMenu(extension.id),
+				timeoutPromise
+			]);
 			return data;
 		} catch (e) {
 			console.error(e);
 			return undefined;
+		}
+	}
+
+	private updateAcknowledgementState() {
+		const acknowledgementCheckbox = this.getElementById<HTMLInputElement>('includeAcknowledgement');
+		if (acknowledgementCheckbox) {
+			this.acknowledged = acknowledgementCheckbox.checked;
+			this.updateButtonStates();
 		}
 	}
 
@@ -380,6 +552,11 @@ export class BaseIssueReporterService extends Disposable {
 				event.stopPropagation();
 				this.issueReporterModel.update({ [elementId]: !this.issueReporterModel.getData()[elementId] });
 			});
+		});
+
+		this.addEventListener('includeAcknowledgement', 'click', (event: Event) => {
+			event.stopPropagation();
+			this.updateAcknowledgementState();
 		});
 
 		const showInfoElements = this.window.document.getElementsByClassName('showInfo');
@@ -426,14 +603,16 @@ export class BaseIssueReporterService extends Disposable {
 				descriptionTextArea.placeholder = localize('undefinedPlaceholder', "Please enter a title");
 			}
 
-			let fileOnExtension, fileOnMarketplace = false;
+			let fileOnExtension, fileOnMarketplace, fileOnProduct = false;
 			if (value === IssueSource.Extension) {
 				fileOnExtension = true;
 			} else if (value === IssueSource.Marketplace) {
 				fileOnMarketplace = true;
+			} else if (value === IssueSource.VSCode) {
+				fileOnProduct = true;
 			}
 
-			this.issueReporterModel.update({ fileOnExtension, fileOnMarketplace });
+			this.issueReporterModel.update({ fileOnExtension, fileOnMarketplace, fileOnProduct });
 			this.render();
 
 			const title = (<HTMLInputElement>this.getElementById('issue-title')).value;
@@ -477,11 +656,7 @@ export class BaseIssueReporterService extends Disposable {
 			this.searchIssues(title, fileOnExtension, fileOnMarketplace);
 		});
 
-		this.previewButton.onDidClick(async () => {
-			this.delayedSubmit.trigger(async () => {
-				this.createIssue();
-			});
-		});
+		// We handle clicks in the dropdown actions now
 
 		this.addEventListener('disableExtensions', 'click', () => {
 			this.issueFormService.reloadWithExtensionsDisabled();
@@ -489,7 +664,7 @@ export class BaseIssueReporterService extends Disposable {
 
 		this.addEventListener('extensionBugsLink', 'click', (e: Event) => {
 			const url = (<HTMLElement>e.target).innerText;
-			windowOpenNoOpener(url);
+			this.openLink(url);
 		});
 
 		this.addEventListener('disableExtensions', 'keydown', (e: Event) => {
@@ -535,6 +710,14 @@ export class BaseIssueReporterService extends Disposable {
 				}
 			}
 		};
+
+		// Handle the guidance link specifically to use openerService
+		this.addEventListener('review-guidance-help-text', 'click', (e: Event) => {
+			const target = e.target as HTMLElement;
+			if (target.tagName === 'A' && target.getAttribute('target') === '_blank') {
+				this.openLink(<MouseEvent>e);
+			}
+		});
 	}
 
 	public updatePerformanceInfo(info: Partial<IssueReporterData>) {
@@ -544,49 +727,7 @@ export class BaseIssueReporterService extends Disposable {
 		const state = this.issueReporterModel.getData();
 		this.updateProcessInfo(state);
 		this.updateWorkspaceInfo(state);
-		this.updatePreviewButtonState();
-	}
-
-	public updatePreviewButtonState() {
-		if (this.isPreviewEnabled()) {
-			if (this.data.githubAccessToken) {
-				this.previewButton.label = localize('createOnGitHub', "Create on GitHub");
-			} else {
-				this.previewButton.label = localize('previewOnGitHub', "Preview on GitHub");
-			}
-			this.previewButton.enabled = true;
-		} else {
-			this.previewButton.enabled = false;
-			this.previewButton.label = localize('loadingData', "Loading data...");
-		}
-
-		const issueRepoName = this.getElementById('show-repo-name')! as HTMLAnchorElement;
-		const selectedExtension = this.issueReporterModel.getData().selectedExtension;
-		if (selectedExtension && selectedExtension.uri) {
-			const urlString = URI.revive(selectedExtension.uri).toString();
-			issueRepoName.href = urlString;
-			issueRepoName.addEventListener('click', (e) => this.openLink(e));
-			issueRepoName.addEventListener('auxclick', (e) => this.openLink(<MouseEvent>e));
-			const gitHubInfo = this.parseGitHubUrl(urlString);
-			issueRepoName.textContent = gitHubInfo ? gitHubInfo.owner + '/' + gitHubInfo.repositoryName : urlString;
-			Object.assign(issueRepoName.style, {
-				alignSelf: 'flex-end',
-				display: 'block',
-				fontSize: '13px',
-				marginBottom: '10px',
-				padding: '4px 0px',
-				textDecoration: 'none',
-				width: 'auto'
-			});
-			show(issueRepoName);
-		} else {
-			// clear styles
-			issueRepoName.removeAttribute('style');
-			hide(issueRepoName);
-		}
-
-		// Initial check when first opened.
-		this.getExtensionGitHubUrl();
+		this.updateButtonStates();
 	}
 
 	private isPreviewEnabled() {
@@ -697,21 +838,6 @@ export class BaseIssueReporterService extends Disposable {
 				similarIssues.innerText = '';
 				if (result && result.items) {
 					this.displaySearchResults(result.items);
-				} else {
-					// If the items property isn't present, the rate limit has been hit
-					const message = $('div.list-title');
-					message.textContent = localize('rateLimited', "GitHub query limit exceeded. Please wait.");
-					similarIssues.appendChild(message);
-
-					const resetTime = response.headers.get('X-RateLimit-Reset');
-					const timeToWait = resetTime ? parseInt(resetTime) - Math.floor(Date.now() / 1000) : 1;
-					if (this.shouldQueueSearch) {
-						this.shouldQueueSearch = false;
-						setTimeout(() => {
-							this.searchGitHub(repo, title);
-							this.shouldQueueSearch = true;
-						}, timeToWait * 1000);
-					}
 				}
 			}).catch(_ => {
 				console.warn('Timeout or query limit exceeded');
@@ -793,10 +919,6 @@ export class BaseIssueReporterService extends Disposable {
 
 			similarIssues.appendChild(issuesText);
 			similarIssues.appendChild(issues);
-		} else {
-			const message = $('div.list-title');
-			message.textContent = localize('noSimilarIssues', "No similar issues found");
-			similarIssues.appendChild(message);
 		}
 	}
 
@@ -861,7 +983,7 @@ export class BaseIssueReporterService extends Disposable {
 		}
 	}
 
-	public renderBlocks(): void {
+	public async renderBlocks(): Promise<void> {
 		// Depending on Issue Type, we render different blocks and text
 		const { issueType, fileOnExtension, fileOnMarketplace, selectedExtension } = this.issueReporterModel.getData();
 		const blockContainer = this.getElementById('block-container');
@@ -876,6 +998,7 @@ export class BaseIssueReporterService extends Disposable {
 		const descriptionTitle = this.getElementById('issue-description-label')!;
 		const descriptionSubtitle = this.getElementById('issue-description-subtitle')!;
 		const extensionSelector = this.getElementById('extension-selection')!;
+		const downloadExtensionDataLink = <HTMLAnchorElement>this.getElementById('extension-data-download')!;
 
 		const titleTextArea = this.getElementById('issue-title-container')!;
 		const descriptionTextArea = this.getElementById('description')!;
@@ -891,6 +1014,7 @@ export class BaseIssueReporterService extends Disposable {
 		hide(extensionSelector);
 		hide(extensionDataTextArea);
 		hide(extensionDataBlock);
+		hide(downloadExtensionDataLink);
 
 		show(problemSource);
 		show(titleTextArea);
@@ -900,13 +1024,38 @@ export class BaseIssueReporterService extends Disposable {
 			show(extensionSelector);
 		}
 
+		const extensionData = this.issueReporterModel.getData().extensionData;
+		if (extensionData && extensionData.length > MAX_EXTENSION_DATA_LENGTH) {
+			show(downloadExtensionDataLink);
+			const date = new Date();
+			const formattedDate = date.toISOString().split('T')[0]; // YYYY-MM-DD
+			const formattedTime = date.toTimeString().split(' ')[0].replace(/:/g, '-'); // HH-MM-SS
+			const fileName = `extensionData_${formattedDate}_${formattedTime}.md`;
+			const handleLinkClick = async () => {
+				const downloadPath = await this.fileDialogService.showSaveDialog({
+					title: localize('saveExtensionData', "Save Extension Data"),
+					availableFileSystems: [Schemas.file],
+					defaultUri: joinPath(await this.fileDialogService.defaultFilePath(Schemas.file), fileName),
+				});
+
+				if (downloadPath) {
+					await this.fileService.writeFile(downloadPath, VSBuffer.fromString(extensionData));
+				}
+			};
+
+			downloadExtensionDataLink.addEventListener('click', handleLinkClick);
+
+			this._register({
+				dispose: () => downloadExtensionDataLink.removeEventListener('click', handleLinkClick)
+			});
+		}
 
 		if (selectedExtension && this.nonGitHubIssueUrl) {
 			hide(titleTextArea);
 			hide(descriptionTextArea);
 			reset(descriptionTitle, localize('handlesIssuesElsewhere', "This extension handles issues outside of VS Code"));
 			reset(descriptionSubtitle, localize('elsewhereDescription', "The '{0}' extension prefers to use an external issue reporter. To be taken to that issue reporting experience, click the button below.", selectedExtension.displayName));
-			this.previewButton.label = localize('openIssueReporter', "Open External Issue Reporter");
+			this.publicGithubButton.label = localize('openIssueReporter', "Open External Issue Reporter");
 			return;
 		}
 
@@ -1024,16 +1173,15 @@ export class BaseIssueReporterService extends Disposable {
 			return false;
 		}
 		const result = await response.json();
-		mainWindow.open(result.html_url, '_blank');
+		await this.openLink(result.html_url);
 		this.close();
 		return true;
 	}
 
-	public async createIssue(): Promise<boolean> {
+	public async createIssue(shouldCreate?: boolean, privateUri?: boolean): Promise<boolean> {
 		const selectedExtension = this.issueReporterModel.getData().selectedExtension;
-		const hasUri = this.nonGitHubIssueUrl;
 		// Short circuit if the extension provides a custom issue handler
-		if (hasUri) {
+		if (this.nonGitHubIssueUrl) {
 			const url = this.getExtensionBugsUrl();
 			if (url) {
 				this.hasBeenSubmitted = true;
@@ -1075,35 +1223,37 @@ export class BaseIssueReporterService extends Disposable {
 		const issueTitle = (<HTMLInputElement>this.getElementById('issue-title')).value;
 		const issueBody = this.issueReporterModel.serialize();
 
-		let issueUrl = this.getIssueUrl();
+		let issueUrl = privateUri ? this.getPrivateIssueUrl() : this.getIssueUrl();
 		if (!issueUrl) {
-			console.error('No issue url found');
+			console.error(`No ${privateUri ? 'private ' : ''}issue url found`);
 			return false;
 		}
-
 		if (selectedExtension?.uri) {
 			const uri = URI.revive(selectedExtension.uri);
 			issueUrl = uri.toString();
 		}
 
 		const gitHubDetails = this.parseGitHubUrl(issueUrl);
-		if (this.data.githubAccessToken && gitHubDetails) {
+		if (this.data.githubAccessToken && gitHubDetails && shouldCreate) {
 			return this.submitToGitHub(issueTitle, issueBody, gitHubDetails);
 		}
 
 		const baseUrl = this.getIssueUrlWithTitle((<HTMLInputElement>this.getElementById('issue-title')).value, issueUrl);
 		let url = baseUrl + `&body=${encodeURIComponent(issueBody)}`;
 
+		url = this.addTemplateToUrl(url, gitHubDetails?.owner, gitHubDetails?.repositoryName);
+
 		if (url.length > MAX_URL_LENGTH) {
 			try {
 				url = await this.writeToClipboard(baseUrl, issueBody);
+				url = this.addTemplateToUrl(url, gitHubDetails?.owner, gitHubDetails?.repositoryName);
 			} catch (_) {
 				console.error('Writing to clipboard failed');
 				return false;
 			}
 		}
 
-		this.window.open(url, '_blank');
+		await this.openLink(url);
 
 		return true;
 	}
@@ -1117,12 +1267,36 @@ export class BaseIssueReporterService extends Disposable {
 		return baseUrl + `&body=${encodeURIComponent(localize('pasteData', "We have written the needed data into your clipboard because it was too large to send. Please paste."))}`;
 	}
 
+	public addTemplateToUrl(baseUrl: string, owner?: string, repositoryName?: string): string {
+		const isVscode = this.issueReporterModel.getData().fileOnProduct;
+		const isMicrosoft = owner?.toLowerCase() === 'microsoft';
+		const needsTemplate = isVscode || (isMicrosoft && (repositoryName === 'vscode' || repositoryName === 'vscode-python'));
+
+		if (needsTemplate) {
+			try {
+				const url = new URL(baseUrl);
+				url.searchParams.set('template', 'bug_report.md');
+				return url.toString();
+			} catch {
+				// fallback if baseUrl is not a valid URL
+				return baseUrl + '&template=bug_report.md';
+			}
+		}
+		return baseUrl;
+	}
+
 	public getIssueUrl(): string {
 		return this.issueReporterModel.fileOnExtension()
 			? this.getExtensionGitHubUrl()
 			: this.issueReporterModel.getData().fileOnMarketplace
 				? this.product.reportMarketplaceIssueUrl!
 				: this.product.reportIssueUrl!;
+	}
+
+	// for when command 'workbench.action.openIssueReporter' passes along a
+	// `privateUri` UriComponents value
+	public getPrivateIssueUrl(): string | undefined {
+		return URI.revive(this.data.privateUri)?.toString();
 	}
 
 	public parseGitHubUrl(url: string): undefined | { repositoryName: string; owner: string } {
@@ -1175,6 +1349,7 @@ export class BaseIssueReporterService extends Disposable {
 		this.data.issueBody = this.data.issueBody || '';
 		this.data.data = undefined;
 		this.data.uri = undefined;
+		this.data.privateUri = undefined;
 	}
 
 	public async updateExtensionStatus(extension: IssueReporterExtensionData) {
@@ -1211,7 +1386,7 @@ export class BaseIssueReporterService extends Disposable {
 		const title = (<HTMLInputElement>this.getElementById('issue-title')).value;
 		this.searchExtensionIssues(title);
 
-		this.updatePreviewButtonState();
+		this.updateButtonStates();
 		this.renderBlocks();
 	}
 
@@ -1223,7 +1398,7 @@ export class BaseIssueReporterService extends Disposable {
 
 		const extension = this.issueReporterModel.getData().selectedExtension;
 		if (!extension) {
-			this.previewButton.enabled = true;
+			this.publicGithubButton.enabled = true;
 			return;
 		}
 
@@ -1233,10 +1408,10 @@ export class BaseIssueReporterService extends Disposable {
 
 		const hasValidGitHubUrl = this.getExtensionGitHubUrl();
 		if (hasValidGitHubUrl) {
-			this.previewButton.enabled = true;
+			this.publicGithubButton.enabled = true;
 		} else {
 			this.setExtensionValidationMessage();
-			this.previewButton.enabled = false;
+			this.publicGithubButton.enabled = false;
 		}
 	}
 
@@ -1244,7 +1419,7 @@ export class BaseIssueReporterService extends Disposable {
 		// Show loading
 		this.openReporter = true;
 		this.loadingExtensionData = true;
-		this.updatePreviewButtonState();
+		this.updateButtonStates();
 
 		const extensionDataCaption = this.getElementById('extension-id')!;
 		hide(extensionDataCaption);
@@ -1265,7 +1440,7 @@ export class BaseIssueReporterService extends Disposable {
 	public removeLoading(element: HTMLElement, fromReporter: boolean = false) {
 		this.openReporter = fromReporter;
 		this.loadingExtensionData = false;
-		this.updatePreviewButtonState();
+		this.updateButtonStates();
 
 		const extensionDataCaption = this.getElementById('extension-id')!;
 		show(extensionDataCaption);
@@ -1349,12 +1524,19 @@ export class BaseIssueReporterService extends Disposable {
 		);
 	}
 
-	private openLink(event: MouseEvent): void {
-		event.preventDefault();
-		event.stopPropagation();
-		// Exclude right click
-		if (event.which < 3) {
-			windowOpenNoOpener((<HTMLAnchorElement>event.target).href);
+	private async openLink(eventOrUrl: MouseEvent | string): Promise<void> {
+		if (typeof eventOrUrl === 'string') {
+			// Direct URL call
+			await this.openerService.open(eventOrUrl, { openExternal: true });
+		} else {
+			// MouseEvent call
+			const event = eventOrUrl;
+			event.preventDefault();
+			event.stopPropagation();
+			// Exclude right click
+			if (event.which < 3) {
+				await this.openerService.open((<HTMLAnchorElement>event.target).href, { openExternal: true });
+			}
 		}
 	}
 
