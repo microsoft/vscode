@@ -2716,6 +2716,88 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	white-space: nowrap;
 	text-overflow: ellipsis;
 	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.chat-todo-list-widget .todo-title {
+	cursor: pointer;
+	user-select: none;
+	transition: color 0.1s ease;
+}
+
+.chat-todo-list-widget .todo-title:hover {
+	color: var(--vscode-textLink-foreground);
+}
+
+.chat-todo-list-widget .todo-description {
+	font-size: var(--vscode-chat-font-size-body-s);
+	color: var(--vscode-descriptionForeground);
+	cursor: pointer;
+	user-select: none;
+	transition: color 0.1s ease;
+}
+
+.chat-todo-list-widget .todo-description:hover {
+	color: var(--vscode-textLink-foreground);
+}
+
+/* Edit mode styles */
+.chat-todo-list-widget .todo-item-editing {
+	background-color: var(--vscode-list-focusBackground);
+	border-left: 2px solid var(--vscode-focusBorder);
+	padding-left: 6px;
+}
+
+.chat-todo-list-widget .todo-edit-container {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	position: relative;
+}
+
+.chat-todo-list-widget .todo-edit-input {
+	background-color: var(--vscode-input-background);
+	color: var(--vscode-input-foreground);
+	border: 1px solid var(--vscode-input-border);
+	border-radius: 2px;
+	padding: 4px 6px;
+	font-size: var(--vscode-chat-font-size-body-m);
+	font-family: inherit;
+	outline: none;
+	width: 100%;
+	box-sizing: border-box;
+}
+
+.chat-todo-list-widget .todo-edit-input:focus {
+	border-color: var(--vscode-focusBorder);
+	box-shadow: 0 0 0 1px var(--vscode-focusBorder);
+}
+
+.chat-todo-list-widget .todo-edit-container.todo-edit-error .todo-edit-input {
+	border-color: var(--vscode-inputValidation-errorBorder);
+	background-color: var(--vscode-inputValidation-errorBackground);
+}
+
+.chat-todo-list-widget .todo-edit-container.todo-edit-error .todo-edit-input:focus {
+	border-color: var(--vscode-inputValidation-errorBorder);
+	box-shadow: 0 0 0 1px var(--vscode-inputValidation-errorBorder);
+}
+
+.chat-todo-list-widget .todo-edit-validation {
+	font-size: var(--vscode-chat-font-size-body-xs);
+	color: var(--vscode-inputValidation-errorForeground);
+	display: none;
+	padding-left: 2px;
+}
+
+.chat-todo-list-widget .todo-screen-reader-announcement {
+	position: absolute;
+	left: -10000px;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
 }
 
 .interactive-session .interactive-response .chat-used-context-list.chat-thinking-items {

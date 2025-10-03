@@ -13,6 +13,9 @@ export interface IChatTodo {
 	title: string;
 	description?: string;
 	status: 'not-started' | 'in-progress' | 'completed';
+	isEditing?: boolean;
+	originalValue?: { title: string; description?: string };
+	editHistory?: Array<{ timestamp: number; field: 'title' | 'description'; oldValue: string; newValue: string }>;
 }
 
 export interface IChatTodoListStorage {
