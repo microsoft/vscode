@@ -52,61 +52,6 @@ export class GitTimelineItem extends TimelineItem {
 		return this.shortenRef(this.previousRef);
 	}
 
-	// setItemDetails(uri: Uri, hash: string | undefined, shortHash: string | undefined, avatar: string | undefined, author: string, email: string | undefined, date: string, message: string, shortStat?: CommitShortStat, remoteSourceCommands: Command[] = []): void {
-	// 	this.tooltip = new MarkdownString('', true);
-	// 	this.tooltip.isTrusted = true;
-
-	// 	const avatarMarkdown = avatar
-	// 		? `![${author}](${avatar}|width=${AVATAR_SIZE},height=${AVATAR_SIZE})`
-	// 		: '$(account)';
-
-	// 	if (email) {
-	// 		const emailTitle = l10n.t('Email');
-	// 		this.tooltip.appendMarkdown(`${avatarMarkdown} [**${author}**](mailto:${email} "${emailTitle} ${author}")`);
-	// 	} else {
-	// 		this.tooltip.appendMarkdown(`${avatarMarkdown} **${author}**`);
-	// 	}
-
-	// 	this.tooltip.appendMarkdown(`, $(history) ${date}\n\n`);
-	// 	this.tooltip.appendMarkdown(`${message}\n\n`);
-
-	// 	if (shortStat) {
-	// 		this.tooltip.appendMarkdown(`---\n\n`);
-
-	// 		const labels: string[] = [];
-	// 		if (shortStat.insertions) {
-	// 			labels.push(`<span style="color:var(--vscode-scmGraph-historyItemHoverAdditionsForeground);">${shortStat.insertions === 1 ?
-	// 				l10n.t('{0} insertion{1}', shortStat.insertions, '(+)') :
-	// 				l10n.t('{0} insertions{1}', shortStat.insertions, '(+)')}</span>`);
-	// 		}
-
-	// 		if (shortStat.deletions) {
-	// 			labels.push(`<span style="color:var(--vscode-scmGraph-historyItemHoverDeletionsForeground);">${shortStat.deletions === 1 ?
-	// 				l10n.t('{0} deletion{1}', shortStat.deletions, '(-)') :
-	// 				l10n.t('{0} deletions{1}', shortStat.deletions, '(-)')}</span>`);
-	// 		}
-
-	// 		this.tooltip.appendMarkdown(`${labels.join(', ')}\n\n`);
-	// 	}
-
-	// 	if (hash && shortHash) {
-	// 		this.tooltip.appendMarkdown(`---\n\n`);
-
-	// 		this.tooltip.appendMarkdown(`[\`$(git-commit) ${shortHash} \`](command:git.viewCommit?${encodeURIComponent(JSON.stringify([uri, hash, uri]))} "${l10n.t('Open Commit')}")`);
-	// 		this.tooltip.appendMarkdown('&nbsp;');
-	// 		this.tooltip.appendMarkdown(`[$(copy)](command:git.copyContentToClipboard?${encodeURIComponent(JSON.stringify(hash))} "${l10n.t('Copy Commit Hash')}")`);
-
-	// 		// Remote commands
-	// 		if (remoteSourceCommands.length > 0) {
-	// 			this.tooltip.appendMarkdown('&nbsp;&nbsp;|&nbsp;&nbsp;');
-
-	// 			const remoteCommandsMarkdown = remoteSourceCommands
-	// 				.map(command => `[${command.title}](command:${command.command}?${encodeURIComponent(JSON.stringify([...command.arguments ?? [], hash]))} "${command.tooltip}")`);
-	// 			this.tooltip.appendMarkdown(remoteCommandsMarkdown.join('&nbsp;'));
-	// 		}
-	// 	}
-	// }
-
 	private shortenRef(ref: string): string {
 		if (ref === '' || ref === '~' || ref === 'HEAD') {
 			return ref;
