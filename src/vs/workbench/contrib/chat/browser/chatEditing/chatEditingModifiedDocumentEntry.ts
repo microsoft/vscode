@@ -258,6 +258,8 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 	}
 
 	protected override async _doReject(): Promise<void> {
+		this._textModelChangeService.undo();
+
 		if (this.createdInRequestId === this._telemetryInfo.requestId) {
 			if (isTextFileEditorModel(this._docFileEditorModel)) {
 				await this._docFileEditorModel.revert({ soft: true });
@@ -265,7 +267,6 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 			}
 			this._onDidDelete.fire();
 		} else {
-			this._textModelChangeService.undo();
 			if (this._textModelChangeService.allEditsAreFromUs && isTextFileEditorModel(this._docFileEditorModel)) {
 				// save the file after discarding so that the dirty indicator goes away
 				// and so that an intermediate saved state gets reverted
