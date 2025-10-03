@@ -41,6 +41,7 @@ const enum Constants {
 	PointerSize = 3,
 	HoverBorderWidth = 2,
 	HoverWindowEdgeMargin = 2,
+	ScrollbarReservedSpace = 18,
 }
 
 export class HoverWidget extends Widget implements IHoverWidget {
@@ -431,7 +432,15 @@ export class HoverWidget extends Widget implements IHoverWidget {
 			// Hover is going beyond window towards right end
 			if (this._x + hoverWidth >= this._targetDocumentElement.clientWidth) {
 				this._hover.containerDomNode.classList.add('right-aligned');
-				this._x = Math.max(this._targetDocumentElement.clientWidth - hoverWidth - Constants.HoverWindowEdgeMargin, this._targetDocumentElement.clientLeft);
+				
+				// Calculate right margin, reserving space for scrollbar if present
+				let rightMargin = Constants.HoverWindowEdgeMargin;
+				if (this._targetDocumentElement.scrollHeight > this._targetDocumentElement.clientHeight) {
+					// Reserve space for the vertical scrollbar to ensure it remains accessible
+					rightMargin += Constants.ScrollbarReservedSpace;
+				}
+				
+				this._x = Math.max(this._targetDocumentElement.clientWidth - hoverWidth - rightMargin, this._targetDocumentElement.clientLeft);
 			}
 		}
 
