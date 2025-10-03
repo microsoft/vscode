@@ -823,6 +823,9 @@ export class InlineCompletionsModel extends Disposable {
 		if (this.showCollapsed.read(reader)) {
 			return false;
 		}
+		if (this._tabShouldIndent.read(reader)) {
+			return false;
+		}
 		if (this._inAcceptFlow.read(reader) && this._appearedInsideViewport.read(reader)) {
 			return true;
 		}
@@ -831,9 +834,6 @@ export class InlineCompletionsModel extends Disposable {
 		}
 		if (this._jumpedToId.read(reader) === s.inlineCompletion.semanticId) {
 			return true;
-		}
-		if (this._tabShouldIndent.read(reader)) {
-			return false;
 		}
 
 		return s.cursorAtInlineEdit.read(reader);
