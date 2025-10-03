@@ -73,6 +73,7 @@ export function applyProblemsTools(server: McpServer, appService: ApplicationSer
 
 			// This is a static method that returns a selector, not an async operation
 			const app = await appService.getOrCreateApplication();
+			// eslint-disable-next-line local/code-no-any-casts
 			const selector = (app.workbench.problems.constructor as any).getSelectorInProblemsView(severityMap[severity]);
 			return {
 				content: [{

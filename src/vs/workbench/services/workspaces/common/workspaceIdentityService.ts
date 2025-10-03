@@ -113,6 +113,7 @@ export class WorkspaceIdentityService implements IWorkspaceIdentityService {
 			}
 
 			if (obj instanceof VSBuffer || obj instanceof Uint8Array) {
+				// eslint-disable-next-line local/code-no-any-casts
 				return <any>obj;
 			}
 

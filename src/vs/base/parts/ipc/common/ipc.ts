@@ -596,6 +596,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 						case ResponseType.PromiseError: {
 							this.handlers.delete(id);
 							const error = new Error(response.data.message);
+							// eslint-disable-next-line local/code-no-any-casts
 							(<any>error).stack = Array.isArray(response.data.stack) ? response.data.stack.join('\n') : response.data.stack;
 							error.name = response.data.name;
 							e(error);

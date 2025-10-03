@@ -353,11 +353,13 @@ export class WebWorkerClient<W extends object> extends Disposable implements IWe
 		if (!channel) {
 			return Promise.reject(new Error(`Missing channel ${channelName} on main thread`));
 		}
+		// eslint-disable-next-line local/code-no-any-casts
 		if (typeof (channel as any)[method] !== 'function') {
 			return Promise.reject(new Error(`Missing method ${method} on main thread channel ${channelName}`));
 		}
 
 		try {
+			// eslint-disable-next-line local/code-no-any-casts
 			return Promise.resolve((channel as any)[method].apply(channel, args));
 		} catch (e) {
 			return Promise.reject(e);
@@ -370,6 +372,7 @@ export class WebWorkerClient<W extends object> extends Disposable implements IWe
 			throw new Error(`Missing channel ${channelName} on main thread`);
 		}
 		if (propertyIsDynamicEvent(eventName)) {
+			// eslint-disable-next-line local/code-no-any-casts
 			const event = (channel as any)[eventName].call(channel, arg);
 			if (typeof event !== 'function') {
 				throw new Error(`Missing dynamic event ${eventName} on main thread channel ${channelName}.`);
@@ -377,6 +380,7 @@ export class WebWorkerClient<W extends object> extends Disposable implements IWe
 			return event;
 		}
 		if (propertyIsEvent(eventName)) {
+			// eslint-disable-next-line local/code-no-any-casts
 			const event = (channel as any)[eventName];
 			if (typeof event !== 'function') {
 				throw new Error(`Missing event ${eventName} on main thread channel ${channelName}.`);
@@ -457,11 +461,13 @@ export class WebWorkerServer<T extends IWebWorkerServerRequestHandler> implement
 		if (!requestHandler) {
 			return Promise.reject(new Error(`Missing channel ${channel} on worker thread`));
 		}
+		// eslint-disable-next-line local/code-no-any-casts
 		if (typeof (requestHandler as any)[method] !== 'function') {
 			return Promise.reject(new Error(`Missing method ${method} on worker thread channel ${channel}`));
 		}
 
 		try {
+			// eslint-disable-next-line local/code-no-any-casts
 			return Promise.resolve((requestHandler as any)[method].apply(requestHandler, args));
 		} catch (e) {
 			return Promise.reject(e);
@@ -474,6 +480,7 @@ export class WebWorkerServer<T extends IWebWorkerServerRequestHandler> implement
 			throw new Error(`Missing channel ${channel} on worker thread`);
 		}
 		if (propertyIsDynamicEvent(eventName)) {
+			// eslint-disable-next-line local/code-no-any-casts
 			const event = (requestHandler as any)[eventName].call(requestHandler, arg);
 			if (typeof event !== 'function') {
 				throw new Error(`Missing dynamic event ${eventName} on request handler.`);
@@ -481,6 +488,7 @@ export class WebWorkerServer<T extends IWebWorkerServerRequestHandler> implement
 			return event;
 		}
 		if (propertyIsEvent(eventName)) {
+			// eslint-disable-next-line local/code-no-any-casts
 			const event = (requestHandler as any)[eventName];
 			if (typeof event !== 'function') {
 				throw new Error(`Missing event ${eventName} on request handler.`);

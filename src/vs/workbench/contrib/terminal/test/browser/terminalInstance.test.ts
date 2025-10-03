@@ -96,6 +96,7 @@ class TestTerminalChildProcess extends Disposable implements ITerminalChildProce
 
 class TestTerminalInstanceService extends Disposable implements Partial<ITerminalInstanceService> {
 	getBackend() {
+		// eslint-disable-next-line local/code-no-any-casts
 		return {
 			onPtyHostExit: Event.None,
 			onPtyHostUnresponsive: Event.None,
@@ -441,6 +442,7 @@ suite('Workbench - TerminalInstance', () => {
 				const mockCwdDetection = {
 					getCwd: () => options.cwd
 				};
+				// eslint-disable-next-line local/code-no-any-casts
 				capabilities.add(TerminalCapability.CwdDetection, mockCwdDetection as any);
 			}
 

@@ -97,8 +97,10 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 				h('div.header-content', [
 					h('div.collapse-button@collapseButton'),
 					h('div.file-path', [
+						// eslint-disable-next-line local/code-no-any-casts
 						h('div.title.modified.show-file-icons@primaryPath', [] as any),
 						h('div.status.deleted@status', ['R']),
+						// eslint-disable-next-line local/code-no-any-casts
 						h('div.title.original.show-file-icons@secondaryPath', [] as any),
 					]),
 					h('div.actions@actions'),

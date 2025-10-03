@@ -306,6 +306,7 @@ export async function getApplication() {
 	const application = createApp({
 		// Pass the alpha version of Playwright down... This is a hack since Playwright MCP
 		// doesn't play nice with Playwright Test: https://github.com/microsoft/playwright-mcp/issues/917
+		// eslint-disable-next-line local/code-no-any-casts
 		playwright: playwright as any,
 		quality,
 		version: parseVersion(version ?? '0.0.0'),

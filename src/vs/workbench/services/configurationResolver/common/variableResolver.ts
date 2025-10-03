@@ -90,6 +90,7 @@ export abstract class AbstractVariableResolverService implements IConfigurationR
 			}
 		}
 
+		// eslint-disable-next-line local/code-no-any-casts
 		return expr.toObject() as any;
 	}
 

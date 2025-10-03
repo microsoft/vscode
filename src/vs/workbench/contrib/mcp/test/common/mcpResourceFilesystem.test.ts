@@ -50,6 +50,7 @@ suite('Workbench - MCP - ResourceFilesystem', () => {
 		const registry = new TestMcpRegistry(parentInsta1);
 
 		const parentInsta2 = ds.add(parentInsta1.createChild(new ServiceCollection([IMcpRegistry, registry])));
+		// eslint-disable-next-line local/code-no-any-casts
 		const mcpService = ds.add(new McpService(parentInsta2, registry, new NullLogService(), {} as any, NullCommandService, new TestConfigurationService()));
 		mcpService.updateCollectedServers();
 

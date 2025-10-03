@@ -69,10 +69,11 @@ class ChatCommandLineHandler extends Disposable {
 	}
 
 	private registerListeners() {
-		ipcRenderer.on('vscode:handleChatRequest', (_, args: typeof this.environmentService.args.chat) => {
-			this.logService.trace('vscode:handleChatRequest', args);
+		ipcRenderer.on('vscode:handleChatRequest', (_, ...args: unknown[]) => {
+			const chatArgs = args[0] as typeof this.environmentService.args.chat;
+			this.logService.trace('vscode:handleChatRequest', chatArgs);
 
-			this.prompt(args);
+			this.prompt(chatArgs);
 		});
 	}
 

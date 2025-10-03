@@ -168,9 +168,11 @@ function asListOptions<T, TFilterData, TRef>(modelProvider: () => ITreeModel<T, 
 		dnd: options.dnd && disposableStore.add(new TreeNodeListDragAndDrop(modelProvider, options.dnd)),
 		multipleSelectionController: options.multipleSelectionController && {
 			isSelectionSingleChangeEvent(e) {
+				// eslint-disable-next-line local/code-no-any-casts
 				return options.multipleSelectionController!.isSelectionSingleChangeEvent({ ...e, element: e.element } as any);
 			},
 			isSelectionRangeChangeEvent(e) {
+				// eslint-disable-next-line local/code-no-any-casts
 				return options.multipleSelectionController!.isSelectionRangeChangeEvent({ ...e, element: e.element } as any);
 			}
 		},
@@ -1181,6 +1183,7 @@ export class FindController<T, TFilterData> extends AbstractFindController<T, TF
 		this.tree.refilter();
 
 		if (pattern) {
+			// eslint-disable-next-line local/code-no-any-casts
 			this.tree.focusNext(0, true, undefined, (node) => !FuzzyScore.isDefault(node.filterData as any as FuzzyScore));
 		}
 
@@ -1206,6 +1209,7 @@ export class FindController<T, TFilterData> extends AbstractFindController<T, TF
 			return true;
 		}
 
+		// eslint-disable-next-line local/code-no-any-casts
 		return !FuzzyScore.isDefault(node.filterData as any as FuzzyScore);
 	}
 
@@ -2234,6 +2238,7 @@ class Trait<T> {
 	) { }
 
 	set(nodes: ITreeNode<T, any>[], browserEvent?: UIEvent): void {
+		// eslint-disable-next-line local/code-no-any-casts
 		if (!(browserEvent as any)?.__forceEvent && equals(this.nodes, nodes)) {
 			return;
 		}
@@ -2870,10 +2875,10 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 			content.push(`.monaco-list${suffix}.sticky-scroll-focused .monaco-scrollable-element .monaco-tree-sticky-container:focus .monaco-list-row.focused { outline: 1px solid ${styles.listFocusOutline}; outline-offset: -1px; }`);
 			content.push(`.monaco-list${suffix}:not(.sticky-scroll-focused) .monaco-scrollable-element .monaco-tree-sticky-container .monaco-list-row.focused { outline: inherit; }`);
 
-			content.push(`.monaco-workbench.context-menu-visible .monaco-list${suffix}.last-focused.sticky-scroll-focused .monaco-scrollable-element .monaco-tree-sticky-container .monaco-list-row.passive-focused { outline: 1px solid ${styles.listFocusOutline}; outline-offset: -1px; }`);
+			content.push(`.context-menu-visible .monaco-list${suffix}.last-focused.sticky-scroll-focused .monaco-scrollable-element .monaco-tree-sticky-container .monaco-list-row.passive-focused { outline: 1px solid ${styles.listFocusOutline}; outline-offset: -1px; }`);
 
-			content.push(`.monaco-workbench.context-menu-visible .monaco-list${suffix}.last-focused.sticky-scroll-focused .monaco-list-rows .monaco-list-row.focused { outline: inherit; }`);
-			content.push(`.monaco-workbench.context-menu-visible .monaco-list${suffix}.last-focused:not(.sticky-scroll-focused) .monaco-tree-sticky-container .monaco-list-rows .monaco-list-row.focused { outline: inherit; }`);
+			content.push(`.context-menu-visible .monaco-list${suffix}.last-focused.sticky-scroll-focused .monaco-list-rows .monaco-list-row.focused { outline: inherit; }`);
+			content.push(`.context-menu-visible .monaco-list${suffix}.last-focused:not(.sticky-scroll-focused) .monaco-tree-sticky-container .monaco-list-rows .monaco-list-row.focused { outline: inherit; }`);
 		}
 
 		this.styleElement.textContent = content.join('\n');

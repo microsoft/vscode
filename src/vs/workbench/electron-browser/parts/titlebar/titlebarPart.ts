@@ -125,8 +125,10 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 	private onUpdateAppIconDragBehavior(): void {
 		const setting = this.configurationService.getValue('window.doubleClickIconToClose');
 		if (setting && this.appIcon) {
+			// eslint-disable-next-line local/code-no-any-casts
 			(this.appIcon.style as any)['-webkit-app-region'] = 'no-drag';
 		} else if (this.appIcon) {
+			// eslint-disable-next-line local/code-no-any-casts
 			(this.appIcon.style as any)['-webkit-app-region'] = 'drag';
 		}
 	}

@@ -777,7 +777,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 				dotAccessorContext = { range, text };
 			}
 		}
-		const isIncomplete = !!response.body.isIncomplete || (response.metadata as any)?.isIncomplete;
+		const isIncomplete = !!response.body.isIncomplete || !!(response.metadata as Record<string, unknown>)?.isIncomplete;
 		const entries = response.body.entries;
 		const metadata = response.metadata;
 		const defaultCommitCharacters = Object.freeze(response.body.defaultCommitCharacters);

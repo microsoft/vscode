@@ -103,10 +103,13 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 		const res = await super.stat(resource);
 
 		if (this.invalidStatSize) {
+			// eslint-disable-next-line local/code-no-any-casts
 			(res as any).size = String(res.size) as any; // for https://github.com/microsoft/vscode/issues/72909
 		} else if (this.smallStatSize) {
+			// eslint-disable-next-line local/code-no-any-casts
 			(res as any).size = 1;
 		} else if (this.readonly) {
+			// eslint-disable-next-line local/code-no-any-casts
 			(res as any).permissions = FilePermission.Readonly;
 		}
 

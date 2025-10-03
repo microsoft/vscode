@@ -1488,6 +1488,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (type === undefined) {
 			return true;
 		}
+		// eslint-disable-next-line local/code-no-any-casts
 		const settingValueMap: IStringDictionary<boolean> = settingValue as any;
 		return !settingValueMap[type];
 	}
@@ -1496,6 +1497,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		let type: string;
 		if (CustomTask.is(task)) {
 			const configProperties: TaskConfig.IConfigurationProperties = task._source.config.element;
+			// eslint-disable-next-line local/code-no-any-casts
 			type = (<any>configProperties).type;
 		} else {
 			type = task.getDefinition()!.type;
@@ -1534,6 +1536,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 		let newValue: IStringDictionary<boolean>;
 		if (current !== false) {
+			// eslint-disable-next-line local/code-no-any-casts
 			newValue = <any>current;
 		} else {
 			newValue = Object.create(null);
@@ -1579,6 +1582,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		let taskType: string;
 		if (CustomTask.is(task)) {
 			const configProperties: TaskConfig.IConfigurationProperties = task._source.config.element;
+			// eslint-disable-next-line local/code-no-any-casts
 			taskType = (<any>configProperties).type;
 		} else {
 			taskType = task.getDefinition().type;
@@ -1732,6 +1736,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			};
 			const identifier: TaskConfig.ITaskIdentifier = Object.assign(Object.create(null), task.defines);
 			delete identifier['_key'];
+			// eslint-disable-next-line local/code-no-any-casts
 			Object.keys(identifier).forEach(key => (<any>toCustomize)![key] = identifier[key]);
 			if (task.configurationProperties.problemMatchers && task.configurationProperties.problemMatchers.length > 0 && Types.isStringArray(task.configurationProperties.problemMatchers)) {
 				toCustomize.problemMatcher = task.configurationProperties.problemMatchers;
@@ -1778,8 +1783,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		const index: number | undefined = CustomTask.is(task) ? task._source.config.index : undefined;
 		if (properties) {
 			for (const property of Object.getOwnPropertyNames(properties)) {
+				// eslint-disable-next-line local/code-no-any-casts
 				const value = (<any>properties)[property];
 				if (value !== undefined && value !== null) {
+					// eslint-disable-next-line local/code-no-any-casts
 					(<any>toCustomize)[property] = value;
 				}
 			}
@@ -2631,6 +2638,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (!config) {
 			return { config: undefined, hasParseErrors: false };
 		}
+		// eslint-disable-next-line local/code-no-any-casts
 		const parseErrors: string[] = (config as any).$parseErrors;
 		if (parseErrors) {
 			let isAffected = false;
@@ -2811,6 +2819,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (!result) {
 			return { config: undefined, hasParseErrors: false };
 		}
+		// eslint-disable-next-line local/code-no-any-casts
 		const parseErrors: string[] = (result as any).$parseErrors;
 		if (parseErrors) {
 			let isAffected = false;
@@ -3542,6 +3551,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					return Promise.resolve(undefined);
 				}
 				content = pickTemplateResult.content;
+				// eslint-disable-next-line local/code-no-any-casts
 				const editorConfig = this._configurationService.getValue() as any;
 				if (editorConfig.editor.insertSpaces) {
 					content = content.replace(/(\n)(\t+)/g, (_, s1, s2) => s1 + ' '.repeat(s2.length * editorConfig.editor.tabSize));
@@ -3575,11 +3585,13 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private _isTaskEntry(value: IQuickPickItem): value is IQuickPickItem & { task: Task } {
+		// eslint-disable-next-line local/code-no-any-casts
 		const candidate: IQuickPickItem & { task: Task } = value as any;
 		return candidate && !!candidate.task;
 	}
 
 	private _isSettingEntry(value: IQuickPickItem): value is IQuickPickItem & { settingType: string } {
+		// eslint-disable-next-line local/code-no-any-casts
 		const candidate: IQuickPickItem & { settingType: string } = value as any;
 		return candidate && !!candidate.settingType;
 	}
@@ -3708,6 +3720,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				if (cancellationToken.isCancellationRequested) {
 					// canceled when there's only one task
 					const task = (await entries)[0];
+					// eslint-disable-next-line local/code-no-any-casts
 					if ((<any>task).task) {
 						selection = <TaskQuickPickEntryType>task;
 					}
@@ -3766,6 +3779,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 							if (cancellationToken.isCancellationRequested) {
 								// canceled when there's only one task
 								const task = (await entries)[0];
+								// eslint-disable-next-line local/code-no-any-casts
 								if ((<any>task).task) {
 									entry = <TaskQuickPickEntryType>task;
 								}

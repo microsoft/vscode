@@ -340,6 +340,7 @@ export class MarkersTable extends Disposable implements IProblemsWidget {
 		// mouseover/mouseleave event handlers
 		const onRowHover = Event.chain(this._register(new DomEmitter(list, 'mouseover')).event, $ =>
 			$.map(e => DOM.findParentWithClass(e.target as HTMLElement, 'monaco-list-row', 'monaco-list-rows'))
+				// eslint-disable-next-line local/code-no-any-casts
 				.filter<HTMLElement>(((e: HTMLElement | null) => !!e) as any)
 				.map(e => parseInt(e.getAttribute('data-index')!))
 		);

@@ -260,6 +260,8 @@ export interface IChatConfirmation {
 	title: string;
 	message: string | IMarkdownString;
 	data: any;
+	/** Indicates whether this came from a current chat session (true/undefined) or a restored historic session (false) */
+	isLive?: boolean;
 	buttons?: string[];
 	isUsed?: boolean;
 	kind: 'confirmation';
@@ -682,6 +684,14 @@ export interface IChatSendRequestOptions {
 	 * The label of the confirmation action that was selected.
 	 */
 	confirmation?: string;
+
+	/**
+	 * Summary data for chat sessions context
+	 */
+	chatSummary?: {
+		prompt?: string;
+		history?: string;
+	};
 }
 
 export const IChatService = createDecorator<IChatService>('IChatService');

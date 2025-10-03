@@ -13,6 +13,7 @@ exports.define = define;
 const fancy_log_1 = __importDefault(require("fancy-log"));
 const ansi_colors_1 = __importDefault(require("ansi-colors"));
 function _isPromise(p) {
+    // eslint-disable-next-line local/code-no-any-casts
     if (typeof p.then === 'function') {
         return true;
     }

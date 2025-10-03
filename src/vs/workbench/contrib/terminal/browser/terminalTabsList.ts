@@ -633,6 +633,7 @@ class TerminalTabsDragAndDrop extends Disposable implements IListDragAndDrop<ITe
 			return;
 		}
 		// Attach terminals type to event
+		// eslint-disable-next-line local/code-no-any-casts
 		const terminals: ITerminalInstance[] = dndData.filter(e => 'instanceId' in (e as any));
 		if (terminals.length > 0) {
 			originalEvent.dataTransfer.setData(TerminalDataTransfers.Terminals, JSON.stringify(terminals.map(e => e.resource.toString())));

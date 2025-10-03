@@ -274,7 +274,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		};
 		this._register(_modelService.onModelAdded(e => maybeUpdateCellTextModel(e)));
 
-		this._pauseableEmitter = new NotebookEventEmitter({
+		this._pauseableEmitter = this._register(new NotebookEventEmitter({
 			merge: (events: NotebookTextModelChangedEvent[]) => {
 				const first = events[0];
 
@@ -292,7 +292,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 				return { rawEvents, versionId, endSelectionState, synchronous };
 			}
-		});
+		}));
 
 		this._register(this._pauseableEmitter.event(e => {
 			if (e.rawEvents.length) {
@@ -1092,6 +1092,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		let k: keyof NullablePartialNotebookCellMetadata;
 		for (k in metadata) {
 			const value = metadata[k] ?? undefined;
+			// eslint-disable-next-line local/code-no-any-casts
 			newMetadata[k] = value as any;
 		}
 
@@ -1133,6 +1134,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		let k: keyof NotebookCellInternalMetadata;
 		for (k in internalMetadata) {
 			const value = internalMetadata[k] ?? undefined;
+			// eslint-disable-next-line local/code-no-any-casts
 			newInternalMetadata[k] = value as any;
 		}
 

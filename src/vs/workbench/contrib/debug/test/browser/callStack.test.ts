@@ -25,6 +25,7 @@ import { Source } from '../../common/debugSource.js';
 import { createMockDebugModel, mockUriIdentityService } from './mockDebugModel.js';
 import { MockRawSession } from '../common/mockDebug.js';
 
+// eslint-disable-next-line local/code-no-any-casts
 const mockWorkspaceContextService = {
 	getWorkspace: () => {
 		return {
@@ -120,6 +121,7 @@ suite('Debug - CallStack', () => {
 		disposables.add(session);
 		model.addSession(session);
 
+		// eslint-disable-next-line local/code-no-any-casts
 		session['raw'] = <any>mockRawSession;
 
 		model.rawUpdate({
@@ -201,6 +203,7 @@ suite('Debug - CallStack', () => {
 		disposables.add(session);
 		model.addSession(session);
 
+		// eslint-disable-next-line local/code-no-any-casts
 		session['raw'] = <any>mockRawSession;
 
 		// Stopped event with all threads stopped
@@ -255,6 +258,7 @@ suite('Debug - CallStack', () => {
 		disposables.add(session);
 		model.addSession(session);
 
+		// eslint-disable-next-line local/code-no-any-casts
 		session['raw'] = <any>mockRawSession;
 
 		// Add the threads
@@ -454,6 +458,7 @@ suite('Debug - CallStack', () => {
 		model.addSession(runningSession);
 		model.addSession(session);
 
+		// eslint-disable-next-line local/code-no-any-casts
 		session['raw'] = <any>mockRawSession;
 
 		model.rawUpdate({

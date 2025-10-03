@@ -320,11 +320,12 @@ function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {
 	});
 
 	// Following features are enabled from the runtime:
+	// `NetAdapterMaxBufSizeFeature` - Specify the max buffer size for NetToMojoPendingBuffer, refs https://github.com/microsoft/vscode/issues/268800
 	// `DocumentPolicyIncludeJSCallStacksInCrashReports` - https://www.electronjs.org/docs/latest/api/web-frame-main#framecollectjavascriptcallstack-experimental
 	// `EarlyEstablishGpuChannel` - Refs https://issues.chromium.org/issues/40208065
 	// `EstablishGpuChannelAsync` - Refs https://issues.chromium.org/issues/40208065
 	const featuresToEnable =
-		`DocumentPolicyIncludeJSCallStacksInCrashReports,EarlyEstablishGpuChannel,EstablishGpuChannelAsync,${app.commandLine.getSwitchValue('enable-features')}`;
+		`NetAdapterMaxBufSizeFeature:NetAdapterMaxBufSize/8192,DocumentPolicyIncludeJSCallStacksInCrashReports,EarlyEstablishGpuChannel,EstablishGpuChannelAsync,${app.commandLine.getSwitchValue('enable-features')}`;
 	app.commandLine.appendSwitch('enable-features', featuresToEnable);
 
 	// Following features are disabled from the runtime:
@@ -582,7 +583,7 @@ function registerListeners(): void {
 	 * the app-ready event. We listen very early for open-file and remember this upon startup as path to open.
 	 */
 	const macOpenFiles: string[] = [];
-	(globalThis as any)['macOpenFiles'] = macOpenFiles;
+	(globalThis as { macOpenFiles?: string[] }).macOpenFiles = macOpenFiles;
 	app.on('open-file', function (event, path) {
 		macOpenFiles.push(path);
 	});
@@ -602,7 +603,7 @@ function registerListeners(): void {
 		app.on('open-url', onOpenUrl);
 	});
 
-	(globalThis as any)['getOpenUrls'] = function () {
+	(globalThis as { getOpenUrls?: () => string[] }).getOpenUrls = function () {
 		app.removeListener('open-url', onOpenUrl);
 
 		return openUrls;

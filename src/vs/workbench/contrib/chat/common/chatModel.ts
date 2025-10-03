@@ -1056,6 +1056,7 @@ export interface IChatModel extends IDisposable {
 	readonly sessionId: string;
 	readonly initialLocation: ChatAgentLocation;
 	readonly title: string;
+	readonly hasCustomTitle: boolean;
 	readonly requestInProgress: boolean;
 	readonly requestInProgressObs: IObservable<boolean>;
 	readonly inputPlaceholder?: string;
@@ -1210,6 +1211,7 @@ function normalizeOldFields(raw: ISerializableChatDataIn): void {
 		}
 	}
 
+	// eslint-disable-next-line local/code-no-any-casts
 	if ((raw.initialLocation as any) === 'editing-session') {
 		raw.initialLocation = ChatAgentLocation.Chat;
 	}
@@ -1416,6 +1418,10 @@ export class ChatModel extends Disposable implements IChatModel {
 		return this._customTitle || ChatModel.getDefaultTitle(this._requests);
 	}
 
+	get hasCustomTitle(): boolean {
+		return this._customTitle !== undefined;
+	}
+
 	private _editingSession: ObservablePromise<IChatEditingSession> | undefined;
 	get editingSessionObs(): ObservablePromise<IChatEditingSession> | undefined {
 		return this._editingSession;
@@ -1522,6 +1528,7 @@ export class ChatModel extends Disposable implements IChatModel {
 					modelId: raw.modelId,
 				});
 				request.shouldBeRemovedOnSend = raw.isHidden ? { requestId: raw.requestId } : raw.shouldBeRemovedOnSend;
+				// eslint-disable-next-line local/code-no-any-casts
 				if (raw.response || raw.result || (raw as any).responseErrorDetails) {
 					const agent = (raw.agent && 'metadata' in raw.agent) ? // Check for the new format, ignore entries in the old format
 						reviveSerializedAgent(raw.agent) : undefined;
@@ -1850,7 +1857,10 @@ export class ChatModel extends Disposable implements IChatModel {
 									id: item.id,
 									metadata: item.metadata
 								};
+							} else if (item.kind === 'confirmation') {
+								return { ...item, isLive: false };
 							} else {
+								// eslint-disable-next-line local/code-no-any-casts
 								return item as any; // TODO
 							}
 						})

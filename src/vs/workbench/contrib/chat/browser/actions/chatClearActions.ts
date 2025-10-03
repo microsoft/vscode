@@ -75,15 +75,13 @@ export function registerNewChatActions() {
 					},
 					{
 						id: MenuId.ViewTitle,
-						when: ContextKeyExpr.and(
-							ContextKeyExpr.equals('view', ChatViewId),
-							ChatContextKeys.inEmptyStateWithHistoryEnabled.negate()
-						),
+						when: ContextKeyExpr.equals('view', ChatViewId),
 						group: 'navigation',
 						order: -1,
 						alt: {
 							id: ACTION_ID_OPEN_CHAT,
 							title: localize2('interactiveSession.open', "New Chat Editor"),
+							icon: Codicon.newFile,
 							precondition: ChatContextKeys.enabled
 						}
 					},

@@ -30,6 +30,7 @@ suite('vscode API - configuration', () => {
 		assert.strictEqual(config['config0'], true);
 		assert.strictEqual(config['config4'], '');
 
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.throws(() => (<any>config)['config4'] = 'valuevalue');
 
 		assert.ok(config.has('nested.config1'));
@@ -44,6 +45,7 @@ suite('vscode API - configuration', () => {
 		assert.ok(config.has('get'));
 		assert.strictEqual(config.get('get'), 'get-prop');
 		assert.deepStrictEqual(config['get'], config.get);
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.throws(() => config['get'] = <any>'get-prop');
 	});
 });

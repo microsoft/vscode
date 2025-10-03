@@ -143,6 +143,7 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 			outerHeight: this._containerObserver.getHeight(),
 			emptySelectionClipboard: browser.isWebKit || browser.isFirefox,
 			pixelRatio: PixelRatio.getInstance(getWindowById(this._targetWindowId, true).window).value,
+			// eslint-disable-next-line local/code-no-any-casts
 			editContextSupported: typeof (globalThis as any).EditContext === 'function',
 			accessibilitySupport: (
 				this._accessibilityService.isScreenReaderOptimized()
@@ -287,6 +288,7 @@ class EditorOptionsUtil {
 	public static validateOptions(options: IEditorOptions): ValidatedEditorOptions {
 		const result = new ValidatedEditorOptions();
 		for (const editorOption of editorOptionsRegistry) {
+			// eslint-disable-next-line local/code-no-any-casts
 			const value = (editorOption.name === '_never_' ? undefined : (options as any)[editorOption.name]);
 			result._write(editorOption.id, editorOption.validate(value));
 		}
@@ -340,7 +342,9 @@ class EditorOptionsUtil {
 		let changed = false;
 		for (const editorOption of editorOptionsRegistry) {
 			if (update.hasOwnProperty(editorOption.name)) {
+				// eslint-disable-next-line local/code-no-any-casts
 				const result = editorOption.applyUpdate((options as any)[editorOption.name], (update as any)[editorOption.name]);
+				// eslint-disable-next-line local/code-no-any-casts
 				(options as any)[editorOption.name] = result.newValue;
 				changed = changed || result.didChange;
 			}

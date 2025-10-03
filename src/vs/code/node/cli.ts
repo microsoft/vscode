@@ -40,7 +40,7 @@ function shouldSpawnCliProcess(argv: NativeParsedArgs): boolean {
 		|| !!argv['telemetry'];
 }
 
-export async function main(argv: string[]): Promise<any> {
+export async function main(argv: string[]): Promise<void> {
 	let args: NativeParsedArgs;
 
 	try {
@@ -567,7 +567,7 @@ export async function main(argv: string[]): Promise<any> {
 			child = spawn('open', spawnArgs, { ...options, env: {} });
 		}
 
-		return Promise.all(processCallbacks.map(callback => callback(child)));
+		await Promise.all(processCallbacks.map(callback => callback(child)));
 	}
 }
 

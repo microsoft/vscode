@@ -308,6 +308,7 @@ export class GitError extends Error {
 		}, null, 2);
 
 		if (this.error) {
+			// eslint-disable-next-line local/code-no-any-casts
 			result += (<any>this.error).stack;
 		}
 
@@ -2972,7 +2973,9 @@ export class Repository {
 					const result = await this.exec(['rev-list', '--left-right', '--count', `${branch.name}...${branch.upstream.remote}/${branch.upstream.name}`]);
 					const [ahead, behind] = result.stdout.trim().split('\t');
 
+					// eslint-disable-next-line local/code-no-any-casts
 					(branch as any).ahead = Number(ahead) || 0;
+					// eslint-disable-next-line local/code-no-any-casts
 					(branch as any).behind = Number(behind) || 0;
 				} catch { }
 			}

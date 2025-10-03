@@ -23,6 +23,7 @@ import { IRemoteUserDataProfilesService } from '../../userDataProfile/common/rem
 import { AbstractMcpManagementService, AbstractMcpResourceManagementService, ILocalMcpServerInfo } from '../../../../platform/mcp/common/mcpManagementService.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { ResourceMap } from '../../../../base/common/map.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 
 export const USER_CONFIG_ID = 'usrlocal';
 export const REMOTE_USER_CONFIG_ID = 'usrremote';
@@ -118,6 +119,7 @@ export class WorkbenchMcpManagementService extends AbstractMcpManagementService 
 	constructor(
 		private readonly mcpManagementService: IMcpManagementService,
 		@IAllowedMcpServersService allowedMcpServersService: IAllowedMcpServersService,
+		@ILogService logService: ILogService,
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
@@ -126,7 +128,7 @@ export class WorkbenchMcpManagementService extends AbstractMcpManagementService 
 		@IRemoteUserDataProfilesService private readonly remoteUserDataProfilesService: IRemoteUserDataProfilesService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
-		super(allowedMcpServersService);
+		super(allowedMcpServersService, logService);
 
 		this.workspaceMcpManagementService = this._register(instantiationService.createInstance(WorkspaceMcpManagementService));
 		const remoteAgentConnection = remoteAgentService.getConnection();
@@ -440,6 +442,10 @@ class WorkspaceMcpResourceManagementService extends AbstractMcpResourceManagemen
 	protected override async getLocalServerInfo(): Promise<ILocalMcpServerInfo | undefined> {
 		return undefined;
 	}
+
+	override canInstall(server: IGalleryMcpServer | IInstallableMcpServer): true | IMarkdownString {
+		throw new Error('Not supported');
+	}
 }
 
 class WorkspaceMcpManagementService extends AbstractMcpManagementService implements IMcpManagementService {
@@ -467,11 +473,11 @@ class WorkspaceMcpManagementService extends AbstractMcpManagementService impleme
 	constructor(
 		@IAllowedMcpServersService allowedMcpServersService: IAllowedMcpServersService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@ILogService private readonly logService: ILogService,
+		@ILogService logService: ILogService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
-		super(allowedMcpServersService);
+		super(allowedMcpServersService, logService);
 		this.initialize();
 	}
 
