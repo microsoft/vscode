@@ -377,25 +377,25 @@ div.chat-welcome-view {
 
 /* Responsive fallbacks to avoid overlapping welcome content */
 
-@media screen and (max-height: 690px), screen and (max-width: 670px) {
+@media screen and (max-height: 760px), screen and (max-width: 620px) {
 	.interactive-session:not(:has(.chat-welcome-view-icon .codicon-send-to-remote-agent)) .chat-welcome-view-container:has(.chat-welcome-view-suggested-prompts > .chat-welcome-view-suggested-prompt:nth-of-type(2)) div.chat-welcome-view > .chat-welcome-view-title {
 		display: none !important;
 	}
 }
 
-@media screen and (max-height: 650px), screen and (max-width: 630px) {
+@media screen and (max-height: 720px), screen and (max-width: 580px) {
 	.interactive-session:not(:has(.chat-welcome-view-icon .codicon-send-to-remote-agent)) .chat-welcome-view-container:has(.chat-welcome-view-suggested-prompts > .chat-welcome-view-suggested-prompt:nth-of-type(2)) div.chat-welcome-view > .chat-welcome-view-icon {
 		display: none !important;
 	}
 }
 
-@media screen and (max-height: 610px), screen and (max-width: 590px) {
+@media screen and (max-height: 680px), screen and (max-width: 540px) {
 	.interactive-session:not(:has(.chat-welcome-view-icon .codicon-send-to-remote-agent)) .chat-welcome-view-container:has(.chat-welcome-view-suggested-prompts > .chat-welcome-view-suggested-prompt:nth-of-type(2)) div.chat-welcome-view > .chat-welcome-view-disclaimer {
 		display: none !important;
 	}
 }
 
-@media screen and (max-height: 570px), screen and (max-width: 550px) {
+@media screen and (max-height: 640px), screen and (max-width: 500px) {
 	.interactive-session:not(:has(.chat-welcome-view-icon .codicon-send-to-remote-agent)) .chat-welcome-view-container:has(.chat-welcome-view-suggested-prompts > .chat-welcome-view-suggested-prompt:nth-of-type(2)) div.chat-welcome-view > .chat-welcome-view-message,
 	.interactive-session:not(:has(.chat-welcome-view-icon .codicon-send-to-remote-agent)) .chat-welcome-view-container:has(.chat-welcome-view-suggested-prompts > .chat-welcome-view-suggested-prompt:nth-of-type(2)) div.chat-welcome-view > .chat-welcome-new-view-message,
 	.interactive-session:not(:has(.chat-welcome-view-icon .codicon-send-to-remote-agent)) .chat-welcome-view-container:has(.chat-welcome-view-suggested-prompts > .chat-welcome-view-suggested-prompt:nth-of-type(2)) div.chat-welcome-view > .chat-welcome-view-additional-message {
@@ -403,7 +403,7 @@ div.chat-welcome-view {
 	}
 }
 
-@media screen and (max-height: 430px), screen and (max-width: 410px) {
+@media screen and (max-height: 520px), screen and (max-width: 360px) {
 	.interactive-session:not(:has(.chat-welcome-view-icon .codicon-send-to-remote-agent)) .chat-welcome-view-container:has(.chat-welcome-view-suggested-prompts > .chat-welcome-view-suggested-prompt:nth-of-type(2)) .chat-welcome-history-root {
 		display: none !important;
 	}
