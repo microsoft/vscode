@@ -651,8 +651,8 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		this.forEachTab((editor, tabIndex, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => {
 			this.redrawTab(editor, tabIndex, tabContainer, tabLabelWidget, tabLabel, tabActionBar);
 		},
-			Math.min(fromTabIndex, targetTabIndex), // from: smallest of fromTabIndex/targeTabIndex
-			Math.max(fromTabIndex, targetTabIndex)	//   to: largest of fromTabIndex/targeTabIndex
+			Math.min(fromTabIndex, targetTabIndex), // from: smallest of fromTabIndex/targetTabIndex
+			Math.max(fromTabIndex, targetTabIndex)	//   to: largest of fromTabIndex/targetTabIndex
 		);
 
 		// Moving an editor requires a layout to keep the active editor visible
