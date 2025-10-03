@@ -18,7 +18,6 @@ import { ServicesAccessor } from '../../../../../platform/instantiation/common/i
 import { IDebugService } from '../../../debug/common/debug.js';
 import { CTX_INLINE_CHAT_FOCUSED } from '../../../inlineChat/common/inlineChat.js';
 import { insertCell } from './cellOperations.js';
-import { NotebookChatController } from './chat/notebookChatController.js';
 import { CELL_TITLE_CELL_GROUP_ID, CellToolbarOrder, INotebookActionContext, INotebookCellActionContext, INotebookCellToolbarActionContext, INotebookCommandContext, NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT, NotebookAction, NotebookCellAction, NotebookMultiCellAction, cellExecutionArgs, getContextFromActiveEditor, getContextFromUri, parseMultiCellExecutionArgs } from './coreActions.js';
 import { CellEditState, CellFocusMode, EXECUTE_CELL_COMMAND_ID, IActiveNotebookEditor, ICellViewModel, IFocusNotebookCellOptions, ScrollToRevealBehavior } from '../notebookBrowser.js';
 import * as icons from '../notebookIcons.js';
@@ -29,6 +28,7 @@ import { INotebookExecutionStateService } from '../../common/notebookExecutionSt
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { CodeCellViewModel } from '../viewModel/codeCellViewModel.js';
+import { InlineChatController } from '../../../inlineChat/browser/inlineChatController.js';
 
 const EXECUTE_NOTEBOOK_COMMAND_ID = 'notebook.execute';
 const CANCEL_NOTEBOOK_COMMAND_ID = 'notebook.cancelExecution';
@@ -297,19 +297,22 @@ registerAction2(class ExecuteCell extends NotebookMultiCellAction {
 			await context.notebookEditor.focusNotebookCell(context.cell, 'container', { skipReveal: true });
 		}
 
-		const chatController = NotebookChatController.get(context.notebookEditor);
-		const editingCell = chatController?.getEditingCell();
-		if (chatController?.hasFocus() && editingCell) {
-			const group = editorGroupsService.activeGroup;
+		const codeEditor = context.notebookEditor.activeCodeEditor;
+		if (codeEditor && context.cell
+		) {
+			const chatController = InlineChatController.get(codeEditor);
+			if (chatController?.widget.hasFocus()) {
+				const group = editorGroupsService.activeGroup;
 
-			if (group) {
-				if (group.activeEditor) {
-					group.pinEditor(group.activeEditor);
+				if (group) {
+					if (group.activeEditor) {
+						group.pinEditor(group.activeEditor);
+					}
 				}
-			}
 
-			await context.notebookEditor.executeNotebookCells([editingCell]);
-			return;
+				await context.notebookEditor.executeNotebookCells([context.cell]);
+				return;
+			}
 		}
 
 		await runCell(editorGroupsService, context, editorService);
