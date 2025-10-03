@@ -362,7 +362,7 @@
 					"name": "comment.block.xml",
 					"patterns": [
 						{
-							"begin": "--(?!>)",
+							"match": "--(?!%>)",
 							"captures": {
 								"0": {
 									"name": "invalid.illegal.bad-comments-or-CDATA.xml"
