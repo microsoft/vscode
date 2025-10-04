@@ -15,7 +15,7 @@ import { ConfigurationModel, ConfigurationChangeEvent, mergeChanges } from '../.
 import { IConfigurationChangeEvent, ConfigurationTarget, IConfigurationOverrides, isConfigurationOverrides, IConfigurationData, IConfigurationValue, IConfigurationChange, ConfigurationTargetToString, IConfigurationUpdateOverrides, isConfigurationUpdateOverrides, IConfigurationService, IConfigurationUpdateOptions } from '../../../../platform/configuration/common/configuration.js';
 import { IPolicyConfiguration, NullPolicyConfiguration, PolicyConfiguration } from '../../../../platform/configuration/common/configurations.js';
 import { Configuration } from '../common/configurationModels.js';
-import { FOLDER_CONFIG_FOLDER_NAME, defaultSettingsSchemaId, userSettingsSchemaId, workspaceSettingsSchemaId, folderSettingsSchemaId, IConfigurationCache, machineSettingsSchemaId, LOCAL_MACHINE_SCOPES, IWorkbenchConfigurationService, RestrictedSettings, PROFILE_SCOPES, LOCAL_MACHINE_PROFILE_SCOPES, profileSettingsSchemaId, APPLY_ALL_PROFILES_SETTING, APPLICATION_SCOPES } from '../common/configuration.js';
+import { FOLDER_CONFIG_FOLDER_NAME, defaultSettingsSchemaId, userSettingsSchemaId, workspaceSettingsSchemaId, folderSettingsSchemaId, folderSettingsLocalSchemaId, IConfigurationCache, machineSettingsSchemaId, LOCAL_MACHINE_SCOPES, IWorkbenchConfigurationService, RestrictedSettings, PROFILE_SCOPES, LOCAL_MACHINE_PROFILE_SCOPES, profileSettingsSchemaId, APPLY_ALL_PROFILES_SETTING, APPLICATION_SCOPES } from '../common/configuration.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IConfigurationRegistry, Extensions, allSettings, windowSettings, resourceSettings, applicationSettings, machineSettings, machineOverridableSettings, ConfigurationScope, IConfigurationPropertySchema, keyFromOverrideIdentifiers, OVERRIDE_PROPERTY_PATTERN, resourceLanguageSettingsSchemaId, configurationDefaultsSchemaId, applicationMachineSettings } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, getStoredWorkspaceFolder, toWorkspaceFolders } from '../../../../platform/workspaces/common/workspaces.js';
@@ -1261,6 +1261,8 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 				allowComments: true
 			} : workspaceSettingsSchema;
 
+		const folderSettingsLocalSchema: IJSONSchema = folderSettingsSchema;
+
 		const configDefaultsSchema: IJSONSchema = {
 			type: 'object',
 			description: localize('configurationDefaults.description', 'Contribute defaults for configurations'),
@@ -1285,6 +1287,7 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 			machineSettingsSchema,
 			workspaceSettingsSchema,
 			folderSettingsSchema,
+			folderSettingsLocalSchema,
 			configDefaultsSchema,
 		});
 	}
@@ -1296,6 +1299,7 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 		machineSettingsSchema: IJSONSchema;
 		workspaceSettingsSchema: IJSONSchema;
 		folderSettingsSchema: IJSONSchema;
+		folderSettingsLocalSchema: IJSONSchema;
 		configDefaultsSchema: IJSONSchema;
 	}): void {
 		const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
@@ -1305,6 +1309,7 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 		jsonRegistry.registerSchema(machineSettingsSchemaId, schemas.machineSettingsSchema);
 		jsonRegistry.registerSchema(workspaceSettingsSchemaId, schemas.workspaceSettingsSchema);
 		jsonRegistry.registerSchema(folderSettingsSchemaId, schemas.folderSettingsSchema);
+		jsonRegistry.registerSchema(folderSettingsLocalSchemaId, schemas.folderSettingsLocalSchema);
 		jsonRegistry.registerSchema(configurationDefaultsSchemaId, schemas.configDefaultsSchema);
 	}
 
