@@ -13,7 +13,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
-import { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { ContextKeyEqualsExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -1009,8 +1009,7 @@ suite('LanguageModelToolsService', () => {
 			configurationService: () => configurationService
 		}, store);
 		instaService.stub(IChatService, chatService);
-		// eslint-disable-next-line local/code-no-any-casts
-		instaService.stub(ITelemetryService, testTelemetryService as any);
+		instaService.stub(ITelemetryService, testTelemetryService);
 		const testService = store.add(instaService.createInstance(LanguageModelToolsService));
 
 		// Test successful invocation telemetry
@@ -1516,8 +1515,12 @@ suite('LanguageModelToolsService', () => {
 		// Change the correct configuration key
 		configurationService.setUserConfiguration('chat.extensionTools.enabled', false);
 		// Fire the configuration change event manually
-		// eslint-disable-next-line local/code-no-any-casts
-		configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true, affectedKeys: new Set(['chat.extensionTools.enabled']) } as any as IConfigurationChangeEvent);
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			affectsConfiguration: () => true,
+			affectedKeys: new Set(['chat.extensionTools.enabled']),
+			change: null!,
+			source: ConfigurationTarget.USER
+		} satisfies IConfigurationChangeEvent);
 
 		// Wait a bit for the scheduler
 		await new Promise(resolve => setTimeout(resolve, 800));
