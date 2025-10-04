@@ -301,6 +301,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		const newViewState = viewState ?? this._widget.getViewState();
 		for (const [key, value] of Object.entries(newViewState)) {
 			// Assign all props to the memento so they get saved
+			// eslint-disable-next-line local/code-no-any-casts
 			(this.viewState as any)[key] = value;
 		}
 	}

@@ -51,6 +51,7 @@ const allOptions = [
 	'-w',
 	'-x',
 ];
+// eslint-disable-next-line local/code-no-any-casts
 const expectedCompletions = [{ label: 'ls', description: (lsSpec as any).description }];
 export const lsTestSuiteSpec: ISuiteSpec = {
 	name: 'ls',

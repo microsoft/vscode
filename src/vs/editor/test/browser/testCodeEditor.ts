@@ -276,6 +276,7 @@ export function instantiateTestCodeEditor(instantiationService: IInstantiationSe
 	};
 	const editor = instantiationService.createInstance(
 		TestCodeEditor,
+		// eslint-disable-next-line local/code-no-any-casts
 		<HTMLElement><any>new TestEditorDomElement(),
 		options,
 		codeEditorWidgetOptions

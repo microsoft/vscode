@@ -131,9 +131,11 @@ export function create(
 		const transpiler = !config.transpileWithEsbuild
 			? new TscTranspiler(logFn, printDiagnostic, projectPath, cmdLine)
 			: new ESBuildTranspiler(logFn, printDiagnostic, projectPath, cmdLine);
+		// eslint-disable-next-line local/code-no-any-casts
 		result = <any>(() => createTranspileStream(transpiler));
 	} else {
 		const _builder = builder.createTypeScriptBuilder({ logFn }, projectPath, cmdLine);
+		// eslint-disable-next-line local/code-no-any-casts
 		result = <any>((token: builder.CancellationToken) => createCompileStream(_builder, token));
 	}
 

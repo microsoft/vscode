@@ -138,6 +138,7 @@ suite('ObservableChatSession', function () {
 		// Verify history was loaded
 		assert.strictEqual(session.history.length, 2);
 		assert.strictEqual(session.history[0].type, 'request');
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.strictEqual((session.history[0] as any).prompt, 'Previous question');
 		assert.strictEqual(session.history[1].type, 'response');
 
@@ -211,6 +212,7 @@ suite('ObservableChatSession', function () {
 
 		assert.ok(session.requestHandler);
 
+		// eslint-disable-next-line local/code-no-any-casts
 		const request = { requestId: 'req1', prompt: 'Test prompt' } as any;
 		const progressCallback = sinon.stub();
 
@@ -225,6 +227,7 @@ suite('ObservableChatSession', function () {
 
 		assert.ok(session.requestHandler);
 
+		// eslint-disable-next-line local/code-no-any-casts
 		const request = { requestId: 'req1', prompt: 'Test prompt' } as any;
 		const progressCallback = sinon.stub();
 
@@ -301,12 +304,16 @@ suite('ObservableChatSession', function () {
 		// Verify all history was loaded correctly
 		assert.strictEqual(session.history.length, 4);
 		assert.strictEqual(session.history[0].type, 'request');
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.strictEqual((session.history[0] as any).prompt, 'First question');
 		assert.strictEqual(session.history[1].type, 'response');
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.strictEqual((session.history[1].parts[0] as any).content.value, 'First answer');
 		assert.strictEqual(session.history[2].type, 'request');
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.strictEqual((session.history[2] as any).prompt, 'Second question');
 		assert.strictEqual(session.history[3].type, 'response');
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.strictEqual((session.history[3].parts[0] as any).content.value, 'Second answer');
 
 		// Session should be complete since it has no capabilities
@@ -498,9 +505,11 @@ suite('MainThreadChatSessions', function () {
 
 		// Verify all history items are correctly loaded
 		assert.strictEqual(session.history[0].type, 'request');
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.strictEqual((session.history[0] as any).prompt, 'First question');
 		assert.strictEqual(session.history[1].type, 'response');
 		assert.strictEqual(session.history[2].type, 'request');
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.strictEqual((session.history[2] as any).prompt, 'Second question');
 		assert.strictEqual(session.history[3].type, 'response');
 

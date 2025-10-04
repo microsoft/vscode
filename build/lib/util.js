@@ -116,6 +116,7 @@ function fixWin32DirectoryPermissions() {
 function setExecutableBit(pattern) {
     const setBit = event_stream_1.default.mapSync(f => {
         if (!f.stat) {
+            // eslint-disable-next-line local/code-no-any-casts
             f.stat = { isFile() { return true; } };
         }
         f.stat.mode = /* 100755 */ 33261;
@@ -288,6 +289,7 @@ function rebase(count) {
     });
 }
 function filter(fn) {
+    // eslint-disable-next-line local/code-no-any-casts
     const result = event_stream_1.default.through(function (data) {
         if (fn(data)) {
             this.emit('data', data);

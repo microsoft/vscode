@@ -150,6 +150,7 @@ export function compileTask(src: string, out: string, build: boolean, options: {
 				(await newContentsByFileName).clear();
 
 				this.push(null);
+				// eslint-disable-next-line local/code-no-any-casts
 				(<any>ts2tsMangler) = undefined;
 			});
 		}

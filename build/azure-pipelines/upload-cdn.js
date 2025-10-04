@@ -105,6 +105,7 @@ async function main() {
     const listing = new vinyl_1.default({
         path: 'files.txt',
         contents: Buffer.from(files.join('\n')),
+        // eslint-disable-next-line local/code-no-any-casts
         stat: { mode: 0o666 }
     });
     const filesOut = event_stream_1.default.readArray([listing])

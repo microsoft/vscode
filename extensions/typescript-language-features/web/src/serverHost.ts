@@ -13,6 +13,31 @@ import { PathMapper, looksLikeNodeModules, mapUri } from './pathMapper';
 import { findArgument, hasArgument } from './util/args';
 import { URI } from 'vscode-uri';
 
+type TsModule = typeof ts;
+
+interface TsInternals extends TsModule {
+	combinePaths(path: string, ...paths: (string | undefined)[]): string;
+
+	matchFiles(
+		path: string,
+		extensions: readonly string[] | undefined,
+		excludes: readonly string[] | undefined,
+		includes: readonly string[] | undefined,
+		useCaseSensitiveFileNames: boolean,
+		currentDirectory: string,
+		depth: number | undefined,
+		getFileSystemEntries: (path: string) => { files: readonly string[]; directories: readonly string[] },
+		realpath: (path: string) => string
+	): string[];
+
+	generateDjb2Hash(data: string): string;
+
+	memoize: <T>(callback: () => T) => () => T;
+	ensureTrailingDirectorySeparator: (path: string) => string;
+	getDirectoryPath: (path: string) => string;
+	directorySeparator: string;
+}
+
 type ServerHostWithImport = ts.server.ServerHost & { importPlugin(root: string, moduleName: string): Promise<ts.server.ModuleImportResult> };
 
 function createServerHost(
@@ -29,26 +54,16 @@ function createServerHost(
 	const fs = apiClient?.vscode.workspace.fileSystem;
 
 	// Internals
-	const combinePaths: (path: string, ...paths: (string | undefined)[]) => string = (ts as any).combinePaths;
+	const combinePaths = (ts as TsInternals).combinePaths;
 	const byteOrderMarkIndicator = '\uFEFF';
-	const matchFiles: (
-		path: string,
-		extensions: readonly string[] | undefined,
-		excludes: readonly string[] | undefined,
-		includes: readonly string[] | undefined,
-		useCaseSensitiveFileNames: boolean,
-		currentDirectory: string,
-		depth: number | undefined,
-		getFileSystemEntries: (path: string) => { files: readonly string[]; directories: readonly string[] },
-		realpath: (path: string) => string
-	) => string[] = (ts as any).matchFiles;
-	const generateDjb2Hash = (ts as any).generateDjb2Hash;
+	const matchFiles = (ts as TsInternals).matchFiles;
+	const generateDjb2Hash = (ts as TsInternals).generateDjb2Hash;
 
 	// Legacy web
-	const memoize: <T>(callback: () => T) => () => T = (ts as any).memoize;
-	const ensureTrailingDirectorySeparator: (path: string) => string = (ts as any).ensureTrailingDirectorySeparator;
-	const getDirectoryPath: (path: string) => string = (ts as any).getDirectoryPath;
-	const directorySeparator: string = (ts as any).directorySeparator;
+	const memoize = (ts as TsInternals).memoize;
+	const ensureTrailingDirectorySeparator = (ts as TsInternals).ensureTrailingDirectorySeparator;
+	const getDirectoryPath = (ts as TsInternals).getDirectoryPath;
+	const directorySeparator = (ts as TsInternals).directorySeparator;
 	const executingFilePath = findArgument(args, '--executingFilePath') || location + '';
 	const getExecutingDirectoryPath = memoize(() => memoize(() => ensureTrailingDirectorySeparator(getDirectoryPath(executingFilePath))));
 	const getWebPath = (path: string) => path.startsWith(directorySeparator) ? path.replace(directorySeparator, getExecutingDirectoryPath()) : undefined;

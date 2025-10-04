@@ -1084,6 +1084,7 @@ suite('OAuth', () => {
 				resource: 'https://example.com/api'
 			};
 
+			// eslint-disable-next-line local/code-no-any-casts
 			const globalFetchStub = sandbox.stub(globalThis, 'fetch').resolves({
 				status: 200,
 				json: async () => metadata,

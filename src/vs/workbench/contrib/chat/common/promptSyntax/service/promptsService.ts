@@ -193,6 +193,11 @@ export interface IPromptsService extends IDisposable {
 	findPromptSlashCommands(): Promise<IChatPromptSlashCommand[]>;
 
 	/**
+	 * Returns the prompt command name for the given URI.
+	 */
+	getPromptCommandName(uri: URI): Promise<string>;
+
+	/**
 	 * Event that is triggered when the list of custom chat modes changes.
 	 */
 	readonly onDidChangeCustomChatModes: Event<void>;

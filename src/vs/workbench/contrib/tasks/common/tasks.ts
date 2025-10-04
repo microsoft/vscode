@@ -652,6 +652,7 @@ export abstract class CommonTask {
 	}
 
 	public clone(): Task {
+		// eslint-disable-next-line local/code-no-any-casts
 		return this.fromObject(Object.assign({}, <any>this));
 	}
 
@@ -692,6 +693,7 @@ export abstract class CommonTask {
 	public getTaskExecution(): ITaskExecution {
 		const result: ITaskExecution = {
 			id: this._id,
+			// eslint-disable-next-line local/code-no-any-casts
 			task: <any>this
 		};
 		return result;
