@@ -22,6 +22,31 @@ export const enum RenderWhitespace {
 	All = 4
 }
 
+export interface IRenderLineInputOptions {
+	useMonospaceOptimizations: boolean;
+	canUseHalfwidthRightwardsArrow: boolean;
+	lineContent: string;
+	continuesWithWrappedLine: boolean;
+	isBasicASCII: boolean;
+	containsRTL: boolean;
+	fauxIndentLength: number;
+	lineTokens: IViewLineTokens;
+	lineDecorations: LineDecoration[];
+	tabSize: number;
+	startVisibleColumn: number;
+	spaceWidth: number;
+	middotWidth: number;
+	wsmiddotWidth: number;
+	stopRenderingLineAfter: number;
+	renderWhitespace: 'none' | 'boundary' | 'selection' | 'trailing' | 'all';
+	renderControlCharacters: boolean;
+	fontLigatures: boolean;
+	selectionsOnLine: OffsetRange[] | null;
+	textDirection: TextDirection | null;
+	verticalScrollbarSize: number;
+	renderNewLineWhenEmpty: boolean;
+}
+
 export class RenderLineInput {
 
 	public readonly useMonospaceOptimizations: boolean;

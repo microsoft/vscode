@@ -12,7 +12,7 @@ import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
 import { MetadataConsts } from '../../../common/encodedTokenAttributes.js';
 import { IViewLineTokens } from '../../../common/tokens/lineTokens.js';
 import { LineDecoration } from '../../../common/viewLayout/lineDecorations.js';
-import { CharacterMapping, DomPosition, RenderLineInput, RenderLineOutput2, renderViewLine2 as renderViewLine } from '../../../common/viewLayout/viewLineRenderer.js';
+import { CharacterMapping, DomPosition, IRenderLineInputOptions, RenderLineInput, RenderLineOutput2, renderViewLine2 as renderViewLine } from '../../../common/viewLayout/viewLineRenderer.js';
 import { InlineDecorationType } from '../../../common/viewModel/inlineDecorations.js';
 import { TestLineToken, TestLineTokens } from '../core/testLineToken.js';
 
@@ -53,34 +53,82 @@ function inflateRenderLineOutput(renderLineOutput: RenderLineOutput2) {
 	};
 }
 
+type IRelaxedRenderLineInputOptions = Partial<IRenderLineInputOptions>;
+
+const defaultRenderLineInputOptions: IRenderLineInputOptions = {
+	useMonospaceOptimizations: false,
+	canUseHalfwidthRightwardsArrow: true,
+	lineContent: '',
+	continuesWithWrappedLine: false,
+	isBasicASCII: true,
+	containsRTL: false,
+	fauxIndentLength: 0,
+	lineTokens: createViewLineTokens([]),
+	lineDecorations: [],
+	tabSize: 4,
+	startVisibleColumn: 0,
+	spaceWidth: 10,
+	middotWidth: 10,
+	wsmiddotWidth: 10,
+	stopRenderingLineAfter: -1,
+	renderWhitespace: 'none',
+	renderControlCharacters: false,
+	fontLigatures: false,
+	selectionsOnLine: null,
+	textDirection: null,
+	verticalScrollbarSize: 14,
+	renderNewLineWhenEmpty: false
+};
+
+function createRenderLineInputOptions(opts: IRelaxedRenderLineInputOptions): IRenderLineInputOptions {
+	return {
+		...defaultRenderLineInputOptions,
+		...opts
+	};
+}
+
+function createRenderLineInput(opts: IRelaxedRenderLineInputOptions): RenderLineInput {
+	const options = createRenderLineInputOptions(opts);
+	return new RenderLineInput(
+		options.useMonospaceOptimizations,
+		options.canUseHalfwidthRightwardsArrow,
+		options.lineContent,
+		options.continuesWithWrappedLine,
+		options.isBasicASCII,
+		options.containsRTL,
+		options.fauxIndentLength,
+		options.lineTokens,
+		options.lineDecorations,
+		options.tabSize,
+		options.startVisibleColumn,
+		options.spaceWidth,
+		options.middotWidth,
+		options.wsmiddotWidth,
+		options.stopRenderingLineAfter,
+		options.renderWhitespace,
+		options.renderControlCharacters,
+		options.fontLigatures,
+		options.selectionsOnLine,
+		options.textDirection,
+		options.verticalScrollbarSize,
+		options.renderNewLineWhenEmpty
+	);
+}
+
 suite('viewLineRenderer.renderLine', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function assertCharacterReplacement(lineContent: string, tabSize: number, expected: string, expectedCharOffsetInPart: number[]): void {
-		const _actual = renderViewLine(new RenderLineInput(
-			false,
-			true,
+		const _actual = renderViewLine(createRenderLineInput({
 			lineContent,
-			false,
-			strings.isBasicASCII(lineContent),
-			false,
-			0,
-			createViewLineTokens([new TestLineToken(lineContent.length, 0)]),
-			[],
+			isBasicASCII: strings.isBasicASCII(lineContent),
+			lineTokens: createViewLineTokens([new TestLineToken(lineContent.length, 0)]),
 			tabSize,
-			0,
-			0,
-			0,
-			0,
-			-1,
-			'none',
-			false,
-			false,
-			null,
-			null,
-			14
-		));
+			spaceWidth: 0,
+			middotWidth: 0,
+			wsmiddotWidth: 0
+		}));
 
 		assert.strictEqual(_actual.html, '<span><span class="mtk0">' + expected + '</span></span>');
 		const info = expectedCharOffsetInPart.map<CharacterMappingInfo>((absoluteOffset) => [absoluteOffset, [0, absoluteOffset]]);
@@ -114,29 +162,14 @@ suite('viewLineRenderer.renderLine', () => {
 	});
 
 	function assertParts(lineContent: string, tabSize: number, parts: TestLineToken[], expected: string, info: CharacterMappingInfo[]): void {
-		const _actual = renderViewLine(new RenderLineInput(
-			false,
-			true,
+		const _actual = renderViewLine(createRenderLineInput({
 			lineContent,
-			false,
-			true,
-			false,
-			0,
-			createViewLineTokens(parts),
-			[],
+			lineTokens: createViewLineTokens(parts),
 			tabSize,
-			0,
-			0,
-			0,
-			0,
-			-1,
-			'none',
-			false,
-			false,
-			null,
-			null,
-			14
-		));
+			spaceWidth: 0,
+			middotWidth: 0,
+			wsmiddotWidth: 0
+		}));
 
 		assert.strictEqual(_actual.html, '<span>' + expected + '</span>');
 		assertCharacterMapping3(_actual.characterMapping, info);
@@ -159,15 +192,9 @@ suite('viewLineRenderer.renderLine', () => {
 	});
 
 	test('overflow', async () => {
-		const _actual = renderViewLine(new RenderLineInput(
-			false,
-			true,
-			'Hello world!',
-			false,
-			true,
-			false,
-			0,
-			createViewLineTokens([
+		const _actual = renderViewLine(createRenderLineInput({
+			lineContent: 'Hello world!',
+			lineTokens: createViewLineTokens([
 				createPart(1, 0),
 				createPart(2, 1),
 				createPart(3, 2),
@@ -181,20 +208,9 @@ suite('viewLineRenderer.renderLine', () => {
 				createPart(11, 10),
 				createPart(12, 11),
 			]),
-			[],
-			4,
-			0,
-			10,
-			10,
-			10,
-			6,
-			'boundary',
-			false,
-			false,
-			null,
-			null,
-			14
-		));
+			stopRenderingLineAfter: 6,
+			renderWhitespace: 'boundary'
+		}));
 
 		const inflated = inflateRenderLineOutput(_actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
@@ -217,29 +233,11 @@ suite('viewLineRenderer.renderLine', () => {
 			createPart(43, 11),
 			createPart(48, 12),
 		]);
-		const _actual = renderViewLine(new RenderLineInput(
-			false,
-			true,
-			lineText,
-			false,
-			true,
-			false,
-			0,
-			lineParts,
-			[],
-			4,
-			0,
-			10,
-			10,
-			10,
-			-1,
-			'boundary',
-			false,
-			false,
-			null,
-			null,
-			14
-		));
+		const _actual = renderViewLine(createRenderLineInput({
+			lineContent: lineText,
+			lineTokens: lineParts,
+			renderWhitespace: 'boundary'
+		}));
 
 		const inflated = inflateRenderLineOutput(_actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
@@ -260,29 +258,10 @@ suite('viewLineRenderer.renderLine', () => {
 			createPart(67, 9), // 1 char
 			createPart(68, 10), // 2 chars
 		]);
-		const _actual = renderViewLine(new RenderLineInput(
-			false,
-			true,
-			lineText,
-			false,
-			true,
-			false,
-			0,
-			lineParts,
-			[],
-			4,
-			0,
-			10,
-			10,
-			10,
-			-1,
-			'none',
-			false,
-			false,
-			null,
-			null,
-			14
-		));
+		const _actual = renderViewLine(createRenderLineInput({
+			lineContent: lineText,
+			lineTokens: lineParts
+		}));
 
 		const inflated = inflateRenderLineOutput(_actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
@@ -304,29 +283,10 @@ suite('viewLineRenderer.renderLine', () => {
 			createPart(68, 9), // 1 char
 			createPart(69, 10), // 2 chars
 		]);
-		const _actual = renderViewLine(new RenderLineInput(
-			false,
-			true,
-			lineText,
-			false,
-			true,
-			false,
-			0,
-			lineParts,
-			[],
-			4,
-			0,
-			10,
-			10,
-			10,
-			-1,
-			'none',
-			false,
-			false,
-			null,
-			null,
-			14
-		));
+		const _actual = renderViewLine(createRenderLineInput({
+			lineContent: lineText,
+			lineTokens: lineParts
+		}));
 
 		const inflated = inflateRenderLineOutput(_actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
@@ -338,32 +298,16 @@ suite('viewLineRenderer.renderLine', () => {
 		const lineParts = createViewLineTokens([
 			createPart(16, 1)
 		]);
-		const actual = renderViewLine(new RenderLineInput(
-			true,
-			false,
-			lineText,
-			false,
-			true,
-			false,
-			0,
-			lineParts,
-			[
+		const actual = renderViewLine(createRenderLineInput({
+			useMonospaceOptimizations: true,
+			canUseHalfwidthRightwardsArrow: false,
+			lineContent: lineText,
+			lineTokens: lineParts,
+			lineDecorations: [
 				new LineDecoration(13, 13, 'dec1', InlineDecorationType.After),
 				new LineDecoration(13, 13, 'dec2', InlineDecorationType.Before),
-			],
-			4,
-			0,
-			10,
-			10,
-			10,
-			-1,
-			'none',
-			false,
-			false,
-			null,
-			null,
-			14
-		));
+			]
+		}));
 
 		const inflated = inflateRenderLineOutput(actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
@@ -378,29 +322,12 @@ suite('viewLineRenderer.renderLine', () => {
 			createPart(66, 20),
 			createPart(67, 1),
 		]);
-		const _actual = renderViewLine(new RenderLineInput(
-			false,
-			true,
-			lineText,
-			false,
-			false,
-			true,
-			0,
-			lineParts,
-			[],
-			4,
-			0,
-			10,
-			10,
-			10,
-			-1,
-			'none',
-			false,
-			false,
-			null,
-			null,
-			14
-		));
+		const _actual = renderViewLine(createRenderLineInput({
+			lineContent: lineText,
+			isBasicASCII: false,
+			containsRTL: true,
+			lineTokens: lineParts
+		}));
 
 		const inflated = inflateRenderLineOutput(_actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
@@ -422,29 +349,12 @@ suite('viewLineRenderer.renderLine', () => {
 			createPart(39, 3),
 			createPart(40, 2),
 		]);
-		const _actual = renderViewLine(new RenderLineInput(
-			false,
-			true,
-			lineText,
-			false,
-			false,
-			true,
-			0,
-			lineParts,
-			[],
-			4,
-			0,
-			10,
-			10,
-			10,
-			-1,
-			'none',
-			false,
-			false,
-			null,
-			null,
-			14
-		));
+		const _actual = renderViewLine(createRenderLineInput({
+			lineContent: lineText,
+			isBasicASCII: false,
+			containsRTL: true,
+			lineTokens: lineParts
+		}));
 
 		const inflated = inflateRenderLineOutput(_actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
@@ -460,29 +370,14 @@ suite('viewLineRenderer.renderLine', () => {
 			createPart(34, 3),
 			createPart(35, 2),
 		]);
-		const _actual = renderViewLine(new RenderLineInput(
-			true,
-			true,
-			lineText,
-			false,
-			false,
-			true,
-			0,
-			lineParts,
-			[],
-			4,
-			0,
-			10,
-			10,
-			10,
-			-1,
-			'all',
-			false,
-			false,
-			null,
-			null,
-			14
-		));
+		const _actual = renderViewLine(createRenderLineInput({
+			useMonospaceOptimizations: true,
+			lineContent: lineText,
+			isBasicASCII: false,
+			containsRTL: true,
+			lineTokens: lineParts,
+			renderWhitespace: 'all'
+		}));
 
 		const inflated = inflateRenderLineOutput(_actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
@@ -497,29 +392,10 @@ suite('viewLineRenderer.renderLine', () => {
 
 		function assertSplitsTokens(message: string, lineText: string, expectedOutput: string[]): void {
 			const lineParts = createViewLineTokens([createPart(lineText.length, 1)]);
-			const actual = renderViewLine(new RenderLineInput(
-				false,
-				true,
-				lineText,
-				false,
-				true,
-				false,
-				0,
-				lineParts,
-				[],
-				4,
-				0,
-				10,
-				10,
-				10,
-				-1,
-				'none',
-				false,
-				false,
-				null,
-				null,
-				14
-			));
+			const actual = renderViewLine(createRenderLineInput({
+				lineContent: lineText,
+				lineTokens: lineParts
+			}));
 			assert.strictEqual(actual.html, '<span>' + expectedOutput.join('') + '</span>', message);
 		}
 
@@ -603,29 +479,11 @@ suite('viewLineRenderer.renderLine', () => {
 
 		function assertSplitsTokens(message: string, lineText: string, expectedOutput: string[]): void {
 			const lineParts = createViewLineTokens([createPart(lineText.length, 1)]);
-			const actual = renderViewLine(new RenderLineInput(
-				false,
-				true,
-				lineText,
-				false,
-				true,
-				false,
-				0,
-				lineParts,
-				[],
-				4,
-				0,
-				10,
-				10,
-				10,
-				-1,
-				'none',
-				false,
-				true,
-				null,
-				null,
-				14
-			));
+			const actual = renderViewLine(createRenderLineInput({
+				lineContent: lineText,
+				lineTokens: lineParts,
+				fontLigatures: true
+			}));
 			assert.strictEqual(actual.html, '<span>' + expectedOutput.join('') + '</span>', message);
 		}
 
@@ -646,29 +504,11 @@ suite('viewLineRenderer.renderLine', () => {
 	test('issue #20624: Unaligned surrogate pairs are corrupted at multiples of 50 columns', async () => {
 		const lineText = 'a𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷';
 		const lineParts = createViewLineTokens([createPart(lineText.length, 1)]);
-		const actual = renderViewLine(new RenderLineInput(
-			false,
-			true,
-			lineText,
-			false,
-			false,
-			false,
-			0,
-			lineParts,
-			[],
-			4,
-			0,
-			10,
-			10,
-			10,
-			-1,
-			'none',
-			false,
-			false,
-			null,
-			null,
-			14
-		));
+		const actual = renderViewLine(createRenderLineInput({
+			lineContent: lineText,
+			isBasicASCII: false,
+			lineTokens: lineParts
+		}));
 
 		await assertSnapshot(inflateRenderLineOutput(actual).html.join(''), HTML_EXTENSION);
 	});
@@ -676,29 +516,12 @@ suite('viewLineRenderer.renderLine', () => {
 	test('issue #6885: Does not split large tokens in RTL text', async () => {
 		const lineText = 'את גרמנית בהתייחסות שמו, שנתי המשפט אל חפש, אם כתב אחרים ולחבר. של התוכן אודות בויקיפדיה כלל, של עזרה כימיה היא. על עמוד יוצרים מיתולוגיה סדר, אם שכל שתפו לעברית שינויים, אם שאלות אנגלית עזה. שמות בקלות מה סדר.';
 		const lineParts = createViewLineTokens([createPart(lineText.length, 1)]);
-		const actual = renderViewLine(new RenderLineInput(
-			false,
-			true,
-			lineText,
-			false,
-			false,
-			true,
-			0,
-			lineParts,
-			[],
-			4,
-			0,
-			10,
-			10,
-			10,
-			-1,
-			'none',
-			false,
-			false,
-			null,
-			null,
-			14
-		));
+		const actual = renderViewLine(createRenderLineInput({
+			lineContent: lineText,
+			isBasicASCII: false,
+			containsRTL: true,
+			lineTokens: lineParts
+		}));
 
 		await assertSnapshot(actual.html, HTML_EXTENSION);
 	});
@@ -706,29 +529,11 @@ suite('viewLineRenderer.renderLine', () => {
 	test('issue #95685: Uses unicode replacement character for Paragraph Separator', async () => {
 		const lineText = 'var ftext = [\u2029"Und", "dann", "eines"];';
 		const lineParts = createViewLineTokens([createPart(lineText.length, 1)]);
-		const actual = renderViewLine(new RenderLineInput(
-			false,
-			true,
-			lineText,
-			false,
-			false,
-			false,
-			0,
-			lineParts,
-			[],
-			4,
-			0,
-			10,
-			10,
-			10,
-			-1,
-			'none',
-			false,
-			false,
-			null,
-			null,
-			14
-		));
+		const actual = renderViewLine(createRenderLineInput({
+			lineContent: lineText,
+			isBasicASCII: false,
+			lineTokens: lineParts
+		}));
 		const inflated = inflateRenderLineOutput(actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
 		await assertSnapshot(inflated.mapping);
@@ -746,29 +551,12 @@ suite('viewLineRenderer.renderLine', () => {
 			createPart(32, 7),
 			createPart(34, 8),
 		]);
-		const _actual = renderViewLine(new RenderLineInput(
-			true,
-			true,
-			lineText,
-			false,
-			true,
-			false,
-			4,
-			lineParts,
-			[],
-			4,
-			0,
-			10,
-			10,
-			10,
-			-1,
-			'none',
-			false,
-			false,
-			null,
-			null,
-			14
-		));
+		const _actual = renderViewLine(createRenderLineInput({
+			useMonospaceOptimizations: true,
+			lineContent: lineText,
+			fauxIndentLength: 4,
+			lineTokens: lineParts
+		}));
 
 		const inflated = inflateRenderLineOutput(_actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
@@ -810,57 +598,24 @@ suite('viewLineRenderer.renderLine 2', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function testCreateLineParts(fontIsMonospace: boolean, lineContent: string, tokens: TestLineToken[], fauxIndentLength: number, renderWhitespace: 'none' | 'boundary' | 'selection' | 'trailing' | 'all', selections: OffsetRange[] | null) {
-		const actual = renderViewLine(new RenderLineInput(
-			fontIsMonospace,
-			true,
+		const actual = renderViewLine(createRenderLineInput({
+			useMonospaceOptimizations: fontIsMonospace,
 			lineContent,
-			false,
-			true,
-			false,
 			fauxIndentLength,
-			createViewLineTokens(tokens),
-			[],
-			4,
-			0,
-			10,
-			10,
-			10,
-			-1,
+			lineTokens: createViewLineTokens(tokens),
 			renderWhitespace,
-			false,
-			false,
-			selections,
-			null,
-			14
-		));
+			selectionsOnLine: selections
+		}));
 		return inflateRenderLineOutput(actual);
 	}
 
 	test('issue #18616: Inline decorations ending at the text length are no longer rendered', async () => {
 		const lineContent = 'https://microsoft.com';
-		const actual = renderViewLine(new RenderLineInput(
-			false,
-			true,
+		const actual = renderViewLine(createRenderLineInput({
 			lineContent,
-			false,
-			true,
-			false,
-			0,
-			createViewLineTokens([createPart(21, 3)]),
-			[new LineDecoration(1, 22, 'link', InlineDecorationType.Regular)],
-			4,
-			0,
-			10,
-			10,
-			10,
-			-1,
-			'none',
-			false,
-			false,
-			null,
-			null,
-			14
-		));
+			lineTokens: createViewLineTokens([createPart(21, 3)]),
+			lineDecorations: [new LineDecoration(1, 22, 'link', InlineDecorationType.Regular)]
+		}));
 
 		const inflated = inflateRenderLineOutput(actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
@@ -869,37 +624,20 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 	test('issue #19207: Link in Monokai is not rendered correctly', async () => {
 		const lineContent = '\'let url = `http://***/_api/web/lists/GetByTitle(\\\'Teambuildingaanvragen\\\')/items`;\'';
-		const actual = renderViewLine(new RenderLineInput(
-			true,
-			true,
+		const actual = renderViewLine(createRenderLineInput({
+			useMonospaceOptimizations: true,
 			lineContent,
-			false,
-			true,
-			false,
-			0,
-			createViewLineTokens([
+			lineTokens: createViewLineTokens([
 				createPart(49, 6),
 				createPart(51, 4),
 				createPart(72, 6),
 				createPart(74, 4),
 				createPart(84, 6),
 			]),
-			[
+			lineDecorations: [
 				new LineDecoration(13, 51, 'detected-link', InlineDecorationType.Regular)
-			],
-			4,
-			0,
-			10,
-			10,
-			10,
-			-1,
-			'none',
-			false,
-			false,
-			null,
-			null,
-			14
-		));
+			]
+		}));
 
 		const inflated = inflateRenderLineOutput(actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
@@ -1355,33 +1093,15 @@ suite('viewLineRenderer.renderLine 2', () => {
 	});
 
 	test('createLineParts can handle unsorted inline decorations', async () => {
-		const actual = renderViewLine(new RenderLineInput(
-			false,
-			true,
-			'Hello world',
-			false,
-			true,
-			false,
-			0,
-			createViewLineTokens([createPart(11, 0)]),
-			[
+		const actual = renderViewLine(createRenderLineInput({
+			lineContent: 'Hello world',
+			lineTokens: createViewLineTokens([createPart(11, 0)]),
+			lineDecorations: [
 				new LineDecoration(5, 7, 'a', InlineDecorationType.Regular),
 				new LineDecoration(1, 3, 'b', InlineDecorationType.Regular),
 				new LineDecoration(2, 8, 'c', InlineDecorationType.Regular),
-			],
-			4,
-			0,
-			10,
-			10,
-			10,
-			-1,
-			'none',
-			false,
-			false,
-			null,
-			null,
-			14
-		));
+			]
+		}));
 
 		// 01234567890
 		// Hello world
@@ -1398,29 +1118,13 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 		const lineContent = '\tbla';
 
-		const actual = renderViewLine(new RenderLineInput(
-			false,
-			true,
+		const actual = renderViewLine(createRenderLineInput({
 			lineContent,
-			false,
-			true,
-			false,
-			0,
-			createViewLineTokens([createPart(4, 3)]),
-			[new LineDecoration(1, 2, 'before', InlineDecorationType.Before)],
-			4,
-			0,
-			10,
-			10,
-			10,
-			-1,
-			'all',
-			false,
-			true,
-			null,
-			null,
-			14
-		));
+			lineTokens: createViewLineTokens([createPart(4, 3)]),
+			lineDecorations: [new LineDecoration(1, 2, 'before', InlineDecorationType.Before)],
+			renderWhitespace: 'all',
+			fontLigatures: true
+		}));
 
 		const inflated = inflateRenderLineOutput(actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
@@ -1431,29 +1135,13 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 		const lineContent = '\tbla';
 
-		const actual = renderViewLine(new RenderLineInput(
-			false,
-			true,
+		const actual = renderViewLine(createRenderLineInput({
 			lineContent,
-			false,
-			true,
-			false,
-			0,
-			createViewLineTokens([createPart(4, 3)]),
-			[new LineDecoration(2, 3, 'before', InlineDecorationType.Before)],
-			4,
-			0,
-			10,
-			10,
-			10,
-			-1,
-			'all',
-			false,
-			true,
-			null,
-			null,
-			14
-		));
+			lineTokens: createViewLineTokens([createPart(4, 3)]),
+			lineDecorations: [new LineDecoration(2, 3, 'before', InlineDecorationType.Before)],
+			renderWhitespace: 'all',
+			fontLigatures: true
+		}));
 
 		const inflated = inflateRenderLineOutput(actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
@@ -1464,29 +1152,13 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 		const lineContent = '';
 
-		const actual = renderViewLine(new RenderLineInput(
-			false,
-			true,
+		const actual = renderViewLine(createRenderLineInput({
 			lineContent,
-			false,
-			true,
-			false,
-			0,
-			createViewLineTokens([createPart(0, 3)]),
-			[new LineDecoration(1, 2, 'before', InlineDecorationType.Before)],
-			4,
-			0,
-			10,
-			10,
-			10,
-			-1,
-			'all',
-			false,
-			true,
-			null,
-			null,
-			14
-		));
+			lineTokens: createViewLineTokens([createPart(0, 3)]),
+			lineDecorations: [new LineDecoration(1, 2, 'before', InlineDecorationType.Before)],
+			renderWhitespace: 'all',
+			fontLigatures: true
+		}));
 
 		const inflated = inflateRenderLineOutput(actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
@@ -1495,29 +1167,15 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 	test('issue #37208: Collapsing bullet point containing emoji in Markdown document results in [??] character', async () => {
 
-		const actual = renderViewLine(new RenderLineInput(
-			true,
-			true,
-			'  1. 🙏',
-			false,
-			false,
-			false,
-			0,
-			createViewLineTokens([createPart(7, 3)]),
-			[new LineDecoration(7, 8, 'inline-folded', InlineDecorationType.After)],
-			2,
-			0,
-			10,
-			10,
-			10,
-			10000,
-			'none',
-			false,
-			false,
-			null,
-			null,
-			14
-		));
+		const actual = renderViewLine(createRenderLineInput({
+			useMonospaceOptimizations: true,
+			lineContent: '  1. 🙏',
+			isBasicASCII: false,
+			lineTokens: createViewLineTokens([createPart(7, 3)]),
+			lineDecorations: [new LineDecoration(7, 8, 'inline-folded', InlineDecorationType.After)],
+			tabSize: 2,
+			stopRenderingLineAfter: 10000
+		}));
 
 		const inflated = inflateRenderLineOutput(actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
@@ -1526,32 +1184,17 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 	test('issue #37401 #40127: Allow both before and after decorations on empty line', async () => {
 
-		const actual = renderViewLine(new RenderLineInput(
-			true,
-			true,
-			'',
-			false,
-			true,
-			false,
-			0,
-			createViewLineTokens([createPart(0, 3)]),
-			[
+		const actual = renderViewLine(createRenderLineInput({
+			useMonospaceOptimizations: true,
+			lineContent: '',
+			lineTokens: createViewLineTokens([createPart(0, 3)]),
+			lineDecorations: [
 				new LineDecoration(1, 1, 'before', InlineDecorationType.Before),
 				new LineDecoration(1, 1, 'after', InlineDecorationType.After),
 			],
-			2,
-			0,
-			10,
-			10,
-			10,
-			10000,
-			'none',
-			false,
-			false,
-			null,
-			null,
-			14
-		));
+			tabSize: 2,
+			stopRenderingLineAfter: 10000
+		}));
 
 		const inflated = inflateRenderLineOutput(actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
@@ -1560,34 +1203,19 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 	test('issue #118759: enable multiple text editor decorations in empty lines', async () => {
 
-		const actual = renderViewLine(new RenderLineInput(
-			true,
-			true,
-			'',
-			false,
-			true,
-			false,
-			0,
-			createViewLineTokens([createPart(0, 3)]),
-			[
+		const actual = renderViewLine(createRenderLineInput({
+			useMonospaceOptimizations: true,
+			lineContent: '',
+			lineTokens: createViewLineTokens([createPart(0, 3)]),
+			lineDecorations: [
 				new LineDecoration(1, 1, 'after1', InlineDecorationType.After),
 				new LineDecoration(1, 1, 'after2', InlineDecorationType.After),
 				new LineDecoration(1, 1, 'before1', InlineDecorationType.Before),
 				new LineDecoration(1, 1, 'before2', InlineDecorationType.Before),
 			],
-			2,
-			0,
-			10,
-			10,
-			10,
-			10000,
-			'none',
-			false,
-			false,
-			null,
-			null,
-			14
-		));
+			tabSize: 2,
+			stopRenderingLineAfter: 10000
+		}));
 
 		const inflated = inflateRenderLineOutput(actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
@@ -1596,32 +1224,16 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 	test('issue #38935: GitLens end-of-line blame no longer rendering', async () => {
 
-		const actual = renderViewLine(new RenderLineInput(
-			true,
-			true,
-			'\t}',
-			false,
-			true,
-			false,
-			0,
-			createViewLineTokens([createPart(2, 3)]),
-			[
+		const actual = renderViewLine(createRenderLineInput({
+			useMonospaceOptimizations: true,
+			lineContent: '\t}',
+			lineTokens: createViewLineTokens([createPart(2, 3)]),
+			lineDecorations: [
 				new LineDecoration(3, 3, 'ced-TextEditorDecorationType2-5e9b9b3f-3 ced-TextEditorDecorationType2-3', InlineDecorationType.Before),
 				new LineDecoration(3, 3, 'ced-TextEditorDecorationType2-5e9b9b3f-4 ced-TextEditorDecorationType2-4', InlineDecorationType.After),
 			],
-			4,
-			0,
-			10,
-			10,
-			10,
-			10000,
-			'none',
-			false,
-			false,
-			null,
-			null,
-			14
-		));
+			stopRenderingLineAfter: 10000
+		}));
 
 		const inflated = inflateRenderLineOutput(actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
@@ -1630,32 +1242,18 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 	test('issue #136622: Inline decorations are not rendering on non-ASCII lines when renderControlCharacters is on', async () => {
 
-		const actual = renderViewLine(new RenderLineInput(
-			true,
-			true,
-			'some text £',
-			false,
-			false,
-			false,
-			0,
-			createViewLineTokens([createPart(11, 3)]),
-			[
+		const actual = renderViewLine(createRenderLineInput({
+			useMonospaceOptimizations: true,
+			lineContent: 'some text £',
+			isBasicASCII: false,
+			lineTokens: createViewLineTokens([createPart(11, 3)]),
+			lineDecorations: [
 				new LineDecoration(5, 5, 'inlineDec1', InlineDecorationType.After),
 				new LineDecoration(6, 6, 'inlineDec2', InlineDecorationType.Before),
 			],
-			4,
-			0,
-			10,
-			10,
-			10,
-			10000,
-			'none',
-			true,
-			false,
-			null,
-			null,
-			14
-		));
+			stopRenderingLineAfter: 10000,
+			renderControlCharacters: true
+		}));
 
 		const inflated = inflateRenderLineOutput(actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
@@ -1664,29 +1262,13 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 	test('issue #22832: Consider fullwidth characters when rendering tabs', async () => {
 
-		const actual = renderViewLine(new RenderLineInput(
-			true,
-			true,
-			'asd = "擦"\t\t#asd',
-			false,
-			false,
-			false,
-			0,
-			createViewLineTokens([createPart(15, 3)]),
-			[],
-			4,
-			0,
-			10,
-			10,
-			10,
-			10000,
-			'none',
-			false,
-			false,
-			null,
-			null,
-			14
-		));
+		const actual = renderViewLine(createRenderLineInput({
+			useMonospaceOptimizations: true,
+			lineContent: 'asd = "擦"\t\t#asd',
+			isBasicASCII: false,
+			lineTokens: createViewLineTokens([createPart(15, 3)]),
+			stopRenderingLineAfter: 10000
+		}));
 
 		const inflated = inflateRenderLineOutput(actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
@@ -1695,29 +1277,14 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 	test('issue #22832: Consider fullwidth characters when rendering tabs (render whitespace)', async () => {
 
-		const actual = renderViewLine(new RenderLineInput(
-			true,
-			true,
-			'asd = "擦"\t\t#asd',
-			false,
-			false,
-			false,
-			0,
-			createViewLineTokens([createPart(15, 3)]),
-			[],
-			4,
-			0,
-			10,
-			10,
-			10,
-			10000,
-			'all',
-			false,
-			false,
-			null,
-			null,
-			14
-		));
+		const actual = renderViewLine(createRenderLineInput({
+			useMonospaceOptimizations: true,
+			lineContent: 'asd = "擦"\t\t#asd',
+			isBasicASCII: false,
+			lineTokens: createViewLineTokens([createPart(15, 3)]),
+			stopRenderingLineAfter: 10000,
+			renderWhitespace: 'all'
+		}));
 
 		const inflated = inflateRenderLineOutput(actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
@@ -1726,29 +1293,13 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 	test('issue #22352: COMBINING ACUTE ACCENT (U+0301)', async () => {
 
-		const actual = renderViewLine(new RenderLineInput(
-			true,
-			true,
-			'12345689012345678901234568901234567890123456890abába',
-			false,
-			false,
-			false,
-			0,
-			createViewLineTokens([createPart(53, 3)]),
-			[],
-			4,
-			0,
-			10,
-			10,
-			10,
-			10000,
-			'none',
-			false,
-			false,
-			null,
-			null,
-			14
-		));
+		const actual = renderViewLine(createRenderLineInput({
+			useMonospaceOptimizations: true,
+			lineContent: '12345689012345678901234568901234567890123456890abába',
+			isBasicASCII: false,
+			lineTokens: createViewLineTokens([createPart(53, 3)]),
+			stopRenderingLineAfter: 10000
+		}));
 
 		const inflated = inflateRenderLineOutput(actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
@@ -1757,29 +1308,13 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 	test('issue #22352: Partially Broken Complex Script Rendering of Tamil', async () => {
 
-		const actual = renderViewLine(new RenderLineInput(
-			true,
-			true,
-			' JoyShareல் பின்தொடர்ந்து, விடீயோ, ஜோக்குகள், அனிமேசன், நகைச்சுவை படங்கள் மற்றும் செய்திகளை பெறுவீர்',
-			false,
-			false,
-			false,
-			0,
-			createViewLineTokens([createPart(100, 3)]),
-			[],
-			4,
-			0,
-			10,
-			10,
-			10,
-			10000,
-			'none',
-			false,
-			false,
-			null,
-			null,
-			14
-		));
+		const actual = renderViewLine(createRenderLineInput({
+			useMonospaceOptimizations: true,
+			lineContent: ' JoyShareல் பின்தொடர்ந்து, விடீயோ, ஜோக்குகள், அனிமேசன், நகைச்சுவை படங்கள் மற்றும் செய்திகளை பெறுவீர்',
+			isBasicASCII: false,
+			lineTokens: createViewLineTokens([createPart(100, 3)]),
+			stopRenderingLineAfter: 10000
+		}));
 
 		const inflated = inflateRenderLineOutput(actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
@@ -1788,29 +1323,13 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 	test('issue #42700: Hindi characters are not being rendered properly', async () => {
 
-		const actual = renderViewLine(new RenderLineInput(
-			true,
-			true,
-			' वो ऐसा क्या है जो हमारे अंदर भी है और बाहर भी है। जिसकी वजह से हम सब हैं। जिसने इस सृष्टि की रचना की है।',
-			false,
-			false,
-			false,
-			0,
-			createViewLineTokens([createPart(105, 3)]),
-			[],
-			4,
-			0,
-			10,
-			10,
-			10,
-			10000,
-			'none',
-			false,
-			false,
-			null,
-			null,
-			14
-		));
+		const actual = renderViewLine(createRenderLineInput({
+			useMonospaceOptimizations: true,
+			lineContent: ' वो ऐसा क्या है जो हमारे अंदर भी है और बाहर भी है। जिसकी वजह से हम सब हैं। जिसने इस सृष्टि की रचना की है।',
+			isBasicASCII: false,
+			lineTokens: createViewLineTokens([createPart(105, 3)]),
+			stopRenderingLineAfter: 10000
+		}));
 
 		const inflated = inflateRenderLineOutput(actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
@@ -1818,29 +1337,14 @@ suite('viewLineRenderer.renderLine 2', () => {
 	});
 
 	test('issue #38123: editor.renderWhitespace: "boundary" renders whitespace at line wrap point when line is wrapped', async () => {
-		const actual = renderViewLine(new RenderLineInput(
-			true,
-			true,
-			'This is a long line which never uses more than two spaces. ',
-			true,
-			true,
-			false,
-			0,
-			createViewLineTokens([createPart(59, 3)]),
-			[],
-			4,
-			0,
-			10,
-			10,
-			10,
-			10000,
-			'boundary',
-			false,
-			false,
-			null,
-			null,
-			14
-		));
+		const actual = renderViewLine(createRenderLineInput({
+			useMonospaceOptimizations: true,
+			lineContent: 'This is a long line which never uses more than two spaces. ',
+			continuesWithWrappedLine: true,
+			lineTokens: createViewLineTokens([createPart(59, 3)]),
+			stopRenderingLineAfter: 10000,
+			renderWhitespace: 'boundary'
+		}));
 
 		const inflated = inflateRenderLineOutput(actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
@@ -1848,29 +1352,13 @@ suite('viewLineRenderer.renderLine 2', () => {
 	});
 
 	test('issue #33525: Long line with ligatures takes a long time to paint decorations', async () => {
-		const actual = renderViewLine(new RenderLineInput(
-			false,
-			false,
-			'append data to append data to append data to append data to append data to append data to append data to append data to append data to append data to append data to append data to append data to',
-			false,
-			true,
-			false,
-			0,
-			createViewLineTokens([createPart(194, 3)]),
-			[],
-			4,
-			0,
-			10,
-			10,
-			10,
-			10000,
-			'none',
-			false,
-			true,
-			null,
-			null,
-			14
-		));
+		const actual = renderViewLine(createRenderLineInput({
+			canUseHalfwidthRightwardsArrow: false,
+			lineContent: 'append data to append data to append data to append data to append data to append data to append data to append data to append data to append data to append data to append data to append data to',
+			lineTokens: createViewLineTokens([createPart(194, 3)]),
+			stopRenderingLineAfter: 10000,
+			fontLigatures: true
+		}));
 
 		const inflated = inflateRenderLineOutput(actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
@@ -1878,29 +1366,13 @@ suite('viewLineRenderer.renderLine 2', () => {
 	});
 
 	test('issue #33525: Long line with ligatures takes a long time to paint decorations - not possible', async () => {
-		const actual = renderViewLine(new RenderLineInput(
-			false,
-			false,
-			'appenddatatoappenddatatoappenddatatoappenddatatoappenddatatoappenddatatoappenddatatoappenddatatoappenddatatoappenddatatoappenddatatoappenddatatoappenddatato',
-			false,
-			true,
-			false,
-			0,
-			createViewLineTokens([createPart(194, 3)]),
-			[],
-			4,
-			0,
-			10,
-			10,
-			10,
-			10000,
-			'none',
-			false,
-			true,
-			null,
-			null,
-			14
-		));
+		const actual = renderViewLine(createRenderLineInput({
+			canUseHalfwidthRightwardsArrow: false,
+			lineContent: 'appenddatatoappenddatatoappenddatatoappenddatatoappenddatatoappenddatatoappenddatatoappenddatatoappenddatatoappenddatatoappenddatatoappenddatatoappenddatato',
+			lineTokens: createViewLineTokens([createPart(194, 3)]),
+			stopRenderingLineAfter: 10000,
+			fontLigatures: true
+		}));
 
 		const inflated = inflateRenderLineOutput(actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
@@ -1908,15 +1380,9 @@ suite('viewLineRenderer.renderLine 2', () => {
 	});
 
 	test('issue #91936: Semantic token color highlighting fails on line with selected text', async () => {
-		const actual = renderViewLine(new RenderLineInput(
-			false,
-			true,
-			'                    else if ($s = 08) then \'\\b\'',
-			false,
-			true,
-			false,
-			0,
-			createViewLineTokens([
+		const actual = renderViewLine(createRenderLineInput({
+			lineContent: '                    else if ($s = 08) then \'\\b\'',
+			lineTokens: createViewLineTokens([
 				createPart(20, 1),
 				createPart(24, 15),
 				createPart(25, 1),
@@ -1936,20 +1402,12 @@ suite('viewLineRenderer.renderLine 2', () => {
 				createPart(43, 1),
 				createPart(47, 11)
 			]),
-			[],
-			4,
-			0,
-			10,
-			11,
-			11,
-			10000,
-			'selection',
-			false,
-			false,
-			[new OffsetRange(0, 47)],
-			null,
-			14
-		));
+			stopRenderingLineAfter: 10000,
+			renderWhitespace: 'selection',
+			selectionsOnLine: [new OffsetRange(0, 47)],
+			middotWidth: 11,
+			wsmiddotWidth: 11
+		}));
 
 		const inflated = inflateRenderLineOutput(actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
@@ -1957,29 +1415,14 @@ suite('viewLineRenderer.renderLine 2', () => {
 	});
 
 	test('issue #119416: Delete Control Character (U+007F / &#127;) displayed as space', async () => {
-		const actual = renderViewLine(new RenderLineInput(
-			false,
-			false,
-			'[' + String.fromCharCode(127) + '] [' + String.fromCharCode(0) + ']',
-			false,
-			true,
-			false,
-			0,
-			createViewLineTokens([createPart(7, 3)]),
-			[],
-			4,
-			0,
-			10,
-			10,
-			10,
-			10000,
-			'none',
-			true,
-			true,
-			null,
-			null,
-			14
-		));
+		const actual = renderViewLine(createRenderLineInput({
+			canUseHalfwidthRightwardsArrow: false,
+			lineContent: '[' + String.fromCharCode(127) + '] [' + String.fromCharCode(0) + ']',
+			lineTokens: createViewLineTokens([createPart(7, 3)]),
+			stopRenderingLineAfter: 10000,
+			renderControlCharacters: true,
+			fontLigatures: true
+		}));
 
 		const inflated = inflateRenderLineOutput(actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
@@ -1987,29 +1430,14 @@ suite('viewLineRenderer.renderLine 2', () => {
 	});
 
 	test('issue #116939: Important control characters aren\'t rendered', async () => {
-		const actual = renderViewLine(new RenderLineInput(
-			false,
-			false,
-			`transferBalance(5678,${String.fromCharCode(0x202E)}6776,4321${String.fromCharCode(0x202C)},"USD");`,
-			false,
-			false,
-			false,
-			0,
-			createViewLineTokens([createPart(42, 3)]),
-			[],
-			4,
-			0,
-			10,
-			10,
-			10,
-			10000,
-			'none',
-			true,
-			false,
-			null,
-			null,
-			14
-		));
+		const actual = renderViewLine(createRenderLineInput({
+			canUseHalfwidthRightwardsArrow: false,
+			lineContent: `transferBalance(5678,${String.fromCharCode(0x202E)}6776,4321${String.fromCharCode(0x202C)},"USD");`,
+			isBasicASCII: false,
+			lineTokens: createViewLineTokens([createPart(42, 3)]),
+			stopRenderingLineAfter: 10000,
+			renderControlCharacters: true
+		}));
 
 		const inflated = inflateRenderLineOutput(actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
@@ -2017,33 +1445,19 @@ suite('viewLineRenderer.renderLine 2', () => {
 	});
 
 	test('issue #124038: Multiple end-of-line text decorations get merged', async () => {
-		const actual = renderViewLine(new RenderLineInput(
-			true,
-			false,
-			'    if',
-			false,
-			true,
-			false,
-			0,
-			createViewLineTokens([createPart(4, 1), createPart(6, 2)]),
-			[
+		const actual = renderViewLine(createRenderLineInput({
+			useMonospaceOptimizations: true,
+			canUseHalfwidthRightwardsArrow: false,
+			lineContent: '    if',
+			lineTokens: createViewLineTokens([createPart(4, 1), createPart(6, 2)]),
+			lineDecorations: [
 				new LineDecoration(7, 7, 'ced-1-TextEditorDecorationType2-17c14d98-3 ced-1-TextEditorDecorationType2-3', InlineDecorationType.Before),
 				new LineDecoration(7, 7, 'ced-1-TextEditorDecorationType2-17c14d98-4 ced-1-TextEditorDecorationType2-4', InlineDecorationType.After),
 				new LineDecoration(7, 7, 'ced-ghost-text-1-4', InlineDecorationType.After),
 			],
-			4,
-			0,
-			10,
-			10,
-			10,
-			10000,
-			'all',
-			false,
-			false,
-			null,
-			null,
-			14
-		));
+			stopRenderingLineAfter: 10000,
+			renderWhitespace: 'all'
+		}));
 
 		const inflated = inflateRenderLineOutput(actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
@@ -2051,29 +1465,11 @@ suite('viewLineRenderer.renderLine 2', () => {
 	});
 
 	function createTestGetColumnOfLinePartOffset(lineContent: string, tabSize: number, parts: TestLineToken[], expectedPartLengths: number[]): (partIndex: number, partLength: number, offset: number, expected: number) => void {
-		const renderLineOutput = renderViewLine(new RenderLineInput(
-			false,
-			true,
+		const renderLineOutput = renderViewLine(createRenderLineInput({
 			lineContent,
-			false,
-			true,
-			false,
-			0,
-			createViewLineTokens(parts),
-			[],
 			tabSize,
-			0,
-			10,
-			10,
-			10,
-			-1,
-			'none',
-			false,
-			false,
-			null,
-			null,
-			14
-		));
+			lineTokens: createViewLineTokens(parts)
+		}));
 
 		return (partIndex: number, partLength: number, offset: number, expected: number) => {
 			const actualColumn = renderLineOutput.characterMapping.getColumn(new DomPosition(partIndex, offset), partLength);
