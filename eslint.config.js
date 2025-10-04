@@ -194,7 +194,7 @@ export default tseslint.config(
 			'src/vs/platform/editor/**',
 			'src/vs/platform/environment/**',
 			'src/vs/platform/files/**',
-			// 'src/vs/platform/ipc/**',
+			'src/vs/platform/ipc/**',
 			'src/vs/platform/launch/**',
 			'src/vs/platform/lifecycle/**',
 			'src/vs/platform/menubar/**',
