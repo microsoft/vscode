@@ -640,6 +640,59 @@ suite('viewLineRenderer.renderLine', () => {
 		}));
 	});
 
+	test('HTML with bidirectional text: neutral punctuation after RTL text', () => {
+		// Simulates: <p>نشاط التدويل!</p>
+		// Where the exclamation mark is in a separate token from the Arabic text
+		const lineText = '<p>نشاط التدويل!</p>';
+		const lineParts = createViewLineTokens([
+			createPart(1, 1),  // '<'
+			createPart(2, 2),  // 'p'
+			createPart(3, 1),  // '>'
+			createPart(17, 3), // 'نشاط التدويل' (RTL text)
+			createPart(18, 3), // '!' (neutral punctuation)
+			createPart(20, 1), // '</'
+			createPart(21, 2), // 'p'
+			createPart(22, 1), // '>'
+		]);
+		const _actual = renderViewLine(new RenderLineInput(
+			false,
+			true,
+			lineText,
+			false,
+			false,
+			true, // containsRTL
+			0,
+			lineParts,
+			[],
+			4,
+			0,
+			10,
+			10,
+			10,
+			-1,
+			'none',
+			false,
+			false,
+			null,
+			null,
+			14
+		));
+
+		// The exclamation mark should be isolated together with the RTL text
+		// to ensure it appears on the correct side (left side in RTL context)
+		const output = inflateRenderLineOutput(_actual);
+		const isolatedSpans = output.html.filter(span => span.includes('unicode-bidi:isolate'));
+		
+		// Find the span containing the RTL text + exclamation mark
+		const rtlSpanWithPunctuation = isolatedSpans.find(span => 
+			span.includes('!') && span.includes('ل') // Arabic letter lam
+		);
+		
+		assert.ok(rtlSpanWithPunctuation, 
+			'Exclamation mark should be wrapped with unicode-bidi:isolate together with RTL text. Got: ' + 
+			JSON.stringify(output.html));
+	});
+
 	test('issue #6885: Splits large tokens', () => {
 		//                                                                                                                  1         1         1
 		//                        1         2         3         4         5         6         7         8         9         0         1         2
