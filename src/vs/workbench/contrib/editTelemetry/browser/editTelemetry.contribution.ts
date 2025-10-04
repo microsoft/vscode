@@ -5,7 +5,7 @@
 
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditTelemetryContribution } from './editTelemetryContribution.js';
-import { EDIT_TELEMETRY_SETTING_ID, AI_STATS_SETTING_ID } from './settingIds.js';
+import { EDIT_TELEMETRY_SETTING_ID, STATS_SETTING_ID } from './settingIds.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { localize } from '../../../../nls.js';
 import { EDIT_TELEMETRY_DETAILS_SETTING_ID, EDIT_TELEMETRY_SHOW_DECORATIONS, EDIT_TELEMETRY_SHOW_STATUS_BAR } from './settings.js';
@@ -29,10 +29,16 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			tags: ['experimental'],
 		},
-		[AI_STATS_SETTING_ID]: {
-			markdownDescription: localize('editor.aiStats.enabled', "Controls whether to enable AI statistics in the editor. The gauge represents the average amount of code inserted by AI vs manual typing over a 24 hour period."),
-			type: 'boolean',
-			default: false,
+		[STATS_SETTING_ID]: {
+			markdownDescription: localize('editor.stats.enabled', "Controls which statistics to display in the editor status bar. 'aiStats' shows the average amount of code inserted by AI vs manual typing over a 24 hour period. 'premiumQuota' shows GitHub Copilot Premium request quota usage."),
+			type: 'string',
+			enum: ['off', 'aiStats', 'premiumQuota'],
+			enumDescriptions: [
+				localize('editor.stats.off', "Do not show statistics in the status bar."),
+				localize('editor.stats.aiStats', "Show AI vs manual typing statistics."),
+				localize('editor.stats.premiumQuota', "Show GitHub Copilot Premium request quota usage.")
+			],
+			default: 'aiStats',
 			tags: ['experimental'],
 			experiment: {
 				mode: 'auto'
