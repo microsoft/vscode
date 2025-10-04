@@ -8,11 +8,11 @@ jobs:
   - job: macOSCLISign
     timeoutInMinutes: 90
     templateContext:
-      outputParentDirectory: $(Build.ArtifactStagingDirectory)/pkg
+      outputParentDirectory: $(Build.ArtifactStagingDirectory)/out
       outputs:
         - ${{ if eq(parameters.VSCODE_BUILD_MACOS, true) }}:
           - output: pipelineArtifact
-            targetPath: $(Build.ArtifactStagingDirectory)/pkg/unsigned_vscode_cli_darwin_x64_cli/vscode_cli_darwin_x64_cli.zip
+            targetPath: $(Build.ArtifactStagingDirectory)/out/vscode_cli_darwin_x64_cli/vscode_cli_darwin_x64_cli.zip
             artifactName: vscode_cli_darwin_x64_cli
             displayName: Publish signed artifact with ID vscode_cli_darwin_x64_cli
             sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/sign/unsigned_vscode_cli_darwin_x64_cli
@@ -20,7 +20,7 @@ jobs:
             sbomPackageVersion: $(Build.SourceVersion)
         - ${{ if eq(parameters.VSCODE_BUILD_MACOS_ARM64, true) }}:
           - output: pipelineArtifact
-            targetPath: $(Build.ArtifactStagingDirectory)/pkg/unsigned_vscode_cli_darwin_arm64_cli/vscode_cli_darwin_arm64_cli.zip
+            targetPath: $(Build.ArtifactStagingDirectory)/out/vscode_cli_darwin_arm64_cli/vscode_cli_darwin_arm64_cli.zip
             artifactName: vscode_cli_darwin_arm64_cli
             displayName: Publish signed artifact with ID vscode_cli_darwin_arm64_cli
             sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/sign/unsigned_vscode_cli_darwin_arm64_cli
