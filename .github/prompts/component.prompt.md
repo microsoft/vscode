@@ -1,6 +1,6 @@
 ---
 mode: agent
-description: 'Help author a component specification for an agent.'
+description: 'Help author a component specification instructions file for an agent.'
 tools: ['edit', 'search', 'usages', 'vscodeAPI', 'fetch', 'extensions', 'todos']
 ---
 
@@ -9,11 +9,11 @@ Your goal is to create a component overview in markdown given the context provid
 </overview>
 
 <format>
-# [Component Name] Overview
+---
+description: 'A short description of when to use the instructions in this file.'
+---
 
-**Location**: `src/vs/[path/to/component]`
-**Type**: [Service/Contribution/Extension/API/etc.]
-**Layer (if applicable)**: [base/platform/editor/workbench/code/server]
+# [Component Name] Overview
 
 ## Purpose
 
@@ -44,15 +44,18 @@ List all the key files and a brief description of their purpose:
 
 - Reserve a section for any specific development practices or patterns relevant to this component. These will be edited by a developer or agent as needed.
 
----
+## Learnings
+
+- Reserve a section for learnings that will be added by the agent. This section should be empty initially and only updated when the agent learns something based on separate instructions.
 </format>
 
 <instructions>
-- **Create** a new overview file if one is not specified: `.components/[component-name].md`
+- **Create** a new overview file if one is not specified: `.github/[component-name].instructions.md`
 - **Fill** each section with component-specific details
 - **Gather** information from the attached context and use available tools if needed to complete your understanding
 - **Ask** the user for clarification if you cannot fill out a section with accurate information
 - **Use complete file paths** from repository root (e.g., `src/vs/workbench/services/example/browser/exampleService.ts`)
 - **Keep** descriptions concise but comprehensive
 - **Use file references** instead of code snippets when making references to code as otherwise the code may become outdated
+- **Reserve an empty section** for Learnings to be filled in later by the agent
 </instructions>
