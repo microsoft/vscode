@@ -30,6 +30,7 @@ import { EditDeltaInfo } from '../../../../../editor/common/textModelEditSource.
 import { localize } from '../../../../../nls.js';
 import { getFlatContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -97,6 +98,8 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IAiEditTelemetryService private readonly aiEditTelemetryService: IAiEditTelemetryService,
+		@IClipboardService private readonly clipboardService: IClipboardService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) {
 		super();
 
@@ -300,6 +303,9 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				scrollable.scanDomNode();
 			}
 
+			// Add context menu handlers for all KaTeX elements (both inline and block)
+			this._register(this.setupKatexContextMenus());
+
 			orderedDisposablesList.reverse().forEach(d => this._register(d));
 		};
 
@@ -322,6 +328,48 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 	override dispose(): void {
 		this._isDisposed = true;
 		super.dispose();
+	}
+
+	private setupKatexContextMenus(): IDisposable {
+		const disposables = new DisposableStore();
+
+		// Find all KaTeX elements (both inline and block)
+		const katexElements = this.domNode.querySelectorAll('.katex');
+		for (const katexElement of katexElements) {
+			if (!dom.isHTMLElement(katexElement)) {
+				continue;
+			}
+
+			// Mark element as having math content for CSS styling
+			katexElement.classList.add('interactive-katex');
+
+			disposables.add(dom.addDisposableListener(katexElement, dom.EventType.CONTEXT_MENU, (domEvent) => {
+				const event = new StandardMouseEvent(dom.getWindow(domEvent), domEvent);
+				
+				// Extract LaTeX source from the annotation element
+				const annotation = katexElement.querySelector('annotation[encoding="application/x-tex"]');
+				const latexSource = annotation?.textContent;
+
+				if (latexSource) {
+					// Show context menu with copy math option
+					this.contextMenuService.showContextMenu({
+						getAnchor: () => event,
+						getActions: () => {
+							return [{
+								id: 'chat.copyMathSource',
+								label: localize('chat.copyMathSource', "Copy Math Source"),
+								class: undefined,
+								enabled: true,
+								run: () => this.clipboardService.writeText(latexSource)
+							}];
+						}
+					});
+					dom.EventHelper.stop(domEvent, true);
+				}
+			}));
+		}
+
+		return disposables;
 	}
 
 	private renderCodeBlockPill(sessionId: string, requestId: string, inUndoStop: string | undefined, codemapperUri: URI | undefined, isStreaming: boolean): IDisposableReference<CollapsedCodeBlock> {
