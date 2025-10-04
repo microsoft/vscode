@@ -16,6 +16,8 @@ import { CharacterMapping, DomPosition, RenderLineInput, RenderLineOutput2, rend
 import { InlineDecorationType } from '../../../common/viewModel/inlineDecorations.js';
 import { TestLineToken, TestLineTokens } from '../core/testLineToken.js';
 
+const HTML_EXTENSION = { extension: 'html' };
+
 function createViewLineTokens(viewLineTokens: TestLineToken[]): IViewLineTokens {
 	return new TestLineTokens(viewLineTokens);
 }
@@ -195,9 +197,7 @@ suite('viewLineRenderer.renderLine', () => {
 		));
 
 		const inflated = inflateRenderLineOutput(_actual);
-		await assertSnapshot(inflated.html.join(''), {
-			extension: 'html',
-		});
+		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
 		assert.deepStrictEqual(inflated.mapping, [
 			[0, 0, 0],
 			[1, 0, 1],
@@ -250,9 +250,7 @@ suite('viewLineRenderer.renderLine', () => {
 		));
 
 		const inflated = inflateRenderLineOutput(_actual);
-		await assertSnapshot(inflated.html.join(''), {
-			extension: 'html',
-		});
+		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
 		assert.deepStrictEqual(inflated.mapping, [
 			[0, 0, 0],
 			[1, 0, 4], [1, 2, 5], [1, 4, 6], [1, 6, 7],
@@ -310,9 +308,7 @@ suite('viewLineRenderer.renderLine', () => {
 		));
 
 		const inflated = inflateRenderLineOutput(_actual);
-		await assertSnapshot(inflated.html.join(''), {
-			extension: 'html',
-		});
+		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
 		assert.deepStrictEqual(inflated.mapping, [
 			[0, 0, 0], [0, 4, 4], [0, 8, 8],
 			[1, 0, 12], [1, 1, 13], [1, 2, 14], [1, 3, 15], [1, 4, 16], [1, 5, 17], [1, 6, 18], [1, 7, 19], [1, 8, 20], [1, 9, 21], [1, 10, 22], [1, 11, 23],
@@ -367,9 +363,7 @@ suite('viewLineRenderer.renderLine', () => {
 		));
 
 		const inflated = inflateRenderLineOutput(_actual);
-		await assertSnapshot(inflated.html.join(''), {
-			extension: 'html',
-		});
+		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
 		assert.deepStrictEqual(inflated.mapping, [
 			[0, 0, 0], [0, 1, 1], [0, 4, 4], [0, 8, 8],
 			[1, 0, 12], [1, 1, 13], [1, 2, 14], [1, 3, 15], [1, 4, 16], [1, 5, 17], [1, 6, 18], [1, 7, 19], [1, 8, 20], [1, 9, 21], [1, 10, 22], [1, 11, 23],
@@ -416,9 +410,7 @@ suite('viewLineRenderer.renderLine', () => {
 		));
 
 		const inflated = inflateRenderLineOutput(actual);
-		await assertSnapshot(inflated.html.join(''), {
-			extension: 'html',
-		});
+		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
 		assert.deepStrictEqual(inflated.mapping, [
 			[0, 0, 0], [0, 1, 1], [0, 2, 2], [0, 3, 3], [0, 4, 4], [0, 5, 5], [0, 6, 6], [0, 7, 7], [0, 8, 8], [0, 9, 9], [0, 10, 10], [0, 11, 11],
 			[2, 0, 12],
@@ -459,9 +451,7 @@ suite('viewLineRenderer.renderLine', () => {
 		));
 
 		const inflated = inflateRenderLineOutput(_actual);
-		await assertSnapshot(inflated.html.join(''), {
-			extension: 'html',
-		});
+		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
 		assert.deepStrictEqual(inflated.mapping, [
 			[0, 0, 0], [0, 1, 1], [0, 2, 2],
 			[1, 0, 3], [1, 1, 4], [1, 2, 5], [1, 3, 6], [1, 4, 7], [1, 5, 8], [1, 6, 9], [1, 7, 10], [1, 8, 11], [1, 9, 12],
@@ -510,9 +500,7 @@ suite('viewLineRenderer.renderLine', () => {
 		));
 
 		const inflated = inflateRenderLineOutput(_actual);
-		await assertSnapshot(inflated.html.join(''), {
-			extension: 'html',
-		});
+		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
 		assert.deepStrictEqual(inflated.mapping, [
 			[0, 0, 0],
 			[1, 0, 1], [1, 1, 2], [1, 2, 3], [1, 3, 4], [1, 4, 5], [1, 5, 6],
@@ -562,9 +550,7 @@ suite('viewLineRenderer.renderLine', () => {
 		));
 
 		const inflated = inflateRenderLineOutput(_actual);
-		await assertSnapshot(inflated.html.join(''), {
-			extension: 'html',
-		});
+		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
 		assert.deepStrictEqual(inflated.mapping, [
 			[0, 0, 0], [0, 2, 1], [0, 4, 2], [0, 6, 3],
 			[1, 0, 4],
@@ -756,9 +742,7 @@ suite('viewLineRenderer.renderLine', () => {
 			14
 		));
 
-		await assertSnapshot(inflateRenderLineOutput(actual).html.join(''), {
-			extension: 'html',
-		});
+		await assertSnapshot(inflateRenderLineOutput(actual).html.join(''), HTML_EXTENSION);
 	});
 
 	test('issue #6885: Does not split large tokens in RTL text', async () => {
@@ -788,11 +772,7 @@ suite('viewLineRenderer.renderLine', () => {
 			14
 		));
 
-		assert.deepStrictEqual(actual.html, [
-			'<span>',
-			'<span style="unicode-bidi:isolate" class="mtk1">את\u00a0גרמנית\u00a0בהתייחסות\u00a0שמו,\u00a0שנתי\u00a0המשפט\u00a0אל\u00a0חפש,\u00a0אם\u00a0כתב\u00a0אחרים\u00a0ולחבר.\u00a0של\u00a0התוכן\u00a0אודות\u00a0בויקיפדיה\u00a0כלל,\u00a0של\u00a0עזרה\u00a0כימיה\u00a0היא.\u00a0על\u00a0עמוד\u00a0יוצרים\u00a0מיתולוגיה\u00a0סדר,\u00a0אם\u00a0שכל\u00a0שתפו\u00a0לעברית\u00a0שינויים,\u00a0אם\u00a0שאלות\u00a0אנגלית\u00a0עזה.\u00a0שמות\u00a0בקלות\u00a0מה\u00a0סדר.</span>',
-			'</span>'
-		].join(''));
+		await assertSnapshot(actual.html, HTML_EXTENSION);
 	});
 
 	test('issue #95685: Uses unicode replacement character for Paragraph Separator', async () => {
@@ -822,9 +802,7 @@ suite('viewLineRenderer.renderLine', () => {
 			14
 		));
 		const inflated = inflateRenderLineOutput(actual);
-		await assertSnapshot(inflated.html.join(''), {
-			extension: 'html',
-		});
+		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
 		assert.deepStrictEqual(inflated.mapping, [
 			[0, 0, 0], [0, 1, 1], [0, 2, 2], [0, 3, 3], [0, 4, 4], [0, 5, 5], [0, 6, 6], [0, 7, 7],
 			[0, 8, 8], [0, 9, 9], [0, 10, 10], [0, 11, 11], [0, 12, 12], [0, 13, 13], [0, 14, 14],
@@ -872,9 +850,7 @@ suite('viewLineRenderer.renderLine', () => {
 		));
 
 		const inflated = inflateRenderLineOutput(_actual);
-		await assertSnapshot(inflated.html.join(''), {
-			extension: 'html',
-		});
+		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
 		assert.deepStrictEqual(inflated.mapping, [
 			[0, 0, 0], [0, 1, 1], [0, 2, 2], [0, 3, 3],
 			[1, 0, 4], [1, 1, 5], [1, 2, 6], [1, 3, 7], [1, 4, 8], [1, 5, 9], [1, 6, 10], [1, 7, 11], [1, 8, 12], [1, 9, 13], [1, 10, 14], [1, 11, 15], [1, 12, 16],
@@ -976,9 +952,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 		));
 
 		const inflated = inflateRenderLineOutput(actual);
-		await assertSnapshot(inflated.html.join(''), {
-			extension: 'html',
-		});
+		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
 		assert.deepStrictEqual(inflated.mapping, [
 			[0, 0, 0], [0, 1, 1], [0, 2, 2], [0, 3, 3], [0, 4, 4], [0, 5, 5], [0, 6, 6], [0, 7, 7],
 			[0, 8, 8], [0, 9, 9], [0, 10, 10], [0, 11, 11], [0, 12, 12], [0, 13, 13], [0, 14, 14],
@@ -1021,9 +995,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 		));
 
 		const inflated = inflateRenderLineOutput(actual);
-		await assertSnapshot(inflated.html.join(''), {
-			extension: 'html',
-		});
+		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
 		assert.deepStrictEqual(inflated.mapping, [
 			[0, 0, 0], [0, 1, 1], [0, 2, 2], [0, 3, 3], [0, 4, 4], [0, 5, 5], [0, 6, 6], [0, 7, 7], [0, 8, 8], [0, 9, 9], [0, 10, 10], [0, 11, 11],
 			[1, 0, 12], [1, 1, 13], [1, 2, 14], [1, 3, 15], [1, 4, 16], [1, 5, 17], [1, 6, 18], [1, 7, 19], [1, 8, 20], [1, 9, 21], [1, 10, 22], [1, 11, 23], [1, 12, 24], [1, 13, 25], [1, 14, 26], [1, 15, 27], [1, 16, 28], [1, 17, 29], [1, 18, 30], [1, 19, 31], [1, 20, 32], [1, 21, 33], [1, 22, 34], [1, 23, 35], [1, 24, 36], [1, 25, 37], [1, 26, 38], [1, 27, 39], [1, 28, 40], [1, 29, 41], [1, 30, 42], [1, 31, 43], [1, 32, 44], [1, 33, 45], [1, 34, 46], [1, 35, 47], [1, 36, 48],
@@ -1035,646 +1007,452 @@ suite('viewLineRenderer.renderLine 2', () => {
 		]);
 	});
 
-	test('createLineParts simple', () => {
-		assert.deepStrictEqual(
-			testCreateLineParts(
-				false,
-				'Hello world!',
-				[
-					createPart(12, 1)
-				],
-				0,
-				'none',
-				null
-			),
-			{
-				html: [
-					'<span class="mtk1">Hello\u00a0world!</span>'
-				],
-				mapping: [
-					[0, 0, 0], [0, 1, 1], [0, 2, 2], [0, 3, 3], [0, 4, 4], [0, 5, 5], [0, 6, 6], [0, 7, 7], [0, 8, 8], [0, 9, 9], [0, 10, 10], [0, 11, 11], [0, 12, 12]
-				]
-			}
+	test('createLineParts simple', async () => {
+		const actual = testCreateLineParts(
+			false,
+			'Hello world!',
+			[
+				createPart(12, 1)
+			],
+			0,
+			'none',
+			null
 		);
+		await assertSnapshot(actual.html.join(''), HTML_EXTENSION);
+		assert.deepStrictEqual(actual.mapping, [
+			[0, 0, 0], [0, 1, 1], [0, 2, 2], [0, 3, 3], [0, 4, 4], [0, 5, 5], [0, 6, 6], [0, 7, 7], [0, 8, 8], [0, 9, 9], [0, 10, 10], [0, 11, 11], [0, 12, 12]
+		]);
 	});
 
-	test('createLineParts simple two tokens', () => {
-		assert.deepStrictEqual(
-			testCreateLineParts(
-				false,
-				'Hello world!',
-				[
-					createPart(6, 1),
-					createPart(12, 2)
-				],
-				0,
-				'none',
-				null
-			),
-			{
-				html: [
-					'<span class="mtk1">Hello\u00a0</span>',
-					'<span class="mtk2">world!</span>',
-				],
-				mapping: [
-					[0, 0, 0], [0, 1, 1], [0, 2, 2], [0, 3, 3], [0, 4, 4], [0, 5, 5],
-					[1, 0, 6], [1, 1, 7], [1, 2, 8], [1, 3, 9], [1, 4, 10], [1, 5, 11], [1, 6, 12]
-				]
-			}
+	test('createLineParts simple two tokens', async () => {
+		const actual = testCreateLineParts(
+			false,
+			'Hello world!',
+			[
+				createPart(6, 1),
+				createPart(12, 2)
+			],
+			0,
+			'none',
+			null
 		);
+		await assertSnapshot(actual.html.join(''), HTML_EXTENSION);
+		assert.deepStrictEqual(actual.mapping, [
+			[0, 0, 0], [0, 1, 1], [0, 2, 2], [0, 3, 3], [0, 4, 4], [0, 5, 5],
+			[1, 0, 6], [1, 1, 7], [1, 2, 8], [1, 3, 9], [1, 4, 10], [1, 5, 11], [1, 6, 12]
+		]);
 	});
 
-	test('createLineParts render whitespace - 4 leading spaces', () => {
-		assert.deepStrictEqual(
-			testCreateLineParts(
-				false,
-				'    Hello world!    ',
-				[
-					createPart(4, 1),
-					createPart(6, 2),
-					createPart(20, 3)
-				],
-				0,
-				'boundary',
-				null
-			),
-			{
-				html: [
-					'<span class="mtkz" style="width:40px">\u00b7\u200c\u00b7\u200c\u00b7\u200c\u00b7\u200c</span>',
-					'<span class="mtk2">He</span>',
-					'<span class="mtk3">llo\u00a0world!</span>',
-					'<span class="mtkz" style="width:40px">\u00b7\u200c\u00b7\u200c\u00b7\u200c\u00b7\u200c</span>',
-				],
-				mapping: [
-					[0, 0, 0], [0, 2, 1], [0, 4, 2], [0, 6, 3],
-					[1, 0, 4], [1, 1, 5],
-					[2, 0, 6], [2, 1, 7], [2, 2, 8], [2, 3, 9], [2, 4, 10], [2, 5, 11], [2, 6, 12], [2, 7, 13], [2, 8, 14], [2, 9, 15],
-					[3, 0, 16], [3, 2, 17], [3, 4, 18], [3, 6, 19], [3, 8, 20]
-				]
-			}
+	test('createLineParts render whitespace - 4 leading spaces', async () => {
+		const actual = testCreateLineParts(
+			false,
+			'    Hello world!    ',
+			[
+				createPart(4, 1),
+				createPart(6, 2),
+				createPart(20, 3)
+			],
+			0,
+			'boundary',
+			null
 		);
+		await assertSnapshot(actual.html.join(''), HTML_EXTENSION);
+		assert.deepStrictEqual(actual.mapping, [
+			[0, 0, 0], [0, 2, 1], [0, 4, 2], [0, 6, 3],
+			[1, 0, 4], [1, 1, 5],
+			[2, 0, 6], [2, 1, 7], [2, 2, 8], [2, 3, 9], [2, 4, 10], [2, 5, 11], [2, 6, 12], [2, 7, 13], [2, 8, 14], [2, 9, 15],
+			[3, 0, 16], [3, 2, 17], [3, 4, 18], [3, 6, 19], [3, 8, 20]
+		]);
 	});
 
-	test('createLineParts render whitespace - 8 leading spaces', () => {
-		assert.deepStrictEqual(
-			testCreateLineParts(
-				false,
-				'        Hello world!        ',
-				[
-					createPart(8, 1),
-					createPart(10, 2),
-					createPart(28, 3)
-				],
-				0,
-				'boundary',
-				null
-			),
-			{
-				html: [
-					'<span class="mtkz" style="width:40px">\u00b7\u200c\u00b7\u200c\u00b7\u200c\u00b7\u200c</span>',
-					'<span class="mtkz" style="width:40px">\u00b7\u200c\u00b7\u200c\u00b7\u200c\u00b7\u200c</span>',
-					'<span class="mtk2">He</span>',
-					'<span class="mtk3">llo\u00a0world!</span>',
-					'<span class="mtkz" style="width:40px">\u00b7\u200c\u00b7\u200c\u00b7\u200c\u00b7\u200c</span>',
-					'<span class="mtkz" style="width:40px">\u00b7\u200c\u00b7\u200c\u00b7\u200c\u00b7\u200c</span>',
-				],
-				mapping: [
-					[0, 0, 0], [0, 2, 1], [0, 4, 2], [0, 6, 3],
-					[1, 0, 4], [1, 2, 5], [1, 4, 6], [1, 6, 7],
-					[2, 0, 8], [2, 1, 9],
-					[3, 0, 10], [3, 1, 11], [3, 2, 12], [3, 3, 13], [3, 4, 14], [3, 5, 15], [3, 6, 16], [3, 7, 17], [3, 8, 18], [3, 9, 19],
-					[4, 0, 20], [4, 2, 21], [4, 4, 22], [4, 6, 23],
-					[5, 0, 24], [5, 2, 25], [5, 4, 26], [5, 6, 27], [5, 8, 28]
-				]
-			}
+	test('createLineParts render whitespace - 8 leading spaces', async () => {
+		const actual = testCreateLineParts(
+			false,
+			'        Hello world!        ',
+			[
+				createPart(8, 1),
+				createPart(10, 2),
+				createPart(28, 3)
+			],
+			0,
+			'boundary',
+			null
 		);
+		await assertSnapshot(actual.html.join(''), HTML_EXTENSION);
+		assert.deepStrictEqual(actual.mapping, [
+			[0, 0, 0], [0, 2, 1], [0, 4, 2], [0, 6, 3],
+			[1, 0, 4], [1, 2, 5], [1, 4, 6], [1, 6, 7],
+			[2, 0, 8], [2, 1, 9],
+			[3, 0, 10], [3, 1, 11], [3, 2, 12], [3, 3, 13], [3, 4, 14], [3, 5, 15], [3, 6, 16], [3, 7, 17], [3, 8, 18], [3, 9, 19],
+			[4, 0, 20], [4, 2, 21], [4, 4, 22], [4, 6, 23],
+			[5, 0, 24], [5, 2, 25], [5, 4, 26], [5, 6, 27], [5, 8, 28]
+		]);
 	});
 
-	test('createLineParts render whitespace - 2 leading tabs', () => {
-		assert.deepStrictEqual(
-			testCreateLineParts(
-				false,
-				'\t\tHello world!\t',
-				[
-					createPart(2, 1),
-					createPart(4, 2),
-					createPart(15, 3)
-				],
-				0,
-				'boundary',
-				null
-			),
-			{
-				html: [
-					'<span class="mtkz" style="width:40px">\u2192\u00a0\u00a0\u00a0</span>',
-					'<span class="mtkz" style="width:40px">\u2192\u00a0\u00a0\u00a0</span>',
-					'<span class="mtk2">He</span>',
-					'<span class="mtk3">llo\u00a0world!</span>',
-					'<span class="mtkz" style="width:40px">\u2192\u00a0\u00a0\u00a0</span>',
-				],
-				mapping: [
-					[0, 0, 0],
-					[1, 0, 4],
-					[2, 0, 8], [2, 1, 9],
-					[3, 0, 10], [3, 1, 11], [3, 2, 12], [3, 3, 13], [3, 4, 14], [3, 5, 15], [3, 6, 16], [3, 7, 17], [3, 8, 18], [3, 9, 19],
-					[4, 0, 20], [4, 4, 24]
-				]
-			}
+	test('createLineParts render whitespace - 2 leading tabs', async () => {
+		const actual = testCreateLineParts(
+			false,
+			'\t\tHello world!\t',
+			[
+				createPart(2, 1),
+				createPart(4, 2),
+				createPart(15, 3)
+			],
+			0,
+			'boundary',
+			null
 		);
+		await assertSnapshot(actual.html.join(''), HTML_EXTENSION);
+		assert.deepStrictEqual(actual.mapping, [
+			[0, 0, 0],
+			[1, 0, 4],
+			[2, 0, 8], [2, 1, 9],
+			[3, 0, 10], [3, 1, 11], [3, 2, 12], [3, 3, 13], [3, 4, 14], [3, 5, 15], [3, 6, 16], [3, 7, 17], [3, 8, 18], [3, 9, 19],
+			[4, 0, 20], [4, 4, 24]
+		]);
 	});
 
-	test('createLineParts render whitespace - mixed leading spaces and tabs', () => {
-		assert.deepStrictEqual(
-			testCreateLineParts(
-				false,
-				'  \t\t  Hello world! \t  \t   \t    ',
-				[
-					createPart(6, 1),
-					createPart(8, 2),
-					createPart(31, 3)
-				],
-				0,
-				'boundary',
-				null
-			),
-			{
-				html: [
-					'<span class="mtkz" style="width:40px">\u00b7\u200c\u00b7\u200c\u2192\u00a0</span>',
-					'<span class="mtkz" style="width:40px">\u2192\u00a0\u00a0\u00a0</span>',
-					'<span class="mtkz" style="width:20px">\u00b7\u200c\u00b7\u200c</span>',
-					'<span class="mtk2">He</span>',
-					'<span class="mtk3">llo\u00a0world!</span>',
-					'<span class="mtkz" style="width:20px">\u00b7\u200c\uffeb</span>',
-					'<span class="mtkz" style="width:40px">\u00b7\u200c\u00b7\u200c\u2192\u00a0</span>',
-					'<span class="mtkz" style="width:40px">\u00b7\u200c\u00b7\u200c\u00b7\u200c\uffeb</span>',
-					'<span class="mtkz" style="width:40px">\u00b7\u200c\u00b7\u200c\u00b7\u200c\u00b7\u200c</span>',
-				],
-				mapping: [
-					[0, 0, 0], [0, 2, 1], [0, 4, 2],
-					[1, 0, 4],
-					[2, 0, 8], [2, 2, 9],
-					[3, 0, 10], [3, 1, 11],
-					[4, 0, 12], [4, 1, 13], [4, 2, 14], [4, 3, 15], [4, 4, 16], [4, 5, 17], [4, 6, 18], [4, 7, 19], [4, 8, 20], [4, 9, 21],
-					[5, 0, 22], [5, 2, 23],
-					[6, 0, 24], [6, 2, 25], [6, 4, 26],
-					[7, 0, 28], [7, 2, 29], [7, 4, 30], [7, 6, 31],
-					[8, 0, 32], [8, 2, 33], [8, 4, 34], [8, 6, 35], [8, 8, 36]
-				]
-			}
+	test('createLineParts render whitespace - mixed leading spaces and tabs', async () => {
+		const actual = testCreateLineParts(
+			false,
+			'  \t\t  Hello world! \t  \t   \t    ',
+			[
+				createPart(6, 1),
+				createPart(8, 2),
+				createPart(31, 3)
+			],
+			0,
+			'boundary',
+			null
 		);
+		await assertSnapshot(actual.html.join(''), HTML_EXTENSION);
+		assert.deepStrictEqual(actual.mapping, [
+			[0, 0, 0], [0, 2, 1], [0, 4, 2],
+			[1, 0, 4],
+			[2, 0, 8], [2, 2, 9],
+			[3, 0, 10], [3, 1, 11],
+			[4, 0, 12], [4, 1, 13], [4, 2, 14], [4, 3, 15], [4, 4, 16], [4, 5, 17], [4, 6, 18], [4, 7, 19], [4, 8, 20], [4, 9, 21],
+			[5, 0, 22], [5, 2, 23],
+			[6, 0, 24], [6, 2, 25], [6, 4, 26],
+			[7, 0, 28], [7, 2, 29], [7, 4, 30], [7, 6, 31],
+			[8, 0, 32], [8, 2, 33], [8, 4, 34], [8, 6, 35], [8, 8, 36]
+		]);
 	});
 
-	test('createLineParts render whitespace skips faux indent', () => {
-		assert.deepStrictEqual(
-			testCreateLineParts(
-				false,
-				'\t\t  Hello world! \t  \t   \t    ',
-				[
-					createPart(4, 1),
-					createPart(6, 2),
-					createPart(29, 3)
-				],
-				2,
-				'boundary',
-				null
-			),
-			{
-				html: [
-					'<span class="">\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0</span>',
-					'<span class="mtkz" style="width:20px">\u00b7\u200c\u00b7\u200c</span>',
-					'<span class="mtk2">He</span>',
-					'<span class="mtk3">llo\u00a0world!</span>',
-					'<span class="mtkz" style="width:20px">\u00b7\u200c\uffeb</span>',
-					'<span class="mtkz" style="width:40px">\u00b7\u200c\u00b7\u200c\u2192\u00a0</span>',
-					'<span class="mtkz" style="width:40px">\u00b7\u200c\u00b7\u200c\u00b7\u200c\uffeb</span>',
-					'<span class="mtkz" style="width:40px">\u00b7\u200c\u00b7\u200c\u00b7\u200c\u00b7\u200c</span>',
-				],
-				mapping: [
-					[0, 0, 0], [0, 4, 4],
-					[1, 0, 8], [1, 2, 9],
-					[2, 0, 10], [2, 1, 11],
-					[3, 0, 12], [3, 1, 13], [3, 2, 14], [3, 3, 15], [3, 4, 16], [3, 5, 17], [3, 6, 18], [3, 7, 19], [3, 8, 20], [3, 9, 21],
-					[4, 0, 22], [4, 2, 23],
-					[5, 0, 24], [5, 2, 25], [5, 4, 26],
-					[6, 0, 28], [6, 2, 29], [6, 4, 30], [6, 6, 31],
-					[7, 0, 32], [7, 2, 33], [7, 4, 34], [7, 6, 35], [7, 8, 36]
-				]
-			}
+	test('createLineParts render whitespace skips faux indent', async () => {
+		const actual = testCreateLineParts(
+			false,
+			'\t\t  Hello world! \t  \t   \t    ',
+			[
+				createPart(4, 1),
+				createPart(6, 2),
+				createPart(29, 3)
+			],
+			2,
+			'boundary',
+			null
 		);
+		await assertSnapshot(actual.html.join(''), HTML_EXTENSION);
+		assert.deepStrictEqual(actual.mapping, [
+			[0, 0, 0], [0, 4, 4],
+			[1, 0, 8], [1, 2, 9],
+			[2, 0, 10], [2, 1, 11],
+			[3, 0, 12], [3, 1, 13], [3, 2, 14], [3, 3, 15], [3, 4, 16], [3, 5, 17], [3, 6, 18], [3, 7, 19], [3, 8, 20], [3, 9, 21],
+			[4, 0, 22], [4, 2, 23],
+			[5, 0, 24], [5, 2, 25], [5, 4, 26],
+			[6, 0, 28], [6, 2, 29], [6, 4, 30], [6, 6, 31],
+			[7, 0, 32], [7, 2, 33], [7, 4, 34], [7, 6, 35], [7, 8, 36]
+		]);
 	});
 
-	test('createLineParts does not emit width for monospace fonts', () => {
-		assert.deepStrictEqual(
-			testCreateLineParts(
-				true,
-				'\t\t  Hello world! \t  \t   \t    ',
-				[
-					createPart(4, 1),
-					createPart(6, 2),
-					createPart(29, 3)
-				],
-				2,
-				'boundary',
-				null
-			),
-			{
-				html: [
-					'<span class="">\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0</span>',
-					'<span class="mtkw">\u00b7\u200c\u00b7\u200c</span>',
-					'<span class="mtk2">He</span>',
-					'<span class="mtk3">llo\u00a0world!</span>',
-					'<span class="mtkw">\u00b7\u200c\uffeb\u00b7\u200c\u00b7\u200c\u2192\u00a0\u00b7\u200c\u00b7\u200c\u00b7\u200c\uffeb\u00b7\u200c\u00b7\u200c\u00b7\u200c\u00b7\u200c</span>',
-				],
-				mapping: [
-					[0, 0, 0], [0, 4, 4],
-					[1, 0, 8], [1, 2, 9],
-					[2, 0, 10], [2, 1, 11],
-					[3, 0, 12], [3, 1, 13], [3, 2, 14], [3, 3, 15], [3, 4, 16], [3, 5, 17], [3, 6, 18], [3, 7, 19], [3, 8, 20], [3, 9, 21],
-					[4, 0, 22], [4, 2, 23], [4, 3, 24], [4, 5, 25], [4, 7, 26], [4, 9, 28], [4, 11, 29], [4, 13, 30], [4, 15, 31], [4, 16, 32], [4, 18, 33], [4, 20, 34], [4, 22, 35], [4, 24, 36]
-				]
-			}
+	test('createLineParts does not emit width for monospace fonts', async () => {
+		const actual = testCreateLineParts(
+			true,
+			'\t\t  Hello world! \t  \t   \t    ',
+			[
+				createPart(4, 1),
+				createPart(6, 2),
+				createPart(29, 3)
+			],
+			2,
+			'boundary',
+			null
 		);
+		await assertSnapshot(actual.html.join(''), HTML_EXTENSION);
+		assert.deepStrictEqual(actual.mapping, [
+			[0, 0, 0], [0, 4, 4],
+			[1, 0, 8], [1, 2, 9],
+			[2, 0, 10], [2, 1, 11],
+			[3, 0, 12], [3, 1, 13], [3, 2, 14], [3, 3, 15], [3, 4, 16], [3, 5, 17], [3, 6, 18], [3, 7, 19], [3, 8, 20], [3, 9, 21],
+			[4, 0, 22], [4, 2, 23], [4, 3, 24], [4, 5, 25], [4, 7, 26], [4, 9, 28], [4, 11, 29], [4, 13, 30], [4, 15, 31], [4, 16, 32], [4, 18, 33], [4, 20, 34], [4, 22, 35], [4, 24, 36]
+		]);
 	});
 
-	test('createLineParts render whitespace in middle but not for one space', () => {
-		assert.deepStrictEqual(
-			testCreateLineParts(
-				false,
-				'it  it it  it',
-				[
-					createPart(6, 1),
-					createPart(7, 2),
-					createPart(13, 3)
-				],
-				0,
-				'boundary',
-				null
-			),
-			{
-				html: [
-					'<span class="mtk1">it</span>',
-					'<span class="mtkz" style="width:20px">\u00b7\u200c\u00b7\u200c</span>',
-					'<span class="mtk1">it</span>',
-					'<span class="mtk2">\u00a0</span>',
-					'<span class="mtk3">it</span>',
-					'<span class="mtkz" style="width:20px">\u00b7\u200c\u00b7\u200c</span>',
-					'<span class="mtk3">it</span>',
-				],
-				mapping: [
-					[0, 0, 0], [0, 1, 1],
-					[1, 0, 2], [1, 2, 3],
-					[2, 0, 4], [2, 1, 5],
-					[3, 0, 6],
-					[4, 0, 7], [4, 1, 8],
-					[5, 0, 9], [5, 2, 10],
-					[6, 0, 11], [6, 1, 12], [6, 2, 13]
-				]
-			}
+	test('createLineParts render whitespace in middle but not for one space', async () => {
+		const actual = testCreateLineParts(
+			false,
+			'it  it it  it',
+			[
+				createPart(6, 1),
+				createPart(7, 2),
+				createPart(13, 3)
+			],
+			0,
+			'boundary',
+			null
 		);
+		await assertSnapshot(actual.html.join(''), HTML_EXTENSION);
+		assert.deepStrictEqual(actual.mapping, [
+			[0, 0, 0], [0, 1, 1],
+			[1, 0, 2], [1, 2, 3],
+			[2, 0, 4], [2, 1, 5],
+			[3, 0, 6],
+			[4, 0, 7], [4, 1, 8],
+			[5, 0, 9], [5, 2, 10],
+			[6, 0, 11], [6, 1, 12], [6, 2, 13]
+		]);
 	});
 
-	test('createLineParts render whitespace for all in middle', () => {
-		assert.deepStrictEqual(
-			testCreateLineParts(
-				false,
-				' Hello world!\t',
-				[
-					createPart(4, 0),
-					createPart(6, 1),
-					createPart(14, 2)
-				],
-				0,
-				'all',
-				null
-			),
-			{
-				html: [
-					'<span class="mtkz" style="width:10px">\u00b7\u200c</span>',
-					'<span class="mtk0">Hel</span>',
-					'<span class="mtk1">lo</span>',
-					'<span class="mtkz" style="width:10px">\u00b7\u200c</span>',
-					'<span class="mtk2">world!</span>',
-					'<span class="mtkz" style="width:30px">\u2192\u00a0\u00a0</span>',
-				],
-				mapping: [
-					[0, 0, 0],
-					[1, 0, 1], [1, 1, 2], [1, 2, 3],
-					[2, 0, 4], [2, 1, 5],
-					[3, 0, 6],
-					[4, 0, 7], [4, 1, 8], [4, 2, 9], [4, 3, 10], [4, 4, 11], [4, 5, 12],
-					[5, 0, 13], [5, 3, 16]
-				]
-			}
+	test('createLineParts render whitespace for all in middle', async () => {
+		const actual = testCreateLineParts(
+			false,
+			' Hello world!\t',
+			[
+				createPart(4, 0),
+				createPart(6, 1),
+				createPart(14, 2)
+			],
+			0,
+			'all',
+			null
 		);
+		await assertSnapshot(actual.html.join(''), HTML_EXTENSION);
+		assert.deepStrictEqual(actual.mapping, [
+			[0, 0, 0],
+			[1, 0, 1], [1, 1, 2], [1, 2, 3],
+			[2, 0, 4], [2, 1, 5],
+			[3, 0, 6],
+			[4, 0, 7], [4, 1, 8], [4, 2, 9], [4, 3, 10], [4, 4, 11], [4, 5, 12],
+			[5, 0, 13], [5, 3, 16]
+		]);
 	});
 
 	test('createLineParts render whitespace for selection with no selections', async () => {
-		assert.deepStrictEqual(
-			testCreateLineParts(
-				false,
-				' Hello world!\t',
-				[
-					createPart(4, 0),
-					createPart(6, 1),
-					createPart(14, 2)
-				],
-				0,
-				'selection',
-				null
-			),
-			{
-				html: [
-					'<span class="mtk0">\u00a0Hel</span>',
-					'<span class="mtk1">lo</span>',
-					'<span class="mtk2">\u00a0world!\u00a0\u00a0\u00a0</span>',
-				],
-				mapping: [
-					[0, 0, 0], [0, 1, 1], [0, 2, 2], [0, 3, 3],
-					[1, 0, 4], [1, 1, 5],
-					[2, 0, 6], [2, 1, 7], [2, 2, 8], [2, 3, 9], [2, 4, 10], [2, 5, 11], [2, 6, 12], [2, 7, 13], [2, 10, 16]
-				]
-			}
+		const actual = testCreateLineParts(
+			false,
+			' Hello world!\t',
+			[
+				createPart(4, 0),
+				createPart(6, 1),
+				createPart(14, 2)
+			],
+			0,
+			'selection',
+			null
 		);
+		await assertSnapshot(actual.html.join(''), HTML_EXTENSION);
+		assert.deepStrictEqual(actual.mapping, [
+			[0, 0, 0], [0, 1, 1], [0, 2, 2], [0, 3, 3],
+			[1, 0, 4], [1, 1, 5],
+			[2, 0, 6], [2, 1, 7], [2, 2, 8], [2, 3, 9], [2, 4, 10], [2, 5, 11], [2, 6, 12], [2, 7, 13], [2, 10, 16]
+		]);
 	});
 
-	test('createLineParts render whitespace for selection with whole line selection', () => {
-		assert.deepStrictEqual(
-			testCreateLineParts(
-				false,
-				' Hello world!\t',
-				[
-					createPart(4, 0),
-					createPart(6, 1),
-					createPart(14, 2)
-				],
-				0,
-				'selection',
-				[new OffsetRange(0, 14)]
-			),
-			{
-				html: [
-					'<span class="mtkz" style="width:10px">\u00b7\u200c</span>',
-					'<span class="mtk0">Hel</span>',
-					'<span class="mtk1">lo</span>',
-					'<span class="mtkz" style="width:10px">\u00b7\u200c</span>',
-					'<span class="mtk2">world!</span>',
-					'<span class="mtkz" style="width:30px">\u2192\u00a0\u00a0</span>',
-				],
-				mapping: [
-					[0, 0, 0],
-					[1, 0, 1], [1, 1, 2], [1, 2, 3],
-					[2, 0, 4], [2, 1, 5],
-					[3, 0, 6],
-					[4, 0, 7], [4, 1, 8], [4, 2, 9], [4, 3, 10], [4, 4, 11], [4, 5, 12],
-					[5, 0, 13], [5, 3, 16]
-				]
-			}
+	test('createLineParts render whitespace for selection with whole line selection', async () => {
+		const actual = testCreateLineParts(
+			false,
+			' Hello world!\t',
+			[
+				createPart(4, 0),
+				createPart(6, 1),
+				createPart(14, 2)
+			],
+			0,
+			'selection',
+			[new OffsetRange(0, 14)]
 		);
+		await assertSnapshot(actual.html.join(''), HTML_EXTENSION);
+		assert.deepStrictEqual(actual.mapping, [
+			[0, 0, 0],
+			[1, 0, 1], [1, 1, 2], [1, 2, 3],
+			[2, 0, 4], [2, 1, 5],
+			[3, 0, 6],
+			[4, 0, 7], [4, 1, 8], [4, 2, 9], [4, 3, 10], [4, 4, 11], [4, 5, 12],
+			[5, 0, 13], [5, 3, 16]
+		]);
 	});
 
-	test('createLineParts render whitespace for selection with selection spanning part of whitespace', () => {
-		assert.deepStrictEqual(
-			testCreateLineParts(
-				false,
-				' Hello world!\t',
-				[
-					createPart(4, 0),
-					createPart(6, 1),
-					createPart(14, 2)
-				],
-				0,
-				'selection',
-				[new OffsetRange(0, 5)]
-			),
-			{
-				html: [
-					'<span class="mtkz" style="width:10px">\u00b7\u200c</span>',
-					'<span class="mtk0">Hel</span>',
-					'<span class="mtk1">lo</span>',
-					'<span class="mtk2">\u00a0world!\u00a0\u00a0\u00a0</span>',
-				],
-				mapping: [
-					[0, 0, 0],
-					[1, 0, 1], [1, 1, 2], [1, 2, 3],
-					[2, 0, 4], [2, 1, 5],
-					[3, 0, 6], [3, 1, 7], [3, 2, 8], [3, 3, 9], [3, 4, 10], [3, 5, 11], [3, 6, 12], [3, 7, 13], [3, 10, 16]
-				]
-			}
+	test('createLineParts render whitespace for selection with selection spanning part of whitespace', async () => {
+		const actual = testCreateLineParts(
+			false,
+			' Hello world!\t',
+			[
+				createPart(4, 0),
+				createPart(6, 1),
+				createPart(14, 2)
+			],
+			0,
+			'selection',
+			[new OffsetRange(0, 5)]
 		);
+		await assertSnapshot(actual.html.join(''), HTML_EXTENSION);
+		assert.deepStrictEqual(actual.mapping, [
+			[0, 0, 0],
+			[1, 0, 1], [1, 1, 2], [1, 2, 3],
+			[2, 0, 4], [2, 1, 5],
+			[3, 0, 6], [3, 1, 7], [3, 2, 8], [3, 3, 9], [3, 4, 10], [3, 5, 11], [3, 6, 12], [3, 7, 13], [3, 10, 16]
+		]);
 	});
 
-	test('createLineParts render whitespace for selection with multiple selections', () => {
-		assert.deepStrictEqual(
-			testCreateLineParts(
-				false,
-				' Hello world!\t',
-				[
-					createPart(4, 0),
-					createPart(6, 1),
-					createPart(14, 2)
-				],
-				0,
-				'selection',
-				[new OffsetRange(0, 5), new OffsetRange(9, 14)]
-			),
-			{
-				html: [
-					'<span class="mtkz" style="width:10px">\u00b7\u200c</span>',
-					'<span class="mtk0">Hel</span>',
-					'<span class="mtk1">lo</span>',
-					'<span class="mtk2">\u00a0world!</span>',
-					'<span class="mtkz" style="width:30px">\u2192\u00a0\u00a0</span>',
-				],
-				mapping: [
-					[0, 0, 0],
-					[1, 0, 1], [1, 1, 2], [1, 2, 3],
-					[2, 0, 4], [2, 1, 5],
-					[3, 0, 6], [3, 1, 7], [3, 2, 8], [3, 3, 9], [3, 4, 10], [3, 5, 11], [3, 6, 12],
-					[4, 0, 13], [4, 3, 16]
-				]
-			}
+	test('createLineParts render whitespace for selection with multiple selections', async () => {
+		const actual = testCreateLineParts(
+			false,
+			' Hello world!\t',
+			[
+				createPart(4, 0),
+				createPart(6, 1),
+				createPart(14, 2)
+			],
+			0,
+			'selection',
+			[new OffsetRange(0, 5), new OffsetRange(9, 14)]
 		);
+		await assertSnapshot(actual.html.join(''), HTML_EXTENSION);
+		assert.deepStrictEqual(actual.mapping, [
+			[0, 0, 0],
+			[1, 0, 1], [1, 1, 2], [1, 2, 3],
+			[2, 0, 4], [2, 1, 5],
+			[3, 0, 6], [3, 1, 7], [3, 2, 8], [3, 3, 9], [3, 4, 10], [3, 5, 11], [3, 6, 12],
+			[4, 0, 13], [4, 3, 16]
+		]);
 	});
 
-	test('createLineParts render whitespace for selection with multiple, initially unsorted selections', () => {
-		assert.deepStrictEqual(
-			testCreateLineParts(
-				false,
-				' Hello world!\t',
-				[
-					createPart(4, 0),
-					createPart(6, 1),
-					createPart(14, 2)
-				],
-				0,
-				'selection',
-				[new OffsetRange(9, 14), new OffsetRange(0, 5)]
-			),
-			{
-				html: [
-					'<span class="mtkz" style="width:10px">\u00b7\u200c</span>',
-					'<span class="mtk0">Hel</span>',
-					'<span class="mtk1">lo</span>',
-					'<span class="mtk2">\u00a0world!</span>',
-					'<span class="mtkz" style="width:30px">\u2192\u00a0\u00a0</span>',
-				],
-				mapping: [
-					[0, 0, 0],
-					[1, 0, 1], [1, 1, 2], [1, 2, 3],
-					[2, 0, 4], [2, 1, 5],
-					[3, 0, 6], [3, 1, 7], [3, 2, 8], [3, 3, 9], [3, 4, 10], [3, 5, 11], [3, 6, 12],
-					[4, 0, 13], [4, 3, 16]
-				]
-			}
+	test('createLineParts render whitespace for selection with multiple, initially unsorted selections', async () => {
+		const actual = testCreateLineParts(
+			false,
+			' Hello world!\t',
+			[
+				createPart(4, 0),
+				createPart(6, 1),
+				createPart(14, 2)
+			],
+			0,
+			'selection',
+			[new OffsetRange(9, 14), new OffsetRange(0, 5)]
 		);
+		await assertSnapshot(actual.html.join(''), HTML_EXTENSION);
+		assert.deepStrictEqual(actual.mapping, [
+			[0, 0, 0],
+			[1, 0, 1], [1, 1, 2], [1, 2, 3],
+			[2, 0, 4], [2, 1, 5],
+			[3, 0, 6], [3, 1, 7], [3, 2, 8], [3, 3, 9], [3, 4, 10], [3, 5, 11], [3, 6, 12],
+			[4, 0, 13], [4, 3, 16]
+		]);
 	});
 
-	test('createLineParts render whitespace for selection with selections next to each other', () => {
-		assert.deepStrictEqual(
-			testCreateLineParts(
-				false,
-				' * S',
-				[
-					createPart(4, 0)
-				],
-				0,
-				'selection',
-				[new OffsetRange(0, 1), new OffsetRange(1, 2), new OffsetRange(2, 3)]
-			),
-			{
-				html: [
-					'<span class="mtkz" style="width:10px">\u00b7\u200c</span>',
-					'<span class="mtk0">*</span>',
-					'<span class="mtkz" style="width:10px">\u00b7\u200c</span>',
-					'<span class="mtk0">S</span>',
-				],
-				mapping: [
-					[0, 0, 0],
-					[1, 0, 1],
-					[2, 0, 2],
-					[3, 0, 3], [3, 1, 4]
-				]
-			}
+	test('createLineParts render whitespace for selection with selections next to each other', async () => {
+		const actual = testCreateLineParts(
+			false,
+			' * S',
+			[
+				createPart(4, 0)
+			],
+			0,
+			'selection',
+			[new OffsetRange(0, 1), new OffsetRange(1, 2), new OffsetRange(2, 3)]
 		);
+		await assertSnapshot(actual.html.join(''), HTML_EXTENSION);
+		assert.deepStrictEqual(actual.mapping, [
+			[0, 0, 0],
+			[1, 0, 1],
+			[2, 0, 2],
+			[3, 0, 3], [3, 1, 4]
+		]);
 	});
 
-	test('createLineParts render whitespace for trailing with leading, inner, and without trailing whitespace', () => {
-		assert.deepStrictEqual(
-			testCreateLineParts(
-				false,
-				' Hello world!',
-				[
-					createPart(4, 0),
-					createPart(6, 1),
-					createPart(14, 2)
-				],
-				0,
-				'trailing',
-				null
-			),
-			{
-				html: [
-					'<span class="mtk0">\u00a0Hel</span>',
-					'<span class="mtk1">lo</span>',
-					'<span class="mtk2">\u00a0world!</span>',
-				],
-				mapping: [
-					[0, 0, 0], [0, 1, 1], [0, 2, 2], [0, 3, 3],
-					[1, 0, 4], [1, 1, 5],
-					[2, 0, 6], [2, 1, 7], [2, 2, 8], [2, 3, 9], [2, 4, 10], [2, 5, 11], [2, 6, 12], [2, 7, 13]
-				]
-			}
+	test('createLineParts render whitespace for trailing with leading, inner, and without trailing whitespace', async () => {
+		const actual = testCreateLineParts(
+			false,
+			' Hello world!',
+			[
+				createPart(4, 0),
+				createPart(6, 1),
+				createPart(14, 2)
+			],
+			0,
+			'trailing',
+			null
 		);
+		await assertSnapshot(actual.html.join(''), HTML_EXTENSION);
+		assert.deepStrictEqual(actual.mapping, [
+			[0, 0, 0], [0, 1, 1], [0, 2, 2], [0, 3, 3],
+			[1, 0, 4], [1, 1, 5],
+			[2, 0, 6], [2, 1, 7], [2, 2, 8], [2, 3, 9], [2, 4, 10], [2, 5, 11], [2, 6, 12], [2, 7, 13]
+		]);
 	});
 
-	test('createLineParts render whitespace for trailing with leading, inner, and trailing whitespace', () => {
-		assert.deepStrictEqual(
-			testCreateLineParts(
-				false,
-				' Hello world! \t',
-				[
-					createPart(4, 0),
-					createPart(6, 1),
-					createPart(15, 2)
-				],
-				0,
-				'trailing',
-				null
-			),
-			{
-				html: [
-					'<span class="mtk0">\u00a0Hel</span>',
-					'<span class="mtk1">lo</span>',
-					'<span class="mtk2">\u00a0world!</span>',
-					'<span class="mtkz" style="width:30px">\u00b7\u200c\u2192\u00a0</span>',
-				],
-				mapping: [
-					[0, 0, 0], [0, 1, 1], [0, 2, 2], [0, 3, 3],
-					[1, 0, 4], [1, 1, 5],
-					[2, 0, 6], [2, 1, 7], [2, 2, 8], [2, 3, 9], [2, 4, 10], [2, 5, 11], [2, 6, 12],
-					[3, 0, 13], [3, 2, 14], [3, 4, 16]
-				]
-			}
+	test('createLineParts render whitespace for trailing with leading, inner, and trailing whitespace', async () => {
+		const actual = testCreateLineParts(
+			false,
+			' Hello world! \t',
+			[
+				createPart(4, 0),
+				createPart(6, 1),
+				createPart(15, 2)
+			],
+			0,
+			'trailing',
+			null
 		);
+		await assertSnapshot(actual.html.join(''), HTML_EXTENSION);
+		assert.deepStrictEqual(actual.mapping, [
+			[0, 0, 0], [0, 1, 1], [0, 2, 2], [0, 3, 3],
+			[1, 0, 4], [1, 1, 5],
+			[2, 0, 6], [2, 1, 7], [2, 2, 8], [2, 3, 9], [2, 4, 10], [2, 5, 11], [2, 6, 12],
+			[3, 0, 13], [3, 2, 14], [3, 4, 16]
+		]);
 	});
 
-	test('createLineParts render whitespace for trailing with 8 leading and 8 trailing whitespaces', () => {
-		assert.deepStrictEqual(
-			testCreateLineParts(
-				false,
-				'        Hello world!        ',
-				[
-					createPart(8, 1),
-					createPart(10, 2),
-					createPart(28, 3)
-				],
-				0,
-				'trailing',
-				null
-			),
-			{
-				html: [
-					'<span class="mtk1">\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0</span>',
-					'<span class="mtk2">He</span>',
-					'<span class="mtk3">llo\u00a0world!</span>',
-					'<span class="mtkz" style="width:40px">\u00b7\u200c\u00b7\u200c\u00b7\u200c\u00b7\u200c</span>',
-					'<span class="mtkz" style="width:40px">\u00b7\u200c\u00b7\u200c\u00b7\u200c\u00b7\u200c</span>',
-				],
-				mapping: [
-					[0, 0, 0], [0, 1, 1], [0, 2, 2], [0, 3, 3], [0, 4, 4], [0, 5, 5], [0, 6, 6], [0, 7, 7],
-					[1, 0, 8], [1, 1, 9],
-					[2, 0, 10], [2, 1, 11], [2, 2, 12], [2, 3, 13], [2, 4, 14], [2, 5, 15], [2, 6, 16], [2, 7, 17], [2, 8, 18], [2, 9, 19],
-					[3, 0, 20], [3, 2, 21], [3, 4, 22], [3, 6, 23],
-					[4, 0, 24], [4, 2, 25], [4, 4, 26], [4, 6, 27], [4, 8, 28]
-				]
-			}
+	test('createLineParts render whitespace for trailing with 8 leading and 8 trailing whitespaces', async () => {
+		const actual = testCreateLineParts(
+			false,
+			'        Hello world!        ',
+			[
+				createPart(8, 1),
+				createPart(10, 2),
+				createPart(28, 3)
+			],
+			0,
+			'trailing',
+			null
 		);
+		await assertSnapshot(actual.html.join(''), HTML_EXTENSION);
+		assert.deepStrictEqual(actual.mapping, [
+			[0, 0, 0], [0, 1, 1], [0, 2, 2], [0, 3, 3], [0, 4, 4], [0, 5, 5], [0, 6, 6], [0, 7, 7],
+			[1, 0, 8], [1, 1, 9],
+			[2, 0, 10], [2, 1, 11], [2, 2, 12], [2, 3, 13], [2, 4, 14], [2, 5, 15], [2, 6, 16], [2, 7, 17], [2, 8, 18], [2, 9, 19],
+			[3, 0, 20], [3, 2, 21], [3, 4, 22], [3, 6, 23],
+			[4, 0, 24], [4, 2, 25], [4, 4, 26], [4, 6, 27], [4, 8, 28]
+		]);
 	});
 
-	test('createLineParts render whitespace for trailing with line containing only whitespaces', () => {
-		assert.deepStrictEqual(
-			testCreateLineParts(
-				false,
-				' \t ',
-				[
-					createPart(2, 0),
-					createPart(3, 1),
-				],
-				0,
-				'trailing',
-				null
-			),
-			{
-				html: [
-					'<span class="mtkz" style="width:40px">\u00b7\u200c\u2192\u00a0\u00a0</span>',
-					'<span class="mtkz" style="width:10px">\u00b7\u200c</span>',
-				],
-				mapping: [
-					[0, 0, 0], [0, 2, 1],
-					[1, 0, 4], [1, 2, 5]
-				]
-			}
+	test('createLineParts render whitespace for trailing with line containing only whitespaces', async () => {
+		const actual = testCreateLineParts(
+			false,
+			' \t ',
+			[
+				createPart(2, 0),
+				createPart(3, 1),
+			],
+			0,
+			'trailing',
+			null
 		);
+		await assertSnapshot(actual.html.join(''), HTML_EXTENSION);
+		assert.deepStrictEqual(actual.mapping, [
+			[0, 0, 0], [0, 2, 1],
+			[1, 0, 4], [1, 2, 5]
+		]);
 	});
 
 	test('createLineParts can handle unsorted inline decorations', async () => {
@@ -1713,9 +1491,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 		// -cccccc----
 
 		const inflated = inflateRenderLineOutput(actual);
-		await assertSnapshot(inflated.html.join(''), {
-			extension: 'html',
-		});
+		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
 		assert.deepStrictEqual(inflated.mapping, [
 			[0, 0, 0],
 			[1, 0, 1],
@@ -1755,9 +1531,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 		));
 
 		const inflated = inflateRenderLineOutput(actual);
-		await assertSnapshot(inflated.html.join(''), {
-			extension: 'html',
-		});
+		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
 		assert.deepStrictEqual(inflated.mapping, [
 			[0, 0, 0],
 			[1, 0, 4], [1, 1, 5], [1, 2, 6], [1, 3, 7]
@@ -1793,9 +1567,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 		));
 
 		const inflated = inflateRenderLineOutput(actual);
-		await assertSnapshot(inflated.html.join(''), {
-			extension: 'html',
-		});
+		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
 		assert.deepStrictEqual(inflated.mapping, [
 			[0, 0, 0],
 			[1, 0, 4],
@@ -1832,9 +1604,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 		));
 
 		const inflated = inflateRenderLineOutput(actual);
-		await assertSnapshot(inflated.html.join(''), {
-			extension: 'html',
-		});
+		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
 		assert.deepStrictEqual(inflated.mapping, [
 			[1, 0, 0]
 		]);
@@ -1867,9 +1637,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 		));
 
 		const inflated = inflateRenderLineOutput(actual);
-		await assertSnapshot(inflated.html.join(''), {
-			extension: 'html',
-		});
+		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
 		assert.deepStrictEqual(inflated.mapping, [
 			[0, 0, 0], [0, 1, 1], [0, 2, 2], [0, 3, 3], [0, 4, 4],
 			[1, 0, 5], [1, 1, 6], [1, 2, 7]
@@ -1906,9 +1674,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 		));
 
 		const inflated = inflateRenderLineOutput(actual);
-		await assertSnapshot(inflated.html.join(''), {
-			extension: 'html',
-		});
+		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
 		assert.deepStrictEqual(inflated.mapping, [
 			[1, 0, 0]
 		]);
@@ -1946,9 +1712,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 		));
 
 		const inflated = inflateRenderLineOutput(actual);
-		await assertSnapshot(inflated.html.join(''), {
-			extension: 'html',
-		});
+		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
 		assert.deepStrictEqual(inflated.mapping, [
 			[2, 0, 0]
 		]);
@@ -1984,9 +1748,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 		));
 
 		const inflated = inflateRenderLineOutput(actual);
-		await assertSnapshot(inflated.html.join(''), {
-			extension: 'html',
-		});
+		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
 		assert.deepStrictEqual(inflated.mapping, [
 			[0, 0, 0], [0, 4, 4],
 			[2, 0, 5]
@@ -2023,9 +1785,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 		));
 
 		const inflated = inflateRenderLineOutput(actual);
-		await assertSnapshot(inflated.html.join(''), {
-			extension: 'html',
-		});
+		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
 		assert.deepStrictEqual(inflated.mapping, [
 			[0, 0, 0], [0, 1, 1], [0, 2, 2], [0, 3, 3],
 			[1, 0, 4],
@@ -2060,9 +1820,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 		));
 
 		const inflated = inflateRenderLineOutput(actual);
-		await assertSnapshot(inflated.html.join(''), {
-			extension: 'html',
-		});
+		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
 		assert.deepStrictEqual(inflated.mapping, [
 			[0, 0, 0], [0, 1, 1], [0, 2, 2], [0, 3, 3], [0, 4, 4], [0, 5, 5], [0, 6, 6], [0, 7, 7], [0, 8, 9],
 			[0, 9, 10], [0, 11, 12], [0, 15, 16], [0, 16, 17], [0, 17, 18], [0, 18, 19], [0, 19, 20]
@@ -2096,9 +1854,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 		));
 
 		const inflated = inflateRenderLineOutput(actual);
-		await assertSnapshot(inflated.html.join(''), {
-			extension: 'html',
-		});
+		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
 		assert.deepStrictEqual(inflated.mapping, [
 			[0, 0, 0], [0, 1, 1], [0, 2, 2],
 			[1, 0, 3],
@@ -2137,9 +1893,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 		));
 
 		const inflated = inflateRenderLineOutput(actual);
-		await assertSnapshot(inflated.html.join(''), {
-			extension: 'html',
-		});
+		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
 		assert.deepStrictEqual(inflated.mapping, [
 			[0, 0, 0], [0, 1, 1], [0, 2, 2], [0, 3, 3], [0, 4, 4], [0, 5, 5], [0, 6, 6], [0, 7, 7],
 			[0, 8, 8], [0, 9, 9], [0, 10, 10], [0, 11, 11], [0, 12, 12], [0, 13, 13], [0, 14, 14],
@@ -2179,9 +1933,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 		));
 
 		const inflated = inflateRenderLineOutput(actual);
-		await assertSnapshot(inflated.html.join(''), {
-			extension: 'html',
-		});
+		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
 		assert.deepStrictEqual(inflated.mapping, [
 			[0, 0, 0], [0, 1, 1], [0, 2, 2], [0, 3, 3], [0, 4, 4], [0, 5, 5], [0, 6, 6], [0, 7, 7],
 			[0, 8, 8], [0, 9, 9], [0, 10, 10], [0, 11, 11], [0, 12, 12], [0, 13, 13], [0, 14, 14],
@@ -2227,9 +1979,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 		));
 
 		const inflated = inflateRenderLineOutput(actual);
-		await assertSnapshot(inflated.html.join(''), {
-			extension: 'html',
-		});
+		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
 		assert.deepStrictEqual(inflated.mapping, [
 			[0, 0, 0], [0, 1, 1], [0, 2, 2], [0, 3, 3], [0, 4, 4], [0, 5, 5], [0, 6, 6], [0, 7, 7],
 			[0, 8, 8], [0, 9, 9], [0, 10, 10], [0, 11, 11], [0, 12, 12], [0, 13, 13], [0, 14, 14],
@@ -2276,9 +2026,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 		));
 
 		const inflated = inflateRenderLineOutput(actual);
-		await assertSnapshot(inflated.html.join(''), {
-			extension: 'html',
-		});
+		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
 		assert.deepStrictEqual(inflated.mapping, [
 			[0, 0, 0], [0, 1, 1], [0, 2, 2], [0, 3, 3], [0, 4, 4], [0, 5, 5], [0, 6, 6], [0, 7, 7],
 			[0, 8, 8], [0, 9, 9], [0, 10, 10], [0, 11, 11], [0, 12, 12], [0, 13, 13], [0, 14, 14],
@@ -2318,9 +2066,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 		));
 
 		const inflated = inflateRenderLineOutput(actual);
-		await assertSnapshot(inflated.html.join(''), {
-			extension: 'html',
-		});
+		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
 		assert.deepStrictEqual(inflated.mapping, [
 			[0, 0, 0], [0, 1, 1], [0, 2, 2], [0, 3, 3], [0, 4, 4], [0, 5, 5], [0, 6, 6], [0, 7, 7],
 			[0, 8, 8], [0, 9, 9], [0, 10, 10], [0, 11, 11], [0, 12, 12], [0, 13, 13], [0, 14, 14],
@@ -2383,9 +2129,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 		));
 
 		const inflated = inflateRenderLineOutput(actual);
-		await assertSnapshot(inflated.html.join(''), {
-			extension: 'html',
-		});
+		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
 		assert.deepStrictEqual(inflated.mapping, [
 			[0, 0, 0], [0, 1, 1], [0, 2, 2], [0, 3, 3], [0, 4, 4], [0, 5, 5], [0, 6, 6], [0, 7, 7],
 			[0, 8, 8], [0, 9, 9], [0, 10, 10], [0, 11, 11], [0, 12, 12], [0, 13, 13], [0, 14, 14],
@@ -2459,9 +2203,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 		));
 
 		const inflated = inflateRenderLineOutput(actual);
-		await assertSnapshot(inflated.html.join(''), {
-			extension: 'html',
-		});
+		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
 		assert.deepStrictEqual(inflated.mapping, [
 			[0, 0, 0],
 			[1, 0, 1],
@@ -2527,9 +2269,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 		));
 
 		const inflated = inflateRenderLineOutput(actual);
-		await assertSnapshot(inflated.html.join(''), {
-			extension: 'html',
-		});
+		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
 		assert.deepStrictEqual(inflated.mapping, [
 			[0, 0, 0], [0, 1, 1], [0, 2, 2], [0, 3, 3], [0, 4, 4], [0, 5, 5], [0, 6, 6], [0, 7, 7]
 		]);
@@ -2561,9 +2301,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 		));
 
 		const inflated = inflateRenderLineOutput(actual);
-		await assertSnapshot(inflated.html.join(''), {
-			extension: 'html',
-		});
+		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
 		assert.deepStrictEqual(inflated.mapping, [
 			[0, 0, 0], [0, 1, 1], [0, 2, 2], [0, 3, 3], [0, 4, 4], [0, 5, 5], [0, 6, 6], [0, 7, 7],
 			[0, 8, 8], [0, 9, 9], [0, 10, 10], [0, 11, 11], [0, 12, 12], [0, 13, 13], [0, 14, 14],
@@ -2606,9 +2344,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 		));
 
 		const inflated = inflateRenderLineOutput(actual);
-		await assertSnapshot(inflated.html.join(''), {
-			extension: 'html',
-		});
+		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
 		assert.deepStrictEqual(inflated.mapping, [
 			[0, 0, 0], [0, 2, 1], [0, 4, 2], [0, 6, 3],
 			[1, 0, 4], [1, 1, 5],
