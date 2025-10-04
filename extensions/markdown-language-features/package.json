@@ -165,7 +165,8 @@
       {
         "command": "markdown.preview.refresh",
         "title": "%markdown.preview.refresh.title%",
-        "category": "Markdown"
+        "category": "Markdown",
+        "icon": "$(refresh)"
       },
       {
         "command": "markdown.preview.toggleLock",
