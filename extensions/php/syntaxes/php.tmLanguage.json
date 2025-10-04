@@ -2839,6 +2839,12 @@
 							"include": "#php_doc_types_array_single"
 						},
 						{
+							"include": "#php_doc_types_array_with_key_type"
+						},
+						{
+							"include": "#php_doc_types_array_shape"
+						},
+						{
 							"include": "#php_doc_types"
 						},
 						{
@@ -2910,10 +2916,86 @@
 					"include": "#php_doc_types_array_single"
 				},
 				{
+					"include": "#php_doc_types_array_with_key_type"
+				},
+				{
+					"include": "#php_doc_types_array_shape"
+				},
+				{
 					"include": "#php_doc_types"
 				},
 				{
 					"match": "[|&]",
+					"name": "punctuation.separator.delimiter.php"
+				}
+			]
+		},
+		"php_doc_types_array_shape": {
+			"begin": "\\{",
+			"beginCaptures": {
+				"0": {
+					"name": "punctuation.definition.type.begin.bracket.curly.phpdoc.php"
+				}
+			},
+			"end": "(\\})",
+			"endCaptures": {
+				"1": {
+					"name": "punctuation.definition.type.end.bracket.curly.phpdoc.php"
+				}
+			},
+			"patterns": [
+				{
+					"include": "#php_doc_types_array_multiple"
+				},
+				{
+					"include": "#php_doc_types_array_single"
+				},
+				{
+					"include": "#php_doc_types_array_with_key_type"
+				},
+				{
+					"include": "#php_doc_types_array_shape"
+				},
+				{
+					"include": "#php_doc_types"
+				},
+				{
+					"match": "[,]\\s*",
+					"name": "punctuation.separator.delimiter.php"
+				}
+			]
+		},
+		"php_doc_types_array_with_key_type": {
+			"begin": "\\<",
+			"beginCaptures": {
+				"0": {
+					"name": "punctuation.definition.type.begin.bracket.angle.phpdoc.php"
+				}
+			},
+			"end": "(\\>)",
+			"endCaptures": {
+				"1": {
+					"name": "punctuation.definition.type.end.bracket.angle.phpdoc.php"
+				}
+			},
+			"patterns": [
+				{
+					"include": "#php_doc_types_array_multiple"
+				},
+				{
+					"include": "#php_doc_types_array_single"
+				},
+				{
+					"include": "#php_doc_types_array_with_key_type"
+				},
+				{
+					"include": "#php_doc_types_array_shape"
+				},
+				{
+					"include": "#php_doc_types"
+				},
+				{
+					"match": "[,]\\s*",
 					"name": "punctuation.separator.delimiter.php"
 				}
 			]
