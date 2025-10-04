@@ -58,6 +58,8 @@ const CLASS_MISS = 'coverage-deco-miss';
 const TOGGLE_INLINE_COMMAND_TEXT = localize('testing.toggleInlineCoverage', 'Toggle Inline');
 const TOGGLE_INLINE_COMMAND_ID = 'testing.toggleInlineCoverage';
 const BRANCH_MISS_INDICATOR_CHARS = 4;
+const GO_TO_NEXT_MISSED_LINE_TITLE = localize2('testing.goToNextMissedLine', "Go to Next Uncovered Line");
+const GO_TO_PREVIOUS_MISSED_LINE_TITLE = localize2('testing.goToPreviousMissedLine', "Go to Previous Uncovered Line");
 
 export class CodeCoverageDecorations extends Disposable implements IEditorContribution {
 	public static readonly ID = Testing.CoverageDecorationsContributionId;
@@ -719,7 +721,7 @@ class CoverageToolbarWidget extends Disposable implements IOverlayWidget {
 		// Navigation buttons for missed coverage lines
 		this.actionBar.push(new ActionWithIcon(
 			'goToPreviousMissed',
-			localize('testing.goToPreviousMissedLine', 'Go to Previous Uncovered Line'),
+			GO_TO_PREVIOUS_MISSED_LINE_TITLE.value,
 			Codicon.arrowUp,
 			undefined,
 			() => this.commandService.executeCommand(TestCommandId.CoverageGoToPreviousMissedLine),
@@ -727,7 +729,7 @@ class CoverageToolbarWidget extends Disposable implements IOverlayWidget {
 
 		this.actionBar.push(new ActionWithIcon(
 			'goToNextMissed',
-			localize('testing.goToNextMissedLine', 'Go to Next Uncovered Line'),
+			GO_TO_NEXT_MISSED_LINE_TITLE.value,
 			Codicon.arrowDown,
 			undefined,
 			() => this.commandService.executeCommand(TestCommandId.CoverageGoToNextMissedLine),
@@ -1003,7 +1005,7 @@ registerAction2(class GoToNextMissedCoverageLine extends Action2 {
 	constructor() {
 		super({
 			id: TestCommandId.CoverageGoToNextMissedLine,
-			title: localize2('testing.goToNextMissedLine', "Go to Next Uncovered Line"),
+			title: GO_TO_NEXT_MISSED_LINE_TITLE,
 			metadata: {
 				description: localize2('testing.goToNextMissedLineDesc', 'Navigate to the next line that is not covered by tests.')
 			},
@@ -1039,7 +1041,7 @@ registerAction2(class GoToPreviousMissedCoverageLine extends Action2 {
 	constructor() {
 		super({
 			id: TestCommandId.CoverageGoToPreviousMissedLine,
-			title: localize2('testing.goToPreviousMissedLine', "Go to Previous Uncovered Line"),
+			title: GO_TO_PREVIOUS_MISSED_LINE_TITLE,
 			metadata: {
 				description: localize2('testing.goToPreviousMissedLineDesc', 'Navigate to the previous line that is not covered by tests.')
 			},
