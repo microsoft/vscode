@@ -25,6 +25,10 @@
 	/* For chat dnd */
 }
 
+.interactive-session.full-width {
+	max-width: none;
+}
+
 .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row > .monaco-tl-row > .monaco-tl-twistie {
 	/* Hide twisties from chat tree rows, but not from nested trees within a chat response */
 	display: none !important;

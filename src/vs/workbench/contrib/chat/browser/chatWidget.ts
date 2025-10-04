@@ -803,6 +803,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._register(this.editorOptions.onDidChange(() => this.onDidStyleChange()));
 		this.onDidStyleChange();
 
+		// Listen to word wrap configuration changes
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatConfiguration.WordWrap)) {
+				this.updateWordWrapClass();
+			}
+		}));
+		this.updateWordWrapClass();
+
 		// Do initial render
 		if (this.viewModel) {
 			this.onDidChangeItems();
@@ -2161,6 +2169,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.container.style.setProperty('--vscode-interactive-result-editor-background-color', this.editorOptions.configuration.resultEditor.backgroundColor?.toString() ?? '');
 		this.container.style.setProperty('--vscode-interactive-session-foreground', this.editorOptions.configuration.foreground?.toString() ?? '');
 		this.container.style.setProperty('--vscode-chat-list-background', this.themeService.getColorTheme().getColor(this.styles.listBackground)?.toString() ?? '');
+	}
+
+	private updateWordWrapClass(): void {
+		const wordWrap = this.configurationService.getValue<'on' | 'off'>(ChatConfiguration.WordWrap);
+		this.container.classList.toggle('full-width', wordWrap === 'on');
 	}
 
 

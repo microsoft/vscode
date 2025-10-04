@@ -169,6 +169,12 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('interactiveSession.editor.lineHeight', "Controls the line height in pixels in chat codeblocks. Use 0 to compute the line height from the font size."),
 			default: 0
 		},
+		'chat.wordWrap': {
+			type: 'string',
+			description: nls.localize('chat.wordWrap', "Controls whether the chat should use the full width of the container. When set to 'off', the chat content has a maximum width. When set to 'on', the chat content uses the full container width."),
+			default: 'off',
+			enum: ['on', 'off']
+		},
 		'chat.commandCenter.enabled': {
 			type: 'boolean',
 			markdownDescription: nls.localize('chat.commandCenter.enabled', "Controls whether the command center shows a menu for actions to control chat (requires {0}).", '`#window.commandCenter#`'),
