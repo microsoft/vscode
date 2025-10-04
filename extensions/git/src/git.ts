@@ -979,7 +979,7 @@ export interface LsTreeElement {
 export function parseLsTree(raw: string): LsTreeElement[] {
 	return raw.split('\n')
 		.filter(l => !!l)
-		.map(line => /^(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(.*)$/.exec(line)!)
+		.map(line => /^(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\t(.*)$/.exec(line)!)
 		.filter(m => !!m)
 		.map(([, mode, type, object, size, file]) => ({ mode, type, object, size, file }));
 }
@@ -992,11 +992,29 @@ interface LsFilesElement {
 }
 
 export function parseLsFiles(raw: string): LsFilesElement[] {
-	return raw.split('\n')
-		.filter(l => !!l)
-		.map(line => /^(\S+)\s+(\S+)\s+(\S+)\s+(.*)$/.exec(line)!)
-		.filter(m => !!m)
-		.map(([, mode, object, stage, file]) => ({ mode, object, stage, file }));
+	const elements: LsFilesElement[] = [];
+	for (const line of raw.split('\n')) {
+		if (!line) {
+			continue;
+		}
+
+		const tabIndex = line.indexOf('\t');
+		if (tabIndex === -1) {
+			continue;
+		}
+
+		const metadata = line.substring(0, tabIndex);
+		const file = line.substring(tabIndex + 1);
+
+		const parts = metadata.split(/\s+/);
+		if (parts.length !== 3) {
+			continue;
+		}
+
+		const [mode, object, stage] = parts;
+		elements.push({ mode, object, stage, file });
+	}
+	return elements;
 }
 
 const stashRegex = /([0-9a-f]{40})\n(.*)\nstash@{(\d+)}\n(WIP\s)*on([^:]+):(.*)(?:\x00)/gmi;
