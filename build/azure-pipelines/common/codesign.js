@@ -8,8 +8,9 @@ exports.spawnCodesignProcess = spawnCodesignProcess;
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 const zx_1 = require("zx");
+const util_1 = require("../../lib/util");
 function printBanner(title) {
-    title = `${title} (${new Date().toISOString()})`;
+    title = `${title} (${(0, util_1.getDate)().toISOString()})`;
     console.log('\n');
     console.log('#'.repeat(75));
     console.log(`# ${title.padEnd(71)} #`);
