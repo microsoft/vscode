@@ -420,7 +420,7 @@ export class HoverService extends Disposable implements IHoverService {
 		}, true));
 		store.add(addDisposableListener(targetElement, EventType.MOUSE_LEAVE, (e: MouseEvent) => {
 			isMouseDown = false;
-			// eslint-disable-next-line local/code-no-any-casts
+			// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 			hideHover(false, (<any>e).fromElement === targetElement);
 		}, true));
 		store.add(addDisposableListener(targetElement, EventType.MOUSE_OVER, (e: MouseEvent) => {
