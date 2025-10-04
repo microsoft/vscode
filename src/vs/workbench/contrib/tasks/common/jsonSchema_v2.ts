@@ -521,12 +521,57 @@ taskDescriptionProperties.taskName.deprecationMessage = nls.localize(
 );
 // Clone the taskDescription for process task before setting a default to prevent two defaults #115281
 const processTask = Objects.deepClone(taskDescription);
-taskDescription.default = {
+
+// Create a shell task schema
+const shellTask = Objects.deepClone(taskDescription);
+shellTask.default = {
 	label: 'My Task',
 	type: 'shell',
 	command: 'echo Hello',
 	problemMatcher: []
 };
+
+// Create a compound task schema for tasks that only depend on other tasks
+const compoundTask: IJSONSchema = {
+	type: 'object',
+	required: ['label', 'dependsOn'],
+	additionalProperties: false,
+	properties: {
+		label: Objects.deepClone(label),
+		dependsOn: Objects.deepClone(dependsOn),
+		dependsOrder: Objects.deepClone(dependsOrder),
+		group: Objects.deepClone(group),
+		isBackground: {
+			type: 'boolean',
+			description: nls.localize('JsonSchema.tasks.background', 'Whether the executed task is kept alive and is running in the background.'),
+			default: true
+		},
+		promptOnClose: {
+			type: 'boolean',
+			description: nls.localize('JsonSchema.tasks.promptOnClose', 'Whether the user is prompted when VS Code closes with a running task.'),
+			default: false
+		},
+		presentation: Objects.deepClone(presentation),
+		icon: Objects.deepClone(icon),
+		hide: Objects.deepClone(hide),
+		problemMatcher: {
+			$ref: '#/definitions/problemMatcherType',
+			description: nls.localize('JsonSchema.tasks.matchers', 'The problem matcher(s) to use. Can either be a string or a problem matcher definition or an array of strings and problem matchers.')
+		},
+		runOptions: Objects.deepClone(runOptions),
+		detail: Objects.deepClone(detail),
+	},
+	defaultSnippets: [
+		{
+			body: {
+				label: 'Compound Task',
+				dependsOn: ['${1:Task1}', '${2:Task2}']
+			},
+			description: nls.localize('JsonSchema.tasks.compound', 'A task that runs multiple other tasks.')
+		}
+	]
+};
+
 definitions.showOutputType.deprecationMessage = nls.localize(
 	'JsonSchema.tasks.showOutput.deprecated',
 	'The property showOutput is deprecated. Use the reveal property inside the presentation property instead. See also the 1.14 release notes.'
@@ -559,6 +604,8 @@ processTask.required!.push('command');
 processTask.required!.push('type');
 
 taskDefinitions.push(processTask);
+taskDefinitions.push(shellTask);
+taskDefinitions.push(compoundTask);
 
 taskDefinitions.push({
 	$ref: '#/definitions/taskDescription'
