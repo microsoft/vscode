@@ -384,6 +384,61 @@ suite('viewLineRenderer.renderLine', () => {
 		await assertSnapshot(inflated.mapping);
 	});
 
+	test('issue #260239: HTML containing bidirectional text is rendered incorrectly', async () => {
+		// Simulating HTML like: <p class="myclass" title="العربي">نشاط التدويل!</p>
+		// The line contains both LTR (class="myclass") and RTL (title="العربي") attribute values
+		const lineContent = '<p class="myclass" title="العربي">نشاط التدويل!</p>';
+		const lineTokens = createViewLineTokens([
+			createPart(1, 1),   // <
+			createPart(2, 2),   // p
+			createPart(3, 3),   // (space)
+			createPart(8, 4),   // class
+			createPart(9, 5),   // =
+			createPart(10, 6),  // "
+			createPart(17, 7),  // myclass
+			createPart(18, 6),  // "
+			createPart(19, 3),  // (space)
+			createPart(24, 4),  // title
+			createPart(25, 5),  // =
+			createPart(26, 6),  // "
+			createPart(32, 8),  // العربي (RTL text) - 6 Arabic characters from position 26-31
+			createPart(33, 6),  // " - closing quote at position 32
+			createPart(34, 1),  // >
+			createPart(47, 9),  // نشاط التدويل! (RTL text) - 13 characters from position 34-46
+			createPart(48, 1),  // <
+			createPart(49, 2),  // /
+			createPart(50, 2),  // p
+			createPart(51, 1),  // >
+		]);
+		const _actual = renderViewLine(new RenderLineInput(
+			false,
+			true,
+			lineContent,
+			false,
+			false,
+			true,
+			0,
+			lineTokens,
+			[],
+			4,
+			0,
+			10,
+			10,
+			10,
+			-1,
+			'none',
+			false,
+			false,
+			null,
+			null,
+			14
+		));
+
+		const inflated = inflateRenderLineOutput(_actual);
+		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
+		await assertSnapshot(inflated.mapping);
+	});
+
 	test('issue #6885: Splits large tokens', async () => {
 		//                                                                                                                  1         1         1
 		//                        1         2         3         4         5         6         7         8         9         0         1         2
