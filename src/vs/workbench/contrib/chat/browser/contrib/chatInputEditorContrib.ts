@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
@@ -16,12 +17,14 @@ import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 import { inputPlaceholderForeground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentService } from '../../common/chatAgents.js';
 import { chatSlashCommandBackground, chatSlashCommandForeground } from '../../common/chatColors.js';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader } from '../../common/chatParserTypes.js';
 import { ChatRequestParser } from '../../common/chatRequestParser.js';
+import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { IChatWidget } from '../chat.js';
 import { ChatWidget } from '../chatWidget.js';
 import { dynamicVariableDecorationType } from './chatDynamicVariables.js';
@@ -40,6 +43,7 @@ class InputEditorDecorations extends Disposable {
 	public readonly id = 'inputEditorDecorations';
 
 	private readonly previouslyUsedAgents = new Set<string>();
+	private readonly promptDescriptionsCache = new Map<string, string>();
 
 	private readonly viewModelDisposables = this._register(new MutableDisposable());
 
@@ -50,6 +54,8 @@ class InputEditorDecorations extends Disposable {
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILabelService private readonly labelService: ILabelService,
+		@IPromptsService private readonly promptsService: IPromptsService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
@@ -235,6 +241,31 @@ class InputEditorDecorations extends Disposable {
 			}
 		}
 
+		const onlySlashPromptAndWhitespace = slashPromptPart && parsedRequest.every(p => p instanceof ChatRequestTextPart && !p.text.trim().length || p instanceof ChatRequestSlashPromptPart);
+		if (onlySlashPromptAndWhitespace) {
+			// Slash prompt with no other text - show the placeholder
+			if (exactlyOneSpaceAfterPart(slashPromptPart)) {
+				// Check if we have the description in cache
+				let description = this.promptDescriptionsCache.get(slashPromptPart.slashPromptCommand.command);
+				
+				if (description === undefined) {
+					// Load the description asynchronously
+					this.loadPromptDescription(slashPromptPart.slashPromptCommand.command);
+				} else if (description) {
+					// We have a description, show it as placeholder
+					placeholderDecoration = [{
+						range: getRangeForPlaceholder(slashPromptPart),
+						renderOptions: {
+							after: {
+								contentText: description,
+								color: this.getPlaceholderColor(),
+							}
+						}
+					}];
+				}
+			}
+		}
+
 		this.widget.inputEditor.setDecorationsByType(decorationDescription, placeholderDecorationType, placeholderDecoration ?? []);
 
 		const textDecorations: IDecorationOptions[] | undefined = [];
@@ -250,7 +281,20 @@ class InputEditorDecorations extends Disposable {
 		}
 
 		if (slashPromptPart) {
-			textDecorations.push({ range: slashPromptPart.editorRange });
+			// Add hover message with description if available
+			const cachedDescription = this.promptDescriptionsCache.get(slashPromptPart.slashPromptCommand.command);
+			// Show description if loaded, otherwise trigger load and show description once available
+			if (cachedDescription === undefined) {
+				// Not loaded yet - trigger load but don't show hover yet
+				this.loadPromptDescription(slashPromptPart.slashPromptCommand.command);
+				textDecorations.push({ range: slashPromptPart.editorRange });
+			} else if (cachedDescription.trim()) {
+				// Have description - show it
+				textDecorations.push({ range: slashPromptPart.editorRange, hoverMessage: new MarkdownString(cachedDescription) });
+			} else {
+				// No description available - don't show hover
+				textDecorations.push({ range: slashPromptPart.editorRange });
+			}
 		}
 
 		this.widget.inputEditor.setDecorationsByType(decorationDescription, slashCommandTextDecorationType, textDecorations);
@@ -271,6 +315,42 @@ class InputEditorDecorations extends Disposable {
 		}
 
 		this.widget.inputEditor.setDecorationsByType(decorationDescription, variableTextDecorationType, varDecorations);
+	}
+
+	private async loadPromptDescription(promptName: string): Promise<void> {
+		try {
+			// Mark as loading to prevent multiple requests
+			this.promptDescriptionsCache.set(promptName, '');
+
+			// Get all available prompt files with their metadata
+			const promptCommands = await this.promptsService.findPromptSlashCommands();
+
+			// Find the matching prompt command
+			const promptCommand = promptCommands.find(cmd => cmd.command === promptName);
+			if (!promptCommand?.promptPath) {
+				return;
+			}
+
+			// Parse the prompt file to get the description
+			const parseResult = await this.promptsService.parseNew(
+				promptCommand.promptPath.uri,
+				CancellationToken.None
+			);
+
+			const description = parseResult.header?.description;
+			if (description) {
+				this.promptDescriptionsCache.set(promptName, description);
+			} else {
+				// Empty string indicates we've checked but found no description
+				this.promptDescriptionsCache.set(promptName, '');
+			}
+
+			// Update decorations to show the newly loaded description
+			this.updateInputEditorDecorations();
+		} catch (error) {
+			this.logService.warn('Failed to load prompt description:', promptName, error);
+			this.promptDescriptionsCache.set(promptName, '');
+		}
 	}
 }
 
