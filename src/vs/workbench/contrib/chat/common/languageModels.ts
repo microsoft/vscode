@@ -432,13 +432,13 @@ export class LanguageModelsService implements ILanguageModelsService {
 			return;
 		}
 		return this._resolveLMSequencer.queue(vendor, async () => {
-			this._clearModelCache(vendor);
 			try {
 				let modelsAndIdentifiers = await provider.provideLanguageModelChatInfo({ silent }, CancellationToken.None);
 				// This is a bit of a hack, when prompting user if the provider returns any models that are user selectable then we only want to show those and not the entire model list
 				if (!silent && modelsAndIdentifiers.some(m => m.metadata.isUserSelectable)) {
 					modelsAndIdentifiers = modelsAndIdentifiers.filter(m => m.metadata.isUserSelectable || this._modelPickerUserPreferences[m.identifier] === true);
 				}
+				this._clearModelCache(vendor);
 				for (const modelAndIdentifier of modelsAndIdentifiers) {
 					if (this._modelCache.has(modelAndIdentifier.identifier)) {
 						this._logService.warn(`[LM] Model ${modelAndIdentifier.identifier} is already registered. Skipping.`);

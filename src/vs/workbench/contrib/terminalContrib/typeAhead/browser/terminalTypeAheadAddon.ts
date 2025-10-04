@@ -50,6 +50,7 @@ const enum StatsConstants {
  */
 const PREDICTION_OMIT_RE = /^(\x1b\[(\??25[hl]|\??[0-9;]+n))+/;
 
+// eslint-disable-next-line local/code-no-any-casts
 const core = (terminal: Terminal): IXtermCore => (terminal as any)._core;
 const flushOutput = (terminal: Terminal) => {
 	// TODO: Flushing output is not possible anymore without async

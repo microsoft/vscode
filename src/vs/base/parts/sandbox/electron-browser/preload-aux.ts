@@ -23,13 +23,13 @@
 		 */
 		ipcRenderer: {
 
-			send(channel: string, ...args: any[]): void {
+			send(channel: string, ...args: unknown[]): void {
 				if (validateIPC(channel)) {
 					ipcRenderer.send(channel, ...args);
 				}
 			},
 
-			invoke(channel: string, ...args: any[]): Promise<any> {
+			invoke(channel: string, ...args: unknown[]): Promise<unknown> {
 				validateIPC(channel);
 
 				return ipcRenderer.invoke(channel, ...args);

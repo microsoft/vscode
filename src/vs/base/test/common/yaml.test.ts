@@ -209,9 +209,9 @@ suite('YAML Parser', () => {
 					'  database:',
 					'    host:localhost',
 					'    port: 5432',
-					'    abcde123456:',
-					'      logger12:admin',
-					'      memory12: a23123112'
+					'    credentials:',
+					'      username:admin',
+					'      password: secret123'
 				],
 				{
 					type: 'object', start: pos(0, 0), end: pos(6, 25), properties: [
@@ -232,16 +232,16 @@ suite('YAML Parser', () => {
 													value: { type: 'number', start: pos(3, 10), end: pos(3, 14), value: 5432 }
 												},
 												{
-													key: { type: 'string', start: pos(4, 4), end: pos(4, 15), value: 'abcde123456' },
+													key: { type: 'string', start: pos(4, 4), end: pos(4, 15), value: 'credentials' },
 													value: {
 														type: 'object', start: pos(5, 6), end: pos(6, 25), properties: [
 															{
-																key: { type: 'string', start: pos(5, 6), end: pos(5, 14), value: 'logger12' },
+																key: { type: 'string', start: pos(5, 6), end: pos(5, 14), value: 'username' },
 																value: { type: 'string', start: pos(5, 15), end: pos(5, 20), value: 'admin' }
 															},
 															{
-																key: { type: 'string', start: pos(6, 6), end: pos(6, 14), value: 'memory12' },
-																value: { type: 'string', start: pos(6, 16), end: pos(6, 25), value: 'a23123112' }
+																key: { type: 'string', start: pos(6, 6), end: pos(6, 14), value: 'password' },
+																value: { type: 'string', start: pos(6, 16), end: pos(6, 25), value: 'secret123' }
 															}
 														]
 													}
@@ -342,6 +342,28 @@ suite('YAML Parser', () => {
 				},
 				[]
 			);
+
+			// Test multi-line inline object with internal comment line between properties
+			assertValidParse(
+				['{a:1, # comment about b', ' b:2, c:3}'],
+				{
+					type: 'object', start: pos(0, 0), end: pos(1, 10), properties: [
+						{
+							key: { type: 'string', start: pos(0, 1), end: pos(0, 2), value: 'a' },
+							value: { type: 'number', start: pos(0, 3), end: pos(0, 4), value: 1 }
+						},
+						{
+							key: { type: 'string', start: pos(1, 1), end: pos(1, 2), value: 'b' },
+							value: { type: 'number', start: pos(1, 3), end: pos(1, 4), value: 2 }
+						},
+						{
+							key: { type: 'string', start: pos(1, 6), end: pos(1, 7), value: 'c' },
+							value: { type: 'number', start: pos(1, 8), end: pos(1, 9), value: 3 }
+						}
+					]
+				},
+				[]
+			);
 		});
 
 		test('special characters in values', () => {
@@ -410,6 +432,20 @@ suite('YAML Parser', () => {
 						{ type: 'string', start: pos(0, 16), end: pos(0, 22), value: 'Cherry' }
 					]
 
+				},
+				[]
+			);
+		});
+
+		test('inline array with internal comment line', () => {
+			assertValidParse(
+				['[one # comment about two', ',two, three]'],
+				{
+					type: 'array', start: pos(0, 0), end: pos(1, 12), items: [
+						{ type: 'string', start: pos(0, 1), end: pos(0, 4), value: 'one' },
+						{ type: 'string', start: pos(1, 1), end: pos(1, 4), value: 'two' },
+						{ type: 'string', start: pos(1, 6), end: pos(1, 11), value: 'three' }
+					]
 				},
 				[]
 			);
@@ -1071,6 +1107,29 @@ suite('YAML Parser', () => {
 						{
 							key: { type: 'string', start: pos(0, 0), end: pos(0, 4), value: 'name' },
 							value: { type: 'string', start: pos(0, 6), end: pos(0, 12), value: 'John' }
+						}
+					]
+				},
+				[]
+			);
+		});
+
+		test('comment in inline array #269078', () => {
+			// Test malformed array with comment-like content - should not cause endless loop
+			assertValidParse(
+				[
+					'mode: agent',
+					'tools: [#r'
+				],
+				{
+					type: 'object', start: pos(0, 0), end: pos(2, 0), properties: [
+						{
+							key: { type: 'string', start: pos(0, 0), end: pos(0, 4), value: 'mode' },
+							value: { type: 'string', start: pos(0, 6), end: pos(0, 11), value: 'agent' }
+						},
+						{
+							key: { type: 'string', start: pos(1, 0), end: pos(1, 5), value: 'tools' },
+							value: { type: 'array', start: pos(1, 7), end: pos(2, 0), items: [] }
 						}
 					]
 				},

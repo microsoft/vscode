@@ -75,6 +75,7 @@ function createTypeScriptBuilder(config, projectFile, cmd) {
     host.getCompilationSettings().declaration = true;
     function file(file) {
         // support gulp-sourcemaps
+        // eslint-disable-next-line local/code-no-any-casts
         if (file.sourceMap) {
             emitSourceMapsInStream = false;
         }
@@ -95,6 +96,7 @@ function createTypeScriptBuilder(config, projectFile, cmd) {
         }
     }
     function isExternalModule(sourceFile) {
+        // eslint-disable-next-line local/code-no-any-casts
         return sourceFile.externalModuleIndicator
             || /declare\s+module\s+('|")(.+)\1/.test(sourceFile.getText());
     }
@@ -219,6 +221,7 @@ function createTypeScriptBuilder(config, projectFile, cmd) {
                                     if (didChange) {
                                         [tsSMC, inputSMC].forEach((consumer) => {
                                             consumer.sources.forEach((sourceFile) => {
+                                                // eslint-disable-next-line local/code-no-any-casts
                                                 smg._sources.add(sourceFile);
                                                 const sourceContent = consumer.sourceContentFor(sourceFile);
                                                 if (sourceContent !== null) {
@@ -234,6 +237,7 @@ function createTypeScriptBuilder(config, projectFile, cmd) {
                                         // });
                                     }
                                 }
+                                // eslint-disable-next-line local/code-no-any-casts
                                 vinyl.sourceMap = sourceMap;
                             }
                         }
@@ -402,7 +406,9 @@ function createTypeScriptBuilder(config, projectFile, cmd) {
                         messageText: `CYCLIC dependency: ${error}`
                     });
                 }
+                delete oldErrors[filename];
                 newErrors[filename] = cyclicDepErrors;
+                cyclicDepErrors.forEach(d => onError(d));
             }
         }).then(() => {
             // store the build versions to not rebuilt the next time
@@ -515,6 +521,7 @@ class LanguageServiceHost {
         let result = this._snapshots[filename];
         if (!result && resolve) {
             try {
+                // eslint-disable-next-line local/code-no-any-casts
                 result = new VinylScriptSnapshot(new vinyl_1.default({
                     path: filename,
                     contents: fs_1.default.readFileSync(filename),

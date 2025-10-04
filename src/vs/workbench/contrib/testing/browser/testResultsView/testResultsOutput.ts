@@ -120,7 +120,9 @@ function applyEditorMirrorOptions<T extends IEditorOptions>(base: T, cfg: IConfi
 		let changed = false;
 		const patch: Partial<IEditorOptions> = {};
 		for (const [key, value] of Object.entries(configuration)) {
+			// eslint-disable-next-line local/code-no-any-casts
 			if (!immutable.has(key) && (base as any)[key] !== value) {
+				// eslint-disable-next-line local/code-no-any-casts
 				(patch as any)[key] = value;
 				changed = true;
 			}

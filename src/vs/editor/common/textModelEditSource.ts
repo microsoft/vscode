@@ -56,6 +56,7 @@ export class TextModelEditSource {
 	}
 
 	public get props(): Record<ITextModelEditSourceMetadataKeys, string | undefined> {
+		// eslint-disable-next-line local/code-no-any-casts
 		return this.metadata as any;
 	}
 }
@@ -65,6 +66,7 @@ type TextModelEditSourceT<T> = TextModelEditSource & {
 };
 
 function createEditSource<T extends Record<string, any>>(metadata: T): TextModelEditSourceT<T> {
+	// eslint-disable-next-line local/code-no-any-casts
 	return new TextModelEditSource(metadata as any, privateSymbol) as any;
 }
 
@@ -205,6 +207,7 @@ export class EditDeltaInfo {
 		return new EditDeltaInfo(linesAdded, 0, charsAdded, 0);
 	}
 
+	/** @internal */
 	public static fromEdit(edit: BaseStringEdit, originalString: StringText): EditDeltaInfo {
 		const lineEdit = LineEdit.fromStringEdit(edit, originalString);
 		const linesAdded = sumBy(lineEdit.replacements, r => r.newLines.length);

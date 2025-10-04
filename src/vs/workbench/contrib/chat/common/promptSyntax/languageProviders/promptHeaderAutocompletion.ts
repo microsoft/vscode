@@ -5,22 +5,20 @@
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { CharCode } from '../../../../../../base/common/charCode.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { Position } from '../../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { CompletionContext, CompletionItem, CompletionItemInsertTextRule, CompletionItemKind, CompletionItemProvider, CompletionList } from '../../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
-import { ILanguageFeaturesService } from '../../../../../../editor/common/services/languageFeatures.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../languageModels.js';
 import { ILanguageModelToolsService } from '../../languageModelToolsService.js';
 import { IChatModeService } from '../../chatModes.js';
-import { ALL_PROMPTS_LANGUAGE_SELECTOR, getPromptsTypeForLanguageId, PromptsType } from '../promptTypes.js';
+import { getPromptsTypeForLanguageId, PromptsType } from '../promptTypes.js';
 import { IPromptsService } from '../service/promptsService.js';
 import { Iterable } from '../../../../../../base/common/iterator.js';
 import { PromptHeader } from '../service/newPromptsParser.js';
-import { getValidAttributeNames } from '../service/promptValidator.js';
+import { getValidAttributeNames } from './promptValidator.js';
 
-export class PromptHeaderAutocompletion extends Disposable implements CompletionItemProvider {
+export class PromptHeaderAutocompletion implements CompletionItemProvider {
 	/**
 	 * Debug display name for this provider.
 	 */
@@ -33,14 +31,10 @@ export class PromptHeaderAutocompletion extends Disposable implements Completion
 
 	constructor(
 		@IPromptsService private readonly promptsService: IPromptsService,
-		@ILanguageFeaturesService private readonly languageService: ILanguageFeaturesService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
 		@IChatModeService private readonly chatModeService: IChatModeService,
 	) {
-		super();
-
-		this._register(this.languageService.completionProvider.register(ALL_PROMPTS_LANGUAGE_SELECTOR, this));
 	}
 
 	/**
@@ -182,7 +176,7 @@ export class PromptHeaderAutocompletion extends Disposable implements Completion
 
 	private getValueSuggestions(promptType: string, property: string): string[] {
 		if (promptType === PromptsType.instructions && property === 'applyTo') {
-			return ['**', '**/*.ts, **/*.js', '**/*.php', '**/*.py'];
+			return [`'**'`, `'**/*.ts, **/*.js'`, `'**/*.php'`, `'**/*.py'`];
 		}
 		if (promptType === PromptsType.prompt && property === 'mode') {
 			// Get all available modes (builtin + custom)
@@ -194,7 +188,7 @@ export class PromptHeaderAutocompletion extends Disposable implements Completion
 			return suggestions;
 		}
 		if (property === 'tools' && (promptType === PromptsType.prompt || promptType === PromptsType.mode)) {
-			return ['[]', `['codebase', 'editFiles', 'fetch']`];
+			return ['[]', `['search', 'edit', 'fetch']`];
 		}
 		if (property === 'model' && (promptType === PromptsType.prompt || promptType === PromptsType.mode)) {
 			return this.getModelNames(promptType === PromptsType.mode);

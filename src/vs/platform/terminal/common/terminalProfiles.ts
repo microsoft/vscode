@@ -116,6 +116,8 @@ export function isUriComponents(thing: unknown): thing is UriComponents {
 	if (!thing) {
 		return false;
 	}
+	// eslint-disable-next-line local/code-no-any-casts
 	return typeof (<any>thing).path === 'string' &&
+		// eslint-disable-next-line local/code-no-any-casts
 		typeof (<any>thing).scheme === 'string';
 }

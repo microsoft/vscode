@@ -21,6 +21,12 @@ export const enum ChatSessionStatus {
 	InProgress = 2
 }
 
+export interface IChatSessionCommandContribution {
+	name: string;
+	description: string;
+	when?: string;
+}
+
 export interface IChatSessionsExtensionPoint {
 	readonly type: string;
 	readonly name: string;
@@ -32,6 +38,7 @@ export interface IChatSessionsExtensionPoint {
 		supportsFileAttachments?: boolean;
 		supportsToolAttachments?: boolean;
 	};
+	readonly commands?: IChatSessionCommandContribution[];
 }
 export interface IChatSessionItem {
 	id: string;

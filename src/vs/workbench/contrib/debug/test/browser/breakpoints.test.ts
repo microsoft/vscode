@@ -447,6 +447,7 @@ suite('Debug - Breakpoints', () => {
 	test('updates when storage changes', () => {
 		const storage1 = disposables.add(new TestStorageService());
 		const debugStorage1 = disposables.add(new MockDebugStorage(storage1));
+		// eslint-disable-next-line local/code-no-any-casts
 		const model1 = disposables.add(new DebugModel(debugStorage1, <any>{ isDirty: (e: any) => false }, mockUriIdentityService, new NullLogService()));
 
 		// 1. create breakpoints in the first model
@@ -462,6 +463,7 @@ suite('Debug - Breakpoints', () => {
 
 		// 2. hydrate a new model and ensure external breakpoints get applied
 		const storage2 = disposables.add(new TestStorageService());
+		// eslint-disable-next-line local/code-no-any-casts
 		const model2 = disposables.add(new DebugModel(disposables.add(new MockDebugStorage(storage2)), <any>{ isDirty: (e: any) => false }, mockUriIdentityService, new NullLogService()));
 		storage2.store('debug.breakpoint', stored, StorageScope.WORKSPACE, StorageTarget.USER, /* external= */ true);
 		assert.deepStrictEqual(model2.getBreakpoints().map(b => b.getId()), model1.getBreakpoints().map(b => b.getId()));

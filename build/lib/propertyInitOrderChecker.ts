@@ -251,8 +251,11 @@ function* findAllReferencesInClass(node: ts.Node): Generator<ts.Node> {
 function findAllReferences(node: ts.Node): readonly SymbolAndEntries[] {
 	const sourceFile = node.getSourceFile();
 	const position = node.getStart();
+	// eslint-disable-next-line local/code-no-any-casts
 	const name: ts.Node = (ts as any).getTouchingPropertyName(sourceFile, position);
+	// eslint-disable-next-line local/code-no-any-casts
 	const options = { use: (ts as any).FindAllReferences.FindReferencesUse.References };
+	// eslint-disable-next-line local/code-no-any-casts
 	return (ts as any).FindAllReferences.Core.getReferencedSymbolsForNode(position, name, program, [sourceFile], cancellationToken, options) ?? [];
 }
 

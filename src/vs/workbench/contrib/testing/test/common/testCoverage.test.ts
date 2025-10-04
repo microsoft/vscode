@@ -24,6 +24,7 @@ suite('TestCoverage', () => {
 		coverageAccessor = {
 			getCoverageDetails: sandbox.stub().resolves([]),
 		};
+		// eslint-disable-next-line local/code-no-any-casts
 		testCoverage = new TestCoverage({} as LiveTestResult, 'taskId', { extUri: { ignorePathCasing: () => true } } as any, coverageAccessor);
 	});
 

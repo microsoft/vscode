@@ -436,6 +436,7 @@ export class ChatService extends Disposable implements IChatService {
 		// This handles the case where getName() is called before initialization completes
 		// Access the internal synchronous index method via reflection
 		// This is a workaround for the timing issue where initialization hasn't completed
+		// eslint-disable-next-line local/code-no-any-casts
 		const internalGetIndex = (this._chatSessionStore as any).internalGetIndex;
 		if (typeof internalGetIndex === 'function') {
 			const indexData = internalGetIndex.call(this._chatSessionStore);
@@ -821,7 +822,8 @@ export class ChatService extends Disposable implements IChatService {
 							userSelectedModelId: options?.userSelectedModelId,
 							userSelectedTools: options?.userSelectedTools?.get(),
 							modeInstructions: options?.modeInfo?.modeInstructions,
-							editedFileEvents: request.editedFileEvents
+							editedFileEvents: request.editedFileEvents,
+							chatSummary: options?.chatSummary
 						} satisfies IChatAgentRequest;
 					};
 
@@ -885,7 +887,23 @@ export class ChatService extends Disposable implements IChatService {
 					const agentResult = await this.chatAgentService.invokeAgent(agent.id, requestProps, progressCallback, history, token);
 					rawResult = agentResult;
 					agentOrCommandFollowups = this.chatAgentService.getFollowups(agent.id, requestProps, agentResult, history, followupsCancelToken);
-					chatTitlePromise = model.getRequests().length === 1 && !model.customTitle ? this.chatAgentService.getChatTitle(defaultAgent.id, this.getHistoryEntriesFromModel(model.getRequests(), model.sessionId, location, agent.id), CancellationToken.None) : undefined;
+
+					// Use LLM to generate the chat title
+					if (model.getRequests().length === 1 && !model.customTitle) {
+						const chatHistory = this.getHistoryEntriesFromModel(model.getRequests(), model.sessionId, location, agent.id);
+						chatTitlePromise = this.chatAgentService.getChatTitle(agent.id, chatHistory, CancellationToken.None).then(
+							(title) => {
+								// Since not every chat agent implements title generation, we can fallback to the default agent
+								// which supports it
+								if (title === undefined) {
+									const defaultAgentForTitle = this.chatAgentService.getDefaultAgent(location);
+									if (defaultAgentForTitle) {
+										return this.chatAgentService.getChatTitle(defaultAgentForTitle.id, chatHistory, CancellationToken.None);
+									}
+								}
+								return title;
+							});
+					}
 				} else if (commandPart && this.chatSlashCommandService.hasCommand(commandPart.slashCommand.command)) {
 					if (commandPart.slashCommand.silent !== true) {
 						request = model.addRequest(parsedRequest, { variables: [] }, attempt, options?.modeInfo);

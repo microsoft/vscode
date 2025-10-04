@@ -445,6 +445,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		let baseEnv: IProcessEnvironment;
 		if (shellLaunchConfig.useShellEnvironment) {
 			// TODO: Avoid as any?
+			// eslint-disable-next-line local/code-no-any-casts
 			baseEnv = await backend.getShellEnvironment() as any;
 		} else {
 			baseEnv = await this._terminalProfileResolverService.getEnvironment(this.remoteAuthority);

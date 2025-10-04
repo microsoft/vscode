@@ -84,6 +84,7 @@ async function createModel(context: ExtensionContext, logger: LogOutputChannel, 
 
 	const git = new Git({
 		gitPath: info.path,
+		// eslint-disable-next-line local/code-no-any-casts
 		userAgent: `git/${info.version} (${(os as any).version?.() ?? os.type()} ${os.release()}; ${os.platform()} ${os.arch()}) vscode/${vscodeVersion} (${env.appName})`,
 		version: info.version,
 		env: environment,

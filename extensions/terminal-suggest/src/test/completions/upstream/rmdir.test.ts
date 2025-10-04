@@ -10,6 +10,7 @@ import rmdirSpec from '../../../completions/upstream/rmdir';
 const allOptions = [
 	'-p',
 ];
+// eslint-disable-next-line local/code-no-any-casts
 const expectedCompletions = [{ label: 'rmdir', description: (rmdirSpec as any).description }];
 
 export const rmdirTestSuiteSpec: ISuiteSpec = {
