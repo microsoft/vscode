@@ -3,13 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { TestInstantiationService } from '../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
-import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
-import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
-import { IViewsService } from '../../../services/views/common/viewsService.js';
-import { ViewContainerLocation, IViewPaneContainer, IView, IViewDescriptor } from '../../../common/views.js';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { ViewContainerLocation, IViewPaneContainer, IView } from '../../../common/views.js';
 
 /**
  * Test suite for navigation between sidebar views/sections
@@ -17,17 +13,14 @@ import { ViewContainerLocation, IViewPaneContainer, IView, IViewDescriptor } fro
  */
 suite('Navigation Between Sidebar Views', () => {
 
-	let instantiationService: TestInstantiationService;
-	let viewsService: IViewsService;
-	let paneCompositeService: IPaneCompositePartService;
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(() => {
-		instantiationService = new TestInstantiationService();
 		// Setup mock services here
 	});
 
 	teardown(() => {
-		instantiationService.dispose();
+		// Cleanup
 	});
 
 	test('navigateWithinViews should focus next view when multiple visible views exist', async () => {
@@ -266,6 +259,8 @@ suite('Navigation Between Sidebar Views', () => {
  * Integration test suite for navigation commands
  */
 suite('Navigation Commands Integration', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('navigateDown command should navigate within sidebar views before moving to neighbor part', async () => {
 		// This would be an integration test that:
