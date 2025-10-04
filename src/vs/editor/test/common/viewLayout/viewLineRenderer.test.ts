@@ -656,9 +656,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			null
 		);
 		await assertSnapshot(actual.html.join(''), HTML_EXTENSION);
-		assert.deepStrictEqual(actual.mapping, [
-			[0, 0, 0], [0, 1, 1], [0, 2, 2], [0, 3, 3], [0, 4, 4], [0, 5, 5], [0, 6, 6], [0, 7, 7], [0, 8, 8], [0, 9, 9], [0, 10, 10], [0, 11, 11], [0, 12, 12]
-		]);
+		await assertSnapshot(actual.mapping);
 	});
 
 	test('createLineParts simple two tokens', async () => {
@@ -674,10 +672,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			null
 		);
 		await assertSnapshot(actual.html.join(''), HTML_EXTENSION);
-		assert.deepStrictEqual(actual.mapping, [
-			[0, 0, 0], [0, 1, 1], [0, 2, 2], [0, 3, 3], [0, 4, 4], [0, 5, 5],
-			[1, 0, 6], [1, 1, 7], [1, 2, 8], [1, 3, 9], [1, 4, 10], [1, 5, 11], [1, 6, 12]
-		]);
+		await assertSnapshot(actual.mapping);
 	});
 
 	test('createLineParts render whitespace - 4 leading spaces', async () => {
@@ -694,12 +689,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			null
 		);
 		await assertSnapshot(actual.html.join(''), HTML_EXTENSION);
-		assert.deepStrictEqual(actual.mapping, [
-			[0, 0, 0], [0, 2, 1], [0, 4, 2], [0, 6, 3],
-			[1, 0, 4], [1, 1, 5],
-			[2, 0, 6], [2, 1, 7], [2, 2, 8], [2, 3, 9], [2, 4, 10], [2, 5, 11], [2, 6, 12], [2, 7, 13], [2, 8, 14], [2, 9, 15],
-			[3, 0, 16], [3, 2, 17], [3, 4, 18], [3, 6, 19], [3, 8, 20]
-		]);
+		await assertSnapshot(actual.mapping);
 	});
 
 	test('createLineParts render whitespace - 8 leading spaces', async () => {
@@ -716,14 +706,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			null
 		);
 		await assertSnapshot(actual.html.join(''), HTML_EXTENSION);
-		assert.deepStrictEqual(actual.mapping, [
-			[0, 0, 0], [0, 2, 1], [0, 4, 2], [0, 6, 3],
-			[1, 0, 4], [1, 2, 5], [1, 4, 6], [1, 6, 7],
-			[2, 0, 8], [2, 1, 9],
-			[3, 0, 10], [3, 1, 11], [3, 2, 12], [3, 3, 13], [3, 4, 14], [3, 5, 15], [3, 6, 16], [3, 7, 17], [3, 8, 18], [3, 9, 19],
-			[4, 0, 20], [4, 2, 21], [4, 4, 22], [4, 6, 23],
-			[5, 0, 24], [5, 2, 25], [5, 4, 26], [5, 6, 27], [5, 8, 28]
-		]);
+		await assertSnapshot(actual.mapping);
 	});
 
 	test('createLineParts render whitespace - 2 leading tabs', async () => {
@@ -740,13 +723,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			null
 		);
 		await assertSnapshot(actual.html.join(''), HTML_EXTENSION);
-		assert.deepStrictEqual(actual.mapping, [
-			[0, 0, 0],
-			[1, 0, 4],
-			[2, 0, 8], [2, 1, 9],
-			[3, 0, 10], [3, 1, 11], [3, 2, 12], [3, 3, 13], [3, 4, 14], [3, 5, 15], [3, 6, 16], [3, 7, 17], [3, 8, 18], [3, 9, 19],
-			[4, 0, 20], [4, 4, 24]
-		]);
+		await assertSnapshot(actual.mapping);
 	});
 
 	test('createLineParts render whitespace - mixed leading spaces and tabs', async () => {
@@ -763,17 +740,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			null
 		);
 		await assertSnapshot(actual.html.join(''), HTML_EXTENSION);
-		assert.deepStrictEqual(actual.mapping, [
-			[0, 0, 0], [0, 2, 1], [0, 4, 2],
-			[1, 0, 4],
-			[2, 0, 8], [2, 2, 9],
-			[3, 0, 10], [3, 1, 11],
-			[4, 0, 12], [4, 1, 13], [4, 2, 14], [4, 3, 15], [4, 4, 16], [4, 5, 17], [4, 6, 18], [4, 7, 19], [4, 8, 20], [4, 9, 21],
-			[5, 0, 22], [5, 2, 23],
-			[6, 0, 24], [6, 2, 25], [6, 4, 26],
-			[7, 0, 28], [7, 2, 29], [7, 4, 30], [7, 6, 31],
-			[8, 0, 32], [8, 2, 33], [8, 4, 34], [8, 6, 35], [8, 8, 36]
-		]);
+		await assertSnapshot(actual.mapping);
 	});
 
 	test('createLineParts render whitespace skips faux indent', async () => {
@@ -790,16 +757,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			null
 		);
 		await assertSnapshot(actual.html.join(''), HTML_EXTENSION);
-		assert.deepStrictEqual(actual.mapping, [
-			[0, 0, 0], [0, 4, 4],
-			[1, 0, 8], [1, 2, 9],
-			[2, 0, 10], [2, 1, 11],
-			[3, 0, 12], [3, 1, 13], [3, 2, 14], [3, 3, 15], [3, 4, 16], [3, 5, 17], [3, 6, 18], [3, 7, 19], [3, 8, 20], [3, 9, 21],
-			[4, 0, 22], [4, 2, 23],
-			[5, 0, 24], [5, 2, 25], [5, 4, 26],
-			[6, 0, 28], [6, 2, 29], [6, 4, 30], [6, 6, 31],
-			[7, 0, 32], [7, 2, 33], [7, 4, 34], [7, 6, 35], [7, 8, 36]
-		]);
+		await assertSnapshot(actual.mapping);
 	});
 
 	test('createLineParts does not emit width for monospace fonts', async () => {
@@ -816,13 +774,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			null
 		);
 		await assertSnapshot(actual.html.join(''), HTML_EXTENSION);
-		assert.deepStrictEqual(actual.mapping, [
-			[0, 0, 0], [0, 4, 4],
-			[1, 0, 8], [1, 2, 9],
-			[2, 0, 10], [2, 1, 11],
-			[3, 0, 12], [3, 1, 13], [3, 2, 14], [3, 3, 15], [3, 4, 16], [3, 5, 17], [3, 6, 18], [3, 7, 19], [3, 8, 20], [3, 9, 21],
-			[4, 0, 22], [4, 2, 23], [4, 3, 24], [4, 5, 25], [4, 7, 26], [4, 9, 28], [4, 11, 29], [4, 13, 30], [4, 15, 31], [4, 16, 32], [4, 18, 33], [4, 20, 34], [4, 22, 35], [4, 24, 36]
-		]);
+		await assertSnapshot(actual.mapping);
 	});
 
 	test('createLineParts render whitespace in middle but not for one space', async () => {
@@ -839,15 +791,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			null
 		);
 		await assertSnapshot(actual.html.join(''), HTML_EXTENSION);
-		assert.deepStrictEqual(actual.mapping, [
-			[0, 0, 0], [0, 1, 1],
-			[1, 0, 2], [1, 2, 3],
-			[2, 0, 4], [2, 1, 5],
-			[3, 0, 6],
-			[4, 0, 7], [4, 1, 8],
-			[5, 0, 9], [5, 2, 10],
-			[6, 0, 11], [6, 1, 12], [6, 2, 13]
-		]);
+		await assertSnapshot(actual.mapping);
 	});
 
 	test('createLineParts render whitespace for all in middle', async () => {
@@ -864,14 +808,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			null
 		);
 		await assertSnapshot(actual.html.join(''), HTML_EXTENSION);
-		assert.deepStrictEqual(actual.mapping, [
-			[0, 0, 0],
-			[1, 0, 1], [1, 1, 2], [1, 2, 3],
-			[2, 0, 4], [2, 1, 5],
-			[3, 0, 6],
-			[4, 0, 7], [4, 1, 8], [4, 2, 9], [4, 3, 10], [4, 4, 11], [4, 5, 12],
-			[5, 0, 13], [5, 3, 16]
-		]);
+		await assertSnapshot(actual.mapping);
 	});
 
 	test('createLineParts render whitespace for selection with no selections', async () => {
@@ -888,11 +825,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			null
 		);
 		await assertSnapshot(actual.html.join(''), HTML_EXTENSION);
-		assert.deepStrictEqual(actual.mapping, [
-			[0, 0, 0], [0, 1, 1], [0, 2, 2], [0, 3, 3],
-			[1, 0, 4], [1, 1, 5],
-			[2, 0, 6], [2, 1, 7], [2, 2, 8], [2, 3, 9], [2, 4, 10], [2, 5, 11], [2, 6, 12], [2, 7, 13], [2, 10, 16]
-		]);
+		await assertSnapshot(actual.mapping);
 	});
 
 	test('createLineParts render whitespace for selection with whole line selection', async () => {
@@ -909,14 +842,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			[new OffsetRange(0, 14)]
 		);
 		await assertSnapshot(actual.html.join(''), HTML_EXTENSION);
-		assert.deepStrictEqual(actual.mapping, [
-			[0, 0, 0],
-			[1, 0, 1], [1, 1, 2], [1, 2, 3],
-			[2, 0, 4], [2, 1, 5],
-			[3, 0, 6],
-			[4, 0, 7], [4, 1, 8], [4, 2, 9], [4, 3, 10], [4, 4, 11], [4, 5, 12],
-			[5, 0, 13], [5, 3, 16]
-		]);
+		await assertSnapshot(actual.mapping);
 	});
 
 	test('createLineParts render whitespace for selection with selection spanning part of whitespace', async () => {
@@ -933,12 +859,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			[new OffsetRange(0, 5)]
 		);
 		await assertSnapshot(actual.html.join(''), HTML_EXTENSION);
-		assert.deepStrictEqual(actual.mapping, [
-			[0, 0, 0],
-			[1, 0, 1], [1, 1, 2], [1, 2, 3],
-			[2, 0, 4], [2, 1, 5],
-			[3, 0, 6], [3, 1, 7], [3, 2, 8], [3, 3, 9], [3, 4, 10], [3, 5, 11], [3, 6, 12], [3, 7, 13], [3, 10, 16]
-		]);
+		await assertSnapshot(actual.mapping);
 	});
 
 	test('createLineParts render whitespace for selection with multiple selections', async () => {
@@ -955,13 +876,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			[new OffsetRange(0, 5), new OffsetRange(9, 14)]
 		);
 		await assertSnapshot(actual.html.join(''), HTML_EXTENSION);
-		assert.deepStrictEqual(actual.mapping, [
-			[0, 0, 0],
-			[1, 0, 1], [1, 1, 2], [1, 2, 3],
-			[2, 0, 4], [2, 1, 5],
-			[3, 0, 6], [3, 1, 7], [3, 2, 8], [3, 3, 9], [3, 4, 10], [3, 5, 11], [3, 6, 12],
-			[4, 0, 13], [4, 3, 16]
-		]);
+		await assertSnapshot(actual.mapping);
 	});
 
 	test('createLineParts render whitespace for selection with multiple, initially unsorted selections', async () => {
@@ -978,13 +893,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			[new OffsetRange(9, 14), new OffsetRange(0, 5)]
 		);
 		await assertSnapshot(actual.html.join(''), HTML_EXTENSION);
-		assert.deepStrictEqual(actual.mapping, [
-			[0, 0, 0],
-			[1, 0, 1], [1, 1, 2], [1, 2, 3],
-			[2, 0, 4], [2, 1, 5],
-			[3, 0, 6], [3, 1, 7], [3, 2, 8], [3, 3, 9], [3, 4, 10], [3, 5, 11], [3, 6, 12],
-			[4, 0, 13], [4, 3, 16]
-		]);
+		await assertSnapshot(actual.mapping);
 	});
 
 	test('createLineParts render whitespace for selection with selections next to each other', async () => {
@@ -999,12 +908,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			[new OffsetRange(0, 1), new OffsetRange(1, 2), new OffsetRange(2, 3)]
 		);
 		await assertSnapshot(actual.html.join(''), HTML_EXTENSION);
-		assert.deepStrictEqual(actual.mapping, [
-			[0, 0, 0],
-			[1, 0, 1],
-			[2, 0, 2],
-			[3, 0, 3], [3, 1, 4]
-		]);
+		await assertSnapshot(actual.mapping);
 	});
 
 	test('createLineParts render whitespace for trailing with leading, inner, and without trailing whitespace', async () => {
@@ -1021,11 +925,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			null
 		);
 		await assertSnapshot(actual.html.join(''), HTML_EXTENSION);
-		assert.deepStrictEqual(actual.mapping, [
-			[0, 0, 0], [0, 1, 1], [0, 2, 2], [0, 3, 3],
-			[1, 0, 4], [1, 1, 5],
-			[2, 0, 6], [2, 1, 7], [2, 2, 8], [2, 3, 9], [2, 4, 10], [2, 5, 11], [2, 6, 12], [2, 7, 13]
-		]);
+		await assertSnapshot(actual.mapping);
 	});
 
 	test('createLineParts render whitespace for trailing with leading, inner, and trailing whitespace', async () => {
@@ -1042,12 +942,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			null
 		);
 		await assertSnapshot(actual.html.join(''), HTML_EXTENSION);
-		assert.deepStrictEqual(actual.mapping, [
-			[0, 0, 0], [0, 1, 1], [0, 2, 2], [0, 3, 3],
-			[1, 0, 4], [1, 1, 5],
-			[2, 0, 6], [2, 1, 7], [2, 2, 8], [2, 3, 9], [2, 4, 10], [2, 5, 11], [2, 6, 12],
-			[3, 0, 13], [3, 2, 14], [3, 4, 16]
-		]);
+		await assertSnapshot(actual.mapping);
 	});
 
 	test('createLineParts render whitespace for trailing with 8 leading and 8 trailing whitespaces', async () => {
@@ -1064,13 +959,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			null
 		);
 		await assertSnapshot(actual.html.join(''), HTML_EXTENSION);
-		assert.deepStrictEqual(actual.mapping, [
-			[0, 0, 0], [0, 1, 1], [0, 2, 2], [0, 3, 3], [0, 4, 4], [0, 5, 5], [0, 6, 6], [0, 7, 7],
-			[1, 0, 8], [1, 1, 9],
-			[2, 0, 10], [2, 1, 11], [2, 2, 12], [2, 3, 13], [2, 4, 14], [2, 5, 15], [2, 6, 16], [2, 7, 17], [2, 8, 18], [2, 9, 19],
-			[3, 0, 20], [3, 2, 21], [3, 4, 22], [3, 6, 23],
-			[4, 0, 24], [4, 2, 25], [4, 4, 26], [4, 6, 27], [4, 8, 28]
-		]);
+		await assertSnapshot(actual.mapping);
 	});
 
 	test('createLineParts render whitespace for trailing with line containing only whitespaces', async () => {
@@ -1086,10 +975,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			null
 		);
 		await assertSnapshot(actual.html.join(''), HTML_EXTENSION);
-		assert.deepStrictEqual(actual.mapping, [
-			[0, 0, 0], [0, 2, 1],
-			[1, 0, 4], [1, 2, 5]
-		]);
+		await assertSnapshot(actual.mapping);
 	});
 
 	test('createLineParts can handle unsorted inline decorations', async () => {
