@@ -5,9 +5,12 @@
 
 import * as assert from 'assert';
 import { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import schema from '../../common/jsonSchema_v2.js';
 
 suite('Task Schema v2', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('Schema should allow compound tasks without type and command', () => {
 		// Compound task with only label and dependsOn
