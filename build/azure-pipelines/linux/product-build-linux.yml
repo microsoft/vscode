@@ -88,13 +88,14 @@ jobs:
           sbomBuildDropPath: .build/linux/rpm
           sbomPackageName: "VS Code Linux $(VSCODE_ARCH) RPM"
           sbomPackageVersion: $(Build.SourceVersion)
-        - output: pipelineArtifact
-          targetPath: $(Build.SourcesDirectory)/.build/linux/out/snap/$(SNAP_PACKAGE_NAME)
-          artifactName: vscode_client_linux_$(VSCODE_ARCH)_snap
-          displayName: Publish snap package
-          sbomBuildDropPath: $(SNAP_EXTRACTED_PATH)
-          sbomPackageName: "VS Code Linux $(VSCODE_ARCH) SNAP"
-          sbomPackageVersion: $(Build.SourceVersion)
+        - ${{ if eq(parameters.VSCODE_BUILD_LINUX_SNAP, true) }}:
+          - output: pipelineArtifact
+            targetPath: $(Build.SourcesDirectory)/.build/linux/out/snap/$(SNAP_PACKAGE_NAME)
+            artifactName: vscode_client_linux_$(VSCODE_ARCH)_snap
+            displayName: Publish snap package
+            sbomBuildDropPath: $(SNAP_EXTRACTED_PATH)
+            sbomPackageName: "VS Code Linux $(VSCODE_ARCH) SNAP"
+            sbomPackageVersion: $(Build.SourceVersion)
     steps:
       - template: ./steps/product-build-linux-compile.yml@self
         parameters:
