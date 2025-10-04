@@ -67,12 +67,16 @@ suite('ObservableChatSession', function () {
 		history?: any[];
 		hasActiveResponseCallback?: boolean;
 		hasRequestHandler?: boolean;
+		supportsInterruption?: boolean;
+		isReadOnly?: boolean;
 	} = {}) {
 		return {
 			id: options.id || 'test-id',
 			history: options.history || [],
 			hasActiveResponseCallback: options.hasActiveResponseCallback || false,
-			hasRequestHandler: options.hasRequestHandler || false
+			hasRequestHandler: options.hasRequestHandler || false,
+			supportsInterruption: options.supportsInterruption || false,
+			isReadOnly: options.isReadOnly || false
 		};
 	}
 
@@ -319,6 +323,21 @@ suite('ObservableChatSession', function () {
 		// Session should be complete since it has no capabilities
 		assert.strictEqual(session.isCompleteObs.get(), true);
 	});
+
+	test('session supports isReadOnly capability', async function () {
+		const sessionContent = createSessionContent({
+			isReadOnly: true,
+			hasActiveResponseCallback: false,
+			hasRequestHandler: false
+		});
+
+		const session = disposables.add(await createInitializedSession(sessionContent));
+
+		// Session should be complete and have proper initial state
+		assert.strictEqual(session.isCompleteObs.get(), true);
+		assert.deepStrictEqual(session.progressObs.get(), []);
+		assert.deepStrictEqual(session.history, []);
+	});
 });
 
 suite('MainThreadChatSessions', function () {
@@ -417,7 +436,9 @@ suite('MainThreadChatSessions', function () {
 			id: 'test-session',
 			history: [],
 			hasActiveResponseCallback: false,
-			hasRequestHandler: false
+			hasRequestHandler: false,
+			supportsInterruption: false,
+			isReadOnly: false
 		};
 
 		(proxy.$provideChatSessionContent as sinon.SinonStub).resolves(sessionContent);
@@ -440,7 +461,9 @@ suite('MainThreadChatSessions', function () {
 			id: 'test-session',
 			history: [],
 			hasActiveResponseCallback: false,
-			hasRequestHandler: false
+			hasRequestHandler: false,
+			supportsInterruption: false,
+			isReadOnly: false
 		};
 
 		(proxy.$provideChatSessionContent as sinon.SinonStub).resolves(sessionContent);
@@ -463,7 +486,9 @@ suite('MainThreadChatSessions', function () {
 			id: 'test-session',
 			history: [],
 			hasActiveResponseCallback: false,
-			hasRequestHandler: false
+			hasRequestHandler: false,
+			supportsInterruption: false,
+			isReadOnly: false
 		};
 
 		(proxy.$provideChatSessionContent as sinon.SinonStub).resolves(sessionContent);
@@ -491,7 +516,9 @@ suite('MainThreadChatSessions', function () {
 				{ type: 'response', parts: [{ kind: 'progressMessage', content: { value: 'Second answer', isTrusted: false } }] }
 			],
 			hasActiveResponseCallback: false,
-			hasRequestHandler: false
+			hasRequestHandler: false,
+			supportsInterruption: false,
+			isReadOnly: false
 		};
 
 		(proxy.$provideChatSessionContent as sinon.SinonStub).resolves(sessionContent);
