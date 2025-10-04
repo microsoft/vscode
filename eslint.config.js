@@ -247,7 +247,7 @@ export default tseslint.config(
 			// 'src/vs/workbench/common/**',
 			// 'src/vs/workbench/browser/**',
 			// 'src/vs/workbench/electron-browser/**',
-			// 'src/vs/workbench/contrib/files/**',
+			'src/vs/workbench/contrib/files/**',
 		],
 		ignores: ['**/*.test.ts', '**/*.integrationTest.ts'],
 		languageOptions: {
