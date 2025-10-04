@@ -180,6 +180,44 @@ export class PromptHeader {
 		return undefined;
 	}
 
+	public get handoffs(): Record<string, string> | undefined {
+		const handoffsAttribute = this._parsedHeader.attributes.find(attr => attr.key === 'handoffs');
+		if (!handoffsAttribute) {
+			return undefined;
+		}
+		if (handoffsAttribute.value.type === 'array') {
+			// Array format: list of objects with promptId and description
+			const handoffs: Record<string, string> = {};
+			for (const item of handoffsAttribute.value.items) {
+				if (item.type === 'object') {
+					let promptId: string | undefined;
+					let description: string | undefined;
+					for (const prop of item.properties) {
+						if (prop.key.value === 'promptId' && prop.value.type === 'string') {
+							promptId = prop.value.value;
+						} else if (prop.key.value === 'description' && prop.value.type === 'string') {
+							description = prop.value.value;
+						}
+					}
+					if (promptId && description) {
+						handoffs[promptId] = description;
+					}
+				}
+			}
+			return Object.keys(handoffs).length > 0 ? handoffs : undefined;
+		} else if (handoffsAttribute.value.type === 'object') {
+			// Object format: promptId -> description mapping
+			const handoffs: Record<string, string> = {};
+			for (const prop of handoffsAttribute.value.properties) {
+				if (prop.key.type === 'string' && prop.value.type === 'string') {
+					handoffs[prop.key.value] = prop.value.value;
+				}
+			}
+			return Object.keys(handoffs).length > 0 ? handoffs : undefined;
+		}
+		return undefined;
+	}
+
 }
 
 export interface IHeaderAttribute {

@@ -83,6 +83,7 @@ import { handleModeSwitch } from './actions/chatActions.js';
 import { ChatTreeItem, ChatViewId, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewOptions } from './chat.js';
 import { ChatAccessibilityProvider } from './chatAccessibilityProvider.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
+import { ChatSuggestNextWidget } from './chatContentParts/chatSuggestNextWidget.js';
 import { ChatTodoListWidget } from './chatContentParts/chatTodoListWidget.js';
 import { ChatInputPart, IChatInputStyles } from './chatInputPart.js';
 import { ChatListDelegate, ChatListItemRenderer, IChatListItemTemplate, IChatRendererDelegate } from './chatListRenderer.js';
@@ -316,6 +317,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private readonly welcomePart: MutableDisposable<ChatViewWelcomePart> = this._register(new MutableDisposable());
 	private readonly historyViewStore = this._register(new DisposableStore());
 	private readonly chatTodoListWidget: ChatTodoListWidget;
+	private readonly chatSuggestNextWidget: ChatSuggestNextWidget;
 	private historyList: WorkbenchList<IChatHistoryListItem> | undefined;
 
 	private bodyDimension: dom.Dimension | undefined;
@@ -556,6 +558,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this._codeBlockModelCollection = this._register(instantiationService.createInstance(CodeBlockModelCollection, undefined));
 		this.chatTodoListWidget = this._register(this.instantiationService.createInstance(ChatTodoListWidget));
+		this.chatSuggestNextWidget = this._register(this.instantiationService.createInstance(ChatSuggestNextWidget));
 
 		this._register(this.configurationService.onDidChangeConfiguration((e) => {
 			if (e.affectsConfiguration('chat.renderRelatedFiles')) {
@@ -723,7 +726,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	get contentHeight(): number {
-		return this.input.contentHeight + this.tree.contentHeight + this.chatTodoListWidget.height;
+		return this.input.contentHeight + this.tree.contentHeight + this.chatTodoListWidget.height + this.chatSuggestNextWidget.height;
 	}
 
 	get attachmentModel(): ChatAttachmentModel {
@@ -764,12 +767,23 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 		}));
 
+		this._register(this.chatSuggestNextWidget.onDidChangeHeight(() => {
+			if (this.bodyDimension) {
+				this.layout(this.bodyDimension.height, this.bodyDimension.width);
+			}
+		}));
+		this._register(this.chatSuggestNextWidget.onDidSelectPrompt(({ promptId, description }) => {
+			this.handleNextPromptSelection(promptId, description);
+		}));
+
 		if (renderInputOnTop) {
 			this.createInput(this.container, { renderFollowups, renderStyle });
+			dom.prepend(this.input.element, this.chatSuggestNextWidget.domNode);
 			this.listContainer = dom.append(this.container, $(`.interactive-list`));
 		} else {
 			this.listContainer = dom.append(this.container, $(`.interactive-list`));
 			this.createInput(this.container, { renderFollowups, renderStyle });
+			dom.prepend(this.input.element, this.chatSuggestNextWidget.domNode);
 		}
 
 		this._welcomeRenderScheduler.schedule();
@@ -913,6 +927,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.unlockFromCodingAgent();
 		this._onDidClear.fire();
 		this.chatTodoListWidget.clear(this.viewModel?.sessionId, true);
+		this.chatSuggestNextWidget.hide();
 	}
 
 	public toggleHistoryVisibility(): void {
@@ -991,6 +1006,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 
 			this.renderFollowups();
+			this.renderChatSuggestNextWidget();
 		}
 	}
 
@@ -1609,6 +1625,35 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
+	private renderChatSuggestNextWidget(): void {
+		// Get the currently selected mode directly from the observable
+		// Note: We use currentModeObs instead of currentModeKind because currentModeKind returns
+		// the ChatModeKind enum (e.g., 'agent'), which doesn't distinguish between custom modes.
+		// Custom modes all have kind='agent' but different IDs.
+		const currentMode = this.input.currentModeObs.get();
+		const handoffs = currentMode?.handoffs?.get();
+
+		if (currentMode && handoffs && Object.keys(handoffs).length > 0) {
+			this.chatSuggestNextWidget.render(currentMode);
+		} else {
+			this.chatSuggestNextWidget.hide();
+		}
+
+		// Trigger layout update
+		if (this.bodyDimension) {
+			this.layout(this.bodyDimension.height, this.bodyDimension.width);
+		}
+	}
+
+	private handleNextPromptSelection(promptId: string, description: string): void {
+		// Insert the prompt ID into the input
+		this.input.setValue(`/${promptId} `, false);
+		this.input.focus();
+
+		// Hide the widget after selection
+		this.chatSuggestNextWidget.hide();
+	}
+
 	setVisible(visible: boolean): void {
 		const wasVisible = this._visible;
 		this._visible = visible;
@@ -2134,6 +2179,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this._welcomeRenderScheduler.schedule();
 			this.refreshParsedInput();
 			this.renderFollowups();
+			// Show widget if switching to mode with handoffs AND chat has existing responses
+			const currentMode = this.input.currentModeObs.get();
+			const hasExistingContent = this.viewModel && this.viewModel.getItems().length > 0;
+			if (currentMode?.handoffs?.get() && hasExistingContent) {
+				this.renderChatSuggestNextWidget();
+			}
 		}));
 
 		this._register(autorun(r => {
@@ -2241,6 +2292,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 			if (e.kind === 'addRequest' || e.kind === 'removeRequest') {
 				this.chatTodoListWidget.clear(model.sessionId, e.kind === 'removeRequest' /*force*/);
+				// Show next steps widget when response starts
+				if (e.kind === 'addRequest') {
+					this.renderChatSuggestNextWidget();
+				}
 			}
 		}));
 
@@ -2251,6 +2306,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this.renderer.updateViewModel(this.viewModel);
 		this.updateChatInputContext();
+		this.renderChatSuggestNextWidget();
 	}
 
 	getFocus(): ChatTreeItem | undefined {
