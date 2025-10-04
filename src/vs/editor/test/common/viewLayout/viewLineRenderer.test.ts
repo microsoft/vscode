@@ -198,15 +198,7 @@ suite('viewLineRenderer.renderLine', () => {
 
 		const inflated = inflateRenderLineOutput(_actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
-		assert.deepStrictEqual(inflated.mapping, [
-			[0, 0, 0],
-			[1, 0, 1],
-			[2, 0, 2],
-			[3, 0, 3],
-			[4, 0, 4],
-			[5, 0, 5],
-			[5, 1, 6],
-		]);
+		await assertSnapshot(inflated.mapping);
 	});
 
 	test('typical line', async () => {
@@ -251,22 +243,7 @@ suite('viewLineRenderer.renderLine', () => {
 
 		const inflated = inflateRenderLineOutput(_actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
-		assert.deepStrictEqual(inflated.mapping, [
-			[0, 0, 0],
-			[1, 0, 4], [1, 2, 5], [1, 4, 6], [1, 6, 7],
-			[2, 0, 8], [2, 1, 9], [2, 2, 10], [2, 3, 11], [2, 4, 12], [2, 5, 13],
-			[3, 0, 14],
-			[4, 0, 15], [4, 1, 16], [4, 2, 17], [4, 3, 18], [4, 4, 19],
-			[5, 0, 20],
-			[6, 0, 21], [6, 1, 22], [6, 2, 23], [6, 3, 24],
-			[7, 0, 25],
-			[8, 0, 26],
-			[9, 0, 27],
-			[10, 0, 28], [10, 1, 29], [10, 2, 30],
-			[11, 0, 31], [11, 1, 32], [11, 2, 33], [11, 3, 34], [11, 4, 35], [11, 5, 36], [11, 6, 37], [11, 7, 38], [11, 8, 39], [11, 9, 40], [11, 10, 41], [11, 11, 42], [11, 12, 43], [11, 13, 44], [11, 14, 45],
-			[12, 0, 46], [12, 2, 47],
-			[13, 0, 48], [13, 2, 49], [13, 4, 50], [13, 6, 51],
-		]);
+		await assertSnapshot(inflated.mapping);
 	});
 
 	test('issue #2255: Weird line rendering part 1', async () => {
@@ -309,18 +286,7 @@ suite('viewLineRenderer.renderLine', () => {
 
 		const inflated = inflateRenderLineOutput(_actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
-		assert.deepStrictEqual(inflated.mapping, [
-			[0, 0, 0], [0, 4, 4], [0, 8, 8],
-			[1, 0, 12], [1, 1, 13], [1, 2, 14], [1, 3, 15], [1, 4, 16], [1, 5, 17], [1, 6, 18], [1, 7, 19], [1, 8, 20], [1, 9, 21], [1, 10, 22], [1, 11, 23],
-			[2, 0, 24], [2, 4, 28], [2, 8, 32], [2, 12, 36], [2, 16, 40], [2, 20, 44],
-			[3, 0, 48],
-			[4, 0, 49], [4, 1, 50], [4, 2, 51], [4, 3, 52], [4, 4, 53], [4, 5, 54], [4, 6, 55], [4, 7, 56], [4, 8, 57], [4, 9, 58], [4, 10, 59], [4, 11, 60], [4, 12, 61], [4, 13, 62], [4, 14, 63], [4, 15, 64], [4, 16, 65], [4, 17, 66], [4, 18, 67], [4, 19, 68], [4, 20, 69],
-			[5, 0, 70], [5, 1, 71],
-			[6, 0, 72],
-			[7, 0, 73], [7, 1, 74], [7, 2, 75], [7, 3, 76], [7, 4, 77], [7, 5, 78], [7, 6, 79], [7, 7, 80], [7, 8, 81], [7, 9, 82], [7, 10, 83], [7, 11, 84], [7, 12, 85], [7, 13, 86], [7, 14, 87], [7, 15, 88], [7, 16, 89], [7, 17, 90], [7, 18, 91], [7, 19, 92],
-			[8, 0, 93],
-			[9, 0, 94], [9, 1, 95],
-		]);
+		await assertSnapshot(inflated.mapping);
 	});
 
 	test('issue #2255: Weird line rendering part 2', async () => {
@@ -364,17 +330,7 @@ suite('viewLineRenderer.renderLine', () => {
 
 		const inflated = inflateRenderLineOutput(_actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
-		assert.deepStrictEqual(inflated.mapping, [
-			[0, 0, 0], [0, 1, 1], [0, 4, 4], [0, 8, 8],
-			[1, 0, 12], [1, 1, 13], [1, 2, 14], [1, 3, 15], [1, 4, 16], [1, 5, 17], [1, 6, 18], [1, 7, 19], [1, 8, 20], [1, 9, 21], [1, 10, 22], [1, 11, 23],
-			[2, 0, 24], [2, 4, 28], [2, 8, 32], [2, 12, 36], [2, 16, 40], [2, 20, 44],
-			[3, 0, 48], [4, 0, 49], [4, 1, 50], [4, 2, 51], [4, 3, 52], [4, 4, 53], [4, 5, 54], [4, 6, 55], [4, 7, 56], [4, 8, 57], [4, 9, 58], [4, 10, 59], [4, 11, 60], [4, 12, 61], [4, 13, 62], [4, 14, 63], [4, 15, 64], [4, 16, 65], [4, 17, 66], [4, 18, 67], [4, 19, 68], [4, 20, 69],
-			[5, 0, 70], [5, 1, 71],
-			[6, 0, 72],
-			[7, 0, 73], [7, 1, 74], [7, 2, 75], [7, 3, 76], [7, 4, 77], [7, 5, 78], [7, 6, 79], [7, 7, 80], [7, 8, 81], [7, 9, 82], [7, 10, 83], [7, 11, 84], [7, 12, 85], [7, 13, 86], [7, 14, 87], [7, 15, 88], [7, 16, 89], [7, 17, 90], [7, 18, 91], [7, 19, 92],
-			[8, 0, 93],
-			[9, 0, 94], [9, 1, 95],
-		]);
+		await assertSnapshot(inflated.mapping);
 	});
 
 	test('issue #91178: after decoration type shown before cursor', async () => {
@@ -411,11 +367,7 @@ suite('viewLineRenderer.renderLine', () => {
 
 		const inflated = inflateRenderLineOutput(actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
-		assert.deepStrictEqual(inflated.mapping, [
-			[0, 0, 0], [0, 1, 1], [0, 2, 2], [0, 3, 3], [0, 4, 4], [0, 5, 5], [0, 6, 6], [0, 7, 7], [0, 8, 8], [0, 9, 9], [0, 10, 10], [0, 11, 11],
-			[2, 0, 12],
-			[3, 1, 13], [3, 2, 14], [3, 3, 15], [3, 4, 16]
-		]);
+		await assertSnapshot(inflated.mapping);
 	});
 
 	test('issue microsoft/monaco-editor#280: Improved source code rendering for RTL languages', async () => {
@@ -452,12 +404,7 @@ suite('viewLineRenderer.renderLine', () => {
 
 		const inflated = inflateRenderLineOutput(_actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
-		assert.deepStrictEqual(inflated.mapping, [
-			[0, 0, 0], [0, 1, 1], [0, 2, 2],
-			[1, 0, 3], [1, 1, 4], [1, 2, 5], [1, 3, 6], [1, 4, 7], [1, 5, 8], [1, 6, 9], [1, 7, 10], [1, 8, 11], [1, 9, 12],
-			[2, 0, 13], [2, 1, 14], [2, 2, 15], [2, 3, 16], [2, 4, 17], [2, 5, 18], [2, 6, 19], [2, 7, 20], [2, 8, 21], [2, 9, 22], [2, 10, 23], [2, 11, 24], [2, 12, 25], [2, 13, 26], [2, 14, 27], [2, 15, 28], [2, 16, 29], [2, 17, 30], [2, 18, 31], [2, 19, 32], [2, 20, 33], [2, 21, 34], [2, 22, 35], [2, 23, 36], [2, 24, 37], [2, 25, 38], [2, 26, 39], [2, 27, 40], [2, 28, 41], [2, 29, 42], [2, 30, 43], [2, 31, 44], [2, 32, 45], [2, 33, 46], [2, 34, 47], [2, 35, 48], [2, 36, 49], [2, 37, 50], [2, 38, 51], [2, 39, 52], [2, 40, 53], [2, 41, 54], [2, 42, 55], [2, 43, 56], [2, 44, 57], [2, 45, 58], [2, 46, 59], [2, 47, 60], [2, 48, 61], [2, 49, 62], [2, 50, 63], [2, 51, 64], [2, 52, 65],
-			[3, 0, 66], [3, 1, 67]
-		]);
+		await assertSnapshot(inflated.mapping);
 	});
 
 	test('issue #137036: Issue in RTL languages in recent versions', async () => {
@@ -501,19 +448,7 @@ suite('viewLineRenderer.renderLine', () => {
 
 		const inflated = inflateRenderLineOutput(_actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
-		assert.deepStrictEqual(inflated.mapping, [
-			[0, 0, 0],
-			[1, 0, 1], [1, 1, 2], [1, 2, 3], [1, 3, 4], [1, 4, 5], [1, 5, 6],
-			[2, 0, 7],
-			[3, 0, 8], [3, 1, 9], [3, 2, 10], [3, 3, 11], [3, 4, 12],
-			[4, 0, 13],
-			[5, 0, 14], [5, 1, 15], [5, 2, 16], [5, 3, 17], [5, 4, 18], [5, 5, 19], [5, 6, 20], [5, 7, 21], [5, 8, 22],
-			[6, 0, 23],
-			[7, 0, 24], [7, 1, 25], [7, 2, 26], [7, 3, 27], [7, 4, 28], [7, 5, 29], [7, 6, 30],
-			[8, 0, 31], [8, 1, 32],
-			[9, 0, 33], [9, 1, 34], [9, 2, 35], [9, 3, 36], [9, 4, 37], [9, 5, 38],
-			[10, 0, 39], [10, 1, 40]
-		]);
+		await assertSnapshot(inflated.mapping);
 	});
 
 	test('issue #99589: Rendering whitespace influences bidi layout', async () => {
@@ -551,14 +486,7 @@ suite('viewLineRenderer.renderLine', () => {
 
 		const inflated = inflateRenderLineOutput(_actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
-		assert.deepStrictEqual(inflated.mapping, [
-			[0, 0, 0], [0, 2, 1], [0, 4, 2], [0, 6, 3],
-			[1, 0, 4],
-			[2, 0, 5], [2, 1, 6], [2, 2, 7], [2, 3, 8], [2, 4, 9], [2, 5, 10], [2, 6, 11], [2, 7, 12], [2, 8, 13], [2, 9, 14], [2, 10, 15], [2, 11, 16], [2, 12, 17], [2, 13, 18], [2, 14, 19], [2, 15, 20],
-			[3, 0, 21],
-			[4, 0, 22], [4, 1, 23], [4, 2, 24], [4, 3, 25], [4, 4, 26], [4, 5, 27], [4, 6, 28], [4, 7, 29], [4, 8, 30], [4, 9, 31], [4, 10, 32], [4, 11, 33],
-			[5, 0, 34], [5, 1, 35]
-		]);
+		await assertSnapshot(inflated.mapping);
 	});
 
 	test('issue #6885: Splits large tokens', async () => {
@@ -803,14 +731,7 @@ suite('viewLineRenderer.renderLine', () => {
 		));
 		const inflated = inflateRenderLineOutput(actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
-		assert.deepStrictEqual(inflated.mapping, [
-			[0, 0, 0], [0, 1, 1], [0, 2, 2], [0, 3, 3], [0, 4, 4], [0, 5, 5], [0, 6, 6], [0, 7, 7],
-			[0, 8, 8], [0, 9, 9], [0, 10, 10], [0, 11, 11], [0, 12, 12], [0, 13, 13], [0, 14, 14],
-			[0, 15, 15], [0, 16, 16], [0, 17, 17], [0, 18, 18], [0, 19, 19], [0, 20, 20], [0, 21, 21],
-			[0, 22, 22], [0, 23, 23], [0, 24, 24], [0, 25, 25], [0, 26, 26], [0, 27, 27], [0, 28, 28],
-			[0, 29, 29], [0, 30, 30], [0, 31, 31], [0, 32, 32], [0, 33, 33], [0, 34, 34], [0, 35, 35],
-			[0, 36, 36], [0, 37, 37], [0, 38, 38]
-		]);
+		await assertSnapshot(inflated.mapping);
 	});
 
 	test('issue #19673: Monokai Theme bad-highlighting in line wrap', async () => {
@@ -851,17 +772,7 @@ suite('viewLineRenderer.renderLine', () => {
 
 		const inflated = inflateRenderLineOutput(_actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
-		assert.deepStrictEqual(inflated.mapping, [
-			[0, 0, 0], [0, 1, 1], [0, 2, 2], [0, 3, 3],
-			[1, 0, 4], [1, 1, 5], [1, 2, 6], [1, 3, 7], [1, 4, 8], [1, 5, 9], [1, 6, 10], [1, 7, 11], [1, 8, 12], [1, 9, 13], [1, 10, 14], [1, 11, 15], [1, 12, 16],
-			[2, 0, 17],
-			[3, 0, 18], [3, 1, 19], [3, 2, 20], [3, 3, 21], [3, 4, 22], [3, 5, 23],
-			[4, 0, 24], [4, 1, 25],
-			[5, 0, 26],
-			[6, 0, 27],
-			[7, 0, 28], [7, 1, 29], [7, 2, 30], [7, 3, 31],
-			[8, 0, 32], [8, 1, 33], [8, 2, 34]
-		]);
+		await assertSnapshot(inflated.mapping);
 	});
 });
 
@@ -953,11 +864,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 		const inflated = inflateRenderLineOutput(actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
-		assert.deepStrictEqual(inflated.mapping, [
-			[0, 0, 0], [0, 1, 1], [0, 2, 2], [0, 3, 3], [0, 4, 4], [0, 5, 5], [0, 6, 6], [0, 7, 7],
-			[0, 8, 8], [0, 9, 9], [0, 10, 10], [0, 11, 11], [0, 12, 12], [0, 13, 13], [0, 14, 14],
-			[0, 15, 15], [0, 16, 16], [0, 17, 17], [0, 18, 18], [0, 19, 19], [0, 20, 20], [0, 21, 21]
-		]);
+		await assertSnapshot(inflated.mapping);
 	});
 
 	test('issue #19207: Link in Monokai is not rendered correctly', async () => {
@@ -996,15 +903,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 		const inflated = inflateRenderLineOutput(actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
-		assert.deepStrictEqual(inflated.mapping, [
-			[0, 0, 0], [0, 1, 1], [0, 2, 2], [0, 3, 3], [0, 4, 4], [0, 5, 5], [0, 6, 6], [0, 7, 7], [0, 8, 8], [0, 9, 9], [0, 10, 10], [0, 11, 11],
-			[1, 0, 12], [1, 1, 13], [1, 2, 14], [1, 3, 15], [1, 4, 16], [1, 5, 17], [1, 6, 18], [1, 7, 19], [1, 8, 20], [1, 9, 21], [1, 10, 22], [1, 11, 23], [1, 12, 24], [1, 13, 25], [1, 14, 26], [1, 15, 27], [1, 16, 28], [1, 17, 29], [1, 18, 30], [1, 19, 31], [1, 20, 32], [1, 21, 33], [1, 22, 34], [1, 23, 35], [1, 24, 36], [1, 25, 37], [1, 26, 38], [1, 27, 39], [1, 28, 40], [1, 29, 41], [1, 30, 42], [1, 31, 43], [1, 32, 44], [1, 33, 45], [1, 34, 46], [1, 35, 47], [1, 36, 48],
-			[2, 0, 49],
-			[3, 0, 50],
-			[4, 0, 51], [4, 1, 52], [4, 2, 53], [4, 3, 54], [4, 4, 55], [4, 5, 56], [4, 6, 57], [4, 7, 58], [4, 8, 59], [4, 9, 60], [4, 10, 61], [4, 11, 62], [4, 12, 63], [4, 13, 64], [4, 14, 65], [4, 15, 66], [4, 16, 67], [4, 17, 68], [4, 18, 69], [4, 19, 70], [4, 20, 71],
-			[5, 0, 72], [5, 1, 73],
-			[6, 0, 74], [6, 1, 75], [6, 2, 76], [6, 3, 77], [6, 4, 78], [6, 5, 79], [6, 6, 80], [6, 7, 81], [6, 8, 82], [6, 9, 83], [6, 10, 84]
-		]);
+		await assertSnapshot(inflated.mapping);
 	});
 
 	test('createLineParts simple', async () => {
@@ -1492,14 +1391,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 		const inflated = inflateRenderLineOutput(actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
-		assert.deepStrictEqual(inflated.mapping, [
-			[0, 0, 0],
-			[1, 0, 1],
-			[2, 0, 2], [2, 1, 3],
-			[3, 0, 4], [3, 1, 5],
-			[4, 0, 6],
-			[5, 0, 7], [5, 1, 8], [5, 2, 9], [5, 3, 10], [5, 4, 11]
-		]);
+		await assertSnapshot(inflated.mapping);
 	});
 
 	test('issue #11485: Visible whitespace conflicts with before decorator attachment', async () => {
@@ -1532,10 +1424,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 		const inflated = inflateRenderLineOutput(actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
-		assert.deepStrictEqual(inflated.mapping, [
-			[0, 0, 0],
-			[1, 0, 4], [1, 1, 5], [1, 2, 6], [1, 3, 7]
-		]);
+		await assertSnapshot(inflated.mapping);
 	});
 
 	test('issue #32436: Non-monospace font + visible whitespace + After decorator causes line to "jump"', async () => {
@@ -1568,11 +1457,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 		const inflated = inflateRenderLineOutput(actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
-		assert.deepStrictEqual(inflated.mapping, [
-			[0, 0, 0],
-			[1, 0, 4],
-			[2, 0, 5], [2, 1, 6], [2, 2, 7]
-		]);
+		await assertSnapshot(inflated.mapping);
 	});
 
 	test('issue #30133: Empty lines don\'t render inline decorations', async () => {
@@ -1605,9 +1490,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 		const inflated = inflateRenderLineOutput(actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
-		assert.deepStrictEqual(inflated.mapping, [
-			[1, 0, 0]
-		]);
+		await assertSnapshot(inflated.mapping);
 	});
 
 	test('issue #37208: Collapsing bullet point containing emoji in Markdown document results in [??] character', async () => {
@@ -1638,10 +1521,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 		const inflated = inflateRenderLineOutput(actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
-		assert.deepStrictEqual(inflated.mapping, [
-			[0, 0, 0], [0, 1, 1], [0, 2, 2], [0, 3, 3], [0, 4, 4],
-			[1, 0, 5], [1, 1, 6], [1, 2, 7]
-		]);
+		await assertSnapshot(inflated.mapping);
 	});
 
 	test('issue #37401 #40127: Allow both before and after decorations on empty line', async () => {
@@ -1675,9 +1555,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 		const inflated = inflateRenderLineOutput(actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
-		assert.deepStrictEqual(inflated.mapping, [
-			[1, 0, 0]
-		]);
+		await assertSnapshot(inflated.mapping);
 	});
 
 	test('issue #118759: enable multiple text editor decorations in empty lines', async () => {
@@ -1713,9 +1591,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 		const inflated = inflateRenderLineOutput(actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
-		assert.deepStrictEqual(inflated.mapping, [
-			[2, 0, 0]
-		]);
+		await assertSnapshot(inflated.mapping);
 	});
 
 	test('issue #38935: GitLens end-of-line blame no longer rendering', async () => {
@@ -1749,10 +1625,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 		const inflated = inflateRenderLineOutput(actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
-		assert.deepStrictEqual(inflated.mapping, [
-			[0, 0, 0], [0, 4, 4],
-			[2, 0, 5]
-		]);
+		await assertSnapshot(inflated.mapping);
 	});
 
 	test('issue #136622: Inline decorations are not rendering on non-ASCII lines when renderControlCharacters is on', async () => {
@@ -1786,11 +1659,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 		const inflated = inflateRenderLineOutput(actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
-		assert.deepStrictEqual(inflated.mapping, [
-			[0, 0, 0], [0, 1, 1], [0, 2, 2], [0, 3, 3],
-			[1, 0, 4],
-			[4, 0, 5], [4, 1, 6], [4, 2, 7], [4, 3, 8], [4, 4, 9], [4, 5, 10], [4, 6, 11]
-		]);
+		await assertSnapshot(inflated.mapping);
 	});
 
 	test('issue #22832: Consider fullwidth characters when rendering tabs', async () => {
@@ -1821,10 +1690,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 		const inflated = inflateRenderLineOutput(actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
-		assert.deepStrictEqual(inflated.mapping, [
-			[0, 0, 0], [0, 1, 1], [0, 2, 2], [0, 3, 3], [0, 4, 4], [0, 5, 5], [0, 6, 6], [0, 7, 7], [0, 8, 9],
-			[0, 9, 10], [0, 11, 12], [0, 15, 16], [0, 16, 17], [0, 17, 18], [0, 18, 19], [0, 19, 20]
-		]);
+		await assertSnapshot(inflated.mapping);
 	});
 
 	test('issue #22832: Consider fullwidth characters when rendering tabs (render whitespace)', async () => {
@@ -1855,15 +1721,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 		const inflated = inflateRenderLineOutput(actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
-		assert.deepStrictEqual(inflated.mapping, [
-			[0, 0, 0], [0, 1, 1], [0, 2, 2],
-			[1, 0, 3],
-			[2, 0, 4],
-			[3, 0, 5],
-			[4, 0, 6], [4, 1, 7], [4, 2, 9],
-			[5, 0, 10], [5, 2, 12],
-			[6, 0, 16], [6, 1, 17], [6, 2, 18], [6, 3, 19], [6, 4, 20]
-		]);
+		await assertSnapshot(inflated.mapping);
 	});
 
 	test('issue #22352: COMBINING ACUTE ACCENT (U+0301)', async () => {
@@ -1894,16 +1752,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 		const inflated = inflateRenderLineOutput(actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
-		assert.deepStrictEqual(inflated.mapping, [
-			[0, 0, 0], [0, 1, 1], [0, 2, 2], [0, 3, 3], [0, 4, 4], [0, 5, 5], [0, 6, 6], [0, 7, 7],
-			[0, 8, 8], [0, 9, 9], [0, 10, 10], [0, 11, 11], [0, 12, 12], [0, 13, 13], [0, 14, 14],
-			[0, 15, 15], [0, 16, 16], [0, 17, 17], [0, 18, 18], [0, 19, 19], [0, 20, 20], [0, 21, 21],
-			[0, 22, 22], [0, 23, 23], [0, 24, 24], [0, 25, 25], [0, 26, 26], [0, 27, 27], [0, 28, 28],
-			[0, 29, 29], [0, 30, 30], [0, 31, 31], [0, 32, 32], [0, 33, 33], [0, 34, 34], [0, 35, 35],
-			[0, 36, 36], [0, 37, 37], [0, 38, 38], [0, 39, 39], [0, 40, 40], [0, 41, 41], [0, 42, 42],
-			[0, 43, 43], [0, 44, 44], [0, 45, 45], [0, 46, 46], [0, 47, 47], [0, 48, 48], [0, 49, 49],
-			[0, 50, 50], [0, 51, 51], [0, 52, 52], [0, 53, 53]
-		]);
+		await assertSnapshot(inflated.mapping);
 	});
 
 	test('issue #22352: Partially Broken Complex Script Rendering of Tamil', async () => {
@@ -1934,22 +1783,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 		const inflated = inflateRenderLineOutput(actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
-		assert.deepStrictEqual(inflated.mapping, [
-			[0, 0, 0], [0, 1, 1], [0, 2, 2], [0, 3, 3], [0, 4, 4], [0, 5, 5], [0, 6, 6], [0, 7, 7],
-			[0, 8, 8], [0, 9, 9], [0, 10, 10], [0, 11, 11], [0, 12, 12], [0, 13, 13], [0, 14, 14],
-			[0, 15, 15], [0, 16, 16], [0, 17, 17], [0, 18, 18], [0, 19, 19], [0, 20, 20], [0, 21, 21],
-			[0, 22, 22], [0, 23, 23], [0, 24, 24], [0, 25, 25], [0, 26, 26], [0, 27, 27], [0, 28, 28],
-			[0, 29, 29], [0, 30, 30], [0, 31, 31], [0, 32, 32], [0, 33, 33], [0, 34, 34], [0, 35, 35],
-			[0, 36, 36], [0, 37, 37], [0, 38, 38], [0, 39, 39], [0, 40, 40], [0, 41, 41], [0, 42, 42],
-			[0, 43, 43], [0, 44, 44], [0, 45, 45],
-			[1, 0, 46], [1, 1, 47], [1, 2, 48], [1, 3, 49], [1, 4, 50], [1, 5, 51], [1, 6, 52], [1, 7, 53],
-			[1, 8, 54], [1, 9, 55], [1, 10, 56], [1, 11, 57], [1, 12, 58], [1, 13, 59], [1, 14, 60], [1, 15, 61],
-			[1, 16, 62], [1, 17, 63], [1, 18, 64], [1, 19, 65], [1, 20, 66], [1, 21, 67], [1, 22, 68], [1, 23, 69],
-			[1, 24, 70], [1, 25, 71], [1, 26, 72], [1, 27, 73], [1, 28, 74], [1, 29, 75], [1, 30, 76], [1, 31, 77],
-			[1, 32, 78], [1, 33, 79], [1, 34, 80], [1, 35, 81], [1, 36, 82], [1, 37, 83], [1, 38, 84], [1, 39, 85],
-			[1, 40, 86], [1, 41, 87], [1, 42, 88], [1, 43, 89], [1, 44, 90], [1, 45, 91],
-			[2, 0, 92], [2, 1, 93], [2, 2, 94], [2, 3, 95], [2, 4, 96], [2, 5, 97], [2, 6, 98], [2, 7, 99], [2, 8, 100]
-		]);
+		await assertSnapshot(inflated.mapping);
 	});
 
 	test('issue #42700: Hindi characters are not being rendered properly', async () => {
@@ -1980,24 +1814,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 		const inflated = inflateRenderLineOutput(actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
-		assert.deepStrictEqual(inflated.mapping, [
-			[0, 0, 0], [0, 1, 1], [0, 2, 2], [0, 3, 3], [0, 4, 4], [0, 5, 5], [0, 6, 6], [0, 7, 7],
-			[0, 8, 8], [0, 9, 9], [0, 10, 10], [0, 11, 11], [0, 12, 12], [0, 13, 13], [0, 14, 14],
-			[0, 15, 15], [0, 16, 16], [0, 17, 17], [0, 18, 18], [0, 19, 19], [0, 20, 20], [0, 21, 21],
-			[0, 22, 22], [0, 23, 23], [0, 24, 24], [0, 25, 25], [0, 26, 26], [0, 27, 27], [0, 28, 28],
-			[0, 29, 29], [0, 30, 30], [0, 31, 31], [0, 32, 32], [0, 33, 33], [0, 34, 34], [0, 35, 35],
-			[0, 36, 36], [0, 37, 37], [0, 38, 38], [0, 39, 39], [0, 40, 40], [0, 41, 41], [0, 42, 42],
-			[0, 43, 43], [0, 44, 44], [0, 45, 45], [0, 46, 46], [0, 47, 47], [0, 48, 48], [0, 49, 49],
-			[0, 50, 50],
-			[1, 0, 51], [1, 1, 52], [1, 2, 53], [1, 3, 54], [1, 4, 55], [1, 5, 56], [1, 6, 57], [1, 7, 58],
-			[1, 8, 59], [1, 9, 60], [1, 10, 61], [1, 11, 62], [1, 12, 63], [1, 13, 64], [1, 14, 65],
-			[1, 15, 66], [1, 16, 67], [1, 17, 68], [1, 18, 69], [1, 19, 70], [1, 20, 71], [1, 21, 72],
-			[1, 22, 73], [1, 23, 74], [1, 24, 75], [1, 25, 76], [1, 26, 77], [1, 27, 78], [1, 28, 79],
-			[1, 29, 80], [1, 30, 81], [1, 31, 82], [1, 32, 83], [1, 33, 84], [1, 34, 85], [1, 35, 86],
-			[1, 36, 87], [1, 37, 88], [1, 38, 89], [1, 39, 90], [1, 40, 91], [1, 41, 92], [1, 42, 93],
-			[1, 43, 94], [1, 44, 95], [1, 45, 96], [1, 46, 97], [1, 47, 98], [1, 48, 99], [1, 49, 100],
-			[1, 50, 101], [2, 0, 102], [2, 1, 103], [2, 2, 104], [2, 3, 105]
-		]);
+		await assertSnapshot(inflated.mapping);
 	});
 
 	test('issue #38123: editor.renderWhitespace: "boundary" renders whitespace at line wrap point when line is wrapped', async () => {
@@ -2027,17 +1844,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 		const inflated = inflateRenderLineOutput(actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
-		assert.deepStrictEqual(inflated.mapping, [
-			[0, 0, 0], [0, 1, 1], [0, 2, 2], [0, 3, 3], [0, 4, 4], [0, 5, 5], [0, 6, 6], [0, 7, 7],
-			[0, 8, 8], [0, 9, 9], [0, 10, 10], [0, 11, 11], [0, 12, 12], [0, 13, 13], [0, 14, 14],
-			[0, 15, 15], [0, 16, 16], [0, 17, 17], [0, 18, 18], [0, 19, 19], [0, 20, 20], [0, 21, 21],
-			[0, 22, 22], [0, 23, 23], [0, 24, 24], [0, 25, 25], [0, 26, 26], [0, 27, 27], [0, 28, 28],
-			[0, 29, 29], [0, 30, 30], [0, 31, 31], [0, 32, 32], [0, 33, 33], [0, 34, 34], [0, 35, 35],
-			[0, 36, 36], [0, 37, 37], [0, 38, 38], [0, 39, 39], [0, 40, 40], [0, 41, 41], [0, 42, 42],
-			[0, 43, 43], [0, 44, 44], [0, 45, 45], [0, 46, 46], [0, 47, 47], [0, 48, 48], [0, 49, 49],
-			[1, 0, 50], [1, 1, 51], [1, 2, 52], [1, 3, 53], [1, 4, 54], [1, 5, 55], [1, 6, 56], [1, 7, 57],
-			[2, 0, 58], [2, 1, 59]
-		]);
+		await assertSnapshot(inflated.mapping);
 	});
 
 	test('issue #33525: Long line with ligatures takes a long time to paint decorations', async () => {
@@ -2067,40 +1874,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 		const inflated = inflateRenderLineOutput(actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
-		assert.deepStrictEqual(inflated.mapping, [
-			[0, 0, 0], [0, 1, 1], [0, 2, 2], [0, 3, 3], [0, 4, 4], [0, 5, 5], [0, 6, 6], [0, 7, 7],
-			[0, 8, 8], [0, 9, 9], [0, 10, 10], [0, 11, 11], [0, 12, 12], [0, 13, 13], [0, 14, 14],
-			[0, 15, 15], [0, 16, 16], [0, 17, 17], [0, 18, 18], [0, 19, 19], [0, 20, 20], [0, 21, 21],
-			[0, 22, 22], [0, 23, 23], [0, 24, 24], [0, 25, 25], [0, 26, 26], [0, 27, 27], [0, 28, 28],
-			[0, 29, 29], [0, 30, 30], [0, 31, 31], [0, 32, 32], [0, 33, 33], [0, 34, 34], [0, 35, 35],
-			[0, 36, 36], [0, 37, 37], [0, 38, 38], [0, 39, 39], [0, 40, 40], [0, 41, 41], [0, 42, 42],
-			[0, 43, 43], [0, 44, 44],
-			[1, 0, 45], [1, 1, 46], [1, 2, 47], [1, 3, 48], [1, 4, 49], [1, 5, 50], [1, 6, 51],
-			[1, 7, 52], [1, 8, 53], [1, 9, 54], [1, 10, 55], [1, 11, 56], [1, 12, 57], [1, 13, 58],
-			[1, 14, 59], [1, 15, 60], [1, 16, 61], [1, 17, 62], [1, 18, 63], [1, 19, 64], [1, 20, 65],
-			[1, 21, 66], [1, 22, 67], [1, 23, 68], [1, 24, 69], [1, 25, 70], [1, 26, 71], [1, 27, 72],
-			[1, 28, 73], [1, 29, 74], [1, 30, 75], [1, 31, 76], [1, 32, 77], [1, 33, 78], [1, 34, 79],
-			[1, 35, 80], [1, 36, 81], [1, 37, 82], [1, 38, 83], [1, 39, 84], [1, 40, 85], [1, 41, 86],
-			[1, 42, 87], [1, 43, 88], [1, 44, 89],
-			[2, 0, 90], [2, 1, 91], [2, 2, 92], [2, 3, 93], [2, 4, 94], [2, 5, 95], [2, 6, 96],
-			[2, 7, 97], [2, 8, 98], [2, 9, 99], [2, 10, 100], [2, 11, 101], [2, 12, 102],
-			[2, 13, 103], [2, 14, 104], [2, 15, 105], [2, 16, 106], [2, 17, 107], [2, 18, 108],
-			[2, 19, 109], [2, 20, 110], [2, 21, 111], [2, 22, 112], [2, 23, 113], [2, 24, 114],
-			[2, 25, 115], [2, 26, 116], [2, 27, 117], [2, 28, 118], [2, 29, 119], [2, 30, 120],
-			[2, 31, 121], [2, 32, 122], [2, 33, 123], [2, 34, 124], [2, 35, 125], [2, 36, 126],
-			[2, 37, 127], [2, 38, 128], [2, 39, 129], [2, 40, 130], [2, 41, 131], [2, 42, 132],
-			[2, 43, 133], [2, 44, 134],
-			[3, 0, 135], [3, 1, 136], [3, 2, 137], [3, 3, 138], [3, 4, 139], [3, 5, 140], [3, 6, 141],
-			[3, 7, 142], [3, 8, 143], [3, 9, 144], [3, 10, 145], [3, 11, 146], [3, 12, 147], [3, 13, 148],
-			[3, 14, 149], [3, 15, 150], [3, 16, 151], [3, 17, 152], [3, 18, 153], [3, 19, 154], [3, 20, 155],
-			[3, 21, 156], [3, 22, 157], [3, 23, 158], [3, 24, 159], [3, 25, 160], [3, 26, 161], [3, 27, 162],
-			[3, 28, 163], [3, 29, 164], [3, 30, 165], [3, 31, 166], [3, 32, 167], [3, 33, 168], [3, 34, 169],
-			[3, 35, 170], [3, 36, 171], [3, 37, 172], [3, 38, 173], [3, 39, 174], [3, 40, 175], [3, 41, 176],
-			[3, 42, 177], [3, 43, 178], [3, 44, 179],
-			[4, 0, 180], [4, 1, 181], [4, 2, 182], [4, 3, 183], [4, 4, 184], [4, 5, 185], [4, 6, 186],
-			[4, 7, 187], [4, 8, 188], [4, 9, 189], [4, 10, 190], [4, 11, 191], [4, 12, 192], [4, 13, 193],
-			[4, 14, 194]
-		]);
+		await assertSnapshot(inflated.mapping);
 	});
 
 	test('issue #33525: Long line with ligatures takes a long time to paint decorations - not possible', async () => {
@@ -2130,32 +1904,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 		const inflated = inflateRenderLineOutput(actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
-		assert.deepStrictEqual(inflated.mapping, [
-			[0, 0, 0], [0, 1, 1], [0, 2, 2], [0, 3, 3], [0, 4, 4], [0, 5, 5], [0, 6, 6], [0, 7, 7],
-			[0, 8, 8], [0, 9, 9], [0, 10, 10], [0, 11, 11], [0, 12, 12], [0, 13, 13], [0, 14, 14],
-			[0, 15, 15], [0, 16, 16], [0, 17, 17], [0, 18, 18], [0, 19, 19], [0, 20, 20], [0, 21, 21],
-			[0, 22, 22], [0, 23, 23], [0, 24, 24], [0, 25, 25], [0, 26, 26], [0, 27, 27], [0, 28, 28],
-			[0, 29, 29], [0, 30, 30], [0, 31, 31], [0, 32, 32], [0, 33, 33], [0, 34, 34], [0, 35, 35],
-			[0, 36, 36], [0, 37, 37], [0, 38, 38], [0, 39, 39], [0, 40, 40], [0, 41, 41], [0, 42, 42],
-			[0, 43, 43], [0, 44, 44], [0, 45, 45], [0, 46, 46], [0, 47, 47], [0, 48, 48], [0, 49, 49],
-			[0, 50, 50], [0, 51, 51], [0, 52, 52], [0, 53, 53], [0, 54, 54], [0, 55, 55], [0, 56, 56],
-			[0, 57, 57], [0, 58, 58], [0, 59, 59], [0, 60, 60], [0, 61, 61], [0, 62, 62], [0, 63, 63],
-			[0, 64, 64], [0, 65, 65], [0, 66, 66], [0, 67, 67], [0, 68, 68], [0, 69, 69], [0, 70, 70],
-			[0, 71, 71], [0, 72, 72], [0, 73, 73], [0, 74, 74], [0, 75, 75], [0, 76, 76], [0, 77, 77],
-			[0, 78, 78], [0, 79, 79], [0, 80, 80], [0, 81, 81], [0, 82, 82], [0, 83, 83], [0, 84, 84],
-			[0, 85, 85], [0, 86, 86], [0, 87, 87], [0, 88, 88], [0, 89, 89], [0, 90, 90], [0, 91, 91],
-			[0, 92, 92], [0, 93, 93], [0, 94, 94], [0, 95, 95], [0, 96, 96], [0, 97, 97], [0, 98, 98],
-			[0, 99, 99], [0, 100, 100], [0, 101, 101], [0, 102, 102], [0, 103, 103], [0, 104, 104],
-			[0, 105, 105], [0, 106, 106], [0, 107, 107], [0, 108, 108], [0, 109, 109], [0, 110, 110],
-			[0, 111, 111], [0, 112, 112], [0, 113, 113], [0, 114, 114], [0, 115, 115], [0, 116, 116],
-			[0, 117, 117], [0, 118, 118], [0, 119, 119], [0, 120, 120], [0, 121, 121], [0, 122, 122],
-			[0, 123, 123], [0, 124, 124], [0, 125, 125], [0, 126, 126], [0, 127, 127], [0, 128, 128],
-			[0, 129, 129], [0, 130, 130], [0, 131, 131], [0, 132, 132], [0, 133, 133], [0, 134, 134],
-			[0, 135, 135], [0, 136, 136], [0, 137, 137], [0, 138, 138], [0, 139, 139], [0, 140, 140],
-			[0, 141, 141], [0, 142, 142], [0, 143, 143], [0, 144, 144], [0, 145, 145], [0, 146, 146],
-			[0, 147, 147], [0, 148, 148], [0, 149, 149], [0, 150, 150], [0, 151, 151], [0, 152, 152],
-			[0, 153, 153], [0, 154, 154], [0, 155, 155], [0, 156, 156]
-		]);
+		await assertSnapshot(inflated.mapping);
 	});
 
 	test('issue #91936: Semantic token color highlighting fails on line with selected text', async () => {
@@ -2204,43 +1953,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 		const inflated = inflateRenderLineOutput(actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
-		assert.deepStrictEqual(inflated.mapping, [
-			[0, 0, 0],
-			[1, 0, 1],
-			[2, 0, 2],
-			[3, 0, 3],
-			[4, 0, 4],
-			[5, 0, 5],
-			[6, 0, 6],
-			[7, 0, 7],
-			[8, 0, 8],
-			[9, 0, 9],
-			[10, 0, 10],
-			[11, 0, 11],
-			[12, 0, 12],
-			[13, 0, 13],
-			[14, 0, 14],
-			[15, 0, 15],
-			[16, 0, 16],
-			[17, 0, 17],
-			[18, 0, 18],
-			[19, 0, 19],
-			[20, 0, 20], [20, 1, 21], [20, 2, 22], [20, 3, 23],
-			[21, 0, 24],
-			[22, 0, 25], [22, 1, 26],
-			[23, 0, 27],
-			[24, 0, 28],
-			[25, 0, 29], [25, 1, 30],
-			[26, 0, 31],
-			[27, 0, 32],
-			[28, 0, 33],
-			[29, 0, 34], [29, 1, 35],
-			[30, 0, 36],
-			[31, 0, 37],
-			[32, 0, 38], [32, 1, 39], [32, 2, 40], [32, 3, 41],
-			[33, 0, 42],
-			[34, 0, 43], [34, 1, 44], [34, 2, 45], [34, 3, 46], [34, 4, 47]
-		]);
+		await assertSnapshot(inflated.mapping);
 	});
 
 	test('issue #119416: Delete Control Character (U+007F / &#127;) displayed as space', async () => {
@@ -2270,9 +1983,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 		const inflated = inflateRenderLineOutput(actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
-		assert.deepStrictEqual(inflated.mapping, [
-			[0, 0, 0], [0, 1, 1], [0, 2, 2], [0, 3, 3], [0, 4, 4], [0, 5, 5], [0, 6, 6], [0, 7, 7]
-		]);
+		await assertSnapshot(inflated.mapping);
 	});
 
 	test('issue #116939: Important control characters aren\'t rendered', async () => {
@@ -2302,16 +2013,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 		const inflated = inflateRenderLineOutput(actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
-		assert.deepStrictEqual(inflated.mapping, [
-			[0, 0, 0], [0, 1, 1], [0, 2, 2], [0, 3, 3], [0, 4, 4], [0, 5, 5], [0, 6, 6], [0, 7, 7],
-			[0, 8, 8], [0, 9, 9], [0, 10, 10], [0, 11, 11], [0, 12, 12], [0, 13, 13], [0, 14, 14],
-			[0, 15, 15], [0, 16, 16], [0, 17, 17], [0, 18, 18], [0, 19, 19], [0, 20, 20],
-			[1, 0, 21],
-			[2, 0, 29], [2, 1, 30], [2, 2, 31], [2, 3, 32], [2, 4, 33], [2, 5, 34], [2, 6, 35],
-			[2, 7, 36], [2, 8, 37],
-			[3, 0, 38],
-			[4, 0, 46], [4, 1, 47], [4, 2, 48], [4, 3, 49], [4, 4, 50], [4, 5, 51], [4, 6, 52], [4, 7, 53], [4, 8, 54]
-		]);
+		await assertSnapshot(inflated.mapping);
 	});
 
 	test('issue #124038: Multiple end-of-line text decorations get merged', async () => {
@@ -2345,11 +2047,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 		const inflated = inflateRenderLineOutput(actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
-		assert.deepStrictEqual(inflated.mapping, [
-			[0, 0, 0], [0, 2, 1], [0, 4, 2], [0, 6, 3],
-			[1, 0, 4], [1, 1, 5],
-			[3, 0, 6]
-		]);
+		await assertSnapshot(inflated.mapping);
 	});
 
 	function createTestGetColumnOfLinePartOffset(lineContent: string, tabSize: number, parts: TestLineToken[], expectedPartLengths: number[]): (partIndex: number, partLength: number, offset: number, expected: number) => void {
