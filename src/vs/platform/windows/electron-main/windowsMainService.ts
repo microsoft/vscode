@@ -1735,19 +1735,19 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		return getLastFocused(windows);
 	}
 
-	sendToFocused(channel: string, ...args: any[]): void {
+	sendToFocused(channel: string, ...args: unknown[]): void {
 		const focusedWindow = this.getFocusedWindow() || this.getLastActiveWindow();
 
 		focusedWindow?.sendWhenReady(channel, CancellationToken.None, ...args);
 	}
 
-	sendToOpeningWindow(channel: string, ...args: any[]): void {
+	sendToOpeningWindow(channel: string, ...args: unknown[]): void {
 		this._register(Event.once(this.onDidSignalReadyWindow)(window => {
 			window.sendWhenReady(channel, CancellationToken.None, ...args);
 		}));
 	}
 
-	sendToAll(channel: string, payload?: any, windowIdsToIgnore?: number[]): void {
+	sendToAll(channel: string, payload?: unknown, windowIdsToIgnore?: number[]): void {
 		for (const window of this.getWindows()) {
 			if (windowIdsToIgnore && windowIdsToIgnore.indexOf(window.id) >= 0) {
 				continue; // do not send if we are instructed to ignore it
