@@ -395,7 +395,7 @@ export interface INativeOpenFileRequest extends IOpenFileRequest {
 export interface INativeRunActionInWindowRequest {
 	readonly id: string;
 	readonly from: 'menu' | 'touchbar' | 'mouse';
-	readonly args?: any[];
+	readonly args?: unknown[];
 }
 
 export interface INativeRunKeybindingInWindowRequest {

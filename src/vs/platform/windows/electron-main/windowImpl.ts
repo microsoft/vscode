@@ -1473,7 +1473,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		this._win?.close();
 	}
 
-	sendWhenReady(channel: string, token: CancellationToken, ...args: any[]): void {
+	sendWhenReady(channel: string, token: CancellationToken, ...args: unknown[]): void {
 		if (this.isReady) {
 			this.send(channel, ...args);
 		} else {
@@ -1485,7 +1485,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		}
 	}
 
-	send(channel: string, ...args: any[]): void {
+	send(channel: string, ...args: unknown[]): void {
 		if (this._win) {
 			if (this._win.isDestroyed() || this._win.webContents.isDestroyed()) {
 				this.logService.warn(`Sending IPC message to channel '${channel}' for window that is destroyed`);

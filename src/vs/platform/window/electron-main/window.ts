@@ -77,8 +77,8 @@ export interface ICodeWindow extends IBaseWindow {
 
 	getBounds(): electron.Rectangle;
 
-	send(channel: string, ...args: any[]): void;
-	sendWhenReady(channel: string, token: CancellationToken, ...args: any[]): void;
+	send(channel: string, ...args: unknown[]): void;
+	sendWhenReady(channel: string, token: CancellationToken, ...args: unknown[]): void;
 
 	updateTouchBar(items: ISerializableCommandAction[][]): void;
 

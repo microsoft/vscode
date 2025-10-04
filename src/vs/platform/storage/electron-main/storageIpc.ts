@@ -71,6 +71,7 @@ export class StorageDatabaseChannel extends Disposable implements IServerChannel
 		};
 	}
 
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	listen(_: unknown, event: string, arg: IBaseSerializableStorageRequest): Event<any> {
 		switch (event) {
 			case 'onDidChangeStorage': {
@@ -98,6 +99,7 @@ export class StorageDatabaseChannel extends Disposable implements IServerChannel
 
 	//#endregion
 
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	async call(_: unknown, command: string, arg: IBaseSerializableStorageRequest): Promise<any> {
 		const profile = arg.profile ? revive<IUserDataProfile>(arg.profile) : undefined;
 		const workspace = reviveIdentifier(arg.workspace);

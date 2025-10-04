@@ -261,8 +261,8 @@ export class UtilityProcess extends Disposable {
 		return true;
 	}
 
-	private createEnv(configuration: IUtilityProcessConfiguration): { [key: string]: any } {
-		const env: { [key: string]: any } = configuration.env ? { ...configuration.env } : { ...deepClone(process.env) };
+	private createEnv(configuration: IUtilityProcessConfiguration): NodeJS.ProcessEnv {
+		const env: NodeJS.ProcessEnv = configuration.env ? { ...configuration.env } : { ...deepClone(process.env) };
 
 		// Apply supported environment variables from config
 		env['VSCODE_ESM_ENTRYPOINT'] = configuration.entryPoint;

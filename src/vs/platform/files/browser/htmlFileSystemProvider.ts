@@ -15,7 +15,7 @@ import { isLinux } from '../../../base/common/platform.js';
 import { extUri, extUriIgnorePathCase, joinPath } from '../../../base/common/resources.js';
 import { newWriteableStream, ReadableStreamEvents } from '../../../base/common/stream.js';
 import { createFileSystemProviderError, IFileDeleteOptions, IFileOverwriteOptions, IFileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileWriteOptions, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions, IFileChange, FileChangeType } from '../common/files.js';
-import { FileSystemObserverRecord, WebFileSystemAccess, WebFileSystemObserver } from './webFileSystemAccess.js';
+import { FileSystemObserver, FileSystemObserverRecord, WebFileSystemAccess, WebFileSystemObserver } from './webFileSystemAccess.js';
 import { IndexedDB } from '../../../base/browser/indexedDB.js';
 import { ILogService, LogLevel } from '../../log/common/log.js';
 
@@ -308,8 +308,7 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
 			return;
 		}
 
-		// eslint-disable-next-line local/code-no-any-casts
-		const observer = new (globalThis as any).FileSystemObserver((records: FileSystemObserverRecord[]) => {
+		const observer = new FileSystemObserver((records: FileSystemObserverRecord[]) => {
 			if (disposables.isDisposed) {
 				return;
 			}
