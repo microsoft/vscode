@@ -198,7 +198,7 @@ export default tseslint.config(
 			'src/vs/platform/launch/**',
 			'src/vs/platform/lifecycle/**',
 			'src/vs/platform/menubar/**',
-			// 'src/vs/platform/native/**',
+			'src/vs/platform/native/**',
 			'src/vs/platform/sharedProcess/**',
 			'src/vs/platform/state/**',
 			'src/vs/platform/storage/**',
