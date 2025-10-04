@@ -218,8 +218,8 @@ suite('viewLineRenderer.renderLine', () => {
 	});
 
 	test('typical line', async () => {
-		const lineText = '\t    export class Game { // http://test.com     ';
-		const lineParts = createViewLineTokens([
+		const lineContent = '\t    export class Game { // http://test.com     ';
+		const lineTokens = createViewLineTokens([
 			createPart(5, 1),
 			createPart(11, 2),
 			createPart(12, 3),
@@ -234,8 +234,8 @@ suite('viewLineRenderer.renderLine', () => {
 			createPart(48, 12),
 		]);
 		const _actual = renderViewLine(createRenderLineInput({
-			lineContent: lineText,
-			lineTokens: lineParts,
+			lineContent,
+			lineTokens,
 			renderWhitespace: 'boundary'
 		}));
 
@@ -245,8 +245,8 @@ suite('viewLineRenderer.renderLine', () => {
 	});
 
 	test('issue #2255: Weird line rendering part 1', async () => {
-		const lineText = '\t\t\tcursorStyle:\t\t\t\t\t\t(prevOpts.cursorStyle !== newOpts.cursorStyle),';
-		const lineParts = createViewLineTokens([
+		const lineContent = '\t\t\tcursorStyle:\t\t\t\t\t\t(prevOpts.cursorStyle !== newOpts.cursorStyle),';
+		const lineTokens = createViewLineTokens([
 			createPart(3, 1), // 3 chars
 			createPart(15, 2), // 12 chars
 			createPart(21, 3), // 6 chars
@@ -259,8 +259,8 @@ suite('viewLineRenderer.renderLine', () => {
 			createPart(68, 10), // 2 chars
 		]);
 		const _actual = renderViewLine(createRenderLineInput({
-			lineContent: lineText,
-			lineTokens: lineParts
+			lineContent,
+			lineTokens
 		}));
 
 		const inflated = inflateRenderLineOutput(_actual);
@@ -269,9 +269,9 @@ suite('viewLineRenderer.renderLine', () => {
 	});
 
 	test('issue #2255: Weird line rendering part 2', async () => {
-		const lineText = ' \t\t\tcursorStyle:\t\t\t\t\t\t(prevOpts.cursorStyle !== newOpts.cursorStyle),';
+		const lineContent = ' \t\t\tcursorStyle:\t\t\t\t\t\t(prevOpts.cursorStyle !== newOpts.cursorStyle),';
 
-		const lineParts = createViewLineTokens([
+		const lineTokens = createViewLineTokens([
 			createPart(4, 1), // 4 chars
 			createPart(16, 2), // 12 chars
 			createPart(22, 3), // 6 chars
@@ -284,8 +284,8 @@ suite('viewLineRenderer.renderLine', () => {
 			createPart(69, 10), // 2 chars
 		]);
 		const _actual = renderViewLine(createRenderLineInput({
-			lineContent: lineText,
-			lineTokens: lineParts
+			lineContent,
+			lineTokens
 		}));
 
 		const inflated = inflateRenderLineOutput(_actual);
@@ -294,15 +294,15 @@ suite('viewLineRenderer.renderLine', () => {
 	});
 
 	test('issue #91178: after decoration type shown before cursor', async () => {
-		const lineText = '//just a comment';
-		const lineParts = createViewLineTokens([
+		const lineContent = '//just a comment';
+		const lineTokens = createViewLineTokens([
 			createPart(16, 1)
 		]);
 		const actual = renderViewLine(createRenderLineInput({
 			useMonospaceOptimizations: true,
 			canUseHalfwidthRightwardsArrow: false,
-			lineContent: lineText,
-			lineTokens: lineParts,
+			lineContent,
+			lineTokens,
 			lineDecorations: [
 				new LineDecoration(13, 13, 'dec1', InlineDecorationType.After),
 				new LineDecoration(13, 13, 'dec2', InlineDecorationType.Before),
@@ -315,18 +315,18 @@ suite('viewLineRenderer.renderLine', () => {
 	});
 
 	test('issue microsoft/monaco-editor#280: Improved source code rendering for RTL languages', async () => {
-		const lineText = 'var קודמות = \"מיותר קודמות צ\'ט של, אם לשון העברית שינויים ויש, אם\";';
-		const lineParts = createViewLineTokens([
+		const lineContent = 'var קודמות = \"מיותר קודמות צ\'ט של, אם לשון העברית שינויים ויש, אם\";';
+		const lineTokens = createViewLineTokens([
 			createPart(3, 6),
 			createPart(13, 1),
 			createPart(66, 20),
 			createPart(67, 1),
 		]);
 		const _actual = renderViewLine(createRenderLineInput({
-			lineContent: lineText,
+			lineContent,
 			isBasicASCII: false,
 			containsRTL: true,
-			lineTokens: lineParts
+			lineTokens
 		}));
 
 		const inflated = inflateRenderLineOutput(_actual);
@@ -335,8 +335,8 @@ suite('viewLineRenderer.renderLine', () => {
 	});
 
 	test('issue #137036: Issue in RTL languages in recent versions', async () => {
-		const lineText = '<option value=\"العربية\">العربية</option>';
-		const lineParts = createViewLineTokens([
+		const lineContent = '<option value=\"العربية\">العربية</option>';
+		const lineTokens = createViewLineTokens([
 			createPart(1, 2),
 			createPart(7, 3),
 			createPart(8, 4),
@@ -350,10 +350,10 @@ suite('viewLineRenderer.renderLine', () => {
 			createPart(40, 2),
 		]);
 		const _actual = renderViewLine(createRenderLineInput({
-			lineContent: lineText,
+			lineContent,
 			isBasicASCII: false,
 			containsRTL: true,
-			lineTokens: lineParts
+			lineTokens
 		}));
 
 		const inflated = inflateRenderLineOutput(_actual);
@@ -362,8 +362,8 @@ suite('viewLineRenderer.renderLine', () => {
 	});
 
 	test('issue #99589: Rendering whitespace influences bidi layout', async () => {
-		const lineText = '    [\"🖨️ چاپ فاکتور\",\"🎨 تنظیمات\"]';
-		const lineParts = createViewLineTokens([
+		const lineContent = '    [\"🖨️ چاپ فاکتور\",\"🎨 تنظیمات\"]';
+		const lineTokens = createViewLineTokens([
 			createPart(5, 2),
 			createPart(21, 3),
 			createPart(22, 2),
@@ -372,10 +372,10 @@ suite('viewLineRenderer.renderLine', () => {
 		]);
 		const _actual = renderViewLine(createRenderLineInput({
 			useMonospaceOptimizations: true,
-			lineContent: lineText,
+			lineContent,
 			isBasicASCII: false,
 			containsRTL: true,
-			lineTokens: lineParts,
+			lineTokens,
 			renderWhitespace: 'all'
 		}));
 
@@ -390,11 +390,11 @@ suite('viewLineRenderer.renderLine', () => {
 		//               1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234
 		const _lineText = 'This is just a long line that contains very interesting text. This is just a long line that contains very interesting text.';
 
-		function assertSplitsTokens(message: string, lineText: string, expectedOutput: string[]): void {
-			const lineParts = createViewLineTokens([createPart(lineText.length, 1)]);
+		function assertSplitsTokens(message: string, lineContent: string, expectedOutput: string[]): void {
+			const lineTokens = createViewLineTokens([createPart(lineContent.length, 1)]);
 			const actual = renderViewLine(createRenderLineInput({
-				lineContent: lineText,
-				lineTokens: lineParts
+				lineContent,
+				lineTokens
 			}));
 			assert.strictEqual(actual.html, '<span>' + expectedOutput.join('') + '</span>', message);
 		}
@@ -477,11 +477,11 @@ suite('viewLineRenderer.renderLine', () => {
 		//               1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234
 		const _lineText = 'This is just a long line that contains very interesting text. This is just a long line that contains very interesting text.';
 
-		function assertSplitsTokens(message: string, lineText: string, expectedOutput: string[]): void {
-			const lineParts = createViewLineTokens([createPart(lineText.length, 1)]);
+		function assertSplitsTokens(message: string, lineContent: string, expectedOutput: string[]): void {
+			const lineTokens = createViewLineTokens([createPart(lineContent.length, 1)]);
 			const actual = renderViewLine(createRenderLineInput({
-				lineContent: lineText,
-				lineTokens: lineParts,
+				lineContent,
+				lineTokens,
 				fontLigatures: true
 			}));
 			assert.strictEqual(actual.html, '<span>' + expectedOutput.join('') + '</span>', message);
@@ -502,37 +502,37 @@ suite('viewLineRenderer.renderLine', () => {
 	});
 
 	test('issue #20624: Unaligned surrogate pairs are corrupted at multiples of 50 columns', async () => {
-		const lineText = 'a𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷';
-		const lineParts = createViewLineTokens([createPart(lineText.length, 1)]);
+		const lineContent = 'a𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷';
+		const lineTokens = createViewLineTokens([createPart(lineContent.length, 1)]);
 		const actual = renderViewLine(createRenderLineInput({
-			lineContent: lineText,
+			lineContent,
 			isBasicASCII: false,
-			lineTokens: lineParts
+			lineTokens
 		}));
 
 		await assertSnapshot(inflateRenderLineOutput(actual).html.join(''), HTML_EXTENSION);
 	});
 
 	test('issue #6885: Does not split large tokens in RTL text', async () => {
-		const lineText = 'את גרמנית בהתייחסות שמו, שנתי המשפט אל חפש, אם כתב אחרים ולחבר. של התוכן אודות בויקיפדיה כלל, של עזרה כימיה היא. על עמוד יוצרים מיתולוגיה סדר, אם שכל שתפו לעברית שינויים, אם שאלות אנגלית עזה. שמות בקלות מה סדר.';
-		const lineParts = createViewLineTokens([createPart(lineText.length, 1)]);
+		const lineContent = 'את גרמנית בהתייחסות שמו, שנתי המשפט אל חפש, אם כתב אחרים ולחבר. של התוכן אודות בויקיפדיה כלל, של עזרה כימיה היא. על עמוד יוצרים מיתולוגיה סדר, אם שכל שתפו לעברית שינויים, אם שאלות אנגלית עזה. שמות בקלות מה סדר.';
+		const lineTokens = createViewLineTokens([createPart(lineContent.length, 1)]);
 		const actual = renderViewLine(createRenderLineInput({
-			lineContent: lineText,
+			lineContent,
 			isBasicASCII: false,
 			containsRTL: true,
-			lineTokens: lineParts
+			lineTokens
 		}));
 
 		await assertSnapshot(actual.html, HTML_EXTENSION);
 	});
 
 	test('issue #95685: Uses unicode replacement character for Paragraph Separator', async () => {
-		const lineText = 'var ftext = [\u2029"Und", "dann", "eines"];';
-		const lineParts = createViewLineTokens([createPart(lineText.length, 1)]);
+		const lineContent = 'var ftext = [\u2029"Und", "dann", "eines"];';
+		const lineTokens = createViewLineTokens([createPart(lineContent.length, 1)]);
 		const actual = renderViewLine(createRenderLineInput({
-			lineContent: lineText,
+			lineContent,
 			isBasicASCII: false,
-			lineTokens: lineParts
+			lineTokens
 		}));
 		const inflated = inflateRenderLineOutput(actual);
 		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
@@ -540,8 +540,8 @@ suite('viewLineRenderer.renderLine', () => {
 	});
 
 	test('issue #19673: Monokai Theme bad-highlighting in line wrap', async () => {
-		const lineText = '    MongoCallback<string>): void {';
-		const lineParts = createViewLineTokens([
+		const lineContent = '    MongoCallback<string>): void {';
+		const lineTokens = createViewLineTokens([
 			createPart(17, 1),
 			createPart(18, 2),
 			createPart(24, 3),
@@ -553,9 +553,9 @@ suite('viewLineRenderer.renderLine', () => {
 		]);
 		const _actual = renderViewLine(createRenderLineInput({
 			useMonospaceOptimizations: true,
-			lineContent: lineText,
+			lineContent,
 			fauxIndentLength: 4,
-			lineTokens: lineParts
+			lineTokens
 		}));
 
 		const inflated = inflateRenderLineOutput(_actual);
