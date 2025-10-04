@@ -110,6 +110,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 			}
 		}));
 
+		// Watch for changes to files in the same directory (for references, etc.)
 		const watcher = this._register(vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(resource, '*')));
 		this._register(watcher.onDidChange(uri => {
 			if (this.isPreviewOf(uri)) {
@@ -118,6 +119,23 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 					this.refresh();
 				}
 			}
+		}));
+
+		// Watch for external changes to the markdown file itself
+		// This handles the case where the file is overwritten externally (e.g., downloaded/copied)
+		// Use the file's directory as base and the file name as pattern
+		const fileDir = uri.Utils.dirname(resource);
+		const fileName = uri.Utils.basename(resource);
+		const fileWatcher = this._register(vscode.workspace.createFileSystemWatcher(
+			new vscode.RelativePattern(fileDir, fileName),
+			true,  // ignoreCreateEvents
+			false, // ignoreChangeEvents - we want to listen to changes
+			true   // ignoreDeleteEvents
+		));
+		this._register(fileWatcher.onDidChange(() => {
+			// Always refresh when the file changes externally, even if VS Code knows about it
+			// This ensures the preview updates when files are overwritten
+			this.refresh(true);
 		}));
 
 		this._register(this._webviewPanel.webview.onDidReceiveMessage((e: FromWebviewMessage.Type) => {
