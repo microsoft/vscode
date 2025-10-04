@@ -17,7 +17,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { nativeHoverDelegate } from '../../../../../platform/hover/browser/hover.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IStatusbarService, StatusbarAlignment } from '../../../../services/statusbar/browser/statusbar.js';
-import { IChatEntitlementService } from '../../../chat/common/chatEntitlementService.js';
+import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { STATS_SETTING_ID } from '../settingIds.js';
 import type { StatsFeature } from './statsFeature.js';
 import './media.css';
