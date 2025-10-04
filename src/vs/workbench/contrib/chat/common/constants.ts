@@ -21,6 +21,7 @@ export enum ChatConfiguration {
 	ShowAgentSessionsViewDescription = 'chat.showAgentSessionsViewDescription',
 	EmptyStateHistoryEnabled = 'chat.emptyState.history.enabled',
 	NotifyWindowOnResponseReceived = 'chat.notifyWindowOnResponseReceived',
+	DelegateToCodingAgentInSecondaryMenu = 'chat.delegateToCodingAgentInSecondaryMenu',
 }
 
 /**
@@ -87,3 +88,5 @@ export namespace ChatAgentLocation {
 export const ChatUnsupportedFileSchemes = new Set([Schemas.vscodeChatEditor, Schemas.walkThrough, Schemas.vscodeChatSession, 'ccreq']);
 
 export const VIEWLET_ID = 'workbench.view.chat.sessions';
+
+export const ChatEditorTitleMaxLength = 30;

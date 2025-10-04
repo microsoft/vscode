@@ -1056,6 +1056,7 @@ export interface IChatModel extends IDisposable {
 	readonly sessionId: string;
 	readonly initialLocation: ChatAgentLocation;
 	readonly title: string;
+	readonly hasCustomTitle: boolean;
 	readonly requestInProgress: boolean;
 	readonly requestInProgressObs: IObservable<boolean>;
 	readonly inputPlaceholder?: string;
@@ -1415,6 +1416,10 @@ export class ChatModel extends Disposable implements IChatModel {
 
 	get title(): string {
 		return this._customTitle || ChatModel.getDefaultTitle(this._requests);
+	}
+
+	get hasCustomTitle(): boolean {
+		return this._customTitle !== undefined;
 	}
 
 	private _editingSession: ObservablePromise<IChatEditingSession> | undefined;
