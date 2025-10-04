@@ -2931,9 +2931,12 @@
 			]
 		},
 		"php_doc_types_array_shape": {
-			"begin": "\\{",
+			"begin": "(array)(\\{)",
 			"beginCaptures": {
-				"0": {
+				"1": {
+					"name": "keyword.other.type.php"
+				},
+				"2": {
 					"name": "punctuation.definition.type.begin.bracket.curly.phpdoc.php"
 				}
 			},
@@ -2966,9 +2969,12 @@
 			]
 		},
 		"php_doc_types_array_with_key_type": {
-			"begin": "\\<",
+			"begin": "(array)(\\<)",
 			"beginCaptures": {
-				"0": {
+				"1": {
+					"name": "keyword.other.type.php"
+				},
+				"2": {
 					"name": "punctuation.definition.type.begin.bracket.angle.phpdoc.php"
 				}
 			},
