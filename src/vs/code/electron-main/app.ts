@@ -545,8 +545,7 @@ export class CodeApplication extends Disposable {
 		// See: https://github.com/microsoft/vscode/issues/35361#issuecomment-399794085
 		try {
 			if (isMacintosh && this.configurationService.getValue('window.nativeTabs') === true && !systemPreferences.getUserDefault('NSUseImprovedLayoutPass', 'boolean')) {
-				// eslint-disable-next-line local/code-no-any-casts
-				systemPreferences.setUserDefault('NSUseImprovedLayoutPass', 'boolean', true as any);
+				systemPreferences.setUserDefault('NSUseImprovedLayoutPass', 'boolean', true);
 			}
 		} catch (error) {
 			this.logService.error(error);
@@ -691,8 +690,7 @@ export class CodeApplication extends Disposable {
 		}
 
 		// macOS: open-url events that were received before the app is ready
-		// eslint-disable-next-line local/code-no-any-casts
-		const protocolUrlsFromEvent = ((<any>global).getOpenUrls() || []) as string[];
+		const protocolUrlsFromEvent = ((global as { getOpenUrls?: () => string[] }).getOpenUrls?.() || []);
 		if (protocolUrlsFromEvent.length > 0) {
 			this.logService.trace(`app#resolveInitialProtocolUrls() protocol urls from macOS 'open-url' event:`, protocolUrlsFromEvent);
 		}
@@ -1299,8 +1297,7 @@ export class CodeApplication extends Disposable {
 			}
 		}
 
-		// eslint-disable-next-line local/code-no-any-casts
-		const macOpenFiles: string[] = (<any>global).macOpenFiles;
+		const macOpenFiles: string[] = (global as { macOpenFiles?: string[] }).macOpenFiles ?? [];
 		const hasCliArgs = args._.length;
 		const hasFolderURIs = !!args['folder-uri'];
 		const hasFileURIs = !!args['file-uri'];
