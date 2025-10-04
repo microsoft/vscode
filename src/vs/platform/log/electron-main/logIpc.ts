@@ -27,13 +27,13 @@ export class LoggerChannel implements IServerChannel {
 
 	async call(_: unknown, command: string, arg?: any): Promise<any> {
 		switch (command) {
-			case 'createLogger': this.createLogger(URI.revive(arg[0]), arg[1], arg[2]); return;
-			case 'log': return this.log(URI.revive(arg[0]), arg[1]);
+			case 'createLogger': this.createLogger(this.safeUri(arg[0]), arg[1], arg[2]); return;
+			case 'log': return this.log(this.safeUri(arg[0]), arg[1]);
 			case 'consoleLog': return this.consoleLog(arg[0], arg[1]);
-			case 'setLogLevel': return isLogLevel(arg[0]) ? this.loggerService.setLogLevel(arg[0]) : this.loggerService.setLogLevel(URI.revive(arg[0]), arg[1]);
-			case 'setVisibility': return this.loggerService.setVisibility(URI.revive(arg[0]), arg[1]);
-			case 'registerLogger': return this.loggerService.registerLogger({ ...arg[0], resource: URI.revive(arg[0].resource) }, arg[1]);
-			case 'deregisterLogger': return this.loggerService.deregisterLogger(URI.revive(arg[0]));
+			case 'setLogLevel': return isLogLevel(arg[0]) ? this.loggerService.setLogLevel(arg[0]) : this.loggerService.setLogLevel(this.safeUri(arg[0]), arg[1]);
+			case 'setVisibility': return this.loggerService.setVisibility(this.safeUri(arg[0]), arg[1]);
+			case 'registerLogger': return this.loggerService.registerLogger({ ...arg[0], resource: this.safeUri(arg[0].resource) }, arg[1]);
+			case 'deregisterLogger': return this.loggerService.deregisterLogger(this.safeUri(arg[0]));
 		}
 
 		throw new Error(`Call not found: ${command}`);
@@ -70,5 +70,16 @@ export class LoggerChannel implements IServerChannel {
 			log(logger, level, message);
 		}
 	}
-}
 
+	/**
+	 * Ensures the URI is valid and normalized, replacing illegal characters in the scheme if necessary.
+	 */
+	private safeUri(uriLike: URI | string): URI {
+		let uri = URI.revive(uriLike);
+		// Strip illegal characters from scheme (keep only letters, digits, +, -, .)
+		if (!/^[a-zA-Z][a-zA-Z0-9+.-]*$/.test(uri.scheme)) {
+			uri = uri.with({ scheme: 'file' }); // fallback to file scheme
+		}
+		return uri;
+	}
+}
