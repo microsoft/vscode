@@ -24,6 +24,10 @@ import { IExtHostRpcService } from './extHostRpcService.js';
 import * as Convert from './extHostTypeConverters.js';
 import { IExtHostVariableResolverProvider } from './extHostVariableResolverService.js';
 import { IExtHostWorkspace } from './extHostWorkspace.js';
+import { Schemas } from '../../../base/common/network.js';
+import { IExtHostFileSystemInfo } from './extHostFileSystemInfo.js';
+import { IExtHostConsumerFileSystem } from './extHostFileSystemConsumer.js';
+import { McpPackageKind } from './extHostTypes.js';
 
 export const IExtHostMpcService = createDecorator<IExtHostMpcService>('IExtHostMpcService');
 
@@ -36,6 +40,7 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 	private readonly _initialProviderPromises = new Set<Promise<void>>();
 	protected readonly _sseEventSources = this._register(new DisposableMap<number, McpHTTPHandle>());
 	private readonly _unresolvedMcpServers = new Map</* collectionId */ string, {
+		extension: IExtensionDescription;
 		provider: vscode.McpServerDefinitionProvider;
 		servers: vscode.McpServerDefinition[];
 	}>();
@@ -46,6 +51,8 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 		@IExtHostInitDataService private readonly _extHostInitData: IExtHostInitDataService,
 		@IExtHostWorkspace protected readonly _workspaceService: IExtHostWorkspace,
 		@IExtHostVariableResolverProvider private readonly _variableResolver: IExtHostVariableResolverProvider,
+		@IExtHostFileSystemInfo private readonly _extHostFileSystemInfo: IExtHostFileSystemInfo,
+		@IExtHostConsumerFileSystem private readonly _extHostConsumerFileSystem: IExtHostConsumerFileSystem,
 	) {
 		super();
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadMcp);
@@ -101,11 +108,11 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 			return;
 		}
 		if (!rec.provider.resolveMcpServerDefinition) {
-			return Convert.McpServerDefinition.from(server);
+			return this._resolveMcpServerLaunch(server, rec.extension);
 		}
 
 		const resolved = await rec.provider.resolveMcpServerDefinition(server, CancellationToken.None);
-		return resolved ? Convert.McpServerDefinition.from(resolved) : undefined;
+		return resolved ? this._resolveMcpServerLaunch(resolved, rec.extension) : undefined;
 	}
 
 	/** {@link vscode.lm.registerMcpServerDefinitionProvider} */
@@ -129,7 +136,7 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 
 		const update = async () => {
 			const list = await provider.provideMcpServerDefinitions(CancellationToken.None);
-			this._unresolvedMcpServers.set(mcp.id, { servers: list ?? [], provider });
+			this._unresolvedMcpServers.set(mcp.id, { servers: list ?? [], provider, extension });
 
 			const servers: McpServerDefinition.Serialized[] = [];
 			for (const item of list ?? []) {
@@ -140,12 +147,15 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 					id = id + i;
 				}
 
-				servers.push({
-					id,
-					label: item.label,
-					cacheNonce: item.version || '$$NONE',
-					launch: Convert.McpServerDefinition.from(item),
-				});
+				const launch = await this._resolveMcpServerLaunch(item, extension);
+				if (launch) {
+					servers.push({
+						id,
+						label: item.label,
+						cacheNonce: extension.version,
+						launch
+					});
+				}
 			}
 
 			this._proxy.$upsertMcpCollection(mcp, servers);
@@ -181,6 +191,55 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 		this._initialProviderPromises.add(promise);
 
 		return store;
+	}
+
+	private async _resolveMcpServerLaunch(item: vscode.McpServerDefinition, extension: IExtensionDescription): Promise<McpServerLaunch.Serialized | undefined> {
+		if (Convert.McpServerDefinition.isMcpNodeServerDefinition(item)) {
+			if (item.kind !== McpPackageKind.Node) {
+				this._logService.warn(`Skipping the unsupported MCP package type: ${item.kind}`);
+				return undefined;
+			}
+			const entrypoint = await this.findNodePackageEntryPoint(item.name, extension.extensionLocation);
+			return Convert.McpServerDefinition.from({
+				...item,
+				command: 'node',
+				args: [
+					entrypoint.with({ scheme: Schemas.file }).fsPath,
+					...item.args
+				]
+			});
+		}
+		return Convert.McpServerDefinition.from(item);
+	}
+
+	private async findNodePackageEntryPoint(packageName: string, packageLocation: URI): Promise<URI> {
+		const nodeModulesPath = this._extHostFileSystemInfo.extUri.joinPath(packageLocation, 'node_modules', packageName);
+		const packageJsonPath = this._extHostFileSystemInfo.extUri.joinPath(nodeModulesPath, 'package.json');
+
+		try {
+			const packageJsonContent = await this._extHostConsumerFileSystem.value.readFile(packageJsonPath);
+			const packageJson = JSON.parse(packageJsonContent.toString());
+
+			if (packageJson.bin) {
+				if (typeof packageJson.bin === 'string') {
+					return this._extHostFileSystemInfo.extUri.joinPath(nodeModulesPath, packageJson.bin);
+				} else if (typeof packageJson.bin === 'object') {
+					const binName = packageJson.bin[packageName] || Object.values(packageJson.bin)[0];
+					if (binName) {
+						return this._extHostFileSystemInfo.extUri.joinPath(nodeModulesPath, binName as string);
+					}
+				}
+			}
+
+			if (packageJson.main) {
+				return this._extHostFileSystemInfo.extUri.joinPath(nodeModulesPath, packageJson.main);
+			}
+
+			return this._extHostFileSystemInfo.extUri.joinPath(nodeModulesPath, 'index.js');
+		} catch (error) {
+			this._logService.error(error);
+			throw new Error(`Could not find entry point for package ${packageName}`);
+		}
 	}
 }
 
