@@ -760,7 +760,7 @@ export class GettingStartedPage extends EditorPane {
 		return '';
 	}
 
-	private async selectStep(id: string | undefined, delayFocus = true) {
+	private async selectStep(id: string | undefined, delayFocus = true, firstLaunch = false) {
 		if (id) {
 			let stepElement = this.container.querySelector<HTMLDivElement>(`[data-step-id="${id}"]`);
 			if (!stepElement) {
@@ -782,7 +782,9 @@ export class GettingStartedPage extends EditorPane {
 					}
 				}
 			});
-			setTimeout(() => (stepElement as HTMLElement).focus(), delayFocus && this.shouldAnimate() ? SLIDE_TRANSITION_TIME_MS : 0);
+			if (!firstLaunch) {
+				setTimeout(() => (stepElement as HTMLElement).focus(), delayFocus && this.shouldAnimate() ? SLIDE_TRANSITION_TIME_MS : 0);
+			}
 
 			this.editorInput.selectedStep = id;
 
@@ -952,7 +954,7 @@ export class GettingStartedPage extends EditorPane {
 					this.currentWalkthrough = first;
 					this.editorInput.selectedCategory = this.currentWalkthrough?.id;
 					this.editorInput.walkthroughPageTitle = this.currentWalkthrough.walkthroughPageTitle;
-					this.buildCategorySlide(this.editorInput.selectedCategory, undefined);
+					this.buildCategorySlide(this.editorInput.selectedCategory, undefined, true /* firstLaunch */);
 					this.setSlide('details', true /* firstLaunch */);
 					return;
 				}
@@ -1388,7 +1390,7 @@ export class GettingStartedPage extends EditorPane {
 		super.clearInput();
 	}
 
-	private buildCategorySlide(categoryID: string, selectedStep?: string) {
+	private buildCategorySlide(categoryID: string, selectedStep?: string, firstLaunch?: boolean) {
 		if (this.detailsScrollbar) { this.detailsScrollbar.dispose(); }
 
 		this.extensionService.whenInstalledExtensionsRegistered().then(() => {
@@ -1531,7 +1533,7 @@ export class GettingStartedPage extends EditorPane {
 		reset(this.stepsContent, categoryDescriptorComponent, stepListComponent, this.stepMediaComponent, categoryFooter);
 
 		const toExpand = category.steps.find(step => this.contextService.contextMatchesRules(step.when) && !step.done) ?? category.steps[0];
-		this.selectStep(selectedStep ?? toExpand.id, !selectedStep);
+		this.selectStep(selectedStep ?? toExpand.id, !selectedStep, firstLaunch);
 
 		this.detailsScrollbar.scanDomNode();
 		this.detailsPageScrollbar?.scanDomNode();
