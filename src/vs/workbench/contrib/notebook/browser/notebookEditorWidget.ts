@@ -1980,9 +1980,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			return;
 		}
 
-		const elementContainerRect = this._overlayContainer.parentElement?.getBoundingClientRect();
-		this._overlayContainer.style.top = `${this._shadowElementViewInfo.top - (elementContainerRect?.top || 0)}px`;
-		this._overlayContainer.style.left = `${this._shadowElementViewInfo.left - (elementContainerRect?.left || 0)}px`;
+		this._overlayContainer.style.top = `${this._shadowElementViewInfo.top}px`;
+		this._overlayContainer.style.left = `${this._shadowElementViewInfo.left}px`;
 		this._overlayContainer.style.width = `${dimension ? dimension.width : this._shadowElementViewInfo.width}px`;
 		this._overlayContainer.style.height = `${dimension ? dimension.height : this._shadowElementViewInfo.height}px`;
 	}
