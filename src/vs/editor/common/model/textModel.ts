@@ -61,7 +61,7 @@ interface ITextStream {
 	on(event: 'data', callback: (data: string) => void): void;
 	on(event: 'error', callback: (err: Error) => void): void;
 	on(event: 'end', callback: () => void): void;
-	on(event: string, callback: any): void;
+	on(event: string, callback: (...args: unknown[]) => void): void;
 }
 
 export function createTextBufferFactoryFromStream(stream: ITextStream): Promise<model.ITextBufferFactory>;
@@ -1149,18 +1149,18 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		return this._buffer.findMatchesLineByLine(searchRange, searchData, captureMatches, limitResultCount);
 	}
 
-	public findMatches(searchString: string, rawSearchScope: any, isRegex: boolean, matchCase: boolean, wordSeparators: string | null, captureMatches: boolean, limitResultCount: number = LIMIT_FIND_COUNT): model.FindMatch[] {
+	public findMatches(searchString: string, rawSearchScope: boolean | IRange | IRange[] | null, isRegex: boolean, matchCase: boolean, wordSeparators: string | null, captureMatches: boolean, limitResultCount: number = LIMIT_FIND_COUNT): model.FindMatch[] {
 		this._assertNotDisposed();
 
 		let searchRanges: Range[] | null = null;
 
-		if (rawSearchScope !== null) {
+		if (rawSearchScope !== null && typeof rawSearchScope !== 'boolean') {
 			if (!Array.isArray(rawSearchScope)) {
 				rawSearchScope = [rawSearchScope];
 			}
 
-			if (rawSearchScope.every((searchScope: Range) => Range.isIRange(searchScope))) {
-				searchRanges = rawSearchScope.map((searchScope: Range) => this.validateRange(searchScope));
+			if (rawSearchScope.every((searchScope: IRange) => Range.isIRange(searchScope))) {
+				searchRanges = rawSearchScope.map((searchScope: IRange) => this.validateRange(searchScope));
 			}
 		}
 
