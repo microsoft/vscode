@@ -528,17 +528,17 @@ export class Menubar extends Disposable {
 							menu.append(this.createMenuItem(item.label, item.id, false, item.checked));
 						}
 					} else {
-						menu.append(this.createMenuItem(item.label, item.id, item.enabled === false ? false : true, !!item.checked));
+						menu.append(this.createMenuItem(item.label, item.id, item.enabled !== false, !!item.checked));
 					}
 				} else {
-					menu.append(this.createMenuItem(item.label, item.id, item.enabled === false ? false : true, !!item.checked));
+					menu.append(this.createMenuItem(item.label, item.id, item.enabled !== false, !!item.checked));
 				}
 			}
 		});
 	}
 
 	private setMenuById(menu: Menu, menuId: string): void {
-		if (this.menubarMenus && this.menubarMenus[menuId]) {
+		if (this.menubarMenus[menuId]) {
 			this.setMenu(menu, this.menubarMenus[menuId].items);
 		}
 	}

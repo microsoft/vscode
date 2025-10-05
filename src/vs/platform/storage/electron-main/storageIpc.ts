@@ -136,6 +136,7 @@ export class StorageDatabaseChannel extends Disposable implements IServerChannel
 				if (typeof path === 'string') {
 					return this.storageMainService.isUsed(path);
 				}
+				return false;
 			}
 
 			default:

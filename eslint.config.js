@@ -244,7 +244,7 @@ export default tseslint.config(
 			'src/vs/workbench/services/views/**',
 			'src/vs/workbench/services/workingCopy/**',
 			'src/vs/workbench/services/workspaces/**',
-			// 'src/vs/workbench/common/**',
+			'src/vs/workbench/common/**',
 			// 'src/vs/workbench/browser/**',
 			'src/vs/workbench/electron-browser/**',
 			'src/vs/workbench/contrib/files/**',

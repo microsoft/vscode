@@ -355,7 +355,7 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 	abstract enterWorkspace(workspaceUri: URI): Promise<void>;
 
 	protected async doEnterWorkspace(workspaceUri: URI): Promise<IEnterWorkspaceResult | undefined> {
-		if (!!this.environmentService.extensionTestsLocationURI) {
+		if (this.environmentService.extensionTestsLocationURI) {
 			throw new Error('Entering a new workspace is not possible in tests.');
 		}
 

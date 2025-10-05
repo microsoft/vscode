@@ -41,7 +41,7 @@ export class Component extends Themable {
 	}
 
 	protected reloadMemento(scope: StorageScope): void {
-		return this.memento.reloadMemento(scope);
+		this.memento.reloadMemento(scope);
 	}
 
 	protected onDidChangeMementoValue(scope: StorageScope, disposables: DisposableStore): Event<IStorageValueChangeEvent> {

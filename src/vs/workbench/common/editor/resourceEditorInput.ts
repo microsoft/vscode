@@ -111,7 +111,6 @@ export abstract class AbstractResourceEditorInput extends EditorInput implements
 				return this.shortDescription;
 			case Verbosity.LONG:
 				return this.longDescription;
-			case Verbosity.MEDIUM:
 			default:
 				return this.mediumDescription;
 		}
@@ -178,7 +177,6 @@ export abstract class AbstractResourceEditorInput extends EditorInput implements
 			case Verbosity.LONG:
 				return this.longTitle;
 			default:
-			case Verbosity.MEDIUM:
 				return this.mediumTitle;
 		}
 	}
@@ -198,7 +196,7 @@ export abstract class AbstractResourceEditorInput extends EditorInput implements
 		// resource scheme.
 
 		const defaultSizeLimit = getLargeFileConfirmationLimit(this.resource);
-		let configuredSizeLimit: number | undefined = undefined;
+		let configuredSizeLimit: number | undefined;
 
 		const configuredSizeLimitMb = this.textResourceConfigurationService.inspect<number>(this.resource, null, 'workbench.editorLargeFileConfirmation');
 		if (isConfigured(configuredSizeLimitMb)) {

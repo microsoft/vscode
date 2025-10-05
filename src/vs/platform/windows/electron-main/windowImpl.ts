@@ -902,7 +902,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 				// Unresponsive
 				if (type === WindowError.UNRESPONSIVE) {
-					if (this.isExtensionDevelopmentHost || this.isExtensionTestHost || (this._win && this._win.webContents && this._win.webContents.isDevToolsOpened())) {
+					if (this.isExtensionDevelopmentHost || this.isExtensionTestHost || this._win?.webContents?.isDevToolsOpened()) {
 						// TODO@electron Workaround for https://github.com/microsoft/vscode/issues/56994
 						// In certain cases the window can report unresponsiveness because a breakpoint was hit
 						// and the process is stopped executing. The most typical cases are:

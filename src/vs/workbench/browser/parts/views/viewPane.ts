@@ -245,7 +245,7 @@ class ViewWelcomeController {
 				if (linkedText.nodes.length === 1 && typeof linkedText.nodes[0] !== 'string') {
 					const node = linkedText.nodes[0];
 					const buttonContainer = append(this.element!, $('.button-container'));
-					const button = new Button(buttonContainer, { title: node.title, supportIcons: true, secondary: renderSecondaryButtons && buttonsCount > 0 ? true : false, ...defaultButtonStyles, });
+					const button = new Button(buttonContainer, { title: node.title, supportIcons: true, secondary: !!(renderSecondaryButtons && buttonsCount > 0), ...defaultButtonStyles, });
 					button.label = node.label;
 					button.onDidClick(_ => {
 						this.openerService.open(node.href, { allowCommands: true });
