@@ -1264,8 +1264,8 @@ export class Repository {
 	}
 
 	/**
-	 * Label assigned to the repository; should be root dirname by default
-	 * the name of the submodule as it appears in .gitmodules, if this repository is a submodule.
+	 * Label assigned to the repository; should be root dirname by default.
+	 * For submodules, this is the name of the submodule as it appears in .gitmodules.
 	 */
 	get label(): string | undefined {
 		return this._label;
