@@ -690,8 +690,8 @@ export interface ITextSnapshot {
 /**
  * @internal
  */
-export function isITextSnapshot(obj: any): obj is ITextSnapshot {
-	return (obj && typeof obj.read === 'function');
+export function isITextSnapshot(obj: unknown): obj is ITextSnapshot {
+	return (!!obj && typeof (obj as ITextSnapshot).read === 'function');
 }
 
 /**
