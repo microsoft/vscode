@@ -25,7 +25,7 @@ export interface IStreamingOrchestrator {
 	/**
 	 * Event fired when function call display message is available
 	 */
-	readonly onFunctionCallDisplayMessage: Event<{ id: number; function_call: any; timestamp: string }>;
+	readonly onFunctionCallDisplayMessage: Event<{ id: number; conversationId: number; function_call: any; timestamp: string }>;
 
 	/**
 	 * Event fired when streaming widget is requested (bypasses normal widget creation)

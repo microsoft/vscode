@@ -488,6 +488,13 @@ export class PlotHistoryViewPane extends ViewPane {
 		this._createTree();
 	}
 
+	protected override layoutBody(height: number, width: number): void {
+		super.layoutBody(height, width);
+		if (this._tree) {
+			this._tree.layout(height, width);
+		}
+	}
+
 	override dispose(): void {
 		this._tree?.dispose();
 		super.dispose();

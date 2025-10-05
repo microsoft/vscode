@@ -60,8 +60,13 @@ export class TextStreamHandler extends Disposable implements ITextStreamHandler 
 		this.conversationManager.updateStreamingMessage(processedDelta, true);
 
 		// Fire streaming data event for UI
+		const currentConversation = this.conversationManager.getCurrentConversation();
+		if (!currentConversation) {
+			throw new Error('No active conversation for streaming');
+		}
 		this._onStreamingData.fire({
 			type: 'content',
+			conversationId: currentConversation.info.id,
 			delta: processedDelta,
 			content: processedDelta
 		});

@@ -34,7 +34,8 @@ class ActiveWidgetImpl implements ActiveWidget {
 		public messageId: number,
 		public callId: string,
 		public functionType: string,
-		public requestId: string
+		public requestId: string,
+		public conversationId: number
 	) {}
 
 	appendDelta(delta: string): void {
@@ -93,7 +94,8 @@ export class WidgetManager extends Disposable implements IWidgetManager {
             branch.messageId,
             branch.functionCall.call_id,
             branch.functionCall.name,
-            branch.requestId
+            branch.requestId,
+            branch.conversationId
         );
 
         // Enable streaming for interactive widgets immediately
@@ -115,6 +117,7 @@ export class WidgetManager extends Disposable implements IWidgetManager {
 			// Fire the streaming update event for React to receive
 			this._onWidgetStreamingUpdate.fire({
 				messageId: widget.messageId,
+				conversationId: branch.conversationId,
 				delta: '',
 				isComplete: true,
 				replaceContent: false
@@ -234,6 +237,7 @@ export class WidgetManager extends Disposable implements IWidgetManager {
 
 		const widgetInfo: IErdosAiWidgetInfo = {
 			messageId: branch.messageId,
+			conversationId: branch.conversationId,
 			requestId: branch.requestId,
 			functionCallType: branch.functionCall.name as any,
 			filename: args.filename || args.file_path,
@@ -249,9 +253,9 @@ export class WidgetManager extends Disposable implements IWidgetManager {
         return widget;
 	}
 
-    createSynchronousStreamingWidget(callId: string, messageId: number, functionType: string, requestId: string): ActiveWidget {
+    createSynchronousStreamingWidget(callId: string, messageId: number, functionType: string, requestId: string, conversationId: number): ActiveWidget {
         // Create ActiveWidget immediately (synchronous)
-        const widget = new ActiveWidgetImpl(messageId, callId, functionType, requestId);
+        const widget = new ActiveWidgetImpl(messageId, callId, functionType, requestId, conversationId);
         
         // CRITICAL: Enable streaming immediately for interactive functions
         const isInteractive = this.isInteractiveFunction(functionType);
@@ -269,6 +273,7 @@ export class WidgetManager extends Disposable implements IWidgetManager {
 		widget.onStreamingCompleteCallback = () => {
 			this._onWidgetStreamingUpdate.fire({
 				messageId: widget.messageId,
+				conversationId: conversationId,
 				delta: '',
 				isComplete: true,
 				replaceContent: false
@@ -298,6 +303,7 @@ export class WidgetManager extends Disposable implements IWidgetManager {
 		// Create minimal widget info for React UI (no complete function arguments yet)
 		const widgetInfo: IErdosAiWidgetInfo = {
 			messageId: messageId,
+			conversationId: conversationId,
 			requestId: requestId,
 			functionCallType: functionType as any,
 			filename: undefined, // Will be extracted from deltas later
@@ -398,6 +404,7 @@ export class WidgetManager extends Disposable implements IWidgetManager {
 		if (parsed.content !== widget.streamedContent) {
 			this._onWidgetStreamingUpdate.fire({
 				messageId: widget.messageId,
+				conversationId: widget.conversationId,
 				delta: parsed.content,
 				isComplete: false,
 				isSearchReplace: widget.functionType === 'search_replace',
@@ -527,8 +534,16 @@ export class WidgetManager extends Disposable implements IWidgetManager {
 			// Remove trailing newline
 			filteredContent = filteredContent.replace(/\n$/, '');
 			
+			// Get widget to get conversationId
+			const widget = this.getWidget(messageId);
+			if (!widget) {
+				this.logService.error('[WIDGET_MANAGER] Widget not found for search_replace diff update');
+				return;
+			}
+			
 			const updateObject = {
 				messageId: messageId,
+				conversationId: widget.conversationId,
 				delta: filteredContent,
 				isComplete: true,
 				diffData: {

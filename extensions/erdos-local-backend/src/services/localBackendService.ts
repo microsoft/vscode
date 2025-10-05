@@ -503,7 +503,7 @@ export class LocalBackendService implements ILocalBackendService {
 	 */
 	private addUserInfoToOriginalQuery(conversation: ConversationMessage[], 
 									  userWorkspacePath: string | null, userShell: string | null, 
-									  projectLayout: string | null): void {
+									  projectLayout: string | null, interactionMode: string | null): void {
 		// Find the last user message with original_query = true
 		for (let i = conversation.length - 1; i >= 0; i--) {
 			const message = conversation[i];
@@ -526,14 +526,23 @@ export class LocalBackendService implements ILocalBackendService {
 					}
 				}
 				
-				// Create user info section
-				const userInfo = [
+				// Create user info section with optional Ask mode message
+				const userInfoLines = [
 					'<user_info>',
 					`The absolute path of the user's workspace is ${userWorkspacePath || '/home/byte/code/ai-dashboard'}. ` +
-					`The user's shell is ${userShell || '/usr/bin/fish'}.`,
-					'</user_info>',
-					''
-				].join('\n');
+					`The user's shell is ${userShell || '/usr/bin/fish'}.`
+				];
+				
+				// Add Ask mode message if in ask mode
+				if (interactionMode === 'ask') {
+					userInfoLines.push('');
+					userInfoLines.push('You are currently in read-only ask mode, which means you cannot edit files or run code. Do not attempt or offer to do so. If necessary, suggest the user switches you to Agent mode.');
+				}
+				
+				userInfoLines.push('</user_info>');
+				userInfoLines.push('');
+				
+				const userInfo = userInfoLines.join('\n');
 				
 				// Create project layout section
 				let projectLayoutSection = '';
@@ -1268,7 +1277,8 @@ export class LocalBackendService implements ILocalBackendService {
 			
 			// Add user info to the beginning of the original query message for better caching
 			this.addUserInfoToOriginalQuery(conversation, 
-				request.user_workspace_path, request.user_shell, request.project_layout);
+				request.user_workspace_path, request.user_shell, request.project_layout, 
+				request.interaction_mode);
 			
 			// Use conversation as-is since we no longer process edit_file
 			const updatedConversation = conversation;

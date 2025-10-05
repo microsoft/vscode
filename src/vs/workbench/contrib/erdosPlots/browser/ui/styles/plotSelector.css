@@ -217,3 +217,43 @@
 .plot-selector-delete-all-btn:active {
 	background: var(--vscode-erdosDropDownListBox-background);
 }
+
+.erdos-dropdown-button {
+	padding: 0;
+	border: none;
+	display: flex;
+	margin: 0 1px;
+	cursor: pointer;
+	overflow: visible;
+	border-radius: 4px;
+	align-items: center;
+	box-sizing: border-box;
+	background: transparent;
+	height: var(--vscode-erdosActionBar-iconSize);
+	color: var(--vscode-erdosActionBar-foreground);
+}
+
+.erdos-dropdown-button:hover {
+	background: var(--vscode-erdosActionBar-hoverBackground);
+}
+
+.erdos-dropdown-button:focus {
+	outline: none !important;
+}
+
+.erdos-dropdown-button:focus-visible {
+	border-radius: 4px;
+	outline: 1px solid var(--vscode-focusBorder) !important;
+}
+
+.erdos-dropdown-button-label {
+	display: flex;
+	font-size: 12px;
+	overflow: hidden;
+	margin-right: 4px;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	flex-shrink: 1;
+	min-width: 0;
+	padding: 0 5px;
+}

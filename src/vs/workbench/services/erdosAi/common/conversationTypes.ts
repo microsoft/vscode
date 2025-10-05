@@ -62,6 +62,8 @@ export interface FunctionCall {
 export interface ConversationMessage extends MessageMetadata {
     /** Unique message identifier (auto-assigned sequential integer) */
     id: number;
+    /** Conversation ID this message belongs to */
+    conversationId: number;
     /** Message sender - OPTIONAL for function_call_output entries */
     role?: 'user' | 'assistant';
     /** Message content text - OPTIONAL for function_call_output entries */
@@ -84,6 +86,8 @@ export interface ConversationMessage extends MessageMetadata {
 export interface StreamingMessage {
     /** Message ID being streamed */
     id: number;
+    /** Conversation ID this streaming message belongs to */
+    conversationId: number;
     /** Accumulated content so far */
     content: string;
     /** Accumulated thinking content so far */

@@ -30,6 +30,7 @@ export interface IMonacoWidgetServices {
  */
 export interface IErdosAiWidgetInfo {
 	messageId: number;
+	conversationId: number;
 	requestId: string;
 	functionCallType: 'search_replace' | 'run_console_cmd' | 'run_terminal_cmd' | 'delete_file' | 'run_file';
 	filename?: string;

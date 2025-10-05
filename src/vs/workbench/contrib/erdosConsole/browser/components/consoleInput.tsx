@@ -16,7 +16,6 @@ import { isMacintosh } from '../../../../../base/common/platform.js';
 
 import { ISelection } from '../../../../../editor/common/core/selection.js';
 import { IKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
-import { useStateRef } from '../../../../../base/browser/ui/react/useStateRef.js';
 import { CursorChangeReason } from '../../../../../editor/common/cursorEvents.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
@@ -71,8 +70,8 @@ export const ConsoleInput = (props: ConsoleInputProps) => {
 
 	const codeEditorWidgetContainerRef = useRef<HTMLDivElement>(undefined!);
 
-	const [, setCodeEditorWidget, codeEditorWidgetRef] = useStateRef<CodeEditorWidget>(undefined!);
-	const [, setCodeEditorWidth, codeEditorWidthRef] = useStateRef(props.width);
+	const codeEditorWidgetRef = useRef<CodeEditorWidget>(undefined!);
+	const codeEditorWidthRef = useRef(props.width);
 
 	const shouldExecuteOnStartRef = useRef(false);
 
@@ -670,7 +669,7 @@ export const ConsoleInput = (props: ConsoleInputProps) => {
 		}));
 
 		disposableStore.add(codeEditorWidget);
-		setCodeEditorWidget(codeEditorWidget);
+		codeEditorWidgetRef.current = codeEditorWidget;
 
 		props.erdosConsoleInstance.codeEditor = codeEditorWidget;
 
@@ -828,13 +827,13 @@ export const ConsoleInput = (props: ConsoleInputProps) => {
 
 	useEffect(() => {
 		if (codeEditorWidgetRef.current) {
-			setCodeEditorWidth(props.width);
+			codeEditorWidthRef.current = props.width;
 			codeEditorWidgetRef.current.layout({
 				width: props.width,
 				height: codeEditorWidgetRef.current.getContentHeight()
 			});
 		}
-	}, [codeEditorWidgetRef, props.width, setCodeEditorWidth]);
+	}, [props.width]);
 
 	const focusHandler = (e: FocusEvent<HTMLDivElement, Element>) => {
 		if (codeEditorWidgetRef.current && !codeEditorWidgetRef.current.hasTextFocus) {

@@ -10,6 +10,7 @@ export const ISSEParser = createDecorator<ISSEParser>('sseParser');
 
 export interface ISSEParser {
 	readonly _serviceBrand: undefined;
+	conversationId?: number;
 
 	parse(chunk: string): ParsedEvent[];
 	parseSSELine(line: string): ParsedEvent | null;

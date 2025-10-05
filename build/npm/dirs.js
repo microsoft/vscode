@@ -62,8 +62,8 @@ const dirs = [
 	'test/monaco',
 	'test/smoke',
 	'test/mcp',
-	'.vscode/extensions/vscode-selfhost-import-aid',
-	'.vscode/extensions/vscode-selfhost-test-provider',
+	'.erdos/extensions/vscode-selfhost-import-aid',
+	'.erdos/extensions/vscode-selfhost-test-provider',
 ];
 
 if (fs.existsSync(`${__dirname}/../../.build/distro/npm`)) {

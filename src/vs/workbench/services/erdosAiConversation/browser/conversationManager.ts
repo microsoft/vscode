@@ -76,6 +76,7 @@ export class ConversationManager extends Disposable implements IConversationMana
 
         const message: ConversationMessage = {
             id: this.messageIdGenerator(),
+            conversationId: conversationId,
             role,
             content,
             timestamp: new Date().toISOString(),
@@ -122,6 +123,7 @@ export class ConversationManager extends Disposable implements IConversationMana
 
         const message: ConversationMessage = {
             id: messageId,
+            conversationId: conversationId,
             role: 'assistant',
             timestamp: new Date().toISOString(),
             function_call: {
@@ -140,6 +142,7 @@ export class ConversationManager extends Disposable implements IConversationMana
         if (createPendingOutput && pendingOutputId) {
             const pendingOutput: ConversationMessage = {
                 id: pendingOutputId,
+                conversationId: conversationId,
                 timestamp: new Date().toISOString(),
                 type: 'function_call_output',
                 call_id: functionCall.call_id,
@@ -173,6 +176,7 @@ export class ConversationManager extends Disposable implements IConversationMana
 
         const outputMessage: ConversationMessage = {
             id: functionCallOutput.id,
+            conversationId: this.currentConversation.info.id,
             timestamp: new Date().toISOString(),
             type: 'function_call_output',
             call_id: functionCallOutput.call_id,
@@ -620,6 +624,7 @@ export class ConversationManager extends Disposable implements IConversationMana
         
         const message: ConversationMessage = {
             id: messageId,
+            conversationId: this.currentConversation.info.id,
             role: 'user',
             content: content,
             timestamp: new Date().toISOString(),
@@ -650,6 +655,7 @@ export class ConversationManager extends Disposable implements IConversationMana
         
         const assistantMessage: ConversationMessage = {
             id: messageId,
+            conversationId: this.currentConversation.info.id,
             role: 'assistant',
             content: content,
             timestamp: new Date().toISOString(),
@@ -699,6 +705,7 @@ export class ConversationManager extends Disposable implements IConversationMana
         
         const streamingMessage: StreamingMessage = {
             id: messageId,
+            conversationId: this.currentConversation.info.id,
             content: initialContent,
             complete: false,
             start_time: new Date()
@@ -715,6 +722,7 @@ export class ConversationManager extends Disposable implements IConversationMana
         
         const streamingMessage: StreamingMessage = {
             id: messageId,
+            conversationId: this.currentConversation.info.id,
             content: initialContent,
             complete: false,
             start_time: new Date()
@@ -752,6 +760,7 @@ export class ConversationManager extends Disposable implements IConversationMana
         
         const completedMessage: ConversationMessage = {
             id: messageId,
+            conversationId: this.currentConversation.info.id,
             role: 'assistant',
             content: finalContent,
             timestamp: new Date().toISOString(),

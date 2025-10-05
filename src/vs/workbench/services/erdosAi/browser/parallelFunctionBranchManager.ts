@@ -13,6 +13,7 @@ import { IMessageIdManager } from '../../erdosAiConversation/common/messageIdMan
 
 export interface FunctionBranch {
     id: string;
+    conversationId: number;
     functionCall: FunctionCall;
     messageId: number;
     batchId: string;
@@ -35,6 +36,7 @@ export interface BranchResult {
 
 export interface BatchStatus {
     batchId: string;
+    conversationId: number;
     requestId: string;
     userMessageId: number;
     status: 'pending' | 'continue_silent' | 'done' | 'error';
@@ -51,7 +53,7 @@ export interface IParallelFunctionBranchManager {
     readonly _serviceBrand: undefined;
     
     // Batch lifecycle
-    startNewBatch(requestId: string, userMessageId: number): string;
+    startNewBatch(conversationId: number, requestId: string, userMessageId: number): string;
     markBatchStreamComplete(batchId: string): void;
     isBatchComplete(batchId: string): boolean;
     getBatchStatus(batchId: string): BatchStatus;
@@ -94,11 +96,12 @@ export class ParallelFunctionBranchManager extends Disposable implements IParall
         super();
     }
     
-    startNewBatch(requestId: string, userMessageId: number): string {
+    startNewBatch(conversationId: number, requestId: string, userMessageId: number): string {
         const batchId = `batch_${++this.batchIdCounter}`;
         
         const batchStatus: BatchStatus = {
             batchId,
+            conversationId,
             requestId,
             userMessageId,
             status: 'pending',
@@ -147,6 +150,7 @@ export class ParallelFunctionBranchManager extends Disposable implements IParall
         
         const branch: FunctionBranch = {
             id: branchId,
+            conversationId: batch.conversationId,
             functionCall,
             messageId: functionCallMessageId,
             batchId,

@@ -14,5 +14,24 @@
 }
 
 .erdos-console .console-core .vertical-splitter {
-	background-color: var(--vscode-terminal-border);
+	position: relative;
+	width: 4px;
+	cursor: col-resize;
+	background-color: transparent;
+	touch-action: none;
+}
+
+.erdos-console .console-core .vertical-splitter::before {
+	content: '';
+	pointer-events: none;
+	position: absolute;
+	width: 4px;
+	height: 100%;
+	left: 0;
+	background: transparent;
+	transition: background-color 0.1s ease-out;
+}
+
+.erdos-console .console-core .vertical-splitter:hover::before {
+	background: var(--vscode-sash-hoverBorder);
 }

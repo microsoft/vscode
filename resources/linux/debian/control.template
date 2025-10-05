@@ -5,14 +5,13 @@ Depends: @@DEPENDS@@
 Recommends: @@RECOMMENDS@@
 Priority: optional
 Architecture: @@ARCHITECTURE@@
-Maintainer: Microsoft Corporation <vscode-linux@microsoft.com>
-Homepage: https://code.visualstudio.com/
+Maintainer: Lotas Inc. <support@lotas.ai>
+Homepage: https://lotas.ai/
 Installed-Size: @@INSTALLEDSIZE@@
 Provides: visual-studio-@@NAME@@
 Conflicts: visual-studio-@@NAME@@
 Replaces: visual-studio-@@NAME@@
-Description: Code editing. Redefined.
- Visual Studio Code is a new choice of tool that combines the simplicity of
- a code editor with what developers need for the core edit-build-debug cycle.
- See https://code.visualstudio.com/docs/setup/linux for installation
- instructions and FAQ.
+Description: AI-powered data science IDE
+ Erdos is an AI-powered data science IDE built on VSCode. Based on VSCode (MIT License),
+ Erdos additions are licensed under AGPLv3. Some components derived from Posit
+ Software are licensed under Elastic License 2.0.

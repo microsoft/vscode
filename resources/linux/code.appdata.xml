@@ -1,18 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop">
 	<id>@@NAME@@.desktop</id>
-	<metadata_license>@@LICENSE@@</metadata_license>
-	<project_license>@@LICENSE@@</project_license>
+	<metadata_license>AGPLv3</metadata_license>
+	<project_license>AGPLv3 AND MIT AND Elastic-2.0</project_license>
 	<name>@@NAME_LONG@@</name>
-	<url type="homepage">https://code.visualstudio.com</url>
-	<summary>Visual Studio Code. Code editing. Redefined.</summary>
+	<url type="homepage">https://lotas.ai</url>
+	<summary>Erdos - AI-powered data science IDE</summary>
 	<description>
-		<p>Visual Studio Code is a new choice of tool that combines the simplicity of a code editor with what developers need for the core edit-build-debug cycle. See https://code.visualstudio.com/docs/setup/linux for installation instructions and FAQ.</p>
+		<p>Erdos is an AI-powered data science IDE built on VSCode. Based on VSCode (MIT License), Erdos additions are licensed under AGPLv3. Some components derived from Posit Software are licensed under Elastic License 2.0.</p>
 	</description>
 	<screenshots>
 		<screenshot type="default">
-			<image>https://code.visualstudio.com/home/home-screenshot-linux-lg.png</image>
-			<caption>Editing TypeScript and searching for extensions</caption>
+			<image>https://lotas.ai/images/erdos-screenshot.png</image>
+			<caption>Erdos AI-powered data science IDE</caption>
 		</screenshot>
 	</screenshots>
 </component>

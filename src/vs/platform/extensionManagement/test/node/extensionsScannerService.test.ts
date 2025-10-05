@@ -41,7 +41,7 @@ class ExtensionsScannerService extends AbstractExtensionsScannerService implemen
 		super(
 			URI.file(nativeEnvironmentService.builtinExtensionsPath),
 			URI.file(nativeEnvironmentService.extensionsPath),
-			joinPath(nativeEnvironmentService.userHome, '.vscode-oss-dev', 'extensions', 'control.json'),
+			joinPath(nativeEnvironmentService.userHome, '.erdos-dev', 'extensions', 'control.json'),
 			userDataProfilesService.defaultProfile,
 			userDataProfilesService, extensionsProfileScannerService, fileService, logService, nativeEnvironmentService, productService, uriIdentityService, instantiationService);
 	}

@@ -8,7 +8,6 @@ import './emptyConsole.css';
 import React from 'react';
 
 import { localize } from '../../../../../nls.js';
-import { ErdosButton } from '../../../../../base/browser/ui/erdosComponents/button/erdosButton.js';
 import { LANGUAGE_RUNTIME_START_NEW_SESSION_ID } from '../../../languageRuntime/browser/languageRuntimeActions.js';
 import { useErdosReactServicesContext } from '../../../../../base/browser/erdosReactRendererContext.js';
 
@@ -24,13 +23,27 @@ export const EmptyConsole = () => {
 		services.commandService.executeCommand(LANGUAGE_RUNTIME_START_NEW_SESSION_ID);
 	};
 
+	const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+		if (e.code === 'Space' || e.code === 'Enter') {
+			e.preventDefault();
+			e.stopPropagation();
+			handlePressed();
+		}
+	};
+
 	return (
 		<div className='empty-console'>
 			<div className='title'>
 				<span>{noSessionRunning} {useWord} </span>
-				<ErdosButton className='link' onPressed={handlePressed}>
+				<div
+					className='link'
+					role='button'
+					tabIndex={0}
+					onClick={handlePressed}
+					onKeyDown={handleKeyDown}
+				>
 					{startSession}
-				</ErdosButton>
+				</div>
 				<span> {toStartOne}</span>
 			</div>
 		</div>

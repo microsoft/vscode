@@ -20,7 +20,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IJSONEditingService, IJSONValue } from '../../configuration/common/jsonEditing.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 
-export const EXTENSIONS_CONFIG = '.vscode/extensions.json';
+export const EXTENSIONS_CONFIG = '.erdos/extensions.json';
 
 export interface IExtensionsConfigContent {
 	recommendations?: string[];

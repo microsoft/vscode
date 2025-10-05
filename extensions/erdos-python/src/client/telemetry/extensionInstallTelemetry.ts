@@ -14,13 +14,13 @@ import { EXTENSION_ROOT_DIR } from '../constants';
  *
  */
 export async function setExtensionInstallTelemetryProperties(fs: IFileSystem): Promise<void> {
-    // Look for PythonCodingPack file under `%USERPROFILE%/.vscode/extensions`
+    // Look for PythonCodingPack file under `%USERPROFILE%/.erdos/extensions`
     // folder. If that file exists treat this extension as installed from coding
     // pack.
     //
-    // Use parent of EXTENSION_ROOT_DIR to access %USERPROFILE%/.vscode/extensions
-    // this is because the installer will add PythonCodingPack to %USERPROFILE%/.vscode/extensions
-    // or %USERPROFILE%/.vscode-insiders/extensions depending on what was installed
+    // Use parent of EXTENSION_ROOT_DIR to access %USERPROFILE%/.erdos/extensions
+    // this is because the installer will add PythonCodingPack to %USERPROFILE%/.erdos/extensions
+    // or %USERPROFILE%/.erdos-insiders/extensions depending on what was installed
     // previously by the user. If we always join (<home>, .vscode, extensions), we will
     // end up looking at the wrong place, with respect to the extension that was launched.
     const fileToCheck = path.join(path.dirname(EXTENSION_ROOT_DIR), 'PythonCodingPack');

@@ -12,6 +12,7 @@ import { IFunctionBranchExecutor } from '../../erdosAiFunctions/common/functionB
 import { IWidgetManager } from '../common/widgetManager.js';
 import { ITextStreamHandler } from '../common/textStreamHandler.js';
 import { IMessageIdManager } from '../../erdosAiConversation/common/messageIdManager.js';
+import { IConversationManager } from '../../erdosAiConversation/common/conversationManager.js';
 import { 
 	StreamEvent, 
 	ContentStreamEvent,
@@ -51,8 +52,8 @@ export class StreamingOrchestrator extends Disposable implements IStreamingOrche
 	private readonly _onMessageAdded = this._register(new Emitter<any>());
 	readonly onMessageAdded: Event<any> = this._onMessageAdded.event;
 
-	private readonly _onFunctionCallDisplayMessage = this._register(new Emitter<{ id: number; function_call: any; timestamp: string }>());
-	readonly onFunctionCallDisplayMessage: Event<{ id: number; function_call: any; timestamp: string }> = this._onFunctionCallDisplayMessage.event;
+	private readonly _onFunctionCallDisplayMessage = this._register(new Emitter<{ id: number; conversationId: number; function_call: any; timestamp: string }>());
+	readonly onFunctionCallDisplayMessage: Event<{ id: number; conversationId: number; function_call: any; timestamp: string }> = this._onFunctionCallDisplayMessage.event;
 
 	private readonly _onStreamingWidgetRequested = this._register(new Emitter<any>());
 	readonly onStreamingWidgetRequested: Event<any> = this._onStreamingWidgetRequested.event;
@@ -83,6 +84,7 @@ export class StreamingOrchestrator extends Disposable implements IStreamingOrche
 		@IWidgetManager private readonly widgetManager: IWidgetManager,
 		@ITextStreamHandler private readonly textStreamHandler: ITextStreamHandler,
 		@IMessageIdManager private readonly messageIdManager: IMessageIdManager,
+		@IConversationManager private readonly conversationManager: IConversationManager,
 	) {
 		super();
 
@@ -225,7 +227,11 @@ export class StreamingOrchestrator extends Disposable implements IStreamingOrche
 		
 		// Start new batch if this is the first function call in the response
 		if (!this.currentBatchId) {
-			this.currentBatchId = this.branchManager.startNewBatch(this.currentRequestId, this.currentUserMessageId);
+			const conversation = this.conversationManager.getCurrentConversation();
+			if (!conversation) {
+				throw new Error('[STREAMING_ORCHESTRATOR] No active conversation');
+			}
+			this.currentBatchId = this.branchManager.startNewBatch(conversation.info.id, this.currentRequestId, this.currentUserMessageId);
 		}
 		
 		// Create branch - message ID generation should happen at the source (backend/stream processing)
@@ -246,6 +252,7 @@ export class StreamingOrchestrator extends Disposable implements IStreamingOrche
 			if (!isInteractive) {
 				const displayMessage = {
 					id: branch.messageId,
+					conversationId: branch.conversationId,
 					function_call: {
 						name: event.functionCall.name,
 						arguments: event.functionCall.arguments,
@@ -286,12 +293,19 @@ export class StreamingOrchestrator extends Disposable implements IStreamingOrche
 			// First delta for this call_id - create synchronous streaming widget immediately
 			messageId = this.messageIdManager.preallocateFunctionMessageIds(event.field, event.call_id);
 			
+			// Get conversationId
+			const conversation = this.conversationManager.getCurrentConversation();
+			if (!conversation) {
+				throw new Error('[STREAMING_ORCHESTRATOR] No active conversation for widget creation');
+			}
+			
 			// Create synchronous streaming widget via WidgetManager (creates both ActiveWidget and React UI)
 			this.widgetManager.createSynchronousStreamingWidget(
 				event.call_id,
 				messageId, 
 				event.field,
-				this.currentRequestId
+				this.currentRequestId,
+				conversation.info.id
 			);
 			
 			// Store the mapping for future deltas
@@ -354,7 +368,11 @@ export class StreamingOrchestrator extends Disposable implements IStreamingOrche
 				try {
 					// 1. Start batch if needed
 					if (!this.currentBatchId) {
-						this.currentBatchId = this.branchManager.startNewBatch(this.currentRequestId, this.currentUserMessageId);
+						const conversation = this.conversationManager.getCurrentConversation();
+						if (!conversation) {
+							throw new Error('[STREAMING_ORCHESTRATOR] No active conversation');
+						}
+						this.currentBatchId = this.branchManager.startNewBatch(conversation.info.id, this.currentRequestId, this.currentUserMessageId);
 					}
 					
 					// 2. Create proper function call with complete arguments

@@ -7,7 +7,6 @@ import './TopicHistoryPanel.css';
 
 import React, { useRef, useState, useEffect } from 'react';
 import { localize } from '../../../../../nls.js';
-import { DropdownButton } from '../../../../../base/browser/ui/erdosComponents/button/dropdownButton.js';
 import { useErdosReactServicesContext } from '../../../../../base/browser/erdosReactRendererContext.js';
 
 const truncateText = (text: string, maxLength: number = 50): string => {
@@ -132,14 +131,16 @@ export const TopicHistoryPanel: React.FC<TopicHistoryPanelProps> = (props) => {
 
 	return (
 		<>
-			<DropdownButton
+			<button
 				ref={buttonRef}
-				ariaLabel={localize('erdosCurrentPage', "Current page")}
-				label={currentLabel}
-				tooltip={localize('erdosHelpHistory', "Help history")}
-				dropdownIndicator="enabled"
-				onPressed={() => setIsOpen(!isOpen)}
-			/>
+				className="erdos-dropdown-button"
+				aria-label={localize('erdosCurrentPage', "Current page")}
+				title={localize('erdosHelpHistory', "Help history")}
+				onClick={() => setIsOpen(!isOpen)}
+			>
+				<div className="erdos-dropdown-button-label">{currentLabel}</div>
+				<div className="codicon codicon-chevron-down" style={{ marginLeft: '4px' }} />
+			</button>
 		{isOpen && (
 			<div ref={dropdownRef} className="history-panel">
 				<div className="history-panel-header">

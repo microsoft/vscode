@@ -16,7 +16,6 @@ import { useErdosConsoleContext } from '../erdosConsoleContext.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { IAction, Separator } from '../../../../../base/common/actions.js';
 import { isMacintosh, isWeb } from '../../../../../base/common/platform.js';
-import { useStateRef } from '../../../../../base/browser/ui/react/useStateRef.js';
 import { FontInfo } from '../../../../../editor/common/config/fontInfo.js';
 import { FontConfigurationManager } from '../../../../browser/fontConfigurationManager.js';
 import { IReactComponentContainer } from '../../../../../base/browser/erdosReactRenderer.js';
@@ -46,16 +45,16 @@ export const ConsoleInstance = (props: ConsoleInstanceProps) => {
 
 	const [marker, setMarker] = useState(generateUuid());
 	const [runtimeAttached, setRuntimeAttached] = useState(props.erdosConsoleInstance.runtimeAttached);
-	const [, setIgnoreNextScrollEvent, ignoreNextScrollEventRef] = useStateRef(false);
+	const ignoreNextScrollEventRef = useRef(false);
 	const [disconnected, setDisconnected] = useState(false);
 
 	const scrollable = () => consoleInstanceRef.current.scrollHeight > consoleInstanceRef.current.clientHeight;
 
 	const scrollToBottom = useCallback(() => {
 		props.erdosConsoleInstance.scrollLocked = false;
-		setIgnoreNextScrollEvent(true);
+		ignoreNextScrollEventRef.current = true;
 		scrollVertically(consoleInstanceRef.current.scrollHeight);
-	}, [props.erdosConsoleInstance, setIgnoreNextScrollEvent]);
+	}, [props.erdosConsoleInstance]);
 
 	const scrollVertically = (y: number) => {
 		consoleInstanceRef.current.scrollTo(consoleInstanceRef.current.scrollLeft, y);
@@ -357,7 +356,7 @@ export const ConsoleInstance = (props: ConsoleInstanceProps) => {
 
 	const scrollHandler = (e: UIEvent<HTMLDivElement>) => {
 		if (ignoreNextScrollEventRef.current) {
-			setIgnoreNextScrollEvent(false);
+			ignoreNextScrollEventRef.current = false;
 		} else {
 			const scrollPosition = Math.abs(
 				consoleInstanceRef.current.scrollHeight -

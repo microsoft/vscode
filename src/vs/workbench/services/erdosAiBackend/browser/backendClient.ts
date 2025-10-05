@@ -23,6 +23,7 @@ export class BackendClient extends Disposable implements IBackendClient {
 	readonly _serviceBrand: undefined;
 	private config?: BackendConfig;
 	private activeAbortController?: AbortController;
+	private currentConversationId?: number;
 
 	constructor(
 		@IApiKeyManager private readonly apiKeyManager: IApiKeyManager,
@@ -269,6 +270,11 @@ export class BackendClient extends Disposable implements IBackendClient {
 		onError: (error: Error) => void,
 		onComplete: () => void
 	): Promise<void> {		
+		// Store conversationId from messages for use in stream data
+		if (messages.length > 0) {
+			this.currentConversationId = messages[0].conversationId;
+		}
+		
 		// Check if BYOK is enabled for the provider
 		const providerType = this.settingsService.getProviderForModel(model);
 		const byokEnabled = await this.isBYOKEnabled(providerType);
@@ -523,6 +529,7 @@ export class BackendClient extends Disposable implements IBackendClient {
 		onComplete: () => void
 	): Promise<void> {
 		const parser = this.sseParser;
+		parser.conversationId = this.currentConversationId;
 		const reader = response.body?.getReader();
 		
 		if (!reader) {
@@ -563,6 +570,7 @@ export class BackendClient extends Disposable implements IBackendClient {
 			// This matches the previous system's behavior where done events were always sent
 			onData({
 				type: 'done',
+				conversationId: this.currentConversationId!,
 				isComplete: true
 			});
 			

@@ -17,6 +17,7 @@ export interface ParsedEvent {
 
 export interface StreamData {
     type: 'content' | 'function_call' | 'error' | 'done' | 'function_delta' | 'function_complete' | 'thinking' | 'end_turn' | 'ai_stream_data';
+    conversationId: number;
     content?: string;
     functionCall?: FunctionCall;
     error?: ErrorResponse;
@@ -39,6 +40,7 @@ export class SSEParser extends Disposable implements ISSEParser {
     private lineBuffer = '';
     
     private malformedJsonCount = 0;
+    public conversationId?: number;
 
     constructor() {
         super();
@@ -120,6 +122,7 @@ export class SSEParser extends Disposable implements ISSEParser {
 			
 			return {
 				type: 'content',
+				conversationId: this.conversationId!,
 				content: data.delta,
 				delta: data.delta
 			};
@@ -129,6 +132,7 @@ export class SSEParser extends Disposable implements ISSEParser {
 			const functionCall = data.function_call;
 			return {
 				type: 'function_call',
+				conversationId: this.conversationId!,
 				functionCall: {
 					name: functionCall.name,
 					arguments: functionCall.arguments,
@@ -143,6 +147,7 @@ export class SSEParser extends Disposable implements ISSEParser {
 			// Convert web_search_call to a function_call format so it's displayed
 			return {
 				type: 'function_call',
+				conversationId: this.conversationId!,
 				functionCall: {
 					name: 'web_search',
 					arguments: JSON.stringify({ query: data.web_search_call.query }),
@@ -168,6 +173,7 @@ export class SSEParser extends Disposable implements ISSEParser {
             if (data.action === 'function_call' && data.function_call) {
                 return {
                     type: 'function_call',
+                    conversationId: this.conversationId!,
                     functionCall: {
                         name: data.function_call.name,
                         arguments: data.function_call.arguments,
@@ -180,6 +186,7 @@ export class SSEParser extends Disposable implements ISSEParser {
             if (data.response) {
                 return {
                     type: 'done',
+                    conversationId: this.conversationId!,
                     isComplete: true
                 };
             }
@@ -187,12 +194,14 @@ export class SSEParser extends Disposable implements ISSEParser {
             if (data.end_turn === true) {
                 return {
                     type: 'done',
+                    conversationId: this.conversationId!,
                     end_turn: true
                 };
             }
             
             return {
                 type: 'done',
+                conversationId: this.conversationId!,
                 isComplete: true
             };
         }
@@ -200,6 +209,7 @@ export class SSEParser extends Disposable implements ISSEParser {
         if (data.error) {
             return {
                 type: 'error',
+                conversationId: this.conversationId!,
                 error: typeof data.error === 'string' ? { message: data.error } : data.error
             };
         }
@@ -223,6 +233,7 @@ export class SSEParser extends Disposable implements ISSEParser {
 
             return {
                 type: 'function_delta',
+                conversationId: this.conversationId!,
                 field: data.field,
                 call_id: data.call_id,
                 delta: deltaText
@@ -235,6 +246,7 @@ export class SSEParser extends Disposable implements ISSEParser {
         if (data.field && data.call_id && data.isComplete === true) {
             return {
                 type: 'function_complete',
+                conversationId: this.conversationId!,
                 field: data.field,
                 call_id: data.call_id,
                 isComplete: true

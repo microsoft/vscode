@@ -1124,48 +1124,48 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
 											When auto-accept console is on, AI-proposed Python/R console commands will be automatically executed based on your allow/deny list and language filter settings. Auto-accept console is currently: {autoAcceptConsole ? 'on' : 'off'}
 										</div>
 
-										{autoAcceptConsole && (
-											<div className="console-auto-accept-nested-settings">
-												<div className="console-mode-toggle-section">
-													<div className="console-mode-left">
-														<div className="console-mode-label">Mode:</div>
-														<div className="custom-mode-slider">
-															<div className={`mode-slider-track ${consoleAutoAcceptMode === 'deny-list' ? 'deny-mode' : 'allow-mode'}`} onClick={() => handleConsoleAutoAcceptModeChange(consoleAutoAcceptMode === 'allow-list' ? 'deny-list' : 'allow-list')}>
-																<span className={`mode-option ${consoleAutoAcceptMode === 'allow-list' ? 'active' : ''}`}>Allow list</span>
-																<span className={`mode-option ${consoleAutoAcceptMode === 'deny-list' ? 'active' : ''}`}>Deny list</span>
-															</div>
+									{autoAcceptConsole && (
+										<div className="console-auto-accept-nested-settings">
+											<div className="console-mode-toggle-section">
+												<div className="console-mode-left">
+													<div className="console-mode-label">Mode:</div>
+													<div className="custom-mode-slider">
+														<div className={`mode-slider-track ${consoleAutoAcceptMode === 'deny-list' ? 'deny-mode' : 'allow-mode'}`} onClick={() => handleConsoleAutoAcceptModeChange(consoleAutoAcceptMode === 'allow-list' ? 'deny-list' : 'allow-list')}>
+															<span className={`mode-option ${consoleAutoAcceptMode === 'allow-list' ? 'active' : ''}`}>Allow list</span>
+															<span className={`mode-option ${consoleAutoAcceptMode === 'deny-list' ? 'active' : ''}`}>Deny list</span>
 														</div>
 													</div>
-										<div className="console-language-icons">
-											{erdosHelpService?.getHelpClients().map((language: any) => {
-															const isActive = newConsoleFunctionLanguage === language.languageId;
-															return (
-																<button
-																	key={language.languageId}
-																	className={`language-icon-button ${isActive ? 'active' : 'inactive'}`}
-																	onClick={() => {
-																		// Set the language for adding new functions
-																		setNewConsoleFunctionLanguage(language.languageId as 'python' | 'r');
-																		// Also update the filter to show functions of this language
-																		handleConsoleLanguageFilterChange(language.languageId as 'python' | 'r');
-																	}}
-																	title={`Add functions as ${language.languageName}`}
-																	aria-label={`Add functions as ${language.languageName}`}
-																>
-																	{language.base64EncodedIconSvg ? (
-																		<img 
-																			className="language-icon"
-																			src={`data:image/svg+xml;base64,${language.base64EncodedIconSvg}`}
-																			alt={`${language.languageName} icon`}
-																		/>
-																	) : (
-																		<span className="codicon codicon-circle" />
-																	)}
-																</button>
-															);
-														})}
-													</div>
 												</div>
+												<div className="console-language-icons">
+													{erdosHelpService?.getActiveHelpRuntimes().map(language => {
+														const isActive = newConsoleFunctionLanguage === language.languageId;
+														return (
+															<button
+																key={language.languageId}
+																className={`language-icon-button ${isActive ? 'active' : 'inactive'}`}
+																onClick={() => {
+																	// Set the language for adding new functions
+																	setNewConsoleFunctionLanguage(language.languageId as 'python' | 'r');
+																	// Also update the filter to show functions of this language
+																	handleConsoleLanguageFilterChange(language.languageId as 'python' | 'r');
+																}}
+																title={`Add functions as ${language.languageName}`}
+																aria-label={`Add functions as ${language.languageName}`}
+															>
+																{language.base64EncodedIconSvg ? (
+																	<img 
+																		className="language-icon"
+																		src={`data:image/svg+xml;base64,${language.base64EncodedIconSvg}`}
+																		alt={`${language.languageName} icon`}
+																	/>
+																) : (
+																	<span className="codicon codicon-circle" />
+																)}
+															</button>
+														);
+													})}
+												</div>
+											</div>
 
 												<div className="command-list-section">
 													<div className="command-input-section">

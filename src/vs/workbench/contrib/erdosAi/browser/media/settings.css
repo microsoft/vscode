@@ -469,7 +469,12 @@
 	height: 100%;
 	font-size: 12px;
 	font-weight: 500;
+	line-height: 1;
 	white-space: nowrap;
+	background: none;
+	border: none;
+	padding: 0;
+	margin: 0;
 	z-index: 2;
 	transition: color 0.3s ease;
 }

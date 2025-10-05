@@ -16,7 +16,6 @@ import { erdosClassNames } from '../../../../../base/common/erdosUtilities.js';
 import { IReactComponentContainer } from '../../../../../base/browser/erdosReactRenderer.js';
 import { RuntimeStartupPhase } from '../../../../services/languageRuntime/common/languageRuntimeService.js';
 import { useErdosReactServicesContext } from '../../../../../base/browser/erdosReactRendererContext.js';
-import { VerticalSplitter, VerticalSplitterResizeParams } from '../../../../../base/browser/ui/erdosComponents/splitters/verticalSplitter.js';
 
 const MINIMUM_CONSOLE_TAB_LIST_WIDTH = 64;
 const MINIMUM_CONSOLE_PANE_WIDTH = 120;
@@ -70,15 +69,42 @@ export const ConsoleCore = (props: ConsoleCoreProps) => {
 		setConsoleWidth(props.width)
 	}, [consolePaneWidth, consoleTabListWidth, consoleWidth, props.width, erdosConsoleContext.consoleSessionListCollapsed])
 
-	const handleBeginResize = (): VerticalSplitterResizeParams => ({
-		minimumWidth: MINIMUM_CONSOLE_PANE_WIDTH,
-		maximumWidth: props.width - MINIMUM_CONSOLE_TAB_LIST_WIDTH,
-		startingWidth: consolePaneWidth,
-	});
+	const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+		const isNonLeftMouseClick = e.pointerType === 'mouse' && e.buttons !== 1;
+		if (isNonLeftMouseClick) {
+			return;
+		}
 
-	const handleResize = (newConsolePaneWidth: number) => {
-		setConsolePaneWidth(newConsolePaneWidth);
-		setConsoleTabListWidth(props.width - newConsolePaneWidth);
+		e.preventDefault();
+		e.stopPropagation();
+
+		const target = document.body;
+		const clientX = e.clientX;
+		const startingWidth = consolePaneWidth;
+
+		const pointerMoveHandler = (e: PointerEvent) => {
+			e.preventDefault();
+			e.stopPropagation();
+
+			const delta = e.clientX - clientX;
+			const newWidth = startingWidth + delta;
+			const clampedWidth = Math.max(
+				MINIMUM_CONSOLE_PANE_WIDTH,
+				Math.min(props.width - MINIMUM_CONSOLE_TAB_LIST_WIDTH, newWidth)
+			);
+			setConsolePaneWidth(clampedWidth);
+			setConsoleTabListWidth(props.width - clampedWidth);
+		};
+
+		const lostPointerCaptureHandler = (e: PointerEvent) => {
+			pointerMoveHandler(e);
+			target.removeEventListener('pointermove', pointerMoveHandler);
+			target.removeEventListener('lostpointercapture', lostPointerCaptureHandler);
+		};
+
+		target.setPointerCapture(e.pointerId);
+		target.addEventListener('pointermove', pointerMoveHandler);
+		target.addEventListener('lostpointercapture', lostPointerCaptureHandler);
 	};
 
 	if (erdosConsoleContext.erdosConsoleInstances.length === 0) {
@@ -108,9 +134,9 @@ export const ConsoleCore = (props: ConsoleCoreProps) => {
 				}
 			</div>
 			{consoleTabListWidth > 0 &&
-				<VerticalSplitter
-					onBeginResize={handleBeginResize}
-					onResize={handleResize}
+				<div
+					className='vertical-splitter'
+					onPointerDown={handlePointerDown}
 				/>
 			}
 			{!erdosConsoleContext.consoleSessionListCollapsed && consoleTabListWidth > 0 &&

@@ -68,8 +68,8 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 	private readonly _onOrchestratorStateChange = this._register(new Emitter<{isProcessing: boolean}>());
 	readonly onOrchestratorStateChange: Event<{isProcessing: boolean}> = this._onOrchestratorStateChange.event;
 
-	private readonly _onFunctionCallDisplayMessage = this._register(new Emitter<{ id: number; function_call: any; timestamp: string }>());
-	readonly onFunctionCallDisplayMessage: Event<{ id: number; function_call: any; timestamp: string }> = this._onFunctionCallDisplayMessage.event;
+	private readonly _onFunctionCallDisplayMessage = this._register(new Emitter<{ id: number; conversationId: number; function_call: any; timestamp: string }>());
+	readonly onFunctionCallDisplayMessage: Event<{ id: number; conversationId: number; function_call: any; timestamp: string }> = this._onFunctionCallDisplayMessage.event;
 
 	private readonly _onWidgetRequested = this._register(new Emitter<IErdosAiWidgetInfo>());
 	readonly onWidgetRequested: Event<IErdosAiWidgetInfo> = this._onWidgetRequested.event;

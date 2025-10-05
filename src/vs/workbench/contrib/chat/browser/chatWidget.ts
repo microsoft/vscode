@@ -905,8 +905,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return [
 				{
 					icon: Codicon.vscode,
-					label: localize('chatWidget.suggestedPrompts.gettingStarted', "Ask @vscode"),
-					prompt: localize('chatWidget.suggestedPrompts.gettingStartedPrompt', "@vscode How do I change the theme to light mode?"),
+					label: localize('chatWidget.suggestedPrompts.gettingStarted', "Ask @erdos"),
+					prompt: localize('chatWidget.suggestedPrompts.gettingStartedPrompt', "@erdos How do I change the theme to light mode?"),
 				},
 				{
 					icon: Codicon.newFolder,

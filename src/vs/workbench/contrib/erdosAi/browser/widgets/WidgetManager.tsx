@@ -875,6 +875,7 @@ export function createWidgetInfo(
 ): IErdosAiWidgetInfo {
 	const widgetInfo: IErdosAiWidgetInfo = {
 		messageId: message.id,
+		conversationId: message.conversationId,
 		requestId: message.request_id || `req_${message.id}`,
 		functionCallType: functionName as 'search_replace' | 'run_console_cmd' | 'run_terminal_cmd' | 'delete_file' | 'run_file',
 		filename: args.filename || args.file_path || undefined,

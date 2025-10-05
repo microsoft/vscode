@@ -39,6 +39,7 @@ export interface ActiveWidget {
  */
 export interface WidgetStreamingUpdate {
 	messageId: number;
+	conversationId: number;
 	delta: string;
 	isComplete: boolean;
 	replaceContent?: boolean;
@@ -92,7 +93,7 @@ export interface IWidgetManager {
 	/**
 	 * Create a synchronous streaming widget immediately (for streaming functions that start with deltas)
 	 */
-	createSynchronousStreamingWidget(callId: string, messageId: number, functionType: string, requestId: string): ActiveWidget;
+	createSynchronousStreamingWidget(callId: string, messageId: number, functionType: string, requestId: string, conversationId: number): ActiveWidget;
 
 	/**
 	 * Get active widget by call ID

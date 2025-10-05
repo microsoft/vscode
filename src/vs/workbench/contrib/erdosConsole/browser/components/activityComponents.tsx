@@ -22,11 +22,10 @@ import { ConsoleOutputLines } from './utilityComponents.js';
 import { AnsiOutputLine } from './ansiOutput.js';
 import { isMacintosh } from '../../../../../base/common/platform.js';
 import { ActivityItemPrompt, ActivityItemPromptState, ActivityItemStream, ActivityItemOutputHtml } from '../../../../services/erdosConsole/browser/classes/activityItems.js';
-import { renderHtml } from '../../../../../base/browser/erdos/renderHtml.js';
+import { sanitizeHtml } from '../../../../../base/browser/domSanitize.js';
 import { ActivityItemOutputMessage, ActivityItemOutputPlot } from '../../../../services/erdosConsole/browser/classes/activityItems.js';
 import * as nls from '../../../../../nls.js';
 import { localize } from '../../../../../nls.js';
-import { ErdosButton } from '../../../../../base/browser/ui/erdosComponents/button/erdosButton.js';
 import { ActivityItemErrorMessage } from '../../../../services/erdosConsole/browser/classes/activityItems.js';
 
 const colorizeCodeOutoutLines = (
@@ -379,11 +378,13 @@ interface ActivityOutputHtmlProps {
 }
 
 export const ActivityOutputHtml = (props: ActivityOutputHtmlProps) => {
+	const sanitizedHtml = sanitizeHtml(props.activityItemOutputHtml.html);
 
 	return (
-		<div className='activity-output-html'>
-			{renderHtml(props.activityItemOutputHtml.html)}
-		</div>
+		<div
+			className='activity-output-html'
+			dangerouslySetInnerHTML={{ __html: sanitizedHtml as unknown as string }}
+		/>
 	);
 };
 
@@ -437,13 +438,27 @@ export const ActivityErrorMessage = (props: ActivityErrorMessageProps) => {
 	}, [showTraceback]);
 
 	const Traceback = () => {
-		const pressedHandler = () => {
-			setShowTraceback(!showTraceback);
+	const pressedHandler = () => {
+		setShowTraceback(!showTraceback);
+	};
+
+		const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+			if (e.code === 'Space' || e.code === 'Enter') {
+				e.preventDefault();
+				e.stopPropagation();
+				pressedHandler();
+			}
 		};
 
 		return (
 			<div className='traceback'>
-				<ErdosButton className='toggle-traceback' onPressed={pressedHandler}>
+				<div
+					className='toggle-traceback'
+					role='button'
+					tabIndex={0}
+					onClick={pressedHandler}
+					onKeyDown={handleKeyDown}
+				>
 					{showTraceback ?
 						<>
 							<div className='expansion-indicator codicon codicon-erdos-triangle-down'></div>
@@ -455,7 +470,7 @@ export const ActivityErrorMessage = (props: ActivityErrorMessageProps) => {
 							<div className='link-text'>{localize('erdosShowTraceback', "Show Traceback")}</div>
 						</>
 					}
-				</ErdosButton>
+				</div>
 				{showTraceback &&
 					<div className='traceback-lines'>
 						<div />

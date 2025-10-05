@@ -340,6 +340,11 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 			const conversation = props.erdosAiService.getCurrentConversation();
 			if (!conversation) return;
 			
+			// Ignore messages from different conversations
+			if (message.conversationId !== conversation.info.id) {
+				return;
+			}
+			
 			const allMessages = conversation.messages;
 			const shouldDisplay = filterMessagesForDisplay([message], allMessages).length > 0;
 			
@@ -362,11 +367,16 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 		});
 
 		const streamingDataDisposable = props.erdosAiService.onStreamingData((data: StreamData) => {
+			const conversation = props.erdosAiService.getCurrentConversation();
+			if (!conversation) return;
+			
+			// Ignore streaming from different conversations
+			if (data.conversationId !== conversation.info.id) {
+				return;
+			}
+			
 			if (data.type === 'content' && data.content) {
-				const conversation = props.erdosAiService.getCurrentConversation();
-				if (conversation) {
-					setCurrentConversation({...conversation});
-				}
+				setCurrentConversation({...conversation});
 			} else if (data.type === 'thinking') {
 			} else if (data.type === 'done') {
 			}
@@ -406,6 +416,7 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 		const functionCallDisplayDisposable = props.erdosAiService.onFunctionCallDisplayMessage((displayMessage) => {
 			const tempMessage: ConversationMessage = {
 				id: displayMessage.id,
+				conversationId: displayMessage.conversationId,
 				role: 'assistant' as const,
 				timestamp: displayMessage.timestamp,
 				procedural: false,
@@ -416,6 +427,14 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 		});
 
 		const widgetRequestedDisposable = props.erdosAiService.onWidgetRequested((widgetInfo: IErdosAiWidgetInfo) => {
+			const conversation = props.erdosAiService.getCurrentConversation();
+			if (!conversation) return;
+			
+			// Ignore widgets from different conversations
+			if (widgetInfo.conversationId !== conversation.info.id) {
+				return;
+			}
+			
 			setWidgets(prev => {
 				// Add Monaco services to the widget info
 				const enhancedWidgetInfo = {
@@ -433,7 +452,8 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 		});
 
 		const widgetStreamingUpdateDisposable = props.erdosAiService.onWidgetStreamingUpdate((update: { 
-			messageId: number; 
+			messageId: number;
+			conversationId: number;
 			delta: string; 
 			isComplete: boolean; 
 			replaceContent?: boolean;
@@ -448,6 +468,14 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 				clean_filename?: string;
 			};
 		}) => {
+			const conversation = props.erdosAiService.getCurrentConversation();
+			if (!conversation) return;
+			
+			// Ignore widget updates from different conversations
+			if (update.conversationId !== conversation.info.id) {
+				return;
+			}
+			
 			if (update.delta) {
 				setWidgets(prev => {
 					const existing = prev.get(update.messageId);

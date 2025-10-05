@@ -13,7 +13,6 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { localize } from '../../../../../../nls.js';
 import { IErdosPlotClient } from '../../../common/erdosPlotsService.js';
 import { useErdosReactServicesContext } from '../../../../../../base/browser/erdosReactRendererContext.js';
-import { DropdownButton } from '../../../../../../base/browser/ui/erdosComponents/button/dropdownButton.js';
 
 /**
  * Format a plot source name for display (file or console)
@@ -176,14 +175,16 @@ const PlotSelectorInner: React.FC = () => {
 
 	return (
 		<>
-			<DropdownButton
+			<button
 				ref={buttonRef}
-				ariaLabel={localize('plots.currentPlot', "Current plot")}
-				label={currentPlotName}
-				tooltip={localize('plots.plotHistory', "Plot history")}
-				dropdownIndicator="enabled"
-				onPressed={toggleOpen}
-		/>
+				className="erdos-dropdown-button"
+				aria-label={localize('plots.currentPlot', "Current plot")}
+				title={localize('plots.plotHistory', "Plot history")}
+				onClick={toggleOpen}
+			>
+				<div className="erdos-dropdown-button-label">{currentPlotName}</div>
+				<div className="codicon codicon-chevron-down" style={{ marginLeft: '4px' }} />
+			</button>
 		{isOpen && (
 			<div ref={dropdownRef} className="plot-selector-dropdown">
 				<div className="plot-selector-header">
