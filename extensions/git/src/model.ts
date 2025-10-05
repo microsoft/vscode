@@ -204,7 +204,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 	private openRepositories: OpenRepository[] = [];
 	get repositories(): Repository[] { return this.openRepositories.map(r => r.repository); }
 
-	private possibleGitRepositoryPaths = new Set<string>();
+	private possibleGitRepositoryPaths = new Map<string, string | undefined>(); // a set with optional labels
 
 	private _onDidChangeState = new EventEmitter<State>();
 	readonly onDidChangeState = this._onDidChangeState.event;
@@ -447,15 +447,15 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		this.eventuallyScanPossibleGitRepository(uri.fsPath.replace(/\.git.*$/, ''));
 	}
 
-	private eventuallyScanPossibleGitRepository(path: string) {
-		this.possibleGitRepositoryPaths.add(path);
+	private eventuallyScanPossibleGitRepository(path: string, label?: string) {
+		this.possibleGitRepositoryPaths.set(path, label);
 		this.eventuallyScanPossibleGitRepositories();
 	}
 
 	@debounce(500)
 	private eventuallyScanPossibleGitRepositories(): void {
-		for (const path of this.possibleGitRepositoryPaths) {
-			this.openRepository(path, false, true);
+		for (const [path, label] of this.possibleGitRepositoryPaths) {
+			this.openRepository(path, false, true, label);
 		}
 
 		this.possibleGitRepositoryPaths.clear();
