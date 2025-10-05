@@ -28,7 +28,8 @@ suite('ChatTodoListWidget Accessibility', () => {
 		mockTodoListService = {
 			_serviceBrand: undefined,
 			getTodos: (sessionId: string) => sampleTodos,
-			setTodos: (sessionId: string, todos: IChatTodo[]) => { }
+			setTodos: (sessionId: string, todos: IChatTodo[]) => { },
+			updateTodo: (sessionId: string, todoId: number, newTitle: string) => { }
 		};
 
 		// Mock the configuration service
@@ -138,7 +139,8 @@ suite('ChatTodoListWidget Accessibility', () => {
 		const emptyTodoListService: IChatTodoListService = {
 			_serviceBrand: undefined,
 			getTodos: (sessionId: string) => [],
-			setTodos: (sessionId: string, todos: IChatTodo[]) => { }
+			setTodos: (sessionId: string, todos: IChatTodo[]) => { },
+			updateTodo: (sessionId: string, todoId: number, newTitle: string) => { }
 		};
 
 		// eslint-disable-next-line local/code-no-any-casts

@@ -26,6 +26,7 @@ export interface IChatTodoListService {
 	readonly _serviceBrand: undefined;
 	getTodos(sessionId: string): IChatTodo[];
 	setTodos(sessionId: string, todos: IChatTodo[]): void;
+	updateTodo(sessionId: string, todoId: number, newTitle: string): void;
 }
 
 export class ChatTodoListStorage implements IChatTodoListStorage {
@@ -71,5 +72,14 @@ export class ChatTodoListService extends Disposable implements IChatTodoListServ
 
 	setTodos(sessionId: string, todos: IChatTodo[]): void {
 		this.todoListStorage.setTodoList(sessionId, todos);
+	}
+
+	updateTodo(sessionId: string, todoId: number, newTitle: string): void {
+		const todos = this.getTodos(sessionId);
+		const todo = todos.find(t => t.id === todoId);
+		if (todo) {
+			todo.title = newTitle;
+			this.setTodos(sessionId, todos);
+		}
 	}
 }
