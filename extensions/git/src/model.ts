@@ -768,10 +768,10 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 
 			repository.submodules
 				.slice(0, submodulesLimit)
-				.map(r => path.join(repository.root, r.path))
-				.forEach(p => {
-					this.logger.trace(`[Model][open] Opening submodule: '${p}'`);
-					this.eventuallyScanPossibleGitRepository(p);
+				.map(r => ({ path: path.join(repository.root, r.path), name: r.name }))
+				.forEach(({ path: p, name: n }) => {
+					this.logger.trace(`[Model][open] Opening submodule: '${n}' at '${p}'`);
+					this.eventuallyScanPossibleGitRepository(p, n);
 				});
 		};
 
