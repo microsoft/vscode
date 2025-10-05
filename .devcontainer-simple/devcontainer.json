@@ -1,0 +1,93 @@
+{
+	"name": "VS Code - Simple Dev Container",
+	"image": "mcr.microsoft.com/devcontainers/typescript-node:22-bookworm",
+
+	// Features to add to the container
+	"features": {
+		"ghcr.io/devcontainers/features/git:1": {
+			"version": "latest"
+		},
+		"ghcr.io/devcontainers/features/github-cli:1": {}
+	},
+
+	// Container environment variables
+	"containerEnv": {
+		"NODE_ENV": "development",
+		"ELECTRON_SKIP_BINARY_DOWNLOAD": "1"
+	},
+
+	// Use 'postCreateCommand' to run commands after the container is created
+	"postCreateCommand": "npm install && echo '\n✅ Dependencies installed! Run: npm run watch'",
+
+	// Configure tool-specific properties
+	"customizations": {
+		"vscode": {
+			"settings": {
+				"typescript.tsdk": "node_modules/typescript/lib",
+				"typescript.tsc.autoDetect": "off",
+				"editor.formatOnSave": true,
+				"editor.codeActionsOnSave": {
+					"source.fixAll.eslint": "explicit"
+				},
+				"files.associations": {
+					"*.tst": "typescript",
+					"cglicenses.json": "jsonc"
+				},
+				"search.exclude": {
+					"**/node_modules": true,
+					"**/bower_components": true,
+					"**/.git": true,
+					"**/out": true,
+					"**/out-*": true
+				},
+				"git.ignoreLimitWarning": true,
+				"eslint.validate": [
+					"javascript",
+					"typescript"
+				]
+			},
+			"extensions": [
+				"dbaeumer.vscode-eslint",
+				"EditorConfig.EditorConfig",
+				"ms-vscode.vscode-typescript-next",
+				"GitHub.vscode-pull-request-github",
+				"eamodio.gitlens"
+			]
+		}
+	},
+
+	// Forward ports for development server
+	"forwardPorts": [9229, 3000],
+	"portsAttributes": {
+		"9229": {
+			"label": "Node Debug Port",
+			"onAutoForward": "silent"
+		},
+		"3000": {
+			"label": "Dev Server",
+			"onAutoForward": "notify"
+		}
+	},
+
+	// Mount workspace folder and use volume for node_modules for better performance
+	"mounts": [
+		{
+			"source": "vscode-node-modules",
+			"target": "${containerWorkspaceFolder}/node_modules",
+			"type": "volume"
+		}
+	],
+
+	// Minimum system requirements (much lower than the full GUI version)
+	"hostRequirements": {
+		"cpus": 4,
+		"memory": "6gb",
+		"storage": "32gb"
+	},
+
+	// Run as non-root user
+	"remoteUser": "node",
+
+	// Keep container running
+	"overrideCommand": false
+}

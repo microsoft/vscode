@@ -1,0 +1,39 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"chat.tools.terminal.autoApprove": {
+			"/^npm (test|lint|run compile)\\b/": true,
+			"/^npx tsc\\b.*--noEmit/": true,
+			"scripts/test.bat": true,
+			"scripts/test.sh": true,
+			"scripts/test-integration.bat": true,
+			"scripts/test-integration.sh": true
+		},
+		"files.associations": {
+			"cglicenses.json": "jsonc",
+			"*.tst": "typescript"
+		},
+		"typescript.tsdk": "node_modules/typescript/lib",
+		"typescript.tsc.autoDetect": "off",
+		"git.ignoreLimitWarning": true,
+		"git.mergeEditor": true,
+		"debug.javascript.terminalOptions": {
+			"outFiles": [
+				"${workspaceFolder}/out/**/*.js",
+				"${workspaceFolder}/build/**/*.js"
+			]
+		},
+		"emmet.excludeLanguages": [],
+		"editor.aiStats.enabled": true,
+		"chat.checkpoints.showFileChanges": true,
+		"chat.emptyState.history.enabled": true,
+		"chat.promptFilesRecommendations": {
+			"plan-fast": true,
+			"plan-deep": true
+		}
+	}
+}
