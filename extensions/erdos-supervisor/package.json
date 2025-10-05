@@ -175,9 +175,6 @@
     "ts-node": "^10.9.1",
     "decompress": "^4.2.1"
   },
-  "extensionDependencies": [
-    "erdos.erdos-environment"
-  ],
   "dependencies": {
     "request": "^2.88.2",
     "tail": "^2.2.6",

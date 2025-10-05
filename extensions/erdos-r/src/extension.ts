@@ -7,6 +7,7 @@ import { setContexts } from './contexts';
 import { RRuntimeManager } from './runtime-manager';
 import { registerUriHandler } from './uri-handler';
 import { registerFileAssociations } from './file-associations';
+import { getPandocPath } from './pandoc';
 
 export const LOGGER = vscode.window.createOutputChannel('R Language Pack', { log: true });
 
@@ -16,6 +17,12 @@ export function activate(context: vscode.ExtensionContext) {
 	};
 	context.subscriptions.push(LOGGER.onDidChangeLogLevel(onDidChangeLogLevel));
 	onDidChangeLogLevel(LOGGER.logLevel);
+
+	// Set RSTUDIO_PANDOC environment variable for R runtime to find bundled pandoc
+	const pandocPath = getPandocPath();
+	if (pandocPath) {
+		context.environmentVariableCollection.replace('RSTUDIO_PANDOC', pandocPath);
+	}
 
 	const rRuntimeManager = new RRuntimeManager(context);
 	erdos.runtime.registerLanguageRuntimeManager('r', rRuntimeManager);
