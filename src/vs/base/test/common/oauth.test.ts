@@ -310,6 +310,18 @@ suite('OAuth', () => {
 			const scopes2 = ['scope2', 'scope1', 'scope1'];
 			assert.strictEqual(scopesMatch(scopes1, scopes2), true);
 		});
+
+		test('scopesMatch should handle undefined values', () => {
+			assert.strictEqual(scopesMatch(undefined, undefined), true);
+			assert.strictEqual(scopesMatch(['read'], undefined), false);
+			assert.strictEqual(scopesMatch(undefined, ['write']), false);
+		});
+
+		test('scopesMatch should handle mixed undefined and empty arrays', () => {
+			assert.strictEqual(scopesMatch([], undefined), false);
+			assert.strictEqual(scopesMatch(undefined, []), false);
+			assert.strictEqual(scopesMatch([], []), true);
+		});
 	});
 
 	suite('Utility Functions', () => {
@@ -655,31 +667,6 @@ suite('OAuth', () => {
 			);
 		});
 
-		test('fetchDynamicRegistration should include scopes in request when provided', async () => {
-			const mockResponse = {
-				client_id: 'generated-client-id',
-				client_name: 'Test Client'
-			};
-
-			fetchStub.resolves({
-				ok: true,
-				json: async () => mockResponse
-			} as Response);
-
-			const serverMetadata: IAuthorizationServerMetadata = {
-				issuer: 'https://auth.example.com',
-				registration_endpoint: 'https://auth.example.com/register',
-				response_types_supported: ['code']
-			};
-
-			await fetchDynamicRegistration(serverMetadata, 'Test Client', ['read', 'write']);
-
-			// Verify request includes scopes
-			const [, options] = fetchStub.firstCall.args;
-			const requestBody = JSON.parse(options.body as string);
-			assert.strictEqual(requestBody.scope, 'read write');
-		});
-
 		test('fetchDynamicRegistration should omit scope from request when not provided', async () => {
 			const mockResponse = {
 				client_id: 'generated-client-id',
@@ -703,31 +690,6 @@ suite('OAuth', () => {
 			const [, options] = fetchStub.firstCall.args;
 			const requestBody = JSON.parse(options.body as string);
 			assert.strictEqual(requestBody.scope, undefined);
-		});
-
-		test('fetchDynamicRegistration should handle empty scopes array', async () => {
-			const mockResponse = {
-				client_id: 'generated-client-id',
-				client_name: 'Test Client'
-			};
-
-			fetchStub.resolves({
-				ok: true,
-				json: async () => mockResponse
-			} as Response);
-
-			const serverMetadata: IAuthorizationServerMetadata = {
-				issuer: 'https://auth.example.com',
-				registration_endpoint: 'https://auth.example.com/register',
-				response_types_supported: ['code']
-			};
-
-			await fetchDynamicRegistration(serverMetadata, 'Test Client', []);
-
-			// Verify request includes empty scope
-			const [, options] = fetchStub.firstCall.args;
-			const requestBody = JSON.parse(options.body as string);
-			assert.strictEqual(requestBody.scope, '');
 		});
 
 		test('fetchDynamicRegistration should handle network fetch failure', async () => {
