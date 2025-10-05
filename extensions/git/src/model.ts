@@ -23,12 +23,12 @@ import { ISourceControlHistoryItemDetailsProviderRegistry } from './historyItemD
 
 class RepositoryPick implements QuickPickItem {
 	@memoize get label(): string {
-		const default_label = path.basename(this.repository.root);
-		const supplied_label = this.repository.label;
-		if (!supplied_label || path.basename(supplied_label) === default_label) {
-			return default_label;
+		const defaultLabel = path.basename(this.repository.root);
+		const suppliedLabel = this.repository.repoLabel;
+		if (!suppliedLabel || path.basename(suppliedLabel) === defaultLabel) {
+			return defaultLabel;
 		}
-		return supplied_label;
+		return suppliedLabel;
 	}
 
 	@memoize get description(): string {
@@ -570,7 +570,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 	}
 
 	@sequentialize
-	async openRepository(repoPath: string, openIfClosed = false, openIfParent = false): Promise<void> {
+	async openRepository(repoPath: string, openIfClosed = false, openIfParent = false, repositoryLabel: string | undefined = undefined): Promise<void> {
 		this.logger.trace(`[Model][openRepository] Repository: ${repoPath}`);
 		const existingRepository = await this.getRepositoryExact(repoPath);
 		if (existingRepository) {
