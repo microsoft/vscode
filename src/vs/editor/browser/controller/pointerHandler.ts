@@ -32,7 +32,7 @@ export class PointerEventHandler extends MouseHandler {
 
 		this._lastPointerType = 'mouse';
 
-		this._register(dom.addDisposableListener(this.viewHelper.linesContentDomNode, 'pointerdown', (e: any) => {
+		this._register(dom.addDisposableListener(this.viewHelper.linesContentDomNode, 'pointerdown', (e: PointerEvent) => {
 			const pointerType = e.pointerType;
 			if (pointerType === 'mouse') {
 				this._lastPointerType = 'mouse';
@@ -54,8 +54,7 @@ export class PointerEventHandler extends MouseHandler {
 	}
 
 	private onTap(event: GestureEvent): void {
-		// eslint-disable-next-line local/code-no-any-casts
-		if (!event.initialTarget || !this.viewHelper.linesContentDomNode.contains(<any>event.initialTarget)) {
+		if (!event.initialTarget || !this.viewHelper.linesContentDomNode.contains(event.initialTarget as HTMLElement)) {
 			return;
 		}
 
@@ -95,8 +94,7 @@ export class PointerEventHandler extends MouseHandler {
 	}
 
 	protected override _onMouseDown(e: EditorMouseEvent, pointerId: number): void {
-		// eslint-disable-next-line local/code-no-any-casts
-		if ((e.browserEvent as any).pointerType === 'touch') {
+		if ((e.browserEvent as PointerEvent).pointerType === 'touch') {
 			return;
 		}
 

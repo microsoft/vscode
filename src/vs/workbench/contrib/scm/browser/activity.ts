@@ -151,7 +151,8 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 
 			// Get a repository agnostic name for the status bar action, derive this from the
 			// first command argument which is in the form of "<extension>.<command>/<number>"
-			let repoAgnosticActionName = command.arguments?.[0];
+			// eslint-disable-next-line local/code-no-any-casts
+			let repoAgnosticActionName = <any>command.arguments?.[0];
 			if (repoAgnosticActionName && typeof repoAgnosticActionName === 'string') {
 				repoAgnosticActionName = repoAgnosticActionName
 					.substring(0, repoAgnosticActionName.lastIndexOf('/'))
