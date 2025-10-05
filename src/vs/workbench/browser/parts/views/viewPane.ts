@@ -71,6 +71,7 @@ export interface IViewPaneOptions extends IPaneOptions {
 	readonly id: string;
 	readonly showActions?: ViewPaneShowActions;
 	readonly titleMenuId?: MenuId;
+	readonly leftTitleMenuId?: MenuId;
 	readonly donotForwardArgs?: boolean;
 	// The title of the container pane when it is merged with the view container
 	readonly singleViewPaneContainerTitle?: string;
@@ -341,11 +342,13 @@ export abstract class ViewPane extends Pane implements IView {
 	}
 
 	readonly menuActions: ViewMenuActions;
+	readonly leftMenuActions?: ViewMenuActions;
 
 	private progressBar?: ProgressBar;
 	private progressIndicator?: IProgressIndicator;
 
 	private toolbar?: WorkbenchToolBar;
+	private leftToolbar?: WorkbenchToolBar;
 	private readonly showActions: ViewPaneShowActions;
 	private headerContainer?: HTMLElement;
 	protected titleContainer?: HTMLElement;
@@ -390,6 +393,11 @@ export abstract class ViewPane extends Pane implements IView {
 		const childInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
 		this.menuActions = this._register(childInstantiationService.createInstance(ViewMenuActions, options.titleMenuId ?? MenuId.ViewTitle, MenuId.ViewTitleContext, { shouldForwardArgs: !options.donotForwardArgs, renderShortTitle: true }));
 		this._register(this.menuActions.onDidChange(() => this.updateActions()));
+		
+		if (options.leftTitleMenuId) {
+			(this as { leftMenuActions?: ViewMenuActions }).leftMenuActions = this._register(childInstantiationService.createInstance(ViewMenuActions, options.leftTitleMenuId, MenuId.ViewTitleContext, { shouldForwardArgs: !options.donotForwardArgs, renderShortTitle: true }));
+			this._register(this.leftMenuActions!.onDidChange(() => this.updateActions()));
+		}
 	}
 
 	override get headerVisible(): boolean {
@@ -441,6 +449,31 @@ export abstract class ViewPane extends Pane implements IView {
 		this.headerContainer = container;
 
 		this.twistiesContainer = append(container, $(`.twisty-container${ThemeIcon.asCSSSelector(this.getTwistyIcon(this.isExpanded()))}`));
+
+		// Left toolbar for left-side actions
+		if (this.leftMenuActions) {
+			const leftActions = append(container, $('.left-actions'));
+			leftActions.classList.toggle('show-always', this.showActions === ViewPaneShowActions.Always);
+			leftActions.classList.toggle('show-expanded', this.showActions === ViewPaneShowActions.WhenExpanded);
+			this.leftToolbar = this.instantiationService.createInstance(WorkbenchToolBar, leftActions, {
+				orientation: ActionsOrientation.HORIZONTAL,
+				actionViewItemProvider: (action, options) => {
+					const item = this.createActionViewItem(action, options);
+					if (item) {
+						this.headerActionViewItems.set(item.action.id, item);
+					}
+					return item;
+				},
+				ariaLabel: nls.localize('viewLeftToolbarAriaLabel', "{0} left actions", this.title),
+				getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
+				renderDropdownAsChildElement: true,
+				actionRunner: this.getActionRunner(),
+				resetMenu: this.leftMenuActions.menuId
+			});
+
+			this._register(this.leftToolbar);
+			this._register(addDisposableListener(leftActions, EventType.CLICK, e => e.preventDefault()));
+		}
 
 		this.renderHeaderTitle(container, this.title);
 
@@ -677,6 +710,10 @@ export abstract class ViewPane extends Pane implements IView {
 			}
 			this.toolbar.setActions(prepareActions(primaryActions), prepareActions(this.menuActions.getSecondaryActions()));
 			this.toolbar.context = this.getActionsContext();
+		}
+		if (this.leftToolbar && this.leftMenuActions) {
+			this.leftToolbar.setActions(prepareActions(this.leftMenuActions.getPrimaryActions()), prepareActions(this.leftMenuActions.getSecondaryActions()));
+			this.leftToolbar.context = this.getActionsContext();
 		}
 	}
 

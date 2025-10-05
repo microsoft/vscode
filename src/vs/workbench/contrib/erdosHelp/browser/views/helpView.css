@@ -11,15 +11,28 @@
 	background-color: var(--vscode-sideBar-background);
 }
 
-.help-toolbar-wrapper {
-	flex-shrink: 0;
-	height: 28px;
-}
-
 .help-content-wrapper {
 	flex: 1;
 	overflow: hidden;
 	position: relative;
+}
+
+.topic-history-selector-container,
+.topic-search-container {
+	display: flex;
+	align-items: center;
+	height: 100%;
+	pointer-events: all;
+	position: relative;
+	z-index: 1;
+	overflow: visible !important; /* Allow dropdown to overflow */
+}
+
+/* Custom opacity for disabled help navigation buttons */
+.pane-header .monaco-action-bar .action-item.disabled .action-label.icon,
+.pane-header .monaco-action-bar .action-item.disabled .action-label.icon::before,
+.pane-header .monaco-action-bar .action-item.disabled .action-label.icon:hover {
+	opacity: 0.5 !important;
 }
 
 

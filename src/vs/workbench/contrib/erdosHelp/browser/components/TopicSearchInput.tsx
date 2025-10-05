@@ -184,6 +184,17 @@ export const TopicSearchInput: React.FC<TopicSearchInputProps> = ({
 		};
 
 		if (showDropdown) {
+			// Position the dropdown
+			if (dropdownRef.current && inputRef.current) {
+				const inputRect = inputRef.current.getBoundingClientRect();
+				const dropdown = dropdownRef.current.querySelector('.help-search-dropdown') as HTMLElement;
+				if (dropdown) {
+					dropdown.style.top = `${inputRect.bottom + 4}px`;
+					dropdown.style.left = `${inputRect.left}px`;
+					dropdown.style.width = `${Math.max(inputRect.width, 280)}px`;
+				}
+			}
+
 			const timeoutId = setTimeout(() => {
 				document.addEventListener('mousedown', handleClickOutside);
 			}, 300);
@@ -228,7 +239,13 @@ export const TopicSearchInput: React.FC<TopicSearchInputProps> = ({
 	}, []);
 
 	return (
-		<div className={`help-search-widget ${variant} ${className}`} ref={dropdownRef}>
+		<div 
+			className={`help-search-widget ${variant} ${className}`} 
+			ref={dropdownRef}
+			onClick={(e) => {
+				e.stopPropagation(); // Prevent ViewPane's preventDefault from blocking input focus
+			}}
+		>
 			<div className={`help-search-input-container ${focused ? 'focused' : ''}`}>
 				<div className="help-search-icon">
 					<span className={ThemeIcon.asClassName(Codicon.search)} />
@@ -241,6 +258,12 @@ export const TopicSearchInput: React.FC<TopicSearchInputProps> = ({
 					value={query}
 					onChange={handleInputChange}
 					onKeyDown={handleKeyDown}
+					onMouseDown={(e) => {
+						e.stopPropagation(); // Prevent ViewPane's preventDefault from blocking focus
+					}}
+					onClick={(e) => {
+						e.stopPropagation(); // Prevent ViewPane's preventDefault from blocking focus
+					}}
 					onFocus={() => {
 						setFocused(true);
 						if (query.trim() && results.length > 0) {

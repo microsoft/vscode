@@ -30,6 +30,7 @@ export function handleANSIOutput(text: string, linkDetector: ILinkDetector, work
 	let currentPos: number = 0;
 	let unprintedChars = 0;
 	let buffer: string = '';
+	let currentHyperlink: { url: string; params?: Map<string, string> } | undefined;
 
 	while (currentPos < textLength) {
 
@@ -60,12 +61,12 @@ export function handleANSIOutput(text: string, linkDetector: ILinkDetector, work
 
 			if (sequenceFound) {
 
-				unprintedChars += 2 + ansiSequence.length;
+			unprintedChars += 2 + ansiSequence.length;
 
-				// Flush buffer with previous styles.
-				appendStylizedStringToContainer(root, buffer, styleNames, linkDetector, workspaceFolder, customFgColor, customBgColor, customUnderlineColor, highlights, currentPos - buffer.length - unprintedChars);
+			// Flush buffer with previous styles.
+			appendStylizedStringToContainer(root, buffer, styleNames, linkDetector, workspaceFolder, customFgColor, customBgColor, customUnderlineColor, highlights, currentPos - buffer.length - unprintedChars, currentHyperlink);
 
-				buffer = '';
+			buffer = '';
 
 				/*
 				 * Certain ranges that are matched here do not contain real graphics rendition sequences. For
@@ -96,20 +97,87 @@ export function handleANSIOutput(text: string, linkDetector: ILinkDetector, work
 					// Unsupported sequence so simply hide it.
 				}
 
-			} else {
-				currentPos = startPos;
-			}
+		} else {
+			currentPos = startPos;
 		}
+	} else if (text.charCodeAt(currentPos) === 27 && text.charAt(currentPos + 1) === ']') {
+		// OSC (Operating System Command) sequence
+		// OSC 8 is used for hyperlinks: \x1b]8;params;url\x1b\
+		const startPos: number = currentPos;
+		currentPos += 2; // Skip 'Esc]'
 
-		if (sequenceFound === false) {
-			buffer += text.charAt(currentPos);
+		let oscSequence: string = '';
+
+		// Find the string terminator (ST): either \x1b\ or \x07 (BEL)
+		while (currentPos < textLength) {
+			const char: string = text.charAt(currentPos);
+
+			// Check for ESC \ terminator
+			if (text.charCodeAt(currentPos) === 27 && text.charAt(currentPos + 1) === '\\') {
+				sequenceFound = true;
+				currentPos += 2;
+				break;
+			}
+
+			// Check for BEL terminator
+			if (text.charCodeAt(currentPos) === 7) {
+				sequenceFound = true;
+				currentPos++;
+				break;
+			}
+
+			oscSequence += char;
 			currentPos++;
 		}
+
+		if (sequenceFound) {
+			unprintedChars += (currentPos - startPos);
+
+			// Flush buffer with previous styles
+			appendStylizedStringToContainer(root, buffer, styleNames, linkDetector, workspaceFolder, customFgColor, customBgColor, customUnderlineColor, highlights, currentPos - buffer.length - unprintedChars, currentHyperlink);
+			buffer = '';
+
+			// Parse OSC 8 hyperlink: 8;params;url
+			const match = oscSequence.match(/^8;(.*?);(.*)$/);
+			if (match && match.length === 3) {
+				const params = match[1].trim();
+				const url = match[2].trim();
+
+				if (url) {
+					// Start hyperlink
+					const paramMap = new Map<string, string>();
+					if (params) {
+						for (const param of params.split(':')) {
+							const eqIndex = param.indexOf('=');
+							if (eqIndex !== -1) {
+								const name = param.substring(0, eqIndex).trim();
+								const value = param.substring(eqIndex + 1).trim();
+								if (name) {
+									paramMap.set(name, value);
+								}
+							}
+						}
+					}
+					currentHyperlink = { url, params: paramMap.size > 0 ? paramMap : undefined };
+				} else {
+					// End hyperlink (empty URL)
+					currentHyperlink = undefined;
+				}
+			}
+		} else {
+			currentPos = startPos;
+		}
+	}
+
+	if (sequenceFound === false) {
+		buffer += text.charAt(currentPos);
+		currentPos++;
+	}
 	}
 
 	// Flush remaining text buffer if not empty.
 	if (buffer) {
-		appendStylizedStringToContainer(root, buffer, styleNames, linkDetector, workspaceFolder, customFgColor, customBgColor, customUnderlineColor, highlights, currentPos - buffer.length);
+		appendStylizedStringToContainer(root, buffer, styleNames, linkDetector, workspaceFolder, customFgColor, customBgColor, customUnderlineColor, highlights, currentPos - buffer.length, currentHyperlink);
 	}
 
 	return root;
@@ -413,19 +481,37 @@ export function appendStylizedStringToContainer(
 	customUnderlineColor: RGBA | string | undefined,
 	highlights: IHighlight[] | undefined,
 	offset: number,
+	hyperlink?: { url: string; params?: Map<string, string> },
 ): void {
 	if (!root || !stringContent) {
 		return;
 	}
 
-	const container = linkDetector.linkify(
-		stringContent,
-		true,
-		workspaceFolder,
-		undefined,
-		undefined,
-		highlights?.map(h => ({ start: h.start - offset, end: h.end - offset, extraClasses: h.extraClasses })),
-	);
+	let container: HTMLSpanElement;
+
+	if (hyperlink) {
+		// Create anchor element for OSC 8 hyperlink
+		const anchor = document.createElement('a');
+		anchor.href = hyperlink.url;
+		anchor.textContent = stringContent;
+
+		// Add line number data attribute if present in params
+		if (hyperlink.params?.has('line')) {
+			anchor.dataset.line = hyperlink.params.get('line');
+		}
+
+		container = document.createElement('span');
+		container.appendChild(anchor);
+	} else {
+		container = linkDetector.linkify(
+			stringContent,
+			true,
+			workspaceFolder,
+			undefined,
+			undefined,
+			highlights?.map(h => ({ start: h.start - offset, end: h.end - offset, extraClasses: h.extraClasses })),
+		);
+	}
 
 	container.className = cssClasses.join(' ');
 	if (customTextColor) {

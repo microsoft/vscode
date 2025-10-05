@@ -6,7 +6,7 @@
 import { localize } from '../../../../../nls.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { formatOutputLinesForClipboard } from '../utils/clipboardUtils.js';
-import { ANSIOutput, ANSIOutputLine } from '../../../../../base/common/ansiOutput.js';
+import { ANSIOutput, ANSIOutputLine } from '../ansiOutput.js';
 import { ILanguageRuntimeMessageOutputData } from '../../../languageRuntime/common/languageRuntimeService.js';
 
 abstract class ActivityItemBase {

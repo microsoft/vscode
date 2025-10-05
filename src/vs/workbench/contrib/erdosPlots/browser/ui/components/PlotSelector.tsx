@@ -13,8 +13,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { localize } from '../../../../../../nls.js';
 import { IErdosPlotClient } from '../../../common/erdosPlotsService.js';
 import { useErdosReactServicesContext } from '../../../../../../base/browser/erdosReactRendererContext.js';
-import { ActionBarButton } from '../../../../../../platform/erdosActionBar/browser/components/actionBarButton.js';
-import { ErdosActionBarContextProvider, useErdosActionBarContext } from '../../../../../../platform/erdosActionBar/browser/erdosActionBarContext.js';
+import { DropdownButton } from '../../../../../../base/browser/ui/erdosComponents/button/dropdownButton.js';
 
 /**
  * Format a plot source name for display (file or console)
@@ -43,7 +42,6 @@ function formatPlotName(plot: IErdosPlotClient): string {
  */
 const PlotSelectorInner: React.FC = () => {
 	const services = useErdosReactServicesContext();
-	const actionBarContext = useErdosActionBarContext();
 	const [isOpen, setIsOpen] = useState(false);
 	const [plots, setPlots] = useState(services.erdosPlotsService.allPlots);
 	const [selectedPlotId, setSelectedPlotId] = useState(services.erdosPlotsService.activePlotId);
@@ -170,12 +168,6 @@ const PlotSelectorInner: React.FC = () => {
 
 	// NOW we can do conditional logic and early returns
 	const selectedPlot = plots.find((p: IErdosPlotClient) => p.id === selectedPlotId);
-
-	// Don't render until hoverManager is ready
-	if (!actionBarContext || !actionBarContext.hoverManager) {
-		return null;
-	}
-
 	const currentPlotName = selectedPlot ? formatPlotName(selectedPlot) : localize('plots.noPlotSelected', "No plot selected");
 
 	if (plots.length === 0) {
@@ -184,7 +176,7 @@ const PlotSelectorInner: React.FC = () => {
 
 	return (
 		<>
-			<ActionBarButton
+			<DropdownButton
 				ref={buttonRef}
 				ariaLabel={localize('plots.currentPlot', "Current plot")}
 				label={currentPlotName}
@@ -272,13 +264,7 @@ const PlotSelectorInner: React.FC = () => {
 };
 
 /**
- * PlotSelector component - wraps PlotSelectorInner with required context
+ * PlotSelector component
  */
-export const PlotSelector: React.FC = React.memo(() => {
-	return (
-		<ErdosActionBarContextProvider>
-			<PlotSelectorInner />
-		</ErdosActionBarContextProvider>
-	);
-});
+export const PlotSelector: React.FC = React.memo(PlotSelectorInner);
 

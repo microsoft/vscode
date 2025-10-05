@@ -16,7 +16,7 @@ interface UseMessageInputProps {
 	setInputValue: (value: string) => void;
 	setCurrentConversation: (conversation: Conversation) => void;
 	setMessages: React.Dispatch<React.SetStateAction<ConversationMessage[]>>;
-	setScrollLock: (lock: boolean) => void;
+	setAutoScrollEnabled: (enabled: boolean) => void;
 	services: any;
 }
 
@@ -28,7 +28,7 @@ export function useMessageInput({
 	setInputValue,
 	setCurrentConversation,
 	setMessages,
-	setScrollLock,
+	setAutoScrollEnabled,
 	services
 }: UseMessageInputProps) {
 
@@ -37,10 +37,10 @@ export function useMessageInput({
 			return;
 		}
 
-		const messageContent = inputValue.trim();
-		
-		// Re-enable scroll lock when user sends a new message (like GitHub Copilot)
-		setScrollLock(true);
+	const messageContent = inputValue.trim();
+	
+	// Enable auto-scroll when user sends a new message
+	setAutoScrollEnabled(true);
 		
 		if (isAiProcessing) {
 			try {
@@ -74,7 +74,7 @@ export function useMessageInput({
 		} catch (error) {
 			console.error('Failed to send message:', error);
 		}
-	}, [inputValue, isAiProcessing, erdosAiService, currentConversation, setScrollLock, setInputValue, setCurrentConversation, setMessages]);
+	}, [inputValue, isAiProcessing, erdosAiService, currentConversation, setAutoScrollEnabled, setInputValue, setCurrentConversation, setMessages]);
 
 	const handleKeyPress = useCallback((event: React.KeyboardEvent) => {
 		if (event.key === 'Enter' && !event.shiftKey) {

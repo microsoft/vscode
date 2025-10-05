@@ -7,7 +7,7 @@ import './TopicHistoryPanel.css';
 
 import React, { useRef, useState, useEffect } from 'react';
 import { localize } from '../../../../../nls.js';
-import { ActionBarButton } from '../../../../../platform/erdosActionBar/browser/components/actionBarButton.js';
+import { DropdownButton } from '../../../../../base/browser/ui/erdosComponents/button/dropdownButton.js';
 import { useErdosReactServicesContext } from '../../../../../base/browser/erdosReactRendererContext.js';
 
 const truncateText = (text: string, maxLength: number = 50): string => {
@@ -56,11 +56,27 @@ export const TopicHistoryPanel: React.FC<TopicHistoryPanelProps> = (props) => {
 	const services = useErdosReactServicesContext();
 	const [isOpen, setIsOpen] = useState(false);
 	const [searchQuery, setSearchQuery] = useState('');
+	const [currentHelpEntry, setCurrentHelpEntry] = useState(services.erdosHelpService.currentHelpEntry);
 	const buttonRef = useRef<HTMLButtonElement>(null);
 	const dropdownRef = useRef<HTMLDivElement>(null);
 
 	const helpEntries = services.erdosHelpService.helpEntries || [];
-	const currentHelpEntry = services.erdosHelpService.currentHelpEntry;
+
+	// Subscribe to help entry changes
+	useEffect(() => {
+		const disposable = services.erdosHelpService.onDidChangeCurrentHelpEntry((entry) => {
+			setCurrentHelpEntry(entry);
+		});
+
+		return () => {
+			disposable.dispose();
+		};
+	}, [services.erdosHelpService]);
+
+	// Get the display label - use the topic name if there's a current entry, otherwise show "Home"
+	const currentLabel = currentHelpEntry 
+		? `${currentHelpEntry.languageName}: ${getTopicName(currentHelpEntry)}`
+		: localize('actionBar.home', "Home");
 
 	useEffect(() => {
 		const handleClickOutside = (event: MouseEvent) => {
@@ -116,10 +132,10 @@ export const TopicHistoryPanel: React.FC<TopicHistoryPanelProps> = (props) => {
 
 	return (
 		<>
-			<ActionBarButton
+			<DropdownButton
 				ref={buttonRef}
 				ariaLabel={localize('erdosCurrentPage', "Current page")}
-				label={props.currentTitle || localize('actionBar.home', "Home")}
+				label={currentLabel}
 				tooltip={localize('erdosHelpHistory', "Help history")}
 				dropdownIndicator="enabled"
 				onPressed={() => setIsOpen(!isOpen)}

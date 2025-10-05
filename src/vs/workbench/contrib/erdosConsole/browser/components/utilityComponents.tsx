@@ -5,11 +5,11 @@
 
 import React from 'react';
 
-import { ANSIOutputLine } from '../../../../../base/common/ansiOutput.js';
-import { OutputLines } from '../../../../browser/erdosAnsiRenderer/outputLines.js';
+import { ANSIOutputLine } from '../../../../services/erdosConsole/browser/ansiOutput.js';
+import { AnsiOutputLines } from './ansiOutput.js';
 import { localize } from '../../../../../nls.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { detectHyperlinks } from '../../common/linkDetector.js';
+import { detectHyperlinks } from '../../common/linkDetector.js';	
 import { useErdosReactServicesContext } from '../../../../../base/browser/erdosReactRendererContext.js';
 
 interface ConsoleOutputLinesProps {
@@ -17,7 +17,7 @@ interface ConsoleOutputLinesProps {
 }
 
 export const ConsoleOutputLines = (props: ConsoleOutputLinesProps) => {
-	return <OutputLines {...props} />;
+	return <AnsiOutputLines {...props} />;
 };
 
 interface OutputRunWithLinksProps {

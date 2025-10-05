@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { formatOutputLinesForClipboard } from '../utils/clipboardUtils.js';
-import { ANSIOutput, ANSIOutputLine } from '../../../../../base/common/ansiOutput.js';
+import { ANSIOutput, ANSIOutputLine } from '../ansiOutput.js';
 import { SessionAttachMode } from '../interfaces/erdosConsoleService.js';
 import { RuntimeExitReason } from '../../../languageRuntime/common/languageRuntimeService.js';
 import { IConsoleCodeAttribution } from '../../common/erdosConsoleCodeExecution.js';

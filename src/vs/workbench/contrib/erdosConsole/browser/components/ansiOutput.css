@@ -1,0 +1,94 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (C) 2025 Lotas Inc. All rights reserved.
+ *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* ANSI Codes - adapted from debug repl.css for console output */
+.code-bold { font-weight: bold; }
+.code-italic { font-style: italic; }
+.code-underline { text-decoration: underline; text-decoration-style: solid; }
+.code-double-underline { text-decoration: underline; text-decoration-style: double; }
+.code-strike-through { text-decoration: line-through; text-decoration-style: solid; }
+.code-overline { text-decoration: overline; text-decoration-style: solid; }
+
+/* Decoration combinations */
+.code-overline.code-underline.code-strike-through {
+	text-decoration: overline underline line-through;
+	text-decoration-style: solid;
+}
+.code-overline.code-underline {
+	text-decoration: overline underline;
+	text-decoration-style: solid;
+}
+.code-overline.code-strike-through {
+	text-decoration: overline line-through;
+	text-decoration-style: solid;
+}
+.code-underline.code-strike-through {
+	text-decoration: underline line-through;
+	text-decoration-style: solid;
+}
+.code-overline.code-double-underline.code-strike-through {
+	text-decoration: overline underline line-through;
+	text-decoration-style: double;
+}
+.code-overline.code-double-underline {
+	text-decoration: overline underline;
+	text-decoration-style: double;
+}
+.code-double-underline.code-strike-through {
+	text-decoration: underline line-through;
+	text-decoration-style: double;
+}
+
+.code-dim { opacity: 0.4; }
+.code-hidden { opacity: 0; }
+.code-blink {
+	animation: code-blink-key 1s cubic-bezier(1, 0, 0, 1) infinite alternate;
+}
+.code-rapid-blink {
+	animation: code-blink-key 0.3s cubic-bezier(1, 0, 0, 1) infinite alternate;
+}
+
+@keyframes code-blink-key {
+	to { opacity: 0.4; }
+}
+
+.code-subscript {
+	vertical-align: sub;
+	font-size: smaller;
+	line-height: normal;
+}
+.code-superscript {
+	vertical-align: super;
+	font-size: smaller;
+	line-height: normal;
+}
+
+/* Color classes - colors are set via inline styles using CSS custom properties */
+.code-foreground-colored {
+	/* Foreground color set via inline style */
+}
+.code-background-colored {
+	/* Background color set via inline style */
+}
+
+/* Map debug ANSI color variables to console ANSI color variables */
+:root {
+	--vscode-debug-ansi-black: var(--vscode-erdosConsole-ansiBlack);
+	--vscode-debug-ansi-red: var(--vscode-erdosConsole-ansiRed);
+	--vscode-debug-ansi-green: var(--vscode-erdosConsole-ansiGreen);
+	--vscode-debug-ansi-yellow: var(--vscode-erdosConsole-ansiYellow);
+	--vscode-debug-ansi-blue: var(--vscode-erdosConsole-ansiBlue);
+	--vscode-debug-ansi-magenta: var(--vscode-erdosConsole-ansiMagenta);
+	--vscode-debug-ansi-cyan: var(--vscode-erdosConsole-ansiCyan);
+	--vscode-debug-ansi-white: var(--vscode-erdosConsole-ansiWhite);
+	--vscode-debug-ansi-bright-black: var(--vscode-erdosConsole-ansiBrightBlack);
+	--vscode-debug-ansi-bright-red: var(--vscode-erdosConsole-ansiBrightRed);
+	--vscode-debug-ansi-bright-green: var(--vscode-erdosConsole-ansiBrightGreen);
+	--vscode-debug-ansi-bright-yellow: var(--vscode-erdosConsole-ansiBrightYellow);
+	--vscode-debug-ansi-bright-blue: var(--vscode-erdosConsole-ansiBrightBlue);
+	--vscode-debug-ansi-bright-magenta: var(--vscode-erdosConsole-ansiBrightMagenta);
+	--vscode-debug-ansi-bright-cyan: var(--vscode-erdosConsole-ansiBrightCyan);
+	--vscode-debug-ansi-bright-white: var(--vscode-erdosConsole-ansiBrightWhite);
+}

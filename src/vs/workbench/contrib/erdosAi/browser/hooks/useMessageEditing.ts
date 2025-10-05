@@ -12,13 +12,15 @@ interface UseMessageEditingProps {
 	currentConversation: Conversation | null;
 	setCurrentConversation: (conversation: Conversation) => void;
 	setMessages: React.Dispatch<React.SetStateAction<ConversationMessage[]>>;
+	setAutoScrollEnabled: (enabled: boolean) => void;
 }
 
 export function useMessageEditing({
 	erdosAiService,
 	currentConversation,
 	setCurrentConversation,
-	setMessages
+	setMessages,
+	setAutoScrollEnabled
 }: UseMessageEditingProps) {
 	const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
 	const [editingContent, setEditingContent] = useState<string>('');
@@ -90,11 +92,14 @@ export function useMessageEditing({
 				await erdosAiService.newConversation();
 			}
 
-			// Send the edited message as a new query
-			// Use setTimeout to ensure state is updated before sending
-			setTimeout(async () => {				
-				await erdosAiService.sendMessage(newMessageContent);
-			}, 0);
+	// Send the edited message as a new query
+	// Enable auto-scroll when sending edited message
+	setAutoScrollEnabled(true);
+	
+	// Use setTimeout to ensure state is updated before sending
+	setTimeout(async () => {				
+		await erdosAiService.sendMessage(newMessageContent);
+	}, 0);
 
 		} catch (error) {
 			console.error('Failed to edit and continue:', error);

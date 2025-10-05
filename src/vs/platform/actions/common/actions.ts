@@ -162,6 +162,7 @@ export class MenuId {
 	static readonly ViewContainerTitle = new MenuId('ViewContainerTitle');
 	static readonly ViewContainerTitleContext = new MenuId('ViewContainerTitleContext');
 	static readonly ViewTitle = new MenuId('ViewTitle');
+	static readonly ViewTitleLeft = new MenuId('ViewTitleLeft');
 	static readonly ViewTitleContext = new MenuId('ViewTitleContext');
 	static readonly CommentEditorActions = new MenuId('CommentEditorActions');
 	static readonly CommentThreadTitle = new MenuId('CommentThreadTitle');

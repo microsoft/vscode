@@ -212,9 +212,6 @@ import './contrib/erdosWorkspace/browser/erdosWorkspace.contribution.js';
 // Erdos Commands
 import './contrib/erdosCommands/browser/erdosCommands.contribution.js';
 
-// Erdos Dialogs
-import './contrib/erdosDialogs/browser/erdosDialogs.contribution.js';
-
 // Context Menus
 import './contrib/contextmenu/browser/contextmenu.contribution.js';
 

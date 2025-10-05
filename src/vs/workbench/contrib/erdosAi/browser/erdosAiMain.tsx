@@ -90,10 +90,9 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 	const historyButtonRef = useRef<HTMLButtonElement>(null);
 	const [markdownRenderer, setMarkdownRenderer] = useState<ErdosAiMarkdownRenderer | null>(null);
 	
-	// GitHub Copilot's exact scroll management approach
-	const [scrollLock, setScrollLock] = useState(true); // Initialize to true like GitHub Copilot
+	// Auto-scroll state management
+	const [autoScrollEnabled, setAutoScrollEnabled] = useState(true);
 	const [isLoadingConversation, setIsLoadingConversation] = useState(false);
-	const previousScrollHeightRef = useRef(0);
 	
 	React.useImperativeHandle(ref, () => ({
 		showHistory: () => setShowHistory(true),
@@ -113,7 +112,8 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 		erdosAiService: props.erdosAiService,
 		currentConversation,
 		setCurrentConversation,
-		setMessages
+		setMessages,
+		setAutoScrollEnabled
 	});
 
 	// Message input hook
@@ -131,7 +131,7 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 		setInputValue,
 		setCurrentConversation,
 		setMessages,
-		setScrollLock,
+		setAutoScrollEnabled,
 		services
 	});
 
@@ -246,9 +246,38 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 		return items;
 	}, [messages, widgets, currentConversation?.streaming?.content, markdownRenderer]);
 	
+	// Handle user scroll interactions (wheel, touch, keyboard)
 	useEffect(() => {
 		const container = messagesContainerRef.current;
-		if (!container || !messagesEndRef.current) return;
+		if (!container) return;
+
+	const handleUserScrollInteraction = () => {
+		setAutoScrollEnabled(false);
+	};
+
+	const handleKeyDown = (e: KeyboardEvent) => {
+		const scrollKeys = ['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '];
+		if (scrollKeys.includes(e.key)) {
+			handleUserScrollInteraction();
+		}
+	};
+
+	// Listen for actual user scroll interactions only
+	container.addEventListener('wheel', handleUserScrollInteraction, { passive: true });
+	container.addEventListener('keydown', handleKeyDown);
+	
+	return () => {
+		container.removeEventListener('wheel', handleUserScrollInteraction);
+		container.removeEventListener('keydown', handleKeyDown);
+	};
+}, []);
+
+	// Auto-scroll to bottom when content changes and auto-scroll is enabled
+	useEffect(() => {
+		const container = messagesContainerRef.current;
+		if (!container || !messagesEndRef.current) {
+			return;
+		}
 		
 		// Don't auto-scroll when loading an existing conversation
 		if (isLoadingConversation) {
@@ -256,27 +285,13 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 			return;
 		}
 		
-		// If the scroll height changed
-		if (container.scrollHeight !== previousScrollHeightRef.current) {
-			const lastResponseIsRendering = currentConversation?.streaming;
-			
-			if (!lastResponseIsRendering || scrollLock) {
-				// Due to rounding, the scrollTop + clientHeight will not exactly match the scrollHeight.
-				// Consider scrolled all the way down if it is within 2px of the bottom.
-				// Use PREVIOUS scroll height like GitHub Copilot does
-				const lastElementWasVisible = container.scrollTop + container.clientHeight >= previousScrollHeightRef.current - 2;
-				
-				if (lastElementWasVisible) {
-					// Use requestAnimationFrame like GitHub Copilot's scheduleAtNextAnimationFrame
-					requestAnimationFrame(() => {
-						messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-					});
-				}
-			}
+		// Scroll to bottom when auto-scroll is enabled
+		if (autoScrollEnabled) {
+			requestAnimationFrame(() => {
+				messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+			});
 		}
-		
-		previousScrollHeightRef.current = container.scrollHeight;
-	}, [messages, currentConversation?.streaming, scrollLock, isLoadingConversation]);
+	}, [messages, widgets, currentConversation?.streaming?.content, autoScrollEnabled, isLoadingConversation]);
 
 	useEffect(() => {
 		const renderer = props.markdownRenderer as unknown as ErdosAiMarkdownRenderer;
@@ -357,14 +372,16 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 			}
 		});
 
-		const streamingCompleteDisposable = props.erdosAiService.onStreamingComplete(() => {			
-			const imageService = services.imageAttachmentService;
-			if (imageService) {
-				imageService.clearAllImages().catch((error: any) => {
-					console.error('Failed to clear images:', error);
-				});
-			}
-		});
+	const streamingCompleteDisposable = props.erdosAiService.onStreamingComplete(() => {
+		setAutoScrollEnabled(false);
+		
+		const imageService = services.imageAttachmentService;
+		if (imageService) {
+			imageService.clearAllImages().catch((error: any) => {
+				console.error('Failed to clear images:', error);
+			});
+		}
+	});
 
 		const thinkingMessageDisposable = props.erdosAiService.onThinkingMessage((data) => {
 			if (data.message && !data.hideCancel) {

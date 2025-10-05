@@ -20,7 +20,7 @@ import { ActivityOutputStream } from './activityComponents.js';
 import { ActivityErrorMessage } from './activityComponents.js';
 import { ActivityOutputMessage } from './activityComponents.js';
 import { IErdosConsoleInstance } from '../../../../services/erdosConsole/browser/interfaces/erdosConsoleService.js';
-import { OutputRun } from '../../../../browser/erdosAnsiRenderer/outputRun.js';
+import { AnsiOutputLine } from './ansiOutput.js';
 import { ConsoleOutputLines } from './utilityComponents.js';
 import * as nls from '../../../../../nls.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
@@ -82,9 +82,7 @@ export const RuntimePendingInput = (props: RuntimePendingInputProps) => {
 					<span style={{ width: promptWidth }}>
 						{props.runtimeItemPendingInput.inputPrompt + ' '}
 					</span>
-					{outputLine.outputRuns.map(outputRun =>
-						<OutputRun key={outputRun.id} outputRun={outputRun} />
-					)}
+					<AnsiOutputLine outputLine={outputLine} />
 				</div>
 			)}
 		</div>

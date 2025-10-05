@@ -7,6 +7,7 @@
 	position: relative;
 	display: flex;
 	flex-direction: column;
+	overflow: visible !important; /* Allow dropdown to overflow */
 }
 
 .help-search-input-container {
@@ -132,18 +133,14 @@
 }
 
 .help-search-dropdown {
-	position: absolute;
-	top: 100%;
-	left: 0;
-	width: 100%;
-	z-index: 1000;
+	position: fixed !important; /* Use fixed positioning to escape overflow constraints */
+	z-index: 10000 !important;
 	max-height: 320px;
 	overflow-y: auto;
 	background-color: var(--vscode-erdosDropDownListBox-background);
 	border: 1px solid var(--vscode-erdosDropDownListBox-border);
 	border-radius: 4px;
 	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-	margin-top: 2px;
 	display: flex;
 	flex-direction: column;
 }

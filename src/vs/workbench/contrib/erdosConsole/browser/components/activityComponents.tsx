@@ -11,7 +11,6 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { FontInfo } from '../../../../../editor/common/config/fontInfo.js';
 import { LineTokens } from '../../../../../editor/common/tokens/lineTokens.js';
 import { ViewLineRenderingData } from '../../../../../editor/common/viewModel.js';
-import { OutputRun } from '../../../../browser/erdosAnsiRenderer/outputRun.js';
 import { erdosClassNames } from '../../../../../base/common/erdosUtilities.js';
 import { RenderLineInput, renderViewLine2 } from '../../../../../editor/common/viewLayout/viewLineRenderer.js';
 import { useErdosReactServicesContext } from '../../../../../base/browser/erdosReactRendererContext.js';
@@ -20,6 +19,7 @@ import { IErdosConsoleInstance } from '../../../../services/erdosConsole/browser
 import { ActivityItemInput, ActivityItemInputState } from '../../../../services/erdosConsole/browser/classes/activityItems.js';
 import { ttPolicy } from '../erdosConsolePolicy.js';
 import { ConsoleOutputLines } from './utilityComponents.js';
+import { AnsiOutputLine } from './ansiOutput.js';
 import { isMacintosh } from '../../../../../base/common/platform.js';
 import { ActivityItemPrompt, ActivityItemPromptState, ActivityItemStream, ActivityItemOutputHtml } from '../../../../services/erdosConsole/browser/classes/activityItems.js';
 import { renderHtml } from '../../../../../base/browser/erdos/renderHtml.js';
@@ -190,9 +190,7 @@ export const ActivityInput = (props: ActivityInputProps) => {
 				{props.activityItemInput.codeOutputLines.map((outputLine, index) =>
 					<div key={outputLine.id}>
 						<Prompt index={index} />
-						{outputLine.outputRuns.map(outputRun =>
-							<OutputRun key={outputRun.id} outputRun={outputRun} />
-						)}
+						<AnsiOutputLine outputLine={outputLine} />
 					</div>
 				)}
 			</div>
@@ -346,9 +344,7 @@ export const ActivityPrompt = (props: ActivityPromptProps) => {
 			<ConsoleOutputLines outputLines={props.activityItemPrompt.outputLines.slice(0, -1)} />
 			<div className='prompt-line'>
 				{props.activityItemPrompt.outputLines.slice(-1).map(outputLine =>
-					outputLine.outputRuns.map(outputRun =>
-						<OutputRun key={outputRun.id} outputRun={outputRun} />
-					)
+					<AnsiOutputLine key={outputLine.id} outputLine={outputLine} />
 				)}
 				{prompt}
 			</div>

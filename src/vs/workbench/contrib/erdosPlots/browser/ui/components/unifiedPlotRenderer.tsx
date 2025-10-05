@@ -183,6 +183,7 @@ const UnifiedPlotRenderer = (config: VisualizationConfig) => {
 	const ctx = useErdosReactServicesContext();
 	const frameElement = useRef<HTMLIFrameElement>(null);
 	const wrapperElement = useRef<HTMLDivElement>(null);
+	const ownerRef = useRef<object>({});
 	const loadMonitor = useRef<HTMLDivElement>(null);
 	const [loadState, setLoadState] = useState<LoadingState>({ active: true });
 	const [resourcePath, setResourcePath] = useState<string>('');
@@ -334,7 +335,7 @@ const UnifiedPlotRenderer = (config: VisualizationConfig) => {
 
 			if (config.isVisible && wrapperElement.current) {
 				await (config.renderer as InteractivePlotEngine).startEngine();
-				(config.renderer as InteractivePlotEngine).assignOwner(frameElement.current);
+				(config.renderer as InteractivePlotEngine).assignOwner(ownerRef.current);
 				(config.renderer as InteractivePlotEngine).positionViewOverTarget(wrapperElement.current);
 			}
 
@@ -349,7 +350,7 @@ const UnifiedPlotRenderer = (config: VisualizationConfig) => {
 
 		return () => {
 			if ((config.renderer as InteractivePlotEngine).isRunning()) {
-				(config.renderer as InteractivePlotEngine).releaseOwner(frameElement.current);
+				(config.renderer as InteractivePlotEngine).releaseOwner(ownerRef.current);
 			}
 		};
 	}, [config.renderer, config.isVisible, config.displayMode]);
@@ -357,7 +358,7 @@ const UnifiedPlotRenderer = (config: VisualizationConfig) => {
 	useEffect(() => {
 		if (config.displayMode === RenderMode.Interactive && !config.isVisible) {
 			if ((config.renderer as InteractivePlotEngine).isRunning()) {
-				(config.renderer as InteractivePlotEngine).releaseOwner(frameElement.current);
+				(config.renderer as InteractivePlotEngine).releaseOwner(ownerRef.current);
 			}
 		}
 	}, [config.isVisible, config.renderer, config.displayMode]);

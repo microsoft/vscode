@@ -304,6 +304,9 @@ export const ErdosPlotsSelectedPlotIdContext = new RawContextKey<string | undefi
 export const ErdosPlotsCurrentIndexContext = new RawContextKey<number>('erdosPlots.currentIndex', -1, localize('erdosPlotsCurrentIndex', "The index of the currently selected plot"));
 export const ErdosPlotsIsLastPlotContext = new RawContextKey<boolean>('erdosPlots.isLastPlot', false, localize('erdosPlotsIsLastPlot', "Whether the currently selected plot is the last plot"));
 
+export const ErdosHelpCanNavigateBackwardContext = new RawContextKey<boolean>('erdosHelp.canNavigateBackward', false, localize('erdosHelpCanNavigateBackward', "Whether the help pane can navigate backward"));
+export const ErdosHelpCanNavigateForwardContext = new RawContextKey<boolean>('erdosHelp.canNavigateForward', false, localize('erdosHelpCanNavigateForward', "Whether the help pane can navigate forward"));
+
 //#endregion
 
 export function applyAvailableEditorIds(contextKey: IContextKey<string>, editor: EditorInput | undefined | null, editorResolverService: IEditorResolverService): void {

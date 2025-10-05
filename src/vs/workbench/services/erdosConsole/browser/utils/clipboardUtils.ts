@@ -3,7 +3,7 @@
  *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ANSIOutputLine, ANSIOutputRun } from '../../../../../base/common/ansiOutput.js';
+import { ANSIOutputLine, ANSIOutputRun } from '../ansiOutput.js';
 
 export const formatOutputLinesForClipboard = (outputLines: readonly ANSIOutputLine[], prefix?: string): string[] => {
 	return outputLines.map(outputLine => {

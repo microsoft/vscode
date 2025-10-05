@@ -22,7 +22,8 @@ import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 
 import { ViewContainer, IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions, IViewsRegistry } from '../../../common/views.js';
 import { registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
-import { DisplayTopicAtPosition, SearchDocumentation } from './topicLookupCommands.js';
+import { SearchDocumentation } from './topicLookupCommands.js';
+import { initializeHelpCommands } from './helpActions.js';
 
 const documentationPanelIcon = registerIcon('erdos-help-view-icon', Codicon.book, nls.localize('erdosHelpViewIcon', 'View icon of the Erdos help view.'));
 
@@ -40,7 +41,7 @@ const PANEL_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(
 		},
 		icon: documentationPanelIcon,
 		order: 2,
-		ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [ERDOS_HELP_VIEW_ID, { mergeViewWithContainerWhenSingleView: true }]),
+		ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [ERDOS_HELP_VIEW_ID, { mergeViewWithContainerWhenSingleView: false }]),
 		storageId: ERDOS_HELP_VIEW_ID,
 		hideIfEmpty: true,
 	},
@@ -54,8 +55,8 @@ const PANEL_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(
 Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
 	id: ERDOS_HELP_VIEW_ID,
 	name: {
-		value: nls.localize('erdos.help', "Help"),
-		original: 'Help'
+		value: '',
+		original: ''
 	},
 	containerIcon: documentationPanelIcon,
 	canMoveView: true,
@@ -100,7 +101,8 @@ class DocumentationPanelBootstrap extends Disposable implements IWorkbenchContri
 	}
 
 	private initializeCommands(): void {
-		registerAction2(DisplayTopicAtPosition);
+		initializeHelpCommands();
+		// registerAction2(DisplayTopicAtPosition); // Removed - F1 help at cursor
 		registerAction2(SearchDocumentation);
 
 		CommandsRegistry.registerCommand('erdos.help.searchTopics', async (accessor: any, languageId: string, query: string) => {

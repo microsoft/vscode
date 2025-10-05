@@ -9,32 +9,38 @@ import React from 'react';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IReactComponentContainer, ISize, ErdosReactRenderer } from '../../../../../base/browser/erdosReactRenderer.js';
-import { IViewPaneOptions } from '../../../../browser/parts/views/viewPane.js';
-import { ErdosViewPane } from '../../../../browser/erdosViewPane/erdosViewPane.js';
+import { IViewPaneOptions, ViewPaneShowActions, ViewPane } from '../../../../browser/parts/views/viewPane.js';
 import { IViewDescriptorService } from '../../../../common/views.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IContextKeyService, IContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IErdosHelpService } from '../services/helpService.js';
 import { IHelpEntry } from '../topicViewContract.js';
-import { HelpToolbar } from '../components/HelpToolbar.js';
 import { HomeScreen } from '../components/HomeScreen.js';
+import { IAction } from '../../../../../base/common/actions.js';
+import { IActionViewItem } from '../../../../../base/browser/ui/actionbar/actionbar.js';
+import { BaseActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { TopicHistoryPanel } from '../components/TopicHistoryPanel.js';
+import { TopicSearchInput } from '../components/TopicSearchInput.js';
+import { ErdosHelpCanNavigateBackwardContext, ErdosHelpCanNavigateForwardContext } from '../../../../common/contextkeys.js';
+import { MenuId } from '../../../../../platform/actions/common/actions.js';
 
-export class HelpView extends ErdosViewPane implements IReactComponentContainer {
+const TOPIC_HISTORY_SELECTOR_ACTION_ID = 'workbench.action.erdosHelp.topicHistorySelector';
+const TOPIC_SEARCH_ACTION_ID = 'workbench.action.erdosHelp.topicSearch';
+
+export class HelpView extends ViewPane implements IReactComponentContainer {
 	private dimensions = { width: 0, height: 0 };
 	private containers = {
 		main: DOM.$('.help-main-wrapper'),
-		toolbar: DOM.$('.help-toolbar-wrapper'),
 		content: DOM.$('.help-content-wrapper')
 	};
 	
 	private renderers: {
-		toolbar?: ErdosReactRenderer;
 		welcome?: ErdosReactRenderer;
 	} = {};
 	
@@ -50,6 +56,9 @@ export class HelpView extends ErdosViewPane implements IReactComponentContainer 
 		scrollSave: new Emitter<void>(),
 		scrollRestore: new Emitter<void>()
 	};
+
+	private _canNavigateBackwardContext: IContextKey<boolean>;
+	private _canNavigateForwardContext: IContextKey<boolean>;
 
 	get width() { return this.dimensions.width; }
 	get height() { return this.dimensions.height; }
@@ -69,7 +78,7 @@ export class HelpView extends ErdosViewPane implements IReactComponentContainer 
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IHoverService hoverService: IHoverService,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IInstantiationService override instantiationService: IInstantiationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IOpenerService openerService: IOpenerService,
 		@IErdosHelpService private readonly _helpService: IErdosHelpService,
@@ -77,7 +86,7 @@ export class HelpView extends ErdosViewPane implements IReactComponentContainer 
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService
 	) {
 		super(
-			{ ...options, openFromCollapsedSize: '50%' },
+			{ ...options, showActions: ViewPaneShowActions.Always, leftTitleMenuId: MenuId.ViewTitleLeft },
 			keybindingService,
 			contextMenuService,
 			configurationService,
@@ -89,12 +98,15 @@ export class HelpView extends ErdosViewPane implements IReactComponentContainer 
 			hoverService
 		);
 
-		this.containers.main.appendChild(this.containers.toolbar);
+		this._canNavigateBackwardContext = ErdosHelpCanNavigateBackwardContext.bindTo(contextKeyService);
+		this._canNavigateForwardContext = ErdosHelpCanNavigateForwardContext.bindTo(contextKeyService);
+
 		this.containers.main.appendChild(this.containers.content);
 
 		this._register(
 			this._helpService.onDidChangeCurrentHelpEntry(entry => {
 				this.handleEntryChange(entry);
+				this._updateNavigationContext();
 			})
 		);
 
@@ -109,6 +121,8 @@ export class HelpView extends ErdosViewPane implements IReactComponentContainer 
 				this.emitters.visibilityChanged.fire(isVisible);
 			})
 		);
+
+		this._updateNavigationContext();
 	}
 
 	public override dispose(): void {
@@ -120,19 +134,22 @@ export class HelpView extends ErdosViewPane implements IReactComponentContainer 
 		super.renderBody(container);
 		container.appendChild(this.containers.main);
 
-		this.renderers.toolbar = this._register(
-			new ErdosReactRenderer(this.containers.toolbar)
-		);
-		this.renderers.toolbar.render(
-			<HelpToolbar reactComponentContainer={this} />
-		);
-
 		this.handleEntryChange(this._helpService.currentHelpEntry);
 
 		if (!this._helpService.currentHelpEntry) {
 			this.state.displayingWelcome = true;
 		}
 		this.refreshContentDisplay();
+	}
+
+	override createActionViewItem(action: IAction): IActionViewItem | undefined {
+		if (action.id === TOPIC_HISTORY_SELECTOR_ACTION_ID) {
+			return new TopicHistorySelectorViewItem(action);
+		}
+		if (action.id === TOPIC_SEARCH_ACTION_ID) {
+			return new TopicSearchViewItem(action);
+		}
+		return super.createActionViewItem(action);
 	}
 
 	override focus(): void {
@@ -193,6 +210,67 @@ export class HelpView extends ErdosViewPane implements IReactComponentContainer 
 
 			this.state.activeEntry?.displayContent(this.containers.content);
 		}
+	}
+
+	private _updateNavigationContext(): void {
+		this._canNavigateBackwardContext.set(this._helpService.canNavigateBackward);
+		this._canNavigateForwardContext.set(this._helpService.canNavigateForward);
+	}
+}
+
+class TopicHistorySelectorViewItem extends BaseActionViewItem {
+	private renderer?: ErdosReactRenderer;
+
+	constructor(action: IAction) {
+		super(null, action);
+	}
+
+	override render(container: HTMLElement): void {
+		super.render(container);
+		
+		const reactContainer = DOM.$('.topic-history-selector-container');
+		container.appendChild(reactContainer);
+
+		this.renderer = new ErdosReactRenderer(reactContainer);
+		this.renderer.render(
+			<TopicHistoryPanel />
+		);
+	}
+
+	override dispose(): void {
+		if (this.renderer) {
+			this.renderer.dispose();
+			this.renderer = undefined;
+		}
+		super.dispose();
+	}
+}
+
+class TopicSearchViewItem extends BaseActionViewItem {
+	private renderer?: ErdosReactRenderer;
+
+	constructor(action: IAction) {
+		super(null, action);
+	}
+
+	override render(container: HTMLElement): void {
+		super.render(container);
+		
+		const reactContainer = DOM.$('.topic-search-container');
+		container.appendChild(reactContainer);
+
+		this.renderer = new ErdosReactRenderer(reactContainer);
+		this.renderer.render(
+			<TopicSearchInput variant="actionbar" />
+		);
+	}
+
+	override dispose(): void {
+		if (this.renderer) {
+			this.renderer.dispose();
+			this.renderer = undefined;
+		}
+		super.dispose();
 	}
 }
 

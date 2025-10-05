@@ -12,14 +12,13 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IViewPaneOptions } from '../../../browser/parts/views/viewPane.js';
+import { IViewPaneOptions, ViewPane } from '../../../browser/parts/views/viewPane.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ErdosAi, ErdosAiRef } from './erdosAiMain.js';
 import { IReactComponentContainer, ISize, ErdosReactRenderer } from '../../../../base/browser/erdosReactRenderer.js';
 import { IErdosAiServiceCore } from '../../../services/erdosAi/common/erdosAiServiceCore.js';
 import { IErdosAiAuthService } from '../../../services/erdosAi/common/erdosAiAuthService.js';
 import { IErdosHelpService } from '../../erdosHelp/browser/services/helpService.js';
-import { ErdosViewPane } from '../../../browser/erdosViewPane/erdosViewPane.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
@@ -32,7 +31,7 @@ import { IErdosAiSettingsService } from '../../../services/erdosAiSettings/commo
 /**
  * ErdosAi view pane container for the React UI component
  */
-export class ErdosAiViewPane extends ErdosViewPane implements IReactComponentContainer {
+export class ErdosAiViewPane extends ViewPane implements IReactComponentContainer {
 	private _onSizeChangedEmitter = this._register(new Emitter<ISize>());
 
 	private _onVisibilityChangedEmitter = this._register(new Emitter<boolean>());
@@ -97,10 +96,18 @@ export class ErdosAiViewPane extends ErdosViewPane implements IReactComponentCon
 		@ICommonUtils private readonly commonUtils: ICommonUtils,
 		@IErdosAiSettingsService private readonly erdosAiSettingsService: IErdosAiSettingsService
 	) {
-		super({
-			...options,
-			openFromCollapsedSize: 200,
-		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
+		super(
+			options,
+			keybindingService,
+			contextMenuService,
+			configurationService,
+			contextKeyService,
+			viewDescriptorService,
+			instantiationService,
+			openerService,
+			themeService,
+			hoverService
+		);
 
 		this.setupEventListeners();
 	}

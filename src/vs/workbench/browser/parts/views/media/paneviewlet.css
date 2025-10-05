@@ -23,6 +23,17 @@
 	margin-left: 8px;
 }
 
+.monaco-pane-view .pane > .pane-header > .left-actions {
+	display: flex;
+	flex: 0 0 auto;
+	margin-right: 8px;
+}
+
+.monaco-pane-view .pane > .pane-header > .left-actions.show-always,
+.monaco-pane-view .pane.expanded > .pane-header > .left-actions.show-expanded {
+	display: flex;
+}
+
 .monaco-pane-view .pane > .pane-header > .actions.show-always,
 .monaco-pane-view .pane.expanded > .pane-header > .actions.show-expanded {
 	display: initial;
