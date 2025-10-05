@@ -15,7 +15,7 @@ import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.j
 /**
  * Execute current line or selection in console
  */
-export class ExecuteCurrentLineAction extends Action2 {
+class ExecuteCurrentLineAction extends Action2 {
 	static readonly ID = 'erdos.executeCurrentLine';
 
 	constructor() {
@@ -66,7 +66,7 @@ export class ExecuteCurrentLineAction extends Action2 {
 /**
  * Execute current line and advance to next
  */
-export class ExecuteAndAdvanceAction extends Action2 {
+class ExecuteAndAdvanceAction extends Action2 {
 	static readonly ID = 'erdos.executeAndAdvance';
 
 	constructor() {
@@ -108,7 +108,7 @@ export class ExecuteAndAdvanceAction extends Action2 {
 /**
  * Focus editor pane
  */
-export class FocusEditorAction extends Action2 {
+class FocusEditorAction extends Action2 {
 	static readonly ID = 'erdos.focusEditor';
 
 	constructor() {
@@ -137,7 +137,7 @@ export class FocusEditorAction extends Action2 {
 /**
  * Insert R assignment operator
  */
-export class InsertAssignmentOperatorAction extends Action2 {
+class InsertAssignmentOperatorAction extends Action2 {
 	static readonly ID = 'erdos.insertAssignmentOperator';
 
 	constructor() {

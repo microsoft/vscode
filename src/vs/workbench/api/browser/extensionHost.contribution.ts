@@ -101,7 +101,6 @@ import './erdos/mainThreadConsole.js';
 import './erdos/mainThreadConsoleService.js';
 import './erdos/mainThreadContextKeyService.js';
 import './erdos/mainThreadEnvironment.js';
-import './erdos/mainThreadModalDialogs.js';
 import './erdos/mainThreadPlotsService.js';
 
 export class ExtensionPoints implements IWorkbenchContribution {

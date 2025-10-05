@@ -10,7 +10,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../../services/statusbar/browser/statusbar.js';
 import { INotebookExecutionService } from '../../notebook/common/notebookExecutionService.js';
 
-export const NOTEBOOK_EXPERIMENTAL_SHOW_EXECUTION_INFO_KEY = 'notebook.experimental.showExecutionInfo';
+const NOTEBOOK_EXPERIMENTAL_SHOW_EXECUTION_INFO_KEY = 'notebook.experimental.showExecutionInfo';
 
 /**
  * A status bar entry that displays information about the current notebook execution,

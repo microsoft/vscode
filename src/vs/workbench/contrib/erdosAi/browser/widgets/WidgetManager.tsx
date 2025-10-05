@@ -472,6 +472,23 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, con
 		}
 	};
 
+	const formatAllowListButtonText = (commands: string[], limit: number = 10): { text: string; tooltip: string } => {
+		const fullList = commands.join(', ');
+		if (commands.length <= limit) {
+			return {
+				text: fullList,
+				tooltip: `Allow-list ${fullList} and run`
+			};
+		}
+		
+		const displayedCommands = commands.slice(0, limit).join(', ');
+		const remaining = commands.length - limit;
+		return {
+			text: `${displayedCommands} and ${remaining} more`,
+			tooltip: `Allow-list ${fullList} and run`
+		};
+	};
+
 
 
 	const handleCopyToClipboard = async () => {
@@ -753,24 +770,30 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, con
 						>
 							Cancel
 						</button>
-						{showAllowListButton && functionType === 'run_terminal_cmd' && (
-							<button
-								className="widget-button widget-button-allowlist"
-								onClick={handleAllowList}
-								title={`Allow-list ${allowListCommands.join(', ')} and run`}
-							>
-								Allow-list {allowListCommands.join(', ')}
-							</button>
-						)}
-						{showConsoleAllowListButton && (functionType === 'run_console_cmd' || functionType === 'run_file') && (
-							<button
-								className="widget-button widget-button-allowlist"
-								onClick={handleConsoleAllowList}
-								title={`Allow-list ${consoleAllowListCommands.join(', ')} and run`}
-							>
-								Allow-list {consoleAllowListCommands.join(', ')}
-							</button>
-						)}
+						{showAllowListButton && functionType === 'run_terminal_cmd' && (() => {
+							const { text, tooltip } = formatAllowListButtonText(allowListCommands);
+							return (
+								<button
+									className="widget-button widget-button-allowlist"
+									onClick={handleAllowList}
+									title={tooltip}
+								>
+									Allow-list {text}
+								</button>
+							);
+						})()}
+						{showConsoleAllowListButton && (functionType === 'run_console_cmd' || functionType === 'run_file') && (() => {
+							const { text, tooltip } = formatAllowListButtonText(consoleAllowListCommands);
+							return (
+								<button
+									className="widget-button widget-button-allowlist"
+									onClick={handleConsoleAllowList}
+									title={tooltip}
+								>
+									Allow-list {text}
+								</button>
+							);
+						})()}
 					</div>
 				</div>
 			)}

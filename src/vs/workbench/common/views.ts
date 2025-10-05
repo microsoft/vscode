@@ -18,7 +18,6 @@ import { ExtensionIdentifier } from '../../platform/extensions/common/extensions
 import { SyncDescriptor } from '../../platform/instantiation/common/descriptors.js';
 import { IProgressIndicator } from '../../platform/progress/common/progress.js';
 import Severity from '../../base/common/severity.js';
-import { CustomErdosLayoutDescription } from '../services/erdosLayout/common/erdosCustomViews.js';
 import { IAccessibilityInformation } from '../../platform/accessibility/common/accessibility.js';
 import { IMarkdownString, MarkdownString } from '../../base/common/htmlContent.js';
 import { mixin } from '../../base/common/objects.js';
@@ -617,8 +616,6 @@ export interface IViewDescriptorService {
 	moveViewToLocation(view: IViewDescriptor, location: ViewContainerLocation, reason?: string): void;
 
 	reset(): void;
-
-	loadCustomViewDescriptor(customViewDescriptor: CustomErdosLayoutDescription): void;
 }
 
 // Custom views

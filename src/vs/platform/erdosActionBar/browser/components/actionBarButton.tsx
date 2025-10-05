@@ -1,7 +1,6 @@
 /*---------------------------------------------------------------------------------------------
  *  Copyright (C) 2023-2025 Posit Software, PBC. All rights reserved.
  *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
- *  Licensed under the AGPL-3.0 License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
 import './actionBarButton.css';
@@ -143,7 +142,7 @@ export const ActionBarButton = forwardRef<
 				}
 				{props.dropdownIndicator === 'enabled' &&
 					<div className='action-bar-button-drop-down-container'>
-						<div className='action-bar-button-drop-down-arrow codicon codicon-erdos-drop-down-arrow' />
+						<div className='action-bar-button-drop-down-arrow codicon codicon-chevron-down' />
 					</div>
 				}
 			</div >
@@ -197,19 +196,19 @@ export const ActionBarButton = forwardRef<
 				>
 					<ActionBarButtonFace />
 				</Button>
-				<Button
-					ref={dropdownButtonRef}
-					ariaLabel={props.dropdownAriaLabel}
-					className='action-bar-button-drop-down-button'
-					hoverManager={context.hoverManager}
-					mouseTrigger={MouseTrigger.MouseDown}
-					tooltip={props.dropdownTooltip}
-					onPressed={props.onDropdownPressed}
-				>
-					<div className='action-bar-button-drop-down-arrow codicon codicon-erdos-drop-down-arrow' />
-				</Button>
-				{props.children}
-			</div>
+			<Button
+				ref={dropdownButtonRef}
+				ariaLabel={props.dropdownAriaLabel}
+				className='action-bar-button-drop-down-button'
+				hoverManager={context.hoverManager}
+				mouseTrigger={MouseTrigger.MouseDown}
+				tooltip={props.dropdownTooltip}
+				onPressed={props.onDropdownPressed}
+			>
+				<div className='action-bar-button-drop-down-arrow codicon codicon-chevron-down' />
+			</Button>
+			{props.children}
+		</div>
 		);
 	}
 });

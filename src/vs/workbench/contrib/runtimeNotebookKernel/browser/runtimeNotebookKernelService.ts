@@ -41,7 +41,7 @@ enum NotebookKernelAffinity {
 /**
  * The service responsible for managing {@link RuntimeNotebookKernel}s.
  */
-export class RuntimeNotebookKernelService extends Disposable implements IRuntimeNotebookKernelService {
+class RuntimeNotebookKernelService extends Disposable implements IRuntimeNotebookKernelService {
 	/** Map of runtime notebook kernels keyed by kernel ID. */
 	private readonly _kernels = new Map<string, RuntimeNotebookKernel>();
 

@@ -61,7 +61,7 @@ const consoleServiceConfigurationBaseNode = Object.freeze<IConfigurationNode>({
 	title: localize('consoleConfigurationTitle', "Console"),
 });
 
-export const scrollbackSizeSettingId = 'console.scrollbackSize';
+const scrollbackSizeSettingId = 'console.scrollbackSize';
 configurationRegistry.registerConfiguration({
 	...consoleServiceConfigurationBaseNode,
 	properties: {
@@ -122,7 +122,7 @@ configurationRegistry.registerConfiguration({
 	}
 });
 
-export class ErdosConsoleService extends Disposable implements IErdosConsoleService {
+class ErdosConsoleService extends Disposable implements IErdosConsoleService {
 	private readonly _erdosConsoleInstancesBySessionId = new Map<string, ErdosConsoleInstance>();
 	private _activeErdosConsoleInstance?: IErdosConsoleInstance;
 	private readonly _onDidStartErdosConsoleInstanceEmitter = this._register(new Emitter<IErdosConsoleInstance>);
@@ -187,6 +187,9 @@ export class ErdosConsoleService extends Disposable implements IErdosConsoleServ
 				if (consoleInstance) {
 					consoleInstance.markExecutionAsNotebookOriginated(event.executionId);
 				}
+				
+				// RE-FIRE the event through our own emitter so plots service can track it
+				this._onDidExecuteCodeEmitter.fire(event);
 			}
 		}));
 
@@ -1507,8 +1510,11 @@ class ErdosConsoleInstance extends Disposable implements IErdosConsoleInstance {
 	private createActivityItemOutput(
 		message: ILanguageRuntimeMessageOutput | ILanguageRuntimeMessageUpdateOutput,
 	): ActivityItemOutput | undefined {
+		// Filter out plots, viewers, and IPyWidgets - these should be displayed in their respective panes
 		if (message.kind === RuntimeOutputKind.ViewerWidget ||
-			message.kind === RuntimeOutputKind.IPyWidget) {
+			message.kind === RuntimeOutputKind.IPyWidget ||
+			message.kind === RuntimeOutputKind.StaticImage ||
+			message.kind === RuntimeOutputKind.PlotWidget) {
 			return undefined;
 		}
 
@@ -1684,6 +1690,7 @@ class ErdosConsoleInstance extends Disposable implements IErdosConsoleInstance {
 		);
 
 		const event: ILanguageRuntimeCodeExecutedEvent = {
+			executionId: id,
 			sessionId: this._session.sessionId,
 			code,
 			mode,
@@ -1713,6 +1720,11 @@ class ErdosConsoleInstance extends Disposable implements IErdosConsoleInstance {
 		executionId?: string
 	) {
 		const id = executionId || this.generateExecutionId(code);
+
+		// Always generate a batchId if one doesn't exist
+		if (!attribution.batchId) {
+			attribution.batchId = generateUuid();
+		}
 
 		if (!this._session) {
 			return;
@@ -1748,6 +1760,7 @@ class ErdosConsoleInstance extends Disposable implements IErdosConsoleInstance {
 			errorBehavior);
 
 		const event: ILanguageRuntimeCodeExecutedEvent = {
+			executionId: id,
 			sessionId: this._session.sessionId,
 			code,
 			mode,
@@ -1770,7 +1783,7 @@ class ErdosConsoleInstance extends Disposable implements IErdosConsoleInstance {
 
 	private addOrUpdateRuntimeItemActivity(parentId: string, activityItem: ActivityItem) {
 		// Check if console mirroring is disabled and this activity comes from notebook execution
-		const consoleMirroringEnabled = this._configurationService.getValue<boolean>('erdosNotebook.consoleMirroring.enabled') ?? true;
+		const consoleMirroringEnabled = this._configurationService.getValue<boolean>('notebook.consoleMirroring.enabled') ?? true;
 		if (!consoleMirroringEnabled && this.isNotebookOriginatedExecution(parentId)) {
 			return;
 		}

@@ -9,7 +9,6 @@ import { ExtHostDocuments } from '../extHostDocuments.js';
 import { ExtHostWorkspace } from '../extHostWorkspace.js';
 import { ExtHostQuickOpen } from '../extHostQuickOpen.js';
 import { ExtHostCommands } from '..//extHostCommands.js';
-import { ExtHostModalDialogs } from '../erdos/extHostModalDialogs.js';
 import { ExtHostContextKeyService } from '../erdos/extHostContextKeyService.js';
 import { ExtHostLanguageRuntime } from '../erdos/extHostLanguageRuntime.js';
 import { UiFrontendRequest, EditorContext, Range as UIRange } from '../../../services/languageRuntime/common/erdosUiComm.js';
@@ -42,7 +41,6 @@ export class ExtHostMethods implements extHostProtocol.ExtHostMethodsShape {
 		_mainContext: extHostProtocol.IMainErdosContext,
 		private readonly editors: ExtHostEditors,
 		private readonly documents: ExtHostDocuments,
-		private readonly dialogs: ExtHostModalDialogs,
 		private readonly runtime: ExtHostLanguageRuntime,
 		private readonly workspace: ExtHostWorkspace,
 		private readonly quickOpen: ExtHostQuickOpen,
@@ -110,30 +108,6 @@ export class ExtHostMethods implements extHostProtocol.ExtHostMethodsShape {
 						return newInvalidParamsError(method);
 					}
 					result = await this.executeCommand(params.command as string);
-					break;
-				}
-				case UiFrontendRequest.ShowQuestion: {
-					if (!params ||
-						!Object.keys(params).includes('title') ||
-						!Object.keys(params).includes('message') ||
-						!Object.keys(params).includes('ok_button_title') ||
-						!Object.keys(params).includes('cancel_button_title')) {
-						return newInvalidParamsError(method);
-					}
-					result = await this.showQuestion(params.title as string,
-						params.message as string,
-						params.ok_button_title as string,
-						params.cancel_button_title as string);
-					break;
-				}
-				case UiFrontendRequest.ShowDialog: {
-					if (!params ||
-						!Object.keys(params).includes('title') ||
-						!Object.keys(params).includes('message')) {
-						return newInvalidParamsError(method);
-					}
-					result = await this.showDialog(params.title as string,
-						params.message as string);
 					break;
 				}
 				case UiFrontendRequest.AskForPassword: {
@@ -276,10 +250,6 @@ export class ExtHostMethods implements extHostProtocol.ExtHostMethodsShape {
 		return null;
 	}
 
-	async showDialog(title: string, message: string): Promise<null> {
-		return this.dialogs.showSimpleModalDialogMessage(title, message);
-	}
-
 	async createDocument(contents: string, languageId: string): Promise<null> {
 		const uri = await this.documents.createDocumentData({
 			content: contents,
@@ -302,10 +272,6 @@ export class ExtHostMethods implements extHostProtocol.ExtHostMethodsShape {
 			return null;
 		}
 		return result;
-	}
-
-	async showQuestion(title: string, message: string, okButtonTitle: string, cancelButtonTitle: string): Promise<boolean> {
-		return this.dialogs.showSimpleModalDialogPrompt(title, message, okButtonTitle, cancelButtonTitle);
 	}
 
 	async askForPassword(prompt: string): Promise<string | null> {

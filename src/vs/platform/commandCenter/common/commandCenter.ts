@@ -12,7 +12,7 @@ interface ICommandInfo {
 	precondition?: ContextKeyExpression;
 }
 
-export interface ICommandCenter {
+interface ICommandCenter {
 	addCommandInfo(commandInfo: ICommandInfo): void;
 	title(id: string): string | undefined;
 	precondition(id: string): ContextKeyExpression | undefined;

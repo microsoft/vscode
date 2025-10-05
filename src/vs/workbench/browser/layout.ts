@@ -51,11 +51,6 @@ import { CodeWindow, mainWindow } from '../../base/browser/window.js';
 import { ICoreExperimentationService, StartupExperimentGroup } from '../services/coreExperimentation/common/coreExperimentationService.js';
 import { Lazy } from '../../base/common/lazy.js';
 
-import { IErdosTopActionBarService } from '../services/erdosTopActionBar/browser/erdosTopActionBarService.js';
-import { PartViewInfo } from '../services/erdosLayout/browser/interfaces/erdosLayoutService.js';
-import { AbstractPaneCompositePart } from './parts/paneCompositePart.js';
-import { CustomErdosLayoutDescription, KnownErdosLayoutParts, PartLayoutDescription } from '../services/erdosLayout/common/erdosCustomViews.js';
-import { clamp } from '../../base/common/numbers.js';
 // eslint-disable-next-line no-duplicate-imports
 import { SIDEBAR_PART_MINIMUM_WIDTH } from './parts/sidebar/sidebarPart.js';
 
@@ -104,7 +99,6 @@ interface ILayoutState {
 }
 
 enum LayoutClasses {
-	erdos_TOP_ACTION_BAR_HIDDEN = 'noerdostopactionbar',
 	SIDEBAR_HIDDEN = 'nosidebar',
 	MAIN_EDITOR_AREA_HIDDEN = 'nomaineditorarea',
 	PANEL_HIDDEN = 'nopanel',
@@ -283,7 +277,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private auxiliaryBarPartView!: ISerializableView;
 	private editorPartView!: ISerializableView;
 	private statusBarPartView!: ISerializableView;
-	private erdosTopActionBarPartView!: ISerializableView;
 	private environmentService!: IBrowserWorkbenchEnvironmentService;
 	private extensionService!: IExtensionService;
 	private configurationService!: IConfigurationService;
@@ -303,7 +296,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private logService!: ILogService;
 	private telemetryService!: ITelemetryService;
 	private auxiliaryWindowService!: IAuxiliaryWindowService;
-	private erdosTopActionBarService!: IErdosTopActionBarService;
 
 	private state!: ILayoutState;
 	private stateModel!: LayoutStateModel;
@@ -341,8 +333,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.titleService = accessor.get(ITitleService);
 		this.notificationService = accessor.get(INotificationService);
 		this.statusBarService = accessor.get(IStatusbarService);
-		this.erdosTopActionBarService = accessor.get(IErdosTopActionBarService);
-		if (this.erdosTopActionBarService) { }
 		accessor.get(IBannerService);
 
 		// Listeners
@@ -696,10 +686,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		});
 
 		this._register(this.stateModel.onDidChangeState(change => {
-			if (change.key === LayoutStateKeys.erdos_TOP_ACTION_BAR_HIDDEN) {
-				this.setErdosTopActionBarHidden(change.value as boolean);
-			}
-
 			if (change.key === LayoutStateKeys.ACTIVITYBAR_HIDDEN) {
 				this.setActivityBarHidden(change.value as boolean);
 			}
@@ -1246,11 +1232,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const container = this.getContainer(targetWindow, part) ?? this.mainContainer;
 
 		switch (part) {
-			case Parts.ERDOS_TOP_ACTION_BAR_PART: {
-				const container = this.getContainer(targetWindow, part);
-				container?.focus();
-				break;
-			}
 			case Parts.EDITOR_PART:
 				this.editorGroupService.getPart(container).activeGroup.focus();
 				break;
@@ -1315,8 +1296,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		switch (part) {
-			case Parts.ERDOS_TOP_ACTION_BAR_PART:
-				return !this.stateModel.getRuntimeValue(LayoutStateKeys.erdos_TOP_ACTION_BAR_HIDDEN);
 			case Parts.TITLEBAR_PART:
 				return this.initialized ?
 					this.workbenchGrid.isViewVisible(this.titleBarPartView) :
@@ -1377,7 +1356,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			const takenHeight =
 				(this.isVisible(Parts.TITLEBAR_PART, targetWindow) ? this.titleBarPartView.minimumHeight : 0) +
-				(this.isVisible(Parts.ERDOS_TOP_ACTION_BAR_PART, targetWindow) ? this.erdosTopActionBarPartView.minimumHeight : 0) +
 				(this.isVisible(Parts.STATUSBAR_PART, targetWindow) ? this.statusBarPartView.minimumHeight : 0) +
 				(this.isVisible(Parts.PANEL_PART) && isPanelHorizontal ? this.panelPartView.minimumHeight : 0);
 
@@ -1400,96 +1378,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	private setZenModeActive(active: boolean) {
 		this.stateModel.setRuntimeValue(LayoutStateKeys.ZEN_MODE_ACTIVE, active);
-	}
-
-	getPartViewInfo(part: KnownErdosLayoutParts): PartViewInfo {
-		const mainClasses = this.mainContainer.classList;
-
-		switch (part) {
-			case 'workbench.parts.sidebar':
-				return {
-					partView: this.sideBarPartView,
-					currentSize: this.workbenchGrid.getViewSize(this.sideBarPartView),
-					hidden: mainClasses.contains(LayoutClasses.SIDEBAR_HIDDEN),
-					hideFn: this.setSideBarHidden.bind(this),
-				};
-			case 'workbench.parts.panel':
-				return {
-					partView: this.panelPartView,
-					currentSize: this.workbenchGrid.getViewSize(this.panelPartView),
-					alignment: this.getPanelAlignment(),
-					hidden: mainClasses.contains(LayoutClasses.PANEL_HIDDEN),
-					hideFn: (hidden: boolean) => hidden ? this.minimizePanel() : this.restorePanel(),
-				};
-			case 'workbench.parts.auxiliarybar':
-				return {
-					partView: this.auxiliaryBarPartView,
-					currentSize: this.workbenchGrid.getViewSize(this.auxiliaryBarPartView),
-					hidden: mainClasses.contains(LayoutClasses.AUXILIARYBAR_HIDDEN),
-					hideFn: this.setAuxiliaryBarHidden.bind(this),
-				};
-		}
-	}
-
-	private _setCustomPartSize(part: KnownErdosLayoutParts, desc: PartLayoutDescription) {
-		const {
-			size,
-			minSize = 0,
-			maxSize = Infinity,
-			hideIfBelowMinSize = false,
-			viewContainers = []
-		} = desc;
-		let hidden = desc.hidden;
-		const { partView, hideFn, currentSize } = this.getPartViewInfo(part);
-
-		if (size !== undefined) {
-			const dimensionToBeSized = ({
-				[Parts.PANEL_PART]: 'height',
-				[Parts.SIDEBAR_PART]: 'width',
-				[Parts.AUXILIARYBAR_PART]: 'width',
-			} satisfies Record<KnownErdosLayoutParts, 'width' | 'height'>)[part];
-
-			// Need to convert the percentage to a number relative to the viewport.
-			const viewportDimension = this.getContainerDimension(this.mainContainer)[dimensionToBeSized];
-
-			const pixelSize = clamp(
-				Math.floor(viewportDimension * parseFloat(size) / 100),
-				minSize,
-				maxSize
-			);
-
-			if (pixelSize === minSize && hideIfBelowMinSize) {
-				hidden = true;
-			}
-
-			const newSize = { width: currentSize.width, height: currentSize.height };
-			newSize[dimensionToBeSized] = pixelSize;
-
-			this.workbenchGrid.resizeView(partView, newSize);
-		}
-
-		// Make sure the requested view container is visible
-		const openedContainer = viewContainers.find(vc => vc.opened);
-		if (openedContainer) {
-			(partView as AbstractPaneCompositePart).openPaneComposite(openedContainer.id);
-		}
-
-		// If we try and resize after we run this then we risk re-opening the panel.
-		hideFn(hidden, true);
-	}
-
-	enterCustomLayout(layout: CustomErdosLayoutDescription) {
-
-		this._setCustomPartSize(Parts.SIDEBAR_PART, layout[Parts.SIDEBAR_PART]);
-		this._setCustomPartSize(Parts.PANEL_PART, layout[Parts.PANEL_PART]);
-		const alignment = layout[Parts.PANEL_PART].alignment;
-		if (alignment) {
-			this.setPanelAlignment(alignment);
-		}
-		this._setCustomPartSize(Parts.AUXILIARYBAR_PART, layout[Parts.AUXILIARYBAR_PART]);
-
-		// Trigger layout refresh to reflect new settings.
-		this.layout();
 	}
 
 	toggleZenMode(skipLayout?: boolean, restoring = false): void {
@@ -1690,7 +1578,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const auxiliaryBarPart = this.getPart(Parts.AUXILIARYBAR_PART);
 		const sideBar = this.getPart(Parts.SIDEBAR_PART);
 		const statusBar = this.getPart(Parts.STATUSBAR_PART);
-		const erdosTopActionBar = this.getPart(Parts.ERDOS_TOP_ACTION_BAR_PART);
 
 		// View references for all parts
 		this.titleBarPartView = titleBar;
@@ -1701,10 +1588,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.panelPartView = panelPart;
 		this.auxiliaryBarPartView = auxiliaryBarPart;
 		this.statusBarPartView = statusBar;
-		this.erdosTopActionBarPartView = erdosTopActionBar;
 
 		const viewMap = {
-			[Parts.ERDOS_TOP_ACTION_BAR_PART]: this.erdosTopActionBarPartView,
 			[Parts.ACTIVITYBAR_PART]: this.activityBarPartView,
 			[Parts.BANNER_PART]: this.bannerPartView,
 			[Parts.TITLEBAR_PART]: this.titleBarPartView,
@@ -1737,7 +1622,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.setAuxiliaryBarMaximized(true, true /* fromInit */);
 		}
 
-		for (const part of [erdosTopActionBar, titleBar, editorPart, activityBar, panelPart, sideBar, statusBar, auxiliaryBarPart, bannerPart]) {
+		for (const part of [titleBar, editorPart, activityBar, panelPart, sideBar, statusBar, auxiliaryBarPart, bannerPart]) {
 			this._register(part.onDidVisibilityChange(visible => {
 				if (!this.inMaximizedAuxiliaryBarTransition) {
 
@@ -1755,11 +1640,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 						this.setAuxiliaryBarHidden(!visible, true);
 					} else if (part === editorPart) {
 						this.setEditorHidden(!visible);
-					}
-
-					// The else was done this way so it easily merges.
-					else if (part === erdosTopActionBar) {
-						this.setErdosTopActionBarHidden(!visible, true);
 					}
 				}
 
@@ -1934,11 +1814,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 	}
 
-	private setErdosTopActionBarHidden(hidden: boolean, skipLayout?: boolean): void {
-		this.stateModel.setRuntimeValue(LayoutStateKeys.erdos_TOP_ACTION_BAR_HIDDEN, hidden);
-		this.workbenchGrid.setViewVisible(this.erdosTopActionBarPartView, !hidden);
-	}
-
 	private setActivityBarHidden(hidden: boolean): void {
 		this.stateModel.setRuntimeValue(LayoutStateKeys.ACTIVITYBAR_HIDDEN, hidden);
 		this.workbenchGrid.setViewVisible(this.activityBarPartView, !hidden);
@@ -1974,7 +1849,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	getLayoutClasses(): string[] {
 		return coalesce([
-			!this.isVisible(Parts.ERDOS_TOP_ACTION_BAR_PART) ? LayoutClasses.erdos_TOP_ACTION_BAR_HIDDEN : undefined,
 			!this.isVisible(Parts.SIDEBAR_PART) ? LayoutClasses.SIDEBAR_HIDDEN : undefined,
 			!this.isVisible(Parts.EDITOR_PART, mainWindow) ? LayoutClasses.MAIN_EDITOR_AREA_HIDDEN : undefined,
 			!this.isVisible(Parts.PANEL_PART) ? LayoutClasses.PANEL_HIDDEN : undefined,
@@ -2477,8 +2351,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	setPartHidden(hidden: boolean, part: Parts): void {
 		switch (part) {
-			case Parts.ERDOS_TOP_ACTION_BAR_PART:
-				return this.setErdosTopActionBarHidden(hidden);
 			case Parts.ACTIVITYBAR_PART:
 				return this.setActivityBarHidden(hidden);
 			case Parts.SIDEBAR_PART:
@@ -2826,7 +2698,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const statusBarHeight = this.statusBarPartView.minimumHeight;
 		const activityBarWidth = this.activityBarPartView.minimumWidth;
 		const middleSectionHeight = height - titleBarHeight - statusBarHeight;
-		const erdosTopActionBarHeight = this.erdosTopActionBarPartView.minimumHeight;
 
 		const titleAndBanner: ISerializedNode[] = [
 			{
@@ -2886,13 +2757,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			sideBar: sideBarNode
 		}, width, middleSectionHeight);
 
-		const erdosTopActionBar: ISerializedNode = {
-			type: 'leaf',
-			data: { type: Parts.ERDOS_TOP_ACTION_BAR_PART },
-			size: erdosTopActionBarHeight,
-			visible: !this.stateModel.getRuntimeValue(LayoutStateKeys.erdos_TOP_ACTION_BAR_HIDDEN)
-		};
-
 		const result: ISerializedGrid = {
 			root: {
 				type: 'branch',
@@ -2901,11 +2765,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					// ...(this.shouldShowBannerFirst() ? titleAndBanner.reverse() : titleAndBanner),
 					...(this.shouldShowBannerFirst() ? [
 						titleAndBanner[1],
-						titleAndBanner[0],
-						erdosTopActionBar
+						titleAndBanner[0]
 					] : [
 						titleAndBanner[0],
-						erdosTopActionBar,
 						titleAndBanner[1]
 					]),
 					{
@@ -3062,7 +2924,6 @@ const LayoutStateKeys = {
 	PANEL_ALIGNMENT: new RuntimeStateKey<PanelAlignment>('panel.alignment', StorageScope.PROFILE, StorageTarget.USER, 'center'),
 
 	// Part Visibility
-	erdos_TOP_ACTION_BAR_HIDDEN: new RuntimeStateKey<boolean>('erdosTopActionBar.hidden', StorageScope.WORKSPACE, StorageTarget.USER, false, true),
 	ACTIVITYBAR_HIDDEN: new RuntimeStateKey<boolean>('activityBar.hidden', StorageScope.WORKSPACE, StorageTarget.MACHINE, false, true),
 	SIDEBAR_HIDDEN: new RuntimeStateKey<boolean>('sideBar.hidden', StorageScope.WORKSPACE, StorageTarget.MACHINE, false),
 	EDITOR_HIDDEN: new RuntimeStateKey<boolean>('editor.hidden', StorageScope.WORKSPACE, StorageTarget.MACHINE, false),

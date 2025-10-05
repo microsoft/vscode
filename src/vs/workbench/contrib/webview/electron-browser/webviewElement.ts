@@ -157,6 +157,31 @@ export class ElectronWebviewElement extends WebviewElement {
 		this._onDidStopFind.fire();
 	}
 
+	/**
+	 * Captures the contents of the webview as a PNG using Electron's native screenshot API.
+	 * 
+	 * @returns A VSBuffer containing a PNG encoded image, or undefined if capture fails.
+	 */
+	public override captureContentsAsPng(): Promise<VSBuffer | undefined> {
+		if (!this.element) {
+			return Promise.resolve(undefined);
+		}
+
+		// Get the bounding box of the webview element so we can scope the capture
+		// to the webview's viewport.
+		const bounding = this.element.getBoundingClientRect();
+
+		return this._webviewMainService.captureContentsAsPng(
+			{ windowId: this._nativeHostService.windowId }, 
+			{
+				x: Math.floor(bounding.x),
+				y: Math.floor(bounding.y),
+				width: Math.floor(bounding.width),
+				height: Math.floor(bounding.height)
+			}
+		);
+	}
+
 	protected override handleFocusChange(isFocused: boolean): void {
 		super.handleFocusChange(isFocused);
 		if (isFocused) {

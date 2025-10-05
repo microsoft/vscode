@@ -17,7 +17,6 @@ import * as extHostTypes from './extHostTypes.erdos.js';
 import { IExtHostInitDataService } from '../extHostInitDataService.js';
 import { RuntimeCodeExecutionMode, RuntimeErrorBehavior } from '../../../services/languageRuntime/common/languageRuntimeService.js';
 
-import { ExtHostModalDialogs } from './extHostModalDialogs.js';
 import { ExtHostContextKeyService } from './extHostContextKeyService.js';
 import { ExtHostDocuments } from '../extHostDocuments.js';
 import { ExtHostContext } from '../extHost.protocol.js';
@@ -55,12 +54,11 @@ export function createErdosApiFactoryAndRegisterActors(accessor: ServicesAccesso
 	const extHostLanguageRuntime = rpcProtocol.set(ExtHostErdosContext.ExtHostLanguageRuntime, new ExtHostLanguageRuntime(rpcProtocol, extHostLogService));
 
 
-	const extHostModalDialogs = rpcProtocol.set(ExtHostErdosContext.ExtHostModalDialogs, new ExtHostModalDialogs(rpcProtocol));
 	const extHostContextKeyService = rpcProtocol.set(ExtHostErdosContext.ExtHostContextKeyService, new ExtHostContextKeyService(rpcProtocol));
 	const extHostConsoleService = rpcProtocol.set(ExtHostErdosContext.ExtHostConsoleService, new ExtHostConsoleService(rpcProtocol, extHostLogService));
-	const extHostPlotsService = rpcProtocol.set(ExtHostErdosContext.ExtHostPlotsService, new ExtHostPlotsService(rpcProtocol));
+	rpcProtocol.set(ExtHostErdosContext.ExtHostPlotsService, new ExtHostPlotsService(rpcProtocol));
 	const extHostMethods = rpcProtocol.set(ExtHostErdosContext.ExtHostMethods,
-		new ExtHostMethods(rpcProtocol, extHostEditors, extHostDocuments, extHostModalDialogs,
+		new ExtHostMethods(rpcProtocol, extHostEditors, extHostDocuments,
 			extHostLanguageRuntime, extHostWorkspace, extHostQuickOpen, extHostCommands, extHostContextKeyService));
 	const extHostEnvironment = rpcProtocol.set(ExtHostErdosContext.ExtHostEnvironment, new ExtHostEnvironment(rpcProtocol));
 	const extHostWebviewPanels: ExtHostWebviewPanels = rpcProtocol.getRaw(ExtHostContext.ExtHostWebviewPanels);
@@ -68,9 +66,9 @@ export function createErdosApiFactoryAndRegisterActors(accessor: ServicesAccesso
 	return function (extension: IExtensionDescription, extensionInfo: IExtensionRegistries, configProvider: ExtHostConfigProvider): typeof erdos {
 
 		const runtime: typeof erdos.runtime = {
-			executeCode(languageId: string, code: string, focus: boolean, allowIncomplete?: boolean, mode?: RuntimeCodeExecutionMode, errorBehavior?: RuntimeErrorBehavior, observer?: erdos.runtime.ExecutionObserver, executionId?: string): Thenable<Record<string, any>> {
+			executeCode(languageId: string, code: string, focus: boolean, allowIncomplete?: boolean, mode?: RuntimeCodeExecutionMode, errorBehavior?: RuntimeErrorBehavior, observer?: erdos.runtime.ExecutionObserver, executionId?: string, batchId?: string): Thenable<Record<string, any>> {
 				const extensionId = extension.identifier.value;
-				return extHostLanguageRuntime.executeCode(languageId, code, extensionId, focus, allowIncomplete, mode, errorBehavior, observer, executionId);
+				return extHostLanguageRuntime.executeCode(languageId, code, extensionId, focus, allowIncomplete, mode, errorBehavior, observer, executionId, batchId);
 			},
 			registerLanguageRuntimeManager(
 				languageId: string,
@@ -137,32 +135,20 @@ export function createErdosApiFactoryAndRegisterActors(accessor: ServicesAccesso
 		};
 
 		const window: typeof erdos.window = {
-			createRawLogOutputChannel(name: string): vscode.OutputChannel {
-				return extHostOutputService.createRawLogOutputChannel(name, extension);
-			},
-			showSimpleModalDialogPrompt(title: string, message: string, okButtonTitle?: string, cancelButtonTitle?: string): Thenable<boolean> {
-				return extHostModalDialogs.showSimpleModalDialogPrompt(title, message, okButtonTitle, cancelButtonTitle);
-			},
-			showSimpleModalDialogMessage(title: string, message: string, okButtonTitle?: string): Thenable<null> {
-				return extHostModalDialogs.showSimpleModalDialogMessage(title, message, okButtonTitle);
-			},
-			getConsoleForLanguage(languageId: string) {
+		createRawLogOutputChannel(name: string): vscode.OutputChannel {
+			return extHostOutputService.createRawLogOutputChannel(name, extension);
+		},
+		getConsoleForLanguage(languageId: string) {
 				return extHostConsoleService.getConsoleForLanguage(languageId);
 			},
 			get onDidChangeConsoleWidth() {
 				return extHostConsoleService.onDidChangeConsoleWidth;
 			},
-			getConsoleWidth(): Thenable<number> {
-				return extHostConsoleService.getConsoleWidth();
-			},
-			get onDidChangePlotsRenderSettings() {
-				return extHostPlotsService.onDidChangePlotsRenderSettings;
-			},
-			getPlotsRenderSettings(): Thenable<erdos.PlotRenderSettings> {
-				return extHostPlotsService.getPlotsRenderSettings();
-			},
-			previewHtml(path: string): void {
-			},
+		getConsoleWidth(): Thenable<number> {
+			return extHostConsoleService.getConsoleWidth();
+		},
+		previewHtml(path: string): void {
+		},
 			createPreviewPanel(viewType: string, title: string, preserveFocus?: boolean, options?: erdos.PreviewOptions): erdos.PreviewPanel {
 				// Use VS Code's webview panel as the underlying implementation
 				const webviewPanel = extHostWebviewPanels.createWebviewPanel(extension, viewType, title, 
@@ -209,12 +195,6 @@ export function createErdosApiFactoryAndRegisterActors(accessor: ServicesAccesso
 			lastActiveEditorContext(): Thenable<erdos.EditorContext | null> {
 				return extHostMethods.lastActiveEditorContext();
 			},
-			showDialog(title: string, message: string): Thenable<null> {
-				return extHostMethods.showDialog(title, message);
-			},
-			showQuestion(title: string, message: string, okButtonTitle: string, cancelButtonTitle: string): Thenable<boolean> {
-				return extHostMethods.showQuestion(title, message, okButtonTitle, cancelButtonTitle);
-			},
 		};
 
 		const connections: typeof erdos.connections = {
@@ -251,11 +231,10 @@ export function createErdosApiFactoryAndRegisterActors(accessor: ServicesAccesso
 			RuntimeErrorBehavior: extHostTypes.RuntimeErrorBehavior,
 			LanguageRuntimeStartupBehavior: extHostTypes.LanguageRuntimeStartupBehavior,
 			LanguageRuntimeSessionLocation: extHostTypes.LanguageRuntimeSessionLocation,
-			RuntimeOnlineState: extHostTypes.RuntimeOnlineState,
-			RuntimeState: extHostTypes.RuntimeState,
-			RuntimeCodeFragmentStatus: extHostTypes.RuntimeCodeFragmentStatus,
-			PlotRenderFormat: extHostTypes.PlotRenderFormat,
-			UiRuntimeNotifications: extHostTypes.UiRuntimeNotifications,
+		RuntimeOnlineState: extHostTypes.RuntimeOnlineState,
+		RuntimeState: extHostTypes.RuntimeState,
+		RuntimeCodeFragmentStatus: extHostTypes.RuntimeCodeFragmentStatus,
+		UiRuntimeNotifications: extHostTypes.UiRuntimeNotifications,
 		};
 	};
 }

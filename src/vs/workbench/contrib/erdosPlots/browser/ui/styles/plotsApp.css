@@ -1,0 +1,50 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (C) 2025 Lotas Inc. All rights reserved.
+ *  Licensed under the AGPL-3.0 License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.ep-main-container {
+	display: flex;
+	background: var(--vscode-erdosPlots-background);
+	flex: 1;
+	overflow: hidden;
+}
+
+.ep-active-plot-wrapper {
+	display: flex;
+	flex-direction: column;
+	flex-grow: 1;
+	overflow: hidden;
+}
+
+.ep-plot-instance {
+	flex-direction: column;
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	position: relative;
+	height: 100%;
+	width: 100%;
+}
+
+.ep-placeholder {
+	display: flex;
+	justify-content: center;
+	align-items: center;
+}
+
+.ep-placeholder .ep-placeholder-text {
+	font-size: 12px;
+	font-style: italic;
+}
+
+.monaco-pane-view .pane .ep-main-container .monaco-progress-container {
+	top: 0px;
+}
+
+.ep-dark-filter-enabled .ep-active-plot-wrapper img.ep-plot-image,
+.vs-dark .ep-dark-filter-auto .ep-active-plot-wrapper img.ep-plot-image {
+	filter: invert(1) hue-rotate(180deg);
+}
+
+

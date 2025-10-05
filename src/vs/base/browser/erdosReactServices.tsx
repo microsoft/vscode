@@ -36,17 +36,13 @@ import { ILanguageModelsService } from '../../workbench/contrib/chat/common/lang
 import { IPreferencesService } from '../../workbench/services/preferences/common/preferences.js';
 import { IWorkbenchLayoutService } from '../../workbench/services/layout/browser/layoutService.js';
 import { IWorkspaceTrustManagementService } from '../../platform/workspace/common/workspaceTrust.js';
-import { IErdosPlotsService } from '../../workbench/services/erdosPlots/common/erdosPlots.js';
+import { IErdosPlotsService } from '../../workbench/contrib/erdosPlots/common/erdosPlotsService.js';
 import { IRuntimeSessionService } from '../../workbench/services/runtimeSession/common/runtimeSessionService.js';
 import { IWorkbenchEnvironmentService } from '../../workbench/services/environment/common/environmentService.js';
 import { IRuntimeStartupService } from '../../workbench/services/runtimeStartup/common/runtimeStartupService.js';
-import { IErdosNewFolderService } from '../../workbench/services/erdosNewFolder/common/erdosNewFolder.js';
 import { ILanguageRuntimeService } from '../../workbench/services/languageRuntime/common/languageRuntimeService.js';
-import { IErdosModalDialogsService } from '../../workbench/services/erdosModalDialogs/common/erdosModalDialogs.js';
 import { IErdosConsoleService } from '../../workbench/services/erdosConsole/browser/interfaces/erdosConsoleService.js';
 import { IExecutionHistoryService } from '../../workbench/services/executionHistory/common/executionHistoryService.js';
-import { IErdosTopActionBarService } from '../../workbench/services/erdosTopActionBar/browser/erdosTopActionBarService.js';
-import { IErdosWebviewPreloadService } from '../../workbench/services/erdosWebviewPreloads/browser/erdosWebviewPreloadService.js';
 import { IErdosNotebookOutputWebviewService } from '../../workbench/contrib/erdosOutputWebview/browser/notebookOutputWebviewService.js';
 import { IErdosHelpService } from '../../workbench/contrib/erdosHelp/browser/services/helpService.js';
 import { ITopicQueryService } from '../../workbench/contrib/erdosHelp/browser/topicQueryService.js';
@@ -105,14 +101,9 @@ export class ErdosReactServices {
 		@IErdosHelpService public readonly erdosHelpService: IErdosHelpService,
 		@ITopicQueryService public readonly topicQueryService: ITopicQueryService,
 
-		@IErdosModalDialogsService public readonly erdosModalDialogsService: IErdosModalDialogsService,
-		@IErdosNewFolderService public readonly erdosNewFolderService: IErdosNewFolderService,
 		@IErdosNotebookOutputWebviewService public readonly erdosNotebookOutputWebviewService: IErdosNotebookOutputWebviewService,
 		@IErdosPlotsService public readonly erdosPlotsService: IErdosPlotsService,
 
-		@IErdosTopActionBarService public readonly erdosTopActionBarService: IErdosTopActionBarService,
-
-		@IErdosWebviewPreloadService public readonly erdosWebviewPreloadService: IErdosWebviewPreloadService,
 		@IPreferencesService public readonly preferencesService: IPreferencesService,
 		@IQuickInputService public readonly quickInputService: IQuickInputService,
 		@IRuntimeSessionService public readonly runtimeSessionService: IRuntimeSessionService,

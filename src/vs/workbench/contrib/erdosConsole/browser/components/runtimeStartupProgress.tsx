@@ -10,7 +10,7 @@ import React from 'react';
 import { localize } from '../../../../../nls.js';
 import { IRuntimeAutoStartEvent } from '../../../../services/runtimeStartup/common/runtimeStartupService.js';
 
-export interface RuntimeStartupProgressProps {
+interface RuntimeStartupProgressProps {
 	evt: IRuntimeAutoStartEvent;
 }
 

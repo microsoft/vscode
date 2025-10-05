@@ -28,7 +28,6 @@ import './browser/actions/quickAccessActions.js';
 import './browser/actions/widgetNavigationCommands.js';
 
 // --- Start Erdos ---
-import './browser/actions/erdosActions.js';
 // --- End Erdos ---
 
 //#endregion
@@ -50,10 +49,6 @@ import './browser/parts/editor/editorParts.js';
 import './browser/parts/paneCompositePartService.js';
 import './browser/parts/banner/bannerPart.js';
 import './browser/parts/statusbar/statusbarPart.js';
-
-// --- Start Erdos ---
-import './browser/parts/erdosTopActionBar/erdosTopActionBarPart.js';
-// --- End Erdos ---
 
 //#endregion
 
@@ -205,20 +200,11 @@ import './contrib/preferences/browser/preferencesSearch.js';
 // Performance
 import './contrib/performance/browser/performance.contribution.js';
 
-// Erdos Dev Tools
-import './contrib/erdosDevTools/browser/erdosDevTools.js';
-
 // Erdos Console
 import './contrib/erdosConsole/browser/erdosConsole.contribution.js';
 
-// Erdos Modal Dialogs Service
-import './services/erdosModalDialogs/browser/erdosModalDialogs.contribution.js';
-
 // Erdos Runtime Sessions
 import './contrib/erdosRuntimeSessions/browser/erdosRuntimeSessions.contribution.js';
-
-// Erdos Plots
-import './contrib/erdosPlots/browser/erdosPlots.contribution.js';
 
 // Erdos Workspace
 import './contrib/erdosWorkspace/browser/erdosWorkspace.contribution.js';
@@ -229,14 +215,10 @@ import './contrib/erdosCommands/browser/erdosCommands.contribution.js';
 // Erdos Dialogs
 import './contrib/erdosDialogs/browser/erdosDialogs.contribution.js';
 
-// Erdos New Project
-import './contrib/erdosNewProject/browser/erdosNewProject.contribution.js';
-
 // Context Menus
 import './contrib/contextmenu/browser/contextmenu.contribution.js';
 
 // --- Start Erdos ---
-import './contrib/erdosModalDialogs/browser/erdosModalDialogs.contribution.js';
 import './contrib/erdosAi/browser/erdosAi.contribution.js';
 import './services/erdosAi/browser/notebookDiffService.contribution.js';
 import './services/erdosAi/browser/notebookZoneManager.contribution.js';
@@ -247,6 +229,8 @@ import './contrib/erdosEnvironment/browser/erdosEnvironment.contribution.js';
 
 // Notebook
 import './contrib/notebook/browser/notebook.contribution.js';
+import './contrib/notebook/browser/notebookConfig.js';
+import './contrib/notebook/browser/notebookActions.contribution.js';
 
 // Speech
 import './contrib/speech/browser/speech.contribution.js';
@@ -340,10 +324,8 @@ import './contrib/output/browser/output.contribution.js';
 import './contrib/output/browser/outputView.js';
 
 // --- Start Erdos ---
-import './contrib/erdosPlots/browser/erdosPlots.contribution.js';
-import './contrib/erdosPlotsEditor/browser/erdosPlotsEditor.contribution.js';
+import './contrib/erdosPlots/browser/plotsExtension.contribution.js';
 import './contrib/erdosOutputWebview/browser/notebookOutputWebview.contribution.js';
-import './contrib/erdosNotebook/browser/erdosNotebook.contribution.js';
 import './contrib/erdosAi/browser/erdosAi.contribution.js';
 import './contrib/dataExplorer/browser/dataExplorer.contribution.js';
 // --- End Erdos ---
@@ -494,7 +476,6 @@ import './contrib/erdosHelp/browser/documentationPanel.registration.js';
 import './contrib/erdosRuntimeSessions/browser/erdosRuntimeSessions.contribution.js';
 import './contrib/languageRuntime/browser/languageRuntime.contribution.js';
 import './contrib/erdosIPyWidgets/browser/erdosIPyWidgets.contribution.js';
-import './contrib/erdosNewProject/browser/erdosNewProject.contribution.js';
 import './contrib/erdosKeybindings/browser/erdosKeybindings.contribution.js';
 
 // Workbench services
@@ -504,10 +485,4 @@ import './services/runtimeSession/common/runtimeSession.js';
 import './services/runtimeStartup/common/runtimeStartup.js';
 import './contrib/runtimeNotebookKernel/browser/runtimeNotebookKernelService.js';
 import './services/erdosConsole/browser/erdosConsoleService.js';
-
-
-
-
-import './contrib/erdosWebviewPreloads/browser/erdosWebviewPreloadsService.js';
-
 // --- End Erdos ---

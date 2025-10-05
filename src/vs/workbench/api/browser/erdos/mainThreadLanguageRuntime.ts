@@ -18,7 +18,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IRuntimeClientInstance, IRuntimeClientOutput, RuntimeClientState, RuntimeClientStatus, RuntimeClientType } from '../../../services/languageRuntime/common/languageRuntimeClientInstance.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { IErdosPlotsService } from '../../../services/erdosPlots/common/erdosPlots.js';
+import { IErdosPlotsService } from '../../../contrib/erdosPlots/common/erdosPlotsService.js';
 import { IErdosIPyWidgetsService } from '../../../services/erdosIPyWidgets/common/erdosIPyWidgetsService.js';
 
 import { INotebookService } from '../../../contrib/notebook/common/notebookService.js';
@@ -33,7 +33,6 @@ import { ITextResourceEditorInput } from '../../../../platform/editor/common/edi
 import { ISettableObservable, observableValue } from '../../../../base/common/observable.js';
 import { IRuntimeStartupService } from '../../../services/runtimeStartup/common/runtimeStartupService.js';
 import { SerializableObjectWithBuffers } from '../../../services/extensions/common/proxyIdentifier.js';
-import { IErdosWebviewPreloadService } from '../../../services/erdosWebviewPreloads/browser/erdosWebviewPreloadService.js';
 
 import { IRuntimeNotebookKernelService } from '../../../contrib/runtimeNotebookKernel/common/interfaces/runtimeNotebookKernelService.js';
 import { LanguageRuntimeSessionChannel } from '../../common/erdos/extHostTypes.erdos.js';
@@ -1363,7 +1362,6 @@ export class MainThreadLanguageRuntime
 
 		@IErdosPlotsService private readonly _erdosPlotService: IErdosPlotsService,
 		@IErdosIPyWidgetsService private readonly _erdosIPyWidgetsService: IErdosIPyWidgetsService,
-		@IErdosWebviewPreloadService private readonly _erdosWebviewPreloadService: IErdosWebviewPreloadService,
 
 		@INotificationService private readonly _notificationService: INotificationService,
 		@ILogService private readonly _logService: ILogService,
@@ -1378,7 +1376,6 @@ export class MainThreadLanguageRuntime
 
 		this._erdosPlotService.initialize();
 		this._erdosIPyWidgetsService.initialize();
-		this._erdosWebviewPreloadService.initialize();
 
 		this._proxy = extHostContext.getProxy(ExtHostErdosContext.ExtHostLanguageRuntime);
 		this._id = MainThreadLanguageRuntime.MAX_ID++;
@@ -1520,13 +1517,15 @@ export class MainThreadLanguageRuntime
 		allowIncomplete?: boolean,
 		mode?: RuntimeCodeExecutionMode,
 		errorBehavior?: RuntimeErrorBehavior,
-		executionId?: string): Promise<string> {
+		executionId?: string,
+		batchId?: string): Promise<string> {
 
 		const attribution: IConsoleCodeAttribution = {
 			source: CodeAttributionSource.Extension,
 			metadata: {
 				extensionId: extensionId,
-			}
+			},
+			batchId: batchId
 		};
 
 		return this._erdosConsoleService.executeCode(

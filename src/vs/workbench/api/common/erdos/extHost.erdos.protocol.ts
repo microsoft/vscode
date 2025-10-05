@@ -12,7 +12,6 @@ import { IEditorContext } from '../../../services/frontendMethods/common/editorC
 import { RuntimeClientType, LanguageRuntimeSessionChannel } from './extHostTypes.erdos.js';
 import { EnvironmentVariableAction, LanguageRuntimeDynState, RuntimeSessionMetadata } from 'erdos';
 
-import { PlotRenderSettings } from '../../../services/erdosPlots/common/erdosPlots.js';
 
 import { ILanguageRuntimeCodeExecutedEvent } from '../../../services/erdosConsole/common/erdosConsoleCodeExecution.js';
 
@@ -31,7 +30,7 @@ export interface MainThreadLanguageRuntimeShape extends IDisposable {
 	$startLanguageRuntime(runtimeId: string, sessionName: string, sessionMode: LanguageRuntimeSessionMode, notebookUri: URI | undefined): Promise<string>;
 	$completeLanguageRuntimeDiscovery(): void;
 	$unregisterLanguageRuntime(runtimeId: string): void;
-	$executeCode(languageId: string, extensionId: string, code: string, focus: boolean, allowIncomplete?: boolean, mode?: RuntimeCodeExecutionMode, errorBehavior?: RuntimeErrorBehavior, executionId?: string): Promise<string>;
+	$executeCode(languageId: string, extensionId: string, code: string, focus: boolean, allowIncomplete?: boolean, mode?: RuntimeCodeExecutionMode, errorBehavior?: RuntimeErrorBehavior, executionId?: string, batchId?: string): Promise<string>;
 	$getPreferredRuntime(languageId: string): Promise<ILanguageRuntimeMetadata | undefined>;
 	$getRegisteredRuntimes(): Promise<ILanguageRuntimeMetadata[]>;
 	$getActiveSessions(): Promise<RuntimeSessionMetadata[]>;
@@ -78,12 +77,6 @@ export interface ExtHostLanguageRuntimeShape {
 	$notifyCodeExecuted(event: ILanguageRuntimeCodeExecutedEvent): void;
 }
 
-export interface MainThreadModalDialogsShape extends IDisposable {
-	$showSimpleModalDialogPrompt(title: string, message: string, okButtonTitle?: string, cancelButtonTitle?: string): Promise<boolean>;
-	$showSimpleModalDialogMessage(title: string, message: string, okButtonTitle?: string): Promise<null>;
-}
-
-export interface ExtHostModalDialogsShape { }
 
 export interface MainThreadContextKeyServiceShape {
 	$evaluateWhenClause(whenClause: string): Promise<boolean>;
@@ -103,12 +96,10 @@ export interface ExtHostConsoleServiceShape {
 	$removeConsole(sessionId: string): void;
 }
 
-export interface MainThreadMethodsShape { }
+interface MainThreadMethodsShape { }
 
 export interface ExtHostMethodsShape {
 	lastActiveEditorContext(): Promise<IEditorContext | null>;
-	showDialog(title: string, message: string): Promise<null>;
-	showQuestion(title: string, message: string, okButtonTitle: string, cancelButtonTitle: string): Promise<boolean>;
 }
 
 export interface MainThreadEnvironmentShape extends IDisposable {
@@ -118,11 +109,9 @@ export interface MainThreadEnvironmentShape extends IDisposable {
 export interface ExtHostEnvironmentShape { }
 
 export interface MainThreadPlotsServiceShape {
-	$getPlotsRenderSettings(): Promise<PlotRenderSettings>;
 }
 
 export interface ExtHostPlotsServiceShape {
-	$onDidChangePlotsRenderSettings(settings: PlotRenderSettings): void;
 }
 
 export interface IMainErdosContext extends IRPCProtocol {
@@ -130,7 +119,6 @@ export interface IMainErdosContext extends IRPCProtocol {
 
 export const ExtHostErdosContext = {
 	ExtHostLanguageRuntime: createProxyIdentifier<ExtHostLanguageRuntimeShape>('ExtHostLanguageRuntime'),
-	ExtHostModalDialogs: createProxyIdentifier<ExtHostModalDialogsShape>('ExtHostModalDialogs'),
 	ExtHostConsoleService: createProxyIdentifier<ExtHostConsoleServiceShape>('ExtHostConsoleService'),
 	ExtHostContextKeyService: createProxyIdentifier<ExtHostContextKeyServiceShape>('ExtHostContextKeyService'),
 	ExtHostMethods: createProxyIdentifier<ExtHostMethodsShape>('ExtHostMethods'),
@@ -142,7 +130,6 @@ export const ExtHostErdosContext = {
 
 export const MainErdosContext = {
 	MainThreadLanguageRuntime: createProxyIdentifier<MainThreadLanguageRuntimeShape>('MainThreadLanguageRuntime'),
-	MainThreadModalDialogs: createProxyIdentifier<MainThreadModalDialogsShape>('MainThreadModalDialogs'),
 	MainThreadConsoleService: createProxyIdentifier<MainThreadConsoleServiceShape>('MainThreadConsoleService'),
 	MainThreadEnvironment: createProxyIdentifier<MainThreadEnvironmentShape>('MainThreadEnvironment'),
 	MainThreadContextKeyService: createProxyIdentifier<MainThreadContextKeyServiceShape>('MainThreadContextKeyService'),

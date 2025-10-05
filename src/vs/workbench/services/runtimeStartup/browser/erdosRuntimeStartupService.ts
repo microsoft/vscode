@@ -13,7 +13,7 @@ import { IRuntimeStartupService, ISessionRestoreFailedEvent, SerializedSessionMe
  * Simple stub implementation of IRuntimeStartupService for Erdos development.
  * This provides minimal functionality to satisfy the ErdosConsoleService dependencies.
  */
-export class ErdosRuntimeStartupService extends Disposable implements IRuntimeStartupService {
+class ErdosRuntimeStartupService extends Disposable implements IRuntimeStartupService {
 	declare readonly _serviceBrand: undefined;
 	
 	private readonly _onSessionRestoreFailure = this._register(new Emitter<ISessionRestoreFailedEvent>());

@@ -51,7 +51,7 @@ export interface IExecutionHistoryService extends IDisposable {
 	clearExecutionEntries(sessionId: string): void;
 }
 
-export const replConfigurationBaseNode = Object.freeze<IConfigurationNode>({
+const replConfigurationBaseNode = Object.freeze<IConfigurationNode>({
 	id: 'repl',
 	order: 100,
 	type: 'object',

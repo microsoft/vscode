@@ -19,10 +19,6 @@ import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } fr
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 
-// The Erdos sessions view container and view identifiers.
-export const ERDOS_RUNTIME_VIEW_CONTAINER_ID = 'workbench.auxiliaryBar.erdosRuntimeSessions';
-export const ERDOS_RUNTIME_SESSIONS_VIEW_ID = 'workbench.view.erdosSessions';
-
 // The Erdos sessions view icon (disabled since container is not registered).
 // const erdosRuntimeSessionsViewIcon = registerIcon(
 // 	'erdos-runtime-sessions-view-icon',

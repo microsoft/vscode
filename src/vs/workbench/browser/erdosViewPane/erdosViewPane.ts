@@ -1,7 +1,6 @@
 /*---------------------------------------------------------------------------------------------
  *  Copyright (C) 2023-2025 Posit Software, PBC. All rights reserved.
  *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
- *  Licensed under the AGPL-3.0 License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as DOM from '../../../base/browser/dom.js';
 import { disposableTimeout } from '../../../base/common/async.js';
@@ -17,7 +16,7 @@ import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { IViewPaneOptions, ViewPane } from '../parts/views/viewPane.js';
 import { IViewDescriptorService } from '../../common/views.js';
 
-export interface ErdosViewPaneOptions extends IViewPaneOptions {
+interface ErdosViewPaneOptions extends IViewPaneOptions {
 	openFromCollapsedSize?: number | `${number}%`;
 }
 

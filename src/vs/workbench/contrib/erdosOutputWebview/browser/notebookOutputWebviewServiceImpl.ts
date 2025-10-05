@@ -1,7 +1,6 @@
 /*---------------------------------------------------------------------------------------------
  *  Copyright (C) 2023-2025 Posit Software, PBC. All rights reserved.
  *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
- *  Licensed under the AGPL-3.0 License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../base/browser/dom.js';
@@ -23,7 +22,7 @@ import { dirname } from '../../../../base/common/resources.js';
 import { INotebookRendererMessagingService } from '../../notebook/common/notebookRendererMessagingService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { webviewMessageCodeString } from '../../erdosWebviewPreloads/browser/notebookOutputUtils.js';
+import { webviewMessageCodeString } from './notebookOutputUtils.js';
 
 type MessageRenderInfo = {
 	mimeType: string;

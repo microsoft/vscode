@@ -23,7 +23,7 @@ export enum ANSIStyle {
 	Subscript = 'ansiSubscript'
 }
 
-export enum ANSIFont {
+enum ANSIFont {
 	AlternativeFont1 = 'ansiAlternativeFont1',
 	AlternativeFont2 = 'ansiAlternativeFont2',
 	AlternativeFont3 = 'ansiAlternativeFont3',
@@ -66,7 +66,7 @@ export interface ANSIOutputRun {
 	readonly text: string;
 }
 
-export interface ANSIHyperlink {
+interface ANSIHyperlink {
 	readonly url: string;
 	readonly params?: Map<string, string>;
 }

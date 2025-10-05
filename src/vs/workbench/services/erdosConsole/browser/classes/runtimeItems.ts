@@ -35,7 +35,7 @@ export class RuntimeItem {
 	}
 }
 
-export class RuntimeItemStandard extends RuntimeItem {
+class RuntimeItemStandard extends RuntimeItem {
 	readonly outputLines: readonly ANSIOutputLine[];
 
 	constructor(id: string, message: string) {

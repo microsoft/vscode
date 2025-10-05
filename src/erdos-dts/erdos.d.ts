@@ -435,23 +435,6 @@ declare module 'erdos' {
 		installDependencies?: () => Thenable<boolean>;
 	}
 
-	export interface PlotRenderSettings {
-		size: {
-			width: number;
-			height: number;
-		};
-		pixel_ratio: number;
-		format: PlotRenderFormat;
-	}
-
-	export enum PlotRenderFormat {
-		Png = 'png',
-		Jpeg = 'jpeg',
-		Svg = 'svg',
-		Pdf = 'pdf',
-		Tiff = 'tiff'
-	}
-
 	namespace languages {
 		export function registerStatementRangeProvider(selector: vscode.DocumentSelector, provider: StatementRangeProvider): vscode.Disposable;
 		export function registerHelpTopicProvider(selector: vscode.DocumentSelector, provider: HelpTopicProvider): vscode.Disposable;
@@ -459,13 +442,9 @@ declare module 'erdos' {
 
 	namespace window {
 		export function createRawLogOutputChannel(name: string): vscode.OutputChannel;
-		export function showSimpleModalDialogPrompt(title: string, message: string, okButtonTitle?: string, cancelButtonTitle?: string): Thenable<boolean>;
-		export function showSimpleModalDialogMessage(title: string, message: string, okButtonTitle?: string): Thenable<null>;
 		export function getConsoleForLanguage(languageId: string): Thenable<Console | undefined>;
 		export const onDidChangeConsoleWidth: vscode.Event<number>;
 		export function getConsoleWidth(): Thenable<number>;
-		export const onDidChangePlotsRenderSettings: vscode.Event<PlotRenderSettings>;
-		export function getPlotsRenderSettings(): Thenable<PlotRenderSettings>;
 		export function previewHtml(path: string): void;
 		export function createPreviewPanel(viewType: string, title: string, preserveFocus?: boolean, options?: PreviewOptions): PreviewPanel;
 		export function previewUrl(url: vscode.Uri): PreviewPanel;
@@ -484,7 +463,7 @@ declare module 'erdos' {
 			onFinished?: () => void;
 		}
 
-		export function executeCode(languageId: string, code: string, focus: boolean, allowIncomplete?: boolean, mode?: RuntimeCodeExecutionMode, errorBehavior?: RuntimeErrorBehavior, observer?: ExecutionObserver, executionId?: string): Thenable<Record<string, any>>;
+		export function executeCode(languageId: string, code: string, focus: boolean, allowIncomplete?: boolean, mode?: RuntimeCodeExecutionMode, errorBehavior?: RuntimeErrorBehavior, observer?: ExecutionObserver, executionId?: string, batchId?: string): Thenable<Record<string, any>>;
 		export function registerLanguageRuntimeManager(languageId: string, manager: LanguageRuntimeManager): vscode.Disposable;
 		export function getRegisteredRuntimes(): Thenable<LanguageRuntimeMetadata[]>;
 		export function getPreferredRuntime(languageId: string): Thenable<LanguageRuntimeMetadata | undefined>;
@@ -508,8 +487,6 @@ declare module 'erdos' {
 	namespace methods {
 		export function call(method: string, params: Record<string, any>): Thenable<any>;
 		export function lastActiveEditorContext(): Thenable<EditorContext | null>;
-		export function showQuestion(title: string, message: string, okButtonTitle: string, cancelButtonTitle: string): Thenable<boolean>;
-		export function showDialog(title: string, message: string): Thenable<null>;
 	}
 
 	export interface EnvironmentVariableAction {

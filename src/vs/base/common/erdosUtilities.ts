@@ -7,9 +7,6 @@ type Value = string | number | undefined;
 type Mapping = Record<string, unknown>;
 type Argument = Value | Mapping;
 
-export const pinToRange = (value: number, minimumValue: number, maximumValue: number) =>
-	Math.min(Math.max(value, minimumValue), maximumValue);
-
 export const optionalValue = (value: number | string | undefined, defaultValue: number | string) => {
 	return value !== undefined ? value : defaultValue;
 };

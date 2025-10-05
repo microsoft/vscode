@@ -68,13 +68,14 @@ export async function* rRuntimeDiscoverer(): AsyncGenerator<erdos.LanguageRuntim
 		if (rInstallations.length === 0) {
 			LOGGER.warn(`All discovered R installations are unusable by Erdos.`);
 			LOGGER.warn('Learn more about R discovery at https://erdos.dev/r-installations');
-			const showLog = await erdos.window.showSimpleModalDialogPrompt(
-				vscode.l10n.t('No usable R installations'),
-				vscode.l10n.t('All discovered R installations are unusable by Erdos. Learn more about R discovery at <br><a href="https://erdos.dev/r-installations">https://erdos.dev/r-installations</a>'),
-				vscode.l10n.t('View logs'),
+			const viewLogs = vscode.l10n.t('View logs');
+			const result = await vscode.window.showWarningMessage(
+				vscode.l10n.t('All discovered R installations are unusable by Erdos. Learn more about R discovery at https://erdos.dev/r-installations'),
+				{ modal: true },
+				viewLogs,
 				vscode.l10n.t('Dismiss')
 			);
-			if (showLog) {
+			if (result === viewLogs) {
 				LOGGER.show();
 			}
 		} else {

@@ -20,7 +20,7 @@ import { useStateRef } from '../../../../../base/browser/ui/react/useStateRef.js
 import { FontInfo } from '../../../../../editor/common/config/fontInfo.js';
 import { FontConfigurationManager } from '../../../../browser/fontConfigurationManager.js';
 import { IReactComponentContainer } from '../../../../../base/browser/erdosReactRenderer.js';
-import { ERDOS_PLOTS_VIEW_ID } from '../../../../services/erdosPlots/common/erdosPlots.js';
+import { ERDOS_PLOTS_VIEW_ID } from '../../../erdosPlots/common/erdosPlotsService.js';
 import { AnchorAlignment, AnchorAxisAlignment } from '../../../../../base/browser/ui/contextview/contextview.js';
 import { useErdosReactServicesContext } from '../../../../../base/browser/erdosReactRendererContext.js';
 import { ERDOS_CONSOLE_COPY, ERDOS_CONSOLE_PASTE, ERDOS_CONSOLE_SELECT_ALL } from '../erdosConsoleIdentifiers.js';
@@ -194,7 +194,7 @@ export const ConsoleInstance = (props: ConsoleInstanceProps) => {
 
 		disposableStore.add(props.erdosConsoleInstance.onDidSelectPlot(plotId => {
 			services.viewsService.openView(ERDOS_PLOTS_VIEW_ID, false);
-			services.erdosPlotsService.selectPlot(plotId);
+			services.erdosPlotsService.activatePlot(plotId);
 		}));
 
 		disposableStore.add(props.erdosConsoleInstance.onDidRequestRestart(() => {

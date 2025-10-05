@@ -17,6 +17,7 @@ export const enum CodeAttributionSource {
 export interface IConsoleCodeAttribution {
 	source: CodeAttributionSource;
 	metadata?: Record<string, any>;
+	batchId?: string;
 }
 
 export interface ILanguageRuntimeCodeExecutedEvent {

@@ -87,9 +87,9 @@ export class ImageHandler extends BaseFunctionHandler {
 			};
 		}
 
-		// Get the plot by index
-		const totalPlots = context.plotsService.erdosPlotInstances.length;		
-		const plotClient = context.plotsService.getPlotByIndex(image_index);
+	// Get the plot by index
+	const totalPlots = context.plotsService.allPlots.length;		
+	const plotClient = context.plotsService.fetchPlotAtIndex(image_index);
 		
 		if (!plotClient) {
 			const function_call_output = {

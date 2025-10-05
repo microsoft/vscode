@@ -21,7 +21,7 @@ const fileURLThatNeedsASlash = /^(file:\/\/)([a-zA-Z]:)/;
 const fileURLWithLine = /^(file:\/\/\/.+):(\d+)$/;
 const fileURLWithLineAndColumn = /^(file:\/\/\/.+):(\d+):(\d+)$/;
 
-export interface OutputRunProps {
+interface OutputRunProps {
 	readonly outputRun: ANSIOutputRun;
 }
 

@@ -280,6 +280,16 @@
 }
 
 /* Toggle item layout */
+.erdos-ai-settings-editor .settings-group-content .setting-item {
+	margin-top: 20px !important;
+	margin-bottom: 0 !important;
+}
+
+.erdos-ai-settings-editor .setting-item-toggle {
+	margin-top: 20px !important;
+	margin-bottom: 0 !important;
+}
+
 .erdos-ai-settings-editor .setting-item-toggle .setting-item-contents {
 	display: flex;
 	justify-content: space-between;
@@ -305,6 +315,11 @@
 	color: var(--vscode-descriptionForeground);
 	line-height: 1.4;
 	margin-top: 4px;
+	margin-bottom: 0;
+}
+
+.erdos-ai-settings-editor .setting-item-toggle .setting-item-description {
+	margin-bottom: 0;
 }
 
 /* Dropdown control styling with chevron - VSCode standard pattern */

@@ -13,7 +13,7 @@ import { IContextKeyService, RawContextKey } from '../../../../platform/contextk
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 
 export const ICoreExperimentationService = createDecorator<ICoreExperimentationService>('coreExperimentationService');
-export const startupExpContext = new RawContextKey<string>('coreExperimentation.startupExpGroup', '');
+const startupExpContext = new RawContextKey<string>('coreExperimentation.startupExpGroup', '');
 
 interface IExperiment {
 	cohort: number;
@@ -48,7 +48,7 @@ export enum StartupExperimentGroup {
 	SplitWelcomeChat = 'splitWelcomeChat'
 }
 
-export const STARTUP_EXPERIMENT_NAME = 'startup';
+const STARTUP_EXPERIMENT_NAME = 'startup';
 
 const EXPERIMENT_CONFIGURATIONS: Record<string, ExperimentConfiguration> = {
 	stable: {
@@ -73,7 +73,7 @@ const EXPERIMENT_CONFIGURATIONS: Record<string, ExperimentConfiguration> = {
 	}
 };
 
-export class CoreExperimentationService extends Disposable implements ICoreExperimentationService {
+class CoreExperimentationService extends Disposable implements ICoreExperimentationService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly experiments = new Map<string, IExperiment>();

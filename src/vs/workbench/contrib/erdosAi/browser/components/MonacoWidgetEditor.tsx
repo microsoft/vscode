@@ -425,6 +425,12 @@ export const MonacoWidgetEditor: React.FC<MonacoWidgetEditorProps> = ({
 			const currentModelContent = model.getValue();
 			if (!model.isDisposed() && currentModelContent !== content) {
 				model.setValue(content);
+				
+				// Auto-scroll to bottom to show latest streamed content
+				const lineCount = model.getLineCount();
+				if (lineCount > 0) {
+					editor.revealLine(lineCount);
+				}
 			}
 			
 			// Apply diff decorations if diffLines are provided

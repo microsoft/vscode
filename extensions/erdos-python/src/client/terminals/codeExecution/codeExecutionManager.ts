@@ -141,8 +141,9 @@ export class CodeExecutionManager implements ICodeExecutionManager {
                     const fsStat = await vscode.workspace.fs.stat(vscode.Uri.file(filePath));
 
                     if (fsStat) {
+                        const batchId = `${Date.now()}-${Math.floor(Math.random() * 0x100000000).toString(16)}`;
                         const command = `%run ${JSON.stringify(filePath)}`;
-                        erdos.runtime.executeCode('python', command, false, true);
+                        erdos.runtime.executeCode('python', command, false, true, undefined, undefined, undefined, undefined, batchId);
                     }
                 } catch (e) {
                 }

@@ -17,7 +17,7 @@ import { LanguageInputHistory } from './languageInputHistory.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 
-export class ExecutionHistoryService extends Disposable implements IExecutionHistoryService {
+class ExecutionHistoryService extends Disposable implements IExecutionHistoryService {
 	_serviceBrand: undefined;
 
 	private readonly _executionHistories: Map<string, SessionExecutionHistory> = new Map();

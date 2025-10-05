@@ -186,8 +186,6 @@ import { IActionViewItemService, NullActionViewItemService } from '../../../plat
 import { IMarkdownString } from '../../../base/common/htmlContent.js';
 import { ITreeSitterLibraryService } from '../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
 import { TestTreeSitterLibraryService } from '../../../editor/test/common/services/testTreeSitterLibraryService.js';
-import { PartViewInfo } from '../../services/erdosLayout/browser/interfaces/erdosLayoutService.js';
-import { CustomErdosLayoutDescription, KnownErdosLayoutParts } from '../../services/erdosLayout/common/erdosCustomViews.js';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined, undefined);
@@ -692,8 +690,6 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	isWindowMaximized(targetWindow: Window) { return false; }
 	updateWindowMaximizedState(targetWindow: Window, maximized: boolean): void { }
 	getVisibleNeighborPart(part: Parts, direction: Direction): Parts | undefined { return undefined; }
-	enterCustomLayout(layout: CustomErdosLayoutDescription): void { }
-	getPartViewInfo(part: KnownErdosLayoutParts): PartViewInfo { throw new Error('not implemented'); }
 	focus() { }
 }
 

@@ -1,0 +1,219 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (C) 2025 Lotas Inc. All rights reserved.
+ *  Licensed under the AGPL-3.0 License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Make the plot selector container always visible */
+.plot-selector-container {
+	opacity: 1 !important;
+	visibility: visible !important;
+}
+
+/* Plot Selector Dropdown - Matching Erdos AI Conversation History Design */
+.plot-selector-dropdown {
+	position: fixed;
+	background: var(--vscode-erdosDropDownListBox-background);
+	border: 1px solid var(--vscode-erdosDropDownListBox-border);
+	border-radius: 4px;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+	z-index: 2000;
+	min-width: 280px;
+	max-width: 380px;
+	max-height: 400px;
+	overflow: hidden;
+	display: flex;
+	flex-direction: column;
+}
+
+.plot-selector-header {
+	padding: 4px;
+	border-bottom: 1px solid var(--vscode-erdosDropDownListBox-separatorBackground);
+	background: var(--vscode-erdosDropDownListBox-background);
+}
+
+.plot-selector-search {
+	width: 100%;
+	height: 22px;
+	padding: 0 6px;
+	border: 1px solid var(--vscode-erdosActionBar-selectBorder);
+	border-radius: 4px;
+	background: var(--vscode-erdosActionBar-selectBoxBackground);
+	color: var(--vscode-erdosActionBar-foreground);
+	font-size: 13px;
+	font-family: var(--vscode-font-family);
+	box-sizing: border-box;
+}
+
+.plot-selector-search:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	background: var(--vscode-erdosActionBar-hoverBackground);
+}
+
+.plot-selector-search::placeholder {
+	color: var(--vscode-input-placeholderForeground);
+}
+
+.plot-selector-list {
+	margin: 0;
+	display: flex;
+	flex-direction: column;
+	background: var(--vscode-erdosDropDownListBox-background);
+	max-height: 320px;
+	overflow-y: auto;
+}
+
+/* Plot item styles matching conversation history */
+.plot-selector-dropdown .plot-selector-item {
+	border: none;
+	display: grid;
+	align-content: center;
+	background: transparent;
+	color: var(--vscode-erdosDropDownListBox-foreground);
+	grid-template-columns: [name] 1fr [date] auto [end];
+	border-radius: 0;
+	margin: 0;
+	padding: 2px 8px;
+	position: relative;
+	transition: none;
+	height: 20px;
+	min-height: 20px;
+}
+
+.plot-selector-dropdown .plot-selector-item:hover {
+	color: var(--vscode-erdosDropDownListBox-hoverForeground);
+	background: var(--vscode-erdosDropDownListBox-hoverBackground);
+}
+
+.plot-selector-item:focus {
+	outline: none;
+}
+
+.plot-selector-item:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	background: var(--vscode-erdosDropDownListBox-hoverBackground);
+}
+
+.plot-selector-dropdown .plot-selector-name {
+	grid-column: name / date;
+	font-size: 13px;
+	color: inherit;
+	font-weight: normal;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	line-height: normal;
+	display: flex;
+	align-items: center;
+	min-width: 0;
+	cursor: pointer;
+}
+
+.plot-selector-dropdown .plot-selector-date {
+	grid-column: date / end;
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	white-space: nowrap;
+	opacity: 0.8;
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	min-width: 0;
+	transition: opacity 0.1s ease;
+}
+
+.plot-selector-actions {
+	position: absolute;
+	right: 8px;
+	top: 50%;
+	transform: translateY(-50%);
+	display: flex;
+	align-items: center;
+	gap: 2px;
+	padding: 2px;
+	opacity: 0;
+	transition: opacity 0.1s ease;
+	background: var(--vscode-erdosDropDownListBox-hoverBackground);
+	border-radius: 3px;
+}
+
+.plot-selector-dropdown .plot-selector-item:hover .plot-selector-date {
+	opacity: 0.3;
+}
+
+.plot-selector-dropdown .plot-selector-item:hover .plot-selector-actions {
+	opacity: 1;
+}
+
+.plot-selector-action-btn {
+	background: none;
+	border: none;
+	cursor: pointer;
+	color: var(--vscode-icon-foreground);
+	font-size: 12px;
+	padding: 1px;
+	border-radius: 2px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 14px;
+	height: 14px;
+	transition: background-color 0.1s ease;
+}
+
+.plot-selector-action-btn:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.plot-selector-delete-btn:hover {
+	background-color: var(--vscode-inputValidation-errorBackground);
+	color: var(--vscode-inputValidation-errorForeground);
+}
+
+.plot-selector-empty {
+	color: var(--vscode-descriptionForeground);
+	font-size: 13px;
+	text-align: center;
+	padding: 4px 8px;
+	cursor: default;
+	line-height: normal;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	line-height: 17px;
+}
+
+.plot-selector-empty:hover {
+	background-color: transparent;
+}
+
+/* Footer for delete all button */
+.plot-selector-footer {
+	border-top: 1px solid var(--vscode-erdosDropDownListBox-separatorBackground);
+	padding: 0;
+	background: var(--vscode-erdosDropDownListBox-background);
+}
+
+.plot-selector-delete-all-btn {
+	width: 100%;
+	height: 26px;
+	padding: 0 8px;
+	border: none;
+	border-radius: 0;
+	background: transparent;
+	color: #800000;
+	font-size: 12px;
+	font-family: var(--vscode-font-family);
+	cursor: pointer;
+	transition: all 0.1s ease;
+	text-align: center;
+	outline: none;
+}
+
+.plot-selector-delete-all-btn:hover {
+	background: var(--vscode-erdosDropDownListBox-hoverBackground);
+	color: #a00000;
+}
+
+.plot-selector-delete-all-btn:active {
+	background: var(--vscode-erdosDropDownListBox-background);
+}

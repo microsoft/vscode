@@ -800,13 +800,15 @@ export class KernelBridgeSession implements JupyterLanguageRuntimeSession {
 	}
 
 	private requestReconnectInterrupt() {
-		erdos.window.showSimpleModalDialogPrompt(
-			vscode.l10n.t('Interrupt {0}', this.dynState.sessionName),
+		const interruptButton = vscode.l10n.t('Interrupt');
+		const waitButton = vscode.l10n.t('Wait');
+		vscode.window.showWarningMessage(
 			vscode.l10n.t('Erdos is waiting for {0} to complete work; it will reconnect automatically when {1} becomes idle. Do you want to interrupt the active computation in order to reconnect now?', this.runtimeMetadata.languageName, this.runtimeMetadata.languageName),
-			vscode.l10n.t('Interrupt'),
-			vscode.l10n.t('Wait'),
+			{ modal: true },
+			interruptButton,
+			waitButton
 		).then((result) => {
-			if (!result) {
+			if (result === waitButton) {
 				vscode.window.withProgress({
 					location: vscode.ProgressLocation.Notification,
 					title: vscode.l10n.t('{0} is busy; continuing to wait for it to become idle.', this.dynState.sessionName),
@@ -823,19 +825,21 @@ export class KernelBridgeSession implements JupyterLanguageRuntimeSession {
 				});
 				return;
 			}
-
-			vscode.window.withProgress({
-				location: vscode.ProgressLocation.Notification,
-				title: vscode.l10n.t('Interrupting {0}', this.dynState.sessionName),
-				cancellable: false,
-			}, async (_progress, _token) => {
-				try {
-					await this._api.interruptSession(this.metadata.sessionId);
-				} catch (err) {
-					this.log(`Failed to interrupt session ${this.metadata.sessionId}: ${summarizeError(err)}`, vscode.LogLevel.Error);
-					vscode.window.showErrorMessage(vscode.l10n.t('Failed to interrupt {0}: {1}', this.dynState.sessionName, summarizeError(err)));
-				}
-			});
+			
+			if (result === interruptButton) {
+				vscode.window.withProgress({
+					location: vscode.ProgressLocation.Notification,
+					title: vscode.l10n.t('Interrupting {0}', this.dynState.sessionName),
+					cancellable: false,
+				}, async (_progress, _token) => {
+					try {
+						await this._api.interruptSession(this.metadata.sessionId);
+					} catch (err) {
+						this.log(`Failed to interrupt session ${this.metadata.sessionId}: ${summarizeError(err)}`, vscode.LogLevel.Error);
+						vscode.window.showErrorMessage(vscode.l10n.t('Failed to interrupt {0}: {1}', this.dynState.sessionName, summarizeError(err)));
+					}
+				});
+			}
 		});
 	}
 

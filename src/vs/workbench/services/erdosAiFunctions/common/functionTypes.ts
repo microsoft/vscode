@@ -161,8 +161,8 @@ export interface CallContext {
 		extractImageDataFromPlotClient(plotClient: any): Promise<{ success: boolean; base64_data: string; original_size_kb: number; final_size_kb: number; resized: boolean; format: string; warning?: string; }>;
 	};
 	plotsService?: {
-		getPlotByIndex(index: number): any | undefined;
-		erdosPlotInstances: any[];
+		fetchPlotAtIndex(index: number): any | undefined;
+		allPlots: any[];
 	};
 	helpContentService?: {
 		getHelpAsMarkdown(topic: string, packageName?: string, language?: 'R' | 'Python'): Promise<string>;

@@ -295,7 +295,7 @@ export interface IRuntimeManager {
 	recommendWorkspaceRuntimes(disabledLanguageIds: string[]): Promise<ILanguageRuntimeMetadata[]>;
 }
 
-export interface ILangaugeRuntimeDynState {
+interface ILangaugeRuntimeDynState {
 	inputPrompt: string;
 	continuationPrompt: string;
 }
@@ -306,8 +306,6 @@ export interface ILanguageRuntimeSessionState extends ILangaugeRuntimeDynState {
 	currentNotebookUri?: URI;
 	sessionName: string;
 }
-
-export type RuntimeResourceRootProvider = (mimeType: string, data: any) => Promise<URI[]>;
 
 export enum LanguageRuntimeSessionMode {
 	Console = 'console',

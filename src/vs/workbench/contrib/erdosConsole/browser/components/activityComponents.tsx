@@ -82,7 +82,7 @@ const colorizeCodeOutoutLines = (
 	return colorizedOutputLines;
 };
 
-export interface ActivityInputProps {
+interface ActivityInputProps {
 	fontInfo: FontInfo;
 	activityItemInput: ActivityItemInput;
 	erdosConsoleInstance: IErdosConsoleInstance;
@@ -200,7 +200,7 @@ export const ActivityInput = (props: ActivityInputProps) => {
 	}
 };
 
-export interface ActivityPromptProps {
+interface ActivityPromptProps {
 	activityItemPrompt: ActivityItemPrompt;
 	erdosConsoleInstance: IErdosConsoleInstance;
 }
@@ -356,7 +356,7 @@ export const ActivityPrompt = (props: ActivityPromptProps) => {
 	);
 };
 
-export interface ActivityOutputStreamProps {
+interface ActivityOutputStreamProps {
 	activityItemStream: ActivityItemStream;
 }
 
@@ -366,7 +366,7 @@ export const ActivityOutputStream = (props: ActivityOutputStreamProps) => {
 	);
 };
 
-export interface ActivityErrorStreamProps {
+interface ActivityErrorStreamProps {
 	activityItemStream: ActivityItemStream;
 }
 
@@ -378,7 +378,7 @@ export const ActivityErrorStream = (props: ActivityErrorStreamProps) => {
 	);
 };
 
-export interface ActivityOutputHtmlProps {
+interface ActivityOutputHtmlProps {
 	activityItemOutputHtml: ActivityItemOutputHtml;
 }
 
@@ -391,7 +391,7 @@ export const ActivityOutputHtml = (props: ActivityOutputHtmlProps) => {
 	);
 };
 
-export interface ActivityOutputMessageProps {
+interface ActivityOutputMessageProps {
 	activityItemOutputMessage: ActivityItemOutputMessage;
 }
 
@@ -401,7 +401,7 @@ export const ActivityOutputMessage = (props: ActivityOutputMessageProps) => {
 	);
 };
 
-export interface ActivityOutputPlotProps {
+interface ActivityOutputPlotProps {
 	activityItemOutputPlot: ActivityItemOutputPlot;
 }
 
@@ -425,7 +425,7 @@ export const ActivityOutputPlot = (props: ActivityOutputPlotProps) => {
 	);
 };
 
-export interface ActivityErrorMessageProps {
+interface ActivityErrorMessageProps {
 	activityItemErrorMessage: ActivityItemErrorMessage;
 }
 

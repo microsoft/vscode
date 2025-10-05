@@ -414,12 +414,12 @@ export class RSession implements erdos.LanguageRuntimeSession, vscode.Disposable
 			? vscode.l10n.t('Update now')
 			: vscode.l10n.t('Install now');
 
-		const install = await erdos.window.showSimpleModalDialogPrompt(
-			title,
+		const result = await vscode.window.showWarningMessage(
 			message,
+			{ modal: true },
 			okButtonTitle
 		);
-		if (!install) {
+		if (result !== okButtonTitle) {
 			return false;
 		}
 

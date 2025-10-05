@@ -18,12 +18,12 @@ interface ILanguageRuntimeSession {
 }
 import { PlotRenderFormat, ErdosPlotComm, IntrinsicSize, PlotSize } from './erdosPlotComm.js';
 
-export enum OperationType {
+enum OperationType {
 	Render = 'render',
 	GetIntrinsicSize = 'get_intrinsic_size'
 }
 
-export type PlotOperationResult = IRenderedPlot | IntrinsicSize | undefined;
+type PlotOperationResult = IRenderedPlot | IntrinsicSize | undefined;
 
 export interface IRenderedPlot {
 	size?: PlotSize;
@@ -33,7 +33,7 @@ export interface IRenderedPlot {
 	intrinsic_size?: IntrinsicSize;
 }
 
-export interface PlotOperationRequest {
+interface PlotOperationRequest {
 	type: OperationType;
 	size?: PlotSize;
 	pixel_ratio?: number;
@@ -46,7 +46,7 @@ export interface RenderRequest {
 	format: PlotRenderFormat;
 }
 
-export class DeferredPlotOperation {
+class DeferredPlotOperation {
 	private readonly deferred: DeferredPromise<PlotOperationResult>;
 
 	constructor(public readonly operationRequest: PlotOperationRequest) {
@@ -102,16 +102,9 @@ export class DeferredRender {
 	}
 }
 
-export class QueuedOperation {
+class QueuedOperation {
 	constructor(
 		public readonly operation: DeferredPlotOperation,
-		public readonly comm: ErdosPlotComm) {
-	}
-}
-
-export class QueuedRender {
-	constructor(
-		public readonly render: DeferredRender,
 		public readonly comm: ErdosPlotComm) {
 	}
 }

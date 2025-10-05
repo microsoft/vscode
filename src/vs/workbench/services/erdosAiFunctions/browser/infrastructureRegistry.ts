@@ -31,7 +31,7 @@ import { ILanguageRuntimeService } from '../../../services/languageRuntime/commo
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IInfrastructureRegistry } from '../common/infrastructureRegistry.js';
 import { IMessageIdManager } from '../../erdosAiConversation/common/messageIdManager.js';
-import { IErdosPlotsService } from '../../../services/erdosPlots/common/erdosPlots.js';
+import { IErdosPlotsService } from '../../../contrib/erdosPlots/common/erdosPlotsService.js';
 
 // Infrastructure Registry for Erdos AI
 export class InfrastructureRegistry extends Disposable implements IInfrastructureRegistry {
@@ -198,8 +198,8 @@ export class InfrastructureRegistry extends Disposable implements IInfrastructur
             },
 
             plotsService: {
-                getPlotByIndex: (index: number) => this.plotsService.getPlotByIndex(index),
-                erdosPlotInstances: this.plotsService.erdosPlotInstances
+                fetchPlotAtIndex: (index: number) => this.plotsService.fetchPlotAtIndex(index),
+                allPlots: this.plotsService.allPlots
             },
 
             helpContentService: {

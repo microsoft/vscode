@@ -25,7 +25,7 @@ import { ConsoleOutputLines } from './utilityComponents.js';
 import * as nls from '../../../../../nls.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 
-export interface RuntimeActivityProps {
+interface RuntimeActivityProps {
 	fontInfo: FontInfo;
 	runtimeItemActivity: RuntimeItemActivity;
 	erdosConsoleInstance: IErdosConsoleInstance;
@@ -64,7 +64,7 @@ export const RuntimeActivity = (props: RuntimeActivityProps) => {
 	);
 };
 
-export interface RuntimePendingInputProps {
+interface RuntimePendingInputProps {
 	fontInfo: FontInfo;
 	runtimeItemPendingInput: RuntimeItemPendingInput;
 }
@@ -91,7 +91,7 @@ export const RuntimePendingInput = (props: RuntimePendingInputProps) => {
 	);
 };
 
-export interface RuntimeStartupProps {
+interface RuntimeStartupProps {
 	runtimeItemStartup: RuntimeItemStartup;
 }
 
@@ -101,7 +101,7 @@ export const RuntimeStartup = (props: RuntimeStartupProps) => {
 	);
 };
 
-export interface RuntimeStartedProps {
+interface RuntimeStartedProps {
 	runtimeItemStarted: RuntimeItemStarted;
 }
 
@@ -111,7 +111,7 @@ export const RuntimeStarted = (props: RuntimeStartedProps) => {
 	);
 };
 
-export interface RuntimeOfflineProps {
+interface RuntimeOfflineProps {
 	runtimeItemOffline: RuntimeItemOffline;
 }
 
@@ -123,7 +123,7 @@ export const RuntimeOffline = (props: RuntimeOfflineProps) => {
 	);
 };
 
-export interface RuntimeExitedProps {
+interface RuntimeExitedProps {
 	runtimeItemExited: RuntimeItemExited;
 }
 
@@ -135,7 +135,7 @@ export const RuntimeExited = (props: RuntimeExitedProps) => {
 	);
 };
 
-export interface RuntimeRestartButtonProps {
+interface RuntimeRestartButtonProps {
 	runtimeItemRestartButton: RuntimeItemRestartButton;
 	erdosConsoleInstance: IErdosConsoleInstance;
 }
@@ -194,7 +194,7 @@ export const RuntimeRestartButton = (props: RuntimeRestartButtonProps) => {
 	);
 };
 
-export interface RuntimeStartupFailureProps {
+interface RuntimeStartupFailureProps {
 	runtimeItemStartupFailure: RuntimeItemStartupFailure;
 }
 
@@ -209,7 +209,7 @@ export const RuntimeStartupFailure = (props: RuntimeStartupFailureProps) => {
 
 
 
-export interface RuntimeStartingProps {
+interface RuntimeStartingProps {
 	runtimeItemStarting: RuntimeItemStarting;
 }
 

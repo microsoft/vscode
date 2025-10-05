@@ -369,9 +369,9 @@ export class ImageProcessingManager extends Disposable implements IImageProcessi
     }> {
         
         try {
-            // Check if it's a StaticPlotClient with URI
-            if (plotClient && 'uri' in plotClient && plotClient.uri) {
-                const uri = plotClient.uri;
+            // Check if it's a StaticPlotInstance with dataUri
+            if (plotClient && 'dataUri' in plotClient && plotClient.dataUri) {
+                const uri = plotClient.dataUri;
                 
                 // Handle data URIs
                 if (uri.startsWith('data:')) {

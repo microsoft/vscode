@@ -298,15 +298,21 @@ export async function getEditorFilePathForCommand() {
 	return;
 }
 
+function generateBatchId(): string {
+	return `${Date.now()}-${Math.floor(Math.random() * 0x100000000).toString(16)}`;
+}
+
 async function sourceCurrentFile(echo: boolean) {
 	try {
 		const filePath = await getEditorFilePathForCommand();
 		if (filePath) {
+			const batchId = generateBatchId();
+			
 			let command = `source(${JSON.stringify(filePath)})`;
 			if (echo) {
 				command = `source(${JSON.stringify(filePath)}, echo = TRUE)`;
 			}
-			erdos.runtime.executeCode('r', command, false);
+			erdos.runtime.executeCode('r', command, false, undefined, undefined, undefined, undefined, undefined, batchId);
 		}
 	} catch (e) {
 	}

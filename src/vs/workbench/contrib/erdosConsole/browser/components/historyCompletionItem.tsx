@@ -9,7 +9,7 @@ import React from 'react';
 
 import { HistoryMatch } from '../../common/historyMatchStrategy.js';
 
-export interface HistoryCompletionItemProps {
+interface HistoryCompletionItemProps {
 	readonly match: HistoryMatch;
 	readonly selected: boolean;
 	readonly onSelected: () => void;

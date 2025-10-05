@@ -29,7 +29,7 @@ export type ErdosCommOptions<T extends string> = {
 	[key in T]?: ErdosCommRpcOptions;
 };
 
-export interface ErdosCommRpcOptions {
+interface ErdosCommRpcOptions {
 	timeout: number | undefined;
 }
 

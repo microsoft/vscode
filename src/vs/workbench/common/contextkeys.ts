@@ -124,8 +124,6 @@ export const IsCompactTitleBarContext = new RawContextKey<boolean>('isCompactTit
 
 export const BannerFocused = new RawContextKey<boolean>('bannerFocused', false, localize('bannerFocused', "Whether the banner has keyboard focus"));
 
-export const ErdosTopActionBarFocused = new RawContextKey<boolean>('erdosTopActionBarFocused', false, localize('erdosTopActionBarFocused', "Whether the Erdos Top Action Bar has keyboard focus"));
-
 //#endregion
 
 
@@ -300,10 +298,11 @@ export class ResourceContextKey {
 export const ErdosConsoleFocused = new RawContextKey<boolean>('erdosConsoleFocused', false, localize('erdosConsoleFocused', "Whether Erdos Console has keyboard focus"));
 export const ErdosConsoleTabFocused = new RawContextKey<boolean>('erdosConsoleTabFocused', false, localize('erdosConsoleTabFocused', "Whether Erdos Console tab has keyboard focus"));
 export const ErdosConsoleInstancesExistContext = new RawContextKey<boolean>('erdosConsoleInstancesExist', false, localize('erdosConsoleInstancesExist', "Whether any Erdos console instances exist"));
-export const ERDOS_NOTEBOOK_EDITOR_FOCUSED = new RawContextKey<boolean>('erdosNotebookEditorFocused', false, localize('erdosNotebookEditorFocused', "Whether Erdos Notebook Editor has keyboard focus"));
 
 export const ErdosPlotsCountContext = new RawContextKey<number>('erdosPlots.count', 0, localize('erdosPlotsCount', "The number of plots in the plots pane"));
 export const ErdosPlotsSelectedPlotIdContext = new RawContextKey<string | undefined>('erdosPlots.selectedPlotId', undefined, localize('erdosPlotsSelectedPlotId', "The ID of the currently selected plot"));
+export const ErdosPlotsCurrentIndexContext = new RawContextKey<number>('erdosPlots.currentIndex', -1, localize('erdosPlotsCurrentIndex', "The index of the currently selected plot"));
+export const ErdosPlotsIsLastPlotContext = new RawContextKey<boolean>('erdosPlots.isLastPlot', false, localize('erdosPlotsIsLastPlot', "Whether the currently selected plot is the last plot"));
 
 //#endregion
 

@@ -816,14 +816,15 @@ export class ExtHostLanguageRuntime implements extHostProtocol.ExtHostLanguageRu
 		mode?: RuntimeCodeExecutionMode,
 		errorBehavior?: RuntimeErrorBehavior,
 		observer?: IExecutionObserver,
-		executionId?: string): Promise<Record<string, any>> {
+		executionId?: string,
+		batchId?: string): Promise<Record<string, any>> {
 
 		const finalExecutionId = executionId || generateUuid();
 		const executionObserver = new ExecutionObserver(observer);
 		this._executionObservers.set(finalExecutionId, executionObserver);
 
 		this._proxy.$executeCode(
-			languageId, code, extensionId, focus, allowIncomplete, mode, errorBehavior, finalExecutionId).then(
+			languageId, code, extensionId, focus, allowIncomplete, mode, errorBehavior, finalExecutionId, batchId).then(
 				(sessionId) => {
 					executionObserver.sessionId = sessionId;
 

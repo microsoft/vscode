@@ -789,10 +789,10 @@ export class KBApi implements ErdosSupervisorApi {
 				if (!this._showingDisconnectedWarning) {
 					this._showingDisconnectedWarning = true;
 					try {
-						await erdos.window.showSimpleModalDialogMessage(
-							vscode.l10n.t('Interpreters Disconnected'),
+						await vscode.window.showWarningMessage(
 							vscode.l10n.t('This Erdos session has been opened in another window. ' +
 								'As a result, interpreters have been disconnected in the current window. Reload this window to reconnect to your sessions.'),
+							{ modal: true },
 							vscode.l10n.t('Continue')
 						);
 					} finally {

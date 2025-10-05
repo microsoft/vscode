@@ -10,7 +10,7 @@ import React from 'react';
 import { OutputRun } from './outputRun.js';
 import { ANSIOutputLine } from '../../../base/common/ansiOutput.js';
 
-export interface OutputLineProps {
+interface OutputLineProps {
 	readonly outputLine: ANSIOutputLine;
 }
 

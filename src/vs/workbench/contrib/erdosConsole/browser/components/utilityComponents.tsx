@@ -12,7 +12,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { detectHyperlinks } from '../../common/linkDetector.js';
 import { useErdosReactServicesContext } from '../../../../../base/browser/erdosReactRendererContext.js';
 
-export interface ConsoleOutputLinesProps {
+interface ConsoleOutputLinesProps {
 	readonly outputLines: readonly ANSIOutputLine[];
 }
 
@@ -20,7 +20,7 @@ export const ConsoleOutputLines = (props: ConsoleOutputLinesProps) => {
 	return <OutputLines {...props} />;
 };
 
-export interface OutputRunWithLinksProps {
+interface OutputRunWithLinksProps {
 	readonly text: string;
 }
 

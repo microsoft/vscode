@@ -9,7 +9,7 @@ import { Event, Emitter } from '../../../../base/common/event.js';
 import { RuntimeClientState } from '../../../services/languageRuntime/common/languageRuntimeClientInstance.js';
 import { ILanguageRuntimeMessageCommData, ILanguageRuntimeMessageCommOpen } from '../../../services/languageRuntime/common/languageRuntimeService.js';
 
-export type ExtHostClientMessageSender = (id: string, data: Record<string, unknown>) => void;
+type ExtHostClientMessageSender = (id: string, data: Record<string, unknown>) => void;
 
 export class ExtHostRuntimeClientInstance implements erdos.RuntimeClientInstance {
 	private readonly _onDidChangeClientState = new Emitter<erdos.RuntimeClientState>();

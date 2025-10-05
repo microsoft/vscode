@@ -1,0 +1,128 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (C) 2025 Lotas Inc. All rights reserved.
+ *  Licensed under the AGPL-3.0 License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.plot-history-file-group {
+	padding: 2px 0px;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 6px;
+}
+
+.plot-history-file-group .file-group-icon {
+	width: 16px;
+	height: 16px;
+	flex-shrink: 0;
+}
+
+.plot-history-file-group .file-group-label {
+	font-weight: 500;
+	flex: 1;
+}
+
+.plot-history-time-group {
+	padding: 2px 0px;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
+
+.plot-history-time-group .time-group-label {
+	font-size: 0.9em;
+	color: var(--vscode-descriptionForeground);
+	flex: 1;
+}
+
+.plot-history-delete-button {
+	opacity: 0;
+	cursor: pointer;
+	padding: 2px 4px;
+	color: var(--vscode-icon-foreground);
+}
+
+.plot-history-delete-button:hover {
+	color: var(--vscode-errorForeground);
+}
+
+.monaco-list-row:hover .plot-history-delete-button {
+	opacity: 1;
+}
+
+.plot-history-plot-list {
+	padding: 4px 0px;
+	overflow-x: auto !important;
+	overflow-y: hidden !important;
+	/* Prevent flex shrinking which would constrain the scrollable width */
+	flex-shrink: 0 !important;
+	/* Allow the element to grow beyond parent width */
+	min-width: 0;
+}
+
+/* Don't override parent overflow - let them clip vertically but allow our element to handle horizontal scroll */
+
+.plot-history-plots-container {
+	display: flex;
+	flex-direction: row;
+	flex-wrap: nowrap;
+	gap: 8px;
+	padding: 4px 0;
+	min-width: min-content;
+	/* Prevent this container from being squeezed - maintain natural width */
+	flex-shrink: 0;
+	width: max-content;
+}
+
+.plot-history-thumbnail-item {
+	flex-shrink: 0;
+	display: inline-block;
+	vertical-align: top;
+}
+
+.plot-history-thumbnail-item img.plot {
+	width: 80px;
+	height: 80px;
+	object-fit: contain;
+	cursor: pointer;
+	display: block;
+}
+
+/* Dark filter for thumbnails */
+.dark-filter-on .plot-history-thumbnail-item img.plot,
+.vs-dark .dark-filter-auto .plot-history-thumbnail-item img.plot {
+	filter: invert(1) hue-rotate(180deg);
+}
+
+/* Disable selection highlighting and color changes in plot history tree */
+.pane-body:has(.plot-history-file-group) .monaco-list-row.selected,
+.pane-body:has(.plot-history-file-group) .monaco-list-row.focused,
+.pane-body:has(.plot-history-file-group) .monaco-list:focus .monaco-list-row.selected,
+.pane-body:has(.plot-history-file-group) .monaco-list:focus .monaco-list-row.focused,
+.pane-body:has(.plot-history-file-group) .monaco-list-row.selected .monaco-tl-contents,
+.pane-body:has(.plot-history-file-group) .monaco-list-row.focused .monaco-tl-contents {
+	background-color: transparent !important;
+	color: inherit !important;
+	outline: none !important;
+}
+
+/* Prevent color changes for chevron/twistie and delete button on selection */
+.pane-body:has(.plot-history-file-group) .monaco-list-row.selected .monaco-tl-twistie,
+.pane-body:has(.plot-history-file-group) .monaco-list-row.focused .monaco-tl-twistie,
+.pane-body:has(.plot-history-file-group) .monaco-list:focus .monaco-list-row.selected .monaco-tl-twistie,
+.pane-body:has(.plot-history-file-group) .monaco-list:focus .monaco-list-row.focused .monaco-tl-twistie,
+.pane-body:has(.plot-history-file-group) .monaco-list-row.selected .plot-history-delete-button,
+.pane-body:has(.plot-history-file-group) .monaco-list-row.focused .plot-history-delete-button,
+.pane-body:has(.plot-history-file-group) .monaco-list:focus .monaco-list-row.selected .plot-history-delete-button,
+.pane-body:has(.plot-history-file-group) .monaco-list:focus .monaco-list-row.focused .plot-history-delete-button,
+.pane-body:has(.plot-history-file-group) .monaco-list-row.selected .codicon,
+.pane-body:has(.plot-history-file-group) .monaco-list-row.focused .codicon,
+.pane-body:has(.plot-history-file-group) .monaco-list:focus .monaco-list-row.selected .codicon,
+.pane-body:has(.plot-history-file-group) .monaco-list:focus .monaco-list-row.focused .codicon {
+	color: inherit !important;
+}
+
+/* Ensure hover still works */
+.pane-body:has(.plot-history-file-group) .monaco-list-row:hover {
+	background-color: var(--vscode-list-hoverBackground) !important;
+}

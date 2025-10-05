@@ -12,7 +12,7 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { HistoryCompletionItem } from './historyCompletionItem.js';
 import { HistoryMatch } from '../../common/historyMatchStrategy.js';
 
-export interface HistoryBrowserPopupProps {
+interface HistoryBrowserPopupProps {
 	items: HistoryMatch[];
 	selectedIndex: number;
 	bottomPx: number;

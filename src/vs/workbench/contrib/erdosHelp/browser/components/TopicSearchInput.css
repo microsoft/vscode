@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
  *  Copyright (C) 2025 Lotas Inc. All rights reserved.
- *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
+ *  Licensed under the AGPL-3.0 License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
 .help-search-widget {
@@ -137,51 +137,78 @@
 	left: 0;
 	width: 100%;
 	z-index: 1000;
-	max-height: 300px;
+	max-height: 320px;
 	overflow-y: auto;
-	background-color: var(--vscode-dropdown-background);
-	border: 1px solid var(--vscode-dropdown-border);
+	background-color: var(--vscode-erdosDropDownListBox-background);
+	border: 1px solid var(--vscode-erdosDropDownListBox-border);
 	border-radius: 4px;
-	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 	margin-top: 2px;
+	display: flex;
+	flex-direction: column;
 }
 
 .help-search-no-results {
-	padding: 12px 16px;
-	color: var(--vscode-list-inactiveSelectionForeground);
+	padding: 8px;
+	color: var(--vscode-descriptionForeground);
 	font-style: italic;
 	text-align: center;
+	font-size: 13px;
+	height: 26px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	cursor: default;
 }
 
 .help-search-item {
-	padding: 4px 16px;
-	cursor: pointer;
-	color: var(--vscode-list-inactiveSelectionForeground);
-	background-color: transparent;
 	border: none;
+	display: grid;
+	align-content: center;
+	background: transparent;
+	color: var(--vscode-erdosDropDownListBox-foreground);
+	grid-template-columns: [topic] 1fr [end];
+	border-radius: 0;
+	margin: 0;
+	padding: 4px 8px;
+	position: relative;
+	transition: none;
+	cursor: pointer;
 	width: 100%;
 	text-align: left;
-	display: flex;
-	align-items: center;
 }
 
-.help-search-item:hover,
-.help-search-item.selected {
-	background-color: var(--vscode-list-hoverBackground);
-	color: var(--vscode-list-hoverForeground);
+.help-search-item:hover {
+	color: var(--vscode-erdosDropDownListBox-hoverForeground);
+	background: var(--vscode-erdosDropDownListBox-hoverBackground);
+}
+
+.help-search-item:focus {
+	outline: none;
+}
+
+.help-search-item:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	background: var(--vscode-erdosDropDownListBox-hoverBackground);
 }
 
 .help-search-item.selected {
-	background-color: var(--vscode-list-activeSelectionBackground);
-	color: var(--vscode-list-activeSelectionForeground);
+	background: var(--vscode-erdosDropDownListBox-hoverBackground);
+	color: var(--vscode-erdosDropDownListBox-hoverForeground);
 }
 
 .help-search-topic {
-	font-family: var(--vscode-editor-font-family);
-	font-size: var(--vscode-editor-font-size);
+	grid-column: topic / end;
+	font-size: 13px;
+	color: inherit;
+	font-weight: normal;
+	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
-	white-space: nowrap;
+	line-height: normal;
+	display: flex;
+	align-items: center;
+	min-width: 0;
 }
 
 .help-search-widget.home {

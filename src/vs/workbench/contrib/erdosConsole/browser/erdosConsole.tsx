@@ -12,7 +12,7 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ErdosConsoleContextProvider } from './erdosConsoleContext.js';
 import { IReactComponentContainer } from '../../../../base/browser/erdosReactRenderer.js';
 
-export interface ErdosConsoleProps {
+interface ErdosConsoleProps {
 	readonly reactComponentContainer: IReactComponentContainer;
 }
 

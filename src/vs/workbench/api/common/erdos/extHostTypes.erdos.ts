@@ -147,4 +147,3 @@ export enum CodeAttributionSource {
 }
 
 export { UiRuntimeNotifications } from '../../../services/languageRuntime/common/languageRuntimeService.js';
-export { PlotRenderSettings, PlotRenderFormat } from '../../../services/erdosPlots/common/erdosPlots.js';

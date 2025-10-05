@@ -17,7 +17,6 @@ import { IRuntimeSessionService } from './runtimeSessionService.js';
 import { ActiveRuntimeSession } from './activeRuntimeSession.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IModalDialogPromptInstance, IErdosModalDialogsService } from '../../erdosModalDialogs/common/erdosModalDialogs.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
@@ -102,9 +101,6 @@ export class RuntimeSessionService extends Disposable implements IRuntimeSession
 	private readonly _onDidStartUiClientEmitter =
 		this._register(new Emitter<{ sessionId: string; uiClient: UiClientInstance }>());
 
-
-	private _modalWaitPrompt: IModalDialogPromptInstance | undefined = undefined;
-
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILanguageService private readonly _languageService: ILanguageService,
@@ -112,7 +108,6 @@ export class RuntimeSessionService extends Disposable implements IRuntimeSession
 		@ILogService private readonly _logService: ILogService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IOpenerService private readonly _openerService: IOpenerService,
-		@IErdosModalDialogsService private readonly _erdosModalDialogsService: IErdosModalDialogsService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IStorageService private readonly _storageService: IStorageService,
@@ -1521,39 +1516,14 @@ export class RuntimeSessionService extends Disposable implements IRuntimeSession
 
 		const disposables = new DisposableStore();
 
-		if (this._modalWaitPrompt) {
-			this._modalWaitPrompt.close();
-			this._modalWaitPrompt = undefined;
-		}
-
 		return new Promise<void>((resolve, reject) => {
 			const timer = setTimeout(() => {
 				reject();
-
-				this._modalWaitPrompt = this._erdosModalDialogsService.showModalDialogPrompt(
-					nls.localize('erdos.runtimeNotResponding', "{0} is not responding", session.runtimeMetadata.runtimeName),
-					warning,
-					nls.localize('erdos.runtimeForceQuit', "Force Quit"),
-					nls.localize('erdos.runtimeKeepWaiting', "Wait")
-				);
-
-				disposables.add(this._modalWaitPrompt.onChoice((choice) => {
-					if (choice) {
-						session.forceQuit();
-					}
-					this._modalWaitPrompt = undefined;
-					disposables.dispose();
-				}));
 			}, seconds * 1000);
 
 			const completeStateChange = () => {
 				clearTimeout(timer);
 				resolve();
-
-				if (this._modalWaitPrompt) {
-					this._modalWaitPrompt.close();
-					this._modalWaitPrompt = undefined;
-				}
 				disposables.dispose();
 			};
 

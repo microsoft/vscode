@@ -1,0 +1,46 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (C) 2025 Lotas Inc. All rights reserved.
+ *  Licensed under the AGPL-3.0 License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.erdos-plots .pane-header .actions {
+	width: initial !important;
+	flex: 1 !important;
+}
+
+.erdos-plots.pane,
+.erdos-plots.pane:focus,
+.erdos-plots.pane:focus-within,
+.erdos-plots .pane-header,
+.erdos-plots .pane-header:focus,
+.erdos-plots .pane-header:focus-within,
+.erdos-plots .pane-body,
+.erdos-plots .pane-body:focus,
+.erdos-plots .pane-body:focus-within,
+.monaco-pane-view .pane.erdos-plots,
+.monaco-pane-view .pane.erdos-plots:focus,
+.monaco-pane-view .pane.erdos-plots:focus-within {
+	outline: none !important;
+	border: none !important;
+	border-left: none !important;
+	border-color: transparent !important;
+	box-shadow: none !important;
+}
+
+.monaco-workbench .part.panel .pane.erdos-plots {
+	border-left: none !important;
+}
+
+.ep-view-container {
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+}
+
+.ep-view-empty-state {
+	text-align: center;
+	font-style: italic;
+	margin-top: 20px;
+}
+
+

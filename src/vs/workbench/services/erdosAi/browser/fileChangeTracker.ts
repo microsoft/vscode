@@ -1258,8 +1258,8 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 						isWholeLine: true,
 						linesDecorationsClassName: 'erdos-ai-diff-added-gutter',
 						overviewRuler: {
-							color: 'rgba(0, 255, 0, 0.6)',
-							position: 7
+							color: 'rgba(40, 167, 69, 0.8)',
+							position: 1
 						}
 					}
 				});
@@ -1282,8 +1282,8 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 							value: `Click to view ${deletedLines.length} deleted line(s)`
 						},
 						overviewRuler: {
-							color: 'rgba(255, 0, 0, 0.6)',
-							position: 7
+							color: 'rgba(220, 53, 69, 0.8)',
+							position: 1
 						}
 					}
 				});

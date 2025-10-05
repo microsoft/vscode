@@ -9,7 +9,7 @@ import { formatOutputLinesForClipboard } from '../utils/clipboardUtils.js';
 import { ANSIOutput, ANSIOutputLine } from '../../../../../base/common/ansiOutput.js';
 import { ILanguageRuntimeMessageOutputData } from '../../../languageRuntime/common/languageRuntimeService.js';
 
-export abstract class ActivityItemBase {
+abstract class ActivityItemBase {
 	private _isHidden = false;
 
 	constructor(readonly id: string, readonly parentId: string, readonly when: Date) {

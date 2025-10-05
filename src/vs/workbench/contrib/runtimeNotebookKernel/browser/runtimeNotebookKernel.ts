@@ -187,19 +187,22 @@ export class RuntimeNotebookKernel extends Disposable implements INotebookKernel
 				});
 			}
 
-			// Queue the cell executions.
-			const executionPromises: Promise<void>[] = [];
-			for (const cellHandle of cellHandles) {
-				const cell = notebook.cells.find(cell => cell.handle === cellHandle);
-				if (!cell) {
-					// Not sure when this happens, so we're copying ExtHostNotebookKernels.$executeCells
-					// and skipping the cell.
-					this._logService.warn(
-						`[RuntimeNotebookKernel] Cell handle ${cellHandle} not found in notebook ` +
-						`${notebookUri.fsPath}; skipping cell execution`
-					);
-					continue;
-				}
+		// Generate a batch ID for this execution - all cells executed together share the same batch ID
+		const batchId = `${Date.now()}-${Math.floor(Math.random() * 0x100000000).toString(16)}`;
+
+		// Queue the cell executions.
+		const executionPromises: Promise<void>[] = [];
+		for (const cellHandle of cellHandles) {
+			const cell = notebook.cells.find(cell => cell.handle === cellHandle);
+			if (!cell) {
+				// Not sure when this happens, so we're copying ExtHostNotebookKernels.$executeCells
+				// and skipping the cell.
+				this._logService.warn(
+					`[RuntimeNotebookKernel] Cell handle ${cellHandle} not found in notebook ` +
+					`${notebookUri.fsPath}; skipping cell execution`
+				);
+				continue;
+			}
 
 				this._logService.trace(
 					`[RuntimeNotebookKernel] Queuing cell execution ${cell.handle} ` +
@@ -207,7 +210,7 @@ export class RuntimeNotebookKernel extends Disposable implements INotebookKernel
 				);
 				const executionPromise = this._notebookExecutionSequencer.queue(
 					notebookUri,
-					() => this.executeCell(cell, notebook, session),
+					() => this.executeCell(cell, notebook, session, batchId),
 				);
 				executionPromises.push(executionPromise);
 			}
@@ -225,12 +228,14 @@ export class RuntimeNotebookKernel extends Disposable implements INotebookKernel
 	 * @param cell The notebook cell text model.
 	 * @param notebook The notebook text model.
 	 * @param session
+	 * @param batchId The batch ID for this execution (shared across all cells in a Run All)
 	 * @returns
 	 */
 	private async executeCell(
 		cell: NotebookCellTextModel,
 		notebook: NotebookTextModel,
 		session: ILanguageRuntimeSession,
+		batchId: string,
 	): Promise<void> {
 		this._logService.trace(`[RuntimeNotebookKernel] Executing cell: ${cell.handle}`);
 
@@ -272,6 +277,7 @@ export class RuntimeNotebookKernel extends Disposable implements INotebookKernel
 			sessionId: session.sessionId,
 			attribution: {
 				source: CodeAttributionSource.Notebook,
+				batchId: batchId,
 				metadata: {
 					notebook: notebook.uri.path,
 				}

@@ -77,6 +77,8 @@
 	margin-right: 4px;
 	white-space: nowrap;
 	text-overflow: ellipsis;
+	flex-shrink: 1;
+	min-width: 0;
 }
 
 .action-bar-button.border .action-bar-button-label {
@@ -123,6 +125,7 @@
 .action-bar-button-drop-down-container {
 	display: flex;
 	padding-right: 5px;
+	flex-shrink: 0;
 }
 
 .action-bar-button-drop-down-button {

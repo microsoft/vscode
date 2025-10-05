@@ -15,16 +15,14 @@ import { isWeb } from '../../../../base/common/platform.js';
 import { PlotRenderSettings } from './erdosPlotComm.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 
-export const ERDOS_PREVIEW_PLOTS_IN_VIEWER = 'erdos.viewer.interactivePlotsInViewer';
-
-export enum UiMessageTypeInput {
+enum UiMessageTypeInput {
 }
 
 export interface IUiClientMessageInput {
 	msg_type: UiMessageTypeInput;
 }
 
-export enum UiMessageTypeOutput {
+enum UiMessageTypeOutput {
 	Event = 'event',
 }
 
@@ -37,11 +35,7 @@ export interface IRuntimeClientEvent {
 	data: any;
 }
 
-export interface IUiClientMessageOutputEvent
-	extends IUiClientMessageOutput, IRuntimeClientEvent {
-}
-
-export interface IShowHtmlUriEvent {
+interface IShowHtmlUriEvent {
 	uri: URI;
 	event: ShowHtmlFileEvent;
 }

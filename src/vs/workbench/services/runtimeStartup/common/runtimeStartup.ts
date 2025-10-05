@@ -19,7 +19,6 @@ import { INotificationService, Severity } from '../../../../platform/notificatio
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
-import { IErdosNewFolderService } from '../../erdosNewFolder/common/erdosNewFolder.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Barrier } from '../../../../base/common/async.js';
@@ -91,7 +90,6 @@ export class RuntimeStartupService extends Disposable implements IRuntimeStartup
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@ILogService private readonly _logService: ILogService,
 		@INotificationService private readonly _notificationService: INotificationService,
-		@IErdosNewFolderService private readonly _newFolderService: IErdosNewFolderService,
 		@IRuntimeSessionService private readonly _runtimeSessionService: IRuntimeSessionService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
@@ -376,17 +374,6 @@ export class RuntimeStartupService extends Disposable implements IRuntimeStartup
 	private async startupSequence() {
 
 		await this.restoreSessions();
-
-		await this._newFolderService.initTasksComplete.wait();
-		const newRuntime = this._newFolderService.newFolderRuntimeMetadata;
-		if (newRuntime) {
-			const newAffiliation: IAffiliatedRuntimeMetadata = {
-				metadata: newRuntime,
-				lastUsed: Date.now(),
-				lastStarted: Date.now()
-			};
-			this.saveAffiliatedRuntime(newAffiliation);
-		}
 
 		const disabledLanguages = new Array<string>();
 		const enabledLanguages = Array.from(this._languagePacks.keys()).filter(languageId => {

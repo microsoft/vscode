@@ -10,7 +10,7 @@ import { ILanguageRuntimeSession } from '../../../services/runtimeSession/common
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 
-export const ERDOS_NOTEBOOK_OUTPUT_WEBVIEW_SERVICE_ID = 'erdosNotebookOutputWebview';
+const ERDOS_NOTEBOOK_OUTPUT_WEBVIEW_SERVICE_ID = 'erdosNotebookOutputWebview';
 
 export const IErdosNotebookOutputWebviewService =
 	createDecorator<IErdosNotebookOutputWebviewService>(

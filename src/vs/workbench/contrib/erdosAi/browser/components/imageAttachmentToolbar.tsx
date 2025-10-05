@@ -7,7 +7,7 @@ import React, { useState, useRef, useEffect } from 'react';
 
 import { IAttachedImage, IImageAttachmentService } from '../../../../services/erdosAiMedia/common/imageAttachmentService.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
-import { IErdosPlotsService } from '../../../../services/erdosPlots/common/erdosPlots.js';
+import { IErdosPlotsService } from '../../../erdosPlots/common/erdosPlotsService.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 
