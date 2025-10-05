@@ -581,12 +581,12 @@ export class CursorMoveCommands {
 
 export namespace CursorMove {
 
-	const isCursorMoveArgs = function (arg: any): boolean {
+	const isCursorMoveArgs = function (arg: unknown): boolean {
 		if (!types.isObject(arg)) {
 			return false;
 		}
 
-		const cursorMoveArg: RawArguments = arg;
+		const cursorMoveArg: RawArguments = arg as RawArguments;
 
 		if (!types.isString(cursorMoveArg.to)) {
 			return false;
