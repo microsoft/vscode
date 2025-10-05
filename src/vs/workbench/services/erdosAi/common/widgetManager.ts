@@ -76,11 +76,6 @@ export interface IWidgetManager {
 	readonly onWidgetButtonAction: Event<{ messageId: number; action: string }>;
 
 	/**
-	 * Event fired when widget content is updated asynchronously (for run_file widgets)
-	 */
-	readonly onWidgetContentUpdated: Event<{ messageId: number; content: string; functionType: string }>;
-
-	/**
 	 * Event fired when a widget is created and ready for streaming
 	 */
 	readonly onWidgetCreated: Event<string>;

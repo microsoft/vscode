@@ -14,7 +14,7 @@ import { IFileChangeTracker } from '../../../services/erdosAi/common/fileChangeT
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IConversationManager } from '../../../services/erdosAiConversation/common/conversationManager.js';
 import { AutoAcceptFloatingBar } from './components/autoAcceptFloatingBar.js';
-import { ErdosReactRenderer } from '../../../../base/browser/erdosReactRenderer.js';
+import { createRoot, Root } from 'react-dom/client';
 import React from 'react';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -22,7 +22,7 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 class AutoAcceptOverlayController {
 	private readonly _store = new DisposableStore();
 	private readonly _domNode = document.createElement('div');
-	private _reactRenderer: ErdosReactRenderer | undefined;
+	private _reactRenderer: Root | undefined;
 
 	constructor(
 		container: HTMLElement,
@@ -42,8 +42,8 @@ class AutoAcceptOverlayController {
 		this._domNode.style.maxWidth = '600px';
 
 		// Create React renderer and render the AutoAcceptFloatingBar
-		this._reactRenderer = new ErdosReactRenderer(this._domNode);
-		this._store.add(this._reactRenderer);
+		this._reactRenderer = createRoot(this._domNode);
+		this._store.add(toDisposable(() => this._reactRenderer?.unmount()));
 
 		this._reactRenderer.render(
 			React.createElement(AutoAcceptFloatingBar, {

@@ -10,7 +10,7 @@ import { AnsiOutputLines } from './ansiOutput.js';
 import { localize } from '../../../../../nls.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { detectHyperlinks } from '../../common/linkDetector.js';	
-import { useErdosReactServicesContext } from '../../../../../base/browser/erdosReactRendererContext.js';
+import { services } from '../../../../../base/browser/erdosReactServices.js';
 
 interface ConsoleOutputLinesProps {
 	readonly outputLines: readonly ANSIOutputLine[];
@@ -24,10 +24,7 @@ interface OutputRunWithLinksProps {
 	readonly text: string;
 }
 
-export const OutputRunWithLinks = (props: OutputRunWithLinksProps) => {
-	const services = useErdosReactServicesContext();
-
-	const clickHandler = async (url: string) => {
+export const OutputRunWithLinks = (props: OutputRunWithLinksProps) => {	const clickHandler = async (url: string) => {
 		let uri: URI | undefined;
 		try {
 			uri = URI.parse(url);

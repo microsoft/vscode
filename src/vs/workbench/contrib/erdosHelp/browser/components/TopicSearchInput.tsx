@@ -8,7 +8,7 @@ import './TopicSearchInput.css';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { localize } from '../../../../../nls.js';
 import { IDocumentationMatch } from '../topicQueryService.js';
-import { useErdosReactServicesContext } from '../../../../../base/browser/erdosReactRendererContext.js';
+import { services } from '../../../../../base/browser/erdosReactServices.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 
@@ -26,9 +26,7 @@ export const TopicSearchInput: React.FC<TopicSearchInputProps> = ({
 	variant = 'home',
 	onTopicSelected,
 	autoFocus = false
-}) => {
-	const services = useErdosReactServicesContext();
-	const [query, setQuery] = useState('');
+}) => {	const [query, setQuery] = useState('');
 	const [results, setResults] = useState<IDocumentationMatch[]>([]);
 	const [selectedIndex, setSelectedIndex] = useState(-1);
 	const [isLoading, setIsLoading] = useState(false);

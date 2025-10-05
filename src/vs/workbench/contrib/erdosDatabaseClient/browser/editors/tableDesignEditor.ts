@@ -39,8 +39,6 @@ interface ComponentIndexInfo {
 import * as React from 'react';
 import * as ReactDOM from 'react-dom/client';
 import { Root } from 'react-dom/client';
-import { ErdosReactServicesContext } from '../../../../../base/browser/erdosReactRendererContext.js';
-import { ErdosReactServices } from '../../../../../base/browser/erdosReactServices.js';
 
 /**
  * Table Design Editor - wraps the TableDesigner React component in VS Code's EditorPane system.
@@ -174,11 +172,7 @@ export class TableDesignEditor extends EditorPane {
 
 		// Render the TableDesigner component with services context
 		this._reactRoot.render(
-			React.createElement(
-				ErdosReactServicesContext.Provider,
-				{ value: ErdosReactServices.services },
-				React.createElement(TableDesigner, props)
-			)
+			React.createElement(TableDesigner, props)
 		);
 	}
 

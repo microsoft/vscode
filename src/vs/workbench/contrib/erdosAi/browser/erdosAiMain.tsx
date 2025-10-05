@@ -3,7 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { IReactComponentContainer } from '../../../../base/browser/erdosReactRenderer.js';
+import { IReactComponentContainer } from '../../erdosConsole/browser/erdosConsoleView.js';
 import { IErdosAiServiceCore } from '../../../services/erdosAi/common/erdosAiServiceCore.js';
 import { IErdosAiAuthService } from '../../../services/erdosAi/common/erdosAiAuthService.js';
 import { IErdosHelpService } from '../../erdosHelp/browser/services/helpService.js';
@@ -22,7 +22,7 @@ import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { IErdosAiMarkdownRenderer } from '../../../services/erdosAiUtils/common/erdosAiMarkdownRenderer.js';
-import { useErdosReactServicesContext } from '../../../../base/browser/erdosReactRendererContext.js';
+import { services } from '../../../../base/browser/erdosReactServices.js';
 import { HistoryDropdown } from './components/ConversationHistory.js';
 import { MessageInput } from './components/MessageInput.js';
 import { FileChangesBar } from './components/fileChangesBar.js';
@@ -56,14 +56,13 @@ export interface ErdosAiRef {
 	showSettings: () => void;
 }
 
-export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) => {
-	const services = useErdosReactServicesContext();
-	const [messages, setMessages] = useState<ConversationMessage[]>([]);
+export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) => {	const [messages, setMessages] = useState<ConversationMessage[]>([]);
 	const [inputValue, setInputValue] = useState('');
 	const [isAiProcessing, setIsAiProcessing] = useState(false);
 	const [thinkingMessage, setThinkingMessage] = useState<string>('');
 	const [currentConversation, setCurrentConversation] = useState<Conversation | null>(null);
 	const [fileChangesRefreshTrigger, setFileChangesRefreshTrigger] = useState(0);
+	const [runFileContentCache, setRunFileContentCache] = useState<Map<number, string>>(new Map());
 
 	// Monaco services for widget integration
 	const monacoServices: IMonacoWidgetServices = useMemo(() => {
@@ -93,6 +92,7 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 	// Auto-scroll state management
 	const [autoScrollEnabled, setAutoScrollEnabled] = useState(true);
 	const [isLoadingConversation, setIsLoadingConversation] = useState(false);
+	const [widgetLayoutTrigger, setWidgetLayoutTrigger] = useState(0);
 	
 	React.useImperativeHandle(ref, () => ({
 		showHistory: () => setShowHistory(true),
@@ -291,12 +291,39 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 				messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
 			});
 		}
-	}, [messages, widgets, currentConversation?.streaming?.content, autoScrollEnabled, isLoadingConversation]);
+	}, [messages, widgets, currentConversation?.streaming?.content, autoScrollEnabled, isLoadingConversation, widgetLayoutTrigger]);
 
 	useEffect(() => {
 		const renderer = props.markdownRenderer as unknown as ErdosAiMarkdownRenderer;
 		setMarkdownRenderer(renderer);
 	}, [props.markdownRenderer]);
+
+	// Preload run_file content for historical widgets
+	useEffect(() => {
+		const loadRunFileContent = async () => {
+			const contentMap = new Map<number, string>();
+			
+			for (const message of messages) {
+				if (message.function_call && message.function_call.name === 'run_file') {
+					try {
+						const args = parseFunctionArgs(message.function_call);
+						const content = await props.erdosAiService.extractFileContentForWidget(
+							args.filename || args.file_path || '',
+							args.start_line_one_indexed,
+							args.end_line_one_indexed_inclusive
+						);
+						contentMap.set(message.id, content);
+					} catch (error) {
+						contentMap.set(message.id, `Error loading file: ${error instanceof Error ? error.message : String(error)}`);
+					}
+				}
+			}
+			
+			setRunFileContentCache(contentMap);
+		};
+		
+		loadRunFileContent();
+	}, [messages, props.erdosAiService]);
 
 	useEffect(() => {
 		const conversationLoadedDisposable = props.erdosAiService.onConversationLoaded(async (conversation: Conversation) => {
@@ -320,14 +347,16 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 				}
 			}
 			
-			setCurrentConversation(conversation);
-			const displayableMessages = filterMessagesForDisplay(conversation.messages);
-			
-			// When loading a conversation, replace messages completely (don't merge)
-			setMessages(displayableMessages);
-			setWidgets(new Map());
-			// Clear any existing error messages when switching conversations
-			setStreamingErrors(new Map());
+		setCurrentConversation(conversation);
+		const displayableMessages = filterMessagesForDisplay(conversation.messages);
+		
+		// When loading a conversation, replace messages completely (don't merge)
+		setMessages(displayableMessages);
+		setWidgets(new Map());
+		// Clear any existing error messages when switching conversations
+		setStreamingErrors(new Map());
+		// Clear run_file content cache
+		setRunFileContentCache(new Map());
 			
 			// Reload images for the new conversation
 			if (services.imageAttachmentService) {
@@ -490,6 +519,8 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 					
 					if (update.diffData) {
 						newWidget.diffData = update.diffData;
+						// Trigger auto-scroll when diff data arrives (buttons will become visible)
+						setWidgetLayoutTrigger(prev => prev + 1);
 					}
 					
 					return new Map(prev).set(update.messageId, newWidget);
@@ -497,6 +528,8 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 			}
 			
 			if (update.isComplete !== undefined) {
+				// Trigger auto-scroll when widget completes (final layout is set)
+				setWidgetLayoutTrigger(prev => prev + 1);
 			}
 		});
 
@@ -504,6 +537,8 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 			if (action.action === 'hide') {
 				// Button hiding is handled by individual widget components
 			}
+			// Trigger auto-scroll when button visibility changes affect layout
+			setWidgetLayoutTrigger(prev => prev + 1);
 		});
 
 		const conversation = props.erdosAiService.getCurrentConversation();
@@ -565,6 +600,7 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 					erdosAiSettingsService={props.erdosAiSettingsService}
 					commonUtils={props.commonUtils}
 					functionParserService={services.functionParserService}
+					onHeightChange={() => setWidgetLayoutTrigger(prev => prev + 1)}
 				/>
 			);
 		}
@@ -628,21 +664,12 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 		} else if (functionCall.name === 'delete_file') {
 			filename = args.filename || args.file_path || '';
 			initialContent = `Delete ${args.filename}${args.explanation ? ': ' + args.explanation : ''}`;
-		} else if (functionCall.name === 'run_file') {
-			filename = args.filename || args.file_path || '';
-			// For run_file, start with loading message and trigger async content loading
-			initialContent = 'Loading file content...';
-			
-			props.erdosAiService.extractFileContentForWidget(
-				filename,
-				args.start_line_one_indexed,
-				args.end_line_one_indexed_inclusive
-			).then(content => {
-				props.erdosAiService.updateWidgetContent(message.id, content);
-			}).catch(error => {
-				props.erdosAiService.updateWidgetContent(message.id, `Error loading file: ${error instanceof Error ? error.message : String(error)}`);
-			});
-		}
+	} else if (functionCall.name === 'run_file') {
+		filename = args.filename || args.file_path || '';
+		// For historical run_file widgets, use preloaded content from cache
+		// (Live widgets use the synchronous await path in widgetManager.ts)
+		initialContent = runFileContentCache.get(message.id) || 'Loading file content...';
+	}
 		
 		// Check if this widget should show buttons by looking at function_call_output
 		// If output is "Response pending...", the widget is still interactive
@@ -700,7 +727,8 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 				erdosAiSettingsService={props.erdosAiSettingsService}
 				commonUtils={props.commonUtils}
 				functionParserService={services.functionParserService}
-				isHistorical={true} // Add flag to indicate this is from conversation log
+				isHistorical={true}
+				onHeightChange={() => setWidgetLayoutTrigger(prev => prev + 1)}
 			/>
 		);
 	};
@@ -730,16 +758,18 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 					const id = parseInt(conversationId, 10);
 					if (!isNaN(id)) {
 						try {
-							const conversation = await props.erdosAiService.loadConversation(id);
-							if (conversation) {
-								const displayableMessages = filterMessagesForDisplay(conversation.messages);
-								setMessages(displayableMessages);
-								setCurrentConversation(conversation);
-								// Clear widgets so historical widgets from conversation log can be displayed
-								setWidgets(new Map());
-								// Clear any existing error messages when switching conversations
-								setStreamingErrors(new Map());
-							}
+						const conversation = await props.erdosAiService.loadConversation(id);
+						if (conversation) {
+							const displayableMessages = filterMessagesForDisplay(conversation.messages);
+							setMessages(displayableMessages);
+							setCurrentConversation(conversation);
+							// Clear widgets so historical widgets from conversation log can be displayed
+							setWidgets(new Map());
+							// Clear any existing error messages when switching conversations
+							setStreamingErrors(new Map());
+							// Clear run_file content cache
+							setRunFileContentCache(new Map());
+						}
 						} catch (error) {
 							console.error('Failed to load conversation:', error);
 						}
@@ -779,6 +809,7 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 											erdosAiSettingsService={props.erdosAiSettingsService}
 											commonUtils={props.commonUtils}
 											functionParserService={services.functionParserService}
+											onHeightChange={() => setWidgetLayoutTrigger(prev => prev + 1)}
 										/>
 									);
 								} else if (item.type === 'streaming') {

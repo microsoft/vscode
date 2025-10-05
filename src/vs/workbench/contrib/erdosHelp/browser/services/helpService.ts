@@ -154,7 +154,9 @@ class HelpService extends Disposable implements IErdosHelpService {
 		if (clients.length === 0) {
 			return [];
 		}
-		return await clients[0].searchHelpTopics(query);
+		// Use the most recently attached client (last in array) - same as showHelpTopic
+		const client = clients[clients.length - 1];
+		return await client.searchHelpTopics(query);
 	}
 
 	getHelpClients(): Array<any> {

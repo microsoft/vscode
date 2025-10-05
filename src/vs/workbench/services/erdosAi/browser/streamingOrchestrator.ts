@@ -64,9 +64,6 @@ export class StreamingOrchestrator extends Disposable implements IStreamingOrche
 	private readonly _onWidgetButtonAction = this._register(new Emitter<{ messageId: number; action: string }>());
 	readonly onWidgetButtonAction: Event<{ messageId: number; action: string }> = this._onWidgetButtonAction.event;
 
-	private readonly _onWidgetContentUpdated = this._register(new Emitter<{ messageId: number; content: string; functionType: string }>());
-	readonly onWidgetContentUpdated: Event<{ messageId: number; content: string; functionType: string }> = this._onWidgetContentUpdated.event;
-
 	private readonly _onThinkingMessageHide = this._register(new Emitter<void>());
 	readonly onThinkingMessageHide: Event<void> = this._onThinkingMessageHide.event;
 
@@ -111,10 +108,6 @@ export class StreamingOrchestrator extends Disposable implements IStreamingOrche
 
 		this._register(this.widgetManager.onWidgetButtonAction((action) => {
 			this._onWidgetButtonAction.fire(action);
-		}));
-
-		this._register(this.widgetManager.onWidgetContentUpdated((update) => {
-			this._onWidgetContentUpdated.fire(update);
 		}));
 
 		this._register(this.branchManager.onBatchComplete((event) => {

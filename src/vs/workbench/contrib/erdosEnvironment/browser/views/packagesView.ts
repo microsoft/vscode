@@ -15,7 +15,8 @@ import { IThemeService } from '../../../../../platform/theme/common/themeService
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IAccessibleViewInformationService } from '../../../../services/accessibility/common/accessibleViewInformationService.js';
 import { IErdosEnvironmentService, IPythonPackage, IRPackage, ERDOS_PYTHON_PACKAGES_VIEW_ID, ERDOS_R_PACKAGES_VIEW_ID } from '../../common/environmentTypes.js';
-import { IReactComponentContainer, ISize, ErdosReactRenderer } from '../../../../../base/browser/erdosReactRenderer.js';
+import { IReactComponentContainer, ISize } from '../../../erdosConsole/browser/erdosConsoleView.js';
+import { createRoot, Root } from 'react-dom/client';
 import { PackageList } from '../components/packageList.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
@@ -26,7 +27,7 @@ type Package = IPythonPackage | IRPackage;
 
 export class PackagesView extends ViewPane implements IReactComponentContainer {
 	
-	private _erdosReactRenderer!: ErdosReactRenderer;
+	private _erdosReactRenderer!: Root;
 	private _packages: Package[] = [];
 	private _isLoading: boolean = false;
 	private _isRefreshing: boolean = false; // Add refresh guard like R implementation
@@ -112,8 +113,8 @@ export class PackagesView extends ViewPane implements IReactComponentContainer {
 		super.renderBody(container);
 		
 		try {
-			this._erdosReactRenderer = new ErdosReactRenderer(container);
-			this._register(this._erdosReactRenderer);
+			this._erdosReactRenderer = createRoot(container);
+			this._register({ dispose: () => this._erdosReactRenderer?.unmount() });
 			
 			this.refresh();
 		} catch (error) {

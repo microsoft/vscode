@@ -359,11 +359,11 @@ export class QueryHistoryView extends ViewPane {
 		this._register(this._tree);
 
 		// Set up event handlers
-		this._tree.onDidOpen((e: { element?: IQueryHistoryTreeElement }) => {
+		this._register(this._tree.onDidOpen((e: { element?: IQueryHistoryTreeElement }) => {
 			if (e.element) {
 				this._handleHistoryItemDoubleClick(e.element.element);
 			}
-		});
+		}));
 
 		// Load initial data
 		this._loadHistoryItems();

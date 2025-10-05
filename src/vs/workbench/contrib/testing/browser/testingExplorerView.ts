@@ -97,6 +97,7 @@ export class TestingExplorerView extends ViewPane {
 	private readonly discoveryProgress = this._register(new MutableDisposable<UnmanagedProgress>());
 	private readonly filter = this._register(new MutableDisposable<TestingExplorerFilter>());
 	private readonly filterFocusListener = this._register(new MutableDisposable());
+	private readonly dropdownActions = this._register(new DisposableStore());
 	private readonly dimensions = { width: 0, height: 0 };
 	private lastFocusState = LastFocusState.Input;
 
@@ -328,6 +329,8 @@ export class TestingExplorerView extends ViewPane {
 
 	/** @inheritdoc */
 	private getTestConfigGroupActions(group: TestRunProfileBitset) {
+		this.dropdownActions.clear();
+		
 		const profileActions: IAction[] = [];
 
 		let participatingGroups = 0;
@@ -345,12 +348,12 @@ export class TestingExplorerView extends ViewPane {
 				if (!hasAdded) {
 					hasAdded = true;
 					participatingGroups++;
-					profileActions.push(new Action(`${controller.id}.$root`, controller.label.get(), undefined, false));
+					profileActions.push(this.dropdownActions.add(new Action(`${controller.id}.$root`, controller.label.get(), undefined, false)));
 				}
 
 				hasConfigurable = hasConfigurable || profile.hasConfigurationHandler;
 				participatingProfiles++;
-				profileActions.push(new Action(
+				profileActions.push(this.dropdownActions.add(new Action(
 					`${controller.id}.${profile.profileId}`,
 					defaults.includes(profile) ? localize('defaultTestProfile', '{0} (Default)', profile.label) : profile.label,
 					undefined,
@@ -367,7 +370,7 @@ export class TestingExplorerView extends ViewPane {
 							}]
 						});
 					},
-				));
+				)));
 			}
 		}
 
@@ -390,23 +393,23 @@ export class TestingExplorerView extends ViewPane {
 
 		const postActions: IAction[] = [];
 		if (participatingProfiles > 1) {
-			postActions.push(new Action(
+			postActions.push(this.dropdownActions.add(new Action(
 				'selectDefaultTestConfigurations',
 				localize('selectDefaultConfigs', 'Select Default Profile'),
 				undefined,
 				undefined,
 				() => this.commandService.executeCommand<ITestRunProfile>(TestCommandId.SelectDefaultTestProfiles, group),
-			));
+			)));
 		}
 
 		if (hasConfigurable) {
-			postActions.push(new Action(
+			postActions.push(this.dropdownActions.add(new Action(
 				'configureTestProfiles',
 				localize('configureTestProfiles', 'Configure Test Profiles'),
 				undefined,
 				undefined,
 				() => this.commandService.executeCommand<ITestRunProfile>(TestCommandId.ConfigureTestProfilesAction, group),
-			));
+			)));
 		}
 
 		// show menu actions if there are any otherwise don't
@@ -449,7 +452,7 @@ export class TestingExplorerView extends ViewPane {
 	}
 
 	private getDropdownAction() {
-		return new Action('selectRunConfig', localize('testingSelectConfig', 'Select Configuration...'), 'codicon-chevron-down', true);
+		return this.dropdownActions.add(new Action('selectRunConfig', localize('testingSelectConfig', 'Select Configuration...'), 'codicon-chevron-down', true));
 	}
 
 	private getContinuousRunDropdown(defaultAction: IAction, options: IActionViewItemOptions) {

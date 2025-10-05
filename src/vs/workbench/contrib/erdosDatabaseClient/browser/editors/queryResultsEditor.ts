@@ -20,8 +20,6 @@ import { IDatabaseClientService } from '../services/databaseClientService.js';
 import * as React from 'react';
 import * as ReactDOM from 'react-dom/client';
 import { Root } from 'react-dom/client';
-import { ErdosReactServicesContext } from '../../../../../base/browser/erdosReactRendererContext.js';
-import { ErdosReactServices } from '../../../../../base/browser/erdosReactServices.js';
 
 /**
  * Query Results Editor - wraps the QueryResults React component in VS Code's EditorPane system.
@@ -160,11 +158,7 @@ export class QueryResultsEditor extends EditorPane {
 
 		// Render the QueryResults component with services context
 		this._reactRoot.render(
-			React.createElement(
-				ErdosReactServicesContext.Provider,
-				{ value: ErdosReactServices.services },
-				React.createElement(QueryResults, props)
-			)
+			React.createElement(QueryResults, props)
 		);
 	}
 

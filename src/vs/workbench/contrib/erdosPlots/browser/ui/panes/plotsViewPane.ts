@@ -17,7 +17,13 @@ import { IContextMenuService } from '../../../../../../platform/contextview/brow
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IViewPaneOptions, ViewPaneShowActions } from '../../../../../browser/parts/views/viewPane.js';
-import { IElementPosition, IReactComponentContainer, ISize, ErdosReactRenderer } from '../../../../../../base/browser/erdosReactRenderer.js';
+import { IReactComponentContainer, ISize } from '../../../../erdosConsole/browser/erdosConsoleView.js';
+import { createRoot, Root } from 'react-dom/client';
+
+export interface IElementPosition {
+	x: number;
+	y: number;
+}
 import { ViewPane } from '../../../../../browser/parts/views/viewPane.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { PlotsApp } from '../components/PlotsApp.js';
@@ -47,7 +53,7 @@ export class PlotsViewPane extends ViewPane implements IReactComponentContainer 
 	private _currentHeight = 0;
 	private _rootContainer!: HTMLElement;
 	private _resizeMonitor?: ResizeObserver;
-	private _reactRenderer?: ErdosReactRenderer;
+	private _reactRenderer?: Root;
 
 	private _countContextBinding: IContextKey<number>;
 	private _selectedIdContextBinding: IContextKey<string | undefined>;
@@ -156,8 +162,8 @@ export class PlotsViewPane extends ViewPane implements IReactComponentContainer 
 		});
 		this._resizeMonitor.observe(this._rootContainer);
 
-		this._reactRenderer = new ErdosReactRenderer(this._rootContainer);
-		this._register(this._reactRenderer);
+		this._reactRenderer = createRoot(this._rootContainer);
+		this._register({ dispose: () => this._reactRenderer?.unmount() });
 
 		this._reactRenderer.render(
 			React.createElement(PlotsApp, { reactComponentContainer: this })
@@ -190,7 +196,7 @@ export class PlotsViewPane extends ViewPane implements IReactComponentContainer 
 	override createActionViewItem(action: IAction, options?: IDropdownMenuActionViewItemOptions): IActionViewItem | undefined {
 		if (action.id === SELECTOR_ACTION_IDENTIFIER) {
 			return new class extends BaseActionViewItem {
-				private renderer: ErdosReactRenderer | undefined;
+				private renderer: Root | undefined;
 
 				constructor() {
 					super(null, action);
@@ -211,7 +217,7 @@ export class PlotsViewPane extends ViewPane implements IReactComponentContainer 
 					container.style.marginLeft = 'auto';
 
 					try {
-						this.renderer = new ErdosReactRenderer(container);
+						this.renderer = createRoot(container);
 						this.renderer.render(React.createElement(PlotSelector));
 					} catch (error) {
 						console.error('[PlotsViewPane] Selector rendering failed:', error);
@@ -219,7 +225,7 @@ export class PlotsViewPane extends ViewPane implements IReactComponentContainer 
 				}
 
 				override dispose(): void {
-					this.renderer?.dispose();
+					this.renderer?.unmount();
 					super.dispose();
 				}
 			};

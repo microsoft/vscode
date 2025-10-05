@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (C) 2023-2025 Posit Software, PBC. All rights reserved.
+ *  Copyright (C) 2025 Lotas Inc. All rights reserved.
  *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
  *--------------------------------------------------------------------------------------------*/
 
@@ -35,15 +35,11 @@ import { IDocumentManager } from '../../workbench/services/erdosAiDocument/commo
 import { IJupytextService } from '../../workbench/services/erdosAiIntegration/common/jupytextService.js';
 import { IFileChangeTracker } from '../../workbench/services/erdosAi/common/fileChangeTracker.js';
 
+/**
+ * ErdosReactServices class - holds all services needed by React components.
+ * This is a module-level singleton that gets initialized once at startup.
+ */
 export class ErdosReactServices {
-	public static services: ErdosReactServices;
-
-	static initialize(instantiationService: IInstantiationService) {
-		if (!ErdosReactServices.services) {
-			ErdosReactServices.services = instantiationService.createInstance(ErdosReactServices);
-		}
-	}
-
 	public constructor(
 		// Core VSCode services (used in React components)
 		@IClipboardService public readonly clipboardService: IClipboardService,
@@ -82,4 +78,20 @@ export class ErdosReactServices {
 		@IImageAttachmentService public readonly imageAttachmentService: IImageAttachmentService,
 		@IJupytextService public readonly jupytextService: IJupytextService
 	) { }
+}
+
+/**
+ * Module-level singleton that holds the services instance.
+ * Initialized once at application startup via initializeErdosReactServices().
+ */
+export let services: ErdosReactServices;
+
+/**
+ * Initialize the Erdos React services singleton.
+ * Should be called once during application startup.
+ */
+export function initializeErdosReactServices(instantiationService: IInstantiationService): void {
+	if (!services) {
+		services = instantiationService.createInstance(ErdosReactServices);
+	}
 }

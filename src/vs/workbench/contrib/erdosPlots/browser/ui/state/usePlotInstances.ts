@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { IErdosPlotClient } from '../../../common/erdosPlotsService.js';
 import { PlotClientInstance } from '../../../../../services/languageRuntime/common/languageRuntimePlotClient.js';
-import { useErdosReactServicesContext } from '../../../../../../base/browser/erdosReactRendererContext.js';
+import { services } from '../../../../../../base/browser/erdosReactServices.js';
 
 /**
  * State structure for plot instances and selection.
@@ -21,10 +21,7 @@ export interface PlotInstancesState {
 /**
  * Hook managing plot instance state synchronized with the service layer.
  */
-export const usePlotInstances = (): PlotInstancesState => {
-	const services = useErdosReactServicesContext();
-
-	const [instanceCollection, updateInstanceCollection] = useState<IErdosPlotClient[]>(
+export const usePlotInstances = (): PlotInstancesState => {	const [instanceCollection, updateInstanceCollection] = useState<IErdosPlotClient[]>(
 		services.erdosPlotsService.allPlots);
 
 	const initialActiveId = services.erdosPlotsService.activePlotId;

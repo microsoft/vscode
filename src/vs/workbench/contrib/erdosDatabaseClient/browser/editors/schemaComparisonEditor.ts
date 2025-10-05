@@ -22,8 +22,6 @@ import { IDatabaseClientService } from '../services/databaseClientService.js';
 import * as React from 'react';
 import * as ReactDOM from 'react-dom/client';
 import { Root } from 'react-dom/client';
-import { ErdosReactServicesContext } from '../../../../../base/browser/erdosReactRendererContext.js';
-import { ErdosReactServices } from '../../../../../base/browser/erdosReactServices.js';
 
 export class SchemaComparisonEditor extends EditorPane {
 
@@ -93,11 +91,7 @@ export class SchemaComparisonEditor extends EditorPane {
 		};
 
 		this._reactRoot.render(
-			React.createElement(
-				ErdosReactServicesContext.Provider,
-				{ value: ErdosReactServices.services },
-				React.createElement(SchemaComparison, props)
-			)
+			React.createElement(SchemaComparison, props)
 		);
 	}
 

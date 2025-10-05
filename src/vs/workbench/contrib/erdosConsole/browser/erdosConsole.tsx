@@ -10,7 +10,7 @@ import React, { PropsWithChildren, useEffect, useState } from 'react';
 import { ConsoleCore } from './components/consoleCore.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ErdosConsoleContextProvider } from './erdosConsoleContext.js';
-import { IReactComponentContainer } from '../../../../base/browser/erdosReactRenderer.js';
+import { IReactComponentContainer } from './erdosConsoleView.js';
 
 interface ErdosConsoleProps {
 	readonly reactComponentContainer: IReactComponentContainer;

@@ -15,7 +15,8 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IViewPaneOptions, ViewPane } from '../../../browser/parts/views/viewPane.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ErdosAi, ErdosAiRef } from './erdosAiMain.js';
-import { IReactComponentContainer, ISize, ErdosReactRenderer } from '../../../../base/browser/erdosReactRenderer.js';
+import { IReactComponentContainer, ISize } from '../../erdosConsole/browser/erdosConsoleView.js';
+import { createRoot, Root } from 'react-dom/client';
 import { IErdosAiServiceCore } from '../../../services/erdosAi/common/erdosAiServiceCore.js';
 import { IErdosAiAuthService } from '../../../services/erdosAi/common/erdosAiAuthService.js';
 import { IErdosHelpService } from '../../erdosHelp/browser/services/helpService.js';
@@ -42,7 +43,7 @@ export class ErdosAiViewPane extends ViewPane implements IReactComponentContaine
 
 	private _onFocusedEmitter = this._register(new Emitter<void>());
 
-	private _erdosReactRenderer?: ErdosReactRenderer;
+	private _erdosReactRenderer?: Root;
 
 	private _erdosAiRef = React.createRef<ErdosAiRef>();
 
@@ -135,8 +136,8 @@ export class ErdosAiViewPane extends ViewPane implements IReactComponentContaine
 	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
-		this._erdosReactRenderer = new ErdosReactRenderer(container);
-		this._register(this._erdosReactRenderer);
+		this._erdosReactRenderer = createRoot(container);
+		this._register({ dispose: () => this._erdosReactRenderer?.unmount() });
 
 		this._erdosReactRenderer.render(
 			<ErdosAi

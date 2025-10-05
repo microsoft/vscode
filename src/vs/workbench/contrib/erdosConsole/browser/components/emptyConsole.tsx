@@ -9,17 +9,14 @@ import React from 'react';
 
 import { localize } from '../../../../../nls.js';
 import { LANGUAGE_RUNTIME_START_NEW_SESSION_ID } from '../../../languageRuntime/browser/languageRuntimeActions.js';
-import { useErdosReactServicesContext } from '../../../../../base/browser/erdosReactRendererContext.js';
+import { services } from '../../../../../base/browser/erdosReactServices.js';
 
 const noSessionRunning = localize('erdos.console.empty.noSessionRunning', "There is no session running.");
 const useWord = localize('erdos.useWord', "Use");
 const startSession = localize('erdos.console.startSession', "Start Session");
 const toStartOne = localize('erdos.toStartOne', "to start one.");
 
-export const EmptyConsole = () => {
-	const services = useErdosReactServicesContext();
-
-	const handlePressed = () => {
+export const EmptyConsole = () => {	const handlePressed = () => {
 		services.commandService.executeCommand(LANGUAGE_RUNTIME_START_NEW_SESSION_ID);
 	};
 

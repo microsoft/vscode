@@ -12,7 +12,7 @@ import { ContextBar } from './contextBar.js';
 import { ModeToggle } from './modeToggle.js';
 import { IContextService } from '../../../../services/erdosAiContext/common/contextService.js';
 import { IErdosHelpService } from '../../../erdosHelp/browser/services/helpService.js';
-import { useErdosReactServicesContext } from '../../../../../base/browser/erdosReactRendererContext.js';
+import { services } from '../../../../../base/browser/erdosReactServices.js';
 import { LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
 import { DraggedEditorIdentifier } from '../../../../browser/dnd.js';
 import { DataTransfers } from '../../../../../base/browser/dnd.js';
@@ -49,9 +49,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 	onPaste,
 	onSendMessage,
 	onCancelStreaming
-}) => {
-	const services = useErdosReactServicesContext();
-	const [dragOver, setDragOver] = useState(false);
+}) => {	const [dragOver, setDragOver] = useState(false);
 	
 	// Editor tab drag and drop support
 	const editorTransfer = LocalSelectionTransfer.getInstance<DraggedEditorIdentifier>();

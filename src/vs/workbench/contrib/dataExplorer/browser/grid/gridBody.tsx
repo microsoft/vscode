@@ -10,7 +10,7 @@ import { EditableCell } from './gridCell.js';
 import { DataGridSelection, EditingState, SelectionUtils, FreezeState } from './dataGrid.js';
 import { ViewportCalculator, ColumnViewportInfo } from '../../../../../workbench/services/dataExplorer/browser/virtualization/viewportCalculator.js';
 import { ColumnHeaders } from './gridHeader.js';
-import { useErdosReactServicesContext } from '../../../../../base/browser/erdosReactRendererContext.js';
+import { services } from '../../../../../base/browser/erdosReactServices.js';
 import { IAction } from '../../../../../base/common/actions.js';
 import { DataGridMatch } from '../controls/searchControls/dataGridFindTypes.js';
 
@@ -105,10 +105,7 @@ export const VirtualGridBody = forwardRef<{ scrollToCell: (row: number, col: num
 	clipboardRange,
 	onFilterToggle,
 	isColumnFiltered
-}, ref) => {
-	const services = useErdosReactServicesContext();
-
-	// Helper function to check if a cell is in the clipboard range
+}, ref) => {	// Helper function to check if a cell is in the clipboard range
 	const isCellInClipboardRange = (row: number, col: number): boolean => {
 		if (!clipboardRange) {
 			return false;

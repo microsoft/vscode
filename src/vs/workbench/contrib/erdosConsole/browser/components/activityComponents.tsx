@@ -13,7 +13,7 @@ import { LineTokens } from '../../../../../editor/common/tokens/lineTokens.js';
 import { ViewLineRenderingData } from '../../../../../editor/common/viewModel.js';
 import { erdosClassNames } from '../../../../../base/common/erdosUtilities.js';
 import { RenderLineInput, renderViewLine2 } from '../../../../../editor/common/viewLayout/viewLineRenderer.js';
-import { useErdosReactServicesContext } from '../../../../../base/browser/erdosReactRendererContext.js';
+import { services } from '../../../../../base/browser/erdosReactServices.js';
 import { ILanguageIdCodec, ITokenizationSupport, TokenizationRegistry } from '../../../../../editor/common/languages.js';
 import { IErdosConsoleInstance } from '../../../../services/erdosConsole/browser/interfaces/erdosConsoleService.js';
 import { ActivityItemInput, ActivityItemInputState } from '../../../../services/erdosConsole/browser/classes/activityItems.js';
@@ -87,10 +87,7 @@ interface ActivityInputProps {
 	erdosConsoleInstance: IErdosConsoleInstance;
 }
 
-export const ActivityInput = (props: ActivityInputProps) => {
-	const services = useErdosReactServicesContext();
-
-	const [state, setState] = useState(props.activityItemInput.state);
+export const ActivityInput = (props: ActivityInputProps) => {	const [state, setState] = useState(props.activityItemInput.state);
 	const [colorizedOutputLines, setColorizedOutputLines] = useState<TrustedHTML[]>([]);
 
 	useEffect(() => {
@@ -202,10 +199,7 @@ interface ActivityPromptProps {
 	erdosConsoleInstance: IErdosConsoleInstance;
 }
 
-export const ActivityPrompt = (props: ActivityPromptProps) => {
-	const services = useErdosReactServicesContext();
-
-	const inputRef = useRef<HTMLInputElement>(undefined!);
+export const ActivityPrompt = (props: ActivityPromptProps) => {	const inputRef = useRef<HTMLInputElement>(undefined!);
 
 	const readyInput = () => {
 		if (inputRef.current) {

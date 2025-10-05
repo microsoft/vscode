@@ -24,8 +24,6 @@ import { GridData } from '../../../../services/dataExplorer/common/dataExplorerT
 import * as React from 'react';
 import * as ReactDOM from 'react-dom/client';
 import { DataExplorerEditor } from './dataExplorerEditor.js';
-import { ErdosReactServices } from '../../../../../base/browser/erdosReactServices.js';
-import { ErdosReactServicesContext } from '../../../../../base/browser/erdosReactRendererContext.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 
 export interface IDataExplorerEditorOptions extends IEditorOptions {
@@ -137,12 +135,9 @@ export class DataExplorerEditorPane extends EditorPane {
 		// Create new React root
 		this.reactRoot = ReactDOM.createRoot(this.container);
 
-		// Render the DataExplorerEditor component with services context
+		// Render the DataExplorerEditor component
 		this.reactRoot.render(
-			React.createElement(
-				ErdosReactServicesContext.Provider,
-				{ value: ErdosReactServices.services },
-				React.createElement(DataExplorerEditor, {
+			React.createElement(DataExplorerEditor, {
 					initialData: this.currentData!,
 					onDataChange: this.handleDataChange.bind(this),
 					onSave: this.handleSave.bind(this),
@@ -152,7 +147,6 @@ export class DataExplorerEditorPane extends EditorPane {
 					isSaving: this.input instanceof DataExplorerEditorInput ? this.input.isSaving() : false,
 					storageService: this.storageService
 				})
-			)
 		);
 	}
 

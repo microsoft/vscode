@@ -6,7 +6,7 @@
 import { useEffect, useState } from 'react';
 
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
-import { useErdosReactServicesContext } from '../../../../base/browser/erdosReactRendererContext.js';
+import { services } from '../../../../base/browser/erdosReactServices.js';
 import { IErdosConsoleInstance } from '../../../services/erdosConsole/browser/interfaces/erdosConsoleService.js';
 
 export interface ErdosConsoleState {
@@ -15,10 +15,7 @@ export interface ErdosConsoleState {
 	readonly consoleSessionListCollapsed: boolean;
 }
 
-export const useErdosConsoleState = (): ErdosConsoleState => {
-	const services = useErdosReactServicesContext();
-
-	const [erdosConsoleInstances, setErdosConsoleInstances] = useState<IErdosConsoleInstance[]>([]);
+export const useErdosConsoleState = (): ErdosConsoleState => {	const [erdosConsoleInstances, setErdosConsoleInstances] = useState<IErdosConsoleInstance[]>([]);
 	const [activeErdosConsoleInstance, setActiveErdosConsoleInstance] = useState<IErdosConsoleInstance | undefined>(undefined);
 	const [consoleSessionListCollapsed, setConsoleSessionListCollapsed] = useState<boolean>(erdosConsoleInstances.length <= 1);
 

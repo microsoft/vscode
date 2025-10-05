@@ -44,6 +44,7 @@ export interface MonacoWidgetEditorProps {
 	commonUtils: ICommonUtils;
 	onContentChange?: (content: string) => void;
 	onEditorReady?: (editor: CodeEditorWidget) => void;
+	onHeightChange?: () => void;
 	height?: string;
 	diffLines?: Array<{
 		type: 'added' | 'deleted' | 'unchanged';
@@ -68,6 +69,7 @@ export const MonacoWidgetEditor: React.FC<MonacoWidgetEditorProps> = ({
 	commonUtils,
 	onContentChange,
 	onEditorReady,
+	onHeightChange,
 	height = '300px',
 	diffLines,
 	className = 'monaco-widget-editor'
@@ -242,8 +244,10 @@ export const MonacoWidgetEditor: React.FC<MonacoWidgetEditorProps> = ({
 					height: heightValue
 				});
 			}
+			// Notify parent that height has changed so it can trigger auto-scroll
+			onHeightChange?.();
 		}
-	}, [content, editor, monacoServices, configurationService]);
+	}, [content, editor, monacoServices, configurationService, onHeightChange]);
 
 	// Create Monaco editor
 	const createEditor = useCallback(() => {
@@ -279,13 +283,12 @@ export const MonacoWidgetEditor: React.FC<MonacoWidgetEditorProps> = ({
 		
 		setDynamicHeight(calculatedHeight);
 		
-		// Determine if this is a notebook cell based on file extension or if we're rendering individual cell content
+		// Determine if this is a notebook cell based on file extension
+		// Always hide line numbers for notebook files
 		const isNotebookFile = filename ? commonUtils.getFileExtension(filename).toLowerCase() === 'ipynb' : false;
-		const isRenderingCellContent = isNotebookFile && functionType === 'run_file' && !isNotebookCells;
-		const isNotebookCell = isNotebookFile && (isRenderingCellContent || functionType !== 'run_file');
 		
 		// Determine if line numbers should be shown (off for console/terminal and notebook cells)
-		const showLineNumbers = functionType !== 'run_console_cmd' && functionType !== 'run_terminal_cmd' && !isNotebookCell;
+		const showLineNumbers = functionType !== 'run_console_cmd' && functionType !== 'run_terminal_cmd' && !isNotebookFile;
 		
 		// Create editor options using actual font configuration
 		const editorOptions: IEditorOptions = {
@@ -294,7 +297,7 @@ export const MonacoWidgetEditor: React.FC<MonacoWidgetEditorProps> = ({
 			scrollBeyondLastLine: false,
 			lineNumbers: showLineNumbers ? 'on' : 'off',
 			glyphMargin: false,
-			folding: isNotebookCell ? true : false, // Enable folding for notebook cells
+			folding: isNotebookFile ? true : false, // Enable folding for notebook cells
 			selectOnLineNumbers: false,
 			selectionHighlight: false,
 			cursorStyle: 'line',
@@ -319,10 +322,10 @@ export const MonacoWidgetEditor: React.FC<MonacoWidgetEditorProps> = ({
 			overviewRulerBorder: false,
 			hideCursorInOverviewRuler: true,
 			overviewRulerLanes: 0,
-			renderLineHighlight: isNotebookCell ? 'none' : 'line', // Notebook cells don't highlight lines
+			renderLineHighlight: isNotebookFile ? 'none' : 'line', // Notebook cells don't highlight lines
 			renderValidationDecorations: 'on',
-			padding: isNotebookCell ? { top: 8, bottom: 8 } : undefined, // Add notebook-specific padding for better visual appearance
-			lineDecorationsWidth: isNotebookCell ? 0 : undefined
+			padding: isNotebookFile ? { top: 8, bottom: 8 } : undefined, // Add notebook-specific padding for better visual appearance
+			lineDecorationsWidth: isNotebookFile ? 0 : undefined
 		};
 
 		// Create Monaco editor widget

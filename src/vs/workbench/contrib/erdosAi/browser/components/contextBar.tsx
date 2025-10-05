@@ -16,7 +16,7 @@ import { IErdosAiServiceCore } from '../../../../services/erdosAi/common/erdosAi
 import { LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
 import { DraggedEditorIdentifier } from '../../../../browser/dnd.js';
 import { DataTransfers } from '../../../../../base/browser/dnd.js';
-import { useErdosReactServicesContext } from '../../../../../base/browser/erdosReactRendererContext.js';
+import { services } from '../../../../../base/browser/erdosReactServices.js';
 
 interface ContextBarProps {
 	contextService: IContextService;
@@ -36,10 +36,7 @@ interface ContextItemDisplayProps {
  * Individual context item display component
  * Uses VSCode's file type icons and supports click to open
  */
-const ContextItemDisplay: React.FC<ContextItemDisplayProps> = ({ item, onRemove, onClick }) => {
-	const services = useErdosReactServicesContext();
-	
-	const getFileIcon = () => {
+const ContextItemDisplay: React.FC<ContextItemDisplayProps> = ({ item, onRemove, onClick }) => {	const getFileIcon = () => {
 		if (item.type !== 'file' || !item.path) return null;
 		
 		// Get icon classes using VSCode's system
@@ -399,9 +396,7 @@ export const ContextBar: React.FC<ContextBarProps> = ({
 	fileDialogService,
 	helpService,
 	erdosAiService
-}) => {
-	const services = useErdosReactServicesContext();
-	const [contextItems, setContextItems] = useState<IContextItem[]>([]);
+}) => {	const [contextItems, setContextItems] = useState<IContextItem[]>([]);
 	const [showAttachMenu, setShowAttachMenu] = useState(false);
 	const [showChatSearch, setShowChatSearch] = useState(false);
 	const [showDocsSearch, setShowDocsSearch] = useState(false);

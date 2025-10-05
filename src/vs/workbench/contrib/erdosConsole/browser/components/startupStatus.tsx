@@ -13,7 +13,7 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ProgressBar } from '../../../../../base/browser/ui/progressbar/progressbar.js';
 import { RuntimeStartupPhase } from '../../../../services/languageRuntime/common/languageRuntimeService.js';
 import { IRuntimeAutoStartEvent } from '../../../../services/runtimeStartup/common/runtimeStartupService.js';
-import { useErdosReactServicesContext } from '../../../../../base/browser/erdosReactRendererContext.js';
+import { services } from '../../../../../base/browser/erdosReactServices.js';
 
 const initalizing = localize('erdos.console.initializing', "Starting up");
 const awaitingTrust = localize('erdos.console.awaitingTrust', "Consoles cannot start until the workspace is trusted");
@@ -21,10 +21,7 @@ const reconnecting = localize('erdos.console.reconnecting', "Reconnecting");
 const starting = localize('erdos.console.starting', "Starting");
 const discoveringIntrepreters = localize('erdos.console.discoveringInterpreters', "Discovering interpreters");
 
-export const StartupStatus = () => {
-	const services = useErdosReactServicesContext();
-
-	const progressRef = React.useRef<HTMLDivElement>(null);
+export const StartupStatus = () => {	const progressRef = React.useRef<HTMLDivElement>(null);
 
 	const [discovered, setDiscovered] =
 		useState(services.languageRuntimeService.registeredRuntimes.length);

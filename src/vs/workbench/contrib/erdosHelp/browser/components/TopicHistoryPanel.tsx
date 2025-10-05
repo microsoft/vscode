@@ -7,7 +7,7 @@ import './TopicHistoryPanel.css';
 
 import React, { useRef, useState, useEffect } from 'react';
 import { localize } from '../../../../../nls.js';
-import { useErdosReactServicesContext } from '../../../../../base/browser/erdosReactRendererContext.js';
+import { services } from '../../../../../base/browser/erdosReactServices.js';
 
 const truncateText = (text: string, maxLength: number = 50): string => {
 	if (text.length <= maxLength) {
@@ -51,9 +51,7 @@ export interface TopicHistoryPanelProps {
 	currentTitle?: string;
 }
 
-export const TopicHistoryPanel: React.FC<TopicHistoryPanelProps> = (props) => {
-	const services = useErdosReactServicesContext();
-	const [isOpen, setIsOpen] = useState(false);
+export const TopicHistoryPanel: React.FC<TopicHistoryPanelProps> = (props) => {	const [isOpen, setIsOpen] = useState(false);
 	const [searchQuery, setSearchQuery] = useState('');
 	const [currentHelpEntry, setCurrentHelpEntry] = useState(services.erdosHelpService.currentHelpEntry);
 	const buttonRef = useRef<HTMLButtonElement>(null);

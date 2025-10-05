@@ -136,9 +136,13 @@ export const NotebookCellRenderer: React.FC<NotebookCellRendererProps> = ({
 // Use VS Code's actual markdown renderer
 const VSCodeMarkdownRenderer: React.FC<{ content: string }> = ({ content }) => {
 	const containerRef = React.useRef<HTMLDivElement>(null);
-	const disposablesRef = React.useRef<DisposableStore>(new DisposableStore());
+	const disposablesRef = React.useRef<DisposableStore | null>(null);
 
 	React.useEffect(() => {
+		if (!disposablesRef.current) {
+			disposablesRef.current = new DisposableStore();
+		}
+
 		if (containerRef.current && content) {
 			const disposables = disposablesRef.current;
 			disposables.clear();
@@ -155,15 +159,12 @@ const VSCodeMarkdownRenderer: React.FC<{ content: string }> = ({ content }) => {
 		}
 
 		return () => {
-			disposablesRef.current.clear();
+			if (disposablesRef.current) {
+				disposablesRef.current.dispose();
+				disposablesRef.current = null;
+			}
 		};
 	}, [content]);
-
-	React.useEffect(() => {
-		return () => {
-			disposablesRef.current.dispose();
-		};
-	}, []);
 
 	return <div ref={containerRef} className="notebook-markdown-content" />;
 };

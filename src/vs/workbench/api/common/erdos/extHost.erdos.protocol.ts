@@ -8,7 +8,7 @@ import { ILanguageRuntimeInfo, ILanguageRuntimeMetadata, RuntimeCodeExecutionMod
 import { createProxyIdentifier, IRPCProtocol, SerializableObjectWithBuffers } from '../../../services/extensions/common/proxyIdentifier.js';
 import { MainContext, ExtHostQuickOpenShape } from '../extHost.protocol.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IEditorContext } from '../../../services/frontendMethods/common/editorContext.js';
+import { EditorContext as IEditorContext } from '../../../services/languageRuntime/common/erdosUiComm.js';
 import { RuntimeClientType, LanguageRuntimeSessionChannel } from './extHostTypes.erdos.js';
 import { EnvironmentVariableAction, LanguageRuntimeDynState, RuntimeSessionMetadata } from 'erdos';
 

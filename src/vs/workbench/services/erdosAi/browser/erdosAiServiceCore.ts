@@ -111,9 +111,6 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 	private readonly _onWidgetButtonAction = this._register(new Emitter<{ messageId: number; action: string }>());
 	readonly onWidgetButtonAction: Event<{ messageId: number; action: string }> = this._onWidgetButtonAction.event;
 
-	private readonly _onWidgetContentUpdated = this._register(new Emitter<{ messageId: number; content: string; functionType: string }>());
-	readonly onWidgetContentUpdated: Event<{ messageId: number; content: string; functionType: string }> = this._onWidgetContentUpdated.event;
-
 	private readonly _onShowConversationHistory = this._register(new Emitter<void>());
 	readonly onShowConversationHistory: Event<void> = this._onShowConversationHistory.event;
 
@@ -232,10 +229,6 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 
 		this._register(this.streamingOrchestrator.onWidgetButtonAction((action) => {
 			this._onWidgetButtonAction.fire(action);
-		}));
-
-		this._register(this.streamingOrchestrator.onWidgetContentUpdated((update) => {
-			this._onWidgetContentUpdated.fire(update);
 		}));
 
 		this._register(this.streamingOrchestrator.onThinkingMessageHide(() => {
@@ -854,18 +847,6 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 
 	getWidget(messageId: number): any {
 		return this.streamingOrchestrator.getWidget(messageId);
-	}
-
-	/**
-	 * Update widget content (for historical widgets loaded from conversation log)
-	 */
-	updateWidgetContent(messageId: number, content: string): void {
-		// Fire the widget content update event directly for historical widgets
-		this._onWidgetContentUpdated.fire({
-			messageId,
-			content,
-			functionType: 'run_file' // For now, only run_file widgets use this
-		});
 	}
 
 	/**

@@ -9,7 +9,7 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { IConversationManager } from '../../../../services/erdosAiConversation/common/conversationManager.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { useErdosReactServicesContext } from '../../../../../base/browser/erdosReactRendererContext.js';
+import { services } from '../../../../../base/browser/erdosReactServices.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ICommonUtils } from '../../../../services/erdosAiUtils/common/commonUtils.js';
@@ -39,9 +39,7 @@ export const AutoAcceptFloatingBar: React.FC<AutoAcceptFloatingBarProps> = ({
 	editorService,
 	conversationManager,
 	onRefreshFileChanges
-}) => {
-	const services = useErdosReactServicesContext();
-	const codeEditorService = services.instantiationService.invokeFunction((accessor: ServicesAccessor) => accessor.get(ICodeEditorService));
+}) => {	const codeEditorService = services.instantiationService.invokeFunction((accessor: ServicesAccessor) => accessor.get(ICodeEditorService));
 	const commonUtils = services.instantiationService.invokeFunction((accessor: ServicesAccessor) => accessor.get(ICommonUtils));
 	const [filesWithChanges, setFilesWithChanges] = useState<FileWithChanges[]>([]);
 	const [currentFileIndex, setCurrentFileIndex] = useState(0);

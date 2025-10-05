@@ -22,8 +22,6 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import * as React from 'react';
 import * as ReactDOM from 'react-dom/client';
 import { Root } from 'react-dom/client';
-import { ErdosReactServicesContext } from '../../../../../base/browser/erdosReactRendererContext.js';
-import { ErdosReactServices } from '../../../../../base/browser/erdosReactServices.js';
 
 /**
  * Connection Editor - wraps the ConnectionForm React component in VS Code's EditorPane system.
@@ -100,11 +98,7 @@ export class ConnectionEditor extends EditorPane {
 		};
 
 		this._reactRoot.render(
-			React.createElement(
-				ErdosReactServicesContext.Provider,
-				{ value: ErdosReactServices.services },
-				React.createElement(ConnectionForm, props)
-			)
+			React.createElement(ConnectionForm, props)
 		);
 	}
 

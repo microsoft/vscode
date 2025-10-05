@@ -13,9 +13,9 @@ import { ConsoleTabList } from './consoleTabList.js';
 import { ConsoleInstance } from './consoleInstance.js';
 import { useErdosConsoleContext } from '../erdosConsoleContext.js';
 import { erdosClassNames } from '../../../../../base/common/erdosUtilities.js';
-import { IReactComponentContainer } from '../../../../../base/browser/erdosReactRenderer.js';
+import { IReactComponentContainer } from '../erdosConsoleView.js';
 import { RuntimeStartupPhase } from '../../../../services/languageRuntime/common/languageRuntimeService.js';
-import { useErdosReactServicesContext } from '../../../../../base/browser/erdosReactRendererContext.js';
+import { services } from '../../../../../base/browser/erdosReactServices.js';
 
 const MINIMUM_CONSOLE_TAB_LIST_WIDTH = 64;
 const MINIMUM_CONSOLE_PANE_WIDTH = 120;
@@ -29,7 +29,6 @@ interface ConsoleCoreProps {
 export const ConsoleCore = (props: ConsoleCoreProps) => {
 	const adjustedHeight = props.height;
 
-	const services = useErdosReactServicesContext();
 	const erdosConsoleContext = useErdosConsoleContext();
 
 	const [consoleWidth, setConsoleWidth] = useState(0);

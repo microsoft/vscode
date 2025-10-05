@@ -47,8 +47,9 @@ export class FunctionParserService extends Disposable implements IFunctionParser
 
 			// Create a help client following the proper pattern from erdosHelpService.ts
 			const existingClients = await targetSession.listClients(RuntimeClientType.Help);
+			// Use the most recently created client (last in array) for consistency
 			const client = existingClients.length > 0 ?
-				existingClients[0] :
+				existingClients[existingClients.length - 1] :
 				await targetSession.createClient(RuntimeClientType.Help, {});
 
 			if (!client) {

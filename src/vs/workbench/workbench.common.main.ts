@@ -136,7 +136,6 @@ import './services/userActivity/common/userActivityService.js';
 import './services/userActivity/browser/userActivityBrowser.js';
 import './services/editor/browser/editorPaneService.js';
 import './services/editor/common/customEditorLabelService.js';
-import './services/coreExperimentation/common/coreExperimentationService.js';
 
 import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';
 import { GlobalExtensionEnablementService } from '../platform/extensionManagement/common/extensionEnablementService.js';
@@ -205,12 +204,6 @@ import './contrib/erdosConsole/browser/erdosConsole.contribution.js';
 
 // Erdos Runtime Sessions
 import './contrib/erdosRuntimeSessions/browser/erdosRuntimeSessions.contribution.js';
-
-// Erdos Workspace
-import './contrib/erdosWorkspace/browser/erdosWorkspace.contribution.js';
-
-// Erdos Commands
-import './contrib/erdosCommands/browser/erdosCommands.contribution.js';
 
 // Context Menus
 import './contrib/contextmenu/browser/contextmenu.contribution.js';
@@ -473,7 +466,6 @@ import './contrib/erdosHelp/browser/documentationPanel.registration.js';
 import './contrib/erdosRuntimeSessions/browser/erdosRuntimeSessions.contribution.js';
 import './contrib/languageRuntime/browser/languageRuntime.contribution.js';
 import './contrib/erdosIPyWidgets/browser/erdosIPyWidgets.contribution.js';
-import './contrib/erdosKeybindings/browser/erdosKeybindings.contribution.js';
 
 // Workbench services
 import './services/languageRuntime/common/languageRuntime.js';

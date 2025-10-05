@@ -7,7 +7,7 @@ import './HomeScreen.css';
 
 import React, { useState, useEffect } from 'react';
 import { localize } from '../../../../../nls.js';
-import { useErdosReactServicesContext } from '../../../../../base/browser/erdosReactRendererContext.js';
+import { services } from '../../../../../base/browser/erdosReactServices.js';
 import { TopicSearchInput } from './TopicSearchInput.js';
 import { IHelpEntry } from '../topicViewContract.js';
 
@@ -17,9 +17,7 @@ export interface HomeScreenProps {
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({
 	onTopicSelected
-}) => {
-	const services = useErdosReactServicesContext();
-	const [recentEntries, setRecentEntries] = useState<IHelpEntry[]>([]);
+}) => {	const [recentEntries, setRecentEntries] = useState<IHelpEntry[]>([]);
 
 	useEffect(() => {
 		const updateRecentEntries = () => {

@@ -33,6 +33,13 @@
 	background-color: transparent !important;
 }
 
+/* Notebook overlay container - cap height and add scrolling like non-notebook files */
+.erdos-ai-widget .notebookOverlay {
+	max-height: 200px; /* Match non-notebook 10-line cap (10 lines × ~20px) */
+	overflow-y: auto;
+	overflow-x: hidden;
+}
+
 /* Remove current line border from Monaco editors in AI widgets */
 .erdos-ai-widget .monaco-editor .view-overlays .current-line-exact {
 	border: none !important;

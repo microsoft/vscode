@@ -25,6 +25,16 @@ export const HistoryDimensionPixels = 100;
 export const ActivePlotArea = (config: ActivePlotAreaConfiguration) => {
 	const contextData = usePlotsContextData();
 
+	if (!contextData) {
+		return (
+			<div className='ep-main-container' tabIndex={0}>
+				<div className='ep-active-plot-wrapper'>
+					<div className='ep-plot-placeholder'></div>
+				</div>
+			</div>
+		);
+	}
+
 	const displayHeight = config.areaHeight;
 	const displayWidth = config.areaWidth;
 

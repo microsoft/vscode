@@ -28,7 +28,26 @@ import { IContextKey, IContextKeyService } from '../../../../platform/contextkey
 import { ErdosConsole } from './erdosConsole.js';
 import { IRuntimeSessionService, RuntimeStartMode } from '../../../services/runtimeSession/common/runtimeSessionService.js';
 import { LanguageRuntimeSessionMode } from '../../../services/languageRuntime/common/languageRuntimeService.js';
-import { IReactComponentContainer, ISize, ErdosReactRenderer } from '../../../../base/browser/erdosReactRenderer.js';
+import { createRoot, Root } from 'react-dom/client';
+
+export interface IReactComponentContainer {
+	readonly width: number;
+	readonly height: number;
+	readonly containerVisible: boolean;
+	takeFocus(): void;
+	focusChanged?(focused: boolean): void;
+	visibilityChanged?(visible: boolean): void;
+	readonly onFocused: Event<void>;
+	readonly onSizeChanged: Event<ISize>;
+	readonly onVisibilityChanged: Event<boolean>;
+	readonly onSaveScrollPosition: Event<void>;
+	readonly onRestoreScrollPosition: Event<void>;
+}
+
+export interface ISize {
+	width: number;
+	height: number;
+}
 import { IErdosConsoleService } from '../../../services/erdosConsole/browser/interfaces/erdosConsoleService.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { IActionViewItem } from '../../../../base/browser/ui/actionbar/actionbar.js';
@@ -55,7 +74,7 @@ export class ErdosConsoleViewPane extends ViewPane implements IReactComponentCon
 	private _width = 0;
 	private _height = 0;
 	private _erdosConsoleContainer!: HTMLElement;
-	private _erdosReactRenderer: ErdosReactRenderer | undefined;
+	private _erdosReactRenderer: Root | undefined;
 	private _erdosConsoleFocusedContextKey: IContextKey<boolean>;
 	private readonly _sessionDropdown: MutableDisposable<DropdownWithPrimaryActionViewItem> = this._register(new MutableDisposable());
 	private _erdosConsoleInstancesExistContextKey: IContextKey<boolean>;
@@ -149,7 +168,8 @@ export class ErdosConsoleViewPane extends ViewPane implements IReactComponentCon
 		this._erdosConsoleContainer = DOM.$('.erdos-console-container');
 		container.appendChild(this._erdosConsoleContainer);
 
-		this._erdosReactRenderer = this._register(new ErdosReactRenderer(this._erdosConsoleContainer));
+		this._erdosReactRenderer = createRoot(this._erdosConsoleContainer);
+		this._register({ dispose: () => this._erdosReactRenderer?.unmount() });
 		this._erdosReactRenderer.render(
 			<ErdosConsole reactComponentContainer={this} />
 		);

@@ -48,7 +48,7 @@ import { AccessibilityProgressSignalScheduler } from '../../platform/accessibili
 import { setProgressAcccessibilitySignalScheduler } from '../../base/browser/ui/progressbar/progressAccessibilitySignal.js';
 import { AccessibleViewRegistry } from '../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { NotificationAccessibleView } from './parts/notifications/notificationAccessibleView.js';
-import { ErdosReactServices } from '../../base/browser/erdosReactServices.js';
+import { initializeErdosReactServices } from '../../base/browser/erdosReactServices.js';
 
 export interface IWorkbenchOptions {
 
@@ -201,8 +201,8 @@ export class Workbench extends Layout {
 
 		const instantiationService = new InstantiationService(serviceCollection, true);
 
-		// Initialize Erdos React Services. This is done once and reused by all components.
-		ErdosReactServices.initialize(instantiationService);
+		// Initialize Erdos React Services singleton. This is done once and reused by all components.
+		initializeErdosReactServices(instantiationService);
 
 		// Wrap up
 		instantiationService.invokeFunction(accessor => {

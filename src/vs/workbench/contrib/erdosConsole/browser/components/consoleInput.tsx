@@ -41,7 +41,7 @@ import { ContentHoverController } from '../../../../../editor/contrib/hover/brow
 import { CodeAttributionSource, IConsoleCodeAttribution } from '../../../../services/erdosConsole/common/erdosConsoleCodeExecution.js';
 import { localize } from '../../../../../nls.js';
 
-import { useErdosReactServicesContext } from '../../../../../base/browser/erdosReactRendererContext.js';
+import { services } from '../../../../../base/browser/erdosReactServices.js';
 import { IFontOptions } from '../../../../browser/fontConfigurationManager.js';
 import { HistoryNavigator2 } from '../../../../../base/common/history.js';
 import { IInputHistoryEntry } from '../../../../services/executionHistory/common/executionHistoryService.js';
@@ -65,10 +65,7 @@ interface ConsoleInputProps {
 	readonly onCodeExecuted: () => void;
 }
 
-export const ConsoleInput = (props: ConsoleInputProps) => {
-	const services = useErdosReactServicesContext();
-
-	const codeEditorWidgetContainerRef = useRef<HTMLDivElement>(undefined!);
+export const ConsoleInput = (props: ConsoleInputProps) => {	const codeEditorWidgetContainerRef = useRef<HTMLDivElement>(undefined!);
 
 	const codeEditorWidgetRef = useRef<CodeEditorWidget>(undefined!);
 	const codeEditorWidthRef = useRef(props.width);

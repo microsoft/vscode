@@ -21,7 +21,7 @@ import { FontMeasurements } from '../../../../../editor/browser/config/fontMeasu
 import { BareFontInfo } from '../../../../../editor/common/config/fontInfo.js';
 import { PixelRatio } from '../../../../../base/browser/pixelRatio.js';
 import * as DOM from '../../../../../base/browser/dom.js';
-import { useErdosReactServicesContext } from '../../../../../base/browser/erdosReactRendererContext.js';
+import { services } from '../../../../../base/browser/erdosReactServices.js';
 
 export interface SQLMonacoEditorProps {
 	value: string;
@@ -50,11 +50,7 @@ export const SQLMonacoEditor: React.FC<SQLMonacoEditorProps> = ({
 	const [model, setModel] = useState<ITextModel | null>(null);
 	const [currentHeight, setCurrentHeight] = useState<number>(0);
 
-	// Get services from React context
-	const services = useErdosReactServicesContext();
-
-
-	// Create Monaco editor with proper VS Code resizing pattern
+	// Get services from React context	// Create Monaco editor with proper VS Code resizing pattern
 	const createEditor = useCallback(() => {
 		if (!containerRef.current || !services || editor) {
 			return;

@@ -237,8 +237,9 @@ export class EnvironmentService extends Disposable implements IErdosEnvironmentS
 					`${clientIds}`);
 			}
 			
+			// Use the most recently created client (last in array) for consistency
 			const client = existingClients.length > 0 ?
-				existingClients[0] :
+				existingClients[existingClients.length - 1] :
 				await session.createClient(RuntimeClientType.Environment, {});
 			
 			if (!client) {
@@ -420,8 +421,9 @@ export class EnvironmentService extends Disposable implements IErdosEnvironmentS
 			}
 			
 			const existingClients = await session.listClients(RuntimeClientType.Environment);
+			// Use the most recently created client (last in array) for consistency with help service
 			const client = existingClients.length > 0 ?
-				existingClients[0] :
+				existingClients[existingClients.length - 1] :
 				await session.createClient(RuntimeClientType.Environment, {});
 			
 			if (!client) {
@@ -507,8 +509,9 @@ export class EnvironmentService extends Disposable implements IErdosEnvironmentS
 			
 			// Get or create the environment client for this session
 			const existingClients = await session.listClients(RuntimeClientType.Environment);
+			// Use the most recently created client (last in array) for consistency with help service
 			const client = existingClients.length > 0 ?
-				existingClients[0] :
+				existingClients[existingClients.length - 1] :
 				await session.createClient(RuntimeClientType.Environment, {});
 			
 			if (!client) {
@@ -567,8 +570,9 @@ export class EnvironmentService extends Disposable implements IErdosEnvironmentS
 		}
 		
 		const existingClients = await session.listClients(RuntimeClientType.Environment);
+		// Use the most recently created client (last in array) for consistency
 		const client = existingClients.length > 0 ?
-			existingClients[0] :
+			existingClients[existingClients.length - 1] :
 			await session.createClient(RuntimeClientType.Environment, {});
 		
 		if (!client) {
@@ -606,8 +610,9 @@ export class EnvironmentService extends Disposable implements IErdosEnvironmentS
 		}
 		
 		const existingClients = await session.listClients(RuntimeClientType.Environment);
+		// Use the most recently created client (last in array) for consistency
 		const client = existingClients.length > 0 ?
-			existingClients[0] :
+			existingClients[existingClients.length - 1] :
 			await session.createClient(RuntimeClientType.Environment, {});
 		
 		if (!client) {
@@ -645,8 +650,9 @@ export class EnvironmentService extends Disposable implements IErdosEnvironmentS
 		}
 		
 		const existingClients = await session.listClients(RuntimeClientType.Environment);
+		// Use the most recently created client (last in array) for consistency
 		const client = existingClients.length > 0 ?
-			existingClients[0] :
+			existingClients[existingClients.length - 1] :
 			await session.createClient(RuntimeClientType.Environment, {});
 		
 		if (!client) {
@@ -682,8 +688,9 @@ export class EnvironmentService extends Disposable implements IErdosEnvironmentS
 		}
 		
 		const existingClients = await session.listClients(RuntimeClientType.Environment);
+		// Use the most recently created client (last in array) for consistency
 		const client = existingClients.length > 0 ?
-			existingClients[0] :
+			existingClients[existingClients.length - 1] :
 			await session.createClient(RuntimeClientType.Environment, {});
 		
 		if (!client) {

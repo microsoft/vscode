@@ -7,7 +7,7 @@ import { IFileChangeTracker } from '../../../../services/erdosAi/common/fileChan
 import { URI } from '../../../../../base/common/uri.js';
 import { getIconClasses } from '../../../../../editor/common/services/getIconClasses.js';
 import { FileKind } from '../../../../../platform/files/common/files.js';
-import { useErdosReactServicesContext } from '../../../../../base/browser/erdosReactRendererContext.js';
+import { services } from '../../../../../base/browser/erdosReactServices.js';
 import { Conversation } from '../../../../services/erdosAi/common/conversationTypes.js';
 
 interface FileChangeInfo {
@@ -30,9 +30,7 @@ export const FileChangesBar: React.FC<FileChangesBarProps> = ({
 	currentConversation,
 	onFileClick,
 	refreshTrigger
-}) => {
-	const services = useErdosReactServicesContext();
-	const [isExpanded, setIsExpanded] = useState(false);
+}) => {	const [isExpanded, setIsExpanded] = useState(false);
 	const [trackedFiles, setTrackedFiles] = useState<FileChangeInfo[]>([]);
 	const [isLoading, setIsLoading] = useState(true);
 

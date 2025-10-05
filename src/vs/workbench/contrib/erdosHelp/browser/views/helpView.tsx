@@ -8,7 +8,8 @@ import './helpView.css';
 import React from 'react';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { IReactComponentContainer, ISize, ErdosReactRenderer } from '../../../../../base/browser/erdosReactRenderer.js';
+import { IReactComponentContainer, ISize } from '../../../erdosConsole/browser/erdosConsoleView.js';
+import { createRoot, Root } from 'react-dom/client';
 import { IViewPaneOptions, ViewPaneShowActions, ViewPane } from '../../../../browser/parts/views/viewPane.js';
 import { IViewDescriptorService } from '../../../../common/views.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -41,7 +42,7 @@ export class HelpView extends ViewPane implements IReactComponentContainer {
 	};
 	
 	private renderers: {
-		welcome?: ErdosReactRenderer;
+		welcome?: Root;
 	} = {};
 	
 	private state = {
@@ -190,9 +191,8 @@ export class HelpView extends ViewPane implements IReactComponentContainer {
 			this.state.activeEntry?.hideContent(false);
 
 			if (!this.renderers.welcome) {
-				this.renderers.welcome = this._register(
-					new ErdosReactRenderer(this.containers.content)
-				);
+				this.renderers.welcome = createRoot(this.containers.content);
+				this._register({ dispose: () => this.renderers.welcome?.unmount() });
 			}
 
 			this.renderers.welcome.render(
@@ -204,7 +204,7 @@ export class HelpView extends ViewPane implements IReactComponentContainer {
 			);
 		} else {
 			if (this.renderers.welcome) {
-				this.renderers.welcome.dispose();
+				this.renderers.welcome.unmount();
 				this.renderers.welcome = undefined;
 			}
 
@@ -219,7 +219,7 @@ export class HelpView extends ViewPane implements IReactComponentContainer {
 }
 
 class TopicHistorySelectorViewItem extends BaseActionViewItem {
-	private renderer?: ErdosReactRenderer;
+	private renderer?: Root;
 
 	constructor(action: IAction) {
 		super(null, action);
@@ -231,7 +231,7 @@ class TopicHistorySelectorViewItem extends BaseActionViewItem {
 		const reactContainer = DOM.$('.topic-history-selector-container');
 		container.appendChild(reactContainer);
 
-		this.renderer = new ErdosReactRenderer(reactContainer);
+		this.renderer = createRoot(reactContainer);
 		this.renderer.render(
 			<TopicHistoryPanel />
 		);
@@ -239,7 +239,7 @@ class TopicHistorySelectorViewItem extends BaseActionViewItem {
 
 	override dispose(): void {
 		if (this.renderer) {
-			this.renderer.dispose();
+			this.renderer.unmount();
 			this.renderer = undefined;
 		}
 		super.dispose();
@@ -247,7 +247,7 @@ class TopicHistorySelectorViewItem extends BaseActionViewItem {
 }
 
 class TopicSearchViewItem extends BaseActionViewItem {
-	private renderer?: ErdosReactRenderer;
+	private renderer?: Root;
 
 	constructor(action: IAction) {
 		super(null, action);
@@ -259,7 +259,7 @@ class TopicSearchViewItem extends BaseActionViewItem {
 		const reactContainer = DOM.$('.topic-search-container');
 		container.appendChild(reactContainer);
 
-		this.renderer = new ErdosReactRenderer(reactContainer);
+		this.renderer = createRoot(reactContainer);
 		this.renderer.render(
 			<TopicSearchInput variant="actionbar" />
 		);
@@ -267,7 +267,7 @@ class TopicSearchViewItem extends BaseActionViewItem {
 
 	override dispose(): void {
 		if (this.renderer) {
-			this.renderer.dispose();
+			this.renderer.unmount();
 			this.renderer = undefined;
 		}
 		super.dispose();

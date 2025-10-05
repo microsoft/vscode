@@ -15,7 +15,8 @@ import { IThemeService } from '../../../../../platform/theme/common/themeService
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IAccessibleViewInformationService } from '../../../../services/accessibility/common/accessibleViewInformationService.js';
 import { IErdosEnvironmentService, IPythonEnvironment, ERDOS_PYTHON_ENVIRONMENTS_VIEW_ID } from '../../common/environmentTypes.js';
-import { IReactComponentContainer, ISize, ErdosReactRenderer } from '../../../../../base/browser/erdosReactRenderer.js';
+import { IReactComponentContainer, ISize } from '../../../erdosConsole/browser/erdosConsoleView.js';
+import { createRoot, Root } from 'react-dom/client';
 import { EnvironmentList } from '../components/environmentList.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 
@@ -23,7 +24,7 @@ export class PythonEnvironmentsView extends ViewPane implements IReactComponentC
 	
 	static readonly ID = ERDOS_PYTHON_ENVIRONMENTS_VIEW_ID;
 	
-	private _erdosReactRenderer!: ErdosReactRenderer;
+	private _erdosReactRenderer!: Root;
 	private _environments: IPythonEnvironment[] = [];
 	private _isLoading: boolean = false;
 	
@@ -103,8 +104,8 @@ export class PythonEnvironmentsView extends ViewPane implements IReactComponentC
 				
 		try {
 			// Create and render the React component
-			this._erdosReactRenderer = new ErdosReactRenderer(container);
-			this._register(this._erdosReactRenderer);
+			this._erdosReactRenderer = createRoot(container);
+			this._register({ dispose: () => this._erdosReactRenderer?.unmount() });
 			
 			this.renderReactComponent();
 			

@@ -16,7 +16,7 @@ import { IAction } from '../../../../../base/common/actions.js';
 import { AnchorAlignment, AnchorAxisAlignment } from '../../../../../base/browser/ui/contextview/contextview.js';
 import { isMacintosh } from '../../../../../base/common/platform.js';
 import { ErdosConsoleTabFocused } from '../../../../common/contextkeys.js';
-import { useErdosReactServicesContext } from '../../../../../base/browser/erdosReactRendererContext.js';
+import { services } from '../../../../../base/browser/erdosReactServices.js';
 
 const MINIMUM_ACTION_CONSOLE_TAB_WIDTH = 110;
 
@@ -26,9 +26,7 @@ interface ConsoleTabProps {
 	onChangeSession: (instance: IErdosConsoleInstance) => void;
 }
 
-const ConsoleTab = ({ erdosConsoleInstance, width, onChangeSession }: ConsoleTabProps) => {
-	const services = useErdosReactServicesContext();
-	const erdosConsoleContext = useErdosConsoleContext();
+const ConsoleTab = ({ erdosConsoleInstance, width, onChangeSession }: ConsoleTabProps) => {	const erdosConsoleContext = useErdosConsoleContext();
 
 	const [deleteDisabled, setDeleteDisabled] = useState(false);
 	const [isRenamingSession, setIsRenamingSession] = useState(false);
@@ -274,9 +272,7 @@ interface ConsoleTabListProps {
 	readonly height: number;
 }
 
-export const ConsoleTabList = (props: ConsoleTabListProps) => {
-	const services = useErdosReactServicesContext();
-	const erdosConsoleContext = useErdosConsoleContext();
+export const ConsoleTabList = (props: ConsoleTabListProps) => {	const erdosConsoleContext = useErdosConsoleContext();
 	const erdosConsoleTabFocusedContextKey = ErdosConsoleTabFocused.bindTo(services.contextKeyService);
 
 	const tabListRef = useRef<HTMLDivElement>(null);

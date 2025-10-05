@@ -7,7 +7,7 @@ import * as React from 'react';
 import { ColumnSchema } from '../../../../services/dataExplorer/common/dataExplorerTypes.js';
 import { SortKey } from '../../../../services/dataExplorer/browser/filtering/sortManager.js';
 import { getColumnLetter } from '../../../../services/dataExplorer/common/columnUtils.js';
-import { useErdosReactServicesContext } from '../../../../../base/browser/erdosReactRendererContext.js';
+import { services } from '../../../../../base/browser/erdosReactServices.js';
 import { IAction } from '../../../../../base/common/actions.js';
 import { SortIndicator } from './sortIndicator.js';
 import { ColumnViewportInfo } from '../../../../../workbench/services/dataExplorer/browser/virtualization/viewportCalculator.js';
@@ -51,11 +51,7 @@ export const ColumnHeaders: React.FC<ColumnHeadersProps> = ({ columns, onSort, o
 		const sortKey = sortKeys.find(sortKey => sortKey.columnIndex === columnIndex);
 
 		return sortKey;
-	};
-
-	const services = useErdosReactServicesContext();
-
-	const handleColumnLetterContextMenu = (event: React.MouseEvent, columnIndex: number) => {
+	};	const handleColumnLetterContextMenu = (event: React.MouseEvent, columnIndex: number) => {
 		event.preventDefault();
 
 		const actions: IAction[] = [];

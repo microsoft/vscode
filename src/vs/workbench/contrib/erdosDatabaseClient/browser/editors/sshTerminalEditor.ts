@@ -18,8 +18,6 @@ import { IDatabaseClientService } from '../services/databaseClientService.js';
 import * as React from 'react';
 import * as ReactDOM from 'react-dom/client';
 import { Root } from 'react-dom/client';
-import { ErdosReactServicesContext } from '../../../../../base/browser/erdosReactRendererContext.js';
-import { ErdosReactServices } from '../../../../../base/browser/erdosReactServices.js';
 
 /**
  * SSH Terminal Editor - wraps the SSHTerminal React component in VS Code's EditorPane system.
@@ -107,13 +105,9 @@ export class SSHTerminalEditor extends EditorPane {
 			onShowMessage: this._handleShowMessage.bind(this)
 		};
 
-		// Render the SSHTerminal component with services context
+		// Render the SSHTerminal component
 		this._reactRoot.render(
-			React.createElement(
-				ErdosReactServicesContext.Provider,
-				{ value: ErdosReactServices.services },
-				React.createElement(SSHTerminal, props)
-			)
+			React.createElement(SSHTerminal, props)
 		);
 	}
 

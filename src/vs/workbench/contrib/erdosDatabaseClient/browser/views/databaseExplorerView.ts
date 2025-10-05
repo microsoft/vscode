@@ -387,18 +387,18 @@ export class DatabaseExplorerView extends ViewPane {
 		this._register(this._tree);
 
 		// Set up event handlers
-		this._tree.onDidOpen((e: { element?: IDatabaseTreeElement }) => {
+		this._register(this._tree.onDidOpen((e: { element?: IDatabaseTreeElement }) => {
 			if (e.element) {
 				this._handleNodeDoubleClick(e.element.element);
 			}
-		});
+		}));
 
 		// Set up context menu
-		this._tree.onContextMenu((e) => {
+		this._register(this._tree.onContextMenu((e) => {
 			if (e.element) {
 				this._handleContextMenu(e.element.element, e.anchor);
 			}
-		});
+		}));
 
 		// Load initial data
 		this._loadRootNodes();

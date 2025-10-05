@@ -18,10 +18,10 @@ import { IAction, Separator } from '../../../../../base/common/actions.js';
 import { isMacintosh, isWeb } from '../../../../../base/common/platform.js';
 import { FontInfo } from '../../../../../editor/common/config/fontInfo.js';
 import { FontConfigurationManager } from '../../../../browser/fontConfigurationManager.js';
-import { IReactComponentContainer } from '../../../../../base/browser/erdosReactRenderer.js';
+import { IReactComponentContainer } from '../erdosConsoleView.js';
 import { ERDOS_PLOTS_VIEW_ID } from '../../../erdosPlots/common/erdosPlotsService.js';
 import { AnchorAlignment, AnchorAxisAlignment } from '../../../../../base/browser/ui/contextview/contextview.js';
-import { useErdosReactServicesContext } from '../../../../../base/browser/erdosReactRendererContext.js';
+import { services } from '../../../../../base/browser/erdosReactServices.js';
 import { ERDOS_CONSOLE_COPY, ERDOS_CONSOLE_PASTE, ERDOS_CONSOLE_SELECT_ALL } from '../erdosConsoleIdentifiers.js';
 import { IErdosConsoleInstance, ErdosConsoleState } from '../../../../services/erdosConsole/browser/interfaces/erdosConsoleService.js';
 
@@ -33,9 +33,7 @@ interface ConsoleInstanceProps {
 	readonly reactComponentContainer: IReactComponentContainer;
 }
 
-export const ConsoleInstance = (props: ConsoleInstanceProps) => {
-	const services = useErdosReactServicesContext();
-	const erdosConsoleContext = useErdosConsoleContext();
+export const ConsoleInstance = (props: ConsoleInstanceProps) => {	const erdosConsoleContext = useErdosConsoleContext();
 
 	const consoleInstanceRef = useRef<HTMLDivElement>(undefined!);
 	const consoleInstanceContainerRef = useRef<HTMLDivElement>(undefined!);

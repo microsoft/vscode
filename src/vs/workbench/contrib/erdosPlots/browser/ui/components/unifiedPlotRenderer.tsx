@@ -14,7 +14,7 @@ import { IOverlayWebview } from '../../../../webview/browser/webview.js';
 import { localize } from '../../../../../../nls.js';
 import { PlotClientInstance, PlotClientState, IErdosPlotMetadata } from '../../../../../services/languageRuntime/common/languageRuntimePlotClient.js';
 import { IErdosPlotClient, StaticPlotInstance } from '../../../common/erdosPlotsService.js';
-import { useErdosReactServicesContext } from '../../../../../../base/browser/erdosReactRendererContext.js';
+import { services } from '../../../../../../base/browser/erdosReactServices.js';
 import { DataTransfers } from '../../../../../../base/browser/dnd.js';
 import { IAction } from '../../../../../../base/common/actions.js';
 
@@ -180,7 +180,7 @@ abstract class InteractivePlotEngine extends Disposable implements IErdosPlotCli
 }
 
 const UnifiedPlotRenderer = (config: VisualizationConfig) => {
-	const ctx = useErdosReactServicesContext();
+	const ctx = services;
 	const frameElement = useRef<HTMLIFrameElement>(null);
 	const wrapperElement = useRef<HTMLDivElement>(null);
 	const ownerRef = useRef<object>({});

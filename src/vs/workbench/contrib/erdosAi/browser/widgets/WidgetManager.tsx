@@ -25,13 +25,14 @@ interface WidgetWrapperProps {
 	erdosAiSettingsService: IErdosAiSettingsService;
 	commonUtils: ICommonUtils;
 	functionParserService: IFunctionParserService;
-	isHistorical?: boolean; // Flag to indicate this widget is from conversation log
+	isHistorical?: boolean;
+	onHeightChange?: () => void;
 }
 
 /**
  * React wrapper component for widgets
  */
-const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, context, streamingContent, erdosAiService, diffData: initialDiffData, services, erdosAiSettingsService, commonUtils, functionParserService, isHistorical }) => {
+const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, context, streamingContent, erdosAiService, diffData: initialDiffData, services, erdosAiSettingsService, commonUtils, functionParserService, isHistorical, onHeightChange }) => {
 	const functionType = widgetInfo.functionCallType;
 	
 	const getInitialButtonVisibility = () => {
@@ -113,28 +114,6 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, con
 
 		return () => {
 			buttonActionDisposable.dispose();
-		};
-	}, [erdosAiService, widgetInfo.messageId]);
-
-	// Handle async content updates for run_file widgets
-	useEffect(() => {
-		// First, check if widget already has async content update (in case event fired before React mounted)
-		const widget = erdosAiService.getWidget(widgetInfo.messageId);
-		if (widget && widget.hasAsyncContentUpdate) {
-			setCurrentContent(widget.accumulatedContent);
-			setStreamingComplete(true);
-		}
-
-		// Set up listener for future content updates
-		const contentUpdateDisposable = erdosAiService.onWidgetContentUpdated((update) => {
-			if (update.messageId === widgetInfo.messageId) {
-				setCurrentContent(update.content);
-				setStreamingComplete(true);
-			}
-		});
-
-		return () => {
-			contentUpdateDisposable.dispose();
 		};
 	}, [erdosAiService, widgetInfo.messageId]);
 
@@ -717,6 +696,7 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, con
 											configurationService={services.configurationService}
 											commonUtils={commonUtils}
 											onContentChange={setCurrentContent}
+											onHeightChange={onHeightChange}
 											className="console-monaco-editor"
 										/>
 									);
@@ -745,6 +725,7 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, con
 										configurationService={services.configurationService}
 										commonUtils={commonUtils}
 										onContentChange={setCurrentContent}
+										onHeightChange={onHeightChange}
 										className="widget-monaco-editor"
 									/>
 								);

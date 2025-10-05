@@ -33,7 +33,6 @@ export interface IErdosAiServiceCore {
 	revertToMessage(messageId: number): Promise<{ status: string; message?: string }>;
 	updateMessageContent(messageId: number, content: string): Promise<boolean>;
 	extractFileContentForWidget(filename: string, startLine?: number, endLine?: number): Promise<string>;
-	updateWidgetContent(messageId: number, content: string): void;
 	
 	// Events
 	readonly onConversationCreated: Event<Conversation>;
@@ -48,7 +47,6 @@ export interface IErdosAiServiceCore {
 	readonly onWidgetRequested: Event<any>;
 	readonly onWidgetStreamingUpdate: Event<any>;
 	readonly onWidgetButtonAction: Event<any>;
-	readonly onWidgetContentUpdated: Event<{ messageId: number; content: string; functionType: string }>;
 	readonly onShowConversationHistory: Event<void>;
 	readonly onShowSettings: Event<void>;
 	

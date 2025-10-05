@@ -12,7 +12,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 // Other dependencies.
 import { localize } from '../../../../../../nls.js';
 import { IErdosPlotClient } from '../../../common/erdosPlotsService.js';
-import { useErdosReactServicesContext } from '../../../../../../base/browser/erdosReactRendererContext.js';
+import { services } from '../../../../../../base/browser/erdosReactServices.js';
 
 /**
  * Format a plot source name for display (file or console)
@@ -39,9 +39,7 @@ function formatPlotName(plot: IErdosPlotClient): string {
 /**
  * PlotSelectorInner component - the actual selector UI (requires ActionBarContext)
  */
-const PlotSelectorInner: React.FC = () => {
-	const services = useErdosReactServicesContext();
-	const [isOpen, setIsOpen] = useState(false);
+const PlotSelectorInner: React.FC = () => {	const [isOpen, setIsOpen] = useState(false);
 	const [plots, setPlots] = useState(services.erdosPlotsService.allPlots);
 	const [selectedPlotId, setSelectedPlotId] = useState(services.erdosPlotsService.activePlotId);
 	const [searchQuery, setSearchQuery] = useState('');

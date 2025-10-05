@@ -17,11 +17,12 @@ export class HelpClientManager {
 		}
 
 		const existingClients = await session.listClients(RuntimeClientType.Help);
+		// Use the most recently created client (last in array) for consistency
 		const client = existingClients.length > 0 ?
-			existingClients[0] :
+			existingClients[existingClients.length - 1] :
 			await session.createClient(RuntimeClientType.Help, {});
 
-		const helpClient = new HelpClientInstance(client, session.runtimeMetadata.languageId, sessionId);
+	const helpClient = new HelpClientInstance(client, session.runtimeMetadata.languageId, sessionId);
 		this._clients.set(sessionId, helpClient);
 
 		return helpClient;
