@@ -12,11 +12,13 @@
 
 # Base Utilities
 src/vs/base/common/extpath.ts @bpasero @deepak1556
+src/vs/base/common/fuzzyScorer.ts @bpasero
 src/vs/base/common/glob.ts @bpasero @deepak1556
 src/vs/base/common/path.ts @bpasero @deepak1556
 src/vs/base/common/stream.ts @bpasero @deepak1556
 src/vs/base/browser/domSanitize.ts @mjbvz
 src/vs/base/node/pfs.ts @bpasero @deepak1556
+src/vs/base/node/unc.ts @bpasero @deepak1556
 src/vs/base/parts/contextmenu/** @bpasero @deepak1556
 src/vs/base/parts/ipc/** @bpasero @deepak1556
 src/vs/base/parts/sandbox/** @bpasero @deepak1556
@@ -33,6 +35,7 @@ src/vs/base/browser/ui/tree/** @joaomoreno @benibenj
 # Platform
 src/vs/platform/auxiliaryWindow/** @bpasero @benibenj
 src/vs/platform/backup/** @bpasero @Tyriar
+src/vs/platform/dialogs/** @bpasero @benibenj
 src/vs/platform/editor/** @bpasero @benibenj
 src/vs/platform/environment/** @bpasero @deepak1556
 src/vs/platform/files/** @bpasero @deepak1556
@@ -100,6 +103,8 @@ src/vs/workbench/electron-browser/** @bpasero @benibenj @sandy081
 
 # Workbench Contributions
 src/vs/workbench/contrib/files/** @lramos15 @bpasero
+src/vs/workbench/contrib/chat/browser/chatSetup.ts @bpasero @lramos15
+src/vs/workbench/contrib/chat/browser/chatStatus.ts @bpasero @lramos15
 src/vs/workbench/contrib/update/browser/releaseNotesEditor.ts @alexr00 @joaomoreno
 
 # VS Code API
