@@ -369,7 +369,7 @@ export class KeybindingsEditor extends EditorPane<IKeybindingsEditorMemento> imp
 			ariaLabelledBy: 'keybindings-editor-aria-label-element',
 			recordEnter: true,
 			quoteRecordedKeys: true,
-			history: new Set<string>((this.getMemento(StorageScope.PROFILE, StorageTarget.USER) as IKeybindingsEditorMemento).searchHistory ?? []),
+			history: new Set<string>((this.getMemento(StorageScope.PROFILE, StorageTarget.USER)).searchHistory ?? []),
 			inputBoxStyles: getInputBoxStyle({
 				inputBorder: settingsTextInputBorder
 			})
@@ -582,14 +582,14 @@ export class KeybindingsEditor extends EditorPane<IKeybindingsEditorMemento> imp
 		this.renderKeybindingsEntries(this.searchWidget.hasFocus());
 		this.searchHistoryDelayer.trigger(() => {
 			this.searchWidget.inputBox.addToHistory();
-			(this.getMemento(StorageScope.PROFILE, StorageTarget.USER) as IKeybindingsEditorMemento).searchHistory = this.searchWidget.inputBox.getHistory();
+			(this.getMemento(StorageScope.PROFILE, StorageTarget.USER)).searchHistory = this.searchWidget.inputBox.getHistory();
 			this.saveState();
 		});
 	}
 
 	public clearKeyboardShortcutSearchHistory(): void {
 		this.searchWidget.inputBox.clearHistory();
-		(this.getMemento(StorageScope.PROFILE, StorageTarget.USER) as IKeybindingsEditorMemento).searchHistory = this.searchWidget.inputBox.getHistory();
+		(this.getMemento(StorageScope.PROFILE, StorageTarget.USER)).searchHistory = this.searchWidget.inputBox.getHistory();
 		this.saveState();
 	}
 
