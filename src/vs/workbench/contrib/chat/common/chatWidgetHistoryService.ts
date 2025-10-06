@@ -43,7 +43,7 @@ export interface IChatWidgetHistoryService {
 }
 
 interface IChatHistory {
-	history: { [providerId: string]: IChatHistoryEntry[] };
+	history?: { [providerId: string]: IChatHistoryEntry[] };
 }
 
 export const ChatInputHistoryMaxEntries = 40;
@@ -60,8 +60,8 @@ export class ChatWidgetHistoryService implements IChatWidgetHistoryService {
 	constructor(
 		@IStorageService storageService: IStorageService
 	) {
-		this.memento = new Memento('interactive-session', storageService);
-		const loadedState = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE) as IChatHistory;
+		this.memento = new Memento<IChatHistory>('interactive-session', storageService);
+		const loadedState = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		for (const provider in loadedState.history) {
 			// Migration from old format
 			loadedState.history[provider] = loadedState.history[provider].map(entry => typeof entry === 'string' ? { text: entry } : entry);
