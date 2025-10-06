@@ -120,7 +120,7 @@ function patchProcess(allowExit: boolean) {
 	process.on = <any>function (event: string, listener: (...args: any[]) => void) {
 		if (event === 'uncaughtException') {
 			const actualListener = listener;
-			listener = function (...args: any[]) {
+			listener = function (...args: unknown[]) {
 				try {
 					return actualListener.apply(undefined, args);
 				} catch {

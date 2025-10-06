@@ -172,13 +172,13 @@ class RunTestTool implements IToolImpl {
 
 		return {
 			content: content as Mutable<IToolResult['content']>,
-			toolResultMessage: getTestProgressText(collectTestStateCounts(true, [result])),
+			toolResultMessage: getTestProgressText(collectTestStateCounts(false, [result])),
 		};
 	}
 
 	private async _buildSummary(result: LiveTestResult, mode: Mode, coverageFiles: string[] | undefined): Promise<string> {
 		const failures = result.counts[TestResultState.Errored] + result.counts[TestResultState.Failed];
-		let str = `<summary passed=${result.counts[TestResultState.Passed]} failed=${failures} />`;
+		let str = `<summary passed=${result.counts[TestResultState.Passed]} failed=${failures} />\n`;
 		if (failures !== 0) {
 			str += await this._getFailureDetails(result);
 		}
@@ -245,6 +245,7 @@ class RunTestTool implements IToolImpl {
 
 	private async _getFailureDetails(result: LiveTestResult): Promise<string> {
 		let str = '';
+		let hadMessages = false;
 		for (const failure of result.tests) {
 			if (!isFailedState(failure.ownComputedState)) {
 				continue;
@@ -256,6 +257,8 @@ class RunTestTool implements IToolImpl {
 			// Extract detailed failure information from error messages
 			for (const task of failure.tasks) {
 				for (const message of task.messages.filter(m => m.type === TestMessageType.Error)) {
+					hadMessages = true;
+
 					// Add expected/actual outputs if available
 					if (message.expected !== undefined && message.actual !== undefined) {
 						str += `<expectedOutput>\n${message.expected}\n</expectedOutput>\n`;
@@ -288,6 +291,14 @@ class RunTestTool implements IToolImpl {
 
 			str += `</testFailure>\n`;
 		}
+
+		if (!hadMessages) { // some adapters don't have any per-test messages and just output
+			const output = result.tasks.map(t => t.output.getRange(0, t.output.length).toString().trim()).join('\n');
+			if (output) {
+				str += `<output>\n${output}\n</output>\n`;
+			}
+		}
+
 		return str;
 	}
 
