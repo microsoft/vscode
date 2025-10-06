@@ -51,7 +51,7 @@ export const ChatInputHistoryMaxEntries = 40;
 export class ChatWidgetHistoryService implements IChatWidgetHistoryService {
 	_serviceBrand: undefined;
 
-	private memento: Memento;
+	private memento: Memento<IChatHistory>;
 	private viewState: IChatHistory;
 
 	private readonly _onDidClearHistory = new Emitter<void>();

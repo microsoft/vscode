@@ -50,7 +50,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	get widget(): ChatWidget { return this._widget; }
 
 	private readonly modelDisposables = this._register(new DisposableStore());
-	private memento: Memento;
+	private memento: Memento<IViewPaneState>;
 	private readonly viewState: IViewPaneState;
 
 	private _restoringSession: Promise<void> | undefined;
