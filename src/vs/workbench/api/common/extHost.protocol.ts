@@ -120,7 +120,7 @@ export interface MainThreadCommandsShape extends IDisposable {
 	$registerCommand(id: string): void;
 	$unregisterCommand(id: string): void;
 	$fireCommandActivationEvent(id: string): void;
-	$executeCommand(id: string, args: any[] | SerializableObjectWithBuffers<any[]>, retry: boolean): Promise<unknown | undefined>;
+	$executeCommand(id: string, args: unknown[] | SerializableObjectWithBuffers<unknown[]>, retry: boolean): Promise<unknown | undefined>;
 	$getCommands(): Promise<string[]>;
 }
 
