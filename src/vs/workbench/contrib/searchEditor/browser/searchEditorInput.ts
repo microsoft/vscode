@@ -362,7 +362,7 @@ export const getOrMakeSearchEditorInput = (
 			const reuseOldSettings = searchEditorSettings.reusePriorSearchConfiguration;
 			const defaultNumberOfContextLines = searchEditorSettings.defaultNumberOfContextLines;
 
-			const priorConfig: Partial<SearchConfiguration> = reuseOldSettings ? new Memento<{ searchConfig: SearchConfiguration }>(SearchEditorInput.ID, storageService).getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE).searchConfig ?? {} : {};
+			const priorConfig = reuseOldSettings ? new Memento<{ searchConfig?: SearchConfiguration }>(SearchEditorInput.ID, storageService).getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE).searchConfig ?? {} : {};
 			const defaultConfig = defaultSearchConfig();
 
 			const config = { ...defaultConfig, ...priorConfig, ...existingData.config };

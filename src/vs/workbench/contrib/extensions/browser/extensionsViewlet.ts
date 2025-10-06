@@ -92,7 +92,7 @@ export const ExtensionsSearchValueContext = new RawContextKey<string>('extension
 const REMOTE_CATEGORY: ILocalizedString = localize2({ key: 'remote', comment: ['Remote as in remote machine'] }, "Remote");
 
 interface IExtensionsViewletState {
-	'query.value': string;
+	'query.value'?: string;
 }
 
 export class ExtensionsViewletViewsContribution extends Disposable implements IWorkbenchContribution {
@@ -537,7 +537,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer<IExtensionsVi
 	private header: HTMLElement | undefined;
 	private searchBox: SuggestEnabledInput | undefined;
 	private notificationContainer: HTMLElement | undefined;
-	private readonly searchViewletState: Partial<IExtensionsViewletState>;
+	private readonly searchViewletState: IExtensionsViewletState;
 	private extensionGalleryManifest: IExtensionGalleryManifest | null = null;
 
 	constructor(

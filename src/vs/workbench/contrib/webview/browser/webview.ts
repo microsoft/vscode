@@ -349,7 +349,7 @@ export interface IOverlayWebview extends IWebview {
 export class WebviewOriginStore {
 
 	private readonly _memento: Memento<Record<string, string>>;
-	private readonly _state: Partial<Record<string, string>>;
+	private readonly _state: Record<string, string | undefined>;
 
 	constructor(
 		rootStorageKey: string,

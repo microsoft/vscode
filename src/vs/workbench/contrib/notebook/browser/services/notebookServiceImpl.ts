@@ -55,11 +55,11 @@ interface NotebookProviderInfoStoreMemento {
 }
 
 interface NotebookOutputRendererInfoStoreMemento {
-	[notebookType: string]: { [mimeType: string]: string };
+	[notebookType: string]: { [mimeType: string]: string } | undefined;
 }
 
 interface NotebookServiceMemento {
-	[viewType: string]: string;
+	[viewType: string]: string | undefined;
 }
 
 export class NotebookProviderInfoStore extends Disposable {
@@ -426,7 +426,7 @@ export class NotebookProviderInfoStore extends Disposable {
 export class NotebookOutputRendererInfoStore {
 	private readonly contributedRenderers = new Map</* rendererId */ string, NotebookOutputRendererInfo>();
 	private readonly preferredMimetypeMemento: Memento<NotebookOutputRendererInfoStoreMemento>;
-	private readonly preferredMimetype = new Lazy<Partial<NotebookOutputRendererInfoStoreMemento>>(
+	private readonly preferredMimetype = new Lazy<NotebookOutputRendererInfoStoreMemento>(
 		() => this.preferredMimetypeMemento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE));
 
 	constructor(
@@ -534,7 +534,7 @@ export class NotebookService extends Disposable implements INotebookService {
 	declare readonly _serviceBrand: undefined;
 	private static _storageNotebookViewTypeProvider = 'notebook.viewTypeProvider';
 	private readonly _memento: Memento<NotebookServiceMemento>;
-	private readonly _viewTypeCache: Partial<NotebookServiceMemento>;
+	private readonly _viewTypeCache: NotebookServiceMemento;
 
 	private readonly _notebookProviders;
 	private _notebookProviderInfoStore: NotebookProviderInfoStore | undefined;

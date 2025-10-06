@@ -51,7 +51,7 @@ export class NotebookKeymapService extends Disposable implements INotebookKeymap
 	_serviceBrand: undefined;
 
 	private notebookKeymapMemento: Memento<NotebookKeymapMemento>;
-	private notebookKeymap: Partial<NotebookKeymapMemento>;
+	private notebookKeymap: NotebookKeymapMemento;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,

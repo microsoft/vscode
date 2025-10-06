@@ -16,7 +16,7 @@ interface RegisteredExternalOpener {
 }
 
 interface OpenersMemento {
-	[id: string]: RegisteredExternalOpener;
+	[id: string]: RegisteredExternalOpener | undefined;
 }
 
 export class ContributedExternalUriOpenersStore extends Disposable {
@@ -25,7 +25,7 @@ export class ContributedExternalUriOpenersStore extends Disposable {
 
 	private readonly _openers = new Map<string, RegisteredExternalOpener>();
 	private readonly _memento: Memento<OpenersMemento>;
-	private _mementoObject: Partial<OpenersMemento>;
+	private _mementoObject: OpenersMemento;
 
 	constructor(
 		@IStorageService storageService: IStorageService,

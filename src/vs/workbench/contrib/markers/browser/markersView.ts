@@ -128,7 +128,7 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 	private currentHeight = 0;
 	private currentWidth = 0;
 	private readonly memento: Memento<IMarkersPanelState>;
-	private readonly panelState: Partial<IMarkersPanelState>;
+	private readonly panelState: IMarkersPanelState;
 
 	private cachedFilterStats: { total: number; filtered: number } | undefined = undefined;
 

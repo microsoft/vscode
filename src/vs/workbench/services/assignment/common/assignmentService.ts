@@ -33,7 +33,7 @@ export interface IWorkbenchAssignmentService extends IAssignmentService {
 
 class MementoKeyValueStorage implements IKeyValueStorage {
 
-	private readonly mementoObj: Partial<Record<string, unknown>>;
+	private readonly mementoObj: Record<string, unknown>;
 
 	constructor(private readonly memento: Memento<Record<string, unknown>>) {
 		this.mementoObj = memento.getMemento(StorageScope.APPLICATION, StorageTarget.MACHINE);
