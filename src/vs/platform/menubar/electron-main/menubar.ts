@@ -538,7 +538,7 @@ export class Menubar extends Disposable {
 	}
 
 	private setMenuById(menu: Menu, menuId: string): void {
-		if (this.menubarMenus[menuId]) {
+		if (this.menubarMenus?.[menuId]) {
 			this.setMenu(menu, this.menubarMenus[menuId].items);
 		}
 	}
