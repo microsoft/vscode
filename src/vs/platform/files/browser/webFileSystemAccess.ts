@@ -10,8 +10,8 @@
  */
 export namespace WebFileSystemAccess {
 
-	export function supported(obj: Window): boolean {
-		if (typeof (obj as Window & { showDirectoryPicker?: unknown })?.showDirectoryPicker === 'function') {
+	export function supported(obj: typeof globalThis): boolean {
+		if (typeof (obj as typeof globalThis & { showDirectoryPicker?: unknown })?.showDirectoryPicker === 'function') {
 			return true;
 		}
 
