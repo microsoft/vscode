@@ -857,6 +857,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		@ICommandService private readonly commandService: ICommandService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IChatEntitlementService chatEntitlementService: ChatEntitlementService,
+		@IChatModeService private readonly chatModeService: IChatModeService,
 		@ILogService private readonly logService: ILogService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
@@ -1200,7 +1201,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				const modeParam = params.get('mode');
 				let modeToUse: ChatModeKind | string | undefined;
 				if (modeParam) {
-					const chatModeService = this.instantiationService.invokeFunction(accessor => accessor.get(IChatModeService));
+					const chatModeService = this.chatModeService;
 
 					// check if the given param is a valid mode ID
 					let foundMode = chatModeService.findModeById(modeParam);
