@@ -28,7 +28,6 @@ import { INotebookExecutionStateService } from '../../common/notebookExecutionSt
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { CodeCellViewModel } from '../viewModel/codeCellViewModel.js';
-import { InlineChatController } from '../../../inlineChat/browser/inlineChatController.js';
 
 const EXECUTE_NOTEBOOK_COMMAND_ID = 'notebook.execute';
 const CANCEL_NOTEBOOK_COMMAND_ID = 'notebook.cancelExecution';
@@ -295,24 +294,6 @@ registerAction2(class ExecuteCell extends NotebookMultiCellAction {
 
 		if (context.ui) {
 			await context.notebookEditor.focusNotebookCell(context.cell, 'container', { skipReveal: true });
-		}
-
-		const codeEditor = context.notebookEditor.activeCodeEditor;
-		if (codeEditor && context.cell
-		) {
-			const chatController = InlineChatController.get(codeEditor);
-			if (chatController?.widget.hasFocus()) {
-				const group = editorGroupsService.activeGroup;
-
-				if (group) {
-					if (group.activeEditor) {
-						group.pinEditor(group.activeEditor);
-					}
-				}
-
-				await context.notebookEditor.executeNotebookCells([context.cell]);
-				return;
-			}
 		}
 
 		await runCell(editorGroupsService, context, editorService);
