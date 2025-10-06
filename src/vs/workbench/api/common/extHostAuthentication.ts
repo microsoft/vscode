@@ -238,7 +238,7 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 			const authorizationServer = URI.revive(authorizationServerComponents);
 			if (serverMetadata.registration_endpoint) {
 				try {
-					const registration = await fetchDynamicRegistration(serverMetadata, this._initData.environment.appName);
+					const registration = await fetchDynamicRegistration(serverMetadata, this._initData.environment.appName, resourceMetadata?.scopes_supported);
 					clientId = registration.client_id;
 					clientSecret = registration.client_secret;
 				} catch (err) {
@@ -738,7 +738,7 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 
 	protected async _generateNewClientId(): Promise<void> {
 		try {
-			const registration = await fetchDynamicRegistration(this._serverMetadata, this._initData.environment.appName);
+			const registration = await fetchDynamicRegistration(this._serverMetadata, this._initData.environment.appName, this._resourceMetadata?.scopes_supported);
 			this._clientId = registration.client_id;
 			this._clientSecret = registration.client_secret;
 			this._onDidChangeClientId.fire();

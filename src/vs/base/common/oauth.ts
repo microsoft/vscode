@@ -260,6 +260,107 @@ export interface IAuthorizationServerMetadata {
 }
 
 /**
+ * Request for the dynamic client registration endpoint as per RFC 7591.
+ */
+export interface IAuthorizationDynamicClientRegistrationRequest {
+	/**
+	 * OPTIONAL. Array of redirection URI strings for use in redirect-based flows
+	 * such as the authorization code and implicit flows.
+	 */
+	redirect_uris?: string[];
+
+	/**
+	 * OPTIONAL. String indicator of the requested authentication method for the token endpoint.
+	 * Values: "none", "client_secret_post", "client_secret_basic".
+	 * Default is "client_secret_basic".
+	 */
+	token_endpoint_auth_method?: string;
+
+	/**
+	 * OPTIONAL. Array of OAuth 2.0 grant type strings that the client can use at the token endpoint.
+	 * Default is ["authorization_code"].
+	 */
+	grant_types?: string[];
+
+	/**
+	 * OPTIONAL. Array of the OAuth 2.0 response type strings that the client can use at the authorization endpoint.
+	 * Default is ["code"].
+	 */
+	response_types?: string[];
+
+	/**
+	 * OPTIONAL. Human-readable string name of the client to be presented to the end-user during authorization.
+	 */
+	client_name?: string;
+
+	/**
+	 * OPTIONAL. URL string of a web page providing information about the client.
+	 */
+	client_uri?: string;
+
+	/**
+	 * OPTIONAL. URL string that references a logo for the client.
+	 */
+	logo_uri?: string;
+
+	/**
+	 * OPTIONAL. String containing a space-separated list of scope values that the client can use when requesting access tokens.
+	 */
+	scope?: string;
+
+	/**
+	 * OPTIONAL. Array of strings representing ways to contact people responsible for this client, typically email addresses.
+	 */
+	contacts?: string[];
+
+	/**
+	 * OPTIONAL. URL string that points to a human-readable terms of service document for the client.
+	 */
+	tos_uri?: string;
+
+	/**
+	 * OPTIONAL. URL string that points to a human-readable privacy policy document.
+	 */
+	policy_uri?: string;
+
+	/**
+	 * OPTIONAL. URL string referencing the client's JSON Web Key (JWK) Set document.
+	 */
+	jwks_uri?: string;
+
+	/**
+	 * OPTIONAL. Client's JSON Web Key Set document value.
+	 */
+	jwks?: object;
+
+	/**
+	 * OPTIONAL. A unique identifier string assigned by the client developer or software publisher.
+	 */
+	software_id?: string;
+
+	/**
+	 * OPTIONAL. A version identifier string for the client software.
+	 */
+	software_version?: string;
+
+	/**
+	 * OPTIONAL. A software statement containing client metadata values about the client software as claims.
+	 */
+	software_statement?: string;
+
+	/**
+	 * OPTIONAL. Application type. Usually "native" for OAuth clients.
+	 * https://openid.net/specs/openid-connect-registration-1_0.html
+	 */
+	application_type?: 'native' | 'web' | string;
+
+	/**
+	 * OPTIONAL. Additional metadata fields as defined by extensions.
+	 */
+	[key: string]: unknown;
+}
+
+/**
  * Response from the dynamic client registration endpoint.
  */
 export interface IAuthorizationDynamicClientRegistrationResponse {
@@ -745,36 +846,39 @@ const grantTypesSupported = ['authorization_code', 'refresh_token', 'urn:ietf:pa
  * the spec and require an exact match.
  */
 export const DEFAULT_AUTH_FLOW_PORT = 33418;
-export async function fetchDynamicRegistration(serverMetadata: IAuthorizationServerMetadata, clientName: string): Promise<IAuthorizationDynamicClientRegistrationResponse> {
+export async function fetchDynamicRegistration(serverMetadata: IAuthorizationServerMetadata, clientName: string, scopes?: string[]): Promise<IAuthorizationDynamicClientRegistrationResponse> {
 	if (!serverMetadata.registration_endpoint) {
 		throw new Error('Server does not support dynamic registration');
 	}
+
+	const requestBody: IAuthorizationDynamicClientRegistrationRequest = {
+		client_name: clientName,
+		client_uri: 'https://code.visualstudio.com',
+		grant_types: serverMetadata.grant_types_supported
+			? serverMetadata.grant_types_supported.filter(gt => grantTypesSupported.includes(gt))
+			: grantTypesSupported,
+		response_types: ['code'],
+		redirect_uris: [
+			'https://insiders.vscode.dev/redirect',
+			'https://vscode.dev/redirect',
+			'http://127.0.0.1/',
+			// Added these for any server that might do
+			// only exact match on the redirect URI even
+			// though the spec says it should not care
+			// about the port.
+			`http://127.0.0.1:${DEFAULT_AUTH_FLOW_PORT}/`
+		],
+		scope: scopes?.join(AUTH_SCOPE_SEPARATOR),
+		token_endpoint_auth_method: 'none',
+		application_type: 'native'
+	};
+
 	const response = await fetch(serverMetadata.registration_endpoint, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json'
 		},
-		body: JSON.stringify({
-			client_name: clientName,
-			client_uri: 'https://code.visualstudio.com',
-			grant_types: serverMetadata.grant_types_supported
-				? serverMetadata.grant_types_supported.filter(gt => grantTypesSupported.includes(gt))
-				: grantTypesSupported,
-			response_types: ['code'],
-			redirect_uris: [
-				'https://insiders.vscode.dev/redirect',
-				'https://vscode.dev/redirect',
-				'http://127.0.0.1/',
-				// Added these for any server that might do
-				// only exact match on the redirect URI even
-				// though the spec says it should not care
-				// about the port.
-				`http://127.0.0.1:${DEFAULT_AUTH_FLOW_PORT}/`
-			],
-			token_endpoint_auth_method: 'none',
-			// https://openid.net/specs/openid-connect-registration-1_0.html
-			application_type: 'native'
-		})
+		body: JSON.stringify(requestBody)
 	});
 
 	if (!response.ok) {
