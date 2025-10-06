@@ -168,7 +168,7 @@ export function formatFunctionCallMessage(functionCall: any, commonUtils: ICommo
 			return `Searched the web for "${searchQuery}"`;
 
 		default:
-			return functionCall.name.replace(/_/g, ' ');
+			return `Model tried to call a non-existent function: ${functionCall.name}`;
 	}
 }
 

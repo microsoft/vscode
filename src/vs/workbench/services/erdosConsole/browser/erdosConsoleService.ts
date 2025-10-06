@@ -1510,9 +1510,8 @@ class ErdosConsoleInstance extends Disposable implements IErdosConsoleInstance {
 	private createActivityItemOutput(
 		message: ILanguageRuntimeMessageOutput | ILanguageRuntimeMessageUpdateOutput,
 	): ActivityItemOutput | undefined {
-		// Filter out plots, viewers, and IPyWidgets - these should be displayed in their respective panes
+		// Filter out plots, viewers, and images - these should be displayed in their respective panes
 		if (message.kind === RuntimeOutputKind.ViewerWidget ||
-			message.kind === RuntimeOutputKind.IPyWidget ||
 			message.kind === RuntimeOutputKind.StaticImage ||
 			message.kind === RuntimeOutputKind.PlotWidget) {
 			return undefined;

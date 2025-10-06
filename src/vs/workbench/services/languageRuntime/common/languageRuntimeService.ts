@@ -45,7 +45,6 @@ export enum RuntimeOutputKind {
 	InlineHtml = 'inline_html',
 	ViewerWidget = 'viewer_widget',
 	PlotWidget = 'plot',
-	IPyWidget = 'ipywidget',
 	WebviewPreload = 'webview_preload',
 	QuartoInline = 'quarto_inline',
 	Unknown = 'unknown',
@@ -115,10 +114,6 @@ export interface ILanguageRuntimeMessageInput extends ILanguageRuntimeMessage {
 export interface ILanguageRuntimeMessagePrompt extends ILanguageRuntimeMessage {
 	prompt: string;
 	password: boolean;
-}
-
-export interface ILanguageRuntimeMessageIPyWidget extends ILanguageRuntimeMessage {
-	original_message: ILanguageRuntimeMessage;
 }
 
 export interface ILanguageRuntimeMessageCommOpen extends ILanguageRuntimeMessage {
@@ -227,8 +222,8 @@ export enum LanguageRuntimeMessageType {
 	CommOpen = 'comm_open',
 	CommData = 'comm_data',
 	CommClosed = 'comm_closed',
-	IPyWidget = 'ipywidget',
 	UpdateOutput = 'update_output',
+	IPyWidget = 'ipywidget',
 }
 
 export enum LanguageRuntimeSessionLocation {

@@ -1,3 +1,8 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (C) 2023-2025 Posit Software, PBC. All rights reserved.
+ *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
+ *--------------------------------------------------------------------------------------------*/
+
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ExtHostConsoleServiceShape, ExtHostErdosContext, MainErdosContext, MainThreadConsoleServiceShape } from '../../common/erdos/extHost.erdos.protocol.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../../services/extensions/common/extHostCustomers.js';
@@ -20,12 +25,12 @@ export class MainThreadConsoleService implements MainThreadConsoleServiceShape {
 		this._proxy = extHostContext.getProxy(ExtHostErdosContext.ExtHostConsoleService);
 
 		this._disposables.add(
-			this._erdosConsoleService.onDidChangeConsoleWidth((newWidth) => {
+			this._erdosConsoleService.onDidChangeConsoleWidth((newWidth: number) => {
 				this._proxy.$onDidChangeConsoleWidth(newWidth);
 			}));
 
 		this._disposables.add(
-			this._erdosConsoleService.onDidStartErdosConsoleInstance((console) => {
+			this._erdosConsoleService.onDidStartErdosConsoleInstance((console: IErdosConsoleInstance) => {
 				const sessionId = console.sessionMetadata.sessionId;
 
 				this._proxy.$addConsole(sessionId);

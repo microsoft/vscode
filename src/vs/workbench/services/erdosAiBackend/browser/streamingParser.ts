@@ -121,7 +121,7 @@ export class SSEParser extends Disposable implements ISSEParser {
 			}
 			
 			return {
-				type: 'content',
+				type: 'content' as const,
 				conversationId: this.conversationId!,
 				content: data.delta,
 				delta: data.delta
@@ -164,7 +164,6 @@ export class SSEParser extends Disposable implements ISSEParser {
 		}
 
         if (data.field && data.call_id && data.isComplete === true) {
-
             return this.handleFieldCompletion(data);
         }
 
@@ -185,7 +184,7 @@ export class SSEParser extends Disposable implements ISSEParser {
             
             if (data.response) {
                 return {
-                    type: 'done',
+                    type: 'done' as const,
                     conversationId: this.conversationId!,
                     isComplete: true
                 };
@@ -193,14 +192,14 @@ export class SSEParser extends Disposable implements ISSEParser {
             
             if (data.end_turn === true) {
                 return {
-                    type: 'done',
+                    type: 'done' as const,
                     conversationId: this.conversationId!,
                     end_turn: true
                 };
             }
             
             return {
-                type: 'done',
+                type: 'done' as const,
                 conversationId: this.conversationId!,
                 isComplete: true
             };
@@ -208,7 +207,7 @@ export class SSEParser extends Disposable implements ISSEParser {
 
         if (data.error) {
             return {
-                type: 'error',
+                type: 'error' as const,
                 conversationId: this.conversationId!,
                 error: typeof data.error === 'string' ? { message: data.error } : data.error
             };

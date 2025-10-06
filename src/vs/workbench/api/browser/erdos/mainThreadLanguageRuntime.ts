@@ -1,3 +1,8 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (C) 2023-2025 Posit Software, PBC. All rights reserved.
+ *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
+ *--------------------------------------------------------------------------------------------*/
+
 import {
 	ExtHostLanguageRuntimeShape,
 	MainThreadLanguageRuntimeShape,
@@ -6,7 +11,7 @@ import {
 	RuntimeInitialState
 } from '../../common/erdos/extHost.erdos.protocol.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../../services/extensions/common/extHostCustomers.js';
-import { ILanguageRuntimeClientCreatedEvent, ILanguageRuntimeInfo, ILanguageRuntimeMessage, ILanguageRuntimeMessageCommClosed, ILanguageRuntimeMessageCommData, ILanguageRuntimeMessageCommOpen, ILanguageRuntimeMessageError, ILanguageRuntimeMessageInput, ILanguageRuntimeMessageOutput, ILanguageRuntimeMessagePrompt, ILanguageRuntimeMessageState, ILanguageRuntimeMessageStream, ILanguageRuntimeMetadata, ILanguageRuntimeSessionState as ILanguageRuntimeSessionState, ILanguageRuntimeService, ILanguageRuntimeStartupFailure, LanguageRuntimeMessageType, RuntimeCodeExecutionMode, RuntimeCodeFragmentStatus, RuntimeErrorBehavior, RuntimeState, ILanguageRuntimeExit, RuntimeOutputKind, RuntimeExitReason, ILanguageRuntimeMessageWebOutput, ErdosOutputLocation, LanguageRuntimeSessionMode, ILanguageRuntimeMessageResult, ILanguageRuntimeMessageClearOutput, ILanguageRuntimeMessageIPyWidget, IRuntimeManager, ILanguageRuntimeMessageUpdateOutput, RuntimeStartupPhase } from '../../../services/languageRuntime/common/languageRuntimeService.js';
+import { ILanguageRuntimeClientCreatedEvent, ILanguageRuntimeInfo, ILanguageRuntimeMessage, ILanguageRuntimeMessageCommClosed, ILanguageRuntimeMessageCommData, ILanguageRuntimeMessageCommOpen, ILanguageRuntimeMessageError, ILanguageRuntimeMessageInput, ILanguageRuntimeMessageOutput, ILanguageRuntimeMessagePrompt, ILanguageRuntimeMessageState, ILanguageRuntimeMessageStream, ILanguageRuntimeMetadata, ILanguageRuntimeSessionState as ILanguageRuntimeSessionState, ILanguageRuntimeService, ILanguageRuntimeStartupFailure, LanguageRuntimeMessageType, RuntimeCodeExecutionMode, RuntimeCodeFragmentStatus, RuntimeErrorBehavior, RuntimeState, ILanguageRuntimeExit, RuntimeOutputKind, RuntimeExitReason, ILanguageRuntimeMessageWebOutput, ErdosOutputLocation, LanguageRuntimeSessionMode, ILanguageRuntimeMessageResult, ILanguageRuntimeMessageClearOutput, IRuntimeManager, ILanguageRuntimeMessageUpdateOutput, RuntimeStartupPhase } from '../../../services/languageRuntime/common/languageRuntimeService.js';
 import { ILanguageRuntimeSession, ILanguageRuntimeSessionManager, IRuntimeSessionMetadata, IRuntimeSessionService, RuntimeStartMode } from '../../../services/runtimeSession/common/runtimeSessionService.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
@@ -87,7 +92,6 @@ class ExtHostLanguageRuntimeSessionAdapter extends Disposable implements ILangua
 	private readonly _onDidReceiveRuntimeMessageUpdateOutputEmitter = new Emitter<ILanguageRuntimeMessageUpdateOutput>();
 	private readonly _onDidReceiveRuntimeMessageClientEventEmitter = new Emitter<IRuntimeClientEvent>();
 	private readonly _onDidReceiveRuntimeMessagePromptConfigEmitter = new Emitter<void>();
-	private readonly _onDidReceiveRuntimeMessageIPyWidgetEmitter = new Emitter<ILanguageRuntimeMessageIPyWidget>();
 	private readonly _onDidCreateClientInstanceEmitter = new Emitter<ILanguageRuntimeClientCreatedEvent>();	
 	private readonly _erdosPlotCommIds = new Set<string>();
 
@@ -239,7 +243,6 @@ class ExtHostLanguageRuntimeSessionAdapter extends Disposable implements ILangua
 	onDidReceiveRuntimeMessageUpdateOutput = this._onDidReceiveRuntimeMessageUpdateOutputEmitter.event;
 	onDidReceiveRuntimeClientEvent = this._onDidReceiveRuntimeMessageClientEventEmitter.event;
 	onDidReceiveRuntimeMessagePromptConfig = this._onDidReceiveRuntimeMessagePromptConfigEmitter.event;
-	onDidReceiveRuntimeMessageIPyWidget = this._onDidReceiveRuntimeMessageIPyWidgetEmitter.event;
 	onDidCreateClientInstance = this._onDidCreateClientInstanceEmitter.event;
 
 	handleRuntimeMessage(message: ILanguageRuntimeMessage, handled: boolean): void {
@@ -286,9 +289,6 @@ class ExtHostLanguageRuntimeSessionAdapter extends Disposable implements ILangua
 		this._onDidReceiveRuntimeMessageUpdateOutputEmitter.fire(languageRuntimeMessageUpdateOutput);
 	}
 
-	emitRuntimeMessageIPyWidget(languageRuntimeMessageIPyWidget: ILanguageRuntimeMessageIPyWidget) {
-		this._onDidReceiveRuntimeMessageIPyWidgetEmitter.fire(languageRuntimeMessageIPyWidget);
-	}
 
 	emitDidReceiveRuntimeMessagePromptConfig() {
 		this._onDidReceiveRuntimeMessagePromptConfigEmitter.fire();
@@ -643,9 +643,6 @@ class ExtHostLanguageRuntimeSessionAdapter extends Disposable implements ILangua
 		}
 
 		for (const mimeType of mimeTypes) {
-			if (mimeType === 'application/vnd.jupyter.widget-state+json' || mimeType === 'application/vnd.jupyter.widget-view+json') {
-				return RuntimeOutputKind.IPyWidget;
-			}
 
 			if (mimeType.startsWith('application/') ||
 				mimeType === 'text/markdown' ||
@@ -803,15 +800,12 @@ class ExtHostLanguageRuntimeSessionAdapter extends Disposable implements ILangua
 				this.emitDidReceiveRuntimeMessagePrompt(message as ILanguageRuntimeMessagePrompt);
 				break;
 
-			case LanguageRuntimeMessageType.State:
-				this.emitDidReceiveRuntimeMessageState(message as ILanguageRuntimeMessageState);
-				break;
+		case LanguageRuntimeMessageType.State:
+			this.emitDidReceiveRuntimeMessageState(message as ILanguageRuntimeMessageState);
+			break;
 
-			case LanguageRuntimeMessageType.IPyWidget:
-				this.emitRuntimeMessageIPyWidget(message as ILanguageRuntimeMessageIPyWidget);
-				break;
 
-			case LanguageRuntimeMessageType.CommOpen:
+		case LanguageRuntimeMessageType.CommOpen:
 				const commOpenMsg = message as ILanguageRuntimeMessageCommOpen;
 				if (commOpenMsg.target_name === 'erdos.plot' || commOpenMsg.target_name === 'positron.plot') {
 					this.handleErdosPlotCommOpen(commOpenMsg);

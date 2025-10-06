@@ -54,7 +54,7 @@ export class FunctionCallHandler extends Disposable implements IFunctionCallServ
 
 			const handler = this.handlers.get(trimmedFunctionName);
 			if (!handler) {
-				this.logService.error(`Unknown function call: ${trimmedFunctionName}. Available functions: ${Array.from(this.handlers.keys()).join(', ')}`);
+				this.logService.warn(`Unknown function call: ${trimmedFunctionName}. Will return error to model and retry. Available functions: ${Array.from(this.handlers.keys()).join(', ')}`);
 				
 				const unknownResult = this.createUnknownFunctionResult(normalizedFunctionCall, context);
 				return unknownResult;
@@ -81,9 +81,27 @@ export class FunctionCallHandler extends Disposable implements IFunctionCallServ
 	}
 
 	private createUnknownFunctionResult(functionCall: NormalizedFunctionCall, context: CallContext): FunctionResult {
+		const availableFunctions = Array.from(this.handlers.keys()).join(', ');
+		const errorMessage = `Function '${functionCall.name}' is not implemented. Available functions: ${availableFunctions}`;
+		
+		const functionOutputId = context.conversationManager.getPreallocatedMessageId(functionCall.call_id, 2) 
+			|| context.conversationManager.getNextMessageId();
+		
+		const functionCallOutput = {
+			id: functionOutputId,
+			type: 'function_call_output' as const,
+			call_id: functionCall.call_id,
+			output: errorMessage,
+			related_to: context.functionCallMessageId!,
+			success: false,
+			procedural: false
+		};
+		
 		return {
-			type: 'error',
-			error_message: `Function '${functionCall.name}' is not implemented. Available functions: ${Array.from(this.handlers.keys()).join(', ')}`,
+			type: 'success',
+			status: 'continue_silent',
+			function_call_output: functionCallOutput,
+			function_output_id: functionOutputId
 		};
 	}
 
