@@ -559,7 +559,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 					return -1;
 				}
 			}
-			// Calculate the ghost text start index relative to command start.
+			// Calculate the ghost text start index
 			if (buffer.baseY + buffer.cursorY === this._commandStartMarker?.line) {
 				ghostTextIndex = positionsWithGhostStyle[0] - this._commandStartX;
 			} else {
