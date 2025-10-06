@@ -709,8 +709,9 @@ async function evaluateDiagnosticsCommitHook(repository: Repository, options: Co
 	// pending diagnostic updates to complete. Diagnostics are debounced with a 50ms
 	// delay, so we wait slightly longer to ensure fresh diagnostics. This prevents
 	// false positives when files are quickly fixed, saved, and staged.
+	const resourcePaths = new Set(resources.map(r => r.fsPath));
 	const openDocuments = workspace.textDocuments
-		.filter(doc => resources.some(r => pathEquals(r.fsPath, doc.uri.fsPath)));
+		.filter(doc => resourcePaths.has(doc.uri.fsPath));
 	
 	if (openDocuments.length > 0) {
 		await new Promise(resolve => setTimeout(resolve, 100));

@@ -5,12 +5,16 @@
 
 import 'mocha';
 import assert from 'assert';
-import { workspace, commands, window, Uri, WorkspaceEdit, Range, TextDocument, extensions, TabInputTextDiff } from 'vscode';
+import { workspace, commands, window, Uri, WorkspaceEdit, Range, TextDocument, extensions, TabInputTextDiff, languages, Diagnostic, DiagnosticSeverity } from 'vscode';
 import * as cp from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import { GitExtension, API, Repository, Status } from '../api/git';
 import { eventToPromise } from '../util';
+
+// Delay to wait for diagnostic updates. Diagnostics are debounced with a 50ms
+// delay, so we wait slightly longer to ensure fresh diagnostics.
+const DIAGNOSTIC_UPDATE_DELAY = 100;
 
 suite('git smoke test', function () {
 	const cwd = workspace.workspaceFolders![0].uri.fsPath;
@@ -179,8 +183,6 @@ suite('git smoke test', function () {
 		// This test verifies that diagnostics are updated after a document is saved
 		// and a short delay, preventing false positives in the commit hook.
 		
-		const { languages, Diagnostic, DiagnosticSeverity, Range } = await import('vscode');
-		
 		// Create a test file
 		const testFile = file('test-diagnostics.js');
 		fs.writeFileSync(testFile, 'const x = 1;', 'utf8');
@@ -204,7 +206,7 @@ suite('git smoke test', function () {
 			diagnosticCollection.set(doc.uri, [diagnostic]);
 			
 			// Wait for diagnostics to propagate
-			await new Promise(resolve => setTimeout(resolve, 100));
+			await new Promise(resolve => setTimeout(resolve, DIAGNOSTIC_UPDATE_DELAY));
 			
 			// Verify diagnostic exists
 			let currentDiagnostics = languages.getDiagnostics(doc.uri);
@@ -216,7 +218,7 @@ suite('git smoke test', function () {
 			diagnosticCollection.set(doc.uri, []);
 			
 			// Wait for diagnostics to update (same delay as in commit hook)
-			await new Promise(resolve => setTimeout(resolve, 100));
+			await new Promise(resolve => setTimeout(resolve, DIAGNOSTIC_UPDATE_DELAY));
 			
 			// Verify diagnostics are cleared
 			currentDiagnostics = languages.getDiagnostics(doc.uri);
