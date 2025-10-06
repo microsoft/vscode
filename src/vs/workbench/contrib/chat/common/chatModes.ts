@@ -172,8 +172,8 @@ export class ChatModeService extends Disposable implements IChatModeService {
 	}
 
 	findModeByName(name: string): IChatMode | undefined {
-		const lowerCasedName = name.toLocaleLowerCase();
-		return this.getBuiltinModes().find(mode => mode.name.toLocaleLowerCase() === lowerCasedName) ?? this.getCustomModes().find(mode => mode.name.toLocaleLowerCase() === lowerCasedName);
+		const lowerCasedName = name.toLowerCase();
+		return this.getBuiltinModes().find(mode => mode.name.toLowerCase() === lowerCasedName) ?? this.getCustomModes().find(mode => mode.name.toLowerCase() === lowerCasedName);
 	}
 
 	private getBuiltinModes(): IChatMode[] {
