@@ -1296,7 +1296,7 @@ class TimelinePaneCommands extends Disposable {
 		}));
 
 		this._register(CommandsRegistry.registerCommand('timeline.toggleFollowActiveEditor',
-			(accessor: ServicesAccessor, ...args: any[]) => pane.followActiveEditor = !pane.followActiveEditor
+			(accessor: ServicesAccessor, ...args: unknown[]) => pane.followActiveEditor = !pane.followActiveEditor
 		));
 
 		this._register(MenuRegistry.appendMenuItem(MenuId.TimelineTitle, ({
