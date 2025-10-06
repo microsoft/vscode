@@ -44,7 +44,7 @@ export abstract class EditingSessionAction extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor, ...args: any[]) {
+	run(accessor: ServicesAccessor, ...args: unknown[]) {
 		const context = getEditingSessionContext(accessor, args);
 		if (!context || !context.editingSession) {
 			return;
@@ -53,7 +53,7 @@ export abstract class EditingSessionAction extends Action2 {
 		return this.runEditingSessionAction(accessor, context.editingSession, context.chatWidget, ...args);
 	}
 
-	abstract runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: any[]): any;
+	abstract runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: unknown[]): any;
 }
 
 /**
@@ -83,7 +83,7 @@ export function getEditingSessionContext(accessor: ServicesAccessor, args: any[]
 
 abstract class WorkingSetAction extends EditingSessionAction {
 
-	runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: any[]) {
+	runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: unknown[]) {
 
 		const uris: URI[] = [];
 		if (URI.isUri(args[0])) {
@@ -213,7 +213,7 @@ export class ChatEditingAcceptAllAction extends EditingSessionAction {
 		});
 	}
 
-	override async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: any[]) {
+	override async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: unknown[]) {
 		await editingSession.accept();
 	}
 }
@@ -244,7 +244,7 @@ export class ChatEditingDiscardAllAction extends EditingSessionAction {
 		});
 	}
 
-	override async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: any[]) {
+	override async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: unknown[]) {
 		await discardAllEditsWithConfirmation(accessor, editingSession);
 	}
 }
@@ -297,7 +297,7 @@ export class ChatEditingShowChangesAction extends EditingSessionAction {
 		});
 	}
 
-	override async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: any[]): Promise<void> {
+	override async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: unknown[]): Promise<void> {
 		await editingSession.show();
 	}
 }
@@ -401,8 +401,8 @@ registerAction2(class RemoveAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, ...args: any[]) {
-		let item: ChatTreeItem | undefined = args[0];
+	async run(accessor: ServicesAccessor, ...args: unknown[]) {
+		let item = args[0] as ChatTreeItem | undefined;
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const configurationService = accessor.get(IConfigurationService);
 		const widget = chatWidgetService.lastFocusedWidget;
@@ -450,8 +450,8 @@ registerAction2(class RestoreCheckpointAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, ...args: any[]) {
-		let item: ChatTreeItem | undefined = args[0];
+	async run(accessor: ServicesAccessor, ...args: unknown[]) {
+		let item = args[0] as ChatTreeItem | undefined;
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const widget = chatWidgetService.lastFocusedWidget;
 		if (!isResponseVM(item) && !isRequestVM(item)) {
@@ -491,8 +491,8 @@ registerAction2(class RestoreLastCheckpoint extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, ...args: any[]) {
-		let item: ChatTreeItem | undefined = args[0];
+	async run(accessor: ServicesAccessor, ...args: unknown[]) {
+		let item = args[0] as ChatTreeItem | undefined;
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const chatService = accessor.get(IChatService);
 		const widget = chatWidgetService.lastFocusedWidget;
@@ -551,8 +551,8 @@ registerAction2(class EditAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, ...args: any[]) {
-		let item: ChatTreeItem | undefined = args[0];
+	async run(accessor: ServicesAccessor, ...args: unknown[]) {
+		let item = args[0] as ChatTreeItem | undefined;
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const widget = chatWidgetService.lastFocusedWidget;
 		if (!isResponseVM(item) && !isRequestVM(item)) {
@@ -584,8 +584,8 @@ registerAction2(class OpenWorkingSetHistoryAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
-		const context: { sessionId: string; requestId: string; uri: URI; stopId: string | undefined } | undefined = args[0];
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+		const context = args[0] as { sessionId: string; requestId: string; uri: URI; stopId: string | undefined } | undefined;
 		if (!context?.sessionId) {
 			return;
 		}
@@ -610,8 +610,8 @@ registerAction2(class OpenWorkingSetHistoryAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
-		const context: { sessionId: string; requestId: string; uri: URI; stopId: string | undefined } | undefined = args[0];
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+		const context = args[0] as { sessionId: string; requestId: string; uri: URI; stopId: string | undefined } | undefined;
 		if (!context?.sessionId) {
 			return;
 		}
@@ -651,7 +651,7 @@ registerAction2(class ResolveSymbolsContextAction extends EditingSessionAction {
 		});
 	}
 
-	override async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: any[]): Promise<void> {
+	override async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: unknown[]): Promise<void> {
 		if (args.length === 0 || !isLocation(args[0])) {
 			return;
 		}
@@ -738,7 +738,7 @@ export class ViewPreviousEditsAction extends EditingSessionAction {
 		});
 	}
 
-	override async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: any[]): Promise<void> {
+	override async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: unknown[]): Promise<void> {
 		await editingSession.show(true);
 	}
 }

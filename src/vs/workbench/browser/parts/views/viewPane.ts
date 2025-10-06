@@ -850,7 +850,7 @@ export abstract class ViewAction<T extends IView> extends Action2 {
 		this.desc = desc;
 	}
 
-	run(accessor: ServicesAccessor, ...args: any[]): unknown {
+	run(accessor: ServicesAccessor, ...args: unknown[]): unknown {
 		const view = accessor.get(IViewsService).getActiveViewWithId(this.desc.viewId);
 		if (view) {
 			return this.runInView(accessor, <T>view, ...args);
@@ -858,5 +858,5 @@ export abstract class ViewAction<T extends IView> extends Action2 {
 		return undefined;
 	}
 
-	abstract runInView(accessor: ServicesAccessor, view: T, ...args: any[]): unknown;
+	abstract runInView(accessor: ServicesAccessor, view: T, ...args: unknown[]): unknown;
 }

@@ -93,7 +93,7 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 				constraints.push(arg.constraint);
 			}
 			const actualHandler = idOrCommand.handler;
-			idOrCommand.handler = function (accessor, ...args: any[]) {
+			idOrCommand.handler = function (accessor, ...args: unknown[]) {
 				validateConstraints(args, constraints);
 				return actualHandler(accessor, ...args);
 			};

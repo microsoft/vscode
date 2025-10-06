@@ -1843,7 +1843,7 @@ abstract class TestNavigationAction extends SymbolNavigationAction {
 	protected testService!: ITestService; // little hack...
 	protected uriIdentityService!: IUriIdentityService;
 
-	override runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]) {
+	override runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ...args: unknown[]) {
 		this.testService = accessor.get(ITestService);
 		this.uriIdentityService = accessor.get(IUriIdentityService);
 		return super.runEditorCommand(accessor, editor, ...args);

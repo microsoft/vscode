@@ -1290,7 +1290,7 @@ class TimelinePaneCommands extends Disposable {
 					}
 				});
 			}
-			run(accessor: ServicesAccessor, ...args: any[]) {
+			run(accessor: ServicesAccessor, ...args: unknown[]) {
 				pane.reset();
 			}
 		}));
@@ -1362,7 +1362,7 @@ class TimelinePaneCommands extends Disposable {
 						toggled: ContextKeyExpr.regex(`timelineExcludeSources`, new RegExp(`\\b${escapeRegExpCharacters(source.id)}\\b`)).negate()
 					});
 				}
-				run(accessor: ServicesAccessor, ...args: any[]) {
+				run(accessor: ServicesAccessor, ...args: unknown[]) {
 					if (excluded.has(source.id)) {
 						excluded.delete(source.id);
 					} else {
