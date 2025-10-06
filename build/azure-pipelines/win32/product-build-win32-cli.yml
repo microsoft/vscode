@@ -8,7 +8,8 @@ parameters:
     type: string
 
 jobs:
-  - job: CLIWindows${{ upper(parameters.VSCODE_ARCH) }}
+  - job: WindowsCLI_${{ upper(parameters.VSCODE_ARCH) }}
+    displayName: Windows (${{ upper(parameters.VSCODE_ARCH) }})
     pool:
       name: 1es-windows-2022-x64
       os: windows

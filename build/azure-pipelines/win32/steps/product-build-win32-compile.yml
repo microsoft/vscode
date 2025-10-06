@@ -223,12 +223,9 @@ steps:
     - powershell: |
         . build/azure-pipelines/win32/exec.ps1
         $ErrorActionPreference = "Stop"
-        mkdir -Force .build/node-cpuprofile
         exec { npx deemon --detach --wait -- npx zx build/azure-pipelines/win32/codesign.js }
       env:
         SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-        NODE_DEBUG: "net,child_process"
-        NODE_OPTIONS: "--report-filename=stdout --report-uncaught-exception --report-on-fatalerror --cpu-prof --cpu-prof-dir=.build/node-cpuprofile"
       displayName: ✍️ Codesign
 
   - ${{ if or(eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}:
@@ -245,9 +242,6 @@ steps:
         $ErrorActionPreference = "Stop"
         exec { npx deemon --attach -- npx zx build/azure-pipelines/win32/codesign.js }
       condition: succeededOrFailed()
-      env:
-        NODE_DEBUG: "net,child_process"
-        NODE_OPTIONS: "--report-filename=stdout --report-uncaught-exception --report-on-fatalerror --cpu-prof --cpu-prof-dir=.build/node-cpuprofile"
       displayName: "✍️ Post-job: Codesign"
 
     - powershell: |
@@ -256,25 +250,20 @@ steps:
         $PackageJson = Get-Content -Raw -Path ..\VSCode-win32-$(VSCODE_ARCH)\resources\app\package.json | ConvertFrom-Json
         $Version = $PackageJson.version
 
-        $ClientArchivePath = ".build\win32-$(VSCODE_ARCH)\VSCode-win32-$(VSCODE_ARCH)-$Version.zip"
-        $ServerArchivePath = ".build\win32-$(VSCODE_ARCH)\vscode-server-win32-$(VSCODE_ARCH).zip"
-        $WebArchivePath = ".build\win32-$(VSCODE_ARCH)\vscode-server-win32-$(VSCODE_ARCH)-web.zip"
+        mkdir $(Build.ArtifactStagingDirectory)\out\system-setup -Force
+        mv .build\win32-$(VSCODE_ARCH)\system-setup\VSCodeSetup.exe $(Build.ArtifactStagingDirectory)\out\system-setup\VSCodeSetup-$(VSCODE_ARCH)-$Version.exe
 
-        $SystemSetupPath = ".build\win32-$(VSCODE_ARCH)\system-setup\VSCodeSetup-$(VSCODE_ARCH)-$Version.exe"
-        $UserSetupPath = ".build\win32-$(VSCODE_ARCH)\user-setup\VSCodeUserSetup-$(VSCODE_ARCH)-$Version.exe"
+        mkdir $(Build.ArtifactStagingDirectory)\out\user-setup -Force
+        mv .build\win32-$(VSCODE_ARCH)\user-setup\VSCodeSetup.exe $(Build.ArtifactStagingDirectory)\out\user-setup\VSCodeUserSetup-$(VSCODE_ARCH)-$Version.exe
 
-        mv .build\win32-$(VSCODE_ARCH)\system-setup\VSCodeSetup.exe $SystemSetupPath
-        mv .build\win32-$(VSCODE_ARCH)\user-setup\VSCodeSetup.exe $UserSetupPath
+        mkdir $(Build.ArtifactStagingDirectory)\out\archive -Force
+        mv .build\win32-$(VSCODE_ARCH)\VSCode-win32-$(VSCODE_ARCH)-$Version.zip $(Build.ArtifactStagingDirectory)\out\archive\VSCode-win32-$(VSCODE_ARCH)-$Version.zip
 
-        echo "##vso[task.setvariable variable=CLIENT_PATH]$ClientArchivePath"
-        echo "##vso[task.setvariable variable=SERVER_PATH]$ServerArchivePath"
-        echo "##vso[task.setvariable variable=WEB_PATH]$WebArchivePath"
+        mkdir $(Build.ArtifactStagingDirectory)\out\server -Force
+        mv .build\win32-$(VSCODE_ARCH)\vscode-server-win32-$(VSCODE_ARCH).zip $(Build.ArtifactStagingDirectory)\out\server\vscode-server-win32-$(VSCODE_ARCH).zip
 
-        echo "##vso[task.setvariable variable=SYSTEM_SETUP_PATH]$SystemSetupPath"
-        echo "##vso[task.setvariable variable=USER_SETUP_PATH]$UserSetupPath"
-      condition: succeededOrFailed()
-      displayName: Move setup packages
+        mkdir $(Build.ArtifactStagingDirectory)\out\web -Force
+        mv .build\win32-$(VSCODE_ARCH)\vscode-server-win32-$(VSCODE_ARCH)-web.zip $(Build.ArtifactStagingDirectory)\out\web\vscode-server-win32-$(VSCODE_ARCH)-web.zip
 
-    - powershell: echo "##vso[task.setvariable variable=ARTIFACT_PREFIX]attempt$(System.JobAttempt)_"
-      condition: and(succeededOrFailed(), notIn(variables['Agent.JobStatus'], 'Succeeded', 'SucceededWithIssues'))
-      displayName: Generate artifact prefix
+        echo "##vso[task.setvariable variable=VSCODE_VERSION]$Version"
+      displayName: Move artifacts to out directory
