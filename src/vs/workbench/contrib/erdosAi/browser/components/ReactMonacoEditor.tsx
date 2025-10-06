@@ -437,6 +437,12 @@ export const ReactMonacoEditor: React.FC<ReactMonacoEditorProps> = ({
 				decorationIdsRef.current = [];
 				// Reapply decorations after content change
 				applyDiffDecorations(model, editor);
+				
+				// Auto-scroll to bottom to show latest streamed content
+				const lineCount = model.getLineCount();
+				if (lineCount > 0) {
+					editor.revealLine(lineCount);
+				}
 			}
 		}
 	}, [diffData, content, model, editor, getEditorContent, applyDiffDecorations]);

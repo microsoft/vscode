@@ -202,9 +202,6 @@ import './contrib/performance/browser/performance.contribution.js';
 // Erdos Console
 import './contrib/erdosConsole/browser/erdosConsole.contribution.js';
 
-// Erdos Runtime Sessions
-import './contrib/erdosRuntimeSessions/browser/erdosRuntimeSessions.contribution.js';
-
 // Context Menus
 import './contrib/contextmenu/browser/contextmenu.contribution.js';
 
@@ -463,9 +460,7 @@ import './contrib/editTelemetry/browser/editTelemetry.contribution.js';
 import './contrib/erdosConsole/browser/erdosConsole.contribution.js';
 import './contrib/erdosConsole/browser/erdosConsoleView.js';
 import './contrib/erdosHelp/browser/documentationPanel.registration.js';
-import './contrib/erdosRuntimeSessions/browser/erdosRuntimeSessions.contribution.js';
 import './contrib/languageRuntime/browser/languageRuntime.contribution.js';
-import './contrib/erdosIPyWidgets/browser/erdosIPyWidgets.contribution.js';
 
 // Workbench services
 import './services/languageRuntime/common/languageRuntime.js';

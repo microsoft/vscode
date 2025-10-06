@@ -1103,9 +1103,15 @@
 
 /* Thinking content styling using em with specific class */
 em.erdos-ai-thinking {
-	color: #888888 !important; /* Light gray color - !important to override markdown styles */
+	color: var(--vscode-descriptionForeground) !important;
 	font-style: italic;
+	font-size: calc(1em - 2px);
 	opacity: 0.8;
+}
+
+/* Thinking content in VS Code's rendered markdown */
+.rendered-markdown em {
+	font-size: calc(1em - 2px) !important;
 }
 
 /* Ensure proper spacing for markdown content within message containers */

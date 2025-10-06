@@ -293,11 +293,6 @@ export const tocData: ITOCEntry<string> = {
 			settings: ['erdos.*', 'console.*', 'interpreters.*'],
 			children: [
 				{
-					id: 'erdos/sessions',
-					label: localize('sessions', "Sessions"),
-					settings: ['erdos.showSessions']
-				},
-				{
 					id: 'erdos/console',
 					label: localize('console', "Console"),
 					settings: ['console.*']

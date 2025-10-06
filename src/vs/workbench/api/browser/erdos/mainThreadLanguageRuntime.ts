@@ -19,7 +19,6 @@ import { IRuntimeClientInstance, IRuntimeClientOutput, RuntimeClientState, Runti
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { IErdosPlotsService } from '../../../contrib/erdosPlots/common/erdosPlotsService.js';
-import { IErdosIPyWidgetsService } from '../../../services/erdosIPyWidgets/common/erdosIPyWidgetsService.js';
 
 import { INotebookService } from '../../../contrib/notebook/common/notebookService.js';
 import { IRuntimeClientEvent } from '../../../services/languageRuntime/common/languageRuntimeUiClient.js';
@@ -1361,7 +1360,6 @@ export class MainThreadLanguageRuntime
 
 
 		@IErdosPlotsService private readonly _erdosPlotService: IErdosPlotsService,
-		@IErdosIPyWidgetsService private readonly _erdosIPyWidgetsService: IErdosIPyWidgetsService,
 
 		@INotificationService private readonly _notificationService: INotificationService,
 		@ILogService private readonly _logService: ILogService,
@@ -1375,7 +1373,6 @@ export class MainThreadLanguageRuntime
 
 
 		this._erdosPlotService.initialize();
-		this._erdosIPyWidgetsService.initialize();
 
 		this._proxy = extHostContext.getProxy(ExtHostErdosContext.ExtHostLanguageRuntime);
 		this._id = MainThreadLanguageRuntime.MAX_ID++;

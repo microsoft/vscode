@@ -20,6 +20,7 @@ import { IHelpContentService } from '../../erdosAiUtils/common/helpContentServic
 import { IImageAttachmentService } from '../../erdosAiMedia/common/imageAttachmentService.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { joinPath } from '../../../../base/common/resources.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 
 /**
  * Service for managing context attachments in Erdos AI
@@ -42,7 +43,8 @@ export class ContextService extends Disposable implements IContextServiceInterfa
 		@IHelpContentService private readonly helpContentService: IHelpContentService,
 		@ICommonUtils private readonly commonUtils: ICommonUtils,
 		@IImageAttachmentService private readonly imageAttachmentService: IImageAttachmentService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IProductService private readonly productService: IProductService
 	) {
 		super();
 	}
@@ -357,7 +359,7 @@ export class ContextService extends Disposable implements IContextServiceInterfa
 				user_workspace_path: workspacePath,
 				user_shell: 'bash',
 				project_layout: projectLayout,
-				client_version: '0.3.0'
+				client_version: this.productService.erdosVersion
 			};
 		} catch (error) {
 			this.logService.error('Failed to gather environment info:', error);
@@ -366,7 +368,7 @@ export class ContextService extends Disposable implements IContextServiceInterfa
 				user_workspace_path: '',
 				user_shell: 'bash',
 				project_layout: '',
-				client_version: '0.3.0'
+				client_version: this.productService.erdosVersion
 			};
 		}
 	}

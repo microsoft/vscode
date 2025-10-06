@@ -147,7 +147,8 @@ export class BackendClient extends Disposable implements IBackendClient {
 			}
 		}
 
-		const client_version = contextData?.client_version || '0.3.0';
+		// Get client version from context (which uses erdosVersion from product.json)
+		const client_version = contextData?.client_version;
 
 		const sorted_conversation = messages.sort((a, b) => (a.id || 0) - (b.id || 0));
 
