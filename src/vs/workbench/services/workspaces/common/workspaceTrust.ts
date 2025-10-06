@@ -851,14 +851,14 @@ class WorkspaceTrustTransitionManager extends Disposable {
 }
 
 interface WorkspaceTrustMementoData {
-	acceptsOutOfWorkspaceFiles: boolean;
-	isEmptyWorkspaceTrusted: boolean | undefined;
+	acceptsOutOfWorkspaceFiles?: boolean;
+	isEmptyWorkspaceTrusted?: boolean | undefined;
 }
 
 class WorkspaceTrustMemento {
 
 	private readonly _memento?: Memento<WorkspaceTrustMementoData>;
-	private readonly _mementoObject: Partial<WorkspaceTrustMementoData>;
+	private readonly _mementoObject: WorkspaceTrustMementoData;
 
 	private readonly _acceptsOutOfWorkspaceFilesKey = 'acceptsOutOfWorkspaceFiles';
 	private readonly _isEmptyWorkspaceTrustedKey = 'isEmptyWorkspaceTrusted';
