@@ -15,15 +15,15 @@ import { createDecorator, ServicesAccessor } from '../../instantiation/common/in
 export const ICommandService = createDecorator<ICommandService>('commandService');
 
 export interface ICommandEvent {
-	commandId: string;
-	args: any[];
+	readonly commandId: string;
+	readonly args: unknown[];
 }
 
 export interface ICommandService {
 	readonly _serviceBrand: undefined;
-	onWillExecuteCommand: Event<ICommandEvent>;
-	onDidExecuteCommand: Event<ICommandEvent>;
-	executeCommand<T = any>(commandId: string, ...args: any[]): Promise<T | undefined>;
+	readonly onWillExecuteCommand: Event<ICommandEvent>;
+	readonly onDidExecuteCommand: Event<ICommandEvent>;
+	executeCommand<T = any>(commandId: string, ...args: unknown[]): Promise<T | undefined>;
 }
 
 export type ICommandsMap = Map<string, ICommand>;

@@ -15,6 +15,10 @@ export const isRemote = env.remoteName !== undefined;
 export const isLinux = process.platform === 'linux';
 export const isLinuxSnap = isLinux && !!process.env['SNAP'] && !!process.env['SNAP_REVISION'];
 
+export type Mutable<T> = {
+	-readonly [P in keyof T]: T[P]
+};
+
 export function log(...args: any[]): void {
 	console.log.apply(console, ['git:', ...args]);
 }
@@ -238,8 +242,7 @@ export function readBytes(stream: Readable, bytes: number): Promise<Buffer> {
 			bytesRead += bytesToRead;
 
 			if (bytesRead === bytes) {
-				// eslint-disable-next-line local/code-no-any-casts
-				(stream as any).destroy(); // Will trigger the close event eventually
+				stream.destroy(); // Will trigger the close event eventually
 			}
 		});
 

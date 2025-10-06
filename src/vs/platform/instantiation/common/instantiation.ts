@@ -16,8 +16,13 @@ export namespace _util {
 	export const DI_TARGET = '$di$target';
 	export const DI_DEPENDENCIES = '$di$dependencies';
 
-	export function getServiceDependencies(ctor: any): { id: ServiceIdentifier<any>; index: number }[] {
+	export function getServiceDependencies(ctor: DI_TARGET_OBJ): { id: ServiceIdentifier<any>; index: number }[] {
 		return ctor[DI_DEPENDENCIES] || [];
+	}
+
+	export interface DI_TARGET_OBJ extends Function {
+		[DI_TARGET]: Function;
+		[DI_DEPENDENCIES]: { id: ServiceIdentifier<any>; index: number }[];
 	}
 }
 
@@ -89,16 +94,13 @@ export interface ServiceIdentifier<T> {
 	type: T;
 }
 
-function storeServiceDependency(id: Function, target: Function, index: number): void {
-	// eslint-disable-next-line local/code-no-any-casts
-	if ((target as any)[_util.DI_TARGET] === target) {
-		// eslint-disable-next-line local/code-no-any-casts
-		(target as any)[_util.DI_DEPENDENCIES].push({ id, index });
+
+function storeServiceDependency(id: ServiceIdentifier<unknown>, target: Function, index: number): void {
+	if ((target as _util.DI_TARGET_OBJ)[_util.DI_TARGET] === target) {
+		(target as _util.DI_TARGET_OBJ)[_util.DI_DEPENDENCIES].push({ id, index });
 	} else {
-		// eslint-disable-next-line local/code-no-any-casts
-		(target as any)[_util.DI_DEPENDENCIES] = [{ id, index }];
-		// eslint-disable-next-line local/code-no-any-casts
-		(target as any)[_util.DI_TARGET] = target;
+		(target as _util.DI_TARGET_OBJ)[_util.DI_DEPENDENCIES] = [{ id, index }];
+		(target as _util.DI_TARGET_OBJ)[_util.DI_TARGET] = target;
 	}
 }
 
@@ -111,13 +113,12 @@ export function createDecorator<T>(serviceId: string): ServiceIdentifier<T> {
 		return _util.serviceIds.get(serviceId)!;
 	}
 
-	// eslint-disable-next-line local/code-no-any-casts
-	const id = <any>function (target: Function, key: string, index: number) {
+	const id = function (target: Function, key: string, index: number) {
 		if (arguments.length !== 3) {
 			throw new Error('@IServiceName-decorator can only be used to decorate a parameter');
 		}
 		storeServiceDependency(id, target, index);
-	};
+	} as ServiceIdentifier<T>;
 
 	id.toString = () => serviceId;
 
