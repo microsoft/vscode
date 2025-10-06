@@ -67,12 +67,17 @@ src/server-main.ts @bpasero @deepak1556
 src/vs/code/** @bpasero @deepak1556
 
 # Workbench Services
+src/vs/workbench/services/accounts/** @sandy081
 src/vs/workbench/services/activity/** @bpasero @benibenj
 src/vs/workbench/services/auxiliaryWindow/** @bpasero @benibenj
 src/vs/workbench/services/chat/** @bpasero @sandy081
+src/vs/workbench/services/configuration/** @sandy081
 src/vs/workbench/services/contextmenu/** @bpasero @benibenj
 src/vs/workbench/services/dialogs/** @alexr00 @bpasero
 src/vs/workbench/services/editor/** @bpasero @benibenj
+src/vs/workbench/services/extensionManagement/** @sandy081
+src/vs/workbench/services/extensionRecommendations/** @sandy081
+src/vs/workbench/services/extensions/** @alexdima @sandy081
 src/vs/workbench/services/environment/** @bpasero @deepak1556
 src/vs/workbench/services/files/** @bpasero @deepak1556
 src/vs/workbench/services/filesConfiguration/** @bpasero @benibenj
@@ -81,8 +86,14 @@ src/vs/workbench/services/host/** @bpasero @deepak1556
 src/vs/workbench/services/label/** @bpasero @benibenj
 src/vs/workbench/services/layout/** @bpasero @benibenj
 src/vs/workbench/services/lifecycle/** @bpasero @deepak1556
+src/vs/workbench/services/log/** @sandy081
+src/vs/workbench/services/mcp/** @sandy081 @connor4312
 src/vs/workbench/services/notification/** @bpasero @benibenj
+src/vs/workbench/services/output/** @sandy081
+src/vs/workbench/services/panecomposite/** @sandy081 @benibenj
 src/vs/workbench/services/path/** @bpasero @benibenj
+src/vs/workbench/services/policies/** @sandy081 @joshspicer
+src/vs/workbench/services/preferences/** @sandy081 @rzhao271 @ulugbekna
 src/vs/workbench/services/progress/** @bpasero @benibenj
 src/vs/workbench/services/storage/** @bpasero @deepak1556
 src/vs/workbench/services/textfile/** @bpasero @benibenj
