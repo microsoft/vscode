@@ -288,7 +288,7 @@ class ViewPaneDropOverlay extends Themable {
 	}
 }
 
-export class ViewPaneContainer extends Component implements IViewPaneContainer {
+export class ViewPaneContainer<MementoType extends object = object> extends Component<MementoType> implements IViewPaneContainer {
 
 	readonly viewContainer: ViewContainer;
 	private lastFocusedPane: ViewPane | undefined;
