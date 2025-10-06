@@ -91,6 +91,7 @@ export interface IInstantiationService {
  */
 export interface ServiceIdentifier<T> {
 	(...args: any[]): void;
+	type: T;
 }
 
 
@@ -112,12 +113,12 @@ export function createDecorator<T>(serviceId: string): ServiceIdentifier<T> {
 		return _util.serviceIds.get(serviceId)!;
 	}
 
-	const id: ServiceIdentifier<T> = function (target: Function, key: string, index: number) {
+	const id = function (target: Function, key: string, index: number) {
 		if (arguments.length !== 3) {
 			throw new Error('@IServiceName-decorator can only be used to decorate a parameter');
 		}
 		storeServiceDependency(id, target, index);
-	};
+	} as ServiceIdentifier<T>;
 
 	id.toString = () => serviceId;
 
