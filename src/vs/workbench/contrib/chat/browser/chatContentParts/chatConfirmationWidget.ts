@@ -64,7 +64,7 @@ export class ChatQueryTitlePart extends Disposable {
 
 		const previousEl = this._renderedTitle.value?.element;
 		if (previousEl?.parentElement) {
-			previousEl.parentElement.replaceChild(next.element, previousEl);
+			previousEl.replaceWith(next.element);
 		} else {
 			this.element.appendChild(next.element); // unreachable?
 		}
