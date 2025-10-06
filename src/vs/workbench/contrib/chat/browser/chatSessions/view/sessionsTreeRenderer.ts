@@ -32,7 +32,7 @@ import product from '../../../../../../platform/product/common/product.js';
 import { defaultInputBoxStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
 import { HoverPosition } from '../../../../../../base/browser/ui/hover/hoverWidget.js';
 import { IWorkbenchLayoutService, Position } from '../../../../../services/layout/browser/layoutService.js';
-import { ViewContainerLocation, IViewDescriptorService, IEditableData } from '../../../../../common/views.js';
+import { ViewContainerLocation, IEditableData } from '../../../../../common/views.js';
 import { IResourceLabel, ResourceLabels } from '../../../../../browser/labels.js';
 import { IconLabel } from '../../../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
@@ -114,6 +114,7 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 	private markdownRenderer: MarkdownRenderer;
 
 	constructor(
+		private readonly viewLocation: ViewContainerLocation | null,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
@@ -124,7 +125,6 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IChatService private readonly chatService: IChatService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
-		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 	) {
 		super();
@@ -137,13 +137,12 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 	}
 
 	private getHoverPosition(): HoverPosition {
-		const viewLocation = this.viewDescriptorService.getViewLocationById('workbench.panel.chatSessions');
 		const sideBarPosition = this.layoutService.getSideBarPosition();
 
-		if (viewLocation === ViewContainerLocation.Sidebar) {
+		if (this.viewLocation === ViewContainerLocation.Sidebar) {
 			const hoverPosition = sideBarPosition === Position.LEFT ? HoverPosition.RIGHT : HoverPosition.LEFT;
 			return hoverPosition;
-		} else if (viewLocation === ViewContainerLocation.AuxiliaryBar) {
+		} else if (this.viewLocation === ViewContainerLocation.AuxiliaryBar) {
 			const hoverPosition = sideBarPosition === Position.LEFT ? HoverPosition.LEFT : HoverPosition.RIGHT;
 			return hoverPosition;
 		} else {

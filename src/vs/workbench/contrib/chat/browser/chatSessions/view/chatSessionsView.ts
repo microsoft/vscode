@@ -272,7 +272,7 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 							value: displayName,
 							original: displayName,
 						},
-						ctorDescriptor: new SyncDescriptor(SessionsViewPane, [provider, this.sessionTracker]),
+						ctorDescriptor: new SyncDescriptor(SessionsViewPane, [provider, this.sessionTracker, `${VIEWLET_ID}.${provider.chatSessionType}`]),
 						canToggleVisibility: true,
 						canMoveView: true,
 						order: baseOrder, // Use computed order based on priority and alphabetical sorting
@@ -301,7 +301,7 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 						value: nls.localize('chat.sessions.gettingStarted', "Getting Started"),
 						original: 'Getting Started',
 					},
-					ctorDescriptor: new SyncDescriptor(SessionsViewPane, [null, this.sessionTracker]),
+					ctorDescriptor: new SyncDescriptor(SessionsViewPane, [null, this.sessionTracker, gettingStartedViewId]),
 					canToggleVisibility: true,
 					canMoveView: true,
 					order: 1000,
