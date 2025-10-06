@@ -6,7 +6,7 @@
 import { Schemas } from '../common/network.js';
 import { reset } from './dom.js';
 // eslint-disable-next-line no-restricted-imports
-import dompurify from './dompurify/dompurify.js';
+import dompurify, * as DomPurifyTypes from './dompurify/dompurify.js';
 
 /**
  * List of safe, non-input html tags.
@@ -225,7 +225,7 @@ const defaultDomPurifyConfig = Object.freeze({
 	ALLOWED_ATTR: [...defaultAllowedAttrs],
 	// We sanitize the src/href attributes later if needed
 	ALLOW_UNKNOWN_PROTOCOLS: true,
-} satisfies dompurify.Config);
+} satisfies DomPurifyTypes.Config);
 
 /**
  * Sanitizes an html string.
@@ -243,7 +243,7 @@ function doSanitizeHtml(untrusted: string, config: DomSanitizerConfig | undefine
 function doSanitizeHtml(untrusted: string, config: DomSanitizerConfig | undefined, outputType: 'trusted'): TrustedHTML;
 function doSanitizeHtml(untrusted: string, config: DomSanitizerConfig | undefined, outputType: 'dom' | 'trusted'): TrustedHTML | DocumentFragment {
 	try {
-		const resolvedConfig: dompurify.Config = { ...defaultDomPurifyConfig };
+		const resolvedConfig: DomPurifyTypes.Config = { ...defaultDomPurifyConfig };
 
 		if (config?.allowedTags) {
 			if (config.allowedTags.override) {
@@ -339,7 +339,11 @@ function doSanitizeHtml(untrusted: string, config: DomSanitizerConfig | undefine
 
 const selfClosingTags = ['area', 'base', 'br', 'col', 'command', 'embed', 'hr', 'img', 'input', 'keygen', 'link', 'meta', 'param', 'source', 'track', 'wbr'];
 
-function replaceWithPlainTextHook(element: Element, data: dompurify.SanitizeElementHookEvent, _config: dompurify.Config) {
+const replaceWithPlainTextHook: DomPurifyTypes.UponSanitizeElementHook = (element, data, _config) => {
+	if (!(element instanceof Element)) {
+		return;
+	}
+
 	if (!data.allowedTags[data.tagName] && data.tagName !== 'body') {
 		const replacement = convertTagToPlaintext(element);
 		if (element.nodeType === Node.COMMENT_NODE) {
@@ -351,7 +355,7 @@ function replaceWithPlainTextHook(element: Element, data: dompurify.SanitizeElem
 			element.parentElement?.replaceChild(replacement, element);
 		}
 	}
-}
+};
 
 export function convertTagToPlaintext(element: Element): DocumentFragment {
 	let startTagText: string;
