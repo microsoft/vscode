@@ -23,7 +23,7 @@ import { snippetForFunctionCall } from './util/snippetForFunctionCall';
 import * as Previewer from './util/textRendering';
 
 
-interface DotAccessorContext {
+interface CharacterRangeAccessorContext {
 	readonly range: vscode.Range;
 	readonly text: string;
 }
@@ -32,7 +32,8 @@ interface CompletionContext {
 	readonly isNewIdentifierLocation: boolean;
 	readonly isMemberCompletion: boolean;
 
-	readonly dotAccessorContext?: DotAccessorContext;
+	readonly dotAccessorContext?: CharacterRangeAccessorContext;
+	readonly stringAccessorContext?: CharacterRangeAccessorContext;
 
 	readonly enableCallCompletions: boolean;
 	readonly completeFunctionCalls: boolean;
@@ -507,7 +508,8 @@ class MyCompletionItem extends vscode.CompletionItem {
 		defaultCommitCharacters: readonly string[] | undefined,
 	): string[] | undefined {
 		let commitCharacters = entry.commitCharacters ?? (defaultCommitCharacters ? Array.from(defaultCommitCharacters) : undefined);
-		if (commitCharacters) {
+		// Ensure commit characters are only applied when not in a member completion context with a string accessor
+		if (commitCharacters && !(context.isMemberCompletion && context.stringAccessorContext)) {
 			if (context.enableCallCompletions
 				&& !context.isNewIdentifierLocation
 				&& entry.kind !== PConst.Kind.warning
@@ -515,6 +517,13 @@ class MyCompletionItem extends vscode.CompletionItem {
 				commitCharacters.push('(');
 			}
 			return commitCharacters;
+		}
+
+		if (context.isMemberCompletion && context.stringAccessorContext) {
+			// We only want to commit on the closing quote of a string accessor
+			return [
+				context.stringAccessorContext.text.charAt(context.stringAccessorContext.text.length - 1),
+			];
 		}
 
 		if (entry.kind === PConst.Kind.warning || entry.kind === PConst.Kind.string) { // Ambient JS word based suggestion, strings
@@ -751,7 +760,8 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 			triggerKind: typeConverters.CompletionTriggerKind.toProtocolCompletionTriggerKind(context.triggerKind),
 		};
 
-		let dotAccessorContext: DotAccessorContext | undefined;
+		let dotAccessorContext: CharacterRangeAccessorContext | undefined;
+		let stringAccessorContext: CharacterRangeAccessorContext | undefined;
 		let response: ServerResponse.Response<Proto.CompletionInfoResponse> | undefined;
 		let duration: number | undefined;
 		let optionalReplacementRange: vscode.Range | undefined;
@@ -776,6 +786,17 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 				const text = document.getText(range);
 				dotAccessorContext = { range, text };
 			}
+
+			// Regex to match any text ending in an unclosed quote pair, ignoring any preceding paired quotes
+			const stringMatch = line.text.slice(0, position.character).match(/^[^"'`]*(?:"[^"]*"|'[^']*'|`[^`]*`)*[^'"`]*(['"`])((?:(?!\1).)*)$/) || undefined;
+			if (stringMatch) {
+				const range = new vscode.Range(position.translate({ characterDelta: -stringMatch[0].length }), position.translate({ characterDelta: -stringMatch[2].length }));
+				const text = document.getText(range);
+				stringAccessorContext = {
+					range,
+					text
+				};
+			}
 		}
 		const isIncomplete = !!response.body.isIncomplete || !!(response.metadata as Record<string, unknown>)?.isIncomplete;
 		const entries = response.body.entries;
@@ -790,6 +811,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 			isNewIdentifierLocation,
 			isMemberCompletion,
 			dotAccessorContext,
+			stringAccessorContext,
 			enableCallCompletions: !completionConfiguration.completeFunctionCalls,
 			wordRange,
 			line: line.text,
