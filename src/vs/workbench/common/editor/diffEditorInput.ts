@@ -155,6 +155,7 @@ export class DiffEditorInput extends SideBySideEditorInput implements IDiffEdito
 				return this.labels.shortDescription;
 			case Verbosity.LONG:
 				return this.labels.longDescription;
+			case Verbosity.MEDIUM:
 			default:
 				return this.labels.mediumDescription;
 		}
@@ -167,6 +168,7 @@ export class DiffEditorInput extends SideBySideEditorInput implements IDiffEdito
 			case Verbosity.LONG:
 				return this.labels.longTitle;
 			default:
+			case Verbosity.MEDIUM:
 				return this.labels.mediumTitle;
 		}
 	}
