@@ -5,6 +5,8 @@
 
 // AMD2ESM migration relevant
 
+import type { TrustedTypePolicy } from 'trusted-types/lib/index.js';
+
 declare global {
 
 	var _VSCODE_WEB_PACKAGE_TTP: Pick<TrustedTypePolicy<{

@@ -1004,7 +1004,11 @@ export default tseslint.config(
 				{
 					'target': 'src/vs/base/~',
 					'restrictions': [
-						'vs/base/~'
+						'vs/base/~',
+						{
+							'when': 'hasBrowser',
+							'pattern': 'trusted-types/**'
+						}, // Typings
 					]
 				},
 				{
@@ -1340,7 +1344,8 @@ export default tseslint.config(
 				{
 					'target': 'src/vs/amdX.ts',
 					'restrictions': [
-						'vs/base/common/*'
+						'vs/base/common/*',
+						'trusted-types/**', // Typings
 					]
 				},
 				{
