@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize, localize2 } from '../../../../../nls.js';
-import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -15,7 +14,7 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { EnablementState, IWorkbenchExtensionEnablementService } from '../../../../services/extensionManagement/common/extensionManagement.js';
 import { HasSpeechProvider, SpeechToTextInProgress } from '../../../speech/common/speechService.js';
 import { registerActiveInstanceAction, sharedWhenClause } from '../../../terminal/browser/terminalActions.js';
-import { TERMINAL_VIEW_ID, TerminalCommandId } from '../../../terminal/common/terminal.js';
+import { TerminalCommandId } from '../../../terminal/common/terminal.js';
 import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
 import { TerminalVoiceSession } from './terminalVoice.js';
 
@@ -60,14 +59,6 @@ export function registerTerminalVoiceActions() {
 				await run();
 			}
 		},
-		menu: [
-			{
-				id: MenuId.ViewTitle,
-				group: 'voice',
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', TERMINAL_VIEW_ID), TerminalContextKeys.terminalDictationInProgress.toNegated()),
-				isHiddenByDefault: true
-			},
-		]
 	});
 
 	registerActiveInstanceAction({
@@ -82,14 +73,6 @@ export function registerTerminalVoiceActions() {
 		run: (activeInstance, c, accessor) => {
 			const instantiationService = accessor.get(IInstantiationService);
 			TerminalVoiceSession.getInstance(instantiationService).stop(true);
-		},
-		menu: [
-			{
-				id: MenuId.ViewTitle,
-				group: 'voice',
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', TERMINAL_VIEW_ID), TerminalContextKeys.terminalDictationInProgress),
-				isHiddenByDefault: true
-			},
-		]
+		}
 	});
 }

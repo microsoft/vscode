@@ -53,7 +53,7 @@ export function registerNewChatActions() {
 				precondition: ChatContextKeys.enabled,
 			});
 		}
-		async run(accessor: ServicesAccessor, ...args: any[]) {
+		async run(accessor: ServicesAccessor, ...args: unknown[]) {
 			announceChatCleared(accessor.get(IAccessibilitySignalService));
 			await clearChatEditor(accessor);
 		}
@@ -106,8 +106,8 @@ export function registerNewChatActions() {
 		}
 
 
-		async run(accessor: ServicesAccessor, ...args: any[]) {
-			const executeCommandContext: INewEditSessionActionContext | undefined = args[0];
+		async run(accessor: ServicesAccessor, ...args: unknown[]) {
+			const executeCommandContext = args[0] as INewEditSessionActionContext | undefined;
 
 			// Context from toolbar or lastFocusedWidget
 			const context = getEditingSessionContext(accessor, args);

@@ -285,7 +285,7 @@ registerAction2(class ExecuteCell extends NotebookMultiCellAction {
 		});
 	}
 
-	override parseArgs(accessor: ServicesAccessor, ...args: any[]): INotebookCommandContext | undefined {
+	override parseArgs(accessor: ServicesAccessor, ...args: unknown[]): INotebookCommandContext | undefined {
 		return parseMultiCellExecutionArgs(accessor, ...args);
 	}
 
@@ -342,7 +342,7 @@ registerAction2(class ExecuteAboveCells extends NotebookMultiCellAction {
 		});
 	}
 
-	override parseArgs(accessor: ServicesAccessor, ...args: any[]): INotebookCommandContext | undefined {
+	override parseArgs(accessor: ServicesAccessor, ...args: unknown[]): INotebookCommandContext | undefined {
 		return parseMultiCellExecutionArgs(accessor, ...args);
 	}
 
@@ -389,7 +389,7 @@ registerAction2(class ExecuteCellAndBelow extends NotebookMultiCellAction {
 		});
 	}
 
-	override parseArgs(accessor: ServicesAccessor, ...args: any[]): INotebookCommandContext | undefined {
+	override parseArgs(accessor: ServicesAccessor, ...args: unknown[]): INotebookCommandContext | undefined {
 		return parseMultiCellExecutionArgs(accessor, ...args);
 	}
 
@@ -424,7 +424,7 @@ registerAction2(class ExecuteCellFocusContainer extends NotebookMultiCellAction 
 		});
 	}
 
-	override parseArgs(accessor: ServicesAccessor, ...args: any[]): INotebookCommandContext | undefined {
+	override parseArgs(accessor: ServicesAccessor, ...args: unknown[]): INotebookCommandContext | undefined {
 		return parseMultiCellExecutionArgs(accessor, ...args);
 	}
 
@@ -502,7 +502,7 @@ registerAction2(class CancelExecuteCell extends NotebookMultiCellAction {
 		});
 	}
 
-	override parseArgs(accessor: ServicesAccessor, ...args: any[]): INotebookCommandContext | undefined {
+	override parseArgs(accessor: ServicesAccessor, ...args: unknown[]): INotebookCommandContext | undefined {
 		return parseMultiCellExecutionArgs(accessor, ...args);
 	}
 
