@@ -261,6 +261,11 @@ const editorConfiguration: IConfigurationNode = {
 				nls.localize('diffAlgorithm.advanced', "Uses the advanced diffing algorithm."),
 			]
 		},
+		'diffEditor.diffEditorLoopChanges': {
+			type: 'boolean',
+			default: diffEditorDefaultOptions.diffEditorLoopChanges,
+			description: nls.localize('diffEditorLoopChanges', "Controls whether the diff editor loops when navigating between changes (similar to editor.find.loop).")
+		},
 		'diffEditor.hideUnchangedRegions.enabled': {
 			type: 'boolean',
 			default: diffEditorDefaultOptions.hideUnchangedRegions.enabled,
