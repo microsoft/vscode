@@ -1,12 +1,12 @@
 "use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
 const child_process_1 = require("child_process");
 const fs_1 = require("fs");
 const path_1 = __importDefault(require("path"));
@@ -60,12 +60,6 @@ function renderProfileString(_prefix, moduleName, nlsString, translations) {
     return value;
 }
 class BasePolicy {
-    type;
-    name;
-    category;
-    minimumVersion;
-    description;
-    moduleName;
     constructor(type, name, category, minimumVersion, description, moduleName) {
         this.type = type;
         this.name = name;
@@ -149,7 +143,6 @@ class ParseError extends Error {
     }
 }
 class NumberPolicy extends BasePolicy {
-    defaultValue;
     static from(name, category, minimumVersion, description, moduleName, settingNode) {
         const type = getStringProperty(moduleName, settingNode, 'type');
         if (type !== 'number') {
@@ -258,8 +251,6 @@ class ObjectPolicy extends BasePolicy {
     }
 }
 class StringEnumPolicy extends BasePolicy {
-    enum_;
-    enumDescriptions;
     static from(name, category, minimumVersion, description, moduleName, settingNode) {
         const type = getStringProperty(moduleName, settingNode, 'type');
         if (type !== 'string') {
@@ -459,7 +450,8 @@ function getPolicy(moduleName, configurationNode, settingNode, policyNode, categ
     return result;
 }
 function getPolicies(moduleName, node) {
-    const query = new tree_sitter_1.default.Query(typescript, `
+    // Original query for inline policies
+    const inlineQuery = new tree_sitter_1.default.Query(typescript, `
 		(
 			(call_expression
 				function: (member_expression property: (property_identifier) @registerConfigurationFn) (#eq? @registerConfigurationFn registerConfiguration)
@@ -476,13 +468,82 @@ function getPolicies(moduleName, node) {
 			)
 		)
 	`);
+    // Broader query to find all setting objects with policy properties
+    // This handles cases where settings are defined in constants
+    const settingWithPolicyQuery = new tree_sitter_1.default.Query(typescript, `
+		(
+			(object
+				(pair
+					key: [(property_identifier)(string)] @policyKey (#any-of? @policyKey "policy" "'policy'")
+					value: (object) @policy
+				)
+			) @setting
+		)
+	`);
+    // Query to find registerConfiguration calls to get the configuration context
+    const configurationQuery = new tree_sitter_1.default.Query(typescript, `
+		(
+			(call_expression
+				function: (member_expression property: (property_identifier) @registerConfigurationFn) (#eq? @registerConfigurationFn registerConfiguration)
+				arguments: (arguments (object) @configuration)
+			)
+		)
+	`);
     const categories = new Map();
-    return query.matches(node).map(m => {
+    const policies = [];
+    const processedPolicyNodes = new Set();
+    // First pass: collect policies from inline declarations
+    for (const m of inlineQuery.matches(node)) {
         const configurationNode = m.captures.filter(c => c.name === 'configuration')[0].node;
         const settingNode = m.captures.filter(c => c.name === 'setting')[0].node;
         const policyNode = m.captures.filter(c => c.name === 'policy')[0].node;
-        return getPolicy(moduleName, configurationNode, settingNode, policyNode, categories);
-    });
+        try {
+            policies.push(getPolicy(moduleName, configurationNode, settingNode, policyNode, categories));
+            processedPolicyNodes.add(policyNode);
+        }
+        catch (err) {
+            // Re-throw parse errors
+            throw err;
+        }
+    }
+    // Second pass: find policies defined in constants
+    // Get the configuration object from registerConfiguration calls
+    const configurationNodes = [];
+    for (const m of configurationQuery.matches(node)) {
+        const configNode = m.captures.filter(c => c.name === 'configuration')[0].node;
+        configurationNodes.push(configNode);
+    }
+    // If we found registerConfiguration calls, look for additional policies
+    if (configurationNodes.length > 0) {
+        for (const m of settingWithPolicyQuery.matches(node)) {
+            const settingNode = m.captures.filter(c => c.name === 'setting')[0].node;
+            const policyNode = m.captures.filter(c => c.name === 'policy')[0].node;
+            // Skip if we already processed this policy
+            if (processedPolicyNodes.has(policyNode)) {
+                continue;
+            }
+            // Use the first configuration node as the context
+            // In practice, there's usually only one registerConfiguration per file
+            const configurationNode = configurationNodes[0];
+            try {
+                const policy = getPolicy(moduleName, configurationNode, settingNode, policyNode, categories);
+                policies.push(policy);
+                processedPolicyNodes.add(policyNode);
+            }
+            catch (err) {
+                // Log but don't fail - this setting might not be part of a valid policy configuration
+                if (err instanceof ParseError) {
+                    // Only warn if this looks like it should be a policy (has required fields)
+                    const hasName = policyNode.text.includes('name:');
+                    const hasMinVersion = policyNode.text.includes('minimumVersion:');
+                    if (hasName && hasMinVersion) {
+                        console.warn(`Warning: ${err.message}`);
+                    }
+                }
+            }
+        }
+    }
+    return policies;
 }
 async function getFiles(root) {
     return new Promise((c, e) => {
@@ -884,4 +945,3 @@ if (require.main === module) {
         process.exit(1);
     });
 }
-//# sourceMappingURL=policies.js.map

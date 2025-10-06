@@ -656,7 +656,8 @@ function getPolicy(
 }
 
 function getPolicies(moduleName: string, node: Parser.SyntaxNode): Policy[] {
-	const query = new Parser.Query(typescript, `
+	// Original query for inline policies
+	const inlineQuery = new Parser.Query(typescript, `
 		(
 			(call_expression
 				function: (member_expression property: (property_identifier) @registerConfigurationFn) (#eq? @registerConfigurationFn registerConfiguration)
@@ -674,14 +675,90 @@ function getPolicies(moduleName: string, node: Parser.SyntaxNode): Policy[] {
 		)
 	`);
 
-	const categories = new Map<string, Category>();
+	// Broader query to find all setting objects with policy properties
+	// This handles cases where settings are defined in constants
+	const settingWithPolicyQuery = new Parser.Query(typescript, `
+		(
+			(object
+				(pair
+					key: [(property_identifier)(string)] @policyKey (#any-of? @policyKey "policy" "'policy'")
+					value: (object) @policy
+				)
+			) @setting
+		)
+	`);
 
-	return query.matches(node).map(m => {
+	// Query to find registerConfiguration calls to get the configuration context
+	const configurationQuery = new Parser.Query(typescript, `
+		(
+			(call_expression
+				function: (member_expression property: (property_identifier) @registerConfigurationFn) (#eq? @registerConfigurationFn registerConfiguration)
+				arguments: (arguments (object) @configuration)
+			)
+		)
+	`);
+
+	const categories = new Map<string, Category>();
+	const policies: Policy[] = [];
+	const processedPolicyNodes = new Set<Parser.SyntaxNode>();
+
+	// First pass: collect policies from inline declarations
+	for (const m of inlineQuery.matches(node)) {
 		const configurationNode = m.captures.filter(c => c.name === 'configuration')[0].node;
 		const settingNode = m.captures.filter(c => c.name === 'setting')[0].node;
 		const policyNode = m.captures.filter(c => c.name === 'policy')[0].node;
-		return getPolicy(moduleName, configurationNode, settingNode, policyNode, categories);
-	});
+		
+		try {
+			policies.push(getPolicy(moduleName, configurationNode, settingNode, policyNode, categories));
+			processedPolicyNodes.add(policyNode);
+		} catch (err) {
+			// Re-throw parse errors
+			throw err;
+		}
+	}
+
+	// Second pass: find policies defined in constants
+	// Get the configuration object from registerConfiguration calls
+	const configurationNodes: Parser.SyntaxNode[] = [];
+	for (const m of configurationQuery.matches(node)) {
+		const configNode = m.captures.filter(c => c.name === 'configuration')[0].node;
+		configurationNodes.push(configNode);
+	}
+
+	// If we found registerConfiguration calls, look for additional policies
+	if (configurationNodes.length > 0) {
+		for (const m of settingWithPolicyQuery.matches(node)) {
+			const settingNode = m.captures.filter(c => c.name === 'setting')[0].node;
+			const policyNode = m.captures.filter(c => c.name === 'policy')[0].node;
+
+			// Skip if we already processed this policy
+			if (processedPolicyNodes.has(policyNode)) {
+				continue;
+			}
+
+			// Use the first configuration node as the context
+			// In practice, there's usually only one registerConfiguration per file
+			const configurationNode = configurationNodes[0];
+
+			try {
+				const policy = getPolicy(moduleName, configurationNode, settingNode, policyNode, categories);
+				policies.push(policy);
+				processedPolicyNodes.add(policyNode);
+			} catch (err) {
+				// Log but don't fail - this setting might not be part of a valid policy configuration
+				if (err instanceof ParseError) {
+					// Only warn if this looks like it should be a policy (has required fields)
+					const hasName = policyNode.text.includes('name:');
+					const hasMinVersion = policyNode.text.includes('minimumVersion:');
+					if (hasName && hasMinVersion) {
+						console.warn(`Warning: ${err.message}`);
+					}
+				}
+			}
+		}
+	}
+
+	return policies;
 }
 
 async function getFiles(root: string): Promise<string[]> {
