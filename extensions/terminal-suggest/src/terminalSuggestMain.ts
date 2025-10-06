@@ -250,8 +250,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	const machineId = await vscode.env.machineId;
 	const remoteAuthority = vscode.env.remoteName;
 
-	context.subscriptions.push(vscode.window.registerTerminalCompletionProvider({
-		id: 'terminal-suggest',
+	context.subscriptions.push(vscode.window.registerTerminalCompletionProvider('terminal-suggest', {
 		async provideTerminalCompletions(terminal: vscode.Terminal, terminalContext: vscode.TerminalCompletionContext, token: vscode.CancellationToken): Promise<vscode.TerminalCompletionItem[] | vscode.TerminalCompletionList | undefined> {
 			currentTerminalEnv = terminal.shellIntegration?.env?.value ?? process.env;
 			if (token.isCancellationRequested) {
@@ -305,14 +304,14 @@ export async function activate(context: vscode.ExtensionContext) {
 				}
 			}
 
-
-			if (terminal.shellIntegration?.cwd && (result.filesRequested || result.foldersRequested)) {
+			const cwd = result.cwd ?? terminal.shellIntegration?.cwd;
+			if (cwd && (result.filesRequested || result.foldersRequested)) {
+				const globPattern = createFileGlobPattern(result.fileExtensions);
 				return new vscode.TerminalCompletionList(result.items, {
 					filesRequested: result.filesRequested,
 					foldersRequested: result.foldersRequested,
-					fileExtensions: result.fileExtensions,
-					cwd: result.cwd ?? terminal.shellIntegration.cwd,
-					env: terminal.shellIntegration?.env?.value,
+					globPattern,
+					cwd,
 				});
 			}
 			return result.items;
@@ -565,3 +564,13 @@ export function sanitizeProcessEnvironment(env: Record<string, string>, ...prese
 		});
 }
 
+function createFileGlobPattern(fileExtensions?: string[]): vscode.GlobPattern | undefined {
+	if (!fileExtensions || fileExtensions.length === 0) {
+		return undefined;
+	}
+	const exts = fileExtensions.map(ext => ext.startsWith('.') ? ext.slice(1) : ext);
+	if (exts.length === 1) {
+		return `**/*.${exts[0]}`;
+	}
+	return `**/*.{${exts.join(',')}}`;
+}

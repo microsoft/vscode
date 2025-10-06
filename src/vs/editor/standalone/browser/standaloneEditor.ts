@@ -501,42 +501,70 @@ export function registerEditorOpener(opener: ICodeEditorOpener): IDisposable {
 export function createMonacoEditorAPI(): typeof monaco.editor {
 	return {
 		// methods
+		// eslint-disable-next-line local/code-no-any-casts
 		create: <any>create,
+		// eslint-disable-next-line local/code-no-any-casts
 		getEditors: <any>getEditors,
+		// eslint-disable-next-line local/code-no-any-casts
 		getDiffEditors: <any>getDiffEditors,
+		// eslint-disable-next-line local/code-no-any-casts
 		onDidCreateEditor: <any>onDidCreateEditor,
+		// eslint-disable-next-line local/code-no-any-casts
 		onDidCreateDiffEditor: <any>onDidCreateDiffEditor,
+		// eslint-disable-next-line local/code-no-any-casts
 		createDiffEditor: <any>createDiffEditor,
 
+		// eslint-disable-next-line local/code-no-any-casts
 		addCommand: <any>addCommand,
+		// eslint-disable-next-line local/code-no-any-casts
 		addEditorAction: <any>addEditorAction,
+		// eslint-disable-next-line local/code-no-any-casts
 		addKeybindingRule: <any>addKeybindingRule,
+		// eslint-disable-next-line local/code-no-any-casts
 		addKeybindingRules: <any>addKeybindingRules,
 
+		// eslint-disable-next-line local/code-no-any-casts
 		createModel: <any>createModel,
+		// eslint-disable-next-line local/code-no-any-casts
 		setModelLanguage: <any>setModelLanguage,
+		// eslint-disable-next-line local/code-no-any-casts
 		setModelMarkers: <any>setModelMarkers,
+		// eslint-disable-next-line local/code-no-any-casts
 		getModelMarkers: <any>getModelMarkers,
 		removeAllMarkers: removeAllMarkers,
+		// eslint-disable-next-line local/code-no-any-casts
 		onDidChangeMarkers: <any>onDidChangeMarkers,
+		// eslint-disable-next-line local/code-no-any-casts
 		getModels: <any>getModels,
+		// eslint-disable-next-line local/code-no-any-casts
 		getModel: <any>getModel,
+		// eslint-disable-next-line local/code-no-any-casts
 		onDidCreateModel: <any>onDidCreateModel,
+		// eslint-disable-next-line local/code-no-any-casts
 		onWillDisposeModel: <any>onWillDisposeModel,
+		// eslint-disable-next-line local/code-no-any-casts
 		onDidChangeModelLanguage: <any>onDidChangeModelLanguage,
 
 
+		// eslint-disable-next-line local/code-no-any-casts
 		createWebWorker: <any>createWebWorker,
+		// eslint-disable-next-line local/code-no-any-casts
 		colorizeElement: <any>colorizeElement,
+		// eslint-disable-next-line local/code-no-any-casts
 		colorize: <any>colorize,
+		// eslint-disable-next-line local/code-no-any-casts
 		colorizeModelLine: <any>colorizeModelLine,
+		// eslint-disable-next-line local/code-no-any-casts
 		tokenize: <any>tokenize,
+		// eslint-disable-next-line local/code-no-any-casts
 		defineTheme: <any>defineTheme,
+		// eslint-disable-next-line local/code-no-any-casts
 		setTheme: <any>setTheme,
 		remeasureFonts: remeasureFonts,
 		registerCommand: registerCommand,
 
 		registerLinkOpener: registerLinkOpener,
+		// eslint-disable-next-line local/code-no-any-casts
 		registerEditorOpener: <any>registerEditorOpener,
 
 		// enums
@@ -568,18 +596,27 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		TextDirection: standaloneEnums.TextDirection,
 
 		// classes
+		// eslint-disable-next-line local/code-no-any-casts
 		ConfigurationChangedEvent: <any>ConfigurationChangedEvent,
+		// eslint-disable-next-line local/code-no-any-casts
 		BareFontInfo: <any>BareFontInfo,
+		// eslint-disable-next-line local/code-no-any-casts
 		FontInfo: <any>FontInfo,
+		// eslint-disable-next-line local/code-no-any-casts
 		TextModelResolvedOptions: <any>TextModelResolvedOptions,
+		// eslint-disable-next-line local/code-no-any-casts
 		FindMatch: <any>FindMatch,
+		// eslint-disable-next-line local/code-no-any-casts
 		ApplyUpdateResult: <any>ApplyUpdateResult,
+		// eslint-disable-next-line local/code-no-any-casts
 		EditorZoom: <any>EditorZoom,
 
+		// eslint-disable-next-line local/code-no-any-casts
 		createMultiFileDiffEditor: <any>createMultiFileDiffEditor,
 
 		// vars
 		EditorType: EditorType,
+		// eslint-disable-next-line local/code-no-any-casts
 		EditorOptions: <any>EditorOptions
 
 	};

@@ -15,36 +15,77 @@ export class McpGalleryManifestService extends Disposable implements IMcpGallery
 	readonly onDidChangeMcpGalleryManifestStatus = Event.None;
 
 	get mcpGalleryManifestStatus(): McpGalleryManifestStatus {
-		return !!this.productService.extensionsGallery?.mcpUrl ? McpGalleryManifestStatus.Available : McpGalleryManifestStatus.Unavailable;
+		return !!this.productService.mcpGallery?.serviceUrl ? McpGalleryManifestStatus.Available : McpGalleryManifestStatus.Unavailable;
 	}
 
 	constructor(
-		@IProductService protected readonly productService: IProductService,
+		@IProductService private readonly productService: IProductService,
 	) {
 		super();
 	}
 
 	async getMcpGalleryManifest(): Promise<IMcpGalleryManifest | null> {
-		return null;
+		if (!this.productService.mcpGallery) {
+			return null;
+		}
+		return this.createMcpGalleryManifest(this.productService.mcpGallery.serviceUrl);
 	}
 
 	protected createMcpGalleryManifest(url: string): IMcpGalleryManifest {
 		url = url.endsWith('/') ? url.slice(0, -1) : url;
-		const isVSCodeGalleryUrl = this.productService.extensionsGallery?.mcpUrl === url;
-		const version = isVSCodeGalleryUrl ? undefined : 'v0';
-		const serversUrl = isVSCodeGalleryUrl ? url : `${url}/${version}/servers`;
+		const isProductGalleryUrl = this.productService.mcpGallery?.serviceUrl === url;
+		const version = 'v0';
+		const serversUrl = `${url}/${version}/servers`;
 		const resources = [
 			{
 				id: serversUrl,
-				type: McpGalleryResourceType.McpQueryService
+				type: McpGalleryResourceType.McpServersQueryService
+			},
+			{
+				id: `${serversUrl}/{id}`,
+				type: McpGalleryResourceType.McpServerResourceUri
 			}
 		];
-		if (!isVSCodeGalleryUrl) {
+
+		if (isProductGalleryUrl) {
 			resources.push({
-				id: `${serversUrl}/{id}`,
-				type: McpGalleryResourceType.McpServerManifestUri
+				id: `${serversUrl}/search`,
+				type: McpGalleryResourceType.McpServersSearchService
+			});
+			resources.push({
+				id: `${serversUrl}/by-name/{name}`,
+				type: McpGalleryResourceType.McpServerNamedResourceUri
+			});
+			resources.push({
+				id: this.productService.mcpGallery.itemWebUrl,
+				type: McpGalleryResourceType.McpServerWebUri
+			});
+			resources.push({
+				id: this.productService.mcpGallery.publisherUrl,
+				type: McpGalleryResourceType.PublisherUriTemplate
+			});
+			resources.push({
+				id: this.productService.mcpGallery.supportUrl,
+				type: McpGalleryResourceType.ContactSupportUri
+			});
+			resources.push({
+				id: this.productService.mcpGallery.supportUrl,
+				type: McpGalleryResourceType.ContactSupportUri
+			});
+			resources.push({
+				id: this.productService.mcpGallery.privacyPolicyUrl,
+				type: McpGalleryResourceType.PrivacyPolicyUri
+			});
+			resources.push({
+				id: this.productService.mcpGallery.termsOfServiceUrl,
+				type: McpGalleryResourceType.TermsOfServiceUri
+			});
+			resources.push({
+				id: this.productService.mcpGallery.reportUrl,
+				type: McpGalleryResourceType.ReportUri
 			});
 		}
+
 		return {
 			version,
 			url,

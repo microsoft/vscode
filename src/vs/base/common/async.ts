@@ -1745,6 +1745,10 @@ export class DeferredPromise<T> {
 	}
 
 	public complete(value: T) {
+		if (this.isSettled) {
+			return Promise.resolve();
+		}
+
 		return new Promise<void>(resolve => {
 			this.completeCallback(value);
 			this.outcome = { outcome: DeferredOutcome.Resolved, value };
@@ -1753,6 +1757,10 @@ export class DeferredPromise<T> {
 	}
 
 	public error(err: unknown) {
+		if (this.isSettled) {
+			return Promise.resolve();
+		}
+
 		return new Promise<void>(resolve => {
 			this.errorCallback(err);
 			this.outcome = { outcome: DeferredOutcome.Rejected, value: err };

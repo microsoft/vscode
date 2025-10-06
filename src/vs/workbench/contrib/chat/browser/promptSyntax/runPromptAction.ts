@@ -29,7 +29,7 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { getPromptCommandName } from '../../common/promptSyntax/service/promptsServiceImpl.js';
+import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 
 /**
  * Condition for the `Run Current Prompt` action.
@@ -134,6 +134,7 @@ abstract class RunPromptBaseAction extends Action2 {
 	): Promise<IChatWidget | undefined> {
 		const viewsService = accessor.get(IViewsService);
 		const commandService = accessor.get(ICommandService);
+		const promptsService = accessor.get(IPromptsService);
 
 		resource ||= getActivePromptFileUri(accessor);
 		assertDefined(
@@ -147,7 +148,7 @@ abstract class RunPromptBaseAction extends Action2 {
 
 		const widget = await showChatView(viewsService);
 		if (widget) {
-			widget.setInput(`/${getPromptCommandName(resource.path)}`);
+			widget.setInput(`/${await promptsService.getPromptCommandName(resource)}`);
 			// submit the prompt immediately
 			await widget.acceptInput();
 		}
@@ -209,6 +210,7 @@ class RunSelectedPromptAction extends Action2 {
 		const viewsService = accessor.get(IViewsService);
 		const commandService = accessor.get(ICommandService);
 		const instaService = accessor.get(IInstantiationService);
+		const promptsService = accessor.get(IPromptsService);
 
 		const pickers = instaService.createInstance(PromptFilePickers);
 
@@ -232,7 +234,7 @@ class RunSelectedPromptAction extends Action2 {
 
 		const widget = await showChatView(viewsService);
 		if (widget) {
-			widget.setInput(`/${getPromptCommandName(promptFile.path)}`);
+			widget.setInput(`/${await promptsService.getPromptCommandName(promptFile)}`);
 			// submit the prompt immediately
 			await widget.acceptInput();
 			widget.focusInput();

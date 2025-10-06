@@ -768,6 +768,7 @@ suite('ExtHostTreeView', function () {
 	function getTreeItem(key: string, highlights?: [number, number][]): TreeItem {
 		const treeElement = getTreeElement(key);
 		return {
+			// eslint-disable-next-line local/code-no-any-casts
 			label: <any>{ label: labels[key] || key, highlights },
 			collapsibleState: treeElement && Object.keys(treeElement).length ? TreeItemCollapsibleState.Collapsed : TreeItemCollapsibleState.None
 		};

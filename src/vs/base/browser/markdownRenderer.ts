@@ -16,7 +16,7 @@ import { FileAccess, Schemas } from '../common/network.js';
 import { cloneAndChange } from '../common/objects.js';
 import { dirname, resolvePath } from '../common/resources.js';
 import { escape } from '../common/strings.js';
-import { URI } from '../common/uri.js';
+import { URI, UriComponents } from '../common/uri.js';
 import * as DOM from './dom.js';
 import * as domSanitize from './domSanitize.js';
 import { convertTagToPlaintext } from './domSanitize.js';
@@ -151,7 +151,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	}
 
 	const renderedContent = document.createElement('div');
-	const sanitizerConfig = getDomSanitizerConfig(markdown.isTrusted ?? false, options.sanitizerConfig ?? {});
+	const sanitizerConfig = getDomSanitizerConfig(markdown, options.sanitizerConfig ?? {});
 	domSanitize.safeSetInnerHtml(renderedContent, renderedMarkdown, sanitizerConfig);
 
 	// Rewrite links and images before potentially inserting them into the real dom
@@ -437,12 +437,17 @@ function resolveWithBaseUri(baseUri: URI, href: string): string {
 	}
 }
 
+type MdStrConfig = {
+	readonly isTrusted?: boolean | MarkdownStringTrustedOptions;
+	readonly baseUri?: UriComponents;
+};
+
 function sanitizeRenderedMarkdown(
 	renderedMarkdown: string,
-	isTrusted: boolean | MarkdownStringTrustedOptions,
+	originalMdStrConfig: MdStrConfig,
 	options: MarkdownSanitizerConfig = {},
 ): TrustedHTML {
-	const sanitizerConfig = getDomSanitizerConfig(isTrusted, options);
+	const sanitizerConfig = getDomSanitizerConfig(originalMdStrConfig, options);
 	return domSanitize.sanitizeHtml(renderedMarkdown, sanitizerConfig);
 }
 
@@ -508,7 +513,8 @@ export const allowedMarkdownHtmlAttributes = Object.freeze<Array<string | domSan
 	},
 ]);
 
-function getDomSanitizerConfig(isTrusted: boolean | MarkdownStringTrustedOptions, options: MarkdownSanitizerConfig): domSanitize.DomSanitizerConfig {
+function getDomSanitizerConfig(mdStrConfig: MdStrConfig, options: MarkdownSanitizerConfig): domSanitize.DomSanitizerConfig {
+	const isTrusted = mdStrConfig.isTrusted ?? false;
 	const allowedLinkSchemes = [
 		Schemas.http,
 		Schemas.https,
@@ -542,6 +548,7 @@ function getDomSanitizerConfig(isTrusted: boolean | MarkdownStringTrustedOptions
 		allowedLinkProtocols: {
 			override: allowedLinkSchemes,
 		},
+		allowRelativeLinkPaths: !!mdStrConfig.baseUri,
 		allowedMediaProtocols: {
 			override: [
 				Schemas.http,
@@ -577,7 +584,7 @@ export function renderAsPlaintext(str: IMarkdownString | string, options?: {
 	}
 
 	const html = marked.parse(value, { async: false, renderer: options?.includeCodeBlocksFences ? plainTextWithCodeBlocksRenderer.value : plainTextRenderer.value });
-	return sanitizeRenderedMarkdown(html, /* isTrusted */ false, {})
+	return sanitizeRenderedMarkdown(html, { isTrusted: false }, {})
 		.toString()
 		.replace(/&(#\d+|[a-zA-Z]+);/g, m => unescapeInfo.get(m) ?? m)
 		.trim();

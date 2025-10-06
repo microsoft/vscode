@@ -31,6 +31,7 @@ import {
 	ToolProgress,
 } from '../../chat/common/languageModelToolsService.js';
 import { TestId } from './testId.js';
+import { FileCoverage, getTotalCoveragePercent } from './testCoverage.js';
 import { TestingContextKeys } from './testingContextKeys.js';
 import { collectTestStateCounts, getTestProgressText } from './testingProgressMessages.js';
 import { isFailedState } from './testingStates.js';
@@ -38,6 +39,8 @@ import { LiveTestResult } from './testResult.js';
 import { ITestResultService } from './testResultService.js';
 import { ITestService, testsInFile, waitForTestToBeIdle } from './testService.js';
 import { IncrementalTestCollectionItem, TestItemExpandState, TestMessageType, TestResultState, TestRunProfileBitset } from './testTypes.js';
+import { Position } from '../../../../editor/common/core/position.js';
+import { ITestProfileService } from './testProfileService.js';
 
 export class TestingChatAgentToolContribution extends Disposable implements IWorkbenchContribution {
 	public static readonly ID = 'workbench.contrib.testing.chatAgentTool';
@@ -48,17 +51,22 @@ export class TestingChatAgentToolContribution extends Disposable implements IWor
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super();
-		const runInTerminalTool = instantiationService.createInstance(RunTestTool);
-		this._register(toolsService.registerTool(RunTestTool.DEFINITION, runInTerminalTool));
+		const runTestsTool = instantiationService.createInstance(RunTestTool);
+		this._register(toolsService.registerTool(RunTestTool.DEFINITION, runTestsTool));
 
 		// todo@connor4312: temporary for 1.103 release during changeover
 		contextKeyService.createKey('chat.coreTestFailureToolEnabled', true).set(true);
 	}
 }
 
+type Mode = 'run' | 'coverage';
+
 interface IRunTestToolParams {
 	files?: string[];
 	testNames?: string[];
+	/** File paths to return coverage info for (only used when mode === 'coverage') */
+	coverageFiles?: string[];
+	mode?: Mode;
 }
 
 class RunTestTool implements IToolImpl {
@@ -69,7 +77,7 @@ class RunTestTool implements IToolImpl {
 		canBeReferencedInPrompt: true,
 		when: TestingContextKeys.hasRunnableTests,
 		displayName: 'Run tests',
-		modelDescription: 'Runs unit tests in files. Use this tool if the user asks to run tests or when you want to validate changes using unit tests, and prefer using this tool instead of the terminal tool. When possible, always try to provide `files` paths containing the relevant unit tests in order to avoid unnecessarily long test runs. This tool outputs detailed information about the results of the test run.',
+		modelDescription: 'Runs unit tests in files. Use this tool if the user asks to run tests or when you want to validate changes using unit tests, and prefer using this tool instead of the terminal tool. When possible, always try to provide `files` paths containing the relevant unit tests in order to avoid unnecessarily long test runs. This tool outputs detailed information about the results of the test run. Set mode="coverage" to also collect coverage and optionally provide coverageFiles for focused reporting.',
 		icon: Codicon.beaker,
 		inputSchema: {
 			type: 'object',
@@ -83,10 +91,20 @@ class RunTestTool implements IToolImpl {
 					type: 'array',
 					items: { type: 'string' },
 					description: 'An array of test names to run. Depending on the context, test names defined in code may be strings or the names of functions or classes containing the test cases. If not provided, all tests in the files will be run.',
+				},
+				mode: {
+					type: 'string',
+					enum: ['run', 'coverage'],
+					description: 'Execution mode: "run" (default) runs tests normally, "coverage" collects coverage.',
+				},
+				coverageFiles: {
+					type: 'array',
+					items: { type: 'string' },
+					description: 'When mode="coverage": absolute file paths to include detailed coverage info for. Only the first matching file will be summarized.'
 				}
 			},
 		},
-		userDescription: localize('runTestTool.userDescription', 'Runs unit tests'),
+		userDescription: localize('runTestTool.userDescription', 'Runs unit tests (optionally with coverage)'),
 		source: ToolDataSource.Internal,
 		tags: [
 			'vscode_editing_with_tests',
@@ -94,6 +112,7 @@ class RunTestTool implements IToolImpl {
 			'enable_other_tool_copilot_listDirectory',
 			'enable_other_tool_copilot_findFiles',
 			'enable_other_tool_copilot_runTests',
+			'enable_other_tool_copilot_runTestsWithCoverage',
 			'enable_other_tool_copilot_testFailure',
 		],
 	};
@@ -103,10 +122,15 @@ class RunTestTool implements IToolImpl {
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@ITestResultService private readonly _testResultService: ITestResultService,
+		@ITestProfileService private readonly _testProfileService: ITestProfileService,
 	) { }
 
 	async invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
 		const params: IRunTestToolParams = invocation.parameters;
+		const mode: Mode = (params.mode === 'coverage' ? 'coverage' : 'run');
+		let group = (mode === 'coverage' ? TestRunProfileBitset.Coverage : TestRunProfileBitset.Run);
+		const coverageFiles = (mode === 'coverage' ? (params.coverageFiles && params.coverageFiles.length ? params.coverageFiles : undefined) : undefined);
+
 		const testFiles = await this._getFileTestsToRun(params, progress);
 		const testCases = await this._getTestCasesToRun(params, testFiles, progress);
 		if (!testCases.length) {
@@ -118,7 +142,14 @@ class RunTestTool implements IToolImpl {
 
 		progress.report({ message: localize('runTestTool.invoke.progress', 'Starting test run...') });
 
-		const result = await this._captureTestResult(testCases, token);
+		// If the model asks for coverage but the test provider doesn't support it, use normal 'run' mode
+		if (group === TestRunProfileBitset.Coverage) {
+			if (!testCases.some(tc => this._testProfileService.capabilitiesForTest(tc.item) & TestRunProfileBitset.Coverage)) {
+				group = TestRunProfileBitset.Run;
+			}
+		}
+
+		const result = await this._captureTestResult(testCases, group, token);
 		if (!result) {
 			return {
 				content: [{ kind: 'text', value: 'No test run was started. Instruct the user to ensure their test runner is correctly configured' }],
@@ -136,7 +167,7 @@ class RunTestTool implements IToolImpl {
 			};
 		}
 
-		const summary = this._makeModelTestResults(result);
+		const summary = await this._buildSummary(result, mode, coverageFiles);
 		const content = [{ kind: 'text', value: summary } as const];
 
 		return {
@@ -145,13 +176,75 @@ class RunTestTool implements IToolImpl {
 		};
 	}
 
-	private _makeModelTestResults(result: LiveTestResult) {
+	private async _buildSummary(result: LiveTestResult, mode: Mode, coverageFiles: string[] | undefined): Promise<string> {
 		const failures = result.counts[TestResultState.Errored] + result.counts[TestResultState.Failed];
 		let str = `<summary passed=${result.counts[TestResultState.Passed]} failed=${failures} />`;
-		if (failures === 0) {
-			return str;
+		if (failures !== 0) {
+			str += await this._getFailureDetails(result);
 		}
+		if (mode === 'coverage') {
+			str += await this._getCoverageSummary(result, coverageFiles);
+		}
+		return str;
+	}
 
+	private async _getCoverageSummary(result: LiveTestResult, coverageFiles: string[] | undefined): Promise<string> {
+		if (!coverageFiles || !coverageFiles.length) {
+			return '';
+		}
+		for (const task of result.tasks) {
+			const coverage = task.coverage.get();
+			if (!coverage) {
+				continue;
+			}
+			const normalized = coverageFiles.map(file => URI.file(file).fsPath);
+			const coveredFilesMap = new Map<string, FileCoverage>();
+			for (const file of coverage.getAllFiles().values()) {
+				coveredFilesMap.set(file.uri.fsPath, file);
+			}
+			for (const path of normalized) {
+				const file = coveredFilesMap.get(path);
+				if (!file) {
+					continue;
+				}
+				let summary = `<coverage task=${JSON.stringify(task.name || '')}>\n`;
+				const pct = getTotalCoveragePercent(file.statement, file.branch, file.declaration) * 100;
+				summary += `<firstUncoveredFile path=${JSON.stringify(path)} statementsCovered=${file.statement.covered} statementsTotal=${file.statement.total}`;
+				if (file.branch) {
+					summary += ` branchesCovered=${file.branch.covered} branchesTotal=${file.branch.total}`;
+				}
+				if (file.declaration) {
+					summary += ` declarationsCovered=${file.declaration.covered} declarationsTotal=${file.declaration.total}`;
+				}
+				summary += ` percent=${pct.toFixed(2)}`;
+				try {
+					const details = await file.details();
+					for (const detail of details) {
+						if (detail.count || !detail.location) {
+							continue;
+						}
+						let startLine: number;
+						let endLine: number;
+						if (Position.isIPosition(detail.location)) {
+							startLine = endLine = detail.location.lineNumber;
+						} else {
+							startLine = detail.location.startLineNumber;
+							endLine = detail.location.endLineNumber;
+						}
+						summary += ` firstUncoveredStart=${startLine} firstUncoveredEnd=${endLine}`;
+						break;
+					}
+				} catch { /* ignore */ }
+				summary += ` />\n`;
+				summary += `</coverage>\n`;
+				return summary;
+			}
+		}
+		return '';
+	}
+
+	private async _getFailureDetails(result: LiveTestResult): Promise<string> {
+		let str = '';
 		for (const failure of result.tests) {
 			if (!isFailedState(failure.ownComputedState)) {
 				continue;
@@ -160,7 +253,6 @@ class RunTestTool implements IToolImpl {
 			const [, ...testPath] = TestId.split(failure.item.extId);
 			const testName = testPath.pop();
 			str += `<testFailure name=${JSON.stringify(testName)} path=${JSON.stringify(testPath.join(' > '))}>\n`;
-
 			// Extract detailed failure information from error messages
 			for (const task of failure.tasks) {
 				for (const message of task.messages.filter(m => m.type === TestMessageType.Error)) {
@@ -206,11 +298,9 @@ class RunTestTool implements IToolImpl {
 		const update = () => {
 			const counts = collectTestStateCounts(!result.completedAt, [result]);
 			const text = getTestProgressText(counts);
-			progress.report({ message: text, increment: counts.runSoFar - lastSoFar, total: counts.totalWillBeRun });
-			lastSoFar = counts.runSoFar;
+			progress.report({ message: text, progress: counts.runSoFar / counts.totalWillBeRun });
 		};
 
-		let lastSoFar = 0;
 		const throttler = store.add(new RunOnceScheduler(update, 500));
 
 		return new Promise<void>(resolve => {
@@ -238,7 +328,7 @@ class RunTestTool implements IToolImpl {
 	 * test run to come in that contains one or more tasks and treat that as the
 	 * one we're looking for.
 	 */
-	private async _captureTestResult(testCases: IncrementalTestCollectionItem[], token: CancellationToken): Promise<LiveTestResult | undefined> {
+	private async _captureTestResult(testCases: IncrementalTestCollectionItem[], group: TestRunProfileBitset, token: CancellationToken): Promise<LiveTestResult | undefined> {
 		const store = new DisposableStore();
 		const onDidTimeout = store.add(new Emitter<void>());
 
@@ -257,7 +347,7 @@ class RunTestTool implements IToolImpl {
 			}));
 
 			this._testService.runTests({
-				group: TestRunProfileBitset.Run,
+				group,
 				tests: testCases,
 				preserveFocus: true,
 			}, token).then(() => {

@@ -6,7 +6,7 @@
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { CharCode } from '../../../../base/common/charCode.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { createCommandUri, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import * as platform from '../../../../base/common/platform.js';
 import { InvisibleCharacters, isBasicASCII } from '../../../../base/common/strings.js';
@@ -502,7 +502,7 @@ export class UnicodeHighlighterHoverParticipant implements IEditorHoverParticipa
 			};
 
 			const adjustSettings = nls.localize('unicodeHighlight.adjustSettings', 'Adjust settings');
-			const uri = `command:${ShowExcludeOptions.ID}?${encodeURIComponent(JSON.stringify(adjustSettingsArgs))}`;
+			const uri = createCommandUri(ShowExcludeOptions.ID, adjustSettingsArgs);
 			const markdown = new MarkdownString('', true)
 				.appendMarkdown(reason)
 				.appendText(' ')
@@ -794,6 +794,7 @@ async function excludeCharFromBeingHighlighted(configurationService: IConfigurat
 
 	let value: Record<string, boolean>;
 	if ((typeof existingValue === 'object') && existingValue) {
+		// eslint-disable-next-line local/code-no-any-casts
 		value = existingValue as any;
 	} else {
 		value = {};
@@ -812,6 +813,7 @@ async function excludeLocaleFromBeingHighlighted(configurationService: IConfigur
 	let value: Record<string, boolean>;
 	if ((typeof existingValue === 'object') && existingValue) {
 		// Copy value, as the existing value is read only
+		// eslint-disable-next-line local/code-no-any-casts
 		value = Object.assign({}, existingValue as any);
 	} else {
 		value = {};

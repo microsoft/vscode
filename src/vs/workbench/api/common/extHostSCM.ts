@@ -371,6 +371,7 @@ export class ExtHostSCMInputBox implements vscode.SourceControlInputBox {
 	showValidationMessage(message: string | vscode.MarkdownString, type: vscode.SourceControlInputBoxValidationType) {
 		checkProposedApiEnabled(this._extension, 'scmValidation');
 
+		// eslint-disable-next-line local/code-no-any-casts
 		this.#proxy.$showValidationMessage(this._sourceControlHandle, message, type as any);
 	}
 
@@ -1089,6 +1090,19 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		return Promise.resolve(undefined);
 	}
 
+	async $resolveHistoryItem(sourceControlHandle: number, historyItemId: string, token: CancellationToken): Promise<SCMHistoryItemDto | undefined> {
+		try {
+			const historyProvider = this._sourceControls.get(sourceControlHandle)?.historyProvider;
+			const historyItem = await historyProvider?.resolveHistoryItem(historyItemId, token);
+
+			return historyItem ? toSCMHistoryItemDto(historyItem) : undefined;
+		}
+		catch (err) {
+			this.logService.error('ExtHostSCM#$resolveHistoryItem', err);
+			return undefined;
+		}
+	}
+
 	async $resolveHistoryItemChatContext(sourceControlHandle: number, historyItemId: string, token: CancellationToken): Promise<string | undefined> {
 		try {
 			const historyProvider = this._sourceControls.get(sourceControlHandle)?.historyProvider;
@@ -1098,6 +1112,19 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		}
 		catch (err) {
 			this.logService.error('ExtHostSCM#$resolveHistoryItemChatContext', err);
+			return undefined;
+		}
+	}
+
+	async $resolveHistoryItemChangeRangeChatContext(sourceControlHandle: number, historyItemId: string, historyItemParentId: string, path: string, token: CancellationToken): Promise<string | undefined> {
+		try {
+			const historyProvider = this._sourceControls.get(sourceControlHandle)?.historyProvider;
+			const chatContext = await historyProvider?.resolveHistoryItemChangeRangeChatContext?.(historyItemId, historyItemParentId, path, token);
+
+			return chatContext ?? undefined;
+		}
+		catch (err) {
+			this.logService.error('ExtHostSCM#$resolveHistoryItemChangeRangeChatContext', err);
 			return undefined;
 		}
 	}

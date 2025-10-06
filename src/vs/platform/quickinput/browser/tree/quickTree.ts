@@ -38,6 +38,10 @@ export class QuickTree<T extends IQuickTreeItem> extends QuickInput implements I
 		this.onDidAccept = ui.onDidAccept;
 		this._registerAutoruns();
 		this._register(ui.tree.onDidChangeCheckedLeafItems(e => this._onDidChangeCheckedLeafItems.fire(e as T[])));
+		// Sync active items with tree focus changes
+		this._register(ui.tree.tree.onDidChangeFocus(e => {
+			this._activeItems.set(ui.tree.getActiveItems() as T[], undefined);
+		}));
 	}
 
 	get value(): string { return this._value.get(); }
@@ -66,6 +70,7 @@ export class QuickTree<T extends IQuickTreeItem> extends QuickInput implements I
 	}
 
 	// TODO: Fix the any casting
+	// eslint-disable-next-line local/code-no-any-casts
 	get checkedLeafItems(): readonly T[] { return this.ui.tree.getCheckedLeafItems() as any as readonly T[]; }
 
 	setItemTree(itemTree: T[]): void {

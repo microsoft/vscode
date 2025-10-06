@@ -186,12 +186,14 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		let hasMouse = false;
 		let hasFocus = false;
 		this._register(dom.addDisposableListener(this.container, dom.EventType.MOUSE_ENTER, (e) => {
+			// eslint-disable-next-line local/code-no-any-casts
 			if ((<any>e).toElement === this.container) {
 				hasMouse = true;
 				this.updateCurrentThread(hasMouse, hasFocus);
 			}
 		}, true));
 		this._register(dom.addDisposableListener(this.container, dom.EventType.MOUSE_LEAVE, (e) => {
+			// eslint-disable-next-line local/code-no-any-casts
 			if ((<any>e).fromElement === this.container) {
 				hasMouse = false;
 				this.updateCurrentThread(hasMouse, hasFocus);

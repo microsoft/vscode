@@ -62,7 +62,7 @@ export interface IAuthenticationCreateSessionOptions {
 	[key: string]: any;
 }
 
-export interface IAuthenticationWWWAuthenticateRequest {
+export interface IAuthenticationWwwAuthenticateRequest {
 	/**
 	 * The raw WWW-Authenticate header value that triggered this challenge.
 	 * This will be parsed by the authentication provider to extract the necessary
@@ -74,10 +74,10 @@ export interface IAuthenticationWWWAuthenticateRequest {
 	 * Optional scopes for the session. If not provided, the authentication provider
 	 * may use default scopes or extract them from the challenge.
 	 */
-	readonly scopes?: readonly string[];
+	readonly fallbackScopes?: readonly string[];
 }
 
-export function isAuthenticationWWWAuthenticateRequest(obj: unknown): obj is IAuthenticationWWWAuthenticateRequest {
+export function isAuthenticationWwwAuthenticateRequest(obj: unknown): obj is IAuthenticationWwwAuthenticateRequest {
 	return typeof obj === 'object'
 		&& obj !== null
 		&& 'wwwAuthenticate' in obj
@@ -99,7 +99,7 @@ export interface IAuthenticationConstraint {
 	 * Optional scopes for the session. If not provided, the authentication provider
 	 * may extract scopes from the challenges or use default scopes.
 	 */
-	readonly scopes?: readonly string[];
+	readonly fallbackScopes?: readonly string[];
 }
 
 /**
@@ -237,7 +237,7 @@ export interface IAuthenticationService {
 	 * @param options Additional options for getting sessions
 	 * @param activateImmediate If true, the provider should activate immediately if it is not already
 	 */
-	getSessions(id: string, scopeListOrRequest?: ReadonlyArray<string> | IAuthenticationWWWAuthenticateRequest, options?: IAuthenticationGetSessionsOptions, activateImmediate?: boolean): Promise<ReadonlyArray<AuthenticationSession>>;
+	getSessions(id: string, scopeListOrRequest?: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, options?: IAuthenticationGetSessionsOptions, activateImmediate?: boolean): Promise<ReadonlyArray<AuthenticationSession>>;
 
 	/**
 	 * Creates an AuthenticationSession with the given provider and scopes
@@ -245,7 +245,7 @@ export interface IAuthenticationService {
 	 * @param scopes The scopes to request
 	 * @param options Additional options for creating the session
 	 */
-	createSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWWWAuthenticateRequest, options?: IAuthenticationCreateSessionOptions): Promise<AuthenticationSession>;
+	createSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, options?: IAuthenticationCreateSessionOptions): Promise<AuthenticationSession>;
 
 	/**
 	 * Removes the session with the given id from the provider with the given id
@@ -355,9 +355,9 @@ export interface IAuthenticationExtensionsService {
 	 * @param scopes
 	 */
 	removeSessionPreference(providerId: string, extensionId: string, scopes: string[]): void;
-	selectSession(providerId: string, extensionId: string, extensionName: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWWWAuthenticateRequest, possibleSessions: readonly AuthenticationSession[]): Promise<AuthenticationSession>;
-	requestSessionAccess(providerId: string, extensionId: string, extensionName: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWWWAuthenticateRequest, possibleSessions: readonly AuthenticationSession[]): void;
-	requestNewSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWWWAuthenticateRequest, extensionId: string, extensionName: string): Promise<void>;
+	selectSession(providerId: string, extensionId: string, extensionName: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, possibleSessions: readonly AuthenticationSession[]): Promise<AuthenticationSession>;
+	requestSessionAccess(providerId: string, extensionId: string, extensionName: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, possibleSessions: readonly AuthenticationSession[]): void;
+	requestNewSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, extensionId: string, extensionName: string): Promise<void>;
 	updateNewSessionRequests(providerId: string, addedSessions: readonly AuthenticationSession[]): void;
 }
 

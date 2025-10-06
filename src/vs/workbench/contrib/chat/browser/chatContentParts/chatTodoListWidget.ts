@@ -9,7 +9,9 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IChatTodoListService, IChatTodo } from '../../common/chatTodoListService.js';
+import { TodoListToolDescriptionFieldSettingId } from '../../common/tools/manageTodoListTool.js';
 
 export class ChatTodoListWidget extends Disposable {
 	public readonly domNode: HTMLElement;
@@ -27,7 +29,8 @@ export class ChatTodoListWidget extends Disposable {
 	private _userHasScrolledManually: boolean = false;
 
 	constructor(
-		@IChatTodoListService private readonly chatTodoListService: IChatTodoListService
+		@IChatTodoListService private readonly chatTodoListService: IChatTodoListService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 
@@ -46,14 +49,17 @@ export class ChatTodoListWidget extends Disposable {
 		this.expandoElement.setAttribute('role', 'button');
 		this.expandoElement.setAttribute('aria-expanded', 'true');
 		this.expandoElement.setAttribute('tabindex', '0');
+		this.expandoElement.setAttribute('aria-controls', 'todo-list-container');
 
 		// Create title section to group icon and title
 		const titleSection = dom.$('.todo-list-title-section');
 
 		const expandIcon = dom.$('.expand-icon.codicon');
 		expandIcon.classList.add(this._isExpanded ? 'codicon-chevron-down' : 'codicon-chevron-right');
+		expandIcon.setAttribute('aria-hidden', 'true');
 
 		const titleElement = dom.$('.todo-list-title');
+		titleElement.id = 'todo-list-title';
 		titleElement.textContent = localize('chat.todoList.title', 'Todos');
 
 		// Add clear button container to the expand element
@@ -68,6 +74,9 @@ export class ChatTodoListWidget extends Disposable {
 
 		this.todoListContainer = dom.$('.todo-list-container');
 		this.todoListContainer.style.display = this._isExpanded ? 'block' : 'none';
+		this.todoListContainer.id = 'todo-list-container';
+		this.todoListContainer.setAttribute('role', 'list');
+		this.todoListContainer.setAttribute('aria-labelledby', 'todo-list-title');
 
 		container.appendChild(this.expandoElement);
 		container.appendChild(this.todoListContainer);
@@ -118,7 +127,7 @@ export class ChatTodoListWidget extends Disposable {
 		}
 
 		const todoList = this.chatTodoListService.getTodos(sessionId);
-		if (todoList.length > 0) {
+		if (todoList.length > 2) {
 			this.renderTodoList(todoList);
 			this.domNode.style.display = 'block';
 		} else {
@@ -130,14 +139,14 @@ export class ChatTodoListWidget extends Disposable {
 		this.updateTodoDisplay();
 	}
 
-	public clear(sessionId: string | undefined): void {
+	public clear(sessionId: string | undefined, force: boolean = false): void {
 		if (!sessionId || this.domNode.style.display === 'none') {
 			return;
 		}
 
 		const currentTodos = this.chatTodoListService.getTodos(sessionId);
-		const todoListCompleted = !currentTodos.some(todo => todo.status !== 'completed');
-		if (todoListCompleted) {
+		const shouldClear = force || !currentTodos.some(todo => todo.status !== 'completed');
+		if (shouldClear) {
 			this.clearAllTodos();
 		}
 	}
@@ -180,24 +189,45 @@ export class ChatTodoListWidget extends Disposable {
 		let firstPendingAfterCompletedIndex = -1;
 
 		todoList.forEach((todo, index) => {
-			const todoElement = dom.$('.todo-item');
+			const todoElement = dom.$('li.todo-item');
+			todoElement.setAttribute('role', 'listitem');
+			todoElement.setAttribute('tabindex', '0');
 
-			// Add tooltip if description exists
-			if (todo.description && todo.description.trim()) {
+			// Add tooltip if description exists and description field is enabled
+			const includeDescription = this.configurationService.getValue<boolean>(TodoListToolDescriptionFieldSettingId) !== false;
+			if (includeDescription && todo.description && todo.description.trim()) {
 				todoElement.title = todo.description;
 			}
 
 			const statusIcon = dom.$('.todo-status-icon.codicon');
 			statusIcon.classList.add(this.getStatusIconClass(todo.status));
 			statusIcon.style.color = this.getStatusIconColor(todo.status);
-
-			const todoContent = dom.$('.todo-content');
+			// Hide decorative icon from screen readers
+			statusIcon.setAttribute('aria-hidden', 'true');
 
 			const titleElement = dom.$('.todo-title');
 			titleElement.textContent = todo.title;
 
-			todoContent.appendChild(titleElement);
+			// Add hidden status text for screen readers
+			const statusText = this.getStatusText(todo.status);
+			const statusElement = dom.$('.todo-status-text');
+			statusElement.id = `todo-status-${index}`;
+			statusElement.textContent = statusText;
+			statusElement.style.position = 'absolute';
+			statusElement.style.left = '-10000px';
+			statusElement.style.width = '1px';
+			statusElement.style.height = '1px';
+			statusElement.style.overflow = 'hidden';
 
+			const todoContent = dom.$('.todo-content');
+			todoContent.appendChild(titleElement);
+			todoContent.appendChild(statusElement);
+
+			const ariaLabel = includeDescription && todo.description && todo.description.trim()
+				? localize('chat.todoList.itemWithDescription', '{0}, {1}, {2}', todo.title, statusText, todo.description)
+				: localize('chat.todoList.item', '{0}, {1}', todo.title, statusText);
+			todoElement.setAttribute('aria-label', ariaLabel);
+			todoElement.setAttribute('aria-describedby', `todo-status-${index}`);
 			todoElement.appendChild(statusIcon);
 			todoElement.appendChild(todoContent);
 
@@ -326,31 +356,16 @@ export class ChatTodoListWidget extends Disposable {
 			progressText.textContent = localize('chat.todoList.titleWithProgress', 'Todos ({0}/{1})', completedCount, totalCount);
 		}
 		titleElement.appendChild(progressText);
-
+		const expandButtonLabel = this._isExpanded
+			? localize('chat.todoList.collapseButtonWithProgress', 'Collapse {0}', progressText.textContent)
+			: localize('chat.todoList.expandButtonWithProgress', 'Expand {0}', progressText.textContent);
+		this.expandoElement.setAttribute('aria-label', expandButtonLabel);
+		this.expandoElement.setAttribute('aria-expanded', this._isExpanded ? 'true' : 'false');
+		let title = progressText.textContent || '';
 		if (!this._isExpanded) {
 			let currentTodo: IChatTodo | undefined;
-
-			if (!firstInProgressTodo) {
-				if (completedCount > 0 && completedCount < totalCount && lastCompletedTodo) {
-					currentTodo = lastCompletedTodo;
-					// Add separator
-					const separator = dom.$('span');
-					separator.textContent = ' - ';
-					titleElement.appendChild(separator);
-
-					const icon = dom.$('.codicon.codicon-check');
-					icon.style.color = 'var(--vscode-charts-green)';
-					icon.style.marginRight = '4px';
-					icon.style.verticalAlign = 'middle';
-					titleElement.appendChild(icon);
-
-					// Add completed todo title
-					const completedText = dom.$('span');
-					completedText.textContent = lastCompletedTodo.title;
-					completedText.style.verticalAlign = 'middle';
-					titleElement.appendChild(completedText);
-				}
-			} else {
+			// Priority 1: Show first in-progress todo (matches manageTodoListTool logic)
+			if (firstInProgressTodo) {
 				currentTodo = firstInProgressTodo;
 				const separator = dom.$('span');
 				separator.textContent = ' - ';
@@ -367,11 +382,46 @@ export class ChatTodoListWidget extends Disposable {
 				inProgressText.style.verticalAlign = 'middle';
 				titleElement.appendChild(inProgressText);
 			}
-			if (currentTodo && currentTodo.description && currentTodo.description.trim()) {
-				this.expandoElement.title = currentTodo.description;
+			// Priority 2: Show last completed todo if not all completed (matches manageTodoListTool logic)
+			else if (completedCount > 0 && completedCount < totalCount && lastCompletedTodo) {
+				currentTodo = lastCompletedTodo;
+
+				const separator = dom.$('span');
+				separator.textContent = ' - ';
+				titleElement.appendChild(separator);
+
+				const icon = dom.$('.codicon.codicon-check');
+				icon.style.color = 'var(--vscode-charts-green)';
+				icon.style.marginRight = '4px';
+				icon.style.verticalAlign = 'middle';
+				titleElement.appendChild(icon);
+
+				const completedText = dom.$('span');
+				completedText.textContent = lastCompletedTodo.title;
+				completedText.style.verticalAlign = 'middle';
+				titleElement.appendChild(completedText);
 			}
-		} else {
-			this.expandoElement.title = progressText.textContent || '';
+			const includeDescription = this.configurationService.getValue<boolean>(TodoListToolDescriptionFieldSettingId) !== false;
+			if (includeDescription && currentTodo && currentTodo.description && currentTodo.description.trim()) {
+				title = currentTodo.description;
+			}
+		}
+
+		const titleSection = this.expandoElement.querySelector('.todo-list-title-section') as HTMLElement;
+		if (titleSection) {
+			titleSection.title = title;
+		}
+	}
+
+	private getStatusText(status: string): string {
+		switch (status) {
+			case 'completed':
+				return localize('chat.todoList.status.completed', 'completed');
+			case 'in-progress':
+				return localize('chat.todoList.status.inProgress', 'in progress');
+			case 'not-started':
+			default:
+				return localize('chat.todoList.status.notStarted', 'not started');
 		}
 	}
 

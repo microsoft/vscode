@@ -188,6 +188,9 @@ export interface CellLayoutInfo {
 	readonly commentHeight: number;
 	readonly bottomToolbarOffset: number;
 	readonly totalHeight: number;
+	readonly topMargin: number;
+	readonly bottomMargin: number;
+	readonly outlineWidth: number;
 }
 
 export interface CellLayoutChangeEvent {

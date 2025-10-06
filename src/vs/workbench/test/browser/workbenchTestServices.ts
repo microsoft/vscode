@@ -3,188 +3,192 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { FileEditorInput } from '../../contrib/files/browser/editors/fileEditorInput.js';
-import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { basename, isEqual } from '../../../base/common/resources.js';
-import { URI } from '../../../base/common/uri.js';
-import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../platform/telemetry/common/telemetry.js';
-import { NullTelemetryService } from '../../../platform/telemetry/common/telemetryUtils.js';
-import { EditorInput } from '../../common/editor/editorInput.js';
-import { EditorInputWithOptions, IEditorIdentifier, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorPane, IEditorCloseEvent, IEditorPartOptions, IRevertOptions, GroupIdentifier, EditorsOrder, IFileEditorInput, IEditorFactoryRegistry, IEditorSerializer, EditorExtensions, ISaveOptions, IMoveResult, ITextDiffEditorPane, IVisibleEditorPane, IEditorOpenContext, EditorExtensions as Extensions, EditorInputCapabilities, IUntypedEditorInput, IEditorWillMoveEvent, IEditorWillOpenEvent, IActiveEditorChangeEvent, EditorPaneSelectionChangeReason, IEditorPaneSelection, IToolbarActions } from '../../common/editor.js';
-import { EditorServiceImpl, IEditorGroupView, IEditorGroupsView, IEditorGroupTitleHeight, DEFAULT_EDITOR_PART_OPTIONS } from '../../browser/parts/editor/editor.js';
-import { Event, Emitter } from '../../../base/common/event.js';
-import { IResolvedWorkingCopyBackup, IWorkingCopyBackupService } from '../../services/workingCopy/common/workingCopyBackup.js';
-import { IConfigurationService, ConfigurationTarget, IConfigurationValue } from '../../../platform/configuration/common/configuration.js';
-import { IWorkbenchLayoutService, PanelAlignment, Parts, Position as PartPosition } from '../../services/layout/browser/layoutService.js';
-import { TextModelResolverService } from '../../services/textmodelResolver/common/textModelResolverService.js';
-import { ITextModelService } from '../../../editor/common/services/resolverService.js';
-import { IEditorOptions, IResourceEditorInput, IResourceEditorInputIdentifier, ITextResourceEditorInput, ITextEditorOptions } from '../../../platform/editor/common/editor.js';
-import { IUntitledTextEditorModelManager, IUntitledTextEditorService, UntitledTextEditorService } from '../../services/untitled/common/untitledTextEditorService.js';
-import { IWorkspaceContextService, IWorkspaceIdentifier } from '../../../platform/workspace/common/workspace.js';
-import { ILifecycleService, ShutdownReason, StartupKind, LifecyclePhase, WillShutdownEvent, BeforeShutdownErrorEvent, InternalBeforeShutdownEvent, IWillShutdownEventJoiner } from '../../services/lifecycle/common/lifecycle.js';
-import { ServiceCollection } from '../../../platform/instantiation/common/serviceCollection.js';
-import { FileOperationEvent, IFileService, IFileStat, IFileStatResult, FileChangesEvent, IResolveFileOptions, ICreateFileOptions, IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileType, IFileDeleteOptions, IFileOverwriteOptions, IFileWriteOptions, IFileOpenOptions, IFileStatWithMetadata, IResolveMetadataFileOptions, IWriteFileOptions, IReadFileOptions, IFileContent, IFileStreamContent, FileOperationError, IFileSystemProviderWithFileReadStreamCapability, IFileReadStreamOptions, IReadFileStreamOptions, IFileSystemProviderCapabilitiesChangeEvent, IFileStatWithPartialMetadata, IFileSystemWatcher, IWatchOptionsWithCorrelation, IFileSystemProviderActivationEvent } from '../../../platform/files/common/files.js';
-import { IModelService } from '../../../editor/common/services/model.js';
-import { LanguageService } from '../../../editor/common/services/languageService.js';
-import { ModelService } from '../../../editor/common/services/modelService.js';
-import { IResourceEncoding, ITextFileService, IReadTextFileOptions, ITextFileStreamContent, IWriteTextFileOptions, ITextFileEditorModel, ITextFileEditorModelManager } from '../../services/textfile/common/textfiles.js';
-import { ILanguageService } from '../../../editor/common/languages/language.js';
-import { IHistoryService } from '../../services/history/common/history.js';
-import { IInstantiationService, ServiceIdentifier } from '../../../platform/instantiation/common/instantiation.js';
-import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
-import { MenuBarVisibility, IWindowOpenable, IOpenWindowOptions, IOpenEmptyWindowOptions, IRectangle } from '../../../platform/window/common/window.js';
-import { TestWorkspace } from '../../../platform/workspace/test/common/testWorkspace.js';
-import { IEnvironmentService } from '../../../platform/environment/common/environment.js';
-import { IThemeService } from '../../../platform/theme/common/themeService.js';
-import { ThemeIcon } from '../../../base/common/themables.js';
-import { TestThemeService } from '../../../platform/theme/test/common/testThemeService.js';
-import { ITextResourceConfigurationService, ITextResourcePropertiesService } from '../../../editor/common/services/textResourceConfiguration.js';
-import { IPosition, Position as EditorPosition } from '../../../editor/common/core/position.js';
-import { IMenuService, MenuId, IMenu, IMenuChangeEvent, IMenuActionOptions, MenuItemAction, SubmenuItemAction } from '../../../platform/actions/common/actions.js';
-import { ContextKeyValue, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
-import { MockContextKeyService, MockKeybindingService } from '../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { ITextBufferFactory, DefaultEndOfLine, EndOfLinePreference, ITextSnapshot } from '../../../editor/common/model.js';
-import { Range } from '../../../editor/common/core/range.js';
-import { IDialogService, IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, IFileDialogService, ConfirmResult } from '../../../platform/dialogs/common/dialogs.js';
-import { INotificationService } from '../../../platform/notification/common/notification.js';
-import { TestNotificationService } from '../../../platform/notification/test/common/testNotificationService.js';
-import { IExtensionService } from '../../services/extensions/common/extensions.js';
-import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
-import { IDecorationsService, IResourceDecorationChangeEvent, IDecoration, IDecorationData, IDecorationsProvider } from '../../services/decorations/common/decorations.js';
-import { IDisposable, toDisposable, Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
-import { IEditorGroupsService, IEditorGroup, GroupsOrder, GroupsArrangement, GroupDirection, IMergeGroupOptions, IEditorReplacement, IFindGroupScope, EditorGroupLayout, ICloseEditorOptions, GroupOrientation, ICloseAllEditorsOptions, ICloseEditorsFilter, IEditorDropTargetDelegate, IEditorPart, IAuxiliaryEditorPart, IEditorGroupsContainer, IEditorWorkingSet, IEditorGroupContextKeyProvider, IEditorWorkingSetOptions } from '../../services/editor/common/editorGroupsService.js';
-import { IEditorService, ISaveEditorsOptions, IRevertAllEditorsOptions, PreferredGroup, IEditorsChangeEvent, ISaveEditorsResult } from '../../services/editor/common/editorService.js';
-import { ICodeEditorService } from '../../../editor/browser/services/codeEditorService.js';
-import { IEditorPaneRegistry, EditorPaneDescriptor } from '../../browser/editor.js';
+import { IContextMenuDelegate } from '../../../base/browser/contextmenu.js';
 import { IDimension } from '../../../base/browser/dom.js';
-import { ILoggerService, ILogService, NullLogService } from '../../../platform/log/common/log.js';
-import { ILabelService } from '../../../platform/label/common/label.js';
-import { DeferredPromise, timeout } from '../../../base/common/async.js';
-import { PaneComposite, PaneCompositeDescriptor } from '../../browser/panecomposite.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../platform/storage/common/storage.js';
-import { IProcessEnvironment, isLinux, isWindows, OperatingSystem } from '../../../base/common/platform.js';
-import { LabelService } from '../../services/label/common/labelService.js';
-import { Part } from '../../browser/part.js';
-import { bufferToStream, VSBuffer, VSBufferReadable, VSBufferReadableStream } from '../../../base/common/buffer.js';
-import { Schemas } from '../../../base/common/network.js';
-import { IProductService } from '../../../platform/product/common/productService.js';
-import product from '../../../platform/product/common/product.js';
-import { IHostService } from '../../services/host/browser/host.js';
-import { IWorkingCopyService, WorkingCopyService } from '../../services/workingCopy/common/workingCopyService.js';
-import { IWorkingCopy, IWorkingCopyBackupMeta, IWorkingCopyIdentifier } from '../../services/workingCopy/common/workingCopy.js';
-import { IFilesConfigurationService, FilesConfigurationService } from '../../services/filesConfiguration/common/filesConfigurationService.js';
-import { IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
-import { BrowserWorkbenchEnvironmentService } from '../../services/environment/browser/environmentService.js';
-import { BrowserTextFileService } from '../../services/textfile/browser/browserTextFileService.js';
-import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
-import { createTextBufferFactoryFromStream } from '../../../editor/common/model/textModel.js';
-import { IPathService } from '../../services/path/common/pathService.js';
 import { Direction, IViewSize } from '../../../base/browser/ui/grid/grid.js';
-import { IProgressService, IProgressOptions, IProgressWindowOptions, IProgressNotificationOptions, IProgressCompositeOptions, IProgress, IProgressStep, Progress, IProgressDialogOptions, IProgressIndicator } from '../../../platform/progress/common/progress.js';
-import { IWorkingCopyFileService, WorkingCopyFileService } from '../../services/workingCopy/common/workingCopyFileService.js';
-import { UndoRedoService } from '../../../platform/undoRedo/common/undoRedoService.js';
-import { IUndoRedoService } from '../../../platform/undoRedo/common/undoRedo.js';
-import { TextFileEditorModel } from '../../services/textfile/common/textFileEditorModel.js';
-import { Registry } from '../../../platform/registry/common/platform.js';
-import { EditorPane } from '../../browser/parts/editor/editorPane.js';
+import { mainWindow } from '../../../base/browser/window.js';
+import { DeferredPromise, timeout } from '../../../base/common/async.js';
+import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
-import { SyncDescriptor } from '../../../platform/instantiation/common/descriptors.js';
-import { TestDialogService } from '../../../platform/dialogs/test/common/testDialogService.js';
-import { CodeEditorService } from '../../services/editor/browser/codeEditorService.js';
-import { MainEditorPart } from '../../browser/parts/editor/editorPart.js';
-import { ICodeEditor } from '../../../editor/browser/editorBrowser.js';
-import { IDiffEditor, IEditor } from '../../../editor/common/editorCommon.js';
-import { IInputBox, IInputOptions, IPickOptions, IQuickInputButton, IQuickInputService, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickTree, IQuickTreeItem, IQuickWidget, QuickPickInput } from '../../../platform/quickinput/common/quickInput.js';
-import { QuickInputService } from '../../services/quickinput/browser/quickInputService.js';
-import { IListService } from '../../../platform/list/browser/listService.js';
-import { win32, posix } from '../../../base/common/path.js';
-import { TestContextService, TestStorageService, TestTextResourcePropertiesService, TestExtensionService, TestProductService, createFileStat, TestLoggerService, TestWorkspaceTrustManagementService, TestWorkspaceTrustRequestService, TestMarkerService, TestHistoryService } from '../common/workbenchTestServices.js';
-import { IView, IViewDescriptor, ViewContainer, ViewContainerLocation } from '../../common/views.js';
-import { IViewsService } from '../../services/views/common/viewsService.js';
-import { IPaneComposite } from '../../common/panecomposite.js';
-import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';
-import { UriIdentityService } from '../../../platform/uriIdentity/common/uriIdentityService.js';
-import { InMemoryFileSystemProvider } from '../../../platform/files/common/inMemoryFilesystemProvider.js';
-import { newWriteableStream, ReadableStreamEvents } from '../../../base/common/stream.js';
-import { EncodingOracle, IEncodingOverride } from '../../services/textfile/browser/textFileService.js';
-import { UTF16le, UTF16be, UTF8_with_bom } from '../../services/textfile/common/encoding.js';
-import { ColorScheme } from '../../../platform/theme/common/theme.js';
-import { Iterable } from '../../../base/common/iterator.js';
-import { InMemoryWorkingCopyBackupService } from '../../services/workingCopy/common/workingCopyBackupService.js';
-import { BrowserWorkingCopyBackupService } from '../../services/workingCopy/browser/workingCopyBackupService.js';
-import { FileService } from '../../../platform/files/common/fileService.js';
-import { TextResourceEditor } from '../../browser/parts/editor/textResourceEditor.js';
-import { TestCodeEditor } from '../../../editor/test/browser/testCodeEditor.js';
-import { TextFileEditor } from '../../contrib/files/browser/editors/textFileEditor.js';
-import { TextResourceEditorInput } from '../../common/editor/textResourceEditorInput.js';
-import { UntitledTextEditorInput } from '../../services/untitled/common/untitledTextEditorInput.js';
-import { SideBySideEditor } from '../../browser/parts/editor/sideBySideEditor.js';
-import { IEnterWorkspaceResult, IRecent, IRecentlyOpened, IWorkspaceFolderCreationData, IWorkspacesService } from '../../../platform/workspaces/common/workspaces.js';
-import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../platform/workspace/common/workspaceTrust.js';
-import { IExtensionTerminalProfile, IShellLaunchConfig, ITerminalBackend, ITerminalLogService, ITerminalProfile, TerminalIcon, TerminalLocation, TerminalShellType } from '../../../platform/terminal/common/terminal.js';
-import { ICreateTerminalOptions, IDeserializedTerminalEditorInput, ITerminalConfigurationService, ITerminalEditorService, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, TerminalEditorLocation } from '../../contrib/terminal/browser/terminal.js';
-import { assertReturnsDefined, upcast } from '../../../base/common/types.js';
-import { IRegisterContributedProfileArgs, IShellLaunchConfigResolveOptions, ITerminalProfileProvider, ITerminalProfileResolverService, ITerminalProfileService, type ITerminalConfiguration } from '../../contrib/terminal/common/terminal.js';
-import { EditorResolverService } from '../../services/editor/browser/editorResolverService.js';
-import { FILE_EDITOR_INPUT_ID } from '../../contrib/files/common/files.js';
-import { IEditorResolverService } from '../../services/editor/common/editorResolverService.js';
-import { IWorkingCopyEditorService, WorkingCopyEditorService } from '../../services/workingCopy/common/workingCopyEditorService.js';
-import { IElevatedFileService } from '../../services/files/common/elevatedFileService.js';
-import { BrowserElevatedFileService } from '../../services/files/browser/elevatedFileService.js';
-import { IEditorWorkerService } from '../../../editor/common/services/editorWorker.js';
-import { ResourceMap } from '../../../base/common/map.js';
-import { SideBySideEditorInput } from '../../common/editor/sideBySideEditorInput.js';
-import { ITextEditorService, TextEditorService } from '../../services/textfile/common/textEditorService.js';
-import { IPaneCompositePartService } from '../../services/panecomposite/browser/panecomposite.js';
-import { IPaneCompositePart } from '../../browser/parts/paneCompositePart.js';
-import { ILanguageConfigurationService } from '../../../editor/common/languages/languageConfigurationRegistry.js';
-import { TestLanguageConfigurationService } from '../../../editor/test/common/modes/testLanguageConfigurationService.js';
-import { TerminalEditorInput } from '../../contrib/terminal/browser/terminalEditorInput.js';
-import { IGroupModelChangeEvent } from '../../common/editor/editorGroupModel.js';
-import { env } from '../../../base/common/process.js';
+import { Codicon } from '../../../base/common/codicons.js';
+import { Emitter, Event } from '../../../base/common/event.js';
 import { isValidBasename } from '../../../base/common/extpath.js';
-import { TestAccessibilityService } from '../../../platform/accessibility/test/common/testAccessibilityService.js';
+import { IMarkdownString } from '../../../base/common/htmlContent.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { Schemas } from '../../../base/common/network.js';
+import { observableValue } from '../../../base/common/observable.js';
+import { posix, win32 } from '../../../base/common/path.js';
+import { IProcessEnvironment, isWindows, OperatingSystem } from '../../../base/common/platform.js';
+import { env } from '../../../base/common/process.js';
+import { basename, isEqual } from '../../../base/common/resources.js';
+import { newWriteableStream, ReadableStreamEvents } from '../../../base/common/stream.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
+import { assertReturnsDefined, upcast } from '../../../base/common/types.js';
+import { URI } from '../../../base/common/uri.js';
+import { ICodeEditor } from '../../../editor/browser/editorBrowser.js';
+import { ICodeEditorService } from '../../../editor/browser/services/codeEditorService.js';
+import { Position as EditorPosition, IPosition } from '../../../editor/common/core/position.js';
+import { Range } from '../../../editor/common/core/range.js';
+import { Selection } from '../../../editor/common/core/selection.js';
+import { IDiffEditor, IEditor } from '../../../editor/common/editorCommon.js';
+import { ILanguageService } from '../../../editor/common/languages/language.js';
+import { ILanguageConfigurationService } from '../../../editor/common/languages/languageConfigurationRegistry.js';
+import { DefaultEndOfLine, EndOfLinePreference, ITextBufferFactory, ITextSnapshot } from '../../../editor/common/model.js';
+import { createTextBufferFactoryFromStream } from '../../../editor/common/model/textModel.js';
+import { IEditorWorkerService } from '../../../editor/common/services/editorWorker.js';
 import { ILanguageFeatureDebounceService, LanguageFeatureDebounceService } from '../../../editor/common/services/languageFeatureDebounce.js';
 import { ILanguageFeaturesService } from '../../../editor/common/services/languageFeatures.js';
 import { LanguageFeaturesService } from '../../../editor/common/services/languageFeaturesService.js';
-import { TextEditorPaneSelection } from '../../browser/parts/editor/textEditor.js';
-import { Selection } from '../../../editor/common/core/selection.js';
-import { IFolderBackupInfo, IWorkspaceBackupInfo } from '../../../platform/backup/common/backup.js';
+import { LanguageService } from '../../../editor/common/services/languageService.js';
+import { IModelService } from '../../../editor/common/services/model.js';
+import { ModelService } from '../../../editor/common/services/modelService.js';
+import { ITextModelService } from '../../../editor/common/services/resolverService.js';
+import { ITextResourceConfigurationService, ITextResourcePropertiesService } from '../../../editor/common/services/textResourceConfiguration.js';
+import { ITreeSitterLibraryService } from '../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
+import { TestCodeEditor } from '../../../editor/test/browser/testCodeEditor.js';
+import { TestLanguageConfigurationService } from '../../../editor/test/common/modes/testLanguageConfigurationService.js';
 import { TestEditorWorkerService } from '../../../editor/test/common/services/testEditorWorkerService.js';
-import { IExtensionHostExitInfo, IRemoteAgentConnection, IRemoteAgentService } from '../../services/remote/common/remoteAgentService.js';
-import { ILanguageDetectionService } from '../../services/languageDetection/common/languageDetectionWorkerService.js';
-import { IDiagnosticInfoOptions, IDiagnosticInfo } from '../../../platform/diagnostics/common/diagnostics.js';
-import { ExtensionType, IExtension, IExtensionDescription, IRelaxedExtensionManifest, TargetPlatform } from '../../../platform/extensions/common/extensions.js';
-import { IRemoteAgentEnvironment } from '../../../platform/remote/common/remoteAgentEnvironment.js';
-import { ILayoutOffsetInfo } from '../../../platform/layout/browser/layoutService.js';
-import { IUserDataProfile, IUserDataProfilesService, toUserDataProfile, UserDataProfilesService } from '../../../platform/userDataProfile/common/userDataProfile.js';
-import { UserDataProfileService } from '../../services/userDataProfile/common/userDataProfileService.js';
-import { IUserDataProfileService } from '../../services/userDataProfile/common/userDataProfile.js';
-import { EnablementState, IExtensionManagementServer, IResourceExtension, IScannedExtension, IWebExtensionsScannerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from '../../services/extensionManagement/common/extensionManagement.js';
-import { ILocalExtension, IGalleryExtension, InstallOptions, UninstallOptions, IExtensionsControlManifest, IGalleryMetadata, IExtensionManagementParticipant, Metadata, InstallExtensionResult, InstallExtensionInfo, UninstallExtensionInfo, InstallExtensionSummary } from '../../../platform/extensionManagement/common/extensionManagement.js';
-import { Codicon } from '../../../base/common/codicons.js';
-import { IRemoteExtensionsScannerService } from '../../../platform/remote/common/remoteExtensionsScanner.js';
-import { IRemoteSocketFactoryService, RemoteSocketFactoryService } from '../../../platform/remote/common/remoteSocketFactoryService.js';
-import { EditorParts } from '../../browser/parts/editor/editorParts.js';
-import { mainWindow } from '../../../base/browser/window.js';
-import { IMarkerService } from '../../../platform/markers/common/markers.js';
+import { TestTreeSitterLibraryService } from '../../../editor/test/common/services/testTreeSitterLibraryService.js';
+import { IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
+import { TestAccessibilityService } from '../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { IAccessibilitySignalService } from '../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
-import { IEditorPaneService } from '../../services/editor/common/editorPaneService.js';
-import { EditorPaneService } from '../../services/editor/browser/editorPaneService.js';
-import { IContextMenuService, IContextViewService } from '../../../platform/contextview/browser/contextView.js';
-import { ContextViewService } from '../../../platform/contextview/browser/contextViewService.js';
-import { CustomEditorLabelService, ICustomEditorLabelService } from '../../services/editor/common/customEditorLabelService.js';
-import { TerminalConfigurationService } from '../../contrib/terminal/browser/terminalConfigurationService.js';
-import { TerminalLogService } from '../../../platform/terminal/common/terminalLogService.js';
-import { IEnvironmentVariableService } from '../../contrib/terminal/common/environmentVariable.js';
-import { EnvironmentVariableService } from '../../contrib/terminal/common/environmentVariableService.js';
+import { IActionViewItemService, NullActionViewItemService } from '../../../platform/actions/browser/actionViewItemService.js';
+import { IMenu, IMenuActionOptions, IMenuChangeEvent, IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from '../../../platform/actions/common/actions.js';
+import { IFolderBackupInfo, IWorkspaceBackupInfo } from '../../../platform/backup/common/backup.js';
+import { ConfigurationTarget, IConfigurationService, IConfigurationValue } from '../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyValue, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { ContextMenuService } from '../../../platform/contextview/browser/contextMenuService.js';
+import { IContextMenuMenuDelegate, IContextMenuService, IContextViewService } from '../../../platform/contextview/browser/contextView.js';
+import { ContextViewService } from '../../../platform/contextview/browser/contextViewService.js';
+import { IDiagnosticInfo, IDiagnosticInfoOptions } from '../../../platform/diagnostics/common/diagnostics.js';
+import { ConfirmResult, IDialogService, IFileDialogService, IOpenDialogOptions, IPickAndOpenOptions, ISaveDialogOptions } from '../../../platform/dialogs/common/dialogs.js';
+import { TestDialogService } from '../../../platform/dialogs/test/common/testDialogService.js';
+import { IEditorOptions, IResourceEditorInput, IResourceEditorInputIdentifier, ITextEditorOptions, ITextResourceEditorInput } from '../../../platform/editor/common/editor.js';
+import { IEnvironmentService } from '../../../platform/environment/common/environment.js';
+import { IExtensionManagementParticipant, IExtensionsControlManifest, IGalleryExtension, IGalleryMetadata, ILocalExtension, InstallExtensionInfo, InstallExtensionResult, InstallExtensionSummary, InstallOptions, Metadata, UninstallExtensionInfo, UninstallOptions } from '../../../platform/extensionManagement/common/extensionManagement.js';
+import { ExtensionType, IExtension, IExtensionDescription, IRelaxedExtensionManifest, TargetPlatform } from '../../../platform/extensions/common/extensions.js';
+import { FileOperationError, FileSystemProviderCapabilities, FileType, IFileChange, IFileDeleteOptions, IFileOpenOptions, IFileOverwriteOptions, IFileReadStreamOptions, IFileService, IFileStatWithMetadata, IFileSystemProvider, IFileSystemProviderWithFileReadStreamCapability, IFileWriteOptions, IStat, IWatchOptions } from '../../../platform/files/common/files.js';
+import { FileService } from '../../../platform/files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { IHoverService } from '../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../platform/hover/test/browser/nullHoverService.js';
-import { IActionViewItemService, NullActionViewItemService } from '../../../platform/actions/browser/actionViewItemService.js';
-import { IMarkdownString } from '../../../base/common/htmlContent.js';
-import { ITreeSitterLibraryService } from '../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
-import { TestTreeSitterLibraryService } from '../../../editor/test/common/services/testTreeSitterLibraryService.js';
+import { SyncDescriptor } from '../../../platform/instantiation/common/descriptors.js';
+import { IInstantiationService, ServiceIdentifier } from '../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../platform/instantiation/common/serviceCollection.js';
+import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
+import { MockContextKeyService, MockKeybindingService } from '../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { ILabelService } from '../../../platform/label/common/label.js';
+import { ILayoutOffsetInfo } from '../../../platform/layout/browser/layoutService.js';
+import { IListService } from '../../../platform/list/browser/listService.js';
+import { ILoggerService, ILogService, NullLogService } from '../../../platform/log/common/log.js';
+import { IMarkerService } from '../../../platform/markers/common/markers.js';
+import { INotificationService } from '../../../platform/notification/common/notification.js';
+import { TestNotificationService } from '../../../platform/notification/test/common/testNotificationService.js';
+import product from '../../../platform/product/common/product.js';
+import { IProductService } from '../../../platform/product/common/productService.js';
+import { IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressIndicator, IProgressNotificationOptions, IProgressOptions, IProgressService, IProgressStep, IProgressWindowOptions, Progress } from '../../../platform/progress/common/progress.js';
+import { IInputBox, IInputOptions, IPickOptions, IQuickInputButton, IQuickInputService, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickTree, IQuickTreeItem, IQuickWidget, QuickPickInput } from '../../../platform/quickinput/common/quickInput.js';
+import { Registry } from '../../../platform/registry/common/platform.js';
+import { IRemoteAgentEnvironment } from '../../../platform/remote/common/remoteAgentEnvironment.js';
+import { IRemoteExtensionsScannerService } from '../../../platform/remote/common/remoteExtensionsScanner.js';
+import { IRemoteSocketFactoryService, RemoteSocketFactoryService } from '../../../platform/remote/common/remoteSocketFactoryService.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../platform/storage/common/storage.js';
+import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../platform/telemetry/common/telemetryUtils.js';
+import { IExtensionTerminalProfile, IShellLaunchConfig, ITerminalBackend, ITerminalLogService, ITerminalProfile, TerminalIcon, TerminalLocation, TerminalShellType } from '../../../platform/terminal/common/terminal.js';
+import { TerminalLogService } from '../../../platform/terminal/common/terminalLogService.js';
+import { ColorScheme } from '../../../platform/theme/common/theme.js';
+import { IThemeService } from '../../../platform/theme/common/themeService.js';
+import { TestThemeService } from '../../../platform/theme/test/common/testThemeService.js';
+import { IUndoRedoService } from '../../../platform/undoRedo/common/undoRedo.js';
+import { UndoRedoService } from '../../../platform/undoRedo/common/undoRedoService.js';
+import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';
+import { UriIdentityService } from '../../../platform/uriIdentity/common/uriIdentityService.js';
+import { IUserDataProfile, IUserDataProfilesService, UserDataProfilesService } from '../../../platform/userDataProfile/common/userDataProfile.js';
+import { IOpenEmptyWindowOptions, IOpenWindowOptions, IRectangle, IWindowOpenable, MenuBarVisibility } from '../../../platform/window/common/window.js';
+import { IWorkspaceContextService, IWorkspaceIdentifier } from '../../../platform/workspace/common/workspace.js';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../platform/workspace/common/workspaceTrust.js';
+import { TestWorkspace } from '../../../platform/workspace/test/common/testWorkspace.js';
+import { IEnterWorkspaceResult, IRecent, IRecentlyOpened, IWorkspaceFolderCreationData, IWorkspacesService } from '../../../platform/workspaces/common/workspaces.js';
+import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../browser/editor.js';
+import { PaneComposite, PaneCompositeDescriptor } from '../../browser/panecomposite.js';
+import { Part } from '../../browser/part.js';
+import { DEFAULT_EDITOR_PART_OPTIONS, EditorServiceImpl, IEditorGroupsView, IEditorGroupTitleHeight, IEditorGroupView } from '../../browser/parts/editor/editor.js';
+import { EditorPane } from '../../browser/parts/editor/editorPane.js';
+import { MainEditorPart } from '../../browser/parts/editor/editorPart.js';
+import { EditorParts } from '../../browser/parts/editor/editorParts.js';
+import { SideBySideEditor } from '../../browser/parts/editor/sideBySideEditor.js';
+import { TextEditorPaneSelection } from '../../browser/parts/editor/textEditor.js';
+import { TextResourceEditor } from '../../browser/parts/editor/textResourceEditor.js';
+import { IPaneCompositePart } from '../../browser/parts/paneCompositePart.js';
+import { EditorExtensions, EditorInputCapabilities, EditorInputWithOptions, EditorPaneSelectionChangeReason, EditorsOrder, EditorExtensions as Extensions, GroupIdentifier, IActiveEditorChangeEvent, IEditorCloseEvent, IEditorFactoryRegistry, IEditorIdentifier, IEditorOpenContext, IEditorPane, IEditorPaneSelection, IEditorPartOptions, IEditorSerializer, IEditorWillMoveEvent, IEditorWillOpenEvent, IFileEditorInput, IMoveResult, IResourceDiffEditorInput, IRevertOptions, ISaveOptions, ITextDiffEditorPane, IToolbarActions, IUntitledTextResourceEditorInput, IUntypedEditorInput, IVisibleEditorPane } from '../../common/editor.js';
+import { IGroupModelChangeEvent } from '../../common/editor/editorGroupModel.js';
+import { EditorInput } from '../../common/editor/editorInput.js';
+import { SideBySideEditorInput } from '../../common/editor/sideBySideEditorInput.js';
+import { TextResourceEditorInput } from '../../common/editor/textResourceEditorInput.js';
+import { IPaneComposite } from '../../common/panecomposite.js';
+import { IView, IViewDescriptor, ViewContainer, ViewContainerLocation } from '../../common/views.js';
+import { FileEditorInput } from '../../contrib/files/browser/editors/fileEditorInput.js';
+import { TextFileEditor } from '../../contrib/files/browser/editors/textFileEditor.js';
+import { FILE_EDITOR_INPUT_ID } from '../../contrib/files/common/files.js';
+import { ICreateTerminalOptions, IDeserializedTerminalEditorInput, ITerminalConfigurationService, ITerminalEditorService, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, TerminalEditorLocation } from '../../contrib/terminal/browser/terminal.js';
+import { TerminalConfigurationService } from '../../contrib/terminal/browser/terminalConfigurationService.js';
+import { TerminalEditorInput } from '../../contrib/terminal/browser/terminalEditorInput.js';
+import { IEnvironmentVariableService } from '../../contrib/terminal/common/environmentVariable.js';
+import { EnvironmentVariableService } from '../../contrib/terminal/common/environmentVariableService.js';
+import { IRegisterContributedProfileArgs, IShellLaunchConfigResolveOptions, ITerminalProfileProvider, ITerminalProfileResolverService, ITerminalProfileService, type ITerminalConfiguration } from '../../contrib/terminal/common/terminal.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../services/chat/common/chatEntitlementService.js';
+import { IDecoration, IDecorationData, IDecorationsProvider, IDecorationsService, IResourceDecorationChangeEvent } from '../../services/decorations/common/decorations.js';
+import { CodeEditorService } from '../../services/editor/browser/codeEditorService.js';
+import { EditorPaneService } from '../../services/editor/browser/editorPaneService.js';
+import { EditorResolverService } from '../../services/editor/browser/editorResolverService.js';
+import { CustomEditorLabelService, ICustomEditorLabelService } from '../../services/editor/common/customEditorLabelService.js';
+import { EditorGroupLayout, GroupDirection, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, ICloseAllEditorsOptions, ICloseEditorOptions, ICloseEditorsFilter, IEditorDropTargetDelegate, IEditorGroup, IEditorGroupContextKeyProvider, IEditorGroupsContainer, IEditorGroupsService, IEditorPart, IEditorReplacement, IEditorWorkingSet, IEditorWorkingSetOptions, IFindGroupScope, IMergeGroupOptions } from '../../services/editor/common/editorGroupsService.js';
+import { IEditorPaneService } from '../../services/editor/common/editorPaneService.js';
+import { IEditorResolverService } from '../../services/editor/common/editorResolverService.js';
+import { IEditorsChangeEvent, IEditorService, IRevertAllEditorsOptions, ISaveEditorsOptions, ISaveEditorsResult, PreferredGroup } from '../../services/editor/common/editorService.js';
+import { BrowserWorkbenchEnvironmentService } from '../../services/environment/browser/environmentService.js';
+import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
+import { EnablementState, IExtensionManagementServer, IResourceExtension, IScannedExtension, IWebExtensionsScannerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from '../../services/extensionManagement/common/extensionManagement.js';
+import { IExtensionService } from '../../services/extensions/common/extensions.js';
+import { BrowserElevatedFileService } from '../../services/files/browser/elevatedFileService.js';
+import { IElevatedFileService } from '../../services/files/common/elevatedFileService.js';
+import { FilesConfigurationService, IFilesConfigurationService } from '../../services/filesConfiguration/common/filesConfigurationService.js';
+import { IHistoryService } from '../../services/history/common/history.js';
+import { IHostService } from '../../services/host/browser/host.js';
+import { LabelService } from '../../services/label/common/labelService.js';
+import { ILanguageDetectionService } from '../../services/languageDetection/common/languageDetectionWorkerService.js';
+import { IWorkbenchLayoutService, PanelAlignment, Position as PartPosition, Parts } from '../../services/layout/browser/layoutService.js';
+import { BeforeShutdownErrorEvent, ILifecycleService, InternalBeforeShutdownEvent, IWillShutdownEventJoiner, LifecyclePhase, ShutdownReason, StartupKind, WillShutdownEvent } from '../../services/lifecycle/common/lifecycle.js';
+import { IPaneCompositePartService } from '../../services/panecomposite/browser/panecomposite.js';
+import { IPathService } from '../../services/path/common/pathService.js';
+import { QuickInputService } from '../../services/quickinput/browser/quickInputService.js';
+import { IExtensionHostExitInfo, IRemoteAgentConnection, IRemoteAgentService } from '../../services/remote/common/remoteAgentService.js';
+import { BrowserTextFileService } from '../../services/textfile/browser/browserTextFileService.js';
+import { EncodingOracle, IEncodingOverride } from '../../services/textfile/browser/textFileService.js';
+import { UTF16be, UTF16le, UTF8_with_bom } from '../../services/textfile/common/encoding.js';
+import { ITextEditorService, TextEditorService } from '../../services/textfile/common/textEditorService.js';
+import { TextFileEditorModel } from '../../services/textfile/common/textFileEditorModel.js';
+import { IReadTextFileOptions, ITextFileEditorModel, ITextFileEditorModelManager, ITextFileService, ITextFileStreamContent, IWriteTextFileOptions } from '../../services/textfile/common/textfiles.js';
+import { TextModelResolverService } from '../../services/textmodelResolver/common/textModelResolverService.js';
+import { UntitledTextEditorInput } from '../../services/untitled/common/untitledTextEditorInput.js';
+import { IUntitledTextEditorModelManager, IUntitledTextEditorService, UntitledTextEditorService } from '../../services/untitled/common/untitledTextEditorService.js';
+import { IUserDataProfileService } from '../../services/userDataProfile/common/userDataProfile.js';
+import { UserDataProfileService } from '../../services/userDataProfile/common/userDataProfileService.js';
+import { IViewsService } from '../../services/views/common/viewsService.js';
+import { BrowserWorkingCopyBackupService } from '../../services/workingCopy/browser/workingCopyBackupService.js';
+import { IWorkingCopy, IWorkingCopyBackupMeta, IWorkingCopyIdentifier } from '../../services/workingCopy/common/workingCopy.js';
+import { IResolvedWorkingCopyBackup, IWorkingCopyBackupService } from '../../services/workingCopy/common/workingCopyBackup.js';
+import { InMemoryWorkingCopyBackupService } from '../../services/workingCopy/common/workingCopyBackupService.js';
+import { IWorkingCopyEditorService, WorkingCopyEditorService } from '../../services/workingCopy/common/workingCopyEditorService.js';
+import { IWorkingCopyFileService, WorkingCopyFileService } from '../../services/workingCopy/common/workingCopyFileService.js';
+import { IWorkingCopyService, WorkingCopyService } from '../../services/workingCopy/common/workingCopyService.js';
+import { TestContextService, TestExtensionService, TestFileService, TestHistoryService, TestLoggerService, TestMarkerService, TestProductService, TestStorageService, TestTextResourcePropertiesService, TestWorkspaceTrustManagementService, TestWorkspaceTrustRequestService } from '../common/workbenchTestServices.js';
+
+// Backcompat export
+export { TestFileService };
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined, undefined);
@@ -298,6 +302,7 @@ export function workbenchInstantiationService(
 	instantiationService.stub(IDialogService, new TestDialogService());
 	const accessibilityService = new TestAccessibilityService();
 	instantiationService.stub(IAccessibilityService, accessibilityService);
+	// eslint-disable-next-line local/code-no-any-casts
 	instantiationService.stub(IAccessibilitySignalService, {
 		playSignal: async () => { },
 		isSoundEnabled(signal: unknown) { return false; },
@@ -367,6 +372,7 @@ export function workbenchInstantiationService(
 	instantiationService.stub(IRemoteSocketFactoryService, new RemoteSocketFactoryService());
 	instantiationService.stub(ICustomEditorLabelService, disposables.add(new CustomEditorLabelService(configService, workspaceContextService)));
 	instantiationService.stub(IHoverService, NullHoverService);
+	instantiationService.stub(IChatEntitlementService, new TestChatEntitlementService());
 
 	return instantiationService;
 }
@@ -688,6 +694,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	focus() { }
 }
 
+// eslint-disable-next-line local/code-no-any-casts
 const activeViewlet: PaneComposite = {} as any;
 
 export class TestPaneCompositeService extends Disposable implements IPaneCompositePartService {
@@ -1054,6 +1061,7 @@ export class TestEditorService extends Disposable implements EditorServiceImpl {
 	}
 	createScoped(editorGroupsContainer: IEditorGroupsContainer): IEditorService { return this; }
 	getEditors() { return []; }
+	// eslint-disable-next-line local/code-no-any-casts
 	findEditors() { return [] as any; }
 	openEditor(editor: EditorInput, options?: IEditorOptions, group?: PreferredGroup): Promise<IEditorPane | undefined>;
 	openEditor(editor: IResourceEditorInput | IUntitledTextResourceEditorInput, group?: PreferredGroup): Promise<IEditorPane | undefined>;
@@ -1083,168 +1091,6 @@ export class TestEditorService extends Disposable implements EditorServiceImpl {
 	saveAll(options?: ISaveEditorsOptions): Promise<ISaveEditorsResult> { throw new Error('Method not implemented.'); }
 	revert(editors: IEditorIdentifier[], options?: IRevertOptions): Promise<boolean> { throw new Error('Method not implemented.'); }
 	revertAll(options?: IRevertAllEditorsOptions): Promise<boolean> { throw new Error('Method not implemented.'); }
-}
-
-export class TestFileService implements IFileService {
-
-	declare readonly _serviceBrand: undefined;
-
-	private readonly _onDidFilesChange = new Emitter<FileChangesEvent>();
-	get onDidFilesChange(): Event<FileChangesEvent> { return this._onDidFilesChange.event; }
-	fireFileChanges(event: FileChangesEvent): void { this._onDidFilesChange.fire(event); }
-
-	private readonly _onDidRunOperation = new Emitter<FileOperationEvent>();
-	get onDidRunOperation(): Event<FileOperationEvent> { return this._onDidRunOperation.event; }
-	fireAfterOperation(event: FileOperationEvent): void { this._onDidRunOperation.fire(event); }
-
-	private readonly _onDidChangeFileSystemProviderCapabilities = new Emitter<IFileSystemProviderCapabilitiesChangeEvent>();
-	get onDidChangeFileSystemProviderCapabilities(): Event<IFileSystemProviderCapabilitiesChangeEvent> { return this._onDidChangeFileSystemProviderCapabilities.event; }
-	fireFileSystemProviderCapabilitiesChangeEvent(event: IFileSystemProviderCapabilitiesChangeEvent): void { this._onDidChangeFileSystemProviderCapabilities.fire(event); }
-
-	private _onWillActivateFileSystemProvider = new Emitter<IFileSystemProviderActivationEvent>();
-	readonly onWillActivateFileSystemProvider = this._onWillActivateFileSystemProvider.event;
-	readonly onDidWatchError = Event.None;
-
-	private content = 'Hello Html';
-	private lastReadFileUri!: URI;
-
-	readonly = false;
-
-	setContent(content: string): void { this.content = content; }
-	getContent(): string { return this.content; }
-	getLastReadFileUri(): URI { return this.lastReadFileUri; }
-
-	resolve(resource: URI, _options: IResolveMetadataFileOptions): Promise<IFileStatWithMetadata>;
-	resolve(resource: URI, _options?: IResolveFileOptions): Promise<IFileStat>;
-	async resolve(resource: URI, _options?: IResolveFileOptions): Promise<IFileStat> {
-		return createFileStat(resource, this.readonly);
-	}
-
-	stat(resource: URI): Promise<IFileStatWithPartialMetadata> {
-		return this.resolve(resource, { resolveMetadata: true });
-	}
-
-	async realpath(resource: URI): Promise<URI> {
-		return resource;
-	}
-
-	async resolveAll(toResolve: { resource: URI; options?: IResolveFileOptions }[]): Promise<IFileStatResult[]> {
-		const stats = await Promise.all(toResolve.map(resourceAndOption => this.resolve(resourceAndOption.resource, resourceAndOption.options)));
-
-		return stats.map(stat => ({ stat, success: true }));
-	}
-
-	readonly notExistsSet = new ResourceMap<boolean>();
-
-	async exists(_resource: URI): Promise<boolean> { return !this.notExistsSet.has(_resource); }
-
-	readShouldThrowError: Error | undefined = undefined;
-
-	async readFile(resource: URI, options?: IReadFileOptions | undefined): Promise<IFileContent> {
-		if (this.readShouldThrowError) {
-			throw this.readShouldThrowError;
-		}
-
-		this.lastReadFileUri = resource;
-
-		return {
-			...createFileStat(resource, this.readonly),
-			value: VSBuffer.fromString(this.content)
-		};
-	}
-
-	async readFileStream(resource: URI, options?: IReadFileStreamOptions | undefined): Promise<IFileStreamContent> {
-		if (this.readShouldThrowError) {
-			throw this.readShouldThrowError;
-		}
-
-		this.lastReadFileUri = resource;
-
-		return {
-			...createFileStat(resource, this.readonly),
-			value: bufferToStream(VSBuffer.fromString(this.content))
-		};
-	}
-
-	writeShouldThrowError: Error | undefined = undefined;
-
-	async writeFile(resource: URI, bufferOrReadable: VSBuffer | VSBufferReadable, options?: IWriteFileOptions): Promise<IFileStatWithMetadata> {
-		await timeout(0);
-
-		if (this.writeShouldThrowError) {
-			throw this.writeShouldThrowError;
-		}
-
-		return createFileStat(resource, this.readonly);
-	}
-
-	move(_source: URI, _target: URI, _overwrite?: boolean): Promise<IFileStatWithMetadata> { return Promise.resolve(null!); }
-	copy(_source: URI, _target: URI, _overwrite?: boolean): Promise<IFileStatWithMetadata> { return Promise.resolve(null!); }
-	async cloneFile(_source: URI, _target: URI): Promise<void> { }
-	createFile(_resource: URI, _content?: VSBuffer | VSBufferReadable, _options?: ICreateFileOptions): Promise<IFileStatWithMetadata> { return Promise.resolve(null!); }
-	createFolder(_resource: URI): Promise<IFileStatWithMetadata> { return Promise.resolve(null!); }
-
-	onDidChangeFileSystemProviderRegistrations = Event.None;
-
-	private providers = new Map<string, IFileSystemProvider>();
-
-	registerProvider(scheme: string, provider: IFileSystemProvider) {
-		this.providers.set(scheme, provider);
-
-		return toDisposable(() => this.providers.delete(scheme));
-	}
-
-	getProvider(scheme: string) {
-		return this.providers.get(scheme);
-	}
-
-	async activateProvider(_scheme: string): Promise<void> {
-		this._onWillActivateFileSystemProvider.fire({ scheme: _scheme, join: () => { } });
-	}
-	async canHandleResource(resource: URI): Promise<boolean> { return this.hasProvider(resource); }
-	hasProvider(resource: URI): boolean { return resource.scheme === Schemas.file || this.providers.has(resource.scheme); }
-	listCapabilities() {
-		return [
-			{ scheme: Schemas.file, capabilities: FileSystemProviderCapabilities.FileOpenReadWriteClose },
-			...Iterable.map(this.providers, ([scheme, p]) => { return { scheme, capabilities: p.capabilities }; })
-		];
-	}
-	hasCapability(resource: URI, capability: FileSystemProviderCapabilities): boolean {
-		if (capability === FileSystemProviderCapabilities.PathCaseSensitive && isLinux) {
-			return true;
-		}
-
-		const provider = this.getProvider(resource.scheme);
-
-		return !!(provider && (provider.capabilities & capability));
-	}
-
-	async del(_resource: URI, _options?: { useTrash?: boolean; recursive?: boolean }): Promise<void> { }
-
-	createWatcher(resource: URI, options: IWatchOptions): IFileSystemWatcher {
-		return {
-			onDidChange: Event.None,
-			dispose: () => { }
-		};
-	}
-
-
-	readonly watches: URI[] = [];
-	watch(_resource: URI, options: IWatchOptionsWithCorrelation): IFileSystemWatcher;
-	watch(_resource: URI): IDisposable;
-	watch(_resource: URI): IDisposable {
-		this.watches.push(_resource);
-
-		return toDisposable(() => this.watches.splice(this.watches.indexOf(_resource), 1));
-	}
-
-	getWriteEncoding(_resource: URI): IResourceEncoding { return { encoding: 'utf8', hasBOM: false }; }
-	dispose(): void { }
-
-	async canCreateFile(source: URI, options?: ICreateFileOptions): Promise<Error | true> { return true; }
-	async canMove(source: URI, target: URI, overwrite?: boolean | undefined): Promise<Error | true> { return true; }
-	async canCopy(source: URI, target: URI, overwrite?: boolean | undefined): Promise<Error | true> { return true; }
-	async canDelete(resource: URI, options?: { useTrash?: boolean | undefined; recursive?: boolean | undefined } | undefined): Promise<Error | true> { return true; }
 }
 
 export class TestWorkingCopyBackupService extends InMemoryWorkingCopyBackupService {
@@ -2118,6 +1964,7 @@ export class TestTerminalProfileResolverService implements ITerminalProfileResol
 
 export class TestTerminalConfigurationService extends TerminalConfigurationService {
 	get fontMetrics() { return this._fontMetrics; }
+	// eslint-disable-next-line local/code-no-any-casts
 	setConfig(config: Partial<ITerminalConfiguration>) { this._config = config as any; }
 }
 
@@ -2135,6 +1982,7 @@ export class TestQuickInputService implements IQuickInputService {
 	pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: false }, token?: CancellationToken): Promise<T>;
 	async pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: Omit<IPickOptions<T>, 'canPickMany'>, token?: CancellationToken): Promise<T | undefined> {
 		if (Array.isArray(picks)) {
+			// eslint-disable-next-line local/code-no-any-casts
 			return <any>{ label: 'selectedPick', description: 'pick description', value: 'selectedPick' };
 		} else {
 			return undefined;
@@ -2276,13 +2124,7 @@ export class TestWorkbenchExtensionManagementService implements IWorkbenchExtens
 	async requestPublisherTrust(extensions: InstallExtensionInfo[]): Promise<void> { }
 }
 
-export class TestUserDataProfileService implements IUserDataProfileService {
 
-	readonly _serviceBrand: undefined;
-	readonly onDidChangeCurrentProfile = Event.None;
-	readonly currentProfile = toUserDataProfile('test', 'test', URI.file('tests').with({ scheme: 'vscode-tests' }), URI.file('tests').with({ scheme: 'vscode-tests' }));
-	async updateCurrentProfile(): Promise<void> { }
-}
 
 export class TestWebExtensionsScannerService implements IWebExtensionsScannerService {
 	_serviceBrand: undefined;
@@ -2330,4 +2172,45 @@ export async function workbenchTeardown(instantiationService: IInstantiationServ
 			editorGroupService.removeGroup(group);
 		}
 	});
+}
+
+export class TestChatEntitlementService implements IChatEntitlementService {
+
+	_serviceBrand: undefined;
+
+	readonly organisations: undefined;
+	readonly isInternal = false;
+	readonly sku = undefined;
+
+	readonly onDidChangeQuotaExceeded = Event.None;
+	readonly onDidChangeQuotaRemaining = Event.None;
+	readonly quotas = {};
+
+	update(token: CancellationToken): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+
+	readonly onDidChangeSentiment = Event.None;
+	readonly sentimentObs = observableValue({}, {});
+	readonly sentiment = {};
+
+	readonly onDidChangeEntitlement = Event.None;
+	entitlement: ChatEntitlement = ChatEntitlement.Unknown;
+	readonly entitlementObs = observableValue({}, ChatEntitlement.Unknown);
+
+	readonly anonymous = false;
+	onDidChangeAnonymous = Event.None;
+	readonly anonymousObs = observableValue({}, false);
+}
+
+export class TestContextMenuService implements IContextMenuService {
+
+	_serviceBrand: undefined;
+
+	readonly onDidShowContextMenu = Event.None;
+	readonly onDidHideContextMenu = Event.None;
+
+	showContextMenu(delegate: IContextMenuDelegate | IContextMenuMenuDelegate): void {
+		throw new Error('Method not implemented.');
+	}
 }

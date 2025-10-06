@@ -147,6 +147,7 @@ suite('Workbench - TerminalLinkOpeners', () => {
 				duration: 0,
 				executedX: undefined,
 				startX: undefined,
+				// eslint-disable-next-line local/code-no-any-casts
 				marker: {
 					line: 0
 				} as Partial<IMarker> as any,
@@ -286,6 +287,7 @@ suite('Workbench - TerminalLinkOpeners', () => {
 					duration: 0,
 					executedX: undefined,
 					startX: undefined,
+					// eslint-disable-next-line local/code-no-any-casts
 					marker: {
 						line: 0
 					} as Partial<IMarker> as any,
@@ -548,6 +550,7 @@ suite('Workbench - TerminalLinkOpeners', () => {
 					startX: undefined,
 					timestamp: 0,
 					duration: 0,
+					// eslint-disable-next-line local/code-no-any-casts
 					marker: {
 						line: 0
 					} as Partial<IMarker> as any,

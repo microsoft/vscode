@@ -11,7 +11,7 @@ import { localize } from '../../../../nls.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, ShowTooltipCommand, StatusbarAlignment, StatusbarEntryKind } from '../../../services/statusbar/browser/statusbar.js';
 import { $, addDisposableListener, append, clearNode, disposableWindowInterval, EventHelper, EventType, getWindow } from '../../../../base/browser/dom.js';
-import { ChatEntitlement, ChatEntitlementService, IChatEntitlementService, IQuotaSnapshot, isProUser } from '../common/chatEntitlementService.js';
+import { ChatEntitlement, ChatEntitlementService, IChatEntitlementService, IQuotaSnapshot, isProUser } from '../../../services/chat/common/chatEntitlementService.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { defaultButtonStyles, defaultCheckboxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
@@ -44,6 +44,8 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IInlineCompletionsService } from '../../../../editor/browser/services/inlineCompletionsService.js';
 import { IChatSessionsService } from '../common/chatSessionsService.js';
+import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
 
 const gaugeForeground = registerColor('gauge.foreground', {
 	dark: inputValidationInfoBorder,
@@ -102,6 +104,9 @@ const defaultChat = {
 	nextEditSuggestionsSetting: product.defaultChatAgent?.nextEditSuggestionsSetting ?? '',
 	manageSettingsUrl: product.defaultChatAgent?.manageSettingsUrl ?? '',
 	manageOverageUrl: product.defaultChatAgent?.manageOverageUrl ?? '',
+	provider: product.defaultChatAgent?.provider ?? { default: { id: '', name: '' }, enterprise: { id: '', name: '' }, apple: { id: '', name: '' }, google: { id: '', name: '' } },
+	termsStatementUrl: product.defaultChatAgent?.termsStatementUrl ?? '',
+	privacyStatementUrl: product.defaultChatAgent?.privacyStatementUrl ?? ''
 };
 
 export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribution {
@@ -134,9 +139,10 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		if (!sentiment.hidden) {
 			const props = this.getEntryProps();
 			if (this.entry) {
-				this.entry.dispose();
+				this.entry.update(props);
+			} else {
+				this.entry = this.statusbarService.addEntry(props, 'chat.statusBarEntry', StatusbarAlignment.RIGHT, { location: { id: 'status.editor.mode', priority: 100.1 }, alignment: StatusbarAlignment.RIGHT });
 			}
-			this.entry = this.statusbarService.addEntry(props, 'chat.statusBarEntry', StatusbarAlignment.RIGHT, { location: { id: 'status.editor.mode', priority: 100.1 }, alignment: StatusbarAlignment.RIGHT });
 		} else {
 			this.entry?.dispose();
 			this.entry = undefined;
@@ -177,11 +183,6 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		let text = '$(copilot)';
 		let ariaLabel = localize('chatStatus', "Copilot Status");
 		let kind: StatusbarEntryKind | undefined;
-		let showProgress: boolean | 'loading' | 'syncing' | undefined;
-
-		// Check if there are any chat sessions in progress
-		const inProgress = this.chatSessionsService.getInProgress();
-		const hasInProgressSessions = inProgress.some(item => item.count > 0);
 
 		if (isNewUser(this.chatEntitlementService)) {
 			const entitlement = this.chatEntitlementService.entitlement;
@@ -202,18 +203,29 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		} else {
 			const chatQuotaExceeded = this.chatEntitlementService.quotas.chat?.percentRemaining === 0;
 			const completionsQuotaExceeded = this.chatEntitlementService.quotas.completions?.percentRemaining === 0;
+			const chatSessionsInProgressCount = this.chatSessionsService.getInProgress().reduce((total, item) => total + item.count, 0);
 
 			// Disabled
 			if (this.chatEntitlementService.sentiment.disabled || this.chatEntitlementService.sentiment.untrusted) {
-				text = `$(copilot-unavailable)`;
-				ariaLabel = localize('copilotDisabledStatus', "Copilot Disabled");
+				text = '$(copilot-unavailable)';
+				ariaLabel = localize('copilotDisabledStatus', "Copilot disabled");
+			}
+
+			// Sessions in progress
+			else if (chatSessionsInProgressCount > 0) {
+				text = '$(copilot-in-progress)';
+				if (chatSessionsInProgressCount > 1) {
+					ariaLabel = localize('chatSessionsInProgressStatus', "{0} chat sessions in progress", chatSessionsInProgressCount);
+				} else {
+					ariaLabel = localize('chatSessionInProgressStatus', "1 chat session in progress");
+				}
 			}
 
 			// Signed out
 			else if (this.chatEntitlementService.entitlement === ChatEntitlement.Unknown) {
 				const signedOutWarning = localize('notSignedIntoCopilot', "Signed out");
 
-				text = `$(copilot-not-connected) ${signedOutWarning}`;
+				text = `${this.chatEntitlementService.anonymous ? '$(copilot)' : '$(copilot-not-connected)'} ${signedOutWarning}`;
 				ariaLabel = signedOutWarning;
 				kind = 'prominent';
 			}
@@ -236,23 +248,15 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 			// Completions Disabled
 			else if (this.editorService.activeTextEditorLanguageId && !isCompletionsEnabled(this.configurationService, this.editorService.activeTextEditorLanguageId)) {
-				text = `$(copilot-unavailable)`;
+				text = '$(copilot-unavailable)';
 				ariaLabel = localize('completionsDisabledStatus', "Code completions disabled");
 			}
 
 			// Completions Snoozed
 			else if (this.completionsService.isSnoozing()) {
-				text = `$(copilot-snooze)`;
+				text = '$(copilot-snooze)';
 				ariaLabel = localize('completionsSnoozedStatus', "Code completions snoozed");
 			}
-		}
-
-		// Show progress indicator when chat sessions are in progress
-		if (hasInProgressSessions) {
-			showProgress = 'loading';
-			// Update aria label to include progress information
-			const sessionCount = inProgress.reduce((total, item) => total + item.count, 0);
-			ariaLabel = `${ariaLabel}, ${sessionCount} chat session${sessionCount === 1 ? '' : 's'} in progress`;
 		}
 
 		const baseResult = {
@@ -265,12 +269,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			tooltip: { element: (token: CancellationToken) => this.dashboard.value.show(token) }
 		};
 
-		// Only add showProgress if we have sessions in progress
-		const result = hasInProgressSessions
-			? { ...baseResult, showProgress }
-			: baseResult;
-
-		return result;
+		return baseResult;
 	}
 
 	override dispose(): void {
@@ -350,7 +349,8 @@ class ChatStatusDashboard extends Disposable {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ITextResourceConfigurationService private readonly textResourceConfigurationService: ITextResourceConfigurationService,
 		@IInlineCompletionsService private readonly inlineCompletionsService: IInlineCompletionsService,
-		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 	}
@@ -419,12 +419,22 @@ class ChatStatusDashboard extends Disposable {
 			})();
 		}
 
+		// Anonymous Indicator
+		else if (this.chatEntitlementService.anonymous && this.chatEntitlementService.sentiment.installed) {
+			addSeparator(localize('anonymousTitle', "Copilot Usage"));
+
+			this.createQuotaIndicator(this.element, disposables, localize('quotaDisabled', "Disabled"), localize('completionsLabel', "Code completions"), false); // TODO@bpasero revisit this in the future when Completions are supported
+			this.createQuotaIndicator(this.element, disposables, localize('quotaLimited', "Limited"), localize('chatsLabel', "Chat messages"), false);
+		}
+
 		// Chat sessions
 		{
 			let chatSessionsElement: HTMLElement | undefined;
+
 			const updateStatus = () => {
 				const inProgress = this.chatSessionsService.getInProgress();
 				if (inProgress.some(item => item.count > 0)) {
+
 					addSeparator(localize('chatSessionsTitle', "Chat Sessions"), toAction({
 						id: 'workbench.view.chat.status.sessions',
 						label: localize('viewChatSessionsLabel', "View Chat Sessions"),
@@ -435,22 +445,17 @@ class ChatStatusDashboard extends Disposable {
 
 					for (const { displayName, count } of inProgress) {
 						if (count > 0) {
-							let lowerCaseName = displayName.toLocaleLowerCase();
-							// Very specific case for providers that end in session/sessions to ensure we pluralize correctly
-							if (lowerCaseName.endsWith('session') || lowerCaseName.endsWith('sessions')) {
-								lowerCaseName = lowerCaseName.replace(/session$|sessions$/g, count > 1 ? 'sessions' : 'session');
-							}
-							const text = localize('inProgressChatSession', "$(loading~spin) {0} {1} in progress", count, lowerCaseName);
+							const text = localize('inProgressChatSession', "$(loading~spin) {0} in progress", displayName);
 							chatSessionsElement = this.element.appendChild($('div.description'));
 							const parts = renderLabelWithIcons(text);
 							chatSessionsElement.append(...parts);
 						}
 					}
-				}
-				else {
+				} else {
 					chatSessionsElement?.remove();
 				}
 			};
+
 			updateStatus();
 			disposables.add(this.chatSessionsService.onDidChangeInProgress(updateStatus));
 		}
@@ -502,14 +507,21 @@ class ChatStatusDashboard extends Disposable {
 		// New to Copilot / Signed out
 		{
 			const newUser = isNewUser(this.chatEntitlementService);
+			const anonymousUser = this.chatEntitlementService.anonymous;
 			const disabled = this.chatEntitlementService.sentiment.disabled || this.chatEntitlementService.sentiment.untrusted;
 			const signedOut = this.chatEntitlementService.entitlement === ChatEntitlement.Unknown;
 			if (newUser || signedOut || disabled) {
 				addSeparator();
 
-				let descriptionText: string;
-				if (newUser) {
+				let descriptionText: string | MarkdownString;
+				let descriptionClass = '.description';
+				if (newUser && anonymousUser) {
+					descriptionText = new MarkdownString(localize({ key: 'activeDescriptionAnonymous', comment: ['{Locked="]({2})"}', '{Locked="]({3})"}'] }, "By continuing with {0} Copilot, you agree to {1}'s [Terms]({2}) and [Privacy Statement]({3})", defaultChat.provider.default.name, defaultChat.provider.default.name, defaultChat.termsStatementUrl, defaultChat.privacyStatementUrl), { isTrusted: true });
+					descriptionClass = `${descriptionClass}.terms`;
+				} else if (newUser) {
 					descriptionText = localize('activateDescription', "Set up Copilot to use AI features.");
+				} else if (anonymousUser) {
+					descriptionText = localize('enableMoreDescription', "Sign in to enable more Copilot AI features.");
 				} else if (disabled) {
 					descriptionText = localize('enableDescription', "Enable Copilot to use AI features.");
 				} else {
@@ -519,17 +531,31 @@ class ChatStatusDashboard extends Disposable {
 				let buttonLabel: string;
 				if (newUser) {
 					buttonLabel = localize('activateCopilotButton', "Set up Copilot");
+				} else if (anonymousUser) {
+					buttonLabel = localize('enableMoreCopilotButton', "Enable more AI Features");
 				} else if (disabled) {
 					buttonLabel = localize('enableCopilotButton', "Enable Copilot");
 				} else {
 					buttonLabel = localize('signInToUseCopilotButton', "Sign in to use Copilot");
 				}
 
-				this.element.appendChild($('div.description', undefined, descriptionText));
+				let commandId: string;
+				if (newUser && anonymousUser) {
+					commandId = 'workbench.action.chat.triggerSetupAnonymousWithoutDialog';
+				} else {
+					commandId = 'workbench.action.chat.triggerSetup';
+				}
+
+				if (typeof descriptionText === 'string') {
+					this.element.appendChild($(`div${descriptionClass}`, undefined, descriptionText));
+				} else {
+					const markdown = this.instantiationService.createInstance(MarkdownRenderer, {});
+					this.element.appendChild($(`div${descriptionClass}`, undefined, disposables.add(markdown.render(descriptionText)).element));
+				}
 
 				const button = disposables.add(new Button(this.element, { ...defaultButtonStyles, hoverDelegate: nativeHoverDelegate }));
 				button.label = buttonLabel;
-				disposables.add(button.onDidClick(() => this.runCommandAndClose('workbench.action.chat.triggerSetup')));
+				disposables.add(button.onDidClick(() => this.runCommandAndClose(commandId)));
 			}
 		}
 
@@ -584,18 +610,18 @@ class ChatStatusDashboard extends Disposable {
 		}
 	}
 
-	private runCommandAndClose(commandOrFn: string | Function): void {
+	private runCommandAndClose(commandOrFn: string | Function, ...args: any[]): void {
 		if (typeof commandOrFn === 'function') {
-			commandOrFn();
+			commandOrFn(...args);
 		} else {
 			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: commandOrFn, from: 'chat-status' });
-			this.commandService.executeCommand(commandOrFn);
+			this.commandService.executeCommand(commandOrFn, ...args);
 		}
 
 		this.hoverService.hideHover(true);
 	}
 
-	private createQuotaIndicator(container: HTMLElement, disposables: DisposableStore, quota: IQuotaSnapshot, label: string, supportsOverage: boolean): (quota: IQuotaSnapshot) => void {
+	private createQuotaIndicator(container: HTMLElement, disposables: DisposableStore, quota: IQuotaSnapshot | string, label: string, supportsOverage: boolean): (quota: IQuotaSnapshot | string) => void {
 		const quotaValue = $('span.quota-value');
 		const quotaBit = $('div.quota-bit');
 		const overageLabel = $('span.overage-label');
@@ -619,18 +645,20 @@ class ChatStatusDashboard extends Disposable {
 			disposables.add(manageOverageButton.onDidClick(() => this.runCommandAndClose(() => this.openerService.open(URI.parse(defaultChat.manageOverageUrl)))));
 		}
 
-		const update = (quota: IQuotaSnapshot) => {
+		const update = (quota: IQuotaSnapshot | string) => {
 			quotaIndicator.classList.remove('error');
 			quotaIndicator.classList.remove('warning');
 
 			let usedPercentage: number;
-			if (quota.unlimited) {
+			if (typeof quota === 'string' || quota.unlimited) {
 				usedPercentage = 0;
 			} else {
 				usedPercentage = Math.max(0, 100 - quota.percentRemaining);
 			}
 
-			if (quota.unlimited) {
+			if (typeof quota === 'string') {
+				quotaValue.textContent = quota;
+			} else if (quota.unlimited) {
 				quotaValue.textContent = localize('quotaUnlimited', "Included");
 			} else if (quota.overageCount) {
 				quotaValue.textContent = localize('quotaDisplayWithOverage', "+{0} requests", this.quotaOverageFormatter.value.format(quota.overageCount));
@@ -647,7 +675,7 @@ class ChatStatusDashboard extends Disposable {
 			}
 
 			if (supportsOverage) {
-				if (quota.overageEnabled) {
+				if (typeof quota !== 'string' && quota?.overageEnabled) {
 					overageLabel.textContent = localize('additionalUsageEnabled', "Additional paid premium requests enabled.");
 				} else {
 					overageLabel.textContent = localize('additionalUsageDisabled', "Additional paid premium requests disabled.");

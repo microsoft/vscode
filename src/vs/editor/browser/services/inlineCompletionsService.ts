@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { WindowIntervalTimer } from '../../../base/browser/dom.js';
+import { TimeoutTimer } from '../../../base/common/async.js';
 import { BugIndicatingError } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
@@ -73,7 +73,7 @@ export class InlineCompletionsService extends Disposable implements IInlineCompl
 		return Math.max(0, this._snoozeTimeEnd - Date.now());
 	}
 
-	private _timer: WindowIntervalTimer;
+	private _timer: TimeoutTimer;
 
 	constructor(
 		@IContextKeyService private _contextKeyService: IContextKeyService,
@@ -81,7 +81,7 @@ export class InlineCompletionsService extends Disposable implements IInlineCompl
 	) {
 		super();
 
-		this._timer = this._register(new WindowIntervalTimer());
+		this._timer = this._register(new TimeoutTimer());
 
 		const inlineCompletionsSnoozing = InlineCompletionsSnoozing.bindTo(this._contextKeyService);
 		this._register(this.onDidChangeIsSnoozing(() => inlineCompletionsSnoozing.set(this.isSnoozing())));
@@ -195,17 +195,17 @@ export class SnoozeInlineCompletion extends Action2 {
 		const inlineCompletionsService = accessor.get(IInlineCompletionsService);
 		const storageService = accessor.get(IStorageService);
 
-		let durationMinutes: number | undefined;
+		let durationMs: number | undefined;
 		if (args.length > 0 && typeof args[0] === 'number') {
-			durationMinutes = args[0];
+			durationMs = args[0] * 60_000;
 		}
 
-		if (!durationMinutes) {
-			durationMinutes = await this.getDurationFromUser(quickInputService, storageService);
+		if (!durationMs) {
+			durationMs = await this.getDurationFromUser(quickInputService, storageService);
 		}
 
-		if (durationMinutes) {
-			inlineCompletionsService.setSnoozeDuration(durationMinutes);
+		if (durationMs) {
+			inlineCompletionsService.setSnoozeDuration(durationMs);
 		}
 	}
 

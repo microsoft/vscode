@@ -75,7 +75,8 @@ const resourceLabelFormattersExtPoint = ExtensionsRegistry.registerExtensionPoin
 	}
 });
 
-const sepRegexp = /\//g;
+const posixPathSeparatorRegexp = /\//g; // on Unix, backslash is a valid filename character
+const winPathSeparatorRegexp = /[\\\/]/g; // on Windows, neither slash nor backslash are valid filename characters
 const labelMatchingRegexp = /\$\{(scheme|authoritySuffix|authority|path|(query)\.(.+?))\}/g;
 
 function hasDriveLetterIgnorePlatform(path: string): boolean {
@@ -220,7 +221,7 @@ export class LabelService extends Disposable implements ILabelService {
 		// Without formatting we still need to support the separator
 		// as provided in options (https://github.com/microsoft/vscode/issues/130019)
 		if (!formatting && options.separator) {
-			label = label.replace(sepRegexp, options.separator);
+			label = this.adjustPathSeparators(label, options.separator);
 		}
 
 		if (options.appendWorkspaceSuffix && formatting?.workspaceSuffix) {
@@ -489,7 +490,11 @@ export class LabelService extends Disposable implements ILabelService {
 			label = formatting.authorityPrefix + label;
 		}
 
-		return label.replace(sepRegexp, formatting.separator);
+		return this.adjustPathSeparators(label, formatting.separator);
+	}
+
+	private adjustPathSeparators(label: string, separator: '/' | '\\' | ''): string {
+		return label.replace(this.os === OperatingSystem.Windows ? winPathSeparatorRegexp : posixPathSeparatorRegexp, separator);
 	}
 
 	private appendWorkspaceSuffix(label: string, uri: URI): string {

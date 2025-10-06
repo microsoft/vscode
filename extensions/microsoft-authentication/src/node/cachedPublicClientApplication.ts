@@ -51,13 +51,17 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 
 		const loggerOptions = new MsalLoggerOptions(_logger, telemetryReporter);
 		let broker: BrokerOptions | undefined;
-		if (workspace.getConfiguration('microsoft-authentication').get<'msal' | 'msal-no-broker'>('implementation') !== 'msal-no-broker') {
+		if (process.platform !== 'win32' && process.platform !== 'darwin') {
+			this._logger.info(`[${this._clientId}] Native Broker is only available on Windows and macOS`);
+		} else if (workspace.getConfiguration('microsoft-authentication').get<'msal' | 'msal-no-broker'>('implementation') === 'msal-no-broker') {
+			this._logger.info(`[${this._clientId}] Native Broker disabled via settings`);
+		} else {
 			const nativeBrokerPlugin = new NativeBrokerPlugin();
 			this.isBrokerAvailable = nativeBrokerPlugin.isBrokerAvailable;
 			this._logger.info(`[${this._clientId}] Native Broker enabled: ${this.isBrokerAvailable}`);
-			broker = { nativeBrokerPlugin };
-		} else {
-			this._logger.info(`[${this._clientId}] Native Broker disabled via settings`);
+			if (this.isBrokerAvailable) {
+				broker = { nativeBrokerPlugin };
+			}
 		}
 		this._pca = new PublicClientApplication({
 			auth: { clientId: _clientId },

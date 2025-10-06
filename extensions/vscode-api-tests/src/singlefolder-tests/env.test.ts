@@ -21,11 +21,17 @@ suite('vscode API - env', () => {
 	});
 
 	test('env is readonly', function () {
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.throws(() => (env as any).language = '234');
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.throws(() => (env as any).appRoot = '234');
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.throws(() => (env as any).appName = '234');
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.throws(() => (env as any).machineId = '234');
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.throws(() => (env as any).sessionId = '234');
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.throws(() => (env as any).shell = '234');
 	});
 

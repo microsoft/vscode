@@ -42,7 +42,8 @@ export class ExtHostDocumentData extends MirrorTextModel {
 		uri: URI, lines: string[], eol: string, versionId: number,
 		private _languageId: string,
 		private _isDirty: boolean,
-		private _encoding: string
+		private _encoding: string,
+		private readonly _strictInstanceofChecks = true // used for code reuse
 	) {
 		super(uri, lines, eol, versionId);
 	}
@@ -145,6 +146,8 @@ export class ExtHostDocumentData extends MirrorTextModel {
 			line = lineOrPosition.line;
 		} else if (typeof lineOrPosition === 'number') {
 			line = lineOrPosition;
+		} else if (!this._strictInstanceofChecks && Position.isPosition(lineOrPosition)) {
+			line = lineOrPosition.line;
 		}
 
 		if (typeof line !== 'number' || line < 0 || line >= this._lines.length || Math.floor(line) !== line) {
@@ -176,8 +179,14 @@ export class ExtHostDocumentData extends MirrorTextModel {
 	// ---- range math
 
 	private _validateRange(range: vscode.Range): vscode.Range {
-		if (!(range instanceof Range)) {
-			throw new Error('Invalid argument');
+		if (this._strictInstanceofChecks) {
+			if (!(range instanceof Range)) {
+				throw new Error('Invalid argument');
+			}
+		} else {
+			if (!Range.isRange(range)) {
+				throw new Error('Invalid argument');
+			}
 		}
 
 		const start = this._validatePosition(range.start);
@@ -190,8 +199,14 @@ export class ExtHostDocumentData extends MirrorTextModel {
 	}
 
 	private _validatePosition(position: vscode.Position): vscode.Position {
-		if (!(position instanceof Position)) {
-			throw new Error('Invalid argument');
+		if (this._strictInstanceofChecks) {
+			if (!(position instanceof Position)) {
+				throw new Error('Invalid argument');
+			}
+		} else {
+			if (!Position.isPosition(position)) {
+				throw new Error('Invalid argument');
+			}
 		}
 
 		if (this._lines.length === 0) {

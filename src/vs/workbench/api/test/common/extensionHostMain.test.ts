@@ -77,6 +77,7 @@ suite('ExtensionHostMain#ErrorHandler - Wrapping prepareStackTrace can cause slo
 		[IExtHostRpcService, new class extends mock<IExtHostRpcService>() {
 			declare readonly _serviceBrand: undefined;
 			override getProxy<T>(identifier: ProxyIdentifier<T>): Proxied<T> {
+				// eslint-disable-next-line local/code-no-any-casts
 				return <any>mainThreadExtensionsService;
 			}
 		}],

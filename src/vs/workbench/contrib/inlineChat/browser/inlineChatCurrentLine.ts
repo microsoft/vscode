@@ -3,44 +3,44 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { ICodeEditor, MouseTargetType } from '../../../../editor/browser/editorBrowser.js';
-import { IEditorContribution } from '../../../../editor/common/editorCommon.js';
-import { localize, localize2 } from '../../../../nls.js';
-import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { InlineChatController } from './inlineChatController.js';
-import { ACTION_START, CTX_INLINE_CHAT_HAS_AGENT, CTX_INLINE_CHAT_VISIBLE, InlineChatConfigKeys } from '../common/inlineChat.js';
-import { EditorAction2, ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
-import { EditOperation } from '../../../../editor/common/core/editOperation.js';
-import { Range } from '../../../../editor/common/core/range.js';
-import { IPosition, Position } from '../../../../editor/common/core/position.js';
-import { AbstractInline1ChatAction } from './inlineChatActions.js';
-import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
-import { IValidEditOperation, TrackedRangeStickiness } from '../../../../editor/common/model.js';
-import { URI } from '../../../../base/common/uri.js';
-import { isEqual } from '../../../../base/common/resources.js';
-import { StandardTokenType } from '../../../../editor/common/encodedTokenAttributes.js';
-import { autorun, derived, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
-import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
-import './media/inlineChat.css';
-import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { InlineCompletionsController } from '../../../../editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController.js';
-import { IChatAgentService } from '../../chat/common/chatAgents.js';
-import { IMarkerDecorationsService } from '../../../../editor/common/services/markerDecorations.js';
-import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
-import { toAction } from '../../../../base/common/actions.js';
-import { IMouseEvent } from '../../../../base/browser/mouseEvent.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { observableCodeEditor } from '../../../../editor/browser/observableCodeEditor.js';
-import { PLAINTEXT_LANGUAGE_ID } from '../../../../editor/common/languages/modesRegistry.js';
-import { createStyleSheet2 } from '../../../../base/browser/domStylesheets.js';
 import { stringValue } from '../../../../base/browser/cssValue.js';
+import { createStyleSheet2 } from '../../../../base/browser/domStylesheets.js';
+import { IMouseEvent } from '../../../../base/browser/mouseEvent.js';
+import { toAction } from '../../../../base/common/actions.js';
+import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { autorun, derived, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ICodeEditor, MouseTargetType } from '../../../../editor/browser/editorBrowser.js';
+import { EditorAction2, ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
+import { observableCodeEditor } from '../../../../editor/browser/observableCodeEditor.js';
+import { EditOperation } from '../../../../editor/common/core/editOperation.js';
+import { IPosition, Position } from '../../../../editor/common/core/position.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { IEditorContribution } from '../../../../editor/common/editorCommon.js';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
+import { StandardTokenType } from '../../../../editor/common/encodedTokenAttributes.js';
+import { PLAINTEXT_LANGUAGE_ID } from '../../../../editor/common/languages/modesRegistry.js';
+import { IValidEditOperation, TrackedRangeStickiness } from '../../../../editor/common/model.js';
+import { IMarkerDecorationsService } from '../../../../editor/common/services/markerDecorations.js';
+import { InlineCompletionsController } from '../../../../editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { IChatAgentService } from '../../chat/common/chatAgents.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
-import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../../chat/common/promptSyntax/promptTypes.js';
 import { MODE_FILE_EXTENSION } from '../../chat/common/promptSyntax/config/promptFileLocations.js';
+import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../../chat/common/promptSyntax/promptTypes.js';
+import { ACTION_START, CTX_INLINE_CHAT_HAS_AGENT, CTX_INLINE_CHAT_VISIBLE, InlineChatConfigKeys } from '../common/inlineChat.js';
+import { AbstractInline1ChatAction } from './inlineChatActions.js';
+import { InlineChatController } from './inlineChatController.js';
+import './media/inlineChat.css';
 
 /**
  * Set of language IDs where inline chat hints should not be shown.
@@ -286,7 +286,7 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 				return;
 			}
 
-			const agentName = chatAgentService.getDefaultAgent(ChatAgentLocation.Editor)?.name ?? localize('defaultTitle', "Chat");
+			const agentName = chatAgentService.getDefaultAgent(ChatAgentLocation.EditorInline)?.name ?? localize('defaultTitle', "Chat");
 			const { position, isEol, isWhitespace, kb, model } = showData;
 
 			const inlineClassName: string[] = ['a' /*HACK but sorts as we want*/, 'inline-chat-hint', 'inline-chat-hint-text'];

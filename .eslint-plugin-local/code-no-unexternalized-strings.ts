@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { AST_NODE_TYPES, TSESTree } from '@typescript-eslint/utils';
 import * as eslint from 'eslint';
-import { TSESTree, AST_NODE_TYPES } from '@typescript-eslint/utils';
+import * as ESTree from 'estree';
 
-function isStringLiteral(node: TSESTree.Node | null | undefined): node is TSESTree.StringLiteral {
+function isStringLiteral(node: TSESTree.Node | ESTree.Node | null | undefined): node is TSESTree.StringLiteral {
 	return !!node && node.type === AST_NODE_TYPES.Literal && typeof node.value === 'string';
 }
 
@@ -33,7 +34,7 @@ export = new class NoUnexternalizedStrings implements eslint.Rule.RuleModule {
 		const externalizedStringLiterals = new Map<string, { call: TSESTree.CallExpression; message: TSESTree.Node }[]>();
 		const doubleQuotedStringLiterals = new Set<TSESTree.Node>();
 
-		function collectDoubleQuotedStrings(node: TSESTree.Literal) {
+		function collectDoubleQuotedStrings(node: ESTree.Literal) {
 			if (isStringLiteral(node) && isDoubleQuoted(node)) {
 				doubleQuotedStringLiterals.add(node);
 			}
@@ -42,7 +43,7 @@ export = new class NoUnexternalizedStrings implements eslint.Rule.RuleModule {
 		function visitLocalizeCall(node: TSESTree.CallExpression) {
 
 			// localize(key, message)
-			const [keyNode, messageNode] = (<TSESTree.CallExpression>node).arguments;
+			const [keyNode, messageNode] = node.arguments;
 
 			// (1)
 			// extract key so that it can be checked later
@@ -81,7 +82,7 @@ export = new class NoUnexternalizedStrings implements eslint.Rule.RuleModule {
 				context.report({
 					loc: messageNode.loc,
 					messageId: 'badMessage',
-					data: { message: context.getSourceCode().getText(<any>node) }
+					data: { message: context.getSourceCode().getText(node as ESTree.Node) }
 				});
 			}
 		}
@@ -128,7 +129,7 @@ export = new class NoUnexternalizedStrings implements eslint.Rule.RuleModule {
 				// report all invalid duplicates (same key, different message)
 				if (values.length > 1) {
 					for (let i = 1; i < values.length; i++) {
-						if (context.getSourceCode().getText(<any>values[i - 1].message) !== context.getSourceCode().getText(<any>values[i].message)) {
+						if (context.getSourceCode().getText(values[i - 1].message as ESTree.Node) !== context.getSourceCode().getText(values[i].message as ESTree.Node)) {
 							context.report({ loc: values[i].call.loc, messageId: 'duplicateKey', data: { key } });
 						}
 					}
@@ -137,23 +138,23 @@ export = new class NoUnexternalizedStrings implements eslint.Rule.RuleModule {
 		}
 
 		return {
-			['Literal']: (node: any) => collectDoubleQuotedStrings(node),
-			['ExpressionStatement[directive] Literal:exit']: (node: any) => doubleQuotedStringLiterals.delete(node),
+			['Literal']: (node: ESTree.Literal) => collectDoubleQuotedStrings(node),
+			['ExpressionStatement[directive] Literal:exit']: (node: TSESTree.Literal) => doubleQuotedStringLiterals.delete(node),
 
 			// localize(...)
-			['CallExpression[callee.type="MemberExpression"][callee.object.name="nls"][callee.property.name="localize"]:exit']: (node: any) => visitLocalizeCall(node),
+			['CallExpression[callee.type="MemberExpression"][callee.object.name="nls"][callee.property.name="localize"]:exit']: (node: TSESTree.CallExpression) => visitLocalizeCall(node),
 
 			// localize2(...)
-			['CallExpression[callee.type="MemberExpression"][callee.object.name="nls"][callee.property.name="localize2"]:exit']: (node: any) => visitLocalizeCall(node),
+			['CallExpression[callee.type="MemberExpression"][callee.object.name="nls"][callee.property.name="localize2"]:exit']: (node: TSESTree.CallExpression) => visitLocalizeCall(node),
 
 			// vscode.l10n.t(...)
-			['CallExpression[callee.type="MemberExpression"][callee.object.property.name="l10n"][callee.property.name="t"]:exit']: (node: any) => visitL10NCall(node),
+			['CallExpression[callee.type="MemberExpression"][callee.object.property.name="l10n"][callee.property.name="t"]:exit']: (node: TSESTree.CallExpression) => visitL10NCall(node),
 
 			// l10n.t(...)
-			['CallExpression[callee.object.name="l10n"][callee.property.name="t"]:exit']: (node: any) => visitL10NCall(node),
+			['CallExpression[callee.object.name="l10n"][callee.property.name="t"]:exit']: (node: TSESTree.CallExpression) => visitL10NCall(node),
 
-			['CallExpression[callee.name="localize"][arguments.length>=2]:exit']: (node: any) => visitLocalizeCall(node),
-			['CallExpression[callee.name="localize2"][arguments.length>=2]:exit']: (node: any) => visitLocalizeCall(node),
+			['CallExpression[callee.name="localize"][arguments.length>=2]:exit']: (node: TSESTree.CallExpression) => visitLocalizeCall(node),
+			['CallExpression[callee.name="localize2"][arguments.length>=2]:exit']: (node: TSESTree.CallExpression) => visitLocalizeCall(node),
 			['Program:exit']: reportBadStringsAndBadKeys,
 		};
 	}

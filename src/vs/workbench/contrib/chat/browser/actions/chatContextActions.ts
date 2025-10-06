@@ -65,7 +65,7 @@ async function withChatView(accessor: ServicesAccessor): Promise<IChatWidget | u
 	const chatWidgetService = accessor.get(IChatWidgetService);
 
 	const lastFocusedWidget = chatWidgetService.lastFocusedWidget;
-	if (!lastFocusedWidget || lastFocusedWidget.location === ChatAgentLocation.Panel) {
+	if (!lastFocusedWidget || lastFocusedWidget.location === ChatAgentLocation.Chat) {
 		return showChatView(viewsService); // only show chat view if we either have no chat view or its located in view container
 	}
 	return lastFocusedWidget;
@@ -398,13 +398,13 @@ export class AttachContextAction extends Action2 {
 			icon: Codicon.attach,
 			category: CHAT_CATEGORY,
 			keybinding: {
-				when: ContextKeyExpr.and(ChatContextKeys.inChatInput, ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel)),
+				when: ContextKeyExpr.and(ChatContextKeys.inChatInput, ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat)),
 				primary: KeyMod.CtrlCmd | KeyCode.Slash,
 				weight: KeybindingWeight.EditorContrib
 			},
 			menu: {
 				when: ContextKeyExpr.and(
-					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
+					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 					ChatContextKeys.lockedToCodingAgent.negate()
 				),
 				id: MenuId.ChatInputAttachmentToolbar,

@@ -181,13 +181,13 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		const compositeDescriptor = this.registry.getComposite(id);
 		if (compositeDescriptor) {
 			const that = this;
-			const compositeProgressIndicator = new ScopedProgressIndicator(assertReturnsDefined(this.progressBar), new class extends AbstractProgressScope {
+			const compositeProgressIndicator = new ScopedProgressIndicator(assertReturnsDefined(this.progressBar), this._register(new class extends AbstractProgressScope {
 				constructor() {
 					super(compositeDescriptor!.id, !!isActive);
 					this._register(that.onDidCompositeOpen.event(e => this.onScopeOpened(e.composite.getId())));
 					this._register(that.onDidCompositeClose.event(e => this.onScopeClosed(e.getId())));
 				}
-			}());
+			}()));
 			const compositeInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection(
 				[IEditorProgressService, compositeProgressIndicator] // provide the editor progress service for any editors instantiated within the composite
 			)));
@@ -247,8 +247,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		}
 
 		// Take Composite on-DOM and show
-		const contentArea = this.getContentArea();
-		contentArea?.appendChild(compositeContainer);
+		this.contentArea?.appendChild(compositeContainer);
 		show(compositeContainer);
 
 		// Setup action runner
@@ -349,7 +348,10 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		toolBar.context = this.actionsContextProvider();
 
 		// Return fn to set into toolbar
-		return () => toolBar.setActions(prepareActions(primaryActions), prepareActions(secondaryActions), menuIds);
+		return () => {
+			toolBar.setActions(prepareActions(primaryActions), prepareActions(secondaryActions), menuIds);
+			this.titleArea?.classList.toggle('has-actions', primaryActions.length > 0 || secondaryActions.length > 0);
+		};
 	}
 
 	protected getActiveComposite(): IComposite | undefined {

@@ -11,15 +11,12 @@ import { IPtyHostProcessReplayEvent, ISerializedCommandDetectionCapability, ITer
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from './terminalProcess.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { ISerializableEnvironmentVariableCollections } from './environmentVariable.js';
-import { RawContextKey } from '../../contextkey/common/contextkey.js';
 import { IWorkspaceFolder } from '../../workspace/common/workspace.js';
 import { Registry } from '../../registry/common/platform.js';
 import type * as performance from '../../../base/common/performance.js';
 import { ILogService } from '../../log/common/log.js';
 import type { IAction } from '../../../base/common/actions.js';
 import type { IDisposable } from '../../../base/common/lifecycle.js';
-
-export const terminalTabFocusModeContextKey = new RawContextKey<boolean>('terminalTabFocusMode', false, true);
 
 export const enum TerminalSettingPrefix {
 	AutomationProfile = 'terminal.integrated.automationProfile.',
@@ -682,7 +679,7 @@ export enum TerminalLocation {
 	Editor = 2
 }
 
-export const enum TerminalLocationString {
+export const enum TerminalLocationConfigValue {
 	TerminalView = 'view',
 	Editor = 'editor'
 }
@@ -718,6 +715,7 @@ export interface ITerminalProcessOptions {
 	windowsUseConptyDll: boolean;
 	environmentVariableCollections: ISerializableEnvironmentVariableCollections | undefined;
 	workspaceFolder: IWorkspaceFolder | undefined;
+	isScreenReaderOptimized: boolean;
 }
 
 export interface ITerminalEnvironment {

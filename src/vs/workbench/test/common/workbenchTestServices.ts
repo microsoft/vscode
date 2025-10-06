@@ -3,34 +3,42 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { timeout } from '../../../base/common/async.js';
+import { bufferToStream, readableToBuffer, VSBuffer, VSBufferReadable } from '../../../base/common/buffer.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Iterable } from '../../../base/common/iterator.js';
+import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../base/common/map.js';
+import { Schemas } from '../../../base/common/network.js';
 import { join } from '../../../base/common/path.js';
+import { isLinux, isMacintosh } from '../../../base/common/platform.js';
 import { basename, isEqual, isEqualOrParent } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
-import { Event, Emitter } from '../../../base/common/event.js';
-import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
-import { IWorkspaceContextService, IWorkspace, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, Workspace, IWorkspaceFoldersWillChangeEvent, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from '../../../platform/workspace/common/workspace.js';
-import { TestWorkspace } from '../../../platform/workspace/test/common/testWorkspace.js';
 import { ITextResourcePropertiesService } from '../../../editor/common/services/textResourceConfiguration.js';
-import { isLinux, isMacintosh } from '../../../base/common/platform.js';
-import { InMemoryStorageService, WillSaveStateReason } from '../../../platform/storage/common/storage.js';
-import { IWorkingCopy, IWorkingCopyBackup, WorkingCopyCapabilities } from '../../services/workingCopy/common/workingCopy.js';
-import { NullExtensionService } from '../../services/extensions/common/extensions.js';
-import { IWorkingCopyFileService, IWorkingCopyFileOperationParticipant, WorkingCopyFileEvent, IDeleteOperation, ICopyOperation, IMoveOperation, IFileOperationUndoRedoInfo, ICreateFileOperation, ICreateOperation, IStoredFileWorkingCopySaveParticipant, IStoredFileWorkingCopySaveParticipantContext } from '../../services/workingCopy/common/workingCopyFileService.js';
-import { IDisposable, Disposable } from '../../../base/common/lifecycle.js';
-import { IBaseFileStat, IFileStatWithMetadata } from '../../../platform/files/common/files.js';
-import { ISaveOptions, IRevertOptions, SaveReason, GroupIdentifier } from '../../common/editor.js';
-import { CancellationToken } from '../../../base/common/cancellation.js';
-import product from '../../../platform/product/common/product.js';
-import { IActivity, IActivityService } from '../../services/activity/common/activity.js';
-import { IStoredFileWorkingCopySaveEvent } from '../../services/workingCopy/common/storedFileWorkingCopy.js';
-import { AbstractLoggerService, ILogger, LogLevel, NullLogger } from '../../../platform/log/common/log.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { IResourceEditorInput } from '../../../platform/editor/common/editor.js';
-import { EditorInput } from '../../common/editor/editorInput.js';
-import { IHistoryService } from '../../services/history/common/history.js';
-import { IAutoSaveConfiguration, IAutoSaveMode, IFilesConfigurationService } from '../../services/filesConfiguration/common/filesConfigurationService.js';
-import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, IWorkspaceTrustTransitionParticipant, IWorkspaceTrustUriInfo, WorkspaceTrustRequestOptions, WorkspaceTrustUriResponse } from '../../../platform/workspace/common/workspaceTrust.js';
+import { FileChangesEvent, FileOperationEvent, FileSystemProviderCapabilities, IBaseFileStat, ICreateFileOptions, IFileContent, IFileService, IFileStat, IFileStatResult, IFileStatWithMetadata, IFileStatWithPartialMetadata, IFileStreamContent, IFileSystemProvider, IFileSystemProviderActivationEvent, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemWatcher, IReadFileOptions, IReadFileStreamOptions, IResolveFileOptions, IResolveMetadataFileOptions, IWatchOptions, IWatchOptionsWithCorrelation, IWriteFileOptions } from '../../../platform/files/common/files.js';
+import { AbstractLoggerService, ILogger, LogLevel, NullLogger } from '../../../platform/log/common/log.js';
 import { IMarker, IMarkerData, IMarkerService, IResourceMarker, MarkerStatistics } from '../../../platform/markers/common/markers.js';
+import product from '../../../platform/product/common/product.js';
 import { IProgress, IProgressStep } from '../../../platform/progress/common/progress.js';
+import { InMemoryStorageService, WillSaveStateReason } from '../../../platform/storage/common/storage.js';
+import { toUserDataProfile } from '../../../platform/userDataProfile/common/userDataProfile.js';
+import { ISingleFolderWorkspaceIdentifier, IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, IWorkspaceFoldersWillChangeEvent, IWorkspaceIdentifier, WorkbenchState, Workspace } from '../../../platform/workspace/common/workspace.js';
+import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, IWorkspaceTrustTransitionParticipant, IWorkspaceTrustUriInfo, WorkspaceTrustRequestOptions, WorkspaceTrustUriResponse } from '../../../platform/workspace/common/workspaceTrust.js';
+import { TestWorkspace } from '../../../platform/workspace/test/common/testWorkspace.js';
+import { GroupIdentifier, IRevertOptions, ISaveOptions, SaveReason } from '../../common/editor.js';
+import { EditorInput } from '../../common/editor/editorInput.js';
+import { IActivity, IActivityService } from '../../services/activity/common/activity.js';
+import { NullExtensionService } from '../../services/extensions/common/extensions.js';
+import { IAutoSaveConfiguration, IAutoSaveMode, IFilesConfigurationService } from '../../services/filesConfiguration/common/filesConfigurationService.js';
+import { IHistoryService } from '../../services/history/common/history.js';
+import { IResourceEncoding } from '../../services/textfile/common/textfiles.js';
+import { IUserDataProfileService } from '../../services/userDataProfile/common/userDataProfile.js';
+import { IStoredFileWorkingCopySaveEvent } from '../../services/workingCopy/common/storedFileWorkingCopy.js';
+import { IWorkingCopy, IWorkingCopyBackup, WorkingCopyCapabilities } from '../../services/workingCopy/common/workingCopy.js';
+import { ICopyOperation, ICreateFileOperation, ICreateOperation, IDeleteOperation, IFileOperationUndoRedoInfo, IMoveOperation, IStoredFileWorkingCopySaveParticipant, IStoredFileWorkingCopySaveParticipantContext, IWorkingCopyFileOperationParticipant, IWorkingCopyFileService, WorkingCopyFileEvent } from '../../services/workingCopy/common/workingCopyFileService.js';
 
 export class TestLoggerService extends AbstractLoggerService {
 	constructor(logsHome?: URI) {
@@ -55,6 +63,14 @@ export class TestTextResourcePropertiesService implements ITextResourcePropertie
 		}
 		return (isLinux || isMacintosh) ? '\n' : '\r\n';
 	}
+}
+
+export class TestUserDataProfileService implements IUserDataProfileService {
+
+	readonly _serviceBrand: undefined;
+	readonly onDidChangeCurrentProfile = Event.None;
+	readonly currentProfile = toUserDataProfile('test', 'test', URI.file('tests').with({ scheme: 'vscode-tests' }), URI.file('tests').with({ scheme: 'vscode-tests' }));
+	async updateCurrentProfile(): Promise<void> { }
 }
 
 export class TestContextService implements IWorkspaceContextService {
@@ -272,6 +288,7 @@ export class TestWorkingCopyFileService implements IWorkingCopyFileService {
 }
 
 export function mock<T>(): Ctor<T> {
+	// eslint-disable-next-line local/code-no-any-casts
 	return function () { } as any;
 }
 
@@ -482,5 +499,251 @@ export class TestMarkerService implements IMarkerService {
 	read(filter?: { owner?: string | undefined; resource?: URI | undefined; severities?: number | undefined; take?: number | undefined } | undefined): IMarker[] { return []; }
 	installResourceFilter(resource: URI, reason: string): IDisposable {
 		return { dispose: () => { /* TODO: Implement cleanup logic */ } };
+	}
+}
+
+export class TestFileService implements IFileService {
+
+	declare readonly _serviceBrand: undefined;
+
+	private readonly _onDidFilesChange = new Emitter<FileChangesEvent>();
+	get onDidFilesChange(): Event<FileChangesEvent> { return this._onDidFilesChange.event; }
+	fireFileChanges(event: FileChangesEvent): void { this._onDidFilesChange.fire(event); }
+
+	private readonly _onDidRunOperation = new Emitter<FileOperationEvent>();
+	get onDidRunOperation(): Event<FileOperationEvent> { return this._onDidRunOperation.event; }
+	fireAfterOperation(event: FileOperationEvent): void { this._onDidRunOperation.fire(event); }
+
+	private readonly _onDidChangeFileSystemProviderCapabilities = new Emitter<IFileSystemProviderCapabilitiesChangeEvent>();
+	get onDidChangeFileSystemProviderCapabilities(): Event<IFileSystemProviderCapabilitiesChangeEvent> { return this._onDidChangeFileSystemProviderCapabilities.event; }
+	fireFileSystemProviderCapabilitiesChangeEvent(event: IFileSystemProviderCapabilitiesChangeEvent): void { this._onDidChangeFileSystemProviderCapabilities.fire(event); }
+
+	private _onWillActivateFileSystemProvider = new Emitter<IFileSystemProviderActivationEvent>();
+	readonly onWillActivateFileSystemProvider = this._onWillActivateFileSystemProvider.event;
+	readonly onDidWatchError = Event.None;
+
+	protected content = 'Hello Html';
+	protected lastReadFileUri!: URI;
+
+	readonly = false;
+
+	// Tracking functionality for tests
+	readonly writeOperations: Array<{ resource: URI; content: string }> = [];
+	readonly readOperations: Array<{ resource: URI }> = [];
+
+	setContent(content: string): void { this.content = content; }
+	getContent(): string { return this.content; }
+	getLastReadFileUri(): URI { return this.lastReadFileUri; }
+
+	// Clear tracking data for tests
+	clearTracking(): void {
+		this.writeOperations.length = 0;
+		this.readOperations.length = 0;
+	}
+
+	resolve(resource: URI, _options: IResolveMetadataFileOptions): Promise<IFileStatWithMetadata>;
+	resolve(resource: URI, _options?: IResolveFileOptions): Promise<IFileStat>;
+	async resolve(resource: URI, _options?: IResolveFileOptions): Promise<IFileStat> {
+		return createFileStat(resource, this.readonly);
+	}
+
+	stat(resource: URI): Promise<IFileStatWithPartialMetadata> {
+		return this.resolve(resource, { resolveMetadata: true });
+	}
+
+	async realpath(resource: URI): Promise<URI> {
+		return resource;
+	}
+
+	async resolveAll(toResolve: { resource: URI; options?: IResolveFileOptions }[]): Promise<IFileStatResult[]> {
+		const stats = await Promise.all(toResolve.map(resourceAndOption => this.resolve(resourceAndOption.resource, resourceAndOption.options)));
+
+		return stats.map(stat => ({ stat, success: true }));
+	}
+
+	readonly notExistsSet = new ResourceMap<boolean>();
+
+	async exists(_resource: URI): Promise<boolean> { return !this.notExistsSet.has(_resource); }
+
+	readShouldThrowError: Error | undefined = undefined;
+
+	async readFile(resource: URI, options?: IReadFileOptions | undefined): Promise<IFileContent> {
+		if (this.readShouldThrowError) {
+			throw this.readShouldThrowError;
+		}
+
+		this.lastReadFileUri = resource;
+		this.readOperations.push({ resource });
+
+		return {
+			...createFileStat(resource, this.readonly),
+			value: VSBuffer.fromString(this.content)
+		};
+	}
+
+	async readFileStream(resource: URI, options?: IReadFileStreamOptions | undefined): Promise<IFileStreamContent> {
+		if (this.readShouldThrowError) {
+			throw this.readShouldThrowError;
+		}
+
+		this.lastReadFileUri = resource;
+
+		return {
+			...createFileStat(resource, this.readonly),
+			value: bufferToStream(VSBuffer.fromString(this.content))
+		};
+	}
+
+	writeShouldThrowError: Error | undefined = undefined;
+
+	async writeFile(resource: URI, bufferOrReadable: VSBuffer | VSBufferReadable, options?: IWriteFileOptions): Promise<IFileStatWithMetadata> {
+		await timeout(0);
+
+		if (this.writeShouldThrowError) {
+			throw this.writeShouldThrowError;
+		}
+
+		let content: VSBuffer | undefined;
+		if (bufferOrReadable instanceof VSBuffer) {
+			content = bufferOrReadable;
+		} else {
+			try {
+				content = readableToBuffer(bufferOrReadable);
+			} catch {
+				// Some preexisting tests are writing with invalid objects
+			}
+		}
+
+		if (content) {
+			this.writeOperations.push({ resource, content: content.toString() });
+		}
+
+		return createFileStat(resource, this.readonly);
+	}
+
+	move(_source: URI, _target: URI, _overwrite?: boolean): Promise<IFileStatWithMetadata> { return Promise.resolve(null!); }
+	copy(_source: URI, _target: URI, _overwrite?: boolean): Promise<IFileStatWithMetadata> { return Promise.resolve(null!); }
+	async cloneFile(_source: URI, _target: URI): Promise<void> { }
+	createFile(_resource: URI, _content?: VSBuffer | VSBufferReadable, _options?: ICreateFileOptions): Promise<IFileStatWithMetadata> { return Promise.resolve(null!); }
+	createFolder(_resource: URI): Promise<IFileStatWithMetadata> { return Promise.resolve(null!); }
+
+	onDidChangeFileSystemProviderRegistrations = Event.None;
+
+	private providers = new Map<string, IFileSystemProvider>();
+
+	registerProvider(scheme: string, provider: IFileSystemProvider) {
+		this.providers.set(scheme, provider);
+
+		return toDisposable(() => this.providers.delete(scheme));
+	}
+
+	getProvider(scheme: string) {
+		return this.providers.get(scheme);
+	}
+
+	async activateProvider(_scheme: string): Promise<void> {
+		this._onWillActivateFileSystemProvider.fire({ scheme: _scheme, join: () => { } });
+	}
+	async canHandleResource(resource: URI): Promise<boolean> { return this.hasProvider(resource); }
+	hasProvider(resource: URI): boolean { return resource.scheme === Schemas.file || this.providers.has(resource.scheme); }
+	listCapabilities() {
+		return [
+			{ scheme: Schemas.file, capabilities: FileSystemProviderCapabilities.FileOpenReadWriteClose },
+			...Iterable.map(this.providers, ([scheme, p]) => { return { scheme, capabilities: p.capabilities }; })
+		];
+	}
+	hasCapability(resource: URI, capability: FileSystemProviderCapabilities): boolean {
+		if (capability === FileSystemProviderCapabilities.PathCaseSensitive && isLinux) {
+			return true;
+		}
+
+		const provider = this.getProvider(resource.scheme);
+
+		return !!(provider && (provider.capabilities & capability));
+	}
+
+	async del(_resource: URI, _options?: { useTrash?: boolean; recursive?: boolean }): Promise<void> { }
+
+	createWatcher(resource: URI, options: IWatchOptions): IFileSystemWatcher {
+		return {
+			onDidChange: Event.None,
+			dispose: () => { }
+		};
+	}
+
+
+	readonly watches: URI[] = [];
+	watch(_resource: URI, options: IWatchOptionsWithCorrelation): IFileSystemWatcher;
+	watch(_resource: URI): IDisposable;
+	watch(_resource: URI): IDisposable {
+		this.watches.push(_resource);
+
+		return toDisposable(() => this.watches.splice(this.watches.indexOf(_resource), 1));
+	}
+
+	getWriteEncoding(_resource: URI): IResourceEncoding { return { encoding: 'utf8', hasBOM: false }; }
+	dispose(): void { }
+
+	async canCreateFile(source: URI, options?: ICreateFileOptions): Promise<Error | true> { return true; }
+	async canMove(source: URI, target: URI, overwrite?: boolean | undefined): Promise<Error | true> { return true; }
+	async canCopy(source: URI, target: URI, overwrite?: boolean | undefined): Promise<Error | true> { return true; }
+	async canDelete(resource: URI, options?: { useTrash?: boolean | undefined; recursive?: boolean | undefined } | undefined): Promise<Error | true> { return true; }
+}
+
+/**
+ * TestFileService with in-memory file storage.
+ * Use this when your test needs to write files and read them back.
+ */
+export class InMemoryTestFileService extends TestFileService {
+
+	private files = new Map<string, VSBuffer>();
+
+	override clearTracking(): void {
+		super.clearTracking();
+		this.files.clear();
+	}
+
+	override async readFile(resource: URI, options?: IReadFileOptions | undefined): Promise<IFileContent> {
+		if (this.readShouldThrowError) {
+			throw this.readShouldThrowError;
+		}
+
+		this.lastReadFileUri = resource;
+		this.readOperations.push({ resource });
+
+		// Check if we have content in our in-memory store
+		const content = this.files.get(resource.toString());
+		if (content) {
+			return {
+				...createFileStat(resource, this.readonly),
+				value: content
+			};
+		}
+
+		return {
+			...createFileStat(resource, this.readonly),
+			value: VSBuffer.fromString(this.content)
+		};
+	}
+
+	override async writeFile(resource: URI, bufferOrReadable: VSBuffer | VSBufferReadable, options?: IWriteFileOptions): Promise<IFileStatWithMetadata> {
+		await timeout(0);
+
+		if (this.writeShouldThrowError) {
+			throw this.writeShouldThrowError;
+		}
+
+		let content: VSBuffer;
+		if (bufferOrReadable instanceof VSBuffer) {
+			content = bufferOrReadable;
+		} else {
+			content = readableToBuffer(bufferOrReadable);
+		}
+
+		// Store in memory and track
+		this.files.set(resource.toString(), content);
+		this.writeOperations.push({ resource, content: content.toString() });
+
+		return createFileStat(resource, this.readonly);
 	}
 }

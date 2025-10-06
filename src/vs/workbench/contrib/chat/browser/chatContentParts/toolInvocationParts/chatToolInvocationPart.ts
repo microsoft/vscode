@@ -23,7 +23,6 @@ import { ChatInputOutputMarkdownProgressPart } from './chatInputOutputMarkdownPr
 import { ChatResultListSubPart } from './chatResultListSubPart.js';
 import { ChatTerminalToolConfirmationSubPart } from './chatTerminalToolConfirmationSubPart.js';
 import { ChatTerminalToolProgressPart } from './chatTerminalToolProgressPart.js';
-import { ChatTodoListSubPart } from './chatTodoListSubPart.js';
 import { ToolConfirmationSubPart } from './chatToolConfirmationSubPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 import { ChatToolOutputSubPart } from './chatToolOutputPart.js';
@@ -59,6 +58,9 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		super();
 
 		this.domNode = dom.$('.chat-tool-invocation-part');
+		if (toolInvocation.fromSubAgent) {
+			this.domNode.classList.add('from-sub-agent');
+		}
 		if (toolInvocation.presentation === 'hidden') {
 			return;
 		}
@@ -83,15 +85,18 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 				this._onDidChangeHeight.fire();
 			}));
 
-			const approval = this.createApprovalMessage();
-			if (approval) {
-				this.domNode.appendChild(approval);
+			// todo@connor4312/tyriar: standardize how these are displayed
+			if (!(this.subPart instanceof ChatTerminalToolProgressPart)) {
+				const approval = this.createApprovalMessage();
+				if (approval) {
+					this.domNode.appendChild(approval);
+				}
 			}
 		};
 		render();
 	}
 
-	private createApprovalMessage(): HTMLElement | undefined {
+	private get autoApproveMessageContent() {
 		const reason = this.toolInvocation.isConfirmed;
 		if (!reason || typeof reason === 'boolean') {
 			return;
@@ -117,6 +122,12 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 				return;
 		}
 
+
+		return md;
+	}
+
+	private createApprovalMessage(): HTMLElement | undefined {
+		const md = this.autoApproveMessageContent;
 		if (!md) {
 			return undefined;
 		}
@@ -145,10 +156,6 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 
 		if (this.toolInvocation.toolSpecificData?.kind === 'terminal') {
 			return this.instantiationService.createInstance(ChatTerminalToolProgressPart, this.toolInvocation, this.toolInvocation.toolSpecificData, this.context, this.renderer, this.editorPool, this.currentWidthDelegate, this.codeBlockStartIndex, this.codeBlockModelCollection);
-		}
-
-		if (this.toolInvocation.toolSpecificData?.kind === 'todoList') {
-			return this.instantiationService.createInstance(ChatTodoListSubPart, this.toolInvocation, this.toolInvocation.toolSpecificData);
 		}
 
 		if (Array.isArray(this.toolInvocation.resultDetails) && this.toolInvocation.resultDetails?.length) {

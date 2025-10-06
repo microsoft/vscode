@@ -17,6 +17,7 @@ import {
 	isAuthorizationTokenResponse,
 	parseWWWAuthenticateHeader,
 	fetchDynamicRegistration,
+	fetchResourceMetadata,
 	scopesMatch,
 	IAuthorizationJWTClaims,
 	IAuthorizationServerMetadata,
@@ -344,6 +345,15 @@ suite('OAuth', () => {
 			});
 		});
 
+		test('parseWWWAuthenticateHeader should correctly parse parameters with equal signs', () => {
+			const result = parseWWWAuthenticateHeader('Bearer resource_metadata="https://example.com/.well-known/oauth-protected-resource?v=1"');
+			assert.strictEqual(result.length, 1);
+			assert.strictEqual(result[0].scheme, 'Bearer');
+			assert.deepStrictEqual(result[0].params, {
+				resource_metadata: 'https://example.com/.well-known/oauth-protected-resource?v=1'
+			});
+		});
+
 		test('parseWWWAuthenticateHeader should correctly parse multiple', () => {
 			const result = parseWWWAuthenticateHeader('Bearer realm="api", error="invalid_token", error_description="The access token expired", Basic realm="hi"');
 
@@ -464,9 +474,7 @@ suite('OAuth', () => {
 			assert.deepStrictEqual(requestBody.redirect_uris, [
 				'https://insiders.vscode.dev/redirect',
 				'https://vscode.dev/redirect',
-				'http://localhost/',
 				'http://127.0.0.1/',
-				`http://localhost:${DEFAULT_AUTH_FLOW_PORT}/`,
 				`http://127.0.0.1:${DEFAULT_AUTH_FLOW_PORT}/`
 			]);
 
@@ -822,6 +830,481 @@ suite('OAuth', () => {
 				async () => await fetchDynamicRegistration(serverMetadata, 'Test Client'),
 				/Registration to https:\/\/auth\.example\.com\/register failed: DCR not supported/
 			);
+		});
+	});
+
+	suite('fetchResourceMetadata', () => {
+		let sandbox: sinon.SinonSandbox;
+		let fetchStub: sinon.SinonStub;
+
+		setup(() => {
+			sandbox = sinon.createSandbox();
+			fetchStub = sandbox.stub();
+		});
+
+		teardown(() => {
+			sandbox.restore();
+		});
+
+		test('should successfully fetch and validate resource metadata', async () => {
+			const targetResource = 'https://example.com/api';
+			const resourceMetadataUrl = 'https://example.com/.well-known/oauth-protected-resource';
+			const expectedMetadata = {
+				resource: 'https://example.com/api',
+				scopes_supported: ['read', 'write']
+			};
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => expectedMetadata,
+				text: async () => JSON.stringify(expectedMetadata)
+			});
+
+			const result = await fetchResourceMetadata(
+				targetResource,
+				resourceMetadataUrl,
+				{ fetch: fetchStub }
+			);
+
+			assert.deepStrictEqual(result, expectedMetadata);
+			assert.strictEqual(fetchStub.callCount, 1);
+			assert.strictEqual(fetchStub.firstCall.args[0], resourceMetadataUrl);
+			assert.strictEqual(fetchStub.firstCall.args[1].method, 'GET');
+			assert.strictEqual(fetchStub.firstCall.args[1].headers['Accept'], 'application/json');
+		});
+
+		test('should include same-origin headers when origins match', async () => {
+			const targetResource = 'https://example.com/api';
+			const resourceMetadataUrl = 'https://example.com/.well-known/oauth-protected-resource';
+			const sameOriginHeaders = {
+				'X-Test-Header': 'test-value',
+				'X-Custom-Header': 'value'
+			};
+			const expectedMetadata = {
+				resource: 'https://example.com/api'
+			};
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => expectedMetadata,
+				text: async () => JSON.stringify(expectedMetadata)
+			});
+
+			await fetchResourceMetadata(
+				targetResource,
+				resourceMetadataUrl,
+				{ fetch: fetchStub, sameOriginHeaders }
+			);
+
+			const headers = fetchStub.firstCall.args[1].headers;
+			assert.strictEqual(headers['Accept'], 'application/json');
+			assert.strictEqual(headers['X-Test-Header'], 'test-value');
+			assert.strictEqual(headers['X-Custom-Header'], 'value');
+		});
+
+		test('should not include same-origin headers when origins differ', async () => {
+			const targetResource = 'https://example.com/api';
+			const resourceMetadataUrl = 'https://other-domain.com/.well-known/oauth-protected-resource';
+			const sameOriginHeaders = {
+				'X-Test-Header': 'test-value'
+			};
+			const expectedMetadata = {
+				resource: 'https://example.com/api'
+			};
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => expectedMetadata,
+				text: async () => JSON.stringify(expectedMetadata)
+			});
+
+			await fetchResourceMetadata(
+				targetResource,
+				resourceMetadataUrl,
+				{ fetch: fetchStub, sameOriginHeaders }
+			);
+
+			const headers = fetchStub.firstCall.args[1].headers;
+			assert.strictEqual(headers['Accept'], 'application/json');
+			assert.strictEqual(headers['X-Test-Header'], undefined);
+		});
+
+		test('should throw error when fetch returns non-200 status', async () => {
+			const targetResource = 'https://example.com/api';
+			const resourceMetadataUrl = 'https://example.com/.well-known/oauth-protected-resource';
+
+			fetchStub.resolves({
+				status: 404,
+				text: async () => 'Not Found'
+			});
+
+			await assert.rejects(
+				async () => fetchResourceMetadata(targetResource, resourceMetadataUrl, { fetch: fetchStub }),
+				/Failed to fetch resource metadata from.*404 Not Found/
+			);
+		});
+
+		test('should handle error when response.text() throws', async () => {
+			const targetResource = 'https://example.com/api';
+			const resourceMetadataUrl = 'https://example.com/.well-known/oauth-protected-resource';
+
+			fetchStub.resolves({
+				status: 500,
+				statusText: 'Internal Server Error',
+				text: async () => { throw new Error('Cannot read response'); }
+			});
+
+			await assert.rejects(
+				async () => fetchResourceMetadata(targetResource, resourceMetadataUrl, { fetch: fetchStub }),
+				/Failed to fetch resource metadata from.*500 Internal Server Error/
+			);
+		});
+
+		test('should throw error when resource property does not match target resource', async () => {
+			const targetResource = 'https://example.com/api';
+			const resourceMetadataUrl = 'https://example.com/.well-known/oauth-protected-resource';
+			const metadata = {
+				resource: 'https://different.com/api'
+			};
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => metadata,
+				text: async () => JSON.stringify(metadata)
+			});
+
+			await assert.rejects(
+				async () => fetchResourceMetadata(targetResource, resourceMetadataUrl, { fetch: fetchStub }),
+				/Protected Resource Metadata resource property value.*does not match target server url.*These MUST match to follow OAuth spec/
+			);
+		});
+
+		test('should normalize URLs when comparing resource values', async () => {
+			const targetResource = 'https://EXAMPLE.COM/api';
+			const resourceMetadataUrl = 'https://example.com/.well-known/oauth-protected-resource';
+			const metadata = {
+				resource: 'https://example.com/api'
+			};
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => metadata,
+				text: async () => JSON.stringify(metadata)
+			});
+
+			// URL normalization should handle hostname case differences
+			const result = await fetchResourceMetadata(targetResource, resourceMetadataUrl, { fetch: fetchStub });
+			assert.deepStrictEqual(result, metadata);
+		});
+
+		test('should normalize hostnames when comparing resource values', async () => {
+			const targetResource = 'https://EXAMPLE.COM/api';
+			const resourceMetadataUrl = 'https://example.com/.well-known/oauth-protected-resource';
+			const metadata = {
+				resource: 'https://example.com/api'
+			};
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => metadata,
+				text: async () => JSON.stringify(metadata)
+			});
+
+			const result = await fetchResourceMetadata(targetResource, resourceMetadataUrl, { fetch: fetchStub });
+			assert.deepStrictEqual(result, metadata);
+		});
+
+		test('should throw error when response is not valid resource metadata', async () => {
+			const targetResource = 'https://example.com/api';
+			const resourceMetadataUrl = 'https://example.com/.well-known/oauth-protected-resource';
+			const invalidMetadata = {
+				// Missing required 'resource' property
+				scopes_supported: ['read', 'write']
+			};
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => invalidMetadata,
+				text: async () => JSON.stringify(invalidMetadata)
+			});
+
+			await assert.rejects(
+				async () => fetchResourceMetadata(targetResource, resourceMetadataUrl, { fetch: fetchStub }),
+				/Invalid resource metadata.*Expected to follow shape of.*is scopes_supported an array\? Is resource a string\?/
+			);
+		});
+
+		test('should throw error when scopes_supported is not an array', async () => {
+			const targetResource = 'https://example.com/api';
+			const resourceMetadataUrl = 'https://example.com/.well-known/oauth-protected-resource';
+			const invalidMetadata = {
+				resource: 'https://example.com/api',
+				scopes_supported: 'not an array'
+			};
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => invalidMetadata,
+				text: async () => JSON.stringify(invalidMetadata)
+			});
+
+			await assert.rejects(
+				async () => fetchResourceMetadata(targetResource, resourceMetadataUrl, { fetch: fetchStub }),
+				/Invalid resource metadata/
+			);
+		});
+
+		test('should handle metadata with optional fields', async () => {
+			const targetResource = 'https://example.com/api';
+			const resourceMetadataUrl = 'https://example.com/.well-known/oauth-protected-resource';
+			const metadata = {
+				resource: 'https://example.com/api',
+				resource_name: 'Example API',
+				authorization_servers: ['https://auth.example.com'],
+				jwks_uri: 'https://example.com/jwks',
+				scopes_supported: ['read', 'write', 'admin'],
+				bearer_methods_supported: ['header', 'body'],
+				resource_documentation: 'https://example.com/docs'
+			};
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => metadata,
+				text: async () => JSON.stringify(metadata)
+			});
+
+			const result = await fetchResourceMetadata(targetResource, resourceMetadataUrl, { fetch: fetchStub });
+			assert.deepStrictEqual(result, metadata);
+		});
+
+		test('should use global fetch when custom fetch is not provided', async () => {
+			const targetResource = 'https://example.com/api';
+			const resourceMetadataUrl = 'https://example.com/.well-known/oauth-protected-resource';
+			const metadata = {
+				resource: 'https://example.com/api'
+			};
+
+			// eslint-disable-next-line local/code-no-any-casts
+			const globalFetchStub = sandbox.stub(globalThis, 'fetch').resolves({
+				status: 200,
+				json: async () => metadata,
+				text: async () => JSON.stringify(metadata)
+			} as any);
+
+			const result = await fetchResourceMetadata(targetResource, resourceMetadataUrl);
+
+			assert.deepStrictEqual(result, metadata);
+			assert.strictEqual(globalFetchStub.callCount, 1);
+		});
+
+		test('should handle same origin with different ports', async () => {
+			const targetResource = 'https://example.com:8080/api';
+			const resourceMetadataUrl = 'https://example.com:9090/.well-known/oauth-protected-resource';
+			const sameOriginHeaders = {
+				'X-Test-Header': 'test-value'
+			};
+			const metadata = {
+				resource: 'https://example.com:8080/api'
+			};
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => metadata,
+				text: async () => JSON.stringify(metadata)
+			});
+
+			await fetchResourceMetadata(
+				targetResource,
+				resourceMetadataUrl,
+				{ fetch: fetchStub, sameOriginHeaders }
+			);
+
+			// Different ports mean different origins
+			const headers = fetchStub.firstCall.args[1].headers;
+			assert.strictEqual(headers['X-Test-Header'], undefined);
+		});
+
+		test('should handle same origin with different protocols', async () => {
+			const targetResource = 'http://example.com/api';
+			const resourceMetadataUrl = 'https://example.com/.well-known/oauth-protected-resource';
+			const sameOriginHeaders = {
+				'X-Test-Header': 'test-value'
+			};
+			const metadata = {
+				resource: 'http://example.com/api'
+			};
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => metadata,
+				text: async () => JSON.stringify(metadata)
+			});
+
+			await fetchResourceMetadata(
+				targetResource,
+				resourceMetadataUrl,
+				{ fetch: fetchStub, sameOriginHeaders }
+			);
+
+			// Different protocols mean different origins
+			const headers = fetchStub.firstCall.args[1].headers;
+			assert.strictEqual(headers['X-Test-Header'], undefined);
+		});
+
+		test('should include error details in message with length information', async () => {
+			const targetResource = 'https://example.com/api';
+			const resourceMetadataUrl = 'https://example.com/.well-known/oauth-protected-resource';
+			const metadata = {
+				resource: 'https://different.com/other'
+			};
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => metadata,
+				text: async () => JSON.stringify(metadata)
+			});
+
+			try {
+				await fetchResourceMetadata(targetResource, resourceMetadataUrl, { fetch: fetchStub });
+				assert.fail('Should have thrown an error');
+			} catch (error: any) {
+				assert.ok(/length:/.test(error.message), 'Error message should include length information');
+				assert.ok(/https:\/\/different\.com\/other/.test(error.message), 'Error message should include actual resource value');
+				assert.ok(/https:\/\/example\.com\/api/.test(error.message), 'Error message should include expected resource value');
+			}
+		});
+
+		test('should fallback to well-known URI with path when no resourceMetadataUrl provided', async () => {
+			const targetResource = 'https://example.com/api/v1';
+			const expectedMetadata = {
+				resource: 'https://example.com/api/v1',
+				scopes_supported: ['read', 'write']
+			};
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => expectedMetadata,
+				text: async () => JSON.stringify(expectedMetadata)
+			});
+
+			const result = await fetchResourceMetadata(
+				targetResource,
+				undefined,
+				{ fetch: fetchStub }
+			);
+
+			assert.deepStrictEqual(result, expectedMetadata);
+			assert.strictEqual(fetchStub.callCount, 1);
+			// Should try path-appended version first
+			assert.strictEqual(fetchStub.firstCall.args[0], 'https://example.com/.well-known/oauth-protected-resource/api/v1');
+		});
+
+		test('should fallback to well-known URI at root when path version fails', async () => {
+			const targetResource = 'https://example.com/api/v1';
+			const expectedMetadata = {
+				resource: 'https://example.com/api/v1',
+				scopes_supported: ['read', 'write']
+			};
+
+			// First call fails, second succeeds
+			fetchStub.onFirstCall().resolves({
+				status: 404,
+				text: async () => 'Not Found',
+				statusText: 'Not Found'
+			});
+
+			fetchStub.onSecondCall().resolves({
+				status: 200,
+				json: async () => expectedMetadata,
+				text: async () => JSON.stringify(expectedMetadata)
+			});
+
+			const result = await fetchResourceMetadata(
+				targetResource,
+				undefined,
+				{ fetch: fetchStub }
+			);
+
+			assert.deepStrictEqual(result, expectedMetadata);
+			assert.strictEqual(fetchStub.callCount, 2);
+			// First attempt with path
+			assert.strictEqual(fetchStub.firstCall.args[0], 'https://example.com/.well-known/oauth-protected-resource/api/v1');
+			// Second attempt at root
+			assert.strictEqual(fetchStub.secondCall.args[0], 'https://example.com/.well-known/oauth-protected-resource');
+		});
+
+		test('should throw error when all well-known URIs fail', async () => {
+			const targetResource = 'https://example.com/api/v1';
+
+			fetchStub.resolves({
+				status: 404,
+				text: async () => 'Not Found',
+				statusText: 'Not Found'
+			});
+
+			await assert.rejects(
+				async () => fetchResourceMetadata(targetResource, undefined, { fetch: fetchStub }),
+				(error: any) => {
+					assert.ok(error instanceof AggregateError, 'Should be an AggregateError');
+					assert.strictEqual(error.errors.length, 2, 'Should contain 2 errors');
+					assert.ok(/Failed to fetch resource metadata from.*\/api\/v1.*404/.test(error.errors[0].message), 'First error should mention /api/v1 and 404');
+					assert.ok(/Failed to fetch resource metadata from.*\.well-known.*404/.test(error.errors[1].message), 'Second error should mention .well-known and 404');
+					return true;
+				}
+			); assert.strictEqual(fetchStub.callCount, 2);
+		});
+
+		test('should not append path when target resource is root', async () => {
+			const targetResource = 'https://example.com/';
+			const expectedMetadata = {
+				resource: 'https://example.com/',
+				scopes_supported: ['read']
+			};
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => expectedMetadata,
+				text: async () => JSON.stringify(expectedMetadata)
+			});
+
+			const result = await fetchResourceMetadata(
+				targetResource,
+				undefined,
+				{ fetch: fetchStub }
+			);
+
+			assert.deepStrictEqual(result, expectedMetadata);
+			assert.strictEqual(fetchStub.callCount, 1);
+			// Both URLs should be the same when path is /
+			assert.strictEqual(fetchStub.firstCall.args[0], 'https://example.com/.well-known/oauth-protected-resource');
+		});
+
+		test('should include same-origin headers when using well-known fallback', async () => {
+			const targetResource = 'https://example.com/api';
+			const sameOriginHeaders = {
+				'X-Test-Header': 'test-value',
+				'X-Custom-Header': 'value'
+			};
+			const expectedMetadata = {
+				resource: 'https://example.com/api'
+			};
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => expectedMetadata,
+				text: async () => JSON.stringify(expectedMetadata)
+			});
+
+			await fetchResourceMetadata(
+				targetResource,
+				undefined,
+				{ fetch: fetchStub, sameOriginHeaders }
+			);
+
+			const headers = fetchStub.firstCall.args[1].headers;
+			assert.strictEqual(headers['Accept'], 'application/json');
+			assert.strictEqual(headers['X-Test-Header'], 'test-value');
+			assert.strictEqual(headers['X-Custom-Header'], 'value');
 		});
 	});
 });

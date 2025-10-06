@@ -8,6 +8,25 @@
 	background-color: var(--vscode-sideBarSectionHeader-background) !important;
 }
 
+.chat-sessions-view {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+}
+
+.chat-sessions-tree-container,
+.getting-started-list-container {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+}
+
+.chat-sessions-tree-container > .monaco-list,
+.getting-started-list-container > .monaco-list {
+	flex: 1;
+}
+
 /* Style for empty state message */
 .chat-sessions-message {
 	padding: 20px;
@@ -100,6 +119,10 @@
 	margin-left: 8px;
 }
 
+.getting-started-list-container .monaco-list-row {
+	padding-left: 8px;
+}
+
 .chat-sessions-tree-container .chat-session-item .description-row .statistics .insertions {
 	color: var(--vscode-chat-linesAddedForeground);
 	padding-left: 4px;
@@ -146,8 +169,14 @@
 	text-align: center;
 }
 
-.chat-sessions-tree-container .chat-session-item .monaco-icon-label.codicon-loading::before {
-	animation: codicon-spin 1.5s steps(30) infinite;
+/* Chat session icon */
+.chat-sessions-tree-container .chat-session-item .chat-session-custom-icon {
+	flex-shrink: 0;
+	width: 16px;
+	height: 16px;
+	margin-right: 6px;
+	font-size: 16px;
+	display: flex;
 }
 
 /* Timestamp styling - similar to timeline pane */
@@ -206,8 +235,10 @@
 
 /* Hide twisties for elements that don't have children */
 .chat-sessions-tree-container .monaco-list-row .monaco-tl-twistie {
-	visibility: hidden;
-	width: 0;
+	/* Ultra-small indent to separate parent/child without large gutter */
+	visibility: hidden; /* keep layout space */
+	width: 3px;
+	min-width: 3px;
 	padding: 0;
 	margin: 0;
 }

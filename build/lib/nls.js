@@ -32,6 +32,7 @@ function collect(ts, node, fn) {
     return result;
 }
 function clone(object) {
+    // eslint-disable-next-line local/code-no-any-casts
     const result = {};
     for (const id in object) {
         result[id] = object[id];
@@ -389,8 +390,11 @@ var _nls;
         const moduleId = javascriptFile.relative
             .replace(/\.js$/, '')
             .replace(/\\/g, '/');
-        const { javascript, sourcemap, nlsKeys, nlsMessages } = patch(ts, typescript, javascriptFile.contents.toString(), javascriptFile.sourceMap, options);
+        const { javascript, sourcemap, nlsKeys, nlsMessages } = patch(ts, typescript, javascriptFile.contents.toString(), 
+        // eslint-disable-next-line local/code-no-any-casts
+        javascriptFile.sourceMap, options);
         const result = fileFrom(javascriptFile, javascript);
+        // eslint-disable-next-line local/code-no-any-casts
         result.sourceMap = sourcemap;
         if (nlsKeys) {
             _nls.moduleToNLSKeys[moduleId] = nlsKeys;

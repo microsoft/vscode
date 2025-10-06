@@ -41,8 +41,9 @@ import { DEFAULT_EDITOR_ASSOCIATION, SaveReason } from '../../common/editor.js';
 import { IViewBadge } from '../../common/views.js';
 import { IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/chatAgents.js';
 import { IChatRequestDraft } from '../../contrib/chat/common/chatEditingService.js';
+import { IChatRequestModeInstructions } from '../../contrib/chat/common/chatModel.js';
 import { IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatMoveMessage, IChatMultiDiffData, IChatPrepareToolInvocationPart, IChatProgressMessage, IChatPullRequestContent, IChatResponseCodeblockUriPart, IChatTaskDto, IChatTaskResult, IChatTextEdit, IChatThinkingPart, IChatToolInvocationSerialized, IChatTreeData, IChatUserActionEvent, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
-import { IChatRequestVariableEntry, isImageVariableEntry } from '../../contrib/chat/common/chatVariableEntries.js';
+import { ChatRequestToolReferenceEntry, IChatRequestVariableEntry, isImageVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry } from '../../contrib/chat/common/chatVariableEntries.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { IToolResult, IToolResultInputOutputDetails, IToolResultOutputDetails, ToolDataSource } from '../../contrib/chat/common/languageModelToolsService.js';
 import * as chatProvider from '../../contrib/chat/common/languageModels.js';
@@ -458,6 +459,7 @@ export function fromRangeOrRangeWithMessage(ranges: vscode.Range[] | vscode.Deco
 				hoverMessage: Array.isArray(r.hoverMessage)
 					? MarkdownString.fromMany(r.hoverMessage)
 					: (r.hoverMessage ? MarkdownString.from(r.hoverMessage) : undefined),
+				// eslint-disable-next-line local/code-no-any-casts
 				renderOptions: <any> /* URI vs Uri */r.renderOptions
 			};
 		});
@@ -850,6 +852,7 @@ export namespace DocumentSymbol {
 			result.tags = info.tags.map(SymbolTag.to);
 		}
 		if (info.children) {
+			// eslint-disable-next-line local/code-no-any-casts
 			result.children = info.children.map(to) as any;
 		}
 		return result;
@@ -2652,7 +2655,9 @@ export namespace ChatResponseMultiDiffPart {
 				resources: part.value.map(entry => ({
 					originalUri: entry.originalUri,
 					modifiedUri: entry.modifiedUri,
-					goToFileUri: entry.goToFileUri
+					goToFileUri: entry.goToFileUri,
+					added: entry.added,
+					removed: entry.removed,
 				}))
 			}
 		};
@@ -2661,7 +2666,9 @@ export namespace ChatResponseMultiDiffPart {
 		const resources = part.multiDiffData.resources.map(resource => ({
 			originalUri: resource.originalUri ? URI.revive(resource.originalUri) : undefined,
 			modifiedUri: resource.modifiedUri ? URI.revive(resource.modifiedUri) : undefined,
-			goToFileUri: resource.goToFileUri ? URI.revive(resource.goToFileUri) : undefined
+			goToFileUri: resource.goToFileUri ? URI.revive(resource.goToFileUri) : undefined,
+			added: resource.added,
+			removed: resource.removed,
 		}));
 		return new types.ChatResponseMultiDiffPart(resources, part.multiDiffData.title);
 	}
@@ -2798,7 +2805,8 @@ export namespace ChatToolInvocationPart {
 			source: ToolDataSource.External,
 			// isError: part.isError ?? false,
 			toolSpecificData: part.toolSpecificData ? convertToolSpecificData(part.toolSpecificData) : undefined,
-			presentation: undefined
+			presentation: undefined,
+			fromSubAgent: part.fromSubAgent
 		};
 	}
 
@@ -2847,6 +2855,7 @@ export namespace ChatToolInvocationPart {
 		if (part.toolSpecificData) {
 			toolInvocation.toolSpecificData = convertFromInternalToolSpecificData(part.toolSpecificData);
 		}
+		toolInvocation.fromSubAgent = part.fromSubAgent;
 
 		return toolInvocation;
 	}
@@ -3111,6 +3120,7 @@ export namespace ChatAgentRequest {
 			attempt: request.attempt ?? 0,
 			enableCommandDetection: request.enableCommandDetection ?? true,
 			isParticipantDetected: request.isParticipantDetected ?? false,
+			sessionId: request.sessionId,
 			references: variableReferences
 				.map(v => ChatPromptReference.to(v, diagnostics, logService))
 				.filter(isDefined),
@@ -3123,22 +3133,33 @@ export namespace ChatAgentRequest {
 			tools,
 			model,
 			editedFileEvents: request.editedFileEvents,
-			modeInstructions: request.modeInstructions,
+			modeInstructions: request.modeInstructions?.content,
+			modeInstructions2: ChatRequestModeInstructions.to(request.modeInstructions),
 		};
 
 		if (!isProposedApiEnabled(extension, 'chatParticipantPrivate')) {
+			// eslint-disable-next-line local/code-no-any-casts
 			delete (requestWithAllProps as any).id;
+			// eslint-disable-next-line local/code-no-any-casts
 			delete (requestWithAllProps as any).attempt;
+			// eslint-disable-next-line local/code-no-any-casts
 			delete (requestWithAllProps as any).enableCommandDetection;
+			// eslint-disable-next-line local/code-no-any-casts
 			delete (requestWithAllProps as any).isParticipantDetected;
+			// eslint-disable-next-line local/code-no-any-casts
 			delete (requestWithAllProps as any).location;
+			// eslint-disable-next-line local/code-no-any-casts
 			delete (requestWithAllProps as any).location2;
+			// eslint-disable-next-line local/code-no-any-casts
 			delete (requestWithAllProps as any).editedFileEvents;
+			// eslint-disable-next-line local/code-no-any-casts
+			delete (requestWithAllProps as any).sessionId;
 		}
 
 		if (!isProposedApiEnabled(extension, 'chatParticipantAdditions')) {
 			delete requestWithAllProps.acceptedConfirmationData;
 			delete requestWithAllProps.rejectedConfirmationData;
+			// eslint-disable-next-line local/code-no-any-casts
 			delete (requestWithAllProps as any).tools;
 		}
 
@@ -3161,8 +3182,8 @@ export namespace ChatLocation {
 		switch (loc) {
 			case ChatAgentLocation.Notebook: return types.ChatLocation.Notebook;
 			case ChatAgentLocation.Terminal: return types.ChatLocation.Terminal;
-			case ChatAgentLocation.Panel: return types.ChatLocation.Panel;
-			case ChatAgentLocation.Editor: return types.ChatLocation.Editor;
+			case ChatAgentLocation.Chat: return types.ChatLocation.Panel;
+			case ChatAgentLocation.EditorInline: return types.ChatLocation.Editor;
 		}
 	}
 
@@ -3170,8 +3191,8 @@ export namespace ChatLocation {
 		switch (loc) {
 			case types.ChatLocation.Notebook: return ChatAgentLocation.Notebook;
 			case types.ChatLocation.Terminal: return ChatAgentLocation.Terminal;
-			case types.ChatLocation.Panel: return ChatAgentLocation.Panel;
-			case types.ChatLocation.Editor: return ChatAgentLocation.Editor;
+			case types.ChatLocation.Panel: return ChatAgentLocation.Chat;
+			case types.ChatLocation.Editor: return ChatAgentLocation.EditorInline;
 		}
 	}
 }
@@ -3222,11 +3243,18 @@ export namespace ChatPromptReference {
 				})];
 			}).filter(([, d]) => d.length > 0));
 		}
+		let toolReferences;
+		if (isPromptFileVariableEntry(variable) || isPromptTextVariableEntry(variable)) {
+			if (variable.toolReferences) {
+				toolReferences = ChatLanguageModelToolReferences.to(variable.toolReferences);
+			}
+		}
 
 		return {
 			id: variable.id,
 			name: variable.name,
 			range: variable.range && [variable.range.start, variable.range.endExclusive],
+			toolReferences,
 			value,
 			modelDescription: variable.modelDescription,
 		};
@@ -3244,6 +3272,35 @@ export namespace ChatLanguageModelToolReference {
 			name: variable.id,
 			range: variable.range && [variable.range.start, variable.range.endExclusive],
 		};
+	}
+}
+
+namespace ChatLanguageModelToolReferences {
+	export function to(variables: readonly ChatRequestToolReferenceEntry[]): vscode.ChatLanguageModelToolReference[] {
+		const toolReferences = [];
+		for (const v of variables) {
+			if (v.kind === 'tool') {
+				toolReferences.push(ChatLanguageModelToolReference.to(v));
+			} else if (v.kind === 'toolset') {
+				toolReferences.push(...v.value.map(ChatLanguageModelToolReference.to));
+			} else {
+				throw new Error('Invalid tool reference in prompt variables');
+			}
+		}
+		return toolReferences;
+	}
+}
+
+export namespace ChatRequestModeInstructions {
+	export function to(mode: IChatRequestModeInstructions | undefined): vscode.ChatRequestModeInstructions | undefined {
+		if (mode) {
+			return {
+				content: mode.content,
+				toolReferences: ChatLanguageModelToolReferences.to(mode.toolReferences),
+				metadata: mode.metadata
+			};
+		}
+		return undefined;
 	}
 }
 
@@ -3397,6 +3454,7 @@ export namespace TerminalResourceRequestConfig {
 			...resourceRequestConfig,
 			pathSeparator,
 			cwd: resourceRequestConfig.cwd,
+			globPattern: GlobPattern.from(resourceRequestConfig.globPattern) ?? undefined
 		};
 	}
 }
@@ -3537,7 +3595,7 @@ export namespace LanguageModelToolResult {
 
 export namespace LanguageModelToolResult2 {
 	export function to(result: IToolResult): vscode.LanguageModelToolResult2 {
-		return new types.LanguageModelToolResult2(result.content.map(item => {
+		const toolResult = new types.LanguageModelToolResult2(result.content.map(item => {
 			if (item.kind === 'text') {
 				return new types.LanguageModelTextPart(item.value, item.audience);
 			} else if (item.kind === 'data') {
@@ -3546,6 +3604,12 @@ export namespace LanguageModelToolResult2 {
 				return new types.LanguageModelPromptTsxPart(item.value);
 			}
 		}));
+
+		if (result.toolMetadata) {
+			(toolResult as vscode.ExtendedLanguageModelToolResult).toolMetadata = result.toolMetadata;
+		}
+
+		return toolResult;
 	}
 
 	export function from(result: vscode.ExtendedLanguageModelToolResult2, extension: IExtensionDescription): Dto<IToolResult> | SerializableObjectWithBuffers<Dto<IToolResult>> {
@@ -3609,6 +3673,7 @@ export namespace LanguageModelToolResult2 {
 			}),
 			toolResultMessage: MarkdownString.fromStrict(result.toolResultMessage),
 			toolResultDetails: detailsDto,
+			toolMetadata: result.toolMetadata,
 		};
 
 		return hasBuffers ? new SerializableObjectWithBuffers(dto) : dto;

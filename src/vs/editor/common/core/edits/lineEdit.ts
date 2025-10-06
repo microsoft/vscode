@@ -20,7 +20,7 @@ export class LineEdit {
 		return new LineEdit(data.map(e => LineReplacement.deserialize(e)));
 	}
 
-	public static fromEdit(edit: BaseStringEdit, initialValue: AbstractText): LineEdit {
+	public static fromStringEdit(edit: BaseStringEdit, initialValue: AbstractText): LineEdit {
 		const textEdit = TextEdit.fromStringEdit(edit, initialValue);
 		return LineEdit.fromTextEdit(textEdit, initialValue);
 	}
@@ -406,7 +406,7 @@ export namespace SerializedLineReplacement {
 			&& typeof thing[0] === 'number'
 			&& typeof thing[1] === 'number'
 			&& Array.isArray(thing[2])
-			&& thing[2].every((e: any) => typeof e === 'string')
+			&& thing[2].every((e: unknown) => typeof e === 'string')
 		);
 	}
 }

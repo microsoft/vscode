@@ -386,7 +386,7 @@ registerAction2(class GoToDefinitionAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, location: Location): Promise<void> {
+	override async run(accessor: ServicesAccessor, location: Location): Promise<unknown> {
 		const editorService = accessor.get(ICodeEditorService);
 		const instantiationService = accessor.get(IInstantiationService);
 

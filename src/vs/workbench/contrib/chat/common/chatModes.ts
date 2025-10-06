@@ -8,6 +8,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, ISettableObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
+import { IOffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
 import { localize } from '../../../../nls.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -97,7 +98,7 @@ export class ChatModeService extends Disposable implements IChatModeService {
 						description: cachedMode.description,
 						tools: cachedMode.customTools,
 						model: cachedMode.model,
-						body: cachedMode.body || ''
+						modeInstructions: cachedMode.modeInstructions ?? { content: cachedMode.body ?? '', toolReferences: [] },
 					};
 					const instance = new CustomChatMode(customChatMode);
 					this._customModeInstances.set(uri.toString(), instance);
@@ -198,7 +199,8 @@ export interface IChatModeData {
 	readonly kind: ChatModeKind;
 	readonly customTools?: readonly string[];
 	readonly model?: string;
-	readonly body?: string;
+	readonly modeInstructions?: IChatModeInstructions;
+	readonly body?: string; /* deprecated */
 	readonly uri?: URI;
 }
 
@@ -211,9 +213,19 @@ export interface IChatMode {
 	readonly kind: ChatModeKind;
 	readonly customTools?: IObservable<readonly string[] | undefined>;
 	readonly model?: IObservable<string | undefined>;
-	readonly body?: IObservable<string>;
+	readonly modeInstructions?: IObservable<IChatModeInstructions>;
 	readonly uri?: IObservable<URI>;
+}
 
+export interface IVariableReference {
+	readonly name: string;
+	readonly range: IOffsetRange;
+}
+
+export interface IChatModeInstructions {
+	readonly content: string;
+	readonly toolReferences: readonly IVariableReference[];
+	readonly metadata?: Record<string, boolean | string | number>;
 }
 
 function isCachedChatModeData(data: unknown): data is IChatModeData {
@@ -221,13 +233,14 @@ function isCachedChatModeData(data: unknown): data is IChatModeData {
 		return false;
 	}
 
+	// eslint-disable-next-line local/code-no-any-casts
 	const mode = data as any;
 	return typeof mode.id === 'string' &&
 		typeof mode.name === 'string' &&
 		typeof mode.kind === 'string' &&
 		(mode.description === undefined || typeof mode.description === 'string') &&
 		(mode.customTools === undefined || Array.isArray(mode.customTools)) &&
-		(mode.body === undefined || typeof mode.body === 'string') &&
+		(mode.modeInstructions === undefined || (typeof mode.modeInstructions === 'object' && mode.modeInstructions !== null)) &&
 		(mode.model === undefined || typeof mode.model === 'string') &&
 		(mode.uri === undefined || (typeof mode.uri === 'object' && mode.uri !== null));
 }
@@ -235,7 +248,7 @@ function isCachedChatModeData(data: unknown): data is IChatModeData {
 export class CustomChatMode implements IChatMode {
 	private readonly _descriptionObservable: ISettableObservable<string | undefined>;
 	private readonly _customToolsObservable: ISettableObservable<readonly string[] | undefined>;
-	private readonly _bodyObservable: ISettableObservable<string>;
+	private readonly _modeInstructions: ISettableObservable<IChatModeInstructions>;
 	private readonly _uriObservable: ISettableObservable<URI>;
 	private readonly _modelObservable: ISettableObservable<string | undefined>;
 
@@ -258,8 +271,8 @@ export class CustomChatMode implements IChatMode {
 		return this._modelObservable;
 	}
 
-	get body(): IObservable<string> {
-		return this._bodyObservable;
+	get modeInstructions(): IObservable<IChatModeInstructions> {
+		return this._modeInstructions;
 	}
 
 	get uri(): IObservable<URI> {
@@ -280,7 +293,7 @@ export class CustomChatMode implements IChatMode {
 		this._descriptionObservable = observableValue('description', customChatMode.description);
 		this._customToolsObservable = observableValue('customTools', customChatMode.tools);
 		this._modelObservable = observableValue('model', customChatMode.model);
-		this._bodyObservable = observableValue('body', customChatMode.body);
+		this._modeInstructions = observableValue('_modeInstructions', customChatMode.modeInstructions);
 		this._uriObservable = observableValue('uri', customChatMode.uri);
 	}
 
@@ -293,7 +306,7 @@ export class CustomChatMode implements IChatMode {
 			this._descriptionObservable.set(newData.description, tx);
 			this._customToolsObservable.set(newData.tools, tx);
 			this._modelObservable.set(newData.model, tx);
-			this._bodyObservable.set(newData.body, tx);
+			this._modeInstructions.set(newData.modeInstructions, tx);
 			this._uriObservable.set(newData.uri, tx);
 		});
 	}
@@ -306,7 +319,7 @@ export class CustomChatMode implements IChatMode {
 			kind: this.kind,
 			customTools: this.customTools.get(),
 			model: this.model.get(),
-			body: this.body.get(),
+			modeInstructions: this.modeInstructions.get(),
 			uri: this.uri.get()
 		};
 	}
