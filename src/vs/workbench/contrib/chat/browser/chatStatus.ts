@@ -610,7 +610,7 @@ class ChatStatusDashboard extends Disposable {
 		}
 	}
 
-	private runCommandAndClose(commandOrFn: string | Function, ...args: any[]): void {
+	private runCommandAndClose(commandOrFn: string | Function, ...args: unknown[]): void {
 		if (typeof commandOrFn === 'function') {
 			commandOrFn(...args);
 		} else {

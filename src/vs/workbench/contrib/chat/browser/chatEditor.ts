@@ -48,7 +48,7 @@ export class ChatEditor extends EditorPane {
 		return this._scopedContextKeyService;
 	}
 
-	private _memento: Memento | undefined;
+	private _memento: Memento<IChatViewState> | undefined;
 	private _viewState: IChatViewState | undefined;
 	private dimension = new dom.Dimension(0, 0);
 
@@ -169,7 +169,7 @@ export class ChatEditor extends EditorPane {
 
 	private updateModel(model: IChatModel, viewState?: IChatViewState): void {
 		this._memento = new Memento('interactive-session-editor-' + CHAT_PROVIDER_ID, this.storageService);
-		this._viewState = viewState ?? this._memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE) as IChatViewState;
+		this._viewState = viewState ?? this._memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		this.widget.setModel(model, { ...this._viewState });
 	}
 

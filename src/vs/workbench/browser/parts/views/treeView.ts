@@ -180,7 +180,7 @@ function commandPreconditions(commandId: string): ContextKeyExpression | undefin
 	const command = CommandsRegistry.getCommand(commandId);
 	if (command) {
 		const commandAction = MenuRegistry.getCommand(command.id);
-		return commandAction && commandAction.precondition;
+		return commandAction?.precondition;
 	}
 	return undefined;
 }
@@ -404,7 +404,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 				async getChildrenBatch(nodes?: ITreeItem[]): Promise<ITreeItem[][]> {
 					let childrenGroups: ITreeItem[][];
 					let checkboxesUpdated: ITreeItem[] = [];
-					if (nodes && nodes.every((node): node is Required<ITreeItem & { children: ITreeItem[] }> => !!node.children)) {
+					if (nodes?.every((node): node is Required<ITreeItem & { children: ITreeItem[] }> => !!node.children)) {
 						childrenGroups = nodes.map(node => node.children);
 					} else {
 						nodes = nodes ?? [self.root];
@@ -1331,7 +1331,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		const treeItemLabel: ITreeItemLabel | undefined = node.label ? node.label : (resource ? { label: basename(resource) } : undefined);
 		const description = isString(node.description) ? node.description : resource && node.description === true ? this.labelService.getUriLabel(dirname(resource), { relative: true }) : undefined;
 		const label = treeItemLabel ? treeItemLabel.label : undefined;
-		const matches = (treeItemLabel && treeItemLabel.highlights && label) ? treeItemLabel.highlights.map(([start, end]) => {
+		const matches = (treeItemLabel?.highlights && label) ? treeItemLabel.highlights.map(([start, end]) => {
 			if (start < 0) {
 				start = label.length + start;
 			}

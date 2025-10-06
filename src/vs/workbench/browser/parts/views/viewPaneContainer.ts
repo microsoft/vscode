@@ -288,7 +288,7 @@ class ViewPaneDropOverlay extends Themable {
 	}
 }
 
-export class ViewPaneContainer extends Component implements IViewPaneContainer {
+export class ViewPaneContainer<MementoType extends object = object> extends Component<MementoType> implements IViewPaneContainer {
 
 	readonly viewContainer: ViewContainer;
 	private lastFocusedPane: ViewPane | undefined;
@@ -424,7 +424,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		this._register(CompositeDragAndDropObserver.INSTANCE.registerTarget(parent, {
 			onDragEnter: (e) => {
 				bounds = getOverlayBounds();
-				if (overlay && overlay.disposed) {
+				if (overlay?.disposed) {
 					overlay = undefined;
 				}
 
@@ -453,7 +453,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 				}
 			},
 			onDragOver: (e) => {
-				if (overlay && overlay.disposed) {
+				if (overlay?.disposed) {
 					overlay = undefined;
 				}
 

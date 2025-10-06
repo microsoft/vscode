@@ -660,7 +660,7 @@ export interface ITreeView extends IDisposable {
 
 	readonly onDidChangeCheckboxState: Event<readonly ITreeItem[]>;
 
-	readonly container: any | undefined;
+	readonly container: unknown /* HTMLElement */ | undefined;
 
 	// checkboxesChanged is a subset of treeItems
 	refresh(treeItems?: readonly ITreeItem[], checkboxesChanged?: readonly ITreeItem[]): Promise<void>;
@@ -685,7 +685,7 @@ export interface ITreeView extends IDisposable {
 
 	setFocus(item?: ITreeItem): void;
 
-	show(container: any): void;
+	show(container: unknown /* HTMLElement */): void;
 }
 
 export interface IRevealOptions {
