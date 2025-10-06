@@ -123,7 +123,7 @@ export class ShowInlineChatHintAction extends EditorAction2 {
 		});
 	}
 
-	override async runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor, ...args: [uri: URI, position: IPosition, ...rest: any[]]) {
+	override async runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor, ...args: [uri: URI, position: IPosition, ...rest: unknown[]]) {
 		if (!editor.hasModel()) {
 			return;
 		}

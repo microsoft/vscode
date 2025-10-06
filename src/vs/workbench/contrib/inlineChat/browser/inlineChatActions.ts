@@ -105,7 +105,7 @@ export class StartSessionAction extends Action2 {
 		});
 	}
 
-	private _runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ..._args: any[]) {
+	private _runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ..._args: unknown[]) {
 
 		const ctrl = InlineChatController.get(editor);
 		if (!ctrl) {
@@ -146,7 +146,7 @@ export class FocusInlineChat extends EditorAction2 {
 		});
 	}
 
-	override runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor, ..._args: any[]) {
+	override runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor, ..._args: unknown[]) {
 		InlineChatController.get(editor)?.focus();
 	}
 }
@@ -167,7 +167,7 @@ export class UnstashSessionAction extends EditorAction2 {
 		});
 	}
 
-	override async runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor, ..._args: any[]) {
+	override async runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor, ..._args: unknown[]) {
 		const ctrl = InlineChatController1.get(editor);
 		if (ctrl) {
 			const session = ctrl.unstashLastSession();
@@ -208,7 +208,7 @@ export abstract class AbstractInline1ChatAction extends EditorAction2 {
 		});
 	}
 
-	override runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ..._args: any[]) {
+	override runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ..._args: unknown[]) {
 		const editorService = accessor.get(IEditorService);
 		const logService = accessor.get(ILogService);
 
@@ -260,7 +260,7 @@ export class ArrowOutUpAction extends AbstractInline1ChatAction {
 		});
 	}
 
-	runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController1, _editor: ICodeEditor, ..._args: any[]): void {
+	runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController1, _editor: ICodeEditor, ..._args: unknown[]): void {
 		ctrl.arrowOut(true);
 	}
 }
@@ -278,7 +278,7 @@ export class ArrowOutDownAction extends AbstractInline1ChatAction {
 		});
 	}
 
-	runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController1, _editor: ICodeEditor, ..._args: any[]): void {
+	runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController1, _editor: ICodeEditor, ..._args: unknown[]): void {
 		ctrl.arrowOut(false);
 	}
 }
@@ -371,7 +371,7 @@ export class RerunAction extends AbstractInline1ChatAction {
 		});
 	}
 
-	override async runInlineChatCommand(accessor: ServicesAccessor, ctrl: InlineChatController1, _editor: ICodeEditor, ..._args: any[]): Promise<void> {
+	override async runInlineChatCommand(accessor: ServicesAccessor, ctrl: InlineChatController1, _editor: ICodeEditor, ..._args: unknown[]): Promise<void> {
 		const chatService = accessor.get(IChatService);
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const model = ctrl.chatWidget.viewModel?.model;
@@ -417,7 +417,7 @@ export class CloseAction extends AbstractInline1ChatAction {
 		});
 	}
 
-	async runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController1, _editor: ICodeEditor, ..._args: any[]): Promise<void> {
+	async runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController1, _editor: ICodeEditor, ..._args: unknown[]): Promise<void> {
 		ctrl.cancelSession();
 	}
 }
@@ -438,7 +438,7 @@ export class ConfigureInlineChatAction extends AbstractInline1ChatAction {
 		});
 	}
 
-	async runInlineChatCommand(accessor: ServicesAccessor, ctrl: InlineChatController1, _editor: ICodeEditor, ..._args: any[]): Promise<void> {
+	async runInlineChatCommand(accessor: ServicesAccessor, ctrl: InlineChatController1, _editor: ICodeEditor, ..._args: unknown[]): Promise<void> {
 		accessor.get(IPreferencesService).openSettings({ query: 'inlineChat' });
 	}
 }
@@ -512,7 +512,7 @@ export class ViewInChatAction extends AbstractInline1ChatAction {
 			}
 		});
 	}
-	override runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController1, _editor: ICodeEditor, ..._args: any[]) {
+	override runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController1, _editor: ICodeEditor, ..._args: unknown[]) {
 		return ctrl.viewInChat();
 	}
 }
@@ -577,7 +577,7 @@ abstract class AbstractInline2ChatAction extends EditorAction2 {
 		});
 	}
 
-	override runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ..._args: any[]) {
+	override runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ..._args: unknown[]) {
 		const editorService = accessor.get(IEditorService);
 		const logService = accessor.get(ILogService);
 
@@ -642,7 +642,7 @@ class KeepOrUndoSessionAction extends AbstractInline2ChatAction {
 		});
 	}
 
-	override async runInlineChatCommand(accessor: ServicesAccessor, _ctrl: InlineChatController2, editor: ICodeEditor, ..._args: any[]): Promise<void> {
+	override async runInlineChatCommand(accessor: ServicesAccessor, _ctrl: InlineChatController2, editor: ICodeEditor, ..._args: unknown[]): Promise<void> {
 		const inlineChatSessions = accessor.get(IInlineChatSessionService);
 		if (!editor.hasModel()) {
 			return;
