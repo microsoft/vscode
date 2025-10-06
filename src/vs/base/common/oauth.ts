@@ -261,7 +261,7 @@ export interface IAuthorizationServerMetadata {
 
 /**
  * Request for the dynamic client registration endpoint.
- * @link https://datatracker.ietf.org/doc/html/rfc7591#section-2
+ * @see https://datatracker.ietf.org/doc/html/rfc7591#section-2
  */
 export interface IAuthorizationDynamicClientRegistrationRequest {
 	/**
