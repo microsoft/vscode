@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Color } from '../../../../base/common/color.js';
+import { Color, RGBColorSpace } from '../../../../base/common/color.js';
 import { LanguageId, FontStyle, ColorId, StandardTokenType, MetadataConsts } from '../../encodedTokenAttributes.js';
 
 export interface ITokenThemeRule {
@@ -409,11 +409,12 @@ export class ThemeTrieElement {
 	}
 }
 
-export function generateTokensCSSForColorMap(colorMap: readonly Color[]): string {
+export function generateTokensCSSForColorMap(colorMap: readonly Color[], highlightingColorSpace: RGBColorSpace): string {
 	const rules: string[] = [];
 	for (let i = 1, len = colorMap.length; i < len; i++) {
 		const color = colorMap[i];
-		rules[i] = `.mtk${i} { color: ${color}; }`;
+		const colorStr = color.toColorSpaceString(highlightingColorSpace);
+		rules[i] = `.mtk${i} { color: ${colorStr}; }`;
 	}
 	rules.push('.mtki { font-style: italic; }');
 	rules.push('.mtkb { font-weight: bold; }');

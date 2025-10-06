@@ -16,6 +16,7 @@ import { GPULifecycle } from './gpuDisposable.js';
 import { observeDevicePixelDimensions, quadVertices } from './gpuUtils.js';
 import { createObjectCollectionBuffer, type IObjectCollectionBuffer, type IObjectCollectionBufferEntry } from './objectCollectionBuffer.js';
 import { RectangleRendererBindingId, rectangleRendererWgsl } from './rectangleRenderer.wgsl.js';
+import { TokenizationRegistry } from '../../common/languages.js';
 
 export type RectangleRendererEntrySpec = [
 	{ name: 'x' },
@@ -81,11 +82,24 @@ export class RectangleRenderer extends ViewEventHandler {
 		}
 
 		const presentationFormat = navigator.gpu.getPreferredCanvasFormat();
-		this._ctx.configure({
-			device: this._device,
-			format: presentationFormat,
-			alphaMode: 'premultiplied',
-		});
+		const configureCanvas = () => {
+			const highlightingColorSpace = TokenizationRegistry.getHighlightingColorSpace();
+
+			// WebGPU currently supports only 'srgb' and 'display-p3'. Fall back to 'display-p3' if a non srgb color space is configured, which should be closer to the theme's preference.
+			const gpuColorSpace: PredefinedColorSpace = highlightingColorSpace === 'srgb' || !highlightingColorSpace ? 'srgb' : 'display-p3';
+			this._ctx.configure({
+				device: this._device,
+				format: presentationFormat,
+				colorSpace: gpuColorSpace,
+				alphaMode: 'premultiplied',
+			});
+		};
+		configureCanvas();
+		this._register(TokenizationRegistry.onDidChange(e => {
+			if (e.changedHighlightingColorSpace) {
+				configureCanvas();
+			}
+		}));
 
 		this._renderPassColorAttachment = {
 			view: null!, // Will be filled at render time

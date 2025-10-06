@@ -1998,7 +1998,8 @@ function copyBufferIfNeeded(buffer: Uint8Array, transfer: ArrayBuffer[]): Uint8A
 
 function getTokenizationCss() {
 	const colorMap = TokenizationRegistry.getColorMap();
-	const tokenizationCss = colorMap ? generateTokensCSSForColorMap(colorMap) : '';
+	const highlightingColorSpace = TokenizationRegistry.getHighlightingColorSpace();
+	const tokenizationCss = colorMap ? generateTokensCSSForColorMap(colorMap, highlightingColorSpace) : '';
 	return tokenizationCss;
 }
 
