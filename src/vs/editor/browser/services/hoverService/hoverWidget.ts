@@ -10,7 +10,8 @@ import * as dom from '../../../../base/browser/dom.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { EDITOR_FONT_DEFAULTS, IEditorOptions } from '../../../common/config/editorOptions.js';
+import { IEditorOptions } from '../../../common/config/editorOptions.js';
+import { EDITOR_FONT_DEFAULTS } from '../../../common/config/fontInfo.js';
 import { HoverAction, HoverPosition, HoverWidget as BaseHoverWidget, getHoverAccessibleViewHint } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { Widget } from '../../../../base/browser/ui/widget.js';
 import { AnchorPosition } from '../../../../base/browser/ui/contextview/contextview.js';
@@ -51,7 +52,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 	private readonly _hoverPointer: HTMLElement | undefined;
 	private readonly _hoverContainer: HTMLElement;
 	private readonly _target: IHoverTarget;
-	private readonly _linkHandler: (url: string) => any;
+	private readonly _linkHandler: (url: string) => void;
 
 	private _isDisposed: boolean = false;
 	private _hoverPosition: HoverPosition;

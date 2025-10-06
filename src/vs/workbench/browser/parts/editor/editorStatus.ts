@@ -305,7 +305,7 @@ class TabFocusMode extends Disposable {
 
 		this.registerListeners();
 
-		const tabFocusModeConfig = configurationService.getValue<boolean>('editor.tabFocusMode') === true ? true : false;
+		const tabFocusModeConfig = configurationService.getValue<boolean>('editor.tabFocusMode') === true;
 		TabFocus.setTabFocusMode(tabFocusModeConfig);
 	}
 
@@ -314,7 +314,7 @@ class TabFocusMode extends Disposable {
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('editor.tabFocusMode')) {
-				const tabFocusModeConfig = this.configurationService.getValue<boolean>('editor.tabFocusMode') === true ? true : false;
+				const tabFocusModeConfig = this.configurationService.getValue<boolean>('editor.tabFocusMode') === true;
 				TabFocus.setTabFocusMode(tabFocusModeConfig);
 
 				this._onDidChange.fire(tabFocusModeConfig);

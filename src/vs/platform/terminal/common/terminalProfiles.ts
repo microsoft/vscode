@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../base/common/codicons.js';
-import { URI, UriComponents } from '../../../base/common/uri.js';
+import { isUriComponents, URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { IExtensionTerminalProfile, ITerminalProfile, TerminalIcon } from './terminal.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
@@ -109,15 +109,4 @@ export function terminalIconsEqual(a?: TerminalIcon, b?: TerminalIcon): boolean 
 	}
 
 	return false;
-}
-
-
-export function isUriComponents(thing: unknown): thing is UriComponents {
-	if (!thing) {
-		return false;
-	}
-	// eslint-disable-next-line local/code-no-any-casts
-	return typeof (<any>thing).path === 'string' &&
-		// eslint-disable-next-line local/code-no-any-casts
-		typeof (<any>thing).scheme === 'string';
 }

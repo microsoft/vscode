@@ -8,7 +8,7 @@ import * as streams from './stream.js';
 
 interface NodeBuffer {
 	allocUnsafe(size: number): Uint8Array;
-	isBuffer(obj: any): obj is NodeBuffer;
+	isBuffer(obj: unknown): obj is NodeBuffer;
 	from(arrayBuffer: ArrayBufferLike, byteOffset?: number, length?: number): Uint8Array;
 	from(data: string): Uint8Array;
 }

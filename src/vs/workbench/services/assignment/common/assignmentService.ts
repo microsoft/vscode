@@ -6,7 +6,7 @@
 import { localize } from '../../../../nls.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import type { IKeyValueStorage, IExperimentationTelemetry, ExperimentationService as TASClient } from 'tas-client-umd';
-import { MementoObject, Memento } from '../../../common/memento.js';
+import { Memento } from '../../../common/memento.js';
 import { ITelemetryService, TelemetryLevel } from '../../../../platform/telemetry/common/telemetry.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryData } from '../../../../base/common/actions.js';
@@ -33,14 +33,14 @@ export interface IWorkbenchAssignmentService extends IAssignmentService {
 
 class MementoKeyValueStorage implements IKeyValueStorage {
 
-	private readonly mementoObj: MementoObject;
+	private readonly mementoObj: Record<string, unknown>;
 
-	constructor(private readonly memento: Memento) {
+	constructor(private readonly memento: Memento<Record<string, unknown>>) {
 		this.mementoObj = memento.getMemento(StorageScope.APPLICATION, StorageTarget.MACHINE);
 	}
 
 	async getValue<T>(key: string, defaultValue?: T | undefined): Promise<T | undefined> {
-		const value = await this.mementoObj[key];
+		const value = await this.mementoObj[key] as T | undefined;
 
 		return value || defaultValue;
 	}
@@ -136,7 +136,7 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 		this.telemetry = this._register(new WorkbenchAssignmentServiceTelemetry(telemetryService, productService));
 		this._register(this.telemetry.onDidUpdateAssignmentContext(() => this._onDidRefetchAssignments.fire()));
 
-		this.keyValueStorage = new MementoKeyValueStorage(new Memento('experiment.service.memento', storageService));
+		this.keyValueStorage = new MementoKeyValueStorage(new Memento<Record<string, unknown>>('experiment.service.memento', storageService));
 
 		// For development purposes, configure the delay until tas local tas treatment ovverrides are available
 		const overrideDelaySetting = configurationService.getValue('experiments.overrideDelay');

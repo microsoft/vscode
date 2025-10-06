@@ -1107,7 +1107,7 @@ export namespace ProxyChannel {
 
 	export function fromService<TContext>(service: unknown, disposables: DisposableStore, options?: ICreateServiceChannelOptions): IServerChannel<TContext> {
 		const handler = service as { [key: string]: unknown };
-		const disableMarshalling = options && options.disableMarshalling;
+		const disableMarshalling = options?.disableMarshalling;
 
 		// Buffer any event that should be supported by
 		// iterating over all property keys and finding them
@@ -1184,7 +1184,7 @@ export namespace ProxyChannel {
 	}
 
 	export function toService<T extends object>(channel: IChannel, options?: ICreateProxyServiceOptions): T {
-		const disableMarshalling = options && options.disableMarshalling;
+		const disableMarshalling = options?.disableMarshalling;
 
 		return new Proxy({}, {
 			get(_target: T, propKey: PropertyKey) {

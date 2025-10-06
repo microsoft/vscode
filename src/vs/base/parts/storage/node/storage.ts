@@ -118,7 +118,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 			}
 
 			// DELETE
-			if (toDelete && toDelete.size) {
+			if (toDelete?.size) {
 				const keysChunks: (string[])[] = [];
 				keysChunks.push([]); // seed with initial empty chunk
 
@@ -291,7 +291,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 				await fs.promises.unlink(path);
 				try {
 					await Promises.rename(this.toBackupPath(path), path, false /* no retry */);
-				} catch (error) {
+				} catch {
 					// ignore
 				}
 
