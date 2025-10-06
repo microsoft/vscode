@@ -688,7 +688,7 @@ export class McpHTTPHandle extends Disposable {
 						this._log(LogLevel.Debug, `Found resource_metadata challenge in WWW-Authenticate header: ${resourceMetadataChallenge}`);
 					}
 					if (!scopesChallenge && challenge.params['scope']) {
-						const scopes = challenge.params['scope'].split(AUTH_SCOPE_SEPARATOR);
+						const scopes = challenge.params['scope'].split(AUTH_SCOPE_SEPARATOR).filter(s => s.trim());
 						if (scopes.length) {
 							this._log(LogLevel.Debug, `Found scope challenge in WWW-Authenticate header: ${challenge.params['scope']}`);
 							scopesChallenge = scopes;
