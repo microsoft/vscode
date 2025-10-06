@@ -339,34 +339,36 @@ function doSanitizeHtml(untrusted: string, config: DomSanitizerConfig | undefine
 
 const selfClosingTags = ['area', 'base', 'br', 'col', 'command', 'embed', 'hr', 'img', 'input', 'keygen', 'link', 'meta', 'param', 'source', 'track', 'wbr'];
 
-const replaceWithPlainTextHook: DomPurifyTypes.UponSanitizeElementHook = (element, data, _config) => {
-	if (!(element instanceof Element)) {
-		return;
-	}
-
+const replaceWithPlainTextHook: DomPurifyTypes.UponSanitizeElementHook = (node, data, _config) => {
 	if (!data.allowedTags[data.tagName] && data.tagName !== 'body') {
-		const replacement = convertTagToPlaintext(element);
-		if (element.nodeType === Node.COMMENT_NODE) {
-			// Workaround for https://github.com/cure53/DOMPurify/issues/1005
-			// The comment will be deleted in the next phase. However if we try to remove it now, it will cause
-			// an exception. Instead we insert the text node before the comment.
-			element.parentElement?.insertBefore(replacement, element);
-		} else {
-			element.parentElement?.replaceChild(replacement, element);
+		const replacement = convertTagToPlaintext(node);
+		if (replacement) {
+			if (node.nodeType === Node.COMMENT_NODE) {
+				// Workaround for https://github.com/cure53/DOMPurify/issues/1005
+				// The comment will be deleted in the next phase. However if we try to remove it now, it will cause
+				// an exception. Instead we insert the text node before the comment.
+				node.parentElement?.insertBefore(replacement, node);
+			} else {
+				node.parentElement?.replaceChild(replacement, node);
+			}
 		}
 	}
 };
 
-export function convertTagToPlaintext(element: Element): DocumentFragment {
+export function convertTagToPlaintext(node: Node): DocumentFragment | undefined {
+	if (!node.ownerDocument) {
+		return;
+	}
+
 	let startTagText: string;
 	let endTagText: string | undefined;
-	if (element.nodeType === Node.COMMENT_NODE) {
-		startTagText = `<!--${element.textContent}-->`;
-	} else {
-		const tagName = element.tagName.toLowerCase();
+	if (node.nodeType === Node.COMMENT_NODE) {
+		startTagText = `<!--${node.textContent}-->`;
+	} else if (node instanceof Element) {
+		const tagName = node.tagName.toLowerCase();
 		const isSelfClosing = selfClosingTags.includes(tagName);
-		const attrString = element.attributes.length ?
-			' ' + Array.from(element.attributes)
+		const attrString = node.attributes.length ?
+			' ' + Array.from(node.attributes)
 				.map(attr => `${attr.name}="${attr.value}"`)
 				.join(' ')
 			: '';
@@ -374,16 +376,18 @@ export function convertTagToPlaintext(element: Element): DocumentFragment {
 		if (!isSelfClosing) {
 			endTagText = `</${tagName}>`;
 		}
+	} else {
+		return;
 	}
 
 	const fragment = document.createDocumentFragment();
-	const textNode = element.ownerDocument.createTextNode(startTagText);
+	const textNode = node.ownerDocument.createTextNode(startTagText);
 	fragment.appendChild(textNode);
-	while (element.firstChild) {
-		fragment.appendChild(element.firstChild);
+	while (node.firstChild) {
+		fragment.appendChild(node.firstChild);
 	}
 
-	const endTagTextNode = endTagText ? element.ownerDocument.createTextNode(endTagText) : undefined;
+	const endTagTextNode = endTagText ? node.ownerDocument.createTextNode(endTagText) : undefined;
 	if (endTagTextNode) {
 		fragment.appendChild(endTagTextNode);
 	}
