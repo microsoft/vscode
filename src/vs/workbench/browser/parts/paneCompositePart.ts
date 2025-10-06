@@ -324,7 +324,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 
 					else if (dragData.type === 'view') {
 						const viewToMove = this.viewDescriptorService.getViewDescriptorById(dragData.id)!;
-						if (viewToMove && viewToMove.canMoveView) {
+						if (viewToMove.canMoveView) {
 							this.viewDescriptorService.moveViewToLocation(viewToMove, this.location, 'dnd');
 
 							const newContainer = this.viewDescriptorService.getViewContainerByViewId(viewToMove.id)!;

@@ -50,7 +50,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	get widget(): ChatWidget { return this._widget; }
 
 	private readonly modelDisposables = this._register(new DisposableStore());
-	private memento: Memento;
+	private memento: Memento<IViewPaneState>;
 	private readonly viewState: IViewPaneState;
 
 	private _restoringSession: Promise<void> | undefined;
@@ -78,11 +78,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		// View state for the ViewPane is currently global per-provider basically, but some other strictly per-model state will require a separate memento.
 		this.memento = new Memento('interactive-session-view-' + CHAT_PROVIDER_ID, this.storageService);
-		this.viewState = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE) as IViewPaneState;
+		this.viewState = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
 
 		if (this.chatOptions.location === ChatAgentLocation.Chat && !this.viewState.hasMigratedCurrentSession) {
-			const editsMemento = new Memento('interactive-session-view-' + CHAT_PROVIDER_ID + `-edits`, this.storageService);
-			const lastEditsState = editsMemento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE) as IViewPaneState;
+			const editsMemento = new Memento<IViewPaneState>('interactive-session-view-' + CHAT_PROVIDER_ID + `-edits`, this.storageService);
+			const lastEditsState = editsMemento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
 			if (lastEditsState.sessionId) {
 				this.logService.trace(`ChatViewPane: last edits session was ${lastEditsState.sessionId}`);
 				if (!this.chatService.isPersistedSessionEmpty(lastEditsState.sessionId)) {

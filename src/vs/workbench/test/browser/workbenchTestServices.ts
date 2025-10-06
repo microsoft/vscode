@@ -1715,12 +1715,12 @@ export class TestEditorPart extends MainEditorPart implements IEditorGroupsServi
 	}
 
 	clearState(): void {
-		const workspaceMemento = this.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		const workspaceMemento = this.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE) as Record<string, unknown>;
 		for (const key of Object.keys(workspaceMemento)) {
 			delete workspaceMemento[key];
 		}
 
-		const profileMemento = this.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
+		const profileMemento = this.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE) as Record<string, unknown>;
 		for (const key of Object.keys(profileMemento)) {
 			delete profileMemento[key];
 		}

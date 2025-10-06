@@ -135,9 +135,7 @@ export class ChatMarkdownDecorationsRenderer {
 					}
 
 					if (args) {
-						a.parentElement!.replaceChild(
-							this.renderAgentWidget(args, store),
-							a);
+						a.replaceWith(this.renderAgentWidget(args, store));
 					}
 				} else if (href.startsWith(agentSlashRefUrl)) {
 					let args: ISlashCommandWidgetArgs | undefined;
@@ -148,9 +146,7 @@ export class ChatMarkdownDecorationsRenderer {
 					}
 
 					if (args) {
-						a.parentElement!.replaceChild(
-							this.renderSlashCommandWidget(a.textContent!, args, store),
-							a);
+						a.replaceWith(this.renderSlashCommandWidget(a.textContent!, args, store));
 					}
 				} else if (href.startsWith(decorationRefUrl)) {
 					let args: IDecorationWidgetArgs | undefined;
@@ -158,9 +154,7 @@ export class ChatMarkdownDecorationsRenderer {
 						args = JSON.parse(decodeURIComponent(href.slice(decorationRefUrl.length + 1)));
 					} catch (e) { }
 
-					a.parentElement!.replaceChild(
-						this.renderResourceWidget(a.textContent!, args, store),
-						a);
+					a.replaceWith(this.renderResourceWidget(a.textContent!, args, store));
 				} else if (href.startsWith(contentRefUrl)) {
 					this.renderFileWidget(content, href, a, store);
 				} else if (href.startsWith('command:')) {
