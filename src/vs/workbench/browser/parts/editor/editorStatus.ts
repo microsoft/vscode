@@ -1225,10 +1225,9 @@ export class ChangeLanguageAction extends Action2 {
 			picks.unshift(configureLanguageAssociations);
 		}
 
-		// Offer to "Auto Detect", but only if the document has long enough text.
-		let autoDetectLanguage: IQuickPickItem | undefined;
-		if (textModel && textModel.getValueLength() > 20) {
-			autoDetectLanguage = { label: localize('autoDetect', "Auto Detect") };
+		// Offer to "Auto Detect", but only if the document is not empty.
+		const autoDetectLanguage: IQuickPickItem = { label: localize('autoDetect', "Auto Detect") };
+		if (textModel && textModel.getValueLength() > 0) {
 			picks.unshift(autoDetectLanguage);
 		}
 
