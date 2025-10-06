@@ -705,6 +705,17 @@ async function evaluateDiagnosticsCommitHook(repository: Repository, options: Co
 		resources.push(...repository.untrackedGroup.resourceStates.map(r => r.resourceUri));
 	}
 
+	// Check if any of the resources are currently open documents. If so, wait for
+	// pending diagnostic updates to complete. Diagnostics are debounced with a 50ms
+	// delay, so we wait slightly longer to ensure fresh diagnostics. This prevents
+	// false positives when files are quickly fixed, saved, and staged.
+	const openDocuments = workspace.textDocuments
+		.filter(doc => resources.some(r => pathEquals(r.fsPath, doc.uri.fsPath)));
+	
+	if (openDocuments.length > 0) {
+		await new Promise(resolve => setTimeout(resolve, 100));
+	}
+
 	const diagnostics: Map<Uri, number> = new Map();
 
 	for (const resource of resources) {

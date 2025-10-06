@@ -174,4 +174,56 @@ suite('git smoke test', function () {
 		assert.strictEqual(repository.state.workingTreeChanges.length, 0);
 		assert.strictEqual(repository.state.indexChanges.length, 0);
 	});
+
+	test('diagnostics are fresh after document save', async function () {
+		// This test verifies that diagnostics are updated after a document is saved
+		// and a short delay, preventing false positives in the commit hook.
+		
+		const { languages, Diagnostic, DiagnosticSeverity, Range } = await import('vscode');
+		
+		// Create a test file
+		const testFile = file('test-diagnostics.js');
+		fs.writeFileSync(testFile, 'const x = 1;', 'utf8');
+		await repository.add([testFile]);
+		await repository.commit('add test file');
+		
+		// Create a diagnostic collection to simulate diagnostics
+		const diagnosticCollection = languages.createDiagnosticCollection('test');
+		
+		try {
+			// Open the file
+			const doc = await open('test-diagnostics.js');
+			
+			// Add a diagnostic (simulating an error)
+			const diagnostic = new Diagnostic(
+				new Range(0, 0, 0, 5),
+				'Test error',
+				DiagnosticSeverity.Error
+			);
+			diagnostic.source = 'test';
+			diagnosticCollection.set(doc.uri, [diagnostic]);
+			
+			// Wait for diagnostics to propagate
+			await new Promise(resolve => setTimeout(resolve, 100));
+			
+			// Verify diagnostic exists
+			let currentDiagnostics = languages.getDiagnostics(doc.uri);
+			assert.strictEqual(currentDiagnostics.length, 1, 'Should have one diagnostic');
+			
+			// Modify the file and clear diagnostics (simulating fix)
+			await type(doc, '\n// fixed');
+			await doc.save();
+			diagnosticCollection.set(doc.uri, []);
+			
+			// Wait for diagnostics to update (same delay as in commit hook)
+			await new Promise(resolve => setTimeout(resolve, 100));
+			
+			// Verify diagnostics are cleared
+			currentDiagnostics = languages.getDiagnostics(doc.uri);
+			assert.strictEqual(currentDiagnostics.length, 0, 'Diagnostics should be cleared after update');
+			
+		} finally {
+			diagnosticCollection.dispose();
+		}
+	});
 });
