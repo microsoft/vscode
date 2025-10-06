@@ -48,7 +48,7 @@ export class ChatEditor extends EditorPane {
 		return this._scopedContextKeyService;
 	}
 
-	private _memento: Memento | undefined;
+	private _memento: Memento<IChatViewState> | undefined;
 	private _viewState: IChatViewState | undefined;
 	private dimension = new dom.Dimension(0, 0);
 
