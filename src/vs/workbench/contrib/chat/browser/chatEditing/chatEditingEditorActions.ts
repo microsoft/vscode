@@ -338,7 +338,7 @@ export class ReviewChangesAction extends ChatEditingEditorAction {
 		});
 	}
 
-	override runChatEditingCommand(_accessor: ServicesAccessor, _session: IChatEditingSession, entry: IModifiedFileEntry, _integration: IModifiedFileEntryEditorIntegration, ..._args: any[]): void {
+	override runChatEditingCommand(_accessor: ServicesAccessor, _session: IChatEditingSession, entry: IModifiedFileEntry, _integration: IModifiedFileEntryEditorIntegration, ..._args: unknown[]): void {
 		entry.enableReviewModeUntilSettled();
 	}
 }
