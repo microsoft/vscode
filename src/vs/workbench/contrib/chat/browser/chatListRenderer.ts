@@ -1263,7 +1263,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			} else if (content.kind === 'mcpServersInteractionRequired') {
 				return this.renderMcpServersInteractionRequired(content, context, templateData);
 			} else if (content.kind === 'thinking' && this.shouldShowThinkingPart()) {
-				this.renderThinkingPart(content, context, templateData);
+				return this.renderThinkingPart(content, context, templateData);
 			}
 
 			return this.renderNoContent(other => content.kind === other.kind);
