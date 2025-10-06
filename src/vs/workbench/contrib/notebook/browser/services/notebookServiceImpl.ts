@@ -54,14 +54,6 @@ interface NotebookProviderInfoStoreMemento {
 	editors: NotebookProviderInfo[];
 }
 
-interface NotebookOutputRendererInfoStoreMemento {
-	[notebookType: string]: { [mimeType: string]: string } | undefined;
-}
-
-interface NotebookServiceMemento {
-	[viewType: string]: string | undefined;
-}
-
 export class NotebookProviderInfoStore extends Disposable {
 
 	private static readonly CUSTOM_EDITORS_STORAGE_ID = 'notebookEditors';
@@ -423,6 +415,10 @@ export class NotebookProviderInfoStore extends Disposable {
 	}
 }
 
+interface NotebookOutputRendererInfoStoreMemento {
+	[notebookType: string]: { [mimeType: string]: string } | undefined;
+}
+
 export class NotebookOutputRendererInfoStore {
 	private readonly contributedRenderers = new Map</* rendererId */ string, NotebookOutputRendererInfo>();
 	private readonly preferredMimetypeMemento: Memento<NotebookOutputRendererInfoStoreMemento>;
@@ -527,6 +523,10 @@ class ModelData implements IDisposable, INotebookDocument {
 	dispose(): void {
 		this._modelEventListeners.dispose();
 	}
+}
+
+interface NotebookServiceMemento {
+	[viewType: string]: string | undefined;
 }
 
 export class NotebookService extends Disposable implements INotebookService {
