@@ -307,7 +307,7 @@ export class GitError extends Error {
 			stderr: this.stderr
 		}, null, 2);
 
-		if (this.error) {
+		if (this.error?.stack) {
 			result += this.error.stack;
 		}
 
