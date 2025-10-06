@@ -13,6 +13,7 @@ import { MainContext, MainThreadDiagnosticsShape, ExtHostDiagnosticsShape, IMain
 import { DiagnosticSeverity } from './extHostTypes.js';
 import * as converter from './extHostTypeConverters.js';
 import { Event, Emitter, DebounceEmitter } from '../../../base/common/event.js';
+import { coalesce } from '../../../base/common/arrays.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { ResourceMap } from '../../../base/common/map.js';
 import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
@@ -82,7 +83,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 			}
 
 			// update single row
-			this.#data.set(first, diagnostics.slice());
+			this.#data.set(first, coalesce(diagnostics));
 			toSync = [first];
 
 		} else if (Array.isArray(first)) {
@@ -112,7 +113,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 					}
 				} else {
 					const currentDiagnostics = this.#data.get(uri);
-					currentDiagnostics?.push(...diagnostics);
+					currentDiagnostics?.push(...coalesce(diagnostics));
 				}
 			}
 		}
