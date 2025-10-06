@@ -241,8 +241,8 @@ CommandsRegistry.registerCommand({
 		const commandService = accessor.get(ICommandService);
 
 		const commandOptions: IOpenEmptyWindowOptions = {
-			forceReuseWindow: options && options.reuseWindow,
-			remoteAuthority: options && options.remoteAuthority
+			forceReuseWindow: options?.reuseWindow,
+			remoteAuthority: options?.remoteAuthority
 		};
 
 		return commandService.executeCommand('_files.newWindow', commandOptions);

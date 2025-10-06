@@ -7,9 +7,12 @@ import { IKeyboardEvent } from '../../base/browser/keyboardEvent.js';
 import { IMouseEvent, IMouseWheelEvent } from '../../base/browser/mouseEvent.js';
 import { IBoundarySashes } from '../../base/browser/ui/sash/sash.js';
 import { Event } from '../../base/common/event.js';
-import { IEditorConstructionOptions } from './config/editorConfiguration.js';
+import { MenuId } from '../../platform/actions/common/actions.js';
+import { IContextKeyService } from '../../platform/contextkey/common/contextkey.js';
+import { ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
 import { ConfigurationChangedEvent, EditorLayoutInfo, EditorOption, FindComputedEditorOptionValueById, IComputedEditorOptions, IDiffEditorOptions, IEditorOptions, OverviewRulerPosition } from '../common/config/editorOptions.js';
 import { IDimension } from '../common/core/2d/dimension.js';
+import { TextEdit } from '../common/core/edits/textEdit.js';
 import { IPosition, Position } from '../common/core/position.js';
 import { IRange, Range } from '../common/core/range.js';
 import { Selection } from '../common/core/selection.js';
@@ -17,16 +20,13 @@ import { IWordAtPosition } from '../common/core/wordHelper.js';
 import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from '../common/cursorEvents.js';
 import { IDiffComputationResult, ILineChange } from '../common/diff/legacyLinesDiffComputer.js';
 import * as editorCommon from '../common/editorCommon.js';
-import { GlyphMarginLane, ICursorStateComputer, IIdentifiedSingleEditOperation, IModelDecoration, IModelDeltaDecoration, ITextModel, PositionAffinity } from '../common/model.js';
+import { GlyphMarginLane, ICursorStateComputer, IIdentifiedSingleEditOperation, IModelDecoration, IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel, PositionAffinity } from '../common/model.js';
 import { InjectedText } from '../common/modelLineProjectionData.js';
+import { TextModelEditSource } from '../common/textModelEditSource.js';
 import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, ModelFontChangedEvent, ModelLineHeightChangedEvent } from '../common/textModelEvents.js';
 import { IEditorWhitespace, IViewModel } from '../common/viewModel.js';
 import { OverviewRulerZone } from '../common/viewModel/overviewZoneManager.js';
-import { MenuId } from '../../platform/actions/common/actions.js';
-import { IContextKeyService } from '../../platform/contextkey/common/contextkey.js';
-import { ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
-import { TextEdit } from '../common/core/edits/textEdit.js';
-import { TextModelEditSource } from '../common/textModelEditSource.js';
+import { IEditorConstructionOptions } from './config/editorConfiguration.js';
 
 /**
  * A view zone is a full horizontal rectangle that 'pushes' text down.
@@ -1123,7 +1123,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	/**
 	 * @internal
 	 */
-	getTelemetryData(): { [key: string]: any } | undefined;
+	getTelemetryData(): object | undefined;
 
 	/**
 	 * Returns the editor's container dom node
@@ -1283,6 +1283,15 @@ export interface IActiveCodeEditor extends ICodeEditor {
 	 * Warning: the results of this method are inaccurate for positions that are outside the current editor viewport.
 	 */
 	getScrolledVisiblePosition(position: IPosition): { top: number; left: number; height: number };
+
+	/**
+	 * Change the decorations. All decorations added through this changeAccessor
+	 * will get the ownerId of the editor (meaning they will not show up in other
+	 * editors).
+	 * @see {@link ITextModel.changeDecorations}
+	 * @internal
+	 */
+	changeDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): T;
 }
 
 /**
@@ -1462,7 +1471,7 @@ export function getCodeEditor(thing: unknown): ICodeEditor | null {
 /**
  *@internal
  */
-export function getIEditor(thing: any): editorCommon.IEditor | null {
+export function getIEditor(thing: unknown): editorCommon.IEditor | null {
 	if (isCodeEditor(thing) || isDiffEditor(thing)) {
 		return thing;
 	}

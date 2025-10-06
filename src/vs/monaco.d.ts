@@ -618,7 +618,7 @@ declare namespace monaco {
 		/**
 		 * Test if `obj` is an `IPosition`.
 		 */
-		static isIPosition(obj: any): obj is IPosition;
+		static isIPosition(obj: unknown): obj is IPosition;
 		toJSON(): IPosition;
 	}
 
@@ -782,7 +782,7 @@ declare namespace monaco {
 		/**
 		 * Test if `obj` is an `IRange`.
 		 */
-		static isIRange(obj: any): obj is IRange;
+		static isIRange(obj: unknown): obj is IRange;
 		/**
 		 * Test if the two ranges are touching in any way.
 		 */
@@ -908,7 +908,7 @@ declare namespace monaco {
 		/**
 		 * Test if `obj` is an `ISelection`.
 		 */
-		static isISelection(obj: any): obj is ISelection;
+		static isISelection(obj: unknown): obj is ISelection;
 		/**
 		 * Create with a direction.
 		 */
@@ -2635,7 +2635,7 @@ declare namespace monaco.editor {
 		cursorState: ICursorState[];
 		viewState: IViewState;
 		contributionsState: {
-			[id: string]: any;
+			[id: string]: unknown;
 		};
 	}
 
@@ -2850,7 +2850,7 @@ declare namespace monaco.editor {
 		 * @param handlerId The id of the handler or the id of a contribution.
 		 * @param payload Extra data to be sent to the handler.
 		 */
-		trigger(source: string | null | undefined, handlerId: string, payload: any): void;
+		trigger(source: string | null | undefined, handlerId: string, payload: unknown): void;
 		/**
 		 * Gets the current model attached to this editor.
 		 */
@@ -2922,11 +2922,11 @@ declare namespace monaco.editor {
 		/**
 		 * Store view state.
 		 */
-		saveViewState?(): any;
+		saveViewState?(): unknown;
 		/**
 		 * Restore view state.
 		 */
-		restoreViewState?(state: any): void;
+		restoreViewState?(state: unknown): void;
 	}
 
 	/**
@@ -8393,7 +8393,7 @@ declare namespace monaco.languages {
 		id: string;
 		title: string;
 		tooltip?: string;
-		arguments?: any[];
+		arguments?: unknown[];
 	}
 
 	export interface CommentThreadRevealOptions {

@@ -18,7 +18,7 @@ import { ExtensionIdentifier } from '../../../../platform/extensions/common/exte
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWebviewPortMapping } from '../../../../platform/webview/common/webviewPortMapping.js';
-import { Memento, MementoObject } from '../../../common/memento.js';
+import { Memento } from '../../../common/memento.js';
 
 /**
  * Set when the find widget in a webview in a webview is visible.
@@ -348,8 +348,8 @@ export interface IOverlayWebview extends IWebview {
  */
 export class WebviewOriginStore {
 
-	private readonly _memento: Memento;
-	private readonly _state: MementoObject;
+	private readonly _memento: Memento<Record<string, string>>;
+	private readonly _state: Record<string, string | undefined>;
 
 	constructor(
 		rootStorageKey: string,

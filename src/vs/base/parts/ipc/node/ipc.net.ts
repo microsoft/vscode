@@ -27,7 +27,7 @@ export function upgradeToISocket(req: http.IncomingMessage, socket: Socket, {
 	skipWebSocketFrames?: boolean;
 	disableWebSocketCompression?: boolean;
 }): NodeSocket | WebSocketNodeSocket | undefined {
-	if (req.headers['upgrade'] === undefined || req.headers['upgrade'].toLowerCase() !== 'websocket') {
+	if (req.headers.upgrade === undefined || req.headers.upgrade.toLowerCase() !== 'websocket') {
 		socket.end('HTTP/1.1 400 Bad Request');
 		return;
 	}

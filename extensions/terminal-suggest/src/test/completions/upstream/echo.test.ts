@@ -12,8 +12,7 @@ const allOptions = [
 	'-e',
 	'-n',
 ];
-// eslint-disable-next-line local/code-no-any-casts
-const echoExpectedCompletions = [{ label: 'echo', description: (echoSpec as any).description }];
+const echoExpectedCompletions = [{ label: 'echo', description: (echoSpec as Fig.Subcommand).description }];
 export const echoTestSuiteSpec: ISuiteSpec = {
 	name: 'echo',
 	completionSpecs: echoSpec,

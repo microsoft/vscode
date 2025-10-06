@@ -9,6 +9,8 @@ import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/cont
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IExtensionManagementService } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { EnablementState, IWorkbenchExtensionEnablementService } from '../../../../services/extensionManagement/common/extensionManagement.js';
 import { HasSpeechProvider, SpeechToTextInProgress } from '../../../speech/common/speechService.js';
 import { registerActiveInstanceAction, sharedWhenClause } from '../../../terminal/browser/terminalActions.js';
@@ -64,6 +66,10 @@ export function registerTerminalVoiceActions() {
 		title: localize2('workbench.action.terminal.stopDictation', "Stop Dictation in Terminal"),
 		precondition: TerminalContextKeys.terminalDictationInProgress,
 		f1: true,
+		keybinding: {
+			primary: KeyCode.Escape,
+			weight: KeybindingWeight.WorkbenchContrib + 100
+		},
 		run: (activeInstance, c, accessor) => {
 			const instantiationService = accessor.get(IInstantiationService);
 			TerminalVoiceSession.getInstance(instantiationService).stop(true);

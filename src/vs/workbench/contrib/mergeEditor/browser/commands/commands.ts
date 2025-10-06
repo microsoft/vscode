@@ -58,7 +58,7 @@ abstract class MergeEditorAction2 extends Action2 {
 		super(desc);
 	}
 
-	override run(accessor: ServicesAccessor, ...args: any[]): void {
+	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
 		const { activeEditorPane } = accessor.get(IEditorService);
 		if (activeEditorPane instanceof MergeEditor) {
 			const vm = activeEditorPane.viewModel.get();
@@ -79,7 +79,7 @@ abstract class MergeEditorAction2 extends Action2 {
 		}
 	}
 
-	abstract runWithMergeEditor(context: MergeEditorAction2Args, accessor: ServicesAccessor, ...args: any[]): unknown;
+	abstract runWithMergeEditor(context: MergeEditorAction2Args, accessor: ServicesAccessor, ...args: unknown[]): unknown;
 }
 
 export class OpenMergeEditor extends Action2 {
@@ -592,7 +592,7 @@ export class AcceptAllCombination extends MergeEditorAction2 {
 		});
 	}
 
-	override runWithMergeEditor(context: MergeEditorAction2Args, accessor: ServicesAccessor, ...args: any[]) {
+	override runWithMergeEditor(context: MergeEditorAction2Args, accessor: ServicesAccessor, ...args: unknown[]) {
 		const { viewModel } = context;
 		const modifiedBaseRanges = viewModel.model.modifiedBaseRanges.get();
 		const model = viewModel.model;

@@ -568,10 +568,25 @@ export class MutableDisposable<T extends IDisposable> implements IDisposable {
 		trackDisposable(this);
 	}
 
+	/**
+	 * Get the currently held disposable value, or `undefined` if this MutableDisposable has been disposed
+	 */
 	get value(): T | undefined {
 		return this._isDisposed ? undefined : this._value;
 	}
 
+	/**
+	 * Set a new disposable value.
+	 *
+	 * Behaviour:
+	 * - If the MutableDisposable has been disposed, the setter is a no-op.
+	 * - If the new value is strictly equal to the current value, the setter is a no-op.
+	 * - Otherwise the previous value (if any) is disposed and the new value is stored.
+	 *
+	 * Related helpers:
+	 * - clear() resets the value to `undefined` (and disposes the previous value).
+	 * - clearAndLeak() returns the old value without disposing it and removes its parent.
+	 */
 	set value(value: T | undefined) {
 		if (this._isDisposed || value === this._value) {
 			return;

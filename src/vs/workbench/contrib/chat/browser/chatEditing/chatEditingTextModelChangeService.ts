@@ -109,6 +109,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		}
 	}
 
+	private _didUserEditModelFired = false;
 	private readonly _didUserEditModel = this._register(new Emitter<void>());
 	public readonly onDidUserEditModel = this._didUserEditModel.event;
 
@@ -280,8 +281,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 	public keep() {
 		this.notifyHunkAction('accepted', { linesAdded: this.linesAdded, linesRemoved: this.linesRemoved, lineCount: this.lineChangeCount, hasRemainingEdits: false });
 		this.originalModel.setValue(this.modifiedModel.createSnapshot());
-		this._diffInfo.set(nullDocumentDiff, undefined);
-		this._originalToModifiedEdit = StringEdit.empty;
+		this._reset();
 	}
 
 	/**
@@ -292,8 +292,13 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		this.modifiedModel.pushStackElement();
 		this._applyEdits([(EditOperation.replace(this.modifiedModel.getFullModelRange(), this.originalModel.getValue()))], EditSources.chatUndoEdits());
 		this.modifiedModel.pushStackElement();
+		this._reset();
+	}
+
+	private _reset() {
 		this._originalToModifiedEdit = StringEdit.empty;
 		this._diffInfo.set(nullDocumentDiff, undefined);
+		this._didUserEditModelFired = false;
 	}
 
 	public async resetDocumentValues(newOriginal: string | ITextSnapshot | undefined, newModified: string | undefined): Promise<void> {
@@ -354,7 +359,10 @@ export class ChatEditingTextModelChangeService extends Disposable {
 
 			this._allEditsAreFromUs = false;
 			this._updateDiffInfoSeq();
-			this._didUserEditModel.fire();
+			if (!this._didUserEditModelFired) {
+				this._didUserEditModelFired = true;
+				this._didUserEditModel.fire();
+			}
 		}
 	}
 
