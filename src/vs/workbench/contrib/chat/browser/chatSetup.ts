@@ -1201,13 +1201,11 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				const modeParam = params.get('mode');
 				let modeToUse: ChatModeKind | string | undefined;
 				if (modeParam) {
-					const chatModeService = this.chatModeService;
-
 					// check if the given param is a valid mode ID
-					let foundMode = chatModeService.findModeById(modeParam);
+					let foundMode = this.chatModeService.findModeById(modeParam);
 					if (!foundMode) {
 						// if not, check if the given param is a valid mode name, note the name is case insensitive
-						foundMode = chatModeService.findModeByName(modeParam);
+						foundMode = this.chatModeService.findModeByName(modeParam);
 					}
 
 					if (foundMode) {
@@ -1215,7 +1213,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					}
 				}
 
-				// execute the command to change the mode in panel, note that the command only support mode IDs, not names
+				// execute the command to change the mode in panel, note that the command only supports mode IDs, not names
 				await this.commandService.executeCommand(CHAT_SETUP_ACTION_ID, modeToUse);
 
 				return true;
