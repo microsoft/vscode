@@ -178,14 +178,13 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		this._servers.get(id)?.pushMessage(message);
 	}
 
-	async $getTokenFromServerMetadata(id: number, authServerComponents: UriComponents, serverMetadata: IAuthorizationServerMetadata, resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined, errorOnUserInteraction?: boolean): Promise<string | undefined> {
+	async $getTokenFromServerMetadata(id: number, authServerComponents: UriComponents, serverMetadata: IAuthorizationServerMetadata, resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined, scopes: string[] | undefined, errorOnUserInteraction?: boolean): Promise<string | undefined> {
 		const server = this._serverDefinitions.get(id);
 		if (!server) {
 			return undefined;
 		}
-
 		const authorizationServer = URI.revive(authServerComponents);
-		const scopesSupported = resourceMetadata?.scopes_supported || serverMetadata.scopes_supported || [];
+		const scopesSupported = scopes ?? resourceMetadata?.scopes_supported ?? serverMetadata.scopes_supported ?? [];
 		let providerId = await this._authenticationService.getOrActivateProviderIdForServer(authorizationServer);
 		if (!providerId) {
 			const provider = await this._authenticationService.createDynamicAuthenticationProvider(authorizationServer, serverMetadata, resourceMetadata);

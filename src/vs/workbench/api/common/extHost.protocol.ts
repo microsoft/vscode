@@ -3041,7 +3041,7 @@ export interface MainThreadMcpShape {
 	$onDidReceiveMessage(id: number, message: string): void;
 	$upsertMcpCollection(collection: McpCollectionDefinition.FromExtHost, servers: McpServerDefinition.Serialized[]): void;
 	$deleteMcpCollection(collectionId: string): void;
-	$getTokenFromServerMetadata(id: number, authorizationServer: UriComponents, serverMetadata: IAuthorizationServerMetadata, resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined, errorOnUserInteraction?: boolean): Promise<string | undefined>;
+	$getTokenFromServerMetadata(id: number, authorizationServer: UriComponents, serverMetadata: IAuthorizationServerMetadata, resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined, scopes: string[] | undefined, errorOnUserInteraction?: boolean): Promise<string | undefined>;
 }
 
 export interface MainThreadDataChannelsShape extends IDisposable {
