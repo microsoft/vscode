@@ -24,8 +24,8 @@ export class ContributedExternalUriOpenersStore extends Disposable {
 	private static readonly STORAGE_ID = 'externalUriOpeners';
 
 	private readonly _openers = new Map<string, RegisteredExternalOpener>();
-	private readonly _memento: Memento;
-	private _mementoObject: OpenersMemento;
+	private readonly _memento: Memento<OpenersMemento>;
+	private _mementoObject: Partial<OpenersMemento>;
 
 	constructor(
 		@IStorageService storageService: IStorageService,
@@ -36,7 +36,9 @@ export class ContributedExternalUriOpenersStore extends Disposable {
 		this._memento = new Memento(ContributedExternalUriOpenersStore.STORAGE_ID, storageService);
 		this._mementoObject = this._memento.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
 		for (const [id, value] of Object.entries(this._mementoObject || {})) {
-			this.add(id, value.extensionId, { isCurrentlyRegistered: false });
+			if (value) {
+				this.add(id, value.extensionId, { isCurrentlyRegistered: false });
+			}
 		}
 
 		this.invalidateOpenersOnExtensionsChanged();
