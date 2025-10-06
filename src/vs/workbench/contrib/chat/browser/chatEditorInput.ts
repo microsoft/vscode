@@ -28,12 +28,15 @@ import type { IChatEditorOptions } from './chatEditor.js';
 const ChatEditorIcon = registerIcon('chat-editor-label-icon', Codicon.chatSparkle, nls.localize('chatEditorLabelIcon', 'Icon of the chat editor label.'));
 
 export class ChatEditorInput extends EditorInput implements IEditorCloseHandler {
-	static readonly countsInUse = new Set<number>();
+	/** Maps input name strings to sets of active editor counts */
+	static readonly countsInUseMap = new Map<string, Set<number>>();
 
 	static readonly TypeID: string = 'workbench.input.chatSession';
 	static readonly EditorID: string = 'workbench.editor.chatSession';
 
 	private readonly inputCount: number;
+	private readonly inputName: string;
+
 	public sessionId: string | undefined;
 	private hasCustomTitle: boolean = false;
 
@@ -44,9 +47,9 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		return ChatEditorUri.generate(handle);
 	}
 
-	static getNextCount(): number {
+	static getNextCount(inputName: string): number {
 		let count = 0;
-		while (ChatEditorInput.countsInUse.has(count)) {
+		while (ChatEditorInput.countsInUseMap.get(inputName)?.has(count)) {
 			count++;
 		}
 
@@ -82,14 +85,23 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 
 		this.hasCustomTitle = Boolean(hasExistingCustomTitle);
 
+		// Input counts are unique to the displayed fallback title
+		this.inputName = options.title?.fallback ?? '';
+		if (!ChatEditorInput.countsInUseMap.has(this.inputName)) {
+			ChatEditorInput.countsInUseMap.set(this.inputName, new Set());
+		}
+
 		// Only allocate a count if we don't already have a custom title
 		if (!this.hasCustomTitle) {
-			this.inputCount = ChatEditorInput.getNextCount();
-			ChatEditorInput.countsInUse.add(this.inputCount);
+			this.inputCount = ChatEditorInput.getNextCount(this.inputName);
+			ChatEditorInput.countsInUseMap.get(this.inputName)?.add(this.inputCount);
 			this._register(toDisposable(() => {
 				// Only remove if we haven't already removed it due to custom title
 				if (!this.hasCustomTitle) {
-					ChatEditorInput.countsInUse.delete(this.inputCount);
+					ChatEditorInput.countsInUseMap.get(this.inputName)?.delete(this.inputCount);
+					if (ChatEditorInput.countsInUseMap.get(this.inputName)?.size === 0) {
+						ChatEditorInput.countsInUseMap.delete(this.inputName);
+					}
 				}
 			}));
 		} else {
@@ -165,8 +177,9 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		}
 
 		// Fall back to default naming pattern
-		const defaultName = nls.localize('chatEditorName', "Chat") + (this.inputCount > 0 ? ` ${this.inputCount + 1}` : '');
-		return defaultName;
+		const inputCountSuffix = (this.inputCount > 0 ? ` ${this.inputCount + 1}` : '');
+		const defaultName = this.options.title?.fallback ?? nls.localize('chatEditorName', "Chat");
+		return defaultName + inputCountSuffix;
 	}
 
 	override getIcon(): ThemeIcon {
@@ -197,7 +210,10 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 			// When a custom title is set, we no longer need the numeric count
 			if (e && e.kind === 'setCustomTitle' && !this.hasCustomTitle) {
 				this.hasCustomTitle = true;
-				ChatEditorInput.countsInUse.delete(this.inputCount);
+				ChatEditorInput.countsInUseMap.get(this.inputName)?.delete(this.inputCount);
+				if (ChatEditorInput.countsInUseMap.get(this.inputName)?.size === 0) {
+					ChatEditorInput.countsInUseMap.delete(this.inputName);
+				}
 			}
 			this._onDidChangeLabel.fire();
 		}));

@@ -110,7 +110,8 @@ export class CodeActionController extends Disposable implements IEditorContribut
 			const command = actionItem.action.command;
 			if (command && command.id === 'inlineChat.start') {
 				if (command.arguments && command.arguments.length >= 1) {
-					command.arguments[0] = { ...command.arguments[0], autoSend: false };
+					// eslint-disable-next-line local/code-no-any-casts
+					command.arguments[0] = { ...(command.arguments[0] as any), autoSend: false };
 				}
 			}
 			await this.applyCodeAction(actionItem, false, false, ApplyCodeActionReason.FromAILightbulb);

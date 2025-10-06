@@ -493,7 +493,9 @@ export class SessionsViewPane extends ViewPane {
 			const options: IChatEditorOptions = {
 				pinned: true,
 				ignoreInView: true,
-				preferredTitle: truncate(session.label, ChatEditorTitleMaxLength),
+				title: {
+					preferred: truncate(session.label, ChatEditorTitleMaxLength),
+				},
 				preserveFocus: true,
 			};
 			await this.editorService.openEditor({
