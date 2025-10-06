@@ -285,7 +285,7 @@ class ToggleDisassemblyViewSourceCodeAction extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]): void {
+	run(accessor: ServicesAccessor, editor: ICodeEditor, ...args: unknown[]): void {
 		const configService = accessor.get(IConfigurationService);
 		if (configService) {
 			const value = configService.getValue<IDebugConfiguration>('debug').disassemblyView.showSourceCode;

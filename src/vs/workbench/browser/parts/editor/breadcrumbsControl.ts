@@ -735,7 +735,7 @@ registerAction2(class FocusAndSelectBreadcrumbs extends Action2 {
 			f1: true
 		});
 	}
-	run(accessor: ServicesAccessor, ...args: any[]): void {
+	run(accessor: ServicesAccessor, ...args: unknown[]): void {
 		focusAndSelectHandler(accessor, true);
 	}
 });
@@ -754,7 +754,7 @@ registerAction2(class FocusBreadcrumbs extends Action2 {
 			f1: true
 		});
 	}
-	run(accessor: ServicesAccessor, ...args: any[]): void {
+	run(accessor: ServicesAccessor, ...args: unknown[]): void {
 		focusAndSelectHandler(accessor, false);
 	}
 });

@@ -29,7 +29,7 @@ export function registerChatCopyActions() {
 			});
 		}
 
-		run(accessor: ServicesAccessor, ...args: any[]) {
+		run(accessor: ServicesAccessor, ...args: unknown[]) {
 			const clipboardService = accessor.get(IClipboardService);
 			const chatWidgetService = accessor.get(IChatWidgetService);
 			const widget = chatWidgetService.lastFocusedWidget;
@@ -61,12 +61,12 @@ export function registerChatCopyActions() {
 			});
 		}
 
-		async run(accessor: ServicesAccessor, ...args: any[]) {
+		async run(accessor: ServicesAccessor, ...args: unknown[]) {
 			const chatWidgetService = accessor.get(IChatWidgetService);
 			const clipboardService = accessor.get(IClipboardService);
 
 			const widget = chatWidgetService.lastFocusedWidget;
-			let item: ChatTreeItem | undefined = args[0];
+			let item = args[0] as ChatTreeItem | undefined;
 			if (!isChatTreeItem(item)) {
 				item = widget?.getFocus();
 				if (!item) {

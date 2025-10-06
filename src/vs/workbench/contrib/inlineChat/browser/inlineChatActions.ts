@@ -82,7 +82,7 @@ export class StartSessionAction extends Action2 {
 			}]
 		});
 	}
-	override run(accessor: ServicesAccessor, ...args: any[]): any {
+	override run(accessor: ServicesAccessor, ...args: unknown[]): any {
 
 		const codeEditorService = accessor.get(ICodeEditorService);
 		const editor = codeEditorService.getActiveCodeEditor();
@@ -244,7 +244,7 @@ export abstract class AbstractInline1ChatAction extends EditorAction2 {
 		this.runInlineChatCommand(accessor, ctrl, editor, ..._args);
 	}
 
-	abstract runInlineChatCommand(accessor: ServicesAccessor, ctrl: InlineChatController1, editor: ICodeEditor, ...args: any[]): void;
+	abstract runInlineChatCommand(accessor: ServicesAccessor, ctrl: InlineChatController1, editor: ICodeEditor, ...args: unknown[]): void;
 }
 
 export class ArrowOutUpAction extends AbstractInline1ChatAction {
@@ -458,7 +458,7 @@ export class MoveToNextHunk extends AbstractInline1ChatAction {
 		});
 	}
 
-	override runInlineChatCommand(accessor: ServicesAccessor, ctrl: InlineChatController1, editor: ICodeEditor, ...args: any[]): void {
+	override runInlineChatCommand(accessor: ServicesAccessor, ctrl: InlineChatController1, editor: ICodeEditor, ...args: unknown[]): void {
 		ctrl.moveHunk(true);
 	}
 }
@@ -478,7 +478,7 @@ export class MoveToPreviousHunk extends AbstractInline1ChatAction {
 		});
 	}
 
-	override runInlineChatCommand(accessor: ServicesAccessor, ctrl: InlineChatController1, editor: ICodeEditor, ...args: any[]): void {
+	override runInlineChatCommand(accessor: ServicesAccessor, ctrl: InlineChatController1, editor: ICodeEditor, ...args: unknown[]): void {
 		ctrl.moveHunk(false);
 	}
 }
@@ -613,7 +613,7 @@ abstract class AbstractInline2ChatAction extends EditorAction2 {
 		this.runInlineChatCommand(accessor, ctrl, editor, ..._args);
 	}
 
-	abstract runInlineChatCommand(accessor: ServicesAccessor, ctrl: InlineChatController2, editor: ICodeEditor, ...args: any[]): void;
+	abstract runInlineChatCommand(accessor: ServicesAccessor, ctrl: InlineChatController2, editor: ICodeEditor, ...args: unknown[]): void;
 }
 
 class KeepOrUndoSessionAction extends AbstractInline2ChatAction {
@@ -706,7 +706,7 @@ export class CloseSessionAction2 extends AbstractInline2ChatAction {
 		});
 	}
 
-	runInlineChatCommand(accessor: ServicesAccessor, _ctrl: InlineChatController2, editor: ICodeEditor, ...args: any[]): void {
+	runInlineChatCommand(accessor: ServicesAccessor, _ctrl: InlineChatController2, editor: ICodeEditor, ...args: unknown[]): void {
 		const inlineChatSessions = accessor.get(IInlineChatSessionService);
 		if (editor.hasModel()) {
 			const textModel = editor.getModel();
