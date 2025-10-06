@@ -572,11 +572,10 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		if (ghostTextIndex !== -1) {
 			for (let checkPos = buffer.cursorX; checkPos >= this._commandStartX; checkPos--) {
 				const checkCell = line.getCell(checkPos);
-				const chars = checkCell?.getChars();
-				if (!checkCell || !chars || !chars.trim().length) {
+				if (!checkCell?.getChars.length) {
 					continue;
 				}
-				if (checkCell.getCode() !== 0 && this._cellStylesMatch(lastNonWhitespaceCell, checkCell)) {
+				if (checkCell && checkCell.getCode() !== 0 && this._cellStylesMatch(lastNonWhitespaceCell, checkCell)) {
 					return -1;
 				}
 			}
