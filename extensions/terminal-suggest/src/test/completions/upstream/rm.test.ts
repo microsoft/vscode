@@ -16,8 +16,7 @@ const allOptions = [
 	'-r',
 	'-v',
 ];
-// eslint-disable-next-line local/code-no-any-casts
-const expectedCompletions = [{ label: 'rm', description: (rmSpec as any).description }];
+const expectedCompletions = [{ label: 'rm', description: (rmSpec as Fig.Subcommand).description }];
 export const rmTestSuiteSpec: ISuiteSpec = {
 	name: 'rm',
 	completionSpecs: rmSpec,
