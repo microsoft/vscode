@@ -43,7 +43,11 @@ interface IEditorWorkingSetState extends IEditorWorkingSet {
 	readonly auxiliary: IEditorPartsUIState;
 }
 
-export class EditorParts extends MultiWindowParts<EditorPart> implements IEditorGroupsService, IEditorPartsView {
+interface IEditorPartsMemento {
+	'editorparts.state'?: IEditorPartsUIState;
+}
+
+export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMemento> implements IEditorGroupsService, IEditorPartsView {
 
 	declare readonly _serviceBrand: undefined;
 
