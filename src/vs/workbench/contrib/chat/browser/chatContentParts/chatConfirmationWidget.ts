@@ -43,6 +43,7 @@ export interface IChatConfirmationWidgetOptions<T> {
 	subtitle?: string | IMarkdownString;
 	buttons: IChatConfirmationButton<T>[];
 	toolbarData?: { arg: any; partType: string; partSource?: string };
+	silent?: boolean;
 }
 
 export class ChatQueryTitlePart extends Disposable {
@@ -129,6 +130,7 @@ abstract class BaseSimpleChatConfirmationWidget<T> extends Disposable {
 	protected readonly markdownRenderer: MarkdownRenderer;
 	private readonly title: string | IMarkdownString;
 
+	private readonly silent: boolean;
 	private readonly notification = this._register(new MutableDisposable<DisposableStore>());
 
 	constructor(
@@ -142,8 +144,9 @@ abstract class BaseSimpleChatConfirmationWidget<T> extends Disposable {
 	) {
 		super();
 
-		const { title, subtitle, message, buttons } = options;
+		const { title, subtitle, message, buttons, silent } = options;
 		this.title = title;
+		this.silent = !!silent;
 
 
 		const elements = dom.h('.chat-confirmation-widget-container@container', [
@@ -235,7 +238,7 @@ abstract class BaseSimpleChatConfirmationWidget<T> extends Disposable {
 	protected renderMessage(element: HTMLElement, listContainer: HTMLElement): void {
 		this.messageElement.append(element);
 
-		if (this.showingButtons && this._configurationService.getValue<boolean>('chat.notifyWindowOnConfirmation')) {
+		if (this.showingButtons && this._configurationService.getValue<boolean>('chat.notifyWindowOnConfirmation') && !this.silent) {
 			const targetWindow = dom.getWindow(listContainer);
 			if (!targetWindow.document.hasFocus()) {
 				this.notifyConfirmationNeeded(targetWindow);

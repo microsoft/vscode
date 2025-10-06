@@ -21,37 +21,34 @@ import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/ex
 import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from '../../../platform/files/common/files.js';
 import { RemoteAuthorityResolverErrorCode } from '../../../platform/remote/common/remoteAuthorityResolver.js';
 import { IRelativePatternDto } from './extHost.protocol.js';
-import { Position } from './extHostTypes/position.js';
-import { es5ClassCompat } from './extHostTypes/es5ClassCompat.js';
-import { Range } from './extHostTypes/range.js';
 import { CodeActionKind } from './extHostTypes/codeActionKind.js';
-import { Location } from './extHostTypes/location.js';
 import { Diagnostic } from './extHostTypes/diagnostic.js';
+import { es5ClassCompat } from './extHostTypes/es5ClassCompat.js';
+import { Location } from './extHostTypes/location.js';
+import { MarkdownString } from './extHostTypes/markdownString.js';
+import { Position } from './extHostTypes/position.js';
+import { Range } from './extHostTypes/range.js';
+import { SnippetString } from './extHostTypes/snippetString.js';
+import { SymbolKind, SymbolTag } from './extHostTypes/symbolInformation.js';
 import { TextEdit } from './extHostTypes/textEdit.js';
 import { WorkspaceEdit } from './extHostTypes/workspaceEdit.js';
-import { SnippetString } from './extHostTypes/snippetString.js';
-import { MarkdownString } from './extHostTypes/markdownString.js';
-import { SymbolKind, SymbolTag } from './extHostTypes/symbolInformation.js';
 
-export { Position } from './extHostTypes/position.js';
-export { Range } from './extHostTypes/range.js';
-export { Selection } from './extHostTypes/selection.js';
 export { CodeActionKind } from './extHostTypes/codeActionKind.js';
-export { Location } from './extHostTypes/location.js';
 export {
 	Diagnostic, DiagnosticRelatedInformation,
 	DiagnosticSeverity, DiagnosticTag
 } from './extHostTypes/diagnostic.js';
-export { EndOfLine, TextEdit } from './extHostTypes/textEdit.js';
-export { FileEditType, WorkspaceEdit } from './extHostTypes/workspaceEdit.js';
+export { Location } from './extHostTypes/location.js';
+export { MarkdownString } from './extHostTypes/markdownString.js';
+export { NotebookCellData, NotebookCellKind, NotebookCellOutput, NotebookCellOutputItem, NotebookData, NotebookEdit, NotebookRange } from './extHostTypes/notebooks.js';
+export { Position } from './extHostTypes/position.js';
+export { Range } from './extHostTypes/range.js';
+export { Selection } from './extHostTypes/selection.js';
 export { SnippetString } from './extHostTypes/snippetString.js';
 export { SnippetTextEdit } from './extHostTypes/snippetTextEdit.js';
-export {
-	NotebookCellKind, NotebookRange, NotebookCellData, NotebookCellOutput,
-	NotebookData, NotebookEdit, NotebookCellOutputItem
-} from './extHostTypes/notebooks.js';
-export { MarkdownString } from './extHostTypes/markdownString.js';
-export { SymbolKind, SymbolTag, SymbolInformation } from './extHostTypes/symbolInformation.js';
+export { SymbolInformation, SymbolKind, SymbolTag } from './extHostTypes/symbolInformation.js';
+export { EndOfLine, TextEdit } from './extHostTypes/textEdit.js';
+export { FileEditType, WorkspaceEdit } from './extHostTypes/workspaceEdit.js';
 
 export enum TerminalOutputAnchor {
 	Top = 0,
@@ -3175,6 +3172,7 @@ export class ChatResponseAnchorPart implements vscode.ChatResponseAnchorPart {
 	resolve?(token: vscode.CancellationToken): Thenable<void>;
 
 	constructor(value: vscode.Uri | vscode.Location | vscode.SymbolInformation, title?: string) {
+		// eslint-disable-next-line local/code-no-any-casts
 		this.value = value as any;
 		this.value2 = value;
 		this.title = title;
@@ -3354,6 +3352,7 @@ export class ChatToolInvocationPart {
 	isConfirmed?: boolean;
 	isComplete?: boolean;
 	toolSpecificData?: ChatTerminalToolInvocationData2;
+	fromSubAgent?: boolean;
 
 	constructor(toolName: string,
 		toolCallId: string,
@@ -3790,6 +3789,9 @@ export class LanguageModelToolResult2 {
 }
 
 export class ExtendedLanguageModelToolResult extends LanguageModelToolResult {
+	toolResultMessage?: string | MarkdownString;
+	toolResultDetails?: Array<URI | Location>;
+	toolMetadata?: unknown;
 }
 
 export enum LanguageModelChatToolMode {

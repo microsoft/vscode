@@ -134,6 +134,7 @@ export class InlineEditsView extends Disposable {
 			}
 
 			const indicatorDisplayRange = derivedOpts({ owner: this, equalsFn: equalsIfDefined(itemEquals()) }, reader => {
+				/** @description indicatorDisplayRange */
 				const ghostTextIndicator = this._ghostTextIndicator.read(reader);
 				if (ghostTextIndicator) {
 					return ghostTextIndicator.lineRange;
@@ -158,6 +159,7 @@ export class InlineEditsView extends Disposable {
 			});
 
 			const modelWithGhostTextSupport = derived<InlineEditModel | undefined>(this, reader => {
+				/** @description modelWithGhostTextSupport */
 				const model = this._model.read(reader);
 				if (model) {
 					return model;

@@ -119,6 +119,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 	const acquireVsCodeApi = globalThis.acquireVsCodeApi;
 	const vscode = acquireVsCodeApi();
+	// eslint-disable-next-line local/code-no-any-casts
 	delete (globalThis as any).acquireVsCodeApi;
 
 	const tokenizationStyle = new CSSStyleSheet();
@@ -1458,6 +1459,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			document.designMode = 'On';
 
 			while (find && matches.length < 500) {
+				// eslint-disable-next-line local/code-no-any-casts
 				find = (window as any).find(query, /* caseSensitive*/ !!options.caseSensitive,
 				/* backwards*/ false,
 				/* wrapAround*/ false,
@@ -1616,7 +1618,18 @@ async function webviewPreloads(ctx: PreloadContext) {
 			}
 
 			if (image) {
-				const imageToCopy = image;
+				const ensureImageLoaded = (img: HTMLImageElement): Promise<HTMLImageElement> => {
+					return new Promise((resolve, reject) => {
+						if (img.complete && img.naturalWidth > 0) {
+							resolve(img);
+						} else {
+							img.onload = () => resolve(img);
+							img.onerror = () => reject(new Error('Failed to load image'));
+							setTimeout(() => reject(new Error('Image load timeout')), 5000);
+						}
+					});
+				};
+				const imageToCopy = await ensureImageLoaded(image);
 
 				// Build clipboard data with both image and text formats
 				const clipboardData: Record<string, any> = {

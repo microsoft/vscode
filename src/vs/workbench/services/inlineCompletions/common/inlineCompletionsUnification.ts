@@ -6,6 +6,7 @@
 import { equals } from '../../../../base/common/arrays.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchAssignmentService } from '../../assignment/common/assignmentService.js';
@@ -29,19 +30,25 @@ const CODE_UNIFICATION_PREFIX = 'cmp-cht-';
 const CODE_UNIFICATION_FF = 'inlineCompletionsUnificationCode';
 const MODEL_UNIFICATION_FF = 'inlineCompletionsUnificationModel';
 
+export const isRunningUnificationExperiment = new RawContextKey<boolean>('isRunningUnificationExperiment', false);
+
 export class InlineCompletionsUnificationImpl extends Disposable implements IInlineCompletionsUnificationService {
 	readonly _serviceBrand: undefined;
 
 	private _state = new InlineCompletionsUnificationState(false, false, []);
 	public get state(): IInlineCompletionsUnificationState { return this._state; }
 
+	private isRunningUnificationExperiment;
+
 	private readonly _onDidStateChange = this._register(new Emitter<void>());
 	public readonly onDidStateChange = this._onDidStateChange.event;
 
 	constructor(
-		@IWorkbenchAssignmentService private readonly _assignmentService: IWorkbenchAssignmentService
+		@IWorkbenchAssignmentService private readonly _assignmentService: IWorkbenchAssignmentService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) {
 		super();
+		this.isRunningUnificationExperiment = isRunningUnificationExperiment.bindTo(this._contextKeyService);
 		this._register(this._assignmentService.onDidRefetchAssignments(() => this._update()));
 		this._update();
 	}
@@ -62,6 +69,7 @@ export class InlineCompletionsUnificationImpl extends Disposable implements IInl
 			return;
 		}
 		this._state = newState;
+		this.isRunningUnificationExperiment.set(this._state.codeUnification || this._state.modelUnification);
 		this._onDidStateChange.fire();
 	}
 }

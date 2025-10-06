@@ -41,6 +41,10 @@ parameters:
     displayName: "🎯 Linux x64"
     type: boolean
     default: true
+  - name: VSCODE_BUILD_LINUX_SNAP
+    displayName: "🎯 Linux x64 Snap"
+    type: boolean
+    default: true
   - name: VSCODE_BUILD_LINUX_ARM64
     displayName: "🎯 Linux arm64"
     type: boolean
@@ -94,10 +98,7 @@ variables:
   - name: VSCODE_PRIVATE_BUILD
     value: ${{ ne(variables['Build.Repository.Uri'], 'https://github.com/microsoft/vscode.git') }}
   - name: NPM_REGISTRY
-    ${{ if in(variables['Build.Reason'], 'IndividualCI', 'BatchedCI') }}: # disable terrapin when in VSCODE_CIBUILD
-      value: none
-    ${{ else }}:
-      value: ${{ parameters.NPM_REGISTRY }}
+    value: ${{ parameters.NPM_REGISTRY }}
   - name: CARGO_REGISTRY
     value: ${{ parameters.CARGO_REGISTRY }}
   - name: VSCODE_QUALITY
@@ -105,7 +106,7 @@ variables:
   - name: VSCODE_BUILD_STAGE_WINDOWS
     value: ${{ or(eq(parameters.VSCODE_BUILD_WIN32, true), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}
   - name: VSCODE_BUILD_STAGE_LINUX
-    value: ${{ or(eq(parameters.VSCODE_BUILD_LINUX, true), eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true)) }}
+    value: ${{ or(eq(parameters.VSCODE_BUILD_LINUX, true), eq(parameters.VSCODE_BUILD_LINUX_SNAP, true), eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true)) }}
   - name: VSCODE_BUILD_STAGE_ALPINE
     value: ${{ or(eq(parameters.VSCODE_BUILD_ALPINE, true), eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true)) }}
   - name: VSCODE_BUILD_STAGE_MACOS
@@ -190,13 +191,7 @@ extends:
     stages:
       - stage: Compile
         jobs:
-          - job: Compile
-            timeoutInMinutes: 90
-            pool:
-              name: AcesShared
-              os: macOS
-            steps:
-              - template: build/azure-pipelines/product-compile.yml@self
+          - template: build/azure-pipelines/product-compile.yml@self
 
       - ${{ if or(eq(parameters.VSCODE_BUILD_LINUX, true),eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true),eq(parameters.VSCODE_BUILD_LINUX_ARM64, true),eq(parameters.VSCODE_BUILD_ALPINE, true),eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true),eq(parameters.VSCODE_BUILD_MACOS, true),eq(parameters.VSCODE_BUILD_MACOS_ARM64, true),eq(parameters.VSCODE_BUILD_WIN32, true),eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}:
         - stage: CompileCLI
@@ -261,8 +256,7 @@ extends:
             - ${{ if eq(parameters.VSCODE_BUILD_MACOS, true) }}:
               - job: CLIMacOSX64
                 pool:
-                  name: Azure Pipelines
-                  image: macOS-13
+                  name: AcesShared
                   os: macOS
                 variables:
                   # todo@connor4312 to diagnose build flakes
@@ -278,8 +272,7 @@ extends:
             - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true)) }}:
               - job: CLIMacOSARM64
                 pool:
-                  name: Azure Pipelines
-                  image: macOS-13
+                  name: AcesShared
                   os: macOS
                 variables:
                   # todo@connor4312 to diagnose build flakes
@@ -292,27 +285,43 @@ extends:
                       VSCODE_BUILD_MACOS_ARM64: ${{ parameters.VSCODE_BUILD_MACOS_ARM64 }}
 
             - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
-              - job: CLIWindowsX64
-                pool:
-                  name: 1es-windows-2022-x64
-                  os: windows
-                steps:
-                  - template: build/azure-pipelines/win32/cli-build-win32.yml@self
-                    parameters:
-                      VSCODE_CHECK_ONLY: ${{ variables.VSCODE_CIBUILD }}
-                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_BUILD_WIN32: ${{ parameters.VSCODE_BUILD_WIN32 }}
+              - template: build/azure-pipelines/win32/product-build-win32-cli.yml@self
+                parameters:
+                  VSCODE_ARCH: x64
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_CHECK_ONLY: ${{ variables.VSCODE_CIBUILD }}
 
             - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}:
-              - job: CLIWindowsARM64
-                pool:
-                  name: 1es-windows-2022-x64
-                  os: windows
-                steps:
-                  - template: build/azure-pipelines/win32/cli-build-win32.yml@self
-                    parameters:
-                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_BUILD_WIN32_ARM64: ${{ parameters.VSCODE_BUILD_WIN32_ARM64 }}
+              - template: build/azure-pipelines/win32/product-build-win32-cli.yml@self
+                parameters:
+                  VSCODE_ARCH: arm64
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+
+      - ${{ if and(eq(variables['VSCODE_CIBUILD'], true), eq(parameters.VSCODE_COMPILE_ONLY, false)) }}:
+        - stage: node_modules
+          dependsOn: []
+          jobs:
+            - template: build/azure-pipelines/win32/product-build-win32-node-modules.yml@self
+              parameters:
+                VSCODE_ARCH: arm64
+            - template: build/azure-pipelines/linux/product-build-linux-node-modules.yml@self
+              parameters:
+                NPM_ARCH: arm64
+                VSCODE_ARCH: arm64
+            - template: build/azure-pipelines/linux/product-build-linux-node-modules.yml@self
+              parameters:
+                NPM_ARCH: arm
+                VSCODE_ARCH: armhf
+            - template: build/azure-pipelines/alpine/product-build-alpine-node-modules.yml@self
+              parameters:
+                VSCODE_ARCH: x64
+            - template: build/azure-pipelines/alpine/product-build-alpine-node-modules.yml@self
+              parameters:
+                VSCODE_ARCH: arm64
+            - template: build/azure-pipelines/darwin/product-build-darwin-node-modules.yml@self
+              parameters:
+                VSCODE_ARCH: x64
+            - template: build/azure-pipelines/web/product-build-web-node-modules.yml@self
 
       - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_COMPILE_ONLY, false)) }}:
         - stage: APIScan
@@ -339,88 +348,44 @@ extends:
             os: windows
           jobs:
             - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
-              - job: WindowsElectronTests
-                displayName: Electron Tests
-                timeoutInMinutes: 30
-                variables:
-                  VSCODE_ARCH: x64
-                steps:
-                  - template: build/azure-pipelines/win32/product-build-win32.yml@self
-                    parameters:
-                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_ARCH: x64
-                      VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                      VSCODE_TEST_ARTIFACT_NAME: electron
-                      VSCODE_RUN_ELECTRON_TESTS: true
-              - job: WindowsBrowserTests
-                displayName: Browser Tests
-                timeoutInMinutes: 30
-                variables:
-                  VSCODE_ARCH: x64
-                steps:
-                  - template: build/azure-pipelines/win32/product-build-win32.yml@self
-                    parameters:
-                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_ARCH: x64
-                      VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                      VSCODE_TEST_ARTIFACT_NAME: browser
-                      VSCODE_RUN_BROWSER_TESTS: true
-              - job: WindowsRemoteTests
-                displayName: Remote Tests
-                timeoutInMinutes: 30
-                variables:
-                  VSCODE_ARCH: x64
-                steps:
-                  - template: build/azure-pipelines/win32/product-build-win32.yml@self
-                    parameters:
-                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_ARCH: x64
-                      VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                      VSCODE_TEST_ARTIFACT_NAME: remote
-                      VSCODE_RUN_REMOTE_TESTS: true
+              - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
+                parameters:
+                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_TEST_SUITE: Electron
+              - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
+                parameters:
+                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_TEST_SUITE: Browser
+              - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
+                parameters:
+                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_TEST_SUITE: Remote
 
             - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32, true)) }}:
-              - job: Windows
-                timeoutInMinutes: 120
-                variables:
+              - template: build/azure-pipelines/win32/product-build-win32.yml@self
+                parameters:
                   VSCODE_ARCH: x64
-                templateContext:
-                  sdl:
-                    suppression:
-                      suppressionFile: $(Build.SourcesDirectory)\.config\guardian\.gdnsuppress
-                steps:
-                  - template: build/azure-pipelines/win32/product-build-win32.yml@self
-                    parameters:
-                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_ARCH: x64
-                      VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                      VSCODE_RUN_ELECTRON_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
-                      VSCODE_RUN_BROWSER_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
-                      VSCODE_RUN_REMOTE_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
-
-              - job: WindowsCLISign
-                timeoutInMinutes: 90
-                steps:
-                  - template: build/azure-pipelines/win32/product-build-win32-cli-sign.yml@self
-                    parameters:
-                      VSCODE_BUILD_WIN32: ${{ parameters.VSCODE_BUILD_WIN32 }}
-                      VSCODE_BUILD_WIN32_ARM64: ${{ parameters.VSCODE_BUILD_WIN32_ARM64 }}
+                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_RUN_ELECTRON_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
+                  VSCODE_RUN_BROWSER_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
+                  VSCODE_RUN_REMOTE_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
 
             - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}:
-              - job: WindowsARM64
-                timeoutInMinutes: 90
-                variables:
+              - template: build/azure-pipelines/win32/product-build-win32.yml@self
+                parameters:
                   VSCODE_ARCH: arm64
-                templateContext:
-                  sdl:
-                    suppression:
-                      suppressionFile: $(Build.SourcesDirectory)\.config\guardian\.gdnsuppress
-                steps:
-                  - template: build/azure-pipelines/win32/product-build-win32.yml@self
-                    parameters:
-                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_ARCH: arm64
-                      VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+
+            - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), or(eq(parameters.VSCODE_BUILD_WIN32, true), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true))) }}:
+              - template: build/azure-pipelines/win32/product-build-win32-cli-sign.yml@self
+                parameters:
+                  VSCODE_BUILD_WIN32: ${{ parameters.VSCODE_BUILD_WIN32 }}
+                  VSCODE_BUILD_WIN32_ARM64: ${{ parameters.VSCODE_BUILD_WIN32_ARM64 }}
 
       - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_LINUX'], true)) }}:
         - stage: Linux
@@ -433,92 +398,49 @@ extends:
             os: linux
           jobs:
             - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
-              - job: Linuxx64ElectronTest
-                displayName: Electron Tests
-                timeoutInMinutes: 30
-                variables:
-                  VSCODE_ARCH: x64
-                  NPM_ARCH: x64
-                  DISPLAY: ":10"
-                steps:
-                  - template: build/azure-pipelines/linux/product-build-linux.yml@self
-                    parameters:
-                      VSCODE_ARCH: x64
-                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                      VSCODE_TEST_ARTIFACT_NAME: electron
-                      VSCODE_RUN_ELECTRON_TESTS: true
-              - job: Linuxx64BrowserTest
-                displayName: Browser Tests
-                timeoutInMinutes: 30
-                variables:
-                  VSCODE_ARCH: x64
-                  NPM_ARCH: x64
-                  DISPLAY: ":10"
-                steps:
-                  - template: build/azure-pipelines/linux/product-build-linux.yml@self
-                    parameters:
-                      VSCODE_ARCH: x64
-                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                      VSCODE_TEST_ARTIFACT_NAME: browser
-                      VSCODE_RUN_BROWSER_TESTS: true
-              - job: Linuxx64RemoteTest
-                displayName: Remote Tests
-                timeoutInMinutes: 30
-                variables:
-                  VSCODE_ARCH: x64
-                  NPM_ARCH: x64
-                  DISPLAY: ":10"
-                steps:
-                  - template: build/azure-pipelines/linux/product-build-linux.yml@self
-                    parameters:
-                      VSCODE_ARCH: x64
-                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                      VSCODE_TEST_ARTIFACT_NAME: remote
-                      VSCODE_RUN_REMOTE_TESTS: true
+              - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
+                parameters:
+                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_TEST_SUITE: Electron
+              - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
+                parameters:
+                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_TEST_SUITE: Browser
+              - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
+                parameters:
+                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_TEST_SUITE: Remote
 
-            - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX, true)) }}:
-              - job: Linuxx64
-                timeoutInMinutes: 90
-                variables:
-                  VSCODE_ARCH: x64
+            - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), or(eq(parameters.VSCODE_BUILD_LINUX, true), eq(parameters.VSCODE_BUILD_LINUX_SNAP, true))) }}:
+              - template: build/azure-pipelines/linux/product-build-linux.yml@self
+                parameters:
                   NPM_ARCH: x64
-                  DISPLAY: ":10"
-                steps:
-                  - template: build/azure-pipelines/linux/product-build-linux.yml@self
-                    parameters:
-                      VSCODE_ARCH: x64
-                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                      VSCODE_RUN_ELECTRON_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
-                      VSCODE_RUN_BROWSER_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
-                      VSCODE_RUN_REMOTE_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
+                  VSCODE_ARCH: x64
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                  VSCODE_RUN_ELECTRON_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
+                  VSCODE_RUN_BROWSER_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
+                  VSCODE_RUN_REMOTE_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
+                  VSCODE_BUILD_LINUX_SNAP: ${{ parameters.VSCODE_BUILD_LINUX_SNAP }}
 
             - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true)) }}:
-              - job: LinuxArmhf
-                variables:
-                  VSCODE_ARCH: armhf
+              - template: build/azure-pipelines/linux/product-build-linux.yml@self
+                parameters:
                   NPM_ARCH: arm
-                steps:
-                  - template: build/azure-pipelines/linux/product-build-linux.yml@self
-                    parameters:
-                      VSCODE_ARCH: armhf
-                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                  VSCODE_ARCH: armhf
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
 
             - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true)) }}:
-              - job: LinuxArm64
-                variables:
-                  VSCODE_ARCH: arm64
+              - template: build/azure-pipelines/linux/product-build-linux.yml@self
+                parameters:
                   NPM_ARCH: arm64
-                steps:
-                  - template: build/azure-pipelines/linux/product-build-linux.yml@self
-                    parameters:
-                      VSCODE_ARCH: arm64
-                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                  VSCODE_ARCH: arm64
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
 
       - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_ALPINE'], true)) }}:
         - stage: Alpine
@@ -671,6 +593,9 @@ extends:
               displayName: Publish Build
               steps:
                 - template: build/azure-pipelines/product-publish.yml@self
+                  parameters:
+                    VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                    VSCODE_SCHEDULEDBUILD: ${{ variables.VSCODE_SCHEDULEDBUILD }}
 
         - ${{ if and(parameters.VSCODE_RELEASE, eq(variables['VSCODE_PRIVATE_BUILD'], false)) }}:
           - stage: ApproveRelease
@@ -686,12 +611,10 @@ extends:
                   - name: skipComponentGovernanceDetection
                     value: true
 
-        - ${{ if or(and(parameters.VSCODE_RELEASE, eq(variables['VSCODE_PRIVATE_BUILD'], false)), and(in(parameters.VSCODE_QUALITY, 'insider', 'exploration'), eq(variables['VSCODE_SCHEDULEDBUILD'], true))) }}:
           - stage: Release
             dependsOn:
               - Publish
-              - ${{ if and(parameters.VSCODE_RELEASE, eq(variables['VSCODE_PRIVATE_BUILD'], false)) }}:
-                - ApproveRelease
+              - ApproveRelease
             pool:
               name: 1es-ubuntu-22.04-x64
               os: linux

@@ -58,6 +58,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 			'maximize': { type: 'boolean', cat: 'o', description: localize('chatMaximize', "Maximize the chat session view.") },
 			'reuse-window': { type: 'boolean', cat: 'o', alias: 'r', description: localize('reuseWindowForChat', "Force to use the last active window for the chat session.") },
 			'new-window': { type: 'boolean', cat: 'o', alias: 'n', description: localize('newWindowForChat', "Force to open an empty window for the chat session.") },
+			'profile': { type: 'string', 'cat': 'o', args: 'profileName', description: localize('profileName', "Opens the provided folder or workspace with the given profile and associates the profile with the workspace. If the profile does not exist, a new empty one is created.") },
 			'help': { type: 'boolean', alias: 'h', description: localize('help', "Print usage.") }
 		}
 	},
@@ -168,7 +169,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'skip-welcome': { type: 'boolean' },
 	'disable-telemetry': { type: 'boolean' },
 	'disable-updates': { type: 'boolean' },
-	'transient': { type: 'boolean' },
+	'transient': { type: 'boolean', cat: 't', description: localize('transient', "Run with temporary data and extension directories, as if launched for the first time.") },
 	'use-inmemory-secretstorage': { type: 'boolean', deprecates: ['disable-keytar'] },
 	'password-store': { type: 'string' },
 	'disable-workspace-trust': { type: 'boolean' },

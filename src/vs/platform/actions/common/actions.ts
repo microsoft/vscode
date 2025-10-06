@@ -230,6 +230,8 @@ export class MenuId {
 	static readonly ChatCodeBlock = new MenuId('ChatCodeblock');
 	static readonly ChatCompareBlock = new MenuId('ChatCompareBlock');
 	static readonly ChatMessageTitle = new MenuId('ChatMessageTitle');
+	static readonly ChatHistory = new MenuId('ChatHistory');
+	static readonly ChatWelcomeHistoryContext = new MenuId('ChatWelcomeHistoryContext');
 	static readonly ChatMessageFooter = new MenuId('ChatMessageFooter');
 	static readonly ChatExecute = new MenuId('ChatExecute');
 	static readonly ChatExecuteSecondary = new MenuId('ChatExecuteSecondary');

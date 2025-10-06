@@ -31,7 +31,10 @@ import { ChatWidget, IChatViewState } from './chatWidget.js';
 
 export interface IChatEditorOptions extends IEditorOptions {
 	target?: { sessionId: string } | { data: IExportableChatData | ISerializableChatData };
-	preferredTitle?: string;
+	title?: {
+		preferred?: string;
+		fallback?: string;
+	};
 	ignoreInView?: boolean;
 }
 
@@ -75,7 +78,7 @@ export class ChatEditor extends EditorPane {
 		this._widget = this._register(
 			scopedInstantiationService.createInstance(
 				ChatWidget,
-				ChatAgentLocation.Panel,
+				ChatAgentLocation.Chat,
 				undefined,
 				{
 					autoScroll: mode => mode !== ChatModeKind.Ask,
@@ -159,8 +162,8 @@ export class ChatEditor extends EditorPane {
 		const viewState = options?.viewState ?? input.options.viewState;
 		this.updateModel(editorModel.model, viewState);
 
-		if (isContributedChatSession && options?.preferredTitle) {
-			editorModel.model.setCustomTitle(options?.preferredTitle);
+		if (isContributedChatSession && options?.title?.preferred) {
+			editorModel.model.setCustomTitle(options.title.preferred);
 		}
 	}
 

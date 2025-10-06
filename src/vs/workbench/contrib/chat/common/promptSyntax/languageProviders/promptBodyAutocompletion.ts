@@ -5,12 +5,10 @@
 
 import { dirname, extUri } from '../../../../../../base/common/resources.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { ALL_PROMPTS_LANGUAGE_SELECTOR, PromptsType } from '../promptTypes.js';
+import { PromptsType } from '../promptTypes.js';
 import { Position } from '../../../../../../editor/common/core/position.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { ILanguageFeaturesService } from '../../../../../../editor/common/services/languageFeatures.js';
 import { CompletionContext, CompletionItem, CompletionItemKind, CompletionItemProvider, CompletionList } from '../../../../../../editor/common/languages.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { CharCode } from '../../../../../../base/common/charCode.js';
@@ -24,7 +22,7 @@ import { getPromptFileType } from '../config/promptFileLocations.js';
  * - #file: paths to files and folders in the workspace
  * - # tool names
  */
-export class PromptBodyAutocompletion extends Disposable implements CompletionItemProvider {
+export class PromptBodyAutocompletion implements CompletionItemProvider {
 	/**
 	 * Debug display name for this provider.
 	 */
@@ -37,12 +35,8 @@ export class PromptBodyAutocompletion extends Disposable implements CompletionIt
 
 	constructor(
 		@IFileService private readonly fileService: IFileService,
-		@ILanguageFeaturesService private readonly languageService: ILanguageFeaturesService,
 		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
 	) {
-		super();
-
-		this._register(this.languageService.completionProvider.register(ALL_PROMPTS_LANGUAGE_SELECTOR, this));
 	}
 
 	/**
@@ -70,7 +64,7 @@ export class PromptBodyAutocompletion extends Disposable implements CompletionIt
 	}
 
 	private async collectToolCompletions(model: ITextModel, position: Position, toolRange: Range, suggestions: CompletionItem[]): Promise<void> {
-		const addSuggestion = (toolName: string, toolRange: Range) => {
+		for (const toolName of this.languageModelToolsService.getQualifiedToolNames()) {
 			suggestions.push({
 				label: toolName,
 				kind: CompletionItemKind.Value,
@@ -78,14 +72,6 @@ export class PromptBodyAutocompletion extends Disposable implements CompletionIt
 				insertText: toolName,
 				range: toolRange,
 			});
-		};
-		for (const tool of this.languageModelToolsService.getTools()) {
-			if (tool.canBeReferencedInPrompt) {
-				addSuggestion(tool.toolReferenceName ?? tool.displayName, toolRange);
-			}
-		}
-		for (const toolSet of this.languageModelToolsService.toolSets.get()) {
-			addSuggestion(toolSet.referenceName, toolRange);
 		}
 	}
 

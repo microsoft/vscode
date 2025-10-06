@@ -15,7 +15,8 @@ import { assertType } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { EditOperation, ISingleEditOperation } from '../../../../../editor/common/core/editOperation.js';
 import { StringEdit } from '../../../../../editor/common/core/edits/stringEdit.js';
-import { Range } from '../../../../../editor/common/core/range.js';
+import { IRange, Range } from '../../../../../editor/common/core/range.js';
+import { LineRange } from '../../../../../editor/common/core/ranges/lineRange.js';
 import { IDocumentDiff, nullDocumentDiff } from '../../../../../editor/common/diff/documentDiffProvider.js';
 import { DetailedLineRangeMapping } from '../../../../../editor/common/diff/rangeMapping.js';
 import { TextEdit, VersionedExtensionId } from '../../../../../editor/common/languages.js';
@@ -23,7 +24,7 @@ import { IModelDeltaDecoration, ITextModel, ITextSnapshot, MinimapPosition, Over
 import { ModelDecorationOptions } from '../../../../../editor/common/model/textModel.js';
 import { offsetEditFromContentChanges, offsetEditFromLineRangeMapping, offsetEditToEditOperations } from '../../../../../editor/common/model/textModelStringEdit.js';
 import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker.js';
-import { TextModelEditSource, EditSources } from '../../../../../editor/common/textModelEditSource.js';
+import { EditSources, TextModelEditSource } from '../../../../../editor/common/textModelEditSource.js';
 import { IModelContentChangedEvent } from '../../../../../editor/common/textModelEvents.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { editorSelectionBackground } from '../../../../../platform/theme/common/colorRegistry.js';
@@ -108,6 +109,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		}
 	}
 
+	private _didUserEditModelFired = false;
 	private readonly _didUserEditModel = this._register(new Emitter<void>());
 	public readonly onDidUserEditModel = this._didUserEditModel.event;
 
@@ -279,8 +281,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 	public keep() {
 		this.notifyHunkAction('accepted', { linesAdded: this.linesAdded, linesRemoved: this.linesRemoved, lineCount: this.lineChangeCount, hasRemainingEdits: false });
 		this.originalModel.setValue(this.modifiedModel.createSnapshot());
-		this._diffInfo.set(nullDocumentDiff, undefined);
-		this._originalToModifiedEdit = StringEdit.empty;
+		this._reset();
 	}
 
 	/**
@@ -291,8 +292,13 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		this.modifiedModel.pushStackElement();
 		this._applyEdits([(EditOperation.replace(this.modifiedModel.getFullModelRange(), this.originalModel.getValue()))], EditSources.chatUndoEdits());
 		this.modifiedModel.pushStackElement();
+		this._reset();
+	}
+
+	private _reset() {
 		this._originalToModifiedEdit = StringEdit.empty;
 		this._diffInfo.set(nullDocumentDiff, undefined);
+		this._didUserEditModelFired = false;
 	}
 
 	public async resetDocumentValues(newOriginal: string | ITextSnapshot | undefined, newModified: string | undefined): Promise<void> {
@@ -353,7 +359,10 @@ export class ChatEditingTextModelChangeService extends Disposable {
 
 			this._allEditsAreFromUs = false;
 			this._updateDiffInfoSeq();
-			this._didUserEditModel.fire();
+			if (!this._didUserEditModelFired) {
+				this._didUserEditModelFired = true;
+				this._didUserEditModel.fire();
+			}
 		}
 	}
 
@@ -415,6 +424,11 @@ export class ChatEditingTextModelChangeService extends Disposable {
 				this.notifyHunkAction(notifyAction, affectedLines);
 			}
 		}
+	}
+
+	public hasHunkAt(range: IRange) {
+		// return true if the range overlaps a diff range
+		return this._diffInfo.get().changes.some(c => c.modified.intersectsStrict(LineRange.fromRangeInclusive(range)));
 	}
 
 	private async _updateDiffInfo(): Promise<IDocumentDiff | undefined> {

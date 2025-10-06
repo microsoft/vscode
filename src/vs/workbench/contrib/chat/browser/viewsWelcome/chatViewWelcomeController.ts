@@ -111,13 +111,14 @@ export interface IChatViewWelcomeContent {
 	readonly additionalMessage?: string | IMarkdownString;
 	tips?: IMarkdownString;
 	readonly inputPart?: HTMLElement;
-	readonly isExperimental?: boolean;
+	readonly isNew?: boolean;
 	readonly suggestedPrompts?: readonly IChatSuggestedPrompts[];
 }
 
 export interface IChatSuggestedPrompts {
 	readonly icon?: ThemeIcon;
 	readonly label: string;
+	readonly description?: string;
 	readonly prompt: string;
 }
 
@@ -157,7 +158,7 @@ export class ChatViewWelcomePart extends Disposable {
 			const title = dom.append(this.element, $('.chat-welcome-view-title'));
 			title.textContent = content.title;
 
-			// Preview indicator
+			// Preview indicator (no experimental variants)
 			const expEmptyState = this.configurationService.getValue<boolean>('chat.emptyChatState.enabled');
 			if (typeof content.message !== 'function' && options?.isWidgetAgentWelcomeViewContent && !expEmptyState) {
 				const container = dom.append(this.element, $('.chat-welcome-view-indicator-container'));
@@ -165,44 +166,53 @@ export class ChatViewWelcomePart extends Disposable {
 			}
 
 			// Message
-			const message = dom.append(this.element, content.isExperimental ? $('.chat-welcome-experimental-view-message') : $('.chat-welcome-view-message'));
-			message.classList.toggle('experimental-empty-state', expEmptyState);
+			const message = dom.append(this.element, content.isNew ? $('.chat-welcome-new-view-message') : $('.chat-welcome-view-message'));
+			message.classList.toggle('empty-state', expEmptyState);
 
 			const messageResult = this.renderMarkdownMessageContent(renderer, content.message, options);
 			dom.append(message, messageResult.element);
 
-			if (content.isExperimental && content.inputPart) {
+			if (content.isNew && content.inputPart) {
 				content.inputPart.querySelector('.chat-attachments-container')?.remove();
 				dom.append(this.element, content.inputPart);
 			}
-			if (!content.isExperimental) {
-				// Additional message
+
+			// Additional message (new user mode)
+			if (!content.isNew && content.additionalMessage) {
+				const disclaimers = dom.append(this.element, $('.chat-welcome-view-disclaimer'));
 				if (typeof content.additionalMessage === 'string') {
-					const disclaimers = dom.append(this.element, $('.chat-welcome-view-disclaimer'));
 					disclaimers.textContent = content.additionalMessage;
-				} else if (content.additionalMessage) {
-					const disclaimers = dom.append(this.element, $('.chat-welcome-view-disclaimer'));
+				} else {
 					const additionalMessageResult = this.renderMarkdownMessageContent(renderer, content.additionalMessage, options);
 					disclaimers.appendChild(additionalMessageResult.element);
 				}
 			}
 
-			// Render suggested prompts for both experimental and regular modes
+			// Render suggested prompts for both new user and regular modes
 			if (content.suggestedPrompts && content.suggestedPrompts.length) {
 				const suggestedPromptsContainer = dom.append(this.element, $('.chat-welcome-view-suggested-prompts'));
+				const titleElement = dom.append(suggestedPromptsContainer, $('.chat-welcome-view-suggested-prompts-title'));
+				titleElement.textContent = localize('chatWidget.suggestedActions', 'Suggested Actions');
+
 				for (const prompt of content.suggestedPrompts) {
 					const promptElement = dom.append(suggestedPromptsContainer, $('.chat-welcome-view-suggested-prompt'));
 					// Make the prompt element keyboard accessible
 					promptElement.setAttribute('role', 'button');
 					promptElement.setAttribute('tabindex', '0');
-					promptElement.setAttribute('aria-label', localize('suggestedPromptAriaLabel', 'Suggested prompt: {0}', prompt.label));
-					if (prompt.icon) {
-						const iconElement = dom.append(promptElement, $('.chat-welcome-view-suggested-prompt-icon'));
-						iconElement.appendChild(renderIcon(prompt.icon));
+					const promptAriaLabel = prompt.description
+						? localize('suggestedPromptAriaLabelWithDescription', 'Suggested prompt: {0}, {1}', prompt.label, prompt.description)
+						: localize('suggestedPromptAriaLabel', 'Suggested prompt: {0}', prompt.label);
+					promptElement.setAttribute('aria-label', promptAriaLabel);
+					const titleElement = dom.append(promptElement, $('.chat-welcome-view-suggested-prompt-title'));
+					titleElement.textContent = prompt.label;
+					const tooltip = localize('runPromptTitle', "Suggested prompt: {0}", prompt.prompt);
+					promptElement.title = tooltip;
+					titleElement.title = tooltip;
+					if (prompt.description) {
+						const descriptionElement = dom.append(promptElement, $('.chat-welcome-view-suggested-prompt-description'));
+						descriptionElement.textContent = prompt.description;
+						descriptionElement.title = prompt.description;
 					}
-					const labelElement = dom.append(promptElement, $('.chat-welcome-view-suggested-prompt-label'));
-					labelElement.textContent = prompt.label;
-					labelElement.title = localize('runPromptTitle', "Suggested prompt: {0}", prompt.prompt);
 					const executePrompt = () => {
 						type SuggestedPromptClickEvent = { suggestedPrompt: string };
 
@@ -217,7 +227,7 @@ export class ChatViewWelcomePart extends Disposable {
 						});
 
 						if (!this.chatWidgetService.lastFocusedWidget) {
-							const widgets = this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Panel);
+							const widgets = this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat);
 							if (widgets.length) {
 								widgets[0].setInput(prompt.prompt);
 							}
@@ -246,13 +256,16 @@ export class ChatViewWelcomePart extends Disposable {
 				tips.appendChild(tipsResult.element);
 			}
 
-			// In experimental mode, render the additional message after suggested prompts (deferred)
-			if (content.isExperimental && typeof content.additionalMessage === 'string') {
-				const additionalMsg = $('.chat-welcome-view-experimental-additional-message');
-				additionalMsg.textContent = content.additionalMessage;
-				dom.append(this.element, additionalMsg);
+			// In new user mode, render the additional message after suggested prompts (deferred)
+			if (content.isNew && content.additionalMessage) {
+				const additionalMsg = dom.append(this.element, $('.chat-welcome-view-additional-message'));
+				if (typeof content.additionalMessage === 'string') {
+					additionalMsg.textContent = content.additionalMessage;
+				} else {
+					const additionalMessageResult = this.renderMarkdownMessageContent(renderer, content.additionalMessage, options);
+					additionalMsg.appendChild(additionalMessageResult.element);
+				}
 			}
-
 		} catch (err) {
 			this.logService.error('Failed to render chat view welcome content', err);
 		}
@@ -260,14 +273,17 @@ export class ChatViewWelcomePart extends Disposable {
 
 	public needsRerender(content: IChatViewWelcomeContent): boolean {
 		// Heuristic based on content that changes between states
-		return !!(content.isExperimental ||
+		return !!(content.isNew ||
 			this.content.title !== content.title ||
-			this.content.isExperimental !== content.isExperimental ||
+			this.content.isNew !== content.isNew ||
 			this.content.message.value !== content.message.value ||
 			this.content.additionalMessage !== content.additionalMessage ||
 			this.content.tips?.value !== content.tips?.value ||
 			this.content.suggestedPrompts?.length !== content.suggestedPrompts?.length ||
-			this.content.suggestedPrompts?.some((prompt, index) => content.suggestedPrompts?.[index]?.label !== prompt.label));
+			this.content.suggestedPrompts?.some((prompt, index) => {
+				const incoming = content.suggestedPrompts?.[index];
+				return incoming?.label !== prompt.label || incoming?.description !== prompt.description;
+			}));
 	}
 
 	private renderMarkdownMessageContent(renderer: MarkdownRenderer, content: IMarkdownString, options: IChatViewWelcomeRenderOptions | undefined): IMarkdownRenderResult {

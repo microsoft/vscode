@@ -1824,9 +1824,11 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 	}
 
 	async getExtensionsControlManifest(): Promise<IExtensionsControlManifest> {
-		if (!this.isEnabled()) {
+		const manifest = await this.extensionGalleryManifestService.getExtensionGalleryManifest();
+		if (!manifest) {
 			throw new Error('No extension gallery service configured.');
 		}
+
 
 		if (!this.extensionsControlUrl) {
 			return { malicious: [], deprecated: {}, search: [], autoUpdate: {} };

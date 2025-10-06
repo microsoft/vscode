@@ -243,7 +243,6 @@ class StandaloneEnvironmentService implements IEnvironmentService {
 	readonly disableTelemetry: boolean = false;
 	readonly serviceMachineIdResource: URI = URI.from({ scheme: 'monaco', authority: 'serviceMachineIdResource' });
 	readonly policyFile?: URI | undefined = undefined;
-	readonly isSimulation: boolean | undefined = undefined;
 }
 
 class StandaloneDialogService implements IDialogService {

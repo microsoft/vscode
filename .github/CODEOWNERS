@@ -9,11 +9,48 @@
 .github/workflows/pr-win32-test.yml @lszomoru @joaomoreno @TylerLeonhardt @rzhao271
 .github/workflows/pr.yml @lszomoru @joaomoreno @TylerLeonhardt @rzhao271
 .github/workflows/telemetry.yml @lramos15 @lszomoru @joaomoreno
-src/vs/base/browser/ui/tree/** @joaomoreno @benibenj
+
+# Base Utilities
+src/vs/base/common/extpath.ts @bpasero @deepak1556
+src/vs/base/common/glob.ts @bpasero @deepak1556
+src/vs/base/common/path.ts @bpasero @deepak1556
+src/vs/base/common/stream.ts @bpasero @deepak1556
+src/vs/base/browser/domSanitize.ts @mjbvz
+src/vs/base/node/pfs.ts @bpasero @deepak1556
+src/vs/base/parts/contextmenu/** @bpasero @deepak1556
+src/vs/base/parts/ipc/** @bpasero @deepak1556
+src/vs/base/parts/sandbox/** @bpasero @deepak1556
+src/vs/base/parts/storage/** @bpasero @deepak1556
+
+# Base Widgets
+src/vs/base/browser/ui/grid/** @joaomoreno @benibenj
 src/vs/base/browser/ui/list/** @joaomoreno @benibenj
 src/vs/base/browser/ui/sash/** @joaomoreno @benibenj
 src/vs/base/browser/ui/splitview/** @joaomoreno @benibenj
-src/vs/base/browser/ui/grid/** @joaomoreno @benibenj
+src/vs/base/browser/ui/table/** @joaomoreno @benibenj
+src/vs/base/browser/ui/tree/** @joaomoreno @benibenj
+
+# Platform
+src/vs/platform/auxiliaryWindow/** @bpasero @benibenj
+src/vs/platform/backup/** @bpasero @Tyriar
+src/vs/platform/editor/** @bpasero @benibenj
+src/vs/platform/environment/** @bpasero @deepak1556
+src/vs/platform/files/** @bpasero @deepak1556
+src/vs/platform/ipc/** @bpasero @deepak1556
+src/vs/platform/launch/** @bpasero @deepak1556
+src/vs/platform/lifecycle/** @bpasero @deepak1556
+src/vs/platform/menubar/** @bpasero @deepak1556
+src/vs/platform/native/** @bpasero @deepak1556
+src/vs/platform/sharedProcess/** @bpasero @deepak1556
+src/vs/platform/state/** @bpasero @deepak1556
+src/vs/platform/storage/** @bpasero @deepak1556
+src/vs/platform/utilityProcess/** @bpasero @deepak1556
+src/vs/platform/window/** @bpasero @deepak1556
+src/vs/platform/windows/** @bpasero @deepak1556
+src/vs/platform/workspace/** @bpasero @sandy081
+src/vs/platform/workspaces/** @bpasero @sandy081
+
+# Bootstrap
 src/bootstrap-cli.ts @bpasero @deepak1556
 src/bootstrap-esm.ts @bpasero @deepak1556
 src/bootstrap-fork.ts @bpasero @deepak1556
@@ -25,15 +62,47 @@ src/cli.ts @bpasero @deepak1556
 src/main.ts @bpasero @deepak1556
 src/server-cli.ts @bpasero @deepak1556
 src/server-main.ts @bpasero @deepak1556
-src/vs/base/parts/sandbox/** @bpasero @deepak1556
-src/vs/base/parts/storage/** @bpasero @deepak1556
-src/vs/platform/backup/** @bpasero
-src/vs/platform/files/** @bpasero @deepak1556
-src/vs/base/node/pfs.ts @bpasero @deepak1556
-src/vs/code/** @bpasero @deepak1556
-src/vs/workbench/services/textfile/** @bpasero
-src/vs/workbench/services/workingCopy/** @bpasero
 
-# ensure the API police is aware of changes to the vscode-dts file
+# Electron Main
+src/vs/code/** @bpasero @deepak1556
+
+# Workbench Services
+src/vs/workbench/services/activity/** @bpasero @benibenj
+src/vs/workbench/services/auxiliaryWindow/** @bpasero @benibenj
+src/vs/workbench/services/chat/** @bpasero @sandy081
+src/vs/workbench/services/contextmenu/** @bpasero @benibenj
+src/vs/workbench/services/dialogs/** @alexr00 @bpasero
+src/vs/workbench/services/editor/** @bpasero @benibenj
+src/vs/workbench/services/environment/** @bpasero @deepak1556
+src/vs/workbench/services/files/** @bpasero @deepak1556
+src/vs/workbench/services/filesConfiguration/** @bpasero @benibenj
+src/vs/workbench/services/history/** @bpasero @benibenj
+src/vs/workbench/services/host/** @bpasero @deepak1556
+src/vs/workbench/services/label/** @bpasero @benibenj
+src/vs/workbench/services/layout/** @bpasero @benibenj
+src/vs/workbench/services/lifecycle/** @bpasero @deepak1556
+src/vs/workbench/services/notification/** @bpasero @benibenj
+src/vs/workbench/services/path/** @bpasero @benibenj
+src/vs/workbench/services/progress/** @bpasero @benibenj
+src/vs/workbench/services/storage/** @bpasero @deepak1556
+src/vs/workbench/services/textfile/** @bpasero @benibenj
+src/vs/workbench/services/textmodelResolver/** @bpasero @jrieken
+src/vs/workbench/services/untitled/** @bpasero @benibenj
+src/vs/workbench/services/utilityProcess/** @bpasero @deepak1556
+src/vs/workbench/services/views/** @sandy081 @benibenj @bpasero
+src/vs/workbench/services/workingCopy/** @bpasero @jrieken
+src/vs/workbench/services/workspaces/** @bpasero @sandy081
+
+# Workbench Core
+src/vs/workbench/common/** @bpasero @benibenj @sandy081
+src/vs/workbench/browser/** @bpasero @benibenj @sandy081
+src/vs/workbench/electron-browser/** @bpasero @benibenj @sandy081
+
+# Workbench Contributions
+src/vs/workbench/contrib/files/** @lramos15 @bpasero
+src/vs/workbench/contrib/update/browser/releaseNotesEditor.ts @alexr00 @joaomoreno
+
+# VS Code API
+# Ensure the API team is aware of changes to the vscode-dts file
 # this is only about the final API, not about proposed API changes
-src/vscode-dts/vscode.d.ts @jrieken @mjbvz
+src/vscode-dts/vscode.d.ts @jrieken @mjbvz @alexr00

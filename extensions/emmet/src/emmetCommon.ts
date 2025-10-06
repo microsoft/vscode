@@ -184,7 +184,9 @@ function refreshCompletionProviders(_: vscode.ExtensionContext) {
 
 			return [
 				{
+					// eslint-disable-next-line local/code-no-any-casts
 					insertText: item.insertText as any,
+					// eslint-disable-next-line local/code-no-any-casts
 					filterText: item.label as any,
 					range
 				}

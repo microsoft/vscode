@@ -247,6 +247,10 @@ export async function formatDocumentRangesWithProvider(
 				allEdits.push(...minimalEdits);
 			}
 		}
+
+		if (cts.token.isCancellationRequested) {
+			return true;
+		}
 	} finally {
 		cts.dispose();
 	}

@@ -18,7 +18,7 @@ import { LineRange } from '../../../../../editor/common/core/ranges/lineRange.js
 import { Range } from '../../../../../editor/common/core/range.js';
 import { nullDocumentDiff } from '../../../../../editor/common/diff/documentDiffProvider.js';
 import { DetailedLineRangeMapping, RangeMapping } from '../../../../../editor/common/diff/rangeMapping.js';
-import { TextEdit } from '../../../../../editor/common/languages.js';
+import { Location, TextEdit } from '../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
@@ -195,6 +195,10 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		this.initialContent = initialContent;
 		this.initializeModelsFromDiff();
 		this._register(this.modifiedModel.onDidChangeContent(this.mirrorNotebookEdits, this));
+	}
+
+	public override hasModificationAt(location: Location): boolean {
+		return this.cellEntryMap.get(location.uri)?.hasModificationAt(location.range) ?? false;
 	}
 
 	initializeModelsFromDiffImpl(cellsDiffInfo: CellDiffInfo[]) {
@@ -998,7 +1002,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 			if (this.modifiedModel.cells.indexOf(cell) === -1) {
 				return;
 			}
-			const diffs = this.cellsDiffInfo.get().slice();
+			const diffs = this.cellsDiffInfo.read(undefined).slice();
 			const index = this.modifiedModel.cells.indexOf(cell);
 			let entry = diffs.find(entry => entry.modifiedCellIndex === index);
 			if (!entry) {
@@ -1007,13 +1011,13 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 			}
 			const entryIndex = diffs.indexOf(entry);
 			entry.diff.set(cellEntry.diffInfo.read(r), undefined);
-			if (cellEntry.diffInfo.get().identical && entry.type === 'modified') {
+			if (cellEntry.diffInfo.read(undefined).identical && entry.type === 'modified') {
 				entry = {
 					...entry,
 					type: 'unchanged',
 				};
 			}
-			if (!cellEntry.diffInfo.get().identical && entry.type === 'unchanged') {
+			if (!cellEntry.diffInfo.read(undefined).identical && entry.type === 'unchanged') {
 				entry = {
 					...entry,
 					type: 'modified',

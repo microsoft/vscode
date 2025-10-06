@@ -46,7 +46,7 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 			class: undefined,
 			enabled: true,
 			checked: currentMode.id === mode.id,
-			tooltip: chatAgentService.getDefaultAgent(ChatAgentLocation.Panel, mode.kind)?.description ?? action.tooltip,
+			tooltip: chatAgentService.getDefaultAgent(ChatAgentLocation.Chat, mode.kind)?.description ?? action.tooltip,
 			run: async () => {
 				const result = await commandService.executeCommand(ToggleAgentModeActionId, { modeId: mode.id } satisfies IToggleChatModeArgs);
 				this.renderLabel(this.element!);
@@ -62,7 +62,7 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 			class: undefined,
 			enabled: true,
 			checked: currentMode.id === mode.id,
-			tooltip: mode.description.get() ?? chatAgentService.getDefaultAgent(ChatAgentLocation.Panel, mode.kind)?.description ?? action.tooltip,
+			tooltip: mode.description.get() ?? chatAgentService.getDefaultAgent(ChatAgentLocation.Chat, mode.kind)?.description ?? action.tooltip,
 			run: async () => {
 				const result = await commandService.executeCommand(ToggleAgentModeActionId, { modeId: mode.id } satisfies IToggleChatModeArgs);
 				this.renderLabel(this.element!);

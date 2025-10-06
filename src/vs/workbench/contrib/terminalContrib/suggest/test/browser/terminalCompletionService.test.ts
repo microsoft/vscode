@@ -147,12 +147,6 @@ suite('TerminalCompletionService', () => {
 	});
 
 	suite('resolveResources should return undefined', () => {
-		test('if cwd is not provided', async () => {
-			const resourceRequestConfig: TerminalResourceRequestConfig = { pathSeparator };
-			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cd ', 3, provider, capabilities);
-			assert(!result);
-		});
-
 		test('if neither filesRequested nor foldersRequested are true', async () => {
 			const resourceRequestConfig: TerminalResourceRequestConfig = {
 				cwd: URI.parse('file:///test'),

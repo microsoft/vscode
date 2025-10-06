@@ -22,7 +22,7 @@ import { ColorScheme } from '../../../../platform/theme/common/theme.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { McpServerStatusAction } from './mcpServerActions.js';
 import { reset } from '../../../../base/browser/dom.js';
-import { mcpServerIcon, mcpServerRemoteIcon, mcpServerWorkspaceIcon, mcpStarredIcon } from './mcpServerIcons.js';
+import { mcpLicenseIcon, mcpServerIcon, mcpServerRemoteIcon, mcpServerWorkspaceIcon, mcpStarredIcon } from './mcpServerIcons.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { renderMarkdown } from '../../../../base/browser/markdownRenderer.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
@@ -169,6 +169,7 @@ export class PublisherWidget extends McpServerWidget {
 			}
 			dom.append(this.element, publisherDisplayName);
 		} else {
+			this.element.classList.toggle('clickable', !!this.mcpServer.gallery?.publisherUrl);
 			this.element.setAttribute('role', 'button');
 			this.element.tabIndex = 0;
 
@@ -185,6 +186,10 @@ export class PublisherWidget extends McpServerWidget {
 
 				dom.append(verifiedPublisher, dom.$('span.extension-verified-publisher-domain', undefined, publisherDomainLink.authority.startsWith('www.') ? publisherDomainLink.authority.substring(4) : publisherDomainLink.authority));
 				this.disposables.add(onClick(verifiedPublisher, () => this.openerService.open(publisherDomainLink)));
+			}
+
+			if (this.mcpServer.gallery?.publisherUrl) {
+				this.disposables.add(onClick(this.element, () => this.openerService.open(this.mcpServer?.gallery?.publisherUrl!)));
 			}
 		}
 
@@ -245,6 +250,39 @@ export class StarredWidget extends McpServerWidget {
 		}
 	}
 
+}
+
+export class LicenseWidget extends McpServerWidget {
+
+	private readonly disposables = this._register(new DisposableStore());
+
+	constructor(
+		readonly container: HTMLElement,
+	) {
+		super();
+		this.container.classList.add('license');
+		this.render();
+		this._register(toDisposable(() => this.clear()));
+	}
+
+	private clear(): void {
+		this.container.innerText = '';
+		this.disposables.clear();
+	}
+
+	render(): void {
+		this.clear();
+
+		if (!this.mcpServer?.license) {
+			return;
+		}
+
+		const parent = dom.append(this.container, dom.$('span.license', { tabIndex: 0 }));
+		dom.append(parent, dom.$('span' + ThemeIcon.asCSSSelector(mcpLicenseIcon)));
+
+		const licenseElement = dom.append(parent, dom.$('span', undefined, this.mcpServer.license));
+		licenseElement.style.paddingLeft = '3px';
+	}
 }
 
 export class McpServerHoverWidget extends McpServerWidget {

@@ -7,6 +7,7 @@ import type * as vscode from 'vscode';
 import { coalesce } from '../../../base/common/arrays.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
+import { revive } from '../../../base/common/marshalling.js';
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { ILogService } from '../../../platform/log/common/log.js';
@@ -21,7 +22,6 @@ import { ExtHostLanguageModels } from './extHostLanguageModels.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 import * as typeConvert from './extHostTypeConverters.js';
 import * as extHostTypes from './extHostTypes.js';
-import { revive } from '../../../base/common/marshalling.js';
 
 class ExtHostChatSession {
 	private _stream: ChatAgentResponseStream;
@@ -103,6 +103,12 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 				this._proxy.$onDidChangeChatSessionItems(handle);
 			}));
 		}
+		if (provider.onDidCommitChatSessionItem) {
+			disposables.add(provider.onDidCommitChatSessionItem((e) => {
+				const { original, modified } = e;
+				this._proxy.$onDidCommitChatSessionItem(handle, original.id, modified.id);
+			}));
+		}
 		return {
 			dispose: () => {
 				this._chatSessionItemProviders.delete(handle);
@@ -112,7 +118,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		};
 	}
 
-	registerChatSessionContentProvider(extension: IExtensionDescription, chatSessionType: string, provider: vscode.ChatSessionContentProvider, capabilities?: vscode.ChatSessionCapabilities): vscode.Disposable {
+	registerChatSessionContentProvider(extension: IExtensionDescription, chatSessionType: string, chatParticipant: vscode.ChatParticipant, provider: vscode.ChatSessionContentProvider, capabilities?: vscode.ChatSessionCapabilities): vscode.Disposable {
 		const handle = this._nextChatSessionContentProviderHandle++;
 		const disposables = new DisposableStore();
 
@@ -164,7 +170,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		};
 	}
 
-	async $provideNewChatSessionItem(handle: number, options: { request: IChatAgentRequest; prompt?: string; history: any[]; metadata?: any }, token: CancellationToken): Promise<IChatSessionItem> {
+	async $provideNewChatSessionItem(handle: number, options: { request: IChatAgentRequest; metadata?: any }, token: CancellationToken): Promise<IChatSessionItem> {
 		const entry = this._chatSessionItemProviders.get(handle);
 		if (!entry || !entry.provider.provideNewChatSessionItem) {
 			throw new Error(`No provider registered for handle ${handle} or provider does not support creating sessions`);
@@ -183,8 +189,6 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 
 			const vscodeOptions = {
 				request: vscodeRequest,
-				prompt: options.prompt,
-				history: options.history,
 				metadata: options.metadata
 			};
 
@@ -246,7 +250,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			agentId: id,
 			message: '',
 			variables: { variables: [] },
-			location: ChatAgentLocation.Panel,
+			location: ChatAgentLocation.Chat,
 		}, {
 			$handleProgressChunk: (requestId, chunks) => {
 				return this._proxy.$handleProgressChunk(handle, id, requestId, chunks);

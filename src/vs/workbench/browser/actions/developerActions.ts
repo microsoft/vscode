@@ -41,6 +41,11 @@ import { IEditorService } from '../../services/editor/common/editorService.js';
 import product from '../../../platform/product/common/product.js';
 import { CommandsRegistry } from '../../../platform/commands/common/commands.js';
 import { IEnvironmentService } from '../../../platform/environment/common/environment.js';
+import { IProductService } from '../../../platform/product/common/productService.js';
+import { IDefaultAccountService } from '../../services/accounts/common/defaultAccount.js';
+import { IAuthenticationService } from '../../services/authentication/common/authentication.js';
+import { IAuthenticationAccessService } from '../../services/authentication/browser/authenticationAccessService.js';
+import { IPolicyService } from '../../../platform/policy/common/policy.js';
 
 class InspectContextKeysAction extends Action2 {
 
@@ -645,12 +650,266 @@ class StopTrackDisposables extends Action2 {
 	}
 }
 
+class PolicyDiagnosticsAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.showPolicyDiagnostics',
+			title: localize2('policyDiagnostics', 'Policy Diagnostics'),
+			category: Categories.Developer,
+			f1: true
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const configurationService = accessor.get(IConfigurationService);
+		const productService = accessor.get(IProductService);
+		const defaultAccountService = accessor.get(IDefaultAccountService);
+		const authenticationService = accessor.get(IAuthenticationService);
+		const authenticationAccessService = accessor.get(IAuthenticationAccessService);
+		const policyService = accessor.get(IPolicyService);
+
+		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+
+		let content = '# VS Code Policy Diagnostics\n\n';
+		content += '*WARNING: This file may contain sensitive information.*\n\n';
+		content += '## System Information\n\n';
+		content += '| Property | Value |\n';
+		content += '|----------|-------|\n';
+		content += `| Generated | ${new Date().toISOString()} |\n`;
+		content += `| Product | ${productService.nameLong} ${productService.version} |\n`;
+		content += `| Commit | ${productService.commit || 'n/a'} |\n\n`;
+
+		// Account information
+		content += '## Account Information\n\n';
+		try {
+			const account = await defaultAccountService.getDefaultAccount();
+			const sensitiveKeys = ['sessionId', 'analytics_tracking_id'];
+			if (account) {
+				// Try to get username/display info from the authentication session
+				let username = 'Unknown';
+				let accountLabel = 'Unknown';
+				try {
+					const providerIds = authenticationService.getProviderIds();
+					for (const providerId of providerIds) {
+						const sessions = await authenticationService.getSessions(providerId);
+						const matchingSession = sessions.find(session => session.id === account.sessionId);
+						if (matchingSession) {
+							username = matchingSession.account.id;
+							accountLabel = matchingSession.account.label;
+							break;
+						}
+					}
+				} catch (error) {
+					// Fallback to just session info
+				}
+
+				content += '### Default Account Summary\n\n';
+				content += `**Account ID/Username**: ${username}\n\n`;
+				content += `**Account Label**: ${accountLabel}\n\n`;
+
+				content += '### Detailed Account Properties\n\n';
+				content += '| Property | Value |\n';
+				content += '|----------|-------|\n';
+
+				// Iterate through all properties of the account object
+				for (const [key, value] of Object.entries(account)) {
+					if (value !== undefined && value !== null) {
+						let displayValue: string;
+
+						// Mask sensitive information
+						if (sensitiveKeys.includes(key)) {
+							displayValue = '***';
+						} else if (typeof value === 'object') {
+							displayValue = JSON.stringify(value);
+						} else {
+							displayValue = String(value);
+						}
+
+						content += `| ${key} | ${displayValue} |\n`;
+					}
+				}
+				content += '\n';
+			} else {
+				content += '*No default account configured*\n\n';
+			}
+		} catch (error) {
+			content += `*Error retrieving account information: ${error}*\n\n`;
+		}
+
+		content += '## Policy-Controlled Settings\n\n';
+
+		const policyConfigurations = configurationRegistry.getPolicyConfigurations();
+		const configurationProperties = configurationRegistry.getConfigurationProperties();
+		const excludedProperties = configurationRegistry.getExcludedConfigurationProperties();
+
+		if (policyConfigurations.size > 0) {
+			const appliedPolicy: Array<{ name: string; key: string; property: any; inspection: any }> = [];
+			const notAppliedPolicy: Array<{ name: string; key: string; property: any; inspection: any }> = [];
+
+			for (const [policyName, settingKey] of policyConfigurations) {
+				const property = configurationProperties[settingKey] ?? excludedProperties[settingKey];
+				if (property) {
+					const inspectValue = configurationService.inspect(settingKey);
+					const settingInfo = {
+						name: policyName,
+						key: settingKey,
+						property,
+						inspection: inspectValue
+					};
+
+					if (inspectValue.policyValue !== undefined) {
+						appliedPolicy.push(settingInfo);
+					} else {
+						notAppliedPolicy.push(settingInfo);
+					}
+				}
+			}
+
+			// Try to detect where the policy came from
+			const policySourceMemo = new Map<string, string>();
+			const getPolicySource = (policyName: string): string => {
+				if (policySourceMemo.has(policyName)) {
+					return policySourceMemo.get(policyName)!;
+				}
+				try {
+					const policyServiceConstructorName = policyService.constructor.name;
+					if (policyServiceConstructorName === 'MultiplexPolicyService') {
+						// eslint-disable-next-line local/code-no-any-casts
+						const multiplexService = policyService as any;
+						if (multiplexService.policyServices) {
+							const componentServices = multiplexService.policyServices as ReadonlyArray<any>;
+							for (const service of componentServices) {
+								if (service.getPolicyValue && service.getPolicyValue(policyName) !== undefined) {
+									policySourceMemo.set(policyName, service.constructor.name);
+									return service.constructor.name;
+								}
+							}
+						}
+					}
+					return '';
+				} catch {
+					return 'Unknown';
+				}
+			};
+
+			content += '### Applied Policy\n\n';
+			appliedPolicy.sort((a, b) => getPolicySource(a.name).localeCompare(getPolicySource(b.name)) || a.name.localeCompare(b.name));
+			if (appliedPolicy.length > 0) {
+				content += '| Setting Key | Policy Name | Policy Source | Default Value | Current Value | Policy Value |\n';
+				content += '|-------------|-------------|---------------|---------------|---------------|-------------|\n';
+
+				for (const setting of appliedPolicy) {
+					const defaultValue = JSON.stringify(setting.property.default);
+					const currentValue = JSON.stringify(setting.inspection.value);
+					const policyValue = JSON.stringify(setting.inspection.policyValue);
+					const policySource = getPolicySource(setting.name);
+
+					content += `| ${setting.key} | ${setting.name} | ${policySource} | \`${defaultValue}\` | \`${currentValue}\` | \`${policyValue}\` |\n`;
+				}
+				content += '\n';
+			} else {
+				content += '*No settings are currently controlled by policies*\n\n';
+			}
+
+			content += '###  Non-applied Policy\n\n';
+			if (notAppliedPolicy.length > 0) {
+				content += '| Setting Key | Policy Name  \n';
+				content += '|-------------|-------------|\n';
+
+				for (const setting of notAppliedPolicy) {
+
+					content += `| ${setting.key} | ${setting.name}|\n`;
+				}
+				content += '\n';
+			} else {
+				content += '*All policy-controllable settings are currently being enforced*\n\n';
+			}
+		} else {
+			content += '*No policy-controlled settings found*\n\n';
+		}
+
+		// Authentication diagnostics
+		content += '## Authentication Information\n\n';
+		try {
+			const providerIds = authenticationService.getProviderIds();
+
+			if (providerIds.length > 0) {
+				content += '### Authentication Providers\n\n';
+				content += '| Provider ID | Sessions | Accounts |\n';
+				content += '|-------------|----------|----------|\n';
+
+				for (const providerId of providerIds) {
+					try {
+						const sessions = await authenticationService.getSessions(providerId);
+						const accounts = sessions.map(session => session.account);
+						const uniqueAccounts = Array.from(new Set(accounts.map(account => account.label)));
+
+						content += `| ${providerId} | ${sessions.length} | ${uniqueAccounts.join(', ') || 'None'} |\n`;
+					} catch (error) {
+						content += `| ${providerId} | Error | ${error} |\n`;
+					}
+				}
+				content += '\n';
+
+				// Detailed session information
+				content += '### Detailed Session Information\n\n';
+				for (const providerId of providerIds) {
+					try {
+						const sessions = await authenticationService.getSessions(providerId);
+
+						if (sessions.length > 0) {
+							content += `#### ${providerId}\n\n`;
+							content += '| Account | Scopes | Extensions with Access |\n';
+							content += '|---------|--------|------------------------|\n';
+
+							for (const session of sessions) {
+								const accountName = session.account.label;
+								const scopes = session.scopes.join(', ') || 'Default';
+
+								// Get extensions with access to this account
+								try {
+									const allowedExtensions = authenticationAccessService.readAllowedExtensions(providerId, accountName);
+									const extensionNames = allowedExtensions
+										.filter(ext => ext.allowed !== false)
+										.map(ext => `${ext.name}${ext.trusted ? ' (trusted)' : ''}`)
+										.join(', ') || 'None';
+
+									content += `| ${accountName} | ${scopes} | ${extensionNames} |\n`;
+								} catch (error) {
+									content += `| ${accountName} | ${scopes} | Error: ${error} |\n`;
+								}
+							}
+							content += '\n';
+						}
+					} catch (error) {
+						content += `#### ${providerId}\n*Error retrieving sessions: ${error}*\n\n`;
+					}
+				}
+			} else {
+				content += '*No authentication providers found*\n\n';
+			}
+		} catch (error) {
+			content += `*Error retrieving authentication information: ${error}*\n\n`;
+		}
+
+		await editorService.openEditor({
+			resource: undefined,
+			contents: content,
+			languageId: 'markdown',
+			options: { pinned: true, }
+		});
+	}
+}
+
 // --- Actions Registration
 registerAction2(InspectContextKeysAction);
 registerAction2(ToggleScreencastModeAction);
 registerAction2(LogStorageAction);
 registerAction2(LogWorkingCopiesAction);
 registerAction2(RemoveLargeStorageEntriesAction);
+registerAction2(PolicyDiagnosticsAction);
 if (!product.commit) {
 	registerAction2(StartTrackDisposables);
 	registerAction2(SnapshotTrackedDisposables);

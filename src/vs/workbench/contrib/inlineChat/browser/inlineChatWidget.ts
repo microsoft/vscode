@@ -9,10 +9,12 @@ import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hover
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { constObservable, derived, IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { AccessibleDiffViewer, IAccessibleDiffViewerModel } from '../../../../editor/browser/widget/diffEditor/components/accessibleDiffViewer.js';
+import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { EditorOption, IComputedEditorOptions } from '../../../../editor/common/config/editorOptions.js';
 import { LineRange } from '../../../../editor/common/core/ranges/lineRange.js';
 import { Position } from '../../../../editor/common/core/position.js';
@@ -23,6 +25,7 @@ import { ICodeEditorViewState, ScrollType } from '../../../../editor/common/edit
 import { ITextModel } from '../../../../editor/common/model.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../nls.js';
+import product from '../../../../platform/product/common/product.js';
 import { IAccessibleViewService } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { IWorkbenchButtonBarOptions, MenuWorkbenchButtonBar } from '../../../../platform/actions/browser/buttonbar.js';
@@ -38,6 +41,7 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 import { asCssVariable, asCssVariableName, editorBackground, inputBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../common/theme.js';
+import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
 import { MarkUnhelpfulActionId } from '../../chat/browser/actions/chatTitleActions.js';
@@ -52,7 +56,6 @@ import { isResponseVM } from '../../chat/common/chatViewModel.js';
 import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_RESPONSE_FOCUSED, inlineChatBackground, inlineChatForeground } from '../common/inlineChat.js';
 import { HunkInformation, Session } from './inlineChatSession.js';
 import './media/inlineChat.css';
-
 
 export interface InlineChatWidgetViewState {
 	editorViewState: ICodeEditorViewState;
@@ -89,6 +92,7 @@ export class InlineChatWidget {
 				h('div.actions.hidden@toolbar1'),
 				h('div.label.status.hidden@statusLabel'),
 				h('div.actions.secondary.hidden@toolbar2'),
+				h('div.label.disclaimer.hidden@disclaimerLabel'),
 			]),
 		]
 	);
@@ -122,6 +126,7 @@ export class InlineChatWidget {
 		@ITextModelService protected readonly _textModelResolverService: ITextModelService,
 		@IChatService private readonly _chatService: IChatService,
 		@IHoverService private readonly _hoverService: IHoverService,
+		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
 	) {
 		this.scopedContextKeyService = this._store.add(_contextKeyService.createScoped(this._elements.chatWidget));
 		const scopedInstaService = _instantiationService.createChild(
@@ -267,15 +272,15 @@ export class InlineChatWidget {
 		this._elements.root.tabIndex = 0;
 		this._elements.statusLabel.tabIndex = 0;
 		this._updateAriaLabel();
+		this._setupDisclaimer();
 
-		// this._elements.status
 		this._store.add(this._hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this._elements.statusLabel, () => {
 			return this._elements.statusLabel.dataset['title'];
 		}));
 
 		this._store.add(this._chatService.onDidPerformUserAction(e => {
 			if (e.sessionId === this._chatWidget.viewModel?.model.sessionId && e.action.kind === 'vote') {
-				this.updateStatus('Thank you for your feedback!', { resetAfter: 1250 });
+				this.updateStatus(localize('feedbackThanks', "Thank you for your feedback!"), { resetAfter: 1250 });
 			}
 		}));
 	}
@@ -294,6 +299,30 @@ export class InlineChatWidget {
 			}
 			this._chatWidget.inputEditor.updateOptions({ ariaLabel: label });
 		}
+	}
+
+	private _setupDisclaimer(): void {
+		const disposables = this._store.add(new DisposableStore());
+
+		this._store.add(autorun(reader => {
+			disposables.clear();
+			reset(this._elements.disclaimerLabel);
+
+			const sentiment = this._chatEntitlementService.sentimentObs.read(reader);
+			const anonymous = this._chatEntitlementService.anonymousObs.read(reader);
+			const requestInProgress = this._chatService.requestInProgressObs.read(reader);
+
+			const showDisclaimer = !sentiment.installed && anonymous && !requestInProgress;
+			this._elements.disclaimerLabel.classList.toggle('hidden', !showDisclaimer);
+
+			if (showDisclaimer) {
+				const markdown = this._instantiationService.createInstance(MarkdownRenderer, {});
+				const renderedMarkdown = disposables.add(markdown.render(new MarkdownString(localize({ key: 'termsDisclaimer', comment: ['{Locked="]({2})"}', '{Locked="]({3})"}'] }, "By continuing with {0} Copilot, you agree to {1}'s [Terms]({2}) and [Privacy Statement]({3})", product.defaultChatAgent?.provider?.default?.name ?? '', product.defaultChatAgent?.provider?.default?.name ?? '', product.defaultChatAgent?.termsStatementUrl ?? '', product.defaultChatAgent?.privacyStatementUrl ?? ''), { isTrusted: true })));
+				this._elements.disclaimerLabel.appendChild(renderedMarkdown.element);
+			}
+
+			this._onDidChangeHeight.fire();
+		}));
 	}
 
 	dispose(): void {
@@ -515,7 +544,8 @@ export class EditorBasedInlineChatWidget extends InlineChatWidget {
 		@ITextModelService textModelResolverService: ITextModelService,
 		@IChatService chatService: IChatService,
 		@IHoverService hoverService: IHoverService,
-		@ILayoutService layoutService: ILayoutService
+		@ILayoutService layoutService: ILayoutService,
+		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
 	) {
 		const overflowWidgetsNode = layoutService.getContainer(getWindow(_parentEditor.getContainerDomNode())).appendChild($('.inline-chat-overflow.monaco-editor'));
 		super(location, {
@@ -524,7 +554,7 @@ export class EditorBasedInlineChatWidget extends InlineChatWidget {
 				...options.chatWidgetViewOptions,
 				editorOverflowWidgetsDomNode: overflowWidgetsNode
 			}
-		}, instantiationService, contextKeyService, keybindingService, accessibilityService, configurationService, accessibleViewService, textModelResolverService, chatService, hoverService);
+		}, instantiationService, contextKeyService, keybindingService, accessibilityService, configurationService, accessibleViewService, textModelResolverService, chatService, hoverService, chatEntitlementService);
 
 		this._store.add(toDisposable(() => {
 			overflowWidgetsNode.remove();

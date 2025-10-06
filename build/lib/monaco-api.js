@@ -187,6 +187,7 @@ function format(ts, text, endl) {
     // Parse the source text
     const sourceFile = ts.createSourceFile('file.ts', text, ts.ScriptTarget.Latest, /*setParentPointers*/ true);
     // Get the formatting edits on the input sources
+    // eslint-disable-next-line local/code-no-any-casts
     const edits = ts.formatting.formatDocument(sourceFile, getRuleProvider(tsfmt), tsfmt);
     // Apply the edits on the input code
     return applyEdits(text, edits);
@@ -284,6 +285,7 @@ function format(ts, text, endl) {
     function getRuleProvider(options) {
         // Share this between multiple formatters using the same options.
         // This represents the bulk of the space the formatter uses.
+        // eslint-disable-next-line local/code-no-any-casts
         return ts.formatting.getFormatContext(options);
     }
     function applyEdits(text, edits) {

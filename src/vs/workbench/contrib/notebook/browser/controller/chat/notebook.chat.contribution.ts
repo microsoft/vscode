@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
 import { codiconsLibrary } from '../../../../../../base/common/codiconsLibrary.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
@@ -20,25 +21,24 @@ import { ServicesAccessor } from '../../../../../../platform/instantiation/commo
 import { IQuickInputService, IQuickPickItem } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../common/contributions.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { IViewsService } from '../../../../../services/views/common/viewsService.js';
 import { IChatWidget, IChatWidgetService, showChatView } from '../../../../chat/browser/chat.js';
+import { IChatContextPicker, IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPickService } from '../../../../chat/browser/chatContextPickService.js';
 import { ChatDynamicVariableModel } from '../../../../chat/browser/contrib/chatDynamicVariables.js';
 import { computeCompletionRanges } from '../../../../chat/browser/contrib/chatInputCompletions.js';
 import { IChatAgentService } from '../../../../chat/common/chatAgents.js';
-import { ChatAgentLocation } from '../../../../chat/common/constants.js';
 import { ChatContextKeys } from '../../../../chat/common/chatContextKeys.js';
 import { chatVariableLeader } from '../../../../chat/common/chatParserTypes.js';
+import { ChatAgentLocation } from '../../../../chat/common/constants.js';
 import { NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_OUTPUT_MIME_TYPE_LIST_FOR_CHAT, NOTEBOOK_CELL_OUTPUT_MIMETYPE } from '../../../common/notebookContextKeys.js';
 import { INotebookKernelService } from '../../../common/notebookKernelService.js';
+import { createNotebookOutputVariableEntry, NOTEBOOK_CELL_OUTPUT_MIME_TYPE_LIST_FOR_CHAT_CONST } from '../../contrib/chat/notebookChatUtils.js';
 import { getNotebookEditorFromEditorPane, ICellOutputViewModel, INotebookEditor } from '../../notebookBrowser.js';
 import * as icons from '../../notebookIcons.js';
 import { getOutputViewModelFromId } from '../cellOutputActions.js';
 import { INotebookOutputActionContext, NOTEBOOK_ACTIONS_CATEGORY } from '../coreActions.js';
 import './cellChatActions.js';
 import { CTX_NOTEBOOK_CHAT_HAS_AGENT } from './notebookChatContext.js';
-import { IViewsService } from '../../../../../services/views/common/viewsService.js';
-import { createNotebookOutputVariableEntry, NOTEBOOK_CELL_OUTPUT_MIME_TYPE_LIST_FOR_CHAT_CONST } from '../../contrib/chat/notebookChatUtils.js';
-import { IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPickService, IChatContextPicker } from '../../../../chat/browser/chatContextPickService.js';
-import { Codicon } from '../../../../../../base/common/codicons.js';
 
 const NotebookKernelVariableKey = 'kernelVariable';
 
@@ -375,7 +375,7 @@ registerAction2(class CopyCellOutputAction extends Action2 {
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		let widget = chatWidgetService.lastFocusedWidget;
 		if (!widget) {
-			const widgets = chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Panel);
+			const widgets = chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat);
 			if (widgets.length === 0) {
 				return;
 			}

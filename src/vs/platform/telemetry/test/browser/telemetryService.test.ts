@@ -278,6 +278,7 @@ suite('TelemetryService', () => {
 		const errorTelemetry = new ErrorTelemetry(service);
 
 		const testError = new Error('test');
+		// eslint-disable-next-line local/code-no-any-casts
 		(<any>mainWindow.onerror)('Error Message', 'file.js', 2, 42, testError);
 		this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
 
@@ -308,6 +309,7 @@ suite('TelemetryService', () => {
 		const personInfoWithSpaces = settings.personalInfo.slice(0, 2) + ' ' + settings.personalInfo.slice(2);
 		const dangerousFilenameError: any = new Error('dangerousFilename');
 		dangerousFilenameError.stack = settings.stack;
+		// eslint-disable-next-line local/code-no-any-casts
 		(<any>mainWindow.onerror)('dangerousFilename', settings.dangerousPathWithImportantInfo.replace(settings.personalInfo, personInfoWithSpaces) + '/test.js', 2, 42, dangerousFilenameError);
 		this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
 
@@ -331,6 +333,7 @@ suite('TelemetryService', () => {
 
 		let dangerousFilenameError: any = new Error('dangerousFilename');
 		dangerousFilenameError.stack = settings.stack;
+		// eslint-disable-next-line local/code-no-any-casts
 		(<any>mainWindow.onerror)('dangerousFilename', settings.dangerousPathWithImportantInfo + '/test.js', 2, 42, dangerousFilenameError);
 		clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
 		assert.strictEqual(errorStub.callCount, 1);
@@ -338,6 +341,7 @@ suite('TelemetryService', () => {
 
 		dangerousFilenameError = new Error('dangerousFilename');
 		dangerousFilenameError.stack = settings.stack;
+		// eslint-disable-next-line local/code-no-any-casts
 		(<any>mainWindow.onerror)('dangerousFilename', settings.dangerousPathWithImportantInfo + '/test.js', 2, 42, dangerousFilenameError);
 		clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
 		assert.strictEqual(errorStub.callCount, 2);
@@ -389,6 +393,7 @@ suite('TelemetryService', () => {
 
 		const dangerousPathWithoutImportantInfoError: any = new Error('dangerousPathWithoutImportantInfo');
 		dangerousPathWithoutImportantInfoError.stack = settings.stack;
+		// eslint-disable-next-line local/code-no-any-casts
 		(<any>mainWindow.onerror)(settings.dangerousPathWithoutImportantInfo, 'test.js', 2, 42, dangerousPathWithoutImportantInfoError);
 		this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
 
@@ -451,6 +456,7 @@ suite('TelemetryService', () => {
 
 		const dangerousPathWithImportantInfoError: any = new Error('dangerousPathWithImportantInfo');
 		dangerousPathWithImportantInfoError.stack = settings.stack;
+		// eslint-disable-next-line local/code-no-any-casts
 		(<any>mainWindow.onerror)(settings.dangerousPathWithImportantInfo, 'test.js', 2, 42, dangerousPathWithImportantInfoError);
 		this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
 
@@ -550,6 +556,7 @@ suite('TelemetryService', () => {
 
 		const dangerousPathWithImportantInfoError: any = new Error('dangerousPathWithImportantInfo');
 		dangerousPathWithImportantInfoError.stack = settings.stack;
+		// eslint-disable-next-line local/code-no-any-casts
 		(<any>mainWindow.onerror)(settings.dangerousPathWithImportantInfo, 'test.js', 2, 42, dangerousPathWithImportantInfoError);
 		this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
 
@@ -614,6 +621,7 @@ suite('TelemetryService', () => {
 
 		const missingModelError: any = new Error('missingModelMessage');
 		missingModelError.stack = settings.stack;
+		// eslint-disable-next-line local/code-no-any-casts
 		(<any>mainWindow.onerror)(settings.missingModelMessage, 'test.js', 2, 42, missingModelError);
 		this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
 
@@ -683,6 +691,7 @@ suite('TelemetryService', () => {
 
 			const noSuchFileError: any = new Error('noSuchFileMessage');
 			noSuchFileError.stack = settings.stack;
+			// eslint-disable-next-line local/code-no-any-casts
 			(<any>mainWindow.onerror)(settings.noSuchFileMessage, 'test.js', 2, 42, noSuchFileError);
 			this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
 
@@ -726,6 +735,7 @@ suite('TelemetryService', () => {
 		}, new class extends TestConfigurationService {
 			override onDidChangeConfiguration = emitter.event;
 			override getValue() {
+				// eslint-disable-next-line local/code-no-any-casts
 				return telemetryLevel as any;
 			}
 		}(), TestProductService);

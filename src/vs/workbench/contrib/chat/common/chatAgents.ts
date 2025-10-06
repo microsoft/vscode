@@ -10,7 +10,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { revive } from '../../../../base/common/marshalling.js';
+import { revive, Revived } from '../../../../base/common/marshalling.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { equalsIgnoreCase } from '../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -25,7 +25,7 @@ import { IProductService } from '../../../../platform/product/common/productServ
 import { asJson, IRequestService } from '../../../../platform/request/common/request.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ChatContextKeys } from './chatContextKeys.js';
-import { IChatAgentEditedFileEvent, IChatProgressHistoryResponseContent, IChatRequestVariableData, ISerializableChatAgentData } from './chatModel.js';
+import { IChatAgentEditedFileEvent, IChatProgressHistoryResponseContent, IChatRequestModeInstructions, IChatRequestVariableData, ISerializableChatAgentData } from './chatModel.js';
 import { IRawChatCommandContribution } from './chatParticipantContribTypes.js';
 import { IChatFollowup, IChatLocationData, IChatProgress, IChatResponseErrorDetails, IChatTaskDto } from './chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from './constants.js';
@@ -141,13 +141,21 @@ export interface IChatAgentRequest {
 	isParticipantDetected?: boolean;
 	variables: IChatRequestVariableData;
 	location: ChatAgentLocation;
-	locationData?: IChatLocationData;
+	locationData?: Revived<IChatLocationData>;
 	acceptedConfirmationData?: any[];
 	rejectedConfirmationData?: any[];
 	userSelectedModelId?: string;
 	userSelectedTools?: UserSelectedTools;
-	modeInstructions?: string;
+	modeInstructions?: IChatRequestModeInstructions;
 	editedFileEvents?: IChatAgentEditedFileEvent[];
+
+	/**
+	 * Summary data for chat sessions context
+	 */
+	chatSummary?: {
+		prompt?: string;
+		history?: string;
+	};
 }
 
 export interface IChatQuestion {
@@ -321,7 +329,7 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 		this._extensionAgentRegistered.set(extensionAgentRegistered);
 		if (toolsAgentRegistered !== this._hasToolsAgent) {
 			this._hasToolsAgent = toolsAgentRegistered;
-			this._onDidChangeAgents.fire(this.getDefaultAgent(ChatAgentLocation.Panel, ChatModeKind.Agent));
+			this._onDidChangeAgents.fire(this.getDefaultAgent(ChatAgentLocation.Chat, ChatModeKind.Agent));
 		}
 	}
 
@@ -735,7 +743,9 @@ export function reviveSerializedAgent(raw: ISerializableChatAgentData): IChatAge
 	const agent = 'name' in raw ?
 		raw :
 		{
+			// eslint-disable-next-line local/code-no-any-casts
 			...(raw as any),
+			// eslint-disable-next-line local/code-no-any-casts
 			name: (raw as any).id,
 		};
 

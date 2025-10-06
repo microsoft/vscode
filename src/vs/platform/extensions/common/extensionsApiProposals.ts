@@ -62,6 +62,7 @@ const _allApiProposals = {
 	},
 	chatSessionsProvider: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.chatSessionsProvider.d.ts',
+		version: 2
 	},
 	chatStatusItem: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.chatStatusItem.d.ts',
@@ -183,6 +184,9 @@ const _allApiProposals = {
 	defaultChatParticipant: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.defaultChatParticipant.d.ts',
 		version: 4
+	},
+	devDeviceId: {
+		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.devDeviceId.d.ts',
 	},
 	diffCommand: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.diffCommand.d.ts',
@@ -354,9 +358,6 @@ const _allApiProposals = {
 	},
 	scmValidation: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.scmValidation.d.ts',
-	},
-	secretStorageKeys: {
-		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.secretStorageKeys.d.ts',
 	},
 	shareProvider: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.shareProvider.d.ts',

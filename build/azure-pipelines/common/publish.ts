@@ -521,6 +521,7 @@ class ESRPReleaseService {
 				// Release service uses hex format, not base64url :roll_eyes:
 				x5t: getThumbprint(this.requestSigningCertificates[0], 'sha1').toString('hex'),
 				// Release service uses a '.' separated string, not an array of strings :roll_eyes:
+				// eslint-disable-next-line local/code-no-any-casts
 				x5c: this.requestSigningCertificates.map(c => getCertificateBuffer(c).toString('base64url')).join('.') as any,
 			},
 			payload: message,

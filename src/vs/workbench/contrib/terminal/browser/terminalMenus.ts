@@ -18,6 +18,7 @@ import { TerminalContextKeys, TerminalContextKeyStrings } from '../common/termin
 import { terminalStrings } from '../common/terminalStrings.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { HasSpeechProvider } from '../../speech/common/speechService.js';
 
 export const enum TerminalContextMenuGroup {
 	Chat = '0_chat',
@@ -98,7 +99,7 @@ export function setupTerminalMenus(): void {
 					order: 4,
 					when: TerminalContextKeys.processSupported
 				}
-			}
+			},
 		]
 	);
 
@@ -518,7 +519,7 @@ export function setupTerminalMenus(): void {
 					order: 8,
 					when: ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
 					isHiddenByDefault: true
-				}
+				},
 			},
 		]
 	);
@@ -724,6 +725,28 @@ export function setupTerminalMenus(): void {
 			group: 'navigation',
 			order: 8,
 			when: ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal),
+			isHiddenByDefault: true
+		});
+		MenuRegistry.appendMenuItem(menuId, {
+			command: {
+				id: TerminalCommandId.StartVoice,
+				title: localize('workbench.action.terminal.startVoiceEditor', "Start Dictation"),
+				icon: Codicon.run
+			},
+			group: 'navigation',
+			order: 9,
+			when: ContextKeyExpr.and(ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal), TerminalContextKeys.terminalDictationInProgress.negate()),
+			isHiddenByDefault: true
+		});
+		MenuRegistry.appendMenuItem(menuId, {
+			command: {
+				id: TerminalCommandId.StopVoice,
+				title: localize('workbench.action.terminal.stopVoiceEditor', "Stop Dictation"),
+				icon: Codicon.run
+			},
+			group: 'navigation',
+			order: 10,
+			when: ContextKeyExpr.and(ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal), HasSpeechProvider, TerminalContextKeys.terminalDictationInProgress),
 			isHiddenByDefault: true
 		});
 	}

@@ -12,7 +12,6 @@ import { CountBadge } from '../../../base/browser/ui/countBadge/countBadge.js';
 import { ProgressBar } from '../../../base/browser/ui/progressbar/progressbar.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { KeyCode } from '../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, dispose } from '../../../base/common/lifecycle.js';
 import Severity from '../../../base/common/severity.js';
 import { isString } from '../../../base/common/types.js';
@@ -266,6 +265,10 @@ export class QuickInputController extends Disposable {
 				tree.tree.setFocus([]);
 			}, 0);
 		}));
+		// Wire up tree's accept event to the UI's accept emitter for non-pickable items
+		this._register(tree.onDidAccept(() => {
+			this.onDidAcceptEmitter.fire();
+		}));
 		this._register(tree.tree.onDidChangeContentHeight(() => this.updateLayout()));
 
 		const focusTracker = dom.trackFocus(container);
@@ -306,65 +309,6 @@ export class QuickInputController extends Disposable {
 		}));
 		this._register(dom.addDisposableListener(container, dom.EventType.FOCUS, (e: FocusEvent) => {
 			inputBox.setFocus();
-		}));
-		// TODO: Turn into commands instead of handling KEY_DOWN
-		// Keybindings for the quickinput widget as a whole
-		this._register(dom.addStandardDisposableListener(container, dom.EventType.KEY_DOWN, (event) => {
-			if (dom.isAncestor(event.target, widget)) {
-				return; // Ignore event if target is inside widget to allow the widget to handle the event.
-			}
-			switch (event.keyCode) {
-				case KeyCode.Enter:
-					dom.EventHelper.stop(event, true);
-					if (this.enabled) {
-						this.onDidAcceptEmitter.fire();
-					}
-					break;
-				case KeyCode.Escape:
-					dom.EventHelper.stop(event, true);
-					this.hide(QuickInputHideReason.Gesture);
-					break;
-				case KeyCode.Tab:
-					if (!event.altKey && !event.ctrlKey && !event.metaKey) {
-						// detect only visible actions
-						const selectors = [
-							'.quick-input-list .monaco-action-bar .always-visible',
-							'.quick-input-list-entry:hover .monaco-action-bar',
-							'.monaco-list-row.focused .monaco-action-bar'
-						];
-
-						if (container.classList.contains('show-checkboxes')) {
-							selectors.push('input');
-						} else {
-							selectors.push('input[type=text]');
-						}
-						if (this.getUI().list.displayed) {
-							selectors.push('.monaco-list');
-						}
-						// focus links if there are any
-						if (this.getUI().message) {
-							selectors.push('.quick-input-message a');
-						}
-
-						if (this.getUI().widget) {
-							if (dom.isAncestor(event.target, this.getUI().widget)) {
-								// let the widget control tab
-								break;
-							}
-							selectors.push('.quick-input-html-widget');
-						}
-						const stops = container.querySelectorAll<HTMLElement>(selectors.join(', '));
-						if (!event.shiftKey && dom.isAncestor(event.target, stops[stops.length - 1])) {
-							dom.EventHelper.stop(event, true);
-							stops[0].focus();
-						}
-						if (event.shiftKey && dom.isAncestor(event.target, stops[0])) {
-							dom.EventHelper.stop(event, true);
-							stops[stops.length - 1].focus();
-						}
-					}
-					break;
-			}
 		}));
 
 		// Drag and Drop support

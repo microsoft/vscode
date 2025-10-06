@@ -9,10 +9,10 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { IMarkdownString } from '../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, IDisposable } from '../../../base/common/lifecycle.js';
 import { revive } from '../../../base/common/marshalling.js';
+import { Schemas } from '../../../base/common/network.js';
 import { escapeRegExpCharacters } from '../../../base/common/strings.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
-import { Schemas } from '../../../base/common/network.js';
 import { Position } from '../../../editor/common/core/position.js';
 import { Range } from '../../../editor/common/core/range.js';
 import { getWordAtText } from '../../../editor/common/core/wordHelper.js';
@@ -169,7 +169,12 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			invoke: async (request, progress, history, token) => {
 				this._pendingProgress.set(request.requestId, progress);
 				try {
-					return await this._proxy.$invokeAgent(handle, request, { history }, token) ?? {};
+					const chatSessionContext = this._chatService.getChatSessionFromInternalId(request.sessionId);
+					return await this._proxy.$invokeAgent(handle, request, {
+						history,
+						chatSessionContext,
+						chatSummary: request.chatSummary
+					}, token) ?? {};
 				} finally {
 					this._pendingProgress.delete(request.requestId);
 				}
@@ -209,7 +214,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					metadata: revive(metadata),
 					slashCommands: [],
 					disambiguation: [],
-					locations: [ChatAgentLocation.Panel],
+					locations: [ChatAgentLocation.Chat],
 					modes: [ChatModeKind.Ask, ChatModeKind.Agent, ChatModeKind.Edit],
 				},
 				impl);
@@ -220,7 +225,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		this._agents.set(handle, {
 			id: id,
 			extensionId: extension,
-			dispose: disposable.dispose,
+			dispose: () => disposable.dispose(),
 			hasFollowups: metadata.hasFollowups
 		});
 	}
@@ -357,6 +362,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 						kind: CompletionItemKind.Text,
 						detail: v.detail,
 						documentation: v.documentation,
+						// eslint-disable-next-line local/code-no-any-casts
 						command: { id: AddDynamicVariableAction.ID, title: '', arguments: [{ id: v.id, widget, range: rangeAfterInsert, variableData: revive(v.value) as any, command: v.command } satisfies IAddDynamicVariableContext] }
 					} satisfies CompletionItem;
 				});

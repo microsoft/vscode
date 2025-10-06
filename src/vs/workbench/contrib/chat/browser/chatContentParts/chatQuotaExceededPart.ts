@@ -18,7 +18,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { asCssVariable, textLinkForeground } from '../../../../../platform/theme/common/colorRegistry.js';
-import { ChatEntitlement, IChatEntitlementService } from '../../common/chatEntitlementService.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IChatErrorDetailsPart, IChatRendererContent, IChatResponseViewModel } from '../../common/chatViewModel.js';
 import { IChatWidgetService } from '../chat.js';
 import { IChatContentPart } from './chatContentParts.js';
@@ -26,20 +26,23 @@ import { IChatContentPart } from './chatContentParts.js';
 const $ = dom.$;
 
 /**
- * Once the sign up button is clicked, and the retry button has been shown, it should be shown every time.
+ * Once the sign up button is clicked, and the retry
+ * button has been shown, it should be shown every time.
  */
 let shouldShowRetryButton = false;
 
 /**
- * Once the 'retry' button is clicked, the wait warning should be shown every time.
+ * Once the 'retry' button is clicked, the wait warning
+ * should be shown every time.
  */
 let shouldShowWaitWarning = false;
 
 export class ChatQuotaExceededPart extends Disposable implements IChatContentPart {
-	public readonly domNode: HTMLElement;
+
+	readonly domNode: HTMLElement;
 
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
-	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
+	readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
 	constructor(
 		element: IChatResponseViewModel,
@@ -60,20 +63,18 @@ export class ChatQuotaExceededPart extends Disposable implements IChatContentPar
 		icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.warning));
 
 		const messageContainer = dom.append(this.domNode, $('.chat-quota-error-message'));
-		const markdownContent = renderer.render(new MarkdownString(errorDetails.message));
+		const markdownContent = this._register(renderer.render(new MarkdownString(errorDetails.message)));
 		dom.append(messageContainer, markdownContent.element);
 
-		let button1Label = '';
+		let primaryButtonLabel: string | undefined;
 		switch (chatEntitlementService.entitlement) {
 			case ChatEntitlement.Pro:
 			case ChatEntitlement.ProPlus:
-				button1Label = localize('enableAdditionalUsage', "Manage paid premium requests");
+				primaryButtonLabel = localize('enableAdditionalUsage', "Manage Paid Premium Requests");
 				break;
 			case ChatEntitlement.Free:
-				button1Label = localize('upgradeToCopilotPro', "Upgrade to GitHub Copilot Pro");
+				primaryButtonLabel = localize('upgradeToCopilotPro', "Upgrade to GitHub Copilot Pro");
 				break;
-			default:
-				button1Label = '';
 		}
 
 		let hasAddedWaitWarning = false;
@@ -93,14 +94,16 @@ export class ChatQuotaExceededPart extends Disposable implements IChatContentPar
 			}
 
 			hasAddedRetryButton = true;
-			const button2 = this._register(new Button(messageContainer, {
+			const retryButton = this._register(new Button(messageContainer, {
 				buttonBackground: undefined,
 				buttonForeground: asCssVariable(textLinkForeground)
 			}));
-			button2.element.classList.add('chat-quota-error-secondary-button');
-			button2.label = localize('clickToContinue', "Click to retry.");
+			retryButton.element.classList.add('chat-quota-error-secondary-button');
+			retryButton.label = localize('clickToContinue', "Click to Retry");
+
 			this._onDidChangeHeight.fire();
-			this._register(button2.onDidClick(() => {
+
+			this._register(retryButton.onDidClick(() => {
 				const widget = chatWidgetService.getWidgetBySessionId(element.sessionId);
 				if (!widget) {
 					return;
@@ -113,11 +116,12 @@ export class ChatQuotaExceededPart extends Disposable implements IChatContentPar
 			}));
 		};
 
-		if (button1Label) {
-			const button1 = this._register(new Button(messageContainer, { ...defaultButtonStyles, supportIcons: true }));
-			button1.label = button1Label;
-			button1.element.classList.add('chat-quota-error-button');
-			this._register(button1.onDidClick(async () => {
+		if (primaryButtonLabel) {
+			const primaryButton = this._register(new Button(messageContainer, { ...defaultButtonStyles, supportIcons: true }));
+			primaryButton.label = primaryButtonLabel;
+			primaryButton.element.classList.add('chat-quota-error-button');
+
+			this._register(primaryButton.onDidClick(async () => {
 				const commandId = chatEntitlementService.entitlement === ChatEntitlement.Free ? 'workbench.action.chat.upgradePlan' : 'workbench.action.chat.manageOverages';
 				telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: commandId, from: 'chat-response' });
 				await commandService.executeCommand(commandId);

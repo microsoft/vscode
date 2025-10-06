@@ -56,6 +56,7 @@ import assert from 'assert';
 		});
 
 		// Using https.globalAgent because it is shared with proxyResolver.ts and mutable.
+		// eslint-disable-next-line local/code-no-any-casts
 		(https.globalAgent as any).testCertificates = [certPEM];
 		resetCaches();
 
@@ -72,6 +73,7 @@ import assert from 'assert';
 					.on('error', reject);
 			});
 		} finally {
+			// eslint-disable-next-line local/code-no-any-casts
 			delete (https.globalAgent as any).testCertificates;
 			resetCaches();
 			server.close();

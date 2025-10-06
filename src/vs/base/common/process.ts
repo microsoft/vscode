@@ -9,6 +9,7 @@ let safeProcess: Omit<INodeProcess, 'arch'> & { arch: string | undefined };
 declare const process: INodeProcess;
 
 // Native sandbox environment
+// eslint-disable-next-line local/code-no-any-casts
 const vscodeGlobal = (globalThis as any).vscode;
 if (typeof vscodeGlobal !== 'undefined' && typeof vscodeGlobal.process !== 'undefined') {
 	const sandboxProcess: INodeProcess = vscodeGlobal.process;

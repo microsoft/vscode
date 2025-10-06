@@ -5,7 +5,7 @@
 
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { Event, Emitter } from '../../base/common/event.js';
-import { EventType, addDisposableListener, getClientArea, position, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize, getActiveDocument, getWindows, getActiveWindow, isActiveDocument, getWindow, getWindowId, getActiveElement, Dimension } from '../../base/browser/dom.js';
+import { EventType, addDisposableListener, getClientArea, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize, getActiveDocument, getWindows, getActiveWindow, isActiveDocument, getWindow, getWindowId, getActiveElement, Dimension } from '../../base/browser/dom.js';
 import { onDidChangeFullscreen, isFullscreen, isWCOEnabled } from '../../base/browser/browser.js';
 import { isWindows, isLinux, isMacintosh, isWeb, isIOS } from '../../base/common/platform.js';
 import { EditorInputCapabilities, GroupIdentifier, isResourceEditorInput, IUntypedEditorInput, pathsToEditors } from '../common/editor.js';
@@ -425,7 +425,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this._register(this.hostService.onDidChangeActiveWindow(() => this.onActiveWindowChanged()));
 
 		// WCO changes
+		// eslint-disable-next-line local/code-no-any-casts
 		if (isWeb && typeof (navigator as any).windowControlsOverlay === 'object') {
+			// eslint-disable-next-line local/code-no-any-casts
 			this._register(addDisposableListener((navigator as any).windowControlsOverlay, 'geometrychange', () => this.onDidChangeWCO()));
 		}
 
@@ -632,7 +634,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private initLayoutState(lifecycleService: ILifecycleService, fileService: IFileService): void {
 		this._mainContainerDimension = getClientArea(this.parent, this.contextService.getWorkbenchState() === WorkbenchState.EMPTY ? DEFAULT_EMPTY_WINDOW_DIMENSIONS : DEFAULT_WORKSPACE_WINDOW_DIMENSIONS); // running with fallback to ensure no error is thrown (https://github.com/microsoft/vscode/issues/240242)
 
-		this.stateModel = new LayoutStateModel(this.storageService, this.configurationService, this.contextService);
+		this.stateModel = new LayoutStateModel(this.storageService, this.configurationService, this.contextService, this.environmentService);
 		this.stateModel.load({
 			mainContainerDimension: this._mainContainerDimension,
 			resetLayout: Boolean(this.layoutOptions?.resetLayout)
@@ -703,16 +705,18 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Sidebar View Container To Restore
 		if (this.isVisible(Parts.SIDEBAR_PART)) {
-
-			// Only restore last viewlet if window was reloaded or we are in development mode
-			let viewContainerToRestore: string | undefined;
+			let viewContainerToRestore = this.storageService.get(SidebarPart.activeViewletSettingsKey, StorageScope.WORKSPACE, this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Sidebar)?.id);
 			if (
 				!this.environmentService.isBuilt ||
 				lifecycleService.startupKind === StartupKind.ReloadedWindow ||
 				this.environmentService.isExtensionDevelopment && !this.environmentService.extensionTestsLocationURI
 			) {
-				viewContainerToRestore = this.storageService.get(SidebarPart.activeViewletSettingsKey, StorageScope.WORKSPACE, this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Sidebar)?.id);
-			} else {
+				// allow to restore a non-default viewlet in development mode or when window reloads
+			} else if (
+				viewContainerToRestore !== this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Sidebar)?.id &&
+				viewContainerToRestore !== this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.AuxiliaryBar)?.id
+			) {
+				// fallback to default viewlet otherwise if the viewlet is not a default viewlet
 				viewContainerToRestore = this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Sidebar)?.id;
 			}
 
@@ -1634,7 +1638,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			);
 			this.logService.trace(`Layout#layout, height: ${this._mainContainerDimension.height}, width: ${this._mainContainerDimension.width}`);
 
-			position(this.mainContainer, 0, 0, 0, 0, 'relative');
 			size(this.mainContainer, this._mainContainerDimension.width, this._mainContainerDimension.height);
 
 			// Layout the grid widget
@@ -2788,6 +2791,7 @@ class LayoutStateModel extends Disposable {
 		private readonly storageService: IStorageService,
 		private readonly configurationService: IConfigurationService,
 		private readonly contextService: IWorkspaceContextService,
+		private readonly environmentService: IBrowserWorkbenchEnvironmentService,
 	) {
 		super();
 
@@ -2856,6 +2860,10 @@ class LayoutStateModel extends Disposable {
 		LayoutStateKeys.SIDEBAR_HIDDEN.defaultValue = workbenchState === WorkbenchState.EMPTY;
 		LayoutStateKeys.AUXILIARYBAR_SIZE.defaultValue = Math.min(300, mainContainerDimension.width / 4);
 		LayoutStateKeys.AUXILIARYBAR_HIDDEN.defaultValue = (() => {
+			if (isWeb && !this.environmentService.remoteAuthority) {
+				return true; // TODO@bpasero remove this condition once Chat web support lands
+			}
+
 			const configuration = this.configurationService.inspect(WorkbenchLayoutSettings.AUXILIARYBAR_DEFAULT_VISIBILITY);
 
 			// Unless auxiliary bar visibility is explicitly configured, make

@@ -290,8 +290,11 @@ export class MsalAuthProvider implements AuthenticationProvider {
 	async getSessionsFromChallenges(constraint: AuthenticationConstraint, options: AuthenticationProviderSessionOptions): Promise<readonly AuthenticationSession[]> {
 		this._logger.info('[getSessionsFromChallenges]', 'starting with', constraint.challenges.length, 'challenges');
 
-		// Use scopes from constraint if provided, otherwise extract from challenges
-		const scopes = constraint.scopes?.length ? [...constraint.scopes] : this.extractScopesFromChallenges(constraint.challenges);
+		// Use scopes from challenges if provided, otherwise use fallback scopes
+		const scopes = this.extractScopesFromChallenges(constraint.challenges) ?? constraint.fallbackScopes;
+		if (!scopes || scopes.length === 0) {
+			throw new Error('No scopes found in authentication challenges or fallback scopes');
+		}
 		const claims = this.extractClaimsFromChallenges(constraint.challenges);
 		if (!claims) {
 			throw new Error('No claims found in authentication challenges');
@@ -309,8 +312,11 @@ export class MsalAuthProvider implements AuthenticationProvider {
 	async createSessionFromChallenges(constraint: AuthenticationConstraint, options: AuthenticationProviderSessionOptions): Promise<AuthenticationSession> {
 		this._logger.info('[createSessionFromChallenges]', 'starting with', constraint.challenges.length, 'challenges');
 
-		// Use scopes from constraint if provided, otherwise extract from challenges
-		const scopes = constraint.scopes?.length ? [...constraint.scopes] : this.extractScopesFromChallenges(constraint.challenges);
+		// Use scopes from challenges if provided, otherwise use fallback scopes
+		const scopes = this.extractScopesFromChallenges(constraint.challenges) ?? constraint.fallbackScopes;
+		if (!scopes || scopes.length === 0) {
+			throw new Error('No scopes found in authentication challenges or fallback scopes');
+		}
 		const claims = this.extractClaimsFromChallenges(constraint.challenges);
 
 		// Use scopes if available, otherwise fall back to default scopes
@@ -392,14 +398,13 @@ export class MsalAuthProvider implements AuthenticationProvider {
 		throw lastError ?? new Error('No auth flow succeeded');
 	}
 
-	private extractScopesFromChallenges(challenges: readonly AuthenticationChallenge[]): string[] {
-		const scopes: string[] = [];
+	private extractScopesFromChallenges(challenges: readonly AuthenticationChallenge[]): string[] | undefined {
 		for (const challenge of challenges) {
 			if (challenge.scheme.toLowerCase() === 'bearer' && challenge.params.scope) {
-				scopes.push(...challenge.params.scope.split(' '));
+				return challenge.params.scope.split(' ');
 			}
 		}
-		return scopes;
+		return undefined;
 	}
 
 	private extractClaimsFromChallenges(challenges: readonly AuthenticationChallenge[]): string | undefined {

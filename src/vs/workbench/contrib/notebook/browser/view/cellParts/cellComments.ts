@@ -5,7 +5,8 @@
 
 import { coalesce } from '../../../../../../base/common/arrays.js';
 import { DisposableMap, DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { EDITOR_FONT_DEFAULTS, IEditorOptions } from '../../../../../../editor/common/config/editorOptions.js';
+import { IEditorOptions } from '../../../../../../editor/common/config/editorOptions.js';
+import { EDITOR_FONT_DEFAULTS } from '../../../../../../editor/common/config/fontInfo.js';
 import * as languages from '../../../../../../editor/common/languages.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';

@@ -42,6 +42,7 @@ function watch(root) {
                 path: changePathFull,
                 base: root
             });
+            // eslint-disable-next-line local/code-no-any-casts
             file.event = toChangeType(changeType);
             result.emit('data', file);
         }

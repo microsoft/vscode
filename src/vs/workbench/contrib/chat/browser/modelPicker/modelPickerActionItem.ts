@@ -15,7 +15,7 @@ import { IActionWidgetService } from '../../../../../platform/actionWidget/brows
 import { IActionWidgetDropdownAction, IActionWidgetDropdownActionProvider, IActionWidgetDropdownOptions } from '../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { ChatEntitlement, IChatEntitlementService } from '../../common/chatEntitlementService.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { DEFAULT_MODEL_PICKER_CATEGORY } from '../../common/modelPicker/modelPickerWidget.js';
 import { ManageModelsAction } from '../actions/manageModelsActions.js';
@@ -75,8 +75,8 @@ function getModelPickerActionBarActionProvider(commandService: ICommandService, 
 				});
 			}
 
-			// Add upgrade option if entitlement is free
-			if (chatEntitlementService.entitlement === ChatEntitlement.Free) {
+			// Add sign-in / upgrade option if entitlement is anonymous / free
+			if (chatEntitlementService.anonymous || chatEntitlementService.entitlement === ChatEntitlement.Free) {
 				additionalActions.push({
 					id: 'moreModels',
 					label: localize('chat.moreModels', "Add Premium Models"),
@@ -84,7 +84,7 @@ function getModelPickerActionBarActionProvider(commandService: ICommandService, 
 					tooltip: localize('chat.moreModels.tooltip', "Add premium models"),
 					class: undefined,
 					run: () => {
-						const commandId = 'workbench.action.chat.upgradePlan';
+						const commandId = chatEntitlementService.anonymous ? 'workbench.action.chat.triggerSetup' : 'workbench.action.chat.upgradePlan';
 						commandService.executeCommand(commandId);
 					}
 				});

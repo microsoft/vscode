@@ -20,7 +20,7 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { IChatToolInvocation, ToolConfirmKind } from '../../common/chatService.js';
+import { ConfirmedReason, IChatToolInvocation, ToolConfirmKind } from '../../common/chatService.js';
 import { isResponseVM } from '../../common/chatViewModel.js';
 import { ChatModeKind } from '../../common/constants.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
@@ -41,8 +41,30 @@ type SelectedToolClassification = {
 };
 
 export const AcceptToolConfirmationActionId = 'workbench.action.chat.acceptTool';
+export const SkipToolConfirmationActionId = 'workbench.action.chat.skipTool';
 
-class AcceptToolConfirmation extends Action2 {
+abstract class ToolConfirmationAction extends Action2 {
+	protected abstract getReason(): ConfirmedReason;
+
+	run(accessor: ServicesAccessor, ...args: any[]) {
+		const chatWidgetService = accessor.get(IChatWidgetService);
+		const widget = chatWidgetService.lastFocusedWidget;
+		const lastItem = widget?.viewModel?.getItems().at(-1);
+		if (!isResponseVM(lastItem)) {
+			return;
+		}
+
+		const unconfirmedToolInvocation = lastItem.model.response.value.find((item): item is IChatToolInvocation => item.kind === 'toolInvocation' && item.isConfirmed === undefined);
+		if (unconfirmedToolInvocation) {
+			unconfirmedToolInvocation.confirmed.complete(this.getReason());
+		}
+
+		// Return focus to the chat input, in case it was in the tool confirmation editor
+		widget?.focusInput();
+	}
+}
+
+class AcceptToolConfirmation extends ToolConfirmationAction {
 	constructor() {
 		super({
 			id: AcceptToolConfirmationActionId,
@@ -58,21 +80,29 @@ class AcceptToolConfirmation extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor, ...args: any[]) {
-		const chatWidgetService = accessor.get(IChatWidgetService);
-		const widget = chatWidgetService.lastFocusedWidget;
-		const lastItem = widget?.viewModel?.getItems().at(-1);
-		if (!isResponseVM(lastItem)) {
-			return;
-		}
+	protected override getReason(): ConfirmedReason {
+		return { type: ToolConfirmKind.UserAction };
+	}
+}
 
-		const unconfirmedToolInvocation = lastItem.model.response.value.find((item): item is IChatToolInvocation => item.kind === 'toolInvocation' && item.isConfirmed === undefined);
-		if (unconfirmedToolInvocation) {
-			unconfirmedToolInvocation.confirmed.complete({ type: ToolConfirmKind.UserAction });
-		}
+class SkipToolConfirmation extends ToolConfirmationAction {
+	constructor() {
+		super({
+			id: SkipToolConfirmationActionId,
+			title: localize2('chat.skip', "Skip"),
+			f1: false,
+			category: CHAT_CATEGORY,
+			keybinding: {
+				when: ContextKeyExpr.and(ChatContextKeys.inChatSession, ChatContextKeys.Editing.hasToolConfirmation),
+				primary: KeyMod.CtrlCmd | KeyCode.Enter | KeyMod.Alt,
+				// Override chatEditor.action.accept
+				weight: KeybindingWeight.WorkbenchContrib + 1,
+			},
+		});
+	}
 
-		// Return focus to the chat input, in case it was in the tool confirmation editor
-		widget?.focusInput();
+	protected override getReason(): ConfirmedReason {
+		return { type: ToolConfirmKind.Skipped };
 	}
 }
 
@@ -136,7 +166,7 @@ class ConfigureToolsAction extends Action2 {
 				break;
 		}
 
-		const result = await instaService.invokeFunction(showToolsPicker, placeholder, description, entriesMap.get());
+		const result = await instaService.invokeFunction(showToolsPicker, placeholder, description, () => entriesMap.get());
 		if (result) {
 			widget.input.selectedToolsModel.set(result, false);
 		}
@@ -222,6 +252,7 @@ class ConfigureToolsActionRendering implements IWorkbenchContribution {
 
 export function registerChatToolActions() {
 	registerAction2(AcceptToolConfirmation);
+	registerAction2(SkipToolConfirmation);
 	registerAction2(ConfigureToolsAction);
 	registerWorkbenchContribution2(ConfigureToolsActionRendering.ID, ConfigureToolsActionRendering, WorkbenchPhase.BlockRestore);
 }

@@ -7,7 +7,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { match, splitGlobAware } from '../../../../../base/common/glob.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { basename, joinPath } from '../../../../../base/common/resources.js';
+import { basename, dirname, joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -21,7 +21,8 @@ import { IToolData } from '../languageModelToolsService.js';
 import { PromptsConfig } from './config/config.js';
 import { COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, isPromptOrInstructionsFile } from './config/promptFileLocations.js';
 import { PromptsType } from './promptTypes.js';
-import { IPromptParserResult, IPromptPath, IPromptsService } from './service/promptsService.js';
+import { ParsedPromptFile } from './service/newPromptsParser.js';
+import { IPromptPath, IPromptsService } from './service/promptsService.js';
 
 export type InstructionsCollectionEvent = {
 	applyingInstructionsCount: number;
@@ -46,7 +47,7 @@ type InstructionsCollectionClassification = {
 
 export class ComputeAutomaticInstructions {
 
-	private _parseResults: ResourceMap<IPromptParserResult> = new ResourceMap();
+	private _parseResults: ResourceMap<ParsedPromptFile> = new ResourceMap();
 
 	constructor(
 		private readonly _readFileTool: IToolData | undefined,
@@ -60,12 +61,12 @@ export class ComputeAutomaticInstructions {
 	) {
 	}
 
-	private async _parseInstructionsFile(uri: URI, token: CancellationToken): Promise<IPromptParserResult | undefined> {
+	private async _parseInstructionsFile(uri: URI, token: CancellationToken): Promise<ParsedPromptFile | undefined> {
 		if (this._parseResults.has(uri)) {
 			return this._parseResults.get(uri)!;
 		}
 		try {
-			const result = await this._promptsService.parse(uri, PromptsType.instructions, token);
+			const result = await this._promptsService.parseNew(uri, token);
 			this._parseResults.set(uri, result);
 			return result;
 		} catch (error) {
@@ -109,6 +110,48 @@ export class ComputeAutomaticInstructions {
 		this.sendTelemetry(telemetryEvent);
 	}
 
+	/**
+	 * Checks if any agent instruction files (.github/copilot-instructions.md or agents.md) exist in the workspace.
+	 * Used to determine whether to show the "Generate Agent Instructions" hint.
+	 *
+	 * @returns true if instruction files exist OR if instruction features are disabled (to hide the hint)
+	 */
+	public async hasAgentInstructions(token: CancellationToken): Promise<boolean> {
+		const useCopilotInstructionsFiles = this._configurationService.getValue(PromptsConfig.USE_COPILOT_INSTRUCTION_FILES);
+		const useAgentMd = this._configurationService.getValue(PromptsConfig.USE_AGENT_MD);
+
+		// If both settings are disabled, return true to hide the hint (since the features aren't enabled)
+		if (!useCopilotInstructionsFiles && !useAgentMd) {
+			return true;
+		}
+		const { folders } = this._workspaceService.getWorkspace();
+
+		// Check for copilot-instructions.md files
+		if (useCopilotInstructionsFiles) {
+			for (const folder of folders) {
+				const file = joinPath(folder.uri, `.github/` + COPILOT_CUSTOM_INSTRUCTIONS_FILENAME);
+				if (await this._fileService.exists(file)) {
+					return true;
+				}
+			}
+		}
+
+		// Check for agents.md files
+		if (useAgentMd) {
+			const resolvedRoots = await this._fileService.resolveAll(folders.map(f => ({ resource: f.uri })));
+			for (const root of resolvedRoots) {
+				if (root.success && root.stat?.children) {
+					const agentMd = root.stat.children.find(c => c.isFile && c.name.toLowerCase() === 'agents.md');
+					if (agentMd) {
+						return true;
+					}
+				}
+			}
+		}
+
+		return false;
+	}
+
 	private sendTelemetry(telemetryEvent: InstructionsCollectionEvent): void {
 		// Emit telemetry
 		telemetryEvent.totalInstructionsCount = telemetryEvent.agentInstructionsCount + telemetryEvent.referencedInstructionsCount + telemetryEvent.applyingInstructionsCount + telemetryEvent.listedInstructionsCount;
@@ -125,11 +168,7 @@ export class ComputeAutomaticInstructions {
 				continue;
 			}
 
-			if (parsedFile.metadata?.promptType !== PromptsType.instructions) {
-				this._logService.trace(`[InstructionsContextComputer] Not an instruction file: ${uri}`);
-				continue;
-			}
-			const applyTo = parsedFile.metadata.applyTo;
+			const applyTo = parsedFile.header?.applyTo;
 
 			if (!applyTo) {
 				this._logService.trace(`[InstructionsContextComputer] No 'applyTo' found: ${uri}`);
@@ -258,17 +297,29 @@ export class ComputeAutomaticInstructions {
 			this._logService.trace('[InstructionsContextComputer] No readFile tool available, skipping instructions with patterns list.');
 			return [];
 		}
+		const searchNestedAgentMd = this._configurationService.getValue(PromptsConfig.USE_NESTED_AGENT_MD);
+		const agentsMdPromise = searchNestedAgentMd ? this._promptsService.findAgentMDsInWorkspace(token) : Promise.resolve([]);
 
 		const entries: string[] = [];
 		for (const { uri } of instructionFiles) {
 			const parsedFile = await this._parseInstructionsFile(uri, token);
-			if (parsedFile?.metadata?.promptType !== PromptsType.instructions) {
-				continue;
+			if (parsedFile) {
+				const applyTo = parsedFile.header?.applyTo ?? '**/*';
+				const description = parsedFile.header?.description ?? '';
+				entries.push(`| '${getFilePath(uri)}' | ${applyTo} | ${description} |`);
 			}
-			const applyTo = parsedFile.metadata.applyTo ?? '**/*';
-			const description = parsedFile.metadata.description ?? '';
-			entries.push(`| '${getFilePath(uri)}' | ${applyTo} | ${description} |`);
 		}
+
+		const agentsMdFiles = await agentsMdPromise;
+		for (const uri of agentsMdFiles) {
+			if (uri) {
+				const folderName = this._labelService.getUriLabel(dirname(uri), { relative: true });
+				const description = folderName.trim().length === 0 ? localize('instruction.file.description.agentsmd.root', 'Instructions for the workspace') : localize('instruction.file.description.agentsmd.folder', 'Instructions for folder \'{0}\'', folderName);
+				entries.push(`| '${getFilePath(uri)}' |    | ${description} |`);
+			}
+		}
+
+
 		if (entries.length === 0) {
 			return entries;
 		}
@@ -299,13 +350,14 @@ export class ComputeAutomaticInstructions {
 		let next = todo.pop();
 		while (next) {
 			const result = await this._parseInstructionsFile(next, token);
-			if (result) {
+			if (result && result.body) {
 				const refsToCheck: { resource: URI }[] = [];
-				for (const ref of result.references) {
-					if (!seen.has(ref) && (isPromptOrInstructionsFile(ref) || this._workspaceService.getWorkspaceFolder(ref) !== undefined)) {
+				for (const ref of result.body.fileReferences) {
+					const url = result.body.resolveFilePath(ref.content);
+					if (url && !seen.has(url) && (isPromptOrInstructionsFile(url) || this._workspaceService.getWorkspaceFolder(url) !== undefined)) {
 						// only add references that are either prompt or instruction files or are part of the workspace
-						refsToCheck.push({ resource: ref });
-						seen.add(ref);
+						refsToCheck.push({ resource: url });
+						seen.add(url);
 					}
 				}
 				if (refsToCheck.length > 0) {

@@ -6,14 +6,14 @@
 import { ChatModeKind } from '../../constants.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { Event } from '../../../../../../base/common/event.js';
-import { TMetadata } from '../parsers/promptHeader/headerBase.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
-import { TextModelPromptParser } from '../parsers/textModelPromptParser.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { PromptsType } from '../promptTypes.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { ITopError } from '../parsers/types.js';
+import { IChatModeInstructions } from '../../chatModes.js';
+import { ParsedPromptFile } from './newPromptsParser.js';
+import { IExtensionDescription } from '../../../../../../platform/extensions/common/extensions.js';
 
 /**
  * Provides prompt services.
@@ -23,13 +23,20 @@ export const IPromptsService = createDecorator<IPromptsService>('IPromptsService
 /**
  * Where the prompt is stored.
  */
-export type TPromptsStorage = 'local' | 'user';
+export enum PromptsStorage {
+	local = 'local',
+	user = 'user',
+	extension = 'extension'
+}
 
 /**
  * Represents a prompt path with its type.
  * This is used for both prompt files and prompt source folders.
  */
-export interface IPromptPath {
+export type IPromptPath = IExtensionPromptPath | ILocalPromptPath | IUserPromptPath;
+
+
+export interface IPromptPathBase {
 	/**
 	 * URI of the prompt.
 	 */
@@ -38,40 +45,36 @@ export interface IPromptPath {
 	/**
 	 * Storage of the prompt.
 	 */
-	readonly storage: TPromptsStorage;
+	readonly storage: PromptsStorage;
 
 	/**
 	 * Type of the prompt (e.g. 'prompt' or 'instructions').
 	 */
 	readonly type: PromptsType;
+
+	/**
+	 * Identifier of the contributing extension (only when storage === PromptsStorage.extension).
+	 */
+	readonly extension?: IExtensionDescription;
+
+	readonly name?: string;
+
+	readonly description?: string;
 }
 
-/**
- * Type for a shared prompt parser instance returned by the {@link IPromptsService}.
- * Because the parser is shared, we omit the `dispose` method from
- * the original type so the caller cannot dispose it prematurely
- */
-export type TSharedPrompt = Omit<TextModelPromptParser, 'dispose'>;
-
-/**
- * Metadata node object in a hierarchical tree of prompt references.
- */
-export interface IMetadata {
-	/**
-	 * URI of a prompt file.
-	 */
-	readonly uri: URI;
-
-	/**
-	 * Metadata of the prompt file.
-	 */
-	readonly metadata: TMetadata | null;
-
-	/**
-	 * List of metadata for each valid child prompt reference.
-	 */
-	readonly children?: readonly IMetadata[];
+export interface IExtensionPromptPath extends IPromptPathBase {
+	readonly storage: PromptsStorage.extension;
+	readonly extension: IExtensionDescription;
+	readonly name: string;
+	readonly description: string;
 }
+export interface ILocalPromptPath extends IPromptPathBase {
+	readonly storage: PromptsStorage.local;
+}
+export interface IUserPromptPath extends IPromptPathBase {
+	readonly storage: PromptsStorage.user;
+}
+
 
 export interface ICustomChatMode {
 	/**
@@ -100,9 +103,9 @@ export interface ICustomChatMode {
 	readonly model?: string;
 
 	/**
-	 * Contents of the custom chat mode file body.
+	 * Contents of the custom chat mode file body and other mode instructions.
 	 */
-	readonly body: string;
+	readonly modeInstructions: IChatModeInstructions;
 }
 
 /**
@@ -153,15 +156,20 @@ export interface IPromptsService extends IDisposable {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Get a prompt syntax parser for the provided text model.
-	 * See {@link TextModelPromptParser} for more info on the parser API.
+	 * The parsed prompt file for the provided text model.
+	 * @param textModel Returns the parsed prompt file.
 	 */
-	getSyntaxParserFor(model: ITextModel): TSharedPrompt & { isDisposed: false };
+	getParsedPromptFile(textModel: ITextModel): ParsedPromptFile;
 
 	/**
 	 * List all available prompt files.
 	 */
 	listPromptFiles(type: PromptsType, token: CancellationToken): Promise<readonly IPromptPath[]>;
+
+	/**
+	 * List all available prompt files.
+	 */
+	listPromptFilesForStorage(type: PromptsType, storage: PromptsStorage, token: CancellationToken): Promise<readonly IPromptPath[]>;
 
 	/**
 	 * Get a list of prompt source folders based on the provided prompt type.
@@ -177,12 +185,17 @@ export interface IPromptsService extends IDisposable {
 	/**
 	 * Gets the prompt file for a slash command.
 	 */
-	resolvePromptSlashCommand(data: IChatPromptSlashCommand, _token: CancellationToken): Promise<IPromptParserResult | undefined>;
+	resolvePromptSlashCommand(data: IChatPromptSlashCommand, _token: CancellationToken): Promise<ParsedPromptFile | undefined>;
 
 	/**
 	 * Returns a prompt command if the command name is valid.
 	 */
 	findPromptSlashCommands(): Promise<IChatPromptSlashCommand[]>;
+
+	/**
+	 * Returns the prompt command name for the given URI.
+	 */
+	getPromptCommandName(uri: URI): Promise<string>;
 
 	/**
 	 * Event that is triggered when the list of custom chat modes changes.
@@ -198,25 +211,28 @@ export interface IPromptsService extends IDisposable {
 	 * Parses the provided URI
 	 * @param uris
 	 */
-	parse(uri: URI, type: PromptsType, token: CancellationToken): Promise<IPromptParserResult>;
+	parseNew(uri: URI, token: CancellationToken): Promise<ParsedPromptFile>;
 
 	/**
 	 * Returns the prompt file type for the given URI.
 	 * @param resource the URI of the resource
 	 */
 	getPromptFileType(resource: URI): PromptsType | undefined;
+
+	/**
+	 * Internal: register a contributed file. Returns a disposable that removes the contribution.
+	 * Not intended for extension authors; used by contribution point handler.
+	 */
+	registerContributedFile(type: PromptsType, name: string, description: string, uri: URI, extension: IExtensionDescription): IDisposable;
+
+
+	getPromptLocationLabel(promptPath: IPromptPath): string;
+
+	findAgentMDsInWorkspace(token: CancellationToken): Promise<URI[]>;
 }
 
 export interface IChatPromptSlashCommand {
 	readonly command: string;
 	readonly detail: string;
 	readonly promptPath?: IPromptPath;
-}
-
-
-export interface IPromptParserResult {
-	readonly uri: URI;
-	readonly metadata: TMetadata | null;
-	readonly topError: ITopError | undefined;
-	readonly references: readonly URI[];
 }

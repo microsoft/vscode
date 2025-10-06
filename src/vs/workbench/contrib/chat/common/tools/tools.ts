@@ -10,7 +10,7 @@ import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
 import { ConfirmationTool, ConfirmationToolData } from './confirmationTool.js';
 import { EditTool, EditToolData } from './editFileTool.js';
-import { createManageTodoListToolData, ManageTodoListTool, TodoListToolWriteOnlySettingId } from './manageTodoListTool.js';
+import { createManageTodoListToolData, ManageTodoListTool, TodoListToolWriteOnlySettingId, TodoListToolDescriptionFieldSettingId } from './manageTodoListTool.js';
 
 export class BuiltinToolsContribution extends Disposable implements IWorkbenchContribution {
 
@@ -28,8 +28,9 @@ export class BuiltinToolsContribution extends Disposable implements IWorkbenchCo
 
 		// Check if write-only mode is enabled for the todo tool
 		const writeOnlyMode = this.configurationService.getValue<boolean>(TodoListToolWriteOnlySettingId) === true;
-		const todoToolData = createManageTodoListToolData(writeOnlyMode);
-		const manageTodoListTool = instantiationService.createInstance(ManageTodoListTool, writeOnlyMode);
+		const includeDescription = this.configurationService.getValue<boolean>(TodoListToolDescriptionFieldSettingId) !== false;
+		const todoToolData = createManageTodoListToolData(writeOnlyMode, includeDescription);
+		const manageTodoListTool = this._register(instantiationService.createInstance(ManageTodoListTool, writeOnlyMode, includeDescription));
 		this._register(toolsService.registerTool(todoToolData, manageTodoListTool));
 
 		// Register the confirmation tool

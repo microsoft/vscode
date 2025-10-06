@@ -539,6 +539,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		if (textEditor === undefined) {
 			commands.executeCommand('setContext', 'git.activeResourceHasUnstagedChanges', false);
 			commands.executeCommand('setContext', 'git.activeResourceHasStagedChanges', false);
+			commands.executeCommand('setContext', 'git.activeResourceHasMergeConflicts', false);
 			return;
 		}
 
@@ -546,6 +547,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		if (!repository) {
 			commands.executeCommand('setContext', 'git.activeResourceHasUnstagedChanges', false);
 			commands.executeCommand('setContext', 'git.activeResourceHasStagedChanges', false);
+			commands.executeCommand('setContext', 'git.activeResourceHasMergeConflicts', false);
 			return;
 		}
 
@@ -553,9 +555,13 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			.find(resource => pathEquals(resource.resourceUri.fsPath, textEditor.document.uri.fsPath));
 		const workingTreeResource = repository.workingTreeGroup.resourceStates
 			.find(resource => pathEquals(resource.resourceUri.fsPath, textEditor.document.uri.fsPath));
+		const mergeChangesResource = repository.mergeGroup.resourceStates
+			.find(resource => pathEquals(resource.resourceUri.fsPath, textEditor.document.uri.fsPath));
+		const hasMergeConflicts = mergeChangesResource ? /^(<{7,}|={7,}|>{7,})/m.test(textEditor.document.getText()) : false;
 
 		commands.executeCommand('setContext', 'git.activeResourceHasStagedChanges', indexResource !== undefined);
 		commands.executeCommand('setContext', 'git.activeResourceHasUnstagedChanges', workingTreeResource !== undefined);
+		commands.executeCommand('setContext', 'git.activeResourceHasMergeConflicts', hasMergeConflicts);
 	}
 
 	@sequentialize

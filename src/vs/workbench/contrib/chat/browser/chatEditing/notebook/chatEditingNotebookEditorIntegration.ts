@@ -7,8 +7,8 @@ import { Disposable, IDisposable, toDisposable } from '../../../../../../base/co
 import { autorun, debouncedObservable, IObservable, ISettableObservable, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { basename } from '../../../../../../base/common/resources.js';
 import { assertType } from '../../../../../../base/common/types.js';
-import { LineRange } from '../../../../../../editor/common/core/ranges/lineRange.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
+import { LineRange } from '../../../../../../editor/common/core/ranges/lineRange.js';
 import { nullDocumentDiff } from '../../../../../../editor/common/diff/documentDiffProvider.js';
 import { PrefixSumComputer } from '../../../../../../editor/common/model/prefixSumComputer.js';
 import { localize } from '../../../../../../nls.js';
@@ -215,7 +215,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 			onDidChangeVisibleRanges.read(r);
 			if (!changes.length) {
 				this.cellEditorIntegrations.forEach(({ diff }) => {
-					diff.set({ ...diff.get(), ...nullDocumentDiff }, undefined);
+					diff.set({ ...diff.read(undefined), ...nullDocumentDiff }, undefined);
 				});
 				return;
 			}
@@ -258,7 +258,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 				const currentDiff = this.cellEditorIntegrations.get(cell);
 				if (currentDiff) {
 					// Do not unnecessarily trigger a change event
-					if (!areDocumentDiff2Equal(currentDiff.diff.get(), diff)) {
+					if (!areDocumentDiff2Equal(currentDiff.diff.read(undefined), diff)) {
 						currentDiff.diff.set(diff, undefined);
 					}
 				} else {
@@ -655,7 +655,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 
 	}
 	async toggleDiff(_change: IModifiedFileEntryChangeHunk | undefined, _show?: boolean): Promise<void> {
-		const defaultAgentName = this._chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)?.fullName;
+		const defaultAgentName = this._chatAgentService.getDefaultAgent(ChatAgentLocation.Chat)?.fullName;
 		const diffInput: IResourceDiffEditorInput = {
 			original: { resource: this._entry.originalURI },
 			modified: { resource: this._entry.modifiedURI },

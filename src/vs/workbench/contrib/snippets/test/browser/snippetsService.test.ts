@@ -154,6 +154,7 @@ suite('SnippetsService', function () {
 				label: 'bar',
 				description: 'barTest'
 			});
+			// eslint-disable-next-line local/code-no-any-casts
 			assert.strictEqual((result.suggestions[0].range as any).insert.startColumn, 1);
 			assert.strictEqual(result.suggestions[0].insertText, 'barCodeSnippet');
 		});
@@ -164,6 +165,7 @@ suite('SnippetsService', function () {
 			label: 'bar',
 			description: 'barTest'
 		});
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.strictEqual((completions.items[0].completion.range as any).insert.startColumn, 1);
 		assert.strictEqual(completions.items[0].completion.insertText, 'barCodeSnippet');
 	});
@@ -279,12 +281,14 @@ suite('SnippetsService', function () {
 					description: 'barTest'
 				});
 				assert.strictEqual(result.suggestions[0].insertText, 's1');
+				// eslint-disable-next-line local/code-no-any-casts
 				assert.strictEqual((result.suggestions[0].range as any).insert.startColumn, 5);
 				assert.deepStrictEqual(result.suggestions[1].label, {
 					label: 'bar-bar',
 					description: 'name'
 				});
 				assert.strictEqual(result.suggestions[1].insertText, 's2');
+				// eslint-disable-next-line local/code-no-any-casts
 				assert.strictEqual((result.suggestions[1].range as any).insert.startColumn, 1);
 			});
 
@@ -295,12 +299,14 @@ suite('SnippetsService', function () {
 				description: 'name'
 			});
 			assert.strictEqual(completions.items[0].completion.insertText, 's2');
+			// eslint-disable-next-line local/code-no-any-casts
 			assert.strictEqual((completions.items[0].completion.range as any).insert.startColumn, 1);
 			assert.deepStrictEqual(completions.items[1].completion.label, {
 				label: 'bar',
 				description: 'barTest'
 			});
 			assert.strictEqual(completions.items[1].completion.insertText, 's1');
+			// eslint-disable-next-line local/code-no-any-casts
 			assert.strictEqual((completions.items[1].completion.range as any).insert.startColumn, 5);
 		}
 	});
@@ -331,20 +337,24 @@ suite('SnippetsService', function () {
 		model = instantiateTextModel(instantiationService, '\t<?', 'fooLang');
 		await provider.provideCompletionItems(model, new Position(1, 4), defaultCompletionContext).then(result => {
 			assert.strictEqual(result.suggestions.length, 1);
+			// eslint-disable-next-line local/code-no-any-casts
 			assert.strictEqual((result.suggestions[0].range as any).insert.startColumn, 2);
 		});
 		const completions2 = await asCompletionModel(model, new Position(1, 4), provider);
 		assert.strictEqual(completions2.items.length, 1);
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.strictEqual((completions2.items[0].completion.range as any).insert.startColumn, 2);
 
 		model.dispose();
 		model = instantiateTextModel(instantiationService, 'a<?', 'fooLang');
 		await provider.provideCompletionItems(model, new Position(1, 4), defaultCompletionContext)!.then(result => {
 			assert.strictEqual(result.suggestions.length, 1);
+			// eslint-disable-next-line local/code-no-any-casts
 			assert.strictEqual((result.suggestions[0].range as any).insert.startColumn, 2);
 		});
 		const completions3 = await asCompletionModel(model, new Position(1, 4), provider);
 		assert.strictEqual(completions3.items.length, 1);
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.strictEqual((completions3.items[0].completion.range as any).insert.startColumn, 2);
 		model.dispose();
 	});
@@ -646,6 +656,7 @@ suite('SnippetsService', function () {
 		let result = await provider.provideCompletionItems(model, new Position(1, 3), defaultCompletionContext)!;
 		assert.strictEqual(result.suggestions.length, 1);
 		let [first] = result.suggestions;
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.strictEqual((first.range as any).insert.startColumn, 2);
 
 		let completions = await asCompletionModel(model, new Position(1, 3), provider);
@@ -659,6 +670,7 @@ suite('SnippetsService', function () {
 
 		assert.strictEqual(result.suggestions.length, 1);
 		[first] = result.suggestions;
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.strictEqual((first.range as any).insert.startColumn, 1);
 		assert.strictEqual(completions.items.length, 1);
 		assert.strictEqual(completions.items[0].editStart.column, 1);
@@ -686,7 +698,9 @@ suite('SnippetsService', function () {
 		let result = await provider.provideCompletionItems(model, new Position(1, 3), defaultCompletionContext)!;
 		assert.strictEqual(result.suggestions.length, 1);
 		let [first] = result.suggestions;
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.strictEqual((first.range as any).insert.endColumn, 3);
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.strictEqual((first.range as any).replace.endColumn, 9);
 
 		let completions = await asCompletionModel(model, new Position(1, 3), provider);
@@ -700,7 +714,9 @@ suite('SnippetsService', function () {
 
 		assert.strictEqual(result.suggestions.length, 1);
 		[first] = result.suggestions;
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.strictEqual((first.range as any).insert.endColumn, 3);
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.strictEqual((first.range as any).replace.endColumn, 3);
 
 		completions = await asCompletionModel(model, new Position(1, 3), provider);
@@ -714,7 +730,9 @@ suite('SnippetsService', function () {
 
 		assert.strictEqual(result.suggestions.length, 1);
 		[first] = result.suggestions;
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.strictEqual((first.range as any).insert.endColumn, 1);
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.strictEqual((first.range as any).replace.endColumn, 9);
 
 		completions = await asCompletionModel(model, new Position(1, 1), provider);
@@ -747,7 +765,9 @@ suite('SnippetsService', function () {
 
 		assert.strictEqual(result.suggestions.length, 1);
 		const [first] = result.suggestions;
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.strictEqual((first.range as any).insert.endColumn, 9);
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.strictEqual((first.range as any).replace.endColumn, 9);
 
 		assert.strictEqual(completions.items.length, 1);
@@ -787,8 +807,10 @@ suite('SnippetsService', function () {
 
 		assert.strictEqual(result.suggestions.length, 1);
 		const [first] = result.suggestions;
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.strictEqual((first.range as any).insert.endColumn, 5);
 		// This is 6 because it should eat the `]` at the end of the text even if cursor is before it
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.strictEqual((first.range as any).replace.endColumn, 6);
 
 		assert.strictEqual(completions.items.length, 1);

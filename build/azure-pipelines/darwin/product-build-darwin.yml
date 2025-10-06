@@ -17,11 +17,12 @@ parameters:
     default: ""
 
 steps:
+  - template: ../common/checkout.yml@self
+
   - task: NodeTool@0
     inputs:
       versionSource: fromFile
       versionFilePath: .nvmrc
-      nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
   - template: ../distro/download-distro.yml@self
 

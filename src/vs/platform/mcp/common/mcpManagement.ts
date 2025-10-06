@@ -38,10 +38,10 @@ export interface ILocalMcpServer {
 
 export interface IMcpServerInput {
 	readonly description?: string;
-	readonly is_required?: boolean;
+	readonly isRequired?: boolean;
 	readonly format?: 'string' | 'number' | 'boolean' | 'filepath';
 	readonly value?: string;
-	readonly is_secret?: boolean;
+	readonly isSecret?: boolean;
 	readonly default?: string;
 	readonly choices?: readonly string[];
 }
@@ -52,19 +52,19 @@ export interface IMcpServerVariableInput extends IMcpServerInput {
 
 export interface IMcpServerPositionalArgument extends IMcpServerVariableInput {
 	readonly type: 'positional';
-	readonly value_hint: string;
-	readonly is_repeatable: boolean;
+	readonly valueHint?: string;
+	readonly isRepeated?: boolean;
 }
 
 export interface IMcpServerNamedArgument extends IMcpServerVariableInput {
 	readonly type: 'named';
 	readonly name: string;
-	readonly is_repeatable: boolean;
+	readonly isRepeated?: boolean;
 }
 
 export interface IMcpServerKeyValueInput extends IMcpServerVariableInput {
 	readonly name: string;
-	readonly value: string;
+	readonly value?: string;
 }
 
 export type IMcpServerArgument = IMcpServerPositionalArgument | IMcpServerNamedArgument;
@@ -72,33 +72,52 @@ export type IMcpServerArgument = IMcpServerPositionalArgument | IMcpServerNamedA
 export const enum RegistryType {
 	NODE = 'npm',
 	PYTHON = 'pypi',
-	DOCKER = 'docker-hub',
+	DOCKER = 'oci',
 	NUGET = 'nuget',
-	REMOTE = 'remote',
 	MCPB = 'mcpb',
+	REMOTE = 'remote'
 }
+
+export const enum TransportType {
+	STDIO = 'stdio',
+	STREAMABLE_HTTP = 'streamable-http',
+	SSE = 'sse'
+}
+
+export interface StdioTransport {
+	readonly type: TransportType.STDIO;
+}
+
+export interface StreamableHttpTransport {
+	readonly type: TransportType.STREAMABLE_HTTP;
+	readonly url: string;
+	readonly headers?: ReadonlyArray<IMcpServerKeyValueInput>;
+}
+
+export interface SseTransport {
+	readonly type: TransportType.SSE;
+	readonly url: string;
+	readonly headers?: ReadonlyArray<IMcpServerKeyValueInput>;
+}
+
+export type Transport = StdioTransport | StreamableHttpTransport | SseTransport;
 
 export interface IMcpServerPackage {
-	readonly registry_type: RegistryType;
-	readonly registry_base_url?: string;
+	readonly registryType: RegistryType;
 	readonly identifier: string;
 	readonly version: string;
-	readonly file_sha256?: string;
-	readonly runtime_hint?: string;
-	readonly package_arguments?: readonly IMcpServerArgument[];
-	readonly runtime_arguments?: readonly IMcpServerArgument[];
-	readonly environment_variables?: ReadonlyArray<IMcpServerKeyValueInput>;
-}
-
-export interface IMcpServerRemote {
-	readonly url: string;
-	readonly transport_type?: 'streamable' | 'sse';
-	readonly headers?: ReadonlyArray<IMcpServerKeyValueInput>;
+	readonly transport?: Transport;
+	readonly registryBaseUrl?: string;
+	readonly fileSha256?: string;
+	readonly packageArguments?: readonly IMcpServerArgument[];
+	readonly runtimeHint?: string;
+	readonly runtimeArguments?: readonly IMcpServerArgument[];
+	readonly environmentVariables?: ReadonlyArray<IMcpServerKeyValueInput>;
 }
 
 export interface IGalleryMcpServerConfiguration {
 	readonly packages?: readonly IMcpServerPackage[];
-	readonly remotes?: readonly IMcpServerRemote[];
+	readonly remotes?: ReadonlyArray<SseTransport | StreamableHttpTransport>;
 }
 
 export const enum GalleryMcpServerStatus {
@@ -115,6 +134,7 @@ export interface IGalleryMcpServer {
 	readonly isLatest: boolean;
 	readonly status: GalleryMcpServerStatus;
 	readonly url?: string;
+	readonly webUrl?: string;
 	readonly codicon?: string;
 	readonly icon?: {
 		readonly dark: string;
@@ -122,12 +142,13 @@ export interface IGalleryMcpServer {
 	};
 	readonly lastUpdated?: number;
 	readonly publishDate?: number;
-	readonly releaseDate?: number;
 	readonly repositoryUrl?: string;
 	readonly configuration?: IGalleryMcpServerConfiguration;
 	readonly readmeUrl?: string;
+	readonly readme?: string;
 	readonly publisher: string;
 	readonly publisherDisplayName?: string;
+	readonly publisherUrl?: string;
 	readonly publisherDomain?: { link: string; verified: boolean };
 	readonly ratingCount?: number;
 	readonly topics?: readonly string[];
@@ -146,8 +167,9 @@ export interface IMcpGalleryService {
 	readonly _serviceBrand: undefined;
 	isEnabled(): boolean;
 	query(options?: IQueryOptions, token?: CancellationToken): Promise<IPager<IGalleryMcpServer>>;
-	getMcpServersFromVSCodeGallery(servers: string[]): Promise<IGalleryMcpServer[]>;
-	getMcpServers(urls: string[]): Promise<IGalleryMcpServer[]>;
+	getMcpServersFromGallery(urls: string[]): Promise<IGalleryMcpServer[]>;
+	getMcpServer(url: string): Promise<IGalleryMcpServer | undefined>;
+	getMcpServerByName(name: string): Promise<IGalleryMcpServer | undefined>;
 	getMcpServerConfiguration(extension: IGalleryMcpServer, token: CancellationToken): Promise<IGalleryMcpServerConfiguration>;
 	getReadme(extension: IGalleryMcpServer, token: CancellationToken): Promise<string>;
 }
@@ -192,6 +214,12 @@ export interface IInstallableMcpServer {
 	readonly inputs?: IMcpServerVariable[];
 }
 
+export type McpServerConfiguration = Omit<IInstallableMcpServer, 'name'>;
+export interface McpServerConfigurationParseResult {
+	readonly mcpServerConfiguration: McpServerConfiguration;
+	readonly notices: string[];
+}
+
 export const IMcpManagementService = createDecorator<IMcpManagementService>('IMcpManagementService');
 export interface IMcpManagementService {
 	readonly _serviceBrand: undefined;
@@ -207,7 +235,7 @@ export interface IMcpManagementService {
 	updateMetadata(local: ILocalMcpServer, server: IGalleryMcpServer, profileLocation?: URI): Promise<ILocalMcpServer>;
 	uninstall(server: ILocalMcpServer, options?: UninstallOptions): Promise<void>;
 
-	getMcpServerConfigurationFromManifest(manifest: IGalleryMcpServerConfiguration, packageType: RegistryType): Omit<IInstallableMcpServer, 'name'>;
+	getMcpServerConfigurationFromManifest(manifest: IGalleryMcpServerConfiguration, packageType: RegistryType): McpServerConfigurationParseResult;
 }
 
 export const IAllowedMcpServersService = createDecorator<IAllowedMcpServersService>('IAllowedMcpServersService');
@@ -220,6 +248,7 @@ export interface IAllowedMcpServersService {
 
 export const mcpAccessConfig = 'chat.mcp.access';
 export const mcpGalleryServiceUrlConfig = 'chat.mcp.gallery.serviceUrl';
+export const mcpGalleryServiceEnablementConfig = 'chat.mcp.gallery.enabled';
 export const mcpAutoStartConfig = 'chat.mcp.autostart';
 
 export const enum McpAutoStartValue {

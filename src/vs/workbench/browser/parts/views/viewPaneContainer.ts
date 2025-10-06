@@ -684,6 +684,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	}
 
 	protected createView(viewDescriptor: IViewDescriptor, options: IViewletViewOptions): ViewPane {
+		// eslint-disable-next-line local/code-no-any-casts
 		return (this.instantiationService as any).createInstance(viewDescriptor.ctorDescriptor.ctor, ...(viewDescriptor.ctorDescriptor.staticArguments || []), options) as ViewPane;
 	}
 

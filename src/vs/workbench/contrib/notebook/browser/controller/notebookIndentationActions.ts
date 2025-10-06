@@ -124,6 +124,7 @@ function changeNotebookIndentation(accessor: ServicesAccessor, insertSpaces: boo
 	}));
 
 	// store the initial values of the configuration
+	// eslint-disable-next-line local/code-no-any-casts
 	const initialConfig = configurationService.getValue(NotebookSetting.cellEditorOptionsCustomizations) as any;
 	const initialInsertSpaces = initialConfig['editor.insertSpaces'];
 	// remove the initial values from the configuration
@@ -195,6 +196,7 @@ function convertNotebookIndentation(accessor: ServicesAccessor, tabsToSpaces: bo
 
 		})).then(() => {
 			// store the initial values of the configuration
+			// eslint-disable-next-line local/code-no-any-casts
 			const initialConfig = configurationService.getValue(NotebookSetting.cellEditorOptionsCustomizations) as any;
 			const initialIndentSize = initialConfig['editor.indentSize'];
 			const initialTabSize = initialConfig['editor.tabSize'];

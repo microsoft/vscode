@@ -3,52 +3,52 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from '../../../base/common/event.js';
-import { workbenchInstantiationService as browserWorkbenchInstantiationService, ITestInstantiationService, TestEncodingOracle, TestEnvironmentService, TestFileDialogService, TestFilesConfigurationService, TestFileService, TestLifecycleService, TestTextFileService } from '../browser/workbenchTestServices.js';
-import { ISharedProcessService } from '../../../platform/ipc/electron-browser/services.js';
-import { INativeHostService, INativeHostOptions, IOSProperties, IOSStatistics } from '../../../platform/native/common/native.js';
+import { insert } from '../../../base/common/arrays.js';
 import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from '../../../base/common/buffer.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { Event } from '../../../base/common/event.js';
 import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { Schemas } from '../../../base/common/network.js';
 import { URI } from '../../../base/common/uri.js';
-import { IFileDialogService, INativeOpenDialogOptions } from '../../../platform/dialogs/common/dialogs.js';
-import { IPartsSplash } from '../../../platform/theme/common/themeService.js';
-import { IOpenedMainWindow, IOpenEmptyWindowOptions, IWindowOpenable, IOpenWindowOptions, IColorScheme, IRectangle, IPoint } from '../../../platform/window/common/window.js';
+import { IModelService } from '../../../editor/common/services/model.js';
+import { ModelService } from '../../../editor/common/services/modelService.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
+import { IFileDialogService, INativeOpenDialogOptions } from '../../../platform/dialogs/common/dialogs.js';
 import { IEnvironmentService, INativeEnvironmentService } from '../../../platform/environment/common/environment.js';
+import { IExtensionManagementService } from '../../../platform/extensionManagement/common/extensionManagement.js';
+import { AbstractNativeExtensionTipsService } from '../../../platform/extensionManagement/common/extensionTipsService.js';
+import { IExtensionRecommendationNotificationService } from '../../../platform/extensionRecommendations/common/extensionRecommendations.js';
 import { IFileService } from '../../../platform/files/common/files.js';
+import { FileService } from '../../../platform/files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { ISharedProcessService } from '../../../platform/ipc/electron-browser/services.js';
+import { NullLogService } from '../../../platform/log/common/log.js';
+import { INativeHostOptions, INativeHostService, IOSProperties, IOSStatistics } from '../../../platform/native/common/native.js';
+import { IProductService } from '../../../platform/product/common/productService.js';
+import { AuthInfo, Credentials } from '../../../platform/request/common/request.js';
+import { IStorageService } from '../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
+import { IPartsSplash } from '../../../platform/theme/common/themeService.js';
+import { UriIdentityService } from '../../../platform/uriIdentity/common/uriIdentityService.js';
+import { FileUserDataProvider } from '../../../platform/userData/common/fileUserDataProvider.js';
+import { UserDataProfilesService } from '../../../platform/userDataProfile/common/userDataProfile.js';
+import { IColorScheme, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowOpenable } from '../../../platform/window/common/window.js';
+import { IWorkspaceContextService } from '../../../platform/workspace/common/workspace.js';
 import { IEditorService } from '../../services/editor/common/editorService.js';
+import { IFilesConfigurationService } from '../../services/filesConfiguration/common/filesConfigurationService.js';
+import { ILifecycleService } from '../../services/lifecycle/common/lifecycle.js';
 import { IPathService } from '../../services/path/common/pathService.js';
 import { ITextEditorService } from '../../services/textfile/common/textEditorService.js';
 import { ITextFileService } from '../../services/textfile/common/textfiles.js';
-import { AbstractNativeExtensionTipsService } from '../../../platform/extensionManagement/common/extensionTipsService.js';
-import { IExtensionManagementService } from '../../../platform/extensionManagement/common/extensionManagement.js';
-import { IExtensionRecommendationNotificationService } from '../../../platform/extensionRecommendations/common/extensionRecommendations.js';
-import { IProductService } from '../../../platform/product/common/productService.js';
-import { IStorageService } from '../../../platform/storage/common/storage.js';
-import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
-import { IModelService } from '../../../editor/common/services/model.js';
-import { ModelService } from '../../../editor/common/services/modelService.js';
-import { IWorkspaceContextService } from '../../../platform/workspace/common/workspace.js';
-import { IFilesConfigurationService } from '../../services/filesConfiguration/common/filesConfigurationService.js';
-import { ILifecycleService } from '../../services/lifecycle/common/lifecycle.js';
+import { NativeTextFileService } from '../../services/textfile/electron-browser/nativeTextFileService.js';
+import { IWorkingCopyIdentifier } from '../../services/workingCopy/common/workingCopy.js';
 import { IWorkingCopyBackupService } from '../../services/workingCopy/common/workingCopyBackup.js';
 import { IWorkingCopyService } from '../../services/workingCopy/common/workingCopyService.js';
-import { TestContextService } from '../common/workbenchTestServices.js';
-import { NativeTextFileService } from '../../services/textfile/electron-browser/nativeTextFileService.js';
-import { insert } from '../../../base/common/arrays.js';
-import { Schemas } from '../../../base/common/network.js';
-import { FileService } from '../../../platform/files/common/fileService.js';
-import { InMemoryFileSystemProvider } from '../../../platform/files/common/inMemoryFilesystemProvider.js';
-import { NullLogService } from '../../../platform/log/common/log.js';
-import { FileUserDataProvider } from '../../../platform/userData/common/fileUserDataProvider.js';
-import { IWorkingCopyIdentifier } from '../../services/workingCopy/common/workingCopy.js';
 import { NativeWorkingCopyBackupService } from '../../services/workingCopy/electron-browser/workingCopyBackupService.js';
-import { CancellationToken } from '../../../base/common/cancellation.js';
-import { UriIdentityService } from '../../../platform/uriIdentity/common/uriIdentityService.js';
-import { UserDataProfilesService } from '../../../platform/userDataProfile/common/userDataProfile.js';
-import { AuthInfo, Credentials } from '../../../platform/request/common/request.js';
+import { workbenchInstantiationService as browserWorkbenchInstantiationService, ITestInstantiationService, TestEncodingOracle, TestEnvironmentService, TestFileDialogService, TestFilesConfigurationService, TestLifecycleService, TestTextFileService } from '../browser/workbenchTestServices.js';
+import { TestContextService, TestFileService } from '../common/workbenchTestServices.js';
 
 export class TestSharedProcessService implements ISharedProcessService {
 
@@ -252,6 +252,7 @@ export class TestNativeWorkingCopyBackupService extends NativeWorkingCopyBackupS
 		const logService = new NullLogService();
 		const fileService = new FileService(logService);
 		const lifecycleService = new TestLifecycleService();
+		// eslint-disable-next-line local/code-no-any-casts
 		super(environmentService as any, fileService, logService, lifecycleService);
 
 		const inMemoryFileSystemProvider = this._register(new InMemoryFileSystemProvider());

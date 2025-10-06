@@ -265,24 +265,7 @@ export class ReleaseNotesManager extends Disposable {
 	private async renderBody(fileContent: { text: string; base: URI }) {
 		const nonce = generateUuid();
 
-		const content = await renderMarkdownDocument(fileContent.text, this._extensionService, this._languageService, {
-			sanitizerConfig: {
-				allowedLinkProtocols: {
-					override: [Schemas.http, Schemas.https, Schemas.command]
-				}
-			},
-			markedExtensions: [{
-				renderer: {
-					html: this._simpleSettingRenderer.getHtmlRenderer(),
-					codespan: this._simpleSettingRenderer.getCodeSpanRenderer(),
-				}
-			}]
-		});
-
-		// Remove HTML comment markers around table of contents navigation
-		const processedContent = content
-			.replace(/<!--\s*TOC\s*/gi, '')
-			.replace(/\s*Navigation End\s*-->/gi, '');
+		const processedContent = await renderReleaseNotesMarkdown(fileContent.text, this._extensionService, this._languageService, this._simpleSettingRenderer);
 
 		const colorMap = TokenizationRegistry.getColorMap();
 		const css = colorMap ? generateTokensCSSForColorMap(colorMap) : '';
@@ -625,4 +608,34 @@ export class ReleaseNotesManager extends Disposable {
 			});
 		}
 	}
+}
+
+export async function renderReleaseNotesMarkdown(
+	text: string,
+	extensionService: IExtensionService,
+	languageService: ILanguageService,
+	simpleSettingRenderer: SimpleSettingRenderer,
+): Promise<TrustedHTML> {
+	// Remove HTML comment markers around table of contents navigation
+	text = text
+		.toString()
+		.replace(/<!--\s*TOC\s*/gi, '')
+		.replace(/\s*Navigation End\s*-->/gi, '');
+
+	return renderMarkdownDocument(text, extensionService, languageService, {
+		sanitizerConfig: {
+			allowRelativeMediaPaths: true,
+			allowedLinkProtocols: {
+				override: [Schemas.http, Schemas.https, Schemas.command, Schemas.codeSetting]
+			},
+			allowedTags: { augment: ['nav', 'svg', 'path'] },
+			allowedAttributes: { augment: ['aria-role', 'viewBox', 'fill', 'xmlns', 'd'] }
+		},
+		markedExtensions: [{
+			renderer: {
+				html: simpleSettingRenderer.getHtmlRenderer(),
+				codespan: simpleSettingRenderer.getCodeSpanRenderer(),
+			}
+		}]
+	});
 }

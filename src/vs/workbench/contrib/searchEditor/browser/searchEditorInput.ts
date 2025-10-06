@@ -325,6 +325,7 @@ export class SearchEditorInput extends EditorInput {
 		// Use the 'rawData' variant and pass modelUri
 		return this.instantiationService.invokeFunction(
 			getOrMakeSearchEditorInput,
+			// eslint-disable-next-line local/code-no-any-casts
 			{ from: 'rawData', config, resultsContents: results, modelUri: newModelUri } as any // modelUri is not in the type, but we handle it below
 		);
 	}
