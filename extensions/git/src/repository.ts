@@ -1473,14 +1473,25 @@ export class Repository implements Disposable {
 				if (toClean.length > 0) {
 					if (discardUntrackedChangesToTrash) {
 						try {
+							// Helper function to get the real path for subst drives
+							const getRealPath = (fsPath: string) => {
+								return this.rootRealPath && fsPath.startsWith(this.root)
+									? path.join(this.rootRealPath, fsPath.substring(this.root.length))
+									: fsPath;
+							};
+
 							// Attempt to move the first resource to the recycle bin/trash to check
 							// if it is supported. If it fails, we show a confirmation dialog and
 							// fall back to deletion.
-							await workspace.fs.delete(Uri.file(toClean[0]), { useTrash: true });
+							const firstFileRealPath = getRealPath(toClean[0]);
+							await workspace.fs.delete(Uri.file(firstFileRealPath), { useTrash: true });
 
 							const limiter = new Limiter<void>(5);
 							await Promise.all(toClean.slice(1).map(fsPath => limiter.queue(
-								async () => await workspace.fs.delete(Uri.file(fsPath), { useTrash: true }))));
+								async () => {
+									const realPath = getRealPath(fsPath);
+									await workspace.fs.delete(Uri.file(realPath), { useTrash: true });
+								})));
 						} catch {
 							const message = isWindows
 								? l10n.t('Failed to delete using the Recycle Bin. Do you want to permanently delete instead?')
