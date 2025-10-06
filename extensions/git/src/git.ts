@@ -11,7 +11,7 @@ import { fileURLToPath } from 'url';
 import which from 'which';
 import { EventEmitter } from 'events';
 import * as filetype from 'file-type';
-import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, Versions, isWindows, pathEquals, isMacintosh, isDescendant, relativePathWithNoFallback } from './util';
+import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, Versions, isWindows, pathEquals, isMacintosh, isDescendant, relativePathWithNoFallback, Mutable } from './util';
 import { CancellationError, CancellationToken, ConfigurationChangeEvent, LogOutputChannel, Progress, Uri, workspace } from 'vscode';
 import { Commit as ApiCommit, Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, RefQuery as ApiRefQuery, InitOptions } from './api/git';
 import * as byline from 'byline';
@@ -308,8 +308,7 @@ export class GitError extends Error {
 		}, null, 2);
 
 		if (this.error) {
-			// eslint-disable-next-line local/code-no-any-casts
-			result += (<any>this.error).stack;
+			result += this.error.stack;
 		}
 
 		return result;
@@ -2973,10 +2972,8 @@ export class Repository {
 					const result = await this.exec(['rev-list', '--left-right', '--count', `${branch.name}...${branch.upstream.remote}/${branch.upstream.name}`]);
 					const [ahead, behind] = result.stdout.trim().split('\t');
 
-					// eslint-disable-next-line local/code-no-any-casts
-					(branch as any).ahead = Number(ahead) || 0;
-					// eslint-disable-next-line local/code-no-any-casts
-					(branch as any).behind = Number(behind) || 0;
+					(branch as Mutable<Branch>).ahead = Number(ahead) || 0;
+					(branch as Mutable<Branch>).behind = Number(behind) || 0;
 				} catch { }
 			}
 
