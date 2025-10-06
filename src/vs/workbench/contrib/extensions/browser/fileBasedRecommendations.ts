@@ -34,6 +34,9 @@ const promptedRecommendationsStorageKey = 'fileBasedRecommendations/promptedReco
 const recommendationsStorageKey = 'extensionsAssistant/recommendations';
 const milliSecondsInADay = 1000 * 60 * 60 * 24;
 
+// Minimum length of untitled file to allow triggering extension recommendations for auto-detected language.
+const untitledFileRecommendationsMinLength = 1000;
+
 export class FileBasedRecommendations extends ExtensionRecommendations {
 
 	private readonly fileOpenRecommendations: IStringDictionary<IFileOpenCondition[]>;
@@ -159,7 +162,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 
 		// Avoid language-specific recommendations for untitled files when language is auto-detected except when the file is large.
 		let allowLanguageMatch = true;
-		if (uri.scheme === Schemas.untitled && model.getValueLength() < 1000) {
+		if (uri.scheme === Schemas.untitled && model.getValueLength() < untitledFileRecommendationsMinLength) {
 			const untitledModel = this.untitledTextEditorService.get(uri);
 			if (untitledModel && !untitledModel.hasLanguageSetExplicitly) {
 				allowLanguageMatch = false;
