@@ -167,8 +167,8 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 			filterOptions: {
 				placeholder: nls.localize('comments.filter.placeholder', "Filter (e.g. text, author)"),
 				ariaLabel: nls.localize('comments.filter.ariaLabel', "Filter comments"),
-				history: viewState['filterHistory'] || [],
-				text: viewState['filter'] || '',
+				history: viewState.filterHistory || [],
+				text: viewState.filter || '',
 				focusContextKey: CommentsViewFilterFocusContextKey.key
 			}
 		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
@@ -179,9 +179,9 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		this.viewState = viewState;
 
 		this.filters = this._register(new CommentsFilters({
-			showResolved: this.viewState['showResolved'] !== false,
-			showUnresolved: this.viewState['showUnresolved'] !== false,
-			sortBy: this.viewState['sortBy'] ?? CommentsSortOrder.ResourceAscending,
+			showResolved: this.viewState.showResolved !== false,
+			showUnresolved: this.viewState.showUnresolved !== false,
+			sortBy: this.viewState.sortBy ?? CommentsSortOrder.ResourceAscending,
 		}, this.contextKeyService));
 		this.filter = new Filter(new FilterOptions(this.filterWidget.getFilterText(), this.filters.showResolved, this.filters.showUnresolved));
 
@@ -197,11 +197,11 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 	}
 
 	override saveState(): void {
-		this.viewState['filter'] = this.filterWidget.getFilterText();
-		this.viewState['filterHistory'] = this.filterWidget.getHistory();
-		this.viewState['showResolved'] = this.filters.showResolved;
-		this.viewState['showUnresolved'] = this.filters.showUnresolved;
-		this.viewState['sortBy'] = this.filters.sortBy;
+		this.viewState.filter = this.filterWidget.getFilterText();
+		this.viewState.filterHistory = this.filterWidget.getHistory();
+		this.viewState.showResolved = this.filters.showResolved;
+		this.viewState.showUnresolved = this.filters.showUnresolved;
+		this.viewState.sortBy = this.filters.sortBy;
 		this.stateMemento.saveMemento();
 		super.saveState();
 	}
