@@ -155,13 +155,14 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		const matchedRecommendations: IStringDictionary<IFileOpenCondition[]> = {};
 		const unmatchedRecommendations: IStringDictionary<IFileOpenCondition[]> = {};
 		let listenOnLanguageChange = false;
-		let languageId = model.getLanguageId();
+		const languageId = model.getLanguageId();
 
-		// Avoid language-specific recommendations for untitled files when language is auto-detected.
-		if (uri.scheme === Schemas.untitled) {
+		// Avoid language-specific recommendations for untitled files when language is auto-detected except when the file is large.
+		let allowLanguageMatch = true;
+		if (uri.scheme === Schemas.untitled && model.getValueLength() < 1000) {
 			const untitledModel = this.untitledTextEditorService.get(uri);
 			if (untitledModel && !untitledModel.hasLanguageSetExplicitly) {
-				languageId = PLAINTEXT_LANGUAGE_ID;
+				allowLanguageMatch = false;
 			}
 		}
 
@@ -179,7 +180,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 					conditionsByPattern.push(condition);
 				}
 
-				if (isLanguageCondition) {
+				if (isLanguageCondition && allowLanguageMatch) {
 					if ((<IFileLanguageCondition>condition).languages.includes(languageId)) {
 						languageMatched = true;
 					}
