@@ -563,6 +563,10 @@ const configuration: IConfigurationNode = {
 		'accessibility.signals.progress': {
 			...signalFeatureBase,
 			'description': localize('accessibility.signals.progress', "Plays a signal - sound (audio cue) and/or announcement (alert) - on loop while progress is occurring."),
+			'default': {
+				'sound': 'auto',
+				'announcement': 'off'
+			},
 			'properties': {
 				'sound': {
 					'description': localize('accessibility.signals.progress.sound', "Plays a sound on loop while progress is occurring."),
