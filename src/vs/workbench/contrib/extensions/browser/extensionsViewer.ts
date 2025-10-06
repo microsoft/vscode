@@ -378,7 +378,6 @@ export class ExtensionsTree extends WorkbenchAsyncDataTree<IExtensionData, IExte
 			renderers,
 			dataSource,
 			{
-				indent: 40,
 				identityProvider,
 				multipleSelectionSupport: false,
 				overrideStyles,
