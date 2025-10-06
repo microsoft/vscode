@@ -172,7 +172,7 @@ class RunTestTool implements IToolImpl {
 
 		return {
 			content: content as Mutable<IToolResult['content']>,
-			toolResultMessage: getTestProgressText(collectTestStateCounts(true, [result])),
+			toolResultMessage: getTestProgressText(collectTestStateCounts(false, [result])),
 		};
 	}
 
