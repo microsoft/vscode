@@ -20,12 +20,13 @@ jobs:
     VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
   templateContext:
     outputs:
-      - output: pipelineArtifact
-        targetPath: $(Build.ArtifactStagingDirectory)/unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli.zip
-        artifactName: unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli
-        displayName: Publish unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli artifact
-        sbomEnabled: false
-        isProduction: false
+      - ${{ if not(parameters.VSCODE_CHECK_ONLY) }}:
+        - output: pipelineArtifact
+          targetPath: $(Build.ArtifactStagingDirectory)/unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli.zip
+          artifactName: unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli
+          displayName: Publish unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli artifact
+          sbomEnabled: false
+          isProduction: false
   steps:
     - template: ../common/checkout.yml@self
 
