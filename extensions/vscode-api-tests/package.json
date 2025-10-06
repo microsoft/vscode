@@ -9,6 +9,7 @@
     "authSession",
     "chatParticipantPrivate",
     "chatProvider",
+    "conditionallyExecuteCommand",
     "contribStatusBarItems",
     "contribViewsRemote",
     "customEditorMove",

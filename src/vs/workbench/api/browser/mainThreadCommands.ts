@@ -11,6 +11,8 @@ import { IExtensionService } from '../../services/extensions/common/extensions.j
 import { Dto, SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
 import { ExtHostCommandsShape, ExtHostContext, MainContext, MainThreadCommandsShape } from '../common/extHost.protocol.js';
 import { isString } from '../../../base/common/types.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
+import { getActiveElement } from '../../../base/browser/dom.js';
 
 
 @extHostNamedCustomer(MainContext.MainThreadCommands)
@@ -24,6 +26,7 @@ export class MainThreadCommands implements MainThreadCommandsShape {
 		extHostContext: IExtHostContext,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostCommands);
 
@@ -90,6 +93,28 @@ export class MainThreadCommands implements MainThreadCommandsShape {
 			throw new Error('$executeCommand:retry');
 		}
 		return this._commandService.executeCommand<T>(id, ...args);
+	}
+
+	async $checkCondition(when: string): Promise<boolean> {
+		if (!when) { return true; }
+
+		const context = this._contextKeyService.getContext(getActiveElement());
+		const whenExpr = ContextKeyExpr.deserialize(when);
+
+		if (whenExpr) {
+			return whenExpr.evaluate(context);
+		}
+		return true;
+	}
+
+	async $conditionallyExecuteCommand<T>(when: string, id: string, args: any[] | SerializableObjectWithBuffers<any[]>): Promise<{ executed: boolean; result: T | undefined }> {
+		if (await this.$checkCondition(when)) {
+			return { executed: true, result: await this.$executeCommand<T>(id, args, false) };
+
+		}
+
+		return { executed: false, result: undefined };
+
 	}
 
 	$getCommands(): Promise<string[]> {
