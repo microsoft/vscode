@@ -6,20 +6,21 @@
 import { Event } from '../../../base/common/event.js';
 import { IURITransformer, transformOutgoingURIs } from '../../../base/common/uriIpc.js';
 import { IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
+import { RemoteAgentConnectionContext } from '../../remote/common/remoteAgentEnvironment.js';
 import { INativeMcpDiscoveryHelperService } from '../common/nativeMcpDiscoveryHelper.js';
 
-export class NativeMcpDiscoveryHelperChannel implements IServerChannel {
+export class NativeMcpDiscoveryHelperChannel implements IServerChannel<RemoteAgentConnectionContext> {
 
 	constructor(
-		private getUriTransformer: undefined | ((requestContext: unknown) => IURITransformer),
+		private readonly getUriTransformer: undefined | ((requestContext: RemoteAgentConnectionContext) => IURITransformer),
 		@INativeMcpDiscoveryHelperService private nativeMcpDiscoveryHelperService: INativeMcpDiscoveryHelperService
 	) { }
 
-	listen<T>(context: unknown, event: string): Event<T> {
+	listen<T>(context: RemoteAgentConnectionContext, event: string): Event<T> {
 		throw new Error('Invalid listen');
 	}
 
-	async call<T>(context: unknown, command: string, args?: unknown): Promise<T> {
+	async call<T>(context: RemoteAgentConnectionContext, command: string, args?: unknown): Promise<T> {
 		const uriTransformer = this.getUriTransformer?.(context);
 		switch (command) {
 			case 'load': {

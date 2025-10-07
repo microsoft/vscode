@@ -6,7 +6,7 @@
 import { Barrier } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
-import { IPCServer } from '../../../base/parts/ipc/common/ipc.js';
+import { IChannelServer } from '../../../base/parts/ipc/common/ipc.js';
 import { IMcpGalleryManifest, IMcpGalleryManifestService, McpGalleryManifestStatus } from './mcpGalleryManifest.js';
 
 export class McpGalleryManifestIPCService extends Disposable implements IMcpGalleryManifestService {
@@ -26,7 +26,7 @@ export class McpGalleryManifestIPCService extends Disposable implements IMcpGall
 		return this._mcpGalleryManifest ? McpGalleryManifestStatus.Available : McpGalleryManifestStatus.Unavailable;
 	}
 
-	constructor(server: IPCServer<unknown>) {
+	constructor(server: IChannelServer<unknown>) {
 		super();
 		server.registerChannel('mcpGalleryManifest', {
 			listen: () => Event.None,

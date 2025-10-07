@@ -9,6 +9,7 @@ import { URI, UriComponents } from '../../../base/common/uri.js';
 import { DefaultURITransformer, IURITransformer, transformAndReviveIncomingURIs } from '../../../base/common/uriIpc.js';
 import { IChannel, IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { ILogService } from '../../log/common/log.js';
+import { RemoteAgentConnectionContext } from '../../remote/common/remoteAgentEnvironment.js';
 import { DidUninstallMcpServerEvent, IGalleryMcpServer, ILocalMcpServer, IMcpManagementService, IInstallableMcpServer, InstallMcpServerEvent, InstallMcpServerResult, InstallOptions, UninstallMcpServerEvent, UninstallOptions, IAllowedMcpServersService } from './mcpManagement.js';
 import { AbstractMcpManagementService } from './mcpManagementService.js';
 
@@ -37,14 +38,14 @@ function transformOutgoingURI(uri: URI, transformer: IURITransformer | null): UR
 	return transformer ? transformer.transformOutgoingURI(uri) : uri;
 }
 
-export class McpManagementChannel implements IServerChannel {
+export class McpManagementChannel<TContext = RemoteAgentConnectionContext | string> implements IServerChannel<TContext> {
 	readonly onInstallMcpServer: Event<InstallMcpServerEvent>;
 	readonly onDidInstallMcpServers: Event<readonly InstallMcpServerResult[]>;
 	readonly onDidUpdateMcpServers: Event<readonly InstallMcpServerResult[]>;
 	readonly onUninstallMcpServer: Event<UninstallMcpServerEvent>;
 	readonly onDidUninstallMcpServer: Event<DidUninstallMcpServerEvent>;
 
-	constructor(private service: IMcpManagementService, private getUriTransformer: (requestContext: unknown) => IURITransformer | null) {
+	constructor(private service: IMcpManagementService, private getUriTransformer: (requestContext: TContext) => IURITransformer | null) {
 		this.onInstallMcpServer = Event.buffer(service.onInstallMcpServer, true);
 		this.onDidInstallMcpServers = Event.buffer(service.onDidInstallMcpServers, true);
 		this.onDidUpdateMcpServers = Event.buffer(service.onDidUpdateMcpServers, true);
@@ -52,7 +53,7 @@ export class McpManagementChannel implements IServerChannel {
 		this.onDidUninstallMcpServer = Event.buffer(service.onDidUninstallMcpServer, true);
 	}
 
-	listen<T>(context: unknown, event: string): Event<T> {
+	listen<T>(context: TContext, event: string): Event<T> {
 		const uriTransformer = this.getUriTransformer(context);
 		switch (event) {
 			case 'onInstallMcpServer': {
@@ -91,7 +92,7 @@ export class McpManagementChannel implements IServerChannel {
 		throw new Error('Invalid listen');
 	}
 
-	async call<T>(context: unknown, command: string, args?: unknown): Promise<T> {
+	async call<T>(context: TContext, command: string, args?: unknown): Promise<T> {
 		const uriTransformer: IURITransformer | null = this.getUriTransformer(context);
 		const argsArray = Array.isArray(args) ? args : [];
 		switch (command) {
