@@ -59,8 +59,7 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 
 	function file(file: Vinyl): void {
 		// support gulp-sourcemaps
-		// eslint-disable-next-line local/code-no-any-casts
-		if ((<any>file).sourceMap) {
+		if (file.sourceMap) {
 			emitSourceMapsInStream = false;
 		}
 
@@ -81,8 +80,10 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 	}
 
 	function isExternalModule(sourceFile: ts.SourceFile): boolean {
-		// eslint-disable-next-line local/code-no-any-casts
-		return (<any>sourceFile).externalModuleIndicator
+		interface SourceFileWithModuleIndicator extends ts.SourceFile {
+			externalModuleIndicator?: unknown;
+		}
+		return !!(sourceFile as SourceFileWithModuleIndicator).externalModuleIndicator
 			|| /declare\s+module\s+('|")(.+)\1/.test(sourceFile.getText());
 	}
 
@@ -221,18 +222,19 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 
 									if (didChange) {
 
+										interface SourceMapGeneratorWithSources extends SourceMapGenerator {
+											_sources: { add(source: string): void };
+										}
+
 										[tsSMC, inputSMC].forEach((consumer) => {
-											(<SourceMapConsumer & { sources: string[] }>consumer).sources.forEach((sourceFile: any) => {
-												// eslint-disable-next-line local/code-no-any-casts
-												(<any>smg)._sources.add(sourceFile);
+											(<SourceMapConsumer & { sources: string[] }>consumer).sources.forEach((sourceFile: string) => {
+												(smg as SourceMapGeneratorWithSources)._sources.add(sourceFile);
 												const sourceContent = consumer.sourceContentFor(sourceFile);
 												if (sourceContent !== null) {
 													smg.setSourceContent(sourceFile, sourceContent);
 												}
 											});
-										});
-
-										sourceMap = JSON.parse(smg.toString());
+										}); sourceMap = JSON.parse(smg.toString());
 
 										// const filename = '/Users/jrieken/Code/vscode/src2/' + vinyl.relative + '.map';
 										// fs.promises.mkdir(path.dirname(filename), { recursive: true }).then(async () => {
@@ -242,12 +244,9 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 									}
 								}
 
-								// eslint-disable-next-line local/code-no-any-casts
-								(<any>vinyl).sourceMap = sourceMap;
+								(vinyl as Vinyl & { sourceMap?: RawSourceMap }).sourceMap = sourceMap;
 							}
-						}
-
-						files.push(vinyl);
+						} files.push(vinyl);
 					}
 
 					resolve({
@@ -590,8 +589,7 @@ class LanguageServiceHost implements ts.LanguageServiceHost {
 		let result = this._snapshots[filename];
 		if (!result && resolve) {
 			try {
-				// eslint-disable-next-line local/code-no-any-casts
-				result = new VinylScriptSnapshot(new Vinyl(<any>{
+				result = new VinylScriptSnapshot(new Vinyl({
 					path: filename,
 					contents: fs.readFileSync(filename),
 					base: this.getCompilationSettings().outDir,

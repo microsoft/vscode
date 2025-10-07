@@ -349,15 +349,15 @@ class GetErrRequest {
 		}
 	}
 
-	private areProjectDiagnosticsEnabled() {
+	private areProjectDiagnosticsEnabled(): boolean {
 		return this.client.configuration.enableProjectDiagnostics && this.client.capabilities.has(ClientCapability.Semantic);
 	}
 
-	private areRegionDiagnosticsEnabled() {
+	private areRegionDiagnosticsEnabled(): boolean {
 		return this.client.configuration.enableRegionDiagnostics && this.client.apiVersion.gte(API.v560);
 	}
 
-	public cancel(): any {
+	public cancel(): void {
 		if (!this._done) {
 			this._token.cancel();
 		}
