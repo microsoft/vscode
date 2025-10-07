@@ -9,12 +9,22 @@ import { IToolAndToolSetEnablementMap } from '../../common/languageModelToolsSer
 export class MockChatVariablesService implements IChatVariablesService {
 	_serviceBrand: undefined;
 
+	private _dynamicVariables = new Map<string, readonly IDynamicVariable[]>();
+	private _selectedToolAndToolSets = new Map<string, IToolAndToolSetEnablementMap>();
+
 	getDynamicVariables(sessionId: string): readonly IDynamicVariable[] {
-		return [];
+		return this._dynamicVariables.get(sessionId) ?? [];
 	}
 
 	getSelectedToolAndToolSets(sessionId: string): IToolAndToolSetEnablementMap {
-		return new Map();
+		return this._selectedToolAndToolSets.get(sessionId) ?? new Map();
 	}
 
+	setDynamicVariables(sessionId: string, variables: readonly IDynamicVariable[]): void {
+		this._dynamicVariables.set(sessionId, variables);
+	}
+
+	setSelectedToolAndToolSets(sessionId: string, tools: IToolAndToolSetEnablementMap): void {
+		this._selectedToolAndToolSets.set(sessionId, tools);
+	}
 }
