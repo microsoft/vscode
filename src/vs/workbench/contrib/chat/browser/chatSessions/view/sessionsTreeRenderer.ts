@@ -138,16 +138,13 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 
 	private getHoverPosition(): HoverPosition {
 		const sideBarPosition = this.layoutService.getSideBarPosition();
-
-		if (this.viewLocation === ViewContainerLocation.Sidebar) {
-			const hoverPosition = sideBarPosition === Position.LEFT ? HoverPosition.RIGHT : HoverPosition.LEFT;
-			return hoverPosition;
-		} else if (this.viewLocation === ViewContainerLocation.AuxiliaryBar) {
-			const hoverPosition = sideBarPosition === Position.LEFT ? HoverPosition.LEFT : HoverPosition.RIGHT;
-			return hoverPosition;
-		} else {
-			const hoverPosition = HoverPosition.RIGHT;
-			return hoverPosition;
+		switch (this.viewLocation) {
+			case ViewContainerLocation.Sidebar:
+				return sideBarPosition === Position.LEFT ? HoverPosition.RIGHT : HoverPosition.LEFT;
+			case ViewContainerLocation.AuxiliaryBar:
+				return sideBarPosition === Position.LEFT ? HoverPosition.LEFT : HoverPosition.RIGHT;
+			default:
+				return HoverPosition.RIGHT;
 		}
 	}
 
