@@ -95,17 +95,17 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 				.slice(0, AbstractCommandsQuickAccessProvider.TFIDF_MAX_RESULTS);
 		});
 
-		const noAccentsFilter = removeAccents(filter);
+		const noAccentsFilter = this.normalizeForFiltering(filter);
 
 		// Filter
 		const filteredCommandPicks: ICommandQuickPick[] = [];
 		for (const commandPick of allCommandPicks) {
-			commandPick.labelNoAccents ??= removeAccents(commandPick.label);
+			commandPick.labelNoAccents ??= this.normalizeForFiltering(commandPick.label);
 			const labelHighlights = AbstractCommandsQuickAccessProvider.WORD_FILTER(noAccentsFilter, commandPick.labelNoAccents) ?? undefined;
 
 			let aliasHighlights: IMatch[] | undefined;
 			if (commandPick.commandAlias) {
-				commandPick.aliasNoAccents ??= removeAccents(commandPick.commandAlias);
+				commandPick.aliasNoAccents ??= this.normalizeForFiltering(commandPick.commandAlias);
 				aliasHighlights = AbstractCommandsQuickAccessProvider.WORD_FILTER(noAccentsFilter, commandPick.aliasNoAccents) ?? undefined;
 			}
 
@@ -311,6 +311,37 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 			chunk += ` - ${commandDescription.value === commandDescription.original ? commandDescription.value : `${commandDescription.value} (${commandDescription.original})`}`;
 		}
 		return chunk;
+	}
+
+
+	/**
+	 * Normalizes a string for filtering by removing accents, but only if the result has the same length, otherwise
+	 * returns the original string.
+	 */
+	private normalizeForFiltering(value: string): string {
+		const withoutAccents = removeAccents(value);
+		if (withoutAccents.length !== value.length) {
+			type QuickAccessTelemetry = {
+				originalLength: number;
+				normalizedLength: number;
+			};
+
+			type QuickAccessTelemetryMeta = {
+				originalLength: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Length of the original filter string' };
+				normalizedLength: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Length of the normalized filter string' };
+				owner: 'dmitriv';
+				comment: 'Helps to gain insights on cases where the normalized filter string length differs from the original';
+			};
+
+			this.telemetryService.publicLog2<QuickAccessTelemetry, QuickAccessTelemetryMeta>('QuickAccess:FilterLengthMismatch', {
+				originalLength: value.length,
+				normalizedLength: withoutAccents.length
+			});
+
+			return value;
+		} else {
+			return withoutAccents;
+		}
 	}
 
 	protected abstract getCommandPicks(token: CancellationToken): Promise<Array<ICommandQuickPick>>;
