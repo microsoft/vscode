@@ -336,6 +336,8 @@ export class LanguageModelsService implements ILanguageModelsService {
 			if ((this._chatEntitlementService.entitlement === ChatEntitlement.Business || this._chatEntitlementService.entitlement === ChatEntitlement.Enterprise) && !this._chatEntitlementService.isInternal) {
 				this._modelPickerUserPreferences = {};
 				this._storageService.store('chatModelPickerPreferences', this._modelPickerUserPreferences, StorageScope.PROFILE, StorageTarget.USER);
+			} else if (this._chatEntitlementService.entitlement === ChatEntitlement.Unknown) {
+				this._modelPickerUserPreferences = {};
 			}
 		};
 
