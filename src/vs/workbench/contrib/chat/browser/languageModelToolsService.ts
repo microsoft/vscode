@@ -326,7 +326,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				}));
 				token = source.token;
 
-				const prepareTimeWatch = StopWatch.create(true);
+				prepareTimeWatch = StopWatch.create(true);
 				const prepared = await this.prepareToolInvocation(tool, dto, token);
 				prepareTimeWatch.stop();
 
@@ -366,7 +366,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					}
 				}
 			} else {
-				const prepareTimeWatch = StopWatch.create(true);
+				prepareTimeWatch = StopWatch.create(true);
 				const prepared = await this.prepareToolInvocation(tool, dto, token);
 				prepareTimeWatch.stop();
 				if (prepared?.confirmationMessages && !(await this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace))) {
