@@ -139,6 +139,40 @@ class ParentRepositoriesManager {
 	}
 }
 
+class OpenedRepositoriesManager {
+
+	private _repositories: Set<string>;
+	get repositories(): string[] {
+		return [...this._repositories.values()];
+	}
+
+	constructor(private readonly workspaceState: Memento) {
+		this._repositories = new Set<string>(workspaceState.get<string[]>('openedRepositories', []));
+	}
+
+	addRepository(repository: string): void {
+		this._repositories.add(repository);
+		this.onDidChangeRepositories();
+	}
+
+	deleteRepository(repository: string): boolean {
+		const result = this._repositories.delete(repository);
+		if (result) {
+			this.onDidChangeRepositories();
+		}
+
+		return result;
+	}
+
+	hasRepository(repository: string): boolean {
+		return this._repositories.has(repository);
+	}
+
+	private onDidChangeRepositories(): void {
+		this.workspaceState.update('openedRepositories', [...this._repositories.values()]);
+	}
+}
+
 class UnsafeRepositoriesManager {
 
 	/**
@@ -265,6 +299,11 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		return [...this._closedRepositoriesManager.repositories];
 	}
 
+	private _openedRepositoriesManager: OpenedRepositoriesManager;
+	get openedRepositories(): string[] {
+		return [...this._openedRepositoriesManager.repositories];
+	}
+
 	/**
 	 * We maintain a map containing both the path and the canonical path of the
 	 * workspace folders. We are doing this as `git.exe` expands the symbolic links
@@ -282,6 +321,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		this._closedRepositoriesManager = new ClosedRepositoriesManager(workspaceState);
 		this._parentRepositoriesManager = new ParentRepositoriesManager(globalState);
 		this._unsafeRepositoriesManager = new UnsafeRepositoriesManager();
+		this._openedRepositoriesManager = new OpenedRepositoriesManager(workspaceState);
 
 		workspace.onDidChangeWorkspaceFolders(this.onDidChangeWorkspaceFolders, this, this.disposables);
 		window.onDidChangeVisibleTextEditors(this.onDidChangeVisibleTextEditors, this, this.disposables);
@@ -313,7 +353,13 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		const initialScanFn = () => Promise.all([
 			this.onDidChangeWorkspaceFolders({ added: workspace.workspaceFolders || [], removed: [] }),
 			this.onDidChangeVisibleTextEditors(window.visibleTextEditors),
-			this.scanWorkspaceFolders()
+			this.scanWorkspaceFolders(),
+			// Restore previously opened repositories with error handling
+			...this._openedRepositoriesManager.repositories.map(r =>
+				this.openRepository(r, false, false).catch(err => {
+					this.logger.warn(`[Model][doInitialScan] Failed to restore previously opened repository: ${r}. Error: ${err && err.message ? err.message : err}`);
+				})
+			)
 		]);
 
 		if (config.get<boolean>('showProgress', true)) {
@@ -339,7 +385,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			}
 		*/
 		this.telemetryReporter.sendTelemetryEvent('git.repositoryInitialScan', { autoRepositoryDetection: String(autoRepositoryDetection) }, { repositoryCount: this.openRepositories.length });
-		this.logger.info(`[Model][doInitialScan] Initial repository scan completed - repositories (${this.repositories.length}), closed repositories (${this.closedRepositories.length}), parent repositories (${this.parentRepositories.length}), unsafe repositories (${this.unsafeRepositories.length})`);
+		this.logger.info(`[Model][doInitialScan] Initial repository scan completed - repositories (${this.repositories.length}), closed repositories (${this.closedRepositories.length}), parent repositories (${this.parentRepositories.length}), unsafe repositories (${this.unsafeRepositories.length}), opened repositories (${this.openedRepositories.length})`);
 	}
 
 	/**
@@ -658,6 +704,13 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			this.open(repository);
 			this._closedRepositoriesManager.deleteRepository(repository.root);
 
+			// Track repositories outside workspace so they can be restored on next session
+			const isRepositoryOutsideWorkspace = await this.isRepositoryOutsideWorkspace(repositoryRoot);
+			if (isRepositoryOutsideWorkspace && !this._openedRepositoriesManager.hasRepository(repositoryRoot)) {
+				this._openedRepositoriesManager.addRepository(repositoryRoot);
+				this.logger.trace(`[Model][openRepository] Added repository to opened repositories: ${repositoryRoot}`);
+			}
+
 			this.logger.info(`[Model][openRepository] Opened repository (path): ${repository.root}`);
 			this.logger.info(`[Model][openRepository] Opened repository (real path): ${repository.rootRealPath ?? repository.root}`);
 			this.logger.info(`[Model][openRepository] Opened repository (kind): ${gitRepository.kind}`);
@@ -858,6 +911,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 
 		this.logger.info(`[Model][close] Repository: ${repository.root}`);
 		this._closedRepositoriesManager.addRepository(openRepository.repository.root);
+		this._openedRepositoriesManager.deleteRepository(openRepository.repository.root);
 
 		openRepository.dispose();
 	}
