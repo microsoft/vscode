@@ -19,6 +19,7 @@ import { InMemoryFileSystemProvider } from '../../../../../platform/files/common
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
+import { PolicyCategory } from '../../../../../base/common/policy.js';
 
 const BASE_DEFAULT_ACCOUNT: IDefaultAccount = {
 	enterprise: false,
@@ -47,6 +48,7 @@ suite('MultiplexPolicyService', () => {
 				'default': 'defaultValueA',
 				policy: {
 					name: 'PolicySettingA',
+					category: PolicyCategory.Default,
 					minimumVersion: '1.0.0',
 				}
 			},
@@ -55,6 +57,7 @@ suite('MultiplexPolicyService', () => {
 				'default': 'defaultValueB',
 				policy: {
 					name: 'PolicySettingB',
+					category: PolicyCategory.Default,
 					minimumVersion: '1.0.0',
 					value: account => account.chat_preview_features_enabled === false ? 'policyValueB' : undefined,
 				}
@@ -64,6 +67,7 @@ suite('MultiplexPolicyService', () => {
 				'default': ['defaultValueC1', 'defaultValueC2'],
 				policy: {
 					name: 'PolicySettingC',
+					category: PolicyCategory.Default,
 					minimumVersion: '1.0.0',
 					value: account => account.chat_preview_features_enabled === false ? JSON.stringify(['policyValueC1', 'policyValueC2']) : undefined,
 				}
@@ -73,6 +77,7 @@ suite('MultiplexPolicyService', () => {
 				'default': true,
 				policy: {
 					name: 'PolicySettingD',
+					category: PolicyCategory.Default,
 					minimumVersion: '1.0.0',
 					value: account => account.chat_preview_features_enabled === false ? false : undefined,
 				}

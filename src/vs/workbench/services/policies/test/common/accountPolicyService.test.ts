@@ -12,6 +12,7 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { Extensions, IConfigurationNode, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { DefaultConfiguration, PolicyConfiguration } from '../../../../../platform/configuration/common/configurations.js';
 import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
+import { PolicyCategory } from '../../../../../base/common/policy.js';
 
 const BASE_DEFAULT_ACCOUNT: IDefaultAccount = {
 	enterprise: false,
@@ -38,6 +39,7 @@ suite('AccountPolicyService', () => {
 				'default': 'defaultValueA',
 				policy: {
 					name: 'PolicySettingA',
+					category: PolicyCategory.Default,
 					minimumVersion: '1.0.0',
 				}
 			},
@@ -46,6 +48,7 @@ suite('AccountPolicyService', () => {
 				'default': 'defaultValueB',
 				policy: {
 					name: 'PolicySettingB',
+					category: PolicyCategory.Default,
 					minimumVersion: '1.0.0',
 					value: account => account.chat_preview_features_enabled === false ? 'policyValueB' : undefined,
 				}
@@ -55,6 +58,7 @@ suite('AccountPolicyService', () => {
 				'default': ['defaultValueC1', 'defaultValueC2'],
 				policy: {
 					name: 'PolicySettingC',
+					category: PolicyCategory.Default,
 					minimumVersion: '1.0.0',
 					value: account => account.chat_preview_features_enabled === false ? JSON.stringify(['policyValueC1', 'policyValueC2']) : undefined,
 				}
@@ -64,6 +68,7 @@ suite('AccountPolicyService', () => {
 				'default': true,
 				policy: {
 					name: 'PolicySettingD',
+					category: PolicyCategory.Default,
 					minimumVersion: '1.0.0',
 					value: account => account.chat_preview_features_enabled === false ? false : undefined,
 				}

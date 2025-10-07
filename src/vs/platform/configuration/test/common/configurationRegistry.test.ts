@@ -7,6 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../common/configurationRegistry.js';
 import { Registry } from '../../../registry/common/platform.js';
+import { PolicyCategory } from '../../../../base/common/policy.js';
 
 suite('ConfigurationRegistry', () => {
 
@@ -89,6 +90,7 @@ suite('ConfigurationRegistry', () => {
 					'type': 'object',
 					policy: {
 						name: 'policy',
+						category: PolicyCategory.Default,
 						minimumVersion: '1.0.0'
 					}
 				},
@@ -96,6 +98,7 @@ suite('ConfigurationRegistry', () => {
 					'type': 'object',
 					policy: {
 						name: 'policy',
+						category: PolicyCategory.Default,
 						minimumVersion: '1.0.0'
 					}
 				}

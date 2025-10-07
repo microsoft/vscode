@@ -6,6 +6,7 @@
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { mixin } from '../../../base/common/objects.js';
 import { isWeb } from '../../../base/common/platform.js';
+import { PolicyCategory } from '../../../base/common/policy.js';
 import { escapeRegExpCharacters } from '../../../base/common/strings.js';
 import { localize } from '../../../nls.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
@@ -223,6 +224,7 @@ configurationRegistry.registerConfiguration({
 			'tags': ['usesOnlineServices', 'telemetry'],
 			'policy': {
 				name: 'TelemetryLevel',
+				category: PolicyCategory.Default,
 				minimumVersion: '1.99',
 				description: localize('telemetry.telemetryLevel.policyDescription', "Controls the level of telemetry."),
 			}
@@ -233,6 +235,7 @@ configurationRegistry.registerConfiguration({
 			description: localize('telemetry.feedback.enabled', "Enable feedback mechanisms such as the issue reporter, surveys, and other feedback options."),
 			policy: {
 				name: 'EnableFeedback',
+				category: PolicyCategory.Default,
 				minimumVersion: '1.99',
 			}
 		},

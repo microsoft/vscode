@@ -29,6 +29,14 @@ export interface IPolicyService {
 	readonly policyDefinitions: IStringDictionary<PolicyDefinition>;
 }
 
+export const IPolicyWriterService = createDecorator<IPolicyWriterService>('IPolicyWriterService');
+
+export interface IPolicyWriterService {
+	readonly _serviceBrand: undefined;
+
+	write(platform: 'darwin' | 'win32'): Promise<void>;
+}
+
 export abstract class AbstractPolicyService extends Disposable implements IPolicyService {
 	readonly _serviceBrand: undefined;
 

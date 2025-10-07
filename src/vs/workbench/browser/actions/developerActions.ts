@@ -46,6 +46,7 @@ import { IDefaultAccountService } from '../../services/accounts/common/defaultAc
 import { IAuthenticationService } from '../../services/authentication/common/authentication.js';
 import { IAuthenticationAccessService } from '../../services/authentication/browser/authenticationAccessService.js';
 import { IPolicyService } from '../../../platform/policy/common/policy.js';
+import { isNative, isMacintosh, isWindows } from '../../../base/common/platform.js';
 
 class InspectContextKeysAction extends Action2 {
 
@@ -650,6 +651,51 @@ class StopTrackDisposables extends Action2 {
 	}
 }
 
+class DumpPoliciesAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.dumpPolicies',
+			title: localize2('dumpPolicies', 'Dump Policies'),
+			category: Categories.Developer,
+			f1: true
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const dialogService = accessor.get(IDialogService);
+
+		if (!isNative) {
+			// Policy dumping uses Node.js APIs and is only available in desktop (native) context
+			await dialogService.info(
+				localize('dumpPoliciesNotAvailable', "Dump Policies is only available in the desktop version of VS Code."),
+				localize('dumpPoliciesNotAvailableDetail', "This feature uses Node.js APIs that are not available in the web version.")
+			);
+			return;
+		}
+
+		// Determine platform for policy writing
+		let platformArg: string;
+		if (isMacintosh) {
+			platformArg = 'darwin';
+		} else if (isWindows) {
+			platformArg = 'win32';
+		} else {
+			await dialogService.info(
+				localize('dumpPoliciesUnsupportedPlatform', "Dump Policies is not supported on this platform."),
+				localize('dumpPoliciesUnsupportedPlatformDetail', "Policy dumping is only supported on Windows and macOS.")
+			);
+			return;
+		}
+
+		// Show information about using CLI command since IPolicyWriterService is not accessible from workbench
+		const message = localize('dumpPoliciesUseCLI', "To dump policies, use the CLI command:");
+		const detail = localize('dumpPoliciesUseCLIDetail', "Run the following command from the terminal:\n\ncode --dump-policy-configuration {0}\n\nThis will generate policy files in the .build/policies directory.", platformArg);
+
+		await dialogService.info(message, detail);
+	}
+}
+
 class PolicyDiagnosticsAction extends Action2 {
 
 	constructor() {
@@ -909,6 +955,7 @@ registerAction2(ToggleScreencastModeAction);
 registerAction2(LogStorageAction);
 registerAction2(LogWorkingCopiesAction);
 registerAction2(RemoveLargeStorageEntriesAction);
+registerAction2(DumpPoliciesAction);
 registerAction2(PolicyDiagnosticsAction);
 if (!product.commit) {
 	registerAction2(StartTrackDisposables);

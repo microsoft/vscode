@@ -7,12 +7,23 @@ import { IDefaultAccount } from './defaultAccount.js';
 
 export type PolicyName = string;
 
+export enum PolicyCategory {
+	Default = 'Default',
+	Chat = 'Chat',
+	Terminal = 'Terminal',
+}
+
 export interface IPolicy {
 
 	/**
 	 * The policy name.
 	 */
 	readonly name: PolicyName;
+
+	/**
+	 * The policy category.
+	 */
+	readonly category: PolicyCategory;
 
 	/**
 	 * The Code version in which this policy was introduced.

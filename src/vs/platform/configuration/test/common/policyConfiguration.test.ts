@@ -19,6 +19,7 @@ import { IPolicyService } from '../../../policy/common/policy.js';
 import { FilePolicyService } from '../../../policy/common/filePolicyService.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { PolicyCategory } from '../../../../base/common/policy.js';
 
 suite('PolicyConfiguration', () => {
 
@@ -39,6 +40,7 @@ suite('PolicyConfiguration', () => {
 				'default': 'defaultValueA',
 				policy: {
 					name: 'PolicySettingA',
+					category: PolicyCategory.Default,
 					minimumVersion: '1.0.0',
 				}
 			},
@@ -47,6 +49,7 @@ suite('PolicyConfiguration', () => {
 				'default': 'defaultValueB',
 				policy: {
 					name: 'PolicySettingB',
+					category: PolicyCategory.Default,
 					minimumVersion: '1.0.0',
 				}
 			},
@@ -55,6 +58,7 @@ suite('PolicyConfiguration', () => {
 				'default': {},
 				policy: {
 					name: 'PolicyObjectSetting',
+					category: PolicyCategory.Default,
 					minimumVersion: '1.0.0',
 				}
 			},
@@ -63,6 +67,7 @@ suite('PolicyConfiguration', () => {
 				'default': [],
 				policy: {
 					name: 'PolicyArraySetting',
+					category: PolicyCategory.Default,
 					minimumVersion: '1.0.0',
 				}
 			},
@@ -71,6 +76,7 @@ suite('PolicyConfiguration', () => {
 				'default': true,
 				policy: {
 					name: 'PolicyBooleanSetting',
+					category: PolicyCategory.Default,
 					minimumVersion: '1.0.0',
 				}
 			},
@@ -80,6 +86,7 @@ suite('PolicyConfiguration', () => {
 				included: false,
 				policy: {
 					name: 'PolicyInternalSetting',
+					category: PolicyCategory.Default,
 					minimumVersion: '1.0.0',
 				}
 			},
@@ -267,6 +274,7 @@ suite('PolicyConfiguration', () => {
 			'default': 'defaultValueC',
 			policy: {
 				name: 'PolicySettingC',
+				category: PolicyCategory.Default,
 				minimumVersion: '1.0.0',
 			}
 		};

@@ -123,6 +123,7 @@ import { SAVE_TO_PROMPT_ACTION_ID, SAVE_TO_PROMPT_SLASH_COMMAND_NAME } from './p
 import { ConfigureToolSets, UserToolSetsContributions } from './tools/toolSetsContribution.js';
 import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeHandler.js';
 import { ChatSessionsView } from './chatSessions/view/chatSessionsView.js';
+import { PolicyCategory } from '../../../../base/common/policy.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -250,6 +251,7 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 			policy: {
 				name: 'ChatToolsAutoApprove',
+				category: PolicyCategory.Default,
 				minimumVersion: '1.99',
 				value: (account) => account.chat_preview_features_enabled === false ? false : undefined,
 			}
@@ -344,6 +346,7 @@ configurationRegistry.registerConfiguration({
 			default: McpAccessValue.All,
 			policy: {
 				name: 'ChatMCP',
+				category: PolicyCategory.Default,
 				minimumVersion: '1.99',
 				value: (account) => {
 					if (account.mcp === false) {
@@ -419,6 +422,7 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			policy: {
 				name: 'ChatAgentExtensionTools',
+				category: PolicyCategory.Default,
 				minimumVersion: '1.99',
 				description: nls.localize('chat.extensionToolsPolicy', "Enable using tools contributed by third-party extensions."),
 			}
@@ -429,6 +433,7 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			policy: {
 				name: 'ChatAgentMode',
+				category: PolicyCategory.Default,
 				minimumVersion: '1.99',
 				value: (account) => account.chat_agent_enabled === false ? false : undefined,
 			}
@@ -472,6 +477,7 @@ configurationRegistry.registerConfiguration({
 			included: false,
 			policy: {
 				name: 'McpGalleryServiceUrl',
+				category: PolicyCategory.Default,
 				minimumVersion: '1.101',
 				value: (account) => account.mcpRegistryUrl
 			},
@@ -495,6 +501,7 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental', 'prompts', 'reusable prompts', 'prompt snippets', 'instructions'],
 			policy: {
 				name: 'ChatPromptFiles',
+				category: PolicyCategory.Default,
 				minimumVersion: '1.99',
 				description: nls.localize('chat.promptFiles.policy', "Enables reusable prompt and instruction files in Chat sessions.")
 			}
