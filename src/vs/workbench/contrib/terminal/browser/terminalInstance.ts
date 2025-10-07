@@ -894,11 +894,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					this._updateProcessCwd();
 				}
 			});
-			this._register(this.capabilities.onDidAddCapabilityType(e => {
-				if (e === TerminalCapability.CwdDetection) {
-					onKeyListener?.dispose();
-					onKeyListener = undefined;
-				}
+			this._register(this.capabilities.onDidAddCwdDetectionCapability(() => {
+				onKeyListener?.dispose();
+				onKeyListener = undefined;
 			}));
 		}
 
@@ -921,11 +919,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			const store = new DisposableStore();
 			await Promise.race([
 				new Promise<void>(r => {
-					store.add(this.capabilities.onDidAddCapabilityType(e => {
-						if (e === TerminalCapability.CommandDetection) {
-							commandDetection = this.capabilities.get(TerminalCapability.CommandDetection);
-							r();
-						}
+					store.add(this.capabilities.onDidAddCommandDetectionCapability(e => {
+						commandDetection = e;
+						r();
 					}));
 				}),
 				timeout(2000),

@@ -60,14 +60,6 @@ export interface ITerminalCapabilityStore {
 	readonly items: IterableIterator<TerminalCapability>;
 
 	/**
-	 * Fired when a capability is added. The event data for this is only the
-	 * {@link TerminalCapability} type, use {@link onDidAddCapability} to access the actual
-	 * capability.
-	 * @deprecated Use {@link onDidAddCapability} or {@link onDidAddCommandDetectionCapability}
-	 */
-	readonly onDidAddCapabilityType: Event<TerminalCapability>;
-
-	/**
 	 * Fired when a capability is added.
 	 */
 	readonly onDidAddCapability: Event<AnyTerminalCapabilityChangeEvent>;
@@ -81,6 +73,8 @@ export interface ITerminalCapabilityStore {
 
 	readonly onDidAddCommandDetectionCapability: Event<ICommandDetectionCapability>;
 	readonly onDidRemoveCommandDetectionCapability: Event<void>;
+	readonly onDidAddCwdDetectionCapability: Event<ICwdDetectionCapability>;
+	readonly onDidRemoveCwdDetectionCapability: Event<void>;
 
 	/**
 	 * Create an event that's fired when a specific capability type is added. Use this over

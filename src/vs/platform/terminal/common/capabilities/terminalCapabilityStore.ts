@@ -5,13 +5,10 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { ICommandDetectionCapability, ITerminalCapabilityImplMap, ITerminalCapabilityStore, TerminalCapability, type AnyTerminalCapabilityChangeEvent } from './capabilities.js';
+import { ICommandDetectionCapability, ITerminalCapabilityImplMap, ITerminalCapabilityStore, TerminalCapability, type AnyTerminalCapabilityChangeEvent, type ICwdDetectionCapability } from './capabilities.js';
 
 export class TerminalCapabilityStore extends Disposable implements ITerminalCapabilityStore {
 	private _map: Map<TerminalCapability, ITerminalCapabilityImplMap[TerminalCapability]> = new Map();
-
-	private readonly _onDidAddCapabilityType = this._register(new Emitter<TerminalCapability>());
-	readonly onDidAddCapabilityType = this._onDidAddCapabilityType.event;
 
 	private readonly _onDidAddCapability = this._register(new Emitter<AnyTerminalCapabilityChangeEvent>());
 	readonly onDidAddCapability = this._onDidAddCapability.event;
@@ -23,6 +20,12 @@ export class TerminalCapabilityStore extends Disposable implements ITerminalCapa
 	}
 	get onDidRemoveCommandDetectionCapability() {
 		return Event.map(Event.filter(this.onDidRemoveCapability, e => e.id === TerminalCapability.CommandDetection), () => void 0);
+	}
+	get onDidAddCwdDetectionCapability() {
+		return Event.map(Event.filter(this.onDidAddCapability, e => e.id === TerminalCapability.CwdDetection), e => e.capability as ICwdDetectionCapability);
+	}
+	get onDidRemoveCwdDetectionCapability() {
+		return Event.map(Event.filter(this.onDidRemoveCapability, e => e.id === TerminalCapability.CwdDetection), () => void 0);
 	}
 
 	get items(): IterableIterator<TerminalCapability> {
@@ -38,7 +41,6 @@ export class TerminalCapabilityStore extends Disposable implements ITerminalCapa
 
 	add<T extends TerminalCapability>(capability: T, impl: ITerminalCapabilityImplMap[T]) {
 		this._map.set(capability, impl);
-		this._onDidAddCapabilityType.fire(capability);
 		this._onDidAddCapability.fire(createCapabilityEvent(capability, impl));
 	}
 
@@ -64,9 +66,6 @@ export class TerminalCapabilityStore extends Disposable implements ITerminalCapa
 export class TerminalCapabilityStoreMultiplexer extends Disposable implements ITerminalCapabilityStore {
 	readonly _stores: ITerminalCapabilityStore[] = [];
 
-	private readonly _onDidAddCapabilityType = this._register(new Emitter<TerminalCapability>());
-	readonly onDidAddCapabilityType = this._onDidAddCapabilityType.event;
-
 	private readonly _onDidAddCapability = this._register(new Emitter<AnyTerminalCapabilityChangeEvent>());
 	readonly onDidAddCapability = this._onDidAddCapability.event;
 	private readonly _onDidRemoveCapability = this._register(new Emitter<AnyTerminalCapabilityChangeEvent>());
@@ -77,6 +76,12 @@ export class TerminalCapabilityStoreMultiplexer extends Disposable implements IT
 	}
 	get onDidRemoveCommandDetectionCapability() {
 		return Event.map(Event.filter(this.onDidRemoveCapability, e => e.id === TerminalCapability.CommandDetection), () => void 0);
+	}
+	get onDidAddCwdDetectionCapability() {
+		return Event.map(Event.filter(this.onDidAddCapability, e => e.id === TerminalCapability.CwdDetection), e => e.capability as ICwdDetectionCapability);
+	}
+	get onDidRemoveCwdDetectionCapability() {
+		return Event.map(Event.filter(this.onDidRemoveCapability, e => e.id === TerminalCapability.CwdDetection), () => void 0);
 	}
 
 	get items(): IterableIterator<TerminalCapability> {
@@ -122,10 +127,8 @@ export class TerminalCapabilityStoreMultiplexer extends Disposable implements IT
 	add(store: ITerminalCapabilityStore) {
 		this._stores.push(store);
 		for (const capability of store.items) {
-			this._onDidAddCapabilityType.fire(capability);
 			this._onDidAddCapability.fire(createCapabilityEvent(capability, store.get(capability)!));
 		}
-		this._register(store.onDidAddCapabilityType(e => this._onDidAddCapabilityType.fire(e)));
 		this._register(store.onDidAddCapability(e => this._onDidAddCapability.fire(e)));
 		this._register(store.onDidRemoveCapability(e => this._onDidRemoveCapability.fire(e)));
 	}

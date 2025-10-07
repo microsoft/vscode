@@ -18,7 +18,7 @@ suite('TerminalCapabilityStore', () => {
 
 	setup(() => {
 		capabilityStore = store.add(new TerminalCapabilityStore());
-		store.add(capabilityStore.onDidAddCapabilityType(e => addEvents.push(e)));
+		store.add(capabilityStore.onDidAddCapability(e => addEvents.push(e.id)));
 		store.add(capabilityStore.onDidRemoveCapability(e => removeEvents.push(e.id)));
 		addEvents = [];
 		removeEvents = [];
@@ -72,7 +72,7 @@ suite('TerminalCapabilityStoreMultiplexer', () => {
 	setup(() => {
 		store = new DisposableStore();
 		multiplexer = store.add(new TerminalCapabilityStoreMultiplexer());
-		multiplexer.onDidAddCapabilityType(e => addEvents.push(e));
+		multiplexer.onDidAddCapability(e => addEvents.push(e.id));
 		multiplexer.onDidRemoveCapability(e => removeEvents.push(e.id));
 		store1 = store.add(new TerminalCapabilityStore());
 		store2 = store.add(new TerminalCapabilityStore());
