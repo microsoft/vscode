@@ -74,11 +74,13 @@ export interface ITerminalCapabilityStore {
 	 */
 	readonly onDidChangeCapabilities: Event<void>;
 
-	// TODO: Add onDidChangeCapabilities convenience event
-
+	/** Fired when the command detection capability is added. */
 	readonly onDidAddCommandDetectionCapability: Event<ICommandDetectionCapability>;
+	/** Fired when the command detection capability is removed. */
 	readonly onDidRemoveCommandDetectionCapability: Event<void>;
+	/** Fired when the cwd detection capability is added. */
 	readonly onDidAddCwdDetectionCapability: Event<ICwdDetectionCapability>;
+	/** Fired when the cwd detection capability is removed. */
 	readonly onDidRemoveCwdDetectionCapability: Event<void>;
 
 	/**
