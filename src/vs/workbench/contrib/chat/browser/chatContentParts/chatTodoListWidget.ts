@@ -205,8 +205,33 @@ export class ChatTodoListWidget extends Disposable {
 			// Hide decorative icon from screen readers
 			statusIcon.setAttribute('aria-hidden', 'true');
 
+			const todoTitleContainer = dom.$('.todo-title-container');
+			
 			const titleElement = dom.$('.todo-title');
 			titleElement.textContent = todo.title;
+			
+			// Add edit button that appears on hover
+			const editButton = dom.$('span.todo-edit-button.codicon.codicon-pencil');
+			editButton.setAttribute('role', 'button');
+			editButton.setAttribute('tabindex', '0');
+			editButton.setAttribute('aria-label', localize('chat.todoList.editTitle', 'Edit title'));
+			editButton.title = localize('chat.todoList.editTitle', 'Edit title');
+			
+			this._register(dom.addDisposableListener(editButton, 'click', (e) => {
+				e.stopPropagation();
+				this.startEditingTitle(titleElement, todo, index);
+			}));
+			
+			this._register(dom.addDisposableListener(editButton, 'keydown', (e) => {
+				if (e.key === 'Enter' || e.key === ' ') {
+					e.preventDefault();
+					e.stopPropagation();
+					this.startEditingTitle(titleElement, todo, index);
+				}
+			}));
+			
+			todoTitleContainer.appendChild(titleElement);
+			todoTitleContainer.appendChild(editButton);
 
 			// Add hidden status text for screen readers
 			const statusText = this.getStatusText(todo.status);
@@ -220,7 +245,7 @@ export class ChatTodoListWidget extends Disposable {
 			statusElement.style.overflow = 'hidden';
 
 			const todoContent = dom.$('.todo-content');
-			todoContent.appendChild(titleElement);
+			todoContent.appendChild(todoTitleContainer);
 			todoContent.appendChild(statusElement);
 
 			const ariaLabel = includeDescription && todo.description && todo.description.trim()
@@ -333,6 +358,76 @@ export class ChatTodoListWidget extends Disposable {
 				});
 			}
 		}, 50);
+	}
+
+	private startEditingTitle(titleElement: HTMLElement, todo: IChatTodo, index: number): void {
+		if (!this._currentSessionId) {
+			return;
+		}
+
+		const originalText = titleElement.textContent || '';
+		
+		// Make the title editable
+		titleElement.contentEditable = 'true';
+		titleElement.classList.add('editing');
+		titleElement.focus();
+		
+		// Select all text
+		const range = document.createRange();
+		range.selectNodeContents(titleElement);
+		const selection = window.getSelection();
+		if (selection) {
+			selection.removeAllRanges();
+			selection.addRange(range);
+		}
+
+		const finishEditing = (save: boolean) => {
+			titleElement.contentEditable = 'false';
+			titleElement.classList.remove('editing');
+			
+			if (save) {
+				const newTitle = titleElement.textContent?.trim() || originalText;
+				if (newTitle && newTitle !== originalText) {
+					// Update the todo in the service
+					const todoList = this.chatTodoListService.getTodos(this._currentSessionId!);
+					if (todoList[index]) {
+						todoList[index].title = newTitle;
+						this.chatTodoListService.setTodos(this._currentSessionId!, todoList);
+					}
+				} else {
+					// Restore original text if empty or unchanged
+					titleElement.textContent = originalText;
+				}
+			} else {
+				// Cancel: restore original text
+				titleElement.textContent = originalText;
+			}
+		};
+
+		// Handle Enter to save, Escape to cancel
+		const keydownHandler = (e: KeyboardEvent) => {
+			if (e.key === 'Enter') {
+				e.preventDefault();
+				finishEditing(true);
+				titleElement.removeEventListener('keydown', keydownHandler);
+				titleElement.removeEventListener('blur', blurHandler);
+			} else if (e.key === 'Escape') {
+				e.preventDefault();
+				finishEditing(false);
+				titleElement.removeEventListener('keydown', keydownHandler);
+				titleElement.removeEventListener('blur', blurHandler);
+			}
+		};
+
+		// Handle blur to save
+		const blurHandler = () => {
+			finishEditing(true);
+			titleElement.removeEventListener('keydown', keydownHandler);
+			titleElement.removeEventListener('blur', blurHandler);
+		};
+
+		titleElement.addEventListener('keydown', keydownHandler);
+		titleElement.addEventListener('blur', blurHandler);
 	}
 
 	private updateScrollShadow(): void {
