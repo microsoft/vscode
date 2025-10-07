@@ -131,7 +131,7 @@ class NotebookChatContribution extends Disposable implements IWorkbenchContribut
 			return;
 		}
 
-		const variables = await selectedKernel.provideVariables(notebook.uri, undefined, 'named', 0, CancellationToken.None);
+		const variables = selectedKernel.provideVariables(notebook.uri, undefined, 'named', 0, CancellationToken.None);
 
 		for await (const variable of variables) {
 			if (pattern && !variable.name.toLowerCase().includes(pattern)) {
@@ -195,7 +195,7 @@ export class SelectAndInsertKernelVariableAction extends Action2 {
 			return;
 		}
 
-		const variables = await selectedKernel.provideVariables(notebook.uri, undefined, 'named', 0, CancellationToken.None);
+		const variables = selectedKernel.provideVariables(notebook.uri, undefined, 'named', 0, CancellationToken.None);
 
 		const quickPickItems: IQuickPickItem[] = [];
 		for await (const variable of variables) {
