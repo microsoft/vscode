@@ -2234,7 +2234,8 @@ class Trait<T> {
 	) { }
 
 	set(nodes: ITreeNode<T, unknown>[], browserEvent?: UIEvent): void {
-		if (!((browserEvent as UIEvent & { __forceEvent?: boolean })?.__forceEvent) && equals(this.nodes, nodes)) {
+		const event = browserEvent as UIEvent & { __forceEvent?: boolean };
+		if (!(event?.__forceEvent) && equals(this.nodes, nodes)) {
 			return;
 		}
 
