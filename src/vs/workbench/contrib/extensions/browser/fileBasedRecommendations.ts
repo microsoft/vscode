@@ -160,14 +160,8 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		let listenOnLanguageChange = false;
 		const languageId = model.getLanguageId();
 
-		// Avoid language-specific recommendations for untitled files when language is auto-detected except when the file is large.
-		let allowLanguageMatch = true;
-		if (uri.scheme === Schemas.untitled && model.getValueLength() < untitledFileRecommendationsMinLength) {
-			const untitledModel = this.untitledTextEditorService.get(uri);
-			if (untitledModel && !untitledModel.hasLanguageSetExplicitly) {
-				allowLanguageMatch = false;
-			}
-		}
+		// Allow language-specific recommendations for untitled files when language is auto-detected only when the file is large.
+		const allowLanguageMatch = this.untitledTextEditorService.get(uri)?.hasLanguageSetExplicitly ? model.getValueLength() > 1000 : true;
 
 		for (const [extensionId, conditions] of extensionRecommendationEntries) {
 			const conditionsByPattern: IFileOpenCondition[] = [];
