@@ -184,7 +184,7 @@ suite('ChatTodoListWidget Accessibility', () => {
 		widget.render('test-session');
 
 		const editButtons = widget.domNode.querySelectorAll('.todo-edit-button');
-		assert.strictEqual(editButtons.length, 3, 'Should have 3 edit buttons, one per todo item');
+		assert.strictEqual(editButtons.length, sampleTodos.length, 'Should have edit button for each todo item');
 
 		editButtons.forEach(button => {
 			assert.strictEqual(button.getAttribute('role'), 'button', 'Edit button should have button role');
@@ -198,7 +198,7 @@ suite('ChatTodoListWidget Accessibility', () => {
 		widget.render('test-session');
 
 		const titleContainers = widget.domNode.querySelectorAll('.todo-title-container');
-		assert.strictEqual(titleContainers.length, 3, 'Should have 3 title containers');
+		assert.strictEqual(titleContainers.length, sampleTodos.length, 'Should have title container for each todo');
 
 		titleContainers.forEach(container => {
 			const title = container.querySelector('.todo-title');
