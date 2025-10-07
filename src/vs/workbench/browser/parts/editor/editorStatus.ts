@@ -1145,7 +1145,7 @@ export class ChangeLanguageAction extends Action2 {
 				args: [
 					{
 						name: localize('changeLanguageMode.arg.name', "The name of the language mode to change to."),
-						constraint: (value: any) => typeof value === 'string',
+						constraint: (value: unknown) => typeof value === 'string',
 					}
 				]
 			}
