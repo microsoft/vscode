@@ -519,4 +519,22 @@ suite('Preferences Validation', () => {
 		tester.accepts('https://example.com');
 		tester.accepts('https://www.example.com');
 	});
+
+	test('regex format validation works', () => {
+		const tester = new Tester({ type: 'string', format: 'regex' });
+		
+		// Valid regex patterns
+		tester.accepts('listening on port ([0-9]+)');
+		tester.accepts('^hello.*world$');
+		tester.accepts('\\d+');
+		tester.accepts('[a-zA-Z]+');
+		tester.accepts('(foo|bar)');
+		tester.accepts('');
+		
+		// Invalid regex patterns
+		tester.rejects('[unclosed').withMessage('Invalid regular expression pattern.');
+		tester.rejects('(unclosed').withMessage('Invalid regular expression pattern.');
+		tester.rejects('(?<invalid').withMessage('Invalid regular expression pattern.');
+		tester.rejects('*invalid').withMessage('Invalid regular expression pattern.');
+	});
 });

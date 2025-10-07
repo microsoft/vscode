@@ -57,6 +57,7 @@
                       },
                       "pattern": {
                         "type": "string",
+                        "format": "regex",
                         "markdownDescription": "%debug.server.ready.pattern.description%",
                         "default": "listening on port ([0-9]+)"
                       },
@@ -98,6 +99,7 @@
                       },
                       "pattern": {
                         "type": "string",
+                        "format": "regex",
                         "markdownDescription": "%debug.server.ready.pattern.description%",
                         "default": "listening on port ([0-9]+)"
                       },
@@ -144,6 +146,7 @@
                       },
                       "pattern": {
                         "type": "string",
+                        "format": "regex",
                         "markdownDescription": "%debug.server.ready.pattern.description%",
                         "default": "listening on port ([0-9]+)"
                       },
@@ -188,6 +191,7 @@
                       },
                       "pattern": {
                         "type": "string",
+                        "format": "regex",
                         "markdownDescription": "%debug.server.ready.pattern.description%",
                         "default": "listening on port ([0-9]+)"
                       },

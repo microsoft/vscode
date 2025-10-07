@@ -160,6 +160,18 @@ function getStringValidators(prop: IConfigurationPropertySchema) {
 			message: nls.localize('validations.colorFormat', "Invalid color format. Use #RGB, #RGBA, #RRGGBB or #RRGGBBAA.")
 		},
 		{
+			enabled: prop.format === 'regex',
+			isValid: ((value: string) => {
+				try {
+					new RegExp(value);
+					return true;
+				} catch (e) {
+					return false;
+				}
+			}),
+			message: nls.localize('validations.regexFormat', "Invalid regular expression pattern.")
+		},
+		{
 			enabled: prop.format === 'uri' || prop.format === 'uri-reference',
 			isValid: ((value: string) => !!value.length),
 			message: nls.localize('validations.uriEmpty', "URI expected.")
