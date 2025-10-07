@@ -1227,7 +1227,7 @@ export class ChangeLanguageAction extends Action2 {
 
 		// Offer to "Auto Detect", but only if the document is not empty.
 		const autoDetectLanguage: IQuickPickItem = { label: localize('autoDetect', "Auto Detect") };
-		if (textModel && textModel.getValueLength() > 0) {
+		if (textModel?.getValueLength() > 0) {
 			picks.unshift(autoDetectLanguage);
 		}
 
