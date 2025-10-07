@@ -29,6 +29,7 @@ const _mcpExtensionPoint = extensionsRegistry.ExtensionsRegistry.registerExtensi
 const enum PersistWhen {
 	CollectionExists,
 	Always,
+	Delete
 }
 
 export class ExtensionMcpDiscovery extends Disposable implements IMcpDiscovery {
@@ -51,6 +52,13 @@ export class ExtensionMcpDiscovery extends Disposable implements IMcpDiscovery {
 		this._register(storageService.onWillSaveState(() => {
 			let updated = false;
 			for (const [collectionId, behavior] of this._extensionCollectionIdsToPersist.entries()) {
+
+				if (behavior === PersistWhen.Delete) {
+					updated = true;
+					delete this.cachedServers[collectionId];
+					this._extensionCollectionIdsToPersist.delete(collectionId);
+					continue;
+				}
 				const collection = this._mcpRegistry.collections.get().find(c => c.id === collectionId);
 				let defs = collection?.serverDefinitions.get();
 				if (!collection || collection.lazy) {
@@ -66,10 +74,10 @@ export class ExtensionMcpDiscovery extends Disposable implements IMcpDiscovery {
 					this.cachedServers[collectionId] = { servers: defs.map(McpServerDefinition.toSerialized) };
 				}
 			}
-
 			if (updated) {
 				storageService.store(cacheKey, this.cachedServers, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 			}
+
 		}));
 	}
 
@@ -83,6 +91,7 @@ export class ExtensionMcpDiscovery extends Disposable implements IMcpDiscovery {
 					const id = extensionPrefixedIdentifier(collections.description.identifier, coll.id);
 					extensionCollections.deleteAndDispose(id);
 					this._conditionalCollections.deleteAndDispose(id);
+					this._extensionCollectionIdsToPersist.set(id, PersistWhen.Delete);
 				}
 			}
 
