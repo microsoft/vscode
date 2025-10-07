@@ -162,6 +162,10 @@ export class ChatSubmitAction extends SubmitAction {
 
 	constructor() {
 		const menuCondition = ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Ask);
+		const precondition = ContextKeyExpr.and(
+			ChatContextKeys.inputHasText,
+			whenNotInProgress,
+		);
 
 		super({
 			id: ChatSubmitAction.ID,
@@ -169,6 +173,7 @@ export class ChatSubmitAction extends SubmitAction {
 			f1: false,
 			category: CHAT_CATEGORY,
 			icon: Codicon.send,
+			precondition,
 			toggled: {
 				condition: ChatContextKeys.lockedToCodingAgent,
 				icon: Codicon.sendToRemoteAgent,
@@ -507,6 +512,10 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 
 	constructor() {
 		const menuCondition = ChatContextKeys.chatModeKind.notEqualsTo(ChatModeKind.Ask);
+		const precondition = ContextKeyExpr.and(
+			ChatContextKeys.inputHasText,
+			whenNotInProgress
+		);
 
 		super({
 			id: ChatEditingSessionSubmitAction.ID,
@@ -514,6 +523,7 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 			f1: false,
 			category: CHAT_CATEGORY,
 			icon: Codicon.send,
+			precondition,
 			menu: [
 				{
 					id: MenuId.ChatExecuteSecondary,
@@ -586,6 +596,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 
 	constructor() {
 		const precondition = ContextKeyExpr.and(
+			ChatContextKeys.inputHasText,
 			whenNotInProgress,
 			ChatContextKeys.remoteJobCreating.negate(),
 		);

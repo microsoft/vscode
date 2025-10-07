@@ -1199,6 +1199,18 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		options.overflowWidgetsDomNode?.classList.add('hideSuggestTextIcons');
 		this._inputEditorElement.classList.add('hideSuggestTextIcons');
 
+		// Prevent Enter key from creating new lines when input is empty
+		this._register(this._inputEditor.onKeyDown((e) => {
+			if (e.keyCode === KeyCode.Enter && !e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+				const model = this._inputEditor.getModel();
+				const inputHasText = !!model && model.getValue().trim().length > 0;
+				if (!inputHasText) {
+					e.preventDefault();
+					e.stopPropagation();
+				}
+			}
+		}));
+
 		this._register(this._inputEditor.onDidChangeModelContent(() => {
 			const currentHeight = Math.min(this._inputEditor.getContentHeight(), this.inputEditorMaxHeight);
 			if (currentHeight !== this.inputEditorHeight) {
