@@ -907,7 +907,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				}
 			}));
 			watchingProblemMatcher.aboutToStart();
-			let delayer: Async.Delayer<any> | undefined = undefined;
+			let delayer: Async.Delayer<void> | undefined = undefined;
 			[terminal, error] = await this._createTerminal(task, resolver, workspaceFolder);
 
 			if (error) {
@@ -1006,7 +1006,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 						break;
 					}
 				}
-				let delayer: Async.Delayer<any> | undefined = undefined;
+				let delayer: Async.Delayer<void> | undefined = undefined;
 				for (let i = bufferLines.length - 1; i >= 0; i--) {
 					watchingProblemMatcher.processLine(bufferLines[i]);
 					if (!delayer) {
