@@ -42,7 +42,6 @@ class GitIgnoreDecorationProvider implements FileDecorationProvider {
 	}
 
 	async provideFileDecoration(uri: Uri): Promise<FileDecoration | undefined> {
-		console.log('GitIgnoreDecorationProvider.provideFileDecoration', uri.toString());
 		const repository = this.model.getRepository(uri);
 
 		if (!repository) {
