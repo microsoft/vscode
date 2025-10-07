@@ -29,6 +29,9 @@ suite('MainThreadNotebookKernelVariableProvider', function () {
 		const proxy = new class extends mock<ExtHostNotebookKernelsShape>() {
 			override async $provideVariables(handle: number, requestId: string, notebookUri: UriComponents, parentId: number | undefined, kind: 'named' | 'indexed', start: number, token: CancellationToken): Promise<void> {
 				for (const variable of variables) {
+					if (token.isCancellationRequested) {
+						return;
+					}
 					const result = typeof variable === 'function'
 						? await variable()
 						: variable;
@@ -51,7 +54,7 @@ suite('MainThreadNotebookKernelVariableProvider', function () {
 		variables.push(createVariable(2));
 		const vars = kernel.provideVariables(URI.file('nb.ipynb'), undefined, 'named', 0, CancellationToken.None);
 
-		verifyVariables(vars, [1, 2]);
+		await verifyVariables(vars, [1, 2]);
 	});
 
 	test('get variables twice', async function () {
@@ -65,8 +68,8 @@ suite('MainThreadNotebookKernelVariableProvider', function () {
 		const vars = kernel.provideVariables(URI.file('nb.ipynb'), undefined, 'named', 0, CancellationToken.None);
 		const vars2 = kernel.provideVariables(URI.file('nb.ipynb'), undefined, 'named', 0, CancellationToken.None);
 
-		verifyVariables(vars, [1, 2]);
-		verifyVariables(vars2, [1, 2]);
+		await verifyVariables(vars, [1, 2]);
+		await verifyVariables(vars2, [1, 2]);
 	});
 
 	test('gets all variables async', async function () {
@@ -84,7 +87,7 @@ suite('MainThreadNotebookKernelVariableProvider', function () {
 		variables.push(createVariable(3));
 		const vars = kernel.provideVariables(URI.file('nb.ipynb'), undefined, 'named', 0, CancellationToken.None);
 
-		verifyVariables(vars, [1, 2, 3]);
+		await verifyVariables(vars, [1, 2, 3]);
 	});
 
 	test('cancel while getting variables', async function () {
@@ -96,7 +99,7 @@ suite('MainThreadNotebookKernelVariableProvider', function () {
 		variables.push(createVariable(1));
 		const result = createVariable(2);
 		variables.push(async () => {
-			await new Promise(resolve => setTimeout(resolve, 5));
+			await new Promise(resolve => setTimeout(resolve, 50));
 			return result;
 		});
 		variables.push(createVariable(3));
@@ -104,13 +107,15 @@ suite('MainThreadNotebookKernelVariableProvider', function () {
 		const vars = kernel.provideVariables(URI.file('nb.ipynb'), undefined, 'named', 0, cancellation.token);
 		cancellation.cancel();
 
-		verifyVariables(vars, [1, 2]);
+		await verifyVariables(vars, [1, 2]);
 	});
 });
 
 async function verifyVariables(variables: AsyncIterableProducer<VariablesResult>, expectedIds: number[]) {
 	let varIx = 0;
+
 	for await (const variable of variables) {
+		assert.ok(expectedIds[varIx], 'more variables than expected');
 		assert.strictEqual(variable.id, expectedIds[varIx++]);
 	}
 }
