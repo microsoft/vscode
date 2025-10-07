@@ -74,16 +74,16 @@ function createServerHost(
 	return {
 		watchFile: watchManager.watchFile.bind(watchManager),
 		watchDirectory: watchManager.watchDirectory.bind(watchManager),
-		setTimeout(callback: (...args: any[]) => void, ms: number, ...args: any[]): any {
+		setTimeout(callback: (...args: unknown[]) => void, ms: number, ...args: unknown[]): unknown {
 			return setTimeout(callback, ms, ...args);
 		},
 		clearTimeout(timeoutId: any): void {
 			clearTimeout(timeoutId);
 		},
-		setImmediate(callback: (...args: any[]) => void, ...args: any[]): any {
+		setImmediate(callback: (...args: unknown[]) => void, ...args: unknown[]): unknown {
 			return this.setTimeout(callback, 0, ...args);
 		},
-		clearImmediate(timeoutId: any): void {
+		clearImmediate(timeoutId: unknown): void {
 			this.clearTimeout(timeoutId);
 		},
 		importPlugin: async (root, moduleName) => {
