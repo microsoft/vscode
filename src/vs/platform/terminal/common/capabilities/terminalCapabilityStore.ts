@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { memoize } from '../../../../base/common/decorators.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ICommandDetectionCapability, ITerminalCapabilityImplMap, ITerminalCapabilityStore, TerminalCapability, type AnyTerminalCapabilityChangeEvent, type ICwdDetectionCapability } from './capabilities.js';
@@ -11,14 +12,17 @@ export class TerminalCapabilityStore extends Disposable implements ITerminalCapa
 	private _map: Map<TerminalCapability, ITerminalCapabilityImplMap[TerminalCapability]> = new Map();
 
 	private readonly _onDidAddCapability = this._register(new Emitter<AnyTerminalCapabilityChangeEvent>());
-	readonly onDidAddCapability = this._onDidAddCapability.event;
+	get onDidAddCapability() { return this._onDidAddCapability.event; }
 	private readonly _onDidRemoveCapability = this._register(new Emitter<AnyTerminalCapabilityChangeEvent>());
-	readonly onDidRemoveCapability = this._onDidRemoveCapability.event;
+	get onDidRemoveCapability() { return this._onDidRemoveCapability.event; }
 
-	readonly onDidChangeCapabilities = Event.map(Event.any(
-		this._onDidAddCapability.event,
-		this._onDidRemoveCapability.event
-	), () => void 0);
+	@memoize
+	get onDidChangeCapabilities() {
+		return Event.map(Event.any(
+			this._onDidAddCapability.event,
+			this._onDidRemoveCapability.event
+		), () => void 0);
+	}
 
 	get onDidAddCommandDetectionCapability() {
 		return Event.map(Event.filter(this.onDidAddCapability, e => e.id === TerminalCapability.CommandDetection), e => e.capability as ICommandDetectionCapability);
@@ -72,14 +76,17 @@ export class TerminalCapabilityStoreMultiplexer extends Disposable implements IT
 	readonly _stores: ITerminalCapabilityStore[] = [];
 
 	private readonly _onDidAddCapability = this._register(new Emitter<AnyTerminalCapabilityChangeEvent>());
-	readonly onDidAddCapability = this._onDidAddCapability.event;
+	get onDidAddCapability() { return this._onDidAddCapability.event; }
 	private readonly _onDidRemoveCapability = this._register(new Emitter<AnyTerminalCapabilityChangeEvent>());
-	readonly onDidRemoveCapability = this._onDidRemoveCapability.event;
+	get onDidRemoveCapability() { return this._onDidRemoveCapability.event; }
 
-	readonly onDidChangeCapabilities = Event.map(Event.any(
-		this._onDidAddCapability.event,
-		this._onDidRemoveCapability.event
-	), () => void 0);
+	@memoize
+	get onDidChangeCapabilities() {
+		return Event.map(Event.any(
+			this._onDidAddCapability.event,
+			this._onDidRemoveCapability.event
+		), () => void 0);
+	}
 
 	get onDidAddCommandDetectionCapability() {
 		return Event.map(Event.filter(this.onDidAddCapability, e => e.id === TerminalCapability.CommandDetection), e => e.capability as ICommandDetectionCapability);
