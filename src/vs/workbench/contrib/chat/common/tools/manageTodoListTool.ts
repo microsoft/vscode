@@ -340,7 +340,6 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 				kind: 'text',
 				value: `Successfully wrote todo list${warnings.length ? '\n\n' + warnings.join('\n') : ''}`
 			}],
-
 			toolMetadata: {
 				warnings: warnings
 			}
