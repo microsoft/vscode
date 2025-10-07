@@ -575,19 +575,19 @@ export class InlineEditsView extends Disposable {
 			return false;
 		}
 
-		if (
-			view === InlineCompletionViewKind.WordReplacements &&
-			inlineEdit.cursorPosition.lineNumber === inlineEdit.originalLineRange.startLineNumber + 1
-		) {
-			return true;
-		}
+		for (const cursorPosition of inlineEdit.multiCursorPositions) {
+			if (view === InlineCompletionViewKind.WordReplacements &&
+				cursorPosition.lineNumber === inlineEdit.originalLineRange.startLineNumber + 1
+			) {
+				return true;
+			}
 
-		if (
-			view === InlineCompletionViewKind.LineReplacement &&
-			inlineEdit.cursorPosition.lineNumber >= inlineEdit.originalLineRange.endLineNumberExclusive &&
-			inlineEdit.cursorPosition.lineNumber < inlineEdit.modifiedLineRange.endLineNumberExclusive + inlineEdit.modifiedLineRange.length
-		) {
-			return true;
+			if (view === InlineCompletionViewKind.LineReplacement &&
+				cursorPosition.lineNumber >= inlineEdit.originalLineRange.endLineNumberExclusive &&
+				cursorPosition.lineNumber < inlineEdit.modifiedLineRange.endLineNumberExclusive + inlineEdit.modifiedLineRange.length
+			) {
+				return true;
+			}
 		}
 
 		return false;
