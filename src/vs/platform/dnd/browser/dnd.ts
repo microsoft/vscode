@@ -461,15 +461,21 @@ export function extractNotebookCellOutputDropData(e: DragEvent): NotebookCellOut
 	return getDataAsJSON(e, CodeDataTransfers.NOTEBOOK_CELL_OUTPUT, undefined);
 }
 
+interface IElectronWebUtils {
+	vscode?: {
+		webUtils?: {
+			getPathForFile(file: File): string;
+		};
+	};
+}
+
 /**
  * A helper to get access to Electrons `webUtils.getPathForFile` function
  * in a safe way without crashing the application when running in the web.
  */
 export function getPathForFile(file: File): string | undefined {
-	// eslint-disable-next-line local/code-no-any-casts
-	if (isNative && typeof (globalThis as any).vscode?.webUtils?.getPathForFile === 'function') {
-		// eslint-disable-next-line local/code-no-any-casts
-		return (globalThis as any).vscode.webUtils.getPathForFile(file);
+	if (isNative && typeof (globalThis as IElectronWebUtils).vscode?.webUtils?.getPathForFile === 'function') {
+		return (globalThis as IElectronWebUtils).vscode?.webUtils?.getPathForFile(file);
 	}
 
 	return undefined;
