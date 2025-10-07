@@ -68,13 +68,6 @@ export interface ITerminalCapabilityStore {
 	readonly onDidAddCapabilityType: Event<TerminalCapability>;
 
 	/**
-	 * Fired when a capability is removed. The event data for this is only the
-	 * {@link TerminalCapability} type, use {@link onDidAddCapability} to access the actual
-	 * capability.
-	 * @deprecated Use {@link onDidRemoveCapability} or {@link onDidRemoveCommandDetectionCapability}
-	 */
-	readonly onDidRemoveCapabilityType: Event<TerminalCapability>;
-	/**
 	 * Fired when a capability is added.
 	 */
 	readonly onDidAddCapability: Event<AnyTerminalCapabilityChangeEvent>;
@@ -83,6 +76,8 @@ export interface ITerminalCapabilityStore {
 	 * Fired when a capability is removed.
 	*/
 	readonly onDidRemoveCapability: Event<AnyTerminalCapabilityChangeEvent>;
+
+	// TODO: Add onDidChangeCapabilities convenience event
 
 	readonly onDidAddCommandDetectionCapability: Event<ICommandDetectionCapability>;
 	readonly onDidRemoveCommandDetectionCapability: Event<void>;

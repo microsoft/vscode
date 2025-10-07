@@ -12,8 +12,6 @@ export class TerminalCapabilityStore extends Disposable implements ITerminalCapa
 
 	private readonly _onDidAddCapabilityType = this._register(new Emitter<TerminalCapability>());
 	readonly onDidAddCapabilityType = this._onDidAddCapabilityType.event;
-	private readonly _onDidRemoveCapabilityType = this._register(new Emitter<TerminalCapability>());
-	readonly onDidRemoveCapabilityType = this._onDidRemoveCapabilityType.event;
 
 	private readonly _onDidAddCapability = this._register(new Emitter<AnyTerminalCapabilityChangeEvent>());
 	readonly onDidAddCapability = this._onDidAddCapability.event;
@@ -55,7 +53,6 @@ export class TerminalCapabilityStore extends Disposable implements ITerminalCapa
 			return;
 		}
 		this._map.delete(capability);
-		this._onDidRemoveCapabilityType.fire(capability);
 		this._onDidRemoveCapability.fire(createCapabilityEvent(capability, impl));
 	}
 
@@ -69,8 +66,6 @@ export class TerminalCapabilityStoreMultiplexer extends Disposable implements IT
 
 	private readonly _onDidAddCapabilityType = this._register(new Emitter<TerminalCapability>());
 	readonly onDidAddCapabilityType = this._onDidAddCapabilityType.event;
-	private readonly _onDidRemoveCapabilityType = this._register(new Emitter<TerminalCapability>());
-	readonly onDidRemoveCapabilityType = this._onDidRemoveCapabilityType.event;
 
 	private readonly _onDidAddCapability = this._register(new Emitter<AnyTerminalCapabilityChangeEvent>());
 	readonly onDidAddCapability = this._onDidAddCapability.event;
@@ -132,7 +127,6 @@ export class TerminalCapabilityStoreMultiplexer extends Disposable implements IT
 		}
 		this._register(store.onDidAddCapabilityType(e => this._onDidAddCapabilityType.fire(e)));
 		this._register(store.onDidAddCapability(e => this._onDidAddCapability.fire(e)));
-		this._register(store.onDidRemoveCapabilityType(e => this._onDidRemoveCapabilityType.fire(e)));
 		this._register(store.onDidRemoveCapability(e => this._onDidRemoveCapability.fire(e)));
 	}
 }

@@ -209,8 +209,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 
 		this._register(Event.runAndSubscribe(Event.any(
-			this._capabilities.onDidAddCapabilityType,
-			this._capabilities.onDidRemoveCapabilityType
+			this._capabilities.onDidAddCapability,
+			this._capabilities.onDidRemoveCapability
 		), () => {
 			const commandDetection = this._capabilities.get(TerminalCapability.CommandDetection);
 			if (commandDetection) {
