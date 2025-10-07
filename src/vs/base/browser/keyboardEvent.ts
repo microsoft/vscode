@@ -114,6 +114,13 @@ export function printStandardKeyboardEvent(e: StandardKeyboardEvent): string {
 	return `modifiers: [${modifiers.join(',')}], code: ${e.code}, keyCode: ${e.keyCode} ('${KeyCodeUtils.toString(e.keyCode)}')`;
 }
 
+/**
+ * Checks if a keyboard event has no modifier keys pressed
+ */
+export function hasNoModifierKeys(e: IKeyboardEvent): boolean {
+	return !e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey;
+}
+
 export class StandardKeyboardEvent implements IKeyboardEvent {
 
 	readonly _standardKeyboardEventBrand = true;

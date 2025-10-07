@@ -7,7 +7,7 @@ import * as dom from '../../../../base/browser/dom.js';
 import { addDisposableListener } from '../../../../base/browser/dom.js';
 import { DEFAULT_FONT_FAMILY } from '../../../../base/browser/fonts.js';
 import { IHistoryNavigationWidget } from '../../../../base/browser/history.js';
-import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { hasNoModifierKeys, StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { ActionViewItem, IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
 import { Button, ButtonWithIcon } from '../../../../base/browser/ui/button/button.js';
@@ -1162,6 +1162,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const inputScopedContextKeyService = this._register(this.contextKeyService.createScoped(inputContainer));
 		ChatContextKeys.inChatInput.bindTo(inputScopedContextKeyService).set(true);
 		this.currentlyEditingInputKey = ChatContextKeys.currentlyEditingInput.bindTo(inputScopedContextKeyService);
+		// Track whether a request is currently being processed so we can suppress plain Enter behavior
+		const requestInProgressKey = ChatContextKeys.requestInProgress.bindTo(inputScopedContextKeyService);
 		const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, inputScopedContextKeyService])));
 
 		const { historyNavigationBackwardsEnablement, historyNavigationForwardsEnablement } = this._register(registerAndCreateHistoryNavigationContext(inputScopedContextKeyService, this));
@@ -1199,12 +1201,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		options.overflowWidgetsDomNode?.classList.add('hideSuggestTextIcons');
 		this._inputEditorElement.classList.add('hideSuggestTextIcons');
 
-		// Prevent Enter key from creating new lines when input is empty
+		// Prevent Enter key from creating new lines when input is empty or a request is currently in progress.
 		this._register(this._inputEditor.onKeyDown((e) => {
-			if (e.keyCode === KeyCode.Enter && !e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
-				const model = this._inputEditor.getModel();
-				const inputHasText = !!model && model.getValue().trim().length > 0;
-				if (!inputHasText) {
+			if (e.keyCode === KeyCode.Enter && hasNoModifierKeys(e)) {
+				const inputHasText = this.inputEditorHasText?.get();
+				if (!inputHasText || requestInProgressKey.get()) {
+					// Suppress newline insertion to mirror disabled send state
 					e.preventDefault();
 					e.stopPropagation();
 				}
