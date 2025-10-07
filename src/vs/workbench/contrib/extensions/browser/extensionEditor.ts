@@ -5,6 +5,7 @@
 
 import { $, Dimension, append, hide, setParentFlowTo, show } from '../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { CheckboxActionViewItem } from '../../../../base/browser/ui/toggle/toggle.js';
@@ -325,8 +326,6 @@ export class ExtensionEditor extends EditorPane {
 
 		const installAction = this.instantiationService.createInstance(InstallDropdownAction);
 		const actions = [
-			// Install button should be first tab stop for accessibility
-			installAction,
 			this.instantiationService.createInstance(ExtensionRuntimeStateAction),
 			this.instantiationService.createInstance(ExtensionStatusLabelAction),
 			this.instantiationService.createInstance(UpdateAction, true),
@@ -341,6 +340,7 @@ export class ExtensionEditor extends EditorPane {
 			this.instantiationService.createInstance(RemoteInstallAction, false),
 			this.instantiationService.createInstance(LocalInstallAction),
 			this.instantiationService.createInstance(WebInstallAction),
+			installAction,
 			this.instantiationService.createInstance(InstallingLabelAction),
 			this.instantiationService.createInstance(ButtonWithDropDownExtensionAction, 'extensions.uninstall', UninstallAction.UninstallClass, [
 				[
@@ -382,10 +382,36 @@ export class ExtensionEditor extends EditorPane {
 
 		extensionActionBar.push(actions, { icon: true, label: true });
 		extensionActionBar.setFocusable(true);
+
+		// Helper function to make Install button the first tab stop for accessibility
+		// without changing the DOM order of actions
+		const updateFocusableAction = () => {
+			// Find the Install action view item (ID: 'extensions.installActions')
+			const installActionViewItem = extensionActionBar['viewItems'].find((vi: any) => 
+				vi.action?.id === 'extensions.installActions' && vi.isEnabled?.()
+			);
+			
+			if (installActionViewItem) {
+				// Make all actions non-focusable first
+				extensionActionBar['viewItems'].forEach((vi: any) => {
+					if (vi instanceof BaseActionViewItem) {
+						vi.setFocusable(false);
+					}
+				});
+				// Make only the Install action focusable
+				if (installActionViewItem instanceof BaseActionViewItem) {
+					installActionViewItem.setFocusable(true);
+				}
+			}
+		};
+
+		updateFocusableAction();
+
 		// update focusable elements when the enablement of an action changes
 		this._register(Event.any(...actions.map(a => Event.filter(a.onDidChange, e => e.enabled !== undefined)))(() => {
 			extensionActionBar.setFocusable(false);
 			extensionActionBar.setFocusable(true);
+			updateFocusableAction();
 		}));
 
 		const otherExtensionContainers: IExtensionContainer[] = [];
