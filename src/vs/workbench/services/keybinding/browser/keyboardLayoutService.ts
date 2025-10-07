@@ -3,34 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from '../../../../nls.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
-import { AppResourcePath, FileAccess } from '../../../../base/common/network.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
-import { KeymapInfo, IRawMixedKeyboardMapping, IKeymapInfo } from '../common/keymapInfo.js';
-import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { DispatchConfig, readKeyboardConfig } from '../../../../platform/keyboardLayout/common/keyboardConfig.js';
-import { IKeyboardMapper, CachedKeyboardMapper } from '../../../../platform/keyboardLayout/common/keyboardMapper.js';
-import { OS, OperatingSystem, isMacintosh, isWindows } from '../../../../base/common/platform.js';
-import { WindowsKeyboardMapper } from '../common/windowsKeyboardMapper.js';
-import { FallbackKeyboardMapper } from '../common/fallbackKeyboardMapper.js';
-import { IKeyboardEvent } from '../../../../platform/keybinding/common/keybinding.js';
-import { MacLinuxKeyboardMapper } from '../common/macLinuxKeyboardMapper.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
-import { URI } from '../../../../base/common/uri.js';
-import { IFileService } from '../../../../platform/files/common/files.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
-import { parse, getNodeType } from '../../../../base/common/json.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { getNodeType, parse } from '../../../../base/common/json.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { AppResourcePath, FileAccess } from '../../../../base/common/network.js';
 import * as objects from '../../../../base/common/objects.js';
-import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
-import { Registry } from '../../../../platform/registry/common/platform.js';
-import { Extensions as ConfigExtensions, IConfigurationRegistry, IConfigurationNode } from '../../../../platform/configuration/common/configurationRegistry.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { INavigatorWithKeyboard } from './navigatorKeyboard.js';
-import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { OS, OperatingSystem, isMacintosh, isWindows } from '../../../../base/common/platform.js';
+import { URI } from '../../../../base/common/uri.js';
+import * as nls from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { Extensions as ConfigExtensions, IConfigurationNode, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IKeyboardEvent } from '../../../../platform/keybinding/common/keybinding.js';
+import { DispatchConfig, readKeyboardConfig } from '../../../../platform/keyboardLayout/common/keyboardConfig.js';
+import { IKeyboardLayoutInfo, IKeyboardLayoutService, IKeyboardMapping, IMacLinuxKeyboardMapping, IWindowsKeyboardMapping, getKeyboardLayoutId } from '../../../../platform/keyboardLayout/common/keyboardLayout.js';
+import { CachedKeyboardMapper, IKeyboardMapper } from '../../../../platform/keyboardLayout/common/keyboardMapper.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
-import { getKeyboardLayoutId, IKeyboardLayoutInfo, IKeyboardLayoutService, IKeyboardMapping, IMacLinuxKeyboardMapping, IWindowsKeyboardMapping } from '../../../../platform/keyboardLayout/common/keyboardLayout.js';
+import { FallbackKeyboardMapper } from '../common/fallbackKeyboardMapper.js';
+import { IKeymapInfo, IRawMixedKeyboardMapping, KeymapInfo } from '../common/keymapInfo.js';
+import { MacLinuxKeyboardMapper } from '../common/macLinuxKeyboardMapper.js';
+import { WindowsKeyboardMapper } from '../common/windowsKeyboardMapper.js';
+import { INavigatorWithKeyboard } from './navigatorKeyboard.js';
 
 export class BrowserKeyboardMapperFactoryBase extends Disposable {
 	// keyboard mapper
@@ -86,8 +86,8 @@ export class BrowserKeyboardMapperFactoryBase extends Disposable {
 		this._mru = [];
 		this._activeKeymapInfo = null;
 
-		if ((<INavigatorWithKeyboard>navigator).keyboard && (<INavigatorWithKeyboard>navigator).keyboard.addEventListener) {
-			(<INavigatorWithKeyboard>navigator).keyboard.addEventListener!('layoutchange', () => {
+		if ((navigator as INavigatorWithKeyboard).keyboard) {
+			(navigator as INavigatorWithKeyboard).keyboard.addEventListener('layoutchange', () => {
 				// Update user keyboard map settings
 				this._getBrowserKeyMapping().then((mapping: IKeyboardMapping | null) => {
 					if (this.isKeyMappingActive(mapping)) {
@@ -398,7 +398,7 @@ export class BrowserKeyboardMapperFactoryBase extends Disposable {
 	private async _getBrowserKeyMapping(keyboardEvent?: IKeyboardEvent): Promise<IRawMixedKeyboardMapping | null> {
 		if (this.keyboardLayoutMapAllowed) {
 			try {
-				return await (navigator as INavigatorWithKeyboard).keyboard.getLayoutMap().then((e: any) => {
+				return await (navigator as INavigatorWithKeyboard).keyboard.getLayoutMap().then((e) => {
 					const ret: IKeyboardMapping = {};
 					for (const key of e) {
 						ret[key[0]] = {
