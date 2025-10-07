@@ -6,6 +6,7 @@
 import { ClientAssertionCredential } from '@azure/identity';
 import { CosmosClient } from '@azure/cosmos';
 import { retry } from './retry';
+import { getDate } from '../../lib/util';
 
 if (process.argv.length !== 3) {
 	console.error('Usage: node createBuild.js VERSION');
@@ -37,7 +38,7 @@ async function main(): Promise<void> {
 
 	const build = {
 		id: commit,
-		timestamp: (new Date()).getTime(),
+		timestamp: getDate().getTime(),
 		version,
 		isReleased: false,
 		private: process.env['VSCODE_PRIVATE_BUILD']?.toLowerCase() === 'true',
