@@ -2182,7 +2182,7 @@ export interface IAbstractTreeOptionsUpdate extends ITreeRendererOptions {
 	readonly mouseWheelScrollSensitivity?: number;
 	readonly fastScrollSensitivity?: number;
 	readonly expandOnDoubleClick?: boolean;
-	readonly expandOnlyOnTwistieClick?: boolean | ((e: unknown) => boolean); // e is the tree element (T)
+	readonly expandOnlyOnTwistieClick?: boolean | ((e: any) => boolean); // e is the tree element (T)
 	readonly enableStickyScroll?: boolean;
 	readonly stickyScrollMaxItemCount?: number;
 	readonly paddingTop?: number;
