@@ -155,7 +155,8 @@ export class NativeWindow extends BaseWindow {
 		}
 
 		// Support `runAction` event
-		ipcRenderer.on('vscode:runAction', async (event: unknown, request: INativeRunActionInWindowRequest) => {
+		ipcRenderer.on('vscode:runAction', async (event: unknown, ...argsRaw: unknown[]) => {
+			const request = argsRaw[0] as INativeRunActionInWindowRequest;
 			const args: unknown[] = request.args || [];
 
 			// If we run an action from the touchbar, we fill in the currently active resource
@@ -182,7 +183,8 @@ export class NativeWindow extends BaseWindow {
 		});
 
 		// Support runKeybinding event
-		ipcRenderer.on('vscode:runKeybinding', (event: unknown, request: INativeRunKeybindingInWindowRequest) => {
+		ipcRenderer.on('vscode:runKeybinding', (event: unknown, ...argsRaw: unknown[]) => {
+			const request = argsRaw[0] as INativeRunKeybindingInWindowRequest;
 			const activeElement = getActiveElement();
 			if (activeElement) {
 				this.keybindingService.dispatchByUserSettingsLabel(request.userSettingsLabel, activeElement);
@@ -190,7 +192,7 @@ export class NativeWindow extends BaseWindow {
 		});
 
 		// Shared Process crash reported from main
-		ipcRenderer.on('vscode:reportSharedProcessCrash', (event: unknown, error: string) => {
+		ipcRenderer.on('vscode:reportSharedProcessCrash', (event: unknown, ...argsRaw: unknown[]) => {
 			this.notificationService.prompt(
 				Severity.Error,
 				localize('sharedProcessCrash', "A shared background process terminated unexpectedly. Please restart the application to recover."),
@@ -205,16 +207,17 @@ export class NativeWindow extends BaseWindow {
 		});
 
 		// Support openFiles event for existing and new files
-		ipcRenderer.on('vscode:openFiles', (event: unknown, request: IOpenFileRequest) => { this.onOpenFiles(request); });
+		ipcRenderer.on('vscode:openFiles', (event: unknown, ...argsRaw: unknown[]) => { this.onOpenFiles(argsRaw[0] as IOpenFileRequest); });
 
 		// Support addRemoveFolders event for workspace management
-		ipcRenderer.on('vscode:addRemoveFolders', (event: unknown, request: IAddRemoveFoldersRequest) => this.onAddRemoveFoldersRequest(request));
+		ipcRenderer.on('vscode:addRemoveFolders', (event: unknown, ...argsRaw: unknown[]) => this.onAddRemoveFoldersRequest(argsRaw[0] as IAddRemoveFoldersRequest));
 
 		// Message support
-		ipcRenderer.on('vscode:showInfoMessage', (event: unknown, message: string) => this.notificationService.info(message));
+		ipcRenderer.on('vscode:showInfoMessage', (event: unknown, ...argsRaw: unknown[]) => this.notificationService.info(argsRaw[0] as string));
 
 		// Shell Environment Issue Notifications
-		ipcRenderer.on('vscode:showResolveShellEnvError', (event: unknown, message: string) => {
+		ipcRenderer.on('vscode:showResolveShellEnvError', (event: unknown, ...argsRaw: unknown[]) => {
+			const message = argsRaw[0] as string;
 			this.notificationService.prompt(
 				Severity.Error,
 				message,
@@ -233,7 +236,8 @@ export class NativeWindow extends BaseWindow {
 			);
 		});
 
-		ipcRenderer.on('vscode:showCredentialsError', (event: unknown, message: string) => {
+		ipcRenderer.on('vscode:showCredentialsError', (event: unknown, ...argsRaw: unknown[]) => {
+			const message = argsRaw[0] as string;
 			this.notificationService.prompt(
 				Severity.Error,
 				localize('keychainWriteError', "Writing login information to the keychain failed with error '{0}'.", message),
@@ -263,7 +267,7 @@ export class NativeWindow extends BaseWindow {
 			);
 		});
 
-		ipcRenderer.on('vscode:showArgvParseWarning', (event: unknown, message: string) => {
+		ipcRenderer.on('vscode:showArgvParseWarning', () => {
 			this.notificationService.prompt(
 				Severity.Warning,
 				localize("showArgvParseWarning", "The runtime arguments file 'argv.json' contains errors. Please correct them and restart."),
@@ -282,7 +286,8 @@ export class NativeWindow extends BaseWindow {
 		ipcRenderer.on('vscode:leaveFullScreen', () => setFullscreen(false, mainWindow));
 
 		// Proxy Login Dialog
-		ipcRenderer.on('vscode:openProxyAuthenticationDialog', async (event: unknown, payload: { authInfo: AuthInfo; username?: string; password?: string; replyChannel: string }) => {
+		ipcRenderer.on('vscode:openProxyAuthenticationDialog', async (event: unknown, ...argsRaw: unknown[]) => {
+			const payload = argsRaw[0] as { authInfo: AuthInfo; username?: string; password?: string; replyChannel: string };
 			const rememberCredentialsKey = 'window.rememberProxyCredentials';
 			const rememberCredentials = this.storageService.getBoolean(rememberCredentialsKey, StorageScope.APPLICATION);
 			const result = await this.dialogService.input({
@@ -324,12 +329,14 @@ export class NativeWindow extends BaseWindow {
 		});
 
 		// Accessibility support changed event
-		ipcRenderer.on('vscode:accessibilitySupportChanged', (event: unknown, accessibilitySupportEnabled: boolean) => {
+		ipcRenderer.on('vscode:accessibilitySupportChanged', (event: unknown, ...argsRaw: unknown[]) => {
+			const accessibilitySupportEnabled = argsRaw[0] as boolean;
 			this.accessibilityService.setAccessibilitySupport(accessibilitySupportEnabled ? AccessibilitySupport.Enabled : AccessibilitySupport.Disabled);
 		});
 
 		// Allow to update security settings around allowed UNC Host
-		ipcRenderer.on('vscode:configureAllowedUNCHost', async (event: unknown, host: string) => {
+		ipcRenderer.on('vscode:configureAllowedUNCHost', async (event: unknown, ...argsRaw: unknown[]) => {
+			const host = argsRaw[0] as string;
 			if (!isWindows) {
 				return; // only supported on Windows
 			}
@@ -354,7 +361,8 @@ export class NativeWindow extends BaseWindow {
 		});
 
 		// Allow to update security settings around protocol handlers
-		ipcRenderer.on('vscode:disablePromptForProtocolHandling', (event: unknown, kind: 'local' | 'remote') => {
+		ipcRenderer.on('vscode:disablePromptForProtocolHandling', (event: unknown, ...argsRaw: unknown[]) => {
+			const kind = argsRaw[0] as 'local' | 'remote';
 			const setting = kind === 'local' ? 'security.promptForLocalFileProtocolHandling' : 'security.promptForRemoteFileProtocolHandling';
 			this.configurationService.updateValue(setting, false);
 		});

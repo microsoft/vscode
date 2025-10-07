@@ -178,14 +178,13 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		this._servers.get(id)?.pushMessage(message);
 	}
 
-	async $getTokenFromServerMetadata(id: number, authServerComponents: UriComponents, serverMetadata: IAuthorizationServerMetadata, resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined, errorOnUserInteraction?: boolean): Promise<string | undefined> {
+	async $getTokenFromServerMetadata(id: number, authServerComponents: UriComponents, serverMetadata: IAuthorizationServerMetadata, resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined, scopes: string[] | undefined, errorOnUserInteraction?: boolean): Promise<string | undefined> {
 		const server = this._serverDefinitions.get(id);
 		if (!server) {
 			return undefined;
 		}
-
 		const authorizationServer = URI.revive(authServerComponents);
-		const scopesSupported = resourceMetadata?.scopes_supported || serverMetadata.scopes_supported || [];
+		const resolvedScopes = scopes ?? resourceMetadata?.scopes_supported ?? serverMetadata.scopes_supported ?? [];
 		let providerId = await this._authenticationService.getOrActivateProviderIdForServer(authorizationServer);
 		if (!providerId) {
 			const provider = await this._authenticationService.createDynamicAuthenticationProvider(authorizationServer, serverMetadata, resourceMetadata);
@@ -194,7 +193,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 			}
 			providerId = provider.id;
 		}
-		const sessions = await this._authenticationService.getSessions(providerId, scopesSupported, { authorizationServer: authorizationServer }, true);
+		const sessions = await this._authenticationService.getSessions(providerId, resolvedScopes, { authorizationServer: authorizationServer }, true);
 		const accountNamePreference = this.authenticationMcpServersService.getAccountPreference(server.id, providerId);
 		let matchingAccountPreferenceSession: AuthenticationSession | undefined;
 		if (accountNamePreference) {
@@ -205,12 +204,12 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		if (sessions.length) {
 			// If we have an existing session preference, use that. If not, we'll return any valid session at the end of this function.
 			if (matchingAccountPreferenceSession && this.authenticationMCPServerAccessService.isAccessAllowed(providerId, matchingAccountPreferenceSession.account.label, server.id)) {
-				this.authenticationMCPServerUsageService.addAccountUsage(providerId, matchingAccountPreferenceSession.account.label, scopesSupported, server.id, server.label);
+				this.authenticationMCPServerUsageService.addAccountUsage(providerId, matchingAccountPreferenceSession.account.label, resolvedScopes, server.id, server.label);
 				return matchingAccountPreferenceSession.accessToken;
 			}
 			// If we only have one account for a single auth provider, lets just check if it's allowed and return it if it is.
 			if (!provider.supportsMultipleAccounts && this.authenticationMCPServerAccessService.isAccessAllowed(providerId, sessions[0].account.label, server.id)) {
-				this.authenticationMCPServerUsageService.addAccountUsage(providerId, sessions[0].account.label, scopesSupported, server.id, server.label);
+				this.authenticationMCPServerUsageService.addAccountUsage(providerId, sessions[0].account.label, resolvedScopes, server.id, server.label);
 				return sessions[0].accessToken;
 			}
 		}
@@ -229,7 +228,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 				throw new UserInteractionRequiredError('authentication');
 			}
 			session = provider.supportsMultipleAccounts
-				? await this.authenticationMcpServersService.selectSession(providerId, server.id, server.label, scopesSupported, sessions)
+				? await this.authenticationMcpServersService.selectSession(providerId, server.id, server.label, resolvedScopes, sessions)
 				: sessions[0];
 		}
 		else {
@@ -240,7 +239,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 			do {
 				session = await this._authenticationService.createSession(
 					providerId,
-					scopesSupported,
+					resolvedScopes,
 					{
 						activateImmediate: true,
 						account: accountToCreate,
@@ -255,7 +254,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 
 		this.authenticationMCPServerAccessService.updateAllowedMcpServers(providerId, session.account.label, [{ id: server.id, name: server.label, allowed: true }]);
 		this.authenticationMcpServersService.updateAccountPreference(server.id, providerId, session.account);
-		this.authenticationMCPServerUsageService.addAccountUsage(providerId, session.account.label, scopesSupported, server.id, server.label);
+		this.authenticationMCPServerUsageService.addAccountUsage(providerId, session.account.label, resolvedScopes, server.id, server.label);
 		return session.accessToken;
 	}
 

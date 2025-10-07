@@ -315,7 +315,7 @@ export class InlineChatController1 implements IEditorContribution {
 		this._log('DISPOSED controller');
 	}
 
-	private _log(message: string | Error, ...more: any[]): void {
+	private _log(message: string | Error, ...more: unknown[]): void {
 		if (message instanceof Error) {
 			this._logService.error(message, ...more);
 		} else {
@@ -715,7 +715,7 @@ export class InlineChatController1 implements IEditorContribution {
 			}
 			if (e.kind === 'move') {
 				assertType(this._session);
-				const log: typeof this._log = (msg: string, ...args: any[]) => this._log('state=_showRequest) moving inline chat', msg, ...args);
+				const log: typeof this._log = (msg: string, ...args: unknown[]) => this._log('state=_showRequest) moving inline chat', msg, ...args);
 
 				log('move was requested', e.target, e.range);
 
@@ -1042,7 +1042,7 @@ export class InlineChatController1 implements IEditorContribution {
 		assertType(this._session);
 		assertType(this._strategy);
 
-		const moreMinimalEdits = await this._editorWorkerService.computeMoreMinimalEdits(this._session.textModelN.uri, edits);
+		const moreMinimalEdits = await raceCancellation(this._editorWorkerService.computeMoreMinimalEdits(this._session.textModelN.uri, edits), opts?.token || CancellationToken.None);
 		this._log('edits from PROVIDER and after making them MORE MINIMAL', this._session.agent.extensionId, edits, moreMinimalEdits);
 
 		if (moreMinimalEdits?.length === 0) {

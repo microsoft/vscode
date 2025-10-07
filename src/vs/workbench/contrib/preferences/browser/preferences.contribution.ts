@@ -1264,7 +1264,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 		for (const folder of this.workspaceContextService.getWorkspace().folders) {
 			const commandId = `_workbench.openFolderSettings.${folder.uri.toString()}`;
 			if (!CommandsRegistry.getCommand(commandId)) {
-				CommandsRegistry.registerCommand(commandId, (accessor: ServicesAccessor, ...args: any[]) => {
+				CommandsRegistry.registerCommand(commandId, (accessor: ServicesAccessor, ...args: unknown[]) => {
 					const groupId = getEditorGroupFromArguments(accessor, args)?.id;
 					if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.FOLDER) {
 						return this.preferencesService.openWorkspaceSettings({ jsonEditor: false, groupId });

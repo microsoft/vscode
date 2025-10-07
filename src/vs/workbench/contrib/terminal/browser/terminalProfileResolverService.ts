@@ -18,9 +18,8 @@ import { getIconRegistry, IIconRegistry } from '../../../../platform/theme/commo
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 import { debounce } from '../../../../base/common/decorators.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { URI } from '../../../../base/common/uri.js';
+import { isUriComponents, URI } from '../../../../base/common/uri.js';
 import { deepClone } from '../../../../base/common/objects.js';
-import { isUriComponents } from '../../../../platform/terminal/common/terminalProfiles.js';
 import { ITerminalInstanceService } from './terminal.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 

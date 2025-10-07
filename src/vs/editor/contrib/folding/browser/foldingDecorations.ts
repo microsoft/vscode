@@ -159,7 +159,7 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 		}
 	}
 
-	changeDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): T {
+	changeDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): T | null {
 		return this.editor.changeDecorations(callback);
 	}
 

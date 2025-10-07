@@ -82,7 +82,7 @@ export interface ICommandKeybindingsOptions extends IKeybindings {
 	/**
 	 * the default keybinding arguments
 	 */
-	args?: any;
+	args?: unknown;
 }
 export interface ICommandMenuOptions {
 	menuId: MenuId;
@@ -171,7 +171,7 @@ export abstract class Command {
 		});
 	}
 
-	public abstract runCommand(accessor: ServicesAccessor, args: any): void | Promise<void>;
+	public abstract runCommand(accessor: ServicesAccessor, args: unknown): void | Promise<void>;
 }
 
 //#endregion Command
@@ -214,7 +214,7 @@ export class MultiCommand extends Command {
 		};
 	}
 
-	public runCommand(accessor: ServicesAccessor, args: any): void | Promise<void> {
+	public runCommand(accessor: ServicesAccessor, args: unknown): void | Promise<void> {
 		const logService = accessor.get(ILogService);
 		const contextKeyService = accessor.get(IContextKeyService);
 		logService.trace(`Executing Command '${this.id}' which has ${this._implementations.length} bound.`);
@@ -254,7 +254,7 @@ export class ProxyCommand extends Command {
 		super(opts);
 	}
 
-	public runCommand(accessor: ServicesAccessor, args: any): void | Promise<void> {
+	public runCommand(accessor: ServicesAccessor, args: unknown): void | Promise<void> {
 		return this.command.runCommand(accessor, args);
 	}
 }
@@ -262,7 +262,7 @@ export class ProxyCommand extends Command {
 //#region EditorCommand
 
 export interface IContributionCommandOptions<T> extends ICommandOptions {
-	handler: (controller: T, args: any) => void;
+	handler: (controller: T, args: unknown) => void;
 }
 export interface EditorControllerCommand<T extends IEditorContribution> {
 	new(opts: IContributionCommandOptions<T>): EditorCommand;
@@ -274,7 +274,7 @@ export abstract class EditorCommand extends Command {
 	 */
 	public static bindToContribution<T extends IEditorContribution>(controllerGetter: (editor: ICodeEditor) => T | null): EditorControllerCommand<T> {
 		return class EditorControllerCommandImpl extends EditorCommand {
-			private readonly _callback: (controller: T, args: any) => void;
+			private readonly _callback: (controller: T, args: unknown) => void;
 
 			constructor(opts: IContributionCommandOptions<T>) {
 				super(opts);
@@ -282,7 +282,7 @@ export abstract class EditorCommand extends Command {
 				this._callback = opts.handler;
 			}
 
-			public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+			public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: unknown): void {
 				const controller = controllerGetter(editor);
 				if (controller) {
 					this._callback(controller, args);
@@ -291,11 +291,11 @@ export abstract class EditorCommand extends Command {
 		};
 	}
 
-	public static runEditorCommand(
+	public static runEditorCommand<T = unknown>(
 		accessor: ServicesAccessor,
-		args: any,
+		args: T,
 		precondition: ContextKeyExpression | undefined,
-		runner: (accessor: ServicesAccessor, editor: ICodeEditor, args: any) => void | Promise<void>
+		runner: (accessor: ServicesAccessor, editor: ICodeEditor, args: T) => void | Promise<void>
 	): void | Promise<void> {
 		const codeEditorService = accessor.get(ICodeEditorService);
 
@@ -317,11 +317,11 @@ export abstract class EditorCommand extends Command {
 		});
 	}
 
-	public runCommand(accessor: ServicesAccessor, args: any): void | Promise<void> {
+	public runCommand(accessor: ServicesAccessor, args: unknown): void | Promise<void> {
 		return EditorCommand.runEditorCommand(accessor, args, this.precondition, (accessor, editor, args) => this.runEditorCommand(accessor, editor, args));
 	}
 
-	public abstract runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void | Promise<void>;
+	public abstract runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: unknown): void | Promise<void>;
 }
 
 //#endregion EditorCommand
@@ -392,7 +392,7 @@ export abstract class EditorAction extends EditorCommand {
 		}
 	}
 
-	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void | Promise<void> {
+	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: unknown): void | Promise<void> {
 		this.reportTelemetry(accessor, editor);
 		return this.run(accessor, editor, args || {});
 	}
@@ -411,10 +411,10 @@ export abstract class EditorAction extends EditorCommand {
 		accessor.get(ITelemetryService).publicLog2<EditorActionInvokedEvent, EditorActionInvokedClassification>('editorActionInvoked', { name: this.label, id: this.id });
 	}
 
-	public abstract run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void | Promise<void>;
+	public abstract run(accessor: ServicesAccessor, editor: ICodeEditor, args: unknown): void | Promise<void>;
 }
 
-export type EditorActionImplementation = (accessor: ServicesAccessor, editor: ICodeEditor, args: any) => boolean | Promise<void>;
+export type EditorActionImplementation = (accessor: ServicesAccessor, editor: ICodeEditor, args: unknown) => boolean | Promise<void>;
 
 export class MultiEditorAction extends EditorAction {
 
@@ -438,7 +438,7 @@ export class MultiEditorAction extends EditorAction {
 		};
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void | Promise<void> {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: unknown): void | Promise<void> {
 		for (const impl of this._implementations) {
 			const result = impl[1](accessor, editor, args);
 			if (result) {
@@ -458,7 +458,7 @@ export class MultiEditorAction extends EditorAction {
 
 export abstract class EditorAction2 extends Action2 {
 
-	run(accessor: ServicesAccessor, ...args: any[]) {
+	run(accessor: ServicesAccessor, ...args: unknown[]) {
 		// Find the editor with text focus or active
 		const codeEditorService = accessor.get(ICodeEditorService);
 		const editor = codeEditorService.getFocusedCodeEditor() || codeEditorService.getActiveCodeEditor();
@@ -479,7 +479,7 @@ export abstract class EditorAction2 extends Action2 {
 		});
 	}
 
-	abstract runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]): any;
+	abstract runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ...args: unknown[]): unknown;
 }
 
 //#endregion
@@ -487,7 +487,7 @@ export abstract class EditorAction2 extends Action2 {
 // --- Registration of commands and actions
 
 
-export function registerModelAndPositionCommand(id: string, handler: (accessor: ServicesAccessor, model: ITextModel, position: Position, ...args: any[]) => any) {
+export function registerModelAndPositionCommand(id: string, handler: (accessor: ServicesAccessor, model: ITextModel, position: Position, ...args: unknown[]) => unknown) {
 	CommandsRegistry.registerCommand(id, function (accessor, ...args) {
 
 		const instaService = accessor.get(IInstantiationService);
