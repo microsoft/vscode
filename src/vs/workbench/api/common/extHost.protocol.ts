@@ -2476,7 +2476,7 @@ export interface ITerminalCommandDto {
 
 export interface ITerminalCompletionContextDto {
 	commandLine: string;
-	cursorPosition: number;
+	cursorIndex: number;
 	allowFallbackCompletions: boolean;
 }
 
@@ -2508,7 +2508,7 @@ export class TerminalCompletionListDto<T extends ITerminalCompletionItemDto = IT
 	/**
 	 * Resources should be shown in the completions list
 	 */
-	resourceRequestConfig?: TerminalResourceRequestConfigDto;
+	resourceOptions?: TerminalCompletionResourceOptionsDto;
 
 	/**
 	 * The completion items.
@@ -2521,15 +2521,15 @@ export class TerminalCompletionListDto<T extends ITerminalCompletionItemDto = IT
 	 * @param items The completion items.
 	 * @param isIncomplete The list is not complete.
 	 */
-	constructor(items?: T[], resourceRequestConfig?: TerminalResourceRequestConfigDto) {
+	constructor(items?: T[], resourceOptions?: TerminalCompletionResourceOptionsDto) {
 		this.items = items ?? [];
-		this.resourceRequestConfig = resourceRequestConfig;
+		this.resourceOptions = resourceOptions;
 	}
 }
 
-export interface TerminalResourceRequestConfigDto {
-	filesRequested?: boolean;
-	foldersRequested?: boolean;
+export interface TerminalCompletionResourceOptionsDto {
+	showFiles?: boolean;
+	showFolders?: boolean;
 	globPattern?: string | IRelativePattern;
 	cwd: UriComponents;
 	pathSeparator: string;
