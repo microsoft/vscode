@@ -22,7 +22,7 @@ import { ExtensionIdentifierMap, IExtensionDescription } from '../../../platform
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { IMarkdownString } from '../../../base/common/htmlContent.js';
-import { MarkdownString } from './extHostTypeConverters.js';
+import { MarkdownString, SourceControlInputBoxValidationType } from './extHostTypeConverters.js';
 import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { ExtHostDocuments } from './extHostDocuments.js';
 import { Schemas } from '../../../base/common/network.js';
@@ -370,9 +370,7 @@ export class ExtHostSCMInputBox implements vscode.SourceControlInputBox {
 
 	showValidationMessage(message: string | vscode.MarkdownString, type: vscode.SourceControlInputBoxValidationType) {
 		checkProposedApiEnabled(this._extension, 'scmValidation');
-
-		// eslint-disable-next-line local/code-no-any-casts
-		this.#proxy.$showValidationMessage(this._sourceControlHandle, message, type as any);
+		this.#proxy.$showValidationMessage(this._sourceControlHandle, message, SourceControlInputBoxValidationType.from(type));
 	}
 
 	$onInputBoxValueChange(value: string): void {
