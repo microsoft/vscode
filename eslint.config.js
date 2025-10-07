@@ -269,7 +269,7 @@ export default tseslint.config(
 			'src/vs/workbench/services/layout/**',
 			'src/vs/workbench/services/lifecycle/**',
 			// 'src/vs/workbench/services/log/**',
-			'src/vs/workbench/services/mcp/**',
+			// 'src/vs/workbench/services/mcp/**',
 			'src/vs/workbench/services/notification/**',
 			// 'src/vs/workbench/services/output/**',
 			'src/vs/workbench/services/path/**',
