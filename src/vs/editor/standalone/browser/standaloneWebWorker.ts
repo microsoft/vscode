@@ -68,7 +68,7 @@ class MonacoWebWorkerImpl<T extends object> extends EditorWorkerClient implement
 					if (typeof prop !== 'string') {
 						throw new Error(`Not supported`);
 					}
-					return (...args: any[]) => {
+					return (...args: unknown[]) => {
 						return proxy.$fmr(prop, args);
 					};
 				}

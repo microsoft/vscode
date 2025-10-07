@@ -474,7 +474,7 @@
 			const importMapScript = document.createElement('script');
 			importMapScript.type = 'importmap';
 			importMapScript.setAttribute('nonce', '0c6a828f1297');
-			// @ts-ignore
+			// @ts-expect-error
 			importMapScript.textContent = ttp?.createScript(importMapSrc) ?? importMapSrc;
 			window.document.head.appendChild(importMapScript);
 

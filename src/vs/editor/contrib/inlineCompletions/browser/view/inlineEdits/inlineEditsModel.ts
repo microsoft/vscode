@@ -98,6 +98,7 @@ export class GhostTextIndicator {
 				new StringText(''),
 				new TextEdit([inlineCompletion.getSingleTextEdit()]),
 				model.primaryPosition.get(),
+				model.allPositions.get(),
 				inlineCompletion.source.inlineSuggestions.commands ?? [],
 				inlineCompletion
 			),

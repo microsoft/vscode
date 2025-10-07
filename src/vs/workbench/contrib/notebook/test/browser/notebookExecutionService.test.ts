@@ -79,7 +79,7 @@ suite('NotebookExecutionService', () => {
 		});
 
 		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
-			override executeCommand(_commandId: string, ..._args: any[]) {
+			override executeCommand(_commandId: string, ..._args: unknown[]) {
 				return Promise.resolve(undefined);
 			}
 		});

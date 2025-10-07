@@ -5,6 +5,7 @@ src/vs/base/common/glob.ts @bpasero
 src/vs/base/common/path.ts @bpasero
 src/vs/base/common/stream.ts @bpasero
 src/vs/base/browser/domSanitize.ts @mjbvz
+src/vs/base/browser/** @bpasero
 src/vs/base/node/pfs.ts @bpasero
 src/vs/base/node/unc.ts @bpasero
 src/vs/base/parts/contextmenu/** @bpasero
@@ -91,6 +92,7 @@ src/vs/workbench/electron-browser/** @bpasero
 
 # Workbench Contributions
 src/vs/workbench/contrib/files/** @bpasero
+src/vs/workbench/contrib/chat/browser/chatListRenderer.ts @roblourens
 src/vs/workbench/contrib/chat/browser/chatSetup.ts @bpasero
 src/vs/workbench/contrib/chat/browser/chatStatus.ts @bpasero
 src/vs/workbench/contrib/update/browser/releaseNotesEditor.ts @alexr00 @joaomoreno
