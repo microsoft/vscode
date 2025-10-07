@@ -489,7 +489,8 @@ function asObjectTreeOptions<TInput, T, TFilterData>(options?: IAsyncDataTreeOpt
 		},
 		stickyScrollDelegate: options.stickyScrollDelegate as IStickyScrollDelegate<IAsyncDataTreeNode<TInput, T>, TFilterData> | undefined
 	};
-} export interface IAsyncDataTreeOptionsUpdate extends IAbstractTreeOptionsUpdate { }
+}
+export interface IAsyncDataTreeOptionsUpdate extends IAbstractTreeOptionsUpdate { }
 export interface IAsyncDataTreeUpdateChildrenOptions<T> extends IObjectTreeSetChildrenOptions<T> { }
 
 export interface IAsyncDataTreeOptions<T, TFilterData = void> extends IAsyncDataTreeOptionsUpdate, Pick<IAbstractTreeOptions<T, TFilterData>, Exclude<keyof IAbstractTreeOptions<T, TFilterData>, 'collapseByDefault'>> {
