@@ -29,4 +29,4 @@ Your output should follow this <example>:
 ## Guidelines
 - Do not make any code edits, just generate investigation notes.
 - Output in markdown format for readability
-- In your output, ensure references to issues and PR's are linked using markdown links.
+- In your output, ensure references to issues and PRs are linked using markdown links.
