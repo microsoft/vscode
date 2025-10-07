@@ -2716,6 +2716,62 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	white-space: nowrap;
 	text-overflow: ellipsis;
 	min-width: 0;
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	position: relative;
+}
+
+.chat-todo-list-widget .todo-edit-button {
+	flex-shrink: 0;
+	font-size: 12px;
+	color: var(--vscode-foreground);
+	cursor: pointer;
+	opacity: 0;
+	transition: opacity 0.2s ease;
+	padding: 2px;
+	border-radius: 3px;
+}
+
+.chat-todo-list-widget .todo-item:hover .todo-edit-button,
+.chat-todo-list-widget .todo-edit-button:focus {
+	opacity: 1;
+}
+
+.chat-todo-list-widget .todo-edit-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.chat-todo-list-widget .todo-edit-button:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+}
+
+.chat-todo-list-widget .todo-edit-input {
+	flex-grow: 1;
+	border: 1px solid var(--vscode-focusBorder);
+	background-color: var(--vscode-input-background);
+	color: var(--vscode-input-foreground);
+	padding: 2px 4px;
+	font-size: var(--vscode-chat-font-size-body-m);
+	font-family: inherit;
+	border-radius: 2px;
+	outline: none;
+	min-width: 0;
+}
+
+.chat-todo-list-widget .todo-edit-input:focus {
+	border-color: var(--vscode-focusBorder);
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.chat-todo-list-widget .todo-title {
+	flex-grow: 1;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	min-width: 0;
 }
 
 .interactive-session .interactive-response .chat-used-context-list.chat-thinking-items {

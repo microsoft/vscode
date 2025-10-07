@@ -223,6 +223,28 @@ export class ChatTodoListWidget extends Disposable {
 			todoContent.appendChild(titleElement);
 			todoContent.appendChild(statusElement);
 
+			// Add edit button
+			const editButton = dom.$('.todo-edit-button.codicon.codicon-edit');
+			editButton.setAttribute('role', 'button');
+			editButton.setAttribute('aria-label', localize('chat.todoList.editButton', 'Edit todo'));
+			editButton.setAttribute('tabindex', '0');
+			editButton.title = localize('chat.todoList.editButton', 'Edit todo');
+
+			this._register(dom.addDisposableListener(editButton, 'click', (e) => {
+				e.stopPropagation();
+				this.startEditingTodo(todoElement, titleElement, todo, index);
+			}));
+
+			this._register(dom.addDisposableListener(editButton, 'keydown', (e) => {
+				if (e.key === 'Enter' || e.key === ' ') {
+					e.preventDefault();
+					e.stopPropagation();
+					this.startEditingTodo(todoElement, titleElement, todo, index);
+				}
+			}));
+
+			todoContent.appendChild(editButton);
+
 			const ariaLabel = includeDescription && todo.description && todo.description.trim()
 				? localize('chat.todoList.itemWithDescription', '{0}, {1}, {2}', todo.title, statusText, todo.description)
 				: localize('chat.todoList.item', '{0}, {1}', todo.title, statusText);
@@ -446,6 +468,85 @@ export class ChatTodoListWidget extends Disposable {
 			case 'not-started':
 			default:
 				return 'var(--vscode-foreground)';
+		}
+	}
+
+	private startEditingTodo(todoElement: HTMLElement, titleElement: HTMLElement, todo: IChatTodo, index: number): void {
+		// Hide the title text and edit button
+		titleElement.style.display = 'none';
+		const editButton = todoElement.querySelector('.todo-edit-button') as HTMLElement;
+		if (editButton) {
+			editButton.style.display = 'none';
+		}
+
+		// Create input element
+		const input = dom.$('input.todo-edit-input') as HTMLInputElement;
+		input.type = 'text';
+		input.value = todo.title;
+		input.setAttribute('aria-label', localize('chat.todoList.editInput', 'Edit todo title'));
+
+		const todoContent = todoElement.querySelector('.todo-content') as HTMLElement;
+		todoContent.insertBefore(input, titleElement);
+
+		// Focus and select the text
+		input.focus();
+		input.select();
+
+		const saveEdit = () => {
+			const newTitle = input.value.trim();
+			if (newTitle && newTitle !== todo.title) {
+				// Update the todo in the service
+				if (this._currentSessionId) {
+					const todoList = this.chatTodoListService.getTodos(this._currentSessionId);
+					const updatedTodo = todoList[index];
+					if (updatedTodo) {
+						updatedTodo.title = newTitle;
+						this.chatTodoListService.setTodos(this._currentSessionId, todoList);
+						// Re-render to show the updated title
+						this.updateTodoDisplay();
+					}
+				}
+			} else {
+				// Cancel edit - restore original display
+				this.cancelEdit(input, titleElement, editButton);
+			}
+		};
+
+		const cancelEdit = () => {
+			this.cancelEdit(input, titleElement, editButton);
+		};
+
+		// Handle keyboard events
+		const keydownListener = dom.addDisposableListener(input, 'keydown', (e) => {
+			if (e.key === 'Enter') {
+				e.preventDefault();
+				saveEdit();
+				keydownListener.dispose();
+				blurListener.dispose();
+			} else if (e.key === 'Escape') {
+				e.preventDefault();
+				cancelEdit();
+				keydownListener.dispose();
+				blurListener.dispose();
+			}
+		});
+
+		// Handle blur event
+		const blurListener = dom.addDisposableListener(input, 'blur', () => {
+			// Use setTimeout to allow click events to fire first
+			setTimeout(() => {
+				saveEdit();
+				keydownListener.dispose();
+				blurListener.dispose();
+			}, 100);
+		});
+	}
+
+	private cancelEdit(input: HTMLInputElement, titleElement: HTMLElement, editButton: HTMLElement | null): void {
+		input.remove();
+		titleElement.style.display = '';
+		if (editButton) {
+			editButton.style.display = '';
 		}
 	}
 }
