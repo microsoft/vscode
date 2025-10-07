@@ -66,14 +66,13 @@ import { IChatSessionItem, IChatSessionsService } from '../../common/chatSession
 import { ChatSessionUri } from '../../common/chatUri.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/chatViewModel.js';
 import { IChatWidgetHistoryService } from '../../common/chatWidgetHistoryService.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, VIEWLET_ID } from '../../common/constants.js';
 import { ILanguageModelChatSelector, ILanguageModelsService } from '../../common/languageModels.js';
 import { CopilotUsageExtensionFeatureId } from '../../common/languageModelStats.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
 import { ChatViewId, IChatWidget, IChatWidgetService, showChatView, showCopilotView } from '../chat.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatEditorInput, shouldShowClearEditingSessionConfirmation, showClearEditingSessionConfirmation } from '../chatEditorInput.js';
-import { VIEWLET_ID } from '../chatSessions/view/chatSessionsView.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { convertBufferToScreenshotVariable } from '../contrib/screenshot.js';
 import { clearChatEditor } from './chatClear.js';
@@ -86,8 +85,10 @@ export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
 
 export const ACTION_ID_NEW_CHAT = `workbench.action.chat.newChat`;
 export const ACTION_ID_NEW_EDIT_SESSION = `workbench.action.chat.newEditSession`;
+export const ACTION_ID_OPEN_CHAT = 'workbench.action.openChat';
 export const CHAT_OPEN_ACTION_ID = 'workbench.action.chat.open';
 export const CHAT_SETUP_ACTION_ID = 'workbench.action.chat.triggerSetup';
+export const CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID = 'workbench.action.chat.triggerSetupSupportAnonymousAction';
 const TOGGLE_CHAT_ACTION_ID = 'workbench.action.chat.toggle';
 const CHAT_CLEAR_HISTORY_ACTION_ID = 'workbench.action.chat.clearHistory';
 
@@ -1054,8 +1055,9 @@ export function registerChatActions() {
 	registerAction2(class NewChatEditorAction extends Action2 {
 		constructor() {
 			super({
-				id: `workbench.action.openChat`,
+				id: ACTION_ID_OPEN_CHAT,
 				title: localize2('interactiveSession.open', "New Chat Editor"),
+				icon: Codicon.newFile,
 				f1: true,
 				category: CHAT_CATEGORY,
 				precondition: ChatContextKeys.enabled,
@@ -1182,7 +1184,7 @@ export function registerChatActions() {
 			});
 		}
 
-		async run(accessor: ServicesAccessor, ...args: any[]) {
+		async run(accessor: ServicesAccessor, ...args: unknown[]) {
 			const editorService = accessor.get(IEditorService);
 			const editorGroupService = accessor.get(IEditorGroupsService);
 
@@ -1219,9 +1221,9 @@ export function registerChatActions() {
 			});
 		}
 
-		override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+		override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 			const widgetService = accessor.get(IChatWidgetService);
-			const context: { widget?: IChatWidget } | undefined = args[0];
+			const context = args[0] as { widget?: IChatWidget } | undefined;
 			const widget = context?.widget ?? widgetService.lastFocusedWidget;
 			if (!widget) {
 				return;
@@ -1256,7 +1258,7 @@ export function registerChatActions() {
 				f1: true,
 			});
 		}
-		async run(accessor: ServicesAccessor, ...args: any[]) {
+		async run(accessor: ServicesAccessor, ...args: unknown[]) {
 			const historyService = accessor.get(IChatWidgetHistoryService);
 			historyService.clearHistory();
 		}
@@ -1272,7 +1274,7 @@ export function registerChatActions() {
 				f1: true,
 			});
 		}
-		async run(accessor: ServicesAccessor, ...args: any[]) {
+		async run(accessor: ServicesAccessor, ...args: unknown[]) {
 			const editorGroupsService = accessor.get(IEditorGroupsService);
 			const chatService = accessor.get(IChatService);
 			const instantiationService = accessor.get(IInstantiationService);
@@ -1392,7 +1394,7 @@ export function registerChatActions() {
 				]
 			});
 		}
-		run(accessor: ServicesAccessor, ...args: any[]) {
+		run(accessor: ServicesAccessor, ...args: unknown[]) {
 			const widgetService = accessor.get(IChatWidgetService);
 			widgetService.lastFocusedWidget?.focusInput();
 		}
@@ -1556,7 +1558,7 @@ export function registerChatActions() {
 			super({
 				id: 'workbench.action.chat.generateInstructions',
 				title: localize2('generateInstructions', "Generate Workspace Instructions File"),
-				shortTitle: localize2('generateInstructions.short', "Generate Instructions"),
+				shortTitle: localize2('generateInstructions.short', "Generate Agent Instructions"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.sparkle,
 				f1: true,
@@ -1848,17 +1850,14 @@ MenuRegistry.appendMenuItem(MenuId.EditorContext, {
 	function registerGenerateCodeCommand(coreCommand: string, actualCommand: string): void {
 		CommandsRegistry.registerCommand(coreCommand, async accessor => {
 			const commandService = accessor.get(ICommandService);
-			const telemetryService = accessor.get(ITelemetryService);
 			const editorGroupService = accessor.get(IEditorGroupsService);
-
-			telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: CHAT_SETUP_ACTION_ID, from: 'editor' });
 
 			if (editorGroupService.activeGroup.activeEditor) {
 				// Pinning the editor helps when the Chat extension welcome kicks in after install to keep context
 				editorGroupService.activeGroup.pinEditor(editorGroupService.activeGroup.activeEditor);
 			}
 
-			const result = await commandService.executeCommand(CHAT_SETUP_ACTION_ID);
+			const result = await commandService.executeCommand(CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID);
 			if (!result) {
 				return;
 			}

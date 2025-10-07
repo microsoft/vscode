@@ -356,6 +356,7 @@ export interface IMcpResourceTemplate {
 	readonly description?: string;
 	readonly mimeType?: string;
 	readonly template: UriTemplate;
+	readonly icons: IMcpIcons;
 
 	/** Gets string completions for the given template part. */
 	complete(templatePart: string, prefix: string, alreadyResolved: Record<string, string | string[]>, token: CancellationToken): Promise<string[]>;
@@ -884,5 +885,5 @@ export interface IMcpToolResourceLinkContents {
 
 export interface IMcpIcons {
 	/** Gets the image URI appropriate to the approximate display size */
-	getUrl(size: number): URI | undefined;
+	getUrl(size: number): { dark: URI; light?: URI } | undefined;
 }

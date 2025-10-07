@@ -317,9 +317,9 @@ export async function showToolsPicker(
 					children,
 					buttons,
 				};
-				const iconURI = mcpServer.serverMetadata.get()?.icons.getUrl(22);
-				if (iconURI) {
-					bucket.iconPath = { dark: iconURI, light: iconURI };
+				const iconPath = mcpServer.serverMetadata.get()?.icons.getUrl(22);
+				if (iconPath) {
+					bucket.iconPath = iconPath;
 				} else {
 					bucket.iconClass = ThemeIcon.asClassName(Codicon.mcp);
 				}
@@ -501,7 +501,7 @@ export async function showToolsPicker(
 						traverse(item.children);
 					}
 				} else if (isToolTreeItem(item)) {
-					result.set(item.tool, item.checked);
+					result.set(item.tool, item.checked || result.get(item.tool) === true); // tools can be in user tool sets and other buckets
 				}
 			}
 		};

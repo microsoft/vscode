@@ -8,7 +8,7 @@ import { DeferredPromise, raceCancellationError, Sequencer, timeout } from '../.
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { CancellationError } from '../../../base/common/errors.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { AUTH_SERVER_METADATA_DISCOVERY_PATH, getDefaultMetadataForUrl, IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata, isAuthorizationProtectedResourceMetadata, isAuthorizationServerMetadata, OPENID_CONNECT_DISCOVERY_PATH, parseWWWAuthenticateHeader } from '../../../base/common/oauth.js';
+import { AUTH_SCOPE_SEPARATOR, AUTH_SERVER_METADATA_DISCOVERY_PATH, fetchResourceMetadata, getDefaultMetadataForUrl, IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata, isAuthorizationServerMetadata, OPENID_CONNECT_DISCOVERY_PATH, parseWWWAuthenticateHeader, scopesMatch } from '../../../base/common/oauth.js';
 import { SSEParser } from '../../../base/common/sseParser.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { ConfigurationTarget } from '../../../platform/configuration/common/configuration.js';
@@ -160,10 +160,14 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 			store.add(provider.onDidChangeMcpServerDefinitions(update));
 		}
 		// todo@connor4312: proposed API back-compat
+		// eslint-disable-next-line local/code-no-any-casts
 		if ((provider as any).onDidChangeServerDefinitions) {
+			// eslint-disable-next-line local/code-no-any-casts
 			store.add((provider as any).onDidChangeServerDefinitions(update));
 		}
+		// eslint-disable-next-line local/code-no-any-casts
 		if ((provider as any).onDidChange) {
+			// eslint-disable-next-line local/code-no-any-casts
 			store.add((provider as any).onDidChange(update));
 		}
 
@@ -211,6 +215,7 @@ export class McpHTTPHandle extends Disposable {
 		authorizationServer: URI;
 		serverMetadata: IAuthorizationServerMetadata;
 		resourceMetadata?: IAuthorizationProtectedResourceMetadata;
+		scopes?: string[];
 	};
 
 	constructor(
@@ -333,36 +338,27 @@ export class McpHTTPHandle extends Disposable {
 	private async _populateAuthMetadata(mcpUrl: string, originalResponse: CommonResponse): Promise<void> {
 		// If there is a resource_metadata challenge, use that to get the oauth server. This is done in 2 steps.
 		// First, extract the resource_metada challenge from the WWW-Authenticate header (if available)
-		let resourceMetadataChallenge: string | undefined;
-		if (originalResponse.headers.has('WWW-Authenticate')) {
-			const authHeader = originalResponse.headers.get('WWW-Authenticate')!;
-			const challenges = parseWWWAuthenticateHeader(authHeader);
-			for (const challenge of challenges) {
-				if (challenge.scheme === 'Bearer' && challenge.params['resource_metadata']) {
-					this._log(LogLevel.Debug, `Found resource_metadata challenge in WWW-Authenticate header: ${challenge.params['resource_metadata']}`);
-					resourceMetadataChallenge = challenge.params['resource_metadata'];
-					break;
-				}
-			}
-		}
-		// Second, fetch that url's well-known server metadata
+		const { resourceMetadataChallenge, scopesChallenge: scopesChallengeFromHeader } = this._parseWWWAuthenticateHeader(originalResponse);
+		// Second, fetch the resource metadata either from the challenge URL or from well-known URIs
 		let serverMetadataUrl: string | undefined;
-		let scopesSupported: string[] | undefined;
 		let resource: IAuthorizationProtectedResourceMetadata | undefined;
-		if (resourceMetadataChallenge) {
-			const resourceMetadata = await this._getResourceMetadata(resourceMetadataChallenge);
-			// Use URL constructor for normalization - it handles hostname case and trailing slashes
-			const prmValue = new URL(resourceMetadata.resource).toString();
-			const mcpValue = new URL(mcpUrl).toString();
-			if (prmValue !== mcpValue) {
-				throw new Error(`Protected Resource Metadata resource value "${prmValue}" (length: ${prmValue.length}) does not match MCP server url "${mcpValue}" (length: ${mcpValue.length}). The MCP server must follow OAuth spec https://datatracker.ietf.org/doc/html/rfc9728#PRConfigurationValidation`);
-			}
+		let scopesChallenge = scopesChallengeFromHeader;
+		try {
+			const resourceMetadata = await fetchResourceMetadata(mcpUrl, resourceMetadataChallenge, {
+				sameOriginHeaders: {
+					...Object.fromEntries(this._launch.headers),
+					'MCP-Protocol-Version': MCP.LATEST_PROTOCOL_VERSION
+				},
+				fetch: (url, init) => this._fetch(url, init)
+			});
 			// TODO:@TylerLeonhardt support multiple authorization servers
 			// Consider using one that has an auth provider first, over the dynamic flow
 			serverMetadataUrl = resourceMetadata.authorization_servers?.[0];
 			this._log(LogLevel.Debug, `Using auth server metadata url: ${serverMetadataUrl}`);
-			scopesSupported = resourceMetadata.scopes_supported;
+			scopesChallenge ??= resourceMetadata.scopes_supported;
 			resource = resourceMetadata;
+		} catch (e) {
+			this._log(LogLevel.Debug, `Could not fetch resource metadata: ${String(e)}`);
 		}
 
 		const baseUrl = new URL(originalResponse.url).origin;
@@ -383,7 +379,8 @@ export class McpHTTPHandle extends Disposable {
 			this._authMetadata = {
 				authorizationServer: URI.parse(serverMetadataUrl),
 				serverMetadata: serverMetadataResponse,
-				resourceMetadata: resource
+				resourceMetadata: resource,
+				scopes: scopesChallenge
 			};
 			return;
 		} catch (e) {
@@ -392,42 +389,13 @@ export class McpHTTPHandle extends Disposable {
 
 		// If there's no well-known server metadata, then use the default values based off of the url.
 		const defaultMetadata = getDefaultMetadataForUrl(new URL(baseUrl));
-		defaultMetadata.scopes_supported = scopesSupported ?? defaultMetadata.scopes_supported ?? [];
 		this._authMetadata = {
 			authorizationServer: URI.parse(baseUrl),
 			serverMetadata: defaultMetadata,
-			resourceMetadata: resource
+			resourceMetadata: resource,
+			scopes: scopesChallenge
 		};
 		this._log(LogLevel.Info, 'Using default auth metadata');
-	}
-
-	private async _getResourceMetadata(resourceMetadata: string): Promise<IAuthorizationProtectedResourceMetadata> {
-		// detect if the resourceMetadata, which is a URL, is in the same origin as the MCP server
-		const resourceMetadataUrl = new URL(resourceMetadata);
-		const mcpServerUrl = new URL(this._launch.uri.toString(true));
-		let additionalHeaders: Record<string, string> = {};
-		if (resourceMetadataUrl.origin === mcpServerUrl.origin) {
-			additionalHeaders = {
-				...Object.fromEntries(this._launch.headers)
-			};
-		}
-		const resourceMetadataResponse = await this._fetch(resourceMetadata, {
-			method: 'GET',
-			headers: {
-				...additionalHeaders,
-				'Accept': 'application/json',
-				'MCP-Protocol-Version': MCP.LATEST_PROTOCOL_VERSION
-			}
-		});
-		if (resourceMetadataResponse.status !== 200) {
-			throw new Error(`Failed to fetch resource metadata: ${resourceMetadataResponse.status} ${await this._getErrText(resourceMetadataResponse)}`);
-		}
-		const body = await resourceMetadataResponse.json();
-		if (isAuthorizationProtectedResourceMetadata(body)) {
-			return body;
-		} else {
-			throw new Error(`Invalid resource metadata. Expected to follow shape of https://datatracker.ietf.org/doc/html/rfc9728#name-protected-resource-metadata (Hints: is scopes_supported an array? Is resource a string?). Current payload: ${JSON.stringify(body)}`);
-		}
 	}
 
 	private async _getAuthorizationServerMetadata(authorizationServer: string, addtionalHeaders: Record<string, string>): Promise<IAuthorizationServerMetadata> {
@@ -686,7 +654,7 @@ export class McpHTTPHandle extends Disposable {
 	private async _addAuthHeader(headers: Record<string, string>) {
 		if (this._authMetadata) {
 			try {
-				const token = await this._proxy.$getTokenFromServerMetadata(this._id, this._authMetadata.authorizationServer, this._authMetadata.serverMetadata, this._authMetadata.resourceMetadata, this._errorOnUserInteraction);
+				const token = await this._proxy.$getTokenFromServerMetadata(this._id, this._authMetadata.authorizationServer, this._authMetadata.serverMetadata, this._authMetadata.resourceMetadata, this._authMetadata.scopes, this._errorOnUserInteraction);
 				if (token) {
 					headers['Authorization'] = `Bearer ${token}`;
 				}
@@ -707,6 +675,34 @@ export class McpHTTPHandle extends Disposable {
 		}
 	}
 
+	private _parseWWWAuthenticateHeader(response: CommonResponse): { resourceMetadataChallenge: string | undefined; scopesChallenge: string[] | undefined } {
+		let resourceMetadataChallenge: string | undefined;
+		let scopesChallenge: string[] | undefined;
+		if (response.headers.has('WWW-Authenticate')) {
+			const authHeader = response.headers.get('WWW-Authenticate')!;
+			const challenges = parseWWWAuthenticateHeader(authHeader);
+			for (const challenge of challenges) {
+				if (challenge.scheme === 'Bearer') {
+					if (!resourceMetadataChallenge && challenge.params['resource_metadata']) {
+						resourceMetadataChallenge = challenge.params['resource_metadata'];
+						this._log(LogLevel.Debug, `Found resource_metadata challenge in WWW-Authenticate header: ${resourceMetadataChallenge}`);
+					}
+					if (!scopesChallenge && challenge.params['scope']) {
+						const scopes = challenge.params['scope'].split(AUTH_SCOPE_SEPARATOR).filter(s => s.trim().length);
+						if (scopes.length) {
+							this._log(LogLevel.Debug, `Found scope challenge in WWW-Authenticate header: ${challenge.params['scope']}`);
+							scopesChallenge = scopes;
+						}
+					}
+					if (resourceMetadataChallenge && scopesChallenge) {
+						break;
+					}
+				}
+			}
+		}
+		return { resourceMetadataChallenge, scopesChallenge };
+	}
+
 	private async _getErrText(res: CommonResponse) {
 		try {
 			return await res.text();
@@ -719,6 +715,7 @@ export class McpHTTPHandle extends Disposable {
 	 * Helper method to perform fetch with 401 authentication retry logic.
 	 * If the initial request returns 401 and we don't have auth metadata,
 	 * it will populate the auth metadata and retry once.
+	 * If we already have auth metadata, check if the scopes changed and update them.
 	 */
 	private async _fetchWithAuthRetry(mcpUrl: string, init: MinimalRequestInit, headers: Record<string, string>): Promise<CommonResponse> {
 		const doFetch = () => this._fetch(mcpUrl, init);
@@ -732,6 +729,19 @@ export class McpHTTPHandle extends Disposable {
 					// Update the headers in the init object
 					init.headers = headers;
 					res = await doFetch();
+				}
+			} else {
+				// We have auth metadata, but got a 401. Check if the scopes changed.
+				const { scopesChallenge } = this._parseWWWAuthenticateHeader(res);
+				if (!scopesMatch(scopesChallenge, this._authMetadata.scopes)) {
+					this._log(LogLevel.Debug, `Scopes changed from ${JSON.stringify(this._authMetadata.scopes)} to ${JSON.stringify(scopesChallenge)}, updating and retrying`);
+					this._authMetadata.scopes = scopesChallenge;
+					await this._addAuthHeader(headers);
+					if (headers['Authorization']) {
+						// Update the headers in the init object
+						init.headers = headers;
+						res = await doFetch();
+					}
 				}
 			}
 		}

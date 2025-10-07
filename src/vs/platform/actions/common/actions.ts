@@ -576,7 +576,7 @@ export class MenuItemAction implements IAction {
 
 	}
 
-	run(...args: any[]): Promise<void> {
+	run(...args: unknown[]): Promise<void> {
 		let runArgs: any[] = [];
 
 		if (this._options?.arg) {
@@ -649,7 +649,7 @@ export interface IAction2F1RequiredOptions {
 
 export abstract class Action2 {
 	constructor(readonly desc: Readonly<IAction2Options>) { }
-	abstract run(accessor: ServicesAccessor, ...args: any[]): void;
+	abstract run(accessor: ServicesAccessor, ...args: unknown[]): void;
 }
 
 export function registerAction2(ctor: { new(): Action2 }): IDisposable {

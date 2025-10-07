@@ -230,15 +230,19 @@ var NodeColor;
     NodeColor[NodeColor["Black"] = 2] = "Black";
 })(NodeColor || (NodeColor = {}));
 function getColor(node) {
+    // eslint-disable-next-line local/code-no-any-casts
     return node.$$$color || 0 /* NodeColor.White */;
 }
 function setColor(node, color) {
+    // eslint-disable-next-line local/code-no-any-casts
     node.$$$color = color;
 }
 function markNeededSourceFile(node) {
+    // eslint-disable-next-line local/code-no-any-casts
     node.$$$neededSourceFile = true;
 }
 function isNeededSourceFile(node) {
+    // eslint-disable-next-line local/code-no-any-casts
     return Boolean(node.$$$neededSourceFile);
 }
 function nodeOrParentIsBlack(node) {
@@ -561,6 +565,7 @@ function markNodes(ts, languageService, options) {
         if (nodeOrParentIsBlack(node)) {
             continue;
         }
+        // eslint-disable-next-line local/code-no-any-casts
         const symbol = node.symbol;
         if (!symbol) {
             continue;
@@ -768,8 +773,11 @@ class SymbolImportTuple {
  * Returns the node's symbol and the `import` node (if the symbol resolved from a different module)
  */
 function getRealNodeSymbol(ts, checker, node) {
+    // eslint-disable-next-line local/code-no-any-casts
     const getPropertySymbolsFromContextualType = ts.getPropertySymbolsFromContextualType;
+    // eslint-disable-next-line local/code-no-any-casts
     const getContainingObjectLiteralElement = ts.getContainingObjectLiteralElement;
+    // eslint-disable-next-line local/code-no-any-casts
     const getNameFromPropertyName = ts.getNameFromPropertyName;
     // Go to the original declaration for cases:
     //

@@ -133,7 +133,6 @@ declare module 'vscode' {
 	export namespace window {
 		/**
 		 * Register a completion provider for terminals.
-		 * @param id The unique identifier of the terminal provider, used as a settings key and shown in the information hover of the suggest widget.
 		 * @param provider The completion provider.
 		 * @returns A {@link Disposable} that unregisters this provider when being disposed.
 		 *
@@ -146,7 +145,7 @@ declare module 'vscode' {
 		 * 	}
 		 * });
 		 */
-		export function registerTerminalCompletionProvider<T extends TerminalCompletionItem>(id: string, provider: TerminalCompletionProvider<T>, ...triggerCharacters: string[]): Disposable;
+		export function registerTerminalCompletionProvider<T extends TerminalCompletionItem>(provider: TerminalCompletionProvider<T>, ...triggerCharacters: string[]): Disposable;
 	}
 
 	/**

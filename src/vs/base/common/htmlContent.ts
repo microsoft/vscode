@@ -199,9 +199,9 @@ export function parseHrefAndDimensions(href: string): { href: string; dimensions
 	return { href, dimensions };
 }
 
-export function markdownCommandLink(command: { title: string; id: string; arguments?: unknown[] }, escapeTokens = true): string {
+export function markdownCommandLink(command: { title: string; id: string; arguments?: unknown[]; tooltip?: string }, escapeTokens = true): string {
 	const uri = createCommandUri(command.id, ...(command.arguments || [])).toString();
-	return `[${escapeTokens ? escapeMarkdownSyntaxTokens(command.title) : command.title}](${uri})`;
+	return `[${escapeTokens ? escapeMarkdownSyntaxTokens(command.title) : command.title}](${uri}${command.tooltip ? ` "${escapeMarkdownSyntaxTokens(command.tooltip)}"` : ''})`;
 }
 
 export function createCommandUri(commandId: string, ...commandArgs: unknown[]): URI {

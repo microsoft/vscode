@@ -226,6 +226,7 @@ export const schema: IJSONSchema = {
 		contributes: {
 			description: nls.localize('vscode.extension.contributes', 'All contributions of the VS Code extension represented by this package.'),
 			type: 'object',
+			// eslint-disable-next-line local/code-no-any-casts
 			properties: {
 				// extensions will fill in
 			} as any as { [key: string]: any },

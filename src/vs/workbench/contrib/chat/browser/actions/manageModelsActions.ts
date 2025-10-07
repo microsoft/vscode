@@ -44,7 +44,7 @@ export class ManageModelsAction extends Action2 {
 			f1: true
 		});
 	}
-	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 		const languageModelsService = accessor.get(ILanguageModelsService);
 		const quickInputService = accessor.get(IQuickInputService);
 		const commandService = accessor.get(ICommandService);

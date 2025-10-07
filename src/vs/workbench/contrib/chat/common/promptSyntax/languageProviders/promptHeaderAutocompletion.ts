@@ -176,7 +176,7 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 
 	private getValueSuggestions(promptType: string, property: string): string[] {
 		if (promptType === PromptsType.instructions && property === 'applyTo') {
-			return ['**', '**/*.ts, **/*.js', '**/*.php', '**/*.py'];
+			return [`'**'`, `'**/*.ts, **/*.js'`, `'**/*.php'`, `'**/*.py'`];
 		}
 		if (promptType === PromptsType.prompt && property === 'mode') {
 			// Get all available modes (builtin + custom)
@@ -188,7 +188,7 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 			return suggestions;
 		}
 		if (property === 'tools' && (promptType === PromptsType.prompt || promptType === PromptsType.mode)) {
-			return ['[]', `['codebase', 'editFiles', 'fetch']`];
+			return ['[]', `['search', 'edit', 'fetch']`];
 		}
 		if (property === 'model' && (promptType === PromptsType.prompt || promptType === PromptsType.mode)) {
 			return this.getModelNames(promptType === PromptsType.mode);

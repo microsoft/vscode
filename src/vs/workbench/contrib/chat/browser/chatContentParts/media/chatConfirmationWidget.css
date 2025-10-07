@@ -46,6 +46,9 @@
 	position: relative;
 
 	> .monaco-progress-container.active {
+		position: absolute;
+		left: 0px;
+		right: 0;
 		top: 0px;
 		border-top-left-radius: 10px;
 		border-top-right-radius: 10px;

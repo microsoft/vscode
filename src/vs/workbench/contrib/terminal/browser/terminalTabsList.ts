@@ -55,6 +55,7 @@ import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js'
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { TerminalStorageKeys } from '../common/terminalStorageKeys.js';
+import { isObject } from '../../../../base/common/types.js';
 
 const $ = DOM.$;
 
@@ -633,7 +634,9 @@ class TerminalTabsDragAndDrop extends Disposable implements IListDragAndDrop<ITe
 			return;
 		}
 		// Attach terminals type to event
-		const terminals: ITerminalInstance[] = dndData.filter(e => 'instanceId' in (e as any));
+		const terminals: ITerminalInstance[] = (dndData as unknown[]).filter(e => (
+			isObject(e) && 'instanceId' in e
+		)) as ITerminalInstance[];
 		if (terminals.length > 0) {
 			originalEvent.dataTransfer.setData(TerminalDataTransfers.Terminals, JSON.stringify(terminals.map(e => e.resource.toString())));
 		}

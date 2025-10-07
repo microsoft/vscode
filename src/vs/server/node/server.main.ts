@@ -17,7 +17,7 @@ import product from '../../platform/product/common/product.js';
 import * as perf from '../../base/common/performance.js';
 
 perf.mark('code/server/codeLoaded');
-(<any>global).vscodeServerCodeLoadedTime = performance.now();
+(global as unknown as { vscodeServerCodeLoadedTime?: number }).vscodeServerCodeLoadedTime = performance.now();
 
 const errorReporter: ErrorReporter = {
 	onMultipleValues: (id: string, usedValue: string) => {

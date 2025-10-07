@@ -80,7 +80,7 @@ import { isHorizontal, IWorkbenchLayoutService } from '../../../services/layout/
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { importAMDNodeModule } from '../../../../amdX.js';
-import type { IMarker, Terminal as XTermTerminal } from '@xterm/xterm';
+import type { IMarker, Terminal as XTermTerminal, IBufferLine } from '@xterm/xterm';
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
 import { terminalStrings } from '../common/terminalStrings.js';
 import { TerminalIconPicker } from './terminalIconPicker.js';
@@ -2141,8 +2141,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// work around for https://github.com/xtermjs/xterm.js/issues/3482
 		if (isWindows) {
 			for (let i = this.xterm.raw.buffer.active.viewportY; i < this.xterm.raw.buffer.active.length; i++) {
+				interface ILineWithInternals extends IBufferLine {
+					_line: {
+						isWrapped: boolean;
+					};
+				}
 				const line = this.xterm.raw.buffer.active.getLine(i);
-				(line as any)._line.isWrapped = false;
+				(line as ILineWithInternals)._line.isWrapped = false;
 			}
 		}
 	}

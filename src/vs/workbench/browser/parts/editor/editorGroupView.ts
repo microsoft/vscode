@@ -336,6 +336,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				case GroupModelChangeKind.EDITOR_CLOSE:
 					groupActiveEditorPinnedContext.set(this.model.activeEditor ? this.model.isPinned(this.model.activeEditor) : false);
 					groupActiveEditorStickyContext.set(this.model.activeEditor ? this.model.isSticky(this.model.activeEditor) : false);
+					break;
 				case GroupModelChangeKind.EDITOR_OPEN:
 				case GroupModelChangeKind.EDITOR_MOVE:
 					groupActiveEditorFirstContext.set(this.model.isFirst(this.model.activeEditor));
@@ -1802,7 +1803,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// However, we only do this unless a custom confirm handler is installed
 		// that may not be fit to be asked a second time right after.
 		if (!editor.closeHandler && !this.shouldConfirmClose(editor)) {
-			return confirmation === ConfirmResult.CANCEL ? true : false;
+			return confirmation === ConfirmResult.CANCEL;
 		}
 
 		// Otherwise, handle accordingly

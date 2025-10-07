@@ -105,6 +105,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 		let modelOutputEvalResponse;
 		let resources;
+		let output;
 
 		let extended = false;
 		try {
@@ -134,6 +135,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 						} else {
 							resources = idleResult.resources;
 							modelOutputEvalResponse = idleResult.modelOutputEvalResponse;
+							output = idleResult.output;
 						}
 						break;
 					}
@@ -149,7 +151,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		} finally {
 			this._pollingResult = {
 				state: this._state,
-				output: this._execution.getOutput(),
+				output: output ?? this._execution.getOutput(),
 				modelOutputEvalResponse: token.isCancellationRequested ? 'Cancelled' : modelOutputEvalResponse,
 				pollDurationMs: Date.now() - pollStartTime,
 				resources
@@ -161,7 +163,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	}
 
 
-	private async _handleIdleState(token: CancellationToken): Promise<{ resources?: ILinkLocation[]; modelOutputEvalResponse?: string; shouldContinuePollling: boolean }> {
+	private async _handleIdleState(token: CancellationToken): Promise<{ resources?: ILinkLocation[]; modelOutputEvalResponse?: string; shouldContinuePollling: boolean; output?: string }> {
 		const confirmationPrompt = await this._determineUserInputOptions(this._execution, token);
 
 		if (confirmationPrompt?.detectedRequestForFreeFormInput) {
@@ -208,7 +210,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		const custom = await this._pollFn?.(this._execution, token, this._taskService);
 		const resources = custom?.resources;
 		const modelOutputEvalResponse = await this._assessOutputForErrors(this._execution.getOutput(), token);
-		return { resources, modelOutputEvalResponse, shouldContinuePollling: false };
+		return { resources, modelOutputEvalResponse, shouldContinuePollling: false, output: custom?.output };
 	}
 
 	private async _handleTimeoutState(command: string, invocationContext: IToolInvocationContext | undefined, extended: boolean, token: CancellationToken): Promise<boolean> {

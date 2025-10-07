@@ -54,6 +54,7 @@ export class NodeExtHostMpcService extends ExtHostMcpService {
 	private async startNodeMpc(id: number, launch: McpServerTransportStdio, defaultCwd?: URI): Promise<void> {
 		const onError = (err: Error | string) => this._proxy.$onDidChangeState(id, {
 			state: McpConnectionState.Kind.Error,
+			// eslint-disable-next-line local/code-no-any-casts
 			code: err.hasOwnProperty('code') ? String((err as any).code) : undefined,
 			message: typeof err === 'string' ? err : err.message,
 		});
@@ -78,7 +79,7 @@ export class NodeExtHostMpcService extends ExtHostMcpService {
 		let child: ChildProcessWithoutNullStreams;
 		try {
 			const home = homedir();
-			let cwd = launch.cwd ? untildify(launch.cwd, home) : home;
+			let cwd = launch.cwd ? untildify(launch.cwd, home) : (defaultCwd?.fsPath || home);
 			if (!path.isAbsolute(cwd)) {
 				cwd = defaultCwd ? path.join(defaultCwd.fsPath, cwd) : path.join(home, cwd);
 			}

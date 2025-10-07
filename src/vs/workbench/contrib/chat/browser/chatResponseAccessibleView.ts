@@ -38,7 +38,7 @@ export class ChatResponseAccessibleView implements IAccessibleViewImplementation
 			return;
 		}
 
-		return new ChatResponseAccessibleProvider(verifiedWidget, focusedItem);
+		return new ChatResponseAccessibleProvider(verifiedWidget, focusedItem, chatInputFocused);
 	}
 }
 
@@ -46,7 +46,8 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 	private _focusedItem: ChatTreeItem;
 	constructor(
 		private readonly _widget: IChatWidget,
-		item: ChatTreeItem
+		item: ChatTreeItem,
+		private readonly _wasOpenedFromInput: boolean
 	) {
 		super();
 		this._focusedItem = item;
@@ -125,7 +126,11 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 
 	onClose(): void {
 		this._widget.reveal(this._focusedItem);
-		this._widget.focus(this._focusedItem);
+		if (this._wasOpenedFromInput) {
+			this._widget.focusInput();
+		} else {
+			this._widget.focus(this._focusedItem);
+		}
 	}
 
 	provideNextContent(): string | undefined {

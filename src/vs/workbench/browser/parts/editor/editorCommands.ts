@@ -1276,7 +1276,7 @@ function registerOtherEditorCommands(): void {
 			const configurationService = accessor.get(IConfigurationService);
 
 			const currentSetting = configurationService.getValue('workbench.editor.enablePreview');
-			const newSetting = currentSetting === true ? false : true;
+			const newSetting = currentSetting !== true;
 			configurationService.updateValue('workbench.editor.enablePreview', newSetting);
 		}
 	});

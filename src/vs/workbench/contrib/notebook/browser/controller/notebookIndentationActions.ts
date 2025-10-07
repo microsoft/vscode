@@ -30,7 +30,7 @@ export class NotebookIndentUsingTabs extends Action2 {
 		});
 	}
 
-	override run(accessor: ServicesAccessor, ...args: any[]): void {
+	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
 		changeNotebookIndentation(accessor, false, false);
 	}
 }
@@ -46,7 +46,7 @@ export class NotebookIndentUsingSpaces extends Action2 {
 		});
 	}
 
-	override run(accessor: ServicesAccessor, ...args: any[]): void {
+	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
 		changeNotebookIndentation(accessor, true, false);
 	}
 }
@@ -62,7 +62,7 @@ export class NotebookChangeTabDisplaySize extends Action2 {
 		});
 	}
 
-	override run(accessor: ServicesAccessor, ...args: any[]): void {
+	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
 		changeNotebookIndentation(accessor, true, true);
 	}
 }
@@ -78,7 +78,7 @@ export class NotebookIndentationToSpacesAction extends Action2 {
 		});
 	}
 
-	override run(accessor: ServicesAccessor, ...args: any[]): void {
+	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
 		convertNotebookIndentation(accessor, true);
 	}
 }
@@ -94,7 +94,7 @@ export class NotebookIndentationToTabsAction extends Action2 {
 		});
 	}
 
-	override run(accessor: ServicesAccessor, ...args: any[]): void {
+	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
 		convertNotebookIndentation(accessor, false);
 	}
 }
@@ -124,6 +124,7 @@ function changeNotebookIndentation(accessor: ServicesAccessor, insertSpaces: boo
 	}));
 
 	// store the initial values of the configuration
+	// eslint-disable-next-line local/code-no-any-casts
 	const initialConfig = configurationService.getValue(NotebookSetting.cellEditorOptionsCustomizations) as any;
 	const initialInsertSpaces = initialConfig['editor.insertSpaces'];
 	// remove the initial values from the configuration
@@ -195,6 +196,7 @@ function convertNotebookIndentation(accessor: ServicesAccessor, tabsToSpaces: bo
 
 		})).then(() => {
 			// store the initial values of the configuration
+			// eslint-disable-next-line local/code-no-any-casts
 			const initialConfig = configurationService.getValue(NotebookSetting.cellEditorOptionsCustomizations) as any;
 			const initialIndentSize = initialConfig['editor.indentSize'];
 			const initialTabSize = initialConfig['editor.tabSize'];

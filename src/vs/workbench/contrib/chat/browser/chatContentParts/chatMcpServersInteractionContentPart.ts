@@ -122,7 +122,7 @@ export class ChatMcpServersInteractionContentPart extends Disposable implements 
 
 	hasSameContent(other: IChatRendererContent): boolean {
 		// Simple implementation that checks if it's the same type
-		return (other as any).kind === 'mcpServersInteractionRequired';
+		return other.kind === 'mcpServersInteractionRequired';
 	}
 
 	addDisposable(disposable: IDisposable): void {
