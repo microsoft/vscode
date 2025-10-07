@@ -29,7 +29,7 @@ export interface IFigSpecSuggestionsResult {
 
 export async function getFigSuggestions(
 	specs: Fig.Spec[],
-	terminalContext: { commandLine: string; cursorPosition: number },
+	terminalContext: { commandLine: string; cursorIndex: number },
 	availableCommands: ICompletionResource[],
 	currentCommandAndArgString: string,
 	tokenType: TokenType,
@@ -75,7 +75,7 @@ export async function getFigSuggestions(
 				if (availableCommand.kind !== vscode.TerminalCompletionItemKind.Alias) {
 					const description = getFixSuggestionDescription(spec);
 					result.items.push(createCompletionItem(
-						terminalContext.cursorPosition,
+						terminalContext.cursorIndex,
 						currentCommandAndArgString,
 						{
 							label: { label: specLabel, description },
@@ -120,7 +120,7 @@ export async function getFigSuggestions(
 
 async function getFigSpecSuggestions(
 	spec: Fig.Spec,
-	terminalContext: { commandLine: string; cursorPosition: number },
+	terminalContext: { commandLine: string; cursorIndex: number },
 	prefix: string,
 	shellIntegrationCwd: vscode.Uri | undefined,
 	env: Record<string, string>,
@@ -132,7 +132,7 @@ async function getFigSpecSuggestions(
 	let foldersRequested = false;
 	let fileExtensions: string[] | undefined;
 
-	const command = getCommand(terminalContext.commandLine, {}, terminalContext.cursorPosition);
+	const command = getCommand(terminalContext.commandLine, {}, terminalContext.cursorIndex);
 	if (!command || !shellIntegrationCwd) {
 		return;
 	}
@@ -173,7 +173,7 @@ export async function collectCompletionItemResult(
 	command: Command,
 	parsedArguments: ArgumentParserResult,
 	prefix: string,
-	terminalContext: { commandLine: string; cursorPosition: number },
+	terminalContext: { commandLine: string; cursorIndex: number },
 	shellIntegrationCwd: vscode.Uri | undefined,
 	env: Record<string, string>,
 	items: vscode.TerminalCompletionItem[],
@@ -188,7 +188,7 @@ export async function collectCompletionItemResult(
 			const generators = parsedArguments.currentArg.generators;
 			const initialFigState: FigState = {
 				buffer: terminalContext.commandLine,
-				cursorLocation: terminalContext.cursorPosition,
+				cursorLocation: terminalContext.cursorIndex,
 				cwd: shellIntegrationCwd?.fsPath ?? null,
 				processUserIsIn: null,
 				sshContextString: null,
@@ -239,7 +239,7 @@ export async function collectCompletionItemResult(
 					}
 					for (const label of suggestionLabels) {
 						items.push(createCompletionItem(
-							terminalContext.cursorPosition,
+							terminalContext.cursorIndex,
 							prefix,
 							{ label },
 							item.displayName,
@@ -304,7 +304,7 @@ export async function collectCompletionItemResult(
 
 			items.push(
 				createCompletionItem(
-					terminalContext.cursorPosition,
+					terminalContext.cursorIndex,
 					prefix,
 					{
 						label: detail ? { label, detail } : label
@@ -372,11 +372,11 @@ export function getFigSuggestionLabel(spec: Fig.Spec | Fig.Arg | Fig.Suggestion 
 
 function convertIconToKind(icon: string | undefined): vscode.TerminalCompletionItemKind | undefined {
 	switch (icon) {
-		case 'vscode://icon?type=10': return vscode.TerminalCompletionItemKind.Commit;
-		case 'vscode://icon?type=11': return vscode.TerminalCompletionItemKind.Branch;
-		case 'vscode://icon?type=12': return vscode.TerminalCompletionItemKind.Tag;
-		case 'vscode://icon?type=13': return vscode.TerminalCompletionItemKind.Stash;
-		case 'vscode://icon?type=14': return vscode.TerminalCompletionItemKind.Remote;
+		case 'vscode://icon?type=10': return vscode.TerminalCompletionItemKind.ScmCommit;
+		case 'vscode://icon?type=11': return vscode.TerminalCompletionItemKind.ScmBranch;
+		case 'vscode://icon?type=12': return vscode.TerminalCompletionItemKind.ScmTag;
+		case 'vscode://icon?type=13': return vscode.TerminalCompletionItemKind.ScmStash;
+		case 'vscode://icon?type=14': return vscode.TerminalCompletionItemKind.ScmRemote;
 		case 'vscode://icon?type=15': return vscode.TerminalCompletionItemKind.PullRequest;
 		case 'vscode://icon?type=16': return vscode.TerminalCompletionItemKind.PullRequestDone;
 		default: return undefined;

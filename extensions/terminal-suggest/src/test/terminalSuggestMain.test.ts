@@ -91,11 +91,11 @@ suite('Terminal Suggest', () => {
 				}
 				test(`'${testSpec.input}' -> ${expectedString}`, async () => {
 					const commandLine = testSpec.input.split('|')[0];
-					const cursorPosition = testSpec.input.indexOf('|');
-					const currentCommandString = getCurrentCommandAndArgs(commandLine, cursorPosition, undefined);
+					const cursorIndex = testSpec.input.indexOf('|');
+					const currentCommandString = getCurrentCommandAndArgs(commandLine, cursorIndex, undefined);
 					const filesRequested = testSpec.expectedResourceRequests?.type === 'files' || testSpec.expectedResourceRequests?.type === 'both';
 					const foldersRequested = testSpec.expectedResourceRequests?.type === 'folders' || testSpec.expectedResourceRequests?.type === 'both';
-					const terminalContext = { commandLine, cursorPosition, allowFallbackCompletions: true };
+					const terminalContext = { commandLine, cursorIndex, allowFallbackCompletions: true };
 					const result = await getCompletionItemsFromSpecs(
 						completionSpecs,
 						terminalContext,

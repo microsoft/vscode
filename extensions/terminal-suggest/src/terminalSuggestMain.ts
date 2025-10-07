@@ -274,7 +274,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 			// Order is important here, add shell globals first so they are prioritized over path commands
 			const commands = [...shellGlobals, ...commandsInPath.completionResources];
-			const currentCommandString = getCurrentCommandAndArgs(terminalContext.commandLine, terminalContext.cursorPosition, terminalShellType);
+			const currentCommandString = getCurrentCommandAndArgs(terminalContext.commandLine, terminalContext.cursorIndex, terminalShellType);
 			const pathSeparator = isWindows ? '\\' : '/';
 			const tokenType = getTokenType(terminalContext, terminalShellType);
 			const result = await Promise.race([
@@ -308,8 +308,8 @@ export async function activate(context: vscode.ExtensionContext) {
 			if (cwd && (result.filesRequested || result.foldersRequested)) {
 				const globPattern = createFileGlobPattern(result.fileExtensions);
 				return new vscode.TerminalCompletionList(result.items, {
-					filesRequested: result.filesRequested,
-					foldersRequested: result.foldersRequested,
+					showFiles: result.filesRequested,
+					showDirectories: result.foldersRequested,
 					globPattern,
 					cwd,
 				});
@@ -370,7 +370,7 @@ export async function resolveCwdFromCurrentCommandString(currentCommandString: s
 
 // Retrurns the string that represents the current command and its arguments up to the cursor position.
 // Uses shell specific separators to determine the current command and its arguments.
-export function getCurrentCommandAndArgs(commandLine: string, cursorPosition: number, shellType: TerminalShellType | undefined): string {
+export function getCurrentCommandAndArgs(commandLine: string, cursorIndex: number, shellType: TerminalShellType | undefined): string {
 
 	// Return an empty string if the command line is empty after trimming
 	if (commandLine.trim() === '') {
@@ -378,12 +378,12 @@ export function getCurrentCommandAndArgs(commandLine: string, cursorPosition: nu
 	}
 
 	// Check if cursor is not at the end and there's non-whitespace after the cursor
-	if (cursorPosition < commandLine.length && /\S/.test(commandLine[cursorPosition])) {
+	if (cursorIndex < commandLine.length && /\S/.test(commandLine[cursorIndex])) {
 		return '';
 	}
 
 	// Extract the part of the line up to the cursor position
-	const beforeCursor = commandLine.slice(0, cursorPosition);
+	const beforeCursor = commandLine.slice(0, cursorIndex);
 
 	const resetChars = shellType ? shellTypeResetChars.get(shellType) ?? defaultShellTypeResetChars : defaultShellTypeResetChars;
 	// Find the last reset character before the cursor
@@ -472,7 +472,7 @@ export async function getCompletionItemsFromSpecs(
 			const labelWithoutExtension = isWindows ? commandTextLabel.replace(/\.[^ ]+$/, '') : commandTextLabel;
 			if (!labels.has(labelWithoutExtension)) {
 				items.push(createCompletionItem(
-					terminalContext.cursorPosition,
+					terminalContext.cursorIndex,
 					currentCommandString,
 					command,
 					command.detail,
@@ -564,7 +564,7 @@ export function sanitizeProcessEnvironment(env: Record<string, string>, ...prese
 		});
 }
 
-function createFileGlobPattern(fileExtensions?: string[]): vscode.GlobPattern | undefined {
+function createFileGlobPattern(fileExtensions?: string[]): string | undefined {
 	if (!fileExtensions || fileExtensions.length === 0) {
 		return undefined;
 	}
