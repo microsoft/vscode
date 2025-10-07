@@ -79,13 +79,6 @@ vscode • extensions/css-language-features/server/src/cssServer.ts:
    74: 		// eslint-disable-next-line local/code-no-any-casts
   171: 		// eslint-disable-next-line local/code-no-any-casts
 
-vscode • extensions/git/src/commands.ts:
-  5369: 		// eslint-disable-next-line local/code-no-any-casts
-
-vscode • extensions/git/src/util.ts:
-   46: 	// eslint-disable-next-line local/code-no-any-casts
-  118: 		// eslint-disable-next-line local/code-no-any-casts
-
 vscode • extensions/git-base/src/api/api1.ts:
   17: 		// eslint-disable-next-line local/code-no-any-casts
   38: 		// eslint-disable-next-line local/code-no-any-casts

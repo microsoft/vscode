@@ -5366,8 +5366,7 @@ export class CommandCenter {
 		};
 
 		// patch this object, so people can call methods directly
-		// eslint-disable-next-line local/code-no-any-casts
-		(this as any)[key] = result;
+		(this as Record<string, unknown>)[key] = result;
 
 		return result;
 	}
