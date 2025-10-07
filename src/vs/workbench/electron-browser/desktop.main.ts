@@ -64,6 +64,7 @@ import { mainWindow } from '../../base/browser/window.js';
 import { DefaultAccountService, IDefaultAccountService } from '../services/accounts/common/defaultAccount.js';
 import { AccountPolicyService } from '../services/policies/common/accountPolicyService.js';
 import { MultiplexPolicyService } from '../services/policies/common/multiplexPolicyService.js';
+import '../../platform/policy/electron-browser/policyWriterService.js';
 
 export class DesktopMain extends Disposable {
 

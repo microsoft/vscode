@@ -8,14 +8,14 @@ import * as path from '../../../../base/common/path.js';
 import { Category, LanguageTranslations, Policy, Translations, Version } from './types.js';
 import { IPolicyWriterService } from '../../common/policy.js';
 import { renderADMLString } from './policies/render.js';
-import { Registry } from '../../../registry/common/platform.js';
-import { Extensions, IConfigurationPropertySchema, IConfigurationRegistry } from '../../../configuration/common/configurationRegistry.js';
+import { IConfigurationPropertySchema, IRegisteredConfigurationPropertySchema } from '../../../configuration/common/configurationRegistry.js';
 import { BooleanPolicy } from './policies/booleanPolicy.js';
 import { NumberPolicy } from './policies/numberPolicy.js';
 import { StringPolicy } from './policies/stringPolicy.js';
 import { StringEnumPolicy } from './policies/stringEnumPolicy.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { ObjectPolicy } from './policies/objectPolicy.js';
+import { IConfigurationService } from '../../../configuration/common/configuration.js';
 
 const Languages = {
 	'fr': 'fr-fr',
@@ -36,10 +36,10 @@ const Languages = {
 export class PolicyWriterService implements IPolicyWriterService {
 	_serviceBrand: undefined;
 
-	constructor(@IProductService private readonly productService: IProductService) { }
+	constructor(@IConfigurationService public readonly configurationService: IConfigurationService, @IProductService private readonly productService: IProductService) { }
 
-	public async write(platform: 'darwin' | 'win32'): Promise<void> {
-		const [policies, translations] = await Promise.all([this.getPolicies(), this.getTranslations()]);
+	public async write(configs: Array<{ key: string; schema: IRegisteredConfigurationPropertySchema }>, platform: 'darwin' | 'win32'): Promise<void> {
+		const [policies, translations] = await Promise.all([this.getPolicies(configs), this.getTranslations()]);
 
 		if (platform === 'darwin') {
 			await this.writeDarwin(policies, translations);
@@ -113,12 +113,9 @@ export class PolicyWriterService implements IPolicyWriterService {
 		return convertedPolicy;
 	}
 
-	private async getPolicies(): Promise<Policy[]> {
+	private async getPolicies(configs: Array<{ key: string; schema: IRegisteredConfigurationPropertySchema }>): Promise<Policy[]> {
 		const policies: Policy[] = [];
-		const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
-		const configurationProperties = configurationRegistry.getConfigurationProperties();
-
-		for (const [key, schema] of Object.entries(configurationProperties)) {
+		for (const { key, schema } of configs) {
 			if (schema.policy) {
 				console.log('@@', key, schema.type);
 				policies.push(this.configToPolicy(key, schema));

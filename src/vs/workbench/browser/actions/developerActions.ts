@@ -24,7 +24,7 @@ import { registerAction2, Action2, MenuRegistry } from '../../../platform/action
 import { IStorageService, StorageScope, StorageTarget } from '../../../platform/storage/common/storage.js';
 import { clamp } from '../../../base/common/numbers.js';
 import { KeyCode } from '../../../base/common/keyCodes.js';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../platform/configuration/common/configurationRegistry.js';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, Extensions } from '../../../platform/configuration/common/configurationRegistry.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { IWorkingCopyService } from '../../services/workingCopy/common/workingCopyService.js';
 import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
@@ -45,8 +45,7 @@ import { IProductService } from '../../../platform/product/common/productService
 import { IDefaultAccountService } from '../../services/accounts/common/defaultAccount.js';
 import { IAuthenticationService } from '../../services/authentication/common/authentication.js';
 import { IAuthenticationAccessService } from '../../services/authentication/browser/authenticationAccessService.js';
-import { IPolicyService } from '../../../platform/policy/common/policy.js';
-import { isNative, isMacintosh, isWindows } from '../../../base/common/platform.js';
+import { IPolicyService, IPolicyWriterService } from '../../../platform/policy/common/policy.js';
 
 class InspectContextKeysAction extends Action2 {
 
@@ -663,36 +662,33 @@ class DumpPoliciesAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const dialogService = accessor.get(IDialogService);
+		const quickPickService = accessor.get(IQuickInputService);
+		const policyWriterService = accessor.get(IPolicyWriterService);
+		const picked = await quickPickService.pick([
+			{
+				label: 'Mac',
+				id: 'darwin',
+			},
+			{
+				label: 'Windows',
+				id: 'win32'
+			}
+		]);
 
-		if (!isNative) {
-			// Policy dumping uses Node.js APIs and is only available in desktop (native) context
-			await dialogService.info(
-				localize('dumpPoliciesNotAvailable', "Dump Policies is only available in the desktop version of VS Code."),
-				localize('dumpPoliciesNotAvailableDetail', "This feature uses Node.js APIs that are not available in the web version.")
-			);
-			return;
+		const configs = [];
+		const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+		const configurationProperties = configurationRegistry.getConfigurationProperties();
+		for (const [key, schema] of Object.entries(configurationProperties)) {
+			if (schema.policy) {
+				console.log('@@', key, schema.type);
+				configs.push({ key, schema });
+			}
 		}
-
-		// Determine platform for policy writing
-		let platformArg: string;
-		if (isMacintosh) {
-			platformArg = 'darwin';
-		} else if (isWindows) {
-			platformArg = 'win32';
-		} else {
-			await dialogService.info(
-				localize('dumpPoliciesUnsupportedPlatform', "Dump Policies is not supported on this platform."),
-				localize('dumpPoliciesUnsupportedPlatformDetail', "Policy dumping is only supported on Windows and macOS.")
-			);
-			return;
-		}
-
-		// Show information about using CLI command since IPolicyWriterService is not accessible from workbench
-		const message = localize('dumpPoliciesUseCLI', "To dump policies, use the CLI command:");
-		const detail = localize('dumpPoliciesUseCLIDetail', "Run the following command from the terminal:\n\ncode --dump-policy-configuration {0}\n\nThis will generate policy files in the .build/policies directory.", platformArg);
-
-		await dialogService.info(message, detail);
+		// eslint-disable-next-line local/code-no-any-casts
+		const platform = (picked as any).id as 'darwin' | 'win32';
+		console.log('@@@platform', platform);
+		policyWriterService.write(configs, platform);
+		console.log('@@WROTE?', policyWriterService);
 	}
 }
 
@@ -821,6 +817,7 @@ class PolicyDiagnosticsAction extends Action2 {
 				}
 				try {
 					const policyServiceConstructorName = policyService.constructor.name;
+					console.log('@@@@policyService', policyServiceConstructorName);
 					if (policyServiceConstructorName === 'MultiplexPolicyService') {
 						// eslint-disable-next-line local/code-no-any-casts
 						const multiplexService = policyService as any;

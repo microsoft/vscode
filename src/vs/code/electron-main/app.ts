@@ -92,7 +92,7 @@ import { IWorkspacesService } from '../../platform/workspaces/common/workspaces.
 import { IWorkspacesHistoryMainService, WorkspacesHistoryMainService } from '../../platform/workspaces/electron-main/workspacesHistoryMainService.js';
 import { WorkspacesMainService } from '../../platform/workspaces/electron-main/workspacesMainService.js';
 import { IWorkspacesManagementMainService, WorkspacesManagementMainService } from '../../platform/workspaces/electron-main/workspacesManagementMainService.js';
-import { IPolicyService } from '../../platform/policy/common/policy.js';
+import { IPolicyService, IPolicyWriterService } from '../../platform/policy/common/policy.js';
 import { PolicyChannel } from '../../platform/policy/common/policyIpc.js';
 import { IUserDataProfilesMainService } from '../../platform/userDataProfile/electron-main/userDataProfile.js';
 import { IExtensionsProfileScannerService } from '../../platform/extensionManagement/common/extensionsProfileScannerService.js';
@@ -122,6 +122,7 @@ import { NativeMcpDiscoveryHelperService } from '../../platform/mcp/node/nativeM
 import { IWebContentExtractorService } from '../../platform/webContentExtractor/common/webContentExtractor.js';
 import { NativeWebContentExtractorService } from '../../platform/webContentExtractor/electron-main/webContentExtractorService.js';
 import ErrorTelemetry from '../../platform/telemetry/electron-main/errorTelemetry.js';
+import { PolicyWriterService } from '../../platform/policy/node/writer/policyWriterService.js';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -1066,6 +1067,8 @@ export class CodeApplication extends Disposable {
 			services.set(IExternalTerminalMainService, new SyncDescriptor(LinuxExternalTerminalService));
 		}
 
+		services.set(IPolicyWriterService, new SyncDescriptor(PolicyWriterService));
+
 		// Backups
 		const backupMainService = new BackupMainService(this.environmentMainService, this.configurationService, this.logService, this.stateService);
 		services.set(IBackupMainService, backupMainService);
@@ -1218,6 +1221,10 @@ export class CodeApplication extends Disposable {
 		// External Terminal
 		const externalTerminalChannel = ProxyChannel.fromService(accessor.get(IExternalTerminalMainService), disposables);
 		mainProcessElectronServer.registerChannel('externalTerminal', externalTerminalChannel);
+
+		// Policy Writer
+		const policyWriterChannel = ProxyChannel.fromService(accessor.get(IPolicyWriterService), disposables);
+		mainProcessElectronServer.registerChannel('policyWriter', policyWriterChannel);
 
 		// MCP
 		const mcpDiscoveryChannel = ProxyChannel.fromService(accessor.get(INativeMcpDiscoveryHelperService), disposables);

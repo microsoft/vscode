@@ -193,7 +193,7 @@ class CliMain extends Disposable {
 		// Configuration
 		const configurationService = this._register(new ConfigurationService(userDataProfilesService.defaultProfile.settingsResource, fileService, policyService, logService));
 		services.set(IConfigurationService, configurationService);
-		services.set(IPolicyWriterService, new PolicyWriterService(productService));
+		services.set(IPolicyWriterService, new PolicyWriterService(configurationService, productService));
 
 		// Initialize
 		await Promise.all([

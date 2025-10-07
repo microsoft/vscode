@@ -24,7 +24,7 @@ export class StringPolicy extends BasePolicy {
 			throw new Error(`[StringPolicy] Missing required 'default' property.`);
 		}
 
-		const description = config.policy.description ?? config.description;
+		const description = config.policy.description ?? config.description ?? config.markdownDescription;
 		if (description === undefined) {
 			throw new Error(`[StringPolicy] Missing required 'description' property.`);
 		}

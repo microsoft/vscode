@@ -20,7 +20,7 @@ export class StringEnumPolicy extends BasePolicy {
 			throw new Error(`[StringEnumPolicy] Unsupported 'type' property: ${config.type}`);
 		}
 
-		const description = config.policy.description ?? config.description;
+		const description = config.policy.description ?? config.description ?? config.markdownDescription;
 		if (description === undefined) {
 			throw new Error(`[StringEnumPolicy] Missing required 'description' property.`);
 		}

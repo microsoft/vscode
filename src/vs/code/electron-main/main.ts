@@ -60,7 +60,7 @@ import { IStateReadService, IStateService } from '../../platform/state/node/stat
 import { NullTelemetryService } from '../../platform/telemetry/common/telemetryUtils.js';
 import { IThemeMainService } from '../../platform/theme/electron-main/themeMainService.js';
 import { IUserDataProfilesMainService, UserDataProfilesMainService } from '../../platform/userDataProfile/electron-main/userDataProfile.js';
-import { IPolicyService, NullPolicyService } from '../../platform/policy/common/policy.js';
+import { IPolicyService, IPolicyWriterService, NullPolicyService } from '../../platform/policy/common/policy.js';
 import { NativePolicyService } from '../../platform/policy/node/nativePolicyService.js';
 import { FilePolicyService } from '../../platform/policy/common/filePolicyService.js';
 import { DisposableStore } from '../../base/common/lifecycle.js';
@@ -73,6 +73,7 @@ import { SaveStrategy, StateService } from '../../platform/state/node/stateServi
 import { FileUserDataProvider } from '../../platform/userData/common/fileUserDataProvider.js';
 import { addUNCHostToAllowlist, getUNCHost } from '../../base/node/unc.js';
 import { ThemeMainService } from '../../platform/theme/electron-main/themeMainServiceImpl.js';
+import { PolicyWriterService } from '../../platform/policy/node/writer/policyWriterService.js';
 
 /**
  * The main VS Code entry point.
@@ -214,6 +215,8 @@ class CodeMain {
 		// Configuration
 		const configurationService = new ConfigurationService(userDataProfilesMainService.defaultProfile.settingsResource, fileService, policyService, logService);
 		services.set(IConfigurationService, configurationService);
+
+		services.set(IPolicyWriterService, new PolicyWriterService(configurationService, productService));
 
 		// Lifecycle
 		services.set(ILifecycleMainService, new SyncDescriptor(LifecycleMainService, undefined, false));
