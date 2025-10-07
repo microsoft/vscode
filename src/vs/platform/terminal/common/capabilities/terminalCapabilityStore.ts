@@ -15,6 +15,11 @@ export class TerminalCapabilityStore extends Disposable implements ITerminalCapa
 	private readonly _onDidRemoveCapability = this._register(new Emitter<AnyTerminalCapabilityChangeEvent>());
 	readonly onDidRemoveCapability = this._onDidRemoveCapability.event;
 
+	readonly onDidChangeCapabilities = Event.map(Event.any(
+		this._onDidAddCapability.event,
+		this._onDidRemoveCapability.event
+	), () => void 0);
+
 	get onDidAddCommandDetectionCapability() {
 		return Event.map(Event.filter(this.onDidAddCapability, e => e.id === TerminalCapability.CommandDetection), e => e.capability as ICommandDetectionCapability);
 	}
@@ -70,6 +75,11 @@ export class TerminalCapabilityStoreMultiplexer extends Disposable implements IT
 	readonly onDidAddCapability = this._onDidAddCapability.event;
 	private readonly _onDidRemoveCapability = this._register(new Emitter<AnyTerminalCapabilityChangeEvent>());
 	readonly onDidRemoveCapability = this._onDidRemoveCapability.event;
+
+	readonly onDidChangeCapabilities = Event.map(Event.any(
+		this._onDidAddCapability.event,
+		this._onDidRemoveCapability.event
+	), () => void 0);
 
 	get onDidAddCommandDetectionCapability() {
 		return Event.map(Event.filter(this.onDidAddCapability, e => e.id === TerminalCapability.CommandDetection), e => e.capability as ICommandDetectionCapability);

@@ -69,6 +69,11 @@ export interface ITerminalCapabilityStore {
 	*/
 	readonly onDidRemoveCapability: Event<AnyTerminalCapabilityChangeEvent>;
 
+	/**
+	 * Fired when a capability if added or removed.
+	 */
+	readonly onDidChangeCapabilities: Event<void>;
+
 	// TODO: Add onDidChangeCapabilities convenience event
 
 	readonly onDidAddCommandDetectionCapability: Event<ICommandDetectionCapability>;
