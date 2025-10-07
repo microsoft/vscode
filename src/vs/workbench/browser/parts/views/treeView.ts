@@ -1704,7 +1704,7 @@ class TreeMenus implements IDisposable {
 		return groups;
 	}
 
-	public getElementOverlayContexts(element: ITreeItem): Map<string, any> {
+	public getElementOverlayContexts(element: ITreeItem): Map<string, unknown> {
 		return new Map([
 			['view', this.id],
 			['viewItem', element.contextValue]

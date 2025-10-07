@@ -81,6 +81,7 @@ export class SessionsViewPane extends ViewPane {
 	constructor(
 		private readonly provider: IChatSessionItemProvider,
 		private readonly sessionTracker: ChatSessionTracker,
+		private readonly viewId: string,
 		options: IViewPaneOptions,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -296,7 +297,7 @@ export class SessionsViewPane extends ViewPane {
 		const accessibilityProvider = new SessionsAccessibilityProvider();
 
 		// Use the existing ResourceLabels service for consistent styling
-		const renderer = this.instantiationService.createInstance(SessionsRenderer);
+		const renderer = this.instantiationService.createInstance(SessionsRenderer, this.viewDescriptorService.getViewLocationById(this.viewId));
 		this._register(renderer);
 
 		const getResourceForElement = (element: ChatSessionItemWithProvider): URI | null => {

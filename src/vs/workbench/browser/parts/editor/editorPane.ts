@@ -57,7 +57,7 @@ export abstract class EditorPane<MementoType extends object = object> extends Co
 
 	//#endregion
 
-	private static readonly EDITOR_MEMENTOS = new Map<string, EditorMemento<any>>();
+	private static readonly EDITOR_MEMENTOS = new Map<string, EditorMemento<unknown>>();
 
 	get minimumWidth() { return DEFAULT_EDITOR_MIN_DIMENSIONS.width; }
 	get maximumWidth() { return DEFAULT_EDITOR_MAX_DIMENSIONS.width; }
@@ -174,7 +174,7 @@ export abstract class EditorPane<MementoType extends object = object> extends Co
 			EditorPane.EDITOR_MEMENTOS.set(mementoKey, editorMemento);
 		}
 
-		return editorMemento;
+		return editorMemento as IEditorMemento<T>;
 	}
 
 	getViewState(): object | undefined {
