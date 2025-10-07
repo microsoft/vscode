@@ -134,12 +134,11 @@ class ServerReadyDetector extends vscode.Disposable {
 		try {
 			this.regexp = new RegExp(pattern, 'i');
 		} catch (e) {
-			// Invalid regex pattern - show error and fall back to default
+			// Invalid regex pattern - show error and fall back to PATTERN constant
 			const message = e instanceof Error ? e.message : String(e);
 			vscode.window.showErrorMessage(
 				vscode.l10n.t("Invalid regular expression in 'serverReadyAction.pattern': {0}", message)
 			);
-			// Use default pattern as fallback to allow debugging to continue
 			this.regexp = new RegExp(PATTERN, 'i');
 		}
 	}
