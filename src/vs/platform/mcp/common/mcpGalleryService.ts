@@ -468,6 +468,7 @@ namespace McpServerSchemaVersion_2025_29_09 {
 				readonly publishedAt: string;
 				readonly updatedAt: string;
 				readonly releaseDate?: string;
+				readonly status?: GalleryMcpServerStatus;
 			};
 		};
 	}
@@ -530,7 +531,8 @@ namespace McpServerSchemaVersion_2025_29_09 {
 				websiteUrl: from.server.websiteUrl,
 				packages: from.server.packages,
 				remotes: from.server.remotes,
-				registryInfo: from._meta?.['io.modelcontextprotocol.registry/official'],
+				status: from._meta['io.modelcontextprotocol.registry/official'].status,
+				registryInfo: from._meta['io.modelcontextprotocol.registry/official'],
 				githubInfo: from.server._meta['io.modelcontextprotocol.registry/publisher-provided']?.github,
 			};
 		}
