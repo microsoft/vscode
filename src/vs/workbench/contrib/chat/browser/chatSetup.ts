@@ -65,11 +65,11 @@ import { IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAge
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementRequests, ChatEntitlementService, IChatEntitlementService, isProUser } from '../../../services/chat/common/chatEntitlementService.js';
 import { ChatModel, ChatRequestModel, IChatRequestModel, IChatRequestVariableData } from '../common/chatModel.js';
-import { ChatMode } from '../common/chatModes.js';
+import { ChatMode, IChatModeService } from '../common/chatModes.js';
 import { ChatRequestAgentPart, ChatRequestToolPart } from '../common/chatParserTypes.js';
 import { IChatProgress, IChatService } from '../common/chatService.js';
 import { IChatRequestToolEntry } from '../common/chatVariableEntries.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, validateChatMode } from '../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../common/constants.js';
 import { ILanguageModelsService } from '../common/languageModels.js';
 import { CHAT_CATEGORY, CHAT_OPEN_ACTION_ID, CHAT_SETUP_ACTION_ID, CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID } from './actions/chatActions.js';
 import { ChatViewId, IChatWidgetService, showCopilotView } from './chat.js';
@@ -857,6 +857,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		@ICommandService private readonly commandService: ICommandService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IChatEntitlementService chatEntitlementService: ChatEntitlementService,
+		@IChatModeService private readonly chatModeService: IChatModeService,
 		@ILogService private readonly logService: ILogService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
@@ -961,7 +962,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				});
 			}
 
-			override async run(accessor: ServicesAccessor, mode?: ChatModeKind, options?: { forceSignInDialog?: boolean; additionalScopes?: readonly string[]; forceAnonymous?: ChatSetupAnonymous }): Promise<boolean> {
+			override async run(accessor: ServicesAccessor, mode?: ChatModeKind | string, options?: { forceSignInDialog?: boolean; additionalScopes?: readonly string[]; forceAnonymous?: ChatSetupAnonymous }): Promise<boolean> {
 				const viewsService = accessor.get(IViewsService);
 				const layoutService = accessor.get(IWorkbenchLayoutService);
 				const instantiationService = accessor.get(IInstantiationService);
@@ -1197,7 +1198,23 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				const params = new URLSearchParams(url.query);
 				this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: CHAT_SETUP_ACTION_ID, from: 'url', detail: params.get('referrer') ?? undefined });
 
-				await this.commandService.executeCommand(CHAT_SETUP_ACTION_ID, validateChatMode(params.get('mode')));
+				const modeParam = params.get('mode');
+				let modeToUse: ChatModeKind | string | undefined;
+				if (modeParam) {
+					// check if the given param is a valid mode ID
+					let foundMode = this.chatModeService.findModeById(modeParam);
+					if (!foundMode) {
+						// if not, check if the given param is a valid mode name, note the name is case insensitive
+						foundMode = this.chatModeService.findModeByName(modeParam);
+					}
+
+					if (foundMode) {
+						modeToUse = foundMode.id;
+					}
+				}
+
+				// execute the command to change the mode in panel, note that the command only supports mode IDs, not names
+				await this.commandService.executeCommand(CHAT_SETUP_ACTION_ID, modeToUse);
 
 				return true;
 			}

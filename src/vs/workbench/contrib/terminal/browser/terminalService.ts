@@ -305,7 +305,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 		}
 
 		mark('code/terminal/willReconnect');
-		let reconnectedPromise: Promise<any>;
+		let reconnectedPromise: Promise<unknown>;
 		if (isPersistentRemote) {
 			reconnectedPromise = this._reconnectToRemoteTerminals();
 		} else if (enableTerminalReconnection) {

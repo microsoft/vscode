@@ -516,7 +516,7 @@ async function runAction(action: IAction): Promise<void> {
 
 type IExtensionActionOptions = IAction2Options & {
 	menuTitles?: { [id: string]: string };
-	run(accessor: ServicesAccessor, ...args: any[]): Promise<any>;
+	run(accessor: ServicesAccessor, ...args: unknown[]): Promise<any>;
 };
 
 class ExtensionsContributions extends Disposable implements IWorkbenchContribution {
@@ -1942,7 +1942,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 					menu: menusWithOutTitles
 				});
 			}
-			run(accessor: ServicesAccessor, ...args: any[]): Promise<any> {
+			run(accessor: ServicesAccessor, ...args: unknown[]): Promise<any> {
 				return extensionActionOptions.run(accessor, ...args);
 			}
 		}));

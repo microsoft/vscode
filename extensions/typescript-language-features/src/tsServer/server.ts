@@ -39,7 +39,7 @@ export type TsServerLog =
 export interface ITypeScriptServer {
 	readonly onEvent: vscode.Event<Proto.Event>;
 	readonly onExit: vscode.Event<TypeScriptServerExitEvent>;
-	readonly onError: vscode.Event<any>;
+	readonly onError: vscode.Event<unknown>;
 
 	readonly tsServerLog: TsServerLog | undefined;
 
@@ -49,7 +49,7 @@ export interface ITypeScriptServer {
 	 * @return A list of all execute requests. If there are multiple entries, the first item is the primary
 	 * request while the rest are secondary ones.
 	 */
-	executeImpl(command: keyof TypeScriptRequests, args: any, executeInfo: { isAsync: boolean; token?: vscode.CancellationToken; expectsResult: boolean; lowPriority?: boolean; executionTarget?: ExecutionTarget }): Array<Promise<ServerResponse.Response<Proto.Response>> | undefined>;
+	executeImpl(command: keyof TypeScriptRequests, args: unknown, executeInfo: { isAsync: boolean; token?: vscode.CancellationToken; expectsResult: boolean; lowPriority?: boolean; executionTarget?: ExecutionTarget }): Array<Promise<ServerResponse.Response<Proto.Response>> | undefined>;
 
 	dispose(): void;
 }
@@ -125,7 +125,7 @@ export class SingleTsServer extends Disposable implements ITypeScriptServer {
 	private readonly _onExit = this._register(new vscode.EventEmitter<TypeScriptServerExitEvent>());
 	public readonly onExit = this._onExit.event;
 
-	private readonly _onError = this._register(new vscode.EventEmitter<any>());
+	private readonly _onError = this._register(new vscode.EventEmitter<unknown>());
 	public readonly onError = this._onError.event;
 
 	public get tsServerLog() { return this._tsServerLog; }
@@ -284,7 +284,7 @@ export class SingleTsServer extends Disposable implements ITypeScriptServer {
 		}
 
 		this._requestQueue.enqueue(requestInfo);
-		const traceId = (args as RequestArgs).$traceId;
+		const traceId = (args as RequestArgs | undefined)?.$traceId;
 		if (args && typeof traceId === 'string') {
 			const queueLength = this._requestQueue.length - 1;
 			const pendingResponses = this._pendingResponses.size;
@@ -406,7 +406,7 @@ class RequestRouter {
 
 	public execute(
 		command: keyof TypeScriptRequests,
-		args: any,
+		args: unknown,
 		executeInfo: ExecuteInfo,
 	): Array<Promise<ServerResponse.Response<Proto.Response>> | undefined> {
 		if (RequestRouter.sharedCommands.has(command) && typeof executeInfo.executionTarget === 'undefined') {
@@ -528,7 +528,7 @@ export class GetErrRoutingTsServer extends Disposable implements ITypeScriptServ
 	private readonly _onExit = this._register(new vscode.EventEmitter<TypeScriptServerExitEvent>());
 	public readonly onExit = this._onExit.event;
 
-	private readonly _onError = this._register(new vscode.EventEmitter<any>());
+	private readonly _onError = this._register(new vscode.EventEmitter<unknown>());
 	public readonly onError = this._onError.event;
 
 	public get tsServerLog() { return this.mainServer.tsServerLog; }
@@ -538,7 +538,7 @@ export class GetErrRoutingTsServer extends Disposable implements ITypeScriptServ
 		this.mainServer.kill();
 	}
 
-	public executeImpl(command: keyof TypeScriptRequests, args: any, executeInfo: { isAsync: boolean; token?: vscode.CancellationToken; expectsResult: boolean; lowPriority?: boolean; executionTarget?: ExecutionTarget }): Array<Promise<ServerResponse.Response<Proto.Response>> | undefined> {
+	public executeImpl(command: keyof TypeScriptRequests, args: unknown, executeInfo: { isAsync: boolean; token?: vscode.CancellationToken; expectsResult: boolean; lowPriority?: boolean; executionTarget?: ExecutionTarget }): Array<Promise<ServerResponse.Response<Proto.Response>> | undefined> {
 		return this.router.execute(command, args, executeInfo);
 	}
 }
@@ -666,10 +666,10 @@ export class SyntaxRoutingTsServer extends Disposable implements ITypeScriptServ
 	private readonly _onEvent = this._register(new vscode.EventEmitter<Proto.Event>());
 	public readonly onEvent = this._onEvent.event;
 
-	private readonly _onExit = this._register(new vscode.EventEmitter<any>());
+	private readonly _onExit = this._register(new vscode.EventEmitter<TypeScriptServerExitEvent>());
 	public readonly onExit = this._onExit.event;
 
-	private readonly _onError = this._register(new vscode.EventEmitter<any>());
+	private readonly _onError = this._register(new vscode.EventEmitter<unknown>());
 	public readonly onError = this._onError.event;
 
 	public get tsServerLog() { return this.semanticServer.tsServerLog; }
@@ -679,7 +679,7 @@ export class SyntaxRoutingTsServer extends Disposable implements ITypeScriptServ
 		this.semanticServer.kill();
 	}
 
-	public executeImpl(command: keyof TypeScriptRequests, args: any, executeInfo: { isAsync: boolean; token?: vscode.CancellationToken; expectsResult: boolean; lowPriority?: boolean; executionTarget?: ExecutionTarget }): Array<Promise<ServerResponse.Response<Proto.Response>> | undefined> {
+	public executeImpl(command: keyof TypeScriptRequests, args: unknown, executeInfo: { isAsync: boolean; token?: vscode.CancellationToken; expectsResult: boolean; lowPriority?: boolean; executionTarget?: ExecutionTarget }): Array<Promise<ServerResponse.Response<Proto.Response>> | undefined> {
 		return this.router.execute(command, args, executeInfo);
 	}
 }

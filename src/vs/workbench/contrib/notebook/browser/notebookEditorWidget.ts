@@ -477,7 +477,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 	private _debugFlag: boolean = false;
 
-	private _debug(...args: any[]) {
+	private _debug(...args: unknown[]) {
 		if (!this._debugFlag) {
 			return;
 		}
