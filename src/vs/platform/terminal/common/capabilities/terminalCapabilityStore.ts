@@ -21,20 +21,23 @@ export class TerminalCapabilityStore extends Disposable implements ITerminalCapa
 		return Event.map(Event.any(
 			this._onDidAddCapability.event,
 			this._onDidRemoveCapability.event
-		), () => void 0);
+		), () => void 0, this._store);
 	}
-
+	@memoize
 	get onDidAddCommandDetectionCapability() {
-		return Event.map(Event.filter(this.onDidAddCapability, e => e.id === TerminalCapability.CommandDetection), e => e.capability as ICommandDetectionCapability);
+		return Event.map(Event.filter(this.onDidAddCapability, e => e.id === TerminalCapability.CommandDetection, this._store), e => e.capability as ICommandDetectionCapability, this._store);
 	}
+	@memoize
 	get onDidRemoveCommandDetectionCapability() {
-		return Event.map(Event.filter(this.onDidRemoveCapability, e => e.id === TerminalCapability.CommandDetection), () => void 0);
+		return Event.map(Event.filter(this.onDidRemoveCapability, e => e.id === TerminalCapability.CommandDetection, this._store), () => void 0, this._store);
 	}
+	@memoize
 	get onDidAddCwdDetectionCapability() {
-		return Event.map(Event.filter(this.onDidAddCapability, e => e.id === TerminalCapability.CwdDetection), e => e.capability as ICwdDetectionCapability);
+		return Event.map(Event.filter(this.onDidAddCapability, e => e.id === TerminalCapability.CwdDetection, this._store), e => e.capability as ICwdDetectionCapability, this._store);
 	}
+	@memoize
 	get onDidRemoveCwdDetectionCapability() {
-		return Event.map(Event.filter(this.onDidRemoveCapability, e => e.id === TerminalCapability.CwdDetection), () => void 0);
+		return Event.map(Event.filter(this.onDidRemoveCapability, e => e.id === TerminalCapability.CwdDetection, this._store), () => void 0, this._store);
 	}
 
 	get items(): IterableIterator<TerminalCapability> {
@@ -85,20 +88,23 @@ export class TerminalCapabilityStoreMultiplexer extends Disposable implements IT
 		return Event.map(Event.any(
 			this._onDidAddCapability.event,
 			this._onDidRemoveCapability.event
-		), () => void 0);
+		), () => void 0, this._store);
 	}
-
+	@memoize
 	get onDidAddCommandDetectionCapability() {
-		return Event.map(Event.filter(this.onDidAddCapability, e => e.id === TerminalCapability.CommandDetection), e => e.capability as ICommandDetectionCapability);
+		return Event.map(Event.filter(this.onDidAddCapability, e => e.id === TerminalCapability.CommandDetection, this._store), e => e.capability as ICommandDetectionCapability, this._store);
 	}
+	@memoize
 	get onDidRemoveCommandDetectionCapability() {
-		return Event.map(Event.filter(this.onDidRemoveCapability, e => e.id === TerminalCapability.CommandDetection), () => void 0);
+		return Event.map(Event.filter(this.onDidRemoveCapability, e => e.id === TerminalCapability.CommandDetection, this._store), () => void 0, this._store);
 	}
+	@memoize
 	get onDidAddCwdDetectionCapability() {
-		return Event.map(Event.filter(this.onDidAddCapability, e => e.id === TerminalCapability.CwdDetection), e => e.capability as ICwdDetectionCapability);
+		return Event.map(Event.filter(this.onDidAddCapability, e => e.id === TerminalCapability.CwdDetection, this._store), e => e.capability as ICwdDetectionCapability, this._store);
 	}
+	@memoize
 	get onDidRemoveCwdDetectionCapability() {
-		return Event.map(Event.filter(this.onDidRemoveCapability, e => e.id === TerminalCapability.CwdDetection), () => void 0);
+		return Event.map(Event.filter(this.onDidRemoveCapability, e => e.id === TerminalCapability.CwdDetection, this._store), () => void 0, this._store);
 	}
 
 	get items(): IterableIterator<TerminalCapability> {
