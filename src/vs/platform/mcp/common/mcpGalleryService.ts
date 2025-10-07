@@ -79,8 +79,8 @@ interface IRawGalleryMcpServer {
 }
 
 interface IGalleryMcpServerDataSerializer {
-	toRawGalleryMcpServerResult(input: any): IRawGalleryMcpServersResult | undefined;
-	toRawGalleryMcpServer(input: any): IRawGalleryMcpServer | undefined;
+	toRawGalleryMcpServerResult(input: unknown): IRawGalleryMcpServersResult | undefined;
+	toRawGalleryMcpServer(input: unknown): IRawGalleryMcpServer | undefined;
 }
 
 namespace McpServerOldSchema {
@@ -203,8 +203,8 @@ namespace McpServerOldSchema {
 
 	class Serializer implements IGalleryMcpServerDataSerializer {
 
-		public toRawGalleryMcpServerResult(input: any): IRawGalleryMcpServersResult | undefined {
-			if (!input || !Array.isArray(input.servers)) {
+		public toRawGalleryMcpServerResult(input: unknown): IRawGalleryMcpServersResult | undefined {
+			if (!input || typeof input !== 'object' || !Array.isArray((input as RawGalleryMcpServersResult).servers)) {
 				return undefined;
 			}
 
@@ -225,8 +225,8 @@ namespace McpServerOldSchema {
 			};
 		}
 
-		public toRawGalleryMcpServer(input: any): IRawGalleryMcpServer | undefined {
-			if (!input || !input.server) {
+		public toRawGalleryMcpServer(input: unknown): IRawGalleryMcpServer | undefined {
+			if (!input || typeof input !== 'object' || !(input as RawGalleryMcpServer).server) {
 				return undefined;
 			}
 
@@ -476,8 +476,8 @@ namespace McpServer1ESSchema {
 
 	class Serializer implements IGalleryMcpServerDataSerializer {
 
-		public toRawGalleryMcpServerResult(input: any): IRawGalleryMcpServersResult | undefined {
-			if (!input || !Array.isArray(input.servers)) {
+		public toRawGalleryMcpServerResult(input: unknown): IRawGalleryMcpServersResult | undefined {
+			if (!input || typeof input !== 'object' || !Array.isArray((input as RawGalleryMcpServersResult).servers)) {
 				return undefined;
 			}
 
@@ -498,8 +498,8 @@ namespace McpServer1ESSchema {
 			};
 		}
 
-		public toRawGalleryMcpServer(input: any): IRawGalleryMcpServer | undefined {
-			if (!input || input.server || input.$schema) {
+		public toRawGalleryMcpServer(input: unknown): IRawGalleryMcpServer | undefined {
+			if (!input || typeof input !== 'object' || (input as { server?: unknown; $schema?: unknown }).server || (input as { server?: unknown; $schema?: unknown }).$schema) {
 				return undefined;
 			}
 
@@ -759,8 +759,8 @@ namespace McpServerSchemaVersion_2025_01_09 {
 
 	class Serializer implements IGalleryMcpServerDataSerializer {
 
-		public toRawGalleryMcpServerResult(input: any): IRawGalleryMcpServersResult | undefined {
-			if (!input || !Array.isArray(input.servers)) {
+		public toRawGalleryMcpServerResult(input: unknown): IRawGalleryMcpServersResult | undefined {
+			if (!input || typeof input !== 'object' || !Array.isArray((input as RawGalleryMcpServersResult).servers)) {
 				return undefined;
 			}
 
@@ -781,8 +781,8 @@ namespace McpServerSchemaVersion_2025_01_09 {
 			};
 		}
 
-		public toRawGalleryMcpServer(input: any): IRawGalleryMcpServer | undefined {
-			if (!input || (<RawGalleryMcpServer>input).$schema !== McpServerSchemaVersion_2025_01_09.SCHEMA) {
+		public toRawGalleryMcpServer(input: unknown): IRawGalleryMcpServer | undefined {
+			if (!input || typeof input !== 'object' || (<RawGalleryMcpServer>input).$schema !== McpServerSchemaVersion_2025_01_09.SCHEMA) {
 				return undefined;
 			}
 
@@ -1027,7 +1027,7 @@ namespace McpServerSchemaVersion_2025_07_09 {
 				readonly updated_at: string;
 				readonly release_date?: string;
 			};
-			readonly 'io.modelcontextprotocol.registry/publisher-provided'?: Record<string, any>;
+			readonly 'io.modelcontextprotocol.registry/publisher-provided'?: Record<string, unknown>;
 		};
 	}
 
@@ -1042,8 +1042,8 @@ namespace McpServerSchemaVersion_2025_07_09 {
 
 	class Serializer implements IGalleryMcpServerDataSerializer {
 
-		public toRawGalleryMcpServerResult(input: any): IRawGalleryMcpServersResult | undefined {
-			if (!input || !Array.isArray(input.servers)) {
+		public toRawGalleryMcpServerResult(input: unknown): IRawGalleryMcpServersResult | undefined {
+			if (!input || typeof input !== 'object' || !Array.isArray((input as RawGalleryMcpServersResult).servers)) {
 				return undefined;
 			}
 
@@ -1064,8 +1064,8 @@ namespace McpServerSchemaVersion_2025_07_09 {
 			};
 		}
 
-		public toRawGalleryMcpServer(input: any): IRawGalleryMcpServer | undefined {
-			if (!input || (<RawGalleryMcpServer>input).$schema !== McpServerSchemaVersion_2025_07_09.SCHEMA) {
+		public toRawGalleryMcpServer(input: unknown): IRawGalleryMcpServer | undefined {
+			if (!input || typeof input !== 'object' || (<RawGalleryMcpServer>input).$schema !== McpServerSchemaVersion_2025_07_09.SCHEMA) {
 				return undefined;
 			}
 
@@ -1197,7 +1197,7 @@ namespace McpServerSchemaVersion_2025_07_09 {
 					publishedAt: registryInfo.published_at,
 					updatedAt: registryInfo.updated_at,
 				},
-				githubInfo: from._meta['io.modelcontextprotocol.registry/publisher-provided']?.github,
+				githubInfo: from._meta['io.modelcontextprotocol.registry/publisher-provided']?.github as IGitHubInfo | undefined,
 			};
 		}
 	}
@@ -1302,7 +1302,7 @@ namespace McpServerSchemaVersion_2025_16_09 {
 				readonly updatedAt: string;
 				readonly releaseDate?: string;
 			};
-			readonly 'io.modelcontextprotocol.registry/publisher-provided'?: Record<string, any>;
+			readonly 'io.modelcontextprotocol.registry/publisher-provided'?: Record<string, unknown>;
 		};
 	}
 
@@ -1317,8 +1317,8 @@ namespace McpServerSchemaVersion_2025_16_09 {
 
 	class Serializer implements IGalleryMcpServerDataSerializer {
 
-		public toRawGalleryMcpServerResult(input: any): IRawGalleryMcpServersResult | undefined {
-			if (!input || !Array.isArray(input.servers)) {
+		public toRawGalleryMcpServerResult(input: unknown): IRawGalleryMcpServersResult | undefined {
+			if (!input || typeof input !== 'object' || !Array.isArray((input as RawGalleryMcpServersResult).servers)) {
 				return undefined;
 			}
 
@@ -1339,8 +1339,8 @@ namespace McpServerSchemaVersion_2025_16_09 {
 			};
 		}
 
-		public toRawGalleryMcpServer(input: any): IRawGalleryMcpServer | undefined {
-			if (!input || (<RawGalleryMcpServer>input).$schema !== McpServerSchemaVersion_2025_16_09.SCHEMA) {
+		public toRawGalleryMcpServer(input: unknown): IRawGalleryMcpServer | undefined {
+			if (!input || typeof input !== 'object' || (<RawGalleryMcpServer>input).$schema !== McpServerSchemaVersion_2025_16_09.SCHEMA) {
 				return undefined;
 			}
 
@@ -1363,7 +1363,7 @@ namespace McpServerSchemaVersion_2025_16_09 {
 				packages: from.packages,
 				remotes: from.remotes,
 				registryInfo: from._meta?.['io.modelcontextprotocol.registry/official'],
-				githubInfo: from._meta['io.modelcontextprotocol.registry/publisher-provided']?.github,
+				githubInfo: from._meta['io.modelcontextprotocol.registry/publisher-provided']?.github as IGitHubInfo | undefined,
 			};
 		}
 	}
@@ -1729,7 +1729,7 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 		return this.toGalleryMcpServer(server, mcpGalleryManifest);
 	}
 
-	private serializeMcpServer(data: any): IRawGalleryMcpServer | undefined {
+	private serializeMcpServer(data: unknown): IRawGalleryMcpServer | undefined {
 		for (const [, serializer] of this.galleryMcpServerDataSerializers) {
 			const result = serializer.toRawGalleryMcpServer(data);
 			if (result) {
@@ -1739,7 +1739,7 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 		return undefined;
 	}
 
-	private serializeMcpServersResult(data: any): IRawGalleryMcpServersResult | undefined {
+	private serializeMcpServersResult(data: unknown): IRawGalleryMcpServersResult | undefined {
 		for (const [, serializer] of this.galleryMcpServerDataSerializers) {
 			const result = serializer.toRawGalleryMcpServerResult(data);
 			if (result) {

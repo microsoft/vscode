@@ -11,20 +11,20 @@ import { INativeMcpDiscoveryHelperService } from '../common/nativeMcpDiscoveryHe
 export class NativeMcpDiscoveryHelperChannel implements IServerChannel {
 
 	constructor(
-		private getUriTransformer: undefined | ((requestContext: any) => IURITransformer),
+		private getUriTransformer: undefined | ((requestContext: unknown) => IURITransformer),
 		@INativeMcpDiscoveryHelperService private nativeMcpDiscoveryHelperService: INativeMcpDiscoveryHelperService
 	) { }
 
-	listen(context: any, event: string): Event<any> {
+	listen<T>(context: unknown, event: string): Event<T> {
 		throw new Error('Invalid listen');
 	}
 
-	async call(context: any, command: string, args?: any): Promise<any> {
+	async call<T>(context: unknown, command: string, args?: unknown): Promise<T> {
 		const uriTransformer = this.getUriTransformer?.(context);
 		switch (command) {
 			case 'load': {
 				const result = await this.nativeMcpDiscoveryHelperService.load();
-				return uriTransformer ? transformOutgoingURIs(result, uriTransformer) : result;
+				return (uriTransformer ? transformOutgoingURIs(result, uriTransformer) : result) as T;
 			}
 		}
 		throw new Error('Invalid call');

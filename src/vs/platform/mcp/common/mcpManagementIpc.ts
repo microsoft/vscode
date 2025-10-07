@@ -44,7 +44,7 @@ export class McpManagementChannel implements IServerChannel {
 	readonly onUninstallMcpServer: Event<UninstallMcpServerEvent>;
 	readonly onDidUninstallMcpServer: Event<DidUninstallMcpServerEvent>;
 
-	constructor(private service: IMcpManagementService, private getUriTransformer: (requestContext: any) => IURITransformer | null) {
+	constructor(private service: IMcpManagementService, private getUriTransformer: (requestContext: unknown) => IURITransformer | null) {
 		this.onInstallMcpServer = Event.buffer(service.onInstallMcpServer, true);
 		this.onDidInstallMcpServers = Event.buffer(service.onDidInstallMcpServers, true);
 		this.onDidUpdateMcpServers = Event.buffer(service.onDidUpdateMcpServers, true);
@@ -52,13 +52,13 @@ export class McpManagementChannel implements IServerChannel {
 		this.onDidUninstallMcpServer = Event.buffer(service.onDidUninstallMcpServer, true);
 	}
 
-	listen(context: any, event: string): Event<any> {
+	listen<T>(context: unknown, event: string): Event<T> {
 		const uriTransformer = this.getUriTransformer(context);
 		switch (event) {
 			case 'onInstallMcpServer': {
 				return Event.map<InstallMcpServerEvent, InstallMcpServerEvent>(this.onInstallMcpServer, event => {
 					return { ...event, mcpResource: transformOutgoingURI(event.mcpResource, uriTransformer) };
-				});
+				}) as Event<T>;
 			}
 			case 'onDidInstallMcpServers': {
 				return Event.map<readonly InstallMcpServerResult[], readonly InstallMcpServerResult[]>(this.onDidInstallMcpServers, results =>
@@ -66,7 +66,7 @@ export class McpManagementChannel implements IServerChannel {
 						...i,
 						local: i.local ? transformOutgoingExtension(i.local, uriTransformer) : i.local,
 						mcpResource: transformOutgoingURI(i.mcpResource, uriTransformer)
-					})));
+					}))) as Event<T>;
 			}
 			case 'onDidUpdateMcpServers': {
 				return Event.map<readonly InstallMcpServerResult[], readonly InstallMcpServerResult[]>(this.onDidUpdateMcpServers, results =>
@@ -74,41 +74,42 @@ export class McpManagementChannel implements IServerChannel {
 						...i,
 						local: i.local ? transformOutgoingExtension(i.local, uriTransformer) : i.local,
 						mcpResource: transformOutgoingURI(i.mcpResource, uriTransformer)
-					})));
+					}))) as Event<T>;
 			}
 			case 'onUninstallMcpServer': {
 				return Event.map<UninstallMcpServerEvent, UninstallMcpServerEvent>(this.onUninstallMcpServer, event => {
 					return { ...event, mcpResource: transformOutgoingURI(event.mcpResource, uriTransformer) };
-				});
+				}) as Event<T>;
 			}
 			case 'onDidUninstallMcpServer': {
 				return Event.map<DidUninstallMcpServerEvent, DidUninstallMcpServerEvent>(this.onDidUninstallMcpServer, event => {
 					return { ...event, mcpResource: transformOutgoingURI(event.mcpResource, uriTransformer) };
-				});
+				}) as Event<T>;
 			}
 		}
 
 		throw new Error('Invalid listen');
 	}
 
-	async call(context: any, command: string, args?: any): Promise<any> {
+	async call<T>(context: unknown, command: string, args?: unknown): Promise<T> {
 		const uriTransformer: IURITransformer | null = this.getUriTransformer(context);
+		const argsArray = Array.isArray(args) ? args : [];
 		switch (command) {
 			case 'getInstalled': {
-				const mcpServers = await this.service.getInstalled(transformIncomingURI(args[0], uriTransformer));
-				return mcpServers.map(e => transformOutgoingExtension(e, uriTransformer));
+				const mcpServers = await this.service.getInstalled(transformIncomingURI(argsArray[0], uriTransformer));
+				return mcpServers.map(e => transformOutgoingExtension(e, uriTransformer)) as T;
 			}
 			case 'install': {
-				return this.service.install(args[0], transformIncomingOptions(args[1], uriTransformer));
+				return this.service.install(argsArray[0], transformIncomingOptions(argsArray[1], uriTransformer)) as T;
 			}
 			case 'installFromGallery': {
-				return this.service.installFromGallery(args[0], transformIncomingOptions(args[1], uriTransformer));
+				return this.service.installFromGallery(argsArray[0], transformIncomingOptions(argsArray[1], uriTransformer)) as T;
 			}
 			case 'uninstall': {
-				return this.service.uninstall(transformIncomingServer(args[0], uriTransformer), transformIncomingOptions(args[1], uriTransformer));
+				return this.service.uninstall(transformIncomingServer(argsArray[0], uriTransformer), transformIncomingOptions(argsArray[1], uriTransformer)) as T;
 			}
 			case 'updateMetadata': {
-				return this.service.updateMetadata(transformIncomingServer(args[0], uriTransformer), args[1], transformIncomingURI(args[2], uriTransformer));
+				return this.service.updateMetadata(transformIncomingServer(argsArray[0], uriTransformer), argsArray[1], transformIncomingURI(argsArray[2], uriTransformer)) as T;
 			}
 		}
 
