@@ -63,6 +63,7 @@ export interface ITerminalCapabilityStore {
 	 * Fired when a capability is added. The event data for this is only the
 	 * {@link TerminalCapability} type, use {@link onDidAddCapability} to access the actual
 	 * capability.
+	 * @deprecated Use {@link createOnDidAddCapabilityOfTypeEvent}
 	 */
 	readonly onDidAddCapabilityType: Event<TerminalCapability>;
 
@@ -70,18 +71,32 @@ export interface ITerminalCapabilityStore {
 	 * Fired when a capability is removed. The event data for this is only the
 	 * {@link TerminalCapability} type, use {@link onDidAddCapability} to access the actual
 	 * capability.
+	 * @deprecated Use {@link createOnDidRemoveCapabilityOfTypeEvent}
 	 */
 	readonly onDidRemoveCapabilityType: Event<TerminalCapability>;
-
 	/**
 	 * Fired when a capability is added.
 	 */
-	readonly onDidAddCapability: Event<TerminalCapabilityChangeEvent<any>>;
+	readonly onDidAddCapability: Event<AnyTerminalCapabilityChangeEvent>;
 
 	/**
 	 * Fired when a capability is removed.
+	*/
+	readonly onDidRemoveCapability: Event<AnyTerminalCapabilityChangeEvent>;
+
+	/**
+	 * Create an event that's fired when a specific capability type is added. Use this over
+	 * {@link onDidAddCapability} when the generic type needs to be retained.
+	 * @param type The capability type.
 	 */
-	readonly onDidRemoveCapability: Event<TerminalCapabilityChangeEvent<any>>;
+	createOnDidAddCapabilityOfTypeEvent<T extends TerminalCapability>(type: T): Event<ITerminalCapabilityImplMap[T]>;
+
+	/**
+	 * Create an event that's fired when a specific capability type is removed. Use this over
+	 * {@link onDidRemoveCapability} when the generic type needs to be retained.
+	 * @param type The capability type.
+	 */
+	createOnDidRemoveCapabilityOfTypeEvent<T extends TerminalCapability>(type: T): Event<ITerminalCapabilityImplMap[T]>;
 
 	/**
 	 * Gets whether the capability exists in the store.
@@ -98,6 +113,10 @@ export interface TerminalCapabilityChangeEvent<T extends TerminalCapability> {
 	id: T;
 	capability: ITerminalCapabilityImplMap[T];
 }
+
+export type AnyTerminalCapabilityChangeEvent = {
+	[K in TerminalCapability]: TerminalCapabilityChangeEvent<K>
+}[TerminalCapability];
 
 /**
  * Maps capability types to their implementation, enabling strongly typed fetching of
