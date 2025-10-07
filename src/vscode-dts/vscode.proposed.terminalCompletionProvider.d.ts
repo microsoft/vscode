@@ -167,7 +167,7 @@ declare module 'vscode' {
 	 * @example <caption>Create a completion list that requests files for the terminal cwd</caption>
 	 * const list = new TerminalCompletionList([
 	 * 	{ label: 'ls', replacementIndex: 0, replacementLength: 0, kind: TerminalCompletionItemKind.Method }
-	 * ], { filesRequested: true, cwd: Uri.file('/home/user') });
+	 * ], { showFiles: true, cwd: Uri.file('/home/user') });
 	 */
 	export class TerminalCompletionList<T extends TerminalCompletionItem = TerminalCompletionItem> {
 

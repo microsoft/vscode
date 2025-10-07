@@ -305,11 +305,11 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 
 			const cwd = result.cwd ?? terminal.shellIntegration?.cwd;
-			if (cwd && (result.filesRequested || result.foldersRequested)) {
+			if (cwd && (result.showFiles || result.showFolders)) {
 				const globPattern = createFileGlobPattern(result.fileExtensions);
 				return new vscode.TerminalCompletionList(result.items, {
-					showFiles: result.filesRequested,
-					showDirectories: result.foldersRequested,
+					showFiles: result.showFiles,
+					showDirectories: result.showFolders,
 					globPattern,
 					cwd,
 				});
@@ -419,10 +419,10 @@ export async function getCompletionItemsFromSpecs(
 	name: string,
 	token?: vscode.CancellationToken,
 	executeExternals?: IFigExecuteExternals,
-): Promise<{ items: vscode.TerminalCompletionItem[]; filesRequested: boolean; foldersRequested: boolean; fileExtensions?: string[]; cwd?: vscode.Uri }> {
+): Promise<{ items: vscode.TerminalCompletionItem[]; showFiles: boolean; showFolders: boolean; fileExtensions?: string[]; cwd?: vscode.Uri }> {
 	let items: vscode.TerminalCompletionItem[] = [];
-	let filesRequested = false;
-	let foldersRequested = false;
+	let showFiles = false;
+	let showFolders = false;
 	let hasCurrentArg = false;
 	let fileExtensions: string[] | undefined;
 
@@ -455,8 +455,8 @@ export async function getCompletionItemsFromSpecs(
 	const result = await getFigSuggestions(specs, terminalContext, availableCommands, currentCommandString, tokenType, shellIntegrationCwd, env, name, executeExternalsWithFallback, token);
 	if (result) {
 		hasCurrentArg ||= result.hasCurrentArg;
-		filesRequested ||= result.filesRequested;
-		foldersRequested ||= result.foldersRequested;
+		showFiles ||= result.showFiles;
+		showFolders ||= result.showFolders;
 		fileExtensions = result.fileExtensions;
 		if (result.items) {
 			items = items.concat(result.items);
@@ -491,23 +491,23 @@ export async function getCompletionItemsFromSpecs(
 				existingItem.detail ??= command.detail;
 			}
 		}
-		filesRequested = true;
-		foldersRequested = true;
+		showFiles = true;
+		showFolders = true;
 	}
 	// For arguments when no fig suggestions are found these are fallback suggestions
-	else if (!items.length && !filesRequested && !foldersRequested && !hasCurrentArg) {
+	else if (!items.length && !showFiles && !showFolders && !hasCurrentArg) {
 		if (terminalContext.allowFallbackCompletions) {
-			filesRequested = true;
-			foldersRequested = true;
+			showFiles = true;
+			showFolders = true;
 		}
 	}
 
 	let cwd: vscode.Uri | undefined;
-	if (shellIntegrationCwd && (filesRequested || foldersRequested)) {
+	if (shellIntegrationCwd && (showFiles || showFolders)) {
 		cwd = await resolveCwdFromCurrentCommandString(currentCommandString, shellIntegrationCwd);
 	}
 
-	return { items, filesRequested, foldersRequested, fileExtensions, cwd };
+	return { items, showFiles: showFiles, showFolders: showFolders, fileExtensions, cwd };
 }
 
 function getEnvAsRecord(shellIntegrationEnv: ITerminalEnvironment): Record<string, string> {

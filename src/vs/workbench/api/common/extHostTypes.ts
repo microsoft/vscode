@@ -991,8 +991,8 @@ export class TerminalCompletionList<T extends TerminalCompletionItem = TerminalC
 }
 
 export interface TerminalCompletionResourceOptions {
-	filesRequested?: boolean;
-	foldersRequested?: boolean;
+	showFiles?: boolean;
+	showFolders?: boolean;
 	fileExtensions?: string[];
 	cwd?: vscode.Uri;
 }

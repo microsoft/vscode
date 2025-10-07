@@ -54,8 +54,8 @@ export class TerminalCompletionList<ITerminalCompletion> {
 }
 
 export interface TerminalCompletionResourceOptions {
-	filesRequested?: boolean;
-	foldersRequested?: boolean;
+	showFiles?: boolean;
+	showFolders?: boolean;
 	globPattern?: string | IRelativePattern;
 	cwd: UriComponents;
 	pathSeparator: string;
@@ -256,11 +256,11 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 
 		// Files requested implies folders requested since the file could be in any folder. We could
 		// provide diagnostics when a folder is provided where a file is expected.
-		const foldersRequested = (resourceOptions.foldersRequested || resourceOptions.filesRequested) ?? false;
-		const filesRequested = resourceOptions.filesRequested ?? false;
+		const showFolders = (resourceOptions.showFolders || resourceOptions.showFiles) ?? false;
+		const showFiles = resourceOptions.showFiles ?? false;
 		const globPattern = resourceOptions.globPattern ?? undefined;
 
-		if (!foldersRequested && !filesRequested) {
+		if (!showFolders && !showFiles) {
 			return;
 		}
 
@@ -374,7 +374,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		// - (tilde)    `~/|`     -> `~/`
 		// - (tilde)    `~/src/|` -> `~/src/`
 		this._logService.trace(`TerminalCompletionService#resolveResources cwd`);
-		if (foldersRequested) {
+		if (showFolders) {
 			let label: string;
 			switch (type) {
 				case 'tilde': {
@@ -412,13 +412,13 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		await Promise.all(stat.children.map(child => (async () => {
 			let kind: TerminalCompletionItemKind | undefined;
 			let detail: string | undefined = undefined;
-			if (foldersRequested && child.isDirectory) {
+			if (showFolders && child.isDirectory) {
 				if (child.isSymbolicLink) {
 					kind = TerminalCompletionItemKind.SymbolicLinkFolder;
 				} else {
 					kind = TerminalCompletionItemKind.Folder;
 				}
-			} else if (filesRequested && child.isFile) {
+			} else if (showFiles && child.isFile) {
 				if (child.isSymbolicLink) {
 					kind = TerminalCompletionItemKind.SymbolicLinkFile;
 				} else {
@@ -477,7 +477,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		//
 		// - (relative) `|` -> `/foo/vscode` (CDPATH has /foo which contains vscode folder)
 		this._logService.trace(`TerminalCompletionService#resolveResources CDPATH`);
-		if (type === 'relative' && foldersRequested) {
+		if (type === 'relative' && showFolders) {
 			if (promptValue.startsWith('cd ')) {
 				const config = this._configurationService.getValue(TerminalSuggestSettingId.CdPath);
 				if (config === 'absolute' || config === 'relative') {
@@ -524,7 +524,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		// - (relative) `|` -> `../`
 		// - (relative) `./src/|` -> `./src/../`
 		this._logService.trace(`TerminalCompletionService#resolveResources parent dir`);
-		if (type === 'relative' && foldersRequested) {
+		if (type === 'relative' && showFolders) {
 			let label = `..${resourceOptions.pathSeparator}`;
 			if (lastWordFolder.length > 0) {
 				label = addPathRelativePrefix(lastWordFolder + label, resourceOptions, lastWordFolderHasDotPrefix);

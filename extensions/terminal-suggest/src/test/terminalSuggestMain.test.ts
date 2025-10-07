@@ -93,8 +93,8 @@ suite('Terminal Suggest', () => {
 					const commandLine = testSpec.input.split('|')[0];
 					const cursorIndex = testSpec.input.indexOf('|');
 					const currentCommandString = getCurrentCommandAndArgs(commandLine, cursorIndex, undefined);
-					const filesRequested = testSpec.expectedResourceRequests?.type === 'files' || testSpec.expectedResourceRequests?.type === 'both';
-					const foldersRequested = testSpec.expectedResourceRequests?.type === 'folders' || testSpec.expectedResourceRequests?.type === 'both';
+					const showFiles = testSpec.expectedResourceRequests?.type === 'files' || testSpec.expectedResourceRequests?.type === 'both';
+					const showFolders = testSpec.expectedResourceRequests?.type === 'folders' || testSpec.expectedResourceRequests?.type === 'both';
 					const terminalContext = { commandLine, cursorIndex, allowFallbackCompletions: true };
 					const result = await getCompletionItemsFromSpecs(
 						completionSpecs,
@@ -118,8 +118,8 @@ suite('Terminal Suggest', () => {
 						}).sort(),
 						(testSpec.expectedCompletions ?? []).sort()
 					);
-					strictEqual(result.filesRequested, filesRequested, 'Files requested different than expected, got: ' + result.filesRequested);
-					strictEqual(result.foldersRequested, foldersRequested, 'Folders requested different than expected, got: ' + result.foldersRequested);
+					strictEqual(result.showFiles, showFiles, 'Show files different than expected, got: ' + result.showFiles);
+					strictEqual(result.showFolders, showFolders, 'Show folders different than expected, got: ' + result.showFolders);
 					if (testSpec.expectedResourceRequests?.cwd) {
 						strictEqual(result.cwd?.fsPath, testSpec.expectedResourceRequests.cwd.fsPath, 'Non matching cwd');
 					}
