@@ -179,4 +179,32 @@ suite('ChatTodoListWidget Accessibility', () => {
 		const todoListContainer = widget.domNode.querySelector('.todo-list-container');
 		assert.strictEqual(todoListContainer?.getAttribute('aria-labelledby'), 'todo-list-title');
 	});
+
+	test('edit buttons exist and are accessible', () => {
+		widget.render('test-session');
+
+		const editButtons = widget.domNode.querySelectorAll('.todo-edit-button');
+		assert.strictEqual(editButtons.length, 3, 'Should have 3 edit buttons, one per todo item');
+
+		editButtons.forEach(button => {
+			assert.strictEqual(button.getAttribute('role'), 'button', 'Edit button should have button role');
+			assert.strictEqual(button.getAttribute('tabindex'), '0', 'Edit button should be focusable');
+			assert.ok(button.getAttribute('aria-label')?.includes('Edit'), 'Edit button should have proper aria-label');
+			assert.ok(button.classList.contains('codicon-pencil'), 'Edit button should have pencil icon');
+		});
+	});
+
+	test('todo titles are wrapped in title containers', () => {
+		widget.render('test-session');
+
+		const titleContainers = widget.domNode.querySelectorAll('.todo-title-container');
+		assert.strictEqual(titleContainers.length, 3, 'Should have 3 title containers');
+
+		titleContainers.forEach(container => {
+			const title = container.querySelector('.todo-title');
+			const editButton = container.querySelector('.todo-edit-button');
+			assert.ok(title, 'Title container should have title element');
+			assert.ok(editButton, 'Title container should have edit button');
+		});
+	});
 });
