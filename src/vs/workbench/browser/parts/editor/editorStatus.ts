@@ -1145,7 +1145,7 @@ export class ChangeLanguageAction extends Action2 {
 				args: [
 					{
 						name: localize('changeLanguageMode.arg.name', "The name of the language mode to change to."),
-						constraint: (value: any) => typeof value === 'string',
+						constraint: (value: unknown) => typeof value === 'string',
 					}
 				]
 			}
@@ -1374,8 +1374,7 @@ export class ChangeLanguageAction extends Action2 {
 
 				// If the association is already being made in the workspace, make sure to target workspace settings
 				let target = ConfigurationTarget.USER;
-				// eslint-disable-next-line local/code-no-any-casts
-				if (fileAssociationsConfig.workspaceValue && !!(fileAssociationsConfig.workspaceValue as any)[associationKey]) {
+				if (fileAssociationsConfig.workspaceValue && fileAssociationsConfig.workspaceValue[associationKey as keyof typeof fileAssociationsConfig.workspaceValue]) {
 					target = ConfigurationTarget.WORKSPACE;
 				}
 

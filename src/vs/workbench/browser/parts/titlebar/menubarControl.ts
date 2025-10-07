@@ -721,7 +721,7 @@ export class CustomMenubarControl extends MenubarControl {
 					const title = typeof action.item.title === 'string'
 						? action.item.title
 						: action.item.title.mnemonicTitle ?? action.item.title.value;
-					webNavigationActions.push(new Action(action.id, mnemonicMenuLabel(title), action.class, action.enabled, async (event?: any) => {
+					webNavigationActions.push(new Action(action.id, mnemonicMenuLabel(title), action.class, action.enabled, async (event?: unknown) => {
 						this.commandService.executeCommand(action.id, event);
 					}));
 				}
