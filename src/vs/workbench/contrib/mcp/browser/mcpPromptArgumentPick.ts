@@ -127,6 +127,7 @@ export class McpPromptArgumentPick extends Disposable {
 			}
 		];
 
+		let isFirstAutorun = true;
 		store.add(autorun(reader => {
 			if (didRestoreState) {
 				input$.read(reader);
@@ -151,7 +152,8 @@ export class McpPromptArgumentPick extends Disposable {
 			quickPick.busy = busy;
 			quickPick.items = items;
 
-			const lastActive = items.find(i => previouslyActive.some(a => a.id === i.id)) as PickItem | undefined;
+			// Only preserve active items after the first autorun to prevent cross-field contamination
+			const lastActive = !isFirstAutorun ? items.find(i => previouslyActive.some(a => a.id === i.id)) as PickItem | undefined : undefined;
 			// Keep any selection state, but otherwise select the first completion item, and avoid default-selecting the top item unless there are no compltions
 			if (lastActive) {
 				quickPick.activeItems = [lastActive];
@@ -162,6 +164,8 @@ export class McpPromptArgumentPick extends Disposable {
 			} else {
 				quickPick.activeItems = [items[0] as PickItem];
 			}
+			
+			isFirstAutorun = false;
 		}));
 
 		try {
