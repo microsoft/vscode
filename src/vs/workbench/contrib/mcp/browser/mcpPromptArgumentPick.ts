@@ -127,6 +127,10 @@ export class McpPromptArgumentPick extends Disposable {
 			}
 		];
 
+		// Track the first autorun to prevent cross-field active item contamination.
+		// When moving to a new field, we should not preserve active items from the previous field.
+		// This prevents the issue where pressing Enter on an empty optional field would erroneously
+		// use a suggestion that was active in a previous field.
 		let isFirstAutorun = true;
 		store.add(autorun(reader => {
 			if (didRestoreState) {
