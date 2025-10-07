@@ -63,7 +63,7 @@ export interface ITerminalCapabilityStore {
 	 * Fired when a capability is added. The event data for this is only the
 	 * {@link TerminalCapability} type, use {@link onDidAddCapability} to access the actual
 	 * capability.
-	 * @deprecated Use {@link createOnDidAddCapabilityOfTypeEvent}
+	 * @deprecated Use {@link onDidAddCapability} or {@link onDidAddCommandDetectionCapability}
 	 */
 	readonly onDidAddCapabilityType: Event<TerminalCapability>;
 
@@ -71,7 +71,7 @@ export interface ITerminalCapabilityStore {
 	 * Fired when a capability is removed. The event data for this is only the
 	 * {@link TerminalCapability} type, use {@link onDidAddCapability} to access the actual
 	 * capability.
-	 * @deprecated Use {@link createOnDidRemoveCapabilityOfTypeEvent}
+	 * @deprecated Use {@link onDidRemoveCapability} or {@link onDidRemoveCommandDetectionCapability}
 	 */
 	readonly onDidRemoveCapabilityType: Event<TerminalCapability>;
 	/**
@@ -83,6 +83,9 @@ export interface ITerminalCapabilityStore {
 	 * Fired when a capability is removed.
 	*/
 	readonly onDidRemoveCapability: Event<AnyTerminalCapabilityChangeEvent>;
+
+	readonly onDidAddCommandDetectionCapability: Event<ICommandDetectionCapability>;
+	readonly onDidRemoveCommandDetectionCapability: Event<void>;
 
 	/**
 	 * Create an event that's fired when a specific capability type is added. Use this over
