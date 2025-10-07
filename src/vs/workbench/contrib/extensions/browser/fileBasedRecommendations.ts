@@ -161,7 +161,8 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		const languageId = model.getLanguageId();
 
 		// Allow language-specific recommendations for untitled files when language is auto-detected only when the file is large.
-		const allowLanguageMatch = this.untitledTextEditorService.get(uri)?.hasLanguageSetExplicitly ? model.getValueLength() > 1000 : true;
+		const allowLanguageMatch = this.untitledTextEditorService.get(uri)?.hasLanguageSetExplicitly ?
+			model.getValueLength() > untitledFileRecommendationsMinLength : true;
 
 		for (const [extensionId, conditions] of extensionRecommendationEntries) {
 			const conditionsByPattern: IFileOpenCondition[] = [];
