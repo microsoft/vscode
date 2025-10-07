@@ -5,6 +5,7 @@ src/vs/base/common/glob.ts @bpasero
 src/vs/base/common/path.ts @bpasero
 src/vs/base/common/stream.ts @bpasero
 src/vs/base/browser/domSanitize.ts @mjbvz
+src/vs/base/browser/** @bpasero
 src/vs/base/node/pfs.ts @bpasero
 src/vs/base/node/unc.ts @bpasero
 src/vs/base/parts/contextmenu/** @bpasero

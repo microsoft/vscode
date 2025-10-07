@@ -66,6 +66,7 @@ import { CommandsConverter } from './extHostCommands.js';
 import { getPrivateApiFor } from './extHostTestingPrivateApi.js';
 import * as types from './extHostTypes.js';
 import { LanguageModelDataPart, LanguageModelPromptTsxPart, LanguageModelTextPart } from './extHostTypes.js';
+import { InputValidationType } from '../../contrib/scm/common/scm.js';
 
 export namespace Command {
 
@@ -3731,5 +3732,20 @@ export namespace McpServerDefinition {
 					envFile: undefined,
 				}
 		);
+	}
+}
+
+export namespace SourceControlInputBoxValidationType {
+	export function from(type: number): InputValidationType {
+		switch (type) {
+			case types.SourceControlInputBoxValidationType.Error:
+				return InputValidationType.Error;
+			case types.SourceControlInputBoxValidationType.Warning:
+				return InputValidationType.Warning;
+			case types.SourceControlInputBoxValidationType.Information:
+				return InputValidationType.Information;
+			default:
+				throw new Error('Unknown SourceControlInputBoxValidationType');
+		}
 	}
 }

@@ -56,7 +56,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 		public readonly document: vscode.TextDocument,
 		public readonly tsEntry: Proto.CompletionEntry,
 		private readonly completionContext: CompletionContext,
-		public readonly metadata: any | undefined,
+		public readonly metadata: unknown | undefined,
 		client: ITypeScriptServiceClient,
 		defaultCommitCharacters: readonly string[] | undefined,
 	) {

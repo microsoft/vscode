@@ -109,6 +109,7 @@ export class TerminalVoiceSession extends Disposable {
 				case SpeechToTextStatus.Recognizing: {
 					this._updateInput(e);
 					this._renderGhostText(e);
+					this._updateDecoration();
 					if (voiceTimeout > 0) {
 						this._acceptTranscriptionScheduler!.cancel();
 					}
@@ -133,7 +134,9 @@ export class TerminalVoiceSession extends Disposable {
 			this._sendText();
 		}
 		this._ghostText = undefined;
+		this._decoration?.dispose();
 		this._decoration = undefined;
+		this._marker?.dispose();
 		this._marker = undefined;
 		this._ghostTextMarker = undefined;
 		this._cancellationTokenSource?.cancel();
@@ -164,23 +167,38 @@ export class TerminalVoiceSession extends Disposable {
 			return;
 		}
 		const onFirstLine = xterm.buffer.active.cursorY === 0;
+
+		// Calculate x position based on current cursor position and input length
+		const inputLength = this._input.length;
+		const xPosition = xterm.buffer.active.cursorX + inputLength;
+
 		this._marker = activeInstance.registerMarker(onFirstLine ? 0 : -1);
 		if (!this._marker) {
 			return;
 		}
-		this._disposables.add(this._marker);
 		this._decoration = xterm.registerDecoration({
 			marker: this._marker,
 			layer: 'top',
-			x: xterm.buffer.active.cursorX ?? 0,
+			x: xPosition,
 		});
-		if (this._decoration) {
-			this._disposables.add(this._decoration);
+		if (!this._decoration) {
+			this._marker.dispose();
+			this._marker = undefined;
+			return;
 		}
-		this._decoration?.onRender((e: HTMLElement) => {
+		this._decoration.onRender((e: HTMLElement) => {
 			e.classList.add(...ThemeIcon.asClassNameArray(Codicon.micFilled), 'terminal-voice', 'recording');
 			e.style.transform = onFirstLine ? 'translate(10px, -2px)' : 'translate(-6px, -5px)';
 		});
+	}
+
+	private _updateDecoration(): void {
+		// Dispose the old decoration and recreate it at the new position
+		this._decoration?.dispose();
+		this._marker?.dispose();
+		this._decoration = undefined;
+		this._marker = undefined;
+		this._createDecoration();
 	}
 
 	private _setInactive(): void {
