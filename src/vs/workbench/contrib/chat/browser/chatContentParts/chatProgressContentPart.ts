@@ -7,9 +7,9 @@ import { $, append } from '../../../../../base/browser/dom.js';
 import { alert } from '../../../../../base/browser/ui/aria/aria.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRenderResult, MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { localize } from '../../../../../nls.js';
 import { IChatProgressMessage, IChatTask, IChatTaskSerialized } from '../../common/chatService.js';
@@ -24,10 +24,11 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 
 	private readonly showSpinner: boolean;
 	private readonly isHidden: boolean;
+	private readonly renderedMessage = this._register(new MutableDisposable<IMarkdownRenderResult>());
 
 	constructor(
 		progress: IChatProgressMessage | IChatTask | IChatTaskSerialized,
-		renderer: MarkdownRenderer,
+		private readonly renderer: MarkdownRenderer,
 		context: IChatContentPartRenderContext,
 		forceShowSpinner: boolean | undefined,
 		forceShowMessage: boolean | undefined,
@@ -52,7 +53,7 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 			alert(progress.content.value);
 		}
 		const codicon = icon ? icon : this.showSpinner ? ThemeIcon.modify(Codicon.loading, 'spin') : Codicon.check;
-		const result = this._register(renderer.render(progress.content));
+		const result = this.renderer.render(progress.content);
 		result.element.classList.add('progress-step');
 		renderFileWidgets(result.element, this.instantiationService, this.chatMarkdownAnchorService, this._store);
 
@@ -61,6 +62,27 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 		iconElement.classList.add(...ThemeIcon.asClassNameArray(codicon));
 		append(this.domNode, iconElement);
 		append(this.domNode, result.element);
+		this.renderedMessage.value = result;
+	}
+
+	updateMessage(content: MarkdownString): void {
+		if (this.isHidden) {
+			return;
+		}
+
+		// Render the new message
+		const result = this._register(this.renderer.render(content));
+		result.element.classList.add('progress-step');
+		renderFileWidgets(result.element, this.instantiationService, this.chatMarkdownAnchorService, this._store);
+
+		// Replace the old message container with the new one
+		if (this.renderedMessage.value) {
+			this.renderedMessage.value.element.replaceWith(result.element);
+		} else {
+			this.domNode.appendChild(result.element);
+		}
+
+		this.renderedMessage.value = result;
 	}
 
 	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
