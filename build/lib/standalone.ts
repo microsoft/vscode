@@ -42,14 +42,12 @@ export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: str
 	}
 	tsConfig.compilerOptions = compilerOptions;
 	tsConfig.compilerOptions.sourceMap = true;
-	tsConfig.compilerOptions.module = 'es2022';
 	tsConfig.compilerOptions.outDir = options.tsOutDir;
 
 	compilerOptions.noEmit = false;
 	compilerOptions.noUnusedLocals = false;
 	compilerOptions.preserveConstEnums = false;
 	compilerOptions.declaration = false;
-	compilerOptions.moduleResolution = ts.ModuleResolutionKind.Classic;
 
 
 	options.compilerOptions = compilerOptions;
