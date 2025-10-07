@@ -179,4 +179,41 @@ suite('ChatTodoListWidget Accessibility', () => {
 		const todoListContainer = widget.domNode.querySelector('.todo-list-container');
 		assert.strictEqual(todoListContainer?.getAttribute('aria-labelledby'), 'todo-list-title');
 	});
+
+	test('edit button appears on each todo item', () => {
+		widget.render('test-session');
+
+		const todoItems = widget.domNode.querySelectorAll('.todo-item');
+		assert.strictEqual(todoItems.length, 3, 'Should have 3 todo items');
+
+		todoItems.forEach(item => {
+			const editButton = item.querySelector('.todo-edit-button');
+			assert.ok(editButton, 'Each todo item should have an edit button');
+			assert.ok(editButton?.classList.contains('codicon-edit'), 'Edit button should have edit icon');
+			assert.strictEqual(editButton?.getAttribute('role'), 'button');
+			assert.strictEqual(editButton?.getAttribute('tabindex'), '0');
+			assert.ok(editButton?.getAttribute('aria-label')?.includes('Edit todo'));
+		});
+	});
+
+	test('clicking edit button shows input field', () => {
+		widget.render('test-session');
+
+		const firstItem = widget.domNode.querySelector('.todo-item') as HTMLElement;
+		const editButton = firstItem?.querySelector('.todo-edit-button') as HTMLElement;
+		const titleElement = firstItem?.querySelector('.todo-title') as HTMLElement;
+
+		assert.ok(editButton, 'Should have edit button');
+		assert.ok(titleElement, 'Should have title element');
+
+		// Click the edit button
+		editButton.click();
+
+		// Check that input field is shown
+		const input = firstItem?.querySelector('.todo-edit-input') as HTMLInputElement;
+		assert.ok(input, 'Should have input field after clicking edit button');
+		assert.strictEqual(input.value, 'First task', 'Input should have current title value');
+		assert.strictEqual(titleElement.style.display, 'none', 'Title should be hidden');
+		assert.strictEqual(editButton.style.display, 'none', 'Edit button should be hidden');
+	});
 });
