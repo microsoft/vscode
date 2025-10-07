@@ -167,11 +167,11 @@ export class TerminalVoiceSession extends Disposable {
 			return;
 		}
 		const onFirstLine = xterm.buffer.active.cursorY === 0;
-		
+
 		// Calculate x position based on current cursor position and input length
 		const inputLength = this._input.length;
 		const xPosition = xterm.buffer.active.cursorX + inputLength;
-		
+
 		this._marker = activeInstance.registerMarker(onFirstLine ? 0 : -1);
 		if (!this._marker) {
 			return;
