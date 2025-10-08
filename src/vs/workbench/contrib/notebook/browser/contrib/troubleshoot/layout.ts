@@ -59,8 +59,14 @@ export class TroubleshootController extends Disposable implements INotebookEdito
 
 	private _log(cell: ICellViewModel, e: any) {
 		if (this._enabled) {
+			let visibleViewportRange = '';
+			const cellEditor = this._notebookEditor.codeEditors.find(([c]) => c === cell)?.[1];
+			if (cellEditor) {
+				const visible = cellEditor.getVisibleRangesPlusViewportAboveBelow();
+				visibleViewportRange = `| VisibleViewportRange: ${visible.map(r => `[${r.startLineNumber}, ${r.endLineNumber})`).join(', ')}`;
+			}
 			const oldHeight = (this._notebookEditor as NotebookEditorWidget).getViewHeight(cell);
-			console.log(`cell#${cell.handle}`, e, `${oldHeight} -> ${cell.layoutInfo.totalHeight}`);
+			console.log(`cell#${cell.handle}`, e, `${oldHeight} -> ${cell.layoutInfo.totalHeight}`, visibleViewportRange);
 		}
 	}
 
@@ -181,12 +187,22 @@ export class TroubleshootController extends Disposable implements INotebookEdito
 		overlayContainer.appendChild(topLine);
 
 		const getLayoutInfo = () => {
-			const eol = cell.textBuffer.getEOL() === '\n' ? 'LF' : 'CRLF';
+			// const eol = cell.textBuffer.getEOL() === '\n' ? 'LF' : 'CRLF';
 			let scrollTop = '';
 			if (cell.layoutInfo.layoutState > 0) {
 				scrollTop = `| AbsoluteTopOfElement: ${this._notebookEditor.getAbsoluteTopOfElement(cell)}px`;
 			}
-			return `cell #${index} (handle: ${cell.handle}) ${scrollTop} | EOL: ${eol}`;
+			let visibleViewportRange = '';
+			const cellEditor = this._notebookEditor.codeEditors.find(([c]) => c === cell)?.[1];
+			if (cellEditor) {
+				const visible = cellEditor.getVisibleRanges();
+				visibleViewportRange = `| VisibleViewportRange: ${visible.map(r => `[${r.startLineNumber}, ${r.endLineNumber})`).join(', ')}`;
+			}
+			const height = `| Height : ${cell.layoutInfo.totalHeight}px`;
+			const realContentHeight = `| RealContentHeight: ${cellEditor?.getContentHeight()}px`;
+			const layout = `cell #${index} (handle: ${cell.handle}) ${scrollTop} | ${visibleViewportRange} | ${height} | ${realContentHeight}`;
+			console.log(layout);
+			return layout;
 		};
 		const label = document.createElement('div');
 		label.textContent = getLayoutInfo();
@@ -204,6 +220,7 @@ export class TroubleshootController extends Disposable implements INotebookEdito
 		label.style.zIndex = '1001';
 		overlayContainer.appendChild(label);
 
+		// this._regist≤er(registerCellToolbarStickyScroll(this._notebookEditor, cell, overlayContainer));
 		let overlayId: string | undefined = undefined;
 		this._notebookEditor.changeCellOverlays((accessor) => {
 			overlayId = accessor.addOverlay({
