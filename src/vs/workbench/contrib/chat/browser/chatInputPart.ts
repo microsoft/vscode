@@ -1239,7 +1239,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.inputActionsToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, toolbarsContainer, MenuId.ChatInput, {
 			telemetrySource: this.options.menus.telemetrySource,
 			menuOptions: { shouldForwardArgs: true },
-			hiddenItemStrategy: HiddenItemStrategy.Ignore,
+			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			hoverDelegate,
 			actionViewItemProvider: (action, options) => {
 				if (action.id === ChatOpenModelPickerActionId && action instanceof MenuItemAction) {
@@ -1282,7 +1282,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				shouldForwardArgs: true
 			},
 			hoverDelegate,
-			hiddenItemStrategy: HiddenItemStrategy.Ignore, // keep it lean when hiding items and avoid a "..." overflow menu
+			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			actionViewItemProvider: (action, options) => {
 				if (this.location === ChatAgentLocation.Chat || this.location === ChatAgentLocation.EditorInline) {
 					if ((action.id === ChatSubmitAction.ID || action.id === CancelAction.ID || action.id === ChatEditingSessionSubmitAction.ID || action.id === ChatDelegateToEditSessionAction.ID) && action instanceof MenuItemAction) {
@@ -1365,7 +1365,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			telemetrySource: this.options.menus.telemetrySource,
 			label: true,
 			menuOptions: { shouldForwardArgs: true, renderShortTitle: true },
-			hiddenItemStrategy: HiddenItemStrategy.Ignore,
+			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			hoverDelegate,
 			actionViewItemProvider: (action, options) => {
 				if (action.id === 'workbench.action.chat.attachContext') {
