@@ -1232,8 +1232,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		let preReleaseVersionForTargetPlatformFound = false;
 		let releaseVersionForTargetPlatformFound = false;
 		for (const rawGalleryExtensionVersion of sorted) {
-			const isTargetplatformCompatible = isTargetPlatformCompatible(getTargetPlatformForExtensionVersion(rawGalleryExtensionVersion), allTargetPlatforms, targetPlatform);
-			if (!isTargetplatformCompatible) {
+			if (!isTargetPlatformCompatible(getTargetPlatformForExtensionVersion(rawGalleryExtensionVersion), allTargetPlatforms, targetPlatform)) {
 				result.push(rawGalleryExtensionVersion);
 				continue;
 			}
@@ -1243,7 +1242,8 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 					result.push(rawGalleryExtensionVersion);
 					preReleaseVersionForTargetPlatformFound = true;
 				}
-			} else {
+			}
+			else {
 				if (!releaseVersionForTargetPlatformFound) {
 					result.push(rawGalleryExtensionVersion);
 					releaseVersionForTargetPlatformFound = true;
