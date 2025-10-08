@@ -9,7 +9,8 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { IMarkdownRenderResult, MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IRenderedMarkdown } from '../../../../../base/browser/markdownRenderer.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { localize } from '../../../../../nls.js';
 import { IChatProgressMessage, IChatTask, IChatTaskSerialized } from '../../common/chatService.js';
@@ -26,7 +27,7 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 
 	private readonly showSpinner: boolean;
 	private readonly isHidden: boolean;
-	private readonly renderedMessage = this._register(new MutableDisposable<IMarkdownRenderResult>());
+	private readonly renderedMessage = this._register(new MutableDisposable<IRenderedMarkdown>());
 
 	constructor(
 		progress: IChatProgressMessage | IChatTask | IChatTaskSerialized,

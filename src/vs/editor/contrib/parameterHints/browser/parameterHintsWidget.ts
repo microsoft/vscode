@@ -17,7 +17,8 @@ import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentW
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import { EDITOR_FONT_DEFAULTS } from '../../../common/config/fontInfo.js';
 import * as languages from '../../../common/languages.js';
-import { IMarkdownRenderResult, MarkdownRenderer } from '../../../browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { MarkdownRenderer } from '../../../browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IRenderedMarkdown } from '../../../../base/browser/markdownRenderer.js';
 import { ParameterHintsModel } from './parameterHintsModel.js';
 import { Context } from './provideSignatureHelp.js';
 import * as nls from '../../../../nls.js';
@@ -270,7 +271,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		this.domNodes.scrollbar.scanDomNode();
 	}
 
-	private renderMarkdownDocs(markdown: IMarkdownString): IMarkdownRenderResult {
+	private renderMarkdownDocs(markdown: IMarkdownString): IRenderedMarkdown {
 		const renderedContents = this.renderDisposeables.add(this.markdownRenderer.render(markdown, {
 			asyncRenderCallback: () => {
 				this.domNodes?.scrollbar.scanDomNode();
