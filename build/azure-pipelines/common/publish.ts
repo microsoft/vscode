@@ -512,18 +512,21 @@ class ESRPReleaseService {
 	}
 
 	private async generateJwsToken(message: ReleaseRequestMessage): Promise<string> {
+		// Create header with properly typed properties, then override x5c with the non-standard string format
+		const header: jws.Header = {
+			alg: 'RS256',
+			crit: ['exp', 'x5t'],
+			// Release service uses ticks, not seconds :roll_eyes: (https://stackoverflow.com/a/7968483)
+			exp: ((Date.now() + (6 * 60 * 1000)) * 10000) + 621355968000000000,
+			// Release service uses hex format, not base64url :roll_eyes:
+			x5t: getThumbprint(this.requestSigningCertificates[0], 'sha1').toString('hex'),
+		};
+
+		// The Release service expects x5c as a '.' separated string, not the standard array format
+		(header as Record<string, unknown>)['x5c'] = this.requestSigningCertificates.map(c => getCertificateBuffer(c).toString('base64url')).join('.');
+
 		return jws.sign({
-			header: {
-				alg: 'RS256',
-				crit: ['exp', 'x5t'],
-				// Release service uses ticks, not seconds :roll_eyes: (https://stackoverflow.com/a/7968483)
-				exp: ((Date.now() + (6 * 60 * 1000)) * 10000) + 621355968000000000,
-				// Release service uses hex format, not base64url :roll_eyes:
-				x5t: getThumbprint(this.requestSigningCertificates[0], 'sha1').toString('hex'),
-				// Release service uses a '.' separated string, not an array of strings :roll_eyes:
-				// eslint-disable-next-line local/code-no-any-casts
-				x5c: this.requestSigningCertificates.map(c => getCertificateBuffer(c).toString('base64url')).join('.') as any,
-			},
+			header,
 			payload: message,
 			privateKey: this.requestSigningKey,
 		});
