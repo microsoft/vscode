@@ -6,7 +6,7 @@
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
+import { autorun, IObservable, ISettableObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -75,54 +75,62 @@ export class McpService extends Disposable implements IMcpService {
 		store.add(toDisposable(() => {
 			this._currentAutoStarts.delete(cts);
 		}));
+		store.add(cts.token.onCancellationRequested(() => {
+			state.set(IAutostartResult.Empty, undefined);
+		}));
 
-		(async () => {
-			let todo = new Set<IMcpServer>();
-			store.add(cts.token.onCancellationRequested(() => {
-				todo.clear();
-				state.set(IAutostartResult.Empty, undefined);
-			}));
-
-			await this.activateCollections();
-
-			// don't try re-running errored servers, let the user choose if they want that
-			const candidates = this.servers.get().filter(s => s.connectionState.get().state !== McpConnectionState.Kind.Error);
-
-			if (autoStartConfig === McpAutoStartValue.OnlyNew) {
-				todo = new Set(candidates.filter(s => s.cacheState.get() === McpServerCacheState.Unknown));
-			} else if (autoStartConfig === McpAutoStartValue.NewAndOutdated) {
-				todo = new Set(candidates.filter(s => {
-					const c = s.cacheState.get();
-					return c === McpServerCacheState.Unknown || c === McpServerCacheState.Outdated;
-				}));
-			}
-
-			const interaction = new McpStartServerInteraction();
-			const requiringInteraction: (McpDefinitionReference & { errorMessage?: string })[] = [];
-
-			const update = () => state.set({
-				working: todo.size > 0,
-				starting: [...todo].map(t => t.definition),
-				serversRequiringInteraction: requiringInteraction,
-			}, undefined);
-
-			await Promise.all([...todo].map(async (server, i) => {
-				try {
-					await startServerAndWaitForLiveTools(server, { interaction, errorOnUserInteraction: true }, cts.token);
-				} catch (error) {
-					if (error instanceof UserInteractionRequiredError) {
-						requiringInteraction.push({ id: server.definition.id, label: server.definition.label, errorMessage: error.message });
-					}
-				}
-
-				if (!cts.token.isCancellationRequested) {
-					todo.delete(server);
-					update();
-				}
-			}));
-		})().finally(() => store.dispose());
+		this._autostart(autoStartConfig, state, cts.token).finally(() => store.dispose());
 
 		return state;
+	}
+
+	private async _autostart(autoStartConfig: McpAutoStartValue, state: ISettableObservable<IAutostartResult>, token: CancellationToken) {
+		await this.activateCollections();
+		if (token.isCancellationRequested) {
+			return;
+		}
+
+		// don't try re-running errored servers, let the user choose if they want that
+		const candidates = this.servers.get().filter(s => s.connectionState.get().state !== McpConnectionState.Kind.Error);
+
+		let todo = new Set<IMcpServer>();
+		if (autoStartConfig === McpAutoStartValue.OnlyNew) {
+			todo = new Set(candidates.filter(s => s.cacheState.get() === McpServerCacheState.Unknown));
+		} else if (autoStartConfig === McpAutoStartValue.NewAndOutdated) {
+			todo = new Set(candidates.filter(s => {
+				const c = s.cacheState.get();
+				return c === McpServerCacheState.Unknown || c === McpServerCacheState.Outdated;
+			}));
+		}
+
+		if (!todo.size) {
+			state.set(IAutostartResult.Empty, undefined);
+			return;
+		}
+
+		const interaction = new McpStartServerInteraction();
+		const requiringInteraction: (McpDefinitionReference & { errorMessage?: string })[] = [];
+
+		const update = () => state.set({
+			working: todo.size > 0,
+			starting: [...todo].map(t => t.definition),
+			serversRequiringInteraction: requiringInteraction,
+		}, undefined);
+
+		await Promise.all([...todo].map(async (server, i) => {
+			try {
+				await startServerAndWaitForLiveTools(server, { interaction, errorOnUserInteraction: true }, token);
+			} catch (error) {
+				if (error instanceof UserInteractionRequiredError) {
+					requiringInteraction.push({ id: server.definition.id, label: server.definition.label, errorMessage: error.message });
+				}
+			}
+
+			if (!token.isCancellationRequested) {
+				todo.delete(server);
+				update();
+			}
+		}));
 	}
 
 	public resetCaches(): void {
