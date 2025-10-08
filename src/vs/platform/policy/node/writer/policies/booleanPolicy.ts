@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IPolicy, PolicyCategory } from '../../../../../base/common/policy.js';
+import { IPolicy } from '../../../../../base/common/policy.js';
 import { IConfigurationPropertySchema } from '../../../../configuration/common/configurationRegistry.js';
 import { Category, LanguageTranslations, NlsString, PolicyType } from '../types.js';
 import { BasePolicy } from './basePolicy.js';
