@@ -13,7 +13,7 @@ import { IViewDescriptorService, ViewContainerLocation } from '../../common/view
 import { DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { IView } from '../../../base/browser/ui/grid/grid.js';
 import { IWorkbenchLayoutService, Parts } from '../../services/layout/browser/layoutService.js';
-import { CompositePart, ICompositeTitleLabel } from './compositePart.js';
+import { CompositePart, ICompositePartOptions, ICompositeTitleLabel } from './compositePart.js';
 import { IPaneCompositeBarOptions, PaneCompositeBar } from './paneCompositeBar.js';
 import { Dimension, EventHelper, trackFocus, $, addDisposableListener, EventType, prepend, getWindow } from '../../../base/browser/dom.js';
 import { Registry } from '../../../platform/registry/common/platform.js';
@@ -28,7 +28,6 @@ import { IComposite } from '../../common/composite.js';
 import { localize } from '../../../nls.js';
 import { CompositeDragAndDropObserver, toggleDropEffect } from '../dnd.js';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../common/theme.js';
-import { IPartOptions } from '../part.js';
 import { IMenuService, MenuId } from '../../../platform/actions/common/actions.js';
 import { ActionsOrientation } from '../../../base/browser/ui/actionbar/actionbar.js';
 import { Gesture, EventType as GestureEventType } from '../../../base/browser/touch.js';
@@ -135,7 +134,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 
 	constructor(
 		readonly partId: Parts.PANEL_PART | Parts.AUXILIARYBAR_PART | Parts.SIDEBAR_PART,
-		partOptions: IPartOptions,
+		partOptions: ICompositePartOptions,
 		activePaneCompositeSettingsKey: string,
 		private readonly activePaneContextKey: IContextKey<string>,
 		private paneFocusContextKey: IContextKey<boolean>,
