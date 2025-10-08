@@ -27,17 +27,19 @@ export class PolicyExportContribution extends Disposable implements IWorkbenchCo
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
-		void this.exportPolicyAndQuit();
+		const platform = this.nativeEnvironmentService.exportPolicyType;
+		if (platform) {
+			void this.exportPolicyAndQuit(platform);
+		}
 	}
 
 	private log(msg: string | undefined, ...args: any[]) {
 		this.logService.info(`[${PolicyExportContribution.ID}]`, msg, ...args);
 	}
 
-	private async exportPolicyAndQuit(): Promise<void> {
+	private async exportPolicyAndQuit(platform: string): Promise<void> {
 		try {
-			const platform = this.nativeEnvironmentService.exportPolicyType;
-			if (!platform || (platform !== 'darwin' && platform !== 'win32')) {
+			if (platform !== 'darwin' && platform !== 'win32') {
 				throw new Error(`Received invalid platform: ${platform}. Usage: --export-policy-type=darwin|win32`);
 			}
 

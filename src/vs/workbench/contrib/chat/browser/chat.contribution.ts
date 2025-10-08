@@ -241,10 +241,6 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.GlobalAutoApprove]: {
 			default: false,
-			// HACK: Description duplicated for policy parser. See https://github.com/microsoft/vscode/issues/254526
-			description: nls.localize('autoApprove2.description',
-				'Global auto approve also known as "YOLO mode" disables manual approval completely for all tools in all workspaces, allowing the agent to act fully autonomously. This is extremely dangerous and is *never* recommended, even containerized environments like Codespaces and Dev Containers have user keys forwarded into the container that could be compromised.\n\nThis feature disables critical security protections and makes it much easier for an attacker to compromise the machine.'
-			),
 			markdownDescription: globalAutoApproveDescription.value,
 			type: 'boolean',
 			scope: ConfigurationScope.APPLICATION_MACHINE,
@@ -254,6 +250,10 @@ configurationRegistry.registerConfiguration({
 				category: PolicyCategory.InteractiveSession,
 				minimumVersion: '1.99',
 				value: (account) => account.chat_preview_features_enabled === false ? false : undefined,
+				description: {
+					key: 'autoApprove2.description',
+					value: nls.localize('autoApprove2.description', 'Global auto approve also known as "YOLO mode" disables manual approval completely for all tools in all workspaces, allowing the agent to act fully autonomously. This is extremely dangerous and is *never* recommended, even containerized environments like Codespaces and Dev Containers have user keys forwarded into the container that could be compromised.\n\nThis feature disables critical security protections and makes it much easier for an attacker to compromise the machine.')
+				},
 			}
 		},
 		[ChatConfiguration.AutoApproveEdits]: {
@@ -357,6 +357,7 @@ configurationRegistry.registerConfiguration({
 					}
 					return undefined;
 				},
+				description: { key: 'chat.mcp.access' },
 			}
 		},
 		[mcpAutoStartConfig]: {
@@ -424,7 +425,10 @@ configurationRegistry.registerConfiguration({
 				name: 'ChatAgentExtensionTools',
 				category: PolicyCategory.InteractiveSession,
 				minimumVersion: '1.99',
-				description: nls.localize('chat.extensionToolsPolicy', "Enable using tools contributed by third-party extensions."),
+				description: {
+					key: 'chat.extensionToolsPolicy',
+					value: nls.localize('chat.extensionToolsPolicy', "Enable using tools contributed by third-party extensions.")
+				},
 			}
 		},
 		[ChatConfiguration.AgentEnabled]: {
@@ -436,6 +440,7 @@ configurationRegistry.registerConfiguration({
 				category: PolicyCategory.InteractiveSession,
 				minimumVersion: '1.99',
 				value: (account) => account.chat_agent_enabled === false ? false : undefined,
+				description: { key: 'chat.agent.enabled.description' }
 			}
 		},
 		[ChatConfiguration.EnableMath]: {
@@ -479,7 +484,8 @@ configurationRegistry.registerConfiguration({
 				name: 'McpGalleryServiceUrl',
 				category: PolicyCategory.InteractiveSession,
 				minimumVersion: '1.101',
-				value: (account) => account.mcpRegistryUrl
+				value: (account) => account.mcpRegistryUrl,
+				description: { key: 'mcp.gallery.serviceUrl' }
 			},
 		},
 		[PromptsConfig.KEY]: {
@@ -503,7 +509,10 @@ configurationRegistry.registerConfiguration({
 				name: 'ChatPromptFiles',
 				category: PolicyCategory.InteractiveSession,
 				minimumVersion: '1.99',
-				description: nls.localize('chat.promptFiles.policy', "Enables reusable prompt and instruction files in Chat sessions.")
+				description: {
+					key: 'chat.promptFiles.policy',
+					value: nls.localize('chat.promptFiles.policy', "Enables reusable prompt and instruction files in Chat sessions.")
+				}
 			}
 		},
 		[PromptsConfig.INSTRUCTIONS_LOCATION_KEY]: {

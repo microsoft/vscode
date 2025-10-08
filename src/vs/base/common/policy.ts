@@ -6,6 +6,11 @@
 import { IDefaultAccount } from './defaultAccount.js';
 
 export type PolicyName = string;
+export type PolicyDescription = {
+	key: string;
+	/** If not provided, will fallback to the parent contribution's description or markdownDescription. */
+	value?: string;
+};
 
 export enum PolicyCategory {
 	Extensions = 'extensionsConfigurationTitle',
@@ -33,9 +38,9 @@ export interface IPolicy {
 	readonly minimumVersion: `${number}.${number}`;
 
 	/**
-	 * The policy description (optional).
+	 * The policy description.
 	 */
-	readonly description?: string;
+	readonly description: PolicyDescription;
 
 	/**
 	 * The value that an ACCOUNT-based feature will use when its corresponding policy is active.

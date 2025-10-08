@@ -24,13 +24,13 @@ export class NumberPolicy extends BasePolicy {
 			throw new Error(`[NumberPolicy] Missing required 'default' property.`);
 		}
 
-		const description = config.policy.description ?? config.description ?? config.markdownDescription;
+		const description = config.policy.description.value ?? config.description;
 		if (description === undefined) {
 			throw new Error(`[NumberPolicy] Missing required 'description' property.`);
 		}
 
 		return new NumberPolicy(config.policy.name, config.policy.category, config.policy.minimumVersion, {
-			nlsKey: description,
+			nlsKey: config.policy.description.key,
 			value: description
 		}, config.default);
 	}

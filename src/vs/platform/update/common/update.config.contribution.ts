@@ -33,6 +33,7 @@ configurationRegistry.registerConfiguration({
 				name: 'UpdateMode',
 				category: PolicyCategory.Update,
 				minimumVersion: '1.67',
+				description: { key: 'updateMode' },
 			}
 		},
 		'update.channel': {

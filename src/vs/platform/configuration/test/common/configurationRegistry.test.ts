@@ -91,7 +91,8 @@ suite('ConfigurationRegistry', () => {
 					policy: {
 						name: 'policy',
 						category: PolicyCategory.Extensions,
-						minimumVersion: '1.0.0'
+						minimumVersion: '1.0.0',
+						description: { key: '' },
 					}
 				},
 				'policy2': {
@@ -99,7 +100,8 @@ suite('ConfigurationRegistry', () => {
 					policy: {
 						name: 'policy',
 						category: PolicyCategory.Extensions,
-						minimumVersion: '1.0.0'
+						minimumVersion: '1.0.0',
+						description: { key: '' },
 					}
 				}
 			}

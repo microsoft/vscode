@@ -20,7 +20,7 @@ export class StringEnumPolicy extends BasePolicy {
 			throw new Error(`[StringEnumPolicy] Unsupported 'type' property: ${config.type}`);
 		}
 
-		const description = config.policy.description ?? config.description ?? config.markdownDescription;
+		const description = config.policy.description.value ?? config.description;
 		if (description === undefined) {
 			throw new Error(`[StringEnumPolicy] Missing required 'description' property.`);
 		}
@@ -42,7 +42,7 @@ export class StringEnumPolicy extends BasePolicy {
 		}
 
 		return new StringEnumPolicy(config.policy.name, config.policy.category, config.policy.minimumVersion, {
-			nlsKey: description,
+			nlsKey: config.policy.description.key,
 			value: description
 		}, enum_, enumDescriptions.map((d) => ({ nlsKey: d, value: d })));
 	}

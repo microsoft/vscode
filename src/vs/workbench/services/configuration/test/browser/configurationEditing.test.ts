@@ -92,6 +92,7 @@ suite('ConfigurationEditing', () => {
 						name: 'configurationEditing.service.policySetting',
 						category: PolicyCategory.Extensions,
 						minimumVersion: '1.0.0',
+						description: { key: '' }
 					}
 				}
 			}

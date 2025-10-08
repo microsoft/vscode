@@ -784,6 +784,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 						name: 'configurationService.folder.policySetting',
 						category: PolicyCategory.Extensions,
 						minimumVersion: '1.0.0',
+						description: { key: '' }
 					}
 				},
 				'configurationService.folder.policyObjectSetting': {
@@ -793,6 +794,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 						name: 'configurationService.folder.policyObjectSetting',
 						category: PolicyCategory.Extensions,
 						minimumVersion: '1.0.0',
+						description: { key: '' }
 					}
 				},
 			}
