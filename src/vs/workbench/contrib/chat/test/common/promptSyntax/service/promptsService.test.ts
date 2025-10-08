@@ -37,6 +37,8 @@ import { IUserDataProfileService } from '../../../../../../services/userDataProf
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { Event } from '../../../../../../../base/common/event.js';
+import { IFilesConfigurationService } from '../../../../../../services/filesConfiguration/common/filesConfigurationService.js';
+import { IExtensionDescription } from '../../../../../../../platform/extensions/common/extensions.js';
 
 suite('PromptsService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -85,6 +87,8 @@ suite('PromptsService', () => {
 
 		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
 		disposables.add(fileService.registerProvider(Schemas.file, fileSystemProvider));
+
+		instaService.stub(IFilesConfigurationService, { updateReadonly: () => Promise.resolve() });
 
 		service = disposables.add(instaService.createInstance(PromptsService));
 		instaService.stub(IPromptsService, service);
@@ -811,6 +815,25 @@ suite('PromptsService', () => {
 				expected,
 				'Must get custom chat modes.',
 			);
+		});
+
+		test('Contributed prompt file', async () => {
+			const uri = URI.parse('file://extensions/my-extension/textMate.instructions.md');
+			const extension = {} as IExtensionDescription;
+			const registered = service.registerContributedFile(PromptsType.instructions,
+				"TextMate Instructions",
+				"Instructions to follow when authoring TextMate grammars",
+				uri,
+				extension
+			);
+
+			const actual = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
+			assert.strictEqual(actual.length, 1);
+			assert.strictEqual(actual[0].uri.toString(), uri.toString());
+			assert.strictEqual(actual[0].name, "TextMate Instructions");
+			assert.strictEqual(actual[0].storage, PromptsStorage.extension);
+			assert.strictEqual(actual[0].type, PromptsType.instructions);
+			registered.dispose();
 		});
 	});
 });
