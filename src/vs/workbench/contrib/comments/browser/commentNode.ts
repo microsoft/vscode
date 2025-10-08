@@ -10,7 +10,7 @@ import { ActionsOrientation, ActionBar } from '../../../../base/browser/ui/actio
 import { Action, IAction, Separator, ActionRunner } from '../../../../base/common/actions.js';
 import { Disposable, DisposableStore, IReference, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
-import { IMarkdownRendererExtraOptions, MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRendererExtraOptions, IMarkdownRendererService } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { IRenderedMarkdown } from '../../../../base/browser/markdownRenderer.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ICommentService } from './commentService.js';
@@ -107,7 +107,6 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		private owner: string,
 		private resource: URI,
 		private parentThread: ICommentThreadWidget,
-		private readonly markdownRenderer: MarkdownRenderer,
 		private readonly markdownRendererOptions: IMarkdownRendererExtraOptions,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ICommentService private commentService: ICommentService,
@@ -118,6 +117,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		@IHoverService private hoverService: IHoverService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@ITextModelService private readonly textModelService: ITextModelService,
+		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 	) {
 		super();
 
@@ -211,7 +211,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 			this._plainText = dom.append(this._body, dom.$('.comment-body-plainstring'));
 			this._plainText.innerText = body;
 		} else {
-			this._md.value = this.markdownRenderer.render(body, this.markdownRendererOptions);
+			this._md.value = this.markdownRendererService.render(body, this.markdownRendererOptions);
 			this._body.appendChild(this._md.value.element);
 		}
 	}
