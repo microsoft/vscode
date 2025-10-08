@@ -31,6 +31,7 @@ export interface IToolBarOptions {
 	allowContextMenu?: boolean;
 	skipTelemetry?: boolean;
 	hoverDelegate?: IHoverDelegate;
+	trailingSeparator?: boolean;
 
 	/**
 	 * If true, toggled primary items are highlighted with a background color.
@@ -201,6 +202,10 @@ export class ToolBar extends Disposable {
 		if (this.hasSecondaryActions && secondaryActions) {
 			this.toggleMenuAction.menuActions = secondaryActions.slice(0);
 			primaryActionsToSet.push(this.toggleMenuAction);
+		}
+
+		if (primaryActionsToSet.length > 0 && this.options.trailingSeparator) {
+			primaryActionsToSet.push(new Separator());
 		}
 
 		primaryActionsToSet.forEach(action => {
