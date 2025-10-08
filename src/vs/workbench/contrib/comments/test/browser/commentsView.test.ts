@@ -11,7 +11,7 @@ import { CommentService, ICommentController, ICommentInfo, ICommentService, INot
 import { Comment, CommentInput, CommentReaction, CommentThread, CommentThreadCollapsibleState, CommentThreadState } from '../../../../../editor/common/languages.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { IViewContainerModel, IViewDescriptor, IViewDescriptorService, ViewContainer, ViewContainerLocation } from '../../../../common/views.js';
+import { IViewContainerModel, IViewDescriptor, IViewDescriptorService, IViewPaneContainer, ViewContainer, ViewContainerLocation } from '../../../../common/views.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -21,6 +21,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 
 class TestCommentThread implements CommentThread<IRange> {
 	isDocumentCommentThread(): this is CommentThread<IRange> {
@@ -90,8 +91,7 @@ export class TestViewDescriptorService implements Partial<IViewDescriptorService
 		return {
 			id: 'comments',
 			title: { value: 'Comments', original: 'Comments' },
-			// eslint-disable-next-line local/code-no-any-casts
-			ctorDescriptor: {} as any
+			ctorDescriptor: {} as SyncDescriptor<IViewPaneContainer>
 		};
 	}
 	getViewContainerModel(viewContainer: ViewContainer): IViewContainerModel {
