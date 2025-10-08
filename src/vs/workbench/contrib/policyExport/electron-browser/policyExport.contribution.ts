@@ -47,7 +47,7 @@ export class PolicyExportContribution extends Disposable implements IWorkbenchCo
 
 			await this.progressService.withProgress({
 				location: ProgressLocation.Notification,
-				title: `Exporting policy type: ${platform}`
+				title: `Exporting policy for ${platform} platform`
 			}, async (progress) => {
 				this.log('Export begun. Waiting for ready state.');
 				progress.report({ message: 'Waiting for installed extension registration' });
