@@ -457,22 +457,22 @@ export class CollapsedCodeBlock extends Disposable {
 	}
 
 	private registerListeners(): void {
-		this._register(dom.addDisposableListener(this.element, dom.EventType.DBLCLICK, (e) => {
+		this._register(dom.addDisposableListener(this.element, dom.EventType.DBLCLICK, e => {
 			this.showDiff({ preserveFocus: false, pinned: true, sideBySide: e.ctrlKey || e.metaKey || e.altKey });
 		}));
-		this._register(dom.addDisposableListener(this.element, dom.EventType.CLICK, (e) => {
+		this._register(dom.addDisposableListener(this.element, dom.EventType.CLICK, e => {
 			this.showDiff({ preserveFocus: true, pinned: e.button === 1 /* middle click */, sideBySide: e.ctrlKey || e.metaKey || e.altKey });
 		}));
-		this._register(dom.addDisposableListener(this.element, dom.EventType.KEY_DOWN, (e) => {
+		this._register(dom.addDisposableListener(this.element, dom.EventType.KEY_DOWN, e => {
 			const event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 				this.showDiff({ preserveFocus: false, pinned: false, sideBySide: false });
 			}
 		}));
 
-		this._register(dom.addDisposableListener(this.element, dom.EventType.CONTEXT_MENU, domEvent => {
-			const event = new StandardMouseEvent(dom.getWindow(domEvent), domEvent);
-			dom.EventHelper.stop(domEvent, true);
+		this._register(dom.addDisposableListener(this.element, dom.EventType.CONTEXT_MENU, e => {
+			const event = new StandardMouseEvent(dom.getWindow(e), e);
+			dom.EventHelper.stop(e, true);
 
 			this.contextMenuService.showContextMenu({
 				contextKeyService: this.contextKeyService,
