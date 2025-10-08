@@ -43,7 +43,7 @@ export interface ICheckboxStyles {
 	readonly checkboxDisabledBackground: string | undefined;
 	readonly checkboxDisabledForeground: string | undefined;
 	readonly size?: number;
-	readonly hoverDelegate?: IHoverDelegate;
+	readonly hoverLifecycleOptions?: IHoverLifecycleOptions;
 }
 
 export const unthemedToggleStyles = {
@@ -69,7 +69,7 @@ export class ToggleActionViewItem extends BaseActionViewItem {
 			inputActiveOptionBackground: options.toggleStyles?.inputActiveOptionBackground,
 			inputActiveOptionBorder: options.toggleStyles?.inputActiveOptionBorder,
 			inputActiveOptionForeground: options.toggleStyles?.inputActiveOptionForeground,
-			hoverDelegate: options.hoverDelegate
+			hoverDelegate: options.hoverDelegate,
 		}));
 		this._register(this.toggle.onChange(() => {
 			this._action.checked = !!this.toggle && this.toggle.checked;
@@ -323,7 +323,7 @@ abstract class BaseCheckbox extends Widget {
 
 export class Checkbox extends BaseCheckbox {
 	constructor(title: string, isChecked: boolean, styles: ICheckboxStyles) {
-		const toggle = new Toggle({ title, isChecked, icon: Codicon.check, actionClassName: BaseCheckbox.CLASS_NAME, hoverDelegate: styles.hoverDelegate, ...unthemedToggleStyles });
+		const toggle = new Toggle({ title, isChecked, icon: Codicon.check, actionClassName: BaseCheckbox.CLASS_NAME, hoverLifecycleOptions: styles.hoverLifecycleOptions, ...unthemedToggleStyles });
 		super(toggle, toggle.domNode, styles);
 
 		this._register(toggle);
@@ -375,7 +375,7 @@ export class TriStateCheckbox extends BaseCheckbox {
 			isChecked: _state === true,
 			icon,
 			actionClassName: Checkbox.CLASS_NAME,
-			hoverDelegate: styles.hoverDelegate,
+			hoverLifecycleOptions: styles.hoverLifecycleOptions,
 			...unthemedToggleStyles
 		});
 		super(
