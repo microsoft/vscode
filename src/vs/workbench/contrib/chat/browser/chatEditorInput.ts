@@ -233,7 +233,6 @@ export class ChatEditorModel extends Disposable {
 	private _onWillDispose = this._register(new Emitter<void>());
 	readonly onWillDispose = this._onWillDispose.event;
 
-	private _isDisposed = false;
 	private _isResolved = false;
 
 	constructor(
@@ -249,12 +248,7 @@ export class ChatEditorModel extends Disposable {
 	}
 
 	isDisposed(): boolean {
-		return this._isDisposed;
-	}
-
-	override dispose(): void {
-		super.dispose();
-		this._isDisposed = true;
+		return this._store.isDisposed;
 	}
 }
 
