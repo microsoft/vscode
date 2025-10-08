@@ -12,6 +12,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IMarkdownRendererOptions, IMarkdownRenderResult, MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
@@ -68,11 +69,12 @@ export class ChatMarkdownRenderer extends MarkdownRenderer {
 		options: IMarkdownRendererOptions | undefined,
 		@ILanguageService languageService: ILanguageService,
 		@IOpenerService openerService: IOpenerService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IFileService private readonly fileService: IFileService,
 		@ICommandService private readonly commandService: ICommandService,
 	) {
-		super(options ?? {}, languageService, openerService);
+		super(options ?? {}, configurationService, languageService, openerService);
 	}
 
 	override render(markdown: IMarkdownString, options?: MarkdownRenderOptions, outElement?: HTMLElement): IMarkdownRenderResult {

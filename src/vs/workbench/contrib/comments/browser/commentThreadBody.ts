@@ -16,8 +16,6 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { URI } from '../../../../base/common/uri.js';
 import { ICommentThreadWidget } from '../common/commentThreadWidget.js';
 import { IMarkdownRendererOptions, MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
-import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { ICellRange } from '../../notebook/common/notebookRange.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { LayoutableEditor } from './simpleCommentEditor.js';
@@ -52,8 +50,6 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 		private _scopedInstatiationService: IInstantiationService,
 		private _parentCommentThreadWidget: ICommentThreadWidget,
 		@ICommentService private commentService: ICommentService,
-		@IOpenerService private openerService: IOpenerService,
-		@ILanguageService private languageService: ILanguageService,
 	) {
 		super();
 
@@ -62,7 +58,7 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 			this.commentService.setActiveEditingCommentThread(this._commentThread);
 		}));
 
-		this._markdownRenderer = new MarkdownRenderer(this._options, this.languageService, this.openerService);
+		this._markdownRenderer = this._scopedInstatiationService.createInstance(MarkdownRenderer, this._options);
 	}
 
 	focus(commentUniqueId?: number) {
