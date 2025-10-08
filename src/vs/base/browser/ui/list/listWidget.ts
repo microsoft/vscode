@@ -954,7 +954,7 @@ export class DefaultStyleController implements IStyleController {
 			content.push(`
 				.monaco-drag-image${suffix},
 				.monaco-list${suffix}:focus .monaco-list-row.focused,
-				.monaco-workbench.context-menu-visible .monaco-list${suffix}.last-focused .monaco-list-row.focused { outline: 1px solid ${styles.listFocusOutline}; outline-offset: -1px; }
+				.context-menu-visible .monaco-list${suffix}.last-focused .monaco-list-row.focused { outline: 1px solid ${styles.listFocusOutline}; outline-offset: -1px; }
 			`);
 		}
 
@@ -1002,13 +1002,13 @@ export class DefaultStyleController implements IStyleController {
 			content.push(`
 				.monaco-table > .monaco-split-view2,
 				.monaco-table > .monaco-split-view2 .monaco-sash.vertical::before,
-				.monaco-workbench:not(.reduce-motion) .monaco-table:hover > .monaco-split-view2,
-				.monaco-workbench:not(.reduce-motion) .monaco-table:hover > .monaco-split-view2 .monaco-sash.vertical::before {
+				.monaco-enable-motion .monaco-table:hover > .monaco-split-view2,
+				.monaco-enable-motion .monaco-table:hover > .monaco-split-view2 .monaco-sash.vertical::before {
 					border-color: ${styles.tableColumnsBorder};
 				}
 
-				.monaco-workbench:not(.reduce-motion) .monaco-table > .monaco-split-view2,
-				.monaco-workbench:not(.reduce-motion) .monaco-table > .monaco-split-view2 .monaco-sash.vertical::before {
+				.monaco-enable-motion .monaco-table > .monaco-split-view2,
+				.monaco-enable-motion .monaco-table > .monaco-split-view2 .monaco-sash.vertical::before {
 					border-color: transparent;
 				}
 			`);

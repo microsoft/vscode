@@ -98,6 +98,7 @@ class TestTerminalInstanceService implements Partial<ITerminalInstanceService> {
 	private _profiles: Map<string, ITerminalProfile[]> = new Map();
 	private _hasReturnedNone = true;
 	async getBackend(remoteAuthority: string | undefined): Promise<ITerminalBackend> {
+		// eslint-disable-next-line local/code-no-any-casts
 		return {
 			getProfiles: async () => {
 				if (this._hasReturnedNone) {
@@ -123,6 +124,7 @@ class TestRemoteAgentService implements Partial<IRemoteAgentService> {
 		this._os = os;
 	}
 	async getEnvironment(): Promise<IRemoteAgentEnvironment | null> {
+		// eslint-disable-next-line local/code-no-any-casts
 		return { os: this._os } satisfies Partial<IRemoteAgentEnvironment> as any;
 	}
 }
@@ -167,6 +169,7 @@ suite('TerminalProfileService', () => {
 		remoteAgentService = new TestRemoteAgentService();
 		terminalInstanceService = new TestTerminalInstanceService();
 		extensionService = new TestTerminalExtensionService();
+		// eslint-disable-next-line local/code-no-any-casts
 		environmentService = { remoteAuthority: undefined } satisfies Partial<IWorkbenchEnvironmentService> as any;
 
 		const themeService = new TestThemeService();
@@ -221,6 +224,7 @@ suite('TerminalProfileService', () => {
 					}
 				}
 			});
+			// eslint-disable-next-line local/code-no-any-casts
 			configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true, source: ConfigurationTarget.USER } as any);
 			await terminalProfileService.refreshAndAwaitAvailableProfiles();
 			deepStrictEqual(terminalProfileService.availableProfiles, [powershellProfile]);
@@ -237,6 +241,7 @@ suite('TerminalProfileService', () => {
 					}
 				}
 			});
+			// eslint-disable-next-line local/code-no-any-casts
 			configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true, source: ConfigurationTarget.USER } as any);
 			await terminalProfileService.refreshAndAwaitAvailableProfiles();
 			deepStrictEqual(terminalProfileService.availableProfiles, [powershellProfile]);
@@ -253,6 +258,7 @@ suite('TerminalProfileService', () => {
 					}
 				}
 			});
+			// eslint-disable-next-line local/code-no-any-casts
 			configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true, source: ConfigurationTarget.USER } as any);
 			await terminalProfileService.refreshAndAwaitAvailableProfiles();
 			deepStrictEqual(terminalProfileService.availableProfiles, [powershellProfile]);
@@ -266,6 +272,7 @@ suite('TerminalProfileService', () => {
 	});
 
 	test('should get profiles from remoteTerminalService when there is a remote authority', async () => {
+		// eslint-disable-next-line local/code-no-any-casts
 		environmentService = { remoteAuthority: 'fakeremote' } satisfies Partial<IWorkbenchEnvironmentService> as any;
 		instantiationService.stub(IWorkbenchEnvironmentService, environmentService);
 		terminalProfileService = store.add(instantiationService.createInstance(TestTerminalProfileService));

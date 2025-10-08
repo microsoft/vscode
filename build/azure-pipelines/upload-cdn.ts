@@ -112,6 +112,7 @@ async function main(): Promise<void> {
 	const listing = new Vinyl({
 		path: 'files.txt',
 		contents: Buffer.from(files.join('\n')),
+		// eslint-disable-next-line local/code-no-any-casts
 		stat: { mode: 0o666 } as any
 	});
 

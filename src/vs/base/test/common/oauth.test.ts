@@ -310,6 +310,18 @@ suite('OAuth', () => {
 			const scopes2 = ['scope2', 'scope1', 'scope1'];
 			assert.strictEqual(scopesMatch(scopes1, scopes2), true);
 		});
+
+		test('scopesMatch should handle undefined values', () => {
+			assert.strictEqual(scopesMatch(undefined, undefined), true);
+			assert.strictEqual(scopesMatch(['read'], undefined), false);
+			assert.strictEqual(scopesMatch(undefined, ['write']), false);
+		});
+
+		test('scopesMatch should handle mixed undefined and empty arrays', () => {
+			assert.strictEqual(scopesMatch([], undefined), false);
+			assert.strictEqual(scopesMatch(undefined, []), false);
+			assert.strictEqual(scopesMatch([], []), true);
+		});
 	});
 
 	suite('Utility Functions', () => {
@@ -1084,6 +1096,7 @@ suite('OAuth', () => {
 				resource: 'https://example.com/api'
 			};
 
+			// eslint-disable-next-line local/code-no-any-casts
 			const globalFetchStub = sandbox.stub(globalThis, 'fetch').resolves({
 				status: 200,
 				json: async () => metadata,

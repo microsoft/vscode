@@ -15,7 +15,7 @@ import { IExtensionService, nullExtensionDescription } from '../../../../service
 import { ExtensionsRegistry } from '../../../../services/extensions/common/extensionsRegistry.js';
 import { DEFAULT_MODEL_PICKER_CATEGORY } from '../../common/modelPicker/modelPickerWidget.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
-import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
+import { TestChatEntitlementService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { Event } from '../../../../../base/common/event.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 
@@ -37,7 +37,8 @@ suite('LanguageModels', function () {
 			},
 			new NullLogService(),
 			new TestStorageService(),
-			new MockContextKeyService()
+			new MockContextKeyService(),
+			new TestChatEntitlementService()
 		);
 
 		const ext = ExtensionsRegistry.getExtensionPoints().find(e => e.name === languageModelChatProviderExtensionPoint.name)!;

@@ -64,6 +64,7 @@ export class InlineCompletionsModel extends Disposable {
 	// We use a semantic id to keep the same inline completion selected even if the provider reorders the completions.
 	private readonly _selectedInlineCompletionId = observableValue<string | undefined>(this, undefined);
 	public readonly primaryPosition = derived(this, reader => this._positions.read(reader)[0] ?? new Position(1, 1));
+	public readonly allPositions = derived(this, reader => this._positions.read(reader));
 
 	private _isAcceptingPartially = false;
 	private readonly _appearedInsideViewport = derived<boolean>(this, reader => {
@@ -636,7 +637,8 @@ export class InlineCompletionsModel extends Disposable {
 			const edits = inlineEditResult.updatedEdit;
 			const e = edits ? TextEdit.fromStringEdit(edits, new TextModelText(this.textModel)).replacements : [edit];
 			const nextEditUri = (item.inlineEdit?.command?.id === 'vscode.open' || item.inlineEdit?.command?.id === '_workbench.open') &&
-				item.inlineEdit?.command.arguments?.length ? URI.from(item.inlineEdit?.command.arguments[0]) : undefined;
+				// eslint-disable-next-line local/code-no-any-casts
+				item.inlineEdit?.command.arguments?.length ? URI.from(<any>item.inlineEdit?.command.arguments[0]) : undefined;
 			return { kind: 'inlineEdit', inlineEdit, inlineCompletion: inlineEditResult, edits: e, cursorAtInlineEdit, nextEditUri };
 		}
 
@@ -823,6 +825,9 @@ export class InlineCompletionsModel extends Disposable {
 		if (this.showCollapsed.read(reader)) {
 			return false;
 		}
+		if (this._tabShouldIndent.read(reader)) {
+			return false;
+		}
 		if (this._inAcceptFlow.read(reader) && this._appearedInsideViewport.read(reader)) {
 			return true;
 		}
@@ -831,9 +836,6 @@ export class InlineCompletionsModel extends Disposable {
 		}
 		if (this._jumpedToId.read(reader) === s.inlineCompletion.semanticId) {
 			return true;
-		}
-		if (this._tabShouldIndent.read(reader)) {
-			return false;
 		}
 
 		return s.cursorAtInlineEdit.read(reader);

@@ -93,7 +93,9 @@ suite('ContextKeyExpr', () => {
 			testExpression(expr + ' != true', !value);
 			testExpression(expr + ' == false', !value);
 			testExpression(expr + ' != false', !!value);
+			// eslint-disable-next-line local/code-no-any-casts
 			testExpression(expr + ' == 5', value == <any>'5');
+			// eslint-disable-next-line local/code-no-any-casts
 			testExpression(expr + ' != 5', value != <any>'5');
 			testExpression('!' + expr, !value);
 			testExpression(expr + ' =~ /d.*/', /d.*/.test(value));

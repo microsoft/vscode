@@ -2018,7 +2018,7 @@ export class SCMHistoryViewPane extends ViewPane {
 									}
 								});
 							}
-							override run(accessor: ServicesAccessor, ...args: any[]): void {
+							override run(accessor: ServicesAccessor, ...args: unknown[]): void {
 								const commandService = accessor.get(ICommandService);
 								commandService.executeCommand(actionId, ...args, historyItemRef.id);
 							}

@@ -123,7 +123,8 @@ export class ComputeAutomaticInstructions {
 		// If both settings are disabled, return true to hide the hint (since the features aren't enabled)
 		if (!useCopilotInstructionsFiles && !useAgentMd) {
 			return true;
-		} const { folders } = this._workspaceService.getWorkspace();
+		}
+		const { folders } = this._workspaceService.getWorkspace();
 
 		// Check for copilot-instructions.md files
 		if (useCopilotInstructionsFiles) {

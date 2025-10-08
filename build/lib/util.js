@@ -116,7 +116,8 @@ function fixWin32DirectoryPermissions() {
 function setExecutableBit(pattern) {
     const setBit = event_stream_1.default.mapSync(f => {
         if (!f.stat) {
-            f.stat = { isFile() { return true; } };
+            const stat = { isFile() { return true; }, mode: 0 };
+            f.stat = stat;
         }
         f.stat.mode = /* 100755 */ 33261;
         return f;

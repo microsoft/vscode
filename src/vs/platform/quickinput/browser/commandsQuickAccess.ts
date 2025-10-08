@@ -7,7 +7,7 @@ import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } f
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { isCancellationError } from '../../../base/common/errors.js';
-import { matchesContiguousSubString, matchesPrefix, matchesWords, or } from '../../../base/common/filters.js';
+import { IMatch, matchesContiguousSubString, matchesPrefix, matchesWords, or } from '../../../base/common/filters.js';
 import { createSingleCallFunction } from '../../../base/common/functional.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../base/common/map.js';
@@ -25,6 +25,7 @@ import { IQuickAccessProviderRunOptions } from '../common/quickAccess.js';
 import { IQuickPickSeparator } from '../common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from '../../storage/common/storage.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { removeAccents } from '../../../base/common/normalization.js';
 
 export interface ICommandQuickPick extends IPickerQuickAccessItem {
 	readonly commandId: string;
@@ -33,6 +34,10 @@ export interface ICommandQuickPick extends IPickerQuickAccessItem {
 	readonly commandDescription?: ILocalizedString;
 	tfIdfScore?: number;
 	readonly args?: any[];
+
+	// These fields are lazy initialized during filtering process.
+	labelNoAccents?: string;
+	aliasNoAccents?: string;
 }
 
 export interface ICommandsQuickAccessOptions extends IPickerQuickAccessProviderOptions<ICommandQuickPick> {
@@ -90,11 +95,19 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 				.slice(0, AbstractCommandsQuickAccessProvider.TFIDF_MAX_RESULTS);
 		});
 
+		const noAccentsFilter = this.normalizeForFiltering(filter);
+
 		// Filter
 		const filteredCommandPicks: ICommandQuickPick[] = [];
 		for (const commandPick of allCommandPicks) {
-			const labelHighlights = AbstractCommandsQuickAccessProvider.WORD_FILTER(filter, commandPick.label) ?? undefined;
-			const aliasHighlights = commandPick.commandAlias ? AbstractCommandsQuickAccessProvider.WORD_FILTER(filter, commandPick.commandAlias) ?? undefined : undefined;
+			commandPick.labelNoAccents ??= this.normalizeForFiltering(commandPick.label);
+			const labelHighlights = AbstractCommandsQuickAccessProvider.WORD_FILTER(noAccentsFilter, commandPick.labelNoAccents) ?? undefined;
+
+			let aliasHighlights: IMatch[] | undefined;
+			if (commandPick.commandAlias) {
+				commandPick.aliasNoAccents ??= this.normalizeForFiltering(commandPick.commandAlias);
+				aliasHighlights = AbstractCommandsQuickAccessProvider.WORD_FILTER(noAccentsFilter, commandPick.aliasNoAccents) ?? undefined;
+			}
 
 			// Add if matching in label or alias
 			if (labelHighlights || aliasHighlights) {
@@ -298,6 +311,37 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 			chunk += ` - ${commandDescription.value === commandDescription.original ? commandDescription.value : `${commandDescription.value} (${commandDescription.original})`}`;
 		}
 		return chunk;
+	}
+
+
+	/**
+	 * Normalizes a string for filtering by removing accents, but only if the result has the same length, otherwise
+	 * returns the original string.
+	 */
+	private normalizeForFiltering(value: string): string {
+		const withoutAccents = removeAccents(value);
+		if (withoutAccents.length !== value.length) {
+			type QuickAccessTelemetry = {
+				originalLength: number;
+				normalizedLength: number;
+			};
+
+			type QuickAccessTelemetryMeta = {
+				originalLength: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Length of the original filter string' };
+				normalizedLength: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Length of the normalized filter string' };
+				owner: 'dmitriv';
+				comment: 'Helps to gain insights on cases where the normalized filter string length differs from the original';
+			};
+
+			this.telemetryService.publicLog2<QuickAccessTelemetry, QuickAccessTelemetryMeta>('QuickAccess:FilterLengthMismatch', {
+				originalLength: value.length,
+				normalizedLength: withoutAccents.length
+			});
+
+			return value;
+		} else {
+			return withoutAccents;
+		}
 	}
 
 	protected abstract getCommandPicks(token: CancellationToken): Promise<Array<ICommandQuickPick>>;

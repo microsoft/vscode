@@ -9,7 +9,7 @@
 		],
 		"paths": {},
 		"module": "esnext",
-		"moduleResolution": "bundler",
+		"moduleResolution": "classic",
 		"removeComments": false,
 		"preserveConstEnums": true,
 		"target": "ES2022",

@@ -90,7 +90,7 @@ export class DataChannelForwardingTelemetryService extends InterceptingTelemetry
 			}
 
 			if (forward) {
-				dataChannelService.getDataChannel<IEditTelemetryData>('editTelemetry').sendData({ eventName, data: data as any });
+				dataChannelService.getDataChannel<IEditTelemetryData>('editTelemetry').sendData({ eventName, data: data ?? {} });
 			}
 		});
 	}

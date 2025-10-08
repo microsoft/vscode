@@ -14,6 +14,7 @@ export function onObservableChange<T>(observable: IObservableWithChange<unknown,
 			observable.reportChanges();
 		},
 		handleChange<T2, TChange>(_observable: IObservableWithChange<T2, TChange>, change: TChange) {
+			// eslint-disable-next-line local/code-no-any-casts
 			callback(change as any as T);
 		}
 	};
