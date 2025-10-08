@@ -251,7 +251,7 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 			policy: {
 				name: 'ChatToolsAutoApprove',
-				category: PolicyCategory.Default,
+				category: PolicyCategory.InteractiveSession,
 				minimumVersion: '1.99',
 				value: (account) => account.chat_preview_features_enabled === false ? false : undefined,
 			}
@@ -346,7 +346,7 @@ configurationRegistry.registerConfiguration({
 			default: McpAccessValue.All,
 			policy: {
 				name: 'ChatMCP',
-				category: PolicyCategory.Default,
+				category: PolicyCategory.InteractiveSession,
 				minimumVersion: '1.99',
 				value: (account) => {
 					if (account.mcp === false) {
@@ -422,7 +422,7 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			policy: {
 				name: 'ChatAgentExtensionTools',
-				category: PolicyCategory.Default,
+				category: PolicyCategory.InteractiveSession,
 				minimumVersion: '1.99',
 				description: nls.localize('chat.extensionToolsPolicy', "Enable using tools contributed by third-party extensions."),
 			}
@@ -433,7 +433,7 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			policy: {
 				name: 'ChatAgentMode',
-				category: PolicyCategory.Default,
+				category: PolicyCategory.InteractiveSession,
 				minimumVersion: '1.99',
 				value: (account) => account.chat_agent_enabled === false ? false : undefined,
 			}
@@ -477,7 +477,7 @@ configurationRegistry.registerConfiguration({
 			included: false,
 			policy: {
 				name: 'McpGalleryServiceUrl',
-				category: PolicyCategory.Default,
+				category: PolicyCategory.InteractiveSession,
 				minimumVersion: '1.101',
 				value: (account) => account.mcpRegistryUrl
 			},
@@ -501,7 +501,7 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental', 'prompts', 'reusable prompts', 'prompt snippets', 'instructions'],
 			policy: {
 				name: 'ChatPromptFiles',
-				category: PolicyCategory.Default,
+				category: PolicyCategory.InteractiveSession,
 				minimumVersion: '1.99',
 				description: nls.localize('chat.promptFiles.policy', "Enables reusable prompt and instruction files in Chat sessions.")
 			}

@@ -287,7 +287,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				included: false,
 				policy: {
 					name: 'ExtensionGalleryServiceUrl',
-					category: PolicyCategory.Default,
+					category: PolicyCategory.Extensions,
 					minimumVersion: '1.99',
 				},
 			},

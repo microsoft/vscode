@@ -8,9 +8,11 @@ import { IDefaultAccount } from './defaultAccount.js';
 export type PolicyName = string;
 
 export enum PolicyCategory {
-	Default = 'Default',
-	Chat = 'Chat',
-	Terminal = 'Terminal',
+	Extensions = 'extensionsConfigurationTitle',
+	TerminalIntegrated = 'terminalIntegratedConfigurationTitle',
+	InteractiveSession = 'interactiveSessionConfigurationTitle',
+	Telemetry = 'telemetryConfigurationTitle',
+	Update = 'updateConfigurationTitle',
 }
 
 export interface IPolicy {

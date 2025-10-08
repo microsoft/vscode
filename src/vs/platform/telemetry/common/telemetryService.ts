@@ -224,7 +224,7 @@ configurationRegistry.registerConfiguration({
 			'tags': ['usesOnlineServices', 'telemetry'],
 			'policy': {
 				name: 'TelemetryLevel',
-				category: PolicyCategory.Default,
+				category: PolicyCategory.Telemetry,
 				minimumVersion: '1.99',
 				description: localize('telemetry.telemetryLevel.policyDescription', "Controls the level of telemetry."),
 			}
@@ -235,7 +235,7 @@ configurationRegistry.registerConfiguration({
 			description: localize('telemetry.feedback.enabled', "Enable feedback mechanisms such as the issue reporter, surveys, and other feedback options."),
 			policy: {
 				name: 'EnableFeedback',
-				category: PolicyCategory.Default,
+				category: PolicyCategory.Telemetry,
 				minimumVersion: '1.99',
 			}
 		},

@@ -735,7 +735,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration)
 				scope: ConfigurationScope.APPLICATION,
 				policy: {
 					name: 'AllowedExtensions',
-					category: PolicyCategory.Default,
+					category: PolicyCategory.Extensions,
 					minimumVersion: '1.96',
 					description: localize('extensions.allowed.policy', "Specify a list of extensions that are allowed to use. This helps maintain a secure and consistent development environment by restricting the use of unauthorized extensions. More information: https://code.visualstudio.com/docs/setup/enterprise#_configure-allowed-extensions"),
 				},

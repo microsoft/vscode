@@ -643,7 +643,7 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 		default: true,
 		policy: {
 			name: 'ChatToolsTerminalEnableAutoApprove',
-			category: PolicyCategory.Terminal,
+			category: PolicyCategory.TerminalIntegrated,
 			minimumVersion: '1.104',
 		}
 	},

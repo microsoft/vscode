@@ -31,7 +31,7 @@ configurationRegistry.registerConfiguration({
 			],
 			policy: {
 				name: 'UpdateMode',
-				category: PolicyCategory.Default,
+				category: PolicyCategory.Update,
 				minimumVersion: '1.67',
 			}
 		},
