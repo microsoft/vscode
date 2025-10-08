@@ -17,7 +17,7 @@ const SRC = path.join(__dirname, '../../src');
 export const RECIPE_PATH = path.join(__dirname, '../monaco/monaco.d.ts.recipe');
 const DECLARATION_PATH = path.join(__dirname, '../../src/vs/monaco.d.ts');
 
-function logErr(message: any, ...rest: any[]): void {
+function logErr(message: any, ...rest: unknown[]): void {
 	fancyLog(ansiColors.yellow(`[monaco.d.ts]`), message, ...rest);
 }
 
