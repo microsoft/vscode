@@ -41,4 +41,5 @@ export function setupRecreatingStartMarker(
 		startMarker.clear();
 		fire(undefined);
 	}));
+	store.add(startMarker);
 }

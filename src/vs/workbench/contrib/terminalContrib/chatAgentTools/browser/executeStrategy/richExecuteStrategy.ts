@@ -59,7 +59,6 @@ export class RichExecuteStrategy implements ITerminalExecuteStrategy {
 				}),
 			]);
 
-			store.add(this._startMarker);
 			setupRecreatingStartMarker(
 				xterm,
 				this._startMarker,

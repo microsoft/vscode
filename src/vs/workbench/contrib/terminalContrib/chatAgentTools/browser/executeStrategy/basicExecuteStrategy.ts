@@ -55,7 +55,6 @@ export class BasicExecuteStrategy implements ITerminalExecuteStrategy {
 
 	async execute(commandLine: string, token: CancellationToken): Promise<ITerminalExecuteStrategyResult> {
 		const store = new DisposableStore();
-		store.add(this._startMarker);
 
 		try {
 			const idlePromptPromise = trackIdleOnPrompt(this._instance, 1000, store);
