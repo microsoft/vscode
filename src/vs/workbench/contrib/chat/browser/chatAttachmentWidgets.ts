@@ -33,6 +33,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { IContextKey, IContextKeyService, IScopedContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { fillInSymbolsDragData } from '../../../../platform/dnd/browser/dnd.js';
+import { IOpenEditorOptions, registerOpenEditorListeners } from '../../../../platform/editor/browser/editor.js';
 import { ITextEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { FileKind, IFileService } from '../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
@@ -41,7 +42,6 @@ import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IOpenerService, OpenInternalOptions } from '../../../../platform/opener/common/opener.js';
 import { FolderThemeIcon, IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { fillEditorsDragData } from '../../../browser/dnd.js';
-import { IOpenEditorOptions, registerOpenEditorListeners } from '../../../browser/editor.js';
 import { IFileLabelOptions, IResourceLabel, ResourceLabels } from '../../../browser/labels.js';
 import { ResourceContextKey } from '../../../common/contextkeys.js';
 import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';

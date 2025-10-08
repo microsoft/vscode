@@ -58,7 +58,7 @@ import { CodeBlockPart, ICodeBlockData, ICodeBlockRenderOptions, localFileLangua
 import { IDisposableReference, ResourcePool } from './chatCollections.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { ChatExtensionsContentPart } from './chatExtensionsContentPart.js';
-import { IOpenEditorOptions, registerOpenEditorListeners } from '../../../../browser/editor.js';
+import { IOpenEditorOptions, registerOpenEditorListeners } from '../../../../../platform/editor/browser/editor.js';
 
 const $ = dom.$;
 

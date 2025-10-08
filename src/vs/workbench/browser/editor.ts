@@ -4,14 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../nls.js';
-import { addDisposableListener, EventHelper, EventType } from '../../base/browser/dom.js';
 import { EditorResourceAccessor, EditorExtensions, SideBySideEditor, IEditorDescriptor as ICommonEditorDescriptor, EditorCloseContext, IWillInstantiateEditorPaneEvent } from '../common/editor.js';
 import { EditorInput } from '../common/editor/editorInput.js';
 import { SyncDescriptor } from '../../platform/instantiation/common/descriptors.js';
 import { Registry } from '../../platform/registry/common/platform.js';
 import { EditorPane } from './parts/editor/editorPane.js';
 import { IConstructorSignature, IInstantiationService, BrandedService, ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
-import { DisposableStore, IDisposable, toDisposable } from '../../base/common/lifecycle.js';
+import { IDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { Promises } from '../../base/common/async.js';
 import { IEditorService } from '../services/editor/common/editorService.js';
 import { IUriIdentityService } from '../../platform/uriIdentity/common/uriIdentity.js';
@@ -21,10 +20,6 @@ import { Schemas } from '../../base/common/network.js';
 import { IEditorGroup } from '../services/editor/common/editorGroupsService.js';
 import { Iterable } from '../../base/common/iterator.js';
 import { Emitter } from '../../base/common/event.js';
-import { StandardKeyboardEvent } from '../../base/browser/keyboardEvent.js';
-import { KeyCode, KeyMod } from '../../base/common/keyCodes.js';
-import { isMacintosh } from '../../base/common/platform.js';
-import { IEditorOptions } from '../../platform/editor/common/editor.js';
 
 //#region Editor Pane Registry
 
@@ -299,48 +294,3 @@ export function computeEditorAriaLabel(input: EditorInput, index: number | undef
 
 //#endregion
 
-//#region Editor Open Event Listeners
-
-export interface IOpenEditorOptions {
-	readonly editorOptions: IEditorOptions;
-	readonly openToSide: boolean;
-}
-
-export function registerOpenEditorListeners(element: HTMLElement, onOpenEditor: (options: IOpenEditorOptions) => void): IDisposable {
-	const disposables = new DisposableStore();
-
-	disposables.add(addDisposableListener(element, EventType.CLICK, e => {
-		if (e.detail === 2) {
-			return; // ignore double click as it is handled below
-		}
-
-		EventHelper.stop(e, true);
-		onOpenEditor({ editorOptions: { preserveFocus: true, pinned: e.button === 1 /* middle click */ }, openToSide: e.ctrlKey || e.metaKey || e.altKey });
-	}));
-
-	disposables.add(addDisposableListener(element, EventType.DBLCLICK, e => {
-		EventHelper.stop(e, true);
-
-		onOpenEditor({ editorOptions: { preserveFocus: false, pinned: true }, openToSide: e.ctrlKey || e.metaKey || e.altKey });
-	}));
-
-	disposables.add(addDisposableListener(element, EventType.KEY_DOWN, e => {
-		const event = new StandardKeyboardEvent(e);
-
-		let preserveFocus: boolean | undefined = undefined;
-		if (event.equals(KeyCode.Enter) || (isMacintosh && event.equals(KeyMod.CtrlCmd | KeyCode.DownArrow))) {
-			preserveFocus = false;
-		} else if (event.equals(KeyCode.Space)) {
-			preserveFocus = true;
-		}
-
-		if (typeof preserveFocus === 'undefined') {
-			return;
-		}
-
-		EventHelper.stop(e, true);
-		onOpenEditor({ editorOptions: { preserveFocus, pinned: !preserveFocus }, openToSide: false });
-	}));
-
-	return disposables;
-}
