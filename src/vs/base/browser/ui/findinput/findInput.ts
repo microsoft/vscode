@@ -38,6 +38,7 @@ export interface IFindInputOptions {
 	readonly toggleStyles: IToggleStyles;
 	readonly inputBoxStyles: IInputBoxStyles;
 	readonly history?: IHistory<string>;
+	readonly hoverLifecycleOptions?: IHoverLifecycleOptions;
 }
 
 const NLS_DEFAULT_LABEL = nls.localize('defaultLabel', "input");
@@ -115,7 +116,7 @@ export class FindInput extends Widget {
 		}));
 
 		if (this.showCommonFindToggles) {
-			const hoverLifecycleOptions: IHoverLifecycleOptions = { groupId: 'find-input' };
+			const hoverLifecycleOptions: IHoverLifecycleOptions = options?.hoverLifecycleOptions || { groupId: 'find-input' };
 			this.regex = this._register(new RegexToggle({
 				appendTitle: appendRegexLabel,
 				isChecked: false,
