@@ -384,6 +384,7 @@ export interface IExtensionQueryOptions {
 	compatible?: boolean;
 	queryAllVersions?: boolean;
 	source?: string;
+	updateCheck?: boolean;
 }
 
 export interface IExtensionGalleryCapabilities {
