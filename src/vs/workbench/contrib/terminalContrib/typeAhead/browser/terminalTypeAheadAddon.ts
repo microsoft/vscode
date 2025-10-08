@@ -55,7 +55,7 @@ const core = (terminal: Terminal): IXtermCore => {
 		_core: IXtermCore;
 	}
 	return (terminal as XtermWithCore)._core;
-}
+};
 const flushOutput = (terminal: Terminal) => {
 	// TODO: Flushing output is not possible anymore without async
 };
