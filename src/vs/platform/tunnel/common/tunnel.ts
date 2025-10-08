@@ -27,6 +27,11 @@ export interface RemoteTunnel {
 	dispose(silent?: boolean): Promise<void>;
 }
 
+export function isRemoteTunnel(something: unknown): something is RemoteTunnel {
+	const asTunnel: Partial<RemoteTunnel> = something as Partial<RemoteTunnel>;
+	return !!(asTunnel.tunnelRemotePort && asTunnel.tunnelRemoteHost && asTunnel.localAddress && asTunnel.privacy && asTunnel.dispose);
+}
+
 export interface TunnelOptions {
 	remoteAddress: { port: number; host: string };
 	localAddressPort?: number;
