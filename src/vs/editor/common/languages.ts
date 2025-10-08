@@ -27,9 +27,6 @@ import { localize } from '../../nls.js';
 import { ExtensionIdentifier } from '../../platform/extensions/common/extensions.js';
 import { IMarkerData } from '../../platform/markers/common/markers.js';
 
-/**
- * @internal
- */
 export interface ILanguageIdCodec {
 	encodeLanguageId(languageId: string): LanguageId;
 	decodeLanguageId(languageId: LanguageId): string;
@@ -239,7 +236,6 @@ export enum HoverVerbosityAction {
 /**
  * An evaluatable expression represents additional information for an expression in a document. Evaluatable expressions are
  * evaluated by a debugger or runtime and their result is rendered in a tooltip-like widget.
- * @internal
  */
 export interface EvaluatableExpression {
 	/**
@@ -256,7 +252,6 @@ export interface EvaluatableExpression {
 /**
  * The evaluatable expression provider interface defines the contract between extensions and
  * the debug hover.
- * @internal
  */
 export interface EvaluatableExpressionProvider {
 	/**
@@ -269,7 +264,6 @@ export interface EvaluatableExpressionProvider {
 
 /**
  * A value-object that contains contextual information when requesting inline values from a InlineValuesProvider.
- * @internal
  */
 export interface InlineValueContext {
 	frameId: number;
@@ -278,7 +272,6 @@ export interface InlineValueContext {
 
 /**
  * Provide inline value as text.
- * @internal
  */
 export interface InlineValueText {
 	type: 'text';
@@ -288,7 +281,6 @@ export interface InlineValueText {
 
 /**
  * Provide inline value through a variable lookup.
- * @internal
  */
 export interface InlineValueVariableLookup {
 	type: 'variable';
@@ -299,7 +291,6 @@ export interface InlineValueVariableLookup {
 
 /**
  * Provide inline value through an expression evaluation.
- * @internal
  */
 export interface InlineValueExpression {
 	type: 'expression';
@@ -313,14 +304,12 @@ export interface InlineValueExpression {
  * - as a name to use for a variable lookup (class InlineValueVariableLookup)
  * - as an evaluatable expression (class InlineValueEvaluatableExpression)
  * The InlineValue types combines all inline value types into one type.
- * @internal
  */
 export type InlineValue = InlineValueText | InlineValueVariableLookup | InlineValueExpression;
 
 /**
  * The inline values provider interface defines the contract between extensions and
  * the debugger's inline values feature.
- * @internal
  */
 export interface InlineValuesProvider {
 	/**
@@ -937,7 +926,6 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 }
 
 
-/** @internal */
 export class ProviderId {
 	public static fromExtensionId(extensionId: string | undefined): ProviderId {
 		return new ProviderId(extensionId, undefined, undefined);
@@ -968,7 +956,6 @@ export class ProviderId {
 	}
 }
 
-/** @internal */
 export class VersionedExtensionId {
 	public static tryCreate(extensionId: string | undefined, version: string | undefined): VersionedExtensionId | undefined {
 		if (!extensionId || !version) {
@@ -1068,7 +1055,6 @@ export interface CodeActionList extends IDisposable {
 /**
  * The code action interface defines the contract between extensions and
  * the [light bulb](https://code.visualstudio.com/docs/editor/editingevolved#_code-action) feature.
- * @internal
  */
 export interface CodeActionProvider {
 
@@ -1099,9 +1085,6 @@ export interface CodeActionProvider {
 	_getAdditionalMenuItems?(context: CodeActionContext, actions: readonly CodeAction[]): Command[];
 }
 
-/**
- * @internal
- */
 export interface DocumentPasteEdit {
 	readonly title: string;
 	readonly kind: HierarchicalKind;
@@ -1111,33 +1094,21 @@ export interface DocumentPasteEdit {
 	additionalEdit?: WorkspaceEdit;
 }
 
-/**
- * @internal
- */
 export enum DocumentPasteTriggerKind {
 	Automatic = 0,
 	PasteAs = 1,
 }
 
-/**
- * @internal
- */
 export interface DocumentPasteContext {
 	readonly only?: HierarchicalKind;
 	readonly triggerKind: DocumentPasteTriggerKind;
 }
 
-/**
- * @internal
- */
 export interface DocumentPasteEditsSession {
 	edits: readonly DocumentPasteEdit[];
 	dispose(): void;
 }
 
-/**
- * @internal
- */
 export interface DocumentPasteEditProvider {
 	readonly id?: string;
 	readonly copyMimeTypes: readonly string[];
@@ -1766,9 +1737,6 @@ export interface OnTypeFormattingEditProvider {
 	provideOnTypeFormattingEdits(model: model.ITextModel, position: Position, ch: string, options: FormattingOptions, token: CancellationToken): ProviderResult<TextEdit[]>;
 }
 
-/**
- * @internal
- */
 export interface IInplaceReplaceSupportResult {
 	value: string;
 	range: IRange;
@@ -2073,9 +2041,6 @@ export namespace Command {
 	}
 }
 
-/**
- * @internal
- */
 export interface CommentThreadTemplate {
 	controllerHandle: number;
 	label: string;
@@ -2084,9 +2049,6 @@ export interface CommentThreadTemplate {
 	deleteCommand?: Command;
 }
 
-/**
- * @internal
- */
 export interface CommentInfo<T = IRange> {
 	extensionId?: string;
 	threads: CommentThread<T>[];
@@ -2095,16 +2057,10 @@ export interface CommentInfo<T = IRange> {
 }
 
 
-/**
- * @internal
- */
 export interface CommentingRangeResourceHint {
 	schemes: readonly string[];
 }
 
-/**
- * @internal
- */
 export enum CommentThreadCollapsibleState {
 	/**
 	 * Determines an item is collapsed
@@ -2116,25 +2072,16 @@ export enum CommentThreadCollapsibleState {
 	Expanded = 1
 }
 
-/**
- * @internal
- */
 export enum CommentThreadState {
 	Unresolved = 0,
 	Resolved = 1
 }
 
-/**
- * @internal
- */
 export enum CommentThreadApplicability {
 	Current = 0,
 	Outdated = 1
 }
 
-/**
- * @internal
- */
 export interface CommentWidget {
 	commentThread: CommentThread;
 	comment?: Comment;
@@ -2142,9 +2089,6 @@ export interface CommentWidget {
 	onDidChangeInput: Event<string>;
 }
 
-/**
- * @internal
- */
 export interface CommentInput {
 	value: string;
 	uri: URI;
@@ -2155,9 +2099,6 @@ export interface CommentThreadRevealOptions {
 	focusReply: boolean;
 }
 
-/**
- * @internal
- */
 export interface CommentThread<T = IRange> {
 	isDocumentCommentThread(): this is CommentThread<IRange>;
 	commentThreadHandle: number;
@@ -2186,16 +2127,9 @@ export interface CommentThread<T = IRange> {
 	isTemplate: boolean;
 }
 
-/**
- * @internal
- */
 export interface AddedCommentThread<T = IRange> extends CommentThread<T> {
 	editorId?: string;
 }
-
-/**
- * @internal
- */
 
 export interface CommentingRanges {
 	readonly resource: URI;
@@ -2399,16 +2333,10 @@ export interface ITokenizationSupportChangedEvent {
 	changedColorMap: boolean;
 }
 
-/**
- * @internal
- */
 export interface ILazyTokenizationSupport<TSupport> {
 	get tokenizationSupport(): Promise<TSupport | null>;
 }
 
-/**
- * @internal
- */
 export class LazyTokenizationSupport<TSupport = ITokenizationSupport> implements IDisposable, ILazyTokenizationSupport<TSupport> {
 	private _tokenizationSupport: Promise<TSupport & IDisposable | null> | null = null;
 
@@ -2433,9 +2361,6 @@ export class LazyTokenizationSupport<TSupport = ITokenizationSupport> implements
 	}
 }
 
-/**
- * @internal
- */
 export interface ITokenizationRegistry<TSupport> {
 
 	/**
@@ -2488,14 +2413,9 @@ export interface ITokenizationRegistry<TSupport> {
 	getDefaultBackground(): Color | null;
 }
 
-/**
- * @internal
- */
 export const TokenizationRegistry: ITokenizationRegistry<ITokenizationSupport> = new TokenizationRegistryImpl();
 
-/**
- * @internal
- */
+
 export enum ExternalUriOpenerPriority {
 	None = 0,
 	Option = 1,
@@ -2503,14 +2423,8 @@ export enum ExternalUriOpenerPriority {
 	Preferred = 3,
 }
 
-/**
- * @internal
- */
 export type DropYieldTo = { readonly kind: HierarchicalKind } | { readonly mimeType: string };
 
-/**
- * @internal
- */
 export interface DocumentDropEdit {
 	readonly title: string;
 	readonly kind: HierarchicalKind | undefined;
@@ -2520,17 +2434,11 @@ export interface DocumentDropEdit {
 	additionalEdit?: WorkspaceEdit;
 }
 
-/**
- * @internal
- */
 export interface DocumentDropEditsSession {
 	edits: readonly DocumentDropEdit[];
 	dispose(): void;
 }
 
-/**
- * @internal
- */
 export interface DocumentDropEditProvider {
 	readonly id?: string;
 	readonly dropMimeTypes?: readonly string[];

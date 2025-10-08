@@ -20,6 +20,27 @@ export enum CodeActionTriggerType {
 	Auto = 2
 }
 
+export enum CommentThreadApplicability {
+	Current = 0,
+	Outdated = 1
+}
+
+export enum CommentThreadCollapsibleState {
+	/**
+	 * Determines an item is collapsed
+	 */
+	Collapsed = 0,
+	/**
+	 * Determines an item is expanded
+	 */
+	Expanded = 1
+}
+
+export enum CommentThreadState {
+	Unresolved = 0,
+	Resolved = 1
+}
+
 export enum CompletionItemInsertTextRule {
 	None = 0,
 	/**
@@ -160,6 +181,11 @@ export enum DocumentHighlightKind {
 	 * Write-access of a symbol, like writing to a variable.
 	 */
 	Write = 2
+}
+
+export enum DocumentPasteTriggerKind {
+	Automatic = 0,
+	PasteAs = 1
 }
 
 /**
@@ -380,6 +406,13 @@ export enum EndOfLineSequence {
 	CRLF = 1
 }
 
+export enum ExternalUriOpenerPriority {
+	None = 0,
+	Option = 1,
+	Default = 2,
+	Preferred = 3
+}
+
 /**
  * Vertical Lane in the glyph margin of the editor.
  */
@@ -387,6 +420,19 @@ export enum GlyphMarginLane {
 	Left = 1,
 	Center = 2,
 	Right = 3
+}
+
+/**
+ * Built-in commands.
+ */
+export enum Handler {
+	CompositionStart = 'compositionStart',
+	CompositionEnd = 'compositionEnd',
+	Type = 'type',
+	ReplacePreviousChar = 'replacePreviousChar',
+	CompositionType = 'compositionType',
+	Paste = 'paste',
+	Cut = 'cut'
 }
 
 export enum HoverVerbosityAction {
@@ -695,6 +741,10 @@ export enum MinimapSectionHeaderStyle {
 	Underlined = 2
 }
 
+export enum ModelConstants {
+	FIRST_LINE_DETECTION_LENGTH_LIMIT = 1000
+}
+
 /**
  * Type of hit element with the mouse in the editor.
  */
@@ -824,6 +874,14 @@ export enum PositionAffinity {
 	 * If the given position is on injected text, prefers the position right of it.
 	*/
 	RightOfInjectedText = 4
+}
+
+export enum RawContentChangedType {
+	Flush = 1,
+	LineChanged = 2,
+	LinesDeleted = 3,
+	LinesInserted = 4,
+	EOLChanged = 5
 }
 
 export enum RenderLineNumbersType {

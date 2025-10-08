@@ -282,9 +282,6 @@ export interface CompleteEnterAction {
 	indentation: string;
 }
 
-/**
- * @internal
- */
 export class StandardAutoClosingPairConditional {
 
 	readonly open: string;
@@ -376,9 +373,6 @@ export class StandardAutoClosingPairConditional {
 	}
 }
 
-/**
- * @internal
- */
 export class AutoClosingPairs {
 	// it is useful to be able to get pairs using either end of open and close
 

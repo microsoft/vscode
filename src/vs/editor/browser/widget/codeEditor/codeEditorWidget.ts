@@ -255,6 +255,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	public inComposition: boolean = false;
 
+	/** @internal */
 	constructor(
 		domElement: HTMLElement,
 		_options: Readonly<IEditorConstructionOptions>,

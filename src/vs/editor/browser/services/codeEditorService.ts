@@ -43,6 +43,7 @@ export interface ICodeEditorService {
 	 */
 	getFocusedCodeEditor(): ICodeEditor | null;
 
+	/** @internal */
 	registerDecorationType(description: string, key: string, options: IDecorationRenderOptions, parentTypeKey?: string, editor?: ICodeEditor): void;
 	listDecorationTypes(): string[];
 	removeDecorationType(key: string): void;

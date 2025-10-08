@@ -186,6 +186,7 @@ export class CursorConfiguration {
 
 	/**
 	 * Should return opening bracket type to match indentation with
+	 * @internal
 	 */
 	public onElectricCharacter(character: string, context: LineTokens, column: number): IElectricAction | null {
 		const scopedLineTokens = createScopedLineTokens(context, column - 1);

@@ -554,7 +554,6 @@ export interface PastePayload {
 
 /**
  * An overview ruler
- * @internal
  */
 export interface IOverviewRuler {
 	getDomNode(): HTMLElement;
@@ -565,7 +564,6 @@ export interface IOverviewRuler {
 
 /**
  * Editor aria options.
- * @internal
  */
 export interface IEditorAriaOptions {
 	activeDescendant: string | undefined;
@@ -1231,9 +1229,6 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	handleInitialized?(): void;
 }
 
-/**
- * @internal
- */
 export interface IActiveCodeEditor extends ICodeEditor {
 	/**
 	 * Returns the primary position of the cursor.

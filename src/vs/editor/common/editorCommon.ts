@@ -147,9 +147,6 @@ export interface IContentSizeChangedEvent {
 	readonly contentHeightChanged: boolean;
 }
 
-/**
- * @internal
- */
 export interface ITriggerEditorOperationEvent {
 	source: string | null | undefined;
 	handlerId: string;
@@ -500,8 +497,6 @@ export interface IEditor {
 
 /**
  * A diff editor.
- *
- * @internal
  */
 export interface IDiffEditor extends IEditor {
 
@@ -521,9 +516,6 @@ export interface IDiffEditor extends IEditor {
 	getModifiedEditor(): IEditor;
 }
 
-/**
- * @internal
- */
 export interface ICompositeCodeEditor {
 
 	/**
@@ -597,7 +589,6 @@ export interface IEditorContribution {
 
 /**
  * A diff editor contribution that gets created every time a new  diffeditor gets created and gets disposed when the diff editor gets disposed.
- * @internal
  */
 export interface IDiffEditorContribution {
 	/**
@@ -613,9 +604,6 @@ export function isThemeColor(o: any): o is ThemeColor {
 	return o && typeof o.id === 'string';
 }
 
-/**
- * @internal
- */
 export interface IThemeDecorationRenderOptions {
 	backgroundColor?: string | ThemeColor;
 
@@ -666,9 +654,6 @@ export interface IThemeDecorationRenderOptions {
 	afterInjectedText?: IContentDecorationRenderOptions & { affectsLetterSpacing?: boolean };
 }
 
-/**
- * @internal
- */
 export interface IContentDecorationRenderOptions {
 	contentText?: string;
 	contentIconPath?: UriComponents;
@@ -692,9 +677,6 @@ export interface IContentDecorationRenderOptions {
 	height?: string;
 }
 
-/**
- * @internal
- */
 export interface IDecorationRenderOptions extends IThemeDecorationRenderOptions {
 	isWholeLine?: boolean;
 	rangeBehavior?: TrackedRangeStickiness;
@@ -704,9 +686,6 @@ export interface IDecorationRenderOptions extends IThemeDecorationRenderOptions 
 	dark?: IThemeDecorationRenderOptions;
 }
 
-/**
- * @internal
- */
 export interface IThemeDecorationInstanceRenderOptions {
 	/**
 	 * @deprecated
@@ -718,17 +697,11 @@ export interface IThemeDecorationInstanceRenderOptions {
 	after?: IContentDecorationRenderOptions;
 }
 
-/**
- * @internal
- */
 export interface IDecorationInstanceRenderOptions extends IThemeDecorationInstanceRenderOptions {
 	light?: IThemeDecorationInstanceRenderOptions;
 	dark?: IThemeDecorationInstanceRenderOptions;
 }
 
-/**
- * @internal
- */
 export interface IDecorationOptions {
 	range: IRange;
 	hoverMessage?: IMarkdownString | IMarkdownString[];
@@ -745,7 +718,6 @@ export const EditorType = {
 
 /**
  * Built-in commands.
- * @internal
  */
 export const enum Handler {
 	CompositionStart = 'compositionStart',
@@ -757,24 +729,15 @@ export const enum Handler {
 	Cut = 'cut',
 }
 
-/**
- * @internal
- */
 export interface TypePayload {
 	text: string;
 }
 
-/**
- * @internal
- */
 export interface ReplacePreviousCharPayload {
 	text: string;
 	replaceCharCnt: number;
 }
 
-/**
- * @internal
- */
 export interface CompositionTypePayload {
 	text: string;
 	replacePrevCharCnt: number;

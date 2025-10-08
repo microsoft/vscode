@@ -34,7 +34,7 @@
 	display: flex;
 	height: 24px;
 	position: relative;
-	background: url('images/opacity-background.png');
+	/*background: url('images/opacity-background.png');*/
 	background-size: 9px 9px;
 	image-rendering: pixelated;
 }
@@ -155,7 +155,7 @@
 	position: relative;
 	margin-left: 8px;
 	cursor: grab;
-	background: url('images/opacity-background.png');
+	/*background: url('images/opacity-background.png');*/
 	background-size: 9px 9px;
 	image-rendering: pixelated;
 }
