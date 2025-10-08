@@ -36,9 +36,9 @@ export class PolicyExportContribution extends Disposable implements IWorkbenchCo
 
 	private async exportPolicyAndQuit(): Promise<void> {
 		try {
-			const platform = this.nativeEnvironmentService.exportPolicy;
+			const platform = this.nativeEnvironmentService.exportPolicyType;
 			if (!platform || (platform !== 'darwin' && platform !== 'win32')) {
-				throw new Error(`Received invalid platform: ${platform}. Usage: --export-policy=darwin|win32`);
+				throw new Error(`Received invalid platform: ${platform}. Usage: --export-policy-type=darwin|win32`);
 			}
 
 			this.log('Export begun. Waiting for ready state.');

@@ -163,7 +163,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'inspect-sharedprocess': { type: 'string', allowEmptyValue: true },
 	'inspect-brk-sharedprocess': { type: 'string', allowEmptyValue: true },
 	'export-default-configuration': { type: 'string' },
-	'export-policy': { type: 'string' },
+	'export-policy-type': { type: 'string' },
 	'install-source': { type: 'string' },
 	'enable-smoke-test-driver': { type: 'boolean' },
 	'logExtensionHostCommunication': { type: 'boolean' },
