@@ -3,51 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PolicyCategory } from '../../../../../base/common/policy.js';
+import { IPolicy } from '../../../../../base/common/policy.js';
 import { IConfigurationPropertySchema } from '../../../../configuration/common/configurationRegistry.js';
-import { LanguageTranslations, NlsString, PolicyType } from '../types.js';
+import { Category, LanguageTranslations, NlsString, PolicyType } from '../types.js';
 import { BasePolicy } from './basePolicy.js';
 import { renderProfileString } from './render.js';
 
 export class StringPolicy extends BasePolicy {
 
-	static from(config: IConfigurationPropertySchema): StringPolicy | undefined {
-		if (!config.policy) {
-			throw new Error(`[StringPolicy] Unexpected: missing 'policy' property`);
-		}
-
-		if (config.type !== 'string') {
-			throw new Error(`[StringPolicy] Unsupported 'type' property: ${config.type}`);
-		}
-
+	static from({ key, policy, category, policyDescription, config }: { key: string; policy: IPolicy; category: Category; policyDescription: NlsString; config: IConfigurationPropertySchema }): StringPolicy {
 		if (config.default === undefined) {
-			throw new Error(`[StringPolicy] Missing required 'default' property.`);
+			throw new Error(`[StringPolicy] Failed to convert ${key}: missing required 'default' property.`);
 		}
-
-		const description = config.policy.description.value ?? config.description;
-		if (description === undefined) {
-			throw new Error(`[StringPolicy] Missing required 'description' property.`);
-		}
-
-		return new StringPolicy(config.policy.name, config.policy.category, config.policy.minimumVersion, {
-			nlsKey: config.policy.description.key,
-			value: description
-		});
+		return new StringPolicy(policy.name, category, policy.minimumVersion, policyDescription);
 	}
 
 	private constructor(
 		name: string,
-		category: PolicyCategory,
+		category: Category,
 		minimumVersion: string,
 		description: NlsString,
 	) {
-		super(PolicyType.String, name, {
-			moduleName: category,
-			name: {
-				nlsKey: category,
-				value: category
-			}
-		}, minimumVersion, description);
+		super(PolicyType.String, name, category, minimumVersion, description);
 	}
 
 	protected renderADMXElements(): string[] {

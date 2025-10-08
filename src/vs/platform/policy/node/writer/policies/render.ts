@@ -10,6 +10,9 @@ export function renderADMLString(prefix: string, nlsString: NlsString, translati
 
 	if (translations) {
 		value = translations[nlsString.nlsKey];
+		if (value === undefined) {
+			throw new Error(`Failed to render: ${nlsString.nlsKey} does not have a translation. Please double check that this ID exists.`);
+		}
 	}
 
 	if (!value) {
@@ -24,6 +27,9 @@ export function renderProfileString(_prefix: string, nlsString: NlsString, trans
 
 	if (translations) {
 		value = translations[nlsString.nlsKey];
+		if (value === undefined) {
+			throw new Error(`Failed to render: ${nlsString.nlsKey} does not have a translation. Please double check that this ID exists.`);
+		}
 	}
 
 	if (!value) {

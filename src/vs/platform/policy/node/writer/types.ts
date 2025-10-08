@@ -24,7 +24,6 @@ export enum PolicyType {
 }
 
 export interface Category {
-	readonly moduleName: string;
 	readonly name: NlsString;
 }
 

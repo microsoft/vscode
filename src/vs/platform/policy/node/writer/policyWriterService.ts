@@ -5,7 +5,7 @@
 
 import { promises as fs } from 'fs';
 import * as path from '../../../../base/common/path.js';
-import { Category, LanguageTranslations, Policy, Translations, Version } from './types.js';
+import { Category, LanguageTranslations, NlsString, Policy, Translations, Version } from './types.js';
 import { IPolicyWriterService } from '../../common/policy.js';
 import { renderADMLString } from './policies/render.js';
 import { IConfigurationPropertySchema, IRegisteredConfigurationPropertySchema } from '../../../configuration/common/configurationRegistry.js';
@@ -16,6 +16,7 @@ import { StringEnumPolicy } from './policies/stringEnumPolicy.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { ObjectPolicy } from './policies/objectPolicy.js';
 import { IConfigurationService } from '../../../configuration/common/configuration.js';
+import { PolicyCategoryTitle } from '../../../../base/common/policy.js';
 
 const Languages = {
 	'fr': 'fr-fr',
@@ -88,23 +89,59 @@ export class PolicyWriterService implements IPolicyWriterService {
 
 	private configToPolicy(key: string, config: IConfigurationPropertySchema): Policy {
 		let convertedPolicy: Policy | undefined;
+		const policy = config.policy;
+		if (!policy) {
+			throw new Error(`Invalid config for key ${key}: missing required 'policy' key.`);
+		}
+
+		const category: Category = { name: { nlsKey: policy.category, value: PolicyCategoryTitle[policy.category] } };
+
+		const descriptionKey = typeof policy.localization.description === 'object' ? policy.localization.description.key : policy.localization.description;
+		const descriptionValue = typeof policy.localization.description === 'object' ? policy.localization.description.value : config.description;
+		if (!descriptionValue) {
+			throw new Error(`Invalid config for key ${key}: missing required 'description' key. If only a key is provided, then the parent configuration object must define it.`);
+		}
+
+		const policyDescription: NlsString = {
+			nlsKey: descriptionKey,
+			value: descriptionValue
+		};
+
+		const expectedNumberEnumKeys = config.enum?.length ?? 0;
+		const actualNumberEnumKeys = policy.localization.enumDescriptions?.length ?? 0;
+		if (actualNumberEnumKeys !== expectedNumberEnumKeys) {
+			throw new Error(`Invalid config for key ${key}: expected ${expectedNumberEnumKeys} localization keys but found ${actualNumberEnumKeys}`);
+		}
+
+		const policyEnumDescriptions: NlsString[] = policy.localization.enumDescriptions?.map((enumDescription, idx) => {
+			const enumDescriptionKey = typeof enumDescription === 'object' ? enumDescription.key : enumDescription;
+			const enumDescriptionValue = typeof enumDescription === 'object' ? enumDescription.value : config.enumDescriptions?.[idx];
+			if (!enumDescriptionValue) {
+				throw new Error(`Invalid config for key ${key}: missing value for enumDescription at index ${idx}`);
+			}
+			return {
+				nlsKey: enumDescriptionKey,
+				value: enumDescriptionValue
+			};
+		}) ?? [];
+
 		switch (config.type) {
 			case 'boolean':
-				convertedPolicy = BooleanPolicy.from(config);
+				convertedPolicy = BooleanPolicy.from({ key, policy, category, policyDescription, config });
 				break;
 			case 'number':
 			case 'integer':
-				convertedPolicy = NumberPolicy.from(config);
+				convertedPolicy = NumberPolicy.from({ key, policy, category, policyDescription, config });
 				break;
 			case 'array':
 			case 'object':
-				convertedPolicy = ObjectPolicy.from(config);
+				convertedPolicy = ObjectPolicy.from({ key, policy, category, policyDescription, config });
 				break;
 			case 'string':
 				if (config.enum) {
-					convertedPolicy = StringEnumPolicy.from(config);
+					convertedPolicy = StringEnumPolicy.from({ key, policy, category, policyDescription, policyEnumDescriptions, config });
 				} else {
-					convertedPolicy = StringPolicy.from(config);
+					convertedPolicy = StringPolicy.from({ key, policy, category, policyDescription, config });
 				}
 				break;
 		}

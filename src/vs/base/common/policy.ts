@@ -3,22 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from '../../nls.js';
 import { IDefaultAccount } from './defaultAccount.js';
 
 export type PolicyName = string;
-export type PolicyDescription = {
+export type LocalizedValue = string | {
 	key: string;
-	/** If not provided, will fallback to the parent contribution's description or markdownDescription. */
-	value?: string;
+	value: string;
 };
 
+/** Supported categories for policies. Make sure that the enum values here match the corresponding localization keys below. */
 export enum PolicyCategory {
 	Extensions = 'extensionsConfigurationTitle',
-	TerminalIntegrated = 'terminalIntegratedConfigurationTitle',
+	IntegratedTerminal = 'terminalIntegratedConfigurationTitle',
 	InteractiveSession = 'interactiveSessionConfigurationTitle',
 	Telemetry = 'telemetryConfigurationTitle',
 	Update = 'updateConfigurationTitle',
 }
+
+export const PolicyCategoryTitle: {
+	[key in PolicyCategory]: string
+} = {
+	[PolicyCategory.Extensions]: localize('extensionsConfigurationTitle', "Extensions"),
+	[PolicyCategory.IntegratedTerminal]: localize('terminalIntegratedConfigurationTitle', "Integrated Terminal"),
+	[PolicyCategory.InteractiveSession]: localize('interactiveSessionConfigurationTitle', "Chat"),
+	[PolicyCategory.Telemetry]: localize('telemetryConfigurationTitle', "Telemetry"),
+	[PolicyCategory.Update]: localize('updateConfigurationTitle', "Update"),
+};
 
 export interface IPolicy {
 
@@ -38,9 +49,12 @@ export interface IPolicy {
 	readonly minimumVersion: `${number}.${number}`;
 
 	/**
-	 * The policy description.
+	 * Localization info for the policy.
 	 */
-	readonly description: PolicyDescription;
+	readonly localization: {
+		description: LocalizedValue;
+		enumDescriptions?: LocalizedValue[];
+	};
 
 	/**
 	 * The value that an ACCOUNT-based feature will use when its corresponding policy is active.

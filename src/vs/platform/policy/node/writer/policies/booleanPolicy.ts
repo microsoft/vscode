@@ -3,53 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PolicyCategory } from '../../../../../base/common/policy.js';
+import { IPolicy, PolicyCategory } from '../../../../../base/common/policy.js';
 import { IConfigurationPropertySchema } from '../../../../configuration/common/configurationRegistry.js';
-import { LanguageTranslations, NlsString, PolicyType } from '../types.js';
+import { Category, LanguageTranslations, NlsString, PolicyType } from '../types.js';
 import { BasePolicy } from './basePolicy.js';
 import { renderProfileString } from './render.js';
 
 export class BooleanPolicy extends BasePolicy {
 
-	static from(config: IConfigurationPropertySchema): BooleanPolicy | undefined {
-		if (!config.policy) {
-			throw new Error(`[BooleanPolicy] Unexpected: missing 'policy' property`);
-		}
-
-		if (config.type !== 'boolean') {
-			throw new Error(`[BooleanPolicy] Unsupported 'type' property: ${config.type}`);
-		}
-
+	static from({ key, policy, category, policyDescription, config }: { key: string; policy: IPolicy; category: Category; policyDescription: NlsString; config: IConfigurationPropertySchema }): BooleanPolicy {
 		if (config.default === undefined) {
-			throw new Error(`[BooleanPolicy] Missing required 'default' property.`);
+			throw new Error(`[BooleanPolicy] Failed to convert '${key}': missing required 'default' property.`);
 		}
-
-		// console.log('@@@POLICY', config.policy);
-
-		const description = config.policy.description.value ?? config.description;
-		if (description === undefined) {
-			throw new Error(`[BooleanPolicy] Missing required 'description' property.`);
-		}
-
-		return new BooleanPolicy(config.policy.name, config.policy.category, config.policy.minimumVersion, {
-			nlsKey: config.policy.description.key,
-			value: description
-		});
+		return new BooleanPolicy(policy.name, category, policy.minimumVersion, policyDescription);
 	}
 
 	private constructor(
 		name: string,
-		category: PolicyCategory,
+		category: Category,
 		minimumVersion: string,
 		description: NlsString,
 	) {
-		super(PolicyType.Boolean, name, {
-			moduleName: category,
-			name: {
-				nlsKey: category,
-				value: category
-			}
-		}, minimumVersion, description);
+		super(PolicyType.Boolean, name, category, minimumVersion, description);
 	}
 
 	protected renderADMXElements(): string[] {

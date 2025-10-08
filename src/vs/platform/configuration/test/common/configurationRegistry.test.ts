@@ -92,7 +92,7 @@ suite('ConfigurationRegistry', () => {
 						name: 'policy',
 						category: PolicyCategory.Extensions,
 						minimumVersion: '1.0.0',
-						description: { key: '' },
+						localization: { description: '' },
 					}
 				},
 				'policy2': {
@@ -101,7 +101,7 @@ suite('ConfigurationRegistry', () => {
 						name: 'policy',
 						category: PolicyCategory.Extensions,
 						minimumVersion: '1.0.0',
-						description: { key: '' },
+						localization: { description: '' },
 					}
 				}
 			}

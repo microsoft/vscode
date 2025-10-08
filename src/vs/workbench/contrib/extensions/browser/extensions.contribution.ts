@@ -289,7 +289,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 					name: 'ExtensionGalleryServiceUrl',
 					category: PolicyCategory.Extensions,
 					minimumVersion: '1.99',
-					description: { key: 'extensions.gallery.serviceUrl' }
+					localization: { description: 'extensions.gallery.serviceUrl' }
 				},
 			},
 			'extensions.supportNodeGlobalNavigator': {

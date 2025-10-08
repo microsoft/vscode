@@ -3,52 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PolicyCategory } from '../../../../../base/common/policy.js';
+import { IPolicy } from '../../../../../base/common/policy.js';
 import { IConfigurationPropertySchema } from '../../../../configuration/common/configurationRegistry.js';
-import { LanguageTranslations, NlsString, PolicyType } from '../types.js';
+import { Category, LanguageTranslations, NlsString, PolicyType } from '../types.js';
 import { BasePolicy } from './basePolicy.js';
 import { renderProfileString } from './render.js';
 
 export class NumberPolicy extends BasePolicy {
 
-	static from(config: IConfigurationPropertySchema): NumberPolicy | undefined {
-		if (!config.policy) {
-			throw new Error(`[NumberPolicy] Unexpected: missing 'policy' property`);
-		}
-
-		if (config.type !== 'number' && config.type !== 'integer') {
-			throw new Error(`[NumberPolicy] Unsupported 'type' property: ${config.type}`);
-		}
-
+	static from({ key, policy, category, policyDescription, config }: { key: string; policy: IPolicy; category: Category; policyDescription: NlsString; config: IConfigurationPropertySchema }): NumberPolicy {
 		if (config.default === undefined) {
-			throw new Error(`[NumberPolicy] Missing required 'default' property.`);
+			throw new Error(`[NumberPolicy] Failed to convert ${key}: missing required 'default' property.`);
 		}
-
-		const description = config.policy.description.value ?? config.description;
-		if (description === undefined) {
-			throw new Error(`[NumberPolicy] Missing required 'description' property.`);
-		}
-
-		return new NumberPolicy(config.policy.name, config.policy.category, config.policy.minimumVersion, {
-			nlsKey: config.policy.description.key,
-			value: description
-		}, config.default);
+		return new NumberPolicy(policy.name, category, policy.minimumVersion, policyDescription, config.default);
 	}
 
 	private constructor(
 		name: string,
-		category: PolicyCategory,
+		category: Category,
 		minimumVersion: string,
 		description: NlsString,
 		protected readonly defaultValue: number,
 	) {
-		super(PolicyType.Number, name, {
-			name: {
-				nlsKey: category,
-				value: category
-			},
-			moduleName: category
-		}, minimumVersion, description);
+		super(PolicyType.Number, name, category, minimumVersion, description);
 	}
 
 	protected renderADMXElements(): string[] {

@@ -41,7 +41,7 @@ suite('AccountPolicyService', () => {
 					name: 'PolicySettingA',
 					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
-					description: { key: '' }
+					localization: { description: '' }
 				}
 			},
 			'setting.B': {
@@ -52,7 +52,7 @@ suite('AccountPolicyService', () => {
 					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
 					value: account => account.chat_preview_features_enabled === false ? 'policyValueB' : undefined,
-					description: { key: '' }
+					localization: { description: '' }
 				}
 			},
 			'setting.C': {
@@ -63,7 +63,7 @@ suite('AccountPolicyService', () => {
 					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
 					value: account => account.chat_preview_features_enabled === false ? JSON.stringify(['policyValueC1', 'policyValueC2']) : undefined,
-					description: { key: '' }
+					localization: { description: '' }
 				}
 			},
 			'setting.D': {
@@ -74,7 +74,7 @@ suite('AccountPolicyService', () => {
 					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
 					value: account => account.chat_preview_features_enabled === false ? false : undefined,
-					description: { key: '' }
+					localization: { description: '' }
 				}
 			},
 			'setting.E': {

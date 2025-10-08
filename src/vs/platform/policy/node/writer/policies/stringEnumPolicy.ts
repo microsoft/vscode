@@ -3,65 +3,37 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PolicyCategory } from '../../../../../base/common/policy.js';
+import { IPolicy } from '../../../../../base/common/policy.js';
 import { IConfigurationPropertySchema } from '../../../../configuration/common/configurationRegistry.js';
-import { LanguageTranslations, NlsString, PolicyType } from '../types.js';
+import { Category, LanguageTranslations, NlsString, PolicyType } from '../types.js';
 import { BasePolicy } from './basePolicy.js';
 import { renderProfileString } from './render.js';
 
 export class StringEnumPolicy extends BasePolicy {
 
-	static from(config: IConfigurationPropertySchema): StringEnumPolicy | undefined {
-		if (!config.policy) {
-			throw new Error(`[StringEnumPolicy] Unexpected: missing 'policy' property`);
+	static from({ key, policy, category, policyDescription, policyEnumDescriptions, config }: { key: string; policy: IPolicy; category: Category; policyDescription: NlsString; policyEnumDescriptions: NlsString[]; config: IConfigurationPropertySchema }): StringEnumPolicy {
+		if (!config.enum) {
+			throw new Error(`[StringEnumPolicy] Failed to convert ${key}: missing required 'enum' property.`);
 		}
 
-		if (config.type !== 'string') {
-			throw new Error(`[StringEnumPolicy] Unsupported 'type' property: ${config.type}`);
+		if (!config.enumDescriptions) {
+			throw new Error(`[StringEnumPolicy] Failed to convert ${key}: missing required 'enumDescriptions' property.`);
 		}
 
-		const description = config.policy.description.value ?? config.description;
-		if (description === undefined) {
-			throw new Error(`[StringEnumPolicy] Missing required 'description' property.`);
-		}
-
-		const enum_ = config.enum;
-
-		if (!enum_) {
-			return undefined;
-		}
-
-		if (!isStringArray(enum_)) {
-			throw new Error(`[StringEnumPolicy] Property 'enum' should not be localized.`);
-		}
-
-		const enumDescriptions = config.enumDescriptions;
-
-		if (!enumDescriptions) {
-			throw new Error(`[StringEnumPolicy] Missing required 'enumDescriptions' property.`);
-		}
-
-		return new StringEnumPolicy(config.policy.name, config.policy.category, config.policy.minimumVersion, {
-			nlsKey: config.policy.description.key,
-			value: description
-		}, enum_, enumDescriptions.map((d) => ({ nlsKey: d, value: d })));
+		const defaultValue = config.default ?? config.enum[0];
+		return new StringEnumPolicy(policy.name, category, policy.minimumVersion, policyDescription, defaultValue, config.enum, policyEnumDescriptions);
 	}
 
 	private constructor(
 		name: string,
-		category: PolicyCategory,
+		category: Category,
 		minimumVersion: string,
 		description: NlsString,
+		protected defaultValue: string,
 		protected enum_: string[],
 		protected enumDescriptions: NlsString[],
 	) {
-		super(PolicyType.StringEnum, name, {
-			moduleName: category,
-			name: {
-				nlsKey: category,
-				value: category
-			}
-		}, minimumVersion, description);
+		super(PolicyType.StringEnum, name, category, minimumVersion, description);
 	}
 
 	protected renderADMXElements(): string[] {
@@ -84,12 +56,12 @@ export class StringEnumPolicy extends BasePolicy {
 	}
 
 	renderProfileValue() {
-		return `<string>${this.enum_[0]}</string>`;
+		return `<string>${this.defaultValue}</string>`;
 	}
 
 	renderProfileManifestValue(translations?: LanguageTranslations): string {
 		return `<key>pfm_default</key>
-<string>${this.enum_[0]}</string>
+<string>${this.defaultValue}</string>
 <key>pfm_description</key>
 <string>${renderProfileString(this.name, this.description, translations)}</string>
 <key>pfm_name</key>
@@ -103,12 +75,4 @@ export class StringEnumPolicy extends BasePolicy {
 	${this.enum_.map(e => `<string>${e}</string>`).join('\n	')}
 </array>`;
 	}
-}
-
-function isNlsString(value: string | NlsString | undefined): value is NlsString {
-	return value ? typeof value !== 'string' : false;
-}
-
-function isStringArray(value: (string | NlsString)[]): value is string[] {
-	return !value.some(s => isNlsString(s));
 }

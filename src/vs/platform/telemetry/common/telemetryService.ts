@@ -226,9 +226,17 @@ configurationRegistry.registerConfiguration({
 				name: 'TelemetryLevel',
 				category: PolicyCategory.Telemetry,
 				minimumVersion: '1.99',
-				description: {
-					key: 'telemetry.telemetryLevel.policyDescription',
-					value: localize('telemetry.telemetryLevel.policyDescription', "Controls the level of telemetry."),
+				localization: {
+					description: {
+						key: 'telemetry.telemetryLevel.policyDescription',
+						value: localize('telemetry.telemetryLevel.policyDescription', "Controls the level of telemetry."),
+					},
+					enumDescriptions: [
+						'telemetry.telemetryLevel.default',
+						'telemetry.telemetryLevel.error',
+						'telemetry.telemetryLevel.crash',
+						'telemetry.telemetryLevel.off'
+					]
 				}
 			}
 		},
@@ -240,7 +248,7 @@ configurationRegistry.registerConfiguration({
 				name: 'EnableFeedback',
 				category: PolicyCategory.Telemetry,
 				minimumVersion: '1.99',
-				description: { key: 'telemetry.feedback.enabled' },
+				localization: { description: 'telemetry.feedback.enabled' },
 			}
 		},
 		// Deprecated telemetry setting
