@@ -221,6 +221,7 @@ steps:
         security import $(agent.tempdirectory)/cert.p12 -k $(agent.tempdirectory)/buildagent.keychain -P "$(macos-developer-certificate-key)" -T /usr/bin/codesign
         export CODESIGN_IDENTITY=$(security find-identity -v -p codesigning $(agent.tempdirectory)/buildagent.keychain | grep -oEi "([0-9A-F]{40})" | head -n 1)
         security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k pwd $(agent.tempdirectory)/buildagent.keychain
+        security show-keychain-info $(agent.tempdirectory)/buildagent.keychain
         DEBUG=electron-osx-sign* node build/darwin/sign.js $(agent.builddirectory)
       displayName: Set Hardened Entitlements
 

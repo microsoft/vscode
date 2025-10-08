@@ -50,7 +50,7 @@ async function main(buildDir) {
     const appRoot = path_1.default.join(buildDir, `VSCode-darwin-${arch}`);
     const appName = product.nameLong + '.app';
     //const infoPlistPath = path.resolve(appRoot, appName, 'Contents', 'Info.plist');
-    const noticePath = path_1.default.resolve(appRoot, appName, 'Contents', 'Resources', 'app', 'ThirdPartyNotices.txt');
+    const noticePath = path_1.default.resolve(appRoot, appName, 'Contents', 'Resources', 'chrome_200_percent.pak');
     /*const appOpts: SignOptions = {
         app: path.join(appRoot, appName),
         platform: 'darwin',
