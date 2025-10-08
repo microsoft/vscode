@@ -3,11 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MarkdownRenderOptions, renderMarkdown } from '../../../../../base/browser/markdownRenderer.js';
+import { IRenderedMarkdown, MarkdownRenderOptions, renderMarkdown } from '../../../../../base/browser/markdownRenderer.js';
 import { createTrustedTypesPolicy } from '../../../../../base/browser/trustedTypes.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { IMarkdownString, MarkdownStringTrustedOptions } from '../../../../../base/common/htmlContent.js';
-import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { EditorOption, IEditorOptions } from '../../../../common/config/editorOptions.js';
@@ -18,10 +17,6 @@ import { tokenizeToString } from '../../../../common/languages/textToHtmlTokeniz
 import { applyFontInfo } from '../../../config/domFontInfo.js';
 import { ICodeEditor } from '../../../editorBrowser.js';
 import './renderedMarkdown.css';
-
-export interface IMarkdownRenderResult extends IDisposable {
-	readonly element: HTMLElement;
-}
 
 export interface IMarkdownRendererOptions {
 	readonly editor?: ICodeEditor;
@@ -47,7 +42,7 @@ export class MarkdownRenderer {
 		@IOpenerService private readonly _openerService: IOpenerService,
 	) { }
 
-	render(markdown: IMarkdownString, options?: MarkdownRenderOptions, outElement?: HTMLElement): IMarkdownRenderResult {
+	render(markdown: IMarkdownString, options?: MarkdownRenderOptions, outElement?: HTMLElement): IRenderedMarkdown {
 		const rendered = renderMarkdown(markdown, {
 			codeBlockRenderer: (alias, value) => this.renderCodeBlock(alias, value),
 			actionHandler: (link, mdStr) => this.openMarkdownLink(link, mdStr),

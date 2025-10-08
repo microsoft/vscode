@@ -12,7 +12,8 @@ import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { IMarkdownRenderResult, MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IRenderedMarkdown } from '../../../../../base/browser/markdownRenderer.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -286,7 +287,7 @@ export class ChatViewWelcomePart extends Disposable {
 			}));
 	}
 
-	private renderMarkdownMessageContent(renderer: MarkdownRenderer, content: IMarkdownString, options: IChatViewWelcomeRenderOptions | undefined): IMarkdownRenderResult {
+	private renderMarkdownMessageContent(renderer: MarkdownRenderer, content: IMarkdownString, options: IChatViewWelcomeRenderOptions | undefined): IRenderedMarkdown {
 		const messageResult = this._register(renderer.render(content));
 		const firstLink = options?.firstLinkToButton ? messageResult.element.querySelector('a') : undefined;
 		if (firstLink) {

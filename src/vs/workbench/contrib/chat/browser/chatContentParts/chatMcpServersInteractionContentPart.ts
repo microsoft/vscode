@@ -12,7 +12,8 @@ import { Lazy } from '../../../../../base/common/lazy.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { IMarkdownRenderResult, MarkdownRenderer, openLinkFromMarkdown } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { MarkdownRenderer, openLinkFromMarkdown } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IRenderedMarkdown } from '../../../../../base/browser/markdownRenderer.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
@@ -32,7 +33,7 @@ export class ChatMcpServersInteractionContentPart extends Disposable implements 
 
 	private workingProgressPart: ChatProgressContentPart | undefined;
 	private interactionContainer: HTMLElement | undefined;
-	private readonly interactionMd = this._register(new MutableDisposable<IMarkdownRenderResult>());
+	private readonly interactionMd = this._register(new MutableDisposable<IRenderedMarkdown>());
 	private readonly markdownRenderer: MarkdownRenderer;
 	private readonly showSpecificServersScheduler = this._register(new RunOnceScheduler(() => this.updateDetailedProgress(this.data.state!.get()), 2500));
 	private readonly previousParts = new Lazy(() => {
