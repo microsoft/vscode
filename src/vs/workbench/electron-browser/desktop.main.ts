@@ -154,6 +154,9 @@ export class DesktopMain extends Disposable {
 
 	private getExtraClasses(): string[] {
 		if (isMacintosh) {
+             // TODO: Revisit the border radius values till Electron v40 adoption
+             // Refs https://github.com/electron/electron/issues/47514 and
+             // https://github.com/microsoft/vscode/pull/270236#issuecomment-3379301185
 			if (isTahoeOrNewer(this.configuration.os.release)) {
 				return ['macos-tahoe-or-newer'];
 			}
