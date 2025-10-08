@@ -22,7 +22,6 @@ import { EditorOption, IEditorOptions } from '../../../../editor/common/config/e
 import { EDITOR_FONT_DEFAULTS } from '../../../../editor/common/config/fontInfo.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { CommentThreadWidget } from './commentThreadWidget.js';
-import { ICellRange } from '../../notebook/common/notebookRange.js';
 import { commentThreadStateBackgroundColorVar, commentThreadStateColorVar, getCommentThreadStateBorderColor } from './commentColors.js';
 import { peekViewBorder } from '../../../../editor/contrib/peekView/browser/peekView.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -263,14 +262,14 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	protected _fillContainer(container: HTMLElement): void {
 		this.setCssClass('review-widget');
 		this._commentThreadWidget = this._scopedInstantiationService.createInstance(
-			CommentThreadWidget,
+			CommentThreadWidget<IRange>,
 			container,
 			this.editor,
 			this._uniqueOwner,
 			this.editor.getModel()!.uri,
 			this._contextKeyService,
 			this._scopedInstantiationService,
-			this._commentThread as unknown as languages.CommentThread<IRange | ICellRange>,
+			this._commentThread,
 			this._pendingComment,
 			this._pendingEdits,
 			{ editor: this.editor, codeBlockFontSize: '', codeBlockFontFamily: this.configurationService.getValue<IEditorOptions>('editor').fontFamily || EDITOR_FONT_DEFAULTS.fontFamily },
@@ -303,7 +302,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 					return this.collapse(true);
 				}
 			}
-		) as unknown as CommentThreadWidget<IRange>;
+		);
 
 		this._disposables.add(this._commentThreadWidget);
 	}
