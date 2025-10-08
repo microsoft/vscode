@@ -54,7 +54,7 @@ export class SuggestDetailsWidget {
 		this.domNode = dom.$('.suggest-details');
 		this.domNode.classList.add('no-docs');
 
-		this._markdownRenderer = instaService.createInstance(MarkdownRenderer, { editor: _editor });
+		this._markdownRenderer = instaService.createInstance(MarkdownRenderer);
 
 		this._body = dom.$('.body');
 
@@ -177,6 +177,7 @@ export class SuggestDetailsWidget {
 			this._docs.classList.add('markdown-docs');
 			dom.clearNode(this._docs);
 			const renderedContents = this._markdownRenderer.render(documentation, {
+				editor: this._editor,
 				asyncRenderCallback: () => {
 					this.layout(this._size.width, this._type.clientHeight + this._docs.clientHeight);
 					this._onDidChangeContents.fire(this);

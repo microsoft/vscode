@@ -62,7 +62,7 @@ class Banner extends Disposable {
 	) {
 		super();
 
-		this.markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
+		this.markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer);
 
 		this.element = $('div.editor-banner');
 		this.element.tabIndex = 0;

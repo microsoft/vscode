@@ -9,7 +9,7 @@ import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hover
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IMarkdownRendererOptions, MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -66,7 +66,6 @@ export const allowedChatMarkdownHtmlTags = Object.freeze([
  */
 export class ChatMarkdownRenderer extends MarkdownRenderer {
 	constructor(
-		options: IMarkdownRendererOptions | undefined,
 		@ILanguageService languageService: ILanguageService,
 		@IOpenerService openerService: IOpenerService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -74,7 +73,7 @@ export class ChatMarkdownRenderer extends MarkdownRenderer {
 		@IFileService private readonly fileService: IFileService,
 		@ICommandService private readonly commandService: ICommandService,
 	) {
-		super(options ?? {}, configurationService, languageService, openerService);
+		super(configurationService, languageService, openerService);
 	}
 
 	override render(markdown: IMarkdownString, options?: MarkdownRenderOptions, outElement?: HTMLElement): IRenderedMarkdown {

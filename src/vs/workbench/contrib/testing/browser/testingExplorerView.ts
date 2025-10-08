@@ -1457,7 +1457,7 @@ class ErrorRenderer implements ITreeRenderer<TestTreeErrorMessage, FuzzyScore, I
 		@IHoverService private readonly hoverService: IHoverService,
 		@IInstantiationService instantionService: IInstantiationService,
 	) {
-		this.renderer = instantionService.createInstance(MarkdownRenderer, {});
+		this.renderer = instantionService.createInstance(MarkdownRenderer);
 	}
 
 	get templateId(): string {

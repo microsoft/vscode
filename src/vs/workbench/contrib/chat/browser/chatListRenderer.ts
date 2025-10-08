@@ -222,7 +222,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	) {
 		super();
 
-		this.renderer = this.instantiationService.createInstance(ChatMarkdownRenderer, undefined);
+		this.renderer = this.instantiationService.createInstance(ChatMarkdownRenderer);
 		this.markdownDecorationsRenderer = this.instantiationService.createInstance(ChatMarkdownDecorationsRenderer);
 		this._editorPool = this._register(this.instantiationService.createInstance(EditorPool, editorOptions, delegate, overflowWidgetsDomNode, false));
 		this._toolEditorPool = this._register(this.instantiationService.createInstance(EditorPool, editorOptions, delegate, overflowWidgetsDomNode, true));

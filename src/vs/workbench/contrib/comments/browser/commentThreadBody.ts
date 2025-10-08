@@ -15,7 +15,7 @@ import { CommentNode } from './commentNode.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICommentThreadWidget } from '../common/commentThreadWidget.js';
-import { IMarkdownRendererOptions, MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRendererExtraOptions, MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { ICellRange } from '../../notebook/common/notebookRange.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { LayoutableEditor } from './simpleCommentEditor.js';
@@ -44,7 +44,7 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 		readonly owner: string,
 		readonly parentResourceUri: URI,
 		readonly container: HTMLElement,
-		private _options: IMarkdownRendererOptions,
+		private _markdownRendererOptions: IMarkdownRendererExtraOptions,
 		private _commentThread: languages.CommentThread<T>,
 		private _pendingEdits: { [key: number]: languages.PendingComment } | undefined,
 		private _scopedInstatiationService: IInstantiationService,
@@ -58,7 +58,7 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 			this.commentService.setActiveEditingCommentThread(this._commentThread);
 		}));
 
-		this._markdownRenderer = this._scopedInstatiationService.createInstance(MarkdownRenderer, this._options);
+		this._markdownRenderer = this._scopedInstatiationService.createInstance(MarkdownRenderer);
 	}
 
 	focus(commentUniqueId?: number) {
@@ -284,7 +284,8 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 			this.owner,
 			this.parentResourceUri,
 			this._parentCommentThreadWidget,
-			this._markdownRenderer) as unknown as CommentNode<T>;
+			this._markdownRenderer,
+			this._markdownRendererOptions) as unknown as CommentNode<T>;
 
 		const disposables: DisposableStore = new DisposableStore();
 		disposables.add(newCommentNode.onDidClick(clickedNode =>

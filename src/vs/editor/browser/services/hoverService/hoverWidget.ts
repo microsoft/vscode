@@ -165,7 +165,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 
 		} else {
 			const markdown = options.content;
-			const mdRenderer = this._instantiationService.createInstance(MarkdownRenderer, {});
+			const mdRenderer = this._instantiationService.createInstance(MarkdownRenderer);
 
 			const { element, dispose } = mdRenderer.render(markdown, {
 				actionHandler: (content) => this._linkHandler(content),

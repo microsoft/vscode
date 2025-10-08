@@ -57,7 +57,7 @@ export class ChatMcpServersInteractionContentPart extends Disposable implements 
 		super();
 
 		this.domNode = dom.$('.chat-mcp-servers-interaction');
-		this.markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
+		this.markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer);
 
 		// Listen to autostart state changes if available
 		if (data.state) {

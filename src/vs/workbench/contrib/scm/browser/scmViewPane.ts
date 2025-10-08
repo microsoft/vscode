@@ -2052,7 +2052,7 @@ class SCMInputWidget {
 						this.contextViewService.hideContextView();
 					}));
 
-					const renderer = this.instantiationService.createInstance(MarkdownRenderer, {});
+					const renderer = this.instantiationService.createInstance(MarkdownRenderer);
 					const renderedMarkdown = renderer.render(message, {
 						actionHandler: (link, mdStr) => {
 							openLinkFromMarkdown(this.openerService, link, mdStr.isTrusted);

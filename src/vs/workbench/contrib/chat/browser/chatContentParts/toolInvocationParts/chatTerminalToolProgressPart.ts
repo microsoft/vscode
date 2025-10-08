@@ -57,7 +57,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 		const command = terminalData.commandLine.userEdited ?? terminalData.commandLine.toolEdited ?? terminalData.commandLine.original;
 
-		const markdownRenderer = instantiationService.createInstance(MarkdownRenderer, {});
+		const markdownRenderer = instantiationService.createInstance(MarkdownRenderer);
 		const titlePart = this._register(instantiationService.createInstance(
 			ChatQueryTitlePart,
 			elements.title,
