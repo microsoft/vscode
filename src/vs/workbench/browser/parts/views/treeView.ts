@@ -70,7 +70,7 @@ import { AriaRole } from '../../../../base/browser/ui/aria/aria.js';
 import { TelemetryTrustedValue } from '../../../../platform/telemetry/common/telemetryUtils.js';
 import { ITreeViewsDnDService } from '../../../../editor/common/services/treeViewsDndService.js';
 import { DraggedTreeItemsIdentifier } from '../../../../editor/common/services/treeViewsDnd.js';
-import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRendererService } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import type { IManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
 import { parseLinkedText } from '../../../../base/common/linkedText.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
@@ -233,7 +233,6 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 	private _container: HTMLElement | undefined;
 
 	private root: ITreeItem;
-	private markdownRenderer: MarkdownRenderer | undefined;
 	private elementsToRefresh: ITreeItem[] = [];
 	private lastSelection: readonly ITreeItem[] = [];
 	private lastActive: ITreeItem;
@@ -283,7 +282,8 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IActivityService private readonly activityService: IActivityService,
 		@ILogService private readonly logService: ILogService,
-		@IOpenerService private readonly openerService: IOpenerService
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 	) {
 		super();
 		this.root = new Root();
@@ -926,7 +926,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 				result.push(buttonContainer);
 			} else {
 				hasFoundButton = false;
-				const rendered = this.markdownRenderer!.render(new MarkdownString(line, { isTrusted: message.isTrusted, supportThemeIcons: message.supportThemeIcons, supportHtml: message.supportHtml }));
+				const rendered = this.markdownRendererService.render(new MarkdownString(line, { isTrusted: message.isTrusted, supportThemeIcons: message.supportThemeIcons, supportHtml: message.supportHtml }));
 				result.push(rendered.element);
 				disposables.add(rendered);
 			}
@@ -947,9 +947,6 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 	private showMessage(message: string | IMarkdownString): void {
 		if (isRenderedMessageValue(this._messageValue)) {
 			this._messageValue.disposables.dispose();
-		}
-		if (isMarkdownString(message) && !this.markdownRenderer) {
-			this.markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer);
 		}
 		if (isMarkdownString(message)) {
 			const disposables = new DisposableStore();
@@ -1771,9 +1768,10 @@ export class CustomTreeView extends AbstractTreeView {
 		@IActivityService activityService: IActivityService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService logService: ILogService,
-		@IOpenerService openerService: IOpenerService
+		@IOpenerService openerService: IOpenerService,
+		@IMarkdownRendererService markdownRendererService: IMarkdownRendererService,
 	) {
-		super(id, title, themeService, instantiationService, commandService, configurationService, progressService, contextMenuService, keybindingService, notificationService, viewDescriptorService, hoverService, contextKeyService, activityService, logService, openerService);
+		super(id, title, themeService, instantiationService, commandService, configurationService, progressService, contextMenuService, keybindingService, notificationService, viewDescriptorService, hoverService, contextKeyService, activityService, logService, openerService, markdownRendererService);
 	}
 
 	protected activate() {

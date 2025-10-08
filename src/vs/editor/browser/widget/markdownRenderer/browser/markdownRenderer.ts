@@ -8,6 +8,8 @@ import { createTrustedTypesPolicy } from '../../../../../base/browser/trustedTyp
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { IMarkdownString, MarkdownStringTrustedOptions } from '../../../../../base/common/htmlContent.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
+import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { EditorOption, IEditorOptions } from '../../../../common/config/editorOptions.js';
 import { EDITOR_FONT_DEFAULTS } from '../../../../common/config/fontInfo.js';
@@ -89,6 +91,40 @@ export class MarkdownRenderer {
 		await openLinkFromMarkdown(this._openerService, link, markdown.isTrusted);
 	}
 }
+
+export const IMarkdownRendererService = createDecorator<IMarkdownRendererService>('markdownRendererService');
+
+export interface IMarkdownRendererService {
+	readonly _serviceBrand: undefined;
+
+	/**
+	 * Renders markdown with codeblocks with the editor mechanics.
+	 */
+	render(markdown: IMarkdownString, options?: MarkdownRenderOptions & IMarkdownRendererExtraOptions, outElement?: HTMLElement): IRenderedMarkdown;
+}
+
+
+class MarkdownRendererService implements IMarkdownRendererService {
+	declare readonly _serviceBrand: undefined;
+
+	constructor(
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ILanguageService private readonly _languageService: ILanguageService,
+		@IOpenerService private readonly _openerService: IOpenerService,
+	) { }
+
+	render(markdown: IMarkdownString, options?: MarkdownRenderOptions & IMarkdownRendererExtraOptions, outElement?: HTMLElement): IRenderedMarkdown {
+		const renderer = new MarkdownRenderer(
+			this._configurationService,
+			this._languageService,
+			this._openerService
+		);
+		return renderer.render(markdown, options, outElement);
+	}
+}
+
+registerSingleton(IMarkdownRendererService, MarkdownRendererService, InstantiationType.Delayed);
+
 
 export async function openLinkFromMarkdown(openerService: IOpenerService, link: string, isTrusted: boolean | MarkdownStringTrustedOptions | undefined, skipValidation?: boolean): Promise<boolean> {
 	try {

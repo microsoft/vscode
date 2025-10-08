@@ -32,6 +32,7 @@ import { IWorkspaceTrustManagementService } from '../../../../platform/workspace
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { safeIntl } from '../../../../base/common/date.js';
 import { isModelDecorationInComment, isModelDecorationInString, isModelDecorationVisible } from '../../../common/viewModel/viewModelDecoration.js';
+import { IMarkdownRendererService } from '../../../browser/widget/markdownRenderer/browser/markdownRenderer.js';
 
 export const warningIcon = registerIcon('extensions-warning-message', Codicon.warning, nls.localize('warningIcon', 'Icon shown with a warning message in the extensions editor.'));
 
@@ -417,7 +418,7 @@ export class UnicodeHighlighterHoverParticipant implements IEditorHoverParticipa
 
 	constructor(
 		private readonly _editor: ICodeEditor,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IMarkdownRendererService private readonly _markdownRendererService: IMarkdownRendererService,
 	) { }
 
 	computeSync(anchor: HoverAnchor, lineDecorations: IModelDecoration[]): MarkdownHover[] {
@@ -509,7 +510,7 @@ export class UnicodeHighlighterHoverParticipant implements IEditorHoverParticipa
 	}
 
 	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: MarkdownHover[]): IRenderedHoverParts<MarkdownHover> {
-		return renderMarkdownHovers(context, hoverParts, this._editor, this._instantiationService);
+		return renderMarkdownHovers(context, hoverParts, this._editor, this._markdownRendererService);
 	}
 
 	public getAccessibleContent(hoverPart: MarkdownHover): string {

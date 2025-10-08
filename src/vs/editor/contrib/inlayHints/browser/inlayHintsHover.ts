@@ -26,7 +26,7 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { HoverStartSource } from '../../hover/browser/hoverOperation.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IMarkdownRendererService } from '../../../browser/widget/markdownRenderer/browser/markdownRenderer.js';
 
 class InlayHintsHoverAnchor extends HoverForeignElementAnchor {
 	constructor(
@@ -45,7 +45,7 @@ export class InlayHintsHover extends MarkdownHoverParticipant implements IEditor
 
 	constructor(
 		editor: ICodeEditor,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IMarkdownRendererService markdownRendererService: IMarkdownRendererService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IHoverService hoverService: IHoverService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -53,7 +53,7 @@ export class InlayHintsHover extends MarkdownHoverParticipant implements IEditor
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 		@ICommandService commandService: ICommandService,
 	) {
-		super(editor, instantiationService, configurationService, languageFeaturesService, keybindingService, hoverService, commandService);
+		super(editor, markdownRendererService, configurationService, languageFeaturesService, keybindingService, hoverService, commandService);
 	}
 
 	suggestHoverAnchor(mouseEvent: IEditorMouseEvent): HoverAnchor | null {
