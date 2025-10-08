@@ -187,6 +187,11 @@ steps:
         displayName: Generate policy definitions
         retryCountOnTaskFailure: 3
 
+      - script: |
+          set -e
+          npm run gulp copy-policies-darwin-$(VSCODE_ARCH)-min
+        displayName: Copy policies to package
+
     - script: |
         set -e
         ARCHIVE_PATH="$(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip"

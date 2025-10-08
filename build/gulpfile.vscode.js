@@ -468,6 +468,39 @@ function patchWin32DependenciesTask(destinationFolderName) {
 	};
 }
 
+function copyPoliciesToPackageTask(platform, arch, destinationFolderName) {
+	const destination = path.join(path.dirname(root), destinationFolderName);
+
+	const task = () => {
+		if (platform === 'darwin') {
+			// For macOS, policies go into the .app bundle
+			const appName = product.nameLong + '.app';
+			const policiesDestPath = path.join(destination, appName, 'Contents', 'Resources', 'app', 'policies');
+
+			return gulp.src('.build/policies/darwin/**', { base: '.build/policies/darwin' })
+				.pipe(vfs.dest(policiesDestPath));
+		} else if (platform === 'win32') {
+			// For Windows, policies go into resources/app/policies
+			const policiesDestPath = path.join(destination, 'resources', 'app', 'policies');
+
+			return gulp.src('.build/policies/win32/**', { base: '.build/policies/win32' })
+				.pipe(vfs.dest(policiesDestPath));
+		} else if (platform === 'linux') {
+			// For Linux, policies go into resources/app/policies
+			const policiesDestPath = path.join(destination, 'resources', 'app', 'policies');
+
+			return gulp.src('.build/policies/linux/**', { base: '.build/policies/linux' })
+				.pipe(vfs.dest(policiesDestPath));
+		}
+
+		// Return empty stream for unsupported platforms
+		return Promise.resolve();
+	};
+
+	task.taskName = `copy-policies-${platform}-${arch}`;
+	return task;
+}
+
 const buildRoot = path.dirname(root);
 
 const BUILD_TARGETS = [
@@ -511,6 +544,10 @@ BUILD_TARGETS.forEach(buildTarget => {
 			vscodeTaskCI
 		));
 		gulp.task(vscodeTask);
+
+		// Task to copy policies into already-packaged builds
+		const copyPoliciesTask = task.define(`copy-policies${dashed(platform)}${dashed(arch)}${dashed(minified)}`, copyPoliciesToPackageTask(platform, arch, `VSCode${dashed(platform)}${dashed(arch)}`));
+		gulp.task(copyPoliciesTask);
 
 		return vscodeTask;
 	});
