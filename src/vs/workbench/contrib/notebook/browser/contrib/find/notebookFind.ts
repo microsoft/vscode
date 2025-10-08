@@ -117,7 +117,7 @@ function getSearchStringOptions(editor: ICodeEditor, opts: IFindStartOptions) {
 	return undefined;
 }
 
-function isNotebookEditor(accessor: ServicesAccessor, editor: INotebookEditor | undefined, codeEditor: ICodeEditor) {
+function isNotebookEditorValidForSearch(accessor: ServicesAccessor, editor: INotebookEditor | undefined, codeEditor: ICodeEditor) {
 	if (!editor) {
 		return false;
 	}
@@ -180,7 +180,7 @@ function findWidgetAction(accessor: ServicesAccessor, codeEditor: ICodeEditor, n
 	const editorService = accessor.get(IEditorService);
 	const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
 
-	if (!isNotebookEditor(accessor, editor, codeEditor)) {
+	if (!isNotebookEditorValidForSearch(accessor, editor, codeEditor)) {
 		return false;
 	}
 
@@ -218,7 +218,7 @@ StartFindAction.addImplementation(100, (accessor: ServicesAccessor, codeEditor: 
 	const editorService = accessor.get(IEditorService);
 	const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
 
-	if (!isNotebookEditor(accessor, editor, codeEditor)) {
+	if (!isNotebookEditorValidForSearch(accessor, editor, codeEditor)) {
 		return false;
 	}
 
