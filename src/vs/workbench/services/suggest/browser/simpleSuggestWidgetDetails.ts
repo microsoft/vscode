@@ -56,7 +56,7 @@ export class SimpleSuggestDetailsWidget {
 		this.domNode = dom.$('.suggest-details');
 		this.domNode.classList.add('no-docs');
 
-		this._markdownRenderer = instaService.createInstance(MarkdownRenderer, {});
+		this._markdownRenderer = instaService.createInstance(MarkdownRenderer);
 
 		this._body = dom.$('.body');
 

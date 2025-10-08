@@ -507,9 +507,10 @@ function renderMarkdown(
 		}
 		const markdownHoverElement = $('div.markdown-hover');
 		const hoverContentsElement = dom.append(markdownHoverElement, $('div.hover-contents'));
-		const renderer = instantiationService.createInstance(MarkdownRenderer, { editor });
+		const renderer = instantiationService.createInstance(MarkdownRenderer);
 
 		const renderedContents = disposables.add(renderer.render(markdownString, {
+			editor,
 			asyncRenderCallback: () => {
 				hoverContentsElement.className = 'hover-contents code-hover-contents';
 				onFinishedRendering();

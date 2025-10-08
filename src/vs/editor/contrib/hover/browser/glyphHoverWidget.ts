@@ -46,7 +46,7 @@ export class GlyphHoverWidget extends Disposable implements IOverlayWidget, IHov
 		this._hover = this._register(new HoverWidget(true));
 		this._hover.containerDomNode.classList.toggle('hidden', !this._isVisible);
 
-		this._markdownRenderer = instantiationService.createInstance(MarkdownRenderer, { editor: this._editor });
+		this._markdownRenderer = instantiationService.createInstance(MarkdownRenderer);
 		this._hoverOperation = this._register(new HoverOperation(this._editor, new GlyphHoverComputer(this._editor)));
 		this._register(this._hoverOperation.onResult((result) => this._withResult(result)));
 
@@ -148,7 +148,7 @@ export class GlyphHoverWidget extends Disposable implements IOverlayWidget, IHov
 		for (const msg of messages) {
 			const markdownHoverElement = $('div.hover-row.markdown-hover');
 			const hoverContentsElement = dom.append(markdownHoverElement, $('div.hover-contents'));
-			const renderedContents = this._renderDisposeables.add(this._markdownRenderer.render(msg.value));
+			const renderedContents = this._renderDisposeables.add(this._markdownRenderer.render(msg.value, { editor: this._editor }));
 			hoverContentsElement.appendChild(renderedContents.element);
 			fragment.appendChild(markdownHoverElement);
 		}

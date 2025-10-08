@@ -549,7 +549,7 @@ class ChatStatusDashboard extends Disposable {
 				if (typeof descriptionText === 'string') {
 					this.element.appendChild($(`div${descriptionClass}`, undefined, descriptionText));
 				} else {
-					const markdown = this.instantiationService.createInstance(MarkdownRenderer, {});
+					const markdown = this.instantiationService.createInstance(MarkdownRenderer);
 					this.element.appendChild($(`div${descriptionClass}`, undefined, disposables.add(markdown.render(descriptionText)).element));
 				}
 

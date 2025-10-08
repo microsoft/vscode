@@ -64,7 +64,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 	) {
 		super();
 
-		this.markdownRenderer = instantiationService.createInstance(MarkdownRenderer, { editor });
+		this.markdownRenderer = instantiationService.createInstance(MarkdownRenderer);
 
 		this.keyVisible = Context.Visible.bindTo(contextKeyService);
 		this.keyMultipleSignatures = Context.MultipleSignatures.bindTo(contextKeyService);
@@ -273,6 +273,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 
 	private renderMarkdownDocs(markdown: IMarkdownString): IRenderedMarkdown {
 		const renderedContents = this.renderDisposeables.add(this.markdownRenderer.render(markdown, {
+			editor: this.editor,
 			asyncRenderCallback: () => {
 				this.domNodes?.scrollbar.scanDomNode();
 			}

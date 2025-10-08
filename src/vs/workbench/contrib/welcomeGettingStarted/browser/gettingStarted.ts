@@ -1540,7 +1540,7 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	private buildTelemetryFooter(parent: HTMLElement) {
-		const mdRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
+		const mdRenderer = this.instantiationService.createInstance(MarkdownRenderer);
 
 		const privacyStatementCopy = localize('privacy statement', "privacy statement");
 		const privacyStatementButton = `[${privacyStatementCopy}](command:workbench.action.openPrivacyStatementUrl)`;

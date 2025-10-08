@@ -72,7 +72,7 @@ export class BannerPart extends Part implements IBannerService {
 	) {
 		super(Parts.BANNER_PART, { hasTitle: false }, themeService, storageService, layoutService);
 
-		this.markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
+		this.markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer);
 	}
 
 	protected override createContentArea(parent: HTMLElement): HTMLElement {

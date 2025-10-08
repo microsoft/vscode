@@ -129,7 +129,7 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 	) {
 		super();
 
-		this.markdownRenderer = instantiationService.createInstance(MarkdownRenderer, {});
+		this.markdownRenderer = instantiationService.createInstance(MarkdownRenderer);
 	}
 
 	get templateId(): string {

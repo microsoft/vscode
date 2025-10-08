@@ -949,7 +949,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 			this._messageValue.disposables.dispose();
 		}
 		if (isMarkdownString(message) && !this.markdownRenderer) {
-			this.markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
+			this.markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer);
 		}
 		if (isMarkdownString(message)) {
 			const disposables = new DisposableStore();

@@ -67,7 +67,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 		super(extractedTitle, context);
 
-		this.renderer = instantiationService.createInstance(MarkdownRenderer, {});
+		this.renderer = instantiationService.createInstance(MarkdownRenderer);
 		this.id = content.id;
 
 		const mode = this.configurationService.getValue<string>('chat.agent.thinkingStyle') ?? 'none';

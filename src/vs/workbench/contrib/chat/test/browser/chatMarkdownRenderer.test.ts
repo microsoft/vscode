@@ -15,7 +15,7 @@ suite('ChatMarkdownRenderer', () => {
 	let testRenderer: ChatMarkdownRenderer;
 	setup(() => {
 		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
-		testRenderer = instantiationService.createInstance(ChatMarkdownRenderer, {});
+		testRenderer = instantiationService.createInstance(ChatMarkdownRenderer);
 	});
 
 	test('simple', async () => {
