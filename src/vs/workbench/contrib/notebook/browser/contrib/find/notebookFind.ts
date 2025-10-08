@@ -273,7 +273,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'notebook.findNext.fromWidget',
-			title: localize2('notebook.findNext.fromWidget', 'Find Next (from Find Widget)'),
+			title: localize2('notebook.findNext.fromWidget', 'Find Next'),
 			keybinding: {
 				when: ContextKeyExpr.and(
 					NOTEBOOK_EDITOR_FOCUSED,
@@ -295,7 +295,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'notebook.findPrevious.fromWidget',
-			title: localize2('notebook.findPrevious.fromWidget', 'Find Previous (from Find Widget)'),
+			title: localize2('notebook.findPrevious.fromWidget', 'Find Previous'),
 			keybinding: {
 				when: ContextKeyExpr.and(
 					NOTEBOOK_EDITOR_FOCUSED,
@@ -317,7 +317,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'notebook.findNext.enter',
-			title: localize2('notebook.findNext.enter', 'Find Next (Enter)'),
+			title: localize2('notebook.findNext.enter', 'Find Next'),
 			keybinding: {
 				when: ContextKeyExpr.and(
 					NOTEBOOK_EDITOR_FOCUSED,
