@@ -176,6 +176,44 @@ function openFindWidget(controller: NotebookFindContrib | undefined, editor: INo
 	return true;
 }
 
+function findWidgetAction(accessor: ServicesAccessor, codeEditor: ICodeEditor, next: boolean): boolean {
+	const editorService = accessor.get(IEditorService);
+	const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
+
+	if (!isNotebookEditor(accessor, editor, codeEditor)) {
+		return false;
+	}
+
+	const controller = editor?.getContribution<NotebookFindContrib>(NotebookFindContrib.id);
+	if (!controller) {
+		return false;
+	}
+
+	// Check if find widget is already visible
+	if (controller.isVisible()) {
+		// Find widget is open, navigate
+		next ? controller.findNext() : controller.findPrevious();
+		return true;
+	} else {
+		// Find widget is not open, open it with search string (similar to StartFindAction)
+		return openFindWidget(controller, editor, codeEditor);
+	}
+}
+
+async function runFind(accessor: ServicesAccessor, next: boolean): Promise<void> {
+	const editorService = accessor.get(IEditorService);
+	const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
+
+	if (!editor) {
+		return;
+	}
+
+	const controller = editor.getContribution<NotebookFindContrib>(NotebookFindContrib.id);
+	if (controller && controller.isVisible()) {
+		next ? controller.findNext() : controller.findPrevious();
+	}
+}
+
 StartFindAction.addImplementation(100, (accessor: ServicesAccessor, codeEditor: ICodeEditor, args: any) => {
 	const editorService = accessor.get(IEditorService);
 	const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
@@ -222,56 +260,15 @@ StartFindReplaceAction.addImplementation(100, (accessor: ServicesAccessor, codeE
 });
 
 NextMatchFindAction.addImplementation(100, (accessor: ServicesAccessor, codeEditor: ICodeEditor, args: any) => {
-	const editorService = accessor.get(IEditorService);
-	const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
-
-	if (!isNotebookEditor(accessor, editor, codeEditor)) {
-		return false;
-	}
-
-	const controller = editor?.getContribution<NotebookFindContrib>(NotebookFindContrib.id);
-	if (!controller) {
-		return false;
-	}
-
-	// Check if find widget is already visible
-	if (controller.isVisible()) {
-		// Find widget is open, navigate to next match
-		controller.findNext();
-		return true;
-	} else {
-		// Find widget is not open, open it with search string (similar to StartFindAction)
-		return openFindWidget(controller, editor, codeEditor);
-	}
+	return findWidgetAction(accessor, codeEditor, true);
 });
 
 PreviousMatchFindAction.addImplementation(100, (accessor: ServicesAccessor, codeEditor: ICodeEditor, args: any) => {
-	const editorService = accessor.get(IEditorService);
-	const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
-
-	if (!isNotebookEditor(accessor, editor, codeEditor)) {
-		return false;
-	}
-
-	const controller = editor?.getContribution<NotebookFindContrib>(NotebookFindContrib.id);
-	if (!controller) {
-		return false;
-	}
-
-	// Check if find widget is already visible
-	if (controller.isVisible()) {
-		// Find widget is open, navigate to previous match
-		controller.findPrevious();
-		return true;
-	} else {
-		// Find widget is not open, open it with search string (similar to StartFindAction)
-		return openFindWidget(controller, editor, codeEditor);
-	}
+	return findWidgetAction(accessor, codeEditor, false);
 });
 
 // Widget-focused keybindings - these handle F3/Shift+F3 when the notebook find widget has focus
 // This follows the same pattern as the text editor which has separate keybindings for widget focus
-
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
@@ -290,17 +287,7 @@ registerAction2(class extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
-
-		if (!editor) {
-			return;
-		}
-
-		const controller = editor.getContribution<NotebookFindContrib>(NotebookFindContrib.id);
-		if (controller && controller.isVisible()) {
-			controller.findNext();
-		}
+		return runFind(accessor, true);
 	}
 });
 
@@ -322,17 +309,7 @@ registerAction2(class extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
-
-		if (!editor) {
-			return;
-		}
-
-		const controller = editor.getContribution<NotebookFindContrib>(NotebookFindContrib.id);
-		if (controller && controller.isVisible()) {
-			controller.findPrevious();
-		}
+		return runFind(accessor, false);
 	}
 });
 
@@ -353,16 +330,6 @@ registerAction2(class extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
-
-		if (!editor) {
-			return;
-		}
-
-		const controller = editor.getContribution<NotebookFindContrib>(NotebookFindContrib.id);
-		if (controller && controller.isVisible()) {
-			controller.findNext();
-		}
+		return runFind(accessor, true);
 	}
 });
