@@ -445,9 +445,10 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 						return;
 					}
 					// Filter out non-specific options like "any key"
+					const NON_SPECIFIC_OPTIONS = new Set(['any key', 'some key', 'a key']);
 					const isNonSpecificOption = (option: string): boolean => {
 						const lowerOption = option.toLowerCase().trim();
-						return lowerOption === 'any key' || lowerOption === 'some key' || lowerOption === 'a key';
+						return NON_SPECIFIC_OPTIONS.has(lowerOption);
 					};
 					if (Array.isArray(obj.options) && obj.options.every(isString)) {
 						const filteredOptions = obj.options.filter(opt => !isNonSpecificOption(opt));
