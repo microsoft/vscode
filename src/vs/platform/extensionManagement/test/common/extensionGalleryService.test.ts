@@ -322,7 +322,9 @@ suite('Extension Gallery Service', () => {
 			assert.ok(result.includes(versions[1])); // 1.9.0 DARWIN_X64
 			assert.ok(!result.includes(versions[2])); // 1.8.0 UNDEFINED should be filtered
 			assert.ok(!result.includes(versions[3])); // 1.7.0 WIN32_X64 should be filtered
-		}); test('should include universal platform when no specific platforms conflict', () => {
+		});
+
+		test('should include universal platform when no specific platforms conflict', () => {
 			// Test where universal platform is included because no specific platforms conflict
 			const universalVersion = aExtensionVersion('1.0.0'); // UNDEFINED/universal platform
 			const specificVersion = aExtensionVersion('1.0.0', TargetPlatform.LINUX_ARM64);
