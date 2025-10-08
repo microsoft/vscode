@@ -413,7 +413,8 @@ export abstract class CompositePart<T extends Composite, MementoType extends obj
 			anchorAlignmentProvider: () => this.getTitleAreaDropDownAnchorAlignment(),
 			toggleMenuTitle: localize('viewsAndMoreActions', "Views and More Actions..."),
 			telemetrySource: this.nameForTelemetry,
-			hoverDelegate: this.toolbarHoverDelegate
+			hoverDelegate: this.toolbarHoverDelegate,
+			trailingSeparator: true
 		}));
 
 		this.collectCompositeActions()();
