@@ -39,14 +39,19 @@ export class PolicyWriterService implements IPolicyWriterService {
 	constructor(@IConfigurationService public readonly configurationService: IConfigurationService, @IProductService private readonly productService: IProductService) { }
 
 	public async write(configs: Array<{ key: string; schema: IRegisteredConfigurationPropertySchema }>, platform: 'darwin' | 'win32'): Promise<void> {
-		const [policies, translations] = await Promise.all([this.getPolicies(configs), this.getTranslations()]);
+		try {
+			const [policies, translations] = await Promise.all([this.getPolicies(configs), this.getTranslations()]);
 
-		if (platform === 'darwin') {
-			await this.writeDarwin(policies, translations);
-		} else if (platform === 'win32') {
-			await this.writeWindows(policies, translations);
-		} else {
-			throw new Error(`Unsupported platform: ${platform}`);
+			if (platform === 'darwin') {
+				await this.writeDarwin(policies, translations);
+			} else if (platform === 'win32') {
+				await this.writeWindows(policies, translations);
+			} else {
+				throw new Error(`Unsupported platform: ${platform}`);
+			}
+			process.exit(0);
+		} catch (e) {
+			process.exit(1);
 		}
 	}
 
@@ -265,35 +270,35 @@ export class PolicyWriterService implements IPolicyWriterService {
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>pfm_app_url</key>
-    <string>https://code.visualstudio.com/</string>
-    <key>pfm_description</key>
-    <string>${appName} Managed Settings</string>
-    <key>pfm_documentation_url</key>
-    <string>https://code.visualstudio.com/docs/setup/enterprise</string>
-    <key>pfm_domain</key>
-    <string>${bundleIdentifier}</string>
-    <key>pfm_format_version</key>
-    <integer>1</integer>
-    <key>pfm_interaction</key>
-    <string>combined</string>
-    <key>pfm_last_modified</key>
-    <date>${new Date().toISOString().replace(/\.\d+Z$/, 'Z')}</date>
-    <key>pfm_platforms</key>
-    <array>
-        <string>macOS</string>
-    </array>
-    <key>pfm_subkeys</key>
-    <array>
+	<key>pfm_app_url</key>
+	<string>https://code.visualstudio.com/</string>
+	<key>pfm_description</key>
+	<string>${appName} Managed Settings</string>
+	<key>pfm_documentation_url</key>
+	<string>https://code.visualstudio.com/docs/setup/enterprise</string>
+	<key>pfm_domain</key>
+	<string>${bundleIdentifier}</string>
+	<key>pfm_format_version</key>
+	<integer>1</integer>
+	<key>pfm_interaction</key>
+	<string>combined</string>
+	<key>pfm_last_modified</key>
+	<date>${new Date().toISOString().replace(/\.\d+Z$/, 'Z')}</date>
+	<key>pfm_platforms</key>
+	<array>
+		<string>macOS</string>
+	</array>
+	<key>pfm_subkeys</key>
+	<array>
 	${requiredPayloadFields}
 	${profileManifestSubkeys}
-    </array>
-    <key>pfm_title</key>
-    <string>${appName}</string>
-    <key>pfm_unique</key>
-    <true/>
-    <key>pfm_version</key>
-    <integer>1</integer>
+	</array>
+	<key>pfm_title</key>
+	<string>${appName}</string>
+	<key>pfm_unique</key>
+	<true/>
+	<key>pfm_version</key>
+	<integer>1</integer>
 </dict>
 </plist>`;
 	}

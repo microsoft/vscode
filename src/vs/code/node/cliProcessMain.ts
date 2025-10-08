@@ -371,9 +371,9 @@ class CliMain extends Disposable {
 			return;
 		}
 		return instantiationService.invokeFunction(async accessor => {
-			const policyWriterService = accessor.get(IPolicyWriterService);
+			// const policyWriterService = accessor.get(IPolicyWriterService);
 			try {
-				await policyWriterService.write(platform);
+				// await policyWriterService.write(platform);
 			} catch (error) {
 				console.error('Failed to dump policies:', error instanceof Error ? error.message : String(error));
 			}
