@@ -89,9 +89,7 @@ export class Notebook {
 	}
 
 	async focusInCellOutput(): Promise<void> {
-		await this.code.dispatchKeybinding('ctrl+down', async () => {
-			// TODO: Add an accept callback to verify the keybinding was successful
-		});
+		await this.quickAccess.runCommand('notebook.cell.focusInOutput');
 		await this.code.waitForActiveElement('iframe.webview.ready');
 	}
 
