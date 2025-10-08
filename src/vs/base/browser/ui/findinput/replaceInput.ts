@@ -16,7 +16,6 @@ import { Emitter, Event } from '../../../common/event.js';
 import { KeyCode } from '../../../common/keyCodes.js';
 import './findInput.css';
 import * as nls from '../../../../nls.js';
-import { getDefaultHoverDelegate } from '../hover/hoverDelegateFactory.js';
 import { IHistory } from '../../../common/history.js';
 
 
@@ -46,7 +45,7 @@ class PreserveCaseToggle extends Toggle {
 			icon: Codicon.preserveCase,
 			title: NLS_PRESERVE_CASE_LABEL + opts.appendTitle,
 			isChecked: opts.isChecked,
-			hoverDelegate: opts.hoverDelegate ?? getDefaultHoverDelegate('element'),
+			hoverLifecycleOptions: opts.hoverLifecycleOptions,
 			inputActiveOptionBorder: opts.inputActiveOptionBorder,
 			inputActiveOptionForeground: opts.inputActiveOptionForeground,
 			inputActiveOptionBackground: opts.inputActiveOptionBackground,
