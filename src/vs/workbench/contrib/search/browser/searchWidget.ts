@@ -396,6 +396,7 @@ export class SearchWidget extends Widget {
 
 	private renderSearchInput(parent: HTMLElement, options: ISearchWidgetOptions): void {
 		const history = options.searchHistory || [];
+		const hoverLifecycleOptions = { groupId: 'search-widget' };
 		const inputOptions: IFindInputOptions = {
 			label: nls.localize('label.Search', 'Search: Type Search Term and press Enter to search'),
 			validation: (value: string) => this.validateSearchInput(value),
@@ -409,7 +410,8 @@ export class SearchWidget extends Widget {
 			flexibleMaxHeight: SearchWidget.INPUT_MAX_HEIGHT,
 			showCommonFindToggles: true,
 			inputBoxStyles: options.inputBoxStyles,
-			toggleStyles: options.toggleStyles
+			toggleStyles: options.toggleStyles,
+			hoverLifecycleOptions,
 		};
 
 		const searchInputContainer = dom.append(parent, dom.$('.search-container.input-box'));
@@ -467,7 +469,7 @@ export class SearchWidget extends Widget {
 			title: appendKeyBindingLabel(nls.localize('showContext', "Toggle Context Lines"), this.keybindingService.lookupKeybinding(ToggleSearchEditorContextLinesCommandId)),
 			icon: searchShowContextIcon,
 			hoverStyle: HoverStyle.Pointer,
-			hoverLifecycleOptions: { groupId: 'search-widget' },
+			hoverLifecycleOptions,
 			...defaultToggleStyles
 		});
 		this._register(this.showContextToggle.onChange(() => this.onContextLinesChanged()));
