@@ -446,7 +446,7 @@ export class ExplorerService implements IExplorerService {
 		if (item === undefined || ignore) {
 			return true;
 		}
-		if (this.revealExcludeMatcher.matches(item.resource, name => !!(item.parent && item.parent.getChild(name)))) {
+		if (this.revealExcludeMatcher.matches(item.resource, name => !!(item.parent?.getChild(name)))) {
 			return false;
 		}
 		const root = item.root;
@@ -521,7 +521,7 @@ function doesFileEventAffect(item: ExplorerItem, view: IExplorerView, events: Fi
 }
 
 function getRevealExcludes(configuration: IFilesConfiguration): IExpression {
-	const revealExcludes = configuration && configuration.explorer && configuration.explorer.autoRevealExclude;
+	const revealExcludes = configuration?.explorer?.autoRevealExclude;
 
 	if (!revealExcludes) {
 		return {};

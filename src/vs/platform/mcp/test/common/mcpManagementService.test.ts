@@ -870,19 +870,44 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			}
 		});
 
-		test('named argument with missing name should generate notice', () => {
+		test('named argument with no name should generate notice', () => {
+			const manifest = {
+				packages: [{
+					registryType: RegistryType.NODE,
+					identifier: 'test-server',
+					version: '1.0.0',
+					runtimeArguments: [{
+						type: 'named',
+						value: 'some-value',
+						isRepeated: false
+					}]
+				}]
+			};
+
+			const result = service.getMcpServerConfigurationFromManifest(manifest as IGalleryMcpServerConfiguration, RegistryType.NODE);
+
+			// Should generate a notice about the missing name
+			assert.strictEqual(result.notices.length, 1);
+			assert.ok(result.notices[0].includes('Named argument is missing a name'));
+			assert.ok(result.notices[0].includes('some-value')); // Should include the argument details in JSON format
+
+			if (result.mcpServerConfiguration.config.type === McpServerType.LOCAL) {
+				assert.deepStrictEqual(result.mcpServerConfiguration.config.args, ['test-server@1.0.0']);
+			}
+		});
+
+		test('named argument with empty name should generate notice', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
 					registryType: RegistryType.NODE,
 					identifier: 'test-server',
 					version: '1.0.0',
-					// eslint-disable-next-line local/code-no-any-casts
 					runtimeArguments: [{
 						type: 'named',
-						// name is intentionally missing/undefined
+						name: '',
 						value: 'some-value',
 						isRepeated: false
-					} as any] // Cast to any to bypass TypeScript validation for this test case
+					}]
 				}]
 			};
 

@@ -565,7 +565,7 @@ registerAction2(class OpenSearchEditorAction extends Action2 {
 			}]
 		});
 	}
-	run(accessor: ServicesAccessor, ...args: any[]) {
+	run(accessor: ServicesAccessor, ...args: unknown[]) {
 		return openSearchEditor(accessor);
 	}
 });

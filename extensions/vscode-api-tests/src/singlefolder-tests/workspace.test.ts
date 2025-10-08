@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import { basename, join, posix } from 'path';
 import * as vscode from 'vscode';
 import { TestFS } from '../memfs';
-import { assertNoRpc, closeAllEditors, createRandomFile, delay, deleteFile, disposeAll, pathEquals, revertAllDirty, rndName, testFs, withLogDisabled } from '../utils';
+import { assertNoRpc, closeAllEditors, createRandomFile, delay, deleteFile, disposeAll, Mutable, pathEquals, revertAllDirty, rndName, testFs, withLogDisabled } from '../utils';
 
 suite('vscode API - workspace', () => {
 
@@ -41,14 +41,13 @@ suite('vscode API - workspace', () => {
 
 	test('textDocuments', () => {
 		assert.ok(Array.isArray(vscode.workspace.textDocuments));
-		// eslint-disable-next-line local/code-no-any-casts
-		assert.throws(() => (<any>vscode.workspace).textDocuments = null);
+		assert.throws(() => (vscode.workspace as Mutable<typeof vscode.workspace>).textDocuments = null as unknown as vscode.TextDocument[]);
 	});
 
 	test('rootPath', () => {
 		assert.ok(pathEquals(vscode.workspace.rootPath!, join(__dirname, '../../testWorkspace')));
-		// eslint-disable-next-line local/code-no-any-casts
-		assert.throws(() => (vscode.workspace as any).rootPath = 'farboo');
+
+		assert.throws(() => (vscode.workspace as Mutable<typeof vscode.workspace>).rootPath = 'farboo');
 	});
 
 	test('workspaceFile', () => {
@@ -460,8 +459,7 @@ suite('vscode API - workspace', () => {
 
 		const registration = vscode.workspace.registerTextDocumentContentProvider('foo', {
 			provideTextDocumentContent(_uri) {
-				// eslint-disable-next-line local/code-no-any-casts
-				return <any>123;
+				return 123 as unknown as string;
 			}
 		});
 		return vscode.workspace.openTextDocument(vscode.Uri.parse('foo://auth/path')).then(() => {

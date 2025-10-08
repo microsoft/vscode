@@ -241,8 +241,7 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 
 	hasSameContent(other: IChatRendererContent): boolean {
 		return other.kind === 'multiDiffData' &&
-			// eslint-disable-next-line local/code-no-any-casts
-			(other as any).multiDiffData?.resources?.length === this.content.multiDiffData.resources.length;
+			other.multiDiffData?.resources?.length === this.content.multiDiffData.resources.length;
 	}
 
 	addDisposable(disposable: IDisposable): void {

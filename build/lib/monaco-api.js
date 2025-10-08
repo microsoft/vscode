@@ -553,10 +553,10 @@ class DeclarationResolver {
             return new CacheEntry(this.ts.createSourceFile(fileName, fileContents, this.ts.ScriptTarget.ES5), mtime);
         }
         const fileContents = this._fsProvider.readFileSync(moduleId, fileName).toString();
-        const fileMap = {
-            'file.ts': fileContents
-        };
-        const service = this.ts.createLanguageService(new TypeScriptLanguageServiceHost(this.ts, {}, fileMap, {}));
+        const fileMap = new Map([
+            ['file.ts', fileContents]
+        ]);
+        const service = this.ts.createLanguageService(new TypeScriptLanguageServiceHost(this.ts, new Map(), fileMap, {}));
         const text = service.getEmitOutput('file.ts', true, true).outputFiles[0].text;
         return new CacheEntry(this.ts.createSourceFile(fileName, text, this.ts.ScriptTarget.ES5), mtime);
     }
@@ -582,9 +582,10 @@ class TypeScriptLanguageServiceHost {
         return this._compilerOptions;
     }
     getScriptFileNames() {
-        return ([]
-            .concat(Object.keys(this._libs))
-            .concat(Object.keys(this._files)));
+        return [
+            ...this._libs.keys(),
+            ...this._files.keys(),
+        ];
     }
     getScriptVersion(_fileName) {
         return '1';
@@ -593,11 +594,11 @@ class TypeScriptLanguageServiceHost {
         return '1';
     }
     getScriptSnapshot(fileName) {
-        if (this._files.hasOwnProperty(fileName)) {
-            return this._ts.ScriptSnapshot.fromString(this._files[fileName]);
+        if (this._files.has(fileName)) {
+            return this._ts.ScriptSnapshot.fromString(this._files.get(fileName));
         }
-        else if (this._libs.hasOwnProperty(fileName)) {
-            return this._ts.ScriptSnapshot.fromString(this._libs[fileName]);
+        else if (this._libs.has(fileName)) {
+            return this._ts.ScriptSnapshot.fromString(this._libs.get(fileName));
         }
         else {
             return this._ts.ScriptSnapshot.fromString('');
@@ -616,10 +617,10 @@ class TypeScriptLanguageServiceHost {
         return fileName === this.getDefaultLibFileName(this._compilerOptions);
     }
     readFile(path, _encoding) {
-        return this._files[path] || this._libs[path];
+        return this._files.get(path) || this._libs.get(path);
     }
     fileExists(path) {
-        return path in this._files || path in this._libs;
+        return this._files.has(path) || this._libs.has(path);
     }
 }
 function execute() {

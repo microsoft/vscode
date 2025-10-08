@@ -149,8 +149,10 @@ export class TerminalLinkManager extends DisposableStore {
 				activeHoverDisposable = undefined;
 				activeTooltipScheduler?.dispose();
 				activeTooltipScheduler = new RunOnceScheduler(() => {
-					// eslint-disable-next-line local/code-no-any-casts
-					const core = (this._xterm as any)._core as IXtermCore;
+					interface XtermWithCore extends Terminal {
+						_core: IXtermCore;
+					}
+					const core = (this._xterm as XtermWithCore)._core;
 					const cellDimensions = {
 						width: core._renderService.dimensions.css.cell.width,
 						height: core._renderService.dimensions.css.cell.height
@@ -348,8 +350,10 @@ export class TerminalLinkManager extends DisposableStore {
 			return;
 		}
 
-		// eslint-disable-next-line local/code-no-any-casts
-		const core = (this._xterm as any)._core as IXtermCore;
+		interface XtermWithCore extends Terminal {
+			_core: IXtermCore;
+		}
+		const core = (this._xterm as XtermWithCore)._core;
 		const cellDimensions = {
 			width: core._renderService.dimensions.css.cell.width,
 			height: core._renderService.dimensions.css.cell.height

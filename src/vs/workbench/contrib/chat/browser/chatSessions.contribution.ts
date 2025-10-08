@@ -297,6 +297,9 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 					const options: IChatEditorOptions = {
 						override: ChatEditorInput.EditorID,
 						pinned: true,
+						title: {
+							fallback: localize('chatEditorContributionName', "{0} chat", contribution.displayName),
+						}
 					};
 					const untitledId = `untitled-${generateUuid()}`;
 					await editorService.openEditor({

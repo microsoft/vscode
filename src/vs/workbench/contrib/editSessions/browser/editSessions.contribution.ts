@@ -302,7 +302,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				super(showOutputChannelCommand);
 			}
 
-			run(accessor: ServicesAccessor, ...args: any[]) {
+			run(accessor: ServicesAccessor, ...args: unknown[]) {
 				const outputChannel = accessor.get(IOutputService);
 				void outputChannel.showChannel(editSessionsLogId);
 			}
