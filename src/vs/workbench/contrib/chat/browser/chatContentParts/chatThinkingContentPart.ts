@@ -11,7 +11,7 @@ import { ChatTreeItem } from '../chat.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRendererService } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { IRenderedMarkdown } from '../../../../../base/browser/markdownRenderer.js';
 import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
 import { localize } from '../../../../../nls.js';
@@ -41,7 +41,6 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private currentThinkingValue: string;
 	private currentTitle: string;
 	private defaultTitle = localize('chat.thinking.header', 'Thinking...');
-	private readonly renderer: MarkdownRenderer;
 	private textContainer!: HTMLElement;
 	private markdownResult: IRenderedMarkdown | undefined;
 	private wrapper!: HTMLElement;
@@ -60,6 +59,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		context: IChatContentPartRenderContext,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 	) {
 		const initialText = extractTextFromPart(content);
 		const extractedTitle = extractTitleFromThinkingContent(initialText)
@@ -67,7 +67,6 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 		super(extractedTitle, context);
 
-		this.renderer = instantiationService.createInstance(MarkdownRenderer);
 		this.id = content.id;
 
 		const mode = this.configurationService.getValue<string>('chat.agent.thinkingStyle') ?? 'none';
@@ -222,7 +221,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		}
 
 		clearNode(this.textContainer);
-		this.markdownResult = this._register(this.renderer.render(new MarkdownString(cleanedContent)));
+		this.markdownResult = this._register(this.markdownRendererService.render(new MarkdownString(cleanedContent)));
 		this.textContainer.appendChild(this.markdownResult.element);
 	}
 
