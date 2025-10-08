@@ -18,8 +18,7 @@ import { IColorTheme, IThemeService } from '../../../../platform/theme/common/th
 import { CommentGlyphWidget } from './commentGlyphWidget.js';
 import { ICommentService } from './commentService.js';
 import { ICommentThreadWidget } from '../common/commentThreadWidget.js';
-import { EditorOption, IEditorOptions } from '../../../../editor/common/config/editorOptions.js';
-import { EDITOR_FONT_DEFAULTS } from '../../../../editor/common/config/fontInfo.js';
+import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { CommentThreadWidget } from './commentThreadWidget.js';
 import { commentThreadStateBackgroundColorVar, commentThreadStateColorVar, getCommentThreadStateBorderColor } from './commentColors.js';
@@ -272,7 +271,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			this._commentThread,
 			this._pendingComment,
 			this._pendingEdits,
-			{ editor: this.editor, codeBlockFontSize: '', codeBlockFontFamily: this.configurationService.getValue<IEditorOptions>('editor').fontFamily || EDITOR_FONT_DEFAULTS.fontFamily },
+			{ editor: this.editor, codeBlockFontSize: '' },
 			this._commentOptions,
 			{
 				actionRunner: async () => {

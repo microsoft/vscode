@@ -10,8 +10,6 @@ import * as dom from '../../../../base/browser/dom.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IEditorOptions } from '../../../common/config/editorOptions.js';
-import { EDITOR_FONT_DEFAULTS } from '../../../common/config/fontInfo.js';
 import { HoverAction, HoverPosition, HoverWidget as BaseHoverWidget, getHoverAccessibleViewHint } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { Widget } from '../../../../base/browser/ui/widget.js';
 import { AnchorPosition } from '../../../../base/browser/ui/contextview/contextview.js';
@@ -167,10 +165,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 
 		} else {
 			const markdown = options.content;
-			const mdRenderer = this._instantiationService.createInstance(
-				MarkdownRenderer,
-				{ codeBlockFontFamily: this._configurationService.getValue<IEditorOptions>('editor').fontFamily || EDITOR_FONT_DEFAULTS.fontFamily }
-			);
+			const mdRenderer = this._instantiationService.createInstance(MarkdownRenderer, {});
 
 			const { element, dispose } = mdRenderer.render(markdown, {
 				actionHandler: (content) => this._linkHandler(content),
