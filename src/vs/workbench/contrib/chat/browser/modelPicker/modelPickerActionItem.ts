@@ -15,7 +15,7 @@ import { IActionWidgetService } from '../../../../../platform/actionWidget/brows
 import { IActionWidgetDropdownAction, IActionWidgetDropdownActionProvider, IActionWidgetDropdownOptions } from '../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { ChatEntitlement, IChatEntitlementService } from '../../common/chatEntitlementService.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { DEFAULT_MODEL_PICKER_CATEGORY } from '../../common/modelPicker/modelPickerWidget.js';
 import { ManageModelsAction } from '../actions/manageModelsActions.js';
@@ -35,6 +35,7 @@ function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate): I
 				return {
 					id: model.metadata.id,
 					enabled: true,
+					icon: model.metadata.statusIcon,
 					checked: model.identifier === delegate.getCurrentModel()?.identifier,
 					category: model.metadata.modelPickerCategory || DEFAULT_MODEL_PICKER_CATEGORY,
 					class: undefined,
@@ -74,8 +75,8 @@ function getModelPickerActionBarActionProvider(commandService: ICommandService, 
 				});
 			}
 
-			// Add upgrade option if entitlement is free
-			if (chatEntitlementService.entitlement === ChatEntitlement.Free) {
+			// Add sign-in / upgrade option if entitlement is anonymous / free
+			if (chatEntitlementService.anonymous || chatEntitlementService.entitlement === ChatEntitlement.Free) {
 				additionalActions.push({
 					id: 'moreModels',
 					label: localize('chat.moreModels', "Add Premium Models"),
@@ -83,7 +84,7 @@ function getModelPickerActionBarActionProvider(commandService: ICommandService, 
 					tooltip: localize('chat.moreModels.tooltip', "Add premium models"),
 					class: undefined,
 					run: () => {
-						const commandId = 'workbench.action.chat.upgradePlan';
+						const commandId = chatEntitlementService.anonymous ? 'workbench.action.chat.triggerSetup' : 'workbench.action.chat.upgradePlan';
 						commandService.executeCommand(commandId);
 					}
 				});
@@ -134,7 +135,14 @@ export class ModelPickerActionItem extends ActionWidgetDropdownActionViewItem {
 	}
 
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
-		dom.reset(element, dom.$('span.chat-model-label', undefined, this.currentModel?.metadata.name ?? localize('chat.modelPicker.label', "Pick Model")), ...renderLabelWithIcons(`$(chevron-down)`));
+		const domChildren = [];
+		if (this.currentModel?.metadata.statusIcon) {
+			domChildren.push(...renderLabelWithIcons(`\$(${this.currentModel.metadata.statusIcon.id})`));
+		}
+		domChildren.push(dom.$('span.chat-model-label', undefined, this.currentModel?.metadata.name ?? localize('chat.modelPicker.label', "Pick Model")));
+		domChildren.push(...renderLabelWithIcons(`$(chevron-down)`));
+
+		dom.reset(element, ...domChildren);
 		this.setAriaLabelAttributes(element);
 		return null;
 	}

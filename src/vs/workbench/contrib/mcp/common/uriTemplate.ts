@@ -156,6 +156,7 @@ export class UriTemplate {
 					const pairs: string[] = [];
 					for (const k in value) {
 						if (Object.prototype.hasOwnProperty.call(value, k)) {
+							// eslint-disable-next-line local/code-no-any-casts
 							const thisVal = String((value as any)[k]);
 							if (isParam) {
 								pairs.push(k + '=' + thisVal);
@@ -187,6 +188,7 @@ export class UriTemplate {
 					for (const k in value) {
 						if (Object.prototype.hasOwnProperty.call(value, k)) {
 							pairs.push(k);
+							// eslint-disable-next-line local/code-no-any-casts
 							pairs.push(String((value as any)[k]));
 						}
 					}

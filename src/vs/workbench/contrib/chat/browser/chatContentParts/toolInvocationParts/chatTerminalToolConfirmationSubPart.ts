@@ -89,6 +89,11 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 	) {
 		super(toolInvocation);
 
+		// Tag for sub-agent styling
+		if (toolInvocation.fromSubAgent) {
+			context.container.classList.add('from-sub-agent');
+		}
+
 		if (!toolInvocation.confirmationMessages) {
 			throw new Error('Confirmation messages are missing');
 		}
@@ -332,8 +337,8 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 				icon: Codicon.shield,
 				markdownDetails: [{
 					markdown: new MarkdownString(localize('autoApprove.markdown', 'This will enable a configurable subset of commands to run in the terminal autonomously. It provides *best effort protections* and assumes the agent is not acting maliciously.')),
-					// TODO: Add this link when it's available
-					// 	markdown: new MarkdownString(`${localize('autoApprove.markdown2', '[Learn more about the potential risks and how to avoid them.](docs)')}`)
+				}, {
+					markdown: new MarkdownString(`[${localize('autoApprove.markdown2', 'Learn more about the potential risks and how to avoid them.')}](https://code.visualstudio.com/docs/copilot/security#_security-considerations)`)
 				}],
 			}
 		});

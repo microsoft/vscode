@@ -474,7 +474,7 @@ export class TerminalChatWidget extends Disposable {
 				result: currentRequest.response!.result,
 				followups: currentRequest.response!.followups
 			});
-		widget.focusLastMessage();
+		widget.focusResponseItem();
 		this.hide();
 	}
 }

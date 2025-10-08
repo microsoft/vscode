@@ -75,5 +75,6 @@ export type TestStateCount = { [K in TestResultState]: number };
 
 export const makeEmptyCounts = (): TestStateCount => {
 	// shh! don't tell anyone this is actually an array!
+	// eslint-disable-next-line local/code-no-any-casts
 	return new Uint32Array(statesInOrder.length) as any as { [K in TestResultState]: number };
 };

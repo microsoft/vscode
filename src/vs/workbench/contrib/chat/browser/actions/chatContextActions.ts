@@ -65,7 +65,7 @@ async function withChatView(accessor: ServicesAccessor): Promise<IChatWidget | u
 	const chatWidgetService = accessor.get(IChatWidgetService);
 
 	const lastFocusedWidget = chatWidgetService.lastFocusedWidget;
-	if (!lastFocusedWidget || lastFocusedWidget.location === ChatAgentLocation.Panel) {
+	if (!lastFocusedWidget || lastFocusedWidget.location === ChatAgentLocation.Chat) {
 		return showChatView(viewsService); // only show chat view if we either have no chat view or its located in view container
 	}
 	return lastFocusedWidget;
@@ -73,7 +73,7 @@ async function withChatView(accessor: ServicesAccessor): Promise<IChatWidget | u
 
 abstract class AttachResourceAction extends Action2 {
 
-	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 		const instaService = accessor.get(IInstantiationService);
 		const widget = await instaService.invokeFunction(withChatView);
 		if (!widget) {
@@ -82,9 +82,9 @@ abstract class AttachResourceAction extends Action2 {
 		return instaService.invokeFunction(this.runWithWidget.bind(this), widget, ...args);
 	}
 
-	abstract runWithWidget(accessor: ServicesAccessor, widget: IChatWidget, ...args: any[]): Promise<void>;
+	abstract runWithWidget(accessor: ServicesAccessor, widget: IChatWidget, ...args: unknown[]): Promise<void>;
 
-	protected _getResources(accessor: ServicesAccessor, ...args: any[]): URI[] {
+	protected _getResources(accessor: ServicesAccessor, ...args: unknown[]): URI[] {
 		const editorService = accessor.get(IEditorService);
 
 		const contexts = isEditorCommandsContext(args[1]) ? this._getEditorResources(accessor, args) : Array.isArray(args[1]) ? args[1] : [args[0]];
@@ -109,7 +109,7 @@ abstract class AttachResourceAction extends Action2 {
 		return files;
 	}
 
-	private _getEditorResources(accessor: ServicesAccessor, ...args: any[]): URI[] {
+	private _getEditorResources(accessor: ServicesAccessor, ...args: unknown[]): URI[] {
 		const resolvedContext = resolveCommandsContext(args, accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IListService));
 
 		return resolvedContext.groupedEditors
@@ -175,7 +175,7 @@ class AttachFileToChatAction extends AttachResourceAction {
 		});
 	}
 
-	override async runWithWidget(accessor: ServicesAccessor, widget: IChatWidget, ...args: any[]): Promise<void> {
+	override async runWithWidget(accessor: ServicesAccessor, widget: IChatWidget, ...args: unknown[]): Promise<void> {
 		const files = this._getResources(accessor, ...args);
 		if (!files.length) {
 			return;
@@ -215,7 +215,7 @@ class AttachFolderToChatAction extends AttachResourceAction {
 		});
 	}
 
-	override async runWithWidget(accessor: ServicesAccessor, widget: IChatWidget, ...args: any[]): Promise<void> {
+	override async runWithWidget(accessor: ServicesAccessor, widget: IChatWidget, ...args: unknown[]): Promise<void> {
 		const folders = this._getResources(accessor, ...args);
 		if (!folders.length) {
 			return;
@@ -398,13 +398,13 @@ export class AttachContextAction extends Action2 {
 			icon: Codicon.attach,
 			category: CHAT_CATEGORY,
 			keybinding: {
-				when: ContextKeyExpr.and(ChatContextKeys.inChatInput, ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel)),
+				when: ContextKeyExpr.and(ChatContextKeys.inChatInput, ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat)),
 				primary: KeyMod.CtrlCmd | KeyCode.Slash,
 				weight: KeybindingWeight.EditorContrib
 			},
 			menu: {
 				when: ContextKeyExpr.and(
-					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
+					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 					ChatContextKeys.lockedToCodingAgent.negate()
 				),
 				id: MenuId.ChatInputAttachmentToolbar,
@@ -414,7 +414,7 @@ export class AttachContextAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 
 		const instantiationService = accessor.get(IInstantiationService);
 		const widgetService = accessor.get(IChatWidgetService);
@@ -422,7 +422,7 @@ export class AttachContextAction extends Action2 {
 		const keybindingService = accessor.get(IKeybindingService);
 		const contextPickService = accessor.get(IChatContextPickService);
 
-		const context: { widget?: IChatWidget; placeholder?: string } | undefined = args[0];
+		const context = args[0] as { widget?: IChatWidget; placeholder?: string } | undefined;
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
 		if (!widget) {
 			return;

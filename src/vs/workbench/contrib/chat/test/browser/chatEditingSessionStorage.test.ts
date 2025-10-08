@@ -38,6 +38,7 @@ suite('ChatEditingSessionStorage', () => {
 			fs,
 			TestEnvironmentService,
 			new NullLogService(),
+			// eslint-disable-next-line local/code-no-any-casts
 			{ getWorkspace: () => ({ id: 'workspaceId' }) } as any,
 		);
 	});
@@ -48,7 +49,7 @@ suite('ChatEditingSessionStorage', () => {
 		return {
 			stopId,
 			entries: new ResourceMap([
-				[resource, { resource, languageId: 'javascript', snapshotUri: ChatEditingSnapshotTextModelContentProvider.getSnapshotFileURI(sessionId, requestId, stopId, resource.path), original: `contents${before}}`, current: `contents${after}`, state: ModifiedFileEntryState.Modified, telemetryInfo: { agentId: 'agentId', command: 'cmd', requestId: generateUuid(), result: undefined, sessionId } } satisfies ISnapshotEntry],
+				[resource, { resource, languageId: 'javascript', snapshotUri: ChatEditingSnapshotTextModelContentProvider.getSnapshotFileURI(sessionId, requestId, stopId, resource.path), original: `contents${before}}`, current: `contents${after}`, state: ModifiedFileEntryState.Modified, telemetryInfo: { agentId: 'agentId', command: 'cmd', requestId: generateUuid(), result: undefined, sessionId, modelId: undefined, modeId: undefined, applyCodeBlockSuggestionId: undefined, feature: undefined } } satisfies ISnapshotEntry],
 			]),
 		};
 	}

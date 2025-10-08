@@ -59,7 +59,7 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 		this._line = document.createElement('div');
 		this._hoverableElement = observableValue<ObserverNodeWithElement | null>(this, null);
 		this.isHovered = this._hoverableElement.map((e, reader) => e?.didMouseMoveDuringHover.read(reader) ?? false);
-		this._renderTextEffect = derived(_reader => {
+		this._renderTextEffect = derived(this, _reader => {
 			const tm = this._editor.model.get()!;
 			const origLine = tm.getLineContent(this._edit.range.startLineNumber);
 
@@ -108,7 +108,7 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 				lineHeight,
 			};
 		});
-		this.minEditorScrollHeight = derived(reader => {
+		this.minEditorScrollHeight = derived(this, reader => {
 			const layout = mapOutFalsy(this._layout).read(reader);
 			if (!layout) {
 				return 0;
@@ -118,7 +118,7 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 		this._root = n.div({
 			class: 'word-replacement',
 		}, [
-			derived(reader => {
+			derived(this, reader => {
 				const layout = mapOutFalsy(this._layout).read(reader);
 				if (!layout) {
 					return [];

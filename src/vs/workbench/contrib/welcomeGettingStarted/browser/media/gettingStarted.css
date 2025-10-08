@@ -98,8 +98,8 @@
 	transition: left 0.25s, opacity 0.25s;
 }
 
-.monaco-workbench.reduce-motion .part.editor > .content .gettingStartedContainer .gettingStartedSlide,
-.monaco-workbench.reduce-motion .part.editor > .content .gettingStartedContainer.animatable .gettingStartedSlide {
+.monaco-workbench.monaco-reduce-motion .part.editor > .content .gettingStartedContainer .gettingStartedSlide,
+.monaco-workbench.monaco-reduce-motion .part.editor > .content .gettingStartedContainer.animatable .gettingStartedSlide {
 	/* keep consistant with SLIDE_TRANSITION_TIME_MS in gettingStarted.ts */
 	transition: left 0.0s, opacity 0.0s;
 }
@@ -895,7 +895,7 @@
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .step-description-container .monaco-button,
 .monaco-workbench .part.editor > .content .gettingStartedContainer .max-lines-3 {
-	/* Supported everywhere: https://developer.mozilla.org/en-US/docs/Web/CSS/-webkit-line-clamp#browser_compatibility */
+	line-clamp: 3;
 	-webkit-line-clamp: 3;
 	display: -webkit-box;
 	-webkit-box-orient: vertical;

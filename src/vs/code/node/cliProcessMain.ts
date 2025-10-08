@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { setDefaultResultOrder } from 'dns';
 import * as fs from 'fs';
 import { hostname, release } from 'os';
 import { raceTimeout } from '../../base/common/async.js';
@@ -70,7 +71,6 @@ import { IExtensionGalleryManifestService } from '../../platform/extensionManage
 import { ExtensionGalleryManifestService } from '../../platform/extensionManagement/common/extensionGalleryManifestService.js';
 import { IAllowedMcpServersService, IMcpGalleryService, IMcpManagementService } from '../../platform/mcp/common/mcpManagement.js';
 import { McpManagementService } from '../../platform/mcp/node/mcpManagementService.js';
-import { INpmPackageManagementService, NpmPackageService } from '../../platform/mcp/node/npmPackageService.js';
 import { IMcpResourceScannerService, McpResourceScannerService } from '../../platform/mcp/common/mcpResourceScannerService.js';
 import { McpGalleryService } from '../../platform/mcp/common/mcpGalleryService.js';
 import { AllowedMcpServersService } from '../../platform/mcp/common/allowedMcpServersService.js';
@@ -109,6 +109,10 @@ class CliMain extends Disposable {
 
 			// Error handler
 			this.registerErrorHandler(logService);
+
+			// DNS result order
+			// Refs https://github.com/microsoft/vscode/issues/264136
+			setDefaultResultOrder('ipv4first');
 
 			// Run based on argv
 			await this.doRun(environmentService, fileService, userDataProfilesService, instantiationService);
@@ -237,14 +241,13 @@ class CliMain extends Disposable {
 		services.set(IMcpResourceScannerService, new SyncDescriptor(McpResourceScannerService, undefined, true));
 		services.set(IMcpGalleryManifestService, new SyncDescriptor(McpGalleryManifestService, undefined, true));
 		services.set(IMcpGalleryService, new SyncDescriptor(McpGalleryService, undefined, true));
-		services.set(INpmPackageManagementService, new SyncDescriptor(NpmPackageService, undefined, true));
 		services.set(IMcpManagementService, new SyncDescriptor(McpManagementService, undefined, true));
 
 		// Telemetry
 		const appenders: ITelemetryAppender[] = [];
 		const isInternal = isInternalTelemetry(productService, configurationService);
 		if (supportsTelemetry(productService, environmentService)) {
-			if (productService.aiConfig && productService.aiConfig.ariaKey) {
+			if (productService.aiConfig?.ariaKey) {
 				appenders.push(new OneDataSystemAppender(requestService, isInternal, 'monacoworkbench', null, productService.aiConfig.ariaKey));
 			}
 

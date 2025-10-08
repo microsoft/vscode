@@ -6,7 +6,7 @@
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IChatTerminalToolInvocationData } from '../chatService.js';
-import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../languageModelToolsService.js';
+import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolInvocationPresentation, ToolProgress } from '../languageModelToolsService.js';
 
 export const ConfirmationToolId = 'vscode_get_confirmation';
 
@@ -41,7 +41,7 @@ export const ConfirmationToolData: IToolData = {
 	}
 };
 
-export interface ConfirmationToolParams {
+export interface IConfirmationToolParams {
 	title: string;
 	message: string;
 	confirmationType?: 'basic' | 'terminal';
@@ -50,7 +50,7 @@ export interface ConfirmationToolParams {
 
 export class ConfirmationTool implements IToolImpl {
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
-		const parameters = context.parameters as ConfirmationToolParams;
+		const parameters = context.parameters as IConfirmationToolParams;
 		if (!parameters.title || !parameters.message) {
 			throw new Error('Missing required parameters for ConfirmationTool');
 		}
@@ -80,7 +80,8 @@ export class ConfirmationTool implements IToolImpl {
 				message: new MarkdownString(parameters.message),
 				allowAutoConfirm: false
 			},
-			toolSpecificData
+			toolSpecificData,
+			presentation: ToolInvocationPresentation.HiddenAfterComplete
 		};
 	}
 
@@ -89,7 +90,7 @@ export class ConfirmationTool implements IToolImpl {
 		return {
 			content: [{
 				kind: 'text',
-				value: `Confirmed`
+				value: 'yes' // Consumers should check for this label to know whether the tool was confirmed or skipped
 			}]
 		};
 	}

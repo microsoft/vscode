@@ -25,6 +25,7 @@ import { IMonarchLanguage } from '../common/monarch/monarchTypes.js';
 import { IStandaloneThemeService } from '../common/standaloneTheme.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { IMarkerData, IMarkerService } from '../../../platform/markers/common/markers.js';
+import { EditDeltaInfo } from '../../common/textModelEditSource.js';
 
 /**
  * Register information about a new language.
@@ -749,43 +750,78 @@ export interface CodeActionProviderMetadata {
  */
 export function createMonacoLanguagesAPI(): typeof monaco.languages {
 	return {
+		// eslint-disable-next-line local/code-no-any-casts
 		register: <any>register,
+		// eslint-disable-next-line local/code-no-any-casts
 		getLanguages: <any>getLanguages,
+		// eslint-disable-next-line local/code-no-any-casts
 		onLanguage: <any>onLanguage,
+		// eslint-disable-next-line local/code-no-any-casts
 		onLanguageEncountered: <any>onLanguageEncountered,
+		// eslint-disable-next-line local/code-no-any-casts
 		getEncodedLanguageId: <any>getEncodedLanguageId,
 
 		// provider methods
+		// eslint-disable-next-line local/code-no-any-casts
 		setLanguageConfiguration: <any>setLanguageConfiguration,
 		setColorMap: setColorMap,
+		// eslint-disable-next-line local/code-no-any-casts
 		registerTokensProviderFactory: <any>registerTokensProviderFactory,
+		// eslint-disable-next-line local/code-no-any-casts
 		setTokensProvider: <any>setTokensProvider,
+		// eslint-disable-next-line local/code-no-any-casts
 		setMonarchTokensProvider: <any>setMonarchTokensProvider,
+		// eslint-disable-next-line local/code-no-any-casts
 		registerReferenceProvider: <any>registerReferenceProvider,
+		// eslint-disable-next-line local/code-no-any-casts
 		registerRenameProvider: <any>registerRenameProvider,
+		// eslint-disable-next-line local/code-no-any-casts
 		registerNewSymbolNameProvider: <any>registerNewSymbolNameProvider,
+		// eslint-disable-next-line local/code-no-any-casts
 		registerCompletionItemProvider: <any>registerCompletionItemProvider,
+		// eslint-disable-next-line local/code-no-any-casts
 		registerSignatureHelpProvider: <any>registerSignatureHelpProvider,
+		// eslint-disable-next-line local/code-no-any-casts
 		registerHoverProvider: <any>registerHoverProvider,
+		// eslint-disable-next-line local/code-no-any-casts
 		registerDocumentSymbolProvider: <any>registerDocumentSymbolProvider,
+		// eslint-disable-next-line local/code-no-any-casts
 		registerDocumentHighlightProvider: <any>registerDocumentHighlightProvider,
+		// eslint-disable-next-line local/code-no-any-casts
 		registerLinkedEditingRangeProvider: <any>registerLinkedEditingRangeProvider,
+		// eslint-disable-next-line local/code-no-any-casts
 		registerDefinitionProvider: <any>registerDefinitionProvider,
+		// eslint-disable-next-line local/code-no-any-casts
 		registerImplementationProvider: <any>registerImplementationProvider,
+		// eslint-disable-next-line local/code-no-any-casts
 		registerTypeDefinitionProvider: <any>registerTypeDefinitionProvider,
+		// eslint-disable-next-line local/code-no-any-casts
 		registerCodeLensProvider: <any>registerCodeLensProvider,
+		// eslint-disable-next-line local/code-no-any-casts
 		registerCodeActionProvider: <any>registerCodeActionProvider,
+		// eslint-disable-next-line local/code-no-any-casts
 		registerDocumentFormattingEditProvider: <any>registerDocumentFormattingEditProvider,
+		// eslint-disable-next-line local/code-no-any-casts
 		registerDocumentRangeFormattingEditProvider: <any>registerDocumentRangeFormattingEditProvider,
+		// eslint-disable-next-line local/code-no-any-casts
 		registerOnTypeFormattingEditProvider: <any>registerOnTypeFormattingEditProvider,
+		// eslint-disable-next-line local/code-no-any-casts
 		registerLinkProvider: <any>registerLinkProvider,
+		// eslint-disable-next-line local/code-no-any-casts
 		registerColorProvider: <any>registerColorProvider,
+		// eslint-disable-next-line local/code-no-any-casts
 		registerFoldingRangeProvider: <any>registerFoldingRangeProvider,
+		// eslint-disable-next-line local/code-no-any-casts
 		registerDeclarationProvider: <any>registerDeclarationProvider,
+		// eslint-disable-next-line local/code-no-any-casts
 		registerSelectionRangeProvider: <any>registerSelectionRangeProvider,
+		// eslint-disable-next-line local/code-no-any-casts
 		registerDocumentSemanticTokensProvider: <any>registerDocumentSemanticTokensProvider,
+		// eslint-disable-next-line local/code-no-any-casts
 		registerDocumentRangeSemanticTokensProvider: <any>registerDocumentRangeSemanticTokensProvider,
+		// eslint-disable-next-line local/code-no-any-casts
 		registerInlineCompletionsProvider: <any>registerInlineCompletionsProvider,
+		// eslint-disable-next-line local/code-no-any-casts
 		registerInlayHintsProvider: <any>registerInlayHintsProvider,
 
 		// enums
@@ -810,6 +846,9 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 
 		// classes
 		FoldingRangeKind: languages.FoldingRangeKind,
+		// eslint-disable-next-line local/code-no-any-casts
 		SelectedSuggestionInfo: <any>languages.SelectedSuggestionInfo,
+		// eslint-disable-next-line local/code-no-any-casts
+		EditDeltaInfo: <any>EditDeltaInfo,
 	};
 }

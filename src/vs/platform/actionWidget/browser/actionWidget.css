@@ -11,10 +11,10 @@
 	z-index: 40;
 	display: block;
 	width: 100%;
-	border: 1px solid var(--vscode-editorWidget-border) !important;
+	border: 1px solid var(--vscode-menu-border) !important;
 	border-radius: 5px;
-	background-color: var(--vscode-editorActionList-background);
-	color: var(--vscode-editorActionList-foreground);
+	background-color: var(--vscode-menu-background);
+	color: var(--vscode-menu-foreground);
 	padding: 4px;
 	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
 }
@@ -56,17 +56,17 @@
 
 /** Styles for each row in the list element **/
 .action-widget .monaco-list .monaco-list-row {
-	padding: 0 0 0 8px;
+	padding: 0 4px 0 4px;
 	white-space: nowrap;
 	cursor: pointer;
 	touch-action: none;
 	width: 100%;
-	border-radius: 4px;
+	border-radius: 3px;
 }
 
 .action-widget .monaco-list .monaco-list-row.action.focused:not(.option-disabled) {
-	background-color: var(--vscode-editorActionList-focusBackground) !important;
-	color: var(--vscode-editorActionList-focusForeground);
+	background-color: var(--vscode-list-activeSelectionBackground) !important;
+	color: var(--vscode-list-activeSelectionForeground);
 	outline: 1px solid var(--vscode-menu-selectionBorder, transparent);
 	outline-offset: -1px;
 }
@@ -74,7 +74,7 @@
 .action-widget .monaco-list-row.group-header {
 	color: var(--vscode-descriptionForeground) !important;
 	font-weight: 600;
-	font-size: 12px;
+	font-size: 13px;
 }
 
 .action-widget .monaco-list-row.group-header:not(:first-of-type) {
@@ -118,7 +118,7 @@
 
 .action-widget .monaco-list-row.action {
 	display: flex;
-	gap: 8px;
+	gap: 4px;
 	align-items: center;
 }
 
@@ -154,8 +154,8 @@
 /* Action bar */
 
 .action-widget .action-widget-action-bar {
-	background-color: var(--vscode-editorActionList-background);
-	border-top: 1px solid var(--vscode-editorHoverWidget-border);
+	background-color: var(--vscode-menu-background);
+	border-top: 1px solid var(--vscode-menu-border);
 	margin-top: 2px;
 }
 
@@ -166,12 +166,12 @@
 }
 
 .action-widget .action-widget-action-bar .actions-container {
-	padding: 3px 8px 0;
+	padding: 4px 8px 2px 24px;
 }
 
 .action-widget-action-bar .action-label {
 	color: var(--vscode-textLink-activeForeground);
-	font-size: 12px;
+	font-size: 13px;
 	line-height: 22px;
 	padding: 0;
 	pointer-events: all;
@@ -194,5 +194,4 @@
 .action-widget .monaco-list .monaco-list-row .description {
 	opacity: 0.7;
 	margin-left: 0.5em;
-	font-size: 0.9em;
 }

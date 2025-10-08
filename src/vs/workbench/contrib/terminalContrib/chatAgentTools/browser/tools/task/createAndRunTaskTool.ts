@@ -9,6 +9,7 @@ import { localize } from '../../../../../../../nls.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../../chat/common/languageModelToolsService.js';
 import { ITaskService, ITaskSummary, Task } from '../../../../../tasks/common/taskService.js';
+import { TaskRunSource } from '../../../../../tasks/common/tasks.js';
 import { ITerminalInstance, ITerminalService } from '../../../../../terminal/browser/terminal.js';
 import { collectTerminalResults, IConfiguredTask, resolveDependencyTasks } from '../../taskHelpers.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
@@ -19,25 +20,7 @@ import { IConfigurationService } from '../../../../../../../platform/configurati
 import { toolResultDetailsFromResponse, toolResultMessageFromResponse } from './taskHelpers.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
-
-type CreateAndRunTaskToolClassification = {
-	taskLabel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The label of the task.' };
-	bufferLength: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The length of the terminal buffer as a string.' };
-	pollDurationMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How long polling for output took (ms).' };
-	inputToolManualAcceptCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of times the user manually accepted a detected suggestion' };
-	inputToolManualRejectCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of times the user manually rejected a detected suggestion' };
-	inputToolManualChars: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of characters input by manual acceptance of suggestions' };
-	owner: 'meganrogge';
-	comment: 'Understanding the usage of the runTask tool';
-};
-type CreateAndRunTaskToolEvent = {
-	taskLabel: string;
-	bufferLength: number;
-	pollDurationMs: number | undefined;
-	inputToolManualAcceptCount: number;
-	inputToolManualRejectCount: number;
-	inputToolManualChars: number;
-};
+import { TaskToolEvent, TaskToolClassification } from './taskToolsTelemetry.js';
 
 interface ICreateAndRunTaskToolInput {
 	workspaceFolder: string;
@@ -114,7 +97,7 @@ export class CreateAndRunTaskTool implements IToolImpl {
 		}
 
 		_progress.report({ message: new MarkdownString(localize('copilotChat.runningTask', 'Running task `{0}`', args.task.label)) });
-		const raceResult = await Promise.race([this._tasksService.run(task), timeout(3000)]);
+		const raceResult = await Promise.race([this._tasksService.run(task, undefined, TaskRunSource.ChatAgent), timeout(3000)]);
 		const result: ITaskSummary | undefined = raceResult && typeof raceResult === 'object' ? raceResult as ITaskSummary : undefined;
 
 		const dependencyTasks = await resolveDependencyTasks(task, args.workspaceFolder, this._configurationService, this._tasksService);
@@ -137,13 +120,16 @@ export class CreateAndRunTaskTool implements IToolImpl {
 		);
 		store.dispose();
 		for (const r of terminalResults) {
-			this._telemetryService.publicLog2?.<CreateAndRunTaskToolEvent, CreateAndRunTaskToolClassification>('copilotChat.runTaskTool.createAndRunTask', {
-				taskLabel: args.task.label,
+			this._telemetryService.publicLog2?.<TaskToolEvent, TaskToolClassification>('copilotChat.runTaskTool.createAndRunTask', {
+				taskId: args.task.label,
 				bufferLength: r.output.length ?? 0,
 				pollDurationMs: r.pollDurationMs ?? 0,
 				inputToolManualAcceptCount: r.inputToolManualAcceptCount ?? 0,
 				inputToolManualRejectCount: r.inputToolManualRejectCount ?? 0,
 				inputToolManualChars: r.inputToolManualChars ?? 0,
+				inputToolManualShownCount: r.inputToolManualShownCount ?? 0,
+				inputToolFreeFormInputCount: r.inputToolFreeFormInputCount ?? 0,
+				inputToolFreeFormInputShownCount: r.inputToolFreeFormInputShownCount ?? 0
 			});
 		}
 

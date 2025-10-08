@@ -25,7 +25,7 @@ import { Selection } from '../../../../common/core/selection.js';
 import { TextReplacement, TextEdit } from '../../../../common/core/edits/textEdit.js';
 import { TextLength } from '../../../../common/core/text/textLength.js';
 import { ScrollType } from '../../../../common/editorCommon.js';
-import { InlineCompletionEndOfLifeReasonKind, InlineCompletion, InlineCompletionTriggerKind, PartialAcceptTriggerKind, InlineCompletionsProvider, InlineCompletionCommand } from '../../../../common/languages.js';
+import { InlineCompletionEndOfLifeReasonKind, InlineCompletion, InlineCompletionTriggerKind, PartialAcceptTriggerKind, InlineCompletionsProvider, InlineCompletionCommand, InlineCompletions } from '../../../../common/languages.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
 import { EndOfLinePreference, IModelDeltaDecoration, ITextModel } from '../../../../common/model.js';
 import { TextModelText } from '../../../../common/model/textModelText.js';
@@ -64,6 +64,7 @@ export class InlineCompletionsModel extends Disposable {
 	// We use a semantic id to keep the same inline completion selected even if the provider reorders the completions.
 	private readonly _selectedInlineCompletionId = observableValue<string | undefined>(this, undefined);
 	public readonly primaryPosition = derived(this, reader => this._positions.read(reader)[0] ?? new Position(1, 1));
+	public readonly allPositions = derived(this, reader => this._positions.read(reader));
 
 	private _isAcceptingPartially = false;
 	private readonly _appearedInsideViewport = derived<boolean>(this, reader => {
@@ -99,6 +100,8 @@ export class InlineCompletionsModel extends Disposable {
 	private readonly _triggerCommandOnProviderChange;
 	private readonly _minShowDelay;
 	private readonly _showOnSuggestConflict;
+	private readonly _suppressInSnippetMode;
+	private readonly _isInSnippetMode;
 
 	constructor(
 		public readonly textModel: ITextModel,
@@ -131,9 +134,13 @@ export class InlineCompletionsModel extends Disposable {
 		this._suppressedInlineCompletionGroupIds = inlineSuggest.map(v => new Set(v.experimental.suppressInlineSuggestions.split(',')));
 		this._inlineEditsEnabled = inlineSuggest.map(v => !!v.edits.enabled);
 		this._inlineEditsShowCollapsedEnabled = inlineSuggest.map(s => s.edits.showCollapsed);
-		this._triggerCommandOnProviderChange = inlineSuggest.map(s => s.experimental.triggerCommandOnProviderChange);
+		this._triggerCommandOnProviderChange = inlineSuggest.map(s => s.triggerCommandOnProviderChange);
 		this._minShowDelay = inlineSuggest.map(s => s.minShowDelay);
 		this._showOnSuggestConflict = inlineSuggest.map(s => s.experimental.showOnSuggestConflict);
+		this._suppressInSnippetMode = inlineSuggest.map(s => s.suppressInSnippetMode);
+
+		const snippetController = SnippetController2.get(this._editor);
+		this._isInSnippetMode = snippetController?.isInSnippetObservable ?? constObservable(false);
 
 		this._typing = this._register(new TypingInterval(this.textModel));
 
@@ -189,6 +196,7 @@ export class InlineCompletionsModel extends Disposable {
 			}
 		}));
 
+		// TODO: should use getAvailableProviders and update on _suppressedInlineCompletionGroupIds change
 		const inlineCompletionProviders = observableFromEvent(this._languageFeaturesService.inlineCompletionsProvider.onDidChange, () => this._languageFeaturesService.inlineCompletionsProvider.all(textModel));
 		mapObservableArrayCached(this, inlineCompletionProviders, (provider, store) => {
 			if (!provider.onDidChangeInlineCompletions) {
@@ -355,9 +363,9 @@ export class InlineCompletionsModel extends Disposable {
 
 		this._textModelVersionId.read(reader); // Refetch on text change
 
-		const suggestWidgetInlineCompletions = this._source.suggestWidgetInlineCompletions.get();
+		const suggestWidgetInlineCompletions = this._source.suggestWidgetInlineCompletions.read(undefined);
 		let suggestItem = this._selectedSuggestItem.read(reader);
-		if (this._shouldShowOnSuggestConflict.get()) {
+		if (this._shouldShowOnSuggestConflict.read(undefined)) {
 			suggestItem = undefined;
 		}
 		if (suggestWidgetInlineCompletions && !suggestItem) {
@@ -393,6 +401,7 @@ export class InlineCompletionsModel extends Disposable {
 			reason,
 			typingInterval: typingInterval.averageInterval,
 			typingIntervalCharacterCount: typingInterval.characterCount,
+			availableProviders: [],
 		};
 
 		let context: InlineCompletionContextWithoutUuid = {
@@ -401,7 +410,7 @@ export class InlineCompletionsModel extends Disposable {
 			includeInlineCompletions: !changeSummary.onlyRequestInlineEdits,
 			includeInlineEdits: this._inlineEditsEnabled.read(reader),
 			requestIssuedDateTime: requestInfo.startTime,
-			earliestShownDateTime: requestInfo.startTime + (changeSummary.inlineCompletionTriggerKind === InlineCompletionTriggerKind.Explicit || this.inAcceptFlow.get() ? 0 : this._minShowDelay.get()),
+			earliestShownDateTime: requestInfo.startTime + (changeSummary.inlineCompletionTriggerKind === InlineCompletionTriggerKind.Explicit || this.inAcceptFlow.read(undefined) ? 0 : this._minShowDelay.read(undefined)),
 		};
 
 		if (context.triggerKind === InlineCompletionTriggerKind.Automatic && changeSummary.textChange) {
@@ -416,19 +425,41 @@ export class InlineCompletionsModel extends Disposable {
 			}
 		}
 
-		const itemToPreserveCandidate = this.selectedInlineCompletion.get() ?? this._inlineCompletionItems.get()?.inlineEdit;
+		const itemToPreserveCandidate = this.selectedInlineCompletion.read(undefined) ?? this._inlineCompletionItems.read(undefined)?.inlineEdit;
 		const itemToPreserve = changeSummary.preserveCurrentCompletion || itemToPreserveCandidate?.forwardStable
 			? itemToPreserveCandidate : undefined;
-		const userJumpedToActiveCompletion = this._jumpedToId.map(jumpedTo => !!jumpedTo && jumpedTo === this._inlineCompletionItems.get()?.inlineEdit?.semanticId);
+		const userJumpedToActiveCompletion = this._jumpedToId.map(jumpedTo => !!jumpedTo && jumpedTo === this._inlineCompletionItems.read(undefined)?.inlineEdit?.semanticId);
 
 		const providers = changeSummary.provider
 			? { providers: [changeSummary.provider], label: 'single:' + changeSummary.provider.providerId?.toString() }
-			: { providers: this._languageFeaturesService.inlineCompletionsProvider.all(this.textModel), label: undefined };
-		const suppressedProviderGroupIds = this._suppressedInlineCompletionGroupIds.get();
-		const availableProviders = providers.providers.filter(provider => !(provider.groupId && suppressedProviderGroupIds.has(provider.groupId)));
+			: { providers: this._languageFeaturesService.inlineCompletionsProvider.all(this.textModel), label: undefined }; // TODO: should use inlineCompletionProviders
+		const availableProviders = this.getAvailableProviders(providers.providers);
+		requestInfo.availableProviders = availableProviders.map(p => p.providerId).filter(isDefined);
 
 		return this._source.fetch(availableProviders, providers.label, context, itemToPreserve?.identity, changeSummary.shouldDebounce, userJumpedToActiveCompletion, requestInfo);
 	});
+
+	// TODO: This is not an ideal implementation of excludesGroupIds, however as this is currently still behind proposed API
+	// and due to the time constraints, we are using a simplified approach
+	private getAvailableProviders(providers: InlineCompletionsProvider<InlineCompletions<InlineCompletion>>[]): InlineCompletionsProvider[] {
+		const suppressedProviderGroupIds = this._suppressedInlineCompletionGroupIds.get();
+		const unsuppressedProviders = providers.filter(provider => !(provider.groupId && suppressedProviderGroupIds.has(provider.groupId)));
+
+		const excludedGroupIds = new Set<string>();
+		for (const provider of unsuppressedProviders) {
+			provider.excludesGroupIds?.forEach(p => excludedGroupIds.add(p));
+		}
+
+		const availableProviders: InlineCompletionsProvider<InlineCompletions<InlineCompletion>>[] = [];
+		for (const provider of unsuppressedProviders) {
+			if (provider.groupId && excludedGroupIds.has(provider.groupId)) {
+				continue;
+			}
+			availableProviders.push(provider);
+		}
+
+		return availableProviders;
+	}
 
 	public async trigger(tx?: ITransaction, options?: { onlyFetchInlineEdits?: boolean; noDelay?: boolean }): Promise<void> {
 		subtransaction(tx, tx => {
@@ -585,6 +616,10 @@ export class InlineCompletionsModel extends Disposable {
 	}, (reader) => {
 		const model = this.textModel;
 
+		if (this._suppressInSnippetMode.read(reader) && this._isInSnippetMode.read(reader)) {
+			return undefined;
+		}
+
 		const item = this._inlineCompletionItems.read(reader);
 		const inlineEditResult = item?.inlineEdit;
 		if (inlineEditResult) {
@@ -602,7 +637,8 @@ export class InlineCompletionsModel extends Disposable {
 			const edits = inlineEditResult.updatedEdit;
 			const e = edits ? TextEdit.fromStringEdit(edits, new TextModelText(this.textModel)).replacements : [edit];
 			const nextEditUri = (item.inlineEdit?.command?.id === 'vscode.open' || item.inlineEdit?.command?.id === '_workbench.open') &&
-				item.inlineEdit?.command.arguments?.length ? URI.from(item.inlineEdit?.command.arguments[0]) : undefined;
+				// eslint-disable-next-line local/code-no-any-casts
+				item.inlineEdit?.command.arguments?.length ? URI.from(<any>item.inlineEdit?.command.arguments[0]) : undefined;
 			return { kind: 'inlineEdit', inlineEdit, inlineCompletion: inlineEditResult, edits: e, cursorAtInlineEdit, nextEditUri };
 		}
 
@@ -789,6 +825,9 @@ export class InlineCompletionsModel extends Disposable {
 		if (this.showCollapsed.read(reader)) {
 			return false;
 		}
+		if (this._tabShouldIndent.read(reader)) {
+			return false;
+		}
 		if (this._inAcceptFlow.read(reader) && this._appearedInsideViewport.read(reader)) {
 			return true;
 		}
@@ -797,9 +836,6 @@ export class InlineCompletionsModel extends Disposable {
 		}
 		if (this._jumpedToId.read(reader) === s.inlineCompletion.semanticId) {
 			return true;
-		}
-		if (this._tabShouldIndent.read(reader)) {
-			return false;
 		}
 
 		return s.cursorAtInlineEdit.read(reader);

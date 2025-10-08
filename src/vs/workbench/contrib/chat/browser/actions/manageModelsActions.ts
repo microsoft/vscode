@@ -36,15 +36,15 @@ export class ManageModelsAction extends Action2 {
 			title: localize2('manageLanguageModels', 'Manage Language Models...'),
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.or(
-				ChatContextKeys.Entitlement.free,
-				ChatContextKeys.Entitlement.pro,
-				ChatContextKeys.Entitlement.proPlus,
+				ChatContextKeys.Entitlement.planFree,
+				ChatContextKeys.Entitlement.planPro,
+				ChatContextKeys.Entitlement.planProPlus,
 				ChatContextKeys.Entitlement.internal
 			)),
 			f1: true
 		});
 	}
-	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 		const languageModelsService = accessor.get(ILanguageModelsService);
 		const quickInputService = accessor.get(IQuickInputService);
 		const commandService = accessor.get(ICommandService);

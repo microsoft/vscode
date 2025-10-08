@@ -1666,7 +1666,7 @@ declare module 'vscode' {
 		/**
 		 * An {@link Event} which fires upon cancellation.
 		 */
-		onCancellationRequested: Event<any>;
+		readonly onCancellationRequested: Event<any>;
 	}
 
 	/**
@@ -8580,6 +8580,11 @@ declare module 'vscode' {
 	 */
 	export interface SecretStorage {
 		/**
+		 * Retrieve the keys of all the secrets stored by this extension.
+		 */
+		keys(): Thenable<string[]>;
+
+		/**
 		 * Retrieve a secret that was stored with key. Returns undefined if there
 		 * is no password matching that key.
 		 * @param key The key the secret was stored under.
@@ -8603,7 +8608,7 @@ declare module 'vscode' {
 		/**
 		 * Fires when a secret is stored or deleted.
 		 */
-		onDidChange: Event<SecretStorageChangeEvent>;
+		readonly onDidChange: Event<SecretStorageChangeEvent>;
 	}
 
 	/**
@@ -13069,7 +13074,7 @@ declare module 'vscode' {
 		 * (Examples include: an explicit call to {@link QuickInput.hide},
 		 * the user pressing Esc, some other input UI opening, etc.)
 		 */
-		onDidHide: Event<void>;
+		readonly onDidHide: Event<void>;
 
 		/**
 		 * Dispose of this input UI and any associated resources. If it is still
@@ -13883,8 +13888,10 @@ declare module 'vscode' {
 		 * In the same way, symbolic links are preserved, i.e. the file event will report the path of the
 		 * symbolic link as it was provided for watching and not the target.
 		 *
-		 * *Note* that file events from deleting a folder may not include events for contained files. If possible
-		 * events will be aggregated to reduce the overal number of emitted events.
+		 * *Note* that file events from deleting a folder may not include events for contained files but
+		 * only the most top level folder that was deleted. This is a performance optimisation to reduce
+		 * the overhead of file events being sent. If you need to know about all deleted files, you have
+		 * to watch with `**` and deal with all file events yourself.
 		 *
 		 * ### Examples
 		 *
@@ -17810,6 +17817,30 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Represents parameters for creating a session based on a WWW-Authenticate header value.
+	 * This is used when an API returns a 401 with a WWW-Authenticate header indicating
+	 * that additional authentication is required. The details of which will be passed down
+	 * to the authentication provider to create a session.
+	 *
+	 * @note The authorization provider must support handling challenges and specifically
+	 * the challenges in this WWW-Authenticate value.
+	 * @note For more information on WWW-Authenticate please see https://developer.mozilla.org/docs/Web/HTTP/Reference/Headers/WWW-Authenticate
+	 */
+	export interface AuthenticationWwwAuthenticateRequest {
+		/**
+		 * The raw WWW-Authenticate header value that triggered this challenge.
+		 * This will be parsed by the authentication provider to extract the necessary
+		 * challenge information.
+		 */
+		readonly wwwAuthenticate: string;
+
+		/**
+		 * The fallback scopes to use if no scopes are found in the WWW-Authenticate header.
+		 */
+		readonly fallbackScopes?: readonly string[];
+	}
+
+	/**
 	 * Basic information about an {@link AuthenticationProvider}
 	 */
 	export interface AuthenticationProviderInformation {
@@ -17931,49 +17962,59 @@ declare module 'vscode' {
 	 */
 	export namespace authentication {
 		/**
-		 * Get an authentication session matching the desired scopes. Rejects if a provider with providerId is not
-		 * registered, or if the user does not consent to sharing authentication information with
-		 * the extension. If there are multiple sessions with the same scopes, the user will be shown a
-		 * quickpick to select which account they would like to use.
+		 * Get an authentication session matching the desired scopes or satisfying the WWW-Authenticate request. Rejects if
+		 * a provider with providerId is not registered, or if the user does not consent to sharing authentication information
+		 * with the extension. If there are multiple sessions with the same scopes, the user will be shown a quickpick to
+		 * select which account they would like to use.
 		 *
-		 * Currently, there are only two authentication providers that are contributed from built in extensions
-		 * to the editor that implement GitHub and Microsoft authentication: their providerId's are 'github' and 'microsoft'.
+		 * Built-in auth providers include:
+		 * * 'github' - For GitHub.com
+		 * * 'microsoft' For both personal & organizational Microsoft accounts
+		 * * (less common) 'github-enterprise' - for alternative GitHub hostings, GHE.com, GitHub Enterprise Server
+		 * * (less common) 'microsoft-sovereign-cloud' - for alternative Microsoft clouds
+		 *
 		 * @param providerId The id of the provider to use
-		 * @param scopes A list of scopes representing the permissions requested. These are dependent on the authentication provider
+		 * @param scopeListOrRequest A scope list of permissions requested or a WWW-Authenticate request. These are dependent on the authentication provider.
 		 * @param options The {@link AuthenticationGetSessionOptions} to use
 		 * @returns A thenable that resolves to an authentication session
 		 */
-		export function getSession(providerId: string, scopes: readonly string[], options: AuthenticationGetSessionOptions & { /** */createIfNone: true | AuthenticationGetSessionPresentationOptions }): Thenable<AuthenticationSession>;
+		export function getSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | AuthenticationWwwAuthenticateRequest, options: AuthenticationGetSessionOptions & { /** */createIfNone: true | AuthenticationGetSessionPresentationOptions }): Thenable<AuthenticationSession>;
 
 		/**
-		 * Get an authentication session matching the desired scopes. Rejects if a provider with providerId is not
-		 * registered, or if the user does not consent to sharing authentication information with
-		 * the extension. If there are multiple sessions with the same scopes, the user will be shown a
-		 * quickpick to select which account they would like to use.
+		 * Get an authentication session matching the desired scopes or request. Rejects if a provider with providerId is not
+		 * registered, or if the user does not consent to sharing authentication information with the extension. If there
+		 * are multiple sessions with the same scopes, the user will be shown a quickpick to select which account they would like to use.
 		 *
-		 * Currently, there are only two authentication providers that are contributed from built in extensions
-		 * to the editor that implement GitHub and Microsoft authentication: their providerId's are 'github' and 'microsoft'.
+		 * Built-in auth providers include:
+		 * * 'github' - For GitHub.com
+		 * * 'microsoft' For both personal & organizational Microsoft accounts
+		 * * (less common) 'github-enterprise' - for alternative GitHub hostings, GHE.com, GitHub Enterprise Server
+		 * * (less common) 'microsoft-sovereign-cloud' - for alternative Microsoft clouds
+		 *
 		 * @param providerId The id of the provider to use
-		 * @param scopes A list of scopes representing the permissions requested. These are dependent on the authentication provider
+		 * @param scopeListOrRequest A scope list of permissions requested or a WWW-Authenticate request. These are dependent on the authentication provider.
 		 * @param options The {@link AuthenticationGetSessionOptions} to use
 		 * @returns A thenable that resolves to an authentication session
 		 */
-		export function getSession(providerId: string, scopes: readonly string[], options: AuthenticationGetSessionOptions & { /** literal-type defines return type */forceNewSession: true | AuthenticationGetSessionPresentationOptions | AuthenticationForceNewSessionOptions }): Thenable<AuthenticationSession>;
+		export function getSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | AuthenticationWwwAuthenticateRequest, options: AuthenticationGetSessionOptions & { /** literal-type defines return type */forceNewSession: true | AuthenticationGetSessionPresentationOptions | AuthenticationForceNewSessionOptions }): Thenable<AuthenticationSession>;
 
 		/**
-		 * Get an authentication session matching the desired scopes. Rejects if a provider with providerId is not
-		 * registered, or if the user does not consent to sharing authentication information with
-		 * the extension. If there are multiple sessions with the same scopes, the user will be shown a
-		 * quickpick to select which account they would like to use.
+		 * Get an authentication session matching the desired scopes or request. Rejects if a provider with providerId is not
+		 * registered, or if the user does not consent to sharing authentication information with the extension. If there
+		 * are multiple sessions with the same scopes, the user will be shown a quickpick to select which account they would like to use.
 		 *
-		 * Currently, there are only two authentication providers that are contributed from built in extensions
-		 * to the editor that implement GitHub and Microsoft authentication: their providerId's are 'github' and 'microsoft'.
+		 * Built-in auth providers include:
+		 * * 'github' - For GitHub.com
+		 * * 'microsoft' For both personal & organizational Microsoft accounts
+		 * * (less common) 'github-enterprise' - for alternative GitHub hostings, GHE.com, GitHub Enterprise Server
+		 * * (less common) 'microsoft-sovereign-cloud' - for alternative Microsoft clouds
+		 *
 		 * @param providerId The id of the provider to use
-		 * @param scopes A list of scopes representing the permissions requested. These are dependent on the authentication provider
+		 * @param scopeListOrRequest A scope list of permissions requested or a WWW-Authenticate request. These are dependent on the authentication provider.
 		 * @param options The {@link AuthenticationGetSessionOptions} to use
-		 * @returns A thenable that resolves to an authentication session if available, or undefined if there are no sessions
+		 * @returns A thenable that resolves to an authentication session or undefined if a silent flow was used and no session was found
 		 */
-		export function getSession(providerId: string, scopes: readonly string[], options?: AuthenticationGetSessionOptions): Thenable<AuthenticationSession | undefined>;
+		export function getSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | AuthenticationWwwAuthenticateRequest, options?: AuthenticationGetSessionOptions): Thenable<AuthenticationSession | undefined>;
 
 		/**
 		 * Get all accounts that the user is logged in to for the specified provider.
@@ -18184,7 +18225,7 @@ declare module 'vscode' {
 		 * Fired when a user has changed whether this is a default profile. The
 		 * event contains the new value of {@link isDefault}
 		 */
-		onDidChangeDefault: Event<boolean>;
+		readonly onDidChangeDefault: Event<boolean>;
 
 		/**
 		 * Whether this profile supports continuous running of requests. If so,
@@ -18563,7 +18604,7 @@ declare module 'vscode' {
 		 * An event fired when the editor is no longer interested in data
 		 * associated with the test run.
 		 */
-		onDidDispose: Event<void>;
+		readonly onDidDispose: Event<void>;
 	}
 
 	/**
@@ -19639,7 +19680,7 @@ declare module 'vscode' {
 		 * The passed {@link ChatResultFeedback.result result} is guaranteed to have the same properties as the result that was
 		 * previously returned from this chat participant's handler.
 		 */
-		onDidReceiveFeedback: Event<ChatResultFeedback>;
+		readonly onDidReceiveFeedback: Event<ChatResultFeedback>;
 
 		/**
 		 * Dispose this participant and free resources.
@@ -19995,7 +20036,7 @@ declare module 'vscode' {
 		 * A string or heterogeneous array of things that a message can contain as content. Some parts may be message-type
 		 * specific for some models.
 		 */
-		content: Array<LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart>;
+		content: Array<LanguageModelInputPart>;
 
 		/**
 		 * The optional name of a user for this message.
@@ -20009,7 +20050,7 @@ declare module 'vscode' {
 		 * @param content The content of the message.
 		 * @param name The optional name of a user for the message.
 		 */
-		constructor(role: LanguageModelChatMessageRole, content: string | Array<LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart>, name?: string);
+		constructor(role: LanguageModelChatMessageRole, content: string | Array<LanguageModelInputPart>, name?: string);
 	}
 
 	/**
@@ -20376,6 +20417,188 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * The provider version of {@linkcode LanguageModelChatRequestOptions}
+	 */
+	export interface ProvideLanguageModelChatResponseOptions {
+		/**
+		 * A set of options that control the behavior of the language model. These options are specific to the language model.
+		 */
+		readonly modelOptions?: { readonly [name: string]: any };
+
+		/**
+		 * An optional list of tools that are available to the language model. These could be registered tools available via
+		 * {@link lm.tools}, or private tools that are just implemented within the calling extension.
+		 *
+		 * If the LLM requests to call one of these tools, it will return a {@link LanguageModelToolCallPart} in
+		 * {@link LanguageModelChatResponse.stream}. It's the caller's responsibility to invoke the tool. If it's a tool
+		 * registered in {@link lm.tools}, that means calling {@link lm.invokeTool}.
+		 *
+		 * Then, the tool result can be provided to the LLM by creating an Assistant-type {@link LanguageModelChatMessage} with a
+		 * {@link LanguageModelToolCallPart}, followed by a User-type message with a {@link LanguageModelToolResultPart}.
+		 */
+		readonly tools?: readonly LanguageModelChatTool[];
+
+		/**
+		 * 	The tool-selecting mode to use. The provider must implement respecting this.
+		 */
+		readonly toolMode: LanguageModelChatToolMode;
+	}
+
+	/**
+	 * Represents a language model provided by a {@linkcode LanguageModelChatProvider}.
+	 */
+	export interface LanguageModelChatInformation {
+
+		/**
+		 * Unique identifier for the language model. Must be unique per provider, but not required to be globally unique.
+		 */
+		readonly id: string;
+
+		/**
+		 * Human-readable name of the language model.
+		 */
+		readonly name: string;
+
+		/**
+		 * Opaque family-name of the language model. Values might be `gpt-3.5-turbo`, `gpt4`, `phi2`, or `llama`
+		 */
+		readonly family: string;
+
+		/**
+		 * The tooltip to render when hovering the model. Used to provide more information about the model.
+		 */
+		readonly tooltip?: string;
+
+		/**
+		 * An optional, human-readable string which will be rendered alongside the model.
+		 * Useful for distinguishing models of the same name in the UI.
+		 */
+		readonly detail?: string;
+
+		/**
+		 * Opaque version string of the model.
+		 * This is used as a lookup value in {@linkcode LanguageModelChatSelector.version}
+		 * An example is how GPT 4o has multiple versions like 2024-11-20 and 2024-08-06
+		 */
+		readonly version: string;
+
+		/**
+		 * The maximum number of tokens the model can accept as input.
+		 */
+		readonly maxInputTokens: number;
+
+		/**
+		 * The maximum number of tokens the model is capable of producing.
+		 */
+		readonly maxOutputTokens: number;
+
+		/**
+		 * Various features that the model supports such as tool calling or image input.
+		 */
+		readonly capabilities: LanguageModelChatCapabilities;
+	}
+
+	/**
+	 * Various features that the {@link LanguageModelChatInformation} supports such as tool calling or image input.
+	 */
+	export interface LanguageModelChatCapabilities {
+		/**
+		 * Whether image input is supported by the model.
+		 * Common supported images are jpg and png, but each model will vary in supported mimetypes.
+		 */
+		readonly imageInput?: boolean;
+
+		/**
+		 * Whether tool calling is supported by the model.
+		 * If a number is provided, that is the maximum number of tools that can be provided in a request to the model.
+		 */
+		readonly toolCalling?: boolean | number;
+	}
+
+	/**
+	 * The provider version of {@linkcode LanguageModelChatMessage}.
+	 */
+	export interface LanguageModelChatRequestMessage {
+		/**
+		 * The role of this message.
+		 */
+		readonly role: LanguageModelChatMessageRole;
+
+		/**
+		 * A heterogeneous array of things that a message can contain as content. Some parts may be message-type
+		 * specific for some models.
+		 */
+		readonly content: ReadonlyArray<LanguageModelInputPart | unknown>;
+
+		/**
+		 * The optional name of a user for this message.
+		 */
+		readonly name: string | undefined;
+	}
+
+	/**
+	 * The various message types which a {@linkcode LanguageModelChatProvider} can emit in the chat response stream
+	 */
+	export type LanguageModelResponsePart = LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart;
+
+	/**
+	 * The various message types which can be sent via {@linkcode LanguageModelChat.sendRequest } and processed by a {@linkcode LanguageModelChatProvider}
+	 */
+	export type LanguageModelInputPart = LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart;
+
+	/**
+	 * A LanguageModelChatProvider implements access to language models, which users can then use through the chat view, or through extension API by acquiring a LanguageModelChat.
+	 * An example of this would be an OpenAI provider that provides models like gpt-5, o3, etc.
+	 */
+	export interface LanguageModelChatProvider<T extends LanguageModelChatInformation = LanguageModelChatInformation> {
+
+		/**
+		 * An optional event fired when the available set of language models changes.
+		 */
+		readonly onDidChangeLanguageModelChatInformation?: Event<void>;
+
+		/**
+		 * Get the list of available language models provided by this provider
+		 * @param options Options which specify the calling context of this function
+		 * @param token A cancellation token
+		 * @returns The list of available language models
+		 */
+		provideLanguageModelChatInformation(options: PrepareLanguageModelChatModelOptions, token: CancellationToken): ProviderResult<T[]>;
+
+		/**
+		 * Returns the response for a chat request, passing the results to the progress callback.
+		 * The {@linkcode LanguageModelChatProvider} must emit the response parts to the progress callback as they are received from the language model.
+		 * @param model The language model to use
+		 * @param messages The messages to include in the request
+		 * @param options Options for the request
+		 * @param progress The progress to emit the streamed response chunks to
+		 * @param token A cancellation token
+		 * @returns A promise that resolves when the response is complete. Results are actually passed to the progress callback.
+		 */
+		provideLanguageModelChatResponse(model: T, messages: readonly LanguageModelChatRequestMessage[], options: ProvideLanguageModelChatResponseOptions, progress: Progress<LanguageModelResponsePart>, token: CancellationToken): Thenable<void>;
+
+		/**
+		 * Returns the number of tokens for a given text using the model-specific tokenizer logic
+		 * @param model The language model to use
+		 * @param text The text to count tokens for
+		 * @param token A cancellation token
+		 * @returns The number of tokens
+		 */
+		provideTokenCount(model: T, text: string | LanguageModelChatRequestMessage, token: CancellationToken): Thenable<number>;
+	}
+
+	/**
+	 * The list of options passed into {@linkcode LanguageModelChatProvider.provideLanguageModelChatInformation}
+	 */
+	export interface PrepareLanguageModelChatModelOptions {
+		/**
+		 * Whether or not the user should be prompted via some UI flow, or if models should be attempted to be resolved silently.
+		 * If silent is true, all models may not be resolved due to lack of info such as API keys.
+		 */
+		readonly silent: boolean;
+	}
+
+	/**
 	 * Namespace for language model related functionality.
 	 */
 	export namespace lm {
@@ -20481,6 +20704,15 @@ declare module 'vscode' {
 		 * @returns A disposable that unregisters the provider when disposed.
 		 */
 		export function registerMcpServerDefinitionProvider(id: string, provider: McpServerDefinitionProvider): Disposable;
+
+		/**
+		 * Registers a {@linkcode LanguageModelChatProvider}
+		 * Note: You must also define the language model chat provider via the `languageModelChatProviders` contribution point in package.json
+		 * @param vendor The vendor for this provider. Must be globally unique. An example is `copilot` or `openai`.
+		 * @param provider The provider to register
+		 * @returns A disposable that unregisters the provider when disposed
+		 */
+		export function registerLanguageModelChatProvider(vendor: string, provider: LanguageModelChatProvider): Disposable;
 	}
 
 	/**
@@ -20491,7 +20723,7 @@ declare module 'vscode' {
 		/**
 		 * An event that fires when access information changes.
 		 */
-		onDidChange: Event<void>;
+		readonly onDidChange: Event<void>;
 
 		/**
 		 * Checks if a request can be made to a language model.

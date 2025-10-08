@@ -8,24 +8,26 @@ import * as sinon from 'sinon';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyService } from '../../../../platform/contextkey/browser/contextKeyService.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { TestInstantiationService } from '../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../platform/log/common/log.js';
-import { MainThreadChatSessions, ObservableChatSession } from '../../browser/mainThreadChatSessions.js';
-import { ExtHostChatSessionsShape, IChatProgressDto } from '../../common/extHost.protocol.js';
+import { ChatSessionsService } from '../../../contrib/chat/browser/chatSessions.contribution.js';
+import { IChatAgentRequest } from '../../../contrib/chat/common/chatAgents.js';
+import { IChatProgress, IChatProgressMessage } from '../../../contrib/chat/common/chatService.js';
+import { IChatSessionItem, IChatSessionsService } from '../../../contrib/chat/common/chatSessionsService.js';
+import { ChatAgentLocation } from '../../../contrib/chat/common/constants.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IExtHostContext } from '../../../services/extensions/common/extHostCustomers.js';
 import { ExtensionHostKind } from '../../../services/extensions/common/extensionHostKind.js';
-import { IChatProgress } from '../../../contrib/chat/common/chatService.js';
-import { IChatSessionItem, IChatSessionsService } from '../../../contrib/chat/common/chatSessionsService.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { mock, TestExtensionService } from '../../../test/common/workbenchTestServices.js';
-import { ChatSessionsService } from '../../../contrib/chat/browser/chatSessions.contribution.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { ContextKeyService } from '../../../../platform/contextkey/browser/contextKeyService.js';
-import { TestConfigurationService } from '../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { MainThreadChatSessions, ObservableChatSession } from '../../browser/mainThreadChatSessions.js';
+import { ExtHostChatSessionsShape, IChatProgressDto } from '../../common/extHost.protocol.js';
 
 suite('ObservableChatSession', function () {
 	let disposables: DisposableStore;
@@ -136,7 +138,7 @@ suite('ObservableChatSession', function () {
 		// Verify history was loaded
 		assert.strictEqual(session.history.length, 2);
 		assert.strictEqual(session.history[0].type, 'request');
-		assert.strictEqual((session.history[0] as any).prompt, 'Previous question');
+		assert.strictEqual(session.history[0].prompt, 'Previous question');
 		assert.strictEqual(session.history[1].type, 'response');
 
 		// Verify capabilities were set up
@@ -209,7 +211,14 @@ suite('ObservableChatSession', function () {
 
 		assert.ok(session.requestHandler);
 
-		const request = { requestId: 'req1', prompt: 'Test prompt' } as any;
+		const request: IChatAgentRequest = {
+			requestId: 'req1',
+			sessionId: 'test-session',
+			agentId: 'test-agent',
+			message: 'Test prompt',
+			location: ChatAgentLocation.Chat,
+			variables: { variables: [] }
+		};
 		const progressCallback = sinon.stub();
 
 		await session.requestHandler!(request, progressCallback, [], CancellationToken.None);
@@ -223,7 +232,14 @@ suite('ObservableChatSession', function () {
 
 		assert.ok(session.requestHandler);
 
-		const request = { requestId: 'req1', prompt: 'Test prompt' } as any;
+		const request: IChatAgentRequest = {
+			requestId: 'req1',
+			sessionId: 'test-session',
+			agentId: 'test-agent',
+			message: 'Test prompt',
+			location: ChatAgentLocation.Chat,
+			variables: { variables: [] }
+		};
 		const progressCallback = sinon.stub();
 
 		let resolveRequest: () => void;
@@ -299,13 +315,13 @@ suite('ObservableChatSession', function () {
 		// Verify all history was loaded correctly
 		assert.strictEqual(session.history.length, 4);
 		assert.strictEqual(session.history[0].type, 'request');
-		assert.strictEqual((session.history[0] as any).prompt, 'First question');
+		assert.strictEqual(session.history[0].prompt, 'First question');
 		assert.strictEqual(session.history[1].type, 'response');
-		assert.strictEqual((session.history[1].parts[0] as any).content.value, 'First answer');
+		assert.strictEqual((session.history[1].parts[0] as IChatProgressMessage).content.value, 'First answer');
 		assert.strictEqual(session.history[2].type, 'request');
-		assert.strictEqual((session.history[2] as any).prompt, 'Second question');
+		assert.strictEqual(session.history[2].prompt, 'Second question');
 		assert.strictEqual(session.history[3].type, 'response');
-		assert.strictEqual((session.history[3].parts[0] as any).content.value, 'Second answer');
+		assert.strictEqual((session.history[3].parts[0] as IChatProgressMessage).content.value, 'Second answer');
 
 		// Session should be complete since it has no capabilities
 		assert.strictEqual(session.isCompleteObs.get(), true);
@@ -372,9 +388,19 @@ suite('MainThreadChatSessions', function () {
 	test('provideNewChatSessionItem creates a new chat session', async function () {
 		mainThread.$registerChatSessionItemProvider(1, 'test-type');
 
+		// Create a mock IChatAgentRequest
+		const mockRequest: IChatAgentRequest = {
+			sessionId: 'test-session',
+			requestId: 'test-request',
+			agentId: 'test-agent',
+			message: 'my prompt',
+			location: ChatAgentLocation.Chat,
+			variables: { variables: [] }
+		};
+
 		// Valid
 		const chatSessionItem = await chatSessionsService.provideNewChatSessionItem('test-type', {
-			prompt: 'my prompt',
+			request: mockRequest,
 			metadata: {}
 		}, CancellationToken.None);
 		assert.strictEqual(chatSessionItem.id, 'new-session-id');
@@ -383,7 +409,7 @@ suite('MainThreadChatSessions', function () {
 		// Invalid session type should throw
 		await assert.rejects(
 			chatSessionsService.provideNewChatSessionItem('invalid-type', {
-				prompt: 'my prompt',
+				request: mockRequest,
 				metadata: {}
 			}, CancellationToken.None)
 		);
@@ -486,10 +512,10 @@ suite('MainThreadChatSessions', function () {
 
 		// Verify all history items are correctly loaded
 		assert.strictEqual(session.history[0].type, 'request');
-		assert.strictEqual((session.history[0] as any).prompt, 'First question');
+		assert.strictEqual(session.history[0].prompt, 'First question');
 		assert.strictEqual(session.history[1].type, 'response');
 		assert.strictEqual(session.history[2].type, 'request');
-		assert.strictEqual((session.history[2] as any).prompt, 'Second question');
+		assert.strictEqual(session.history[2].prompt, 'Second question');
 		assert.strictEqual(session.history[3].type, 'response');
 
 		// Session should be complete since it has no active capabilities

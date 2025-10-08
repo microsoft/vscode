@@ -1056,10 +1056,15 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 		let ariaLabel = this.ariaLabel;
 		// Only set aria label to the input box placeholder if we actually have an input box.
 		if (!ariaLabel && visibilities.inputBox) {
-			ariaLabel = this.placeholder || QuickPick.DEFAULT_ARIA_LABEL;
+			ariaLabel = this.placeholder;
 			// If we have a title, include it in the aria label.
 			if (this.title) {
-				ariaLabel += ` - ${this.title}`;
+				ariaLabel = ariaLabel
+					? `${ariaLabel} - ${this.title}`
+					: this.title;
+			}
+			if (!ariaLabel) {
+				ariaLabel = QuickPick.DEFAULT_ARIA_LABEL;
 			}
 		}
 		if (this.ui.list.ariaLabel !== ariaLabel) {
@@ -1158,11 +1163,11 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 			return; // needs to be enabled
 		}
 
-		if (this.activeItems[0]) {
+		if (this.activeItems[0] && !this._canSelectMany) {
 			this._selectedItems = [this.activeItems[0]];
 			this.onDidChangeSelectionEmitter.fire(this.selectedItems);
-			this.handleAccept(inBackground ?? false);
 		}
+		this.handleAccept(inBackground ?? false);
 	}
 }
 
@@ -1261,6 +1266,10 @@ export class InputBox extends QuickInput implements IInputBox {
 		super.show();
 	}
 
+	accept(): void {
+		this.onDidAcceptEmitter.fire();
+	}
+
 	protected override update() {
 		if (!this.visible) {
 			return;
@@ -1331,7 +1340,7 @@ export class QuickInputHoverDelegate extends WorkbenchHoverDelegate {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IHoverService hoverService: IHoverService
 	) {
-		super('element', undefined, (options) => this.getOverrideOptions(options), configurationService, hoverService);
+		super('mouse', undefined, (options) => this.getOverrideOptions(options), configurationService, hoverService);
 	}
 
 	private getOverrideOptions(options: IHoverDelegateOptions): Partial<IHoverOptions> {

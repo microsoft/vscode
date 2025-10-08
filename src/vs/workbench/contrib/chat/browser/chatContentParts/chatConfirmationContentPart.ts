@@ -33,13 +33,14 @@ export class ChatConfirmationContentPart extends Disposable implements IChatCont
 		const buttons = confirmation.buttons
 			? confirmation.buttons.map(button => ({
 				label: button,
-				data: confirmation.data
+				data: confirmation.data,
+				isSecondary: button !== confirmation.buttons?.[0],
 			}))
 			: [
 				{ label: localize('accept', "Accept"), data: confirmation.data },
 				{ label: localize('dismiss', "Dismiss"), data: confirmation.data, isSecondary: true },
 			];
-		const confirmationWidget = this._register(this.instantiationService.createInstance(SimpleChatConfirmationWidget, context.container, { title: confirmation.title, buttons, message: confirmation.message }));
+		const confirmationWidget = this._register(this.instantiationService.createInstance(SimpleChatConfirmationWidget, context.container, { title: confirmation.title, buttons, message: confirmation.message, silent: confirmation.isLive === false }));
 		confirmationWidget.setShowButtons(!confirmation.isUsed);
 
 		this._register(confirmationWidget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));

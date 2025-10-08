@@ -69,6 +69,11 @@ export interface IResourceLabelOptions extends IIconLabelValueOptions {
 	readonly namePrefix?: string;
 
 	/**
+	 * A suffix to be added to the name of the label.
+	 */
+	readonly nameSuffix?: string;
+
+	/**
 	 * Uses the provided icon instead of deriving a resource icon.
 	 */
 	readonly icon?: ThemeIcon | URI;
@@ -532,6 +537,14 @@ class ResourceLabelWidget extends IconLabel {
 				label.name = options.namePrefix + label.name;
 			} else if (Array.isArray(label.name) && label.name.length > 0) {
 				label.name = [options.namePrefix + label.name[0], ...label.name.slice(1)];
+			}
+		}
+
+		if (options.nameSuffix) {
+			if (typeof label.name === 'string') {
+				label.name = label.name + options.nameSuffix;
+			} else if (Array.isArray(label.name) && label.name.length > 0) {
+				label.name = [...label.name.slice(0, label.name.length - 1), label.name[label.name.length - 1] + options.nameSuffix];
 			}
 		}
 

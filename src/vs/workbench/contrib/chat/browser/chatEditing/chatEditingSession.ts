@@ -33,6 +33,7 @@ import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { ChatEditingSessionState, ChatEditKind, getMultiDiffSourceUri, IChatEditingSession, IModifiedEntryTelemetryInfo, IModifiedFileEntry, ISnapshotEntry, IStreamingEdits, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
+import { ChatAgentLocation } from '../../common/constants.js';
 import { ChatEditingModifiedDocumentEntry } from './chatEditingModifiedDocumentEntry.js';
 import { AbstractChatEditingModifiedFileEntry } from './chatEditingModifiedFileEntry.js';
 import { ChatEditingModifiedNotebookEntry } from './chatEditingModifiedNotebookEntry.js';
@@ -110,7 +111,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 
 	private readonly _entriesObs = observableValue<readonly AbstractChatEditingModifiedFileEntry[]>(this, []);
 	public get entries(): IObservable<readonly IModifiedFileEntry[]> {
-		this._assertNotDisposed();
 		return this._entriesObs;
 	}
 
@@ -318,35 +318,30 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	}
 
 	async accept(...uris: URI[]): Promise<void> {
-		this._assertNotDisposed();
-
-		if (uris.length === 0) {
-			await Promise.all(this._entriesObs.get().map(entry => entry.accept()));
+		if (await this._operateEntry('accept', uris)) {
+			this._accessibilitySignalService.playSignal(AccessibilitySignal.editsKept, { allowManyInParallel: true });
 		}
 
-		for (const uri of uris) {
-			const entry = this._entriesObs.get().find(e => isEqual(e.modifiedURI, uri));
-			if (entry) {
-				await entry.accept();
-			}
-		}
-		this._accessibilitySignalService.playSignal(AccessibilitySignal.editsKept, { allowManyInParallel: true });
 	}
 
 	async reject(...uris: URI[]): Promise<void> {
+		if (await this._operateEntry('reject', uris)) {
+			this._accessibilitySignalService.playSignal(AccessibilitySignal.editsUndone, { allowManyInParallel: true });
+		}
+	}
+
+	private async _operateEntry(action: 'accept' | 'reject', uris: URI[]): Promise<number> {
 		this._assertNotDisposed();
 
-		if (uris.length === 0) {
-			await Promise.all(this._entriesObs.get().map(entry => entry.reject()));
+		const applicableEntries = this._entriesObs.get()
+			.filter(e => uris.length === 0 || uris.some(u => isEqual(u, e.modifiedURI)))
+			.filter(e => !e.isCurrentlyBeingModifiedBy.get());
+
+		for (const entry of applicableEntries) {
+			await entry[action]();
 		}
 
-		for (const uri of uris) {
-			const entry = this._entriesObs.get().find(e => isEqual(e.modifiedURI, uri));
-			if (entry) {
-				await entry.reject();
-			}
-		}
-		this._accessibilitySignalService.playSignal(AccessibilitySignal.editsUndone, { allowManyInParallel: true });
+		return applicableEntries.length;
 	}
 
 	async show(previousChanges?: boolean): Promise<void> {
@@ -509,12 +504,24 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 
 	private _getTelemetryInfoForModel(responseModel: IChatResponseModel): IModifiedEntryTelemetryInfo {
 		// Make these getters because the response result is not available when the file first starts to be edited
-		return new class {
+		return new class implements IModifiedEntryTelemetryInfo {
 			get agentId() { return responseModel.agent?.id; }
+			get modelId() { return responseModel.request?.modelId; }
+			get modeId() { return responseModel.request?.modeInfo?.modeId; }
 			get command() { return responseModel.slashCommand?.name; }
 			get sessionId() { return responseModel.session.sessionId; }
 			get requestId() { return responseModel.requestId; }
 			get result() { return responseModel.result; }
+			get applyCodeBlockSuggestionId() { return responseModel.request?.modeInfo?.applyCodeBlockSuggestionId; }
+
+			get feature(): string {
+				if (responseModel.session.initialLocation === ChatAgentLocation.Chat) {
+					return 'sideBarChat';
+				} else if (responseModel.session.initialLocation === ChatAgentLocation.EditorInline) {
+					return 'inlineChat';
+				}
+				return responseModel.session.initialLocation;
+			}
 		};
 	}
 
@@ -557,6 +564,10 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		const existingExternalEntry = this._lookupExternalEntry(resource);
 		if (existingExternalEntry) {
 			entry = existingExternalEntry;
+
+			if (telemetryInfo.requestId !== entry.telemetryInfo.requestId) {
+				entry.updateTelemetryInfo(telemetryInfo);
+			}
 		} else {
 			const initialContent = this._initialFileContents.get(resource);
 			// This gets manually disposed in .dispose() or in .restoreSnapshot()

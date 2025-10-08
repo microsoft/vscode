@@ -15,8 +15,9 @@ import { BetterTokenStorage } from '../betterSecretStorage';
 import { IStoredSession } from '../AADHelper';
 import { ExtensionHost, getMsalFlows } from './flows';
 import { base64Decode } from './buffer';
+import { Config } from '../common/config';
+import { DEFAULT_REDIRECT_URI } from '../common/env';
 
-const redirectUri = 'https://vscode.dev/redirect';
 const MSA_TID = '9188040d-6c67-4c5b-b112-36a304b66dad';
 const MSA_PASSTHRU_TID = 'f8cdef31-a31e-4b4a-93e4-5f571e91255a';
 
@@ -87,7 +88,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 		uriHandler: UriEventHandler,
 		env: Environment = Environment.AzureCloud
 	): Promise<MsalAuthProvider> {
-		const publicClientManager = await CachedPublicClientApplicationManager.create(context.secrets, logger, telemetryReporter, env.name);
+		const publicClientManager = await CachedPublicClientApplicationManager.create(context.secrets, logger, telemetryReporter, env);
 		context.subscriptions.push(publicClientManager);
 		const authProvider = new MsalAuthProvider(context, telemetryReporter, logger, uriHandler, publicClientManager, env);
 		await authProvider.initialize();
@@ -117,8 +118,8 @@ export class MsalAuthProvider implements AuthenticationProvider {
 			clientTenantMap.get(key)!.refreshTokens.push(session.refreshToken);
 		}
 
-		for (const { clientId, refreshTokens } of clientTenantMap.values()) {
-			await this._publicClientManager.getOrCreate(clientId, refreshTokens);
+		for (const { clientId, tenant, refreshTokens } of clientTenantMap.values()) {
+			await this._publicClientManager.getOrCreate(clientId, { refreshTokensToMigrate: refreshTokens, tenant });
 		}
 	}
 
@@ -213,6 +214,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 			extensionHost: isNodeEnvironment
 				? this._context.extension.extensionKind === ExtensionKind.UI ? ExtensionHost.Local : ExtensionHost.Remote
 				: ExtensionHost.WebWorker,
+			isBrokerSupported: cachedPca.isBrokerAvailable
 		});
 
 		const authority = new URL(scopeData.tenant, this._env.activeDirectoryEndpointUrl).toString();
@@ -288,8 +290,11 @@ export class MsalAuthProvider implements AuthenticationProvider {
 	async getSessionsFromChallenges(constraint: AuthenticationConstraint, options: AuthenticationProviderSessionOptions): Promise<readonly AuthenticationSession[]> {
 		this._logger.info('[getSessionsFromChallenges]', 'starting with', constraint.challenges.length, 'challenges');
 
-		// Use scopes from constraint if provided, otherwise extract from challenges
-		const scopes = constraint.scopes?.length ? [...constraint.scopes] : this.extractScopesFromChallenges(constraint.challenges);
+		// Use scopes from challenges if provided, otherwise use fallback scopes
+		const scopes = this.extractScopesFromChallenges(constraint.challenges) ?? constraint.fallbackScopes;
+		if (!scopes || scopes.length === 0) {
+			throw new Error('No scopes found in authentication challenges or fallback scopes');
+		}
 		const claims = this.extractClaimsFromChallenges(constraint.challenges);
 		if (!claims) {
 			throw new Error('No claims found in authentication challenges');
@@ -307,8 +312,11 @@ export class MsalAuthProvider implements AuthenticationProvider {
 	async createSessionFromChallenges(constraint: AuthenticationConstraint, options: AuthenticationProviderSessionOptions): Promise<AuthenticationSession> {
 		this._logger.info('[createSessionFromChallenges]', 'starting with', constraint.challenges.length, 'challenges');
 
-		// Use scopes from constraint if provided, otherwise extract from challenges
-		const scopes = constraint.scopes?.length ? [...constraint.scopes] : this.extractScopesFromChallenges(constraint.challenges);
+		// Use scopes from challenges if provided, otherwise use fallback scopes
+		const scopes = this.extractScopesFromChallenges(constraint.challenges) ?? constraint.fallbackScopes;
+		if (!scopes || scopes.length === 0) {
+			throw new Error('No scopes found in authentication challenges or fallback scopes');
+		}
 		const claims = this.extractClaimsFromChallenges(constraint.challenges);
 
 		// Use scopes if available, otherwise fall back to default scopes
@@ -342,6 +350,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 			extensionHost: isNodeEnvironment
 				? this._context.extension.extensionKind === ExtensionKind.UI ? ExtensionHost.Local : ExtensionHost.Remote
 				: ExtensionHost.WebWorker,
+			isBrokerSupported: cachedPca.isBrokerAvailable
 		});
 
 		const authority = new URL(scopeData.tenant, this._env.activeDirectoryEndpointUrl).toString();
@@ -389,14 +398,13 @@ export class MsalAuthProvider implements AuthenticationProvider {
 		throw lastError ?? new Error('No auth flow succeeded');
 	}
 
-	private extractScopesFromChallenges(challenges: readonly AuthenticationChallenge[]): string[] {
-		const scopes: string[] = [];
+	private extractScopesFromChallenges(challenges: readonly AuthenticationChallenge[]): string[] | undefined {
 		for (const challenge of challenges) {
 			if (challenge.scheme.toLowerCase() === 'bearer' && challenge.params.scope) {
-				scopes.push(...challenge.params.scope.split(' '));
+				return challenge.params.scope.split(' ');
 			}
 		}
-		return scopes;
+		return undefined;
 	}
 
 	private extractClaimsFromChallenges(challenges: readonly AuthenticationChallenge[]): string | undefined {
@@ -481,12 +489,18 @@ export class MsalAuthProvider implements AuthenticationProvider {
 						forceRefresh = true;
 						claims = scopeData.claims;
 					}
+					let redirectUri: string | undefined;
+					// If we have the broker available and are on macOS, we HAVE to include the redirect URI or MSAL will throw an error.
+					// HOWEVER, if we are _not_ using the broker, we MUST NOT include the redirect URI or MSAL will throw an error.
+					if (cachedPca.isBrokerAvailable && process.platform === 'darwin') {
+						redirectUri = Config.macOSBrokerRedirectUri;
+					}
 					const result = await cachedPca.acquireTokenSilent({
 						account,
 						authority,
 						scopes: scopeData.scopesToSend,
-						redirectUri,
 						claims,
+						redirectUri,
 						forceRefresh
 					});
 					sessions.push(this.sessionFromAuthenticationResult(result, scopeData.originalScopes));
@@ -494,6 +508,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 					// If we can't get a token silently, the account is probably in a bad state so we should skip it
 					// MSAL will log this already, so we don't need to log it again
 					this._telemetryReporter.sendTelemetryErrorEvent(e);
+					this._logger.info(`[getAllSessionsForPca] [${scopeData.scopeStr}] [${account.username}] failed to acquire token silently, skipping account`, JSON.stringify(e));
 					continue;
 				}
 			}

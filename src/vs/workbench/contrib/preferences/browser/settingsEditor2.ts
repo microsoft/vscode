@@ -51,6 +51,7 @@ import { IWorkspaceTrustManagementService } from '../../../../platform/workspace
 import { registerNavigableContainer } from '../../../browser/actions/widgetNavigationCommands.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorMemento, IEditorOpenContext, IEditorPane } from '../../../common/editor.js';
+import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { APPLICATION_SCOPES, IWorkbenchConfigurationService } from '../../../services/configuration/common/configuration.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
@@ -251,7 +252,7 @@ export class SettingsEditor2 extends EditorPane {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IPreferencesSearchService private readonly preferencesSearchService: IPreferencesSearchService,
 		@ILogService private readonly logService: ILogService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IEditorGroupsService protected editorGroupService: IEditorGroupsService,
 		@IUserDataSyncWorkbenchService private readonly userDataSyncWorkbenchService: IUserDataSyncWorkbenchService,
@@ -264,7 +265,8 @@ export class SettingsEditor2 extends EditorPane {
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 		@IEditorProgressService private readonly editorProgressService: IEditorProgressService,
 		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService
 	) {
 		super(SettingsEditor2.ID, group, telemetryService, themeService, storageService);
 		this.searchDelayer = new Delayer(200);
@@ -292,12 +294,17 @@ export class SettingsEditor2 extends EditorPane {
 			.split(this.DISMISSED_EXTENSION_SETTINGS_DELIMITER);
 
 		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectedKeys.has(WorkbenchSettingsEditorSettings.ShowAISearchToggle) || e.affectedKeys.has(WorkbenchSettingsEditorSettings.EnableNaturalLanguageSearch)) {
+			if (e.affectedKeys.has(WorkbenchSettingsEditorSettings.ShowAISearchToggle)
+				|| e.affectedKeys.has(WorkbenchSettingsEditorSettings.EnableNaturalLanguageSearch)) {
 				this.updateAiSearchToggleVisibility();
 			}
 			if (e.source !== ConfigurationTarget.DEFAULT) {
 				this.onConfigUpdate(e.affectedKeys);
 			}
+		}));
+
+		this._register(chatEntitlementService.onDidChangeSentiment(() => {
+			this.updateAiSearchToggleVisibility();
 		}));
 
 		this._register(userDataProfileService.onDidChangeCurrentProfile(e => {
@@ -359,8 +366,8 @@ export class SettingsEditor2 extends EditorPane {
 
 		const showAiToggle = this.configurationService.getValue<boolean>(WorkbenchSettingsEditorSettings.ShowAISearchToggle);
 		const enableNaturalLanguageSearch = this.configurationService.getValue<boolean>(WorkbenchSettingsEditorSettings.EnableNaturalLanguageSearch);
-		const chatSetupHidden = this.contextKeyService.getContextKeyValue<boolean>('chatSetupHidden');
-		const canShowToggle = showAiToggle && enableNaturalLanguageSearch && !chatSetupHidden;
+		const chatHidden = this.chatEntitlementService.sentiment.hidden || this.chatEntitlementService.sentiment.disabled;
+		const canShowToggle = showAiToggle && enableNaturalLanguageSearch && !chatHidden;
 
 		const alreadyVisible = this.searchInputActionBar.hasAction(this.showAiResultsAction);
 		if (!alreadyVisible && canShowToggle) {
@@ -557,8 +564,8 @@ export class SettingsEditor2 extends EditorPane {
 		this.layoutSplitView(dimension);
 
 		const innerWidth = Math.min(this.headerContainer.clientWidth, dimension.width) - 24 * 2; // 24px padding on left and right;
-		// minus padding inside inputbox, countElement width, controls width, extra padding before countElement
-		const monacoWidth = innerWidth - 10 - this.countElement.clientWidth - this.controlsElement.clientWidth - 12;
+		// minus padding inside inputbox, controls width, and extra padding before countElement
+		const monacoWidth = innerWidth - 10 - this.controlsElement.clientWidth - 12;
 		this.searchWidget.layout(new DOM.Dimension(monacoWidth, 20));
 
 		this.rootElement.classList.toggle('narrow-width', dimension.width < SettingsEditor2.NARROW_TOTAL_WIDTH);
@@ -1408,7 +1415,7 @@ export class SettingsEditor2 extends EditorPane {
 
 		const additionalGroups: ISettingsGroup[] = [];
 		let setAdditionalGroups = false;
-		const toggleData = await getExperimentalExtensionToggleData(this.contextKeyService, this.extensionGalleryService, this.productService);
+		const toggleData = await getExperimentalExtensionToggleData(this.chatEntitlementService, this.extensionGalleryService, this.productService);
 		if (toggleData && groups.filter(g => g.extensionInfo).length) {
 			for (const key in toggleData.settingsEditorRecommendedExtensions) {
 				const extension: IGalleryExtension = toggleData.recommendedExtensionsGalleryInfo[key];
@@ -2011,8 +2018,8 @@ export class SettingsEditor2 extends EditorPane {
 
 			if (this.countElement.style.display !== 'block') {
 				this.countElement.style.display = 'block';
-				this.layout(this.dimension);
 			}
+			this.layout(this.dimension);
 			this.rootElement.classList.toggle('no-results', count === 0);
 			this.splitView.el.style.visibility = count === 0 ? 'hidden' : 'visible';
 		}

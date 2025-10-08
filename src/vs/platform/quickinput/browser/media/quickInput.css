@@ -54,6 +54,10 @@
 	justify-content: flex-end;
 }
 
+.quick-input-right-action-bar > .actions-container > .action-item {
+	margin-left: 4px;
+}
+
 .quick-input-titlebar .monaco-action-bar .action-label.codicon {
 	background-position: center;
 	background-repeat: no-repeat;

@@ -250,9 +250,8 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 
 		super.create(parent);
 
-		const contentArea = this.getContentArea();
-		if (contentArea) {
-			this.createEmptyPaneMessage(contentArea);
+		if (this.contentArea) {
+			this.createEmptyPaneMessage(this.contentArea);
 		}
 
 		this.updateCompositeBar();
@@ -325,7 +324,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 
 					else if (dragData.type === 'view') {
 						const viewToMove = this.viewDescriptorService.getViewDescriptorById(dragData.id)!;
-						if (viewToMove && viewToMove.canMoveView) {
+						if (viewToMove.canMoveView) {
 							this.viewDescriptorService.moveViewToLocation(viewToMove, this.location, 'dnd');
 
 							const newContainer = this.viewDescriptorService.getViewContainerByViewId(viewToMove.id)!;
@@ -366,8 +365,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 				hoverDelegate: this.toolbarHoverDelegate,
 				hiddenItemStrategy: HiddenItemStrategy.NoHide,
 				highlightToggledItems: true,
-				telemetrySource: this.nameForTelemetry,
-				toolbarOptions: { forceLeadingSeparatorInPrimaryActions: true /* separate from view toolbar */ }
+				telemetrySource: this.nameForTelemetry
 			}
 		));
 

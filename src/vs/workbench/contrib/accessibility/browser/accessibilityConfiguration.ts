@@ -35,7 +35,8 @@ export const enum AccessibilityWorkbenchSettingId {
 	DimUnfocusedEnabled = 'accessibility.dimUnfocused.enabled',
 	DimUnfocusedOpacity = 'accessibility.dimUnfocused.opacity',
 	HideAccessibleView = 'accessibility.hideAccessibleView',
-	AccessibleViewCloseOnKeyPress = 'accessibility.accessibleView.closeOnKeyPress'
+	AccessibleViewCloseOnKeyPress = 'accessibility.accessibleView.closeOnKeyPress',
+	VerboseChatProgressUpdates = 'accessibility.verboseChatProgressUpdates'
 }
 
 export const enum ViewDimUnfocusedOpacityProperties {
@@ -807,6 +808,11 @@ const configuration: IConfigurationNode = {
 			'default': true,
 			'markdownDescription': localize('accessibility.openChatEditedFiles', "Controls whether files should be opened when the chat agent has applied edits to them.")
 		},
+		'accessibility.verboseChatProgressUpdates': {
+			'type': 'boolean',
+			'default': true,
+			'markdownDescription': localize('accessibility.verboseChatProgressUpdates', "Controls whether verbose progress announcements should be made when a chat request is in progress, including information like searched text for <search term> with X results, created file <file_name>, or read file <file path>.")
+		}
 	}
 };
 
@@ -838,6 +844,11 @@ export function registerAccessibilityConfiguration() {
 				type: 'boolean',
 				default: false,
 				tags: ['accessibility']
+			},
+			[AccessibilityWorkbenchSettingId.VerboseChatProgressUpdates]: {
+				'type': 'boolean',
+				'default': true,
+				'markdownDescription': localize('accessibility.verboseChatProgressUpdates', "Controls whether verbose progress announcements should be made when a chat request is in progress, including information like searched text for <search term> with X results, created file <file_name>, or read file <file path>.")
 			}
 		}
 	});
@@ -845,7 +856,7 @@ export function registerAccessibilityConfiguration() {
 
 export { AccessibilityVoiceSettingId };
 
-export const SpeechTimeoutDefault = 1200;
+export const SpeechTimeoutDefault = 2000;
 
 export class DynamicSpeechAccessibilityConfiguration extends Disposable implements IWorkbenchContribution {
 

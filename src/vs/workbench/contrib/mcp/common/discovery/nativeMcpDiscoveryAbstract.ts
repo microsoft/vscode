@@ -26,7 +26,10 @@ import { ClaudeDesktopMpcDiscoveryAdapter, CursorDesktopMpcDiscoveryAdapter, Nat
 
 export type WritableMcpCollectionDefinition = McpCollectionDefinition & { serverDefinitions: ISettableObservable<readonly McpServerDefinition[]> };
 
-export abstract class FilesystemMcpDiscovery extends Disposable {
+export abstract class FilesystemMcpDiscovery extends Disposable implements IMcpDiscovery {
+
+	readonly fromGallery: boolean = false;
+
 	protected readonly _fsDiscoveryEnabled: IObservable<{ [K in DiscoverySource]: boolean } | undefined>;
 
 	constructor(
@@ -90,6 +93,8 @@ export abstract class FilesystemMcpDiscovery extends Disposable {
 
 		return store;
 	}
+
+	public abstract start(): void;
 }
 
 /**
@@ -119,8 +124,6 @@ export abstract class NativeFilesystemMcpDiscovery extends FilesystemMcpDiscover
 			instantiationService.createInstance(WindsurfDesktopMpcDiscoveryAdapter, remoteAuthority),
 		];
 	}
-
-	public abstract start(): void;
 
 	protected setDetails(detailsDto: Dto<INativeMcpDiscoveryData> | undefined) {
 		if (!detailsDto) {

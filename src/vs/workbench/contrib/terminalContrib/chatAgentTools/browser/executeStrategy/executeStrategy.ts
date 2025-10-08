@@ -8,6 +8,7 @@ import type { CancellationToken } from '../../../../../../base/common/cancellati
 import type { Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
+import type { IMarker as IXtermMarker } from '@xterm/xterm';
 
 export interface ITerminalExecuteStrategy {
 	readonly type: 'rich' | 'basic' | 'none';
@@ -16,6 +17,8 @@ export interface ITerminalExecuteStrategy {
 	 * result will include information about the exit code.
 	 */
 	execute(commandLine: string, token: CancellationToken): Promise<ITerminalExecuteStrategyResult>;
+
+	onDidCreateStartMarker: Event<IXtermMarker | undefined>;
 }
 
 export interface ITerminalExecuteStrategyResult {
@@ -92,6 +95,23 @@ export function detectsCommonPromptPattern(cursorLine: string): IPromptDetection
 
 	return { detected: false, reason: `No common prompt pattern found in last line: "${cursorLine}"` };
 }
+
+
+// PowerShell-style multi-option line (supports [?] Help and optional default suffix) ending in whitespace
+const PS_CONFIRM_RE = /\s*(?:\[[^\]]\]\s+[^\[]+\s*)+(?:\(default is\s+"[^"]+"\):)?\s+$/;
+
+// Bracketed/parenthesized yes/no pairs at end of line: (y/n), [Y/n], (yes/no), [no/yes]
+const YN_PAIRED_RE = /(?:\(|\[)\s*(?:y(?:es)?\s*\/\s*n(?:o)?|n(?:o)?\s*\/\s*y(?:es)?)\s*(?:\]|\))\s+$/i;
+
+// Same as YN_PAIRED_RE but allows a preceding '?' or ':' and optional wrappers e.g. "Continue? (y/n)" or "Overwrite: [yes/no]"
+const YN_AFTER_PUNCT_RE = /[?:]\s*(?:\(|\[)?\s*y(?:es)?\s*\/\s*n(?:o)?\s*(?:\]|\))?\s+$/i;
+
+const LINE_ENDS_WITH_COLON_RE = /:\s*$/;
+
+export function detectsInputRequiredPattern(cursorLine: string): boolean {
+	return PS_CONFIRM_RE.test(cursorLine) || YN_PAIRED_RE.test(cursorLine) || YN_AFTER_PUNCT_RE.test(cursorLine) || LINE_ENDS_WITH_COLON_RE.test(cursorLine.trim());
+}
+
 
 /**
  * Enhanced version of {@link waitForIdle} that uses prompt detection heuristics. After the terminal

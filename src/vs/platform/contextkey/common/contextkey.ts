@@ -936,6 +936,7 @@ export class ContextKeyInExpr implements IContextKeyExpression {
 		const item = context.getValue(this.key);
 
 		if (Array.isArray(source)) {
+			// eslint-disable-next-line local/code-no-any-casts
 			return source.includes(item as any);
 		}
 
@@ -1209,6 +1210,7 @@ export class ContextKeyGreaterExpr implements IContextKeyExpression {
 		if (typeof this.value === 'string') {
 			return false;
 		}
+		// eslint-disable-next-line local/code-no-any-casts
 		return (parseFloat(<any>context.getValue(this.key)) > this.value);
 	}
 
@@ -1268,6 +1270,7 @@ export class ContextKeyGreaterEqualsExpr implements IContextKeyExpression {
 		if (typeof this.value === 'string') {
 			return false;
 		}
+		// eslint-disable-next-line local/code-no-any-casts
 		return (parseFloat(<any>context.getValue(this.key)) >= this.value);
 	}
 
@@ -1328,6 +1331,7 @@ export class ContextKeySmallerExpr implements IContextKeyExpression {
 		if (typeof this.value === 'string') {
 			return false;
 		}
+		// eslint-disable-next-line local/code-no-any-casts
 		return (parseFloat(<any>context.getValue(this.key)) < this.value);
 	}
 
@@ -1388,6 +1392,7 @@ export class ContextKeySmallerEqualsExpr implements IContextKeyExpression {
 		if (typeof this.value === 'string') {
 			return false;
 		}
+		// eslint-disable-next-line local/code-no-any-casts
 		return (parseFloat(<any>context.getValue(this.key)) <= this.value);
 	}
 

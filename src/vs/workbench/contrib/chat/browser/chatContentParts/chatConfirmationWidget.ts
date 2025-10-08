@@ -43,6 +43,7 @@ export interface IChatConfirmationWidgetOptions<T> {
 	subtitle?: string | IMarkdownString;
 	buttons: IChatConfirmationButton<T>[];
 	toolbarData?: { arg: any; partType: string; partSource?: string };
+	silent?: boolean;
 }
 
 export class ChatQueryTitlePart extends Disposable {
@@ -63,7 +64,7 @@ export class ChatQueryTitlePart extends Disposable {
 
 		const previousEl = this._renderedTitle.value?.element;
 		if (previousEl?.parentElement) {
-			previousEl.parentElement.replaceChild(next.element, previousEl);
+			previousEl.replaceWith(next.element);
 		} else {
 			this.element.appendChild(next.element); // unreachable?
 		}
@@ -129,6 +130,7 @@ abstract class BaseSimpleChatConfirmationWidget<T> extends Disposable {
 	protected readonly markdownRenderer: MarkdownRenderer;
 	private readonly title: string | IMarkdownString;
 
+	private readonly silent: boolean;
 	private readonly notification = this._register(new MutableDisposable<DisposableStore>());
 
 	constructor(
@@ -142,21 +144,23 @@ abstract class BaseSimpleChatConfirmationWidget<T> extends Disposable {
 	) {
 		super();
 
-		const { title, subtitle, message, buttons } = options;
+		const { title, subtitle, message, buttons, silent } = options;
 		this.title = title;
+		this.silent = !!silent;
 
 
-		const elements = dom.h('.chat-confirmation-widget@root', [
-			dom.h('.chat-confirmation-widget-title@title'),
-			dom.h('.chat-confirmation-widget-message@message'),
-			dom.h('.chat-buttons-container@buttonsContainer', [
-				dom.h('.chat-buttons@buttons'),
-				dom.h('.chat-toolbar@toolbar'),
+		const elements = dom.h('.chat-confirmation-widget-container@container', [
+			dom.h('.chat-confirmation-widget@root', [
+				dom.h('.chat-confirmation-widget-title@title'),
+				dom.h('.chat-confirmation-widget-message@message'),
+				dom.h('.chat-buttons-container@buttonsContainer', [
+					dom.h('.chat-buttons@buttons'),
+					dom.h('.chat-toolbar@toolbar'),
+				]),
 			]),
 		]);
-		const container = createAccessibilityContainer(title, message);
-		container.appendChild(elements.root);
-		this._domNode = container;
+		configureAccessibilityContainer(elements.container, title, message);
+		this._domNode = elements.root;
 		this.markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
 
 		const titlePart = this._register(instantiationService.createInstance(
@@ -234,7 +238,7 @@ abstract class BaseSimpleChatConfirmationWidget<T> extends Disposable {
 	protected renderMessage(element: HTMLElement, listContainer: HTMLElement): void {
 		this.messageElement.append(element);
 
-		if (this.showingButtons && this._configurationService.getValue<boolean>('chat.notifyWindowOnConfirmation')) {
+		if (this.showingButtons && this._configurationService.getValue<boolean>('chat.notifyWindowOnConfirmation') && !this.silent) {
 			const targetWindow = dom.getWindow(listContainer);
 			if (!targetWindow.document.hasFocus()) {
 				this.notifyConfirmationNeeded(targetWindow);
@@ -352,22 +356,22 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 		const { title, subtitle, message, buttons, icon } = options;
 		this.title = title;
 
-		const elements = dom.h('.chat-confirmation-widget2@root', [
-			dom.h('.chat-confirmation-widget-title', [
-				dom.h('.chat-title@title'),
-				dom.h('.chat-toolbar-container@buttonsContainer', [
-					dom.h('.chat-toolbar@toolbar'),
+		const elements = dom.h('.chat-confirmation-widget-container@container', [
+			dom.h('.chat-confirmation-widget2@root', [
+				dom.h('.chat-confirmation-widget-title', [
+					dom.h('.chat-title@title'),
+					dom.h('.chat-toolbar-container@buttonsContainer', [
+						dom.h('.chat-toolbar@toolbar'),
+					]),
 				]),
-			]),
-			dom.h('.chat-confirmation-widget-message@message'),
-			dom.h('.chat-confirmation-widget-buttons', [
-				dom.h('.chat-buttons@buttons'),
-			]),
-		]);
+				dom.h('.chat-confirmation-widget-message@message'),
+				dom.h('.chat-confirmation-widget-buttons', [
+					dom.h('.chat-buttons@buttons'),
+				]),
+			]),]);
 
-		const container = createAccessibilityContainer(title, message);
-		container.appendChild(elements.root);
-		this._domNode = container;
+		configureAccessibilityContainer(elements.container, title, message);
+		this._domNode = elements.root;
 		this._buttonsDomNode = elements.buttons;
 
 		this.markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
@@ -544,12 +548,10 @@ export class ChatCustomConfirmationWidget<T> extends BaseChatConfirmationWidget<
 	}
 }
 
-function createAccessibilityContainer(title: string | IMarkdownString, message?: string | IMarkdownString | HTMLElement): HTMLElement {
-	const container = document.createElement('div');
+function configureAccessibilityContainer(container: HTMLElement, title: string | IMarkdownString, message?: string | IMarkdownString | HTMLElement): void {
 	container.tabIndex = 0;
 	const titleAsString = typeof title === 'string' ? title : title.value;
 	const messageAsString = typeof message === 'string' ? message : message && 'value' in message ? message.value : message && 'textContent' in message ? message.textContent : '';
 	container.setAttribute('aria-label', localize('chat.confirmationWidget.ariaLabel', "Chat Confirmation Dialog {0} {1}", titleAsString, messageAsString));
 	container.classList.add('chat-confirmation-widget-container');
-	return container;
 }

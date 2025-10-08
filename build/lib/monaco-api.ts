@@ -218,6 +218,7 @@ function format(ts: typeof import('typescript'), text: string, endl: string): st
 	const sourceFile = ts.createSourceFile('file.ts', text, ts.ScriptTarget.Latest, /*setParentPointers*/ true);
 
 	// Get the formatting edits on the input sources
+	// eslint-disable-next-line local/code-no-any-casts
 	const edits = (<any>ts).formatting.formatDocument(sourceFile, getRuleProvider(tsfmt), tsfmt);
 
 	// Apply the edits on the input code
@@ -324,6 +325,7 @@ function format(ts: typeof import('typescript'), text: string, endl: string): st
 	function getRuleProvider(options: ts.FormatCodeSettings) {
 		// Share this between multiple formatters using the same options.
 		// This represents the bulk of the space the formatter uses.
+		// eslint-disable-next-line local/code-no-any-casts
 		return (ts as any).formatting.getFormatContext(options);
 	}
 
@@ -650,10 +652,10 @@ export class DeclarationResolver {
 			);
 		}
 		const fileContents = this._fsProvider.readFileSync(moduleId, fileName).toString();
-		const fileMap: IFileMap = {
-			'file.ts': fileContents
-		};
-		const service = this.ts.createLanguageService(new TypeScriptLanguageServiceHost(this.ts, {}, fileMap, {}));
+		const fileMap: IFileMap = new Map([
+			['file.ts', fileContents]
+		]);
+		const service = this.ts.createLanguageService(new TypeScriptLanguageServiceHost(this.ts, new Map(), fileMap, {}));
 		const text = service.getEmitOutput('file.ts', true, true).outputFiles[0].text;
 		return new CacheEntry(
 			this.ts.createSourceFile(fileName, text, this.ts.ScriptTarget.ES5),
@@ -668,10 +670,8 @@ export function run3(resolver: DeclarationResolver): IMonacoDeclarationResult | 
 }
 
 
-
-
-interface ILibMap { [libName: string]: string }
-interface IFileMap { [fileName: string]: string }
+type ILibMap = Map</*libName*/ string, string>;
+type IFileMap = Map</*fileName*/ string, string>;
 
 class TypeScriptLanguageServiceHost implements ts.LanguageServiceHost {
 
@@ -693,11 +693,10 @@ class TypeScriptLanguageServiceHost implements ts.LanguageServiceHost {
 		return this._compilerOptions;
 	}
 	getScriptFileNames(): string[] {
-		return (
-			([] as string[])
-				.concat(Object.keys(this._libs))
-				.concat(Object.keys(this._files))
-		);
+		return [
+			...this._libs.keys(),
+			...this._files.keys(),
+		];
 	}
 	getScriptVersion(_fileName: string): string {
 		return '1';
@@ -706,10 +705,10 @@ class TypeScriptLanguageServiceHost implements ts.LanguageServiceHost {
 		return '1';
 	}
 	getScriptSnapshot(fileName: string): ts.IScriptSnapshot {
-		if (this._files.hasOwnProperty(fileName)) {
-			return this._ts.ScriptSnapshot.fromString(this._files[fileName]);
-		} else if (this._libs.hasOwnProperty(fileName)) {
-			return this._ts.ScriptSnapshot.fromString(this._libs[fileName]);
+		if (this._files.has(fileName)) {
+			return this._ts.ScriptSnapshot.fromString(this._files.get(fileName)!);
+		} else if (this._libs.has(fileName)) {
+			return this._ts.ScriptSnapshot.fromString(this._libs.get(fileName)!);
 		} else {
 			return this._ts.ScriptSnapshot.fromString('');
 		}
@@ -727,10 +726,10 @@ class TypeScriptLanguageServiceHost implements ts.LanguageServiceHost {
 		return fileName === this.getDefaultLibFileName(this._compilerOptions);
 	}
 	readFile(path: string, _encoding?: string): string | undefined {
-		return this._files[path] || this._libs[path];
+		return this._files.get(path) || this._libs.get(path);
 	}
 	fileExists(path: string): boolean {
-		return path in this._files || path in this._libs;
+		return this._files.has(path) || this._libs.has(path);
 	}
 }
 

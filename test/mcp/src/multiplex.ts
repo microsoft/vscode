@@ -2,60 +2,86 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { z, ZodRawShape, AnyZodObject, ZodTypeAny } from 'zod';
 import { Server, ServerOptions } from '@modelcontextprotocol/sdk/server/index.js';
-import { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/protocol.js';
 import { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
-import { Implementation, ListToolsRequestSchema, CallToolRequestSchema, ListToolsResult, Tool, CallToolResult, McpError, ErrorCode, ToolAnnotations, ServerRequest, ServerNotification, CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js';
+import { Implementation, ListToolsRequestSchema, CallToolRequestSchema, ListToolsResult, Tool, CallToolResult, McpError, ErrorCode, CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js';
 import { getServer as getAutomationServer } from './automation';
 import { getServer as getPlaywrightServer } from './playwright';
-import { getApplication } from './application';
+import { ApplicationService } from './application';
 import { createInMemoryTransportPair } from './inMemoryTransport';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { Application } from '../../automation';
 
-interface SubServer {
-	client: Client;
-	prefix: string;
+interface SubServerConfig {
+	subServer: Client;
+	excludeTools?: string[];
 }
 
 export async function getServer(): Promise<Server> {
-	const app = await getApplication();
-	const automationServer = await getAutomationServer(app);
-	const playwrightServer = await getPlaywrightServer(app);
-
-	// Create in-memory transport pairs for internal communication
+	const appService = new ApplicationService();
+	const automationServer = await getAutomationServer(appService);
 	const [automationServerTransport, automationClientTransport] = createInMemoryTransportPair();
-	const [playwrightServerTransport, playwrightClientTransport] = createInMemoryTransportPair();
-
-	const automationClient = new Client({
-		name: 'Automation Client',
-		version: '1.0.0'
-	});
-	const playwrightClient = new Client({
-		name: 'Playwright Client',
-		version: '1.0.0'
-	});
-
+	const automationClient = new Client({ name: 'Automation Client', version: '1.0.0' });
 	await automationServer.connect(automationServerTransport);
 	await automationClient.connect(automationClientTransport);
-	await playwrightServer.connect(playwrightServerTransport);
-	await playwrightClient.connect(playwrightClientTransport);
-	await playwrightClient.notification({
-		method: 'notifications/initialized',
-	});
 
-	return new MultiplexServer(
-		[
-			// Prefixes could change in the future... be careful.
-			{ client: playwrightClient, prefix: 'browser_' },
-			{ client: automationClient, prefix: 'vscode_automation_' }
-		],
+	const multiplexServer = new MultiplexServer(
+		[{ subServer: automationClient }],
 		{
 			name: 'VS Code Automation + Playwright Server',
 			version: '1.0.0',
 			title: 'Contains tools that can interact with a local build of VS Code. Used for verifying UI behavior.'
 		}
-	).server;
+	);
+
+	const closables: { close(): Promise<void> }[] = [];
+	const createPlaywrightServer = async (app: Application) => {
+		const playwrightServer = await getPlaywrightServer(app);
+		const [playwrightServerTransport, playwrightClientTransport] = createInMemoryTransportPair();
+		const playwrightClient = new Client({ name: 'Playwright Client', version: '1.0.0' });
+		await playwrightServer.connect(playwrightServerTransport);
+		await playwrightClient.connect(playwrightClientTransport);
+		await playwrightClient.notification({ method: 'notifications/initialized' });
+
+		// Add subserver with optional tool exclusions
+		multiplexServer.addSubServer({
+			subServer: playwrightClient,
+			excludeTools: [
+				// The page will always be opened in the context of the application,
+				// so navigation and tab management is not needed.
+				'browser_navigate',
+				'browser_navigate_back',
+				'browser_tabs'
+			]
+		});
+		multiplexServer.sendToolListChanged();
+		closables.push(
+			playwrightClient,
+			playwrightServer,
+			playwrightServerTransport,
+			playwrightClientTransport,
+			{
+				async close() {
+					multiplexServer.removeSubServer(playwrightClient);
+					multiplexServer.sendToolListChanged();
+				}
+			}
+		);
+	};
+	const disposePlaywrightServer = async () => {
+		while (closables.length) {
+			closables.pop()?.close();
+		}
+	};
+	appService.onApplicationChange(async app => {
+		if (app) {
+			await createPlaywrightServer(app);
+		} else {
+			await disposePlaywrightServer();
+		}
+	});
+
+	return multiplexServer.server;
 }
 
 /**
@@ -67,10 +93,24 @@ export class MultiplexServer {
 	/**
 	 * The underlying Server instance, useful for advanced operations like sending notifications.
 	 */
-	public readonly server: Server;
+	readonly server: Server;
 
-	constructor(private readonly subServers: SubServer[], serverInfo: Implementation, options?: ServerOptions) {
+	private readonly _subServerToToolSet = new Map<Client, Set<string>>();
+	private readonly _subServerToExcludedTools = new Map<Client, Set<string>>();
+	private readonly _subServers: Client[];
+
+	constructor(subServerConfigs: SubServerConfig[], serverInfo: Implementation, options?: ServerOptions) {
 		this.server = new Server(serverInfo, options);
+		this._subServers = [];
+
+		// Process configurations and set up subservers
+		for (const config of subServerConfigs) {
+			this._subServers.push(config.subServer);
+			if (config.excludeTools && config.excludeTools.length > 0) {
+				this._subServerToExcludedTools.set(config.subServer, new Set(config.excludeTools));
+			}
+		}
+
 		this.setToolRequestHandlers();
 	}
 
@@ -118,9 +158,13 @@ export class MultiplexServer {
 			ListToolsRequestSchema,
 			async (): Promise<ListToolsResult> => {
 				const tools: Tool[] = [];
-				for (const subServer of this.subServers) {
-					const result = await subServer.client.listTools();
-					tools.push(...result.tools);
+				for (const subServer of this._subServers) {
+					const result = await subServer.listTools();
+					const allToolNames = new Set(result.tools.map(t => t.name));
+					const excludedForThisServer = this._subServerToExcludedTools.get(subServer) || new Set();
+					const filteredTools = result.tools.filter(tool => !excludedForThisServer.has(tool.name));
+					this._subServerToToolSet.set(subServer, allToolNames);
+					tools.push(...filteredTools);
 				}
 				return { tools };
 			},
@@ -130,9 +174,15 @@ export class MultiplexServer {
 			CallToolRequestSchema,
 			async (request, extra): Promise<CallToolResult> => {
 				const toolName = request.params.name;
-				for (const subServer of this.subServers) {
-					if (toolName.startsWith(subServer.prefix)) {
-						return await subServer.client.request(
+				for (const subServer of this._subServers) {
+					const toolSet = this._subServerToToolSet.get(subServer);
+					const excludedForThisServer = this._subServerToExcludedTools.get(subServer) || new Set();
+					if (toolSet?.has(toolName)) {
+						// Check if tool is excluded for this specific subserver
+						if (excludedForThisServer.has(toolName)) {
+							throw new McpError(ErrorCode.InvalidParams, `Tool with ID ${toolName} is excluded`);
+						}
+						return await subServer.request(
 							{
 								method: 'tools/call',
 								params: request.params
@@ -164,46 +214,26 @@ export class MultiplexServer {
 			this.server.sendToolListChanged();
 		}
 	}
+
+	addSubServer(config: SubServerConfig) {
+		this._subServers.push(config.subServer);
+		if (config.excludeTools && config.excludeTools.length > 0) {
+			this._subServerToExcludedTools.set(config.subServer, new Set(config.excludeTools));
+		}
+		this.sendToolListChanged();
+	}
+
+	removeSubServer(subServer: Client) {
+		const index = this._subServers.indexOf(subServer);
+		if (index >= 0) {
+			const removed = this._subServers.splice(index, 1);
+			if (removed.length > 0) {
+				// Clean up excluded tools mapping
+				this._subServerToExcludedTools.delete(subServer);
+				this.sendToolListChanged();
+			}
+		} else {
+			throw new Error('SubServer not found.');
+		}
+	}
 }
-
-/**
- * Callback for a tool handler registered with Server.tool().
- *
- * Parameters will include tool arguments, if applicable, as well as other request handler context.
- *
- * The callback should return:
- * - `structuredContent` if the tool has an outputSchema defined
- * - `content` if the tool does not have an outputSchema
- * - Both fields are optional but typically one should be provided
- */
-export type ToolCallback<Args extends undefined | ZodRawShape = undefined> =
-	Args extends ZodRawShape
-	? (
-		args: z.objectOutputType<Args, ZodTypeAny>,
-		extra: RequestHandlerExtra<ServerRequest, ServerNotification>,
-	) => CallToolResult | Promise<CallToolResult>
-	: (extra: RequestHandlerExtra<ServerRequest, ServerNotification>) => CallToolResult | Promise<CallToolResult>;
-
-export type RegisteredTool = {
-	title?: string;
-	description?: string;
-	inputSchema?: AnyZodObject;
-	outputSchema?: AnyZodObject;
-	annotations?: ToolAnnotations;
-	callback: ToolCallback<undefined | ZodRawShape>;
-	enabled: boolean;
-	enable(): void;
-	disable(): void;
-	update<InputArgs extends ZodRawShape, OutputArgs extends ZodRawShape>(
-		updates: {
-			name?: string | null;
-			title?: string;
-			description?: string;
-			paramsSchema?: InputArgs;
-			outputSchema?: OutputArgs;
-			annotations?: ToolAnnotations;
-			callback?: ToolCallback<InputArgs>;
-			enabled?: boolean;
-		}): void;
-	remove(): void;
-};

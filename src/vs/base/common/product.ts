@@ -37,6 +37,14 @@ export interface IFeaturedExtension {
 	readonly imagePath: string;
 }
 
+export interface IChatSessionRecommendation {
+	readonly extensionId: string;
+	readonly extensionName: string;
+	readonly displayName: string;
+	readonly name: string;
+	readonly description: string;
+}
+
 export type ConfigurationSyncStore = {
 	url: string;
 	insidersUrl: string;
@@ -97,10 +105,20 @@ export interface IProductConfiguration {
 	readonly extensionsGallery?: {
 		readonly serviceUrl: string;
 		readonly controlUrl: string;
-		readonly mcpUrl: string;
+		readonly extensionUrlTemplate: string;
 		readonly resourceUrlTemplate: string;
 		readonly nlsBaseUrl: string;
 		readonly accessSKUs?: string[];
+	};
+
+	readonly mcpGallery?: {
+		readonly serviceUrl: string;
+		readonly itemWebUrl: string;
+		readonly publisherUrl: string;
+		readonly supportUrl: string;
+		readonly privacyPolicyUrl: string;
+		readonly termsOfServiceUrl: string;
+		readonly reportUrl: string;
 	};
 
 	readonly extensionPublisherOrgs?: readonly string[];
@@ -198,6 +216,7 @@ export interface IProductConfiguration {
 		};
 		readonly tokenEntitlementUrl: string;
 		readonly chatEntitlementUrl: string;
+		readonly mcpRegistryDataUrl: string;
 	};
 
 	readonly 'configurationSync.store'?: ConfigurationSyncStore;
@@ -212,7 +231,7 @@ export interface IProductConfiguration {
 
 	readonly defaultChatAgent?: IDefaultChatAgent;
 	readonly chatParticipantRegistry?: string;
-
+	readonly chatSessionRecommendations?: IChatSessionRecommendation[];
 	readonly emergencyAlertUrl?: string;
 
 	readonly remoteDefaultExtensionsIfInstalledLocally?: string[];
@@ -359,6 +378,7 @@ export interface IDefaultChatAgent {
 	readonly completionsRefreshTokenCommand: string;
 	readonly chatRefreshTokenCommand: string;
 	readonly generateCommitMessageCommand: string;
+	readonly resolveMergeConflictsCommand: string;
 
 	readonly completionsAdvancedSetting: string;
 	readonly completionsEnablementSetting: string;

@@ -91,7 +91,7 @@ registerTerminalAction({
 			}
 			escapedData = escapedData.slice(0, match.index) + String.fromCharCode(parseInt(match[1], 16)) + escapedData.slice(match.index + 4);
 		}
-		const xterm = instance.xterm as any as IInternalXtermTerminal;
+		const xterm = instance.xterm as IInternalXtermTerminal;
 		xterm._writeText(escapedData);
 	}
 });

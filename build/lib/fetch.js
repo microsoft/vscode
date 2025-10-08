@@ -48,7 +48,7 @@ async function fetchUrl(url, options, retries = 10, retryDelay = 1000) {
         try {
             const response = await fetch(url, {
                 ...options.nodeFetchOptions,
-                signal: controller.signal /* Typings issue with lib.dom.d.ts */
+                signal: controller.signal
             });
             if (verbose) {
                 (0, fancy_log_1.default)(`Fetch completed: Status ${response.status}. Took ${ansi_colors_1.default.magenta(`${new Date().getTime() - startTime} ms`)}`);

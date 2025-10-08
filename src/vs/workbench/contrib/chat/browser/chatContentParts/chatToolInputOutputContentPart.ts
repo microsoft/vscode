@@ -33,6 +33,7 @@ import { REVEAL_IN_EXPLORER_COMMAND_ID } from '../../../files/browser/fileConsta
 import { getAttachableImageExtension } from '../../common/chatModel.js';
 import { IChatRequestVariableEntry } from '../../common/chatVariableEntries.js';
 import { IChatRendererContent } from '../../common/chatViewModel.js';
+import { LanguageModelPartAudience } from '../../common/languageModels.js';
 import { ChatTreeItem, IChatCodeBlockInfo } from '../chat.js';
 import { CodeBlockPart, ICodeBlockData, ICodeBlockRenderOptions } from '../codeBlockPart.js';
 import { ChatAttachmentsContentPart } from './chatAttachmentsContentPart.js';
@@ -52,6 +53,7 @@ export interface IChatCollapsibleIOCodePart {
 export interface IChatCollapsibleIODataPart {
 	kind: 'data';
 	value?: Uint8Array;
+	audience?: LanguageModelPartAudience[];
 	mimeType: string | undefined;
 	uri: URI;
 }
@@ -101,14 +103,17 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
+		@IFileService private readonly _fileService: IFileService,
 	) {
 		super();
 		this._currentWidth = width;
 
+		const container = dom.h('.chat-confirmation-widget-container');
 		const titleEl = dom.h('.chat-confirmation-widget-title-inner');
 		const iconEl = dom.h('.chat-confirmation-widget-title-icon');
 		const elements = dom.h('.chat-confirmation-widget');
-		this.domNode = elements.root;
+		this.domNode = container.root;
+		container.root.appendChild(elements.root);
 
 		const titlePart = this._titlePart = this._register(_instantiationService.createInstance(
 			ChatQueryTitlePart,
@@ -155,6 +160,17 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 		const message = dom.h('.chat-confirmation-widget-message');
 		message.root.appendChild(this.createMessageContents());
 		elements.root.appendChild(message.root);
+
+		const topLevelResources = this.output?.parts
+			.filter(p => p.kind === 'data')
+			.filter(p => !p.audience || p.audience.includes(LanguageModelPartAudience.User));
+		if (topLevelResources?.length) {
+			const group = this.addResourceGroup(topLevelResources, container.root);
+			group.classList.add('chat-collapsible-top-level-resource-group');
+			this._register(autorun(r => {
+				group.style.display = expanded.read(r) ? 'none' : '';
+			}));
+		}
 	}
 
 	private createMessageContents() {
@@ -205,19 +221,30 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 			dom.h('.chat-collapsible-io-resource-actions@actions'),
 		]);
 
-		const entries = parts.map((part): IChatRequestVariableEntry => {
+		this.fillInResourceGroup(parts, el.items, el.actions).then(() => this._onDidChangeHeight.fire());
+
+		container.appendChild(el.root);
+		return el.root;
+	}
+
+	private async fillInResourceGroup(parts: IChatCollapsibleIODataPart[], itemsContainer: HTMLElement, actionsContainer: HTMLElement) {
+		const entries = await Promise.all(parts.map(async (part): Promise<IChatRequestVariableEntry> => {
 			if (part.mimeType && getAttachableImageExtension(part.mimeType)) {
-				return { kind: 'image', id: generateUuid(), name: basename(part.uri), value: part.value, mimeType: part.mimeType, isURL: false, references: [{ kind: 'reference', reference: part.uri }] };
+				const value = part.value ?? await this._fileService.readFile(part.uri).then(f => f.value.buffer, () => undefined);
+				return { kind: 'image', id: generateUuid(), name: basename(part.uri), value, mimeType: part.mimeType, isURL: false, references: [{ kind: 'reference', reference: part.uri }] };
 			} else {
 				return { kind: 'file', id: generateUuid(), name: basename(part.uri), fullName: part.uri.path, value: part.uri };
 			}
-		});
+		}));
 
 		const attachments = this._register(this._instantiationService.createInstance(
 			ChatAttachmentsContentPart,
-			entries,
-			undefined,
-			undefined,
+			{
+				variables: entries,
+				limit: 5,
+				contentReferences: undefined,
+				domNode: undefined
+			}
 		));
 
 		attachments.contextMenuHandler = (attachment, event) => {
@@ -236,17 +263,16 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 			}
 		};
 
-		el.items.appendChild(attachments.domNode!);
+		itemsContainer.appendChild(attachments.domNode!);
 
-		const toolbar = this._register(this._instantiationService.createInstance(MenuWorkbenchToolBar, el.actions, MenuId.ChatToolOutputResourceToolbar, {
+		const toolbar = this._register(this._instantiationService.createInstance(MenuWorkbenchToolBar, actionsContainer, MenuId.ChatToolOutputResourceToolbar, {
 			menuOptions: {
 				shouldForwardArgs: true,
 			},
 		}));
 		toolbar.context = { parts } satisfies IChatToolOutputResourceToolbarContext;
-
-		container.appendChild(el.root);
 	}
+
 
 	private addCodeBlock(part: IChatCollapsibleIOCodePart, container: HTMLElement) {
 		const data: ICodeBlockData = {

@@ -61,6 +61,7 @@
       responseId: undefined,
       shouldBeRemovedOnSend: undefined,
       result: { metadata: { metadataKey: "value" } },
+      responseMarkdownInfo: undefined,
       followups: [
         {
           kind: "reply",
@@ -140,6 +141,7 @@
       responseId: undefined,
       shouldBeRemovedOnSend: undefined,
       result: {  },
+      responseMarkdownInfo: undefined,
       followups: [  ],
       isCanceled: false,
       vote: undefined,

@@ -366,22 +366,19 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 			let expand: Expand | undefined;
 			let title = action.description;
 			if (action.fixName === fixNames.classIncorrectlyImplementsInterface) {
-				title += ' with Copilot';
-				message = `Implement the stubbed-out class members for ${document.getText(diagnostic.range)} with a useful implementation.`;
+				title = vscode.l10n.t('{0} with AI', action.description);
+				message = vscode.l10n.t(`Implement the stubbed-out class members for ${document.getText(diagnostic.range)} with a useful implementation.`);
 				expand = { kind: 'code-action', action };
-			}
-			else if (action.fixName === fixNames.fixClassDoesntImplementInheritedAbstractMember) {
-				title += ' with Copilot';
-				message = `Implement the stubbed-out class members for ${document.getText(diagnostic.range)} with a useful implementation.`;
+			} else if (action.fixName === fixNames.fixClassDoesntImplementInheritedAbstractMember) {
+				title = vscode.l10n.t('{0} with AI', action.description);
+				message = vscode.l10n.t(`Implement the stubbed-out class members for {0} with a useful implementation.`, document.getText(diagnostic.range));
 				expand = { kind: 'code-action', action };
-			}
-			else if (action.fixName === fixNames.fixMissingFunctionDeclaration) {
-				title = `Implement missing function declaration '${document.getText(diagnostic.range)}' using Copilot`;
-				message = `Provide a reasonable implementation of the function ${document.getText(diagnostic.range)} given its type and the context it's called in.`;
+			} else if (action.fixName === fixNames.fixMissingFunctionDeclaration) {
+				title = vscode.l10n.t(`Implement missing function declaration '{0}' using AI`, document.getText(diagnostic.range));
+				message = vscode.l10n.t(`Provide a reasonable implementation of the function {0} given its type and the context it's called in.`, document.getText(diagnostic.range));
 				expand = { kind: 'code-action', action };
-			}
-			else if (action.fixName === fixNames.inferFromUsage) {
-				const inferFromBody = new VsCodeCodeAction(action, 'Infer types using Copilot', vscode.CodeActionKind.QuickFix);
+			} else if (action.fixName === fixNames.inferFromUsage) {
+				const inferFromBody = new VsCodeCodeAction(action, vscode.l10n.t('Infer types using AI'), vscode.CodeActionKind.QuickFix);
 				inferFromBody.edit = new vscode.WorkspaceEdit();
 				inferFromBody.diagnostics = [diagnostic];
 				inferFromBody.ranges = [diagnostic.range];
@@ -389,7 +386,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 				inferFromBody.command = {
 					command: EditorChatFollowUp.ID,
 					arguments: [{
-						message: 'Add types to this code. Add separate interfaces when possible. Do not change the code except for adding types.',
+						message: vscode.l10n.t('Add types to this code. Add separate interfaces when possible. Do not change the code except for adding types.'),
 						expand: { kind: 'navtree-function', pos: diagnostic.range.start },
 						document,
 						action: { type: 'quickfix', quickfix: action }
@@ -400,8 +397,8 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 			}
 			else if (action.fixName === fixNames.addNameToNamelessParameter) {
 				const newText = action.changes.map(change => change.textChanges.map(textChange => textChange.newText).join('')).join('');
-				title = 'Add meaningful parameter name with Copilot';
-				message = `Rename the parameter ${newText} with a more meaningful name.`;
+				title = vscode.l10n.t('Add meaningful parameter name with AI');
+				message = vscode.l10n.t(`Rename the parameter {0} with a more meaningful name.`, newText);
 				expand = {
 					kind: 'navtree-function',
 					pos: diagnostic.range.start

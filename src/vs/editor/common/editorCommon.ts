@@ -198,7 +198,7 @@ export interface IViewState {
 export interface ICodeEditorViewState {
 	cursorState: ICursorState[];
 	viewState: IViewState;
-	contributionsState: { [id: string]: any };
+	contributionsState: { [id: string]: unknown };
 }
 /**
  * (Serializable) View state for the diff editor.
@@ -464,7 +464,7 @@ export interface IEditor {
 	 * @param handlerId The id of the handler or the id of a contribution.
 	 * @param payload Extra data to be sent to the handler.
 	 */
-	trigger(source: string | null | undefined, handlerId: string, payload: any): void;
+	trigger(source: string | null | undefined, handlerId: string, payload: unknown): void;
 
 	/**
 	 * Gets the current model attached to this editor.
@@ -495,7 +495,7 @@ export interface IEditor {
 	 * @see {@link ITextModel.changeDecorations}
 	 * @internal
 	 */
-	changeDecorations(callback: (changeAccessor: IModelDecorationsChangeAccessor) => any): any;
+	changeDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): T | null;
 }
 
 /**
@@ -588,11 +588,11 @@ export interface IEditorContribution {
 	/**
 	 * Store view state.
 	 */
-	saveViewState?(): any;
+	saveViewState?(): unknown;
 	/**
 	 * Restore view state.
 	 */
-	restoreViewState?(state: any): void;
+	restoreViewState?(state: unknown): void;
 }
 
 /**
@@ -609,8 +609,8 @@ export interface IDiffEditorContribution {
 /**
  * @internal
  */
-export function isThemeColor(o: any): o is ThemeColor {
-	return o && typeof o.id === 'string';
+export function isThemeColor(o: unknown): o is ThemeColor {
+	return !!o && typeof (o as ThemeColor).id === 'string';
 }
 
 /**

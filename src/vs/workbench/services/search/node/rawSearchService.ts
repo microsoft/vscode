@@ -435,6 +435,7 @@ const FileMatchItemAccessor = new class implements IItemAccessor<IRawFileMatch> 
 
 function reviveQuery<U extends IRawQuery>(rawQuery: U): U extends IRawTextQuery ? ITextQuery : IFileQuery {
 	return {
+		// eslint-disable-next-line local/code-no-any-casts
 		...<any>rawQuery, // TODO
 		...{
 			folderQueries: rawQuery.folderQueries && rawQuery.folderQueries.map(reviveFolderQuery),

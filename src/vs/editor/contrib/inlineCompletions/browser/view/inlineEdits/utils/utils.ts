@@ -109,7 +109,7 @@ export function getContentRenderWidth(content: string, editor: ICodeEditor, text
 export function getEditorValidOverlayRect(editor: ObservableCodeEditor): IObservable<Rect> {
 	const contentLeft = editor.layoutInfoContentLeft;
 
-	const width = derived(r => {
+	const width = derived({ name: 'editor.validOverlay.width' }, r => {
 		const hasMinimapOnTheRight = editor.layoutInfoMinimap.read(r).minimapLeft !== 0;
 		const editorWidth = editor.layoutInfoWidth.read(r) - contentLeft.read(r);
 
@@ -121,9 +121,9 @@ export function getEditorValidOverlayRect(editor: ObservableCodeEditor): IObserv
 		return editorWidth;
 	});
 
-	const height = derived(r => editor.layoutInfoHeight.read(r) + editor.contentHeight.read(r));
+	const height = derived({ name: 'editor.validOverlay.height' }, r => editor.layoutInfoHeight.read(r) + editor.contentHeight.read(r));
 
-	return derived(r => Rect.fromLeftTopWidthHeight(contentLeft.read(r), 0, width.read(r), height.read(r)));
+	return derived({ name: 'editor.validOverlay' }, r => Rect.fromLeftTopWidthHeight(contentLeft.read(r), 0, width.read(r), height.read(r)));
 }
 
 export class StatusBarViewItem extends MenuEntryActionViewItem {
@@ -394,10 +394,10 @@ export function observeElementPosition(element: HTMLElement, store: DisposableSt
 
 export function rectToProps(fn: (reader: IReader) => Rect) {
 	return {
-		left: derived(reader => /** @description left */ fn(reader).left),
-		top: derived(reader => /** @description top */ fn(reader).top),
-		width: derived(reader => /** @description width */ fn(reader).right - fn(reader).left),
-		height: derived(reader => /** @description height */ fn(reader).bottom - fn(reader).top),
+		left: derived({ name: 'editor.validOverlay.left' }, reader => /** @description left */ fn(reader).left),
+		top: derived({ name: 'editor.validOverlay.top' }, reader => /** @description top */ fn(reader).top),
+		width: derived({ name: 'editor.validOverlay.width' }, reader => /** @description width */ fn(reader).right - fn(reader).left),
+		height: derived({ name: 'editor.validOverlay.height' }, reader => /** @description height */ fn(reader).bottom - fn(reader).top),
 	};
 }
 

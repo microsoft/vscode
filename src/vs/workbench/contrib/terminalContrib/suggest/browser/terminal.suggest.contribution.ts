@@ -90,6 +90,11 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 
 		// Initialize the dynamic providers configuration manager
 		TerminalSuggestProvidersConfigurationManager.initialize(this._instantiationService);
+
+		// Listen for terminal location changes to update the suggest widget container
+		this.add(this._ctx.instance.onDidChangeTarget((target) => {
+			this._updateContainerForTarget(target);
+		}));
 	}
 
 	xtermOpen(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
@@ -148,11 +153,17 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		xterm.loadAddon(addon);
 		this._loadLspCompletionAddon(xterm);
 
+		let container: HTMLElement | null = null;
 		if (this._ctx.instance.target === TerminalLocation.Editor) {
-			addon.setContainerWithOverflow(xterm.element!);
+			container = xterm.element!;
 		} else {
-			addon.setContainerWithOverflow(dom.findParentWithClass(xterm.element!, 'panel')!);
+			container = dom.findParentWithClass(xterm.element!, 'panel');
+			if (!container) {
+				// Fallback for sidebar or unknown location
+				container = xterm.element!;
+			}
 		}
+		addon.setContainerWithOverflow(container);
 		addon.setScreen(xterm.element!.querySelector('.xterm-screen')!);
 
 		this.add(dom.addDisposableListener(this._ctx.instance.domElement, dom.EventType.FOCUS_OUT, (e) => {
@@ -194,6 +205,28 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		}
 		// Relies on shell type being set
 		this._loadLspCompletionAddon(this._ctx.instance.xterm.raw);
+	}
+
+	private _updateContainerForTarget(target: TerminalLocation | undefined): void {
+		const addon = this._addon.value;
+		if (!addon || !this._ctx.instance.xterm?.raw) {
+			return;
+		}
+
+		const xtermElement = this._ctx.instance.xterm.raw.element;
+		if (!xtermElement) {
+			return;
+		}
+
+		// Update the container based on the new target location
+		if (target === TerminalLocation.Editor) {
+			addon.setContainerWithOverflow(xtermElement);
+		} else {
+			const panelContainer = dom.findParentWithClass(xtermElement, 'panel');
+			if (panelContainer) {
+				addon.setContainerWithOverflow(panelContainer);
+			}
+		}
 	}
 }
 
