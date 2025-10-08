@@ -76,14 +76,9 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 	}
 
 	$stopMcp(id: number): void {
-		const handle = this._sseEventSources.get(id);
-		if (!handle) {
-			// no-op
-		} else if (handle.didSendClose) {
-			this._didClose(id);
-		} else {
-			handle.close().then(() => this._didClose(id));
-		}
+		this._sseEventSources.get(id)
+			?.close()
+			.then(() => this._didClose(id));
 	}
 
 	private _didClose(id: number) {
@@ -225,7 +220,7 @@ export class McpHTTPHandle extends Disposable {
 		resourceMetadata?: IAuthorizationProtectedResourceMetadata;
 		scopes?: string[];
 	};
-	public didSendClose = false;
+	private _didSendClose = false;
 
 	constructor(
 		private readonly _id: number,
@@ -257,7 +252,8 @@ export class McpHTTPHandle extends Disposable {
 	}
 
 	async close() {
-		if (this._mode.value === HttpMode.Http && this._mode.sessionId) {
+		if (this._mode.value === HttpMode.Http && this._mode.sessionId && !this._didSendClose) {
+			this._didSendClose = true;
 			try {
 				await this._closeSession(this._mode.sessionId);
 			} catch {
@@ -281,12 +277,10 @@ export class McpHTTPHandle extends Disposable {
 			this._launch.uri.toString(true),
 			{
 				method: 'DELETE',
-				headers: { 'Mcp-Session-Id': sessionId },
+				headers,
 			},
 		);
 	}
-
-
 
 	private _send(message: string) {
 		if (this._mode.value === HttpMode.SSE) {
