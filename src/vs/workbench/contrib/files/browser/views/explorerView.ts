@@ -185,7 +185,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	private decorationsProvider: ExplorerDecorationsProvider | undefined;
 	private readonly delegate: IExplorerViewContainerDelegate | undefined;
 
-	public override get singleViewPaneContainerTitle(): string {
+	override get singleViewPaneContainerTitle(): string {
 		return this.name;
 	}
 
