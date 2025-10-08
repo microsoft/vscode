@@ -1162,8 +1162,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const inputScopedContextKeyService = this._register(this.contextKeyService.createScoped(inputContainer));
 		ChatContextKeys.inChatInput.bindTo(inputScopedContextKeyService).set(true);
 		this.currentlyEditingInputKey = ChatContextKeys.currentlyEditingInput.bindTo(inputScopedContextKeyService);
-		// Track whether a request is currently being processed so we can suppress plain Enter behavior
-		const requestInProgressKey = ChatContextKeys.requestInProgress.bindTo(inputScopedContextKeyService);
 		const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, inputScopedContextKeyService])));
 
 		const { historyNavigationBackwardsEnablement, historyNavigationForwardsEnablement } = this._register(registerAndCreateHistoryNavigationContext(inputScopedContextKeyService, this));
@@ -1201,15 +1199,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		options.overflowWidgetsDomNode?.classList.add('hideSuggestTextIcons');
 		this._inputEditorElement.classList.add('hideSuggestTextIcons');
 
-		// Prevent Enter key from creating new lines when input is empty or a request is currently in progress.
+		// Prevent Enter key from creating new lines - but allow keybinding service to still handle the event
+		// We need to prevent Monaco's default Enter behavior while still allowing the VS Code keybinding service
+		// to receive and process the Enter key for ChatSubmitAction
 		this._register(this._inputEditor.onKeyDown((e) => {
 			if (e.keyCode === KeyCode.Enter && hasNoModifierKeys(e)) {
-				const inputHasText = this.inputEditorHasText?.get();
-				if (!inputHasText || requestInProgressKey.get()) {
-					// Suppress newline insertion to mirror disabled send state
-					e.preventDefault();
-					e.stopPropagation();
-				}
+				// Only prevent the default Monaco behavior (newline insertion)
+				// Do NOT call stopPropagation() so the keybinding service can still process this event
+				e.preventDefault();
 			}
 		}));
 
