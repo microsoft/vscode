@@ -39,20 +39,15 @@ export class PolicyWriterService implements IPolicyWriterService {
 	constructor(@IConfigurationService public readonly configurationService: IConfigurationService, @IProductService private readonly productService: IProductService) { }
 
 	public async write(configs: Array<{ key: string; schema: IRegisteredConfigurationPropertySchema }>, platform: 'darwin' | 'win32'): Promise<void> {
-		try {
-			const translations = await this.getTranslations();
-			const policies = this.getPolicies(configs);
+		const translations = await this.getTranslations();
+		const policies = this.getPolicies(configs);
 
-			if (platform === 'darwin') {
-				await this.writeDarwin(policies, translations);
-			} else if (platform === 'win32') {
-				await this.writeWindows(policies, translations);
-			} else {
-				throw new Error(`Unsupported platform: ${platform}`);
-			}
-			process.exit(0);
-		} catch (e) {
-			process.exit(1);
+		if (platform === 'darwin') {
+			await this.writeDarwin(policies, translations);
+		} else if (platform === 'win32') {
+			await this.writeWindows(policies, translations);
+		} else {
+			throw new Error(`Unsupported platform: ${platform}`);
 		}
 	}
 

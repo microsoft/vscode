@@ -52,7 +52,7 @@ export class PolicyExportContribution extends Disposable implements IWorkbenchCo
 			const configurationProperties = configurationRegistry.getConfigurationProperties();
 			const configs = [];
 			for (const [key, schema] of Object.entries(configurationProperties)) {
-				if (schema.policy) {
+				if (schema.policy?.description) {
 					configs.push({ key, schema });
 				}
 			}

@@ -24,6 +24,8 @@ export class BooleanPolicy extends BasePolicy {
 			throw new Error(`[BooleanPolicy] Missing required 'default' property.`);
 		}
 
+		// console.log('@@@POLICY', config.policy);
+
 		const description = config.policy.description.value ?? config.description;
 		if (description === undefined) {
 			throw new Error(`[BooleanPolicy] Missing required 'description' property.`);
