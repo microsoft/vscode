@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jtbandes/swift-tmlanguage/commit/0897d8939a82ddcf6533e9f318e5942b1265416b",
+	"version": "https://github.com/jtbandes/swift-tmlanguage/commit/45ac01d47c6d63402570c2c36bcfbadbd1c7bca6",
 	"name": "Swift",
 	"scopeName": "source.swift",
 	"comment": "See swift.tmbundle/grammar-test.swift for test cases.",
@@ -940,6 +940,17 @@
 					"include": "#declarations-available-types"
 				},
 				{
+					"include": "#literals-numeric"
+				},
+				{
+					"name": "support.variable.inferred.swift",
+					"match": "\\b_\\b"
+				},
+				{
+					"name": "keyword.other.inline-array.swift",
+					"match": "(?<=\\s)\\bof\\b(?=\\s+[\\p{L}_\\d\\p{N}\\p{M}\\[(])"
+				},
+				{
 					"begin": ":",
 					"end": "(?=\\]|[>){}])",
 					"beginCaptures": {
@@ -980,28 +991,24 @@
 		},
 		"declarations-extension": {
 			"name": "meta.definition.type.$1.swift",
-			"begin": "\\b(extension)\\s+((?<q>`?)[\\p{L}_][\\p{L}_\\p{N}\\p{M}]*(\\k<q>))",
+			"begin": "\\b(extension)\\s+",
 			"end": "(?<=\\})",
 			"beginCaptures": {
 				"1": {
 					"name": "storage.type.$1.swift"
-				},
-				"2": {
+				}
+			},
+			"patterns": [
+				{
 					"name": "entity.name.type.swift",
+					"begin": "\\G(?!\\s*[:{\\n])",
+					"end": "(?=\\s*[:{\\n])|(?!\\G)(?=\\s*where\\b)",
 					"patterns": [
 						{
 							"include": "#declarations-available-types"
 						}
 					]
 				},
-				"3": {
-					"name": "punctuation.definition.identifier.swift"
-				},
-				"4": {
-					"name": "punctuation.definition.identifier.swift"
-				}
-			},
-			"patterns": [
 				{
 					"include": "#comments"
 				},
@@ -1159,8 +1166,8 @@
 			},
 			"patterns": [
 				{
-					"match": "\\bsending\\b",
-					"name": "storage.modifier.swift"
+					"name": "storage.modifier.swift",
+					"match": "\\bsending\\b"
 				},
 				{
 					"include": "#declarations-available-types"
@@ -1754,8 +1761,8 @@
 					"end": "(?=[,)])",
 					"patterns": [
 						{
-							"match": "\\bsending\\b",
-							"name": "storage.modifier.swift"
+							"name": "storage.modifier.swift",
+							"match": "\\bsending\\b"
 						},
 						{
 							"include": "#declarations-available-types"
@@ -2833,6 +2840,10 @@
 				{
 					"name": "keyword.control.loop.swift",
 					"match": "(?<!\\.)\\b(?:while|for|in|each)\\b"
+				},
+				{
+					"name": "keyword.other.inline-array.swift",
+					"match": "(?<=\\s)\\bof\\b(?=\\s+[\\p{L}_\\d\\p{N}\\p{M}\\[(])"
 				},
 				{
 					"name": "keyword.other.operator.type.existential.swift",
@@ -3992,7 +4003,7 @@
 					"contentName": "source.swift",
 					"name": "meta.embedded.line.swift",
 					"begin": "\\\\#\\(",
-					"end": "(\\))",
+					"end": "\\)",
 					"beginCaptures": {
 						"0": {
 							"name": "punctuation.section.embedded.begin.swift"
@@ -4001,9 +4012,6 @@
 					"endCaptures": {
 						"0": {
 							"name": "punctuation.section.embedded.end.swift"
-						},
-						"1": {
-							"name": "source.swift"
 						}
 					},
 					"patterns": [
@@ -4037,7 +4045,7 @@
 					"contentName": "source.swift",
 					"name": "meta.embedded.line.swift",
 					"begin": "\\\\\\(",
-					"end": "(\\))",
+					"end": "\\)",
 					"beginCaptures": {
 						"0": {
 							"name": "punctuation.section.embedded.begin.swift"
@@ -4046,9 +4054,6 @@
 					"endCaptures": {
 						"0": {
 							"name": "punctuation.section.embedded.end.swift"
-						},
-						"1": {
-							"name": "source.swift"
 						}
 					},
 					"patterns": [

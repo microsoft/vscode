@@ -51,12 +51,12 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		const viewlet = this.getActivePaneComposite();
 
 		if (!viewlet) {
-			return;
+			return undefined;
 		}
 
 		const width = viewlet.getOptimalWidth();
 		if (typeof width !== 'number') {
-			return;
+			return undefined;
 		}
 
 		return Math.max(width, 300);

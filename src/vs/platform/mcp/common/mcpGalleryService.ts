@@ -61,17 +61,18 @@ interface IGalleryMcpServersResult {
 interface IRawGalleryMcpServer {
 	readonly name: string;
 	readonly description: string;
+	readonly version: string;
+	readonly title?: string;
 	readonly repository?: {
 		readonly source: string;
 		readonly url: string;
 		readonly id?: string;
 		readonly readme?: string;
 	};
-	readonly version: string;
 	readonly status?: GalleryMcpServerStatus;
 	readonly websiteUrl?: string;
-	readonly createdAt: string;
-	readonly updatedAt: string;
+	readonly createdAt?: string;
+	readonly updatedAt?: string;
 	readonly packages?: readonly IMcpServerPackage[];
 	readonly remotes?: ReadonlyArray<SseTransport | StreamableHttpTransport>;
 	readonly registryInfo: IMcpRegistryInfo;
@@ -79,848 +80,10 @@ interface IRawGalleryMcpServer {
 }
 
 interface IGalleryMcpServerDataSerializer {
-	toRawGalleryMcpServerResult(input: any): IRawGalleryMcpServersResult | undefined;
-	toRawGalleryMcpServer(input: any): IRawGalleryMcpServer | undefined;
+	toRawGalleryMcpServerResult(input: unknown): IRawGalleryMcpServersResult | undefined;
+	toRawGalleryMcpServer(input: unknown): IRawGalleryMcpServer | undefined;
 }
 
-namespace McpServerOldSchema {
-
-	interface RawGalleryMcpServerInput {
-		readonly description?: string;
-		readonly is_required?: boolean;
-		readonly format?: 'string' | 'number' | 'boolean' | 'filepath';
-		readonly value?: string;
-		readonly is_secret?: boolean;
-		readonly default?: string;
-		readonly choices?: readonly string[];
-	}
-
-	interface RawGalleryMcpServerVariableInput extends RawGalleryMcpServerInput {
-		readonly variables?: Record<string, RawGalleryMcpServerInput>;
-	}
-
-	interface RawGalleryMcpServerPositionalArgument extends RawGalleryMcpServerVariableInput {
-		readonly type: 'positional';
-		readonly value_hint?: string;
-		readonly is_repeated?: boolean;
-	}
-
-	interface RawGalleryMcpServerNamedArgument extends RawGalleryMcpServerVariableInput {
-		readonly type: 'named';
-		readonly name: string;
-		readonly is_repeated?: boolean;
-	}
-
-	interface RawGalleryMcpServerKeyValueInput extends RawGalleryMcpServerVariableInput {
-		readonly name: string;
-		readonly value?: string;
-	}
-
-	type RawGalleryMcpServerArgument = RawGalleryMcpServerPositionalArgument | RawGalleryMcpServerNamedArgument;
-
-	interface McpServerDeprecatedRemote {
-		readonly transport_type?: 'streamable' | 'sse';
-		readonly transport?: 'streamable' | 'sse';
-		readonly url: string;
-		readonly headers?: ReadonlyArray<RawGalleryMcpServerKeyValueInput>;
-	}
-
-	type RawGalleryMcpServerRemotes = ReadonlyArray<RawGallerySseTransport | RawGalleryStreamableHttpTransport | McpServerDeprecatedRemote>;
-
-	type RawGalleryTransport = RawGalleryStdioTransport | RawGalleryStreamableHttpTransport | RawGallerySseTransport;
-
-	interface RawGalleryStdioTransport {
-		readonly type: 'stdio';
-	}
-
-	interface RawGalleryStreamableHttpTransport {
-		readonly type: 'streamable-http';
-		readonly url: string;
-		readonly headers?: ReadonlyArray<RawGalleryMcpServerKeyValueInput>;
-	}
-
-	interface RawGallerySseTransport {
-		readonly type: 'sse';
-		readonly url: string;
-		readonly headers?: ReadonlyArray<RawGalleryMcpServerKeyValueInput>;
-	}
-
-	interface RawGalleryMcpServerPackage {
-		readonly registry_name: string;
-		readonly name: string;
-		readonly registry_type: 'npm' | 'pypi' | 'docker-hub' | 'nuget' | 'remote' | 'mcpb';
-		readonly registry_base_url?: string;
-		readonly identifier: string;
-		readonly version: string;
-		readonly file_sha256?: string;
-		readonly transport?: RawGalleryTransport;
-		readonly package_arguments?: readonly RawGalleryMcpServerArgument[];
-		readonly runtime_hint?: string;
-		readonly runtime_arguments?: readonly RawGalleryMcpServerArgument[];
-		readonly environment_variables?: ReadonlyArray<RawGalleryMcpServerKeyValueInput>;
-	}
-
-	interface RawGalleryMcpServer {
-		readonly server: {
-			readonly id: string;
-			readonly name: string;
-			readonly description: string;
-			readonly version_detail: {
-				readonly version: string;
-				readonly release_date: string;
-				readonly is_latest: boolean;
-			};
-			readonly repository?: {
-				readonly source: string;
-				readonly url: string;
-				readonly id?: string;
-				readonly subfolder?: string;
-				readonly readme?: string;
-			};
-			readonly created_at: string;
-			readonly updated_at: string;
-			readonly packages?: readonly RawGalleryMcpServerPackage[];
-			readonly remotes?: RawGalleryMcpServerRemotes;
-		};
-		readonly 'x-io.modelcontextprotocol.registry': {
-			readonly id: string;
-			readonly is_latest: boolean;
-			readonly published_at: string;
-			readonly updated_at: string;
-			readonly release_date?: string;
-		};
-		readonly 'x-github'?: IGitHubInfo;
-	}
-
-	interface RawGalleryMcpServersResult {
-		readonly metadata?: {
-			readonly count: number;
-			readonly total?: number;
-			readonly next_cursor?: string;
-		};
-		readonly servers: readonly RawGalleryMcpServer[];
-	}
-
-	class Serializer implements IGalleryMcpServerDataSerializer {
-
-		public toRawGalleryMcpServerResult(input: any): IRawGalleryMcpServersResult | undefined {
-			if (!input || !Array.isArray(input.servers)) {
-				return undefined;
-			}
-
-			const from = <RawGalleryMcpServersResult>input;
-
-			const servers: IRawGalleryMcpServer[] = [];
-			for (const server of from.servers) {
-				const rawServer = this.toRawGalleryMcpServer(server);
-				if (!rawServer) {
-					return undefined;
-				}
-				servers.push(rawServer);
-			}
-
-			return {
-				metadata: from.metadata,
-				servers
-			};
-		}
-
-		public toRawGalleryMcpServer(input: any): IRawGalleryMcpServer | undefined {
-			if (!input || !input.server) {
-				return undefined;
-			}
-
-			const from = <RawGalleryMcpServer>input;
-			const registryInfo = from['x-io.modelcontextprotocol.registry'];
-
-			function convertServerInput(input: RawGalleryMcpServerInput): IMcpServerInput {
-				return {
-					...input,
-					isRequired: input.is_required,
-					isSecret: input.is_secret,
-				};
-			}
-
-			function convertVariables(variables: Record<string, RawGalleryMcpServerInput>): Record<string, IMcpServerInput> {
-				const result: Record<string, IMcpServerInput> = {};
-				for (const [key, value] of Object.entries(variables)) {
-					result[key] = convertServerInput(value);
-				}
-				return result;
-			}
-
-			function convertServerArgument(arg: RawGalleryMcpServerArgument): IMcpServerArgument {
-				if (arg.type === 'positional') {
-					return {
-						...arg,
-						valueHint: arg.value_hint,
-						isRepeated: arg.is_repeated,
-						isRequired: arg.is_required,
-						isSecret: arg.is_secret,
-						variables: arg.variables ? convertVariables(arg.variables) : undefined,
-					};
-				}
-				return {
-					...arg,
-					isRepeated: arg.is_repeated,
-					isRequired: arg.is_required,
-					isSecret: arg.is_secret,
-					variables: arg.variables ? convertVariables(arg.variables) : undefined,
-				};
-			}
-
-			function convertKeyValueInput(input: RawGalleryMcpServerKeyValueInput): IMcpServerKeyValueInput {
-				return {
-					...input,
-					isRequired: input.is_required,
-					isSecret: input.is_secret,
-					variables: input.variables ? convertVariables(input.variables) : undefined,
-				};
-			}
-
-			function convertTransport(input: RawGalleryTransport): Transport | undefined {
-				switch (input.type) {
-					case 'stdio':
-						return {
-							type: TransportType.STDIO,
-						};
-					case 'streamable-http':
-						return {
-							type: TransportType.STREAMABLE_HTTP,
-							url: input.url,
-							headers: input.headers?.map(convertKeyValueInput),
-						};
-					case 'sse':
-						return {
-							type: TransportType.SSE,
-							url: input.url,
-							headers: input.headers?.map(convertKeyValueInput),
-						};
-					default:
-						return undefined;
-				}
-			}
-
-			function convertRegistryType(input: string): RegistryType {
-				switch (input) {
-					case 'npm':
-						return RegistryType.NODE;
-					case 'docker':
-					case 'docker-hub':
-					case 'oci':
-						return RegistryType.DOCKER;
-					case 'pypi':
-						return RegistryType.PYTHON;
-					case 'nuget':
-						return RegistryType.NUGET;
-					case 'mcpb':
-						return RegistryType.MCPB;
-					default:
-						return RegistryType.NODE;
-				}
-			}
-
-			return {
-				name: from.server.name,
-				description: from.server.description,
-				repository: from.server.repository ? {
-					url: from.server.repository.url,
-					source: from.server.repository.source,
-					id: from.server.repository.id,
-					readme: from.server.repository.readme
-				} : undefined,
-				version: from.server.version_detail.version,
-				createdAt: from.server.created_at,
-				updatedAt: from.server.updated_at,
-				packages: from.server.packages?.map<IMcpServerPackage>(p => ({
-					identifier: p.identifier ?? p.name,
-					registryType: convertRegistryType(p.registry_type ?? p.registry_name),
-					version: p.version,
-					fileSha256: p.file_sha256,
-					registryBaseUrl: p.registry_base_url,
-					transport: p.transport ? convertTransport(p.transport) : undefined,
-					packageArguments: p.package_arguments?.map(convertServerArgument),
-					runtimeHint: p.runtime_hint,
-					runtimeArguments: p.runtime_arguments?.map(convertServerArgument),
-					environmentVariables: p.environment_variables?.map(convertKeyValueInput),
-				})),
-				remotes: from.server.remotes?.map(remote => {
-					const type = (<RawGalleryTransport>remote).type ?? (<McpServerDeprecatedRemote>remote).transport_type ?? (<McpServerDeprecatedRemote>remote).transport;
-					return {
-						type: type === TransportType.SSE ? TransportType.SSE : TransportType.STREAMABLE_HTTP,
-						url: remote.url,
-						headers: remote.headers?.map(convertKeyValueInput)
-					};
-				}),
-				registryInfo: {
-					id: registryInfo.id,
-					isLatest: registryInfo.is_latest,
-					publishedAt: registryInfo.published_at,
-					updatedAt: registryInfo.updated_at,
-				},
-				githubInfo: from['x-github'],
-			};
-		}
-	}
-
-	export const SERIALIZER = new Serializer();
-}
-
-namespace McpServer1ESSchema {
-
-	interface RawGalleryMcpServerInput {
-		readonly description?: string;
-		readonly is_required?: boolean;
-		readonly format?: 'string' | 'number' | 'boolean' | 'filepath';
-		readonly value?: string;
-		readonly is_secret?: boolean;
-		readonly default?: string;
-		readonly choices?: readonly string[];
-	}
-
-	interface RawGalleryMcpServerVariableInput extends RawGalleryMcpServerInput {
-		readonly variables?: Record<string, RawGalleryMcpServerInput>;
-	}
-
-	interface RawGalleryMcpServerPositionalArgument extends RawGalleryMcpServerVariableInput {
-		readonly type: 'positional';
-		readonly value_hint?: string;
-		readonly is_repeated?: boolean;
-	}
-
-	interface RawGalleryMcpServerNamedArgument extends RawGalleryMcpServerVariableInput {
-		readonly type: 'named';
-		readonly name: string;
-		readonly is_repeated?: boolean;
-	}
-
-	interface RawGalleryMcpServerKeyValueInput extends RawGalleryMcpServerVariableInput {
-		readonly name: string;
-		readonly value?: string;
-	}
-
-	type RawGalleryMcpServerArgument = RawGalleryMcpServerPositionalArgument | RawGalleryMcpServerNamedArgument;
-
-	interface McpServerDeprecatedRemote {
-		readonly transport_type?: 'streamable' | 'sse';
-		readonly transport?: 'streamable' | 'sse';
-		readonly url: string;
-		readonly headers?: ReadonlyArray<RawGalleryMcpServerKeyValueInput>;
-	}
-
-	type RawGalleryMcpServerRemotes = ReadonlyArray<RawGallerySseTransport | RawGalleryStreamableHttpTransport | McpServerDeprecatedRemote>;
-
-	type RawGalleryTransport = RawGalleryStdioTransport | RawGalleryStreamableHttpTransport | RawGallerySseTransport;
-
-	interface RawGalleryStdioTransport {
-		readonly type: 'stdio';
-	}
-
-	interface RawGalleryStreamableHttpTransport {
-		readonly type: 'streamable-http';
-		readonly url: string;
-		readonly headers?: ReadonlyArray<RawGalleryMcpServerKeyValueInput>;
-	}
-
-	interface RawGallerySseTransport {
-		readonly type: 'sse';
-		readonly url: string;
-		readonly headers?: ReadonlyArray<RawGalleryMcpServerKeyValueInput>;
-	}
-
-	interface RawGalleryMcpServerPackage {
-		readonly registry_name: string;
-		readonly name: string;
-		readonly registry_type: 'npm' | 'pypi' | 'docker-hub' | 'nuget' | 'remote' | 'mcpb';
-		readonly registry_base_url?: string;
-		readonly identifier: string;
-		readonly version: string;
-		readonly file_sha256?: string;
-		readonly transport?: RawGalleryTransport;
-		readonly package_arguments?: readonly RawGalleryMcpServerArgument[];
-		readonly runtime_hint?: string;
-		readonly runtime_arguments?: readonly RawGalleryMcpServerArgument[];
-		readonly environment_variables?: ReadonlyArray<RawGalleryMcpServerKeyValueInput>;
-	}
-
-	interface RawGalleryMcpServer {
-		readonly id: string;
-		readonly name: string;
-		readonly description: string;
-		readonly version_detail: {
-			readonly version: string;
-			readonly release_date: string;
-			readonly is_latest: boolean;
-		};
-		readonly repository?: {
-			readonly source: string;
-			readonly url: string;
-			readonly id?: string;
-			readonly subfolder?: string;
-			readonly readme?: string;
-		};
-		readonly created_at: string;
-		readonly updated_at: string;
-		readonly packages?: readonly RawGalleryMcpServerPackage[];
-		readonly remotes?: RawGalleryMcpServerRemotes;
-	}
-
-	interface RawGalleryMcpServersResult {
-		readonly metadata?: {
-			readonly count: number;
-			readonly total?: number;
-			readonly next_cursor?: string;
-		};
-		readonly servers: readonly RawGalleryMcpServer[];
-	}
-
-	class Serializer implements IGalleryMcpServerDataSerializer {
-
-		public toRawGalleryMcpServerResult(input: any): IRawGalleryMcpServersResult | undefined {
-			if (!input || !Array.isArray(input.servers)) {
-				return undefined;
-			}
-
-			const from = <RawGalleryMcpServersResult>input;
-
-			const servers: IRawGalleryMcpServer[] = [];
-			for (const server of from.servers) {
-				const rawServer = this.toRawGalleryMcpServer(server);
-				if (!rawServer) {
-					return undefined;
-				}
-				servers.push(rawServer);
-			}
-
-			return {
-				metadata: from.metadata,
-				servers
-			};
-		}
-
-		public toRawGalleryMcpServer(input: any): IRawGalleryMcpServer | undefined {
-			if (!input || input.server || input.$schema) {
-				return undefined;
-			}
-
-			const from = <RawGalleryMcpServer>input;
-
-			function convertServerInput(input: RawGalleryMcpServerInput): IMcpServerInput {
-				return {
-					...input,
-					isRequired: input.is_required,
-					isSecret: input.is_secret,
-				};
-			}
-
-			function convertVariables(variables: Record<string, RawGalleryMcpServerInput>): Record<string, IMcpServerInput> {
-				const result: Record<string, IMcpServerInput> = {};
-				for (const [key, value] of Object.entries(variables)) {
-					result[key] = convertServerInput(value);
-				}
-				return result;
-			}
-
-			function convertServerArgument(arg: RawGalleryMcpServerArgument): IMcpServerArgument {
-				if (arg.type === 'positional') {
-					return {
-						...arg,
-						valueHint: arg.value_hint,
-						isRepeated: arg.is_repeated,
-						isRequired: arg.is_required,
-						isSecret: arg.is_secret,
-						variables: arg.variables ? convertVariables(arg.variables) : undefined,
-					};
-				}
-				return {
-					...arg,
-					isRepeated: arg.is_repeated,
-					isRequired: arg.is_required,
-					isSecret: arg.is_secret,
-					variables: arg.variables ? convertVariables(arg.variables) : undefined,
-				};
-			}
-
-			function convertKeyValueInput(input: RawGalleryMcpServerKeyValueInput): IMcpServerKeyValueInput {
-				return {
-					...input,
-					isRequired: input.is_required,
-					isSecret: input.is_secret,
-					variables: input.variables ? convertVariables(input.variables) : undefined,
-				};
-			}
-
-			function convertTransport(input: RawGalleryTransport): Transport | undefined {
-				switch (input.type) {
-					case 'stdio':
-						return {
-							type: TransportType.STDIO,
-						};
-					case 'streamable-http':
-						return {
-							type: TransportType.STREAMABLE_HTTP,
-							url: input.url,
-							headers: input.headers?.map(convertKeyValueInput),
-						};
-					case 'sse':
-						return {
-							type: TransportType.SSE,
-							url: input.url,
-							headers: input.headers?.map(convertKeyValueInput),
-						};
-					default:
-						return undefined;
-				}
-			}
-
-			function convertRegistryType(input: string): RegistryType {
-				switch (input) {
-					case 'npm':
-						return RegistryType.NODE;
-					case 'docker':
-					case 'docker-hub':
-					case 'oci':
-						return RegistryType.DOCKER;
-					case 'pypi':
-						return RegistryType.PYTHON;
-					case 'nuget':
-						return RegistryType.NUGET;
-					case 'mcpb':
-						return RegistryType.MCPB;
-					default:
-						return RegistryType.NODE;
-				}
-			}
-
-			return {
-				name: from.name,
-				description: from.description,
-				repository: from.repository ? {
-					url: from.repository.url,
-					source: from.repository.source,
-					id: from.repository.id,
-					readme: from.repository.readme
-				} : undefined,
-				version: from.version_detail.version,
-				createdAt: from.created_at,
-				updatedAt: from.updated_at,
-				packages: from.packages?.map<IMcpServerPackage>(p => ({
-					identifier: p.identifier ?? p.name,
-					registryType: convertRegistryType(p.registry_type ?? p.registry_name),
-					version: p.version,
-					fileSha256: p.file_sha256,
-					registryBaseUrl: p.registry_base_url,
-					transport: p.transport ? convertTransport(p.transport) : undefined,
-					packageArguments: p.package_arguments?.map(convertServerArgument),
-					runtimeHint: p.runtime_hint,
-					runtimeArguments: p.runtime_arguments?.map(convertServerArgument),
-					environmentVariables: p.environment_variables?.map(convertKeyValueInput),
-				})),
-				remotes: from.remotes?.map(remote => {
-					const type = (<RawGalleryTransport>remote).type ?? (<McpServerDeprecatedRemote>remote).transport_type ?? (<McpServerDeprecatedRemote>remote).transport;
-					return {
-						type: type === TransportType.SSE ? TransportType.SSE : TransportType.STREAMABLE_HTTP,
-						url: remote.url,
-						headers: remote.headers?.map(convertKeyValueInput)
-					};
-				}),
-				registryInfo: {
-					id: from.id,
-					isLatest: true,
-					updatedAt: from.updated_at,
-				},
-			};
-		}
-	}
-
-	export const SERIALIZER = new Serializer();
-}
-
-namespace McpServerSchemaVersion_2025_01_09 {
-
-	export const VERSION = '2025-09-01';
-	export const SCHEMA = `https://static.modelcontextprotocol.io/schemas/${VERSION}/server.schema.json`;
-
-	interface RawGalleryMcpServerInput {
-		readonly description?: string;
-		readonly is_required?: boolean;
-		readonly format?: 'string' | 'number' | 'boolean' | 'filepath';
-		readonly value?: string;
-		readonly is_secret?: boolean;
-		readonly default?: string;
-		readonly choices?: readonly string[];
-	}
-
-	interface RawGalleryMcpServerVariableInput extends RawGalleryMcpServerInput {
-		readonly variables?: Record<string, RawGalleryMcpServerInput>;
-	}
-
-	interface RawGalleryMcpServerPositionalArgument extends RawGalleryMcpServerVariableInput {
-		readonly type: 'positional';
-		readonly value_hint?: string;
-		readonly is_repeated?: boolean;
-	}
-
-	interface RawGalleryMcpServerNamedArgument extends RawGalleryMcpServerVariableInput {
-		readonly type: 'named';
-		readonly name: string;
-		readonly is_repeated?: boolean;
-	}
-
-	interface RawGalleryMcpServerKeyValueInput extends RawGalleryMcpServerVariableInput {
-		readonly name: string;
-		readonly value?: string;
-	}
-
-	type RawGalleryMcpServerArgument = RawGalleryMcpServerPositionalArgument | RawGalleryMcpServerNamedArgument;
-
-	interface McpServerDeprecatedRemote {
-		readonly transport_type?: 'streamable' | 'sse';
-		readonly transport?: 'streamable' | 'sse';
-		readonly url: string;
-		readonly headers?: ReadonlyArray<RawGalleryMcpServerKeyValueInput>;
-	}
-
-	type RawGalleryMcpServerRemotes = ReadonlyArray<SseTransport | StreamableHttpTransport | McpServerDeprecatedRemote>;
-
-	type RawGalleryTransport = StdioTransport | StreamableHttpTransport | SseTransport;
-
-	interface StdioTransport {
-		readonly type: 'stdio';
-	}
-
-	interface StreamableHttpTransport {
-		readonly type: 'streamable-http' | 'sse';
-		readonly url: string;
-		readonly headers?: ReadonlyArray<RawGalleryMcpServerKeyValueInput>;
-	}
-
-	interface SseTransport {
-		readonly type: 'sse';
-		readonly url: string;
-		readonly headers?: ReadonlyArray<RawGalleryMcpServerKeyValueInput>;
-	}
-
-	interface RawGalleryMcpServerPackage {
-		readonly registry_name: string;
-		readonly name: string;
-		readonly registry_type: 'npm' | 'pypi' | 'docker-hub' | 'nuget' | 'remote' | 'mcpb';
-		readonly registry_base_url?: string;
-		readonly identifier: string;
-		readonly version: string;
-		readonly file_sha256?: string;
-		readonly transport?: RawGalleryTransport;
-		readonly package_arguments?: readonly RawGalleryMcpServerArgument[];
-		readonly runtime_hint?: string;
-		readonly runtime_arguments?: readonly RawGalleryMcpServerArgument[];
-		readonly environment_variables?: ReadonlyArray<RawGalleryMcpServerKeyValueInput>;
-	}
-
-	interface RawGalleryMcpServer {
-		readonly $schema: string;
-		readonly name: string;
-		readonly description: string;
-		readonly status?: 'active' | 'deprecated';
-		readonly repository?: {
-			readonly source: string;
-			readonly url: string;
-			readonly id?: string;
-			readonly readme?: string;
-		};
-		readonly version_detail: {
-			readonly version: string;
-			readonly release_date: string;
-			readonly is_latest: boolean;
-		};
-		readonly created_at: string;
-		readonly updated_at: string;
-		readonly packages?: readonly RawGalleryMcpServerPackage[];
-		readonly remotes?: RawGalleryMcpServerRemotes;
-		readonly _meta: {
-			readonly 'io.modelcontextprotocol.registry': {
-				readonly id: string;
-				readonly is_latest: boolean;
-				readonly published_at: string;
-				readonly updated_at: string;
-				readonly release_date?: string;
-			};
-			readonly github?: IGitHubInfo;
-		};
-	}
-
-	interface RawGalleryMcpServersResult {
-		readonly metadata?: {
-			readonly count: number;
-			readonly total?: number;
-			readonly next_cursor?: string;
-		};
-		readonly servers: readonly RawGalleryMcpServer[];
-	}
-
-	class Serializer implements IGalleryMcpServerDataSerializer {
-
-		public toRawGalleryMcpServerResult(input: any): IRawGalleryMcpServersResult | undefined {
-			if (!input || !Array.isArray(input.servers)) {
-				return undefined;
-			}
-
-			const from = <RawGalleryMcpServersResult>input;
-
-			const servers: IRawGalleryMcpServer[] = [];
-			for (const server of from.servers) {
-				const rawServer = this.toRawGalleryMcpServer(server);
-				if (!rawServer) {
-					return undefined;
-				}
-				servers.push(rawServer);
-			}
-
-			return {
-				metadata: from.metadata,
-				servers
-			};
-		}
-
-		public toRawGalleryMcpServer(input: any): IRawGalleryMcpServer | undefined {
-			if (!input || (<RawGalleryMcpServer>input).$schema !== McpServerSchemaVersion_2025_01_09.SCHEMA) {
-				return undefined;
-			}
-
-			const from = <RawGalleryMcpServer>input;
-			const registryInfo = from._meta?.['io.modelcontextprotocol.registry'];
-
-			function convertServerInput(input: RawGalleryMcpServerInput): IMcpServerInput {
-				return {
-					...input,
-					isRequired: input.is_required,
-					isSecret: input.is_secret,
-				};
-			}
-
-			function convertVariables(variables: Record<string, RawGalleryMcpServerInput>): Record<string, IMcpServerInput> {
-				const result: Record<string, IMcpServerInput> = {};
-				for (const [key, value] of Object.entries(variables)) {
-					result[key] = convertServerInput(value);
-				}
-				return result;
-			}
-
-			function convertServerArgument(arg: RawGalleryMcpServerArgument): IMcpServerArgument {
-				if (arg.type === 'positional') {
-					return {
-						...arg,
-						valueHint: arg.value_hint,
-						isRepeated: arg.is_repeated,
-						isRequired: arg.is_required,
-						isSecret: arg.is_secret,
-						variables: arg.variables ? convertVariables(arg.variables) : undefined,
-					};
-				}
-				return {
-					...arg,
-					isRepeated: arg.is_repeated,
-					isRequired: arg.is_required,
-					isSecret: arg.is_secret,
-					variables: arg.variables ? convertVariables(arg.variables) : undefined,
-				};
-			}
-
-			function convertKeyValueInput(input: RawGalleryMcpServerKeyValueInput): IMcpServerKeyValueInput {
-				return {
-					...input,
-					isRequired: input.is_required,
-					isSecret: input.is_secret,
-					variables: input.variables ? convertVariables(input.variables) : undefined,
-				};
-			}
-
-			function convertTransport(input: RawGalleryTransport): Transport | undefined {
-				switch (input.type) {
-					case 'stdio':
-						return {
-							type: TransportType.STDIO,
-						};
-					case 'streamable-http':
-						return {
-							type: TransportType.STREAMABLE_HTTP,
-							url: input.url,
-							headers: input.headers?.map(convertKeyValueInput),
-						};
-					case 'sse':
-						return {
-							type: TransportType.SSE,
-							url: input.url,
-							headers: input.headers?.map(convertKeyValueInput),
-						};
-					default:
-						return undefined;
-				}
-			}
-
-			function convertRegistryType(input: string): RegistryType {
-				switch (input) {
-					case 'npm':
-						return RegistryType.NODE;
-					case 'docker':
-					case 'docker-hub':
-					case 'oci':
-						return RegistryType.DOCKER;
-					case 'pypi':
-						return RegistryType.PYTHON;
-					case 'nuget':
-						return RegistryType.NUGET;
-					case 'mcpb':
-						return RegistryType.MCPB;
-					default:
-						return RegistryType.NODE;
-				}
-			}
-
-			return {
-				name: from.name,
-				description: from.description,
-				repository: from.repository ? {
-					url: from.repository.url,
-					source: from.repository.source,
-					id: from.repository.id,
-					readme: from.repository.readme
-				} : undefined,
-				version: from.version_detail.version,
-				createdAt: from.created_at,
-				updatedAt: from.updated_at,
-				packages: from.packages?.map<IMcpServerPackage>(p => ({
-					identifier: p.identifier ?? p.name,
-					registryType: convertRegistryType(p.registry_type ?? p.registry_name),
-					version: p.version,
-					fileSha256: p.file_sha256,
-					registryBaseUrl: p.registry_base_url,
-					transport: p.transport ? convertTransport(p.transport) : undefined,
-					packageArguments: p.package_arguments?.map(convertServerArgument),
-					runtimeHint: p.runtime_hint,
-					runtimeArguments: p.runtime_arguments?.map(convertServerArgument),
-					environmentVariables: p.environment_variables?.map(convertKeyValueInput),
-				})),
-				remotes: from.remotes?.map(remote => {
-					const type = (<RawGalleryTransport>remote).type ?? (<McpServerDeprecatedRemote>remote).transport_type ?? (<McpServerDeprecatedRemote>remote).transport;
-					return {
-						type: type === TransportType.SSE ? TransportType.SSE : TransportType.STREAMABLE_HTTP,
-						url: remote.url,
-						headers: remote.headers?.map(convertKeyValueInput)
-					};
-				}),
-				registryInfo: {
-					id: registryInfo.id,
-					isLatest: registryInfo.is_latest,
-					publishedAt: registryInfo.published_at,
-					updatedAt: registryInfo.updated_at,
-				},
-				githubInfo: from._meta.github,
-			};
-		}
-	}
-
-	export const SERIALIZER = new Serializer();
-}
 
 namespace McpServerSchemaVersion_2025_07_09 {
 
@@ -1027,7 +190,7 @@ namespace McpServerSchemaVersion_2025_07_09 {
 				readonly updated_at: string;
 				readonly release_date?: string;
 			};
-			readonly 'io.modelcontextprotocol.registry/publisher-provided'?: Record<string, any>;
+			readonly 'io.modelcontextprotocol.registry/publisher-provided'?: Record<string, unknown>;
 		};
 	}
 
@@ -1042,8 +205,8 @@ namespace McpServerSchemaVersion_2025_07_09 {
 
 	class Serializer implements IGalleryMcpServerDataSerializer {
 
-		public toRawGalleryMcpServerResult(input: any): IRawGalleryMcpServersResult | undefined {
-			if (!input || !Array.isArray(input.servers)) {
+		public toRawGalleryMcpServerResult(input: unknown): IRawGalleryMcpServersResult | undefined {
+			if (!input || typeof input !== 'object' || !Array.isArray((input as RawGalleryMcpServersResult).servers)) {
 				return undefined;
 			}
 
@@ -1064,8 +227,8 @@ namespace McpServerSchemaVersion_2025_07_09 {
 			};
 		}
 
-		public toRawGalleryMcpServer(input: any): IRawGalleryMcpServer | undefined {
-			if (!input || (<RawGalleryMcpServer>input).$schema !== McpServerSchemaVersion_2025_07_09.SCHEMA) {
+		public toRawGalleryMcpServer(input: unknown): IRawGalleryMcpServer | undefined {
+			if (!input || typeof input !== 'object' || (<RawGalleryMcpServer>input).$schema !== McpServerSchemaVersion_2025_07_09.SCHEMA) {
 				return undefined;
 			}
 
@@ -1197,7 +360,7 @@ namespace McpServerSchemaVersion_2025_07_09 {
 					publishedAt: registryInfo.published_at,
 					updatedAt: registryInfo.updated_at,
 				},
-				githubInfo: from._meta['io.modelcontextprotocol.registry/publisher-provided']?.github,
+				githubInfo: from._meta['io.modelcontextprotocol.registry/publisher-provided']?.github as IGitHubInfo | undefined,
 			};
 		}
 	}
@@ -1205,9 +368,9 @@ namespace McpServerSchemaVersion_2025_07_09 {
 	export const SERIALIZER = new Serializer();
 }
 
-namespace McpServerSchemaVersion_2025_16_09 {
+namespace McpServerSchemaVersion_2025_29_09 {
 
-	export const VERSION = '2025-16-09';
+	export const VERSION = '2025-09-29';
 	export const SCHEMA = `https://static.modelcontextprotocol.io/schemas/${VERSION}/server.schema.json`;
 
 	interface RawGalleryMcpServerInput {
@@ -1217,6 +380,7 @@ namespace McpServerSchemaVersion_2025_16_09 {
 		readonly value?: string;
 		readonly isSecret?: boolean;
 		readonly default?: string;
+		readonly placeholder?: string;
 		readonly choices?: readonly string[];
 	}
 
@@ -1264,13 +428,12 @@ namespace McpServerSchemaVersion_2025_16_09 {
 	}
 
 	interface RawGalleryMcpServerPackage {
-		readonly registryName: string;
 		readonly registryType: RegistryType;
-		readonly registryBaseUrl?: string;
 		readonly identifier: string;
 		readonly version: string;
+		readonly transport: RawGalleryTransport;
+		readonly registryBaseUrl?: string;
 		readonly fileSha256?: string;
-		readonly transport?: RawGalleryTransport;
 		readonly packageArguments?: readonly RawGalleryMcpServerArgument[];
 		readonly runtimeHint?: string;
 		readonly runtimeArguments?: readonly RawGalleryMcpServerArgument[];
@@ -1281,19 +444,24 @@ namespace McpServerSchemaVersion_2025_16_09 {
 		readonly $schema: string;
 		readonly name: string;
 		readonly description: string;
-		readonly status?: GalleryMcpServerStatus;
+		readonly version: string;
+		readonly title?: string;
 		readonly repository?: {
 			readonly source: string;
 			readonly url: string;
 			readonly id?: string;
 			readonly readme?: string;
 		};
-		readonly version: string;
 		readonly websiteUrl?: string;
-		readonly createdAt: string;
-		readonly updatedAt: string;
 		readonly packages?: readonly RawGalleryMcpServerPackage[];
 		readonly remotes?: RawGalleryMcpServerRemotes;
+		readonly _meta: {
+			readonly 'io.modelcontextprotocol.registry/publisher-provided'?: Record<string, unknown>;
+		};
+	}
+
+	interface RawGalleryMcpServerInfo {
+		readonly server: RawGalleryMcpServer;
 		readonly _meta: {
 			readonly 'io.modelcontextprotocol.registry/official': {
 				readonly id: string;
@@ -1301,8 +469,8 @@ namespace McpServerSchemaVersion_2025_16_09 {
 				readonly publishedAt: string;
 				readonly updatedAt: string;
 				readonly releaseDate?: string;
+				readonly status?: GalleryMcpServerStatus;
 			};
-			readonly 'io.modelcontextprotocol.registry/publisher-provided'?: Record<string, any>;
 		};
 	}
 
@@ -1312,13 +480,13 @@ namespace McpServerSchemaVersion_2025_16_09 {
 			readonly total?: number;
 			readonly next_cursor?: string;
 		};
-		readonly servers: readonly RawGalleryMcpServer[];
+		readonly servers: readonly RawGalleryMcpServerInfo[];
 	}
 
 	class Serializer implements IGalleryMcpServerDataSerializer {
 
-		public toRawGalleryMcpServerResult(input: any): IRawGalleryMcpServersResult | undefined {
-			if (!input || !Array.isArray(input.servers)) {
+		public toRawGalleryMcpServerResult(input: unknown): IRawGalleryMcpServersResult | undefined {
+			if (!input || typeof input !== 'object' || !Array.isArray((input as RawGalleryMcpServersResult).servers)) {
 				return undefined;
 			}
 
@@ -1339,31 +507,34 @@ namespace McpServerSchemaVersion_2025_16_09 {
 			};
 		}
 
-		public toRawGalleryMcpServer(input: any): IRawGalleryMcpServer | undefined {
-			if (!input || (<RawGalleryMcpServer>input).$schema !== McpServerSchemaVersion_2025_16_09.SCHEMA) {
+		public toRawGalleryMcpServer(input: unknown): IRawGalleryMcpServer | undefined {
+			if (!input || typeof input !== 'object' || !(<RawGalleryMcpServerInfo>input).server) {
 				return undefined;
 			}
 
-			const from = <RawGalleryMcpServer>input;
+			if ((<RawGalleryMcpServerInfo>input).server.$schema && (<RawGalleryMcpServerInfo>input).server.$schema !== McpServerSchemaVersion_2025_29_09.SCHEMA) {
+				return undefined;
+			}
+
+			const from = <RawGalleryMcpServerInfo>input;
 
 			return {
-				name: from.name,
-				description: from.description,
-				repository: from.repository ? {
-					url: from.repository.url,
-					source: from.repository.source,
-					id: from.repository.id,
-					readme: from.repository.readme
+				name: from.server.name,
+				description: from.server.description,
+				version: from.server.version,
+				title: from.server.title,
+				repository: from.server.repository ? {
+					url: from.server.repository.url,
+					source: from.server.repository.source,
+					id: from.server.repository.id,
+					readme: from.server.repository.readme
 				} : undefined,
-				version: from.version,
-				status: from.status,
-				websiteUrl: from.websiteUrl,
-				createdAt: from.createdAt,
-				updatedAt: from.updatedAt,
-				packages: from.packages,
-				remotes: from.remotes,
-				registryInfo: from._meta?.['io.modelcontextprotocol.registry/official'],
-				githubInfo: from._meta['io.modelcontextprotocol.registry/publisher-provided']?.github,
+				websiteUrl: from.server.websiteUrl,
+				packages: from.server.packages,
+				remotes: from.server.remotes,
+				status: from._meta['io.modelcontextprotocol.registry/official'].status,
+				registryInfo: from._meta['io.modelcontextprotocol.registry/official'],
+				githubInfo: from.server._meta['io.modelcontextprotocol.registry/publisher-provided']?.github as IGitHubInfo | undefined,
 			};
 		}
 	}
@@ -1415,10 +586,7 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 		super();
 		this.galleryMcpServerDataSerializers = new Map();
 		this.galleryMcpServerDataSerializers.set(McpServerSchemaVersion_2025_07_09.VERSION, McpServerSchemaVersion_2025_07_09.SERIALIZER);
-		this.galleryMcpServerDataSerializers.set(McpServerSchemaVersion_2025_01_09.VERSION, McpServerSchemaVersion_2025_01_09.SERIALIZER);
-		this.galleryMcpServerDataSerializers.set('old', McpServerOldSchema.SERIALIZER);
-		this.galleryMcpServerDataSerializers.set('1es', McpServer1ESSchema.SERIALIZER);
-		this.galleryMcpServerDataSerializers.set(McpServerSchemaVersion_2025_16_09.VERSION, McpServerSchemaVersion_2025_16_09.SERIALIZER);
+		this.galleryMcpServerDataSerializers.set(McpServerSchemaVersion_2025_29_09.VERSION, McpServerSchemaVersion_2025_29_09.SERIALIZER);
 	}
 
 	isEnabled(): boolean {
@@ -1549,10 +717,12 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 
 	private toGalleryMcpServer(server: IRawGalleryMcpServer, manifest: IMcpGalleryManifest | null): IGalleryMcpServer {
 		let publisher = '';
-		let displayName = '';
+		let displayName = server.title;
 
 		if (server.githubInfo?.name) {
-			displayName = server.githubInfo.name.split('-').map(s => s.toLowerCase() === 'mcp' ? 'MCP' : s.toLowerCase() === 'github' ? 'GitHub' : uppercaseFirstLetter(s)).join(' ');
+			if (!displayName) {
+				displayName = server.githubInfo.name.split('-').map(s => s.toLowerCase() === 'mcp' ? 'MCP' : s.toLowerCase() === 'github' ? 'GitHub' : uppercaseFirstLetter(s)).join(' ');
+			}
 			publisher = server.githubInfo.name_with_owner.split('/')[0];
 		} else {
 			const nameParts = server.name.split('/');
@@ -1562,7 +732,9 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 					publisher = domainParts[domainParts.length - 1]; // Always take the last part as owner
 				}
 			}
-			displayName = nameParts[nameParts.length - 1].split('-').map(s => uppercaseFirstLetter(s)).join(' ');
+			if (!displayName) {
+				displayName = nameParts[nameParts.length - 1].split('-').map(s => uppercaseFirstLetter(s)).join(' ');
+			}
 		}
 
 		if (server.githubInfo?.display_name) {
@@ -1729,7 +901,7 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 		return this.toGalleryMcpServer(server, mcpGalleryManifest);
 	}
 
-	private serializeMcpServer(data: any): IRawGalleryMcpServer | undefined {
+	private serializeMcpServer(data: unknown): IRawGalleryMcpServer | undefined {
 		for (const [, serializer] of this.galleryMcpServerDataSerializers) {
 			const result = serializer.toRawGalleryMcpServer(data);
 			if (result) {
@@ -1739,7 +911,7 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 		return undefined;
 	}
 
-	private serializeMcpServersResult(data: any): IRawGalleryMcpServersResult | undefined {
+	private serializeMcpServersResult(data: unknown): IRawGalleryMcpServersResult | undefined {
 		for (const [, serializer] of this.galleryMcpServerDataSerializers) {
 			const result = serializer.toRawGalleryMcpServerResult(data);
 			if (result) {

@@ -31,6 +31,7 @@ export class InlineEditWithChanges {
 		public readonly originalText: AbstractText,
 		public readonly edit: TextEdit,
 		public readonly cursorPosition: Position,
+		public readonly multiCursorPositions: readonly Position[],
 		public readonly commands: readonly InlineCompletionCommand[],
 		public readonly inlineCompletion: InlineSuggestionItem
 	) {

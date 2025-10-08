@@ -30,9 +30,11 @@ import { IHoverService } from '../../../../../../platform/hover/browser/hover.js
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import product from '../../../../../../platform/product/common/product.js';
 import { defaultInputBoxStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
+import { HoverPosition } from '../../../../../../base/browser/ui/hover/hoverWidget.js';
+import { IWorkbenchLayoutService, Position } from '../../../../../services/layout/browser/layoutService.js';
+import { ViewContainerLocation, IEditableData } from '../../../../../common/views.js';
 import { IResourceLabel, ResourceLabels } from '../../../../../browser/labels.js';
 import { IconLabel } from '../../../../../../base/browser/ui/iconLabel/iconLabel.js';
-import { IEditableData } from '../../../../../common/views.js';
 import { IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
 import { IChatService } from '../../../common/chatService.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService } from '../../../common/chatSessionsService.js';
@@ -112,6 +114,7 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 	private markdownRenderer: MarkdownRenderer;
 
 	constructor(
+		private readonly viewLocation: ViewContainerLocation | null,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
@@ -122,6 +125,7 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IChatService private readonly chatService: IChatService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 	) {
 		super();
 
@@ -130,6 +134,18 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 
 	get templateId(): string {
 		return SessionsRenderer.TEMPLATE_ID;
+	}
+
+	private getHoverPosition(): HoverPosition {
+		const sideBarPosition = this.layoutService.getSideBarPosition();
+		switch (this.viewLocation) {
+			case ViewContainerLocation.Sidebar:
+				return sideBarPosition === Position.LEFT ? HoverPosition.RIGHT : HoverPosition.LEFT;
+			case ViewContainerLocation.AuxiliaryBar:
+				return sideBarPosition === Position.LEFT ? HoverPosition.LEFT : HoverPosition.RIGHT;
+			default:
+				return HoverPosition.RIGHT;
+		}
 	}
 
 	renderTemplate(container: HTMLElement): ISessionTemplateData {
@@ -267,11 +283,19 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 		if (renderDescriptionOnSecondRow && session.description && tooltipContent) {
 			if (typeof tooltipContent === 'string') {
 				templateData.elementDisposable.add(
-					this.hoverService.setupDelayedHover(templateData.container, { content: tooltipContent })
+					this.hoverService.setupDelayedHover(templateData.container, () => ({
+						content: tooltipContent,
+						appearance: { showPointer: true },
+						position: { hoverPosition: this.getHoverPosition() }
+					}), { groupId: 'chat.sessions' })
 				);
 			} else if (tooltipContent && typeof tooltipContent === 'object' && 'markdown' in tooltipContent) {
 				templateData.elementDisposable.add(
-					this.hoverService.setupDelayedHover(templateData.container, { content: tooltipContent.markdown })
+					this.hoverService.setupDelayedHover(templateData.container, () => ({
+						content: tooltipContent.markdown,
+						appearance: { showPointer: true },
+						position: { hoverPosition: this.getHoverPosition() }
+					}), { groupId: 'chat.sessions' })
 				);
 			}
 		}
@@ -288,9 +312,11 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 			if (session.timing?.startTime) {
 				const fullDateTime = getLocalHistoryDateFormatter().format(session.timing.startTime);
 				templateData.elementDisposable.add(
-					this.hoverService.setupDelayedHover(templateData.timestamp, {
-						content: nls.localize('chat.sessions.lastActivity', 'Last Activity: {0}', fullDateTime)
-					})
+					this.hoverService.setupDelayedHover(templateData.timestamp, () => ({
+						content: nls.localize('chat.sessions.lastActivity', 'Last Activity: {0}', fullDateTime),
+						appearance: { showPointer: true },
+						position: { hoverPosition: this.getHoverPosition() }
+					}), { groupId: 'chat.sessions' })
 				);
 			}
 		} else {

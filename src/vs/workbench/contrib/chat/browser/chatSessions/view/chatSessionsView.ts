@@ -266,13 +266,14 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 			orderedProviders.forEach(({ provider, displayName, baseOrder, when }) => {
 				// Only register if not already registered
 				if (!this.registeredViewDescriptors.has(provider.chatSessionType)) {
+					const viewId = `${VIEWLET_ID}.${provider.chatSessionType}`;
 					const viewDescriptor: IViewDescriptor = {
-						id: `${VIEWLET_ID}.${provider.chatSessionType}`,
+						id: viewId,
 						name: {
 							value: displayName,
 							original: displayName,
 						},
-						ctorDescriptor: new SyncDescriptor(SessionsViewPane, [provider, this.sessionTracker]),
+						ctorDescriptor: new SyncDescriptor(SessionsViewPane, [provider, this.sessionTracker, viewId]),
 						canToggleVisibility: true,
 						canMoveView: true,
 						order: baseOrder, // Use computed order based on priority and alphabetical sorting
@@ -301,7 +302,7 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 						value: nls.localize('chat.sessions.gettingStarted', "Getting Started"),
 						original: 'Getting Started',
 					},
-					ctorDescriptor: new SyncDescriptor(SessionsViewPane, [null, this.sessionTracker]),
+					ctorDescriptor: new SyncDescriptor(SessionsViewPane, [null, this.sessionTracker, gettingStartedViewId]),
 					canToggleVisibility: true,
 					canMoveView: true,
 					order: 1000,
