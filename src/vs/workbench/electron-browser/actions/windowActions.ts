@@ -21,7 +21,7 @@ import { INativeHostService } from '../../../platform/native/common/native.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from '../../../platform/workspace/common/workspace.js';
-import { Action2, IAction2Options, MenuId } from '../../../platform/actions/common/actions.js';
+import { Action2, MenuId } from '../../../platform/actions/common/actions.js';
 import { Categories } from '../../../platform/action/common/actionCommonCategories.js';
 import { KeyCode, KeyMod } from '../../../base/common/keyCodes.js';
 import { KeybindingWeight } from '../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -69,10 +69,6 @@ abstract class BaseZoomAction extends Action2 {
 
 	private static readonly ZOOM_LEVEL_SETTING_KEY = 'window.zoomLevel';
 	private static readonly ZOOM_PER_WINDOW_SETTING_KEY = 'window.zoomPerWindow';
-
-	constructor(desc: Readonly<IAction2Options>) {
-		super(desc);
-	}
 
 	protected async setZoomLevel(accessor: ServicesAccessor, levelOrReset: number | true): Promise<void> {
 		const configurationService = accessor.get(IConfigurationService);
@@ -219,10 +215,6 @@ abstract class BaseSwitchWindow extends Action2 {
 		tooltip: localize('close', "Close Window"),
 		alwaysVisible: true
 	};
-
-	constructor(desc: Readonly<IAction2Options>) {
-		super(desc);
-	}
 
 	protected abstract isQuickNavigate(): boolean;
 

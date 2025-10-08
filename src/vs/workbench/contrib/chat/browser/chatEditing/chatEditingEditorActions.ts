@@ -20,7 +20,7 @@ import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common
 import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_EDITOR_FOCUSED } from '../../../notebook/common/notebookContextKeys.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, IChatEditingService, IChatEditingSession, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState } from '../../common/chatEditingService.js';
+import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, IChatEditingService, IChatEditingSession, IModifiedFileEntry, IModifiedFileEntryChangeHunk, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { ctxHasEditorModification, ctxIsCurrentlyBeingModified, ctxIsGlobalEditingSession, ctxReviewModeEnabled } from './chatEditingEditorContextKeys.js';
 
@@ -34,7 +34,7 @@ abstract class ChatEditingEditorAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, ...args: any[]) {
+	override async run(accessor: ServicesAccessor, ...args: unknown[]) {
 
 		const instaService = accessor.get(IInstantiationService);
 		const chatEditingService = accessor.get(IChatEditingService);
@@ -59,7 +59,7 @@ abstract class ChatEditingEditorAction extends Action2 {
 		return instaService.invokeFunction(this.runChatEditingCommand.bind(this), session, entry, ctrl, ...args);
 	}
 
-	abstract runChatEditingCommand(accessor: ServicesAccessor, session: IChatEditingSession, entry: IModifiedFileEntry, integration: IModifiedFileEntryEditorIntegration, ...args: any[]): Promise<void> | void;
+	abstract runChatEditingCommand(accessor: ServicesAccessor, session: IChatEditingSession, entry: IModifiedFileEntry, integration: IModifiedFileEntryEditorIntegration, ...args: unknown[]): Promise<void> | void;
 }
 
 abstract class NavigateAction extends ChatEditingEditorAction {
@@ -251,14 +251,14 @@ abstract class AcceptRejectHunkAction extends ChatEditingEditorAction {
 		);
 	}
 
-	override async runChatEditingCommand(accessor: ServicesAccessor, session: IChatEditingSession, entry: IModifiedFileEntry, ctrl: IModifiedFileEntryEditorIntegration, ...args: any[]): Promise<void> {
+	override async runChatEditingCommand(accessor: ServicesAccessor, session: IChatEditingSession, entry: IModifiedFileEntry, ctrl: IModifiedFileEntryEditorIntegration, ...args: unknown[]): Promise<void> {
 
 		const instaService = accessor.get(IInstantiationService);
 
 		if (this._accept) {
-			await ctrl.acceptNearestChange(args[0]);
+			await ctrl.acceptNearestChange(args[0] as IModifiedFileEntryChangeHunk | undefined);
 		} else {
-			await ctrl.rejectNearestChange(args[0]);
+			await ctrl.rejectNearestChange(args[0] as IModifiedFileEntryChangeHunk | undefined);
 		}
 
 		if (entry.changesCount.get() === 0) {
@@ -297,8 +297,8 @@ class ToggleDiffAction extends ChatEditingEditorAction {
 		});
 	}
 
-	override runChatEditingCommand(_accessor: ServicesAccessor, _session: IChatEditingSession, _entry: IModifiedFileEntry, integration: IModifiedFileEntryEditorIntegration, ...args: any[]): Promise<void> | void {
-		integration.toggleDiff(args[0]);
+	override runChatEditingCommand(_accessor: ServicesAccessor, _session: IChatEditingSession, _entry: IModifiedFileEntry, integration: IModifiedFileEntryEditorIntegration, ...args: unknown[]): Promise<void> | void {
+		integration.toggleDiff(args[0] as IModifiedFileEntryChangeHunk | undefined);
 	}
 }
 
@@ -338,7 +338,7 @@ export class ReviewChangesAction extends ChatEditingEditorAction {
 		});
 	}
 
-	override runChatEditingCommand(_accessor: ServicesAccessor, _session: IChatEditingSession, entry: IModifiedFileEntry, _integration: IModifiedFileEntryEditorIntegration, ..._args: any[]): void {
+	override runChatEditingCommand(_accessor: ServicesAccessor, _session: IChatEditingSession, entry: IModifiedFileEntry, _integration: IModifiedFileEntryEditorIntegration, ..._args: unknown[]): void {
 		entry.enableReviewModeUntilSettled();
 	}
 }

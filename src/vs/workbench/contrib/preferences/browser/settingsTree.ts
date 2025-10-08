@@ -2619,7 +2619,7 @@ export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
 		}));
 	}
 
-	protected override createModel(user: string, options: IObjectTreeOptions<SettingsTreeGroupChild>): ITreeModel<SettingsTreeGroupChild | null, void, SettingsTreeGroupChild | null> {
+	protected override createModel(user: string, options: IObjectTreeOptions<SettingsTreeElement | null, void>): ITreeModel<SettingsTreeGroupChild | null, void, SettingsTreeGroupChild | null> {
 		return new NonCollapsibleObjectTreeModel<SettingsTreeGroupChild>(user, options);
 	}
 }

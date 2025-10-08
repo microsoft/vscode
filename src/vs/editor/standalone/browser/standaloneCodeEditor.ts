@@ -335,7 +335,7 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 		);
 		const contextMenuGroupId = _descriptor.contextMenuGroupId || null;
 		const contextMenuOrder = _descriptor.contextMenuOrder || 0;
-		const run = (_accessor?: ServicesAccessor, ...args: any[]): Promise<void> => {
+		const run = (_accessor?: ServicesAccessor, ...args: unknown[]): Promise<void> => {
 			return Promise.resolve(_descriptor.run(this, ...args));
 		};
 

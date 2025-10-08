@@ -53,8 +53,8 @@ export interface IChatExecuteActionContext {
 }
 
 abstract class SubmitAction extends Action2 {
-	async run(accessor: ServicesAccessor, ...args: any[]) {
-		const context: IChatExecuteActionContext | undefined = args[0];
+	async run(accessor: ServicesAccessor, ...args: unknown[]) {
+		const context = args[0] as IChatExecuteActionContext | undefined;
 		const telemetryService = accessor.get(ITelemetryService);
 		const widgetService = accessor.get(IChatWidgetService);
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
@@ -247,8 +247,8 @@ export class ChatDelegateToEditSessionAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
-		const context: IChatExecuteActionContext | undefined = args[0];
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+		const context = args[0] as IChatExecuteActionContext | undefined;
 		const widgetService = accessor.get(IChatWidgetService);
 		const instantiationService = accessor.get(IInstantiationService);
 		const inlineWidget = context?.widget ?? widgetService.lastFocusedWidget;
@@ -314,7 +314,7 @@ class ToggleChatModeAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, ...args: any[]) {
+	async run(accessor: ServicesAccessor, ...args: unknown[]) {
 		const commandService = accessor.get(ICommandService);
 		const configurationService = accessor.get(IConfigurationService);
 		const instaService = accessor.get(IInstantiationService);
@@ -383,7 +383,7 @@ class SwitchToNextModelAction extends Action2 {
 		});
 	}
 
-	override run(accessor: ServicesAccessor, ...args: any[]): void {
+	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
 		const widgetService = accessor.get(IChatWidgetService);
 		const widget = widgetService.lastFocusedWidget;
 		widget?.input.switchToNextModel();
@@ -424,7 +424,7 @@ class OpenModelPickerAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 		const widgetService = accessor.get(IChatWidgetService);
 		const widget = widgetService.lastFocusedWidget;
 		if (widget) {
@@ -467,7 +467,7 @@ export class OpenModePickerAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 		const widgetService = accessor.get(IChatWidgetService);
 		const widget = widgetService.lastFocusedWidget;
 		if (widget) {
@@ -490,8 +490,8 @@ class ChangeChatModelAction extends Action2 {
 		});
 	}
 
-	override run(accessor: ServicesAccessor, ...args: any[]): void {
-		const modelInfo: Pick<ILanguageModelChatMetadata, 'vendor' | 'id' | 'family'> = args[0];
+	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
+		const modelInfo = args[0] as Pick<ILanguageModelChatMetadata, 'vendor' | 'id' | 'family'>;
 		// Type check the arg
 		assertType(typeof modelInfo.vendor === 'string' && typeof modelInfo.id === 'string' && typeof modelInfo.family === 'string');
 		const widgetService = accessor.get(IChatWidgetService);
@@ -567,8 +567,8 @@ class SubmitWithoutDispatchingAction extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor, ...args: any[]) {
-		const context: IChatExecuteActionContext | undefined = args[0];
+	run(accessor: ServicesAccessor, ...args: unknown[]) {
+		const context = args[0] as IChatExecuteActionContext | undefined;
 
 		const widgetService = accessor.get(IChatWidgetService);
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
@@ -760,7 +760,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 		return relativePaths;
 	}
 
-	async run(accessor: ServicesAccessor, ...args: any[]) {
+	async run(accessor: ServicesAccessor, ...args: unknown[]) {
 		const contextKeyService = accessor.get(IContextKeyService);
 		const remoteJobCreatingKey = ChatContextKeys.remoteJobCreating.bindTo(contextKeyService);
 
@@ -971,8 +971,8 @@ export class ChatSubmitWithCodebaseAction extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor, ...args: any[]) {
-		const context: IChatExecuteActionContext | undefined = args[0];
+	run(accessor: ServicesAccessor, ...args: unknown[]) {
+		const context = args[0] as IChatExecuteActionContext | undefined;
 
 		const widgetService = accessor.get(IChatWidgetService);
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
@@ -1029,8 +1029,8 @@ class SendToNewChatAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, ...args: any[]) {
-		const context: IChatExecuteActionContext | undefined = args[0];
+	async run(accessor: ServicesAccessor, ...args: unknown[]) {
+		const context = args[0] as IChatExecuteActionContext | undefined;
 
 		const widgetService = accessor.get(IChatWidgetService);
 		const dialogService = accessor.get(IDialogService);
@@ -1080,8 +1080,8 @@ export class CancelAction extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor, ...args: any[]) {
-		const context: IChatExecuteActionContext | undefined = args[0];
+	run(accessor: ServicesAccessor, ...args: unknown[]) {
+		const context = args[0] as IChatExecuteActionContext | undefined;
 		const widgetService = accessor.get(IChatWidgetService);
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
 		if (!widget) {
@@ -1125,8 +1125,8 @@ export class CancelEdit extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor, ...args: any[]) {
-		const context: IChatExecuteActionContext | undefined = args[0];
+	run(accessor: ServicesAccessor, ...args: unknown[]) {
+		const context = args[0] as IChatExecuteActionContext | undefined;
 
 		const widgetService = accessor.get(IChatWidgetService);
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;

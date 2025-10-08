@@ -130,7 +130,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 	private readonly _onDidProgressStep = new Emitter<IResolvedWalkthroughStep>();
 	readonly onDidProgressStep: Event<IResolvedWalkthroughStep> = this._onDidProgressStep.event;
 
-	private memento: Memento;
+	private memento: Memento<Record<string, StepProgress | undefined>>;
 	private stepProgress: Record<string, StepProgress | undefined>;
 
 	private sessionEvents = new Set<string>();
