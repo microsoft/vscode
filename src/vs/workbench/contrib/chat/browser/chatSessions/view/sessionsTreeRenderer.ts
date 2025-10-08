@@ -39,7 +39,7 @@ import { IChatService } from '../../../common/chatService.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatWidgetService } from '../../chat.js';
-import { allowedChatMarkdownHtmlTags } from '../../chatMarkdownRenderer.js';
+import { allowedChatMarkdownHtmlTags } from '../../chatContentMarkdownRenderer.js';
 import { ChatSessionItemWithProvider, extractTimestamp, getSessionItemContextOverlay, isLocalChatSessionItem, processSessionsWithTimeGrouping } from '../common.js';
 import '../../media/chatSessions.css';
 import { LocalChatSessionsProvider } from '../localChatSessionsProvider.js';

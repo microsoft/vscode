@@ -20,16 +20,43 @@ import { applyFontInfo } from '../../../config/domFontInfo.js';
 import { ICodeEditor } from '../../../editorBrowser.js';
 import './renderedMarkdown.css';
 
+/**
+ * Renders markdown to HTML.
+ *
+ * This interface allows a upper level component to pass a custom markdown renderer to sub-components.
+ *
+ * If you want to render markdown content in a standard way, prefer using the {@linkcode IMarkdownRendererService}.
+ */
+export interface IMarkdownRenderer {
+	render(markdown: IMarkdownString, options?: MarkdownRenderOptions, outElement?: HTMLElement): IRenderedMarkdown;
+}
+
+
 export interface IMarkdownRendererExtraOptions {
 	readonly editor?: ICodeEditor;
 	readonly codeBlockFontSize?: string;
 }
 
+
+export const IMarkdownRendererService = createDecorator<IMarkdownRendererService>('markdownRendererService');
+
 /**
- * Markdown renderer that can render codeblocks with the editor mechanics. This
- * renderer should always be preferred.
+ * Service that renders markdown content in a standard manner.
+ *
+ * Unlike the lower-level {@linkcode renderMarkdown} function, this includes built-in support for features such as syntax
+ * highlighting of code blocks and link handling.
+ *
+ * This service should be preferred for rendering markdown in most cases.
  */
-export class MarkdownRenderer {
+export interface IMarkdownRendererService extends IMarkdownRenderer {
+	readonly _serviceBrand: undefined;
+
+	render(markdown: IMarkdownString, options?: MarkdownRenderOptions & IMarkdownRendererExtraOptions, outElement?: HTMLElement): IRenderedMarkdown;
+}
+
+
+export class MarkdownRendererService implements IMarkdownRendererService {
+	declare readonly _serviceBrand: undefined;
 
 	private static _ttpTokenizer = createTrustedTypesPolicy('tokenizeToString', {
 		createHTML(html: string) {
@@ -46,7 +73,9 @@ export class MarkdownRenderer {
 	render(markdown: IMarkdownString, options?: MarkdownRenderOptions & IMarkdownRendererExtraOptions, outElement?: HTMLElement): IRenderedMarkdown {
 		const rendered = renderMarkdown(markdown, {
 			codeBlockRenderer: (alias, value) => this.renderCodeBlock(alias, value, options ?? {}),
-			actionHandler: (link, mdStr) => this.openMarkdownLink(link, mdStr),
+			actionHandler: (link, mdStr) => {
+				return openLinkFromMarkdown(this._openerService, link, mdStr.isTrusted);
+			},
 			...options,
 		}, outElement);
 		rendered.element.classList.add('rendered-markdown');
@@ -70,7 +99,7 @@ export class MarkdownRenderer {
 
 		const element = document.createElement('span');
 
-		element.innerHTML = (MarkdownRenderer._ttpTokenizer?.createHTML(html) ?? html) as string;
+		element.innerHTML = (MarkdownRendererService._ttpTokenizer?.createHTML(html) ?? html) as string;
 
 		// use "good" font
 		if (options.editor) {
@@ -86,45 +115,7 @@ export class MarkdownRenderer {
 
 		return element;
 	}
-
-	protected async openMarkdownLink(link: string, markdown: IMarkdownString) {
-		await openLinkFromMarkdown(this._openerService, link, markdown.isTrusted);
-	}
 }
-
-export const IMarkdownRendererService = createDecorator<IMarkdownRendererService>('markdownRendererService');
-
-export interface IMarkdownRendererService {
-	readonly _serviceBrand: undefined;
-
-	/**
-	 * Renders markdown with codeblocks with the editor mechanics.
-	 */
-	render(markdown: IMarkdownString, options?: MarkdownRenderOptions & IMarkdownRendererExtraOptions, outElement?: HTMLElement): IRenderedMarkdown;
-}
-
-
-class MarkdownRendererService implements IMarkdownRendererService {
-	declare readonly _serviceBrand: undefined;
-
-	constructor(
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@ILanguageService private readonly _languageService: ILanguageService,
-		@IOpenerService private readonly _openerService: IOpenerService,
-	) { }
-
-	render(markdown: IMarkdownString, options?: MarkdownRenderOptions & IMarkdownRendererExtraOptions, outElement?: HTMLElement): IRenderedMarkdown {
-		const renderer = new MarkdownRenderer(
-			this._configurationService,
-			this._languageService,
-			this._openerService
-		);
-		return renderer.render(markdown, options, outElement);
-	}
-}
-
-registerSingleton(IMarkdownRendererService, MarkdownRendererService, InstantiationType.Delayed);
-
 
 export async function openLinkFromMarkdown(openerService: IOpenerService, link: string, isTrusted: boolean | MarkdownStringTrustedOptions | undefined, skipValidation?: boolean): Promise<boolean> {
 	try {
@@ -151,3 +142,5 @@ function toAllowCommandsOption(isTrusted: boolean | MarkdownStringTrustedOptions
 
 	return false; // Block commands
 }
+
+registerSingleton(IMarkdownRendererService, MarkdownRendererService, InstantiationType.Delayed);

@@ -8,7 +8,7 @@ import { IRenderedMarkdown, MarkdownRenderOptions } from '../../../../base/brows
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
-import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRenderer, IMarkdownRendererService } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
@@ -58,19 +58,18 @@ export const allowedChatMarkdownHtmlTags = Object.freeze([
 ]);
 
 /**
- * This wraps the MarkdownRenderer and applies sanitizer options needed for Chat.
+ * This wraps the MarkdownRenderer and applies sanitizer options needed for chat content.
  */
-export class ChatMarkdownRenderer extends MarkdownRenderer {
+export class ChatContentMarkdownRenderer implements IMarkdownRenderer {
 	constructor(
 		@ILanguageService languageService: ILanguageService,
 		@IOpenerService openerService: IOpenerService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IHoverService private readonly hoverService: IHoverService,
-	) {
-		super(configurationService, languageService, openerService);
-	}
+		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
+	) { }
 
-	override render(markdown: IMarkdownString, options?: MarkdownRenderOptions, outElement?: HTMLElement): IRenderedMarkdown {
+	render(markdown: IMarkdownString, options?: MarkdownRenderOptions, outElement?: HTMLElement): IRenderedMarkdown {
 		options = {
 			...options,
 			sanitizerConfig: {
@@ -93,7 +92,7 @@ export class ChatMarkdownRenderer extends MarkdownRenderer {
 				value: `<body>\n\n${markdown.value}</body>`,
 			}
 			: markdown;
-		const result = super.render(mdWithBody, options, outElement);
+		const result = this.markdownRendererService.render(mdWithBody, options, outElement);
 
 		// In some cases, the renderer can return top level text nodes  but our CSS expects
 		// all text to be in a <p> for margin to be applied properly.
