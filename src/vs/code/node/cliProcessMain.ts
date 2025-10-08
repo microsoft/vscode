@@ -41,7 +41,7 @@ import { ILanguagePackService } from '../../platform/languagePacks/common/langua
 import { NativeLanguagePackService } from '../../platform/languagePacks/node/languagePacks.js';
 import { ConsoleLogger, getLogLevel, ILogger, ILoggerService, ILogService, LogLevel } from '../../platform/log/common/log.js';
 import { FilePolicyService } from '../../platform/policy/common/filePolicyService.js';
-import { IPolicyService, IPolicyWriterService, NullPolicyService } from '../../platform/policy/common/policy.js';
+import { IPolicyService, NullPolicyService } from '../../platform/policy/common/policy.js';
 import { NativePolicyService } from '../../platform/policy/node/nativePolicyService.js';
 import product from '../../platform/product/common/product.js';
 import { IProductService } from '../../platform/product/common/productService.js';
@@ -76,7 +76,6 @@ import { McpGalleryService } from '../../platform/mcp/common/mcpGalleryService.j
 import { AllowedMcpServersService } from '../../platform/mcp/common/allowedMcpServersService.js';
 import { IMcpGalleryManifestService } from '../../platform/mcp/common/mcpGalleryManifest.js';
 import { McpGalleryManifestService } from '../../platform/mcp/common/mcpGalleryManifestService.js';
-import { PolicyWriterService } from '../../platform/policy/node/writer/policyWriterService.js';
 
 class CliMain extends Disposable {
 
@@ -193,7 +192,6 @@ class CliMain extends Disposable {
 		// Configuration
 		const configurationService = this._register(new ConfigurationService(userDataProfilesService.defaultProfile.settingsResource, fileService, policyService, logService));
 		services.set(IConfigurationService, configurationService);
-		services.set(IPolicyWriterService, new PolicyWriterService(configurationService, productService));
 
 		// Initialize
 		await Promise.all([
@@ -345,39 +343,10 @@ class CliMain extends Disposable {
 		else if (this.argv['telemetry']) {
 			console.log(await buildTelemetryMessage(environmentService.appRoot, environmentService.extensionsPath));
 		}
-
-		// List Policies
-		else if (this.argv['dump-policy-configuration']) {
-			return this.dumpPolicyConfiguration(instantiationService);
-		}
 	}
 
 	private asExtensionIdOrVSIX(inputs: string[]): (string | URI)[] {
 		return inputs.map(input => /\.vsix$/i.test(input) ? URI.file(isAbsolute(input) ? input : join(cwd(), input)) : input);
-	}
-
-	private async dumpPolicyConfiguration(instantiationService: IInstantiationService): Promise<void> {
-		let platform: 'darwin' | 'win32' | undefined;
-		switch (this.argv['dump-policy-configuration']) {
-			case 'darwin':
-				platform = 'darwin';
-				break;
-			case 'win32':
-				platform = 'win32';
-				break;
-		}
-		if (!platform) {
-			console.error(`Failed to dump policies. Invalid platform: ${this.argv['dump-policy-configuration']}`);
-			return;
-		}
-		return instantiationService.invokeFunction(async accessor => {
-			// const policyWriterService = accessor.get(IPolicyWriterService);
-			try {
-				// await policyWriterService.write(platform);
-			} catch (error) {
-				console.error('Failed to dump policies:', error instanceof Error ? error.message : String(error));
-			}
-		});
 	}
 }
 

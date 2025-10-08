@@ -216,7 +216,8 @@ class CodeMain {
 		const configurationService = new ConfigurationService(userDataProfilesMainService.defaultProfile.settingsResource, fileService, policyService, logService);
 		services.set(IConfigurationService, configurationService);
 
-		services.set(IPolicyWriterService, new PolicyWriterService(configurationService, productService));
+		// Policy Export
+		services.set(IPolicyWriterService, new SyncDescriptor(PolicyWriterService, undefined, false));
 
 		// Lifecycle
 		services.set(ILifecycleMainService, new SyncDescriptor(LifecycleMainService, undefined, false));

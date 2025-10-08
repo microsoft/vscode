@@ -40,7 +40,7 @@ suite('PolicyConfiguration', () => {
 				'default': 'defaultValueA',
 				policy: {
 					name: 'PolicySettingA',
-					category: PolicyCategory.Default,
+					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
 				}
 			},
@@ -49,7 +49,7 @@ suite('PolicyConfiguration', () => {
 				'default': 'defaultValueB',
 				policy: {
 					name: 'PolicySettingB',
-					category: PolicyCategory.Default,
+					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
 				}
 			},
@@ -58,7 +58,7 @@ suite('PolicyConfiguration', () => {
 				'default': {},
 				policy: {
 					name: 'PolicyObjectSetting',
-					category: PolicyCategory.Default,
+					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
 				}
 			},
@@ -67,7 +67,7 @@ suite('PolicyConfiguration', () => {
 				'default': [],
 				policy: {
 					name: 'PolicyArraySetting',
-					category: PolicyCategory.Default,
+					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
 				}
 			},
@@ -76,7 +76,7 @@ suite('PolicyConfiguration', () => {
 				'default': true,
 				policy: {
 					name: 'PolicyBooleanSetting',
-					category: PolicyCategory.Default,
+					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
 				}
 			},
@@ -86,7 +86,7 @@ suite('PolicyConfiguration', () => {
 				included: false,
 				policy: {
 					name: 'PolicyInternalSetting',
-					category: PolicyCategory.Default,
+					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
 				}
 			},
@@ -274,7 +274,7 @@ suite('PolicyConfiguration', () => {
 			'default': 'defaultValueC',
 			policy: {
 				name: 'PolicySettingC',
-				category: PolicyCategory.Default,
+				category: PolicyCategory.Extensions,
 				minimumVersion: '1.0.0',
 			}
 		};

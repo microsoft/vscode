@@ -90,7 +90,7 @@ suite('ConfigurationEditing', () => {
 					'default': 'isSet',
 					policy: {
 						name: 'configurationEditing.service.policySetting',
-						category: PolicyCategory.Default,
+						category: PolicyCategory.Extensions,
 						minimumVersion: '1.0.0',
 					}
 				}

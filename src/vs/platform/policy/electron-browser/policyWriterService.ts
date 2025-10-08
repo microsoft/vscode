@@ -6,5 +6,4 @@
 import { registerMainProcessRemoteService } from '../../ipc/electron-browser/services.js';
 import { IPolicyWriterService } from '../common/policy.js';
 
-console.log('@@@REGISTERED');
 registerMainProcessRemoteService(IPolicyWriterService, 'policyWriter');

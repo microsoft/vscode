@@ -24,7 +24,7 @@ import { registerAction2, Action2, MenuRegistry } from '../../../platform/action
 import { IStorageService, StorageScope, StorageTarget } from '../../../platform/storage/common/storage.js';
 import { clamp } from '../../../base/common/numbers.js';
 import { KeyCode } from '../../../base/common/keyCodes.js';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, Extensions } from '../../../platform/configuration/common/configurationRegistry.js';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../platform/configuration/common/configurationRegistry.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { IWorkingCopyService } from '../../services/workingCopy/common/workingCopyService.js';
 import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
@@ -45,7 +45,7 @@ import { IProductService } from '../../../platform/product/common/productService
 import { IDefaultAccountService } from '../../services/accounts/common/defaultAccount.js';
 import { IAuthenticationService } from '../../services/authentication/common/authentication.js';
 import { IAuthenticationAccessService } from '../../services/authentication/browser/authenticationAccessService.js';
-import { IPolicyService, IPolicyWriterService } from '../../../platform/policy/common/policy.js';
+import { IPolicyService } from '../../../platform/policy/common/policy.js';
 
 class InspectContextKeysAction extends Action2 {
 
@@ -650,48 +650,6 @@ class StopTrackDisposables extends Action2 {
 	}
 }
 
-class DumpPoliciesAction extends Action2 {
-
-	constructor() {
-		super({
-			id: 'workbench.action.dumpPolicies',
-			title: localize2('dumpPolicies', 'Dump Policies'),
-			category: Categories.Developer,
-			f1: true
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const quickPickService = accessor.get(IQuickInputService);
-		const policyWriterService = accessor.get(IPolicyWriterService);
-		const picked = await quickPickService.pick([
-			{
-				label: 'Mac',
-				id: 'darwin',
-			},
-			{
-				label: 'Windows',
-				id: 'win32'
-			}
-		]);
-
-		const configs = [];
-		const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
-		const configurationProperties = configurationRegistry.getConfigurationProperties();
-		for (const [key, schema] of Object.entries(configurationProperties)) {
-			if (schema.policy) {
-				console.log('@@', key, schema.type);
-				configs.push({ key, schema });
-			}
-		}
-		// eslint-disable-next-line local/code-no-any-casts
-		const platform = (picked as any).id as 'darwin' | 'win32';
-		console.log('@@@platform', platform);
-		policyWriterService.write(configs, platform);
-		console.log('@@WROTE?', policyWriterService);
-	}
-}
-
 class PolicyDiagnosticsAction extends Action2 {
 
 	constructor() {
@@ -817,7 +775,6 @@ class PolicyDiagnosticsAction extends Action2 {
 				}
 				try {
 					const policyServiceConstructorName = policyService.constructor.name;
-					console.log('@@@@policyService', policyServiceConstructorName);
 					if (policyServiceConstructorName === 'MultiplexPolicyService') {
 						// eslint-disable-next-line local/code-no-any-casts
 						const multiplexService = policyService as any;
@@ -952,7 +909,6 @@ registerAction2(ToggleScreencastModeAction);
 registerAction2(LogStorageAction);
 registerAction2(LogWorkingCopiesAction);
 registerAction2(RemoveLargeStorageEntriesAction);
-registerAction2(DumpPoliciesAction);
 registerAction2(PolicyDiagnosticsAction);
 if (!product.commit) {
 	registerAction2(StartTrackDisposables);

@@ -782,7 +782,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 					'default': 'isSet',
 					policy: {
 						name: 'configurationService.folder.policySetting',
-						category: PolicyCategory.Default,
+						category: PolicyCategory.Extensions,
 						minimumVersion: '1.0.0',
 					}
 				},
@@ -791,7 +791,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 					'default': {},
 					policy: {
 						name: 'configurationService.folder.policyObjectSetting',
-						category: PolicyCategory.Default,
+						category: PolicyCategory.Extensions,
 						minimumVersion: '1.0.0',
 					}
 				},

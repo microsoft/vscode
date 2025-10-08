@@ -1067,8 +1067,6 @@ export class CodeApplication extends Disposable {
 			services.set(IExternalTerminalMainService, new SyncDescriptor(LinuxExternalTerminalService));
 		}
 
-		services.set(IPolicyWriterService, new SyncDescriptor(PolicyWriterService));
-
 		// Backups
 		const backupMainService = new BackupMainService(this.environmentMainService, this.configurationService, this.logService, this.stateService);
 		services.set(IBackupMainService, backupMainService);
@@ -1112,6 +1110,9 @@ export class CodeApplication extends Disposable {
 
 		// Dev Only: CSS service (for ESM)
 		services.set(ICSSDevelopmentService, new SyncDescriptor(CSSDevelopmentService, undefined, true));
+
+		// Dev Only: generate policy file
+		services.set(IPolicyWriterService, new SyncDescriptor(PolicyWriterService, undefined, true));
 
 		// Init services that require it
 		await Promises.settled([
@@ -1222,10 +1223,6 @@ export class CodeApplication extends Disposable {
 		const externalTerminalChannel = ProxyChannel.fromService(accessor.get(IExternalTerminalMainService), disposables);
 		mainProcessElectronServer.registerChannel('externalTerminal', externalTerminalChannel);
 
-		// Policy Writer
-		const policyWriterChannel = ProxyChannel.fromService(accessor.get(IPolicyWriterService), disposables);
-		mainProcessElectronServer.registerChannel('policyWriter', policyWriterChannel);
-
 		// MCP
 		const mcpDiscoveryChannel = ProxyChannel.fromService(accessor.get(INativeMcpDiscoveryHelperService), disposables);
 		mainProcessElectronServer.registerChannel(NativeMcpDiscoveryHelperChannelName, mcpDiscoveryChannel);
@@ -1246,6 +1243,10 @@ export class CodeApplication extends Disposable {
 		// Utility Process Worker
 		const utilityProcessWorkerChannel = ProxyChannel.fromService(accessor.get(IUtilityProcessWorkerMainService), disposables);
 		mainProcessElectronServer.registerChannel(ipcUtilityProcessWorkerChannelName, utilityProcessWorkerChannel);
+
+		// Dev Only: Policy Writer
+		const policyWriterChannel = ProxyChannel.fromService(accessor.get(IPolicyWriterService), disposables);
+		mainProcessElectronServer.registerChannel('policyWriter', policyWriterChannel);
 	}
 
 	private async openFirstWindow(accessor: ServicesAccessor, initialProtocolUrls: IInitialProtocolUrls | undefined): Promise<ICodeWindow[]> {

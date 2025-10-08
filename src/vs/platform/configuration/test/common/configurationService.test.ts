@@ -375,7 +375,7 @@ suite('ConfigurationService.test.ts', () => {
 					'default': 'isSet',
 					policy: {
 						name: 'configurationService.policySetting',
-						category: PolicyCategory.Default,
+						category: PolicyCategory.Extensions,
 						minimumVersion: '1.0.0',
 					}
 				}

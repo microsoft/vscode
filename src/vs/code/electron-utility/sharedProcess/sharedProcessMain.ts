@@ -90,7 +90,7 @@ import { ExtensionsScannerService } from '../../../platform/extensionManagement/
 import { IUserDataProfilesService } from '../../../platform/userDataProfile/common/userDataProfile.js';
 import { IExtensionsProfileScannerService } from '../../../platform/extensionManagement/common/extensionsProfileScannerService.js';
 import { PolicyChannelClient } from '../../../platform/policy/common/policyIpc.js';
-import { IPolicyService, IPolicyWriterService, NullPolicyService } from '../../../platform/policy/common/policy.js';
+import { IPolicyService, NullPolicyService } from '../../../platform/policy/common/policy.js';
 import { UserDataProfilesService } from '../../../platform/userDataProfile/common/userDataProfileIpc.js';
 import { OneDataSystemAppender } from '../../../platform/telemetry/node/1dsAppender.js';
 import { UserDataProfilesCleaner } from './contrib/userDataProfilesCleaner.js';
@@ -132,7 +132,6 @@ import { McpManagementChannel } from '../../../platform/mcp/common/mcpManagement
 import { AllowedMcpServersService } from '../../../platform/mcp/common/allowedMcpServersService.js';
 import { IMcpGalleryManifestService } from '../../../platform/mcp/common/mcpGalleryManifest.js';
 import { McpGalleryManifestIPCService } from '../../../platform/mcp/common/mcpGalleryManifestServiceIpc.js';
-import { PolicyWriterService } from '../../../platform/policy/node/writer/policyWriterService.js';
 
 class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 
@@ -217,9 +216,6 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		// Policies
 		const policyService = this.configuration.policiesData ? new PolicyChannelClient(this.configuration.policiesData, mainProcessService.getChannel('policy')) : new NullPolicyService();
 		services.set(IPolicyService, policyService);
-
-		// Policy Writer (Node.js only)
-		services.set(IPolicyWriterService, new SyncDescriptor(PolicyWriterService, undefined, true));
 
 		// Environment
 		const environmentService = new NativeEnvironmentService(this.configuration.args, productService);

@@ -40,7 +40,8 @@ export class PolicyWriterService implements IPolicyWriterService {
 
 	public async write(configs: Array<{ key: string; schema: IRegisteredConfigurationPropertySchema }>, platform: 'darwin' | 'win32'): Promise<void> {
 		try {
-			const [policies, translations] = await Promise.all([this.getPolicies(configs), this.getTranslations()]);
+			const translations = await this.getTranslations();
+			const policies = this.getPolicies(configs);
 
 			if (platform === 'darwin') {
 				await this.writeDarwin(policies, translations);
@@ -118,15 +119,8 @@ export class PolicyWriterService implements IPolicyWriterService {
 		return convertedPolicy;
 	}
 
-	private async getPolicies(configs: Array<{ key: string; schema: IRegisteredConfigurationPropertySchema }>): Promise<Policy[]> {
-		const policies: Policy[] = [];
-		for (const { key, schema } of configs) {
-			if (schema.policy) {
-				console.log('@@', key, schema.type);
-				policies.push(this.configToPolicy(key, schema));
-			}
-		}
-		return policies;
+	private getPolicies(configs: Array<{ key: string; schema: IRegisteredConfigurationPropertySchema }>): Policy[] {
+		return configs.map(({ key, schema }) => this.configToPolicy(key, schema));
 	}
 
 	private renderADMX(regKey: string, versions: string[], categories: Category[], policies: Policy[]) {

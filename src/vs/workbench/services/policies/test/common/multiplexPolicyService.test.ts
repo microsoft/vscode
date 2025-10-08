@@ -48,7 +48,7 @@ suite('MultiplexPolicyService', () => {
 				'default': 'defaultValueA',
 				policy: {
 					name: 'PolicySettingA',
-					category: PolicyCategory.Default,
+					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
 				}
 			},
@@ -57,7 +57,7 @@ suite('MultiplexPolicyService', () => {
 				'default': 'defaultValueB',
 				policy: {
 					name: 'PolicySettingB',
-					category: PolicyCategory.Default,
+					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
 					value: account => account.chat_preview_features_enabled === false ? 'policyValueB' : undefined,
 				}
@@ -67,7 +67,7 @@ suite('MultiplexPolicyService', () => {
 				'default': ['defaultValueC1', 'defaultValueC2'],
 				policy: {
 					name: 'PolicySettingC',
-					category: PolicyCategory.Default,
+					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
 					value: account => account.chat_preview_features_enabled === false ? JSON.stringify(['policyValueC1', 'policyValueC2']) : undefined,
 				}
@@ -77,7 +77,7 @@ suite('MultiplexPolicyService', () => {
 				'default': true,
 				policy: {
 					name: 'PolicySettingD',
-					category: PolicyCategory.Default,
+					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
 					value: account => account.chat_preview_features_enabled === false ? false : undefined,
 				}

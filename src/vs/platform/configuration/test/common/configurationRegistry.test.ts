@@ -90,7 +90,7 @@ suite('ConfigurationRegistry', () => {
 					'type': 'object',
 					policy: {
 						name: 'policy',
-						category: PolicyCategory.Default,
+						category: PolicyCategory.Extensions,
 						minimumVersion: '1.0.0'
 					}
 				},
@@ -98,7 +98,7 @@ suite('ConfigurationRegistry', () => {
 					'type': 'object',
 					policy: {
 						name: 'policy',
-						category: PolicyCategory.Default,
+						category: PolicyCategory.Extensions,
 						minimumVersion: '1.0.0'
 					}
 				}
