@@ -432,8 +432,12 @@ ${policyEntries}
 			throw new Error(`[${res.status}] Error downloading language pack ${languageId}@${version}`);
 		}
 
-		const { contents: result } = await res.json() as { contents: LanguageTranslations };
-		return result;
+		const { contents: result } = await res.json() as { contents: { [moduleName: string]: LanguageTranslations } };
+
+		// Assumption: all the localization keys we care about are unique. There is a similar comment in the `IPolicy.localization` property
+		// that warns consumers about this localization quirk.
+		const flattenedResult: LanguageTranslations = Object.values(result).reduce((acc, translations) => ({ ...acc, ...translations }), {});
+		return flattenedResult;
 	}
 
 	private parseVersion(version: string): Version {

@@ -51,6 +51,8 @@ export interface IPolicy {
 
 	/**
 	 * Localization info for the policy.
+	 *
+	 * IMPORTANT: the key values for these must be unique to avoid collisions, as during the export time the module information is not available.
 	 */
 	readonly localization: {
 		/** The localization key or key value pair. If only a key is provided, the default value will fallback to the parent configuration's description property. */

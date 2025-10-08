@@ -11,8 +11,9 @@ import { INativeEnvironmentService } from '../../../../platform/environment/comm
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { Extensions, IConfigurationRegistry, IRegisteredConfigurationPropertySchema } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IPolicyWriterService } from '../../../../platform/policy/common/policy.js';
+import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 
 export class PolicyExportContribution extends Disposable implements IWorkbenchContribution {
 
@@ -24,6 +25,7 @@ export class PolicyExportContribution extends Disposable implements IWorkbenchCo
 		@IPolicyWriterService private readonly policyWriterService: IPolicyWriterService,
 		@IWorkbenchConfigurationService private readonly configurationService: IWorkbenchConfigurationService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
+		@IProgressService private readonly progressService: IProgressService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
@@ -43,24 +45,33 @@ export class PolicyExportContribution extends Disposable implements IWorkbenchCo
 				throw new Error(`Received invalid platform: ${platform}. Usage: <code> --export-policy-type=darwin|win32`);
 			}
 
-			this.log('Export begun. Waiting for ready state.');
-			await this.extensionService.whenInstalledExtensionsRegistered();
-			await this.configurationService.whenRemoteConfigurationLoaded();
+			await this.progressService.withProgress({
+				location: ProgressLocation.Notification,
+				title: `Exporting policy type: ${platform}`
+			}, async (progress) => {
+				this.log('Export begun. Waiting for ready state.');
+				progress.report({ message: 'Waiting for installed extension registration' });
+				await this.extensionService.whenInstalledExtensionsRegistered();
 
-			this.log('Extensions and configuration loaded.');
-			const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
-			const configurationProperties = configurationRegistry.getConfigurationProperties();
-			const configs = [];
-			for (const [key, schema] of Object.entries(configurationProperties)) {
-				// Check for the localization property for now to remain backwards compatible.
-				if (schema.policy?.localization) {
-					configs.push({ key, schema });
+				progress.report({ message: 'Waiting for remote configuration' });
+				await this.configurationService.whenRemoteConfigurationLoaded();
+
+				this.log('Extensions and configuration loaded.');
+				const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+				const configurationProperties = configurationRegistry.getConfigurationProperties();
+				const configs: Array<{ key: string; schema: IRegisteredConfigurationPropertySchema }> = [];
+				for (const [key, schema] of Object.entries(configurationProperties)) {
+					// Check for the localization property for now to remain backwards compatible.
+					if (schema.policy?.localization) {
+						configs.push({ key, schema });
+					}
 				}
-			}
 
-			this.log(`Discovered ${configs.length} configurations to export for policy.`);
-			await this.policyWriterService.write(configs, platform);
-			this.log(`Successfully exported policy for ${configs.length} configurations.`);
+				this.log(`Discovered ${configs.length} configurations to export for policy.`);
+				progress.report({ message: `Writing ${configs.length} configurations to policy file` });
+				await this.policyWriterService.write(configs, platform);
+				this.log(`Successfully exported policy for ${configs.length} configurations.`);
+			});
 
 			await this.nativeHostService.exit(0);
 		} catch (error) {
