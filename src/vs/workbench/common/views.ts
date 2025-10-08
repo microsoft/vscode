@@ -749,6 +749,8 @@ export interface ITreeItem {
 
 	description?: string | boolean;
 
+	alignment?: 'left' | 'right';
+
 	icon?: UriComponents;
 
 	iconDark?: UriComponents;
