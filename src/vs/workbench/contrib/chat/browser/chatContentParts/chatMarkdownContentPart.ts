@@ -58,8 +58,7 @@ import { CodeBlockPart, ICodeBlockData, ICodeBlockRenderOptions, localFileLangua
 import { IDisposableReference, ResourcePool } from './chatCollections.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { ChatExtensionsContentPart } from './chatExtensionsContentPart.js';
-import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
-import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { IOpenEditorOptions, registerOpenEditorListeners } from '../../../../../platform/editor/browser/editor.js';
 
 const $ = dom.$;
 
@@ -457,18 +456,7 @@ export class CollapsedCodeBlock extends Disposable {
 	}
 
 	private registerListeners(): void {
-		this._register(dom.addDisposableListener(this.element, dom.EventType.DBLCLICK, e => {
-			this.showDiff({ preserveFocus: false, pinned: true, sideBySide: e.ctrlKey || e.metaKey || e.altKey });
-		}));
-		this._register(dom.addDisposableListener(this.element, dom.EventType.CLICK, e => {
-			this.showDiff({ preserveFocus: true, pinned: e.button === 1 /* middle click */, sideBySide: e.ctrlKey || e.metaKey || e.altKey });
-		}));
-		this._register(dom.addDisposableListener(this.element, dom.EventType.KEY_DOWN, e => {
-			const event = new StandardKeyboardEvent(e);
-			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
-				this.showDiff({ preserveFocus: false, pinned: false, sideBySide: false });
-			}
-		}));
+		this._register(registerOpenEditorListeners(this.element, e => this.showDiff(e)));
 
 		this._register(dom.addDisposableListener(this.element, dom.EventType.CONTEXT_MENU, e => {
 			const event = new StandardMouseEvent(dom.getWindow(e), e);
@@ -493,15 +481,15 @@ export class CollapsedCodeBlock extends Disposable {
 		}));
 	}
 
-	private showDiff({ preserveFocus, pinned, sideBySide }: { preserveFocus: boolean; pinned: boolean; sideBySide: boolean }): void {
+	private showDiff({ editorOptions: options, openToSide }: IOpenEditorOptions): void {
 		if (this.currentDiff) {
 			this.editorService.openEditor({
 				original: { resource: this.currentDiff.originalURI },
 				modified: { resource: this.currentDiff.modifiedURI },
-				options: { preserveFocus, pinned }
-			}, sideBySide ? SIDE_GROUP : undefined);
+				options
+			}, openToSide ? SIDE_GROUP : undefined);
 		} else if (this.uri) {
-			this.editorService.openEditor({ resource: this.uri, options: { preserveFocus, pinned } }, sideBySide ? SIDE_GROUP : undefined);
+			this.editorService.openEditor({ resource: this.uri, options }, openToSide ? SIDE_GROUP : undefined);
 		}
 	}
 
