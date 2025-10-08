@@ -7,7 +7,7 @@ import * as dom from '../../../../base/browser/dom.js';
 import { addDisposableListener } from '../../../../base/browser/dom.js';
 import { DEFAULT_FONT_FAMILY } from '../../../../base/browser/fonts.js';
 import { IHistoryNavigationWidget } from '../../../../base/browser/history.js';
-import { hasNoModifierKeys, StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { hasAnyModifierKeys, StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { ActionViewItem, IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
 import { Button, ButtonWithIcon } from '../../../../base/browser/ui/button/button.js';
@@ -1203,7 +1203,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// We need to prevent Monaco's default Enter behavior while still allowing the VS Code keybinding service
 		// to receive and process the Enter key for ChatSubmitAction
 		this._register(this._inputEditor.onKeyDown((e) => {
-			if (e.keyCode === KeyCode.Enter && hasNoModifierKeys(e)) {
+			if (e.keyCode === KeyCode.Enter && !hasAnyModifierKeys(e)) {
 				// Only prevent the default Monaco behavior (newline insertion)
 				// Do NOT call stopPropagation() so the keybinding service can still process this event
 				e.preventDefault();

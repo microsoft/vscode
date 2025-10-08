@@ -115,10 +115,10 @@ export function printStandardKeyboardEvent(e: StandardKeyboardEvent): string {
 }
 
 /**
- * Checks if a keyboard event has no modifier keys pressed
+ * Checks if a keyboard event has any modifier keys pressed
  */
-export function hasNoModifierKeys(e: IKeyboardEvent): boolean {
-	return !e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey;
+export function hasAnyModifierKeys(e: IKeyboardEvent): boolean {
+	return e.altKey || e.ctrlKey || e.metaKey || e.shiftKey;
 }
 
 export class StandardKeyboardEvent implements IKeyboardEvent {
