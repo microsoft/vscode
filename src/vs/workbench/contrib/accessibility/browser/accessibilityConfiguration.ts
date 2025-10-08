@@ -805,7 +805,7 @@ const configuration: IConfigurationNode = {
 		},
 		'accessibility.openChatEditedFiles': {
 			'type': 'boolean',
-			'default': true,
+			'default': false,
 			'markdownDescription': localize('accessibility.openChatEditedFiles', "Controls whether files should be opened when the chat agent has applied edits to them.")
 		},
 		'accessibility.verboseChatProgressUpdates': {
