@@ -160,7 +160,6 @@ function compileTask(src, out, build, options = {}) {
                 // free resources
                 (await newContentsByFileName).clear();
                 this.push(null);
-                // eslint-disable-next-line local/code-no-any-casts
                 ts2tsMangler = undefined;
             });
         }

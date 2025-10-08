@@ -19,9 +19,9 @@ export const shellTypeResetChars = new Map<TerminalShellType, string[]>([
 
 export const defaultShellTypeResetChars = shellTypeResetChars.get(TerminalShellType.Bash)!;
 
-export function getTokenType(ctx: { commandLine: string; cursorPosition: number }, shellType: TerminalShellType | undefined): TokenType {
+export function getTokenType(ctx: { commandLine: string; cursorIndex: number }, shellType: TerminalShellType | undefined): TokenType {
 	const commandLine = ctx.commandLine;
-	const cursorPosition = ctx.cursorPosition;
+	const cursorPosition = ctx.cursorIndex;
 	const commandResetChars = shellType === undefined ? defaultShellTypeResetChars : shellTypeResetChars.get(shellType) ?? defaultShellTypeResetChars;
 
 	// Check for reset char before the current word

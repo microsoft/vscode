@@ -70,12 +70,12 @@ function createTypeScriptLanguageService(ts, options) {
     const FILES = discoverAndReadFiles(ts, options);
     // Add fake usage files
     options.inlineEntryPoints.forEach((inlineEntryPoint, index) => {
-        FILES[`inlineEntryPoint.${index}.ts`] = inlineEntryPoint;
+        FILES.set(`inlineEntryPoint.${index}.ts`, inlineEntryPoint);
     });
     // Add additional typings
     options.typings.forEach((typing) => {
         const filePath = path_1.default.join(options.sourcesRoot, typing);
-        FILES[typing] = fs_1.default.readFileSync(filePath).toString();
+        FILES.set(typing, fs_1.default.readFileSync(filePath).toString());
     });
     // Resolve libs
     const RESOLVED_LIBS = processLibFiles(ts, options);
@@ -87,7 +87,7 @@ function createTypeScriptLanguageService(ts, options) {
  * Read imports and follow them until all files have been handled
  */
 function discoverAndReadFiles(ts, options) {
-    const FILES = {};
+    const FILES = new Map();
     const in_queue = Object.create(null);
     const queue = [];
     const enqueue = (moduleId) => {
@@ -109,7 +109,7 @@ function discoverAndReadFiles(ts, options) {
         const dts_filename = path_1.default.join(options.sourcesRoot, redirectedModuleId + '.d.ts');
         if (fs_1.default.existsSync(dts_filename)) {
             const dts_filecontents = fs_1.default.readFileSync(dts_filename).toString();
-            FILES[`${moduleId}.d.ts`] = dts_filecontents;
+            FILES.set(`${moduleId}.d.ts`, dts_filecontents);
             continue;
         }
         const js_filename = path_1.default.join(options.sourcesRoot, redirectedModuleId + '.js');
@@ -135,7 +135,7 @@ function discoverAndReadFiles(ts, options) {
             }
             enqueue(importedModuleId);
         }
-        FILES[`${moduleId}.ts`] = ts_filecontents;
+        FILES.set(`${moduleId}.ts`, ts_filecontents);
     }
     return FILES;
 }
@@ -144,15 +144,15 @@ function discoverAndReadFiles(ts, options) {
  */
 function processLibFiles(ts, options) {
     const stack = [...options.compilerOptions.lib];
-    const result = {};
+    const result = new Map();
     while (stack.length > 0) {
         const filename = `lib.${stack.shift().toLowerCase()}.d.ts`;
         const key = `defaultLib:${filename}`;
-        if (!result[key]) {
+        if (!result.has(key)) {
             // add this file
             const filepath = path_1.default.join(TYPESCRIPT_LIB_FOLDER, filename);
             const sourceText = fs_1.default.readFileSync(filepath).toString();
-            result[key] = sourceText;
+            result.set(key, sourceText);
             // precess dependencies and "recurse"
             const info = ts.preProcessFile(sourceText);
             for (const ref of info.libReferenceDirectives) {
@@ -181,9 +181,10 @@ class TypeScriptLanguageServiceHost {
         return this._compilerOptions;
     }
     getScriptFileNames() {
-        return ([]
-            .concat(Object.keys(this._libs))
-            .concat(Object.keys(this._files)));
+        return [
+            ...this._libs.keys(),
+            ...this._files.keys(),
+        ];
     }
     getScriptVersion(_fileName) {
         return '1';
@@ -192,11 +193,11 @@ class TypeScriptLanguageServiceHost {
         return '1';
     }
     getScriptSnapshot(fileName) {
-        if (this._files.hasOwnProperty(fileName)) {
-            return this._ts.ScriptSnapshot.fromString(this._files[fileName]);
+        if (this._files.has(fileName)) {
+            return this._ts.ScriptSnapshot.fromString(this._files.get(fileName));
         }
-        else if (this._libs.hasOwnProperty(fileName)) {
-            return this._ts.ScriptSnapshot.fromString(this._libs[fileName]);
+        else if (this._libs.has(fileName)) {
+            return this._ts.ScriptSnapshot.fromString(this._libs.get(fileName));
         }
         else {
             return this._ts.ScriptSnapshot.fromString('');
@@ -215,10 +216,10 @@ class TypeScriptLanguageServiceHost {
         return fileName === this.getDefaultLibFileName(this._compilerOptions);
     }
     readFile(path, _encoding) {
-        return this._files[path] || this._libs[path];
+        return this._files.get(path) || this._libs.get(path);
     }
     fileExists(path) {
-        return path in this._files || path in this._libs;
+        return this._files.has(path) || this._libs.has(path);
     }
 }
 //#endregion
@@ -230,19 +231,15 @@ var NodeColor;
     NodeColor[NodeColor["Black"] = 2] = "Black";
 })(NodeColor || (NodeColor = {}));
 function getColor(node) {
-    // eslint-disable-next-line local/code-no-any-casts
     return node.$$$color || 0 /* NodeColor.White */;
 }
 function setColor(node, color) {
-    // eslint-disable-next-line local/code-no-any-casts
     node.$$$color = color;
 }
 function markNeededSourceFile(node) {
-    // eslint-disable-next-line local/code-no-any-casts
     node.$$$neededSourceFile = true;
 }
 function isNeededSourceFile(node) {
-    // eslint-disable-next-line local/code-no-any-casts
     return Boolean(node.$$$neededSourceFile);
 }
 function nodeOrParentIsBlack(node) {
@@ -565,12 +562,10 @@ function markNodes(ts, languageService, options) {
         if (nodeOrParentIsBlack(node)) {
             continue;
         }
-        // eslint-disable-next-line local/code-no-any-casts
-        const symbol = node.symbol;
-        if (!symbol) {
+        if (!node.symbol) {
             continue;
         }
-        const aliased = checker.getAliasedSymbol(symbol);
+        const aliased = checker.getAliasedSymbol(node.symbol);
         if (aliased.declarations && aliased.declarations.length > 0) {
             if (nodeOrParentIsBlack(aliased.declarations[0]) || nodeOrChildIsBlack(aliased.declarations[0])) {
                 setColor(node, 2 /* NodeColor.Black */);
@@ -773,12 +768,6 @@ class SymbolImportTuple {
  * Returns the node's symbol and the `import` node (if the symbol resolved from a different module)
  */
 function getRealNodeSymbol(ts, checker, node) {
-    // eslint-disable-next-line local/code-no-any-casts
-    const getPropertySymbolsFromContextualType = ts.getPropertySymbolsFromContextualType;
-    // eslint-disable-next-line local/code-no-any-casts
-    const getContainingObjectLiteralElement = ts.getContainingObjectLiteralElement;
-    // eslint-disable-next-line local/code-no-any-casts
-    const getNameFromPropertyName = ts.getNameFromPropertyName;
     // Go to the original declaration for cases:
     //
     //   (1) when the aliased symbol was declared in the location(parent).
@@ -845,7 +834,7 @@ function getRealNodeSymbol(ts, checker, node) {
         //      bar<Test>(({pr/*goto*/op1})=>{});
         if (ts.isPropertyName(node) && ts.isBindingElement(parent) && ts.isObjectBindingPattern(parent.parent) &&
             (node === (parent.propertyName || parent.name))) {
-            const name = getNameFromPropertyName(node);
+            const name = ts.getNameFromPropertyName(node);
             const type = checker.getTypeAtLocation(parent.parent);
             if (name && type) {
                 if (type.isUnion()) {
@@ -868,11 +857,11 @@ function getRealNodeSymbol(ts, checker, node) {
         //      }
         //      function Foo(arg: Props) {}
         //      Foo( { pr/*1*/op1: 10, prop2: false })
-        const element = getContainingObjectLiteralElement(node);
+        const element = ts.getContainingObjectLiteralElement(node);
         if (element) {
             const contextualType = element && checker.getContextualType(element.parent);
             if (contextualType) {
-                const propertySymbols = getPropertySymbolsFromContextualType(element, checker, contextualType, /*unionSymbolOk*/ false);
+                const propertySymbols = ts.getPropertySymbolsFromContextualType(element, checker, contextualType, /*unionSymbolOk*/ false);
                 if (propertySymbols) {
                     symbol = propertySymbols[0];
                 }

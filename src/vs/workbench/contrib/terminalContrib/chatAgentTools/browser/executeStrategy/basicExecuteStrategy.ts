@@ -6,13 +6,14 @@
 import type { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { DisposableStore, MutableDisposable, toDisposable, type IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { isNumber } from '../../../../../../base/common/types.js';
 import type { ICommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
 import { trackIdleOnPrompt, waitForIdle, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
 import { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
+import { setupRecreatingStartMarker } from './strategyHelpers.js';
 
 /**
  * This strategy is used when shell integration is enabled, but rich command detection was not
@@ -54,6 +55,7 @@ export class BasicExecuteStrategy implements ITerminalExecuteStrategy {
 
 	async execute(commandLine: string, token: CancellationToken): Promise<ITerminalExecuteStrategyResult> {
 		const store = new DisposableStore();
+
 		try {
 			const idlePromptPromise = trackIdleOnPrompt(this._instance, 1000, store);
 			const onDone = Promise.race([
@@ -88,32 +90,13 @@ export class BasicExecuteStrategy implements ITerminalExecuteStrategy {
 			this._log('Waiting for idle');
 			await waitForIdle(this._instance.onData, 1000);
 
-			// Record where the command started. If the marker gets disposed, re-create it where
-			// the cursor is. This can happen in prompts where they clear the line and rerender it
-			// like powerlevel10k's transient prompt
-			const markerListener = new MutableDisposable<IDisposable>();
-			const recreateStartMarker = () => {
-				if (store.isDisposed) {
-					return;
-				}
-				const marker = xterm.raw.registerMarker();
-				this._startMarker.value = marker ?? undefined;
-				this._onDidCreateStartMarker.fire(marker);
-				if (!marker) {
-					markerListener.clear();
-					return;
-				}
-				markerListener.value = marker.onDispose(() => {
-					this._log(`Start marker was disposed, recreating`);
-					recreateStartMarker();
-				});
-			};
-			recreateStartMarker();
-			store.add(toDisposable(() => {
-				markerListener.dispose();
-				this._startMarker.clear();
-				this._onDidCreateStartMarker.fire(undefined);
-			}));
+			setupRecreatingStartMarker(
+				xterm,
+				this._startMarker,
+				m => this._onDidCreateStartMarker.fire(m),
+				store,
+				this._log.bind(this)
+			);
 
 			if (this._hasReceivedUserInput()) {
 				this._log('Command timed out, sending SIGINT and retrying');

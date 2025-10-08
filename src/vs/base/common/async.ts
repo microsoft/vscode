@@ -1715,6 +1715,12 @@ const enum DeferredOutcome {
  */
 export class DeferredPromise<T> {
 
+	public static fromPromise<T>(promise: Promise<T>): DeferredPromise<T> {
+		const deferred = new DeferredPromise<T>();
+		deferred.settleWith(promise);
+		return deferred;
+	}
+
 	private completeCallback!: ValueCallback<T>;
 	private errorCallback!: (err: unknown) => void;
 	private outcome?: { outcome: DeferredOutcome.Rejected; value: unknown } | { outcome: DeferredOutcome.Resolved; value: T };

@@ -172,7 +172,8 @@ export class ChatModeService extends Disposable implements IChatModeService {
 	}
 
 	findModeByName(name: string): IChatMode | undefined {
-		return this.getBuiltinModes().find(mode => mode.name === name) ?? this.getCustomModes().find(mode => mode.name === name);
+		const lowerCasedName = name.toLowerCase();
+		return this.getBuiltinModes().find(mode => mode.name.toLowerCase() === lowerCasedName) ?? this.getCustomModes().find(mode => mode.name.toLowerCase() === lowerCasedName);
 	}
 
 	private getBuiltinModes(): IChatMode[] {
@@ -233,8 +234,7 @@ function isCachedChatModeData(data: unknown): data is IChatModeData {
 		return false;
 	}
 
-	// eslint-disable-next-line local/code-no-any-casts
-	const mode = data as any;
+	const mode = data as IChatModeData;
 	return typeof mode.id === 'string' &&
 		typeof mode.name === 'string' &&
 		typeof mode.kind === 'string' &&

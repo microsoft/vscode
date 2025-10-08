@@ -3,13 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MarkdownRenderOptions, renderMarkdown } from '../../../../../base/browser/markdownRenderer.js';
+import { IRenderedMarkdown, MarkdownRenderOptions, renderMarkdown } from '../../../../../base/browser/markdownRenderer.js';
 import { createTrustedTypesPolicy } from '../../../../../base/browser/trustedTypes.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { IMarkdownString, MarkdownStringTrustedOptions } from '../../../../../base/common/htmlContent.js';
-import { IDisposable } from '../../../../../base/common/lifecycle.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
+import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { EditorOption } from '../../../../common/config/editorOptions.js';
+import { EditorOption, IEditorOptions } from '../../../../common/config/editorOptions.js';
+import { EDITOR_FONT_DEFAULTS } from '../../../../common/config/fontInfo.js';
 import { ILanguageService } from '../../../../common/languages/language.js';
 import { PLAINTEXT_LANGUAGE_ID } from '../../../../common/languages/modesRegistry.js';
 import { tokenizeToString } from '../../../../common/languages/textToHtmlTokenizer.js';
@@ -17,13 +20,8 @@ import { applyFontInfo } from '../../../config/domFontInfo.js';
 import { ICodeEditor } from '../../../editorBrowser.js';
 import './renderedMarkdown.css';
 
-export interface IMarkdownRenderResult extends IDisposable {
-	readonly element: HTMLElement;
-}
-
-export interface IMarkdownRendererOptions {
+export interface IMarkdownRendererExtraOptions {
 	readonly editor?: ICodeEditor;
-	readonly codeBlockFontFamily?: string;
 	readonly codeBlockFontSize?: string;
 }
 
@@ -40,14 +38,14 @@ export class MarkdownRenderer {
 	});
 
 	constructor(
-		private readonly _options: IMarkdownRendererOptions,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 	) { }
 
-	render(markdown: IMarkdownString, options?: MarkdownRenderOptions, outElement?: HTMLElement): IMarkdownRenderResult {
+	render(markdown: IMarkdownString, options?: MarkdownRenderOptions & IMarkdownRendererExtraOptions, outElement?: HTMLElement): IRenderedMarkdown {
 		const rendered = renderMarkdown(markdown, {
-			codeBlockRenderer: (alias, value) => this.renderCodeBlock(alias, value),
+			codeBlockRenderer: (alias, value) => this.renderCodeBlock(alias, value, options ?? {}),
 			actionHandler: (link, mdStr) => this.openMarkdownLink(link, mdStr),
 			...options,
 		}, outElement);
@@ -55,15 +53,15 @@ export class MarkdownRenderer {
 		return rendered;
 	}
 
-	private async renderCodeBlock(languageAlias: string | undefined, value: string): Promise<HTMLElement> {
+	private async renderCodeBlock(languageAlias: string | undefined, value: string, options: IMarkdownRendererExtraOptions): Promise<HTMLElement> {
 		// In markdown,
 		// it is possible that we stumble upon language aliases (e.g.js instead of javascript)
 		// it is possible no alias is given in which case we fall back to the current editor lang
 		let languageId: string | undefined | null;
 		if (languageAlias) {
 			languageId = this._languageService.getLanguageIdByLanguageName(languageAlias);
-		} else if (this._options.editor) {
-			languageId = this._options.editor.getModel()?.getLanguageId();
+		} else if (options.editor) {
+			languageId = options.editor.getModel()?.getLanguageId();
 		}
 		if (!languageId) {
 			languageId = PLAINTEXT_LANGUAGE_ID;
@@ -75,15 +73,15 @@ export class MarkdownRenderer {
 		element.innerHTML = (MarkdownRenderer._ttpTokenizer?.createHTML(html) ?? html) as string;
 
 		// use "good" font
-		if (this._options.editor) {
-			const fontInfo = this._options.editor.getOption(EditorOption.fontInfo);
+		if (options.editor) {
+			const fontInfo = options.editor.getOption(EditorOption.fontInfo);
 			applyFontInfo(element, fontInfo);
-		} else if (this._options.codeBlockFontFamily) {
-			element.style.fontFamily = this._options.codeBlockFontFamily;
+		} else {
+			element.style.fontFamily = this._configurationService.getValue<IEditorOptions>('editor').fontFamily || EDITOR_FONT_DEFAULTS.fontFamily;
 		}
 
-		if (this._options.codeBlockFontSize !== undefined) {
-			element.style.fontSize = this._options.codeBlockFontSize;
+		if (options.codeBlockFontSize !== undefined) {
+			element.style.fontSize = options.codeBlockFontSize;
 		}
 
 		return element;
@@ -93,6 +91,40 @@ export class MarkdownRenderer {
 		await openLinkFromMarkdown(this._openerService, link, markdown.isTrusted);
 	}
 }
+
+export const IMarkdownRendererService = createDecorator<IMarkdownRendererService>('markdownRendererService');
+
+export interface IMarkdownRendererService {
+	readonly _serviceBrand: undefined;
+
+	/**
+	 * Renders markdown with codeblocks with the editor mechanics.
+	 */
+	render(markdown: IMarkdownString, options?: MarkdownRenderOptions & IMarkdownRendererExtraOptions, outElement?: HTMLElement): IRenderedMarkdown;
+}
+
+
+class MarkdownRendererService implements IMarkdownRendererService {
+	declare readonly _serviceBrand: undefined;
+
+	constructor(
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ILanguageService private readonly _languageService: ILanguageService,
+		@IOpenerService private readonly _openerService: IOpenerService,
+	) { }
+
+	render(markdown: IMarkdownString, options?: MarkdownRenderOptions & IMarkdownRendererExtraOptions, outElement?: HTMLElement): IRenderedMarkdown {
+		const renderer = new MarkdownRenderer(
+			this._configurationService,
+			this._languageService,
+			this._openerService
+		);
+		return renderer.render(markdown, options, outElement);
+	}
+}
+
+registerSingleton(IMarkdownRendererService, MarkdownRendererService, InstantiationType.Delayed);
+
 
 export async function openLinkFromMarkdown(openerService: IOpenerService, link: string, isTrusted: boolean | MarkdownStringTrustedOptions | undefined, skipValidation?: boolean): Promise<boolean> {
 	try {

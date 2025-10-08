@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
-import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
+import { IRenderedMarkdown, renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { Button, ButtonWithDropdown, IButton, IButtonOptions } from '../../../../../base/browser/ui/button/button.js';
 import { Action, Separator } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import type { ThemeIcon } from '../../../../../base/common/themables.js';
-import { IMarkdownRenderResult, MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { localize } from '../../../../../nls.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
@@ -49,7 +49,7 @@ export interface IChatConfirmationWidgetOptions<T> {
 export class ChatQueryTitlePart extends Disposable {
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
-	private readonly _renderedTitle = this._register(new MutableDisposable<IMarkdownRenderResult>());
+	private readonly _renderedTitle = this._register(new MutableDisposable<IRenderedMarkdown>());
 
 	public get title() {
 		return this._title;
@@ -161,7 +161,7 @@ abstract class BaseSimpleChatConfirmationWidget<T> extends Disposable {
 		]);
 		configureAccessibilityContainer(elements.container, title, message);
 		this._domNode = elements.root;
-		this.markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
+		this.markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer);
 
 		const titlePart = this._register(instantiationService.createInstance(
 			ChatQueryTitlePart,
@@ -374,7 +374,7 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 		this._domNode = elements.root;
 		this._buttonsDomNode = elements.buttons;
 
-		this.markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
+		this.markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer);
 
 		const titlePart = this._register(instantiationService.createInstance(
 			ChatQueryTitlePart,

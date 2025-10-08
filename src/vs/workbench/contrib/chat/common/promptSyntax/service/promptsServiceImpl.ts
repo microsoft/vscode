@@ -31,6 +31,7 @@ import { IChatModeInstructions, IVariableReference } from '../../chatModes.js';
 import { dirname, isEqual } from '../../../../../../base/common/resources.js';
 import { IExtensionDescription } from '../../../../../../platform/extensions/common/extensions.js';
 import { Delayer } from '../../../../../../base/common/async.js';
+import { IFilesConfigurationService } from '../../../../../services/filesConfiguration/common/filesConfigurationService.js';
 
 /**
  * Provides prompt services.
@@ -55,9 +56,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 	 * Contributed files from extensions keyed by prompt type then name.
 	 */
 	private readonly contributedFiles = {
-		[PromptsType.prompt]: new ResourceMap<IExtensionPromptPath>(),
-		[PromptsType.instructions]: new ResourceMap<IExtensionPromptPath>(),
-		[PromptsType.mode]: new ResourceMap<IExtensionPromptPath>(),
+		[PromptsType.prompt]: new ResourceMap<Promise<IExtensionPromptPath>>(),
+		[PromptsType.instructions]: new ResourceMap<Promise<IExtensionPromptPath>>(),
+		[PromptsType.mode]: new ResourceMap<Promise<IExtensionPromptPath>>(),
 	};
 
 	/**
@@ -73,7 +74,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 		@IUserDataProfileService private readonly userDataService: IUserDataProfileService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IFileService private readonly fileService: IFileService
+		@IFileService private readonly fileService: IFileService,
+		@IFilesConfigurationService private readonly filesConfigService: IFilesConfigurationService
 	) {
 		super();
 
@@ -125,10 +127,11 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 		const prompts = await Promise.all([
 			this.fileLocator.listFiles(type, PromptsStorage.user, token).then(uris => uris.map(uri => ({ uri, storage: PromptsStorage.user, type } satisfies IUserPromptPath))),
-			this.fileLocator.listFiles(type, PromptsStorage.local, token).then(uris => uris.map(uri => ({ uri, storage: PromptsStorage.local, type } satisfies ILocalPromptPath)))
+			this.fileLocator.listFiles(type, PromptsStorage.local, token).then(uris => uris.map(uri => ({ uri, storage: PromptsStorage.local, type } satisfies ILocalPromptPath))),
+			this.getExtensionContributions(type)
 		]);
 
-		return [...prompts.flat(), ...this.contributedFiles[type].values()];
+		return [...prompts.flat()];
 	}
 
 	public async listPromptFilesForStorage(type: PromptsType, storage: PromptsStorage, token: CancellationToken): Promise<readonly IPromptPath[]> {
@@ -138,7 +141,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 		switch (storage) {
 			case PromptsStorage.extension:
-				return Promise.resolve(Array.from(this.contributedFiles[type].values()));
+				return this.getExtensionContributions(type);
 			case PromptsStorage.local:
 				return this.fileLocator.listFiles(type, PromptsStorage.local, token).then(uris => uris.map(uri => ({ uri, storage: PromptsStorage.local, type } satisfies ILocalPromptPath)));
 			case PromptsStorage.user:
@@ -146,6 +149,10 @@ export class PromptsService extends Disposable implements IPromptsService {
 			default:
 				throw new Error(`[listPromptFilesForStorage] Unsupported prompt storage type: ${storage}`);
 		}
+	}
+
+	private async getExtensionContributions(type: PromptsType): Promise<IPromptPath[]> {
+		return Promise.all(this.contributedFiles[type].values());
 	}
 
 	public getSourceFolders(type: PromptsType): readonly IPromptPath[] {
@@ -301,7 +308,16 @@ export class PromptsService extends Disposable implements IPromptsService {
 			// keep first registration per extension (handler filters duplicates per extension already)
 			return Disposable.None;
 		}
-		bucket.set(uri, { uri, name, description, storage: PromptsStorage.extension, type, extension } satisfies IExtensionPromptPath);
+		const entryPromise = (async () => {
+			try {
+				await this.filesConfigService.updateReadonly(uri, true);
+			} catch (e) {
+				const msg = e instanceof Error ? e.message : String(e);
+				this.logger.error(`[registerContributedFile] Failed to make prompt file readonly: ${uri}`, msg);
+			}
+			return { uri, name, description, storage: PromptsStorage.extension, type, extension } satisfies IExtensionPromptPath;
+		})();
+		bucket.set(uri, entryPromise);
 
 		const updateModesIfRequired = () => {
 			if (type === PromptsType.mode) {

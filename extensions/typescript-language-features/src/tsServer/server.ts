@@ -39,7 +39,7 @@ export type TsServerLog =
 export interface ITypeScriptServer {
 	readonly onEvent: vscode.Event<Proto.Event>;
 	readonly onExit: vscode.Event<TypeScriptServerExitEvent>;
-	readonly onError: vscode.Event<any>;
+	readonly onError: vscode.Event<unknown>;
 
 	readonly tsServerLog: TsServerLog | undefined;
 
@@ -125,7 +125,7 @@ export class SingleTsServer extends Disposable implements ITypeScriptServer {
 	private readonly _onExit = this._register(new vscode.EventEmitter<TypeScriptServerExitEvent>());
 	public readonly onExit = this._onExit.event;
 
-	private readonly _onError = this._register(new vscode.EventEmitter<any>());
+	private readonly _onError = this._register(new vscode.EventEmitter<unknown>());
 	public readonly onError = this._onError.event;
 
 	public get tsServerLog() { return this._tsServerLog; }
@@ -528,7 +528,7 @@ export class GetErrRoutingTsServer extends Disposable implements ITypeScriptServ
 	private readonly _onExit = this._register(new vscode.EventEmitter<TypeScriptServerExitEvent>());
 	public readonly onExit = this._onExit.event;
 
-	private readonly _onError = this._register(new vscode.EventEmitter<any>());
+	private readonly _onError = this._register(new vscode.EventEmitter<unknown>());
 	public readonly onError = this._onError.event;
 
 	public get tsServerLog() { return this.mainServer.tsServerLog; }
@@ -666,10 +666,10 @@ export class SyntaxRoutingTsServer extends Disposable implements ITypeScriptServ
 	private readonly _onEvent = this._register(new vscode.EventEmitter<Proto.Event>());
 	public readonly onEvent = this._onEvent.event;
 
-	private readonly _onExit = this._register(new vscode.EventEmitter<any>());
+	private readonly _onExit = this._register(new vscode.EventEmitter<TypeScriptServerExitEvent>());
 	public readonly onExit = this._onExit.event;
 
-	private readonly _onError = this._register(new vscode.EventEmitter<any>());
+	private readonly _onError = this._register(new vscode.EventEmitter<unknown>());
 	public readonly onError = this._onError.event;
 
 	public get tsServerLog() { return this.semanticServer.tsServerLog; }

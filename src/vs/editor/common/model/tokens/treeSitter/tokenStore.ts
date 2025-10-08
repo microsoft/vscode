@@ -6,7 +6,8 @@
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ITextModel } from '../../../model.js';
 
-class ListNode implements IDisposable {
+// Exported for tests
+export class ListNode implements IDisposable {
 	parent?: ListNode;
 	private readonly _children: Node[] = [];
 	get children(): ReadonlyArray<Node> { return this._children; }
@@ -93,7 +94,8 @@ export enum TokenQuality {
 
 type Node = ListNode | LeafNode;
 
-interface LeafNode {
+// Exported for tests
+export interface LeafNode {
 	readonly length: number;
 	token: number;
 	tokenQuality: TokenQuality;
