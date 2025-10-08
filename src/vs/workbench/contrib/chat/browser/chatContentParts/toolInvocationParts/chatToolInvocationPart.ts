@@ -52,6 +52,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		private readonly editorPool: EditorPool,
 		private readonly currentWidthDelegate: () => number,
 		private readonly codeBlockModelCollection: CodeBlockModelCollection,
+		private readonly announcedToolProgressKeys: Set<string> | undefined,
 		private readonly codeBlockStartIndex: number,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
@@ -198,7 +199,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			);
 		}
 
-		return this.instantiationService.createInstance(ChatToolProgressSubPart, this.toolInvocation, this.context, this.renderer);
+		return this.instantiationService.createInstance(ChatToolProgressSubPart, this.toolInvocation, this.context, this.renderer, this.announcedToolProgressKeys);
 	}
 
 	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {

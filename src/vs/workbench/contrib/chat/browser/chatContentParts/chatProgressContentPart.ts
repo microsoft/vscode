@@ -18,6 +18,8 @@ import { ChatTreeItem } from '../chat.js';
 import { renderFileWidgets } from '../chatInlineAnchorWidget.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { AccessibilityWorkbenchSettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 
 export class ChatProgressContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
@@ -35,6 +37,7 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 		icon: ThemeIcon | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 
@@ -47,7 +50,7 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 			return;
 		}
 
-		if (this.showSpinner) {
+		if (this.showSpinner && !this.configurationService.getValue(AccessibilityWorkbenchSettingId.VerboseChatProgressUpdates)) {
 			// TODO@roblourens is this the right place for this?
 			// this step is in progress, communicate it to SR users
 			alert(progress.content.value);
@@ -127,12 +130,13 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 		context: IChatContentPartRenderContext,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IChatMarkdownAnchorService chatMarkdownAnchorService: IChatMarkdownAnchorService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		const progressMessage: IChatProgressMessage = {
 			kind: 'progressMessage',
 			content: new MarkdownString().appendText(localize('workingMessage', "Working..."))
 		};
-		super(progressMessage, renderer, context, undefined, undefined, undefined, instantiationService, chatMarkdownAnchorService);
+		super(progressMessage, renderer, context, undefined, undefined, undefined, instantiationService, chatMarkdownAnchorService, configurationService);
 	}
 
 	override hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {

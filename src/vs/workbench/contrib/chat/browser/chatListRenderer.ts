@@ -197,6 +197,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	 */
 	private readonly _toolInvocationCodeBlockCollection: CodeBlockModelCollection;
 
+	/**
+	 * Prevents re-announcement of already rendered chat progress
+	 * by screen readers
+	 */
+	private readonly _announcedToolProgressKeys = new Set<string>();
+
 	constructor(
 		editorOptions: ChatEditorOptions,
 		private rendererOptions: IChatListItemRendererOptions,
@@ -212,7 +218,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@ICommandService private readonly commandService: ICommandService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
-		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
+		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService
 	) {
 		super();
 
@@ -282,6 +288,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	updateViewModel(viewModel: IChatViewModel | undefined): void {
 		this.viewModel = viewModel;
+		this._announcedToolProgressKeys.clear();
 	}
 
 	getCodeBlockInfoForEditor(uri: URI): IChatCodeBlockInfo | undefined {
@@ -1271,6 +1278,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 	}
 
+	override dispose(): void {
+		this._announcedToolProgressKeys.clear();
+		super.dispose();
+	}
+
+
 	private renderChatErrorDetails(context: IChatContentPartRenderContext, content: IChatErrorDetailsPart, templateData: IChatListItemTemplate): IChatContentPart {
 		if (!isResponseVM(context.element)) {
 			return this.renderNoContent(other => content.kind === other.kind);
@@ -1406,7 +1419,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private renderToolInvocation(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): IChatContentPart | undefined {
 		const codeBlockStartIndex = this.getCodeBlockStartIndex(context);
-		const part = this.instantiationService.createInstance(ChatToolInvocationPart, toolInvocation, context, this.renderer, this._contentReferencesListPool, this._toolEditorPool, () => this._currentLayoutWidth, this._toolInvocationCodeBlockCollection, codeBlockStartIndex);
+		const part = this.instantiationService.createInstance(ChatToolInvocationPart, toolInvocation, context, this.renderer, this._contentReferencesListPool, this._toolEditorPool, () => this._currentLayoutWidth, this._toolInvocationCodeBlockCollection, this._announcedToolProgressKeys, codeBlockStartIndex);
 		part.addDisposable(part.onDidChangeHeight(() => {
 			this.updateItemHeight(templateData);
 		}));
@@ -1536,7 +1549,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return markdownPart;
 	}
 
-	renderThinkingPart(content: IChatThinkingPart, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate,): IChatContentPart {
+	renderThinkingPart(content: IChatThinkingPart, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): IChatContentPart {
 		this._streamingThinking = true;
 
 		// TODO @justschen @karthiknadig: remove this when OSWE moves off commentary channel

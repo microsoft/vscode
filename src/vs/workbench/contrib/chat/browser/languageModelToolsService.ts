@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
-import { alert } from '../../../../base/browser/ui/aria/aria.js';
 import { assertNever } from '../../../../base/common/assert.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { encodeBase64 } from '../../../../base/common/buffer.js';
@@ -14,7 +13,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { combinedDisposable, Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -35,7 +34,6 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
-import { AccessibilityWorkbenchSettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { ChatModel } from '../common/chatModel.js';
 import { IVariableReference } from '../common/chatModes.js';
@@ -340,8 +338,6 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				model.acceptResponseProgress(request, toolInvocation);
 
 				dto.toolSpecificData = toolInvocation?.toolSpecificData;
-				this.informScreenReader(prepared?.invocationMessage ?? `${tool.data.displayName} started`);
-
 				if (prepared?.confirmationMessages) {
 					if (!toolInvocation.isConfirmed?.type && !autoConfirmed) {
 						this.playAccessibilitySignal([toolInvocation]);
@@ -428,9 +424,6 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			throw err;
 		} finally {
 			toolInvocation?.complete(toolResult);
-			if (ChatContextKeys.requestInProgress.getValue(this._contextKeyService)) {
-				this.informScreenReader(toolInvocation?.pastTenseMessage ?? `${tool.data.displayName} finished`);
-			}
 			if (store) {
 				this.cleanupCallDisposables(requestId, store);
 			}
@@ -461,12 +454,6 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 
 		return prepared;
-	}
-
-	private informScreenReader(msg: string | IMarkdownString): void {
-		if (this._configurationService.getValue(AccessibilityWorkbenchSettingId.VerboseChatProgressUpdates)) {
-			alert(typeof msg === 'string' ? msg : msg.value);
-		}
 	}
 
 	private playAccessibilitySignal(toolInvocations: ChatToolInvocation[]): void {
