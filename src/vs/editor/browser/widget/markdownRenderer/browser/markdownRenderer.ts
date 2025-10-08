@@ -55,7 +55,7 @@ export interface IMarkdownRendererService extends IMarkdownRenderer {
 }
 
 
-class MarkdownRendererService implements IMarkdownRendererService {
+export class MarkdownRendererService implements IMarkdownRendererService {
 	declare readonly _serviceBrand: undefined;
 
 	private static _ttpTokenizer = createTrustedTypesPolicy('tokenizeToString', {
