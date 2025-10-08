@@ -12,7 +12,8 @@ export type LocalizedValue = string | {
 	value: string;
 };
 
-/** Supported categories for policies. Make sure that the enum values here match the corresponding localization keys below. */
+// IMPORTANT: Make sure that the enum values here match the corresponding localization keys below!
+
 export enum PolicyCategory {
 	Extensions = 'extensionsConfigurationTitle',
 	IntegratedTerminal = 'terminalIntegratedConfigurationTitle',
@@ -52,7 +53,9 @@ export interface IPolicy {
 	 * Localization info for the policy.
 	 */
 	readonly localization: {
+		/** The localization key or key value pair. If only a key is provided, the default value will fallback to the parent configuration's description property. */
 		description: LocalizedValue;
+		/** List of localization key or key value pair. If only a key is provided, the default value will fallback to the parent configuration's enumDescriptions property. */
 		enumDescriptions?: LocalizedValue[];
 	};
 

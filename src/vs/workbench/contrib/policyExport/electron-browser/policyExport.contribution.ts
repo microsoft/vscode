@@ -40,7 +40,7 @@ export class PolicyExportContribution extends Disposable implements IWorkbenchCo
 	private async exportPolicyAndQuit(platform: string): Promise<void> {
 		try {
 			if (platform !== 'darwin' && platform !== 'win32') {
-				throw new Error(`Received invalid platform: ${platform}. Usage: --export-policy-type=darwin|win32`);
+				throw new Error(`Received invalid platform: ${platform}. Usage: <code> --export-policy-type=darwin|win32`);
 			}
 
 			this.log('Export begun. Waiting for ready state.');
@@ -52,7 +52,8 @@ export class PolicyExportContribution extends Disposable implements IWorkbenchCo
 			const configurationProperties = configurationRegistry.getConfigurationProperties();
 			const configs = [];
 			for (const [key, schema] of Object.entries(configurationProperties)) {
-				if (schema.policy?.description) {
+				// Check for the localization property for now to remain backwards compatible.
+				if (schema.policy?.localization) {
 					configs.push({ key, schema });
 				}
 			}
