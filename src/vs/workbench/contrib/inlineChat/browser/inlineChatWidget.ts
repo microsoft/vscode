@@ -316,7 +316,7 @@ export class InlineChatWidget {
 			this._elements.disclaimerLabel.classList.toggle('hidden', !showDisclaimer);
 
 			if (showDisclaimer) {
-				const markdown = this._instantiationService.createInstance(MarkdownRenderer, {});
+				const markdown = this._instantiationService.createInstance(MarkdownRenderer);
 				const renderedMarkdown = disposables.add(markdown.render(new MarkdownString(localize({ key: 'termsDisclaimer', comment: ['{Locked="]({2})"}', '{Locked="]({3})"}'] }, "By continuing with {0} Copilot, you agree to {1}'s [Terms]({2}) and [Privacy Statement]({3})", product.defaultChatAgent?.provider?.default?.name ?? '', product.defaultChatAgent?.provider?.default?.name ?? '', product.defaultChatAgent?.termsStatementUrl ?? '', product.defaultChatAgent?.privacyStatementUrl ?? ''), { isTrusted: true })));
 				this._elements.disclaimerLabel.appendChild(renderedMarkdown.element);
 			}

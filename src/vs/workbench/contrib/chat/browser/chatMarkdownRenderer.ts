@@ -4,14 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $ } from '../../../../base/browser/dom.js';
-import { MarkdownRenderOptions } from '../../../../base/browser/markdownRenderer.js';
+import { IRenderedMarkdown, MarkdownRenderOptions } from '../../../../base/browser/markdownRenderer.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IMarkdownRendererOptions, IMarkdownRenderResult, MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
@@ -65,17 +66,17 @@ export const allowedChatMarkdownHtmlTags = Object.freeze([
  */
 export class ChatMarkdownRenderer extends MarkdownRenderer {
 	constructor(
-		options: IMarkdownRendererOptions | undefined,
 		@ILanguageService languageService: ILanguageService,
 		@IOpenerService openerService: IOpenerService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IFileService private readonly fileService: IFileService,
 		@ICommandService private readonly commandService: ICommandService,
 	) {
-		super(options ?? {}, languageService, openerService);
+		super(configurationService, languageService, openerService);
 	}
 
-	override render(markdown: IMarkdownString, options?: MarkdownRenderOptions, outElement?: HTMLElement): IMarkdownRenderResult {
+	override render(markdown: IMarkdownString, options?: MarkdownRenderOptions, outElement?: HTMLElement): IRenderedMarkdown {
 		options = {
 			...options,
 			sanitizerConfig: {
@@ -112,7 +113,7 @@ export class ChatMarkdownRenderer extends MarkdownRenderer {
 		return this.attachCustomHover(result);
 	}
 
-	private attachCustomHover(result: IMarkdownRenderResult): IMarkdownRenderResult {
+	private attachCustomHover(result: IRenderedMarkdown): IRenderedMarkdown {
 		const store = new DisposableStore();
 		result.element.querySelectorAll('a').forEach((element) => {
 			if (element.title) {

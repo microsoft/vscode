@@ -6,7 +6,7 @@
 import { DataTransfers, IDragAndDropData } from '../../../../base/browser/dnd.js';
 import * as DOM from '../../../../base/browser/dom.js';
 import * as cssJs from '../../../../base/browser/cssValue.js';
-import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
+import { IRenderedMarkdown, renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { ActionBar, IActionViewItemProvider } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { ActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
@@ -70,7 +70,7 @@ import { AriaRole } from '../../../../base/browser/ui/aria/aria.js';
 import { TelemetryTrustedValue } from '../../../../platform/telemetry/common/telemetryUtils.js';
 import { ITreeViewsDnDService } from '../../../../editor/common/services/treeViewsDndService.js';
 import { DraggedTreeItemsIdentifier } from '../../../../editor/common/services/treeViewsDnd.js';
-import { IMarkdownRenderResult, MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import type { IManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
 import { parseLinkedText } from '../../../../base/common/linkedText.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
@@ -893,7 +893,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 
 	private processMessage(message: IMarkdownString, disposables: DisposableStore): HTMLElement {
 		const lines = message.value.split('\n');
-		const result: (IMarkdownRenderResult | HTMLElement)[] = [];
+		const result: (IRenderedMarkdown | HTMLElement)[] = [];
 		let hasFoundButton = false;
 		for (const line of lines) {
 			const linkedText = parseLinkedText(line);
@@ -949,7 +949,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 			this._messageValue.disposables.dispose();
 		}
 		if (isMarkdownString(message) && !this.markdownRenderer) {
-			this.markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
+			this.markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer);
 		}
 		if (isMarkdownString(message)) {
 			const disposables = new DisposableStore();

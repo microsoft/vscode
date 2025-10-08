@@ -242,7 +242,6 @@ class ClassData {
     }
 }
 function isNameTakenInFile(node, name) {
-    // eslint-disable-next-line local/code-no-any-casts
     const identifiers = node.getSourceFile().identifiers;
     if (identifiers instanceof Map) {
         if (identifiers.has(name)) {

@@ -379,3 +379,54 @@ export function getElectronVersion(): Record<string, string> {
 	const msBuildId = /^ms_build_id="(.*)"$/m.exec(npmrc)![1];
 	return { electronVersion, msBuildId };
 }
+
+export class VinylStat implements fs.Stats {
+
+	readonly dev: number;
+	readonly ino: number;
+	readonly mode: number;
+	readonly nlink: number;
+	readonly uid: number;
+	readonly gid: number;
+	readonly rdev: number;
+	readonly size: number;
+	readonly blksize: number;
+	readonly blocks: number;
+	readonly atimeMs: number;
+	readonly mtimeMs: number;
+	readonly ctimeMs: number;
+	readonly birthtimeMs: number;
+	readonly atime: Date;
+	readonly mtime: Date;
+	readonly ctime: Date;
+	readonly birthtime: Date;
+
+	constructor(stat: Partial<fs.Stats>) {
+		this.dev = stat.dev ?? 0;
+		this.ino = stat.ino ?? 0;
+		this.mode = stat.mode ?? 0;
+		this.nlink = stat.nlink ?? 0;
+		this.uid = stat.uid ?? 0;
+		this.gid = stat.gid ?? 0;
+		this.rdev = stat.rdev ?? 0;
+		this.size = stat.size ?? 0;
+		this.blksize = stat.blksize ?? 0;
+		this.blocks = stat.blocks ?? 0;
+		this.atimeMs = stat.atimeMs ?? 0;
+		this.mtimeMs = stat.mtimeMs ?? 0;
+		this.ctimeMs = stat.ctimeMs ?? 0;
+		this.birthtimeMs = stat.birthtimeMs ?? 0;
+		this.atime = stat.atime ?? new Date(0);
+		this.mtime = stat.mtime ?? new Date(0);
+		this.ctime = stat.ctime ?? new Date(0);
+		this.birthtime = stat.birthtime ?? new Date(0);
+	}
+
+	isFile(): boolean { return true; }
+	isDirectory(): boolean { return false; }
+	isBlockDevice(): boolean { return false; }
+	isCharacterDevice(): boolean { return false; }
+	isSymbolicLink(): boolean { return false; }
+	isFIFO(): boolean { return false; }
+	isSocket(): boolean { return false; }
+}

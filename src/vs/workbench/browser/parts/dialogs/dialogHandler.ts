@@ -40,7 +40,7 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 	) {
 		super();
 
-		this.markdownRenderer = instantiationService.createInstance(MarkdownRenderer, {});
+		this.markdownRenderer = instantiationService.createInstance(MarkdownRenderer);
 	}
 
 	async prompt<T>(prompt: IPrompt<T>): Promise<IAsyncPromptResult<T>> {

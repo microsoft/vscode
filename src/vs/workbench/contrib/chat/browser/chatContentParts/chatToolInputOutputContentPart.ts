@@ -120,7 +120,7 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 			titleEl.root,
 			title,
 			subtitle,
-			_instantiationService.createInstance(MarkdownRenderer, {}),
+			_instantiationService.createInstance(MarkdownRenderer),
 		));
 		this._register(titlePart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 

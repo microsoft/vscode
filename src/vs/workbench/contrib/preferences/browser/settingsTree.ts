@@ -845,7 +845,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 	) {
 		super();
 
-		this.markdownRenderer = _instantiationService.createInstance(MarkdownRenderer, {});
+		this.markdownRenderer = _instantiationService.createInstance(MarkdownRenderer);
 
 		this.ignoredSettings = getIgnoredSettings(getDefaultIgnoredSettings(), this._configService);
 		this._register(this._configService.onDidChangeConfiguration(e => {

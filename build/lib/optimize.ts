@@ -16,6 +16,17 @@ import sourcemaps from 'gulp-sourcemaps';
 import fancyLog from 'fancy-log';
 import ansiColors from 'ansi-colors';
 
+declare module 'gulp-sourcemaps' {
+	interface WriteOptions {
+		addComment?: boolean;
+		includeContent?: boolean;
+		sourceRoot?: string | WriteMapper;
+		sourceMappingURL?: ((f: any) => string);
+		sourceMappingURLPrefix?: string | WriteMapper;
+		clone?: boolean | CloneOptions;
+	}
+}
+
 const REPO_ROOT_PATH = path.join(__dirname, '../..');
 
 export interface IBundleESMTaskOpts {
@@ -251,13 +262,12 @@ export function minifyTask(src: string, sourceMapBaseUrl?: string): (cb: any) =>
 			svgFilter,
 			svgmin(),
 			svgFilter.restore,
-			// eslint-disable-next-line local/code-no-any-casts
 			sourcemaps.write('./', {
 				sourceMappingURL,
 				sourceRoot: undefined,
 				includeContent: true,
 				addComment: true
-			} as any),
+			}),
 			gulp.dest(src + '-min'),
 			(err: any) => cb(err));
 	};
