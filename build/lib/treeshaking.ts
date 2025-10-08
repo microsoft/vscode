@@ -114,13 +114,13 @@ function createTypeScriptLanguageService(ts: typeof import('typescript'), option
 
 	// Add fake usage files
 	options.inlineEntryPoints.forEach((inlineEntryPoint, index) => {
-		FILES[`inlineEntryPoint.${index}.ts`] = inlineEntryPoint;
+		FILES.set(`inlineEntryPoint.${index}.ts`, inlineEntryPoint);
 	});
 
 	// Add additional typings
 	options.typings.forEach((typing) => {
 		const filePath = path.join(options.sourcesRoot, typing);
-		FILES[typing] = fs.readFileSync(filePath).toString();
+		FILES.set(typing, fs.readFileSync(filePath).toString());
 	});
 
 	// Resolve libs
@@ -136,7 +136,7 @@ function createTypeScriptLanguageService(ts: typeof import('typescript'), option
  * Read imports and follow them until all files have been handled
  */
 function discoverAndReadFiles(ts: typeof import('typescript'), options: ITreeShakingOptions): IFileMap {
-	const FILES: IFileMap = {};
+	const FILES: IFileMap = new Map();
 
 	const in_queue: { [module: string]: boolean } = Object.create(null);
 	const queue: string[] = [];
@@ -163,7 +163,7 @@ function discoverAndReadFiles(ts: typeof import('typescript'), options: ITreeSha
 		const dts_filename = path.join(options.sourcesRoot, redirectedModuleId + '.d.ts');
 		if (fs.existsSync(dts_filename)) {
 			const dts_filecontents = fs.readFileSync(dts_filename).toString();
-			FILES[`${moduleId}.d.ts`] = dts_filecontents;
+			FILES.set(`${moduleId}.d.ts`, dts_filecontents);
 			continue;
 		}
 
@@ -196,7 +196,7 @@ function discoverAndReadFiles(ts: typeof import('typescript'), options: ITreeSha
 			enqueue(importedModuleId);
 		}
 
-		FILES[`${moduleId}.ts`] = ts_filecontents;
+		FILES.set(`${moduleId}.ts`, ts_filecontents);
 	}
 
 	return FILES;
@@ -208,16 +208,16 @@ function discoverAndReadFiles(ts: typeof import('typescript'), options: ITreeSha
 function processLibFiles(ts: typeof import('typescript'), options: ITreeShakingOptions): ILibMap {
 
 	const stack: string[] = [...options.compilerOptions.lib];
-	const result: ILibMap = {};
+	const result: ILibMap = new Map();
 
 	while (stack.length > 0) {
 		const filename = `lib.${stack.shift()!.toLowerCase()}.d.ts`;
 		const key = `defaultLib:${filename}`;
-		if (!result[key]) {
+		if (!result.has(key)) {
 			// add this file
 			const filepath = path.join(TYPESCRIPT_LIB_FOLDER, filename);
 			const sourceText = fs.readFileSync(filepath).toString();
-			result[key] = sourceText;
+			result.set(key, sourceText);
 
 			// precess dependencies and "recurse"
 			const info = ts.preProcessFile(sourceText);
@@ -230,8 +230,8 @@ function processLibFiles(ts: typeof import('typescript'), options: ITreeShakingO
 	return result;
 }
 
-interface ILibMap { [libName: string]: string }
-interface IFileMap { [fileName: string]: string }
+type ILibMap = Map</*libName*/ string, string>;
+type IFileMap = Map</*fileName*/ string, string>;
 
 /**
  * A TypeScript language service host
@@ -256,11 +256,10 @@ class TypeScriptLanguageServiceHost implements ts.LanguageServiceHost {
 		return this._compilerOptions;
 	}
 	getScriptFileNames(): string[] {
-		return (
-			([] as string[])
-				.concat(Object.keys(this._libs))
-				.concat(Object.keys(this._files))
-		);
+		return [
+			...this._libs.keys(),
+			...this._files.keys(),
+		];
 	}
 	getScriptVersion(_fileName: string): string {
 		return '1';
@@ -269,10 +268,10 @@ class TypeScriptLanguageServiceHost implements ts.LanguageServiceHost {
 		return '1';
 	}
 	getScriptSnapshot(fileName: string): ts.IScriptSnapshot {
-		if (this._files.hasOwnProperty(fileName)) {
-			return this._ts.ScriptSnapshot.fromString(this._files[fileName]);
-		} else if (this._libs.hasOwnProperty(fileName)) {
-			return this._ts.ScriptSnapshot.fromString(this._libs[fileName]);
+		if (this._files.has(fileName)) {
+			return this._ts.ScriptSnapshot.fromString(this._files.get(fileName)!);
+		} else if (this._libs.has(fileName)) {
+			return this._ts.ScriptSnapshot.fromString(this._libs.get(fileName)!);
 		} else {
 			return this._ts.ScriptSnapshot.fromString('');
 		}
@@ -290,10 +289,10 @@ class TypeScriptLanguageServiceHost implements ts.LanguageServiceHost {
 		return fileName === this.getDefaultLibFileName(this._compilerOptions);
 	}
 	readFile(path: string, _encoding?: string): string | undefined {
-		return this._files[path] || this._libs[path];
+		return this._files.get(path) || this._libs.get(path);
 	}
 	fileExists(path: string): boolean {
-		return path in this._files || path in this._libs;
+		return this._files.has(path) || this._libs.has(path);
 	}
 }
 //#endregion
