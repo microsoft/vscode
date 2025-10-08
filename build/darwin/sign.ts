@@ -5,8 +5,10 @@
 
 import fs from 'fs';
 import path from 'path';
-import { sign, SignOptions } from '@electron/osx-sign';
+import { spawnSync } from 'child_process';
+//import { sign, SignOptions } from '@electron/osx-sign';
 import { spawn } from '@malept/cross-spawn-promise';
+//import { get } from 'http';
 
 const root = path.dirname(path.dirname(__dirname));
 const baseDir = path.dirname(__dirname);
@@ -16,11 +18,11 @@ const gpuHelperAppName = helperAppBaseName + ' Helper (GPU).app';
 const rendererHelperAppName = helperAppBaseName + ' Helper (Renderer).app';
 const pluginHelperAppName = helperAppBaseName + ' Helper (Plugin).app';
 
-function getElectronVersion(): string {
+/*function getElectronVersion(): string {
 	const npmrc = fs.readFileSync(path.join(root, '.npmrc'), 'utf8');
 	const target = /^target="(.*)"$/m.exec(npmrc)![1];
 	return target;
-}
+}*/
 
 function getEntitlementsForFile(filePath: string): string {
 	if (filePath.includes(gpuHelperAppName)) {
@@ -36,7 +38,7 @@ function getEntitlementsForFile(filePath: string): string {
 async function main(buildDir?: string): Promise<void> {
 	const tempDir = process.env['AGENT_TEMPDIRECTORY'];
 	const arch = process.env['VSCODE_ARCH'];
-	const identity = process.env['CODESIGN_IDENTITY'];
+	//const identity = process.env['CODESIGN_IDENTITY'];
 
 	if (!buildDir) {
 		throw new Error('$AGENT_BUILDDIRECTORY not set');
@@ -48,9 +50,10 @@ async function main(buildDir?: string): Promise<void> {
 
 	const appRoot = path.join(buildDir, `VSCode-darwin-${arch}`);
 	const appName = product.nameLong + '.app';
-	const infoPlistPath = path.resolve(appRoot, appName, 'Contents', 'Info.plist');
+	//const infoPlistPath = path.resolve(appRoot, appName, 'Contents', 'Info.plist');
+	const noticePath = path.resolve(appRoot, appName, 'Contents', 'Resources', 'app', 'ThirdPartyNotices.txt');
 
-	const appOpts: SignOptions = {
+	/*const appOpts: SignOptions = {
 		app: path.join(appRoot, appName),
 		platform: 'darwin',
 		optionsForFile: (filePath) => ({
@@ -90,7 +93,71 @@ async function main(buildDir?: string): Promise<void> {
 		]);
 	}
 
-	await sign(appOpts);
+	await sign(appOpts);*/
+	const command = 'codesign';
+	const args = [
+		'--sign', '531EE75612BAC8FB44C31CB20FEDA1335AB2E7C0',
+		'--force',
+		'--keychain', path.join(tempDir, 'buildagent.keychain'),
+		'--timestamp',
+		'--options', 'runtime',
+		'--entitlements', getEntitlementsForFile(noticePath),
+		noticePath
+	];
+
+	let iteration = 0;
+	let exitCode = 0;
+
+	console.log('Starting codesign loop...');
+	console.log('Command:', command, args.join(' '));
+
+	do {
+		iteration++;
+		console.log(`--- Iteration ${iteration} ---`);
+
+		// Spawn the process synchronously
+		const result = spawnSync(command, args, {
+			stdio: ['inherit', 'pipe', 'pipe'], // Capture stdout and stderr for logging
+			encoding: 'utf8'
+		});
+
+		exitCode = result.status || 0;
+
+		if (result.error) {
+			console.error('Error spawning process:', result.error.message);
+			break;
+		}
+
+		console.log(`Process exited with code: ${exitCode}`);
+
+		if (exitCode !== 0) {
+			console.log(`Breaking loop due to non-zero exit code: ${exitCode}`);
+
+			// Log stdout and stderr when process fails
+			if (result.stdout && result.stdout.trim()) {
+				console.log('\n--- STDOUT ---');
+				console.log(result.stdout.trim());
+			}
+
+			if (result.stderr && result.stderr.trim()) {
+				console.log('\n--- STDERR ---');
+				console.log(result.stderr.trim());
+			}
+
+			break;
+		} else {
+			// For successful runs, still show stdout if there's any output
+			if (result.stdout && result.stdout.trim()) {
+				console.log('Output:', result.stdout.trim());
+			}
+		}
+
+		console.log('Continuing to next iteration...\n');
+
+	} while (exitCode === 0);
+
+	console.log(`\nLoop completed after ${iteration} iterations.`);
+	console.log(`Final exit code: ${exitCode}`);
 }
 
 if (require.main === module) {
