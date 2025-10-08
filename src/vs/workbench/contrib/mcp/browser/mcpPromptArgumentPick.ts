@@ -127,11 +127,6 @@ export class McpPromptArgumentPick extends Disposable {
 			}
 		];
 
-		// Track the first autorun to prevent cross-field active item contamination.
-		// When moving to a new field, we should not preserve active items from the previous field.
-		// This prevents the issue where pressing Enter on an empty optional field would erroneously
-		// use a suggestion that was active in a previous field.
-		let isFirstAutorun = true;
 		store.add(autorun(reader => {
 			if (didRestoreState) {
 				input$.read(reader);
@@ -156,20 +151,18 @@ export class McpPromptArgumentPick extends Disposable {
 			quickPick.busy = busy;
 			quickPick.items = items;
 
-			// Only preserve active items after the first autorun to prevent cross-field contamination
-			const lastActive = !isFirstAutorun ? items.find(i => previouslyActive.some(a => a.id === i.id)) as PickItem | undefined : undefined;
+			const lastActive = items.find(i => previouslyActive.some(a => a.id === i.id)) as PickItem | undefined;
+			const serverSuggestions = asyncPicks[0].observer;
 			// Keep any selection state, but otherwise select the first completion item, and avoid default-selecting the top item unless there are no compltions
 			if (lastActive) {
 				quickPick.activeItems = [lastActive];
-			} else if (items.length > 2) {
+			} else if (serverSuggestions.read(reader).picks?.length) {
 				quickPick.activeItems = [items[3] as PickItem];
 			} else if (busy) {
 				quickPick.activeItems = [];
 			} else {
 				quickPick.activeItems = [items[0] as PickItem];
 			}
-			
-			isFirstAutorun = false;
 		}));
 
 		try {
