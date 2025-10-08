@@ -1351,7 +1351,7 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 		const commandService = accessor.get(ICommandService);
 
 		const result = await commandService.executeCommand(CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID);
@@ -3138,7 +3138,7 @@ export class SCMActionButton implements IDisposable {
 		clearNode(this.container);
 	}
 
-	private async executeCommand(commandId: string, ...args: any[]): Promise<void> {
+	private async executeCommand(commandId: string, ...args: unknown[]): Promise<void> {
 		try {
 			await this.commandService.executeCommand(commandId, ...args);
 		} catch (ex) {

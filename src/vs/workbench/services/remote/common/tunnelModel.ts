@@ -252,15 +252,12 @@ export class PortsAttributes extends Disposable {
 	}
 
 	private hasStartEnd(value: number | PortRange | RegExp | HostAndPort): value is PortRange {
-		// eslint-disable-next-line local/code-no-any-casts
-		return ((<any>value).start !== undefined) && ((<any>value).end !== undefined);
+		return (value as Partial<PortRange>).start !== undefined && (value as Partial<PortRange>).end !== undefined;
 	}
 
 	private hasHostAndPort(value: number | PortRange | RegExp | HostAndPort): value is HostAndPort {
-		// eslint-disable-next-line local/code-no-any-casts
-		return ((<any>value).host !== undefined) && ((<any>value).port !== undefined)
-			// eslint-disable-next-line local/code-no-any-casts
-			&& isString((<any>value).host) && isNumber((<any>value).port);
+		return ((value as Partial<HostAndPort>).host !== undefined) && ((value as Partial<HostAndPort>).port !== undefined)
+			&& isString((value as Partial<HostAndPort>).host) && isNumber((value as Partial<HostAndPort>).port);
 	}
 
 	private findNextIndex(port: number, host: string, commandLine: string | undefined, attributes: PortAttributes[], fromIndex: number): number {
@@ -295,8 +292,7 @@ export class PortsAttributes extends Disposable {
 			if (attributesKey === undefined) {
 				continue;
 			}
-			// eslint-disable-next-line local/code-no-any-casts
-			const setting = (<any>settingValue)[attributesKey];
+			const setting = (settingValue as Record<string, PortAttributes>)[attributesKey];
 			let key: number | PortRange | RegExp | HostAndPort | undefined = undefined;
 			if (Number(attributesKey)) {
 				key = Number(attributesKey);
@@ -332,8 +328,7 @@ export class PortsAttributes extends Disposable {
 			});
 		}
 
-		// eslint-disable-next-line local/code-no-any-casts
-		const defaults = <any>this.configurationService.getValue(PortsAttributes.DEFAULTS);
+		const defaults = this.configurationService.getValue(PortsAttributes.DEFAULTS) as Partial<Attributes> | undefined;
 		if (defaults) {
 			this.defaultPortAttributes = {
 				elevateIfNeeded: defaults.elevateIfNeeded,
@@ -395,8 +390,7 @@ export class PortsAttributes extends Disposable {
 			newRemoteValue[`${port}`] = {};
 		}
 		for (const attribute in attributes) {
-			// eslint-disable-next-line local/code-no-any-casts
-			newRemoteValue[`${port}`][attribute] = (<any>attributes)[attribute];
+			newRemoteValue[`${port}`][attribute] = (attributes as Record<string, unknown>)[attribute];
 		}
 
 		return this.configurationService.updateValue(PortsAttributes.SETTING, newRemoteValue, target);

@@ -24,6 +24,7 @@ import { getZoomLevel, isFullscreen, setFullscreen } from '../../../../base/brow
 import { getActiveWindow } from '../../../../base/browser/dom.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
+import { assert } from '../../../../base/common/assert.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 
 type NativeCodeWindow = CodeWindow & {
@@ -156,6 +157,7 @@ export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService 
 		mark('code/auxiliaryWindow/willResolveWindowId');
 		const windowId = await auxiliaryWindow.vscode.ipcRenderer.invoke('vscode:registerAuxiliaryWindow', this.nativeHostService.windowId);
 		mark('code/auxiliaryWindow/didResolveWindowId');
+		assert(typeof windowId === 'number');
 
 		return windowId;
 	}

@@ -885,5 +885,5 @@ export interface IMcpToolResourceLinkContents {
 
 export interface IMcpIcons {
 	/** Gets the image URI appropriate to the approximate display size */
-	getUrl(size: number): URI | undefined;
+	getUrl(size: number): { dark: URI; light?: URI } | undefined;
 }

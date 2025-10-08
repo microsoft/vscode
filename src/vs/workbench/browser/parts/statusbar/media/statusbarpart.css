@@ -27,6 +27,11 @@
 	border-bottom-right-radius: 10px;
 	border-bottom-left-radius: 10px;
 }
+.monaco-workbench.mac:not(.fullscreen).macos-tahoe-or-newer .part.statusbar:focus {
+	/* macOS Tahoe increased rounded corners size even more */
+	border-bottom-right-radius: 12px;
+	border-bottom-left-radius: 12px;
+}
 
 .monaco-workbench .part.statusbar:not(:focus).status-border-top::after {
 	/* Top border only visible unless focused to make room for focus outline */
