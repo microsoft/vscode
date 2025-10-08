@@ -1277,14 +1277,13 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 				},
 				criteria,
 				rawGalleryExtension.publisher.displayName,
-				allTargetPlatforms)) {
+				allTargetPlatforms)
+			) {
 				return rawGalleryExtensionVersion;
 			}
-
 			if (version && rawGalleryExtensionVersion.version === version) {
 				return null;
 			}
-
 		}
 
 		if (version || criteria.compatible) {
