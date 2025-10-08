@@ -36,7 +36,6 @@ export class NoneExecuteStrategy implements ITerminalExecuteStrategy {
 
 	async execute(commandLine: string, token: CancellationToken): Promise<ITerminalExecuteStrategyResult> {
 		const store = new DisposableStore();
-
 		try {
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
