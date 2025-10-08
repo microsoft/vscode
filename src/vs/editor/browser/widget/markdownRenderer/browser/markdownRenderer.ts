@@ -8,8 +8,10 @@ import { createTrustedTypesPolicy } from '../../../../../base/browser/trustedTyp
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { IMarkdownString, MarkdownStringTrustedOptions } from '../../../../../base/common/htmlContent.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { EditorOption } from '../../../../common/config/editorOptions.js';
+import { EditorOption, IEditorOptions } from '../../../../common/config/editorOptions.js';
+import { EDITOR_FONT_DEFAULTS } from '../../../../common/config/fontInfo.js';
 import { ILanguageService } from '../../../../common/languages/language.js';
 import { PLAINTEXT_LANGUAGE_ID } from '../../../../common/languages/modesRegistry.js';
 import { tokenizeToString } from '../../../../common/languages/textToHtmlTokenizer.js';
@@ -23,7 +25,6 @@ export interface IMarkdownRenderResult extends IDisposable {
 
 export interface IMarkdownRendererOptions {
 	readonly editor?: ICodeEditor;
-	readonly codeBlockFontFamily?: string;
 	readonly codeBlockFontSize?: string;
 }
 
@@ -41,6 +42,7 @@ export class MarkdownRenderer {
 
 	constructor(
 		private readonly _options: IMarkdownRendererOptions,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 	) { }
@@ -78,8 +80,8 @@ export class MarkdownRenderer {
 		if (this._options.editor) {
 			const fontInfo = this._options.editor.getOption(EditorOption.fontInfo);
 			applyFontInfo(element, fontInfo);
-		} else if (this._options.codeBlockFontFamily) {
-			element.style.fontFamily = this._options.codeBlockFontFamily;
+		} else {
+			element.style.fontFamily = this._configurationService.getValue<IEditorOptions>('editor').fontFamily || EDITOR_FONT_DEFAULTS.fontFamily;
 		}
 
 		if (this._options.codeBlockFontSize !== undefined) {
