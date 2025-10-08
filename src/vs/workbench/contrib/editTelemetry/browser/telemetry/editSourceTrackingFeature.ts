@@ -23,7 +23,7 @@ import { IStatusbarService, StatusbarAlignment } from '../../../../services/stat
 import { EditSource } from '../helpers/documentWithAnnotatedEdits.js';
 import { EditSourceTrackingImpl } from './editSourceTrackingImpl.js';
 import { AnnotatedDocuments } from '../helpers/annotatedDocuments.js';
-import { DataChannelForwardingTelemetryService } from './forwardingTelemetryService.js';
+import { DataChannelForwardingTelemetryService } from '../../../../../platform/dataChannel/browser/forwardingTelemetryService.js';
 import { EDIT_TELEMETRY_DETAILS_SETTING_ID, EDIT_TELEMETRY_SHOW_DECORATIONS, EDIT_TELEMETRY_SHOW_STATUS_BAR } from '../settings.js';
 import { VSCodeWorkspace } from '../helpers/vscodeObservableWorkspace.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';

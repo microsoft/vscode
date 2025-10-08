@@ -208,10 +208,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			});
 		}
 
-		this._register(Event.runAndSubscribe(Event.any(
-			this._capabilities.onDidAddCapabilityType,
-			this._capabilities.onDidRemoveCapabilityType
-		), () => {
+		this._register(Event.runAndSubscribe(this._capabilities.onDidChangeCapabilities, () => {
 			const commandDetection = this._capabilities.get(TerminalCapability.CommandDetection);
 			if (commandDetection) {
 				if (this._promptInputModel !== commandDetection.promptInputModel) {
@@ -682,7 +679,10 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	}
 
 	private _getTerminalDimensions(): { width: number; height: number } {
-		const cssCellDims = (this._terminal as any as { _core: IXtermCore })._core._renderService.dimensions.css.cell;
+		interface XtermWithCore extends Terminal {
+			_core: IXtermCore;
+		}
+		const cssCellDims = (this._terminal as XtermWithCore)._core._renderService.dimensions.css.cell;
 		return {
 			width: cssCellDims.width,
 			height: cssCellDims.height,
@@ -707,7 +707,10 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			return this._cachedFontInfo;
 		}
 
-		const core = (this._terminal as any)._core as IXtermCore;
+		interface XtermWithCore extends Terminal {
+			_core: IXtermCore;
+		}
+		const core = (this._terminal as XtermWithCore)._core;
 		const font = this._terminalConfigurationService.getFont(dom.getActiveWindow(), core);
 		let lineHeight: number = font.lineHeight;
 		const fontSize: number = font.fontSize;
@@ -781,6 +784,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 	private _ensureSuggestWidget(terminal: Terminal): SimpleSuggestWidget<TerminalCompletionModel, TerminalCompletionItem> {
 		if (!this._suggestWidget) {
+			// eslint-disable-next-line local/code-no-any-casts
 			this._suggestWidget = this._register(this._instantiationService.createInstance(
 				SimpleSuggestWidget,
 				this._container!,

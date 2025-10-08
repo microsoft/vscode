@@ -54,6 +54,7 @@ export class ReentrancyBarrier {
 	}
 
 	public makeExclusiveOrSkip<TFunction extends Function>(fn: TFunction): TFunction {
+		// eslint-disable-next-line local/code-no-any-casts
 		return ((...args: any[]) => {
 			if (this._isOccupied) {
 				return;

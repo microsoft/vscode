@@ -20,7 +20,7 @@ import { ChatModeKind } from '../../common/constants.js';
 import { ChatViewId, IChatWidgetService } from '../chat.js';
 import { EditingSessionAction, getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
-import { ACTION_ID_NEW_CHAT, ACTION_ID_NEW_EDIT_SESSION, CHAT_CATEGORY, handleCurrentEditingSession } from './chatActions.js';
+import { ACTION_ID_NEW_CHAT, ACTION_ID_NEW_EDIT_SESSION, ACTION_ID_OPEN_CHAT, CHAT_CATEGORY, handleCurrentEditingSession } from './chatActions.js';
 import { clearChatEditor } from './chatClear.js';
 
 export interface INewEditSessionActionContext {
@@ -53,7 +53,7 @@ export function registerNewChatActions() {
 				precondition: ChatContextKeys.enabled,
 			});
 		}
-		async run(accessor: ServicesAccessor, ...args: any[]) {
+		async run(accessor: ServicesAccessor, ...args: unknown[]) {
 			announceChatCleared(accessor.get(IAccessibilitySignalService));
 			await clearChatEditor(accessor);
 		}
@@ -75,12 +75,15 @@ export function registerNewChatActions() {
 					},
 					{
 						id: MenuId.ViewTitle,
-						when: ContextKeyExpr.and(
-							ContextKeyExpr.equals('view', ChatViewId),
-							ChatContextKeys.inEmptyStateWithHistoryEnabled.negate()
-						),
+						when: ContextKeyExpr.equals('view', ChatViewId),
 						group: 'navigation',
-						order: -1
+						order: -1,
+						alt: {
+							id: ACTION_ID_OPEN_CHAT,
+							title: localize2('interactiveSession.open', "New Chat Editor"),
+							icon: Codicon.newFile,
+							precondition: ChatContextKeys.enabled
+						}
 					},
 					...[MenuId.EditorTitle, MenuId.CompactWindowEditorTitle].map(id => ({
 						id,
@@ -103,8 +106,8 @@ export function registerNewChatActions() {
 		}
 
 
-		async run(accessor: ServicesAccessor, ...args: any[]) {
-			const executeCommandContext: INewEditSessionActionContext | undefined = args[0];
+		async run(accessor: ServicesAccessor, ...args: unknown[]) {
+			const executeCommandContext = args[0] as INewEditSessionActionContext | undefined;
 
 			// Context from toolbar or lastFocusedWidget
 			const context = getEditingSessionContext(accessor, args);

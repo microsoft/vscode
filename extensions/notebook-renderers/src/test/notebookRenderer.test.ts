@@ -127,12 +127,14 @@ suite('Notebook builtin output renderer', () => {
 				return text;
 			},
 			blob() {
+				// eslint-disable-next-line local/code-no-any-casts
 				return [] as any;
 			},
 			json() {
 				return '{ }';
 			},
 			data() {
+				// eslint-disable-next-line local/code-no-any-casts
 				return [] as any;
 			},
 			metadata: {}

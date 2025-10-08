@@ -155,7 +155,7 @@ registerAction2(class ToggleCellToolbarPositionFromEditorTitle extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+	async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 		return accessor.get(ICommandService).executeCommand('notebook.toggleCellToolbarPosition', ...args);
 	}
 });

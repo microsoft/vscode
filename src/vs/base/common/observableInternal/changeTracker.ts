@@ -31,6 +31,7 @@ export function recordChanges<TObs extends Record<any, IObservableWithChange<any
 		& { changes: readonly ({ [TKey in keyof TObs]: { key: TKey; change: TObs[TKey]['TChange'] } }[keyof TObs])[] }> {
 	return {
 		createChangeSummary: (_previousChangeSummary) => {
+			// eslint-disable-next-line local/code-no-any-casts
 			return {
 				changes: [],
 			} as any;
@@ -38,6 +39,7 @@ export function recordChanges<TObs extends Record<any, IObservableWithChange<any
 		handleChange(ctx, changeSummary) {
 			for (const key in obs) {
 				if (ctx.didChange(obs[key])) {
+					// eslint-disable-next-line local/code-no-any-casts
 					(changeSummary.changes as any).push({ key, change: ctx.change });
 				}
 			}
@@ -64,6 +66,7 @@ export function recordChangesLazy<TObs extends Record<any, IObservableWithChange
 	let obs: TObs | undefined = undefined;
 	return {
 		createChangeSummary: (_previousChangeSummary) => {
+			// eslint-disable-next-line local/code-no-any-casts
 			return {
 				changes: [],
 			} as any;
@@ -74,6 +77,7 @@ export function recordChangesLazy<TObs extends Record<any, IObservableWithChange
 			}
 			for (const key in obs) {
 				if (ctx.didChange(obs[key])) {
+					// eslint-disable-next-line local/code-no-any-casts
 					(changeSummary.changes as any).push({ key, change: ctx.change });
 				}
 			}
