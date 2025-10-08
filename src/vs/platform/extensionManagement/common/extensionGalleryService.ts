@@ -824,7 +824,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 	}
 
 	async isExtensionCompatible(extension: IGalleryExtension, includePreRelease: boolean, targetPlatform: TargetPlatform, productVersion: IProductVersion = { version: this.productService.version, date: this.productService.date }): Promise<boolean> {
-		const validationResult = await this.isValidVersion(
+		return this.isValidVersion(
 			{
 				id: extension.identifier.id,
 				version: extension.version,
@@ -843,7 +843,6 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 			extension.publisherDisplayName,
 			extension.allTargetPlatforms
 		);
-		return isBoolean(validationResult) ? validationResult : false;
 	}
 
 	private async isValidVersion(
@@ -851,7 +850,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		{ targetPlatform, compatible, productVersion, version }: Omit<ExtensionVersionCriteria, 'targetPlatform'> & { targetPlatform: TargetPlatform | undefined },
 		publisherDisplayName: string,
 		allTargetPlatforms: TargetPlatform[]
-	): Promise<boolean | string[]> {
+	): Promise<boolean> {
 
 		const hasPreRelease = hasPreReleaseForExtension(extension.id, this.productService);
 		const excludeVersionRange = getExcludeVersionRangeForExtension(extension.id, this.productService);
@@ -892,7 +891,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 			}
 
 			if (!(await this.isEngineValid(extension.id, extension.version, extension.engine, extension.manifestAsset, productVersion))) {
-				return ['engine'];
+				return false;
 			}
 		}
 
@@ -1223,9 +1222,40 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		return { extensions, total };
 	}
 
-	private async getRawGalleryExtensionVersion(rawGalleryExtension: IRawGalleryExtension, criteria: ExtensionVersionCriteria, allTargetPlatforms: TargetPlatform[], onlyLatestVersions?: boolean): Promise<IRawGalleryExtensionVersion | null> {
+	private getRawGalleryExtensionVersionsToValidate(rawGalleryExtensionVersions: IRawGalleryExtensionVersion[], targetPlatform: TargetPlatform, allTargetPlatforms: TargetPlatform[], hasOnlylatestVersions?: boolean): IRawGalleryExtensionVersion[] {
+		const sorted = sortExtensionVersions(rawGalleryExtensionVersions, targetPlatform);
+		if (!hasOnlylatestVersions) {
+			return sorted;
+		}
+
+		const result = [];
+		let preReleaseVersionForTargetPlatformFound = false;
+		let releaseVersionForTargetPlatformFound = false;
+		for (const rawGalleryExtensionVersion of sorted) {
+			const isTargetplatformCompatible = isTargetPlatformCompatible(getTargetPlatformForExtensionVersion(rawGalleryExtensionVersion), allTargetPlatforms, targetPlatform);
+			if (!isTargetplatformCompatible) {
+				result.push(rawGalleryExtensionVersion);
+				continue;
+			}
+
+			if (isPreReleaseVersion(rawGalleryExtensionVersion)) {
+				if (!preReleaseVersionForTargetPlatformFound) {
+					result.push(rawGalleryExtensionVersion);
+					preReleaseVersionForTargetPlatformFound = true;
+				}
+			} else {
+				if (!releaseVersionForTargetPlatformFound) {
+					result.push(rawGalleryExtensionVersion);
+					releaseVersionForTargetPlatformFound = true;
+				}
+			}
+		}
+		return result;
+	}
+
+	private async getRawGalleryExtensionVersion(rawGalleryExtension: IRawGalleryExtension, criteria: ExtensionVersionCriteria, allTargetPlatforms: TargetPlatform[], hasOnlylatestVersions?: boolean): Promise<IRawGalleryExtensionVersion | null> {
 		const extensionIdentifier = { id: getGalleryExtensionId(rawGalleryExtension.publisher.publisherName, rawGalleryExtension.extensionName), uuid: rawGalleryExtension.extensionId };
-		const rawGalleryExtensionVersions = sortExtensionVersions(rawGalleryExtension.versions, criteria.targetPlatform);
+		const rawGalleryExtensionVersions = this.getRawGalleryExtensionVersionsToValidate(rawGalleryExtension.versions, criteria.targetPlatform, allTargetPlatforms, hasOnlylatestVersions);
 
 		if (criteria.compatible && isNotWebExtensionInWebTargetPlatform(allTargetPlatforms, criteria.targetPlatform)) {
 			return null;
@@ -1235,7 +1265,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 
 		for (let index = 0; index < rawGalleryExtensionVersions.length; index++) {
 			const rawGalleryExtensionVersion = rawGalleryExtensionVersions[index];
-			const validationResult = await this.isValidVersion(
+			if (await this.isValidVersion(
 				{
 					id: extensionIdentifier.id,
 					version: rawGalleryExtensionVersion.version,
@@ -1247,9 +1277,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 				},
 				criteria,
 				rawGalleryExtension.publisher.displayName,
-				allTargetPlatforms);
-
-			if (validationResult === true) {
+				allTargetPlatforms)) {
 				return rawGalleryExtensionVersion;
 			}
 
@@ -1257,9 +1285,6 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 				return null;
 			}
 
-			if (onlyLatestVersions && Array.isArray(validationResult) && validationResult.includes('engine')) {
-				return null;
-			}
 		}
 
 		if (version || criteria.compatible) {
