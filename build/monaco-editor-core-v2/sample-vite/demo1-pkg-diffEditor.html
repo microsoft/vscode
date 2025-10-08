@@ -1,0 +1,23 @@
+<html lang="en">
+	<body>
+		<div id="root"></div>
+		<script type="module">
+			import './style.css';
+
+			// from npm package:
+			import 'monaco-editor-core/out/main.css';
+			import { editor } from 'monaco-editor-core';
+
+			// from sources:
+			//import { editor } from "../../../src/vs/editor/editor.main";
+
+			const root = document.getElementById("root");
+			const d = editor.createDiffEditor(root);
+
+			d.setModel({
+				modified: editor.createModel(`hello world`),
+				original: editor.createModel(`hello monaco`),
+			});
+		</script>
+	</body>
+</html>
