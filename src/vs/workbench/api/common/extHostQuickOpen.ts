@@ -556,6 +556,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		private _sortByLabel = true;
 		private _keepScrollPosition = false;
 		private _activeItems: T[] = [];
+		private _prompt: string | undefined;
 		private readonly _onDidChangeActiveEmitter = new Emitter<T[]>();
 		private _selectedItems: T[] = [];
 		private readonly _onDidChangeSelectionEmitter = new Emitter<T[]>();
@@ -666,6 +667,20 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		set keepScrollPosition(keepScrollPosition: boolean) {
 			this._keepScrollPosition = keepScrollPosition;
 			this.update({ keepScrollPosition });
+		}
+
+		get prompt() {
+			return this._prompt;
+		}
+
+		set prompt(prompt: string | undefined) {
+			if (isProposedApiEnabled(this._extension, 'quickPickPrompt')) {
+				this._prompt = prompt;
+				this.update({ prompt });
+			} else if (prompt) {
+				const extensionId = this._extension.identifier.value;
+				console.warn(`Extension '${extensionId}' uses QuickPick prompt API proposal that is only available when running out of dev or with the following command line switch: --enable-proposed-api ${extensionId}`);
+			}
 		}
 
 		get activeItems() {

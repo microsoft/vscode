@@ -653,6 +653,8 @@ export interface TransferQuickPick extends BaseTransferQuickInput {
 
 	placeholder?: string;
 
+	prompt?: string;
+
 	buttons?: TransferQuickInputButton[];
 
 	items?: TransferQuickPickItemOrSeparator[];
