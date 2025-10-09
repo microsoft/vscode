@@ -212,9 +212,10 @@ jobs:
 
       - name: Create .build folder
         shell: pwsh
-        run: mkdir -Force .build
+        run: mkdir .build -ea 0
 
       - name: Prepare built-in extensions cache key
+        shell: pwsh
         run: node build/azure-pipelines/common/computeBuiltInDepsCacheKey.js > .build/builtindepshash
 
       - name: Restore built-in extensions cache
@@ -228,6 +229,8 @@ jobs:
       - name: Download built-in extensions
         if: steps.cache-builtin-extensions.outputs.cache-hit != 'true'
         run: node build/lib/builtInExtensions.js
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Transpile client and extensions
         shell: pwsh
