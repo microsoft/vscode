@@ -262,9 +262,26 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           Write-Host "Starting policy generation..."
+          Write-Host "Before execution - checking if .build exists:"
+          Test-Path ".build" | Out-Host
+          Test-Path ".build/policies" | Out-Host
+
           .\scripts\code.bat --disable-gpu --wait --transient --export-policy-type="win32"
           $exitCode = $LASTEXITCODE
           Write-Host "Policy generation completed with exit code: $exitCode"
+
+          Write-Host "Immediately after execution - checking directory structure:"
+          Write-Host "Does .build exist?" (Test-Path ".build")
+          Write-Host "Does .build/policies exist?" (Test-Path ".build/policies")
+          Write-Host "Does .build\policies exist?" (Test-Path ".build\policies")
+          Write-Host "Does .build/policies/win32 exist?" (Test-Path ".build/policies/win32")
+          Write-Host "Does .build\policies\win32 exist?" (Test-Path ".build\policies\win32")
+
+          if (Test-Path ".build") {
+            Write-Host "Contents of .build:"
+            Get-ChildItem ".build" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 50 | Out-Host
+          }
+
           if ($exitCode -ne 0) {
             Write-Error "Policy generation failed with exit code: $exitCode"
             exit $exitCode
