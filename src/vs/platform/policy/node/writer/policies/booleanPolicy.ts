@@ -35,7 +35,7 @@ export class BooleanPolicy extends BasePolicy {
 		];
 	}
 
-	renderADMLPresentationContents() {
+	protected renderADMLPresentationContents() {
 		return `<checkBox refId="${this.name}">${this.name}</checkBox>`;
 	}
 

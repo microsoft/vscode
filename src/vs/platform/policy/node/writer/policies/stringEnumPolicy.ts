@@ -51,7 +51,7 @@ export class StringEnumPolicy extends BasePolicy {
 		];
 	}
 
-	renderADMLPresentationContents() {
+	protected renderADMLPresentationContents() {
 		return `<dropdownList refId="${this.name}" />`;
 	}
 

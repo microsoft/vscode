@@ -31,7 +31,7 @@ export class ObjectPolicy extends BasePolicy {
 		return [`<multiText id="${this.name}" valueName="${this.name}" required="true" />`];
 	}
 
-	renderADMLPresentationContents() {
+	protected renderADMLPresentationContents() {
 		return `<multiTextBox refId="${this.name}" />`;
 	}
 

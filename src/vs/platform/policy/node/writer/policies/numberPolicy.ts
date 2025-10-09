@@ -35,7 +35,7 @@ export class NumberPolicy extends BasePolicy {
 		];
 	}
 
-	renderADMLPresentationContents() {
+	protected renderADMLPresentationContents() {
 		return `<decimalTextBox refId="${this.name}" defaultValue="${this.defaultValue}">${this.name}</decimalTextBox>`;
 	}
 
