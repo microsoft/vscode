@@ -262,6 +262,12 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           Write-Host "Starting policy generation..."
+          New-Item -Path ".build/TESTING.txt" -ItemType File -Force | Out-Null
+          if (Test-Path "D:\a\_work\vscode\vscode\.build") {
+            Write-Host "Contents of .build:"
+            Get-ChildItem "D:\a\_work\vscode\vscode\.build" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 50 | Out-Host
+          }
+
           Write-Host "Before execution - checking if .build exists:"
           Test-Path "D:\a\_work\vscode\vscode\.build" | Out-Host
           Test-Path "D:\a\_work\vscode\vscode\.build/policies" | Out-Host
