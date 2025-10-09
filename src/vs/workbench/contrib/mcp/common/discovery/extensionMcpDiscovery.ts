@@ -13,6 +13,7 @@ import { IMcpCollectionContribution } from '../../../../../platform/extensions/c
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import * as extensionsRegistry from '../../../../services/extensions/common/extensionsRegistry.js';
+import { ExtensionPointUserDelta, IExtensionPointUser } from '../../../../services/extensions/common/extensionsRegistry.js';
 import { mcpActivationEvent, mcpContributionPoint } from '../mcpConfiguration.js';
 import { IMcpRegistry } from '../mcpRegistryTypes.js';
 import { extensionPrefixedIdentifier, McpServerDefinition, McpServerTrust } from '../mcpTypes.js';
@@ -39,6 +40,7 @@ export class ExtensionMcpDiscovery extends Disposable implements IMcpDiscovery {
 	private readonly _extensionCollectionIdsToPersist = new Map<string, PersistWhen>();
 	private readonly cachedServers: { [collcetionId: string]: IServerCacheEntry };
 	private readonly _conditionalCollections = this._register(new DisposableMap<string>());
+	private _extensionCollections?: DisposableMap<string>;
 
 	constructor(
 		@IMcpRegistry private readonly _mcpRegistry: IMcpRegistry,
@@ -78,42 +80,45 @@ export class ExtensionMcpDiscovery extends Disposable implements IMcpDiscovery {
 			}
 		}));
 	}
-
 	public start(): void {
-		const extensionCollections = this._register(new DisposableMap<string>());
-		this._register(_mcpExtensionPoint.setHandler((_extensions, delta) => {
-			const { added, removed } = delta;
-
-			for (const collections of removed) {
-				for (const coll of collections.value) {
-					const id = extensionPrefixedIdentifier(collections.description.identifier, coll.id);
-					extensionCollections.deleteAndDispose(id);
-					this._conditionalCollections.deleteAndDispose(id);
-					this._extensionCollectionIdsToPersist.set(id, PersistWhen.Delete);
-				}
-			}
-
-			for (const collections of added) {
-
-				if (!ExtensionMcpDiscovery._validate(collections)) {
-					continue;
-				}
-
-				for (const coll of collections.value) {
-					const id = extensionPrefixedIdentifier(collections.description.identifier, coll.id);
-					this._extensionCollectionIdsToPersist.set(id, PersistWhen.CollectionExists);
-
-					// Handle conditional collections with 'when' clause
-					if (coll.when) {
-						this._registerConditionalCollection(id, coll, collections, extensionCollections);
-					} else {
-						// Register collection immediately if no 'when' clause
-						this._registerCollection(id, coll, collections, extensionCollections);
-					}
-				}
-			}
-		}));
+		this._extensionCollections = this._register(new DisposableMap<string>());
+		this._register(_mcpExtensionPoint.setHandler(this.handleExtensionChange.bind(this)));
 	}
+
+	protected handleExtensionChange(_extensions: readonly IExtensionPointUser<IMcpCollectionContribution[]>[], delta: ExtensionPointUserDelta<IMcpCollectionContribution[]>) {
+		const extensionCollections = this._extensionCollections!;
+		for (const collections of delta.removed) {
+			for (const coll of collections.value) {
+				const id = extensionPrefixedIdentifier(collections.description.identifier, coll.id);
+				this.deleteCollection(id);
+			}
+		}
+
+		for (const collections of delta.added) {
+			if (!ExtensionMcpDiscovery._validate(collections)) {
+				continue;
+			}
+			for (const coll of collections.value) {
+				const id = extensionPrefixedIdentifier(collections.description.identifier, coll.id);
+				this._extensionCollectionIdsToPersist.set(id, PersistWhen.CollectionExists);
+
+				// Handle conditional collections with 'when' clause
+				if (coll.when) {
+					this._registerConditionalCollection(id, coll, collections, extensionCollections);
+				} else {
+					// Register collection immediately if no 'when' clause
+					this._registerCollection(id, coll, collections, extensionCollections);
+				}
+			}
+		}
+	}
+
+	protected deleteCollection(id: string) {
+		this._extensionCollections!.deleteAndDispose(id);
+		this._conditionalCollections.deleteAndDispose(id);
+		this._extensionCollectionIdsToPersist.set(id, PersistWhen.Delete);
+	}
+
 
 	private _registerCollection(
 		id: string,

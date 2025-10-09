@@ -17,8 +17,26 @@ import { IContextKeyService } from '../../../../../../platform/contextkey/common
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IMcpRegistry } from '../../../common/mcpRegistryTypes.js';
 import { TestMcpRegistry } from '../mcpRegistryTypes.js';
+import { ExtensionMessageCollector, ExtensionPointUserDelta, IExtensionPointUser } from '../../../../../services/extensions/common/extensionsRegistry.js';
+import { IMcpCollectionContribution, IExtensionDescription, ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 
 // #region Test Helper Classes
+
+/**
+ * Testable version of ExtensionMcpDiscovery that exposes protected methods
+ */
+class TestableExtensionMcpDiscovery extends ExtensionMcpDiscovery {
+	public override handleExtensionChange(
+		extensions: readonly IExtensionPointUser<IMcpCollectionContribution[]>[],
+		delta: ExtensionPointUserDelta<IMcpCollectionContribution[]>
+	): void {
+		super.handleExtensionChange(extensions, delta);
+	}
+
+	public override deleteCollection(id: string) {
+		super.deleteCollection(id);
+	}
+}
 
 /**
  * Test implementation of IContextKeyService for MCP discovery tests
@@ -60,7 +78,7 @@ class TestContextKeyService extends MockContextKeyService {
 suite('ExtensionMcpDiscovery', () => {
 	// #region Test State
 	interface TestFixture {
-		extensionMcpDiscovery: ExtensionMcpDiscovery;
+		extensionMcpDiscovery: TestableExtensionMcpDiscovery;
 		storageService: TestStorageService;
 		extensionService: TestExtensionService;
 		contextKeyService: TestContextKeyService;
@@ -105,7 +123,7 @@ suite('ExtensionMcpDiscovery', () => {
 		const mcpRegistry = new TestMcpRegistry(serviceInstantiation);
 
 		const instance = store.add(serviceInstantiation.createChild(new ServiceCollection([IMcpRegistry, mcpRegistry])));
-		const extensionMcpDiscovery = store.add(instance.createInstance(ExtensionMcpDiscovery));
+		const extensionMcpDiscovery = store.add(instance.createInstance(TestableExtensionMcpDiscovery));
 
 		return {
 			extensionMcpDiscovery,
@@ -175,13 +193,202 @@ suite('ExtensionMcpDiscovery', () => {
 	});
 	// #endregion
 
+	// #region Extension Point Handler Tests
+	suite('Extension Point Handler', () => {
+		/**
+		 * Creates mock extension point user data for testing
+		 */
+		function createMockExtensionPointUser(
+			id: string,
+			label: string,
+			extensionId: string = 'test.extension',
+			when?: string
+		): IExtensionPointUser<IMcpCollectionContribution[]> {
+			const contribution: IMcpCollectionContribution = {
+				id,
+				label,
+				...(when && { when })
+			};
+
+			// Create a mock collector that satisfies the ExtensionMessageCollector interface
+			const mockCollector = {
+				error: sinon.stub(),
+				warn: sinon.stub(),
+				info: sinon.stub(),
+				_messageHandler: sinon.stub(),
+				_extension: null,
+				_extensionPointId: 'test-point',
+				_msg: []
+			} as unknown as ExtensionMessageCollector; // Use any for the mock to avoid complex type requirements
+
+			return {
+				value: [contribution],
+				description: {
+					identifier: new ExtensionIdentifier(extensionId)
+				} as IExtensionDescription,
+				collector: mockCollector
+			};
+		}
+
+		/**
+		 * Creates a mock ExtensionPointUserDelta for testing
+		 */
+		function createMockDelta(
+			added: IExtensionPointUser<IMcpCollectionContribution[]>[] = [],
+			removed: IExtensionPointUser<IMcpCollectionContribution[]>[] = []
+		): ExtensionPointUserDelta<IMcpCollectionContribution[]> {
+			return {
+				added,
+				removed
+			} as ExtensionPointUserDelta<IMcpCollectionContribution[]>;
+		}
+
+		test('should handle added extensions without when clause', () => {
+			// Start the discovery to initialize internal state
+			fixture.extensionMcpDiscovery.start();
+
+			// Spy on the mcpRegistry to verify collection registration
+			const registerCollectionStub = sinon.stub(fixture.mcpRegistry, 'registerCollection').returns({ dispose: sinon.stub() });
+
+			// Create mock extension data
+			const mockExtension = createMockExtensionPointUser('test-collection', 'Test Collection');
+			const delta = createMockDelta([mockExtension], []);
+
+			//spy on registercollection
+
+			// Call the method under test
+			fixture.extensionMcpDiscovery.handleExtensionChange([], delta);
+
+			// Verify that registerCollection was called for the added extension
+			assert.ok(registerCollectionStub.calledOnce, 'registerCollection should be called once for added extension');
+
+			const registrationCall = registerCollectionStub.getCall(0);
+			const registrationArgs = registrationCall.args[0];
+			assert.strictEqual(registrationArgs.id, 'test.extension/test-collection', 'Collection should be registered with prefixed ID');
+			assert.strictEqual(registrationArgs.label, 'Test Collection', 'Collection should have correct label');
+
+			registerCollectionStub.restore();
+		});
+
+		test('should handle added extensions with when clause', () => {
+			// Start the discovery to initialize internal state
+			fixture.extensionMcpDiscovery.start();
+
+			// Configure context to match the when clause
+			fixture.contextKeyService.setContextMatchesRules(true);
+
+			// Spy on the mcpRegistry to verify collection registration
+			const registerCollectionStub = sinon.stub(fixture.mcpRegistry, 'registerCollection').returns({ dispose: sinon.stub() });
+
+			// Create mock extension data with when clause
+			const mockExtension = createMockExtensionPointUser(
+				'conditional-collection',
+				'Conditional Collection',
+				'test.extension',
+				'config.someFlag'
+			);
+			const delta = createMockDelta([mockExtension], []);
+
+			// Call the method under test
+			fixture.extensionMcpDiscovery.handleExtensionChange([], delta);
+
+			// Verify that registerCollection was called for the conditional extension
+			assert.ok(registerCollectionStub.calledOnce, 'registerCollection should be called once for conditional extension when context matches');
+			assert.strictEqual(registerCollectionStub.getCall(0).args[0].id, 'test.extension/conditional-collection', 'Collection should be registered with prefixed ID');
+			assert.strictEqual(registerCollectionStub.getCall(0).args[0].label, 'Conditional Collection', 'Collection should have correct label');
+
+			registerCollectionStub.restore();
+		});
+
+		test('should handle removed extensions', () => {
+			// Start the discovery to initialize internal state
+			fixture.extensionMcpDiscovery.start();
+
+			// First add an extension to be removed later
+			const mockExtension = createMockExtensionPointUser('removable-collection', 'Removable Collection');
+			const addDelta = createMockDelta([mockExtension], []);
+
+			// Spy on registry to monitor any new registrations during removal
+			const registerCollectionSpy = sinon.stub(fixture.mcpRegistry, 'registerCollection').returns({ dispose: sinon.stub() });
+			fixture.extensionMcpDiscovery.handleExtensionChange([], addDelta);
+
+			registerCollectionSpy.resetHistory(); // Clear any previous calls
+
+			//spy on deleteCollection method.
+			const deleteCollectionSpy = sinon.spy(fixture.extensionMcpDiscovery, "deleteCollection");
+			// Now remove the extension
+			const removeDelta = createMockDelta([], [mockExtension]);
+			fixture.extensionMcpDiscovery.handleExtensionChange([], removeDelta);
+
+			// Verify that no new registrations occurred during removal
+			assert.ok(registerCollectionSpy.notCalled, 'No new collections should be registered when extensions are removed');
+			assert.ok(deleteCollectionSpy.calledOnce, 'deleteCollection should be called once for removed extension');
+			assert.strictEqual(deleteCollectionSpy.getCall(0).args[0], 'test.extension/removable-collection', 'deleteCollection should be called with correct ID');
+			registerCollectionSpy.restore();
+			deleteCollectionSpy.restore();
+		});
+
+		test('should skip invalid extensions', () => {
+			// Start the discovery to initialize internal state
+			fixture.extensionMcpDiscovery.start();
+
+			const registerCollectionSpy = sinon.stub(fixture.mcpRegistry, 'registerCollection').returns({ dispose: sinon.stub() });
+
+			// Create mock extension data with invalid structure (empty id should fail validation)
+			const invalidExtension = createMockExtensionPointUser('', 'Invalid Collection'); // Empty id
+			const invalidDelta = createMockDelta([invalidExtension], []);
+
+			// Call the method under test
+			fixture.extensionMcpDiscovery.handleExtensionChange([], invalidDelta);
+
+			// Verify that registerCollection was not called for invalid extension
+			assert.ok(registerCollectionSpy.notCalled, 'registerCollection should not be called for invalid extensions');
+
+			registerCollectionSpy.restore();
+		});
+
+		test('should handle mixed add and remove operations', () => {
+			// Start the discovery to initialize internal state
+			fixture.extensionMcpDiscovery.start();
+
+			// First add an extension to be removed later
+			const existingExtension = createMockExtensionPointUser('existing-collection', 'Existing Collection');
+			const addExistingDelta = createMockDelta([existingExtension], []);
+			// Prepare spy for the mixed operation
+			const registerCollectionSpy = sinon.stub(fixture.mcpRegistry, 'registerCollection').returns({ dispose: sinon.stub() });
+			fixture.extensionMcpDiscovery.handleExtensionChange([], addExistingDelta);
+			// Create mixed delta: add new extension, remove existing one
+			const newExtension = createMockExtensionPointUser('new-collection', 'New Collection', 'new.extension');
+			const mixedDelta = createMockDelta([newExtension], [existingExtension]);
+
+			// Reset spy call counts after initial setup
+			registerCollectionSpy.resetHistory();
+
+			//spy on deleteCollection method.
+			const deleteCollectionSpy = sinon.spy(fixture.extensionMcpDiscovery, "deleteCollection");
+
+			// Call the method under test
+			fixture.extensionMcpDiscovery.handleExtensionChange([], mixedDelta);
+
+			// Verify new collection was registered (we can't easily test removal with current test setup)
+			assert.ok(registerCollectionSpy.calledOnce, 'New collection should be registered');
+
+			const registrationCall = registerCollectionSpy.getCall(0);
+			assert.strictEqual(registrationCall.args[0].id, 'new.extension/new-collection', 'New collection should have correct prefixed ID');
+			assert.ok(deleteCollectionSpy.calledOnce, 'deleteCollection should be called once for removed extension');
+			assert.strictEqual(deleteCollectionSpy.getCall(0).args[0], 'test.extension/existing-collection', 'deleteCollection should be called with correct ID');
+
+			registerCollectionSpy.restore();
+		});
+	});
+	// #endregion
+
 	// #region Future Test Suites
 	// TODO: Add test suites for:
-	// - Extension Point Registration
-	// - Collection Validation
-	// - Conditional Collections
-	// - Storage Persistence
-	// - Extension Lifecycle
+	// - Collection Validation Details
+	// - Conditional Collections Context Changes
+	// - Storage Persistence Edge Cases
+	// - Error Handling
 	// #endregion
 
 });
