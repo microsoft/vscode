@@ -17,7 +17,7 @@ import { IExtensionDescription } from '../../../platform/extensions/common/exten
 import { coalesce } from '../../../base/common/arrays.js';
 import Severity from '../../../base/common/severity.js';
 import { ThemeIcon as ThemeIconUtils } from '../../../base/common/themables.js';
-import { isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
+import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { MarkdownString } from './extHostTypeConverters.js';
 
 export type Item = string | QuickPickItem;
@@ -674,13 +674,9 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		}
 
 		set prompt(prompt: string | undefined) {
-			if (isProposedApiEnabled(this._extension, 'quickPickPrompt')) {
-				this._prompt = prompt;
-				this.update({ prompt });
-			} else if (prompt) {
-				const extensionId = this._extension.identifier.value;
-				console.warn(`Extension '${extensionId}' uses QuickPick prompt API proposal that is only available when running out of dev or with the following command line switch: --enable-proposed-api ${extensionId}`);
-			}
+			checkProposedApiEnabled(this._extension, 'quickPickPrompt');
+			this._prompt = prompt;
+			this.update({ prompt });
 		}
 
 		get activeItems() {
