@@ -491,6 +491,23 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 				true,
 				() => this.debugService.runTo(uri, lineNumber).catch(onUnexpectedError)
 			));
+
+			actions.push(new Action(
+				'jumpToLine',
+				nls.localize('jumpToLine', "Jump to Line"),
+				undefined,
+				true,
+				() => {
+					const stackFrame = this.debugService.getViewModel().focusedStackFrame;
+					if (stackFrame) {
+						const resource = uri;
+						const source = stackFrame.thread.session.getSourceForUri(resource);
+						if (source) {
+							stackFrame.thread.session.gotoTargets(source.raw, lineNumber, column);
+						}
+					}
+				}
+			));
 		}
 
 		return actions;
