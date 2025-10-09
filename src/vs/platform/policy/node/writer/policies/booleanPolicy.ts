@@ -11,10 +11,7 @@ import { renderProfileString } from './render.js';
 
 export class BooleanPolicy extends BasePolicy {
 
-	static from({ key, policy, category, policyDescription, config }: { key: string; policy: IPolicy; category: Category; policyDescription: NlsString; config: IConfigurationPropertySchema }): BooleanPolicy {
-		if (config.default === undefined) {
-			throw new Error(`[BooleanPolicy] Failed to convert '${key}': missing required 'default' property.`);
-		}
+	static from({ policy, category, policyDescription }: { key: string; policy: IPolicy; category: Category; policyDescription: NlsString; config: IConfigurationPropertySchema }): BooleanPolicy {
 		return new BooleanPolicy(policy.name, category, policy.minimumVersion, policyDescription);
 	}
 

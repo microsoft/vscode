@@ -11,10 +11,7 @@ import { renderProfileString } from './render.js';
 
 export class StringPolicy extends BasePolicy {
 
-	static from({ key, policy, category, policyDescription, config }: { key: string; policy: IPolicy; category: Category; policyDescription: NlsString; config: IConfigurationPropertySchema }): StringPolicy {
-		if (config.default === undefined) {
-			throw new Error(`[StringPolicy] Failed to convert ${key}: missing required 'default' property.`);
-		}
+	static from({ policy, category, policyDescription }: { key: string; policy: IPolicy; category: Category; policyDescription: NlsString; config: IConfigurationPropertySchema }): StringPolicy {
 		return new StringPolicy(policy.name, category, policy.minimumVersion, policyDescription);
 	}
 

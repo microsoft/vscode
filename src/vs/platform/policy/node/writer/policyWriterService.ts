@@ -61,7 +61,7 @@ export class PolicyWriterService implements IPolicyWriterService {
 	private async writeDarwin(policies: Policy[], translations: Translations) {
 		const bundleIdentifier = this.productService.darwinBundleIdentifier;
 		if (!bundleIdentifier) {
-			throw new Error(`Missing required product information 1.`);
+			throw new Error(`Missing required product information.`);
 		}
 		const root = '.build/policies/darwin';
 		const { profile, manifests } = this.renderMacOSPolicy(policies, translations);
@@ -362,7 +362,7 @@ export class PolicyWriterService implements IPolicyWriterService {
 		const UUID = this.productService.darwinProfileUUID;
 
 		if (!appName || !bundleIdentifier) {
-			throw new Error(`Missing required product information 2.`);
+			throw new Error(`Missing required product information.`);
 		}
 
 		const versions = [...new Set(policies.map(p => p.minimumVersion)).values()].sort();
@@ -426,7 +426,7 @@ ${policyEntries}
 		const regKey = this.productService.win32RegValueName;
 
 		if (!regKey) {
-			throw new Error(`Missing required product information 3.`);
+			throw new Error(`Missing required product information.`);
 		}
 
 		const versions = [...new Set(policies.map(p => p.minimumVersion)).values()].sort();

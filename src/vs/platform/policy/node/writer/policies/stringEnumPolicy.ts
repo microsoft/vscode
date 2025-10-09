@@ -20,7 +20,7 @@ export class StringEnumPolicy extends BasePolicy {
 			throw new Error(`[StringEnumPolicy] Failed to convert ${key}: missing required 'enumDescriptions' property.`);
 		}
 
-		const defaultValue = config.default ?? config.enum[0];
+		const defaultValue = config.enum[0];
 		return new StringEnumPolicy(policy.name, category, policy.minimumVersion, policyDescription, defaultValue, config.enum, policyEnumDescriptions);
 	}
 
