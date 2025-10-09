@@ -447,6 +447,11 @@ export class McpHTTPHandle extends Disposable {
 				}
 			}
 		}
+		// Check Content-Type to ensure we received JSON before attempting to parse
+		const contentType = authServerMetadataResponse.headers.get('Content-Type')?.toLowerCase() || '';
+		if (!contentType.includes('application/json')) {
+			throw new Error(`Authorization server metadata endpoint returned non-JSON content type: ${contentType || 'none'}`);
+		}
 		const body = await authServerMetadataResponse.json();
 		if (isAuthorizationServerMetadata(body)) {
 			return body;
