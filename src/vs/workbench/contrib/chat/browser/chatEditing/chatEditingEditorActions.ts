@@ -226,15 +226,17 @@ export class RejectAction extends KeepOrUndoAction {
 	}
 }
 
+const acceptHunkId = 'chatEditor.action.acceptHunk';
+const undoHunkId = 'chatEditor.action.undoHunk';
 abstract class AcceptRejectHunkAction extends ChatEditingEditorAction {
 
 	constructor(private readonly _accept: boolean) {
 		super(
 			{
-				id: _accept ? 'chatEditor.action.acceptHunk' : 'chatEditor.action.undoHunk',
+				id: _accept ? acceptHunkId : undoHunkId,
 				title: _accept ? localize2('acceptHunk', 'Keep this Change') : localize2('undo', 'Undo this Change'),
+				shortTitle: _accept ? localize2('acceptHunkShort', 'Keep') : localize2('undoShort', 'Undo'),
 				precondition: ContextKeyExpr.and(ctxHasEditorModification, ctxIsCurrentlyBeingModified.negate()),
-				icon: _accept ? Codicon.check : Codicon.discard,
 				f1: true,
 				keybinding: {
 					when: ContextKeyExpr.or(EditorContextKeys.focus, NOTEBOOK_CELL_LIST_FOCUSED),
@@ -265,6 +267,24 @@ abstract class AcceptRejectHunkAction extends ChatEditingEditorAction {
 			// no more changes, move to next file
 			await instaService.invokeFunction(openNextOrPreviousChange, session, entry, true);
 		}
+	}
+}
+
+export class AcceptHunkAction extends AcceptRejectHunkAction {
+
+	static readonly ID = acceptHunkId;
+
+	constructor() {
+		super(true);
+	}
+}
+
+export class RejectHunkAction extends AcceptRejectHunkAction {
+
+	static readonly ID = undoHunkId;
+
+	constructor() {
+		super(false);
 	}
 }
 
@@ -422,8 +442,8 @@ export function registerChatEditorActions() {
 	registerAction2(AcceptAction);
 	registerAction2(RejectAction);
 	registerAction2(AcceptAllEditsAction);
-	registerAction2(class AcceptHunkAction extends AcceptRejectHunkAction { constructor() { super(true); } });
-	registerAction2(class RejectHunkAction extends AcceptRejectHunkAction { constructor() { super(false); } });
+	registerAction2(AcceptHunkAction);
+	registerAction2(RejectHunkAction);
 	registerAction2(ToggleDiffAction);
 	registerAction2(ToggleAccessibleDiffViewAction);
 
