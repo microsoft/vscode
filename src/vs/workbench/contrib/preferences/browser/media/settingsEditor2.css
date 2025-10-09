@@ -589,11 +589,7 @@
 }
 
 /* High contrast theme support - ensure proper color visibility */
-.monaco-workbench.hc-light .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-markdown a,
-.monaco-workbench.hc-light .settings-editor > .settings-body .settings-tree-container .setting-item-contents .edit-in-settings-button,
 .monaco-workbench.hc-light .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-markdown a > code,
-.monaco-workbench.hc-black .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-markdown a,
-.monaco-workbench.hc-black .settings-editor > .settings-body .settings-tree-container .setting-item-contents .edit-in-settings-button,
 .monaco-workbench.hc-black .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-markdown a > code {
 	color: var(--vscode-textPreformat-foreground);
 }
