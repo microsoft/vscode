@@ -259,7 +259,16 @@ jobs:
       - name: Generate policy definitions
         shell: pwsh
         timeout-minutes: 5
-        run: .\scripts\code.bat --disable-gpu --wait --transient --export-policy-type="win32"
+        run: |
+          $ErrorActionPreference = "Stop"
+          Write-Host "Starting policy generation..."
+          .\scripts\code.bat --disable-gpu --wait --transient --export-policy-type="win32"
+          $exitCode = $LASTEXITCODE
+          Write-Host "Policy generation completed with exit code: $exitCode"
+          if ($exitCode -ne 0) {
+            Write-Error "Policy generation failed with exit code: $exitCode"
+            exit $exitCode
+          }
 
       - name: Verify policy files
         shell: pwsh
