@@ -39,16 +39,6 @@ export class PolicyWriterService implements IPolicyWriterService {
 
 	constructor(@IConfigurationService public readonly configurationService: IConfigurationService, @IProductService private readonly productService: IProductService) { }
 
-	/**
-	 * Returns the absolute path to the build directory. Uses the current working directory
-	 * from the main process, which should be the repository root when running from CI or scripts.
-	 */
-	private getBuildDirectory(): string {
-		// In the main process during policy export, process.cwd() should point to the repository root
-		// Join with .build to get the absolute path
-		return path.join(process.cwd(), '.build');
-	}
-
 	public async write(configs: Array<{ key: string; schema: IRegisteredConfigurationPropertySchema }>, platform: 'darwin' | 'win32'): Promise<void> {
 		const translations = await this.getTranslations();
 		const policies = this.getPolicies(configs);
@@ -67,7 +57,7 @@ export class PolicyWriterService implements IPolicyWriterService {
 		if (!bundleIdentifier) {
 			throw new Error(`Missing required product information 1.`);
 		}
-		const root = path.join(this.getBuildDirectory(), 'policies', 'darwin');
+		const root = '.build/policies/darwin';
 		const { profile, manifests } = this.renderMacOSPolicy(policies, translations);
 
 		await fs.rm(root, { recursive: true, force: true });
@@ -84,7 +74,7 @@ export class PolicyWriterService implements IPolicyWriterService {
 	}
 
 	private async writeWindows(policies: Policy[], translations: Translations) {
-		const root = path.join(this.getBuildDirectory(), 'policies', 'win32');
+		const root = '.build/policies/win32';
 		const { admx, adml } = this.renderGP(policies, translations);
 
 		await fs.rm(root, { recursive: true, force: true });

@@ -266,7 +266,7 @@ jobs:
           Test-Path ".build" | Out-Host
           Test-Path ".build/policies" | Out-Host
 
-          .\scripts\code.bat --disable-gpu --wait --transient --export-policy-type="win32"
+          .\scripts\code.bat --disable-gpu --wait --export-policy-type="win32"
           $exitCode = $LASTEXITCODE
           Write-Host "Policy generation completed with exit code: $exitCode"
 
