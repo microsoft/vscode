@@ -1201,6 +1201,8 @@ suite('QueryBuilder', () => {
 			});
 			assert.strictEqual(query.folderQueries.length, 1);
 		});
+
+
 	});
 });
 function makeExcludePatternFromPatterns(...patterns: string[]): {

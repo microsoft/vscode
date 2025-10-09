@@ -313,11 +313,11 @@ export class QueryBuilder {
 				}
 
 				const relPath = path.relative(searchRoot.fsPath, file.fsPath);
-				assertReturnsDefined(folderQuery.includePattern)[relPath.replace(/\\/g, '/')] = true;
+				assertReturnsDefined(folderQuery.includePattern)[escapeGlobPattern(relPath.replace(/\\/g, '/'))] = true;
 			} else {
 				if (file.fsPath) {
 					hasIncludedFile = true;
-					includePattern[file.fsPath] = true;
+					includePattern[escapeGlobPattern(file.fsPath)] = true;
 				}
 			}
 		});
