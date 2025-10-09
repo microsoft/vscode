@@ -127,14 +127,6 @@ export class MarkerController implements IEditorContribution {
 		}
 	}
 
-	focus(): void {
-		this._widget?.focus();
-	}
-
-	getSelectedMarker() {
-		return this._model?.selected;
-	}
-
 	showAtMarker(marker: IMarker): void {
 		if (!this._editor.hasModel()) {
 			return;
