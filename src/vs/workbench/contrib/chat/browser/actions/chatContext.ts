@@ -29,6 +29,7 @@ import { IChatWidget } from '../chat.js';
 import { imageToHash, isImage } from '../chatPasteProviders.js';
 import { convertBufferToScreenshotVariable } from '../contrib/screenshot.js';
 import { ChatInstructionsPickerPick } from '../promptSyntax/attachInstructionsAction.js';
+import { WebviewInput } from '../../../webviewPanel/browser/webviewEditorInput.js';
 
 
 export class ChatContextContributions extends Disposable implements IWorkbenchContribution {
@@ -142,7 +143,7 @@ class OpenEditorContextValuePick implements IChatContextValueItem {
 	async asAttachment(): Promise<IChatRequestVariableEntry[]> {
 		const result: IChatRequestVariableEntry[] = [];
 		for (const editor of this._editorService.editors) {
-			if (!(editor instanceof FileEditorInput || editor instanceof DiffEditorInput || editor instanceof UntitledTextEditorInput || editor instanceof NotebookEditorInput)) {
+			if (!(editor instanceof FileEditorInput || editor instanceof DiffEditorInput || editor instanceof UntitledTextEditorInput || editor instanceof NotebookEditorInput || editor instanceof WebviewInput)) {
 				continue;
 			}
 			const uri = EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
