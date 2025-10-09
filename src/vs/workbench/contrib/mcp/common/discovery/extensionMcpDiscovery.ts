@@ -52,7 +52,6 @@ export class ExtensionMcpDiscovery extends Disposable implements IMcpDiscovery {
 		this._register(storageService.onWillSaveState(() => {
 			let updated = false;
 			for (const [collectionId, behavior] of this._extensionCollectionIdsToPersist.entries()) {
-
 				if (behavior === PersistWhen.Delete) {
 					updated = true;
 					delete this.cachedServers[collectionId];
