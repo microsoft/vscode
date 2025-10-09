@@ -208,7 +208,7 @@ export function registerTerminalSuggestProvidersConfiguration(availableProviders
 	};
 	providersProperties[lspProviderId] ??= {
 		type: 'boolean',
-		description: localize('suggest.provider.lsp.description', "Enable or disable the LSP-based provider. This enables language server protocol-specific argument completion."),
+		description: localize('suggest.provider.lsp.description', "Provides completions for language server protocol-specific arguments."),
 		default: product.quality !== 'stable',
 	};
 
