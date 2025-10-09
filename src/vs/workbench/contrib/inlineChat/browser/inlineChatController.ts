@@ -129,13 +129,12 @@ export class InlineChatController implements IEditorContribution {
 		@IConfigurationService configurationService: IConfigurationService,
 		@INotebookEditorService private readonly _notebookEditorService: INotebookEditorService
 	) {
-		const isNotebookCell = this._notebookEditorService.isCellEditor(editor);
-		const inlineChat2 = isNotebookCell
-			? observableConfigValue(InlineChatConfigKeys.EnableV2, false, configurationService)
-			: observableConfigValue(InlineChatConfigKeys.notebookAgent, false, configurationService);
+		const inlineChat2 = observableConfigValue(InlineChatConfigKeys.EnableV2, false, configurationService);
+		const notebookAgent = observableConfigValue(InlineChatConfigKeys.notebookAgent, false, configurationService);
 
 		this._delegate = derived(r => {
-			if (inlineChat2.read(r)) {
+			const isNotebookCell = this._notebookEditorService.isCellEditor(editor);
+			if (isNotebookCell ? notebookAgent.read(r) : inlineChat2.read(r)) {
 				return InlineChatController2.get(editor)!;
 			} else {
 				return InlineChatController1.get(editor)!;
