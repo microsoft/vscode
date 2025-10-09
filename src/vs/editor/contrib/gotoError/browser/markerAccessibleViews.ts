@@ -5,7 +5,7 @@
 
 import { localize } from '../../../../nls.js';
 import { AccessibleViewType, AccessibleViewProviderId, AccessibleContentProvider, IAccessibleViewContentProvider, IAccessibleViewOptions } from '../../../../platform/accessibility/browser/accessibleView.js';
-import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { AccessibleViewRegistry, IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { ICodeEditorService } from '../../../browser/services/codeEditorService.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IMarker, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
@@ -14,6 +14,7 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { MarkerController } from './gotoError.js';
 
 export class MarkerAccessibleView implements IAccessibleViewImplementation {
 
@@ -28,7 +29,7 @@ export class MarkerAccessibleView implements IAccessibleViewImplementation {
 		if (!codeEditor) {
 			return;
 		}
-		const markerController: any = codeEditor.getContribution('editor.contrib.markerController');
+		const markerController = codeEditor.getContribution<MarkerController>(MarkerController.ID);
 		if (!markerController) {
 			return;
 		}
@@ -49,7 +50,7 @@ export class MarkerAccessibilityHelp implements IAccessibleViewImplementation {
 		if (!codeEditor) {
 			return;
 		}
-		const markerController: any = codeEditor.getContribution('editor.contrib.markerController');
+		const markerController = codeEditor.getContribution<MarkerController>(MarkerController.ID);
 		if (!markerController) {
 			return;
 		}
@@ -65,7 +66,7 @@ abstract class BaseMarkerAccessibleViewProvider extends Disposable implements IA
 
 	constructor(
 		protected readonly _editor: ICodeEditor,
-		protected readonly _markerController: any
+		protected readonly _markerController: MarkerController
 	) {
 		super();
 	}
@@ -73,9 +74,7 @@ abstract class BaseMarkerAccessibleViewProvider extends Disposable implements IA
 	abstract provideContent(): string;
 
 	public onClose(): void {
-		if (this._markerController && typeof this._markerController.focus === 'function') {
-			this._markerController.focus();
-		}
+		this._markerController.focus();
 	}
 
 	protected _getMarkerContent(marker: IMarker): string {
@@ -155,13 +154,13 @@ export class MarkerAccessibleViewProvider extends BaseMarkerAccessibleViewProvid
 	public override readonly options: IAccessibleViewOptions = { type: AccessibleViewType.View };
 
 	override provideContent(): string {
-		const model = (this._markerController as any)._model;
-		if (!model || !model.selected) {
+		const selected = this._markerController.getSelectedMarker();
+		if (!selected) {
 			return localize('noMarker', "No problem selected");
 		}
-		const marker = model.selected.marker;
-		const markerIndex = model.selected.index;
-		const markerTotal = model.selected.total;
+		const marker = selected.marker;
+		const markerIndex = selected.index;
+		const markerTotal = selected.total;
 
 		const content: string[] = [];
 		if (markerTotal > 1) {
@@ -173,3 +172,7 @@ export class MarkerAccessibleViewProvider extends BaseMarkerAccessibleViewProvid
 		return content.join('\n');
 	}
 }
+
+// Register accessible views for marker navigation widget
+AccessibleViewRegistry.register(new MarkerAccessibleView());
+AccessibleViewRegistry.register(new MarkerAccessibilityHelp());
