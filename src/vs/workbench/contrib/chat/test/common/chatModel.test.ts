@@ -20,7 +20,7 @@ import { IStorageService } from '../../../../../platform/storage/common/storage.
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { TestExtensionService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { ChatAgentService, IChatAgentService } from '../../common/chatAgents.js';
-import { ChatModel, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, normalizeSerializableChatData, Response } from '../../common/chatModel.js';
+import { CHAT_ATTACHABLE_IMAGE_MIME_TYPES, ChatModel, getAttachableImageExtension, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, normalizeSerializableChatData, Response } from '../../common/chatModel.js';
 import { ChatRequestTextPart } from '../../common/chatParserTypes.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 
@@ -256,5 +256,27 @@ suite('normalizeSerializableChatData', () => {
 		assert.ok(newData.creationDate > 0);
 		assert.ok(newData.lastMessageDate > 0);
 		assert.ok(newData.sessionId);
+	});
+});
+
+suite('CHAT_ATTACHABLE_IMAGE_MIME_TYPES', () => {
+	test('supports SVG files', () => {
+		assert.strictEqual(CHAT_ATTACHABLE_IMAGE_MIME_TYPES.svg, 'image/svg+xml');
+	});
+
+	test('getAttachableImageExtension returns correct extension for SVG', () => {
+		assert.strictEqual(getAttachableImageExtension('image/svg+xml'), 'svg');
+	});
+
+	test('getAttachableImageExtension returns correct extension for other image types', () => {
+		assert.strictEqual(getAttachableImageExtension('image/png'), 'png');
+		assert.strictEqual(getAttachableImageExtension('image/jpeg'), 'jpeg');
+		assert.strictEqual(getAttachableImageExtension('image/gif'), 'gif');
+		assert.strictEqual(getAttachableImageExtension('image/webp'), 'webp');
+	});
+
+	test('getAttachableImageExtension returns undefined for unsupported types', () => {
+		assert.strictEqual(getAttachableImageExtension('image/bmp'), undefined);
+		assert.strictEqual(getAttachableImageExtension('application/pdf'), undefined);
 	});
 });

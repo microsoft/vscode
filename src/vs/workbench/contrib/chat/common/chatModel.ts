@@ -39,6 +39,7 @@ export const CHAT_ATTACHABLE_IMAGE_MIME_TYPES: Record<string, string> = {
 	jpeg: 'image/jpeg',
 	gif: 'image/gif',
 	webp: 'image/webp',
+	svg: 'image/svg+xml',
 };
 
 export function getAttachableImageExtension(mimeType: string): string | undefined {
