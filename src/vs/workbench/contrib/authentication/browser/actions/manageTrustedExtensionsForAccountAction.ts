@@ -16,6 +16,7 @@ import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../.
 import { AllowedExtension, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { IAuthenticationQueryService, IAccountQuery } from '../../../../services/authentication/common/authenticationQuery.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
+import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 
 export class ManageTrustedExtensionsForAccountAction extends Action2 {
 	constructor() {
@@ -55,7 +56,8 @@ class ManageTrustedExtensionsForAccountActionImpl {
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
 		@IAuthenticationQueryService private readonly _authenticationQueryService: IAuthenticationQueryService,
-		@ICommandService private readonly _commandService: ICommandService
+		@ICommandService private readonly _commandService: ICommandService,
+		@IExtensionsWorkbenchService private readonly _extensionsWorkbenchService: IExtensionsWorkbenchService
 	) { }
 
 	async run(options?: { providerId: string; accountLabel: string }) {
@@ -210,7 +212,7 @@ class ManageTrustedExtensionsForAccountActionImpl {
 			if (e.button === this._managePreferencesButton) {
 				this._commandService.executeCommand('_manageAccountPreferencesForExtension', e.item.extension.id, accountQuery.providerId);
 			} else if (e.button === this._viewDetailsButton) {
-				this._commandService.executeCommand('extension.open', e.item.extension.id);
+				this._extensionsWorkbenchService.open(e.item.extension.id);
 			}
 		}));
 
