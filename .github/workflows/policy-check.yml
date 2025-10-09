@@ -259,67 +259,18 @@ jobs:
       - name: Generate policy definitions
         shell: pwsh
         timeout-minutes: 5
-        run: |
-          $ErrorActionPreference = "Stop"
-          Write-Host "Starting policy generation..."
-          New-Item -Path ".build/TESTING.txt" -ItemType File -Force | Out-Null
-          if (Test-Path "D:\a\_work\vscode\vscode\.build") {
-            Write-Host "Contents of .build:"
-            Get-ChildItem "D:\a\_work\vscode\vscode\.build" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 50 | Out-Host
-          }
-
-          Write-Host "Before execution - checking if .build exists:"
-          Test-Path "D:\a\_work\vscode\vscode\.build" | Out-Host
-          Test-Path "D:\a\_work\vscode\vscode\.build/policies" | Out-Host
-
-          .\scripts\code.bat --disable-gpu --wait --export-policy-type="win32"
-          $exitCode = $LASTEXITCODE
-          Write-Host "Policy generation completed with exit code: $exitCode"
-
-          Write-Host "Immediately after execution - checking directory structure:"
-          Write-Host "Does .build exist?" (Test-Path "D:\a\_work\vscode\vscode\.build")
-          Write-Host "Does .build/policies exist?" (Test-Path "D:\a\_work\vscode\vscode\.build/policies")
-          Write-Host "Does .build\policies exist?" (Test-Path "D:\a\_work\vscode\vscode\.build\policies")
-          Write-Host "Does .build/policies/win32 exist?" (Test-Path "D:\a\_work\vscode\vscode\.build/policies/win32")
-          Write-Host "Does .build\policies\win32 exist?" (Test-Path "D:\a\_work\vscode\vscode\.build\policies\win32")
-
-          if (Test-Path "D:\a\_work\vscode\vscode\.build") {
-            Write-Host "Contents of .build:"
-            Get-ChildItem "D:\a\_work\vscode\vscode\.build" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 50 | Out-Host
-          }
-
-          if ($exitCode -ne 0) {
-            Write-Error "Policy generation failed with exit code: $exitCode"
-            exit $exitCode
-          }
+        run: .\scripts\code.bat --disable-gpu --wait --transient --export-policy-type="win32"
 
       - name: Verify policy files
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          $policyPath = Join-Path ".build" "policies" "win32"
-          Write-Host "Checking for policy files in: $policyPath"
-          Write-Host "Current directory: $(Get-Location)"
-          Write-Host "Resolved path: $(Resolve-Path $policyPath -ErrorAction SilentlyContinue)"
-          if (-not (Test-Path $policyPath)) {
-            Write-Host "Directory does not exist, checking alternate path formats..."
-            $altPath = ".build/policies/win32"
-            Write-Host "Trying: $altPath"
-            if (Test-Path $altPath) {
-              $policyPath = $altPath
-              Write-Host "Found using forward slashes"
-            } else {
-              Write-Error "ERROR: Policy directory does not exist at any expected path"
-              exit 1
-            }
-          }
-          $files = Get-ChildItem $policyPath -ErrorAction SilentlyContinue
-          if (($files | Measure-Object).Count -eq 0) {
-            Write-Error "ERROR: No policy files were generated in $policyPath"
+          if (-not (Test-Path ".build/policies/win32") -or ((Get-ChildItem ".build/policies/win32" -ErrorAction SilentlyContinue | Measure-Object).Count -eq 0)) {
+            Write-Error "ERROR: Policy files were not generated"
             exit 1
           }
           Write-Host "Policy files generated successfully:"
-          Get-ChildItem $policyPath -Recurse
+          Get-ChildItem .build/policies/win32
 
       - name: Publish policy artifacts
         uses: actions/upload-artifact@v4
