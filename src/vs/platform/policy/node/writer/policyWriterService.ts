@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { promises as fs } from 'fs';
 import * as path from '../../../../base/common/path.js';
+import { URI } from '../../../../base/common/uri.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { IFileService } from '../../../files/common/files.js';
 import { Category, LanguageTranslations, NlsString, Policy, Translations, Version } from './types.js';
 import { IPolicyWriterService } from '../../common/policy.js';
 import { renderADMLString } from './policies/render.js';
@@ -37,7 +39,11 @@ const Languages = {
 export class PolicyWriterService implements IPolicyWriterService {
 	_serviceBrand: undefined;
 
-	constructor(@IConfigurationService public readonly configurationService: IConfigurationService, @IProductService private readonly productService: IProductService) { }
+	constructor(
+		@IConfigurationService public readonly configurationService: IConfigurationService,
+		@IProductService private readonly productService: IProductService,
+		@IFileService private readonly fileService: IFileService
+	) { }
 
 	public async write(configs: Array<{ key: string; schema: IRegisteredConfigurationPropertySchema }>, platform: 'darwin' | 'win32'): Promise<void> {
 		const translations = await this.getTranslations();
@@ -60,31 +66,20 @@ export class PolicyWriterService implements IPolicyWriterService {
 		const root = '.build/policies/darwin';
 		const { profile, manifests } = this.renderMacOSPolicy(policies, translations);
 
-		await fs.rm(root, { recursive: true, force: true });
-		await fs.mkdir(root, { recursive: true });
+		const rootUri = URI.file(path.resolve(root));
+		await this.fileService.del(rootUri, { recursive: true, useTrash: false }).catch(() => { /* ignore if doesn't exist */ });
+		await this.fileService.createFolder(rootUri);
 		const mobileconfigPath = path.join(root, `${bundleIdentifier}.mobileconfig`);
-		// Use explicit file handle and fsync to ensure file is persisted to disk
-		const mobileconfigHandle = await fs.open(mobileconfigPath, 'w');
-		try {
-			await mobileconfigHandle.writeFile(profile.replace(/\r?\n/g, '\n'));
-			await mobileconfigHandle.sync(); // Force flush to disk
-		} finally {
-			await mobileconfigHandle.close();
-		}
+		const mobileconfigUri = URI.file(path.resolve(mobileconfigPath));
+		await this.fileService.writeFile(mobileconfigUri, VSBuffer.fromString(profile.replace(/\r?\n/g, '\n')));
 		console.log(`Created .mobileconfig file: ${path.resolve(mobileconfigPath)}`);
 
 		for (const { languageId, contents } of manifests) {
 			const languagePath = path.join(root, languageId === 'en-us' ? 'en-us' : Languages[languageId as keyof typeof Languages]);
-			await fs.mkdir(languagePath, { recursive: true });
-			const plistPath = path.join(languagePath, `${bundleIdentifier}.plist`);
-			// Use explicit file handle and fsync to ensure file is persisted to disk
-			const fileHandle = await fs.open(plistPath, 'w');
-			try {
-				await fileHandle.writeFile(contents.replace(/\r?\n/g, '\n'));
-				await fileHandle.sync(); // Force flush to disk
-			} finally {
-				await fileHandle.close();
-			}
+			const languageUri = URI.file(path.resolve(languagePath));
+			await this.fileService.createFolder(languageUri);
+			const plistUri = URI.file(path.resolve(path.join(languagePath, `${bundleIdentifier}.plist`)));
+			await this.fileService.writeFile(plistUri, VSBuffer.fromString(contents.replace(/\r?\n/g, '\n')));
 		}
 	}
 
@@ -92,32 +87,29 @@ export class PolicyWriterService implements IPolicyWriterService {
 		const root = '.build/policies/win32';
 		const { admx, adml } = this.renderGP(policies, translations);
 
-		await fs.rm(root, { recursive: true, force: true });
-		await fs.mkdir(root, { recursive: true });
+		const rootUri = URI.file(path.resolve(root));
+		await this.fileService.del(rootUri, { recursive: true, useTrash: false }).catch(() => { /* ignore if doesn't exist */ });
+		await this.fileService.createFolder(rootUri);
 
 		const admxPath = path.join(root, `${this.productService.win32RegValueName}.admx`);
-		// Use explicit file handle and fsync to ensure file is persisted to disk
-		const fileHandle = await fs.open(admxPath, 'w');
-		try {
-			await fileHandle.writeFile(admx.replace(/\r?\n/g, '\n'));
-			await fileHandle.sync(); // Force flush to disk
-		} finally {
-			await fileHandle.close();
-		}
+		const admxUri = URI.file(path.resolve(admxPath));
+		await this.fileService.writeFile(admxUri, VSBuffer.fromString(admx.replace(/\r?\n/g, '\n')));
 		console.log(`Created .admx file: ${path.resolve(admxPath)}`);
+
+		// Verify file exists using fileService
+		const exists = await this.fileService.exists(admxUri);
+		if (exists) {
+			console.log(`Verified .admx file exists: ${path.resolve(admxPath)}`);
+		} else {
+			throw new Error(`Verification failed - .admx file does not exist: ${path.resolve(admxPath)}`);
+		}
 
 		for (const { languageId, contents } of adml) {
 			const languagePath = path.join(root, languageId === 'en-us' ? 'en-us' : Languages[languageId as keyof typeof Languages]);
-			await fs.mkdir(languagePath, { recursive: true });
-			const admlPath = path.join(languagePath, `${this.productService.win32RegValueName}.adml`);
-			// Use explicit file handle and fsync to ensure file is persisted to disk
-			const fileHandle = await fs.open(admlPath, 'w');
-			try {
-				await fileHandle.writeFile(contents.replace(/\r?\n/g, '\n'));
-				await fileHandle.sync(); // Force flush to disk
-			} finally {
-				await fileHandle.close();
-			}
+			const languageUri = URI.file(path.resolve(languagePath));
+			await this.fileService.createFolder(languageUri);
+			const admlUri = URI.file(path.resolve(path.join(languagePath, `${this.productService.win32RegValueName}.adml`)));
+			await this.fileService.writeFile(admlUri, VSBuffer.fromString(contents.replace(/\r?\n/g, '\n')));
 		}
 	}
 
