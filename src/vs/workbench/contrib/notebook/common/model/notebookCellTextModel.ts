@@ -15,7 +15,7 @@ import { createTextBuffer, TextModel } from '../../../../../editor/common/model/
 import { PLAINTEXT_LANGUAGE_ID } from '../../../../../editor/common/languages/modesRegistry.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { NotebookCellOutputTextModel } from './notebookCellOutputTextModel.js';
-import { CellInternalMetadataChangedEvent, CellKind, ICell, ICellDto2, ICellOutput, IOutputDto, IOutputItemDto, NotebookCellCollapseState, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellOutputsSplice, TransientCellMetadata, TransientOptions } from '../notebookCommon.js';
+import { CellInternalMetadataChangedEvent, CellKind, ICell, ICellDto2, ICellOutput, IOutputItemDto, NotebookCellCollapseState, NotebookCellDefaultCollapseConfig, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellOutputsSplice, TransientCellMetadata, TransientOptions } from '../notebookCommon.js';
 import { ThrottledDelayer } from '../../../../../base/common/async.js';
 import { ILanguageDetectionService } from '../../../../services/languageDetection/common/languageDetectionWorkerService.js';
 import { toFormattedString } from '../../../../../base/common/jsonFormatter.js';
@@ -190,26 +190,33 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 	private _hasLanguageSetExplicitly: boolean = false;
 	get hasLanguageSetExplicitly(): boolean { return this._hasLanguageSetExplicitly; }
 
+	private _source: string;
+	private _language: string;
+	private _mime: string | undefined;
+	public readonly cellKind: CellKind;
+	public readonly collapseState: NotebookCellCollapseState | undefined;
+
 	constructor(
 		readonly uri: URI,
 		public readonly handle: number,
-		private readonly _source: string,
-		private _language: string,
-		private _mime: string | undefined,
-		public readonly cellKind: CellKind,
-		outputs: IOutputDto[],
-		metadata: NotebookCellMetadata | undefined,
-		internalMetadata: NotebookCellInternalMetadata | undefined,
-		public readonly collapseState: NotebookCellCollapseState | undefined,
+		cell: ICellDto2,
 		public readonly transientOptions: TransientOptions,
 		private readonly _languageService: ILanguageService,
 		private readonly _defaultEOL: model.DefaultEndOfLine,
+		defaultCollapseConfig: NotebookCellDefaultCollapseConfig | undefined,
 		private readonly _languageDetectionService: ILanguageDetectionService | undefined = undefined,
 	) {
 		super();
-		this._outputs = outputs.map(op => new NotebookCellOutputTextModel(op));
-		this._metadata = metadata ?? {};
-		this._internalMetadata = internalMetadata ?? {};
+		this._source = cell.source;
+		this._language = cell.language;
+		this._mime = cell.mime;
+		this.cellKind = cell.cellKind;
+		// Compute collapse state: use cell's state if provided, otherwise use default config for this cell kind
+		const defaultConfig = cell.cellKind === CellKind.Code ? defaultCollapseConfig?.codeCell : defaultCollapseConfig?.markupCell;
+		this.collapseState = cell.collapseState ?? (defaultConfig ?? undefined);
+		this._outputs = cell.outputs.map(op => new NotebookCellOutputTextModel(op));
+		this._metadata = cell.metadata ?? {};
+		this._internalMetadata = cell.internalMetadata ?? {};
 	}
 
 	enableAutoLanguageDetection() {
