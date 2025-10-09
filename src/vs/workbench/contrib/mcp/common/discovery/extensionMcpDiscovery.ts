@@ -77,7 +77,6 @@ export class ExtensionMcpDiscovery extends Disposable implements IMcpDiscovery {
 			if (updated) {
 				storageService.store(cacheKey, this.cachedServers, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 			}
-
 		}));
 	}
 
