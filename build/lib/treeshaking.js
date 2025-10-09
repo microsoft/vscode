@@ -11,6 +11,7 @@ exports.shake = shake;
  *--------------------------------------------------------------------------------------------*/
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
+const typeScriptLanguageServiceHost_1 = require("./typeScriptLanguageServiceHost");
 const TYPESCRIPT_LIB_FOLDER = path_1.default.dirname(require.resolve('typescript/lib/lib.d.ts'));
 var ShakeLevel;
 (function (ShakeLevel) {
@@ -80,7 +81,7 @@ function createTypeScriptLanguageService(ts, options) {
     // Resolve libs
     const RESOLVED_LIBS = processLibFiles(ts, options);
     const compilerOptions = ts.convertCompilerOptionsFromJson(options.compilerOptions, options.sourcesRoot).options;
-    const host = new TypeScriptLanguageServiceHost(ts, RESOLVED_LIBS, FILES, compilerOptions);
+    const host = new typeScriptLanguageServiceHost_1.TypeScriptLanguageServiceHost(ts, RESOLVED_LIBS, FILES, compilerOptions, 'defaultLib:lib.d.ts');
     return ts.createLanguageService(host);
 }
 /**
@@ -161,66 +162,6 @@ function processLibFiles(ts, options) {
         }
     }
     return result;
-}
-/**
- * A TypeScript language service host
- */
-class TypeScriptLanguageServiceHost {
-    _ts;
-    _libs;
-    _files;
-    _compilerOptions;
-    constructor(ts, libs, files, compilerOptions) {
-        this._ts = ts;
-        this._libs = libs;
-        this._files = files;
-        this._compilerOptions = compilerOptions;
-    }
-    // --- language service host ---------------
-    getCompilationSettings() {
-        return this._compilerOptions;
-    }
-    getScriptFileNames() {
-        return [
-            ...this._libs.keys(),
-            ...this._files.keys(),
-        ];
-    }
-    getScriptVersion(_fileName) {
-        return '1';
-    }
-    getProjectVersion() {
-        return '1';
-    }
-    getScriptSnapshot(fileName) {
-        if (this._files.has(fileName)) {
-            return this._ts.ScriptSnapshot.fromString(this._files.get(fileName));
-        }
-        else if (this._libs.has(fileName)) {
-            return this._ts.ScriptSnapshot.fromString(this._libs.get(fileName));
-        }
-        else {
-            return this._ts.ScriptSnapshot.fromString('');
-        }
-    }
-    getScriptKind(_fileName) {
-        return this._ts.ScriptKind.TS;
-    }
-    getCurrentDirectory() {
-        return '';
-    }
-    getDefaultLibFileName(_options) {
-        return 'defaultLib:lib.d.ts';
-    }
-    isDefaultLibFileName(fileName) {
-        return fileName === this.getDefaultLibFileName(this._compilerOptions);
-    }
-    readFile(path, _encoding) {
-        return this._files.get(path) || this._libs.get(path);
-    }
-    fileExists(path) {
-        return this._files.has(path) || this._libs.has(path);
-    }
 }
 //#endregion
 //#region Tree Shaking

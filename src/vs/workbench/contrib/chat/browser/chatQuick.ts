@@ -12,7 +12,7 @@ import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
-import { IMarkdownRendererService } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { localize } from '../../../../nls.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
