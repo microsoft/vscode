@@ -271,7 +271,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			this._commentThread,
 			this._pendingComment,
 			this._pendingEdits,
-			{ editor: this.editor, codeBlockFontSize: '' },
+			{ editor: this.editor, },
 			this._commentOptions,
 			{
 				actionRunner: async () => {
