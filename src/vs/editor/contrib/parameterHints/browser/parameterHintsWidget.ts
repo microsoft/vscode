@@ -17,7 +17,7 @@ import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentW
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import { EDITOR_FONT_DEFAULTS } from '../../../common/config/fontInfo.js';
 import * as languages from '../../../common/languages.js';
-import { MarkdownRenderer } from '../../../browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { IRenderedMarkdown } from '../../../../base/browser/markdownRenderer.js';
 import { ParameterHintsModel } from './parameterHintsModel.js';
 import { Context } from './provideSignatureHelp.js';
@@ -26,7 +26,6 @@ import { IContextKey, IContextKeyService } from '../../../../platform/contextkey
 import { listHighlightForeground, registerColor } from '../../../../platform/theme/common/colorRegistry.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 
 const $ = dom.$;
 
@@ -37,7 +36,6 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 
 	private static readonly ID = 'editor.widget.parameterHintsWidget';
 
-	private readonly markdownRenderer: MarkdownRenderer;
 	private readonly renderDisposeables = this._register(new DisposableStore());
 	private readonly keyVisible: IContextKey<boolean>;
 	private readonly keyMultipleSignatures: IContextKey<boolean>;
@@ -60,11 +58,9 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		private readonly editor: ICodeEditor,
 		private readonly model: ParameterHintsModel,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 	) {
 		super();
-
-		this.markdownRenderer = instantiationService.createInstance(MarkdownRenderer);
 
 		this.keyVisible = Context.Visible.bindTo(contextKeyService);
 		this.keyMultipleSignatures = Context.MultipleSignatures.bindTo(contextKeyService);
@@ -272,8 +268,8 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 	}
 
 	private renderMarkdownDocs(markdown: IMarkdownString): IRenderedMarkdown {
-		const renderedContents = this.renderDisposeables.add(this.markdownRenderer.render(markdown, {
-			editor: this.editor,
+		const renderedContents = this.renderDisposeables.add(this.markdownRendererService.render(markdown, {
+			context: this.editor,
 			asyncRenderCallback: () => {
 				this.domNodes?.scrollbar.scanDomNode();
 			}

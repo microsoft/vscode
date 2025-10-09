@@ -8,16 +8,12 @@ import { IRenderedMarkdown, MarkdownRenderOptions } from '../../../../base/brows
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
-import { URI } from '../../../../base/common/uri.js';
-import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRenderer, IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IFileService } from '../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import product from '../../../../platform/product/common/product.js';
-import { REVEAL_IN_EXPLORER_COMMAND_ID } from '../../files/browser/fileConstants.js';
 
 export const allowedChatMarkdownHtmlTags = Object.freeze([
 	'b',
@@ -62,21 +58,18 @@ export const allowedChatMarkdownHtmlTags = Object.freeze([
 ]);
 
 /**
- * This wraps the MarkdownRenderer and applies sanitizer options needed for Chat.
+ * This wraps the MarkdownRenderer and applies sanitizer options needed for chat content.
  */
-export class ChatMarkdownRenderer extends MarkdownRenderer {
+export class ChatContentMarkdownRenderer implements IMarkdownRenderer {
 	constructor(
 		@ILanguageService languageService: ILanguageService,
 		@IOpenerService openerService: IOpenerService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IHoverService private readonly hoverService: IHoverService,
-		@IFileService private readonly fileService: IFileService,
-		@ICommandService private readonly commandService: ICommandService,
-	) {
-		super(configurationService, languageService, openerService);
-	}
+		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
+	) { }
 
-	override render(markdown: IMarkdownString, options?: MarkdownRenderOptions, outElement?: HTMLElement): IRenderedMarkdown {
+	render(markdown: IMarkdownString, options?: MarkdownRenderOptions, outElement?: HTMLElement): IRenderedMarkdown {
 		options = {
 			...options,
 			sanitizerConfig: {
@@ -99,7 +92,7 @@ export class ChatMarkdownRenderer extends MarkdownRenderer {
 				value: `<body>\n\n${markdown.value}</body>`,
 			}
 			: markdown;
-		const result = super.render(mdWithBody, options, outElement);
+		const result = this.markdownRendererService.render(mdWithBody, options, outElement);
 
 		// In some cases, the renderer can return top level text nodes  but our CSS expects
 		// all text to be in a <p> for margin to be applied properly.
@@ -130,18 +123,5 @@ export class ChatMarkdownRenderer extends MarkdownRenderer {
 				store.dispose();
 			}
 		};
-	}
-
-	protected override async openMarkdownLink(link: string, markdown: IMarkdownString) {
-		try {
-			const uri = URI.parse(link);
-			if ((await this.fileService.stat(uri)).isDirectory) {
-				return this.commandService.executeCommand(REVEAL_IN_EXPLORER_COMMAND_ID, uri);
-			}
-		} catch {
-			// noop
-		}
-
-		return super.openMarkdownLink(link, markdown);
 	}
 }

@@ -22,9 +22,9 @@
 }
 
 .chat-diff-change-content-widget .monaco-action-bar .action-item .action-label {
-	height: 14px;
 	border-radius: 2px;
 	color: var(--vscode-button-foreground);
+	padding: 2px 5px;
 }
 
 .chat-diff-change-content-widget .monaco-action-bar .action-item .action-label.codicon {

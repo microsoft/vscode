@@ -121,9 +121,9 @@ export interface QuickInputUI {
 	progressBar: ProgressBar;
 	list: QuickInputList;
 	tree: QuickInputTreeController;
-	onDidAccept: Event<void>;
-	onDidCustom: Event<void>;
-	onDidTriggerButton: Event<IQuickInputButton>;
+	readonly onDidAccept: Event<void>;
+	readonly onDidCustom: Event<void>;
+	readonly onDidTriggerButton: Event<IQuickInputButton>;
 	ignoreFocusOut: boolean;
 	keyMods: Writeable<IKeyMods>;
 	show(controller: QuickInput): void;

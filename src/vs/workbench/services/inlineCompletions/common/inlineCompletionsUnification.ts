@@ -23,7 +23,7 @@ export interface IInlineCompletionsUnificationService {
 	readonly _serviceBrand: undefined;
 
 	readonly state: IInlineCompletionsUnificationState;
-	onDidStateChange: Event<void>;
+	readonly onDidStateChange: Event<void>;
 }
 
 const CODE_UNIFICATION_PREFIX = 'cmp-cht-';

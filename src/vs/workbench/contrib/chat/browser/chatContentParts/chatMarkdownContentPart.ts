@@ -21,7 +21,7 @@ import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { equalsIgnoreCase } from '../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRenderer } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
@@ -52,7 +52,7 @@ import { ChatConfiguration } from '../../common/constants.js';
 import { IChatCodeBlockInfo } from '../chat.js';
 import { IChatRendererDelegate } from '../chatListRenderer.js';
 import { ChatMarkdownDecorationsRenderer } from '../chatMarkdownDecorationsRenderer.js';
-import { allowedChatMarkdownHtmlTags } from '../chatMarkdownRenderer.js';
+import { allowedChatMarkdownHtmlTags } from '../chatContentMarkdownRenderer.js';
 import { ChatEditorOptions } from '../chatOptions.js';
 import { CodeBlockPart, ICodeBlockData, ICodeBlockRenderOptions, localFileLanguageId, parseLocalFileData } from '../codeBlockPart.js';
 import { IDisposableReference, ResourcePool } from './chatCollections.js';
@@ -88,7 +88,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		private readonly editorPool: EditorPool,
 		fillInIncompleteTokens = false,
 		codeBlockStartIndex = 0,
-		renderer: MarkdownRenderer,
+		renderer: IMarkdownRenderer,
 		markdownRenderOptions: MarkdownRenderOptions | undefined,
 		currentWidth: number,
 		private readonly codeBlockModelCollection: CodeBlockModelCollection,

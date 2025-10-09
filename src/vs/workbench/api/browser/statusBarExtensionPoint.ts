@@ -48,7 +48,7 @@ export const enum StatusBarUpdateKind {
 export interface IExtensionStatusBarItemService {
 	readonly _serviceBrand: undefined;
 
-	onDidChange: Event<IExtensionStatusBarItemChangeEvent>;
+	readonly onDidChange: Event<IExtensionStatusBarItemChangeEvent>;
 
 	setOrUpdateEntry(id: string, statusId: string, extensionId: string | undefined, name: string, text: string, tooltip: IMarkdownString | string | undefined | IManagedHoverTooltipMarkdownString, command: Command | undefined, color: string | ThemeColor | undefined, backgroundColor: ThemeColor | undefined, alignLeft: boolean, priority: number | undefined, accessibilityInformation: IAccessibilityInformation | undefined): StatusBarUpdateKind;
 

@@ -315,7 +315,7 @@ function getCertificatesFromPFX(pfx: string): string[] {
 class ESRPReleaseService {
 
 	static async create(
-		log: (...args: any[]) => void,
+		log: (...args: unknown[]) => void,
 		tenantId: string,
 		clientId: string,
 		authCertificatePfx: string,
@@ -350,7 +350,7 @@ class ESRPReleaseService {
 	private static API_URL = 'https://api.esrp.microsoft.com/api/v3/releaseservices/clients/';
 
 	private constructor(
-		private readonly log: (...args: any[]) => void,
+		private readonly log: (...args: unknown[]) => void,
 		private readonly clientId: string,
 		private readonly accessToken: string,
 		private readonly requestSigningCertificates: string[],
@@ -848,7 +848,7 @@ async function processArtifact(
 	artifact: Artifact,
 	filePath: string
 ) {
-	const log = (...args: any[]) => console.log(`[${artifact.name}]`, ...args);
+	const log = (...args: unknown[]) => console.log(`[${artifact.name}]`, ...args);
 	const match = /^vscode_(?<product>[^_]+)_(?<os>[^_]+)(?:_legacy)?_(?<arch>[^_]+)_(?<unprocessedType>[^_]+)$/.exec(artifact.name);
 
 	if (!match) {

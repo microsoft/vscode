@@ -8,7 +8,7 @@ import { asArray, compareBy, numberComparator } from '../../../../base/common/ar
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { IMarkdownString, isEmptyMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
-import { MarkdownRenderer } from '../../../browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { DECREASE_HOVER_VERBOSITY_ACTION_ID, INCREASE_HOVER_VERBOSITY_ACTION_ID } from './hoverActionIds.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { Position } from '../../../common/core/position.js';
@@ -34,7 +34,6 @@ import { getHoverProviderResultsAsAsyncIterable } from './getHover.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { HoverStartSource } from './hoverOperation.js';
 import { ScrollEvent } from '../../../../base/common/scrollable.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 
 const $ = dom.$;
 const increaseHoverVerbosityIcon = registerIcon('hover-increase-verbosity', Codicon.add, nls.localize('increaseHoverVerbosity', 'Icon for increaseing hover verbosity.'));
@@ -86,7 +85,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 
 	constructor(
 		protected readonly _editor: ICodeEditor,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IMarkdownRendererService private readonly _markdownRendererService: IMarkdownRendererService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILanguageFeaturesService protected readonly _languageFeaturesService: ILanguageFeaturesService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
@@ -188,7 +187,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 			this._keybindingService,
 			this._hoverService,
 			this._configurationService,
-			this._instantiationService,
+			this._markdownRendererService,
 			context.onContentsChanged
 		);
 		return this._renderedHoverParts;
@@ -246,7 +245,7 @@ class MarkdownRenderedHoverParts implements IRenderedHoverParts<MarkdownHover> {
 		private readonly _keybindingService: IKeybindingService,
 		private readonly _hoverService: IHoverService,
 		private readonly _configurationService: IConfigurationService,
-		private readonly _instantiationService: IInstantiationService,
+		private readonly _markdownRendererService: IMarkdownRendererService,
 		private readonly _onFinishedRendering: () => void,
 	) {
 		this.renderedHoverParts = this._renderHoverParts(hoverParts, hoverPartsContainer, this._onFinishedRendering);
@@ -311,7 +310,7 @@ class MarkdownRenderedHoverParts implements IRenderedHoverParts<MarkdownHover> {
 		const renderedMarkdownHover = renderMarkdown(
 			this._editor,
 			markdownHover,
-			this._instantiationService,
+			this._markdownRendererService,
 			onFinishedRendering,
 		);
 		return renderedMarkdownHover;
@@ -471,7 +470,7 @@ export function renderMarkdownHovers(
 	context: IEditorHoverRenderContext,
 	markdownHovers: MarkdownHover[],
 	editor: ICodeEditor,
-	instantiationService: IInstantiationService,
+	markdownRendererService: IMarkdownRendererService,
 ): IRenderedHoverParts<MarkdownHover> {
 
 	// Sort hover parts to keep them stable since they might come in async, out-of-order
@@ -481,7 +480,7 @@ export function renderMarkdownHovers(
 		const renderedHoverPart = renderMarkdown(
 			editor,
 			markdownHover,
-			instantiationService,
+			markdownRendererService,
 			context.onContentsChanged,
 		);
 		context.fragment.appendChild(renderedHoverPart.hoverElement);
@@ -493,7 +492,7 @@ export function renderMarkdownHovers(
 function renderMarkdown(
 	editor: ICodeEditor,
 	markdownHover: MarkdownHover,
-	instantiationService: IInstantiationService,
+	markdownRendererService: IMarkdownRendererService,
 	onFinishedRendering: () => void,
 ): IRenderedHoverPart<MarkdownHover> {
 	const disposables = new DisposableStore();
@@ -507,10 +506,9 @@ function renderMarkdown(
 		}
 		const markdownHoverElement = $('div.markdown-hover');
 		const hoverContentsElement = dom.append(markdownHoverElement, $('div.hover-contents'));
-		const renderer = instantiationService.createInstance(MarkdownRenderer);
 
-		const renderedContents = disposables.add(renderer.render(markdownString, {
-			editor,
+		const renderedContents = disposables.add(markdownRendererService.render(markdownString, {
+			context: editor,
 			asyncRenderCallback: () => {
 				hoverContentsElement.className = 'hover-contents code-hover-contents';
 				onFinishedRendering();
