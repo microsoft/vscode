@@ -62,13 +62,21 @@ export class MarkdownRendererService implements IMarkdownRendererService {
 	) { }
 
 	render(markdown: IMarkdownString, options?: MarkdownRenderOptions & IMarkdownRendererExtraOptions, outElement?: HTMLElement): IRenderedMarkdown {
-		const rendered = renderMarkdown(markdown, {
-			codeBlockRenderer: (alias, value) => this._defaultCodeBlockRenderer?.renderCodeBlock(alias, value, options ?? {}) ?? Promise.resolve(document.createElement('span')),
-			actionHandler: (link, mdStr) => {
+		const resolvedOptions = { ...options };
+
+		if (!resolvedOptions.actionHandler) {
+			resolvedOptions.actionHandler = (link, mdStr) => {
 				return openLinkFromMarkdown(this._openerService, link, mdStr.isTrusted);
-			},
-			...options,
-		}, outElement);
+			};
+		}
+
+		if (!resolvedOptions.codeBlockRenderer) {
+			resolvedOptions.codeBlockRenderer = (alias, value) => {
+				return this._defaultCodeBlockRenderer?.renderCodeBlock(alias, value, resolvedOptions ?? {}) ?? Promise.resolve(document.createElement('span'));
+			};
+		}
+
+		const rendered = renderMarkdown(markdown, resolvedOptions, outElement);
 		rendered.element.classList.add('rendered-markdown');
 		return rendered;
 	}
