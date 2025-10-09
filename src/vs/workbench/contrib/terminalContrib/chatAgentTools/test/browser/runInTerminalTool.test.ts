@@ -32,7 +32,7 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 	get sessionTerminalAssociations() { return this._sessionTerminalAssociations; }
 
 	getCopilotShellOrProfile() {
-		return this._getCopilotShellOrProfile();
+		return this._getCopilotProfile();
 	}
 	setBackendOs(os: OperatingSystem) {
 		this._osBackend = Promise.resolve(os);
