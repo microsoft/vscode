@@ -63,13 +63,28 @@ export class PolicyWriterService implements IPolicyWriterService {
 		await fs.rm(root, { recursive: true, force: true });
 		await fs.mkdir(root, { recursive: true });
 		const mobileconfigPath = path.join(root, `${bundleIdentifier}.mobileconfig`);
-		await fs.writeFile(mobileconfigPath, profile.replace(/\r?\n/g, '\n'));
+		// Use explicit file handle and fsync to ensure file is persisted to disk
+		const mobileconfigHandle = await fs.open(mobileconfigPath, 'w');
+		try {
+			await mobileconfigHandle.writeFile(profile.replace(/\r?\n/g, '\n'));
+			await mobileconfigHandle.sync(); // Force flush to disk
+		} finally {
+			await mobileconfigHandle.close();
+		}
 		console.log(`Created .mobileconfig file: ${path.resolve(mobileconfigPath)}`);
 
 		for (const { languageId, contents } of manifests) {
 			const languagePath = path.join(root, languageId === 'en-us' ? 'en-us' : Languages[languageId as keyof typeof Languages]);
 			await fs.mkdir(languagePath, { recursive: true });
-			await fs.writeFile(path.join(languagePath, `${bundleIdentifier}.plist`), contents.replace(/\r?\n/g, '\n'));
+			const plistPath = path.join(languagePath, `${bundleIdentifier}.plist`);
+			// Use explicit file handle and fsync to ensure file is persisted to disk
+			const fileHandle = await fs.open(plistPath, 'w');
+			try {
+				await fileHandle.writeFile(contents.replace(/\r?\n/g, '\n'));
+				await fileHandle.sync(); // Force flush to disk
+			} finally {
+				await fileHandle.close();
+			}
 		}
 	}
 
@@ -81,25 +96,28 @@ export class PolicyWriterService implements IPolicyWriterService {
 		await fs.mkdir(root, { recursive: true });
 
 		const admxPath = path.join(root, `${this.productService.win32RegValueName}.admx`);
-		await fs.writeFile(admxPath, admx.replace(/\r?\n/g, '\n'));
-		console.log(`Created .admx file: ${path.resolve(admxPath)}`);
-
-		// Verify file exists using shell command
-		const { exec } = await import('child_process');
-		const { promisify } = await import('util');
-		const execAsync = promisify(exec);
+		// Use explicit file handle and fsync to ensure file is persisted to disk
+		const fileHandle = await fs.open(admxPath, 'w');
 		try {
-			const out = await execAsync(`test -f "${admxPath}" && cat "${admxPath}" || exit 1`);
-			console.log('@@@out', out);
-			console.log(`Shell verified .admx file exists: ${path.resolve(admxPath)}`);
-		} catch (error) {
-			throw new Error(`Shell verification failed - .admx file does not exist: ${path.resolve(admxPath)}`);
+			await fileHandle.writeFile(admx.replace(/\r?\n/g, '\n'));
+			await fileHandle.sync(); // Force flush to disk
+		} finally {
+			await fileHandle.close();
 		}
+		console.log(`Created .admx file: ${path.resolve(admxPath)}`);
 
 		for (const { languageId, contents } of adml) {
 			const languagePath = path.join(root, languageId === 'en-us' ? 'en-us' : Languages[languageId as keyof typeof Languages]);
 			await fs.mkdir(languagePath, { recursive: true });
-			await fs.writeFile(path.join(languagePath, `${this.productService.win32RegValueName}.adml`), contents.replace(/\r?\n/g, '\n'));
+			const admlPath = path.join(languagePath, `${this.productService.win32RegValueName}.adml`);
+			// Use explicit file handle and fsync to ensure file is persisted to disk
+			const fileHandle = await fs.open(admlPath, 'w');
+			try {
+				await fileHandle.writeFile(contents.replace(/\r?\n/g, '\n'));
+				await fileHandle.sync(); // Force flush to disk
+			} finally {
+				await fileHandle.close();
+			}
 		}
 	}
 
