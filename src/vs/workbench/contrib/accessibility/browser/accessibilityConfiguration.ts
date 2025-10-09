@@ -57,6 +57,7 @@ export const enum AccessibilityVerbositySettingId {
 	Notebook = 'accessibility.verbosity.notebook',
 	Editor = 'accessibility.verbosity.editor',
 	Hover = 'accessibility.verbosity.hover',
+	Marker = 'accessibility.verbosity.marker',
 	Notification = 'accessibility.verbosity.notification',
 	EmptyEditorHint = 'accessibility.verbosity.emptyEditorHint',
 	ReplEditor = 'accessibility.verbosity.replEditor',
@@ -155,6 +156,10 @@ const configuration: IConfigurationNode = {
 		},
 		[AccessibilityVerbositySettingId.Hover]: {
 			description: localize('verbosity.hover', 'Provide information about how to open the hover in an Accessible View.'),
+			...baseVerbosityProperty
+		},
+		[AccessibilityVerbositySettingId.Marker]: {
+			description: localize('verbosity.marker', 'Provide information about how to open the marker (problem) navigation widget in an Accessible View.'),
 			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.Notification]: {

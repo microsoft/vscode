@@ -24,6 +24,8 @@ import { KeybindingWeight } from '../../../../platform/keybinding/common/keybind
 import { IMarker } from '../../../../platform/markers/common/markers.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { MarkerNavigationWidget } from './gotoErrorWidget.js';
+import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { MarkerAccessibleView, MarkerAccessibilityHelp } from './markerAccessibleViews.js';
 
 export class MarkerController implements IEditorContribution {
 
@@ -125,6 +127,10 @@ export class MarkerController implements IEditorContribution {
 		if (focusEditor) {
 			this._editor.focus();
 		}
+	}
+
+	focus(): void {
+		this._widget?.focus();
 	}
 
 	showAtMarker(marker: IMarker): void {
@@ -300,3 +306,7 @@ registerEditorCommand(new MarkerCommand({
 		secondary: [KeyMod.Shift | KeyCode.Escape]
 	}
 }));
+
+// Register accessible views for marker navigation widget
+AccessibleViewRegistry.register(new MarkerAccessibleView());
+AccessibleViewRegistry.register(new MarkerAccessibilityHelp());
