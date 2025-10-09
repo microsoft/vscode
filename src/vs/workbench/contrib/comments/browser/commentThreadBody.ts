@@ -15,7 +15,7 @@ import { CommentNode } from './commentNode.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICommentThreadWidget } from '../common/commentThreadWidget.js';
-import { IMarkdownRendererExtraOptions } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRendererExtraOptions } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { ICellRange } from '../../notebook/common/notebookRange.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { LayoutableEditor } from './simpleCommentEditor.js';
