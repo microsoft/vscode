@@ -13,7 +13,7 @@ import { ResizableHTMLElement } from '../../../../base/browser/ui/resizable/resi
 import * as nls from '../../../../nls.js';
 import { SimpleCompletionItem } from './simpleCompletionItem.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
-import { IMarkdownRendererService } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ISimpleSuggestWidgetFontInfo } from './simpleSuggestWidgetRenderer.js';
 

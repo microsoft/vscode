@@ -13,7 +13,7 @@ suite('UriTemplate', () => {
 	/**
 	 * Helper function to test template parsing and component extraction
 	 */
-	function testParsing(template: string, expectedComponents: any[]) {
+	function testParsing(template: string, expectedComponents: unknown[]) {
 		const templ = UriTemplate.parse(template);
 		assert.deepStrictEqual(templ.components.filter(c => typeof c === 'object'), expectedComponents);
 		return templ;

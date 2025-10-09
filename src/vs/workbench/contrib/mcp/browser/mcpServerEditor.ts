@@ -40,7 +40,7 @@ import { IMcpServerContainer, IMcpServerEditorOptions, IMcpWorkbenchService, IWo
 import { StarredWidget, McpServerIconWidget, McpServerStatusWidget, McpServerWidget, onClick, PublisherWidget, McpServerScopeBadgeWidget, LicenseWidget } from './mcpServerWidgets.js';
 import { DropDownAction, InstallAction, InstallingLabelAction, ManageMcpServerAction, McpServerStatusAction, UninstallAction } from './mcpServerActions.js';
 import { McpServerEditorInput } from './mcpServerEditorInput.js';
-import { ILocalMcpServer, IGalleryMcpServerConfiguration, IMcpServerPackage, RegistryType } from '../../../../platform/mcp/common/mcpManagement.js';
+import { ILocalMcpServer, IGalleryMcpServerConfiguration, IMcpServerPackage, IMcpServerKeyValueInput, RegistryType } from '../../../../platform/mcp/common/mcpManagement.js';
 import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { McpServerType } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -785,7 +785,7 @@ export class McpServerEditor extends EditorPane {
 						append(packagesGrid, $('.package-detail', undefined, $('.detail-label', undefined, localize('runtimeargs', "Runtime Arguments:")), $('code.detail-value', undefined, argStrings.join(' '))));
 					}
 					if (pkg.environmentVariables && pkg.environmentVariables.length > 0) {
-						const envStrings = pkg.environmentVariables.map((envVar: any) => `${envVar.name}=${envVar.value}`);
+						const envStrings = pkg.environmentVariables.map((envVar: IMcpServerKeyValueInput) => `${envVar.name}=${envVar.value ?? ''}`);
 						append(packagesGrid, $('.package-detail', undefined, $('.detail-label', undefined, localize('environmentVariables', "Environment Variables:")), $('code.detail-value', undefined, envStrings.join(' '))));
 					}
 					if (i < packages.length - 1) {
@@ -804,7 +804,7 @@ export class McpServerEditor extends EditorPane {
 					append(packagesGrid, $('.package-detail', undefined, $('.detail-label', undefined, localize('transport', "Transport:")), $('.detail-value', undefined, remote.type)));
 				}
 				if (remote.headers && remote.headers.length > 0) {
-					const headerStrings = remote.headers.map((header: any) => `${header.name}: ${header.value}`);
+					const headerStrings = remote.headers.map((header: IMcpServerKeyValueInput) => `${header.name}: ${header.value ?? ''}`);
 					append(packagesGrid, $('.package-detail', undefined, $('.detail-label', undefined, localize('headers', "Headers:")), $('.detail-value', undefined, headerStrings.join(', '))));
 				}
 			}
@@ -840,7 +840,7 @@ export class McpServerEditor extends EditorPane {
 		this.layoutParticipants.forEach(p => p.layout());
 	}
 
-	private onError(err: any): void {
+	private onError(err: Error): void {
 		if (isCancellationError(err)) {
 			return;
 		}
