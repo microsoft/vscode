@@ -177,21 +177,21 @@ steps:
         APP_PATH="$(Agent.BuildDirectory)/vscode-server-darwin-$(VSCODE_ARCH)" node build/darwin/verify-macho.js $(VSCODE_ARCH)
       displayName: Verify arch of Mach-O objects
 
-    - script: |
-        set -e
-        APP_ROOT="$(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)"
-        APP_NAME="`ls $APP_ROOT | head -n 1`"
-        APP_PATH="$APP_ROOT/$APP_NAME"
-        "$APP_PATH/Contents/Resources/app/bin/code" --disable-gpu --wait --transient --export-policy-type=darwin
-      displayName: Generate policy definitions
-      retryCountOnTaskFailure: 3
-
-    - script: |
-        set -e
-        npm run gulp copy-policies-darwin-$(VSCODE_ARCH)-min
-      displayName: Copy policies to package
-
     - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
+      - script: |
+          set -e
+          APP_ROOT="$(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)"
+          APP_NAME="`ls $APP_ROOT | head -n 1`"
+          APP_PATH="$APP_ROOT/$APP_NAME"
+          "$APP_PATH/Contents/Resources/app/bin/code" --disable-gpu --wait --transient --export-policy-type=darwin
+        displayName: Generate policy definitions
+        retryCountOnTaskFailure: 3
+
+      - script: |
+          set -e
+          npm run gulp copy-policies-darwin-$(VSCODE_ARCH)-min
+        displayName: Copy policies to package
+
     - script: |
         set -e
         ARCHIVE_PATH="$(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip"
