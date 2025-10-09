@@ -633,7 +633,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		// Force pwsh over cmd as cmd doesn't have shell integration
 		if (basename(defaultProfile.path) === 'cmd.exe') {
-			return 'C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe';
+			return {
+				...defaultProfile,
+				path: 'C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe',
+				profileName: 'PowerShell'
+			};
 		}
 
 		return defaultProfile;
