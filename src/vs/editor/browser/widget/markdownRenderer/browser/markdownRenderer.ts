@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isHTMLElement } from '../../../../../base/browser/dom.js';
 import { IRenderedMarkdown, MarkdownRenderOptions, renderMarkdown } from '../../../../../base/browser/markdownRenderer.js';
 import { createTrustedTypesPolicy } from '../../../../../base/browser/trustedTypes.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
@@ -34,7 +35,6 @@ export interface IMarkdownRenderer {
 
 export interface IMarkdownRendererExtraOptions {
 	readonly editor?: ICodeEditor;
-	readonly codeBlockFontSize?: string;
 }
 
 
@@ -97,23 +97,24 @@ export class MarkdownRendererService implements IMarkdownRendererService {
 		}
 		const html = await tokenizeToString(this._languageService, value, languageId);
 
-		const element = document.createElement('span');
+		const content = MarkdownRendererService._ttpTokenizer ? MarkdownRendererService._ttpTokenizer.createHTML(html) ?? html : html;
 
-		element.innerHTML = (MarkdownRendererService._ttpTokenizer?.createHTML(html) ?? html) as string;
+		const root = document.createElement('span');
+		root.innerHTML = content as string;
+		const codeElement = root.querySelector('.monaco-tokenized-source');
+		if (!isHTMLElement(codeElement)) {
+			return document.createElement('span');
+		}
 
 		// use "good" font
 		if (options.editor) {
 			const fontInfo = options.editor.getOption(EditorOption.fontInfo);
-			applyFontInfo(element, fontInfo);
+			applyFontInfo(codeElement, fontInfo);
 		} else {
-			element.style.fontFamily = this._configurationService.getValue<IEditorOptions>('editor').fontFamily || EDITOR_FONT_DEFAULTS.fontFamily;
+			codeElement.style.fontFamily = this._configurationService.getValue<IEditorOptions>('editor').fontFamily || EDITOR_FONT_DEFAULTS.fontFamily;
 		}
 
-		if (options.codeBlockFontSize !== undefined) {
-			element.style.fontSize = options.codeBlockFontSize;
-		}
-
-		return element;
+		return root;
 	}
 }
 
