@@ -2143,7 +2143,7 @@ export interface CommentWidget {
 	commentThread: CommentThread;
 	comment?: Comment;
 	input: string;
-	onDidChangeInput: Event<string>;
+	readonly onDidChangeInput: Event<string>;
 }
 
 /**
@@ -2173,19 +2173,19 @@ export interface CommentThread<T = IRange> {
 	label: string | undefined;
 	contextValue: string | undefined;
 	comments: ReadonlyArray<Comment> | undefined;
-	onDidChangeComments: Event<readonly Comment[] | undefined>;
+	readonly onDidChangeComments: Event<readonly Comment[] | undefined>;
 	collapsibleState?: CommentThreadCollapsibleState;
 	initialCollapsibleState?: CommentThreadCollapsibleState;
-	onDidChangeInitialCollapsibleState: Event<CommentThreadCollapsibleState | undefined>;
+	readonly onDidChangeInitialCollapsibleState: Event<CommentThreadCollapsibleState | undefined>;
 	state?: CommentThreadState;
 	applicability?: CommentThreadApplicability;
 	canReply: boolean | CommentAuthorInformation;
 	input?: CommentInput;
-	onDidChangeInput: Event<CommentInput | undefined>;
-	onDidChangeLabel: Event<string | undefined>;
-	onDidChangeCollapsibleState: Event<CommentThreadCollapsibleState | undefined>;
-	onDidChangeState: Event<CommentThreadState | undefined>;
-	onDidChangeCanReply: Event<boolean>;
+	readonly onDidChangeInput: Event<CommentInput | undefined>;
+	readonly onDidChangeLabel: Event<string | undefined>;
+	readonly onDidChangeCollapsibleState: Event<CommentThreadCollapsibleState | undefined>;
+	readonly onDidChangeState: Event<CommentThreadState | undefined>;
+	readonly onDidChangeCanReply: Event<boolean>;
 	isDisposed: boolean;
 	isTemplate: boolean;
 }
@@ -2384,14 +2384,14 @@ export interface SemanticTokensEdits {
 }
 
 export interface DocumentSemanticTokensProvider {
-	onDidChange?: Event<void>;
+	readonly onDidChange?: Event<void>;
 	getLegend(): SemanticTokensLegend;
 	provideDocumentSemanticTokens(model: model.ITextModel, lastResultId: string | null, token: CancellationToken): ProviderResult<SemanticTokens | SemanticTokensEdits>;
 	releaseDocumentSemanticTokens(resultId: string | undefined): void;
 }
 
 export interface DocumentRangeSemanticTokensProvider {
-	onDidChange?: Event<void>;
+	readonly onDidChange?: Event<void>;
 	getLegend(): SemanticTokensLegend;
 	provideDocumentRangeSemanticTokens(model: model.ITextModel, range: Range, token: CancellationToken): ProviderResult<SemanticTokens>;
 }
@@ -2448,7 +2448,7 @@ export interface ITokenizationRegistry<TSupport> {
 	 *  - a tokenization support is registered, unregistered or changed.
 	 *  - the color map is changed.
 	 */
-	onDidChange: Event<ITokenizationSupportChangedEvent>;
+	readonly onDidChange: Event<ITokenizationSupportChangedEvent>;
 
 	/**
 	 * Fire a change event for a language.

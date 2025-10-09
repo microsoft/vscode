@@ -79,7 +79,7 @@ export interface ITerminalProfileService {
 	refreshAvailableProfiles(): void;
 	getDefaultProfileName(): string | undefined;
 	getDefaultProfile(os?: OperatingSystem): ITerminalProfile | undefined;
-	onDidChangeAvailableProfiles: Event<ITerminalProfile[]>;
+	readonly onDidChangeAvailableProfiles: Event<ITerminalProfile[]>;
 	getContributedDefaultProfile(shellLaunchConfig: IShellLaunchConfig): Promise<IExtensionTerminalProfile | undefined>;
 	registerContributedProfile(args: IRegisterContributedProfileArgs): Promise<void>;
 	getContributedProfileProvider(extensionIdentifier: string, id: string): ITerminalProfileProvider | undefined;
@@ -337,13 +337,13 @@ export interface ITerminalProcessExtHostProxy extends IDisposable {
 	emitReady(pid: number, cwd: string, windowsPty: IProcessReadyWindowsPty | undefined): void;
 	emitExit(exitCode: number | undefined): void;
 
-	onInput: Event<string>;
-	onBinary: Event<string>;
-	onResize: Event<{ cols: number; rows: number }>;
-	onAcknowledgeDataEvent: Event<number>;
-	onShutdown: Event<boolean>;
-	onRequestInitialCwd: Event<void>;
-	onRequestCwd: Event<void>;
+	readonly onInput: Event<string>;
+	readonly onBinary: Event<string>;
+	readonly onResize: Event<{ cols: number; rows: number }>;
+	readonly onAcknowledgeDataEvent: Event<number>;
+	readonly onShutdown: Event<boolean>;
+	readonly onRequestInitialCwd: Event<void>;
+	readonly onRequestCwd: Event<void>;
 }
 
 export interface IStartExtensionTerminalRequest {

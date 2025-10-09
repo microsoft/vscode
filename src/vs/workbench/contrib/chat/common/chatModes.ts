@@ -24,7 +24,7 @@ export interface IChatModeService {
 	readonly _serviceBrand: undefined;
 
 	// TODO expose an observable list of modes
-	onDidChangeChatModes: Event<void>;
+	readonly onDidChangeChatModes: Event<void>;
 	getModes(): { builtin: readonly IChatMode[]; custom: readonly IChatMode[] };
 	findModeById(id: string): IChatMode | undefined;
 	findModeByName(name: string): IChatMode | undefined;
