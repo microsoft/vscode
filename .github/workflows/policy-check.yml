@@ -274,12 +274,21 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          $policyPath = ".build/policies/win32"
+          $policyPath = Join-Path ".build" "policies" "win32"
           Write-Host "Checking for policy files in: $policyPath"
           Write-Host "Current directory: $(Get-Location)"
+          Write-Host "Resolved path: $(Resolve-Path $policyPath -ErrorAction SilentlyContinue)"
           if (-not (Test-Path $policyPath)) {
-            Write-Error "ERROR: Policy directory does not exist: $policyPath"
-            exit 1
+            Write-Host "Directory does not exist, checking alternate path formats..."
+            $altPath = ".build/policies/win32"
+            Write-Host "Trying: $altPath"
+            if (Test-Path $altPath) {
+              $policyPath = $altPath
+              Write-Host "Found using forward slashes"
+            } else {
+              Write-Error "ERROR: Policy directory does not exist at any expected path"
+              exit 1
+            }
           }
           $files = Get-ChildItem $policyPath -ErrorAction SilentlyContinue
           if (($files | Measure-Object).Count -eq 0) {
