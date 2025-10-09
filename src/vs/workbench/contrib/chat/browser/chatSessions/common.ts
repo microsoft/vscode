@@ -15,6 +15,9 @@ import { ChatSessionUri } from '../../common/chatUri.js';
 import { IChatWidgetService } from '../chat.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 
+
+export const NEW_CHAT_SESSION_ACTION_ID = 'workbench.action.chat.openNewSessionEditor';
+
 export type ChatSessionItemWithProvider = IChatSessionItem & {
 	readonly provider: IChatSessionItemProvider;
 	isHistory?: boolean;
@@ -120,6 +123,7 @@ export function extractTimestamp(item: IChatSessionItem): number | undefined {
 
 	// For other items, timestamp might already be set
 	if ('timestamp' in item) {
+		// eslint-disable-next-line local/code-no-any-casts
 		return (item as any).timestamp;
 	}
 

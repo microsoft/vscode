@@ -513,7 +513,7 @@ suite('Configuration Resolver Service', () => {
 
 			assert.deepStrictEqual(Object.keys(result), Object.keys(expected));
 			Object.keys(result).forEach(property => {
-				const expectedProperty = (<any>expected)[property];
+				const expectedProperty = (expected as Record<string, unknown>)[property];
 				if (isObject(result[property])) {
 					assert.deepStrictEqual({ ...result[property] }, expectedProperty);
 				} else {

@@ -199,12 +199,15 @@ export namespace McpServerDefinitionVariableReplacement {
 	}
 }
 
+/** An observable of the auto-starting servers. When 'starting' is empty, the operation is complete. */
 export interface IAutostartResult {
-	serversRequiringInteraction: Array<{
-		serverId: string;
-		serverLabel: string;
-		errorMessage?: string;
-	}>;
+	working: boolean;
+	starting: McpDefinitionReference[];
+	serversRequiringInteraction: Array<McpDefinitionReference & { errorMessage?: string }>;
+}
+
+export namespace IAutostartResult {
+	export const Empty: IAutostartResult = { working: false, starting: [], serversRequiringInteraction: [] };
 }
 
 export interface IMcpService {
@@ -221,7 +224,10 @@ export interface IMcpService {
 	readonly lazyCollectionState: IObservable<{ state: LazyCollectionState; collections: McpCollectionDefinition[] }>;
 
 	/** Auto-starts pending servers based on user settings. */
-	autostart(token?: CancellationToken): Promise<IAutostartResult>;
+	autostart(token?: CancellationToken): IObservable<IAutostartResult>;
+
+	/** Cancels any current autostart @internal */
+	cancelAutostart(): void;
 
 	/** Activatese extensions and runs their MCP servers. */
 	activateCollections(): Promise<void>;
@@ -295,7 +301,11 @@ export interface IMcpServer extends IDisposable {
 	readonly definition: McpDefinitionReference;
 	readonly connection: IObservable<IMcpServerConnection | undefined>;
 	readonly connectionState: IObservable<McpConnectionState>;
-	readonly serverMetadata: IObservable<{ serverName?: string; serverInstructions?: string } | undefined>;
+	readonly serverMetadata: IObservable<{
+		serverName?: string;
+		serverInstructions?: string;
+		icons: IMcpIcons;
+	} | undefined>;
 
 	/**
 	 * Full definition as it exists in the MCP registry. Unlike the references
@@ -343,6 +353,7 @@ export interface IMcpResource {
 	readonly description?: string;
 	readonly mimeType?: string;
 	readonly sizeInBytes?: number;
+	readonly icons: IMcpIcons;
 }
 
 export interface IMcpResourceTemplate {
@@ -351,6 +362,7 @@ export interface IMcpResourceTemplate {
 	readonly description?: string;
 	readonly mimeType?: string;
 	readonly template: UriTemplate;
+	readonly icons: IMcpIcons;
 
 	/** Gets string completions for the given template part. */
 	complete(templatePart: string, prefix: string, alreadyResolved: Record<string, string | string[]>, token: CancellationToken): Promise<string[]>;
@@ -411,7 +423,7 @@ export interface IMcpTool {
 	readonly id: string;
 	/** Name for #referencing in chat */
 	readonly referenceName: string;
-
+	readonly icons: IMcpIcons;
 	readonly definition: MCP.Tool;
 
 	/**
@@ -875,4 +887,9 @@ export const McpToolResourceLinkMimeType = 'application/vnd.code.resource-link';
 export interface IMcpToolResourceLinkContents {
 	uri: UriComponents;
 	underlyingMimeType?: string;
+}
+
+export interface IMcpIcons {
+	/** Gets the image URI appropriate to the approximate display size */
+	getUrl(size: number): { dark: URI; light?: URI } | undefined;
 }

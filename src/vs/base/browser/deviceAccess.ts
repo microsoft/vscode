@@ -23,6 +23,7 @@ export interface UsbDeviceData {
 }
 
 export async function requestUsbDevice(options?: { filters?: unknown[] }): Promise<UsbDeviceData | undefined> {
+	// eslint-disable-next-line local/code-no-any-casts
 	const usb = (navigator as any).usb;
 	if (!usb) {
 		return undefined;
@@ -59,6 +60,7 @@ export interface SerialPortData {
 }
 
 export async function requestSerialPort(options?: { filters?: unknown[] }): Promise<SerialPortData | undefined> {
+	// eslint-disable-next-line local/code-no-any-casts
 	const serial = (navigator as any).serial;
 	if (!serial) {
 		return undefined;
@@ -87,6 +89,7 @@ export interface HidDeviceData {
 }
 
 export async function requestHidDevice(options?: { filters?: unknown[] }): Promise<HidDeviceData | undefined> {
+	// eslint-disable-next-line local/code-no-any-casts
 	const hid = (navigator as any).hid;
 	if (!hid) {
 		return undefined;

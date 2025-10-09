@@ -26,6 +26,7 @@ import { ContiguousMultilineTokens } from './tokens/contiguousMultilineTokens.js
 import { localize } from '../../nls.js';
 import { ExtensionIdentifier } from '../../platform/extensions/common/extensions.js';
 import { IMarkerData } from '../../platform/markers/common/markers.js';
+import { EditDeltaInfo } from './textModelEditSource.js';
 
 /**
  * @internal
@@ -456,7 +457,7 @@ export namespace CompletionItemKinds {
 	const data = new Map<string, CompletionItemKind>();
 	data.set('method', CompletionItemKind.Method);
 	data.set('function', CompletionItemKind.Function);
-	data.set('constructor', <any>CompletionItemKind.Constructor);
+	data.set('constructor', CompletionItemKind.Constructor);
 	data.set('field', CompletionItemKind.Field);
 	data.set('variable', CompletionItemKind.Variable);
 	data.set('class', CompletionItemKind.Class);
@@ -886,7 +887,7 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 	 * Will be called when an item is shown.
 	 * @param updatedInsertText Is useful to understand bracket completion.
 	*/
-	handleItemDidShow?(completions: T, item: T['items'][number], updatedInsertText: string): void;
+	handleItemDidShow?(completions: T, item: T['items'][number], updatedInsertText: string, editDeltaInfo: EditDeltaInfo): void;
 
 	/**
 	 * Will be called when an item is partially accepted. TODO: also handle full acceptance here!
@@ -1018,6 +1019,7 @@ export type LifetimeSummary = {
 	timeUntilShown: number | undefined;
 	timeUntilProviderRequest: number;
 	timeUntilProviderResponse: number;
+	notShownReason: string | undefined;
 	editorType: string;
 	viewKind: string | undefined;
 	error: string | undefined;
@@ -1034,6 +1036,8 @@ export type LifetimeSummary = {
 	sameShapeReplacements?: boolean;
 	typingInterval: number;
 	typingIntervalCharacterCount: number;
+	selectedSuggestionInfo: boolean;
+	availableProviders: string;
 };
 
 export interface CodeAction {
@@ -1419,8 +1423,8 @@ export interface LocationLink {
 /**
  * @internal
  */
-export function isLocationLink(thing: any): thing is LocationLink {
-	return thing
+export function isLocationLink(thing: unknown): thing is LocationLink {
+	return !!thing
 		&& URI.isUri((thing as LocationLink).uri)
 		&& Range.isIRange((thing as LocationLink).range)
 		&& (Range.isIRange((thing as LocationLink).originSelectionRange) || Range.isIRange((thing as LocationLink).targetSelectionRange));
@@ -1429,8 +1433,8 @@ export function isLocationLink(thing: any): thing is LocationLink {
 /**
  * @internal
  */
-export function isLocation(thing: any): thing is Location {
-	return thing
+export function isLocation(thing: unknown): thing is Location {
+	return !!thing
 		&& URI.isUri((thing as Location).uri)
 		&& Range.isIRange((thing as Location).range);
 }
@@ -1682,7 +1686,7 @@ export abstract class TextEdit {
 			? EditOperation.insert(range.getStartPosition(), edit.text) // moves marker
 			: EditOperation.replace(range, edit.text);
 	}
-	static isTextEdit(thing: any): thing is TextEdit {
+	static isTextEdit(thing: unknown): thing is TextEdit {
 		const possibleTextEdit = thing as TextEdit;
 		return typeof possibleTextEdit.text === 'string' && Range.isIRange(possibleTextEdit.range);
 	}
@@ -2053,7 +2057,7 @@ export interface Command {
 	id: string;
 	title: string;
 	tooltip?: string;
-	arguments?: any[];
+	arguments?: unknown[];
 }
 
 /**
@@ -2064,7 +2068,7 @@ export namespace Command {
 	/**
 	 * @internal
 	 */
-	export function is(obj: any): obj is Command {
+	export function is(obj: unknown): obj is Command {
 		if (!obj || typeof obj !== 'object') {
 			return false;
 		}
@@ -2387,6 +2391,7 @@ export interface DocumentSemanticTokensProvider {
 }
 
 export interface DocumentRangeSemanticTokensProvider {
+	onDidChange?: Event<void>;
 	getLegend(): SemanticTokensLegend;
 	provideDocumentRangeSemanticTokens(model: model.ITextModel, range: Range, token: CancellationToken): ProviderResult<SemanticTokens>;
 }

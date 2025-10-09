@@ -229,6 +229,7 @@ export class ContextMenuController implements IEditorContribution {
 					return new ActionViewItem(action, action, { label: true, keybinding: keybinding.getLabel(), isMenu: true });
 				}
 
+				// eslint-disable-next-line local/code-no-any-casts
 				const customActionViewItem = <any>action;
 				if (typeof customActionViewItem.getActionViewItem === 'function') {
 					return customActionViewItem.getActionViewItem();

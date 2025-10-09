@@ -126,6 +126,10 @@ abstract class InlineSuggestionItemBase {
 		this._data.setIsPreceeded(item.partialAccepts);
 	}
 
+	public setNotShownReasonIfNotSet(reason: string): void {
+		this._data.setNotShownReason(reason);
+	}
+
 	/**
 	 * Avoid using this method. Instead introduce getters for the needed properties.
 	*/

@@ -260,6 +260,108 @@ export interface IAuthorizationServerMetadata {
 }
 
 /**
+ * Request for the dynamic client registration endpoint.
+ * @see https://datatracker.ietf.org/doc/html/rfc7591#section-2
+ */
+export interface IAuthorizationDynamicClientRegistrationRequest {
+	/**
+	 * OPTIONAL. Array of redirection URI strings for use in redirect-based flows
+	 * such as the authorization code and implicit flows.
+	 */
+	redirect_uris?: string[];
+
+	/**
+	 * OPTIONAL. String indicator of the requested authentication method for the token endpoint.
+	 * Values: "none", "client_secret_post", "client_secret_basic".
+	 * Default is "client_secret_basic".
+	 */
+	token_endpoint_auth_method?: string;
+
+	/**
+	 * OPTIONAL. Array of OAuth 2.0 grant type strings that the client can use at the token endpoint.
+	 * Default is ["authorization_code"].
+	 */
+	grant_types?: string[];
+
+	/**
+	 * OPTIONAL. Array of the OAuth 2.0 response type strings that the client can use at the authorization endpoint.
+	 * Default is ["code"].
+	 */
+	response_types?: string[];
+
+	/**
+	 * OPTIONAL. Human-readable string name of the client to be presented to the end-user during authorization.
+	 */
+	client_name?: string;
+
+	/**
+	 * OPTIONAL. URL string of a web page providing information about the client.
+	 */
+	client_uri?: string;
+
+	/**
+	 * OPTIONAL. URL string that references a logo for the client.
+	 */
+	logo_uri?: string;
+
+	/**
+	 * OPTIONAL. String containing a space-separated list of scope values that the client can use when requesting access tokens.
+	 */
+	scope?: string;
+
+	/**
+	 * OPTIONAL. Array of strings representing ways to contact people responsible for this client, typically email addresses.
+	 */
+	contacts?: string[];
+
+	/**
+	 * OPTIONAL. URL string that points to a human-readable terms of service document for the client.
+	 */
+	tos_uri?: string;
+
+	/**
+	 * OPTIONAL. URL string that points to a human-readable privacy policy document.
+	 */
+	policy_uri?: string;
+
+	/**
+	 * OPTIONAL. URL string referencing the client's JSON Web Key (JWK) Set document.
+	 */
+	jwks_uri?: string;
+
+	/**
+	 * OPTIONAL. Client's JSON Web Key Set document value.
+	 */
+	jwks?: object;
+
+	/**
+	 * OPTIONAL. A unique identifier string assigned by the client developer or software publisher.
+	 */
+	software_id?: string;
+
+	/**
+	 * OPTIONAL. A version identifier string for the client software.
+	 */
+	software_version?: string;
+
+	/**
+	 * OPTIONAL. A software statement containing client metadata values about the client software as claims.
+	 */
+	software_statement?: string;
+
+	/**
+	 * OPTIONAL. Application type. Usually "native" for OAuth clients.
+	 * https://openid.net/specs/openid-connect-registration-1_0.html
+	 */
+	application_type?: 'native' | 'web' | string;
+
+	/**
+	 * OPTIONAL. Additional metadata fields as defined by extensions.
+	 */
+	[key: string]: unknown;
+}
+
+/**
  * Response from the dynamic client registration endpoint.
  */
 export interface IAuthorizationDynamicClientRegistrationResponse {
@@ -749,35 +851,35 @@ export async function fetchDynamicRegistration(serverMetadata: IAuthorizationSer
 	if (!serverMetadata.registration_endpoint) {
 		throw new Error('Server does not support dynamic registration');
 	}
+
+	const requestBody: IAuthorizationDynamicClientRegistrationRequest = {
+		client_name: clientName,
+		client_uri: 'https://code.visualstudio.com',
+		grant_types: serverMetadata.grant_types_supported
+			? serverMetadata.grant_types_supported.filter(gt => grantTypesSupported.includes(gt))
+			: grantTypesSupported,
+		response_types: ['code'],
+		redirect_uris: [
+			'https://insiders.vscode.dev/redirect',
+			'https://vscode.dev/redirect',
+			'http://127.0.0.1/',
+			// Added these for any server that might do
+			// only exact match on the redirect URI even
+			// though the spec says it should not care
+			// about the port.
+			`http://127.0.0.1:${DEFAULT_AUTH_FLOW_PORT}/`
+		],
+		scope: scopes?.join(AUTH_SCOPE_SEPARATOR),
+		token_endpoint_auth_method: 'none',
+		application_type: 'native'
+	};
+
 	const response = await fetch(serverMetadata.registration_endpoint, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json'
 		},
-		body: JSON.stringify({
-			client_name: clientName,
-			client_uri: 'https://code.visualstudio.com',
-			grant_types: serverMetadata.grant_types_supported
-				? serverMetadata.grant_types_supported.filter(gt => grantTypesSupported.includes(gt))
-				: grantTypesSupported,
-			response_types: ['code'],
-			redirect_uris: [
-				'https://insiders.vscode.dev/redirect',
-				'https://vscode.dev/redirect',
-				'http://localhost/',
-				'http://127.0.0.1/',
-				// Added these for any server that might do
-				// only exact match on the redirect URI even
-				// though the spec says it should not care
-				// about the port.
-				`http://localhost:${DEFAULT_AUTH_FLOW_PORT}/`,
-				`http://127.0.0.1:${DEFAULT_AUTH_FLOW_PORT}/`
-			],
-			scope: scopes?.join(AUTH_SCOPE_SEPARATOR),
-			token_endpoint_auth_method: 'none',
-			// https://openid.net/specs/openid-connect-registration-1_0.html
-			application_type: 'native'
-		})
+		body: JSON.stringify(requestBody)
 	});
 
 	if (!response.ok) {
@@ -938,17 +1040,25 @@ export function getClaimsFromJWT(token: string): IAuthorizationJWTClaims {
  * Checks if two scope lists are equivalent, regardless of order.
  * This is useful for comparing OAuth scopes where the order should not matter.
  *
- * @param scopes1 First list of scopes to compare
- * @param scopes2 Second list of scopes to compare
+ * @param scopes1 First list of scopes to compare (can be undefined)
+ * @param scopes2 Second list of scopes to compare (can be undefined)
  * @returns true if the scope lists contain the same scopes (order-independent), false otherwise
  *
  * @example
  * ```typescript
  * scopesMatch(['read', 'write'], ['write', 'read']) // Returns: true
  * scopesMatch(['read'], ['write']) // Returns: false
+ * scopesMatch(undefined, undefined) // Returns: true
+ * scopesMatch(['read'], undefined) // Returns: false
  * ```
  */
-export function scopesMatch(scopes1: readonly string[], scopes2: readonly string[]): boolean {
+export function scopesMatch(scopes1: readonly string[] | undefined, scopes2: readonly string[] | undefined): boolean {
+	if (scopes1 === scopes2) {
+		return true;
+	}
+	if (!scopes1 || !scopes2) {
+		return false;
+	}
 	if (scopes1.length !== scopes2.length) {
 		return false;
 	}
@@ -958,4 +1068,121 @@ export function scopesMatch(scopes1: readonly string[], scopes2: readonly string
 	const sortedScopes2 = [...scopes2].sort();
 
 	return sortedScopes1.every((scope, index) => scope === sortedScopes2[index]);
+}
+
+interface CommonResponse {
+	status: number;
+	statusText: string;
+	json(): Promise<any>;
+	text(): Promise<string>;
+}
+
+interface IFetcher {
+	(input: string, init: { method: string; headers: Record<string, string> }): Promise<CommonResponse>;
+}
+
+export interface IFetchResourceMetadataOptions {
+	/**
+	 * Headers to include only when the resource metadata URL has the same origin as the target resource
+	 */
+	sameOriginHeaders?: Record<string, string>;
+	/**
+	 * Optional custom fetch implementation (defaults to global fetch)
+	 */
+	fetch?: IFetcher;
+}
+
+/**
+ * Fetches and validates OAuth 2.0 protected resource metadata from the given URL.
+ *
+ * @param targetResource The target resource URL to compare origins with (e.g., the MCP server URL)
+ * @param resourceMetadataUrl Optional URL to fetch the resource metadata from. If not provided, will try well-known URIs.
+ * @param options Configuration options for the fetch operation
+ * @returns Promise that resolves to the validated resource metadata
+ * @throws Error if the fetch fails, returns non-200 status, or the response is invalid
+ */
+export async function fetchResourceMetadata(
+	targetResource: string,
+	resourceMetadataUrl: string | undefined,
+	options: IFetchResourceMetadataOptions = {}
+): Promise<IAuthorizationProtectedResourceMetadata> {
+	const {
+		sameOriginHeaders = {},
+		fetch: fetchImpl = fetch
+	} = options;
+
+	const targetResourceUrlObj = new URL(targetResource);
+
+	// If no resourceMetadataUrl is provided, try well-known URIs as per RFC 9728
+	let urlsToTry: string[];
+	if (!resourceMetadataUrl) {
+		// Try in order: 1) with path appended, 2) at root
+		const pathComponent = targetResourceUrlObj.pathname === '/' ? undefined : targetResourceUrlObj.pathname;
+		const rootUrl = `${targetResourceUrlObj.origin}${AUTH_PROTECTED_RESOURCE_METADATA_DISCOVERY_PATH}`;
+		if (pathComponent) {
+			// Only try both URLs if we have a path component
+			urlsToTry = [
+				`${rootUrl}${pathComponent}`,
+				rootUrl
+			];
+		} else {
+			// If target is already at root, only try the root URL once
+			urlsToTry = [rootUrl];
+		}
+	} else {
+		urlsToTry = [resourceMetadataUrl];
+	}
+
+	const errors: Error[] = [];
+	for (const urlToTry of urlsToTry) {
+		try {
+			// Determine if we should include same-origin headers
+			let headers: Record<string, string> = {
+				'Accept': 'application/json'
+			};
+
+			const resourceMetadataUrlObj = new URL(urlToTry);
+			if (resourceMetadataUrlObj.origin === targetResourceUrlObj.origin) {
+				headers = {
+					...headers,
+					...sameOriginHeaders
+				};
+			}
+
+			const response = await fetchImpl(urlToTry, { method: 'GET', headers });
+			if (response.status !== 200) {
+				let errorText: string;
+				try {
+					errorText = await response.text();
+				} catch {
+					errorText = response.statusText;
+				}
+				errors.push(new Error(`Failed to fetch resource metadata from ${urlToTry}: ${response.status} ${errorText}`));
+				continue;
+			}
+
+			const body = await response.json();
+			if (isAuthorizationProtectedResourceMetadata(body)) {
+				// Use URL constructor for normalization - it handles hostname case and trailing slashes
+				const prmValue = new URL(body.resource).toString();
+				const targetValue = targetResourceUrlObj.toString();
+				if (prmValue !== targetValue) {
+					throw new Error(`Protected Resource Metadata resource property value "${prmValue}" (length: ${prmValue.length}) does not match target server url "${targetValue}" (length: ${targetValue.length}). These MUST match to follow OAuth spec https://datatracker.ietf.org/doc/html/rfc9728#PRConfigurationValidation`);
+				}
+				return body;
+			} else {
+				errors.push(new Error(`Invalid resource metadata from ${urlToTry}. Expected to follow shape of https://datatracker.ietf.org/doc/html/rfc9728#name-protected-resource-metadata (Hints: is scopes_supported an array? Is resource a string?). Current payload: ${JSON.stringify(body)}`));
+				continue;
+			}
+		} catch (e) {
+			errors.push(e instanceof Error ? e : new Error(String(e)));
+			continue;
+		}
+	}
+	// If we've tried all URLs and none worked, throw the error(s)
+	if (errors.length === 1) {
+		throw errors[0];
+	} else {
+		throw new AggregateError(errors, 'Failed to fetch resource metadata from all attempted URLs');
+	}
 }

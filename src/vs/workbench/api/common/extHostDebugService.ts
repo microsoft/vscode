@@ -14,7 +14,7 @@ import { URI, UriComponents } from '../../../base/common/uri.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { ISignService } from '../../../platform/sign/common/sign.js';
-import { IWorkspaceFolder } from '../../../platform/workspace/common/workspace.js';
+import { IWorkspaceFolderData } from '../../../platform/workspace/common/workspace.js';
 import { AbstractDebugAdapter } from '../../contrib/debug/common/abstractDebugAdapter.js';
 import { DebugVisualizationType, IAdapterDescriptor, IConfig, IDebugAdapter, IDebugAdapterExecutable, IDebugAdapterImpl, IDebugAdapterNamedPipeServer, IDebugAdapterServer, IDebuggerContribution, IDebugVisualization, IDebugVisualizationContext, IDebugVisualizationTreeItem, MainThreadDebugVisualization } from '../../contrib/debug/common/debug.js';
 import { convertToDAPaths, convertToVSCPaths, isDebuggerMainContribution } from '../../contrib/debug/common/debugUtils.js';
@@ -240,6 +240,7 @@ export abstract class ExtHostDebugServiceBase extends DisposableCls implements I
 
 	public asDebugSourceUri(src: vscode.DebugProtocolSource, session?: vscode.DebugSession): URI {
 
+		// eslint-disable-next-line local/code-no-any-casts
 		const source = <any>src;
 
 		if (typeof source.sourceReference === 'number' && source.sourceReference > 0) {
@@ -487,8 +488,11 @@ export abstract class ExtHostDebugServiceBase extends DisposableCls implements I
 			},
 
 			// Check debugUI for back-compat, #147264
+			// eslint-disable-next-line local/code-no-any-casts
 			suppressDebugStatusbar: options.suppressDebugStatusbar ?? (options as any).debugUI?.simple,
+			// eslint-disable-next-line local/code-no-any-casts
 			suppressDebugToolbar: options.suppressDebugToolbar ?? (options as any).debugUI?.simple,
+			// eslint-disable-next-line local/code-no-any-casts
 			suppressDebugView: options.suppressDebugView ?? (options as any).debugUI?.simple,
 		});
 	}
@@ -566,16 +570,13 @@ export abstract class ExtHostDebugServiceBase extends DisposableCls implements I
 	}
 
 	public async $substituteVariables(folderUri: UriComponents | undefined, config: IConfig): Promise<IConfig> {
-		let ws: IWorkspaceFolder | undefined;
+		let ws: IWorkspaceFolderData | undefined;
 		const folder = await this.getFolder(folderUri);
 		if (folder) {
 			ws = {
 				uri: folder.uri,
 				name: folder.name,
 				index: folder.index,
-				toResource: () => {
-					throw new Error('Not implemented');
-				}
 			};
 		}
 		const variableResolver = await this._variableResolver.getResolver();
@@ -662,6 +663,7 @@ export abstract class ExtHostDebugServiceBase extends DisposableCls implements I
 							// Try to catch details for #233167
 							message = convertToVSCPaths(message, true);
 						} catch (e) {
+							// eslint-disable-next-line local/code-no-any-casts
 							const type = message.type + '_' + ((message as any).command ?? (message as any).event ?? '');
 							this._telemetryProxy.$publicLog2<DebugProtocolMessageErrorEvent, DebugProtocolMessageErrorClassification>('debugProtocolMessageError', { type, from: session.type });
 							throw e;
@@ -765,6 +767,7 @@ export abstract class ExtHostDebugServiceBase extends DisposableCls implements I
 					const bp = this._breakpoints.get(bpd.id);
 					if (bp) {
 						if (bp instanceof FunctionBreakpoint && bpd.type === 'function') {
+							// eslint-disable-next-line local/code-no-any-casts
 							const fbp = <any>bp;
 							fbp.enabled = bpd.enabled;
 							fbp.condition = bpd.condition;
@@ -772,6 +775,7 @@ export abstract class ExtHostDebugServiceBase extends DisposableCls implements I
 							fbp.logMessage = bpd.logMessage;
 							fbp.functionName = bpd.functionName;
 						} else if (bp instanceof SourceBreakpoint && bpd.type === 'source') {
+							// eslint-disable-next-line local/code-no-any-casts
 							const sbp = <any>bp;
 							sbp.enabled = bpd.enabled;
 							sbp.condition = bpd.condition;

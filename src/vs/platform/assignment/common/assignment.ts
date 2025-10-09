@@ -64,6 +64,11 @@ export enum Filters {
 	ClientId = 'X-MSEdge-ClientId',
 
 	/**
+	 * Developer Device Id which can be used as an alternate unit for experimentation.
+	 */
+	DeveloperDeviceId = 'X-VSCode-DevDeviceId',
+
+	/**
 	 * Extension header.
 	 */
 	ExtensionName = 'X-VSCode-ExtensionName',
@@ -90,6 +95,7 @@ export class AssignmentFilterProvider implements IExperimentationFilterProvider 
 		private version: string,
 		private appName: string,
 		private machineId: string,
+		private devDeviceId: string,
 		private targetPopulation: TargetPopulation
 	) { }
 
@@ -115,6 +121,8 @@ export class AssignmentFilterProvider implements IExperimentationFilterProvider 
 				return this.appName; // productService.nameLong
 			case Filters.ClientId:
 				return this.machineId;
+			case Filters.DeveloperDeviceId:
+				return this.devDeviceId;
 			case Filters.Language:
 				return platform.language;
 			case Filters.ExtensionName:

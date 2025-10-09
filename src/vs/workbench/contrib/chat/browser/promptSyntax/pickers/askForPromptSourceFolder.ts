@@ -12,7 +12,7 @@ import { IOpenerService } from '../../../../../../platform/opener/common/opener.
 import { PROMPT_DOCUMENTATION_URL, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { IPickOptions, IQuickInputService, IQuickPickItem } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
-import { IPromptPath, IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
+import { IPromptPath, IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 
 
 interface IFolderQuickPickItem extends IQuickPickItem {
@@ -54,13 +54,10 @@ export async function askForPromptSourceFolder(
 	const foldersList = folders.map<IFolderQuickPickItem>(folder => {
 		const uri = folder.uri;
 		const detail = (existingFolder && isEqual(uri, existingFolder)) ? localize('current.folder', "Current Location") : undefined;
-		if (folder.storage === 'user') {
+		if (folder.storage !== PromptsStorage.local) {
 			return {
 				type: 'item',
-				label: localize(
-					'commands.prompts.create.source-folder.user',
-					"User Data Folder",
-				),
+				label: promptsService.getPromptLocationLabel(folder),
 				detail,
 				tooltip: labelService.getUriLabel(uri),
 				folder
