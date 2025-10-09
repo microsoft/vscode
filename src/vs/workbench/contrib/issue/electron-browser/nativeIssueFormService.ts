@@ -11,6 +11,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
+import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { AUX_WINDOW_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IssueFormService } from '../browser/issueFormService.js';
@@ -29,8 +30,10 @@ export class NativeIssueFormService extends IssueFormService implements IIssueFo
 		@IHostService hostService: IHostService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@INativeEnvironmentService environmentService: INativeEnvironmentService,
-		@IEditorService editorService: IEditorService) {
-		super(instantiationService, auxiliaryWindowService, menuService, contextKeyService, logService, dialogService, hostService, editorService);
+		@IEditorService editorService: IEditorService,
+		@IEditorGroupsService editorGroupsService: IEditorGroupsService
+	) {
+		super(instantiationService, auxiliaryWindowService, menuService, contextKeyService, logService, dialogService, hostService, editorService, editorGroupsService);
 	}
 
 	// override to grab platform info

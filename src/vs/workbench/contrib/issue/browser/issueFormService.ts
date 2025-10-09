@@ -11,6 +11,7 @@ import { ExtensionIdentifier, ExtensionIdentifierSet } from '../../../../platfor
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
+import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { AUX_WINDOW_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IIssueFormService, IssueReporterData } from '../common/issue.js';
@@ -42,7 +43,8 @@ export class IssueFormService implements IIssueFormService {
 		@ILogService protected readonly logService: ILogService,
 		@IDialogService protected readonly dialogService: IDialogService,
 		@IHostService protected readonly hostService: IHostService,
-		@IEditorService protected readonly editorService: IEditorService
+		@IEditorService protected readonly editorService: IEditorService,
+		@IEditorGroupsService protected readonly editorGroupsService: IEditorGroupsService
 	) { }
 
 	async openReporter(data: IssueReporterData): Promise<void> {
@@ -57,17 +59,17 @@ export class IssueFormService implements IIssueFormService {
 		console.log('IssueFormService.openReporter setting data on input', { input, data });
 		input.setIssueReporterData(data);
 
-		// Open in auxiliary window for better UX (similar to process explorer)
-		console.log('IssueFormService.openReporter opening editor');
-		await this.editorService.openEditor(input, {
-			pinned: true,
-			revealIfOpened: true,
-			auxiliary: {
-				bounds: { width: 700, height: 800 },
-				compact: true
-			}
-		}, AUX_WINDOW_GROUP);
-		console.log('IssueFormService.openReporter editor opened');
+		const group = this.editorGroupsService.getGroup(AUX_WINDOW_GROUP);
+		if (group) {
+			group.openEditor(input, {
+				pinned: true,
+				revealIfOpened: true,
+				auxiliary: {
+					bounds: { width: 700, height: 800 },
+					compact: true
+				}
+			});
+		}
 	}
 
 	async sendReporterMenu(extensionId: string): Promise<IssueReporterData | undefined> {
