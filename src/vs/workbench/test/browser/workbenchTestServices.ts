@@ -26,7 +26,7 @@ import { assertReturnsDefined, upcast } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { ICodeEditor } from '../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../editor/browser/services/codeEditorService.js';
-import { IMarkdownRendererService, MarkdownRendererService } from '../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRendererService, MarkdownRendererService } from '../../../platform/markdown/browser/markdownRenderer.js';
 import { Position as EditorPosition, IPosition } from '../../../editor/common/core/position.js';
 import { Range } from '../../../editor/common/core/range.js';
 import { Selection } from '../../../editor/common/core/selection.js';

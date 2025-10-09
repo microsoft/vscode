@@ -6,7 +6,7 @@
 import { h } from '../../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { isMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { IMarkdownRenderer } from '../../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IPreferencesService, type IOpenSettingsOptions } from '../../../../../services/preferences/common/preferences.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../../common/chat.js';

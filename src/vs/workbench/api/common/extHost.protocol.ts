@@ -486,7 +486,8 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$registerNewSymbolNamesProvider(handle: number, selector: IDocumentFilterDto[]): void;
 	$registerDocumentSemanticTokensProvider(handle: number, selector: IDocumentFilterDto[], legend: languages.SemanticTokensLegend, eventHandle: number | undefined): void;
 	$emitDocumentSemanticTokensEvent(eventHandle: number): void;
-	$registerDocumentRangeSemanticTokensProvider(handle: number, selector: IDocumentFilterDto[], legend: languages.SemanticTokensLegend): void;
+	$registerDocumentRangeSemanticTokensProvider(handle: number, selector: IDocumentFilterDto[], legend: languages.SemanticTokensLegend, eventHandle: number | undefined): void;
+	$emitDocumentRangeSemanticTokensEvent(eventHandle: number): void;
 	$registerCompletionsProvider(handle: number, selector: IDocumentFilterDto[], triggerCharacters: string[], supportsResolveDetails: boolean, extensionId: ExtensionIdentifier): void;
 	$registerInlineCompletionsSupport(handle: number, selector: IDocumentFilterDto[], supportsHandleDidShowCompletionItem: boolean, extensionId: string, extensionVersion: string, yieldToId: string | undefined, yieldsToExtensionIds: string[], displayName: string | undefined, debounceDelayMs: number | undefined, excludesExtensionIds: string[], eventHandle: number | undefined): void;
 	$emitInlineCompletionsChange(handle: number): void;

@@ -28,7 +28,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import './media/gettingStarted.css';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
-import { IMarkdownRendererService } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { localize } from '../../../../nls.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';

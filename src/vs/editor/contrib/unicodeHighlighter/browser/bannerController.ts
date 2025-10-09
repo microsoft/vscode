@@ -9,7 +9,7 @@ import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { Action } from '../../../../base/common/actions.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { IMarkdownRendererService } from '../../../browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILinkDescriptor, Link } from '../../../../platform/opener/browser/link.js';

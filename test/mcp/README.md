@@ -123,12 +123,11 @@ test/mcp/
 ## Troubleshooting
 
 ### Server Won't Start
-- Ensure Code - OSS's Core and Extension builds are running (they should start automatically)
-- Check that port 33418 is not already in use
+- Ensure Code - OSS has been built and run at least once (via F5 or `code.sh`)
 - Verify all dependencies are installed with `npm install`
 
 ### Browser Automation Issues
-- Ensure Code - OSS has been built and run at least once
+- Ensure Code - OSS has been built and run at least once (via F5 or `code.sh`)
 - Check the server logs for Playwright-related errors
 - Verify the test repository is properly cloned
 
