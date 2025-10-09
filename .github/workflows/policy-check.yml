@@ -143,6 +143,7 @@ jobs:
     timeout-minutes: 40
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      NPM_ARCH: x64
       VSCODE_ARCH: x64
     steps:
       - name: Checkout microsoft/vscode
