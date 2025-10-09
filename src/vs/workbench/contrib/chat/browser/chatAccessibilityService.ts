@@ -22,6 +22,10 @@ import { Event } from '../../../../base/common/event.js';
 import { ChatConfiguration } from '../common/constants.js';
 import { localize } from '../../../../nls.js';
 import { ChatWidget } from './chatWidget.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { ChatEditorInput } from './chatEditorInput.js';
 
 const CHAT_RESPONSE_PENDING_ALLOWANCE_MS = 4000;
 export class ChatAccessibilityService extends Disposable implements IChatAccessibilityService {
@@ -37,7 +41,10 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IHostService private readonly _hostService: IHostService
+		@IHostService private readonly _hostService: IHostService,
+		@IViewsService private readonly _viewsService: IViewsService,
+		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
+		@IEditorService private readonly _editorService: IEditorService
 	) {
 		super();
 	}
@@ -128,7 +135,39 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 
 		disposables.add(Event.once(notification.onClick)(async () => {
 			await this._hostService.focus(targetWindow, { mode: FocusMode.Force });
-			widget.input.focus();
+			
+			// Check if widget is in a view (sidebar) or editor
+			if ('viewId' in widget.viewContext) {
+				// Widget is in a view/sidebar - open the view and focus the widget
+				await this._viewsService.openView(widget.location);
+				widget.input.focus();
+			} else {
+				// Widget is in an editor - find and open the editor
+				const sessionId = widget.viewModel?.sessionId;
+				if (sessionId) {
+					let editorOpened = false;
+					for (const group of this._editorGroupsService.groups) {
+						for (const editor of group.editors) {
+							if (editor instanceof ChatEditorInput && editor.sessionId === sessionId) {
+								await this._editorService.openEditor(editor, group.id);
+								editorOpened = true;
+								break;
+							}
+						}
+						if (editorOpened) {
+							break;
+						}
+					}
+					// Fallback: if editor not found, just focus the widget
+					if (!editorOpened) {
+						widget.input.focus();
+					}
+				} else {
+					// No session ID, fallback to focusing widget
+					widget.input.focus();
+				}
+			}
+			
 			disposables.dispose();
 			this.notifications.delete(disposables);
 		}));
