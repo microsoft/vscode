@@ -183,7 +183,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 					args: [filter],
 					buttons: [{
 						iconClass: ThemeIcon.asClassName(Codicon.gear),
-						tooltip: localize('commandsQuickAccess.configureAskChatSetting', "Hide this item"),
+						tooltip: localize('commandsQuickAccess.configureAskChatSetting', "Configure visibility"),
 					}],
 					trigger: () => {
 						this.preferencesService.openSettings({ jsonEditor: false, query: 'workbench.commandPalette.experimental.showAskChat' });
