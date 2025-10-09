@@ -17,7 +17,7 @@ const SRC = path.join(__dirname, '../../src');
 export const RECIPE_PATH = path.join(__dirname, '../monaco/monaco.d.ts.recipe');
 const DECLARATION_PATH = path.join(__dirname, '../../src/vs/monaco.d.ts');
 
-function logErr(message: any, ...rest: any[]): void {
+function logErr(message: any, ...rest: unknown[]): void {
 	fancyLog(ansiColors.yellow(`[monaco.d.ts]`), message, ...rest);
 }
 
@@ -206,7 +206,14 @@ function getMassagedTopLevelDeclarationText(ts: typeof import('typescript'), sou
 	return result;
 }
 
-function format(ts: typeof import('typescript'), text: string, endl: string): string {
+interface Formatting<TContext> {
+	getFormatContext(options: ts.FormatCodeSettings): TContext;
+	formatDocument(file: ts.SourceFile, ruleProvider: TContext, options: ts.FormatCodeSettings): ts.TextChange[];
+}
+
+type Typescript = typeof import('typescript') & { readonly formatting: Formatting<unknown> };
+
+function format(ts: Typescript, text: string, endl: string): string {
 	const REALLY_FORMAT = false;
 
 	text = preformat(text, endl);
@@ -218,8 +225,7 @@ function format(ts: typeof import('typescript'), text: string, endl: string): st
 	const sourceFile = ts.createSourceFile('file.ts', text, ts.ScriptTarget.Latest, /*setParentPointers*/ true);
 
 	// Get the formatting edits on the input sources
-	// eslint-disable-next-line local/code-no-any-casts
-	const edits = (<any>ts).formatting.formatDocument(sourceFile, getRuleProvider(tsfmt), tsfmt);
+	const edits = ts.formatting.formatDocument(sourceFile, getRuleProvider(tsfmt), tsfmt);
 
 	// Apply the edits on the input code
 	return applyEdits(text, edits);
@@ -325,8 +331,8 @@ function format(ts: typeof import('typescript'), text: string, endl: string): st
 	function getRuleProvider(options: ts.FormatCodeSettings) {
 		// Share this between multiple formatters using the same options.
 		// This represents the bulk of the space the formatter uses.
-		// eslint-disable-next-line local/code-no-any-casts
-		return (ts as any).formatting.getFormatContext(options);
+
+		return ts.formatting.getFormatContext(options);
 	}
 
 	function applyEdits(text: string, edits: ts.TextChange[]): string {
@@ -382,7 +388,7 @@ interface IEnumEntry {
 	text: string;
 }
 
-function generateDeclarationFile(ts: typeof import('typescript'), recipe: string, sourceFileGetter: SourceFileGetter): ITempResult | null {
+function generateDeclarationFile(ts: Typescript, recipe: string, sourceFileGetter: SourceFileGetter): ITempResult | null {
 	const endl = /\r\n/.test(recipe) ? '\r\n' : '\n';
 
 	const lines = recipe.split(endl);
@@ -557,7 +563,7 @@ export interface IMonacoDeclarationResult {
 	isTheSame: boolean;
 }
 
-function _run(ts: typeof import('typescript'), sourceFileGetter: SourceFileGetter): IMonacoDeclarationResult | null {
+function _run(ts: Typescript, sourceFileGetter: SourceFileGetter): IMonacoDeclarationResult | null {
 	const recipe = fs.readFileSync(RECIPE_PATH).toString();
 	const t = generateDeclarationFile(ts, recipe, sourceFileGetter);
 	if (!t) {
@@ -666,7 +672,7 @@ export class DeclarationResolver {
 
 export function run3(resolver: DeclarationResolver): IMonacoDeclarationResult | null {
 	const sourceFileGetter = (moduleId: string) => resolver.getDeclarationSourceFile(moduleId);
-	return _run(resolver.ts, sourceFileGetter);
+	return _run(resolver.ts as Typescript, sourceFileGetter);
 }
 
 

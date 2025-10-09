@@ -10,14 +10,11 @@ import * as dom from '../../../../base/browser/dom.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IEditorOptions } from '../../../common/config/editorOptions.js';
-import { EDITOR_FONT_DEFAULTS } from '../../../common/config/fontInfo.js';
 import { HoverAction, HoverPosition, HoverWidget as BaseHoverWidget, getHoverAccessibleViewHint } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { Widget } from '../../../../base/browser/ui/widget.js';
 import { AnchorPosition } from '../../../../base/browser/ui/contextview/contextview.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { MarkdownRenderer, openLinkFromMarkdown } from '../../widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRendererService, openLinkFromMarkdown } from '../../widget/markdownRenderer/browser/markdownRenderer.js';
 import { isMarkdownString } from '../../../../base/common/htmlContent.js';
 import { localize } from '../../../../nls.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
@@ -102,7 +99,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IOpenerService private readonly _openerService: IOpenerService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IMarkdownRendererService private readonly _markdownRenderer: IMarkdownRendererService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
 	) {
 		super();
@@ -167,12 +164,8 @@ export class HoverWidget extends Widget implements IHoverWidget {
 
 		} else {
 			const markdown = options.content;
-			const mdRenderer = this._instantiationService.createInstance(
-				MarkdownRenderer,
-				{ codeBlockFontFamily: this._configurationService.getValue<IEditorOptions>('editor').fontFamily || EDITOR_FONT_DEFAULTS.fontFamily }
-			);
 
-			const { element, dispose } = mdRenderer.render(markdown, {
+			const { element, dispose } = this._markdownRenderer.render(markdown, {
 				actionHandler: (content) => this._linkHandler(content),
 				asyncRenderCallback: () => {
 					contentsElement.classList.add('code-hover-contents');

@@ -76,8 +76,6 @@ export class InlineAnchorWidget extends Disposable {
 
 	readonly data: ContentRefData;
 
-	private _isDisposed = false;
-
 	constructor(
 		private readonly element: HTMLAnchorElement | HTMLElement,
 		public readonly inlineReference: IChatContentInlineReference,
@@ -170,7 +168,7 @@ export class InlineAnchorWidget extends Disposable {
 					console.error(e);
 				}
 
-				if (this._isDisposed) {
+				if (this._store.isDisposed) {
 					return;
 				}
 
@@ -214,11 +212,6 @@ export class InlineAnchorWidget extends Disposable {
 				e.dataTransfer?.setDragImage(element, 0, 0);
 			}));
 		}
-	}
-
-	override dispose(): void {
-		this._isDisposed = true;
-		super.dispose();
 	}
 
 	getHTMLElement(): HTMLElement {

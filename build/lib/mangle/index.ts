@@ -269,9 +269,14 @@ class ClassData {
 	}
 }
 
+declare module 'typescript' {
+	interface SourceFile {
+		identifiers?: Map<string, true>;
+	}
+}
+
 function isNameTakenInFile(node: ts.Node, name: string): boolean {
-	// eslint-disable-next-line local/code-no-any-casts
-	const identifiers = (<any>node.getSourceFile()).identifiers;
+	const identifiers = node.getSourceFile().identifiers;
 	if (identifiers instanceof Map) {
 		if (identifiers.has(name)) {
 			return true;
