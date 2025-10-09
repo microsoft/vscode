@@ -960,6 +960,8 @@ export interface IDebuggerContribution extends IPlatformSpecificAdapterContribut
 	hiddenWhen?: string;
 	deprecated?: string;
 	strings?: { [key in DebuggerString]: string };
+	/** @deprecated */
+	uiMessages?: { [key in DebuggerString]: string };
 }
 
 export interface IBreakpointContribution {
