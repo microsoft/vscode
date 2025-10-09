@@ -490,6 +490,12 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					localize('askChatLocation.quickChat', "Ask chat questions in Quick Chat.")
 				]
 			},
+			'workbench.commandPalette.experimental.': {
+				'type': 'boolean',
+				tags: ['experimental'],
+				'description': localize('hideAskChat', "Controls whether the command palette shows 'Ask Chat' option at the bottom."),
+				'default': false
+			},
 			'workbench.commandPalette.experimental.enableNaturalLanguageSearch': {
 				'type': 'boolean',
 				tags: ['experimental'],

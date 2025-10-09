@@ -158,29 +158,31 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 			return [];
 		}
 
-		let additionalPicks;
-
+		let additionalPicks: (ICommandQuickPick | IQuickPickSeparator)[] = [];
 		try {
 			// Wait a bit to see if the user is still typing
 			await timeout(CommandsQuickAccessProvider.AI_RELATED_INFORMATION_DEBOUNCE, token);
 			additionalPicks = await this.getRelatedInformationPicks(allPicks, picksSoFar, filter, token);
 		} catch (e) {
-			return [];
+			// Ignore and continue to add "Ask Chat" option
 		}
 
-		if (picksSoFar.length || additionalPicks.length) {
-			additionalPicks.push({
-				type: 'separator'
-			});
-		}
+		// If enabled in settings, add "Ask Chat" option after a separator (if needed).
+		if (!this.configuration.experimental.hideAskChat) {
+			const defaultAgent = this.chatAgentService.getDefaultAgent(ChatAgentLocation.Chat);
+			if (defaultAgent) {
+				if (picksSoFar.length || additionalPicks.length) {
+					additionalPicks.push({
+						type: 'separator'
+					});
+				}
 
-		const defaultAgent = this.chatAgentService.getDefaultAgent(ChatAgentLocation.Chat);
-		if (defaultAgent) {
-			additionalPicks.push({
-				label: localize('askXInChat', "Ask {0}: {1}", defaultAgent.fullName, filter),
-				commandId: this.configuration.experimental.askChatLocation === 'quickChat' ? ASK_QUICK_QUESTION_ACTION_ID : CHAT_OPEN_ACTION_ID,
-				args: [filter]
-			});
+				additionalPicks.push({
+					label: localize('askXInChat', "Ask {0}: {1}", defaultAgent.fullName, filter),
+					commandId: this.configuration.experimental.askChatLocation === 'quickChat' ? ASK_QUICK_QUESTION_ACTION_ID : CHAT_OPEN_ACTION_ID,
+					args: [filter]
+				});
+			}
 		}
 
 		return additionalPicks;

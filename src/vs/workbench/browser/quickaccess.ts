@@ -33,6 +33,7 @@ export interface IWorkbenchQuickAccessConfiguration {
 				readonly suggestCommands: boolean;
 				readonly enableNaturalLanguageSearch: boolean;
 				readonly askChatLocation: 'quickChat' | 'chatView';
+				readonly hideAskChat: boolean;
 			};
 		};
 		readonly quickOpen: {
@@ -40,9 +41,7 @@ export interface IWorkbenchQuickAccessConfiguration {
 			readonly preserveInput: boolean;
 		};
 	};
-}
-
-export function getQuickNavigateHandler(id: string, next?: boolean): ICommandHandler {
+}export function getQuickNavigateHandler(id: string, next?: boolean): ICommandHandler {
 	return accessor => {
 		const keybindingService = accessor.get(IKeybindingService);
 		const quickInputService = accessor.get(IQuickInputService);
@@ -53,6 +52,7 @@ export function getQuickNavigateHandler(id: string, next?: boolean): ICommandHan
 		quickInputService.navigate(!!next, quickNavigate);
 	};
 }
+
 export class PickerEditorState extends Disposable {
 	private _editorViewState: {
 		editor: EditorInput;
