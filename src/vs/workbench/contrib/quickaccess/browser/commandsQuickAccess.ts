@@ -186,7 +186,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 						tooltip: localize('commandsQuickAccess.configureAskChatSetting', "Configure visibility"),
 					}],
 					trigger: () => {
-						this.preferencesService.openSettings({ jsonEditor: false, query: 'workbench.commandPalette.experimental.showAskChat' });
+						void this.preferencesService.openSettings({ jsonEditor: false, query: 'workbench.commandPalette.experimental.showAskChat' });
 						return TriggerAction.CLOSE_PICKER;
 					},
 				});
