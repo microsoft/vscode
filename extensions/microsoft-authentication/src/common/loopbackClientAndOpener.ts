@@ -19,6 +19,7 @@ export class UriHandlerLoopbackClient implements ILoopbackClientAndOpener {
 	constructor(
 		private readonly _uriHandler: UriEventHandler,
 		private readonly _redirectUri: string,
+		private readonly _callbackUri: Uri,
 		private readonly _logger: LogOutputChannel
 	) { }
 
@@ -44,9 +45,7 @@ export class UriHandlerLoopbackClient implements ILoopbackClientAndOpener {
 	}
 
 	async openBrowser(url: string): Promise<void> {
-		const callbackUri = await env.asExternalUri(Uri.parse(`${env.uriScheme}://vscode.microsoft-authentication`));
-
-		if (isSupportedClient(callbackUri)) {
+		if (isSupportedClient(this._callbackUri)) {
 			void this._getCodeResponseFromUriHandler();
 		} else {
 			// Unsupported clients will be shown the code in the browser, but it will not redirect back since this
@@ -55,7 +54,7 @@ export class UriHandlerLoopbackClient implements ILoopbackClientAndOpener {
 			void this._getCodeResponseFromQuickPick();
 		}
 
-		const uri = Uri.parse(url + `&state=${encodeURI(callbackUri.toString(true))}`);
+		const uri = Uri.parse(url + `&state=${encodeURI(this._callbackUri.toString(true))}`);
 		await env.openExternal(uri);
 	}
 
