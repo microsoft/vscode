@@ -21,7 +21,7 @@ export const IInlineCompletionsService = createDecorator<IInlineCompletionsServi
 export interface IInlineCompletionsService {
 	readonly _serviceBrand: undefined;
 
-	onDidChangeIsSnoozing: Event<boolean>;
+	readonly onDidChangeIsSnoozing: Event<boolean>;
 
 	/**
 	 * Get the remaining time (in ms) for which inline completions should be snoozed,

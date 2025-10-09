@@ -39,9 +39,9 @@ export interface IEmbedderTerminalOptions {
  * See Pseudoterminal on the vscode API for usage.
  */
 export interface IEmbedderTerminalPty {
-	onDidWrite: Event<string>;
-	onDidClose?: Event<void | number>;
-	onDidChangeName?: Event<string>;
+	readonly onDidWrite: Event<string>;
+	readonly onDidClose?: Event<void | number>;
+	readonly onDidChangeName?: Event<string>;
 
 	open(): void;
 	close(): void;

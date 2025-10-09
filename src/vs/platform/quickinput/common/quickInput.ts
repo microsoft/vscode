@@ -702,7 +702,7 @@ export interface IQuickInputToggle {
 	 * Event that is fired when the toggle value changes.
 	 * The boolean value indicates whether the change was triggered via keyboard.
 	 */
-	onChange: Event<boolean>;
+	readonly onChange: Event<boolean>;
 }
 
 /**

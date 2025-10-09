@@ -281,7 +281,7 @@ export interface IOverlayWidget {
 	/**
 	 * Event fired when the widget layout changes.
 	 */
-	onDidLayout?: Event<void>;
+	readonly onDidLayout?: Event<void>;
 	/**
 	 * Render this overlay widget in a location where it could overflow the editor's view dom node.
 	 */
@@ -898,14 +898,14 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @internal
 	 * @event
 	 */
-	onDidChangeLineHeight: Event<ModelLineHeightChangedEvent>;
+	readonly onDidChangeLineHeight: Event<ModelLineHeightChangedEvent>;
 
 	/**
 	 * An event emitted when the font of the editor has changed.
 	 * @internal
 	 * @event
 	 */
-	onDidChangeFont: Event<ModelFontChangedEvent>;
+	readonly onDidChangeFont: Event<ModelFontChangedEvent>;
 
 	/**
 	 * Get value of the current model attached to this editor.

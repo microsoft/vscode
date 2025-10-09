@@ -29,7 +29,7 @@ export class QuickTree<T extends IQuickTreeItem> extends QuickInput implements I
 	readonly onDidChangeActive = Event.fromObservable(this._activeItems, this._store);
 
 	private readonly _onDidChangeCheckedLeafItems = new Emitter<T[]>();
-	onDidChangeCheckedLeafItems: Event<T[]> = this._onDidChangeCheckedLeafItems.event;
+	readonly onDidChangeCheckedLeafItems: Event<T[]> = this._onDidChangeCheckedLeafItems.event;
 
 	readonly onDidAccept: Event<void>;
 
