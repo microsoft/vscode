@@ -37,6 +37,8 @@ import { viewFilterSubmenu } from '../../../browser/parts/views/viewFilter.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { problemsConfigurationNodeBase } from '../../../common/configuration.js';
 import { MarkerChatContextContribution } from './markersChatContext.js';
+import { MarkerAccessibleView, MarkerAccessibilityHelp } from '../../../../editor/contrib/gotoError/browser/markerAccessibleViews.js';
+import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: Markers.MARKER_OPEN_ACTION_ID,
@@ -715,3 +717,6 @@ class ActivityUpdater extends Disposable implements IWorkbenchContribution {
 }
 
 workbenchRegistry.registerWorkbenchContribution(ActivityUpdater, LifecyclePhase.Restored);
+
+AccessibleViewRegistry.register(new MarkerAccessibleView());
+AccessibleViewRegistry.register(new MarkerAccessibilityHelp());
