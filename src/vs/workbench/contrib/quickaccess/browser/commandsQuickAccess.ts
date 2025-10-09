@@ -98,6 +98,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 
 		return {
 			preserveInput: commandPaletteConfig.preserveInput,
+			showAskChat: commandPaletteConfig.showAskChat,
 			experimental: commandPaletteConfig.experimental
 		};
 	}
@@ -168,7 +169,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 		}
 
 		// If enabled in settings, add "Ask Chat" option after a separator (if needed).
-		if (this.configuration.experimental.showAskChat) {
+		if (this.configuration.showAskChat) {
 			const defaultAgent = this.chatAgentService.getDefaultAgent(ChatAgentLocation.Chat);
 			if (defaultAgent) {
 				if (picksSoFar.length || additionalPicks.length) {
@@ -186,7 +187,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 						tooltip: localize('commandsQuickAccess.configureAskChatSetting', "Configure visibility"),
 					}],
 					trigger: () => {
-						void this.preferencesService.openSettings({ jsonEditor: false, query: 'workbench.commandPalette.experimental.showAskChat' });
+						void this.preferencesService.openSettings({ jsonEditor: false, query: 'workbench.commandPalette.showAskChat' });
 						return TriggerAction.CLOSE_PICKER;
 					},
 				});
