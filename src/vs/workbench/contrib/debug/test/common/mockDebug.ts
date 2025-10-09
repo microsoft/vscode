@@ -523,7 +523,7 @@ export class MockRawSession {
 		throw new Error('not implemented');
 	}
 
-	disconnect(restart?: boolean): Promise<any> {
+	disconnect(): Promise<any> {
 		throw new Error('not implemented');
 	}
 
@@ -692,7 +692,6 @@ export class MockDebugAdapter extends AbstractDebugAdapter {
 export class MockDebugStorage extends DebugStorage {
 
 	constructor(storageService: IStorageService) {
-		// eslint-disable-next-line local/code-no-any-casts
-		super(storageService, undefined as any, undefined as any, new NullLogService());
+		super(storageService, undefined!, undefined!, new NullLogService());
 	}
 }

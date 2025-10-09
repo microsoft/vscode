@@ -6,12 +6,14 @@
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { mockObject } from '../../../../../base/test/common/mock.js';
+import { mockObject, upcastDeepPartial, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
+import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
+import { IDebugSession } from '../../common/debug.js';
 import { DebugModel, ExceptionBreakpoint, FunctionBreakpoint, Thread } from '../../common/debugModel.js';
 import { MockDebugStorage } from './mockDebug.js';
-import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 
 suite('DebugModel', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -47,8 +49,7 @@ suite('DebugModel', () => {
 			const topFrameDeferred = new DeferredPromise<void>();
 			const wholeStackDeferred = new DeferredPromise<void>();
 			const fakeThread = mockObject<Thread>()({
-				// eslint-disable-next-line local/code-no-any-casts
-				session: { capabilities: { supportsDelayedStackTraceLoading: true } } as any,
+				session: upcastDeepPartial<IDebugSession>({ capabilities: { supportsDelayedStackTraceLoading: true } }),
 				getCallStack: () => [],
 				getStaleCallStack: () => [],
 			});
@@ -59,8 +60,7 @@ suite('DebugModel', () => {
 
 			const disposable = new DisposableStore();
 			const storage = disposable.add(new TestStorageService());
-			// eslint-disable-next-line local/code-no-any-casts
-			const model = new DebugModel(disposable.add(new MockDebugStorage(storage)), <any>{ isDirty: (e: any) => false }, undefined!, new NullLogService());
+			const model = new DebugModel(disposable.add(new MockDebugStorage(storage)), upcastPartial<ITextFileService>({ isDirty: (e: unknown) => false }), undefined!, new NullLogService());
 			disposable.add(model);
 
 			let top1Resolved = false;
