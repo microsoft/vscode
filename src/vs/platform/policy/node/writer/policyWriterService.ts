@@ -62,7 +62,9 @@ export class PolicyWriterService implements IPolicyWriterService {
 
 		await fs.rm(root, { recursive: true, force: true });
 		await fs.mkdir(root, { recursive: true });
-		await fs.writeFile(path.join(root, `${bundleIdentifier}.mobileconfig`), profile.replace(/\r?\n/g, '\n'));
+		const mobileconfigPath = path.join(root, `${bundleIdentifier}.mobileconfig`);
+		await fs.writeFile(mobileconfigPath, profile.replace(/\r?\n/g, '\n'));
+		console.log(`Created .mobileconfig file: ${path.resolve(mobileconfigPath)}`);
 
 		for (const { languageId, contents } of manifests) {
 			const languagePath = path.join(root, languageId === 'en-us' ? 'en-us' : Languages[languageId as keyof typeof Languages]);
@@ -78,7 +80,9 @@ export class PolicyWriterService implements IPolicyWriterService {
 		await fs.rm(root, { recursive: true, force: true });
 		await fs.mkdir(root, { recursive: true });
 
-		await fs.writeFile(path.join(root, `${this.productService.win32RegValueName}.admx`), admx.replace(/\r?\n/g, '\n'));
+		const admxPath = path.join(root, `${this.productService.win32RegValueName}.admx`);
+		await fs.writeFile(admxPath, admx.replace(/\r?\n/g, '\n'));
+		console.log(`Created .admx file: ${path.resolve(admxPath)}`);
 
 		for (const { languageId, contents } of adml) {
 			const languagePath = path.join(root, languageId === 'en-us' ? 'en-us' : Languages[languageId as keyof typeof Languages]);
