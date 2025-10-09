@@ -12,7 +12,7 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { assertType } from '../../../../../base/common/types.js';
-import { IMarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRenderer } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { localize } from '../../../../../nls.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';

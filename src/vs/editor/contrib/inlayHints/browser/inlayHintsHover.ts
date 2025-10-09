@@ -26,7 +26,7 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { HoverStartSource } from '../../hover/browser/hoverOperation.js';
-import { IMarkdownRendererService } from '../../../browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 
 class InlayHintsHoverAnchor extends HoverForeignElementAnchor {
 	constructor(

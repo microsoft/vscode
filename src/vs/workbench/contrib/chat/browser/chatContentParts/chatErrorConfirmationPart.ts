@@ -8,7 +8,7 @@ import { Button, IButtonOptions } from '../../../../../base/browser/ui/button/bu
 import { Emitter } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { IMarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRenderer } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ChatErrorLevel, IChatResponseErrorDetailsConfirmationButton, IChatSendRequestOptions, IChatService } from '../../common/chatService.js';

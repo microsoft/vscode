@@ -18,7 +18,7 @@ export interface ITerminalExecuteStrategy {
 	 */
 	execute(commandLine: string, token: CancellationToken): Promise<ITerminalExecuteStrategyResult>;
 
-	onDidCreateStartMarker: Event<IXtermMarker | undefined>;
+	readonly onDidCreateStartMarker: Event<IXtermMarker | undefined>;
 }
 
 export interface ITerminalExecuteStrategyResult {

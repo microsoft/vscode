@@ -187,7 +187,7 @@ export interface ICommandInvalidationRequest {
 export interface IBufferMarkCapability {
 	type: TerminalCapability.BufferMarkDetection;
 	markers(): IterableIterator<IMarker>;
-	onMarkAdded: Event<IMarkProperties>;
+	readonly onMarkAdded: Event<IMarkProperties>;
 	addMark(properties?: IMarkProperties): void;
 	getMark(id: string): IMarker | undefined;
 }

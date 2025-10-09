@@ -13,8 +13,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { HoverAction, HoverPosition, HoverWidget as BaseHoverWidget, getHoverAccessibleViewHint } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { Widget } from '../../../../base/browser/ui/widget.js';
 import { AnchorPosition } from '../../../../base/browser/ui/contextview/contextview.js';
-import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { IMarkdownRendererService, openLinkFromMarkdown } from '../../widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { isMarkdownString } from '../../../../base/common/htmlContent.js';
 import { localize } from '../../../../nls.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
@@ -49,7 +48,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 	private readonly _hoverPointer: HTMLElement | undefined;
 	private readonly _hoverContainer: HTMLElement;
 	private readonly _target: IHoverTarget;
-	private readonly _linkHandler: (url: string) => void;
+	private readonly _linkHandler: ((url: string) => void) | undefined;
 
 	private _isDisposed: boolean = false;
 	private _hoverPosition: HoverPosition;
@@ -98,15 +97,12 @@ export class HoverWidget extends Widget implements IHoverWidget {
 		options: IHoverOptions,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IOpenerService private readonly _openerService: IOpenerService,
 		@IMarkdownRendererService private readonly _markdownRenderer: IMarkdownRendererService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
 	) {
 		super();
 
-		this._linkHandler = options.linkHandler || (url => {
-			return openLinkFromMarkdown(this._openerService, url, isMarkdownString(options.content) ? options.content.isTrusted : undefined);
-		});
+		this._linkHandler = options.linkHandler;
 
 		this._target = 'targetElements' in options.target ? options.target : new ElementHoverTarget(options.target);
 
@@ -166,7 +162,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 			const markdown = options.content;
 
 			const { element, dispose } = this._markdownRenderer.render(markdown, {
-				actionHandler: (content) => this._linkHandler(content),
+				actionHandler: this._linkHandler,
 				asyncRenderCallback: () => {
 					contentsElement.classList.add('code-hover-contents');
 					this.layout();

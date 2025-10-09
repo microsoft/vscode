@@ -246,6 +246,11 @@
 	max-width: 100%;
 }
 
+.review-widget .body .comment-body .monaco-tokenized-source {
+	font-size: inherit !important;
+	line-height: auto !important;
+}
+
 .review-widget .body .comment-form-container {
 	margin: 8px 20px;
 }

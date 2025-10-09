@@ -570,7 +570,7 @@ export class NotebookService extends Disposable implements INotebookService {
 	readonly onWillRemoveViewType;
 
 	private readonly _onDidChangeEditorTypes;
-	onDidChangeEditorTypes: Event<void>;
+	readonly onDidChangeEditorTypes: Event<void>;
 
 	private _cutItems: NotebookCellTextModel[] | undefined;
 	private _lastClipboardIsCopy: boolean;

@@ -8,7 +8,7 @@ import { Barrier, timeout } from '../../../../../base/common/async.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { FileChangeType, FileSystemProviderErrorCode, FileType, IFileChange, IFileService } from '../../../../../platform/files/common/files.js';
+import { FileChangeType, FileSystemProviderErrorCode, FileType, IFileChange, IFileService, toFileSystemProviderErrorCode } from '../../../../../platform/files/common/files.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILoggerService, NullLogService } from '../../../../../platform/log/common/log.js';
@@ -65,12 +65,13 @@ suite('Workbench - MCP - ResourceFilesystem', () => {
 
 	test('reads a basic file', async () => {
 		transport.setResponder('resources/read', msg => {
-			assert.strictEqual(msg.params.uri, 'custom://hello/world.txt');
+			const request = msg as { id: string | number; params: { uri: string } };
+			assert.strictEqual(request.params.uri, 'custom://hello/world.txt');
 			return {
-				id: msg.id,
+				id: request.id,
 				jsonrpc: '2.0',
 				result: {
-					contents: [{ uri: msg.params.uri, text: 'Hello World' }],
+					contents: [{ uri: request.params.uri, text: 'Hello World' }],
 				} satisfies MCP.ReadResourceResult
 			};
 		});
@@ -81,12 +82,13 @@ suite('Workbench - MCP - ResourceFilesystem', () => {
 
 	test('stat returns file information', async () => {
 		transport.setResponder('resources/read', msg => {
-			assert.strictEqual(msg.params.uri, 'custom://hello/world.txt');
+			const request = msg as { id: string | number; params: { uri: string } };
+			assert.strictEqual(request.params.uri, 'custom://hello/world.txt');
 			return {
-				id: msg.id,
+				id: request.id,
 				jsonrpc: '2.0',
 				result: {
-					contents: [{ uri: msg.params.uri, text: 'Hello World' }],
+					contents: [{ uri: request.params.uri, text: 'Hello World' }],
 				} satisfies MCP.ReadResourceResult
 			};
 		});
@@ -98,9 +100,10 @@ suite('Workbench - MCP - ResourceFilesystem', () => {
 
 	test('stat returns directory information', async () => {
 		transport.setResponder('resources/read', msg => {
-			assert.strictEqual(msg.params.uri, 'custom://hello');
+			const request = msg as { id: string | number; params: { uri: string } };
+			assert.strictEqual(request.params.uri, 'custom://hello');
 			return {
-				id: msg.id,
+				id: request.id,
 				jsonrpc: '2.0',
 				result: {
 					contents: [
@@ -119,8 +122,9 @@ suite('Workbench - MCP - ResourceFilesystem', () => {
 
 	test('stat throws FileNotFound for nonexistent resources', async () => {
 		transport.setResponder('resources/read', msg => {
+			const request = msg as { id: string | number };
 			return {
-				id: msg.id,
+				id: request.id,
 				jsonrpc: '2.0',
 				result: {
 					contents: [],
@@ -130,15 +134,16 @@ suite('Workbench - MCP - ResourceFilesystem', () => {
 
 		await assert.rejects(
 			() => fs.stat(URI.parse('mcp-resource://746573742D736572766572/custom/nonexistent.txt')),
-			(err: any) => err.code === FileSystemProviderErrorCode.FileNotFound
+			(err: Error) => toFileSystemProviderErrorCode(err) === FileSystemProviderErrorCode.FileNotFound
 		);
 	});
 
 	test('readdir returns directory contents', async () => {
 		transport.setResponder('resources/read', msg => {
-			assert.strictEqual(msg.params.uri, 'custom://hello/dir');
+			const request = msg as { id: string | number; params: { uri: string } };
+			assert.strictEqual(request.params.uri, 'custom://hello/dir');
 			return {
-				id: msg.id,
+				id: request.id,
 				jsonrpc: '2.0',
 				result: {
 					contents: [
@@ -160,29 +165,31 @@ suite('Workbench - MCP - ResourceFilesystem', () => {
 
 	test('readdir throws when reading a file as directory', async () => {
 		transport.setResponder('resources/read', msg => {
+			const request = msg as { id: string | number; params: { uri: string } };
 			return {
-				id: msg.id,
+				id: request.id,
 				jsonrpc: '2.0',
 				result: {
-					contents: [{ uri: msg.params.uri, text: 'This is a file' }],
+					contents: [{ uri: request.params.uri, text: 'This is a file' }],
 				} satisfies MCP.ReadResourceResult
 			};
 		});
 
 		await assert.rejects(
 			() => fs.readdir(URI.parse('mcp-resource://746573742D736572766572/custom/hello/file.txt')),
-			(err: any) => err.code === FileSystemProviderErrorCode.FileNotADirectory
+			(err: Error) => toFileSystemProviderErrorCode(err) === FileSystemProviderErrorCode.FileNotADirectory
 		);
 	});
 
 	test('watch file emits change events', async () => {
 		// Set up the responder for resource reading
 		transport.setResponder('resources/read', msg => {
+			const request = msg as { id: string | number; params: { uri: string } };
 			return {
-				id: msg.id,
+				id: request.id,
 				jsonrpc: '2.0',
 				result: {
-					contents: [{ uri: msg.params.uri, text: 'File content' }],
+					contents: [{ uri: request.params.uri, text: 'File content' }],
 				} satisfies MCP.ReadResourceResult
 			};
 		});
@@ -191,9 +198,10 @@ suite('Workbench - MCP - ResourceFilesystem', () => {
 
 		// Set up the responder for resource subscription
 		transport.setResponder('resources/subscribe', msg => {
+			const request = msg as { id: string | number };
 			didSubscribe.open();
 			return {
-				id: msg.id,
+				id: request.id,
 				jsonrpc: '2.0',
 				result: {},
 			};
@@ -243,12 +251,13 @@ suite('Workbench - MCP - ResourceFilesystem', () => {
 		const blobBase64 = 'SGVsbG8gV29ybGQgYXMgQmxvYg=='; // "Hello World as Blob" in base64
 
 		transport.setResponder('resources/read', msg => {
-			assert.strictEqual(msg.params.uri, 'custom://hello/blob.bin');
+			const params = (msg as { id: string | number; params: { uri: string } });
+			assert.strictEqual(params.params.uri, 'custom://hello/blob.bin');
 			return {
-				id: msg.id,
+				id: params.id,
 				jsonrpc: '2.0',
 				result: {
-					contents: [{ uri: msg.params.uri, blob: blobBase64 }],
+					contents: [{ uri: params.params.uri, blob: blobBase64 }],
 				} satisfies MCP.ReadResourceResult
 			};
 		});
@@ -262,22 +271,22 @@ suite('Workbench - MCP - ResourceFilesystem', () => {
 
 		await assert.rejects(
 			async () => fs.writeFile(uri, new Uint8Array(), { create: true, overwrite: true, atomic: false, unlock: false }),
-			(err: any) => err.code === FileSystemProviderErrorCode.NoPermissions
+			(err: Error) => toFileSystemProviderErrorCode(err) === FileSystemProviderErrorCode.NoPermissions
 		);
 
 		await assert.rejects(
 			async () => fs.delete(uri, { recursive: false, useTrash: false, atomic: false }),
-			(err: any) => err.code === FileSystemProviderErrorCode.NoPermissions
+			(err: Error) => toFileSystemProviderErrorCode(err) === FileSystemProviderErrorCode.NoPermissions
 		);
 
 		await assert.rejects(
 			async () => fs.mkdir(uri),
-			(err: any) => err.code === FileSystemProviderErrorCode.NoPermissions
+			(err: Error) => toFileSystemProviderErrorCode(err) === FileSystemProviderErrorCode.NoPermissions
 		);
 
 		await assert.rejects(
 			async () => fs.rename(uri, URI.parse('mcp-resource://746573742D736572766572/custom/hello/newfile.txt'), { overwrite: false }),
-			(err: any) => err.code === FileSystemProviderErrorCode.NoPermissions
+			(err: Error) => toFileSystemProviderErrorCode(err) === FileSystemProviderErrorCode.NoPermissions
 		);
 	});
 });

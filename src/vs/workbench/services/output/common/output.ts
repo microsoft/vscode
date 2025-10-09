@@ -109,7 +109,7 @@ export interface IOutputService {
 	/**
 	 * Allows to register on active output channel change.
 	 */
-	onActiveOutputChannel: Event<string>;
+	readonly onActiveOutputChannel: Event<string>;
 
 	/**
 	 * Register a compound log channel with the given channels.

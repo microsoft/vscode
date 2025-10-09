@@ -12,7 +12,7 @@ import { Lazy } from '../../../../../base/common/lazy.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { IMarkdownRendererService, openLinkFromMarkdown } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRendererService, openLinkFromMarkdown } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IRenderedMarkdown } from '../../../../../base/browser/markdownRenderer.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';

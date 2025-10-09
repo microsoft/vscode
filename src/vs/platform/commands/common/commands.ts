@@ -58,7 +58,7 @@ export interface ICommandMetadata {
 }
 
 export interface ICommandRegistry {
-	onDidRegisterCommand: Event<string>;
+	readonly onDidRegisterCommand: Event<string>;
 	registerCommand(id: string, command: ICommandHandler): IDisposable;
 	registerCommand(command: ICommand): IDisposable;
 	registerCommandAlias(oldId: string, newId: string): IDisposable;

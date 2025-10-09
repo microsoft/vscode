@@ -11,7 +11,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import type { ThemeIcon } from '../../../../../base/common/themables.js';
-import { IMarkdownRendererService } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { localize } from '../../../../../nls.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
@@ -33,7 +33,7 @@ export interface IChatConfirmationButton<T> {
 	tooltip?: string;
 	data: T;
 	disabled?: boolean;
-	onDidChangeDisablement?: Event<boolean>;
+	readonly onDidChangeDisablement?: Event<boolean>;
 	moreActions?: (IChatConfirmationButton<T> | Separator)[];
 }
 
