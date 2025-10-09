@@ -586,7 +586,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		if (this.exceptionWidget && !sameUri) {
 			this.closeExceptionWidget();
 		} else if (sameUri) {
-			// Only show exception widget in the active editor, not all editors with the same file
+			// Only show exception widget in the active editor to prevent disrupting workflow in multiple editor groups with the same file
 			const activeControl = this.editorService.activeTextEditorControl;
 			const isActiveEditor = activeControl === this.editor;
 
