@@ -98,20 +98,23 @@ export class MarkdownRendererService implements IMarkdownRendererService {
 		const html = await tokenizeToString(this._languageService, value, languageId);
 
 		const content = MarkdownRendererService._ttpTokenizer ? MarkdownRendererService._ttpTokenizer.createHTML(html) ?? html : html;
-		const element = new DOMParser().parseFromString(content as string, 'text/html').body.firstChild;
-		if (!isHTMLElement(element)) {
+
+		const root = document.createElement('span');
+		root.innerHTML = content as string;
+		const codeElement = root.querySelector('.monaco-tokenized-source');
+		if (!isHTMLElement(codeElement)) {
 			return document.createElement('span');
 		}
 
 		// use "good" font
 		if (options.editor) {
 			const fontInfo = options.editor.getOption(EditorOption.fontInfo);
-			applyFontInfo(element, fontInfo);
+			applyFontInfo(codeElement, fontInfo);
 		} else {
-			element.style.fontFamily = this._configurationService.getValue<IEditorOptions>('editor').fontFamily || EDITOR_FONT_DEFAULTS.fontFamily;
+			codeElement.style.fontFamily = this._configurationService.getValue<IEditorOptions>('editor').fontFamily || EDITOR_FONT_DEFAULTS.fontFamily;
 		}
 
-		return element;
+		return root;
 	}
 }
 
