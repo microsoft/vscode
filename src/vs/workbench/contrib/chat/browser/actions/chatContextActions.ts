@@ -501,6 +501,10 @@ export class AttachContextAction extends Action2 {
 		const toAttach: IChatRequestVariableEntry[] = [];
 
 		if (isIQuickPickItemWithResource(pick) && pick.resource) {
+			if (pick.resource.scheme === 'webview-panel' || pick.resource.scheme === 'walkThrough' || pick.resource.scheme === 'vscode-settings') {
+				return;
+			}
+
 			if (/\.(png|jpg|jpeg|bmp|gif|tiff)$/i.test(pick.resource.path)) {
 				// checks if the file is an image
 				if (URI.isUri(pick.resource)) {
