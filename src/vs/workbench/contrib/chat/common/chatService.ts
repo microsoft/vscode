@@ -8,7 +8,7 @@ import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
-import { IObservable } from '../../../../base/common/observable.js';
+import { autorunSelfDisposable, IObservable } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IRange, Range } from '../../../../editor/common/core/range.js';
@@ -16,6 +16,7 @@ import { ISelection } from '../../../../editor/common/core/selection.js';
 import { Command, Location, TextEdit } from '../../../../editor/common/languages.js';
 import { FileType } from '../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IAutostartResult } from '../../mcp/common/mcpTypes.js';
 import { ICellEditOperation } from '../../notebook/common/notebookCommon.js';
 import { IWorkspaceSymbol } from '../../search/common/search.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult, UserSelectedTools } from './chatAgents.js';
@@ -414,15 +415,39 @@ export interface IChatTodoListContent {
 	}>;
 }
 
-export interface IChatMcpServersInteractionRequired {
-	kind: 'mcpServersInteractionRequired';
-	isDone?: boolean;
-	servers: Array<{
-		serverId: string;
-		serverLabel: string;
-		errorMessage?: string;
-	}>;
-	startCommand: Command;
+export interface IChatMcpServersStarting {
+	readonly kind: 'mcpServersStarting';
+	readonly state?: IObservable<IAutostartResult>; // not hydrated when serialized
+	didStartServerIds?: string[];
+}
+
+export class ChatMcpServersStarting implements IChatMcpServersStarting {
+	public readonly kind = 'mcpServersStarting';
+
+	public didStartServerIds?: string[] = [];
+
+	public get isEmpty() {
+		const s = this.state.get();
+		return !s.working && s.serversRequiringInteraction.length === 0;
+	}
+
+	constructor(public readonly state: IObservable<IAutostartResult>) { }
+
+	wait() {
+		return new Promise<IAutostartResult>(resolve => {
+			autorunSelfDisposable(reader => {
+				const s = this.state.read(reader);
+				if (!s.working) {
+					reader.dispose();
+					resolve(s);
+				}
+			});
+		});
+	}
+
+	toJSON(): IChatMcpServersStarting {
+		return { kind: 'mcpServersStarting', didStartServerIds: this.didStartServerIds };
+	}
 }
 
 export interface IChatPrepareToolInvocationPart {
@@ -459,7 +484,7 @@ export type IChatProgress =
 	| IChatThinkingPart
 	| IChatTaskSerialized
 	| IChatElicitationRequest
-	| IChatMcpServersInteractionRequired;
+	| IChatMcpServersStarting;
 
 export interface IChatFollowup {
 	kind: 'reply';
