@@ -71,6 +71,10 @@ export class PolicyExportContribution extends Disposable implements IWorkbenchCo
 				progress.report({ message: `Writing ${configs.length} configurations to policy file` });
 				await this.policyWriterService.write(configs, platform);
 				this.log(`Successfully exported policy for ${configs.length} configurations.`);
+
+				// Ensure files are flushed to disk before exiting
+				// Give Windows time to persist the files to disk
+				await new Promise(resolve => setTimeout(resolve, 100));
 			});
 
 			await this.nativeHostService.exit(0);
