@@ -14,7 +14,7 @@ import { HoverAction, HoverPosition, HoverWidget as BaseHoverWidget, getHoverAcc
 import { Widget } from '../../../../base/browser/ui/widget.js';
 import { AnchorPosition } from '../../../../base/browser/ui/contextview/contextview.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { IMarkdownRendererService, openLinkFromMarkdown } from '../../widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRendererService, openLinkFromMarkdown } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { isMarkdownString } from '../../../../base/common/htmlContent.js';
 import { localize } from '../../../../nls.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
