@@ -51,7 +51,7 @@ suite('UriHandlerLoopbackClient', () => {
 	});
 
 	// Skipped for now until `listenForAuthCode` is refactored to not show quick pick
-	suite.skip('listenForAuthCode', () => {
+	suite('listenForAuthCode', () => {
 		test('should return auth code from URL', async () => {
 			const code = '1234';
 			const state = '5678';
