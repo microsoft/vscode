@@ -466,6 +466,7 @@ export class AttachContextAction extends Action2 {
 			},
 			additionPicks,
 			handleAccept: async (item: IQuickPickServicePickItem | IContextPickItemItem, isBackgroundAccept: boolean) => {
+
 				if (isIContextPickItemItem(item)) {
 
 					let isDone = true;
