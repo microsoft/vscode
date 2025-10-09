@@ -973,8 +973,14 @@ export interface IDecorationAddon {
 	registerMenuItems(command: ITerminalCommand, items: IAction[]): IDisposable;
 }
 
+export interface ITerminalCompletionProviderContribution {
+	id: string;
+	description?: string;
+}
+
 export interface ITerminalContributions {
 	profiles?: ITerminalProfileContribution[];
+	completionProviders?: ITerminalCompletionProviderContribution[];
 }
 
 export const enum ShellIntegrationStatus {
