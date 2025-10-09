@@ -447,7 +447,9 @@ export class McpHTTPHandle extends Disposable {
 				}
 			}
 		}
-		// Check Content-Type to ensure we received JSON before attempting to parse
+		// Check Content-Type to ensure we received JSON before attempting to parse.
+		// Some servers may return 200 with HTML content (e.g., a login page) instead of JSON metadata.
+		// In such cases, we want to fail gracefully and fall back to default metadata based on the MCP server's base URL.
 		const contentType = authServerMetadataResponse.headers.get('Content-Type')?.toLowerCase() || '';
 		if (!contentType.includes('application/json')) {
 			throw new Error(`Authorization server metadata endpoint returned non-JSON content type: ${contentType || 'none'}`);
