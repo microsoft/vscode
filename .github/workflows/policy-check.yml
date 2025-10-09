@@ -265,12 +265,20 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          if (-not (Test-Path ".build/policies/win32") -or ((Get-ChildItem ".build/policies/win32" -ErrorAction SilentlyContinue | Measure-Object).Count -eq 0)) {
-            Write-Error "ERROR: Policy files were not generated"
+          $policyPath = ".build/policies/win32"
+          Write-Host "Checking for policy files in: $policyPath"
+          Write-Host "Current directory: $(Get-Location)"
+          if (-not (Test-Path $policyPath)) {
+            Write-Error "ERROR: Policy directory does not exist: $policyPath"
+            exit 1
+          }
+          $files = Get-ChildItem $policyPath -ErrorAction SilentlyContinue
+          if (($files | Measure-Object).Count -eq 0) {
+            Write-Error "ERROR: No policy files were generated in $policyPath"
             exit 1
           }
           Write-Host "Policy files generated successfully:"
-          Get-ChildItem .build/policies/win32
+          Get-ChildItem $policyPath -Recurse
 
       - name: Publish policy artifacts
         uses: actions/upload-artifact@v4
