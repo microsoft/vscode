@@ -68,7 +68,6 @@ export interface ITerminalCompletionProvider {
 	provideCompletions(value: string, cursorPosition: number, allowFallbackCompletions: boolean, token: CancellationToken): Promise<ITerminalCompletion[] | TerminalCompletionList<ITerminalCompletion> | undefined>;
 	triggerCharacters?: string[];
 	isBuiltin?: boolean;
-	description?: string;
 }
 
 export interface ITerminalCompletionService {

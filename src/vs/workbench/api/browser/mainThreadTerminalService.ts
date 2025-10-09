@@ -274,10 +274,9 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._terminalService.registerProcessSupport(isSupported);
 	}
 
-	public $registerCompletionProvider(id: string, extensionIdentifier: string, description: string | undefined, ...triggerCharacters: string[]): void {
+	public $registerCompletionProvider(id: string, extensionIdentifier: string, ...triggerCharacters: string[]): void {
 		this._completionProviders.set(id, this._terminalCompletionService.registerTerminalCompletionProvider(extensionIdentifier, id, {
 			id,
-			description,
 			provideCompletions: async (commandLine, cursorPosition, allowFallbackCompletions, token) => {
 				const completions = await this._proxy.$provideTerminalCompletions(id, { commandLine, cursorIndex: cursorPosition, allowFallbackCompletions }, token);
 				if (!completions) {

@@ -142,34 +142,22 @@ declare module 'vscode' {
 		readonly allowFallbackCompletions: boolean;
 	}
 
-	/**
-	 * Options for registering a terminal completion provider.
-	 */
-	export interface TerminalCompletionProviderOptions {
-		/**
-		 * A human-readable description of what the provider does. This will be shown in the settings
-		 * UI when configuring terminal completion providers.
-		 */
-		description?: string;
-	}
-
 	export namespace window {
 		/**
 		 * Register a completion provider for terminals.
 		 * @param provider The completion provider.
-		 * @param options Optional settings for the provider.
 		 * @returns A {@link Disposable} that unregisters this provider when being disposed.
 		 *
 		 * @example <caption>Register a provider for an extension</caption>
-		 * window.registerTerminalCompletionProvider({
+		 * window.registerTerminalCompletionProvider('extension-provider-id', {
 		 * 	provideTerminalCompletions(terminal, context) {
 		 * 		return new TerminalCompletionList([
 		 * 			{ label: '--version', replacementIndex: Math.max(0, context.cursorPosition - 2), replacementLength: 2 }
 		 * 		]);
 		 * 	}
-		 * }, { description: 'Provides completions for command-line flags' });
+		 * });
 		 */
-		export function registerTerminalCompletionProvider<T extends TerminalCompletionItem>(provider: TerminalCompletionProvider<T>, options?: TerminalCompletionProviderOptions, ...triggerCharacters: string[]): Disposable;
+		export function registerTerminalCompletionProvider<T extends TerminalCompletionItem>(provider: TerminalCompletionProvider<T>, ...triggerCharacters: string[]): Disposable;
 	}
 
 	/**

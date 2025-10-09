@@ -24,7 +24,15 @@
         "category": "Terminal",
         "title": "%terminal.integrated.suggest.clearCachedGlobals%"
       }
-    ]
+    ],
+    "terminal": {
+      "completionProviders": [
+        {
+          "id": "terminal-suggest",
+          "description": "Provides intelligent completions for terminal commands, arguments, flags, and file paths"
+        }
+      ]
+    }
   },
   "scripts": {
     "compile": "npx gulp compile-extension:terminal-suggest",
