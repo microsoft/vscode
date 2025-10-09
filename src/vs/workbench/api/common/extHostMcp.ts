@@ -409,6 +409,7 @@ export class McpHTTPHandle extends Disposable {
 			}
 		} catch {
 			// Failed to parse as JSON or not valid metadata
+			this._log(LogLevel.Debug, 'Failed to parse authorization server metadata');
 		}
 		return undefined;
 	}
