@@ -10,6 +10,7 @@ import filter from 'gulp-filter';
 import gzip from 'gulp-gzip';
 import mime from 'mime';
 import { ClientAssertionCredential } from '@azure/identity';
+import { VinylStat } from '../lib/util';
 const azure = require('gulp-azure-storage');
 
 const commit = process.env['BUILD_SOURCEVERSION'];
@@ -112,8 +113,7 @@ async function main(): Promise<void> {
 	const listing = new Vinyl({
 		path: 'files.txt',
 		contents: Buffer.from(files.join('\n')),
-		// eslint-disable-next-line local/code-no-any-casts
-		stat: { mode: 0o666 } as any
+		stat: new VinylStat({ mode: 0o666 })
 	});
 
 	const filesOut = es.readArray([listing])

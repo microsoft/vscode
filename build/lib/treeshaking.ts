@@ -305,21 +305,31 @@ const enum NodeColor {
 	Black = 2
 }
 
+type ObjectLiteralElementWithName = ts.ObjectLiteralElement & { name: ts.PropertyName; parent: ts.ObjectLiteralExpression | ts.JsxAttributes };
+
+declare module 'typescript' {
+	interface Node {
+		$$$color?: NodeColor;
+		$$$neededSourceFile?: boolean;
+		symbol?: ts.Symbol;
+	}
+
+	function getContainingObjectLiteralElement(node: ts.Node): ObjectLiteralElementWithName | undefined;
+	function getNameFromPropertyName(name: ts.PropertyName): string | undefined;
+	function getPropertySymbolsFromContextualType(node: ObjectLiteralElementWithName, checker: ts.TypeChecker, contextualType: ts.Type, unionSymbolOk: boolean): ReadonlyArray<ts.Symbol>;
+}
+
 function getColor(node: ts.Node): NodeColor {
-	// eslint-disable-next-line local/code-no-any-casts
-	return (<any>node).$$$color || NodeColor.White;
+	return node.$$$color || NodeColor.White;
 }
 function setColor(node: ts.Node, color: NodeColor): void {
-	// eslint-disable-next-line local/code-no-any-casts
-	(<any>node).$$$color = color;
+	node.$$$color = color;
 }
 function markNeededSourceFile(node: ts.SourceFile): void {
-	// eslint-disable-next-line local/code-no-any-casts
-	(<any>node).$$$neededSourceFile = true;
+	node.$$$neededSourceFile = true;
 }
 function isNeededSourceFile(node: ts.SourceFile): boolean {
-	// eslint-disable-next-line local/code-no-any-casts
-	return Boolean((<any>node).$$$neededSourceFile);
+	return Boolean(node.$$$neededSourceFile);
 }
 function nodeOrParentIsBlack(node: ts.Node): boolean {
 	while (node) {
@@ -687,12 +697,10 @@ function markNodes(ts: typeof import('typescript'), languageService: ts.Language
 		if (nodeOrParentIsBlack(node)) {
 			continue;
 		}
-		// eslint-disable-next-line local/code-no-any-casts
-		const symbol: ts.Symbol | undefined = (<any>node).symbol;
-		if (!symbol) {
+		if (!node.symbol) {
 			continue;
 		}
-		const aliased = checker.getAliasedSymbol(symbol);
+		const aliased = checker.getAliasedSymbol(node.symbol);
 		if (aliased.declarations && aliased.declarations.length > 0) {
 			if (nodeOrParentIsBlack(aliased.declarations[0]) || nodeOrChildIsBlack(aliased.declarations[0])) {
 				setColor(node, NodeColor.Black);
@@ -914,15 +922,6 @@ class SymbolImportTuple {
  */
 function getRealNodeSymbol(ts: typeof import('typescript'), checker: ts.TypeChecker, node: ts.Node): SymbolImportTuple[] {
 
-	// Use some TypeScript internals to avoid code duplication
-	type ObjectLiteralElementWithName = ts.ObjectLiteralElement & { name: ts.PropertyName; parent: ts.ObjectLiteralExpression | ts.JsxAttributes };
-	// eslint-disable-next-line local/code-no-any-casts
-	const getPropertySymbolsFromContextualType: (node: ObjectLiteralElementWithName, checker: ts.TypeChecker, contextualType: ts.Type, unionSymbolOk: boolean) => ReadonlyArray<ts.Symbol> = (<any>ts).getPropertySymbolsFromContextualType;
-	// eslint-disable-next-line local/code-no-any-casts
-	const getContainingObjectLiteralElement: (node: ts.Node) => ObjectLiteralElementWithName | undefined = (<any>ts).getContainingObjectLiteralElement;
-	// eslint-disable-next-line local/code-no-any-casts
-	const getNameFromPropertyName: (name: ts.PropertyName) => string | undefined = (<any>ts).getNameFromPropertyName;
-
 	// Go to the original declaration for cases:
 	//
 	//   (1) when the aliased symbol was declared in the location(parent).
@@ -997,7 +996,7 @@ function getRealNodeSymbol(ts: typeof import('typescript'), checker: ts.TypeChec
 		//      bar<Test>(({pr/*goto*/op1})=>{});
 		if (ts.isPropertyName(node) && ts.isBindingElement(parent) && ts.isObjectBindingPattern(parent.parent) &&
 			(node === (parent.propertyName || parent.name))) {
-			const name = getNameFromPropertyName(node);
+			const name = ts.getNameFromPropertyName(node);
 			const type = checker.getTypeAtLocation(parent.parent);
 			if (name && type) {
 				if (type.isUnion()) {
@@ -1020,11 +1019,11 @@ function getRealNodeSymbol(ts: typeof import('typescript'), checker: ts.TypeChec
 		//      }
 		//      function Foo(arg: Props) {}
 		//      Foo( { pr/*1*/op1: 10, prop2: false })
-		const element = getContainingObjectLiteralElement(node);
+		const element = ts.getContainingObjectLiteralElement(node);
 		if (element) {
 			const contextualType = element && checker.getContextualType(element.parent);
 			if (contextualType) {
-				const propertySymbols = getPropertySymbolsFromContextualType(element, checker, contextualType, /*unionSymbolOk*/ false);
+				const propertySymbols = ts.getPropertySymbolsFromContextualType(element, checker, contextualType, /*unionSymbolOk*/ false);
 				if (propertySymbols) {
 					symbol = propertySymbols[0];
 				}

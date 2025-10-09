@@ -1,60 +1,6 @@
 # Query: // eslint-disable-next-line local/code-no-any-casts
 
-925 results - 351 files
-
-build/azure-pipelines/upload-cdn.ts:
-  115: 		// eslint-disable-next-line local/code-no-any-casts
-
-build/azure-pipelines/common/publish.ts:
-  524: 				// eslint-disable-next-line local/code-no-any-casts
-
-build/lib/compilation.ts:
-  153: 				// eslint-disable-next-line local/code-no-any-casts
-
-build/lib/extensions.ts:
-  120: 				// eslint-disable-next-line local/code-no-any-casts
-  219: 					// eslint-disable-next-line local/code-no-any-casts
-
-build/lib/monaco-api.ts:
-  221: 	// eslint-disable-next-line local/code-no-any-casts
-  328: 		// eslint-disable-next-line local/code-no-any-casts
-
-build/lib/nls.ts:
-   43: 	// eslint-disable-next-line local/code-no-any-casts
-  507: 			// eslint-disable-next-line local/code-no-any-casts
-  513: 		// eslint-disable-next-line local/code-no-any-casts
-
-build/lib/optimize.ts:
-  254: 			// eslint-disable-next-line local/code-no-any-casts
-
-build/lib/propertyInitOrderChecker.ts:
-  254: 	// eslint-disable-next-line local/code-no-any-casts
-  256: 	// eslint-disable-next-line local/code-no-any-casts
-  258: 	// eslint-disable-next-line local/code-no-any-casts
-
-build/lib/reporter.ts:
-  108: 				// eslint-disable-next-line local/code-no-any-casts
-  113: 				// eslint-disable-next-line local/code-no-any-casts
-  117: 				// eslint-disable-next-line local/code-no-any-casts
-
-build/lib/task.ts:
-  27: 	// eslint-disable-next-line local/code-no-any-casts
-
-build/lib/treeshaking.ts:
-  310: 	// eslint-disable-next-line local/code-no-any-casts
-  314: 	// eslint-disable-next-line local/code-no-any-casts
-  318: 	// eslint-disable-next-line local/code-no-any-casts
-  322: 	// eslint-disable-next-line local/code-no-any-casts
-  691: 		// eslint-disable-next-line local/code-no-any-casts
-  920: 	// eslint-disable-next-line local/code-no-any-casts
-  922: 	// eslint-disable-next-line local/code-no-any-casts
-  924: 	// eslint-disable-next-line local/code-no-any-casts
-
-build/lib/mangle/index.ts:
-  273: 	// eslint-disable-next-line local/code-no-any-casts
-
-build/lib/watch/watch-win32.ts:
-  50: 			// eslint-disable-next-line local/code-no-any-casts
+838 results - 314 files
 
 extensions/css-language-features/client/src/cssClient.ts:
   86: 				// eslint-disable-next-line local/code-no-any-casts
@@ -213,22 +159,6 @@ src/vs/base/browser/ui/sash/sash.ts:
   503: 		// eslint-disable-next-line local/code-no-any-casts
   505: 			// eslint-disable-next-line local/code-no-any-casts
 
-src/vs/base/browser/ui/tree/abstractTree.ts:
-   171: 				// eslint-disable-next-line local/code-no-any-casts
-   175: 				// eslint-disable-next-line local/code-no-any-casts
-  1186: 			// eslint-disable-next-line local/code-no-any-casts
-  1212: 		// eslint-disable-next-line local/code-no-any-casts
-  2241: 		// eslint-disable-next-line local/code-no-any-casts
-
-src/vs/base/browser/ui/tree/asyncDataTree.ts:
-  305: 		// eslint-disable-next-line local/code-no-any-casts
-  417: 		// eslint-disable-next-line local/code-no-any-casts
-  434: 				// eslint-disable-next-line local/code-no-any-casts
-  438: 				// eslint-disable-next-line local/code-no-any-casts
-
-src/vs/base/browser/ui/tree/indexTreeModel.ts:
-  89: 	// eslint-disable-next-line local/code-no-any-casts
-
 src/vs/base/common/console.ts:
   134: 	// eslint-disable-next-line local/code-no-any-casts
   138: 	// eslint-disable-next-line local/code-no-any-casts
@@ -330,9 +260,6 @@ src/vs/base/common/observableInternal/reactions/autorunImpl.ts:
 src/vs/base/common/observableInternal/utils/utilsCancellation.ts:
   78: 		// eslint-disable-next-line local/code-no-any-casts
   83: 		// eslint-disable-next-line local/code-no-any-casts
-
-src/vs/base/node/ports.ts:
-  182: 			// eslint-disable-next-line local/code-no-any-casts
 
 src/vs/base/parts/ipc/test/node/ipc.net.test.ts:
    87: 		// eslint-disable-next-line local/code-no-any-casts
@@ -595,17 +522,6 @@ src/vs/editor/test/common/model/textModel.test.ts:
 src/vs/editor/test/common/model/textModelWithTokens.test.ts:
   272: 				// eslint-disable-next-line local/code-no-any-casts
 
-src/vs/editor/test/common/model/tokenStore.test.ts:
-   57: 		// eslint-disable-next-line local/code-no-any-casts
-   78: 		// eslint-disable-next-line local/code-no-any-casts
-  100: 		// eslint-disable-next-line local/code-no-any-casts
-  120: 		// eslint-disable-next-line local/code-no-any-casts
-  139: 		// eslint-disable-next-line local/code-no-any-casts
-  158: 		// eslint-disable-next-line local/code-no-any-casts
-  177: 		// eslint-disable-next-line local/code-no-any-casts
-  203: 		// eslint-disable-next-line local/code-no-any-casts
-  234: 		// eslint-disable-next-line local/code-no-any-casts
-
 src/vs/platform/contextkey/common/contextkey.ts:
    939: 			// eslint-disable-next-line local/code-no-any-casts
   1213: 		// eslint-disable-next-line local/code-no-any-casts
@@ -649,9 +565,6 @@ src/vs/platform/list/browser/listService.ts:
    965: 		// eslint-disable-next-line local/code-no-any-casts
   1012: 		// eslint-disable-next-line local/code-no-any-casts
   1057: 		// eslint-disable-next-line local/code-no-any-casts
-
-src/vs/platform/mcp/test/common/mcpManagementService.test.ts:
-  879: 					// eslint-disable-next-line local/code-no-any-casts
 
 src/vs/platform/observable/common/wrapInHotClass.ts:
   12: 		// eslint-disable-next-line local/code-no-any-casts
@@ -715,9 +628,6 @@ src/vs/workbench/workbench.web.main.ts:
   82: 		// eslint-disable-next-line local/code-no-any-casts
   91: 				// eslint-disable-next-line local/code-no-any-casts
 
-src/vs/workbench/api/browser/mainThreadChatAgents2.ts:
-  365: 						// eslint-disable-next-line local/code-no-any-casts
-
 src/vs/workbench/api/browser/mainThreadExtensionService.ts:
   57: 		// eslint-disable-next-line local/code-no-any-casts
 
@@ -731,9 +641,6 @@ src/vs/workbench/api/browser/mainThreadQuickOpen.ts:
   203: 				// eslint-disable-next-line local/code-no-any-casts
   216: 				// eslint-disable-next-line local/code-no-any-casts
 
-src/vs/workbench/api/browser/mainThreadTreeViews.ts:
-  378: 				// eslint-disable-next-line local/code-no-any-casts
-
 src/vs/workbench/api/browser/viewsExtensionPoint.ts:
   528: 						// eslint-disable-next-line local/code-no-any-casts
 
@@ -746,9 +653,6 @@ src/vs/workbench/api/common/extHost.api.impl.ts:
 src/vs/workbench/api/common/extHost.protocol.ts:
   2106: 		// eslint-disable-next-line local/code-no-any-casts
   2108: 		// eslint-disable-next-line local/code-no-any-casts
-
-src/vs/workbench/api/common/extHostComments.ts:
-  672: 			// eslint-disable-next-line local/code-no-any-casts
 
 src/vs/workbench/api/common/extHostDebugService.ts:
   243: 		// eslint-disable-next-line local/code-no-any-casts
@@ -800,9 +704,6 @@ src/vs/workbench/api/common/extHostTimeline.ts:
   163: 					// eslint-disable-next-line local/code-no-any-casts
   166: 				// eslint-disable-next-line local/code-no-any-casts
   169: 					// eslint-disable-next-line local/code-no-any-casts
-
-src/vs/workbench/api/common/extHostTunnelService.ts:
-  133: 					// eslint-disable-next-line local/code-no-any-casts
 
 src/vs/workbench/api/common/extHostTypeConverters.ts:
    463: 				// eslint-disable-next-line local/code-no-any-casts
@@ -889,9 +790,6 @@ src/vs/workbench/api/test/browser/extHostTextEditor.test.ts:
   327: 		// eslint-disable-next-line local/code-no-any-casts
   340: 		// eslint-disable-next-line local/code-no-any-casts
 
-src/vs/workbench/api/test/browser/extHostTreeViews.test.ts:
-  771: 			// eslint-disable-next-line local/code-no-any-casts
-
 src/vs/workbench/api/test/browser/extHostTypes.test.ts:
    87: 		// eslint-disable-next-line local/code-no-any-casts
    89: 		// eslint-disable-next-line local/code-no-any-casts
@@ -905,17 +803,6 @@ src/vs/workbench/api/test/browser/extHostWorkspace.test.ts:
 src/vs/workbench/api/test/browser/mainThreadAuthentication.integrationTest.ts:
   115: 			// eslint-disable-next-line local/code-no-any-casts
   122: 			// eslint-disable-next-line local/code-no-any-casts
-
-src/vs/workbench/api/test/browser/mainThreadChatSessions.test.ts:
-  141: 		// eslint-disable-next-line local/code-no-any-casts
-  215: 		// eslint-disable-next-line local/code-no-any-casts
-  230: 		// eslint-disable-next-line local/code-no-any-casts
-  307: 		// eslint-disable-next-line local/code-no-any-casts
-  310: 		// eslint-disable-next-line local/code-no-any-casts
-  313: 		// eslint-disable-next-line local/code-no-any-casts
-  316: 		// eslint-disable-next-line local/code-no-any-casts
-  508: 		// eslint-disable-next-line local/code-no-any-casts
-  512: 		// eslint-disable-next-line local/code-no-any-casts
 
 src/vs/workbench/api/test/browser/mainThreadDocumentsAndEditors.test.ts:
   86: 			// eslint-disable-next-line local/code-no-any-casts
@@ -976,10 +863,6 @@ src/vs/workbench/contrib/chat/browser/chatEditing/chatEditingServiceImpl.ts:
 src/vs/workbench/contrib/chat/browser/chatSessions/common.ts:
   126: 		// eslint-disable-next-line local/code-no-any-casts
 
-src/vs/workbench/contrib/chat/common/chatAgents.ts:
-  746: 			// eslint-disable-next-line local/code-no-any-casts
-  748: 			// eslint-disable-next-line local/code-no-any-casts
-
 src/vs/workbench/contrib/chat/common/chatModel.ts:
   1214: 	// eslint-disable-next-line local/code-no-any-casts
   1531: 				// eslint-disable-next-line local/code-no-any-casts
@@ -1017,39 +900,31 @@ src/vs/workbench/contrib/chat/test/browser/chatTodoListWidget.test.ts:
   144: 		// eslint-disable-next-line local/code-no-any-casts
 
 src/vs/workbench/contrib/chat/test/common/chatRequestParser.test.ts:
-   48: 		// eslint-disable-next-line local/code-no-any-casts
-   75: 		// eslint-disable-next-line local/code-no-any-casts
-   87: 		// eslint-disable-next-line local/code-no-any-casts
-   99: 		// eslint-disable-next-line local/code-no-any-casts
-  111: 		// eslint-disable-next-line local/code-no-any-casts
-  123: 		// eslint-disable-next-line local/code-no-any-casts
-  135: 		// eslint-disable-next-line local/code-no-any-casts
-  145: 		// eslint-disable-next-line local/code-no-any-casts
-  157: 		// eslint-disable-next-line local/code-no-any-casts
-  167: 		// eslint-disable-next-line local/code-no-any-casts
-  179: 		// eslint-disable-next-line local/code-no-any-casts
-  189: 		// eslint-disable-next-line local/code-no-any-casts
-  201: 		// eslint-disable-next-line local/code-no-any-casts
-  211: 		// eslint-disable-next-line local/code-no-any-casts
-  256: 		// eslint-disable-next-line local/code-no-any-casts
-  267: 		// eslint-disable-next-line local/code-no-any-casts
-  278: 		// eslint-disable-next-line local/code-no-any-casts
-  289: 		// eslint-disable-next-line local/code-no-any-casts
-  300: 		// eslint-disable-next-line local/code-no-any-casts
-  311: 		// eslint-disable-next-line local/code-no-any-casts
-  322: 		// eslint-disable-next-line local/code-no-any-casts
-  333: 		// eslint-disable-next-line local/code-no-any-casts
-  349: 		// eslint-disable-next-line local/code-no-any-casts
+   72: 		// eslint-disable-next-line local/code-no-any-casts
+   84: 		// eslint-disable-next-line local/code-no-any-casts
+   96: 		// eslint-disable-next-line local/code-no-any-casts
+  108: 		// eslint-disable-next-line local/code-no-any-casts
+  120: 		// eslint-disable-next-line local/code-no-any-casts
+  132: 		// eslint-disable-next-line local/code-no-any-casts
+  142: 		// eslint-disable-next-line local/code-no-any-casts
+  154: 		// eslint-disable-next-line local/code-no-any-casts
+  164: 		// eslint-disable-next-line local/code-no-any-casts
+  176: 		// eslint-disable-next-line local/code-no-any-casts
+  186: 		// eslint-disable-next-line local/code-no-any-casts
+  198: 		// eslint-disable-next-line local/code-no-any-casts
+  208: 		// eslint-disable-next-line local/code-no-any-casts
+  253: 		// eslint-disable-next-line local/code-no-any-casts
+  264: 		// eslint-disable-next-line local/code-no-any-casts
+  275: 		// eslint-disable-next-line local/code-no-any-casts
+  286: 		// eslint-disable-next-line local/code-no-any-casts
+  297: 		// eslint-disable-next-line local/code-no-any-casts
+  308: 		// eslint-disable-next-line local/code-no-any-casts
+  319: 		// eslint-disable-next-line local/code-no-any-casts
+  330: 		// eslint-disable-next-line local/code-no-any-casts
+  346: 		// eslint-disable-next-line local/code-no-any-casts
 
 src/vs/workbench/contrib/chat/test/common/tools/manageTodoListTool.test.ts:
   16: 		// eslint-disable-next-line local/code-no-any-casts
-
-src/vs/workbench/contrib/comments/browser/commentThreadWidget.ts:
-  189: 			// eslint-disable-next-line local/code-no-any-casts
-  196: 			// eslint-disable-next-line local/code-no-any-casts
-
-src/vs/workbench/contrib/comments/test/browser/commentsView.test.ts:
-  93: 			// eslint-disable-next-line local/code-no-any-casts
 
 src/vs/workbench/contrib/debug/browser/debugSession.ts:
   1193: 						// eslint-disable-next-line local/code-no-any-casts
@@ -1264,20 +1139,20 @@ src/vs/workbench/contrib/searchEditor/browser/searchEditorInput.ts:
   328: 			// eslint-disable-next-line local/code-no-any-casts
 
 src/vs/workbench/contrib/tasks/browser/abstractTaskService.ts:
-  1491: 		// eslint-disable-next-line local/code-no-any-casts
-  1500: 			// eslint-disable-next-line local/code-no-any-casts
-  1539: 			// eslint-disable-next-line local/code-no-any-casts
-  1585: 			// eslint-disable-next-line local/code-no-any-casts
-  1739: 			// eslint-disable-next-line local/code-no-any-casts
-  1786: 				// eslint-disable-next-line local/code-no-any-casts
-  1789: 					// eslint-disable-next-line local/code-no-any-casts
-  2641: 		// eslint-disable-next-line local/code-no-any-casts
-  2822: 		// eslint-disable-next-line local/code-no-any-casts
-  3554: 				// eslint-disable-next-line local/code-no-any-casts
-  3588: 		// eslint-disable-next-line local/code-no-any-casts
-  3594: 		// eslint-disable-next-line local/code-no-any-casts
-  3723: 					// eslint-disable-next-line local/code-no-any-casts
-  3782: 								// eslint-disable-next-line local/code-no-any-casts
+  1492: 		// eslint-disable-next-line local/code-no-any-casts
+  1501: 			// eslint-disable-next-line local/code-no-any-casts
+  1540: 			// eslint-disable-next-line local/code-no-any-casts
+  1586: 			// eslint-disable-next-line local/code-no-any-casts
+  1740: 			// eslint-disable-next-line local/code-no-any-casts
+  1787: 				// eslint-disable-next-line local/code-no-any-casts
+  1790: 					// eslint-disable-next-line local/code-no-any-casts
+  2656: 		// eslint-disable-next-line local/code-no-any-casts
+  2837: 		// eslint-disable-next-line local/code-no-any-casts
+  3569: 				// eslint-disable-next-line local/code-no-any-casts
+  3603: 		// eslint-disable-next-line local/code-no-any-casts
+  3609: 		// eslint-disable-next-line local/code-no-any-casts
+  3738: 					// eslint-disable-next-line local/code-no-any-casts
+  3797: 								// eslint-disable-next-line local/code-no-any-casts
 
 src/vs/workbench/contrib/tasks/common/problemMatcher.ts:
    361: 			// eslint-disable-next-line local/code-no-any-casts
@@ -1331,21 +1206,21 @@ src/vs/workbench/contrib/terminal/test/browser/terminalService.test.ts:
   178: 	// eslint-disable-next-line local/code-no-any-casts
 
 src/vs/workbench/contrib/terminal/test/browser/capabilities/terminalCapabilityStore.test.ts:
-   31: 		// eslint-disable-next-line local/code-no-any-casts
-   37: 		// eslint-disable-next-line local/code-no-any-casts
-   45: 		// eslint-disable-next-line local/code-no-any-casts
+   28: 		// eslint-disable-next-line local/code-no-any-casts
+   34: 		// eslint-disable-next-line local/code-no-any-casts
+   42: 		// eslint-disable-next-line local/code-no-any-casts
+   50: 		// eslint-disable-next-line local/code-no-any-casts
    53: 		// eslint-disable-next-line local/code-no-any-casts
-   56: 		// eslint-disable-next-line local/code-no-any-casts
-   91: 		// eslint-disable-next-line local/code-no-any-casts
    94: 		// eslint-disable-next-line local/code-no-any-casts
-  102: 		// eslint-disable-next-line local/code-no-any-casts
-  104: 		// eslint-disable-next-line local/code-no-any-casts
-  114: 		// eslint-disable-next-line local/code-no-any-casts
+   97: 		// eslint-disable-next-line local/code-no-any-casts
+  105: 		// eslint-disable-next-line local/code-no-any-casts
+  107: 		// eslint-disable-next-line local/code-no-any-casts
   117: 		// eslint-disable-next-line local/code-no-any-casts
-  127: 		// eslint-disable-next-line local/code-no-any-casts
+  120: 		// eslint-disable-next-line local/code-no-any-casts
   130: 		// eslint-disable-next-line local/code-no-any-casts
-  132: 		// eslint-disable-next-line local/code-no-any-casts
-  141: 		// eslint-disable-next-line local/code-no-any-casts
+  133: 		// eslint-disable-next-line local/code-no-any-casts
+  135: 		// eslint-disable-next-line local/code-no-any-casts
+  144: 		// eslint-disable-next-line local/code-no-any-casts
 
 src/vs/workbench/contrib/terminal/test/browser/xterm/shellIntegrationAddon.integrationTest.ts:
    59: 		// eslint-disable-next-line local/code-no-any-casts
@@ -1374,16 +1249,9 @@ src/vs/workbench/contrib/terminalContrib/chatAgentTools/test/browser/runInTermin
   857: 			// eslint-disable-next-line local/code-no-any-casts
   862: 			// eslint-disable-next-line local/code-no-any-casts
 
-src/vs/workbench/contrib/terminalContrib/developer/browser/terminal.developer.contribution.ts:
-  94: 		// eslint-disable-next-line local/code-no-any-casts
-
 src/vs/workbench/contrib/terminalContrib/history/test/common/history.test.ts:
   102: 			// eslint-disable-next-line local/code-no-any-casts
   108: 			// eslint-disable-next-line local/code-no-any-casts
-
-src/vs/workbench/contrib/terminalContrib/links/browser/terminalLinkManager.ts:
-  152: 					// eslint-disable-next-line local/code-no-any-casts
-  351: 		// eslint-disable-next-line local/code-no-any-casts
 
 src/vs/workbench/contrib/terminalContrib/links/test/browser/terminalLinkHelpers.test.ts:
   242: 		// eslint-disable-next-line local/code-no-any-casts
@@ -1408,22 +1276,11 @@ src/vs/workbench/contrib/terminalContrib/links/test/browser/terminalWordLinkDete
   136: 		// eslint-disable-next-line local/code-no-any-casts
   142: 		// eslint-disable-next-line local/code-no-any-casts
 
-src/vs/workbench/contrib/terminalContrib/stickyScroll/browser/terminalStickyScrollOverlay.ts:
-  409: 		// eslint-disable-next-line local/code-no-any-casts
-
 src/vs/workbench/contrib/terminalContrib/suggest/browser/terminalSuggestAddon.ts:
-  685: 		// eslint-disable-next-line local/code-no-any-casts
-  711: 		// eslint-disable-next-line local/code-no-any-casts
-  786: 			// eslint-disable-next-line local/code-no-any-casts
-
-src/vs/workbench/contrib/terminalContrib/typeAhead/browser/terminalTypeAheadAddon.ts:
-  53: // eslint-disable-next-line local/code-no-any-casts
+  787: 			// eslint-disable-next-line local/code-no-any-casts
 
 src/vs/workbench/contrib/terminalContrib/typeAhead/test/browser/terminalTypeAhead.test.ts:
   39: 			// eslint-disable-next-line local/code-no-any-casts
-
-src/vs/workbench/contrib/terminalContrib/zoom/browser/terminal.zoom.contribution.ts:
-  75: 			// eslint-disable-next-line local/code-no-any-casts
 
 src/vs/workbench/contrib/testing/browser/testResultsView/testResultsOutput.ts:
   123: 			// eslint-disable-next-line local/code-no-any-casts
@@ -1464,10 +1321,6 @@ src/vs/workbench/contrib/testing/test/common/testStubs.ts:
 src/vs/workbench/contrib/themes/browser/themes.contribution.ts:
   614: 	// eslint-disable-next-line local/code-no-any-casts
 
-src/vs/workbench/contrib/update/test/browser/releaseNotesRenderer.test.ts:
-  68: 			// eslint-disable-next-line local/code-no-any-casts
-  91: 					// eslint-disable-next-line local/code-no-any-casts
-
 src/vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedService.ts:
   600: 		// eslint-disable-next-line local/code-no-any-casts
 
@@ -1481,12 +1334,6 @@ src/vs/workbench/services/configurationResolver/common/configurationResolverExpr
    81: 			// eslint-disable-next-line local/code-no-any-casts
   106: 		// eslint-disable-next-line local/code-no-any-casts
   306: 			// eslint-disable-next-line local/code-no-any-casts
-
-src/vs/workbench/services/configurationResolver/common/variableResolver.ts:
-  93: 		// eslint-disable-next-line local/code-no-any-casts
-
-src/vs/workbench/services/configurationResolver/test/electron-browser/configurationResolverService.test.ts:
-  516: 				// eslint-disable-next-line local/code-no-any-casts
 
 src/vs/workbench/services/driver/browser/driver.ts:
   193: 		// eslint-disable-next-line local/code-no-any-casts
@@ -1512,14 +1359,6 @@ src/vs/workbench/services/extensions/test/common/rpcProtocol.test.ts:
 
 src/vs/workbench/services/extensions/worker/polyfillNestedWorker.ts:
   47: 		// eslint-disable-next-line local/code-no-any-casts
-
-src/vs/workbench/services/remote/common/tunnelModel.ts:
-  255: 		// eslint-disable-next-line local/code-no-any-casts
-  260: 		// eslint-disable-next-line local/code-no-any-casts
-  262: 			// eslint-disable-next-line local/code-no-any-casts
-  298: 			// eslint-disable-next-line local/code-no-any-casts
-  335: 		// eslint-disable-next-line local/code-no-any-casts
-  398: 			// eslint-disable-next-line local/code-no-any-casts
 
 src/vs/workbench/services/search/common/search.ts:
   628: 	// eslint-disable-next-line local/code-no-any-casts
@@ -1584,11 +1423,11 @@ src/vs/workbench/test/browser/window.test.ts:
   42: 				// eslint-disable-next-line local/code-no-any-casts
 
 src/vs/workbench/test/browser/workbenchTestServices.ts:
-   305: 	// eslint-disable-next-line local/code-no-any-casts
-   697: // eslint-disable-next-line local/code-no-any-casts
-  1064: 	// eslint-disable-next-line local/code-no-any-casts
-  1967: 	// eslint-disable-next-line local/code-no-any-casts
-  1985: 			// eslint-disable-next-line local/code-no-any-casts
+   304: 	// eslint-disable-next-line local/code-no-any-casts
+   696: // eslint-disable-next-line local/code-no-any-casts
+  1063: 	// eslint-disable-next-line local/code-no-any-casts
+  1966: 	// eslint-disable-next-line local/code-no-any-casts
+  1984: 			// eslint-disable-next-line local/code-no-any-casts
 
 src/vs/workbench/test/browser/parts/editor/editorInput.test.ts:
   98: 		// eslint-disable-next-line local/code-no-any-casts
@@ -1609,7 +1448,7 @@ src/vs/workbench/test/common/resources.test.ts:
   72: 		// eslint-disable-next-line local/code-no-any-casts
 
 src/vs/workbench/test/common/workbenchTestServices.ts:
-  291: 	// eslint-disable-next-line local/code-no-any-casts
+  293: 	// eslint-disable-next-line local/code-no-any-casts
 
 src/vs/workbench/test/electron-browser/workbenchTestServices.ts:
   255: 		// eslint-disable-next-line local/code-no-any-casts

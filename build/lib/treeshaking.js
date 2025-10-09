@@ -231,19 +231,15 @@ var NodeColor;
     NodeColor[NodeColor["Black"] = 2] = "Black";
 })(NodeColor || (NodeColor = {}));
 function getColor(node) {
-    // eslint-disable-next-line local/code-no-any-casts
     return node.$$$color || 0 /* NodeColor.White */;
 }
 function setColor(node, color) {
-    // eslint-disable-next-line local/code-no-any-casts
     node.$$$color = color;
 }
 function markNeededSourceFile(node) {
-    // eslint-disable-next-line local/code-no-any-casts
     node.$$$neededSourceFile = true;
 }
 function isNeededSourceFile(node) {
-    // eslint-disable-next-line local/code-no-any-casts
     return Boolean(node.$$$neededSourceFile);
 }
 function nodeOrParentIsBlack(node) {
@@ -566,12 +562,10 @@ function markNodes(ts, languageService, options) {
         if (nodeOrParentIsBlack(node)) {
             continue;
         }
-        // eslint-disable-next-line local/code-no-any-casts
-        const symbol = node.symbol;
-        if (!symbol) {
+        if (!node.symbol) {
             continue;
         }
-        const aliased = checker.getAliasedSymbol(symbol);
+        const aliased = checker.getAliasedSymbol(node.symbol);
         if (aliased.declarations && aliased.declarations.length > 0) {
             if (nodeOrParentIsBlack(aliased.declarations[0]) || nodeOrChildIsBlack(aliased.declarations[0])) {
                 setColor(node, 2 /* NodeColor.Black */);
@@ -774,12 +768,6 @@ class SymbolImportTuple {
  * Returns the node's symbol and the `import` node (if the symbol resolved from a different module)
  */
 function getRealNodeSymbol(ts, checker, node) {
-    // eslint-disable-next-line local/code-no-any-casts
-    const getPropertySymbolsFromContextualType = ts.getPropertySymbolsFromContextualType;
-    // eslint-disable-next-line local/code-no-any-casts
-    const getContainingObjectLiteralElement = ts.getContainingObjectLiteralElement;
-    // eslint-disable-next-line local/code-no-any-casts
-    const getNameFromPropertyName = ts.getNameFromPropertyName;
     // Go to the original declaration for cases:
     //
     //   (1) when the aliased symbol was declared in the location(parent).
@@ -846,7 +834,7 @@ function getRealNodeSymbol(ts, checker, node) {
         //      bar<Test>(({pr/*goto*/op1})=>{});
         if (ts.isPropertyName(node) && ts.isBindingElement(parent) && ts.isObjectBindingPattern(parent.parent) &&
             (node === (parent.propertyName || parent.name))) {
-            const name = getNameFromPropertyName(node);
+            const name = ts.getNameFromPropertyName(node);
             const type = checker.getTypeAtLocation(parent.parent);
             if (name && type) {
                 if (type.isUnion()) {
@@ -869,11 +857,11 @@ function getRealNodeSymbol(ts, checker, node) {
         //      }
         //      function Foo(arg: Props) {}
         //      Foo( { pr/*1*/op1: 10, prop2: false })
-        const element = getContainingObjectLiteralElement(node);
+        const element = ts.getContainingObjectLiteralElement(node);
         if (element) {
             const contextualType = element && checker.getContextualType(element.parent);
             if (contextualType) {
-                const propertySymbols = getPropertySymbolsFromContextualType(element, checker, contextualType, /*unionSymbolOk*/ false);
+                const propertySymbols = ts.getPropertySymbolsFromContextualType(element, checker, contextualType, /*unionSymbolOk*/ false);
                 if (propertySymbols) {
                     symbol = propertySymbols[0];
                 }

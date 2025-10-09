@@ -1417,6 +1417,8 @@ export class InlineChatController2 implements IEditorContribution {
 								return;
 							}
 
+							responseListener.value = undefined; // listen only ONCE
+
 							const shouldShow = response.isCanceled // cancelled
 								|| response.result?.errorDetails // errors
 								|| !response.response.value.find(part => part.kind === 'textEditGroup'
