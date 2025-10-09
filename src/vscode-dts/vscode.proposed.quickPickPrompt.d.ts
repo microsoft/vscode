@@ -18,6 +18,6 @@ declare module 'vscode' {
 		/**
 		 * An optional prompt text providing some ask or explanation to the user.
 		 */
-		prompt: string | undefined;
+		prompt?: string;
 	}
 }
