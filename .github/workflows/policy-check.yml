@@ -156,12 +156,12 @@ jobs:
       - name: Prepare node_modules cache key
         shell: pwsh
         run: |
-          mkdir -Force .build
-          node build/azure-pipelines/common/computeNodeModulesCacheKey.js win32 $env:VSCODE_ARCH x64 > .build/packagelockhash
+          mkdir .build -ea 0
+          node build/azure-pipelines/common/computeNodeModulesCacheKey.js win32 ${{ env.VSCODE_ARCH }} $(node -p process.arch) > .build/packagelockhash
 
       - name: Restore node_modules cache
-        id: cache-node-modules
         uses: actions/cache/restore@v4
+        id: node-modules-cache
         with:
           path: .build/node_modules_cache
           key: "node_modules-windows-${{ hashFiles('.build/packagelockhash') }}"
