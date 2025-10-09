@@ -41,7 +41,9 @@ export interface IWorkbenchQuickAccessConfiguration {
 			readonly preserveInput: boolean;
 		};
 	};
-}export function getQuickNavigateHandler(id: string, next?: boolean): ICommandHandler {
+}
+
+export function getQuickNavigateHandler(id: string, next?: boolean): ICommandHandler {
 	return accessor => {
 		const keybindingService = accessor.get(IKeybindingService);
 		const quickInputService = accessor.get(IQuickInputService);
