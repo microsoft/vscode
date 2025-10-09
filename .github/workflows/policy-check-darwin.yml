@@ -96,6 +96,9 @@ jobs:
         if: steps.cache-builtin-extensions.outputs.cache-hit != 'true'
         run: node build/lib/builtInExtensions.js
 
+      - name: Transpile client and extensions
+        run: npm run gulp transpile-client-esbuild transpile-extensions
+
       - name: Download Electron
         run: |
           set -e
@@ -112,16 +115,8 @@ jobs:
             sleep 5
           done
 
-      - name: Build and minify client
-        run: npm run gulp vscode-darwin-$VSCODE_ARCH-min
-
       - name: Generate policy definitions
-        run: |
-          set -e
-          APP_ROOT="../VSCode-darwin-$VSCODE_ARCH"
-          APP_NAME="$(ls $APP_ROOT | head -n 1)"
-          APP_PATH="$APP_ROOT/$APP_NAME"
-          "$APP_PATH/Contents/Resources/app/bin/code" --disable-gpu --wait --transient --export-policy-type=darwin
+        run: ./scripts/code.sh --disable-gpu --wait --transient --export-policy-type=darwin
         timeout-minutes: 5
 
       - name: Verify policy files

@@ -98,6 +98,10 @@ jobs:
         if: steps.cache-builtin-extensions.outputs.cache-hit != 'true'
         run: node build/lib/builtInExtensions.js
 
+      - name: Transpile client and extensions
+        shell: pwsh
+        run: npm run gulp "transpile-client-esbuild" "transpile-extensions"
+
       - name: Download Electron
         shell: pwsh
         run: |
@@ -117,24 +121,10 @@ jobs:
             }
           }
 
-      - name: Build and minify client
-        shell: pwsh
-        run: |
-          . build/azure-pipelines/win32/exec.ps1
-          $ErrorActionPreference = "Stop"
-          exec { npm run gulp "vscode-win32-$env:VSCODE_ARCH-min" }
-          exec { npm run gulp "vscode-win32-$env:VSCODE_ARCH-inno-updater" }
-
       - name: Generate policy definitions
         shell: pwsh
         timeout-minutes: 5
-        run: |
-          . build/azure-pipelines/win32/exec.ps1
-          $ErrorActionPreference = "Stop"
-          # Create policies directory
-          exec { mkdir -Force .build }
-          $VSCodePath = "..\VSCode-win32-$env:VSCODE_ARCH\Code.exe"
-          & $VSCodePath --disable-gpu --wait --transient --export-policy-type="win32"
+        run: .\scripts\code.bat --disable-gpu --wait --transient --export-policy-type="win32"
 
       - name: Verify policy files
         shell: pwsh
