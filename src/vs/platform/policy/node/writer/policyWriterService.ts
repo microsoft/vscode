@@ -84,6 +84,17 @@ export class PolicyWriterService implements IPolicyWriterService {
 		await fs.writeFile(admxPath, admx.replace(/\r?\n/g, '\n'));
 		console.log(`Created .admx file: ${path.resolve(admxPath)}`);
 
+		// Verify file exists using shell command
+		const { exec } = await import('child_process');
+		const { promisify } = await import('util');
+		const execAsync = promisify(exec);
+		try {
+			await execAsync(`test -f "${admxPath}" && echo "File exists" || exit 1`);
+			console.log(`Shell verified .admx file exists: ${path.resolve(admxPath)}`);
+		} catch (error) {
+			throw new Error(`Shell verification failed - .admx file does not exist: ${path.resolve(admxPath)}`);
+		}
+
 		for (const { languageId, contents } of adml) {
 			const languagePath = path.join(root, languageId === 'en-us' ? 'en-us' : Languages[languageId as keyof typeof Languages]);
 			await fs.mkdir(languagePath, { recursive: true });
