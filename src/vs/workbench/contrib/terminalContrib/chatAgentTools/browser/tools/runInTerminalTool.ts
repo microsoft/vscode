@@ -626,17 +626,17 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 
 		// When setting is null, use the previous behavior
-		const defaultShell = await this._terminalProfileResolverService.getDefaultShell({
+		const defaultProfile = await this._terminalProfileResolverService.getDefaultProfile({
 			os,
 			remoteAuthority: this._remoteAgentService.getConnection()?.remoteAuthority
 		});
 
 		// Force pwsh over cmd as cmd doesn't have shell integration
-		if (basename(defaultShell) === 'cmd.exe') {
+		if (basename(defaultProfile.path) === 'cmd.exe') {
 			return 'C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe';
 		}
 
-		return defaultShell;
+		return defaultProfile;
 	}
 
 	private async _getCopilotShell(): Promise<string> {
