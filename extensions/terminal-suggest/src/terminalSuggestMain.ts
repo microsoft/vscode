@@ -316,7 +316,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 			return result.items;
 		}
-	}, '/', '\\'));
+	}, { description: 'Provides completions for terminal commands, arguments, flags, and file paths based upon the Fig spec' }, '/', '\\'));
 	await watchPathDirectories(context, currentTerminalEnv, pathExecutableCache);
 
 	context.subscriptions.push(vscode.commands.registerCommand('terminal.integrated.suggest.clearCachedGlobals', () => {
