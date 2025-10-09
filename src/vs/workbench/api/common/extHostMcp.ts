@@ -398,12 +398,19 @@ export class McpHTTPHandle extends Disposable {
 		this._log(LogLevel.Info, 'Using default auth metadata');
 	}
 
-	private _isValidJsonResponse(response: CommonResponse): boolean {
+	private async _tryParseAuthServerMetadata(response: CommonResponse): Promise<IAuthorizationServerMetadata | undefined> {
 		if (response.status !== 200) {
-			return false;
+			return undefined;
 		}
-		const contentType = response.headers.get('Content-Type')?.toLowerCase() || '';
-		return contentType.includes('application/json');
+		try {
+			const body = await response.json();
+			if (isAuthorizationServerMetadata(body)) {
+				return body;
+			}
+		} catch {
+			// Failed to parse as JSON or not valid metadata
+		}
+		return undefined;
 	}
 
 	private async _getAuthorizationServerMetadata(authorizationServer: string, addtionalHeaders: Record<string, string>): Promise<IAuthorizationServerMetadata> {
@@ -422,7 +429,8 @@ export class McpHTTPHandle extends Disposable {
 				'MCP-Protocol-Version': MCP.LATEST_PROTOCOL_VERSION,
 			}
 		});
-		if (!this._isValidJsonResponse(authServerMetadataResponse)) {
+		let metadata = await this._tryParseAuthServerMetadata(authServerMetadataResponse);
+		if (!metadata) {
 			// Try fetching the OpenID Connect Discovery with path insertion.
 			// For issuer URLs with path components, this inserts the well-known path
 			// after the origin and before the path.
@@ -436,7 +444,8 @@ export class McpHTTPHandle extends Disposable {
 					'MCP-Protocol-Version': MCP.LATEST_PROTOCOL_VERSION
 				}
 			});
-			if (!this._isValidJsonResponse(authServerMetadataResponse)) {
+			metadata = await this._tryParseAuthServerMetadata(authServerMetadataResponse);
+			if (!metadata) {
 				// Try fetching the other discovery URL. For the openid metadata discovery
 				// path, we _ADD_ the well known path after the existing path.
 				// https://datatracker.ietf.org/doc/html/rfc8414#section-3
@@ -450,16 +459,13 @@ export class McpHTTPHandle extends Disposable {
 						'MCP-Protocol-Version': MCP.LATEST_PROTOCOL_VERSION
 					}
 				});
-				if (!this._isValidJsonResponse(authServerMetadataResponse)) {
+				metadata = await this._tryParseAuthServerMetadata(authServerMetadataResponse);
+				if (!metadata) {
 					throw new Error(`Failed to fetch authorization server metadata: ${authServerMetadataResponse.status} ${await this._getErrText(authServerMetadataResponse)}`);
 				}
 			}
 		}
-		const body = await authServerMetadataResponse.json();
-		if (isAuthorizationServerMetadata(body)) {
-			return body;
-		}
-		throw new Error(`Invalid authorization server metadata: ${JSON.stringify(body)}`);
+		return metadata;
 	}
 
 	private async _handleSuccessfulStreamableHttp(res: CommonResponse, message: string) {
