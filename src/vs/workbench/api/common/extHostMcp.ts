@@ -398,6 +398,14 @@ export class McpHTTPHandle extends Disposable {
 		this._log(LogLevel.Info, 'Using default auth metadata');
 	}
 
+	private _isValidJsonResponse(response: CommonResponse): boolean {
+		if (response.status !== 200) {
+			return false;
+		}
+		const contentType = response.headers.get('Content-Type')?.toLowerCase() || '';
+		return contentType.includes('application/json');
+	}
+
 	private async _getAuthorizationServerMetadata(authorizationServer: string, addtionalHeaders: Record<string, string>): Promise<IAuthorizationServerMetadata> {
 		// For the oauth server metadata discovery path, we _INSERT_
 		// the well known path after the origin and before the path.
@@ -414,7 +422,7 @@ export class McpHTTPHandle extends Disposable {
 				'MCP-Protocol-Version': MCP.LATEST_PROTOCOL_VERSION,
 			}
 		});
-		if (authServerMetadataResponse.status !== 200) {
+		if (!this._isValidJsonResponse(authServerMetadataResponse)) {
 			// Try fetching the OpenID Connect Discovery with path insertion.
 			// For issuer URLs with path components, this inserts the well-known path
 			// after the origin and before the path.
@@ -428,7 +436,7 @@ export class McpHTTPHandle extends Disposable {
 					'MCP-Protocol-Version': MCP.LATEST_PROTOCOL_VERSION
 				}
 			});
-			if (authServerMetadataResponse.status !== 200) {
+			if (!this._isValidJsonResponse(authServerMetadataResponse)) {
 				// Try fetching the other discovery URL. For the openid metadata discovery
 				// path, we _ADD_ the well known path after the existing path.
 				// https://datatracker.ietf.org/doc/html/rfc8414#section-3
@@ -442,17 +450,10 @@ export class McpHTTPHandle extends Disposable {
 						'MCP-Protocol-Version': MCP.LATEST_PROTOCOL_VERSION
 					}
 				});
-				if (authServerMetadataResponse.status !== 200) {
+				if (!this._isValidJsonResponse(authServerMetadataResponse)) {
 					throw new Error(`Failed to fetch authorization server metadata: ${authServerMetadataResponse.status} ${await this._getErrText(authServerMetadataResponse)}`);
 				}
 			}
-		}
-		// Check Content-Type to ensure we received JSON before attempting to parse.
-		// Some servers may return 200 with HTML content (e.g., a login page) instead of JSON metadata.
-		// In such cases, we want to fail gracefully and fall back to default metadata based on the MCP server's base URL.
-		const contentType = authServerMetadataResponse.headers.get('Content-Type')?.toLowerCase() || '';
-		if (!contentType.includes('application/json')) {
-			throw new Error(`Authorization server metadata endpoint returned non-JSON content type: ${contentType || 'none'}`);
 		}
 		const body = await authServerMetadataResponse.json();
 		if (isAuthorizationServerMetadata(body)) {
