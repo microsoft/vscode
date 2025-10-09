@@ -492,6 +492,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.commandPalette.showAskChat': {
 				'type': 'boolean',
+				tags: ['experimental'],
 				'description': localize('showAskChat', "Controls whether the command palette shows 'Ask Chat' option at the bottom."),
 				'default': true
 			},
