@@ -139,7 +139,7 @@ jobs:
 
   win32-policy:
     name: Policy Check (Windows)
-    runs-on: [ self-hosted, 1ES.Pool=1es-windows-2022-x64 ]
+    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-windows-2022-x64 ]
     timeout-minutes: 40
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
