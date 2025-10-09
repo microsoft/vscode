@@ -651,7 +651,7 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 
 	set prompt(prompt: string | undefined) {
 		this.noValidationMessage = prompt;
-		this.update();
+		this.		this.update();
 	}
 
 	onDidChangeValue = this.onDidChangeValueEmitter.event;
