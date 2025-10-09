@@ -98,9 +98,6 @@ jobs:
         if: steps.cache-builtin-extensions.outputs.cache-hit != 'true'
         run: node build/lib/builtInExtensions.js
 
-      - name: Transpile client and extensions
-        run: npm run gulp transpile-client-esbuild transpile-extensions
-
       - name: Download Electron
         shell: pwsh
         run: |
@@ -120,12 +117,12 @@ jobs:
             }
           }
 
-      - name: Build client
+      - name: Build and minify client
         shell: pwsh
         run: |
           . build/azure-pipelines/win32/exec.ps1
           $ErrorActionPreference = "Stop"
-          exec { npm run gulp "vscode-win32-$env:VSCODE_ARCH-min-ci" }
+          exec { npm run gulp "vscode-win32-$env:VSCODE_ARCH-min" }
           exec { npm run gulp "vscode-win32-$env:VSCODE_ARCH-inno-updater" }
 
       - name: Generate policy definitions

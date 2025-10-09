@@ -96,12 +96,6 @@ jobs:
         if: steps.cache-builtin-extensions.outputs.cache-hit != 'true'
         run: node build/lib/builtInExtensions.js
 
-      - name: Compile client
-        run: npm run gulp compile-client compile-extensions
-
-      - name: Transpile client and extensions
-        run: npm run gulp transpile-client-esbuild transpile-extensions
-
       - name: Download Electron
         run: |
           set -e
@@ -118,8 +112,8 @@ jobs:
             sleep 5
           done
 
-      - name: Build client
-        run: npm run gulp vscode-darwin-$VSCODE_ARCH-min-ci
+      - name: Build and minify client
+        run: npm run gulp vscode-darwin-$VSCODE_ARCH-min
 
       - name: Generate policy definitions
         run: |
