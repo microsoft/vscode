@@ -168,7 +168,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 		}
 
 		// If enabled in settings, add "Ask Chat" option after a separator (if needed).
-		if (!this.configuration.experimental.hideAskChat) {
+		if (this.configuration.experimental.showAskChat) {
 			const defaultAgent = this.chatAgentService.getDefaultAgent(ChatAgentLocation.Chat);
 			if (defaultAgent) {
 				if (picksSoFar.length || additionalPicks.length) {
@@ -180,7 +180,15 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 				additionalPicks.push({
 					label: localize('askXInChat', "Ask {0}: {1}", defaultAgent.fullName, filter),
 					commandId: this.configuration.experimental.askChatLocation === 'quickChat' ? ASK_QUICK_QUESTION_ACTION_ID : CHAT_OPEN_ACTION_ID,
-					args: [filter]
+					args: [filter],
+					buttons: [{
+						iconClass: ThemeIcon.asClassName(Codicon.gear),
+						tooltip: localize('commandsQuickAccess.configureAskChatSetting', "Hide this item"),
+					}],
+					trigger: () => {
+						this.preferencesService.openSettings({ jsonEditor: false, query: 'workbench.commandPalette.experimental.showAskChat' });
+						return TriggerAction.CLOSE_PICKER;
+					},
 				});
 			}
 		}

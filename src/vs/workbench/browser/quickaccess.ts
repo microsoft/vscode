@@ -33,7 +33,7 @@ export interface IWorkbenchQuickAccessConfiguration {
 				readonly suggestCommands: boolean;
 				readonly enableNaturalLanguageSearch: boolean;
 				readonly askChatLocation: 'quickChat' | 'chatView';
-				readonly hideAskChat: boolean;
+				readonly showAskChat: boolean;
 			};
 		};
 		readonly quickOpen: {
