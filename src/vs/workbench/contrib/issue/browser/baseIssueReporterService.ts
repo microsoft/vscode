@@ -67,7 +67,7 @@ export class BaseIssueReporterService extends Disposable {
 	public selectedExtension = '';
 	public delayedSubmit = new Delayer<void>(300);
 	public publicGithubButton!: Button | ButtonWithDropdown;
-	public internalGithubButton!: Button | ButtonWithDropdown;
+	public internalGithubButton!: Button;
 	public nonGitHubIssueUrl = false;
 	public needsUpdate = false;
 	public acknowledged = false;
@@ -355,12 +355,8 @@ export class BaseIssueReporterService extends Disposable {
 			return;
 		}
 
-		// Dispose of the existing button
-		if (this.internalGithubButton) {
-			this.internalGithubButton.dispose();
-		}
-
-		if (this.data.githubAccessToken && this.data.privateUri) {
+		// create button if not already created.
+		if (!this.internalGithubButton) {
 			this.internalGithubButton = this._register(new Button(container, unthemedButtonStyles));
 			this._register(this.internalGithubButton.onDidClick(() => {
 				this.privateAction.run();
@@ -369,6 +365,9 @@ export class BaseIssueReporterService extends Disposable {
 			this.internalGithubButton.element.id = 'internal-create-btn';
 			this.internalGithubButton.element.classList.add('internal-create-subtle');
 			this.internalGithubButton.label = localize('createInternally', "Create Internally");
+		}
+
+		if (this.data.githubAccessToken && this.data.privateUri) {
 			this.internalGithubButton.enabled = true;
 			this.internalGithubButton.setTitle(this.data.privateUri.path!.slice(1));
 		}
