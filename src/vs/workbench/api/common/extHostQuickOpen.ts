@@ -68,9 +68,14 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 
 			const instance = ++this._instances;
 
+			if (options?.prompt) {
+				checkProposedApiEnabled(extension, 'quickPickPrompt');
+			}
+
 			const quickPickWidget = proxy.$show(instance, {
 				title: options?.title,
 				placeHolder: options?.placeHolder,
+				prompt: options?.prompt,
 				matchOnDescription: options?.matchOnDescription,
 				matchOnDetail: options?.matchOnDetail,
 				ignoreFocusLost: options?.ignoreFocusOut,

@@ -13,4 +13,11 @@ declare module 'vscode' {
 		 */
 		prompt: string | undefined;
 	}
+
+	export interface QuickPickOptions {
+		/**
+		 * An optional prompt text providing some ask or explanation to the user.
+		 */
+		prompt: string | undefined;
+	}
 }
