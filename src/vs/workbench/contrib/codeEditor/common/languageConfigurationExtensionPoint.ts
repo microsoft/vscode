@@ -8,7 +8,7 @@ import { ParseError, parse, getNodeType } from '../../../../base/common/json.js'
 import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 import * as types from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
-import { CharacterPair, CommentRule, EnterAction, ExplicitLanguageConfiguration, FoldingMarkers, FoldingRules, IAutoClosingPair, IAutoClosingPairConditional, IndentAction, IndentationRule, OnEnterRule } from '../../../../editor/common/languages/languageConfiguration.js';
+import { CharacterPair, CommentRule, EnterAction, ExplicitLanguageConfiguration, FoldingMarkers, FoldingRules, IAutoClosingPair, IAutoClosingPairConditional, IndentAction, IndentationRule, OnEnterRule, TextDirection } from '../../../../editor/common/languages/languageConfiguration.js';
 import { ILanguageConfigurationService } from '../../../../editor/common/languages/languageConfigurationRegistry.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { Extensions, IJSONContributionRegistry } from '../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
@@ -64,6 +64,7 @@ export interface ILanguageConfiguration {
 	};
 	autoCloseBefore?: string;
 	onEnterRules?: IOnEnterRule[];
+	textDirection?: TextDirection;
 }
 
 function isStringArr(something: string[] | null): something is string[] {
@@ -431,6 +432,7 @@ export class LanguageConfigurationFileHandler extends Disposable {
 			autoCloseBefore,
 			folding,
 			__electricCharacterSupport: undefined,
+			textDirection: configuration.textDirection,
 		};
 		return richEditConfig;
 	}

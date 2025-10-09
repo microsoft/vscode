@@ -7016,7 +7016,13 @@ declare namespace monaco.languages {
 		__electricCharacterSupport?: {
 			docComment?: IDocComment;
 		};
+		/**
+		* The text direction of the source code.
+		*/
+		textDirection?: TextDirection;
 	}
+
+	export type TextDirection = 'rtl' | 'ltr';
 
 	/**
 	 * Describes indentation rules for a language.
