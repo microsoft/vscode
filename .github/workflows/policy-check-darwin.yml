@@ -16,7 +16,7 @@ jobs:
   darwin-policy:
     name: Policy Check (macOS)
     runs-on: macos-14-xlarge
-    timeout-minutes: 30
+    timeout-minutes: 40
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       VSCODE_ARCH: arm64
@@ -96,6 +96,9 @@ jobs:
         if: steps.cache-builtin-extensions.outputs.cache-hit != 'true'
         run: node build/lib/builtInExtensions.js
 
+      - name: Compile client
+        run: npm run gulp compile-client compile-extensions
+
       - name: Transpile client and extensions
         run: npm run gulp transpile-client-esbuild transpile-extensions
 
@@ -117,18 +120,12 @@ jobs:
 
       - name: Build client
         run: npm run gulp vscode-darwin-$VSCODE_ARCH-min-ci
-        env:
-          VSCODE_MIXIN_PASSWORD: ${{ secrets.VSCODE_MIXIN_PASSWORD }}
 
       - name: Generate policy definitions
         run: |
           set -e
-          APP_ROOT="$(Agent.BuildDirectory)/VSCode-darwin-$VSCODE_ARCH"
-          if [ ! -d "$APP_ROOT" ]; then
-            # Try alternate location
-            APP_ROOT="../VSCode-darwin-$VSCODE_ARCH"
-          fi
-          APP_NAME="`ls $APP_ROOT | head -n 1`"
+          APP_ROOT="../VSCode-darwin-$VSCODE_ARCH"
+          APP_NAME="$(ls $APP_ROOT | head -n 1)"
           APP_PATH="$APP_ROOT/$APP_NAME"
           "$APP_PATH/Contents/Resources/app/bin/code" --disable-gpu --wait --transient --export-policy-type=darwin
         timeout-minutes: 5

@@ -16,7 +16,7 @@ jobs:
   win32-policy:
     name: Policy Check (Windows)
     runs-on: [ self-hosted, 1ES.Pool=1es-windows-2022-x64 ]
-    timeout-minutes: 30
+    timeout-minutes: 40
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       VSCODE_ARCH: x64
@@ -122,9 +122,11 @@ jobs:
 
       - name: Build client
         shell: pwsh
-        run: npm run gulp vscode-win32-$env:VSCODE_ARCH-min-ci
-        env:
-          VSCODE_MIXIN_PASSWORD: ${{ secrets.VSCODE_MIXIN_PASSWORD }}
+        run: |
+          . build/azure-pipelines/win32/exec.ps1
+          $ErrorActionPreference = "Stop"
+          exec { npm run gulp "vscode-win32-$env:VSCODE_ARCH-min-ci" }
+          exec { npm run gulp "vscode-win32-$env:VSCODE_ARCH-inno-updater" }
 
       - name: Generate policy definitions
         shell: pwsh
@@ -134,13 +136,7 @@ jobs:
           $ErrorActionPreference = "Stop"
           # Create policies directory
           exec { mkdir -Force .build }
-
-          $VSCodePath = "$(Get-Location)\..\VSCode-win32-$env:VSCODE_ARCH\Code.exe"
-          if (-not (Test-Path $VSCodePath)) {
-            # Try alternate location
-            $VSCodePath = "$env:Agent_BuildDirectory\VSCode-win32-$env:VSCODE_ARCH\Code.exe"
-          }
-
+          $VSCodePath = "..\VSCode-win32-$env:VSCODE_ARCH\Code.exe"
           & $VSCodePath --disable-gpu --wait --transient --export-policy-type="win32"
 
       - name: Verify policy files
