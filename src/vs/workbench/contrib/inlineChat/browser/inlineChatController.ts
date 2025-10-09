@@ -127,9 +127,12 @@ export class InlineChatController implements IEditorContribution {
 	constructor(
 		editor: ICodeEditor,
 		@IConfigurationService configurationService: IConfigurationService,
+		@INotebookEditorService private readonly _notebookEditorService: INotebookEditorService
 	) {
-
-		const inlineChat2 = observableConfigValue(InlineChatConfigKeys.EnableV2, false, configurationService);
+		const isNotebookCell = this._notebookEditorService.isCellEditor(editor);
+		const inlineChat2 = isNotebookCell
+			? observableConfigValue(InlineChatConfigKeys.EnableV2, false, configurationService)
+			: observableConfigValue(InlineChatConfigKeys.notebookAgent, false, configurationService);
 
 		this._delegate = derived(r => {
 			if (inlineChat2.read(r)) {
@@ -1315,16 +1318,14 @@ export class InlineChatController2 implements IEditorContribution {
 						location.location = ChatAgentLocation.Notebook;
 						notebookEditor = editor;
 						// set location2 so that the notebook agent intent is used
-						if (configurationService.getValue(InlineChatConfigKeys.notebookAgent)) {
-							location.resolveData = () => {
-								assertType(this._editor.hasModel());
+						location.resolveData = () => {
+							assertType(this._editor.hasModel());
 
-								return {
-									type: ChatAgentLocation.Notebook,
-									sessionInputUri: this._editor.getModel().uri,
-								};
+							return {
+								type: ChatAgentLocation.Notebook,
+								sessionInputUri: this._editor.getModel().uri,
 							};
-						}
+						};
 
 						break;
 					}
