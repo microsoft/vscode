@@ -188,9 +188,14 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 
 };
 
+export interface ITerminalSuggestProviderInfo {
+	id: string;
+	description?: string;
+}
+
 let terminalSuggestProvidersConfiguration: IConfigurationNode | undefined;
 
-export function registerTerminalSuggestProvidersConfiguration(availableProviders?: string[]) {
+export function registerTerminalSuggestProvidersConfiguration(availableProviders?: ITerminalSuggestProviderInfo[]) {
 	const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
 	const oldProvidersConfiguration = terminalSuggestProvidersConfiguration;
@@ -208,16 +213,16 @@ export function registerTerminalSuggestProvidersConfiguration(availableProviders
 	};
 
 	if (availableProviders) {
-		for (const providerId of availableProviders) {
-			if (providerId in defaultValue) {
+		for (const provider of availableProviders) {
+			if (provider.id in defaultValue) {
 				continue;
 			}
-			providersProperties[providerId] = {
+			providersProperties[provider.id] = {
 				type: 'boolean',
-				description: localize('suggest.provider.description', "Whether to enable this provider."),
+				description: provider.description || localize('suggest.provider.description', "Whether to enable this provider."),
 				default: true
 			};
-			defaultValue[providerId] = true;
+			defaultValue[provider.id] = true;
 		}
 	}
 

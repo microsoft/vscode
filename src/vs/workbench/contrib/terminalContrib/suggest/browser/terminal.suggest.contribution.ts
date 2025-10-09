@@ -480,8 +480,10 @@ class TerminalSuggestProvidersConfigurationManager extends Disposable {
 
 	private _updateConfiguration(): void {
 		const providers = Array.from(this._terminalCompletionService.providers);
-		const providerIds = providers.map(p => p.id).filter((id): id is string => typeof id === 'string');
-		registerTerminalSuggestProvidersConfiguration(providerIds);
+		const providerInfos = providers
+			.filter(p => typeof p.id === 'string')
+			.map(p => ({ id: p.id, description: p.description }));
+		registerTerminalSuggestProvidersConfiguration(providerInfos);
 	}
 }
 
