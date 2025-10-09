@@ -51,7 +51,7 @@ import { resizeImage } from '../imageUtils.js';
 import { registerPromptActions } from '../promptSyntax/promptFileActions.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 
-// Schemes that should not be available for chat context attachment
+// Schemes that should not be available for chat context attach
 const UNSUPPORTED_CONTEXT_SCHEMES = new Set(['webview-panel', 'walkThrough', 'vscode-settings']);
 
 export function registerChatContextActions() {
