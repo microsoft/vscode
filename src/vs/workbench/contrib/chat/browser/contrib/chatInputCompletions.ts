@@ -569,8 +569,8 @@ class AssignSelectedAgentAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, ...args: any[]) {
-		const arg: AssignSelectedAgentActionArgs = args[0];
+	async run(accessor: ServicesAccessor, ...args: unknown[]) {
+		const arg = args[0] as AssignSelectedAgentActionArgs | undefined;
 		if (!arg || !arg.widget || !arg.agent) {
 			return;
 		}

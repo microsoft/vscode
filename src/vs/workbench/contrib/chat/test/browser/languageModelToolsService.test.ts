@@ -8,24 +8,24 @@ import { Barrier } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { ConfigurationTarget, IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { ContextKeyEqualsExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { LanguageModelToolsService } from '../../browser/languageModelToolsService.js';
 import { IChatModel } from '../../common/chatModel.js';
 import { IChatService, IChatToolInputInvocationData } from '../../common/chatService.js';
-import { IToolData, IToolImpl, IToolInvocation, ToolDataSource, ToolSet } from '../../common/languageModelToolsService.js';
-import { MockChatService } from '../common/mockChatService.js';
-import { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
-import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { ChatConfiguration } from '../../common/constants.js';
-import { URI } from '../../../../../base/common/uri.js';
+import { isToolResultInputOutputDetails, IToolData, IToolImpl, IToolInvocation, ToolDataSource, ToolSet } from '../../common/languageModelToolsService.js';
+import { MockChatService } from '../common/mockChatService.js';
 
 // --- Test helpers to reduce repetition and improve readability ---
 
@@ -978,8 +978,8 @@ suite('LanguageModelToolsService', () => {
 
 		// Should have tool result details because alwaysDisplayInputOutput = true
 		assert.ok(result.toolResultDetails, 'should have toolResultDetails');
-		// eslint-disable-next-line local/code-no-any-casts
-		const details = result.toolResultDetails as any; // Type assertion needed for test
+		const details = result.toolResultDetails;
+		assert.ok(isToolResultInputOutputDetails(details));
 
 		// Test formatToolInput - should be formatted JSON
 		const expectedInputJson = JSON.stringify(input, undefined, 2);
@@ -1009,8 +1009,7 @@ suite('LanguageModelToolsService', () => {
 			configurationService: () => configurationService
 		}, store);
 		instaService.stub(IChatService, chatService);
-		// eslint-disable-next-line local/code-no-any-casts
-		instaService.stub(ITelemetryService, testTelemetryService as any);
+		instaService.stub(ITelemetryService, testTelemetryService);
 		const testService = store.add(instaService.createInstance(LanguageModelToolsService));
 
 		// Test successful invocation telemetry
@@ -1516,8 +1515,12 @@ suite('LanguageModelToolsService', () => {
 		// Change the correct configuration key
 		configurationService.setUserConfiguration('chat.extensionTools.enabled', false);
 		// Fire the configuration change event manually
-		// eslint-disable-next-line local/code-no-any-casts
-		configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true, affectedKeys: new Set(['chat.extensionTools.enabled']) } as any as IConfigurationChangeEvent);
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			affectsConfiguration: () => true,
+			affectedKeys: new Set(['chat.extensionTools.enabled']),
+			change: null!,
+			source: ConfigurationTarget.USER
+		} satisfies IConfigurationChangeEvent);
 
 		// Wait a bit for the scheduler
 		await new Promise(resolve => setTimeout(resolve, 800));

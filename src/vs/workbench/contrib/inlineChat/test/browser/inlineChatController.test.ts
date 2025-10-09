@@ -46,8 +46,8 @@ import { NullWorkbenchAssignmentService } from '../../../../services/assignment/
 import { IExtensionService, nullExtensionDescription } from '../../../../services/extensions/common/extensions.js';
 import { TextModelResolverService } from '../../../../services/textmodelResolver/common/textModelResolverService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { TestChatEntitlementService, TestViewsService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
-import { TestContextService, TestExtensionService } from '../../../../test/common/workbenchTestServices.js';
+import { TestViewsService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { TestChatEntitlementService, TestContextService, TestExtensionService } from '../../../../test/common/workbenchTestServices.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { IChatAccessibilityService, IChatWidget, IChatWidgetService } from '../../../chat/browser/chat.js';
 import { ChatInputBoxContentProvider } from '../../../chat/browser/chatEdinputInputContentProvider.js';
@@ -506,6 +506,43 @@ suite('InlineChatController', function () {
 		assert.ok(model.getValue().includes('GENERATED'));
 		assert.ok(model.getValue().includes('MANUAL'));
 
+	});
+
+	test('cancel while applying streamed edits should close the widget', async function () {
+
+		const workerService = instaService.get(IEditorWorkerService) as TestWorkerService;
+		const originalCompute = workerService.computeMoreMinimalEdits.bind(workerService);
+		const editsBarrier = new DeferredPromise<void>();
+		let computeInvoked = false;
+		workerService.computeMoreMinimalEdits = async (resource, edits, pretty) => {
+			computeInvoked = true;
+			await editsBarrier.p;
+			return originalCompute(resource, edits, pretty);
+		};
+		store.add({ dispose: () => { workerService.computeMoreMinimalEdits = originalCompute; } });
+
+		const progressBarrier = new DeferredPromise<void>();
+		store.add(chatAgentService.registerDynamicAgent({
+			id: 'pendingEditsAgent',
+			...agentData
+		}, {
+			async invoke(request, progress, history, token) {
+				progress([{ kind: 'textEdit', uri: model.uri, edits: [{ range: new Range(1, 1, 1, 1), text: request.message }] }]);
+				await progressBarrier.p;
+				return {};
+			},
+		}));
+
+		ctrl = instaService.createInstance(TestController, editor);
+		const states = ctrl.awaitStates([...TestController.INIT_SEQUENCE, State.SHOW_REQUEST]);
+		const run = ctrl.run({ message: 'BLOCK', autoSend: true });
+		assert.strictEqual(await states, undefined);
+		assert.ok(computeInvoked);
+
+		ctrl.cancelSession();
+		assert.strictEqual(await states, undefined);
+
+		await run;
 	});
 
 	test('re-run should discard pending edits', async function () {

@@ -99,7 +99,7 @@ if (shouldSpawnCli) {
 			perf.mark('code/server/firstWebSocket');
 		}
 		const remoteExtensionHostAgentServer = await getRemoteExtensionHostAgentServer();
-		// @ts-ignore
+		// @ts-expect-error
 		return remoteExtensionHostAgentServer.handleUpgrade(req, socket);
 	});
 	server.on('error', async (err) => {

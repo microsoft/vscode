@@ -521,6 +521,32 @@ export function setupTerminalMenus(): void {
 					isHiddenByDefault: true
 				},
 			},
+			{
+				id: MenuId.ViewTitle,
+				item: {
+					command: {
+						id: TerminalCommandId.StartVoice,
+						title: localize('workbench.action.terminal.startVoice', "Start Dictation"),
+					},
+					group: 'navigation',
+					order: 9,
+					when: ContextKeyExpr.and(ContextKeyExpr.equals('view', TERMINAL_VIEW_ID), TerminalContextKeys.terminalDictationInProgress.toNegated()),
+					isHiddenByDefault: true
+				},
+			},
+			{
+				id: MenuId.ViewTitle,
+				item: {
+					command: {
+						id: TerminalCommandId.StopVoice,
+						title: localize('workbench.action.terminal.stopVoice', "Stop Dictation"),
+					},
+					group: 'navigation',
+					order: 9,
+					when: ContextKeyExpr.and(ContextKeyExpr.equals('view', TERMINAL_VIEW_ID), TerminalContextKeys.terminalDictationInProgress),
+					isHiddenByDefault: true
+				},
+			},
 		]
 	);
 

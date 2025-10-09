@@ -26,6 +26,7 @@ import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IPromptsService } from '../service/promptsService.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 
+
 const MARKERS_OWNER_ID = 'prompts-diagnostics-provider';
 
 export class PromptValidator {
@@ -34,7 +35,7 @@ export class PromptValidator {
 		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
 		@IChatModeService private readonly chatModeService: IChatModeService,
 		@IFileService private readonly fileService: IFileService,
-		@ILabelService private readonly labelService: ILabelService
+		@ILabelService private readonly labelService: ILabelService,
 	) { }
 
 	public async validate(promptAST: ParsedPromptFile, promptType: PromptsType, report: (markers: IMarkerData) => void): Promise<void> {
@@ -57,17 +58,20 @@ export class PromptValidator {
 				report(toMarker(localize('promptValidator.invalidFileReference', "Invalid file reference '{0}'.", ref.content), ref.range, MarkerSeverity.Warning));
 				continue;
 			}
-			fileReferenceChecks.push((async () => {
-				try {
-					const exists = await this.fileService.exists(resolved);
-					if (exists) {
-						return;
+			if (promptAST.uri.scheme === resolved.scheme) {
+				// only validate if the link is in the file system of the prompt file
+				fileReferenceChecks.push((async () => {
+					try {
+						const exists = await this.fileService.exists(resolved);
+						if (exists) {
+							return;
+						}
+					} catch {
 					}
-				} catch {
-				}
-				const loc = this.labelService.getUriLabel(resolved);
-				report(toMarker(localize('promptValidator.fileNotFound', "File '{0}' not found at '{1}'.", ref.content, loc), ref.range, MarkerSeverity.Warning));
-			})());
+					const loc = this.labelService.getUriLabel(resolved);
+					report(toMarker(localize('promptValidator.fileNotFound', "File '{0}' not found at '{1}'.", ref.content, loc), ref.range, MarkerSeverity.Warning));
+				})());
+			}
 		}
 
 		// Validate variable references (tool or toolset names)
