@@ -89,7 +89,7 @@ export class PolicyWriterService implements IPolicyWriterService {
 		const { promisify } = await import('util');
 		const execAsync = promisify(exec);
 		try {
-			const out = await execAsync(`test -f "${admxPath}" && echo "File exists" || exit 1`);
+			const out = await execAsync(`test -f "${admxPath}" && cat "${admxPath}" || exit 1`);
 			console.log('@@@out', out);
 			console.log(`Shell verified .admx file exists: ${path.resolve(admxPath)}`);
 		} catch (error) {
