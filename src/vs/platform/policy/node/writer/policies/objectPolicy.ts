@@ -7,7 +7,7 @@ import { IPolicy } from '../../../../../base/common/policy.js';
 import { IConfigurationPropertySchema } from '../../../../configuration/common/configurationRegistry.js';
 import { Category, LanguageTranslations, NlsString, PolicyType } from '../types.js';
 import { BasePolicy } from './basePolicy.js';
-import { renderProfileString } from './render.js';
+import { renderProfileString } from '../render.js';
 
 export class ObjectPolicy extends BasePolicy {
 

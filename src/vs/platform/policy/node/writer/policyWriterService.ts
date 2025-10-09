@@ -9,7 +9,7 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { IFileService } from '../../../files/common/files.js';
 import { Category, LanguageTranslations, NlsString, Policy, Translations, Version } from './types.js';
 import { IPolicyWriterService } from '../../common/policy.js';
-import { renderADMLString } from './policies/render.js';
+import { renderADMX, renderADML, renderProfileManifest } from './render.js';
 import { IConfigurationPropertySchema, IRegisteredConfigurationPropertySchema } from '../../../configuration/common/configurationRegistry.js';
 import { BooleanPolicy } from './policies/booleanPolicy.js';
 import { NumberPolicy } from './policies/numberPolicy.js';
@@ -17,7 +17,6 @@ import { StringPolicy } from './policies/stringPolicy.js';
 import { StringEnumPolicy } from './policies/stringEnumPolicy.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { ObjectPolicy } from './policies/objectPolicy.js';
-import { IConfigurationService } from '../../../configuration/common/configuration.js';
 import { PolicyCategoryTitle } from '../../../../base/common/policy.js';
 
 const Languages = {
@@ -40,7 +39,6 @@ export class PolicyWriterService implements IPolicyWriterService {
 	_serviceBrand: undefined;
 
 	constructor(
-		@IConfigurationService public readonly configurationService: IConfigurationService,
 		@IProductService private readonly productService: IProductService,
 		@IFileService private readonly fileService: IFileService
 	) { }
@@ -181,180 +179,6 @@ export class PolicyWriterService implements IPolicyWriterService {
 		return configs.map(({ key, schema }) => this.configToPolicy(key, schema));
 	}
 
-	private renderADMX(regKey: string, versions: string[], categories: Category[], policies: Policy[]) {
-		versions = versions.map(v => v.replace(/\./g, '_'));
-
-		return `<?xml version="1.0" encoding="utf-8"?>
-<policyDefinitions revision="1.1" schemaVersion="1.0">
-	<policyNamespaces>
-		<target prefix="${regKey}" namespace="Microsoft.Policies.${regKey}" />
-	</policyNamespaces>
-	<resources minRequiredRevision="1.0" />
-	<supportedOn>
-		<definitions>
-			${versions.map(v => `<definition name="Supported_${v}" displayName="$(string.Supported_${v})" />`).join(`\n			`)}
-		</definitions>
-	</supportedOn>
-	<categories>
-		<category displayName="$(string.Application)" name="Application" />
-		${categories.map(c => `<category displayName="$(string.Category_${c.name.nlsKey})" name="${c.name.nlsKey}"><parentCategory ref="Application" /></category>`).join(`\n		`)}
-	</categories>
-	<policies>
-		${policies.map(p => p.renderADMX(regKey)).flat().join(`\n		`)}
-	</policies>
-</policyDefinitions>
-`;
-	}
-
-	private renderADML(appName: string, versions: string[], categories: Category[], policies: Policy[], translations?: LanguageTranslations) {
-		return `<?xml version="1.0" encoding="utf-8"?>
-<policyDefinitionResources revision="1.0" schemaVersion="1.0">
-	<displayName />
-	<description />
-	<resources>
-		<stringTable>
-			<string id="Application">${appName}</string>
-			${versions.map(v => `<string id="Supported_${v.replace(/\./g, '_')}">${appName} &gt;= ${v}</string>`).join(`\n			`)}
-			${categories.map(c => renderADMLString('Category', c.name, translations)).join(`\n			`)}
-			${policies.map(p => p.renderADMLStrings(translations)).flat().join(`\n			`)}
-		</stringTable>
-		<presentationTable>
-			${policies.map(p => p.renderADMLPresentation()).join(`\n			`)}
-		</presentationTable>
-	</resources>
-</policyDefinitionResources>
-`;
-	}
-
-	private renderProfileManifest(appName: string, bundleIdentifier: string, _versions: string[], _categories: Category[], policies: Policy[], translations?: LanguageTranslations) {
-
-		const requiredPayloadFields = `
-		<dict>
-			<key>pfm_default</key>
-			<string>Configure ${appName}</string>
-			<key>pfm_name</key>
-			<string>PayloadDescription</string>
-			<key>pfm_title</key>
-			<string>Payload Description</string>
-			<key>pfm_type</key>
-			<string>string</string>
-		</dict>
-		<dict>
-			<key>pfm_default</key>
-			<string>${appName}</string>
-			<key>pfm_name</key>
-			<string>PayloadDisplayName</string>
-			<key>pfm_require</key>
-			<string>always</string>
-			<key>pfm_title</key>
-			<string>Payload Display Name</string>
-			<key>pfm_type</key>
-			<string>string</string>
-		</dict>
-		<dict>
-			<key>pfm_default</key>
-			<string>${bundleIdentifier}</string>
-			<key>pfm_name</key>
-			<string>PayloadIdentifier</string>
-			<key>pfm_require</key>
-			<string>always</string>
-			<key>pfm_title</key>
-			<string>Payload Identifier</string>
-			<key>pfm_type</key>
-			<string>string</string>
-		</dict>
-		<dict>
-			<key>pfm_default</key>
-			<string>${bundleIdentifier}</string>
-			<key>pfm_name</key>
-			<string>PayloadType</string>
-			<key>pfm_require</key>
-			<string>always</string>
-			<key>pfm_title</key>
-			<string>Payload Type</string>
-			<key>pfm_type</key>
-			<string>string</string>
-		</dict>
-		<dict>
-			<key>pfm_default</key>
-			<string></string>
-			<key>pfm_name</key>
-			<string>PayloadUUID</string>
-			<key>pfm_require</key>
-			<string>always</string>
-			<key>pfm_title</key>
-			<string>Payload UUID</string>
-			<key>pfm_type</key>
-			<string>string</string>
-		</dict>
-		<dict>
-			<key>pfm_default</key>
-			<integer>1</integer>
-			<key>pfm_name</key>
-			<string>PayloadVersion</string>
-			<key>pfm_range_list</key>
-			<array>
-				<integer>1</integer>
-			</array>
-			<key>pfm_require</key>
-			<string>always</string>
-			<key>pfm_title</key>
-			<string>Payload Version</string>
-			<key>pfm_type</key>
-			<string>integer</string>
-		</dict>
-		<dict>
-			<key>pfm_default</key>
-			<string>Microsoft</string>
-			<key>pfm_name</key>
-			<string>PayloadOrganization</string>
-			<key>pfm_title</key>
-			<string>Payload Organization</string>
-			<key>pfm_type</key>
-			<string>string</string>
-		</dict>`;
-
-		const profileManifestSubkeys = policies.map(policy => {
-			return policy.renderProfileManifest(translations);
-		}).join('');
-
-		return `<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-	<key>pfm_app_url</key>
-	<string>https://code.visualstudio.com/</string>
-	<key>pfm_description</key>
-	<string>${appName} Managed Settings</string>
-	<key>pfm_documentation_url</key>
-	<string>https://code.visualstudio.com/docs/setup/enterprise</string>
-	<key>pfm_domain</key>
-	<string>${bundleIdentifier}</string>
-	<key>pfm_format_version</key>
-	<integer>1</integer>
-	<key>pfm_interaction</key>
-	<string>combined</string>
-	<key>pfm_last_modified</key>
-	<date>${new Date().toISOString().replace(/\.\d+Z$/, 'Z')}</date>
-	<key>pfm_platforms</key>
-	<array>
-		<string>macOS</string>
-	</array>
-	<key>pfm_subkeys</key>
-	<array>
-	${requiredPayloadFields}
-	${profileManifestSubkeys}
-	</array>
-	<key>pfm_title</key>
-	<string>${appName}</string>
-	<key>pfm_unique</key>
-	<true/>
-	<key>pfm_version</key>
-	<integer>1</integer>
-</dict>
-</plist>`;
-	}
-
 	private renderMacOSPolicy(policies: Policy[], translations: Translations) {
 		const appName = this.productService.nameLong;
 		const bundleIdentifier = this.productService.darwinBundleIdentifier;
@@ -414,14 +238,12 @@ ${policyEntries}
 		<integer>5</integer>
 	</dict>
 </plist>`,
-			manifests: [{ languageId: 'en-us', contents: this.renderProfileManifest(appName, bundleIdentifier, versions, categories, policies) },
+			manifests: [{ languageId: 'en-us', contents: renderProfileManifest(appName, bundleIdentifier, versions, categories, policies) },
 			...translations.map(({ languageId, languageTranslations }) =>
-				({ languageId, contents: this.renderProfileManifest(appName, bundleIdentifier, versions, categories, policies, languageTranslations) }))
+				({ languageId, contents: renderProfileManifest(appName, bundleIdentifier, versions, categories, policies, languageTranslations) }))
 			]
 		};
-	}
-
-	private renderGP(policies: Policy[], translations: Translations) {
+	} private renderGP(policies: Policy[], translations: Translations) {
 		const appName = this.productService.nameLong;
 		const regKey = this.productService.win32RegValueName;
 
@@ -433,11 +255,11 @@ ${policyEntries}
 		const categories = [...Object.values(policies.reduce((acc, p) => ({ ...acc, [p.category.name.nlsKey]: p.category }), {}))] as Category[];
 
 		return {
-			admx: this.renderADMX(regKey, versions, categories, policies),
+			admx: renderADMX(regKey, versions, categories, policies),
 			adml: [
-				{ languageId: 'en-us', contents: this.renderADML(appName, versions, categories, policies) },
+				{ languageId: 'en-us', contents: renderADML(appName, versions, categories, policies) },
 				...translations.map(({ languageId, languageTranslations }) =>
-					({ languageId, contents: this.renderADML(appName, versions, categories, policies, languageTranslations) }))
+					({ languageId, contents: renderADML(appName, versions, categories, policies, languageTranslations) }))
 			]
 		};
 	}

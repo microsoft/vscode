@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Category, LanguageTranslations, NlsString, Policy, PolicyType } from '../types.js';
-import { renderADMLString } from './render.js';
+import { renderADMLString } from '../render.js';
 
 
 export abstract class BasePolicy implements Policy {

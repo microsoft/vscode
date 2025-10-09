@@ -1,4 +1,4 @@
-name: Policy Check
+name: Enterprise Configuration Policy Check
 
 on:
   push:
@@ -14,7 +14,7 @@ permissions: {}
 
 jobs:
   darwin-policy:
-    name: Policy Check (macOS)
+    name: Enterprise Configuration Policy Check (macOS)
     runs-on: macos-14-xlarge
     timeout-minutes: 40
     env:
@@ -138,7 +138,7 @@ jobs:
           if-no-files-found: error
 
   win32-policy:
-    name: Policy Check (Windows)
+    name: Enterprise Configuration Policy Check (Windows)
     runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-windows-2022-x64 ]
     timeout-minutes: 40
     env:
