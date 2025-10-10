@@ -377,53 +377,29 @@ div.chat-welcome-view {
 
 /* Responsive fallbacks to avoid overlapping welcome content */
 
-@media (max-height: 760px), (max-width: 620px) {
-	.interactive-session:not(.new-welcome-view):not(:has(.chat-welcome-view-icon .codicon-send-to-remote-agent)) {
-		.chat-welcome-view-container:has(.chat-welcome-view-suggested-prompts > .chat-welcome-view-suggested-prompt:nth-of-type(2)) {
-			div.chat-welcome-view {
-				> .chat-welcome-view-title { display: none; }
-			}
+.interactive-session:not(.new-welcome-view):not(:has(.chat-welcome-view-icon .codicon-send-to-remote-agent)) {
+	.chat-welcome-view-container:has(.chat-welcome-view-suggested-prompts > .chat-welcome-view-suggested-prompt:nth-of-type(2)) {
+		@media (max-height: 760px), (max-width: 620px) {
+			div.chat-welcome-view > .chat-welcome-view-title { display: none; }
 		}
-	}
-}
 
-@media (max-height: 720px), (max-width: 580px) {
-	.interactive-session:not(.new-welcome-view):not(:has(.chat-welcome-view-icon .codicon-send-to-remote-agent)) {
-		.chat-welcome-view-container:has(.chat-welcome-view-suggested-prompts > .chat-welcome-view-suggested-prompt:nth-of-type(2)) {
-			div.chat-welcome-view {
-				> .chat-welcome-view-icon { display: none; }
-			}
+		@media (max-height: 720px), (max-width: 580px) {
+			div.chat-welcome-view > .chat-welcome-view-icon { display: none; }
 		}
-	}
-}
 
-@media (max-height: 680px), (max-width: 540px) {
-	.interactive-session:not(.new-welcome-view):not(:has(.chat-welcome-view-icon .codicon-send-to-remote-agent)) {
-		.chat-welcome-view-container:has(.chat-welcome-view-suggested-prompts > .chat-welcome-view-suggested-prompt:nth-of-type(2)) {
-			div.chat-welcome-view {
-				> .chat-welcome-view-disclaimer { display: none; }
-			}
+		@media (max-height: 680px), (max-width: 540px) {
+			div.chat-welcome-view > .chat-welcome-view-disclaimer { display: none; }
 		}
-	}
-}
 
-@media (max-height: 640px), (max-width: 500px) {
-	.interactive-session:not(.new-welcome-view):not(:has(.chat-welcome-view-icon .codicon-send-to-remote-agent)) {
-		.chat-welcome-view-container:has(.chat-welcome-view-suggested-prompts > .chat-welcome-view-suggested-prompt:nth-of-type(2)) {
-			div.chat-welcome-view {
-				> :is(
-					.chat-welcome-view-message,
-					.chat-welcome-new-view-message,
-					.chat-welcome-view-additional-message
-				) { display: none; }
-			}
+		@media (max-height: 640px), (max-width: 500px) {
+			div.chat-welcome-view > :is(
+				.chat-welcome-view-message,
+				.chat-welcome-new-view-message,
+				.chat-welcome-view-additional-message
+			) { display: none; }
 		}
-	}
-}
 
-@media (max-height: 520px), (max-width: 360px) {
-	.interactive-session:not(.new-welcome-view):not(:has(.chat-welcome-view-icon .codicon-send-to-remote-agent)) {
-		.chat-welcome-view-container:has(.chat-welcome-view-suggested-prompts > .chat-welcome-view-suggested-prompt:nth-of-type(2)) {
+		@media (max-height: 520px), (max-width: 360px) {
 			> .chat-welcome-history-root { display: none; }
 		}
 	}
