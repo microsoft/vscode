@@ -53,7 +53,7 @@ type Listener<T> = { fn: (evt: T) => void; thisArg: unknown };
 
 interface EmitterLike<T> {
 	fire(data: T): void;
-	event: Event<T>;
+	readonly event: Event<T>;
 }
 
 interface PreloadStyles {

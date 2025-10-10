@@ -1092,3 +1092,18 @@ export class McpStartPromptingServerCommand extends Action2 {
 		SuggestController.get(editor)?.triggerSuggest();
 	}
 }
+
+export class McpSkipCurrentAutostartCommand extends Action2 {
+	constructor() {
+		super({
+			id: McpCommandIds.SkipCurrentAutostart,
+			title: localize2('mcp.skipCurrentAutostart', "Skip Current Autostart"),
+			category,
+			f1: false,
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		accessor.get(IMcpService).cancelAutostart();
+	}
+}

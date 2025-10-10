@@ -159,7 +159,8 @@ export class TerminalService extends Disposable implements ITerminalService {
 	@memoize get onAnyInstanceSelectionChange() { return this._register(this.createOnInstanceEvent(e => e.onDidChangeSelection)).event; }
 	@memoize get onAnyInstanceTitleChange() { return this._register(this.createOnInstanceEvent(e => e.onTitleChanged)).event; }
 	@memoize get onAnyInstanceShellTypeChanged() { return this._register(this.createOnInstanceEvent(e => Event.map(e.onDidChangeShellType, () => e))).event; }
-	@memoize get onAnyInstanceAddedCapabilityType() { return this._register(this.createOnInstanceEvent(e => e.capabilities.onDidAddCapabilityType)).event; }
+	@memoize get onAnyInstanceAddedCapabilityType() { return this._register(this.createOnInstanceEvent(e => Event.map(e.capabilities.onDidAddCapability, e => e.id))).event; }
+
 	constructor(
 		@IContextKeyService private _contextKeyService: IContextKeyService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
@@ -1089,20 +1090,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 			shellLaunchConfig.parentTerminalId = parent.instanceId;
 			instance = group.split(shellLaunchConfig);
 		}
-		this._addToReconnected(instance);
 		return instance;
-	}
-
-	private _addToReconnected(instance: ITerminalInstance): void {
-		if (!instance.reconnectionProperties?.ownerId) {
-			return;
-		}
-		const reconnectedTerminals = this._reconnectedTerminals.get(instance.reconnectionProperties.ownerId);
-		if (reconnectedTerminals) {
-			reconnectedTerminals.push(instance);
-		} else {
-			this._reconnectedTerminals.set(instance.reconnectionProperties.ownerId, [instance]);
-		}
 	}
 
 	private _createTerminal(shellLaunchConfig: IShellLaunchConfig, location: TerminalLocation, options?: ICreateTerminalOptions): ITerminalInstance {
@@ -1116,7 +1104,6 @@ export class TerminalService extends Disposable implements ITerminalService {
 			const group = this._terminalGroupService.createGroup(shellLaunchConfig);
 			instance = group.terminalInstances[0];
 		}
-		this._addToReconnected(instance);
 		return instance;
 	}
 

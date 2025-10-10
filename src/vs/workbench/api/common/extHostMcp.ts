@@ -18,7 +18,7 @@ import { canLog, ILogService, LogLevel } from '../../../platform/log/common/log.
 import { StorageScope } from '../../../platform/storage/common/storage.js';
 import { extensionPrefixedIdentifier, McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerTransportHTTP, McpServerTransportType, UserInteractionRequiredError } from '../../contrib/mcp/common/mcpTypes.js';
 import { MCP } from '../../contrib/mcp/common/modelContextProtocol.js';
-import { ExtHostMcpShape, IStartMcpOptions, MainContext, MainThreadMcpShape } from './extHost.protocol.js';
+import { ExtHostMcpShape, IMcpAuthenticationDetails, IStartMcpOptions, MainContext, MainThreadMcpShape } from './extHost.protocol.js';
 import { IExtHostInitDataService } from './extHostInitDataService.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 import * as Convert from './extHostTypeConverters.js';
@@ -398,6 +398,22 @@ export class McpHTTPHandle extends Disposable {
 		this._log(LogLevel.Info, 'Using default auth metadata');
 	}
 
+	private async _tryParseAuthServerMetadata(response: CommonResponse): Promise<IAuthorizationServerMetadata | undefined> {
+		if (response.status !== 200) {
+			return undefined;
+		}
+		try {
+			const body = await response.json();
+			if (isAuthorizationServerMetadata(body)) {
+				return body;
+			}
+		} catch {
+			// Failed to parse as JSON or not valid metadata
+			this._log(LogLevel.Debug, 'Failed to parse authorization server metadata');
+		}
+		return undefined;
+	}
+
 	private async _getAuthorizationServerMetadata(authorizationServer: string, addtionalHeaders: Record<string, string>): Promise<IAuthorizationServerMetadata> {
 		// For the oauth server metadata discovery path, we _INSERT_
 		// the well known path after the origin and before the path.
@@ -414,44 +430,48 @@ export class McpHTTPHandle extends Disposable {
 				'MCP-Protocol-Version': MCP.LATEST_PROTOCOL_VERSION,
 			}
 		});
-		if (authServerMetadataResponse.status !== 200) {
-			// Try fetching the OpenID Connect Discovery with path insertion.
-			// For issuer URLs with path components, this inserts the well-known path
-			// after the origin and before the path.
-			const openidPathInsertionUrl = new URL(OPENID_CONNECT_DISCOVERY_PATH, authorizationServer).toString() + extraPath;
-			this._log(LogLevel.Debug, `Fetching fallback openid connect discovery url with path insertion: ${openidPathInsertionUrl} ...`);
-			authServerMetadataResponse = await this._fetch(openidPathInsertionUrl, {
-				method: 'GET',
-				headers: {
-					...addtionalHeaders,
-					'Accept': 'application/json',
-					'MCP-Protocol-Version': MCP.LATEST_PROTOCOL_VERSION
-				}
-			});
-			if (authServerMetadataResponse.status !== 200) {
-				// Try fetching the other discovery URL. For the openid metadata discovery
-				// path, we _ADD_ the well known path after the existing path.
-				// https://datatracker.ietf.org/doc/html/rfc8414#section-3
-				const openidPathAdditionUrl = URI.joinPath(URI.parse(authorizationServer), OPENID_CONNECT_DISCOVERY_PATH).toString(true);
-				this._log(LogLevel.Debug, `Fetching fallback openid connect discovery url with path addition: ${openidPathAdditionUrl} ...`);
-				authServerMetadataResponse = await this._fetch(openidPathAdditionUrl, {
-					method: 'GET',
-					headers: {
-						...addtionalHeaders,
-						'Accept': 'application/json',
-						'MCP-Protocol-Version': MCP.LATEST_PROTOCOL_VERSION
-					}
-				});
-				if (authServerMetadataResponse.status !== 200) {
-					throw new Error(`Failed to fetch authorization server metadata: ${authServerMetadataResponse.status} ${await this._getErrText(authServerMetadataResponse)}`);
-				}
+		let metadata = await this._tryParseAuthServerMetadata(authServerMetadataResponse);
+		if (metadata) {
+			return metadata;
+		}
+
+		// Try fetching the OpenID Connect Discovery with path insertion.
+		// For issuer URLs with path components, this inserts the well-known path
+		// after the origin and before the path.
+		const openidPathInsertionUrl = new URL(OPENID_CONNECT_DISCOVERY_PATH, authorizationServer).toString() + extraPath;
+		this._log(LogLevel.Debug, `Fetching fallback openid connect discovery url with path insertion: ${openidPathInsertionUrl} ...`);
+		authServerMetadataResponse = await this._fetch(openidPathInsertionUrl, {
+			method: 'GET',
+			headers: {
+				...addtionalHeaders,
+				'Accept': 'application/json',
+				'MCP-Protocol-Version': MCP.LATEST_PROTOCOL_VERSION
 			}
+		});
+		metadata = await this._tryParseAuthServerMetadata(authServerMetadataResponse);
+		if (metadata) {
+			return metadata;
 		}
-		const body = await authServerMetadataResponse.json();
-		if (isAuthorizationServerMetadata(body)) {
-			return body;
+
+		// Try fetching the other discovery URL. For the openid metadata discovery
+		// path, we _ADD_ the well known path after the existing path.
+		// https://datatracker.ietf.org/doc/html/rfc8414#section-3
+		const openidPathAdditionUrl = URI.joinPath(URI.parse(authorizationServer), OPENID_CONNECT_DISCOVERY_PATH).toString(true);
+		this._log(LogLevel.Debug, `Fetching fallback openid connect discovery url with path addition: ${openidPathAdditionUrl} ...`);
+		authServerMetadataResponse = await this._fetch(openidPathAdditionUrl, {
+			method: 'GET',
+			headers: {
+				...addtionalHeaders,
+				'Accept': 'application/json',
+				'MCP-Protocol-Version': MCP.LATEST_PROTOCOL_VERSION
+			}
+		});
+		metadata = await this._tryParseAuthServerMetadata(authServerMetadataResponse);
+		if (metadata) {
+			return metadata;
 		}
-		throw new Error(`Invalid authorization server metadata: ${JSON.stringify(body)}`);
+
+		throw new Error(`Failed to fetch authorization server metadata: ${authServerMetadataResponse.status} ${await this._getErrText(authServerMetadataResponse)}`);
 	}
 
 	private async _handleSuccessfulStreamableHttp(res: CommonResponse, message: string) {
@@ -651,10 +671,22 @@ export class McpHTTPHandle extends Disposable {
 		} while (!chunk.done);
 	}
 
-	private async _addAuthHeader(headers: Record<string, string>) {
+	private async _addAuthHeader(headers: Record<string, string>, forceNewRegistration?: boolean) {
 		if (this._authMetadata) {
 			try {
-				const token = await this._proxy.$getTokenFromServerMetadata(this._id, this._authMetadata.authorizationServer, this._authMetadata.serverMetadata, this._authMetadata.resourceMetadata, this._authMetadata.scopes, this._errorOnUserInteraction);
+				const authDetails: IMcpAuthenticationDetails = {
+					authorizationServer: this._authMetadata.authorizationServer.toJSON(),
+					authorizationServerMetadata: this._authMetadata.serverMetadata,
+					resourceMetadata: this._authMetadata.resourceMetadata,
+					scopes: this._authMetadata.scopes
+				};
+				const token = await this._proxy.$getTokenFromServerMetadata(
+					this._id,
+					authDetails,
+					{
+						errorOnUserInteraction: this._errorOnUserInteraction,
+						forceNewRegistration
+					});
 				if (token) {
 					headers['Authorization'] = `Bearer ${token}`;
 				}
@@ -744,6 +776,11 @@ export class McpHTTPHandle extends Disposable {
 					}
 				}
 			}
+		}
+		// If we have an Authorization header and still get a 401, we should retry with a new auth registration
+		if (headers['Authorization'] && res.status === 401) {
+			await this._addAuthHeader(headers, true);
+			res = await doFetch();
 		}
 		return res;
 	}

@@ -423,8 +423,10 @@ class RunTestTool implements IToolImpl {
 
 		const tests: IncrementalTestCollectionItem[] = [];
 		for (const uri of uris) {
-			for await (const file of testsInFile(this._testService, this._uriIdentityService, uri, undefined, false)) {
-				tests.push(file);
+			for await (const files of testsInFile(this._testService, this._uriIdentityService, uri, undefined, false)) {
+				for (const file of files) {
+					tests.push(file);
+				}
 			}
 		}
 

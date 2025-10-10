@@ -56,7 +56,7 @@ export interface ICommandMetadata {
 }
 
 export interface ICommandRegistry {
-	onDidRegisterCommand: Event<string>;
+	readonly onDidRegisterCommand: Event<string>;
 	registerCommand<Args extends unknown[]>(id: string, command: ICommandHandler<Args>): IDisposable;
 	registerCommand<Args extends unknown[]>(command: ICommand<Args>): IDisposable;
 	registerCommandAlias(oldId: string, newId: string): IDisposable;

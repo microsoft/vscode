@@ -20,7 +20,7 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 	cancelToolCallsForRequest(requestId: string): void {
 	}
 
-	onDidChangeTools: Event<void> = Event.None;
+	readonly onDidChangeTools: Event<void> = Event.None;
 
 	registerToolData(toolData: IToolData): IDisposable {
 		return Disposable.None;

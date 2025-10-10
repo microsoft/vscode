@@ -87,10 +87,18 @@ export interface IReporter {
 	end(emitError: boolean): NodeJS.ReadWriteStream;
 }
 
+class ReporterError extends Error {
+	__reporter__ = true;
+}
+
+interface Errors extends Array<string> {
+	__logged__?: boolean;
+}
+
 export function createReporter(id?: string): IReporter {
 	const errorLog = getErrorLog(id);
 
-	const errors: string[] = [];
+	const errors: Errors = [];
 	errorLog.allErrors.push(errors);
 
 	const result = (err: string) => errors.push(err);
@@ -105,17 +113,13 @@ export function createReporter(id?: string): IReporter {
 			errorLog.onEnd();
 
 			if (emitError && errors.length > 0) {
-				// eslint-disable-next-line local/code-no-any-casts
-				if (!(errors as any).__logged__) {
+				if (!errors.__logged__) {
 					errorLog.log();
 				}
 
-				// eslint-disable-next-line local/code-no-any-casts
-				(errors as any).__logged__ = true;
+				errors.__logged__ = true;
 
-				const err = new Error(`Found ${errors.length} errors`);
-				// eslint-disable-next-line local/code-no-any-casts
-				(err as any).__reporter__ = true;
+				const err = new ReporterError(`Found ${errors.length} errors`);
 				this.emit('error', err);
 			} else {
 				this.emit('end');

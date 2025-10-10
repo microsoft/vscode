@@ -2054,7 +2054,7 @@ export type IScopedContextKeyService = IContextKeyService & IDisposable;
 export interface IContextKeyService {
 	readonly _serviceBrand: undefined;
 
-	onDidChangeContext: Event<IContextKeyChangeEvent>;
+	readonly onDidChangeContext: Event<IContextKeyChangeEvent>;
 	bufferChangeEvents(callback: Function): void;
 
 	createKey<T extends ContextKeyValue>(key: string, defaultValue: T | undefined): IContextKey<T>;

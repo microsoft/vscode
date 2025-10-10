@@ -40,6 +40,8 @@ import { IChatAgentService } from '../../common/chatAgents.js';
 import { IModifiedFileEntry, IModifiedFileEntryChangeHunk, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { isTextDiffEditorForEntry } from './chatEditing.js';
+import { ActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { AcceptHunkAction, RejectHunkAction } from './chatEditingEditorActions.js';
 
 export interface IDocumentDiff2 extends IDocumentDiff {
 
@@ -690,6 +692,16 @@ class DiffHunkWidget implements IOverlayWidget, IModifiedFileEntryChangeHunk {
 				renderShortTitle: true,
 				arg: this,
 			},
+			actionViewItemProvider: (action, options) => {
+				if (action.id === AcceptHunkAction.ID || action.id === RejectHunkAction.ID) {
+					return new class extends ActionViewItem {
+						constructor() {
+							super(undefined, action, { ...options, keybindingNotRenderedWithLabel: true, icon: false, label: true });
+						}
+					};
+				}
+				return undefined;
+			}
 		});
 
 		this._store.add(toolbar);
