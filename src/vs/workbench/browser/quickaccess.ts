@@ -29,7 +29,7 @@ export interface IWorkbenchQuickAccessConfiguration {
 		readonly commandPalette: {
 			readonly history: number;
 			readonly preserveInput: boolean;
-			readonly showAskChat: boolean;
+			readonly showAskInChat: boolean;
 			readonly experimental: {
 				readonly suggestCommands: boolean;
 				readonly enableNaturalLanguageSearch: boolean;
