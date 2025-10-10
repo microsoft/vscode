@@ -757,7 +757,7 @@ export class McpHTTPHandle extends Disposable {
 				}
 			}
 		}
-		// If we have an Authorization header and still get a 401, we should retry with a new auth registrationIf we have an Authorization header and still get a 401, we should retry with a new auth registration
+		// If we have an Authorization header and still get a 401, we should retry with a new auth registration
 		if (headers['Authorization'] && res.status === 401) {
 			await this._addAuthHeader(headers, true);
 			res = await doFetch();
