@@ -29,7 +29,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { ISimpleSuggestWidgetFontInfo } from '../../../../services/suggest/browser/simpleSuggestWidgetRenderer.js';
 import { ITerminalConfigurationService } from '../../../terminal/browser/terminal.js';
-import { GOLDEN_LINE_HEIGHT_RATIO, MINIMUM_LINE_HEIGHT } from '../../../../../editor/common/config/fontInfo.js';
+import { GOLDEN_LINE_HEIGHT_RATIO } from '../../../../../editor/common/config/fontInfo.js';
 import { TerminalCompletionModel } from './terminalCompletionModel.js';
 import { TerminalCompletionItem, TerminalCompletionItemKind, type ITerminalCompletion } from './terminalCompletionItem.js';
 import { localize } from '../../../../../nls.js';
@@ -718,17 +718,16 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		const letterSpacing: number = font.letterSpacing;
 		const fontWeight: string = this._configurationService.getValue('editor.fontWeight');
 
-		if (lineHeight <= 1) {
-			lineHeight = GOLDEN_LINE_HEIGHT_RATIO * fontSize;
-		} else if (lineHeight < MINIMUM_LINE_HEIGHT) {
-			// Values too small to be line heights in pixels are in ems.
-			lineHeight = lineHeight * fontSize;
-		}
+		// Unlike editor suggestions, line height in terminal is always multiplied to the font size.
+		// Make sure that we still enforce a minimum line height to avoid content from being clipped.
+		// See https://github.com/microsoft/vscode/issues/255851
+		lineHeight = lineHeight * fontSize;
 
 		// Enforce integer, minimum constraints
 		lineHeight = Math.round(lineHeight);
-		if (lineHeight < MINIMUM_LINE_HEIGHT) {
-			lineHeight = MINIMUM_LINE_HEIGHT;
+		const minTerminalLineHeight = GOLDEN_LINE_HEIGHT_RATIO * fontSize;
+		if (lineHeight < minTerminalLineHeight) {
+			lineHeight = minTerminalLineHeight;
 		}
 
 		const fontInfo = {
