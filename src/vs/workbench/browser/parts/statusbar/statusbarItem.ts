@@ -8,14 +8,14 @@ import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle
 import { SimpleIconLabel } from '../../../../base/browser/ui/iconLabel/simpleIconLabel.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { IStatusbarEntry, ShowTooltipCommand, StatusbarEntryKinds } from '../../../services/statusbar/browser/statusbar.js';
+import { IStatusbarEntry, isTooltipWithCommands, ShowTooltipCommand, StatusbarEntryKinds, TooltipContent } from '../../../services/statusbar/browser/statusbar.js';
 import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from '../../../../base/common/actions.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ThemeColor } from '../../../../base/common/themables.js';
 import { isThemeColor } from '../../../../editor/common/editorCommon.js';
-import { addDisposableListener, EventType, hide, show, append, EventHelper } from '../../../../base/browser/dom.js';
+import { addDisposableListener, EventType, hide, show, append, EventHelper, $ } from '../../../../base/browser/dom.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
-import { assertIsDefined } from '../../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { Command } from '../../../../editor/common/languages.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
@@ -24,7 +24,7 @@ import { spinningLoading, syncing } from '../../../../platform/theme/common/icon
 import { isMarkdownString, markdownStringEqual } from '../../../../base/common/htmlContent.js';
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
-import type { IManagedHover } from '../../../../base/browser/ui/hover/hover.js';
+import { IManagedHover, IManagedHoverOptions } from '../../../../base/browser/ui/hover/hover.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 
 export class StatusbarEntryItem extends Disposable {
@@ -46,7 +46,7 @@ export class StatusbarEntryItem extends Disposable {
 	readonly beakContainer: HTMLElement;
 
 	get name(): string {
-		return assertIsDefined(this.entry).name;
+		return assertReturnsDefined(this.entry).name;
 	}
 
 	get hasCommand(): boolean {
@@ -66,10 +66,10 @@ export class StatusbarEntryItem extends Disposable {
 		super();
 
 		// Label Container
-		this.labelContainer = document.createElement('a');
-		this.labelContainer.tabIndex = -1; // allows screen readers to read title, but still prevents tab focus.
-		this.labelContainer.setAttribute('role', 'button');
-		this.labelContainer.className = 'statusbar-item-label';
+		this.labelContainer = $('a.statusbar-item-label', {
+			role: 'button',
+			tabIndex: -1 // allows screen readers to read title, but still prevents tab focus.
+		});
 		this._register(Gesture.addTarget(this.labelContainer)); // enable touch
 
 		// Label (with support for progress)
@@ -77,9 +77,12 @@ export class StatusbarEntryItem extends Disposable {
 		this.container.appendChild(this.labelContainer);
 
 		// Beak Container
-		this.beakContainer = document.createElement('div');
-		this.beakContainer.className = 'status-bar-item-beak-container';
+		this.beakContainer = $('.status-bar-item-beak-container');
 		this.container.appendChild(this.beakContainer);
+
+		if (entry.content) {
+			this.container.appendChild(entry.content);
+		}
 
 		this.update(entry);
 	}
@@ -116,11 +119,26 @@ export class StatusbarEntryItem extends Disposable {
 
 		// Update: Hover
 		if (!this.entry || !this.isEqualTooltip(this.entry, entry)) {
-			const hoverContents = isMarkdownString(entry.tooltip) ? { markdown: entry.tooltip, markdownNotSupportedFallback: undefined } : entry.tooltip;
-			if (this.hover) {
-				this.hover.update(hoverContents);
+			let hoverOptions: IManagedHoverOptions | undefined;
+			let hoverTooltip: TooltipContent | undefined;
+			if (isTooltipWithCommands(entry.tooltip)) {
+				hoverTooltip = entry.tooltip.content;
+				hoverOptions = {
+					actions: entry.tooltip.commands.map(command => ({
+						commandId: command.id,
+						label: command.title,
+						run: () => this.executeCommand(command)
+					}))
+				};
 			} else {
-				this.hover = this._register(this.hoverService.setupManagedHover(this.hoverDelegate, this.container, hoverContents));
+				hoverTooltip = entry.tooltip;
+			}
+
+			const hoverContents = isMarkdownString(hoverTooltip) ? { markdown: hoverTooltip, markdownNotSupportedFallback: undefined } : hoverTooltip;
+			if (this.hover) {
+				this.hover.update(hoverContents, hoverOptions);
+			} else {
+				this.hover = this._register(this.hoverService.setupManagedHover(this.hoverDelegate, this.container, hoverContents, hoverOptions));
 			}
 		}
 

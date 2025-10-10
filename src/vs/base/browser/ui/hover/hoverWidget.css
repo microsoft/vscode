@@ -138,11 +138,16 @@
 
 .monaco-hover .hover-row.status-bar .actions .action-container .action .icon {
 	padding-right: 4px;
+	vertical-align: middle;
 }
 
 .monaco-hover .hover-row.status-bar .actions .action-container a {
 	color: var(--vscode-textLink-foreground);
 	text-decoration: var(--text-link-decoration);
+}
+
+.monaco-hover .hover-row.status-bar .actions .action-container a .icon.codicon {
+	color: var(--vscode-textLink-foreground);
 }
 
 .monaco-hover .markdown-hover .hover-contents .codicon {
@@ -176,12 +181,23 @@
 	color: var(--vscode-textLink-activeForeground);
 }
 
-/** Spans in markdown hovers need a margin-bottom to avoid looking cramped: https://github.com/microsoft/vscode/issues/101496 **/
-.monaco-hover .markdown-hover .hover-contents:not(.code-hover-contents):not(.html-hover-contents) span {
+/**
+ * Spans in markdown hovers need a margin-bottom to avoid looking cramped:
+ * https://github.com/microsoft/vscode/issues/101496
+
+ * This was later refined to only apply when the last child of a rendered markdown block (before the
+ * border or a `hr`) uses background color:
+ * https://github.com/microsoft/vscode/issues/228136
+ */
+.monaco-hover .markdown-hover .hover-contents:not(.code-hover-contents):not(.html-hover-contents) p:last-child [style*="background-color"] {
 	margin-bottom: 4px;
 	display: inline-block;
 }
 
+/**
+ * Add a slight margin to try vertically align codicons with any text
+ * https://github.com/microsoft/vscode/issues/221359
+ */
 .monaco-hover .markdown-hover .hover-contents:not(.code-hover-contents):not(.html-hover-contents) span.codicon {
 	margin-bottom: 2px;
 }
@@ -195,4 +211,15 @@
 	pointer-events: none;
 	opacity: 0.4;
 	cursor: default;
+}
+
+/* Prevent text selection in all button-like elements within hovers */
+.monaco-hover .action-container,
+.monaco-hover .action,
+.monaco-hover button,
+.monaco-hover .monaco-button,
+.monaco-hover .monaco-text-button,
+.monaco-hover [role="button"] {
+	-webkit-user-select: none;
+	user-select: none;
 }

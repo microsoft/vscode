@@ -35,7 +35,9 @@ export class Editor {
 		await this.code.waitForActiveElement(RENAME_INPUT);
 		await this.code.waitForSetValue(RENAME_INPUT, to);
 
-		await this.code.dispatchKeybinding('enter');
+		await this.code.dispatchKeybinding('enter', async () => {
+			// TODO: Add an accept callback to verify the keybinding was successful
+		});
 	}
 
 	async gotoDefinition(filename: string, term: string, line: number): Promise<void> {
@@ -78,7 +80,7 @@ export class Editor {
 	async waitForEditorFocus(filename: string, lineNumber: number, selectorPrefix = ''): Promise<void> {
 		const editor = [selectorPrefix || '', EDITOR(filename)].join(' ');
 		const line = `${editor} .view-lines > .view-line:nth-child(${lineNumber})`;
-		const editContext = `${editor} .native-edit-context`;
+		const editContext = `${editor} ${this._editContextSelector()}`;
 
 		await this.code.waitAndClick(line, 1, 1);
 		await this.code.waitForActiveElement(editContext);
@@ -92,12 +94,21 @@ export class Editor {
 
 		await this.code.waitForElement(editor);
 
-		const editContext = `${editor} .native-edit-context`;
+		const editContext = `${editor} ${this._editContextSelector()}`;
 		await this.code.waitForActiveElement(editContext);
 
 		await this.code.waitForTypeInEditor(editContext, text);
 
 		await this.waitForEditorContents(filename, c => c.indexOf(text) > -1, selectorPrefix);
+	}
+
+	async waitForEditorSelection(filename: string, accept: (selection: { selectionStart: number; selectionEnd: number }) => boolean): Promise<void> {
+		const selector = `${EDITOR(filename)} ${this._editContextSelector()}`;
+		await this.code.waitForEditorSelection(selector, accept);
+	}
+
+	private _editContextSelector() {
+		return !this.code.editContextEnabled ? 'textarea' : '.native-edit-context';
 	}
 
 	async waitForEditorContents(filename: string, accept: (contents: string) => boolean, selectorPrefix = ''): Promise<any> {

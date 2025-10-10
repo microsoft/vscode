@@ -97,7 +97,7 @@ export class NotificationsStatus extends Disposable {
 				statusProperties,
 				'status.notifications',
 				StatusbarAlignment.RIGHT,
-				-Number.MAX_VALUE /* towards the far end of the right hand side */
+				Number.NEGATIVE_INFINITY /* last entry */
 			);
 		} else {
 			this.notificationsCenterStatusItem.update(statusProperties);
@@ -191,7 +191,7 @@ export class NotificationsStatus extends Disposable {
 
 		// Create new
 		let statusMessageEntry: IStatusbarEntryAccessor;
-		let showHandle: any = setTimeout(() => {
+		let showHandle: Timeout | undefined = setTimeout(() => {
 			statusMessageEntry = this.statusbarService.addEntry(
 				{
 					name: localize('status.message', "Status Message"),
@@ -200,13 +200,13 @@ export class NotificationsStatus extends Disposable {
 				},
 				'status.message',
 				StatusbarAlignment.LEFT,
-				-Number.MAX_VALUE /* far right on left hand side */
+				Number.NEGATIVE_INFINITY /* last entry */
 			);
-			showHandle = null;
+			showHandle = undefined;
 		}, showAfter);
 
 		// Dispose function takes care of timeouts and actual entry
-		let hideHandle: any;
+		let hideHandle: Timeout | undefined;
 		const statusMessageDispose = {
 			dispose: () => {
 				if (showHandle) {

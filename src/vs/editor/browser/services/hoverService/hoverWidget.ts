@@ -4,19 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './hover.css';
-import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
 import * as dom from '../../../../base/browser/dom.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { EDITOR_FONT_DEFAULTS, IEditorOptions } from '../../../common/config/editorOptions.js';
 import { HoverAction, HoverPosition, HoverWidget as BaseHoverWidget, getHoverAccessibleViewHint } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { Widget } from '../../../../base/browser/ui/widget.js';
 import { AnchorPosition } from '../../../../base/browser/ui/contextview/contextview.js';
-import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { MarkdownRenderer, openLinkFromMarkdown } from '../../widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { isMarkdownString } from '../../../../base/common/htmlContent.js';
 import { localize } from '../../../../nls.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
@@ -51,7 +48,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 	private readonly _hoverPointer: HTMLElement | undefined;
 	private readonly _hoverContainer: HTMLElement;
 	private readonly _target: IHoverTarget;
-	private readonly _linkHandler: (url: string) => any;
+	private readonly _linkHandler: ((url: string) => void) | undefined;
 
 	private _isDisposed: boolean = false;
 	private _hoverPosition: HoverPosition;
@@ -61,6 +58,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 	private _isLocked: boolean = false;
 	private _enableFocusTraps: boolean = false;
 	private _addedFocusTrap: boolean = false;
+	private _maxHeightRatioRelativeToWindow: number = 0.5;
 
 	private get _targetWindow(): Window {
 		return dom.getWindow(this._target.targetElements[0]);
@@ -99,15 +97,12 @@ export class HoverWidget extends Widget implements IHoverWidget {
 		options: IHoverOptions,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IOpenerService private readonly _openerService: IOpenerService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IMarkdownRendererService private readonly _markdownRenderer: IMarkdownRendererService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
 	) {
 		super();
 
-		this._linkHandler = options.linkHandler || (url => {
-			return openLinkFromMarkdown(this._openerService, url, isMarkdownString(options.content) ? options.content.isTrusted : undefined);
-		});
+		this._linkHandler = options.linkHandler;
 
 		this._target = 'targetElements' in options.target ? options.target : new ElementHoverTarget(options.target);
 
@@ -125,6 +120,11 @@ export class HoverWidget extends Widget implements IHoverWidget {
 		}
 		if (options.trapFocus) {
 			this._enableFocusTraps = true;
+		}
+
+		const maxHeightRatio = options.appearance?.maxHeightRatio;
+		if (maxHeightRatio !== undefined && maxHeightRatio > 0 && maxHeightRatio <= 1) {
+			this._maxHeightRatioRelativeToWindow = maxHeightRatio;
 		}
 
 		// Default to position above when the position is unspecified or a mouse event
@@ -160,16 +160,9 @@ export class HoverWidget extends Widget implements IHoverWidget {
 
 		} else {
 			const markdown = options.content;
-			const mdRenderer = this._instantiationService.createInstance(
-				MarkdownRenderer,
-				{ codeBlockFontFamily: this._configurationService.getValue<IEditorOptions>('editor').fontFamily || EDITOR_FONT_DEFAULTS.fontFamily }
-			);
 
-			const { element } = mdRenderer.render(markdown, {
-				actionHandler: {
-					callback: (content) => this._linkHandler(content),
-					disposables: this._messageListeners
-				},
+			const { element, dispose } = this._markdownRenderer.render(markdown, {
+				actionHandler: this._linkHandler,
 				asyncRenderCallback: () => {
 					contentsElement.classList.add('code-hover-contents');
 					this.layout();
@@ -178,6 +171,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 				}
 			});
 			contentsElement.appendChild(element);
+			this._register(toDisposable(dispose));
 		}
 		rowElement.appendChild(contentsElement);
 		this._hover.contentsDomNode.appendChild(rowElement);
@@ -188,7 +182,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 			options.actions.forEach(action => {
 				const keybinding = this._keybindingService.lookupKeybinding(action.commandId);
 				const keybindingLabel = keybinding ? keybinding.getLabel() : null;
-				HoverAction.render(actionsElement, {
+				this._register(HoverAction.render(actionsElement, {
 					label: action.label,
 					commandId: action.commandId,
 					run: e => {
@@ -196,7 +190,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 						this.dispose();
 					},
 					iconClass: action.iconClass
-				}, keybindingLabel);
+				}, keybindingLabel));
 			});
 			statusBarElement.appendChild(actionsElement);
 			this._hover.containerDomNode.appendChild(statusBarElement);
@@ -550,7 +544,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 	}
 
 	private adjustHoverMaxHeight(target: TargetRect): void {
-		let maxHeight = this._targetWindow.innerHeight / 2;
+		let maxHeight = this._targetWindow.innerHeight * this._maxHeightRatioRelativeToWindow;
 
 		// When force position is enabled, restrict max height
 		if (this._forcePosition) {

@@ -14,16 +14,35 @@
     "Other"
   ],
   "enabledApiProposals": [
-    "terminalCompletionProvider"
+    "terminalCompletionProvider",
+    "terminalShellEnv"
   ],
-  "scripts": {
-    "compile": "npx gulp compile-extension:npm",
-    "watch": "npx gulp watch-extension:npm"
+  "contributes": {
+    "commands": [
+      {
+        "command": "terminal.integrated.suggest.clearCachedGlobals",
+        "category": "Terminal",
+        "title": "%terminal.integrated.suggest.clearCachedGlobals%"
+      }
+    ],
+    "terminal": {
+      "completionProviders": [
+        {
+          "id": "terminal-suggest",
+          "description": "Provides completions for terminal commands, arguments, flags, and file paths based upon the Fig spec."
+        }
+      ]
+    }
   },
-
+  "scripts": {
+    "compile": "npx gulp compile-extension:terminal-suggest",
+    "watch": "npx gulp watch-extension:terminal-suggest",
+    "pull-zshbuiltins": "ts-node ./scripts/pullZshBuiltins.ts",
+    "pull-fishbuiltins": "ts-node ./scripts/pullFishBuiltins.ts"
+  },
   "main": "./out/terminalSuggestMain",
   "activationEvents": [
-    "onTerminalCompletionsRequested"
+    "onTerminalShellIntegration:*"
   ],
   "repository": {
     "type": "git",

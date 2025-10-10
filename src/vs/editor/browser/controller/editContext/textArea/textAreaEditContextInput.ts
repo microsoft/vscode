@@ -17,9 +17,10 @@ import * as strings from '../../../../../base/common/strings.js';
 import { Position } from '../../../../common/core/position.js';
 import { Selection } from '../../../../common/core/selection.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
+import { ILogService, LogLevel } from '../../../../../platform/log/common/log.js';
 import { ClipboardDataToCopy, ClipboardEventUtils, ClipboardStoredMetadata, InMemoryClipboardMetadataManager } from '../clipboardUtils.js';
 import { _debugComposition, ITextAreaWrapper, ITypeData, TextAreaState } from './textAreaEditContextState.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 
 export namespace TextAreaSyntethicEvents {
 	export const Tap = '-monaco-textarea-synthetic-tap';
@@ -342,13 +343,22 @@ export class TextAreaInput extends Disposable {
 				|| typeInput.replaceNextCharCnt !== 0
 				|| typeInput.positionDelta !== 0
 			) {
-				this._onType.fire(typeInput);
+				// https://w3c.github.io/input-events/#interface-InputEvent-Attributes
+				if (e.inputType === 'insertFromPaste') {
+					this._onPaste.fire({
+						text: typeInput.text,
+						metadata: InMemoryClipboardMetadataManager.INSTANCE.get(typeInput.text)
+					});
+				} else {
+					this._onType.fire(typeInput);
+				}
 			}
 		}));
 
 		// --- Clipboard operations
 
 		this._register(this._textArea.onCut((e) => {
+			this._logService.trace(`TextAreaInput#onCut`, e);
 			// Pretend here we touched the text area, as the `cut` event will most likely
 			// result in a `selectionchange` event which we want to ignore
 			this._textArea.setIgnoreSelectionChangeTime('received cut event');
@@ -358,10 +368,12 @@ export class TextAreaInput extends Disposable {
 		}));
 
 		this._register(this._textArea.onCopy((e) => {
+			this._logService.trace(`TextAreaInput#onCopy`, e);
 			this._ensureClipboardGetsEditorSelection(e);
 		}));
 
 		this._register(this._textArea.onPaste((e) => {
+			this._logService.trace(`TextAreaInput#onPaste`, e);
 			// Pretend here we touched the text area, as the `paste` event will most likely
 			// result in a `selectionchange` event which we want to ignore
 			this._textArea.setIgnoreSelectionChangeTime('received paste event');
@@ -373,6 +385,7 @@ export class TextAreaInput extends Disposable {
 			}
 
 			let [text, metadata] = ClipboardEventUtils.getTextData(e.clipboardData);
+			this._logService.trace(`TextAreaInput#onPaste with id : `, metadata?.id, ' with text.length: ', text.length);
 			if (!text) {
 				return;
 			}
@@ -380,6 +393,7 @@ export class TextAreaInput extends Disposable {
 			// try the in-memory store
 			metadata = metadata || InMemoryClipboardMetadataManager.INSTANCE.get(text);
 
+			this._logService.trace(`TextAreaInput#onPaste (before onPaste)`);
 			this._onPaste.fire({
 				text: text,
 				metadata: metadata
@@ -597,8 +611,13 @@ export class TextAreaInput extends Disposable {
 
 	private _ensureClipboardGetsEditorSelection(e: ClipboardEvent): void {
 		const dataToCopy = this._host.getDataToCopy();
+		let id = undefined;
+		if (this._logService.getLevel() === LogLevel.Trace) {
+			id = generateUuid();
+		}
 		const storedMetadata: ClipboardStoredMetadata = {
 			version: 1,
+			id,
 			isFromEmptySelection: dataToCopy.isFromEmptySelection,
 			multicursorText: dataToCopy.multicursorText,
 			mode: dataToCopy.mode
@@ -614,24 +633,25 @@ export class TextAreaInput extends Disposable {
 		if (e.clipboardData) {
 			ClipboardEventUtils.setTextData(e.clipboardData, dataToCopy.text, dataToCopy.html, storedMetadata);
 		}
+		this._logService.trace('TextAreaEditContextInput#_ensureClipboardGetsEditorSelection with id : ', id, ' with text.length: ', dataToCopy.text.length);
 	}
 }
 
 export class TextAreaWrapper extends Disposable implements ICompleteTextAreaWrapper {
 
-	public readonly onKeyDown = this._register(new DomEmitter(this._actual, 'keydown')).event;
-	public readonly onKeyPress = this._register(new DomEmitter(this._actual, 'keypress')).event;
-	public readonly onKeyUp = this._register(new DomEmitter(this._actual, 'keyup')).event;
-	public readonly onCompositionStart = this._register(new DomEmitter(this._actual, 'compositionstart')).event;
-	public readonly onCompositionUpdate = this._register(new DomEmitter(this._actual, 'compositionupdate')).event;
-	public readonly onCompositionEnd = this._register(new DomEmitter(this._actual, 'compositionend')).event;
-	public readonly onBeforeInput = this._register(new DomEmitter(this._actual, 'beforeinput')).event;
-	public readonly onInput = <Event<InputEvent>>this._register(new DomEmitter(this._actual, 'input')).event;
-	public readonly onCut = this._register(new DomEmitter(this._actual, 'cut')).event;
-	public readonly onCopy = this._register(new DomEmitter(this._actual, 'copy')).event;
-	public readonly onPaste = this._register(new DomEmitter(this._actual, 'paste')).event;
-	public readonly onFocus = this._register(new DomEmitter(this._actual, 'focus')).event;
-	public readonly onBlur = this._register(new DomEmitter(this._actual, 'blur')).event;
+	public readonly onKeyDown: Event<KeyboardEvent>;
+	public readonly onKeyPress: Event<KeyboardEvent>;
+	public readonly onKeyUp: Event<KeyboardEvent>;
+	public readonly onCompositionStart: Event<CompositionEvent>;
+	public readonly onCompositionUpdate: Event<CompositionEvent>;
+	public readonly onCompositionEnd: Event<CompositionEvent>;
+	public readonly onBeforeInput: Event<InputEvent>;
+	public readonly onInput: Event<InputEvent>;
+	public readonly onCut: Event<ClipboardEvent>;
+	public readonly onCopy: Event<ClipboardEvent>;
+	public readonly onPaste: Event<ClipboardEvent>;
+	public readonly onFocus: Event<FocusEvent>;
+	public readonly onBlur: Event<FocusEvent>; //  = this._register(new DomEmitter(this._actual, 'blur')).event;
 
 	public get ownerDocument(): Document {
 		return this._actual.ownerDocument;
@@ -647,12 +667,24 @@ export class TextAreaWrapper extends Disposable implements ICompleteTextAreaWrap
 	) {
 		super();
 		this._ignoreSelectionChangeTime = 0;
+		this.onKeyDown = this._register(new DomEmitter(this._actual, 'keydown')).event;
+		this.onKeyPress = this._register(new DomEmitter(this._actual, 'keypress')).event;
+		this.onKeyUp = this._register(new DomEmitter(this._actual, 'keyup')).event;
+		this.onCompositionStart = this._register(new DomEmitter(this._actual, 'compositionstart')).event;
+		this.onCompositionUpdate = this._register(new DomEmitter(this._actual, 'compositionupdate')).event;
+		this.onCompositionEnd = this._register(new DomEmitter(this._actual, 'compositionend')).event;
+		this.onBeforeInput = this._register(new DomEmitter(this._actual, 'beforeinput')).event;
+		this.onInput = <Event<InputEvent>>this._register(new DomEmitter(this._actual, 'input')).event;
+		this.onCut = this._register(new DomEmitter(this._actual, 'cut')).event;
+		this.onCopy = this._register(new DomEmitter(this._actual, 'copy')).event;
+		this.onPaste = this._register(new DomEmitter(this._actual, 'paste')).event;
+		this.onFocus = this._register(new DomEmitter(this._actual, 'focus')).event;
+		this.onBlur = this._register(new DomEmitter(this._actual, 'blur')).event;
 
 		this._register(this.onKeyDown(() => inputLatency.onKeyDown()));
 		this._register(this.onBeforeInput(() => inputLatency.onBeforeInput()));
 		this._register(this.onInput(() => inputLatency.onInput()));
 		this._register(this.onKeyUp(() => inputLatency.onKeyUp()));
-
 		this._register(dom.addDisposableListener(this._actual, TextAreaSyntethicEvents.Tap, () => this._onSyntheticTap.fire()));
 	}
 

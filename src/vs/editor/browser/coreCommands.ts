@@ -35,7 +35,7 @@ import { EnterOperation } from '../common/cursor/cursorTypeEditOperations.js';
 const CORE_WEIGHT = KeybindingWeight.EditorCore;
 
 export abstract class CoreEditorCommand<T> extends EditorCommand {
-	public runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args?: Partial<T> | null): void {
+	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args?: Partial<T> | null): void {
 		const viewModel = editor._getViewModel();
 		if (!viewModel) {
 			// the editor has no view => has no cursors
@@ -49,12 +49,12 @@ export abstract class CoreEditorCommand<T> extends EditorCommand {
 
 export namespace EditorScroll_ {
 
-	const isEditorScrollArgs = function (arg: any): boolean {
+	const isEditorScrollArgs = function (arg: unknown): boolean {
 		if (!types.isObject(arg)) {
 			return false;
 		}
 
-		const scrollArg: RawArguments = arg;
+		const scrollArg: RawArguments = arg as RawArguments;
 
 		if (!types.isString(scrollArg.to)) {
 			return false;
@@ -235,12 +235,12 @@ export namespace EditorScroll_ {
 
 export namespace RevealLine_ {
 
-	const isRevealLineArgs = function (arg: any): boolean {
+	const isRevealLineArgs = function (arg: unknown): boolean {
 		if (!types.isObject(arg)) {
 			return false;
 		}
 
-		const reveaLineArg: RawArguments = arg;
+		const reveaLineArg: RawArguments = arg as RawArguments;
 
 		if (!types.isNumber(reveaLineArg.lineNumber) && !types.isString(reveaLineArg.lineNumber)) {
 			return false;
@@ -2095,7 +2095,7 @@ export namespace CoreEditingCommands {
 		public runDOMCommand(activeElement: Element): void {
 			activeElement.ownerDocument.execCommand('undo');
 		}
-		public runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: unknown): void | Promise<void> {
+		public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: unknown): void | Promise<void> {
 			if (!editor.hasModel() || editor.getOption(EditorOption.readOnly) === true) {
 				return;
 			}
@@ -2110,7 +2110,7 @@ export namespace CoreEditingCommands {
 		public runDOMCommand(activeElement: Element): void {
 			activeElement.ownerDocument.execCommand('redo');
 		}
-		public runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: unknown): void | Promise<void> {
+		public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: unknown): void | Promise<void> {
 			if (!editor.hasModel() || editor.getOption(EditorOption.readOnly) === true) {
 				return;
 			}

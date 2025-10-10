@@ -72,8 +72,19 @@
 	outline: none;
 }
 
+.monaco-workbench .inline-chat .chat-widget {
+	.checkpoint-container,
+	.checkpoint-restore-container {
+		display: none;
+	}
+}
+
 .monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-input-part {
 	padding: 4px 0 0 0;
+}
+
+.monaco-workbench .inline-chat-2 .inline-chat .chat-widget .interactive-session .interactive-input-part {
+	padding: 8px 0 0 0;
 }
 
 .monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-input-part .interactive-execute-toolbar {
@@ -87,7 +98,7 @@
 
 
 .monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-input-part .interactive-input-followups .interactive-session-followups {
-	margin: 2px 0 0 4px;
+	margin: 3px 0 0 4px;
 }
 
 .monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-list .monaco-scrollable-element {
@@ -141,7 +152,6 @@
 
 .monaco-workbench .inline-chat > .status {
 	display: flex;
-	justify-content: space-between;
 	align-items: center;
 	padding-right: 16px;
 }
@@ -195,6 +205,24 @@
 	line-height: 18px;
 }
 
+.monaco-workbench .inline-chat .status .rerun {
+	display: inline-flex;
+}
+
+.monaco-workbench .inline-chat .status .rerun:not(:empty) {
+	padding-top: 8px;
+	padding-left: 4px;
+}
+
+.monaco-workbench .inline-chat .status .rerun .agentOrSlashCommandDetected A {
+	cursor: pointer;
+	color: var(--vscode-textLink-foreground);
+}
+
+.monaco-workbench .inline-chat .interactive-item-container.interactive-response .detail-container .detail .agentOrSlashCommandDetected,
+.monaco-workbench .inline-chat .interactive-item-container.interactive-response .detail-container .chat-animated-ellipsis {
+	display: none;
+}
 
 .monaco-workbench .inline-chat .status .actions,
 .monaco-workbench .inline-chat-diff-overlay {
@@ -238,12 +266,13 @@
 }
 
 .monaco-workbench .inline-chat .status .actions.secondary {
+	margin-left: auto;
 	display: none;
 }
 
-.monaco-workbench .inline-chat .status:hover .actions.secondary,
-.monaco-workbench .inline-chat:focus .status .actions.secondary,
-.monaco-workbench .inline-chat .status:focus-within .actions.secondary {
+.monaco-workbench .inline-chat .status:hover .actions.secondary:not(.has-no-actions),
+.monaco-workbench .inline-chat:focus .status .actions.secondary:not(.has-no-actions),
+.monaco-workbench .inline-chat .status:focus-within .actions.secondary:not(.has-no-actions) {
 	display: inherit;
 }
 
@@ -272,6 +301,15 @@
 	}
 }
 
+.monaco-workbench .inline-chat .status .disclaimer {
+	a {
+		color: var(--vscode-textLink-foreground);
+	}
+
+	p {
+		margin: 0;
+	}
+}
 
 /* TODO@jrieken not needed? */
 .monaco-workbench .inline-chat .status .monaco-toolbar .action-label.checked {
@@ -335,4 +373,21 @@
 .monaco-workbench .glyph-margin-widgets .cgmr.codicon-inline-chat-opaque:hover,
 .monaco-workbench .glyph-margin-widgets .cgmr.codicon-inline-chat-transparent:hover {
 	opacity: 1;
+}
+
+.monaco-workbench .inline-chat .chat-attached-context {
+	padding: 3px 0px;
+}
+
+
+/* HINT */
+
+.monaco-workbench .monaco-editor .inline-chat-hint {
+	cursor: pointer;
+	color: var(--vscode-editorGhostText-foreground);
+}
+
+.monaco-workbench .monaco-editor .inline-chat-hint.embedded {
+	border: 1px solid var(--vscode-editorSuggestWidget-border);
+	border-radius: 3px;
 }

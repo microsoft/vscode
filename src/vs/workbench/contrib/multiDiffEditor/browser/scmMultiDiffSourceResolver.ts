@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ValueWithChangeEvent } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { observableFromEvent, ValueWithChangeEventFromObservable, waitForState } from '../../../../base/common/observable.js';
+import { basename } from '../../../../base/common/path.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { IMultiDiffEditorOptions } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
 import { localize2 } from '../../../../nls.js';
@@ -13,7 +15,8 @@ import { ContextKeyValue } from '../../../../platform/contextkey/common/contextk
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IActivityService, ProgressBadge } from '../../../services/activity/common/activity.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { ISCMRepository, ISCMResourceGroup, ISCMService } from '../../scm/common/scm.js';
+import { ISCMHistoryItem } from '../../scm/common/history.js';
+import { ISCMProvider, ISCMRepository, ISCMResourceGroup, ISCMService } from '../../scm/common/scm.js';
 import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from './multiDiffSourceResolverService.js';
 
 export class ScmMultiDiffSourceResolver implements IMultiDiffSourceResolver {
@@ -83,22 +86,104 @@ export class ScmMultiDiffSourceResolver implements IMultiDiffSourceResolver {
 	}
 }
 
-class ScmResolvedMultiDiffSource implements IResolvedMultiDiffSource {
-	private readonly _resources = observableFromEvent<MultiDiffEditorItem[]>(
-		this._group.onDidChangeResources,
-		() => /** @description resources */ this._group.resources.map(e => new MultiDiffEditorItem(e.multiDiffEditorOriginalUri, e.multiDiffEditorModifiedUri, e.sourceUri))
-	);
-	readonly resources = new ValueWithChangeEventFromObservable(this._resources);
+interface ScmHistoryItemUriFields {
+	readonly repositoryId: string;
+	readonly historyItemId: string;
+	readonly historyItemParentId?: string;
+	readonly historyItemDisplayId?: string;
+}
 
-	public readonly contextKeys: Record<string, ContextKeyValue> = {
-		scmResourceGroup: this._group.id,
-		scmProvider: this._repository.provider.contextValue,
-	};
+export class ScmHistoryItemResolver implements IMultiDiffSourceResolver {
+	static readonly scheme = 'scm-history-item';
+
+	public static getMultiDiffSourceUri(provider: ISCMProvider, historyItem: ISCMHistoryItem): URI {
+		return URI.from({
+			scheme: ScmHistoryItemResolver.scheme,
+			path: provider.rootUri?.fsPath,
+			query: JSON.stringify({
+				repositoryId: provider.id,
+				historyItemId: historyItem.id,
+				historyItemParentId: historyItem.parentIds.length > 0
+					? historyItem.parentIds[0]
+					: undefined,
+				historyItemDisplayId: historyItem.displayId
+			} satisfies ScmHistoryItemUriFields)
+		}, true);
+	}
+
+	public static parseUri(uri: URI): ScmHistoryItemUriFields | undefined {
+		if (uri.scheme !== ScmHistoryItemResolver.scheme) {
+			return undefined;
+		}
+
+		let query: ScmHistoryItemUriFields;
+		try {
+			query = JSON.parse(uri.query) as ScmHistoryItemUriFields;
+		} catch (e) {
+			return undefined;
+		}
+
+		if (typeof query !== 'object' || query === null) {
+			return undefined;
+		}
+
+		const { repositoryId, historyItemId, historyItemParentId, historyItemDisplayId } = query;
+		if (typeof repositoryId !== 'string' || typeof historyItemId !== 'string' ||
+			(typeof historyItemParentId !== 'string' && historyItemParentId !== undefined) ||
+			(typeof historyItemDisplayId !== 'string' && historyItemDisplayId !== undefined)) {
+			return undefined;
+		}
+
+		return { repositoryId, historyItemId, historyItemParentId, historyItemDisplayId };
+	}
+
+	constructor(@ISCMService private readonly _scmService: ISCMService) { }
+
+	canHandleUri(uri: URI): boolean {
+		return ScmHistoryItemResolver.parseUri(uri) !== undefined;
+	}
+
+	async resolveDiffSource(uri: URI): Promise<IResolvedMultiDiffSource> {
+		const { repositoryId, historyItemId, historyItemParentId, historyItemDisplayId } = ScmHistoryItemResolver.parseUri(uri)!;
+
+		const repository = this._scmService.getRepository(repositoryId);
+		const historyProvider = repository?.provider.historyProvider.get();
+		const historyItemChanges = await historyProvider?.provideHistoryItemChanges(historyItemId, historyItemParentId) ?? [];
+
+		const resources = ValueWithChangeEvent.const<readonly MultiDiffEditorItem[]>(
+			historyItemChanges.map(change => {
+				const goToFileEditorTitle = change.modifiedUri
+					? `${basename(change.modifiedUri.fsPath)} (${historyItemDisplayId ?? historyItemId})`
+					: undefined;
+
+				return new MultiDiffEditorItem(change.originalUri, change.modifiedUri, change.modifiedUri, goToFileEditorTitle);
+			})
+		);
+
+		return { resources };
+	}
+}
+
+class ScmResolvedMultiDiffSource implements IResolvedMultiDiffSource {
+	private readonly _resources;
+	readonly resources;
+
+	public readonly contextKeys: Record<string, ContextKeyValue>;
 
 	constructor(
 		private readonly _group: ISCMResourceGroup,
 		private readonly _repository: ISCMRepository,
-	) { }
+	) {
+		this._resources = observableFromEvent<MultiDiffEditorItem[]>(
+			this._group.onDidChangeResources,
+			() => /** @description resources */ this._group.resources.map(e => new MultiDiffEditorItem(e.multiDiffEditorOriginalUri, e.multiDiffEditorModifiedUri, e.sourceUri))
+		);
+		this.resources = new ValueWithChangeEventFromObservable(this._resources);
+		this.contextKeys = {
+			scmResourceGroup: this._group.id,
+			scmProvider: this._repository.provider.providerId,
+		};
+	}
 }
 
 interface UriFields {
@@ -116,6 +201,7 @@ export class ScmMultiDiffSourceResolverContribution extends Disposable {
 	) {
 		super();
 
+		this._register(multiDiffSourceResolverService.registerResolver(instantiationService.createInstance(ScmHistoryItemResolver)));
 		this._register(multiDiffSourceResolverService.registerResolver(instantiationService.createInstance(ScmMultiDiffSourceResolver)));
 	}
 }
@@ -139,7 +225,7 @@ export class OpenScmGroupAction extends Action2 {
 	constructor() {
 		super({
 			id: '_workbench.openScmMultiDiffEditor',
-			title: localize2('viewChanges', 'View Changes'),
+			title: localize2('openChanges', 'Open Changes'),
 			f1: false
 		});
 	}

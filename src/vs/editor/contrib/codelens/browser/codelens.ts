@@ -5,7 +5,7 @@
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { illegalArgument, onUnexpectedExternalError } from '../../../../base/common/errors.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, isDisposable } from '../../../../base/common/lifecycle.js';
 import { assertType } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ITextModel } from '../../../common/model.js';
@@ -16,26 +16,31 @@ import { LanguageFeatureRegistry } from '../../../common/languageFeatureRegistry
 import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
 
 export interface CodeLensItem {
-	symbol: CodeLens;
-	provider: CodeLensProvider;
+	readonly symbol: CodeLens;
+	readonly provider: CodeLensProvider;
 }
 
 export class CodeLensModel {
 
+	static readonly Empty = new CodeLensModel();
+
 	lenses: CodeLensItem[] = [];
 
-	private readonly _disposables = new DisposableStore();
+	private _store: DisposableStore | undefined;
 
 	dispose(): void {
-		this._disposables.dispose();
+		this._store?.dispose();
 	}
 
 	get isDisposed(): boolean {
-		return this._disposables.isDisposed;
+		return this._store?.isDisposed ?? false;
 	}
 
 	add(list: CodeLensList, provider: CodeLensProvider): void {
-		this._disposables.add(list);
+		if (isDisposable(list)) {
+			this._store ??= new DisposableStore();
+			this._store.add(list);
+		}
 		for (const symbol of list.lenses) {
 			this.lenses.push({ symbol, provider });
 		}
@@ -63,6 +68,11 @@ export async function getCodeLensModel(registry: LanguageFeatureRegistry<CodeLen
 	});
 
 	await Promise.all(promises);
+
+	if (token.isCancellationRequested) {
+		result.dispose();
+		return CodeLensModel.Empty;
+	}
 
 	result.lenses = result.lenses.sort((a, b) => {
 		// sort by lineNumber, provider-rank, and column

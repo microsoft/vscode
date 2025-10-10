@@ -50,7 +50,7 @@ export default abstract class BaseErrorTelemetry {
 
 	private _telemetryService: ITelemetryService;
 	private _flushDelay: number;
-	private _flushHandle: any = -1;
+	private _flushHandle: Timeout | undefined = undefined;
 	private _buffer: ErrorEvent[] = [];
 	protected readonly _disposables = new DisposableStore();
 
@@ -118,10 +118,10 @@ export default abstract class BaseErrorTelemetry {
 			this._buffer[idx].count! += 1;
 		}
 
-		if (this._flushHandle === -1) {
+		if (this._flushHandle === undefined) {
 			this._flushHandle = setTimeout(() => {
 				this._flushBuffer();
-				this._flushHandle = -1;
+				this._flushHandle = undefined;
 			}, this._flushDelay);
 		}
 	}

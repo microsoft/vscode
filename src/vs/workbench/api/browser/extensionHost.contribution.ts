@@ -19,7 +19,6 @@ import './mainThreadLocalization.js';
 import './mainThreadBulkEdits.js';
 import './mainThreadLanguageModels.js';
 import './mainThreadChatAgents2.js';
-import './mainThreadChatVariables.js';
 import './mainThreadChatCodeMapper.js';
 import './mainThreadLanguageModelTools.js';
 import './mainThreadEmbeddings.js';
@@ -89,6 +88,12 @@ import './mainThreadShare.js';
 import './mainThreadProfileContentHandlers.js';
 import './mainThreadAiRelatedInformation.js';
 import './mainThreadAiEmbeddingVector.js';
+import './mainThreadAiSettingsSearch.js';
+import './mainThreadMcp.js';
+import './mainThreadChatStatus.js';
+import './mainThreadChatOutputRenderer.js';
+import './mainThreadChatSessions.js';
+import './mainThreadDataChannels.js';
 
 export class ExtensionPoints implements IWorkbenchContribution {
 

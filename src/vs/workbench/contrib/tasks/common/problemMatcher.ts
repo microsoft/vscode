@@ -358,6 +358,7 @@ abstract class AbstractLineMatcher implements ILineMatcher {
 			if (trim) {
 				value = Strings.trim(value)!;
 			}
+			// eslint-disable-next-line local/code-no-any-casts
 			(data as any)[property] += endOfLine + value;
 		}
 	}
@@ -370,6 +371,7 @@ abstract class AbstractLineMatcher implements ILineMatcher {
 				if (trim) {
 					value = Strings.trim(value)!;
 				}
+				// eslint-disable-next-line local/code-no-any-casts
 				(data as any)[property] = value;
 			}
 		}
@@ -987,6 +989,10 @@ export class ProblemPatternParser extends Parser {
 			}
 			result.push(pattern);
 		}
+		if (!result || result.length === 0) {
+			this.error(localize('ProblemPatternParser.problemPattern.emptyPattern', 'The problem pattern is invalid. It must contain at least one pattern.'));
+			return null;
+		}
 		if (result[0].kind === undefined) {
 			result[0].kind = ProblemLocationKind.Location;
 		}
@@ -1006,6 +1012,7 @@ export class ProblemPatternParser extends Parser {
 		function copyProperty(result: IProblemPattern, source: Config.IProblemPattern, resultKey: keyof IProblemPattern, sourceKey: keyof Config.IProblemPattern) {
 			const value = source[sourceKey];
 			if (typeof value === 'number') {
+				// eslint-disable-next-line local/code-no-any-casts
 				(result as any)[resultKey] = value;
 			}
 		}
@@ -1042,6 +1049,10 @@ export class ProblemPatternParser extends Parser {
 	}
 
 	private validateProblemPattern(values: IProblemPattern[]): boolean {
+		if (!values || values.length === 0) {
+			this.error(localize('ProblemPatternParser.problemPattern.emptyPattern', 'The problem pattern is invalid. It must contain at least one pattern.'));
+			return false;
+		}
 		let file: boolean = false, message: boolean = false, location: boolean = false, line: boolean = false;
 		const locationKind = (values[0].kind === undefined) ? ProblemLocationKind.Location : values[0].kind;
 
@@ -1892,6 +1903,7 @@ class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {
 				}
 				const matcher = this.get('tsc-watch');
 				if (matcher) {
+					// eslint-disable-next-line local/code-no-any-casts
 					(<any>matcher).tscWatch = true;
 				}
 				resolve(undefined);

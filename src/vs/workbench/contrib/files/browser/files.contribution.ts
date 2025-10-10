@@ -154,7 +154,7 @@ configurationRegistry.registerConfiguration({
 			'type': 'object',
 			'markdownDescription': nls.localize('exclude', "Configure [glob patterns](https://aka.ms/vscode-glob-patterns) for excluding files and folders. For example, the File Explorer decides which files and folders to show or hide based on this setting. Refer to the `#search.exclude#` setting to define search-specific excludes. Refer to the `#explorer.excludeGitIgnore#` setting for ignoring files based on your `.gitignore`."),
 			'default': {
-				...{ '**/.git': true, '**/.svn': true, '**/.hg': true, '**/CVS': true, '**/.DS_Store': true, '**/Thumbs.db': true },
+				...{ '**/.git': true, '**/.svn': true, '**/.hg': true, '**/.DS_Store': true, '**/Thumbs.db': true },
 				...(isWeb ? { '**/*.crswap': true /* filter out swap files used for local file access */ } : undefined)
 			},
 			'scope': ConfigurationScope.RESOURCE,
@@ -584,6 +584,21 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('copyRelativePathSeparator', "The path separation character used when copying relative file paths."),
 			'default': 'auto'
 		},
+		'explorer.copyPathSeparator': {
+			'type': 'string',
+			'enum': [
+				'/',
+				'\\',
+				'auto'
+			],
+			'enumDescriptions': [
+				nls.localize('copyPathSeparator.slash', "Use slash as path separation character."),
+				nls.localize('copyPathSeparator.backslash', "Use backslash as path separation character."),
+				nls.localize('copyPathSeparator.auto', "Uses operating system specific path separation character."),
+			],
+			'description': nls.localize('copyPathSeparator', "The path separation character used when copying file paths."),
+			'default': 'auto'
+		},
 		'explorer.excludeGitIgnore': {
 			type: 'boolean',
 			markdownDescription: nls.localize('excludeGitignore', "Controls whether entries in .gitignore should be parsed and excluded from the Explorer. Similar to {0}.", '`#files.exclude#`'),
@@ -619,7 +634,7 @@ configurationRegistry.registerConfiguration({
 				'*.jsx': '${capture}.js',
 				'*.tsx': '${capture}.ts',
 				'tsconfig.json': 'tsconfig.*.json',
-				'package.json': 'package-lock.json, yarn.lock, pnpm-lock.yaml, bun.lockb',
+				'package.json': 'package-lock.json, yarn.lock, pnpm-lock.yaml, bun.lockb, bun.lock',
 			}
 		}
 	}

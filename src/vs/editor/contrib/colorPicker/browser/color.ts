@@ -16,8 +16,8 @@ import { DefaultDocumentColorProvider } from './defaultDocumentColorProvider.js'
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ServicesAccessor } from '../../../browser/editorExtensions.js';
 
-export async function getColors(colorProviderRegistry: LanguageFeatureRegistry<DocumentColorProvider>, model: ITextModel, token: CancellationToken, isDefaultColorDecoratorsEnabled: boolean = true): Promise<IColorData[]> {
-	return _findColorData<IColorData>(new ColorDataCollector(), colorProviderRegistry, model, token, isDefaultColorDecoratorsEnabled);
+export async function getColors(colorProviderRegistry: LanguageFeatureRegistry<DocumentColorProvider>, model: ITextModel, token: CancellationToken, defaultColorDecoratorsEnablement: 'auto' | 'always' | 'never' = 'auto'): Promise<IColorData[]> {
+	return _findColorData<IColorData>(new ColorDataCollector(), colorProviderRegistry, model, token, defaultColorDecoratorsEnablement);
 }
 
 export function getColorPresentations(model: ITextModel, colorInfo: IColorInformation, provider: DocumentColorProvider, token: CancellationToken): Promise<IColorPresentation[] | null | undefined> {
@@ -73,14 +73,14 @@ export class ColorPresentationsCollector implements DataCollector<IColorPresenta
 	}
 }
 
-export async function _findColorData<T extends IColorPresentation | IExtColorData | IColorData>(collector: DataCollector<T>, colorProviderRegistry: LanguageFeatureRegistry<DocumentColorProvider>, model: ITextModel, token: CancellationToken, isDefaultColorDecoratorsEnabled: boolean): Promise<T[]> {
+export async function _findColorData<T extends IColorPresentation | IExtColorData | IColorData>(collector: DataCollector<T>, colorProviderRegistry: LanguageFeatureRegistry<DocumentColorProvider>, model: ITextModel, token: CancellationToken, defaultColorDecoratorsEnablement: 'auto' | 'always' | 'never'): Promise<T[]> {
 	let validDocumentColorProviderFound = false;
 	let defaultProvider: DefaultDocumentColorProvider | undefined;
 	const colorData: T[] = [];
 	const documentColorProviders = colorProviderRegistry.ordered(model);
 	for (let i = documentColorProviders.length - 1; i >= 0; i--) {
 		const provider = documentColorProviders[i];
-		if (provider instanceof DefaultDocumentColorProvider) {
+		if (defaultColorDecoratorsEnablement !== 'always' && provider instanceof DefaultDocumentColorProvider) {
 			defaultProvider = provider;
 		} else {
 			try {
@@ -95,20 +95,20 @@ export async function _findColorData<T extends IColorPresentation | IExtColorDat
 	if (validDocumentColorProviderFound) {
 		return colorData;
 	}
-	if (defaultProvider && isDefaultColorDecoratorsEnabled) {
+	if (defaultProvider && defaultColorDecoratorsEnablement !== 'never') {
 		await collector.compute(defaultProvider, model, token, colorData);
 		return colorData;
 	}
 	return [];
 }
 
-export function _setupColorCommand(accessor: ServicesAccessor, resource: URI): { model: ITextModel; colorProviderRegistry: LanguageFeatureRegistry<DocumentColorProvider>; isDefaultColorDecoratorsEnabled: boolean } {
+export function _setupColorCommand(accessor: ServicesAccessor, resource: URI): { model: ITextModel; colorProviderRegistry: LanguageFeatureRegistry<DocumentColorProvider>; defaultColorDecoratorsEnablement: 'auto' | 'always' | 'never' } {
 	const { colorProvider: colorProviderRegistry } = accessor.get(ILanguageFeaturesService);
 	const model = accessor.get(IModelService).getModel(resource);
 	if (!model) {
 		throw illegalArgument();
 	}
-	const isDefaultColorDecoratorsEnabled = accessor.get(IConfigurationService).getValue<boolean>('editor.defaultColorDecorators', { resource });
-	return { model, colorProviderRegistry, isDefaultColorDecoratorsEnabled };
+	const defaultColorDecoratorsEnablement = accessor.get(IConfigurationService).getValue<'auto' | 'always' | 'never'>('editor.defaultColorDecorators', { resource });
+	return { model, colorProviderRegistry, defaultColorDecoratorsEnablement };
 }
 

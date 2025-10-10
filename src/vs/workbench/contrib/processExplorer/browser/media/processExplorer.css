@@ -1,0 +1,78 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.process-explorer .row {
+	display: flex;
+}
+
+.process-explorer .row .cell:not(:first-of-type) {
+	padding-left: 10px;
+}
+
+.process-explorer .row .cell:not(:last-of-type) {
+	padding-right: 10px;
+}
+
+.process-explorer .row .cell {
+	border-right: 1px solid var(--vscode-tree-tableColumnsBorder);
+}
+
+.process-explorer .row.header {
+	font-weight: 600;
+	border-bottom: 1px solid var(--vscode-tree-tableColumnsBorder);
+}
+
+.process-explorer .row.header .cell {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.process-explorer .monaco-tl-twistie.force-no-twistie {
+	background-image: none !important;
+	width: 0 !important;
+	padding-right: 0 !important;
+	visibility: hidden;
+}
+
+.process-explorer .row .cell.name {
+	text-align: left;
+	flex-grow: 1;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.process-explorer .row .cell.cpu {
+	flex: 0 0 60px;
+}
+
+.process-explorer .row .cell.memory {
+	flex: 0 0 90px;
+}
+
+.process-explorer .row .cell.pid {
+	flex: 0 0 50px;
+}
+
+.mac:not(.fullscreen) .process-explorer .monaco-list:focus::before {
+	/* Rounded corners to make focus outline appear properly (unless fullscreen) */
+	border-bottom-right-radius: 5px;
+	border-bottom-left-radius: 5px;
+}
+
+.mac:not(.fullscreen).macos-bigsur-or-newer .process-explorer .monaco-list:focus::before {
+	/* macOS Big Sur increased rounded corners size */
+	border-bottom-right-radius: 10px;
+	border-bottom-left-radius: 10px;
+}
+
+.mac:not(.fullscreen).macos-tahoe-or-newer .process-explorer .monaco-list:focus::before {
+	/* macOS Tahoe increased rounded corners size even more */
+	border-bottom-right-radius: 12px;
+	border-bottom-left-radius: 12px;
+}
+
+.process-explorer .monaco-list-row:first-of-type {
+	border-bottom: 1px solid var(--vscode-tree-tableColumnsBorder);
+}

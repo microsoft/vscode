@@ -25,6 +25,8 @@ import { ViewportData } from '../../../common/viewLayout/viewLinesViewportData.j
 import { Viewport } from '../../../common/viewModel.js';
 import { ViewContext } from '../../../common/viewModel/viewContext.js';
 import { ViewLineOptions } from './viewLineOptions.js';
+import type { ViewGpuContext } from '../../gpu/viewGpuContext.js';
+import { TextDirection } from '../../../common/model.js';
 
 class LastRenderedData {
 
@@ -125,7 +127,7 @@ export class ViewLines extends ViewPart implements IViewLines {
 	private _stickyScrollEnabled: boolean;
 	private _maxNumberStickyLines: number;
 
-	constructor(context: ViewContext, linesContent: FastDomNode<HTMLElement>) {
+	constructor(context: ViewContext, viewGpuContext: ViewGpuContext | undefined, linesContent: FastDomNode<HTMLElement>) {
 		super(context);
 
 		const conf = this._context.configuration;
@@ -144,8 +146,8 @@ export class ViewLines extends ViewPart implements IViewLines {
 
 		this._linesContent = linesContent;
 		this._textRangeRestingSpot = document.createElement('div');
-		this._visibleLines = new VisibleLinesCollection({
-			createLine: () => new ViewLine(this._viewLineOptions),
+		this._visibleLines = new VisibleLinesCollection(this._context, {
+			createLine: () => new ViewLine(viewGpuContext, this._viewLineOptions),
 		});
 		this.domNode = this._visibleLines.domNode;
 
@@ -253,7 +255,7 @@ export class ViewLines extends ViewPart implements IViewLines {
 		return true;
 	}
 	public override onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
-		const shouldRender = this._visibleLines.onFlushed(e);
+		const shouldRender = this._visibleLines.onFlushed(e, this._viewLineOptions.useGpu);
 		this._maxLineWidth = 0;
 		return shouldRender;
 	}
@@ -443,9 +445,10 @@ export class ViewLines extends ViewPart implements IViewLines {
 			}
 
 			const startColumn = lineNumber === range.startLineNumber ? range.startColumn : 1;
-			const continuesInNextLine = lineNumber !== range.endLineNumber;
+			const continuesInNextLine = lineNumber !== originalEndLineNumber;
 			const endColumn = continuesInNextLine ? this._context.viewModel.getLineMaxColumn(lineNumber) : range.endColumn;
-			const visibleRangesForLine = this._visibleLines.getVisibleLine(lineNumber).getVisibleRangesForRange(lineNumber, startColumn, endColumn, domReadingContext);
+			const visibleLine = this._visibleLines.getVisibleLine(lineNumber);
+			const visibleRangesForLine = visibleLine.getVisibleRangesForRange(lineNumber, startColumn, endColumn, domReadingContext);
 
 			if (!visibleRangesForLine) {
 				continue;
@@ -456,7 +459,11 @@ export class ViewLines extends ViewPart implements IViewLines {
 				nextLineModelLineNumber = this._context.viewModel.coordinatesConverter.convertViewPositionToModelPosition(new Position(lineNumber + 1, 1)).lineNumber;
 
 				if (currentLineModelLineNumber !== nextLineModelLineNumber) {
-					visibleRangesForLine.ranges[visibleRangesForLine.ranges.length - 1].width += this._typicalHalfwidthCharacterWidth;
+					const floatHorizontalRange = visibleRangesForLine.ranges[visibleRangesForLine.ranges.length - 1];
+					floatHorizontalRange.width += this._typicalHalfwidthCharacterWidth;
+					if (this._context.viewModel.getTextDirection(currentLineModelLineNumber) === TextDirection.RTL) {
+						floatHorizontalRange.left -= this._typicalHalfwidthCharacterWidth;
+					}
 				}
 			}
 
@@ -488,6 +495,14 @@ export class ViewLines extends ViewPart implements IViewLines {
 		this._updateLineWidthsSlowIfDomDidLayout(domReadingContext);
 
 		return result;
+	}
+
+	private _lineIsRenderedRTL(lineNumber: number): boolean {
+		if (lineNumber < this._visibleLines.getStartLineNumber() || lineNumber > this._visibleLines.getEndLineNumber()) {
+			return false;
+		}
+		const visibleLine = this._visibleLines.getVisibleLine(lineNumber);
+		return visibleLine.isRenderedRTL();
 	}
 
 	public visibleRangeForPosition(position: Position): HorizontalPosition | null {
@@ -627,7 +642,7 @@ export class ViewLines extends ViewPart implements IViewLines {
 				const newScrollLeft = this._computeScrollLeftToReveal(horizontalRevealRequest);
 
 				if (newScrollLeft) {
-					if (!this._isViewportWrapping) {
+					if (!this._isViewportWrapping && !newScrollLeft.hasRTL) {
 						// ensure `scrollWidth` is large enough
 						this._ensureMaxLineWidth(newScrollLeft.maxHorizontalOffset);
 					}
@@ -768,7 +783,7 @@ export class ViewLines extends ViewPart implements IViewLines {
 		return newScrollTop;
 	}
 
-	private _computeScrollLeftToReveal(horizontalRevealRequest: HorizontalRevealRequest): { scrollLeft: number; maxHorizontalOffset: number } | null {
+	private _computeScrollLeftToReveal(horizontalRevealRequest: HorizontalRevealRequest): { scrollLeft: number; maxHorizontalOffset: number; hasRTL: boolean } | null {
 
 		const viewport = this._context.viewLayout.getCurrentViewport();
 		const layoutInfo = this._context.configuration.options.get(EditorOption.layoutInfo);
@@ -777,7 +792,9 @@ export class ViewLines extends ViewPart implements IViewLines {
 
 		let boxStartX = Constants.MAX_SAFE_SMALL_INTEGER;
 		let boxEndX = 0;
+		let hasRTL = false;
 		if (horizontalRevealRequest.type === 'range') {
+			hasRTL = this._lineIsRenderedRTL(horizontalRevealRequest.lineNumber);
 			const visibleRanges = this._visibleRangesForLineRange(horizontalRevealRequest.lineNumber, horizontalRevealRequest.startColumn, horizontalRevealRequest.endColumn);
 			if (!visibleRanges) {
 				return null;
@@ -792,6 +809,7 @@ export class ViewLines extends ViewPart implements IViewLines {
 					return null;
 				}
 				const visibleRanges = this._visibleRangesForLineRange(selection.startLineNumber, selection.startColumn, selection.endColumn);
+				hasRTL ||= this._lineIsRenderedRTL(selection.startLineNumber);
 				if (!visibleRanges) {
 					return null;
 				}
@@ -814,7 +832,8 @@ export class ViewLines extends ViewPart implements IViewLines {
 		const newScrollLeft = this._computeMinimumScrolling(viewportStartX, viewportEndX, boxStartX, boxEndX);
 		return {
 			scrollLeft: newScrollLeft,
-			maxHorizontalOffset: boxEndX
+			maxHorizontalOffset: boxEndX,
+			hasRTL
 		};
 	}
 

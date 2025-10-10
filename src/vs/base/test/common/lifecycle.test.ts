@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { Emitter } from '../../common/event.js';
-import { DisposableStore, dispose, IDisposable, markAsSingleton, ReferenceCollection, SafeDisposable, toDisposable } from '../../common/lifecycle.js';
+import { DisposableStore, dispose, IDisposable, markAsSingleton, ReferenceCollection, thenIfNotDisposed, toDisposable } from '../../common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite, throwIfDisposablesAreLeaked } from './utils.js';
 
 class Disposable implements IDisposable {
@@ -107,25 +107,6 @@ suite('Lifecycle', () => {
 		const setValues = set.values();
 		const setValues2 = dispose(setValues);
 		assert.ok(setValues === setValues2);
-	});
-
-	test('SafeDisposable, dispose', function () {
-		let disposed = 0;
-		const actual = () => disposed += 1;
-		const d = new SafeDisposable();
-		d.set(actual);
-		d.dispose();
-		assert.strictEqual(disposed, 1);
-	});
-
-	test('SafeDisposable, unset', function () {
-		let disposed = 0;
-		const actual = () => disposed += 1;
-		const d = new SafeDisposable();
-		d.set(actual);
-		d.unset();
-		d.dispose();
-		assert.strictEqual(disposed, 0);
 	});
 });
 
@@ -326,6 +307,32 @@ suite('No Leakage Utilities', () => {
 
 		test('Basic Test', () => {
 			toDisposable(() => { }).dispose();
+		});
+	});
+
+	suite('thenIfNotDisposed', () => {
+		const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+		test('normal case', async () => {
+			let called = false;
+			store.add(thenIfNotDisposed(Promise.resolve(123), (result: number) => {
+				assert.strictEqual(result, 123);
+				called = true;
+			}));
+
+			await new Promise(resolve => setTimeout(resolve, 0));
+			assert.strictEqual(called, true);
+		});
+
+		test('disposed before promise resolves', async () => {
+			let called = false;
+			const disposable = thenIfNotDisposed(Promise.resolve(123), () => {
+				called = true;
+			});
+
+			disposable.dispose();
+			await new Promise(resolve => setTimeout(resolve, 0));
+			assert.strictEqual(called, false);
 		});
 	});
 });

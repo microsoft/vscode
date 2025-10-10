@@ -16,12 +16,14 @@ import { TabFocus } from './tabFocus.js';
 import { ComputeOptionsMemory, ConfigurationChangedEvent, EditorOption, editorOptionsRegistry, FindComputedEditorOptionValueById, IComputedEditorOptions, IEditorOptions, IEnvironmentalOptions } from '../../common/config/editorOptions.js';
 import { EditorZoom } from '../../common/config/editorZoom.js';
 import { BareFontInfo, FontInfo, IValidatedEditorOptions } from '../../common/config/fontInfo.js';
-import { IDimension } from '../../common/core/dimension.js';
+import { createBareFontInfoFromValidatedSettings } from '../../common/config/fontInfoFromSettings.js';
+import { IDimension } from '../../common/core/2d/dimension.js';
 import { IEditorConfiguration } from '../../common/config/editorConfiguration.js';
 import { AccessibilitySupport, IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
 import { getWindow, getWindowById } from '../../../base/browser/dom.js';
 import { PixelRatio } from '../../../base/browser/pixelRatio.js';
 import { MenuId } from '../../../platform/actions/common/actions.js';
+import { InputMode } from '../../common/inputMode.js';
 
 export interface IEditorConstructionOptions extends IEditorOptions {
 	/**
@@ -95,6 +97,7 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 		this._register(FontMeasurements.onDidChange(() => this._recomputeOptions()));
 		this._register(PixelRatio.getInstance(getWindow(container)).onDidChange(() => this._recomputeOptions()));
 		this._register(this._accessibilityService.onDidChangeScreenReaderOptimized(() => this._recomputeOptions()));
+		this._register(InputMode.onDidChangeInputMode(() => this._recomputeOptions()));
 	}
 
 	private _recomputeOptions(): void {
@@ -112,7 +115,7 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 
 	private _computeOptions(): ComputedEditorOptions {
 		const partialEnv = this._readEnvConfiguration();
-		const bareFontInfo = BareFontInfo.createFromValidatedSettings(this._validatedOptions, partialEnv.pixelRatio, this.isSimpleWidget);
+		const bareFontInfo = createBareFontInfoFromValidatedSettings(this._validatedOptions, partialEnv.pixelRatio, this.isSimpleWidget);
 		const fontInfo = this._readFontInfo(bareFontInfo);
 		const env: IEnvironmentalOptions = {
 			memory: this._computeOptionsMemory,
@@ -125,9 +128,11 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 			lineNumbersDigitCount: this._lineNumbersDigitCount,
 			emptySelectionClipboard: partialEnv.emptySelectionClipboard,
 			pixelRatio: partialEnv.pixelRatio,
-			tabFocusMode: TabFocus.getTabFocusMode(),
+			tabFocusMode: this._validatedOptions.get(EditorOption.tabFocusMode) || TabFocus.getTabFocusMode(),
+			inputMode: InputMode.getInputMode(),
 			accessibilitySupport: partialEnv.accessibilitySupport,
-			glyphMarginDecorationLaneCount: this._glyphMarginDecorationLaneCount
+			glyphMarginDecorationLaneCount: this._glyphMarginDecorationLaneCount,
+			editContextSupported: partialEnv.editContextSupported
 		};
 		return EditorOptionsUtil.computeOptions(this._validatedOptions, env);
 	}
@@ -139,6 +144,8 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 			outerHeight: this._containerObserver.getHeight(),
 			emptySelectionClipboard: browser.isWebKit || browser.isFirefox,
 			pixelRatio: PixelRatio.getInstance(getWindowById(this._targetWindowId, true).window).value,
+			// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
+			editContextSupported: typeof (globalThis as any).EditContext === 'function',
 			accessibilitySupport: (
 				this._accessibilityService.isScreenReaderOptimized()
 					? AccessibilitySupport.Enabled
@@ -224,14 +231,13 @@ function digitCount(n: number): number {
 
 function getExtraEditorClassName(): string {
 	let extra = '';
-	if (!browser.isSafari && !browser.isWebkitWebView) {
-		// Use user-select: none in all browsers except Safari and native macOS WebView
-		extra += 'no-user-select ';
-	}
-	if (browser.isSafari) {
+	if (browser.isSafari || browser.isWebkitWebView) {
 		// See https://github.com/microsoft/vscode/issues/108822
 		extra += 'no-minimap-shadow ';
 		extra += 'enable-user-select ';
+	} else {
+		// Use user-select: none in all browsers except Safari and native macOS WebView
+		extra += 'no-user-select ';
 	}
 	if (platform.isMacintosh) {
 		extra += 'mac ';
@@ -246,15 +252,16 @@ export interface IEnvConfiguration {
 	emptySelectionClipboard: boolean;
 	pixelRatio: number;
 	accessibilitySupport: AccessibilitySupport;
+	editContextSupported: boolean;
 }
 
 class ValidatedEditorOptions implements IValidatedEditorOptions {
-	private readonly _values: any[] = [];
+	private readonly _values: unknown[] = [];
 	public _read<T>(option: EditorOption): T {
-		return this._values[option];
+		return this._values[option] as T;
 	}
 	public get<T extends EditorOption>(id: T): FindComputedEditorOptionValueById<T> {
-		return this._values[id];
+		return this._values[id] as FindComputedEditorOptionValueById<T>;
 	}
 	public _write<T>(option: EditorOption, value: T): void {
 		this._values[option] = value;
@@ -262,12 +269,12 @@ class ValidatedEditorOptions implements IValidatedEditorOptions {
 }
 
 export class ComputedEditorOptions implements IComputedEditorOptions {
-	private readonly _values: any[] = [];
+	private readonly _values: unknown[] = [];
 	public _read<T>(id: EditorOption): T {
 		if (id >= this._values.length) {
 			throw new Error('Cannot read uninitialized value');
 		}
-		return this._values[id];
+		return this._values[id] as T;
 	}
 	public get<T extends EditorOption>(id: T): FindComputedEditorOptionValueById<T> {
 		return this._read(id);
@@ -282,7 +289,7 @@ class EditorOptionsUtil {
 	public static validateOptions(options: IEditorOptions): ValidatedEditorOptions {
 		const result = new ValidatedEditorOptions();
 		for (const editorOption of editorOptionsRegistry) {
-			const value = (editorOption.name === '_never_' ? undefined : (options as any)[editorOption.name]);
+			const value = (editorOption.name === '_never_' ? undefined : (options as Record<string, unknown>)[editorOption.name]);
 			result._write(editorOption.id, editorOption.validate(value));
 		}
 		return result;
@@ -335,8 +342,8 @@ class EditorOptionsUtil {
 		let changed = false;
 		for (const editorOption of editorOptionsRegistry) {
 			if (update.hasOwnProperty(editorOption.name)) {
-				const result = editorOption.applyUpdate((options as any)[editorOption.name], (update as any)[editorOption.name]);
-				(options as any)[editorOption.name] = result.newValue;
+				const result = editorOption.applyUpdate((options as Record<string, unknown>)[editorOption.name], (update as Record<string, unknown>)[editorOption.name]);
+				(options as Record<string, unknown>)[editorOption.name] = result.newValue;
 				changed = changed || result.didChange;
 			}
 		}

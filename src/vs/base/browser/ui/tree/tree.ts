@@ -5,7 +5,7 @@
 
 import { IDragAndDropData } from '../../dnd.js';
 import { IMouseEvent } from '../../mouseEvent.js';
-import { IListDragAndDrop, IListDragOverReaction, IListRenderer, ListDragOverEffectPosition, ListDragOverEffectType } from '../list/list.js';
+import { IListDragAndDrop, IListDragOverReaction, IListElementRenderDetails, IListRenderer, ListDragOverEffectPosition, ListDragOverEffectType } from '../list/list.js';
 import { ListViewTargetSector } from '../list/listView.js';
 import { Event } from '../../../common/event.js';
 
@@ -159,9 +159,15 @@ export interface ITreeModel<T, TFilterData, TRef> {
 	refilter(): void;
 }
 
+export interface ITreeElementRenderDetails extends IListElementRenderDetails {
+	readonly indent: number;
+}
+
 export interface ITreeRenderer<T, TFilterData = void, TTemplateData = void> extends IListRenderer<ITreeNode<T, TFilterData>, TTemplateData> {
+	renderElement(element: ITreeNode<T, TFilterData>, index: number, templateData: TTemplateData, details?: ITreeElementRenderDetails): void;
+	disposeElement?(element: ITreeNode<T, TFilterData>, index: number, templateData: TTemplateData, details?: ITreeElementRenderDetails): void;
 	renderTwistie?(element: T, twistieElement: HTMLElement): boolean;
-	onDidChangeTwistieState?: Event<T>;
+	readonly onDidChangeTwistieState?: Event<T>;
 }
 
 export interface ITreeEvent<T> {

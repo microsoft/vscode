@@ -65,6 +65,7 @@ import { TestInstantiationService } from '../../../../platform/instantiation/tes
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { timeout } from '../../../../base/common/async.js';
+import { FormattingOptions } from '../../../../editor/common/languages.js';
 
 function assertRejects(fn: () => Promise<any>, message: string = 'Expected rejection') {
 	return fn().then(() => assert.ok(false, message), _err => assert.ok(true));
@@ -167,6 +168,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 				uri: model.uri,
 				lines: model.getValue().split(model.getEOL()),
 				EOL: model.getEOL(),
+				encoding: 'utf8'
 			}]
 		});
 		const extHostDocuments = new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors);
@@ -297,7 +299,10 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const edits = await commands.executeCommand<vscode.SymbolInformation[]>('vscode.executeFormatDocumentProvider', model.uri);
+		const edits = await commands.executeCommand<vscode.SymbolInformation[]>('vscode.executeFormatDocumentProvider', model.uri, {
+			insertSpaces: false,
+			tabSize: 4,
+		} satisfies FormattingOptions);
 		assert.strictEqual(edits.length, 1);
 	});
 
@@ -866,6 +871,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			provideCompletionItems(): any {
 				const a = new types.CompletionItem('item1');
 				const b = new types.CompletionItem('item2');
+				// eslint-disable-next-line local/code-no-any-casts
 				return new types.CompletionList(<any>[a, b], true);
 			}
 		}, []));

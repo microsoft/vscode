@@ -39,9 +39,9 @@ export interface IEmbedderTerminalOptions {
  * See Pseudoterminal on the vscode API for usage.
  */
 export interface IEmbedderTerminalPty {
-	onDidWrite: Event<string>;
-	onDidClose?: Event<void | number>;
-	onDidChangeName?: Event<string>;
+	readonly onDidWrite: Event<string>;
+	readonly onDidClose?: Event<void | number>;
+	readonly onDidChangeName?: Event<string>;
 
 	open(): void;
 	close(): void;
@@ -116,6 +116,9 @@ class EmbedderTerminalProcess extends Disposable implements ITerminalChildProces
 	// they be optional? Should there be a base class for "external" consumers to implement?
 
 	input(): void {
+		// not supported
+	}
+	sendSignal(): void {
 		// not supported
 	}
 	async processBinary(): Promise<void> {

@@ -7,14 +7,14 @@ import { IDimension } from '../../../../base/browser/dom.js';
 import { findLast } from '../../../../base/common/arraysFind.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Disposable, DisposableStore, IDisposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, ISettableObservable, autorun, autorunHandleChanges, autorunOpts, autorunWithStore, observableValue, transaction } from '../../../../base/common/observable.js';
+import { IObservable, IObservableWithChange, ISettableObservable, autorun, autorunHandleChanges, autorunOpts, autorunWithStore, observableValue, transaction } from '../../../../base/common/observable.js';
 import { ElementSizeObserver } from '../../config/elementSizeObserver.js';
 import { ICodeEditor, IOverlayWidget, IViewZone } from '../../editorBrowser.js';
 import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
 import { DetailedLineRangeMapping } from '../../../common/diff/rangeMapping.js';
 import { IModelDeltaDecoration } from '../../../common/model.js';
-import { TextLength } from '../../../common/core/textLength.js';
+import { TextLength } from '../../../common/core/text/textLength.js';
 
 export function joinCombine<T>(arr1: readonly T[], arr2: readonly T[], keySelector: (val: T) => number, combine: (v1: T, v2: T) => T): readonly T[] {
 	if (arr1.length === 0) {
@@ -126,7 +126,7 @@ export class ObservableElementSizeObserver extends Disposable {
 	}
 }
 
-export function animatedObservable(targetWindow: Window, base: IObservable<number, boolean>, store: DisposableStore): IObservable<number> {
+export function animatedObservable(targetWindow: Window, base: IObservableWithChange<number, boolean>, store: DisposableStore): IObservable<number> {
 	let targetVal = base.get();
 	let startVal = targetVal;
 	let curVal = targetVal;
@@ -137,12 +137,14 @@ export function animatedObservable(targetWindow: Window, base: IObservable<numbe
 	let animationFrame: number | undefined = undefined;
 
 	store.add(autorunHandleChanges({
-		createEmptyChangeSummary: () => ({ animate: false }),
-		handleChange: (ctx, s) => {
-			if (ctx.didChange(base)) {
-				s.animate = s.animate || ctx.change;
+		changeTracker: {
+			createChangeSummary: () => ({ animate: false }),
+			handleChange: (ctx, s) => {
+				if (ctx.didChange(base)) {
+					s.animate = s.animate || ctx.change;
+				}
+				return true;
 			}
-			return true;
 		}
 	}, (reader, s) => {
 		/** @description update value */
@@ -179,6 +181,7 @@ function easeOutExpo(t: number, b: number, c: number, d: number): number {
 }
 
 export function deepMerge<T extends {}>(source1: T, source2: Partial<T>): T {
+	// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 	const result = {} as any as T;
 	for (const key in source1) {
 		result[key] = source1[key];
@@ -186,8 +189,10 @@ export function deepMerge<T extends {}>(source1: T, source2: Partial<T>): T {
 	for (const key in source2) {
 		const source2Value = source2[key];
 		if (typeof result[key] === 'object' && source2Value && typeof source2Value === 'object') {
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			result[key] = deepMerge<any>(result[key], source2Value);
 		} else {
+			// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 			result[key] = source2Value as any;
 		}
 	}
@@ -219,33 +224,42 @@ export interface IObservableViewZone extends IViewZone {
 }
 
 export class PlaceholderViewZone implements IObservableViewZone {
-	public readonly domNode = document.createElement('div');
+	public readonly domNode;
 
-	private readonly _actualTop = observableValue<number | undefined>(this, undefined);
-	private readonly _actualHeight = observableValue<number | undefined>(this, undefined);
+	private readonly _actualTop;
+	private readonly _actualHeight;
 
-	public readonly actualTop: IObservable<number | undefined> = this._actualTop;
-	public readonly actualHeight: IObservable<number | undefined> = this._actualHeight;
+	public readonly actualTop: IObservable<number | undefined>;
+	public readonly actualHeight: IObservable<number | undefined>;
 
-	public readonly showInHiddenAreas = true;
+	public readonly showInHiddenAreas;
 
 	public get afterLineNumber(): number { return this._afterLineNumber.get(); }
 
-	public readonly onChange?: IObservable<unknown> = this._afterLineNumber;
+	public readonly onChange?: IObservable<unknown>;
 
 	constructor(
 		private readonly _afterLineNumber: IObservable<number>,
 		public readonly heightInPx: number,
 	) {
+		this.domNode = document.createElement('div');
+		this._actualTop = observableValue<number | undefined>(this, undefined);
+		this._actualHeight = observableValue<number | undefined>(this, undefined);
+		this.actualTop = this._actualTop;
+		this.actualHeight = this._actualHeight;
+		this.showInHiddenAreas = true;
+		this.onChange = this._afterLineNumber;
+		this.onDomNodeTop = (top: number) => {
+			this._actualTop.set(top, undefined);
+		};
+		this.onComputedHeight = (height: number) => {
+			this._actualHeight.set(height, undefined);
+		};
 	}
 
-	onDomNodeTop = (top: number) => {
-		this._actualTop.set(top, undefined);
-	};
+	onDomNodeTop;
 
-	onComputedHeight = (height: number) => {
-		this._actualHeight.set(height, undefined);
-	};
+	onComputedHeight;
 }
 
 
@@ -286,12 +300,14 @@ export function applyStyle(domNode: HTMLElement, style: Partial<{ [TKey in keyof
 		/** @description applyStyle */
 		for (let [key, val] of Object.entries(style)) {
 			if (val && typeof val === 'object' && 'read' in val) {
+				// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 				val = val.read(reader) as any;
 			}
 			if (typeof val === 'number') {
 				val = `${val}px`;
 			}
 			key = key.replace(/[A-Z]/g, m => '-' + m.toLowerCase());
+			// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 			domNode.style[key as any] = val as any;
 		}
 	});
@@ -328,14 +344,16 @@ export function applyViewZones(editor: ICodeEditor, viewZones: IObservable<IObse
 
 		// Layout zone on change
 		store.add(autorunHandleChanges({
-			createEmptyChangeSummary() {
-				return { zoneIds: [] as string[] };
-			},
-			handleChange(context, changeSummary) {
-				const id = viewZoneIdPerOnChangeObservable.get(context.changedObservable);
-				if (id !== undefined) { changeSummary.zoneIds.push(id); }
-				return true;
-			},
+			changeTracker: {
+				createChangeSummary() {
+					return { zoneIds: [] as string[] };
+				},
+				handleChange(context, changeSummary) {
+					const id = viewZoneIdPerOnChangeObservable.get(context.changedObservable);
+					if (id !== undefined) { changeSummary.zoneIds.push(id); }
+					return true;
+				},
+			}
 		}, (reader, changeSummary) => {
 			/** @description layoutZone on change */
 			for (const vz of curViewZones) {

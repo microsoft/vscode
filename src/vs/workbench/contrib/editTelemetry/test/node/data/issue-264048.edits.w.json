@@ -1,0 +1,52 @@
+{
+	"initialText": "TODO: Add Charlie\nAlpha\nBravo\nDelta",
+	"edits": [
+		{
+			"replacements": [
+				{
+					"start": 0,
+					"endEx": 18,
+					"text": ""
+				},
+				{
+					"start": 35,
+					"endEx": 35,
+					"text": "\nCharlie"
+				}
+			]
+		},
+		{
+			"replacements": [
+				{
+					"start": 0,
+					"endEx": 0,
+					"text": "* "
+				},
+				{
+					"start": 6,
+					"endEx": 6,
+					"text": "* "
+				},
+				{
+					"start": 12,
+					"endEx": 12,
+					"text": "* "
+				},
+				{
+					"start": 18,
+					"endEx": 18,
+					"text": "* "
+				}
+			]
+		},
+		{
+			"replacements": [
+				{
+					"start": 0,
+					"endEx": 0,
+					"text": "ICAO spelling alphabet:\n"
+				}
+			]
+		}
+	]
+}

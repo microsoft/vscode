@@ -8,7 +8,6 @@ import { streamToBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { IRequestOptions } from '../../../base/parts/request/common/request.js';
 import { IRequestService } from '../../request/common/request.js';
-import * as https from 'https';
 import { AbstractOneDataSystemAppender, IAppInsightsCore } from '../common/1dsAppender.js';
 
 type OnCompleteFunc = (status: number, headers: { [headerName: string]: string }, response?: string) => void;
@@ -43,6 +42,7 @@ async function makeTelemetryRequest(options: IRequestOptions, requestService: IR
  * @returns An object containing the headers, statusCode, and responseData
  */
 async function makeLegacyTelemetryRequest(options: IRequestOptions): Promise<IResponseData> {
+	const https = await import('https'); // Lazy due to https://github.com/nodejs/node/issues/59686
 	const httpsOptions = {
 		method: options.type,
 		headers: options.headers
@@ -105,7 +105,7 @@ export class OneDataSystemAppender extends AbstractOneDataSystemAppender {
 	) {
 		// Override the way events get sent since node doesn't have XHTMLRequest
 		const customHttpXHROverride: IXHROverride = {
-			sendPOST: (payload: IPayloadData, oncomplete) => {
+			sendPOST: (payload: IPayloadData, oncomplete: OnCompleteFunc) => {
 				// Fire off the async request without awaiting it
 				sendPostAsync(requestService, payload, oncomplete);
 			}

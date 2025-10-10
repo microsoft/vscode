@@ -10,10 +10,10 @@ import { URI, UriComponents } from '../../../base/common/uri.js';
 import { ICodeEditorService } from '../../../editor/browser/services/codeEditorService.js';
 import { IRange } from '../../../editor/common/core/range.js';
 import { ISelection } from '../../../editor/common/core/selection.js';
-import { IDecorationOptions, IDecorationRenderOptions, IDiffEditorModel } from '../../../editor/common/editorCommon.js';
+import { IDecorationOptions, IDecorationRenderOptions } from '../../../editor/common/editorCommon.js';
 import { ISingleEditOperation } from '../../../editor/common/core/editOperation.js';
 import { CommandsRegistry } from '../../../platform/commands/common/commands.js';
-import { ITextEditorOptions, IResourceEditorInput, EditorActivation, EditorResolution, ITextEditorDiffInformation, isTextEditorDiffInformationEqual, ITextEditorDiff } from '../../../platform/editor/common/editor.js';
+import { ITextEditorOptions, IResourceEditorInput, EditorActivation, EditorResolution, ITextEditorDiffInformation, isTextEditorDiffInformationEqual, ITextEditorChange } from '../../../platform/editor/common/editor.js';
 import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
 import { MainThreadTextEditor } from './mainThreadEditor.js';
 import { ExtHostContext, ExtHostEditorsShape, IApplyEditsOptions, ITextDocumentShowOptions, ITextEditorConfigurationUpdate, ITextEditorPositionData, IUndoStopOptions, MainThreadTextEditorsShape, TextEditorRevealType } from '../common/extHost.protocol.js';
@@ -28,11 +28,14 @@ import { IExtHostContext } from '../../services/extensions/common/extHostCustome
 import { IEditorControl } from '../../common/editor.js';
 import { getCodeEditor, ICodeEditor } from '../../../editor/browser/editorBrowser.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
-import { DirtyDiffContribution } from '../../contrib/scm/browser/dirtydiffDecorator.js';
-import { IDirtyDiffModelService } from '../../contrib/scm/browser/diff.js';
+import { IQuickDiffModelService } from '../../contrib/scm/browser/quickDiffModel.js';
 import { autorun, constObservable, derived, derivedOpts, IObservable, observableFromEvent } from '../../../base/common/observable.js';
 import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';
-import { ITextModel } from '../../../editor/common/model.js';
+import { isITextModel } from '../../../editor/common/model.js';
+import { LineRangeMapping } from '../../../editor/common/diff/rangeMapping.js';
+import { equals } from '../../../base/common/arrays.js';
+import { Event } from '../../../base/common/event.js';
+import { DiffAlgorithmName } from '../../../editor/common/services/editorWorker.js';
 
 export interface IMainThreadEditorLocator {
 	getEditor(id: string): MainThreadTextEditor | undefined;
@@ -58,7 +61,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		@IEditorService private readonly _editorService: IEditorService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IDirtyDiffModelService private readonly _dirtyDiffModelService: IDirtyDiffModelService,
+		@IQuickDiffModelService private readonly _quickDiffModelService: IQuickDiffModelService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService
 	) {
 		this._instanceId = String(++MainThreadTextEditors.INSTANCE_COUNT);
@@ -93,7 +96,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 			this._proxy.$acceptEditorPropertiesChanged(id, data);
 		}));
 
-		const diffInformationObs = this._getTextEditorDiffInformation(textEditor);
+		const diffInformationObs = this._getTextEditorDiffInformation(textEditor, toDispose);
 		toDispose.push(autorun(reader => {
 			const diffInformation = diffInformationObs.read(reader);
 			this._proxy.$acceptEditorDiffInformation(id, diffInformation);
@@ -128,90 +131,109 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		return result;
 	}
 
-	private _getTextEditorDiffInformation(textEditor: MainThreadTextEditor): IObservable<ITextEditorDiffInformation | undefined> {
+	private _getTextEditorDiffInformation(textEditor: MainThreadTextEditor, toDispose: IDisposable[]): IObservable<ITextEditorDiffInformation[] | undefined> {
 		const codeEditor = textEditor.getCodeEditor();
 		if (!codeEditor) {
 			return constObservable(undefined);
 		}
 
 		// Check if the TextModel belongs to a DiffEditor
-		const diffEditors = this._codeEditorService.listDiffEditors();
-		const [diffEditor] = diffEditors.filter(d =>
-			d.getOriginalEditor().getId() === codeEditor.getId() ||
-			d.getModifiedEditor().getId() === codeEditor.getId());
+		const [diffEditor] = this._codeEditorService.listDiffEditors()
+			.filter(d =>
+				d.getOriginalEditor().getId() === codeEditor.getId() ||
+				d.getModifiedEditor().getId() === codeEditor.getId());
 
-		const codeEditorTextModelObs = diffEditor
+		const editorModelObs = diffEditor
 			? observableFromEvent(this, diffEditor.onDidChangeModel, () => diffEditor.getModel())
 			: observableFromEvent(this, codeEditor.onDidChangeModel, () => codeEditor.getModel());
 
-		const changesObs = derived<IObservable<{ original: URI; modified: URI; changes: IChange[] } | undefined>>(reader => {
-			const codeEditorTextModel = codeEditorTextModelObs.read(reader);
-			if (!codeEditorTextModel) {
+		const editorChangesObs = derived<IObservable<{ original: URI; modified: URI; changes: readonly LineRangeMapping[] }[] | undefined>>(reader => {
+			const editorModel = editorModelObs.read(reader);
+			if (!editorModel) {
 				return constObservable(undefined);
 			}
 
-			// DiffEditor
-			if (diffEditor) {
-				return observableFromEvent(diffEditor.onDidUpdateDiff, () => {
-					return {
-						original: (codeEditorTextModel as IDiffEditorModel).original.uri,
-						modified: (codeEditorTextModel as IDiffEditorModel).modified.uri,
-						changes: diffEditor.getLineChanges() ?? []
-					};
+			const editorModelUri = isITextModel(editorModel)
+				? editorModel.uri
+				: editorModel.modified.uri;
+
+			// TextEditor
+			if (isITextModel(editorModel)) {
+				const quickDiffModelRef = this._quickDiffModelService.createQuickDiffModelReference(editorModelUri);
+				if (!quickDiffModelRef) {
+					return constObservable(undefined);
+				}
+
+				toDispose.push(quickDiffModelRef);
+				return observableFromEvent(this, quickDiffModelRef.object.onDidChange, () => {
+					return quickDiffModelRef.object.getQuickDiffResults()
+						.map(result => ({
+							original: result.original,
+							modified: result.modified,
+							changes: result.changes2
+						}));
 				});
 			}
 
-			// TextEditor
-			const dirtyDiffModel = this._dirtyDiffModelService.getOrCreateModel((codeEditorTextModel as ITextModel).uri);
-			if (!dirtyDiffModel) {
+			// DirtyDiffModel - we create a dirty diff model for diff editor so that
+			// we can provide multiple "original resources" to diff with the modified
+			// resource.
+			const diffAlgorithm = this._configurationService.getValue<DiffAlgorithmName>('diffEditor.diffAlgorithm');
+			const quickDiffModelRef = this._quickDiffModelService.createQuickDiffModelReference(editorModelUri, { algorithm: diffAlgorithm });
+			if (!quickDiffModelRef) {
 				return constObservable(undefined);
 			}
 
-			return observableFromEvent(this, dirtyDiffModel.onDidChange, () => {
-				const scmQuickDiff = dirtyDiffModel.quickDiffs.find(diff => diff.isSCM === true);
-				if (!scmQuickDiff) {
-					return undefined;
-				}
+			toDispose.push(quickDiffModelRef);
+			return observableFromEvent(Event.any(quickDiffModelRef.object.onDidChange, diffEditor.onDidUpdateDiff), () => {
+				const quickDiffInformation = quickDiffModelRef.object.getQuickDiffResults()
+					.map(result => ({
+						original: result.original,
+						modified: result.modified,
+						changes: result.changes2
+					}));
 
-				const scmQuickDiffChanges = dirtyDiffModel.mapChanges.get(scmQuickDiff.label) ?? [];
-				const changes = scmQuickDiffChanges.map(index => dirtyDiffModel.changes[index].change);
+				const diffChanges = diffEditor.getDiffComputationResult()?.changes2 ?? [];
+				const diffInformation = [{
+					original: editorModel.original.uri,
+					modified: editorModel.modified.uri,
+					changes: diffChanges.map(change => change as LineRangeMapping)
+				}];
 
-				return {
-					original: scmQuickDiff.originalResource,
-					modified: (codeEditorTextModel as ITextModel).uri,
-					changes
-				};
+				return [...quickDiffInformation, ...diffInformation];
 			});
 		});
 
 		return derivedOpts({
 			owner: this,
-			equalsFn: (diff1, diff2) => isTextEditorDiffInformationEqual(this._uriIdentityService, diff1, diff2)
+			equalsFn: (diff1, diff2) => equals(diff1, diff2, (a, b) => isTextEditorDiffInformationEqual(this._uriIdentityService, a, b))
 		}, reader => {
-			const codeEditorTextModel = codeEditorTextModelObs.read(reader);
-			const changes = changesObs.read(reader).read(reader);
-			if (!codeEditorTextModel || !changes) {
+			const editorModel = editorModelObs.read(reader);
+			const editorChanges = editorChangesObs.read(reader).read(reader);
+			if (!editorModel || !editorChanges) {
 				return undefined;
 			}
 
-			const documentVersion = diffEditor
-				? (codeEditorTextModel as IDiffEditorModel).modified.getVersionId()
-				: (codeEditorTextModel as ITextModel).getVersionId();
+			const documentVersion = isITextModel(editorModel)
+				? editorModel.getVersionId()
+				: editorModel.modified.getVersionId();
 
-			const diff: ITextEditorDiff[] = changes.changes
-				.map(change => [
-					change.originalStartLineNumber,
-					change.originalEndLineNumber,
-					change.modifiedStartLineNumber,
-					change.modifiedEndLineNumber
-				]);
+			return editorChanges.map(change => {
+				const changes: ITextEditorChange[] = change.changes
+					.map(change => [
+						change.original.startLineNumber,
+						change.original.endLineNumberExclusive,
+						change.modified.startLineNumber,
+						change.modified.endLineNumberExclusive
+					]);
 
-			return {
-				documentVersion,
-				original: changes.original,
-				modified: changes.modified,
-				diff
-			};
+				return {
+					documentVersion,
+					original: change.original,
+					modified: change.modified,
+					changes
+				};
+			});
 		});
 	}
 
@@ -365,13 +387,23 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 			return Promise.resolve(diffEditor.getLineChanges() || []);
 		}
 
-		const dirtyDiffContribution = codeEditor.getContribution('editor.contrib.dirtydiff');
-
-		if (dirtyDiffContribution) {
-			return Promise.resolve((dirtyDiffContribution as DirtyDiffContribution).getChanges());
+		if (!codeEditor.hasModel()) {
+			return Promise.resolve([]);
 		}
 
-		return Promise.resolve([]);
+		const quickDiffModelRef = this._quickDiffModelService.createQuickDiffModelReference(codeEditor.getModel().uri);
+		if (!quickDiffModelRef) {
+			return Promise.resolve([]);
+		}
+
+		try {
+			const primaryQuickDiff = quickDiffModelRef.object.quickDiffs.find(quickDiff => quickDiff.kind === 'primary');
+			const primaryQuickDiffChanges = quickDiffModelRef.object.changes.filter(change => change.providerId === primaryQuickDiff?.id);
+
+			return Promise.resolve(primaryQuickDiffChanges.map(change => change.change) ?? []);
+		} finally {
+			quickDiffModelRef.dispose();
+		}
 	}
 }
 

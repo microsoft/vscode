@@ -6,17 +6,15 @@
 import fs from 'fs';
 import path from 'path';
 import tseslint from 'typescript-eslint';
-import { fileURLToPath } from 'url';
 
 import stylisticTs from '@stylistic/eslint-plugin-ts';
-import pluginLocal from 'eslint-plugin-local';
+import * as pluginLocal from './.eslint-plugin-local/index.js';
 import pluginJsdoc from 'eslint-plugin-jsdoc';
 
 import pluginHeader from 'eslint-plugin-header';
 pluginHeader.rules.header.meta.schema = false;
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const ignores = fs.readFileSync(path.join(__dirname, '.eslint-ignore'), 'utf8')
+const ignores = fs.readFileSync(path.join(import.meta.dirname, '.eslint-ignore'), 'utf8')
 	.toString()
 	.split(/\r\n|\n/)
 	.filter(line => line && !line.startsWith('#'));
@@ -24,7 +22,10 @@ const ignores = fs.readFileSync(path.join(__dirname, '.eslint-ignore'), 'utf8')
 export default tseslint.config(
 	// Global ignores
 	{
-		ignores,
+		ignores: [
+			...ignores,
+			'!**/.eslint-plugin-local/**/*'
+		],
 	},
 	// All files (JS and TS)
 	{
@@ -81,10 +82,14 @@ export default tseslint.config(
 			'local/code-no-nls-in-standalone-editor': 'warn',
 			'local/code-no-potentially-unsafe-disposables': 'warn',
 			'local/code-no-dangerous-type-assertions': 'warn',
+			'local/code-no-any-casts': 'warn',
 			'local/code-no-standalone-editor': 'warn',
 			'local/code-no-unexternalized-strings': 'warn',
 			'local/code-must-use-super-dispose': 'warn',
 			'local/code-declare-service-brand': 'warn',
+			'local/code-no-reader-after-await': 'warn',
+			'local/code-no-observable-get-in-reactive-context': 'warn',
+			'local/code-no-deep-import-of-internal': ['error', { '.*Internal': true, 'searchExtTypesInternal': false }],
 			'local/code-layering': [
 				'warn',
 				{
@@ -95,7 +100,7 @@ export default tseslint.config(
 					'browser': [
 						'common'
 					],
-					'electron-sandbox': [
+					'electron-browser': [
 						'common',
 						'browser'
 					],
@@ -172,6 +177,140 @@ export default tseslint.config(
 			]
 		}
 	},
+	// vscode TS: strict no explicit `any`
+	{
+		files: [
+			'src/vs/base/browser/fastDomNode.ts',
+			'src/vs/base/browser/globalPointerMoveMonitor.ts',
+			'src/vs/base/browser/keyboardEvent.ts',
+			'src/vs/base/browser/ui/mouseCursor/**',
+			'src/vs/base/browser/ui/scrollbar/**',
+			'src/vs/base/browser/ui/widget.ts',
+			'src/vs/base/common/extpath.ts',
+			'src/vs/base/common/fuzzyScorer.ts',
+			'src/vs/base/common/glob.ts',
+			'src/vs/base/common/path.ts',
+			'src/vs/base/common/stream.ts',
+			'src/vs/base/common/buffer.ts',
+			'src/vs/base/common/charCode.ts',
+			'src/vs/base/common/hash.ts',
+			'src/vs/base/common/keybindingLabels.ts',
+			'src/vs/base/common/keybindings.ts',
+			'src/vs/base/common/keyCodes.ts',
+			'src/vs/base/common/scrollable.ts',
+			'src/vs/base/common/uint.ts',
+			'src/vs/base/common/uriTransformer.ts',
+			'src/vs/base/common/worker/webWorker.ts',
+			'src/vs/base/node/pfs.ts',
+			'src/vs/base/node/unc.ts',
+			'src/vs/base/parts/contextmenu/**',
+			'src/vs/editor/browser/**',
+			'src/vs/editor/common/**',
+			'src/vs/base/parts/sandbox/**',
+			'src/vs/base/parts/storage/**',
+			'src/vs/platform/auxiliaryWindow/**',
+			'src/vs/platform/backup/**',
+			// 'src/vs/platform/configuration/**',
+			'src/vs/platform/editor/**',
+			'src/vs/platform/environment/**',
+			// 'src/vs/platform/extensionManagement/**',
+			// 'src/vs/platform/extensionRecommendations/**',
+			// 'src/vs/platform/extensionResourceLoader/**',
+			'src/vs/platform/dialogs/**',
+			'src/vs/platform/files/**',
+			'src/vs/platform/ipc/**',
+			'src/vs/platform/launch/**',
+			'src/vs/platform/lifecycle/**',
+			// 'src/vs/platform/log/**',
+			'src/vs/platform/mcp/**',
+			'src/vs/platform/menubar/**',
+			'src/vs/platform/native/**',
+			// 'src/vs/platform/policy/**',
+			'src/vs/platform/sharedProcess/**',
+			'src/vs/platform/state/**',
+			'src/vs/platform/storage/**',
+			// 'src/vs/platform/userData/**',
+			// 'src/vs/platform/userDataProfile/**',
+			// 'src/vs/platform/userDataSync/**',
+			'src/vs/platform/utilityProcess/**',
+			'src/vs/platform/window/**',
+			'src/vs/platform/windows/**',
+			'src/vs/platform/workspace/**',
+			'src/vs/platform/workspaces/**',
+			'src/bootstrap-cli.ts',
+			'src/bootstrap-esm.ts',
+			'src/bootstrap-fork.ts',
+			'src/bootstrap-import.ts',
+			'src/bootstrap-meta.ts',
+			'src/bootstrap-node.ts',
+			'src/bootstrap-server.ts',
+			'src/cli.ts',
+			'src/main.ts',
+			'src/server-cli.ts',
+			'src/server-main.ts',
+			'src/vs/code/**',
+			// 'src/vs/workbench/services/accounts/**',
+			'src/vs/workbench/services/activity/**',
+			'src/vs/workbench/services/auxiliaryWindow/**',
+			'src/vs/workbench/services/chat/**',
+			// 'src/vs/workbench/services/configuration/**',
+			'src/vs/workbench/services/contextmenu/**',
+			'src/vs/workbench/services/dialogs/**',
+			'src/vs/workbench/services/editor/**',
+			'src/vs/workbench/services/environment/**',
+			// 'src/vs/workbench/services/extensionManagement/**',
+			// 'src/vs/workbench/services/extensionRecommendations/**',
+			// 'src/vs/workbench/services/extensions/**',
+			'src/vs/workbench/services/files/**',
+			'src/vs/workbench/services/filesConfiguration/**',
+			'src/vs/workbench/services/history/**',
+			'src/vs/workbench/services/host/**',
+			'src/vs/workbench/services/label/**',
+			'src/vs/workbench/services/layout/**',
+			'src/vs/workbench/services/lifecycle/**',
+			// 'src/vs/workbench/services/log/**',
+			'src/vs/workbench/services/mcp/**',
+			'src/vs/workbench/services/notification/**',
+			// 'src/vs/workbench/services/output/**',
+			'src/vs/workbench/services/path/**',
+			// 'src/vs/workbench/services/policies/**',
+			// 'src/vs/workbench/services/preferences/**',
+			'src/vs/workbench/services/progress/**',
+			'src/vs/workbench/services/storage/**',
+			'src/vs/workbench/services/textfile/**',
+			'src/vs/workbench/services/textmodelResolver/**',
+			'src/vs/workbench/services/untitled/**',
+			// 'src/vs/workbench/services/userData/**',
+			// 'src/vs/workbench/services/userDataProfile/**',
+			// 'src/vs/workbench/services/userDataSync/**',
+			'src/vs/workbench/services/utilityProcess/**',
+			'src/vs/workbench/services/views/**',
+			'src/vs/workbench/services/workingCopy/**',
+			'src/vs/workbench/services/workspaces/**',
+			'src/vs/workbench/common/**',
+			'src/vs/workbench/browser/**',
+			'src/vs/workbench/electron-browser/**',
+			'src/vs/workbench/contrib/files/**',
+			'src/vs/workbench/contrib/chat/browser/chatSetup.ts',
+			'src/vs/workbench/contrib/chat/browser/chatStatus.ts',
+			'src/vs/workbench/contrib/mcp/**',
+		],
+		ignores: ['**/*.test.ts', '**/*.integrationTest.ts'],
+		languageOptions: {
+			parser: tseslint.parser,
+		},
+		plugins: {
+			'@typescript-eslint': tseslint.plugin,
+		},
+		rules: {
+			'@typescript-eslint/no-explicit-any': [
+				'warn',
+				{
+					'ignoreRestArgs': false
+				}
+			]
+		}
+	},
 	// Tests
 	{
 		files: [
@@ -219,25 +358,7 @@ export default tseslint.config(
 				{
 					// Files should (only) be removed from the list they adopt the leak detector
 					'exclude': [
-						'src/vs/editor/contrib/codeAction/test/browser/codeActionModel.test.ts',
-						'src/vs/platform/configuration/test/common/configuration.test.ts',
-						'src/vs/platform/opener/test/common/opener.test.ts',
-						'src/vs/platform/registry/test/common/platform.test.ts',
-						'src/vs/platform/workspace/test/common/workspace.test.ts',
-						'src/vs/platform/workspaces/test/electron-main/workspaces.test.ts',
-						'src/vs/workbench/api/test/browser/mainThreadConfiguration.test.ts',
-						'src/vs/workbench/api/test/node/extHostTunnelService.test.ts',
-						'src/vs/workbench/contrib/bulkEdit/test/browser/bulkCellEdits.test.ts',
-						'src/vs/workbench/contrib/chat/test/common/chatWordCounter.test.ts',
-						'src/vs/workbench/contrib/editSessions/test/browser/editSessions.test.ts',
-						'src/vs/workbench/contrib/extensions/test/common/extensionQuery.test.ts',
-						'src/vs/workbench/contrib/notebook/test/browser/notebookExecutionService.test.ts',
-						'src/vs/workbench/contrib/notebook/test/browser/notebookExecutionStateService.test.ts',
-						'src/vs/workbench/contrib/tasks/test/common/problemMatcher.test.ts',
-						'src/vs/workbench/contrib/tasks/test/common/taskConfiguration.test.ts',
-						'src/vs/workbench/services/commands/test/common/commandService.test.ts',
 						'src/vs/workbench/services/userActivity/test/browser/domActivityTracker.test.ts',
-						'src/vs/workbench/test/browser/quickAccess.test.ts'
 					]
 				}
 			]
@@ -268,8 +389,8 @@ export default tseslint.config(
 			'local/vscode-dts-string-type-literals': 'warn',
 			'local/vscode-dts-interface-naming': 'warn',
 			'local/vscode-dts-cancellation': 'warn',
+			'local/vscode-dts-use-export': 'warn',
 			'local/vscode-dts-use-thenable': 'warn',
-			'local/vscode-dts-region-comments': 'warn',
 			'local/vscode-dts-vscode-in-comments': 'warn',
 			'local/vscode-dts-provider-naming': [
 				'warn',
@@ -323,7 +444,8 @@ export default tseslint.config(
 						'terminate',
 						'trigger',
 						'unregister',
-						'write'
+						'write',
+						'commit'
 					]
 				}
 			]
@@ -420,10 +542,10 @@ export default tseslint.config(
 			]
 		}
 	},
-	// browser/electron-sandbox layer
+	// browser/electron-browser layer
 	{
 		files: [
-			'src/**/{browser,electron-sandbox}/**/*.ts'
+			'src/**/{browser,electron-browser}/**/*.ts'
 		],
 		languageOptions: {
 			parser: tseslint.parser,
@@ -435,6 +557,10 @@ export default tseslint.config(
 			'local/code-no-global-document-listener': 'warn',
 			'no-restricted-syntax': [
 				'warn',
+				{
+					'selector': `NewExpression[callee.object.name='Intl']`,
+					'message': 'Use safeIntl helper instead for safe and lazy use of potentially expensive Intl methods.'
+				},
 				{
 					'selector': `BinaryExpression[operator='instanceof'][right.name='MouseEvent']`,
 					'message': 'Use DOM.isMouseEvent() to support multi-window scenarios.'
@@ -775,12 +901,23 @@ export default tseslint.config(
 			'local': pluginLocal,
 		},
 		rules: {
+			'no-restricted-imports': [
+				'warn',
+				{
+					'patterns': [
+						{
+							'group': ['dompurify*'],
+							'message': 'Use domSanitize instead of dompurify directly'
+						},
+					]
+				}
+			],
 			'local/code-import-patterns': [
 				'warn',
 				{
 					// imports that are allowed in all files of layers:
 					// - browser
-					// - electron-sandbox
+					// - electron-browser
 					'when': 'hasBrowser',
 					'allow': []
 				},
@@ -818,13 +955,14 @@ export default tseslint.config(
 						'net',
 						'node-pty',
 						'os',
-						'path',
+						// 'path', NOT allowed: use src/vs/base/common/path.ts instead
 						'perf_hooks',
 						'readline',
 						'stream',
 						'string_decoder',
 						'tas-client-umd',
 						'tls',
+						'undici',
 						'undici-types',
 						'url',
 						'util',
@@ -876,18 +1014,18 @@ export default tseslint.config(
 				//  - src/vs/base/common
 				//  - src/vs/base/worker
 				//  - src/vs/base/browser
-				//  - src/vs/base/electron-sandbox
+				//  - src/vs/base/electron-browser
 				//  - src/vs/base/node
 				//  - src/vs/base/electron-main
 				//  - src/vs/base/test/common
 				//  - src/vs/base/test/worker
 				//  - src/vs/base/test/browser
-				//  - src/vs/base/test/electron-sandbox
+				//  - src/vs/base/test/electron-browser
 				//  - src/vs/base/test/node
 				//  - src/vs/base/test/electron-main
 				//
 				// When /~ is used in the restrictions, it will be replaced with the correct
-				// layers that can be used e.g. 'src/vs/base/electron-sandbox' will be able
+				// layers that can be used e.g. 'src/vs/base/electron-browser' will be able
 				// to import '{common,browser,electron-sanbox}', etc.
 				//
 				// It is possible to use /~ in the restrictions property even without using it in
@@ -961,7 +1099,7 @@ export default tseslint.config(
 					]
 				},
 				{
-					'target': 'src/vs/editor/editor.worker.ts',
+					'target': 'src/vs/editor/editor.worker.start.ts',
 					'layer': 'worker',
 					'restrictions': [
 						'vs/base/~',
@@ -1213,7 +1351,7 @@ export default tseslint.config(
 				},
 				{
 					'target': 'src/vs/workbench/workbench.desktop.main.ts',
-					'layer': 'electron-sandbox',
+					'layer': 'electron-browser',
 					'restrictions': [
 						'vs/base/*/~',
 						'vs/base/parts/*/~',
@@ -1240,10 +1378,6 @@ export default tseslint.config(
 				},
 				{
 					'target': 'src/vscode-dts/**',
-					'restrictions': []
-				},
-				{
-					'target': 'src/bootstrap-window.ts',
 					'restrictions': []
 				},
 				{
@@ -1317,6 +1451,18 @@ export default tseslint.config(
 						'@vscode/*',
 						'@parcel/*',
 						'@playwright/*',
+						'*' // node modules
+					]
+				},
+				{
+					'target': 'test/mcp/**',
+					'restrictions': [
+						'test/automation',
+						'test/mcp/**',
+						'@vscode/*',
+						'@parcel/*',
+						'@playwright/*',
+						'@modelcontextprotocol/sdk/**/*',
 						'*' // node modules
 					]
 				}
@@ -1410,17 +1556,38 @@ export default tseslint.config(
 			]
 		}
 	},
-	// typescript-language-features
+	// Additional extension strictness rules
 	{
 		files: [
+			'extensions/markdown-language-features/**/*.ts',
+			'extensions/mermaid-chat-features/**/*.ts',
+			'extensions/media-preview/**/*.ts',
+			'extensions/simple-browser/**/*.ts',
 			'extensions/typescript-language-features/**/*.ts',
 		],
 		languageOptions: {
 			parser: tseslint.parser,
 			parserOptions: {
 				project: [
+					// Markdown
+					'extensions/markdown-language-features/tsconfig.json',
+					'extensions/markdown-language-features/notebook/tsconfig.json',
+					'extensions/markdown-language-features/preview-src/tsconfig.json',
+
+					// Media preview
+					'extensions/media-preview/tsconfig.json',
+
+					// Media preview
+					'extensions/simple-browser/tsconfig.json',
+					'extensions/simple-browser/preview-src/tsconfig.json',
+
+					// Mermaid chat features
+					'extensions/mermaid-chat-features/tsconfig.json',
+					'extensions/mermaid-chat-features/chat-webview-src/tsconfig.json',
+
+					// TypeScript
 					'extensions/typescript-language-features/tsconfig.json',
-					'extensions/typescript-language-features/web/tsconfig.json'
+					'extensions/typescript-language-features/web/tsconfig.json',
 				],
 			}
 		},
@@ -1430,6 +1597,7 @@ export default tseslint.config(
 		rules: {
 			'@typescript-eslint/prefer-optional-chain': 'warn',
 			'@typescript-eslint/prefer-readonly': 'warn',
+			'@typescript-eslint/consistent-generic-constructors': ['warn', 'constructor'],
 		}
-	}
+	},
 );

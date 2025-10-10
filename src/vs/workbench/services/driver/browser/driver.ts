@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getClientArea, getTopLeftOffset } from '../../../../base/browser/dom.js';
+import { getClientArea, getTopLeftOffset, isHTMLDivElement, isHTMLTextAreaElement } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { language, locale } from '../../../../base/common/platform.js';
@@ -133,24 +133,54 @@ export class BrowserWindowDriver implements IWindowDriver {
 		if (!element) {
 			throw new Error(`Editor not found: ${selector}`);
 		}
+		if (isHTMLDivElement(element)) {
+			// Edit context is enabled
+			const editContext = element.editContext;
+			if (!editContext) {
+				throw new Error(`Edit context not found: ${selector}`);
+			}
+			const selectionStart = editContext.selectionStart;
+			const selectionEnd = editContext.selectionEnd;
+			const event = new TextUpdateEvent('textupdate', {
+				updateRangeStart: selectionStart,
+				updateRangeEnd: selectionEnd,
+				text,
+				selectionStart: selectionStart + text.length,
+				selectionEnd: selectionStart + text.length,
+				compositionStart: 0,
+				compositionEnd: 0
+			});
+			editContext.dispatchEvent(event);
+		} else if (isHTMLTextAreaElement(element)) {
+			const start = element.selectionStart;
+			const newStart = start + text.length;
+			const value = element.value;
+			const newValue = value.substr(0, start) + text + value.substr(start);
 
-		const divElement = element as HTMLDivElement;
-		const editContext = divElement.editContext;
-		if (!editContext) {
-			throw new Error(`Edit context not found: ${selector}`);
+			element.value = newValue;
+			element.setSelectionRange(newStart, newStart);
+
+			const event = new Event('input', { 'bubbles': true, 'cancelable': true });
+			element.dispatchEvent(event);
 		}
-		const selectionStart = editContext.selectionStart;
-		const selectionEnd = editContext.selectionEnd;
-		const event = new TextUpdateEvent('textupdate', {
-			updateRangeStart: selectionStart,
-			updateRangeEnd: selectionEnd,
-			text,
-			selectionStart: selectionStart + text.length,
-			selectionEnd: selectionStart + text.length,
-			compositionStart: 0,
-			compositionEnd: 0
-		});
-		editContext.dispatchEvent(event);
+	}
+
+	async getEditorSelection(selector: string): Promise<{ selectionStart: number; selectionEnd: number }> {
+		const element = mainWindow.document.querySelector(selector);
+		if (!element) {
+			throw new Error(`Editor not found: ${selector}`);
+		}
+		if (isHTMLDivElement(element)) {
+			const editContext = element.editContext;
+			if (!editContext) {
+				throw new Error(`Edit context not found: ${selector}`);
+			}
+			return { selectionStart: editContext.selectionStart, selectionEnd: editContext.selectionEnd };
+		} else if (isHTMLTextAreaElement(element)) {
+			return { selectionStart: element.selectionStart, selectionEnd: element.selectionEnd };
+		} else {
+			throw new Error(`Unknown type of element: ${selector}`);
+		}
 	}
 
 	async getTerminalBuffer(selector: string): Promise<string[]> {
@@ -160,6 +190,7 @@ export class BrowserWindowDriver implements IWindowDriver {
 			throw new Error(`Terminal not found: ${selector}`);
 		}
 
+		// eslint-disable-next-line local/code-no-any-casts
 		const xterm = (element as any).xterm;
 
 		if (!xterm) {
@@ -181,6 +212,7 @@ export class BrowserWindowDriver implements IWindowDriver {
 			throw new Error(`Element not found: ${selector}`);
 		}
 
+		// eslint-disable-next-line local/code-no-any-casts
 		const xterm = (element as any).xterm as (XtermTerminal | undefined);
 
 		if (!xterm) {
@@ -229,11 +261,6 @@ export class BrowserWindowDriver implements IWindowDriver {
 
 		return { x, y };
 	}
-
-	async exitApplication(): Promise<void> {
-		// No-op in web
-	}
-
 }
 
 export function registerWindowDriver(instantiationService: IInstantiationService): void {

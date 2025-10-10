@@ -4,14 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isFirefox } from '../../../../base/browser/browser.js';
-import { addDisposableListener, EventType, getWindowById } from '../../../../base/browser/dom.js';
+import { addDisposableListener, EventType, getWindow, getWindowById } from '../../../../base/browser/dom.js';
+import { parentOriginHash } from '../../../../base/browser/iframe.js';
 import { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
+import { CodeWindow } from '../../../../base/browser/window.js';
 import { promiseWithResolvers, ThrottledDelayer } from '../../../../base/common/async.js';
 import { streamToBuffer, VSBufferReadableStream } from '../../../../base/common/buffer.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { COI } from '../../../../base/common/network.js';
+import { observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
@@ -26,18 +29,15 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IRemoteAuthorityResolverService } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { ITunnelService } from '../../../../platform/tunnel/common/tunnel.js';
 import { WebviewPortMappingManager } from '../../../../platform/webview/common/webviewPortMapping.js';
-import { parentOriginHash } from '../../../../base/browser/iframe.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { decodeAuthority, webviewGenericCspSource, webviewRootResourceAuthority } from '../common/webview.js';
 import { loadLocalResource, WebviewResourceResponse } from './resourceLoading.js';
 import { WebviewThemeDataProvider } from './themeing.js';
-import { areWebviewContentOptionsEqual, IWebview, WebviewContentOptions, WebviewExtensionDescription, WebviewInitInfo, WebviewMessageReceivedEvent, WebviewOptions } from './webview.js';
+import { areWebviewContentOptionsEqual, IWebviewElement, WebviewContentOptions, WebviewExtensionDescription, WebviewInitInfo, WebviewMessageReceivedEvent, WebviewOptions } from './webview.js';
 import { WebviewFindDelegate, WebviewFindWidget } from './webviewFindWidget.js';
 import { FromWebviewMessage, KeyEvent, ToWebviewMessage, WebViewDragEvent } from './webviewMessages.js';
-import { decodeAuthority, webviewGenericCspSource, webviewRootResourceAuthority } from '../common/webview.js';
-import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
-import { CodeWindow } from '../../../../base/browser/window.js';
 
 interface WebviewContent {
 	readonly html: string;
@@ -74,7 +74,7 @@ interface WebviewActionContext {
 
 const webviewIdContext = 'webviewId';
 
-export class WebviewElement extends Disposable implements IWebview, WebviewFindDelegate {
+export class WebviewElement extends Disposable implements IWebviewElement, WebviewFindDelegate {
 
 	protected readonly id = generateUuid();
 
@@ -142,6 +142,8 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 	protected readonly _webviewFindWidget: WebviewFindWidget | undefined;
 	public readonly checkImeCompletionState = true;
 
+	public readonly intrinsicContentSize = observableValue<{ readonly width: number; readonly height: number } | undefined>('WebviewIntrinsicContentSize', undefined);
+
 	private _disposed = false;
 
 
@@ -158,7 +160,6 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		@IFileService private readonly _fileService: IFileService,
 		@ILogService private readonly _logService: ILogService,
 		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ITunnelService private readonly _tunnelService: ITunnelService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
@@ -314,6 +315,10 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			this.handleDragEvent('drag', event);
 		}));
 
+		this._register(this.on('updated-intrinsic-content-size', (event) => {
+			this.intrinsicContentSize.set({ width: event.width, height: event.height }, undefined, undefined);
+		}));
+
 		if (initInfo.options.enableFindWidget) {
 			this._webviewFindWidget = this._register(instantiationService.createInstance(WebviewFindWidget, this));
 		}
@@ -350,9 +355,6 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 
 	private readonly _onDidClickLink = this._register(new Emitter<string>());
 	public readonly onDidClickLink = this._onDidClickLink.event;
-
-	private readonly _onDidReload = this._register(new Emitter<void>());
-	public readonly onDidReload = this._onDidReload.event;
 
 	private readonly _onMessage = this._register(new Emitter<WebviewMessageReceivedEvent>());
 	public readonly onMessage = this._onMessage.event;
@@ -421,6 +423,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		// The extensionId and purpose in the URL are used for filtering in js-debug:
 		const params: { [key: string]: string } = {
 			id: this.id,
+			parentId: targetWindow.vscodeWindowId.toString(),
 			origin: this.origin,
 			swVersion: String(this._expectedServiceWorkerVersion),
 			extensionId: extension?.id.value ?? '',
@@ -445,9 +448,8 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 
 		const queryString = new URLSearchParams(params).toString();
 
-		// Workaround for https://bugzilla.mozilla.org/show_bug.cgi?id=1754872
-		const fileName = isFirefox ? 'index-no-csp.html' : 'index.html';
-
+		this.perfMark('init/set-src');
+		const fileName = 'index.html';
 		this.element!.setAttribute('src', `${this.webviewContentEndpoint(encodedWebviewOrigin)}/${fileName}?${queryString}`);
 	}
 
@@ -483,6 +485,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 
 		element.id = this.id; // This is used by aria-flow for accessibility order
 
+		this.perfMark('mounted');
 		element.appendChild(this.element);
 	}
 
@@ -502,7 +505,8 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 					return;
 				}
 
-				this._logService.debug(`Webview(${this.id}): webview ready`);
+				this.perfMark('webview-ready');
+				this._logService.trace(`Webview(${this.id}): webview ready`);
 
 				this._messagePort = e.ports[0];
 				this._messagePort.onmessage = (e) => {
@@ -524,6 +528,14 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 				subscription.dispose();
 			}
 		}));
+	}
+
+	private perfMark(name: string) {
+		performance.mark(`webview/webviewElement/${name}`, {
+			detail: {
+				id: this.id
+			}
+		});
 	}
 
 	private _startBlockingIframeDragEvents() {
@@ -588,28 +600,19 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			if (this._environmentService.isExtensionDevelopment) {
 				this._onMissingCsp.fire(this.extension.id);
 			}
-
-			const payload = {
-				extension: this.extension.id.value
-			} as const;
-
-			type Classification = {
-				extension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The id of the extension that created the webview.' };
-				owner: 'mjbz';
-				comment: 'Helps find which extensions are contributing webviews with invalid CSPs';
-			};
-
-			this._telemetryService.publicLog2<typeof payload, Classification>('webviewMissingCsp', payload);
 		}
 	}
 
 	public reload(): void {
 		this.doUpdateContent(this._content);
+	}
 
-		const subscription = this._register(this.on('did-load', () => {
-			this._onDidReload.fire();
-			subscription.dispose();
-		}));
+	public reinitializeAfterDismount(): void {
+		this._state = new WebviewState.Initializing([]);
+		this._messagePort = undefined;
+
+		this.mountTo(this.element!.parentElement!, getWindow(this.element));
+		this.reload();
 	}
 
 	public setHtml(html: string) {
@@ -654,6 +657,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		this._content = newContent;
 
 		const allowScripts = !!this._content.options.allowScripts;
+		this.perfMark('set-content');
 		this._send('content', {
 			contents: this._content.html,
 			title: this._content.title,

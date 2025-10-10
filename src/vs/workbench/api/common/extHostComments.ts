@@ -211,7 +211,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 
 			const document = await documents.ensureDocumentData(URI.revive(uriComponents));
 			return asPromise(async () => {
-				const rangesResult = await (commentController.commentingRangeProvider as vscode.CommentingRangeProvider2).provideCommentingRanges(document.document, token);
+				const rangesResult = await commentController.commentingRangeProvider?.provideCommentingRanges(document.document, token);
 				let ranges: { ranges: vscode.Range[]; fileComments: boolean } | undefined;
 				if (Array.isArray(rangesResult)) {
 					ranges = {
@@ -268,7 +268,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 		contextValue: string | undefined;
 		comments: vscode.Comment[];
 		collapsibleState: vscode.CommentThreadCollapsibleState;
-		canReply: boolean;
+		canReply: boolean | vscode.CommentAuthorInformation;
 		state: vscode.CommentThreadState;
 		isTemplate: boolean;
 		applicability: vscode.CommentThreadApplicability;
@@ -316,9 +316,9 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			return this._range;
 		}
 
-		private _canReply: boolean = true;
+		private _canReply: boolean | vscode.CommentAuthorInformation = true;
 
-		set canReply(state: boolean) {
+		set canReply(state: boolean | vscode.CommentAuthorInformation) {
 			if (this._canReply !== state) {
 				this._canReply = state;
 				this.modifications.canReply = state;
@@ -370,6 +370,9 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 		}
 
 		set collapsibleState(newState: vscode.CommentThreadCollapsibleState) {
+			if (this._collapseState === newState) {
+				return;
+			}
 			this._collapseState = newState;
 			this.modifications.collapsibleState = newState;
 			this._onDidUpdateCommentThread.fire();
@@ -462,7 +465,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 				get collapsibleState() { return that.collapsibleState; },
 				set collapsibleState(value: vscode.CommentThreadCollapsibleState) { that.collapsibleState = value; },
 				get canReply() { return that.canReply; },
-				set canReply(state: boolean) { that.canReply = state; },
+				set canReply(state: boolean | vscode.CommentAuthorInformation) { that.canReply = state; },
 				get contextValue() { return that.contextValue; },
 				set contextValue(value: string | undefined) { that.contextValue = value; },
 				get label() { return that.label; },
@@ -676,12 +679,12 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 				get reactionHandler(): ReactionHandler | undefined { return that.reactionHandler; },
 				set reactionHandler(handler: ReactionHandler | undefined) { that.reactionHandler = handler; },
 				// get activeComment(): vscode.Comment | undefined { return that.activeComment; },
-				get activeCommentThread(): vscode.CommentThread2 | undefined { return that.activeCommentThread; },
-				createCommentThread(uri: vscode.Uri, range: vscode.Range | undefined, comments: vscode.Comment[]): vscode.CommentThread | vscode.CommentThread2 {
-					return that.createCommentThread(uri, range, comments).value;
+				get activeCommentThread(): vscode.CommentThread | undefined { return that.activeCommentThread as vscode.CommentThread | undefined; },
+				createCommentThread(uri: vscode.Uri, range: vscode.Range | undefined, comments: vscode.Comment[]): vscode.CommentThread {
+					return that.createCommentThread(uri, range, comments).value as vscode.CommentThread;
 				},
 				dispose: () => { that.dispose(); },
-			}) as any; // TODO @alexr00 remove this cast when the proposed API is stable
+			});
 
 			this._localDisposables = [];
 			this._localDisposables.push({
@@ -692,9 +695,6 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 		}
 
 		createCommentThread(resource: vscode.Uri, range: vscode.Range | undefined, comments: vscode.Comment[]): ExtHostCommentThread {
-			if (range === undefined) {
-				checkProposedApiEnabled(this._extension, 'fileComments');
-			}
 			const commentThread = new ExtHostCommentThread(this.id, this.handle, undefined, resource, range, comments, this._extension, false);
 			this._threads.set(commentThread.handle, commentThread);
 			return commentThread;
