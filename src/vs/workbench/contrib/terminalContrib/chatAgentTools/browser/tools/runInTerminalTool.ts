@@ -644,11 +644,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	}
 
 	private async _getCopilotShell(): Promise<string> {
-		const shellOrProfile = await this._getCopilotProfile();
-		if (typeof shellOrProfile === 'string') {
-			return shellOrProfile;
-		}
-		return shellOrProfile.path;
+		return (await this._getCopilotProfile()).path;
 	}
 
 	private _getChatTerminalProfile(os: OperatingSystem): ITerminalProfile | undefined {
@@ -686,8 +682,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 	private async _initBackgroundTerminal(chatSessionId: string, termId: string, token: CancellationToken): Promise<IToolTerminal> {
 		this._logService.debug(`RunInTerminalTool: Creating background terminal with ID=${termId}`);
-		const shellOrProfile = await this._getCopilotProfile();
-		const toolTerminal = await this._terminalToolCreator.createTerminal(shellOrProfile, token);
+		const profile = await this._getCopilotProfile();
+		const toolTerminal = await this._terminalToolCreator.createTerminal(profile, token);
 		this._registerInputListener(toolTerminal);
 		this._sessionTerminalAssociations.set(chatSessionId, toolTerminal);
 		if (token.isCancellationRequested) {
@@ -705,8 +701,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			this._terminalToolCreator.refreshShellIntegrationQuality(cachedTerminal);
 			return cachedTerminal;
 		}
-		const shellOrProfile = await this._getCopilotProfile();
-		const toolTerminal = await this._terminalToolCreator.createTerminal(shellOrProfile, token);
+		const profile = await this._getCopilotProfile();
+		const toolTerminal = await this._terminalToolCreator.createTerminal(profile, token);
 		this._registerInputListener(toolTerminal);
 		this._sessionTerminalAssociations.set(chatSessionId, toolTerminal);
 		if (token.isCancellationRequested) {
