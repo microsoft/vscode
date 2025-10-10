@@ -120,7 +120,16 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 					if (rule.scope === 'token.info-token') {
 						hasDefaultTokens = true;
 					}
-					result.push({ scope: rule.scope, settings: { foreground: normalizeColor(rule.settings.foreground), background: normalizeColor(rule.settings.background), fontStyle: rule.settings.fontStyle } });
+					result.push({
+						scope: rule.scope, settings: {
+							foreground: normalizeColor(rule.settings.foreground),
+							background: normalizeColor(rule.settings.background),
+							fontStyle: rule.settings.fontStyle,
+							fontSize: rule.settings.fontSize,
+							fontFamily: rule.settings.fontFamily,
+							lineHeight: rule.settings.lineHeight
+						}
+					});
 				}
 			}
 
