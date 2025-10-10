@@ -18,7 +18,7 @@ import { canLog, ILogService, LogLevel } from '../../../platform/log/common/log.
 import { StorageScope } from '../../../platform/storage/common/storage.js';
 import { extensionPrefixedIdentifier, McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerTransportHTTP, McpServerTransportType, UserInteractionRequiredError } from '../../contrib/mcp/common/mcpTypes.js';
 import { MCP } from '../../contrib/mcp/common/modelContextProtocol.js';
-import { ExtHostMcpShape, IStartMcpOptions, MainContext, MainThreadMcpShape } from './extHost.protocol.js';
+import { ExtHostMcpShape, IMcpAuthenticationDetails, IStartMcpOptions, MainContext, MainThreadMcpShape } from './extHost.protocol.js';
 import { IExtHostInitDataService } from './extHostInitDataService.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 import * as Convert from './extHostTypeConverters.js';
@@ -651,10 +651,22 @@ export class McpHTTPHandle extends Disposable {
 		} while (!chunk.done);
 	}
 
-	private async _addAuthHeader(headers: Record<string, string>) {
+	private async _addAuthHeader(headers: Record<string, string>, forceNewRegistration?: boolean) {
 		if (this._authMetadata) {
 			try {
-				const token = await this._proxy.$getTokenFromServerMetadata(this._id, this._authMetadata.authorizationServer, this._authMetadata.serverMetadata, this._authMetadata.resourceMetadata, this._authMetadata.scopes, this._errorOnUserInteraction);
+				const authDetails: IMcpAuthenticationDetails = {
+					authorizationServer: this._authMetadata.authorizationServer.toJSON(),
+					authorizationServerMetadata: this._authMetadata.serverMetadata,
+					resourceMetadata: this._authMetadata.resourceMetadata,
+					scopes: this._authMetadata.scopes
+				};
+				const token = await this._proxy.$getTokenFromServerMetadata(
+					this._id,
+					authDetails,
+					{
+						errorOnUserInteraction: this._errorOnUserInteraction,
+						forceNewRegistration
+					});
 				if (token) {
 					headers['Authorization'] = `Bearer ${token}`;
 				}
@@ -744,6 +756,11 @@ export class McpHTTPHandle extends Disposable {
 					}
 				}
 			}
+		}
+		// If we have an Authorization header and still get a 401, we should retry with a new auth registrationIf we have an Authorization header and still get a 401, we should retry with a new auth registration
+		if (headers['Authorization'] && res.status === 401) {
+			await this._addAuthHeader(headers, true);
+			res = await doFetch();
 		}
 		return res;
 	}
