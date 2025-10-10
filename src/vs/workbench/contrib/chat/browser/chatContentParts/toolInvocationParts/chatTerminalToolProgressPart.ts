@@ -5,6 +5,8 @@
 
 import { h } from '../../../../../../base/browser/dom.js';
 import { Emitter } from '../../../../../../base/common/event.js';
+import type { IMarker as IXtermMarker } from '@xterm/xterm';
+import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { isMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
@@ -38,29 +40,193 @@ import { CommandsRegistry } from '../../../../../../platform/commands/common/com
 export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart {
 	public readonly domNode: HTMLElement;
 	private readonly container: HTMLElement;
-
-	// HACK: Just for prototyping
-	static trackingInstance?: {
-		instance: ITerminalInstance;
-		executeStrategy: ITerminalExecuteStrategy;
-	};
-	static _onDidChangeTrackingInstance = new Emitter<{
+	private static readonly trackingInstances = new Map<string, {
 		instance: ITerminalInstance;
 		executeStrategy: ITerminalExecuteStrategy;
 	}>();
-	static setTrackingInstance(instance: ITerminalInstance, executeStrategy: ITerminalExecuteStrategy) {
-		this.trackingInstance = {
-			instance,
-			executeStrategy
-		};
-		this._onDidChangeTrackingInstance.fire(this.trackingInstance);
+
+	// Map from real terminal instance IDs to chat terminal parts
+	private static readonly instanceToPartMap = new Map<string, Set<ChatTerminalToolProgressPart>>();
+
+	// Track the latest part for each terminal instance type (command, output display, etc)
+	private static readonly latestPartPerInstance = new Map<string, string>();
+
+	static _onDidChangeTrackingInstance = new Emitter<{
+		instance: ITerminalInstance;
+		executeStrategy: ITerminalExecuteStrategy;
+		targetInstanceId: string;
+	}>();
+
+	static setTrackingInstance(instance: ITerminalInstance, executeStrategy: ITerminalExecuteStrategy, targetInstanceId: string) {
+		this.trackingInstances.set(targetInstanceId, { instance, executeStrategy });
+
+		// This is a special tracking ID for determining which response should show the terminal output
+		this.latestPartPerInstance.set(instance.sessionId, targetInstanceId);
+
+		const terminalParts = this.instanceToPartMap.get(targetInstanceId);
+		if (terminalParts && terminalParts.size > 0) {
+			for (const part of terminalParts) {
+				part.setupTerminalForInstance(instance, executeStrategy);
+			}
+		}
+
+		this._onDidChangeTrackingInstance.fire({ instance, executeStrategy, targetInstanceId });
 	}
 
-
 	private markdownPart: ChatMarkdownContentPart | undefined;
+	private xterm: XtermTerminal | undefined;
+	private terminalAttached = false;
+	private lastData: string | undefined;
+	private dataListener: { dispose: () => void } | undefined;
+	private persistentStartMarker: IXtermMarker | undefined;
+	private persistentEndMarker: IXtermMarker | undefined;
+
+	/**
+	 * Sets up the terminal instance with proper event listeners
+	 */
+	private async setupTerminalForInstance(
+		instance: ITerminalInstance,
+		executeStrategy: ITerminalExecuteStrategy,
+		instantiationService?: IInstantiationService,
+		keybindingService?: IKeybindingService,
+		contextKeyService?: IContextKeyService,
+		xtermElement?: HTMLElement
+	) {
+		if (!this.xterm && instantiationService && keybindingService && contextKeyService && xtermElement) {
+			const xtermCtor = await TerminalInstance.getXtermConstructor(keybindingService, contextKeyService);
+			const capabilities = new TerminalCapabilityStore();
+			this._register(capabilities);
+			this.xterm = this._register(instantiationService.createInstance(XtermTerminal, xtermCtor, {
+				rows: 10,
+				cols: instance.cols,
+				capabilities,
+				xtermColorProvider: instantiationService.createInstance(TerminalInstanceColorProvider, TerminalLocation.Panel)
+			}, undefined));
+
+			if (!this.terminalAttached) {
+				this.xterm.attachToElement(xtermElement);
+				this.terminalAttached = true;
+				this.container.append(xtermElement);
+				// Ensure terminal is visible immediately
+				queueMicrotask(() => this._onDidChangeHeight.fire());
+			}
+		} else if (!this.xterm) {
+			console.log(`Can't create terminal for ${this.externalInstanceId} yet - missing required services`);
+			return;
+		}
+
+		if (this.dataListener) {
+			this.dataListener.dispose();
+			this.dataListener = undefined;
+		}
+
+		this.dataListener = executeStrategy.onDidCreateStartMarker(async (marker) => {
+			if (marker) {
+				this.persistentStartMarker = marker;
+			}
+			await this.updateTerminalContent(instance, executeStrategy, marker);
+		});
+
+
+		if (this.dataListener) {
+			this._register(this.dataListener);
+		}
+
+		this.instanceType = instance.sessionId;
+		if (executeStrategy.startMarker) {
+			try {
+				console.log(`Start marker already exists for ${this.externalInstanceId} - using for initial data`);
+				await this.updateTerminalContent(instance, executeStrategy, executeStrategy.startMarker);
+			} catch (e) {
+				console.error(`Error getting initial terminal data for ${this.externalInstanceId}:`, e);
+			}
+		} else {
+			console.log(`No start marker available yet for ${this.externalInstanceId} - waiting for marker creation event. Has strategy: ${!!executeStrategy}`);
+		}
+
+		this._onDidChangeHeight.fire();
+	}
+
+	/**
+	 * Updates the terminal content display with the latest output between markers
+	 */
+	private async updateTerminalContent(
+		instance: ITerminalInstance,
+		executeStrategy: ITerminalExecuteStrategy,
+		startMarker?: IXtermMarker,
+		data?: string
+	): Promise<void> {
+		const latestPartId = ChatTerminalToolProgressPart.latestPartPerInstance.get(this.instanceType!);
+		if (latestPartId !== this.externalInstanceId) {
+			console.log(`Skipping update for ${this.externalInstanceId} as ${latestPartId} is the latest`);
+			return;
+		}
+
+		// Use markers in order of preference
+		if (!startMarker) {
+			// Try persistent marker first
+			if (this.persistentStartMarker) {
+				startMarker = this.persistentStartMarker;
+				console.log(`Using persistent start marker for ${this.externalInstanceId}`);
+			}
+			// Fall back to strategy marker
+			else if (executeStrategy.startMarker) {
+				startMarker = executeStrategy.startMarker;
+				// Save for future use
+				this.persistentStartMarker = startMarker;
+				console.log(`Using and storing strategy's start marker for ${this.externalInstanceId}`);
+			}
+		}
+
+		if (!startMarker) {
+			console.log(`Cannot update terminal content for ${this.externalInstanceId} - no start marker available`);
+			return;
+		}
+
+		const endMarker = this.persistentEndMarker || executeStrategy.endMarker;
+		if (executeStrategy.endMarker && !this.persistentEndMarker) {
+			this.persistentEndMarker = executeStrategy.endMarker;
+		}
+
+		data = await instance.xterm?.getRangeAsVT(startMarker, endMarker);
+		if (!data) {
+			console.log(`No data available between markers for ${this.externalInstanceId}`);
+			return;
+		}
+
+		if (data === this.lastData) {
+			return;
+		}
+
+		this.lastData = data;
+		if (this.xterm) {
+			this.xterm.raw.clear();
+			this.xterm.write('\x1b[H\x1b[K');
+			this.xterm.write(data);
+		}
+	}
+
 	public get codeblocks(): IChatCodeBlockInfo[] {
 		return this.markdownPart?.codeblocks ?? [];
 	}
+
+	override dispose(): void {
+		this.xterm = undefined;
+		this.dataListener = undefined;
+
+		const parts = ChatTerminalToolProgressPart.instanceToPartMap.get(this.externalInstanceId);
+		if (parts) {
+			parts.delete(this);
+			if (parts.size === 0) {
+				ChatTerminalToolProgressPart.instanceToPartMap.delete(this.externalInstanceId);
+			}
+		}
+
+		super.dispose();
+	}
+
+	private readonly externalInstanceId: string;
+	private instanceType: string | undefined;
 
 	constructor(
 		toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
@@ -78,6 +244,16 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		super(toolInvocation);
 
 		terminalData = migrateLegacyTerminalToolSpecificData(terminalData);
+
+		this.externalInstanceId = terminalData.terminalToolSessionId || generateUuid();
+
+		// Register this part in the static map for lookup
+		let parts = ChatTerminalToolProgressPart.instanceToPartMap.get(this.externalInstanceId);
+		if (!parts) {
+			parts = new Set<ChatTerminalToolProgressPart>();
+			ChatTerminalToolProgressPart.instanceToPartMap.set(this.externalInstanceId, parts);
+		}
+		parts.add(this);
 
 		const elements = h('.chat-terminal-content-part@container', [
 			h('.chat-terminal-content-title@title'),
@@ -126,40 +302,20 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		this.container.append(this.markdownPart.domNode);
 
 
-		this._register(ChatTerminalToolProgressPart._onDidChangeTrackingInstance.event(async ({ instance, executeStrategy }) => {
-			const xtermCtor = await TerminalInstance.getXtermConstructor(keybindingService, contextKeyService);
-			const xterm = instantiationService.createInstance(XtermTerminal, xtermCtor, {
-				rows: 10,
-				cols: instance.cols,
-				capabilities: new TerminalCapabilityStore(),
-				xtermColorProvider: instantiationService.createInstance(TerminalInstanceColorProvider, TerminalLocation.Panel)
-			}, undefined);
-			xterm.attachToElement(elements.xtermElement);
+		const existingTracking = ChatTerminalToolProgressPart.trackingInstances.get(this.externalInstanceId);
+		if (existingTracking) {
+			this.setupTerminalForInstance(existingTracking.instance, existingTracking.executeStrategy, instantiationService, keybindingService, contextKeyService, elements.xtermElement);
+		}
 
-			// Instead of writing data events directly, mirror from the marker
-			this._register(executeStrategy.onUpdate(async () => {
-				console.log('start marker set!');
-			}));
+		// Listen for when our specific terminal instance is set
+		this._register(ChatTerminalToolProgressPart._onDidChangeTrackingInstance.event(async ({ instance, executeStrategy, targetInstanceId }) => {
+			// Skip if this event is not for this instance
+			if (targetInstanceId !== this.externalInstanceId) {
+				console.log(`Terminal event received but not for this part. Event ID: ${targetInstanceId}, This part ID: ${this.externalInstanceId}`);
+				return;
+			}
 
-			// TODO: Add class that mirrors a section of xterm.js?
-			// TODO: Debounce?
-			this._register(instance.onData(async () => {
-				const startMarker = executeStrategy.startMarker;
-				if (startMarker === undefined) {
-					return;
-				}
-				const data = await instance.xterm?.getRangeAsVT(startMarker!, executeStrategy.endMarker);
-				if (data === undefined) {
-					return;
-				}
-				// TODO: More efficiently only write either diffed lines or just the viewport (and any new lines outside the viewport)
-				xterm.raw.clear();
-				xterm.write('\x1b[H\x1b[K');
-				xterm.write(data);
-			}));
-
-			this.container.append(elements.xtermElement);
-			this._onDidChangeHeight.fire();
+			this.setupTerminalForInstance(instance, executeStrategy, instantiationService, keybindingService, contextKeyService, elements.xtermElement);
 		}));
 
 		this.domNode = this.container;

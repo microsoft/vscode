@@ -522,7 +522,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						break;
 					}
 				}
-				ChatTerminalToolProgressPart.setTrackingInstance(toolTerminal.instance, strategy);
+				const executionId = generateUuid();
+				toolSpecificData.terminalToolSessionId = executionId;
+				ChatTerminalToolProgressPart.setTrackingInstance(toolTerminal.instance, strategy, executionId);
 				this._logService.debug(`RunInTerminalTool: Using \`${strategy.type}\` execute strategy for command \`${command}\``);
 				store.add(strategy.onDidCreateStartMarker(startMarker => {
 					if (!outputMonitor) {
