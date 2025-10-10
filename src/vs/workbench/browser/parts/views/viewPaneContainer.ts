@@ -672,7 +672,7 @@ export class ViewPaneContainer<MementoType extends object = object> extends Comp
 		}
 
 		this.panes.filter(view => view.isVisible() !== visible)
-			.map((view) => view.setVisible(visible));
+			.forEach((view) => view.setVisible(visible));
 	}
 
 	isVisible(): boolean {
