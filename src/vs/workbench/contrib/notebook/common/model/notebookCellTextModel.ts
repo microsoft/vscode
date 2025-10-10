@@ -21,6 +21,7 @@ import { ILanguageDetectionService } from '../../../../services/languageDetectio
 import { toFormattedString } from '../../../../../base/common/jsonFormatter.js';
 import { IModelContentChangedEvent } from '../../../../../editor/common/textModelEvents.js';
 import { splitLines } from '../../../../../base/common/strings.js';
+import { INotebookLoggingService } from '../notebookLoggingService.js';
 
 export class NotebookCellTextModel extends Disposable implements ICell {
 	private readonly _onDidChangeTextModel = this._register(new Emitter<void>());
@@ -205,6 +206,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		private readonly _defaultEOL: model.DefaultEndOfLine,
 		defaultCollapseConfig: NotebookCellDefaultCollapseConfig | undefined,
 		private readonly _languageDetectionService: ILanguageDetectionService | undefined = undefined,
+		private readonly _notebookLoggingService: INotebookLoggingService
 	) {
 		super();
 		this._source = cell.source;
@@ -329,6 +331,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 	}
 
 	spliceNotebookCellOutputs(splice: NotebookCellOutputsSplice): void {
+		this._notebookLoggingService.trace('notebookCellTextModel', `splicing outputs at ${splice.start} length: ${splice.deleteCount} with ${splice.newOutputs.length} new outputs`);
 		if (splice.deleteCount > 0 && splice.newOutputs.length > 0) {
 			const commonLen = Math.min(splice.deleteCount, splice.newOutputs.length);
 			// update
@@ -356,6 +359,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 			return false;
 		}
 
+		this._notebookLoggingService.trace('notebookCellTextModel', `replacing an output item at index ${outputIndex}`);
 		const output = this.outputs[outputIndex];
 		// convert to dto and dispose the cell output model
 		output.replaceData({
@@ -376,6 +380,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		}
 
 		const output = this.outputs[outputIndex];
+		this._notebookLoggingService.trace('notebookCellTextModel', `${append ? 'appending' : 'replacing'} ${items.length} output items to for output index ${outputIndex}`);
 		if (append) {
 			output.appendData(items);
 		} else {

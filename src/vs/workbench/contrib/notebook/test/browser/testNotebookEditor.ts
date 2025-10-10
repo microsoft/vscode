@@ -32,7 +32,7 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
-import { ILoggerService, ILogService, NullLoggerService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
@@ -71,8 +71,16 @@ import { INotebookOutlineEntryFactory, NotebookOutlineEntryFactory } from '../..
 import { IOutlineService } from '../../../../services/outline/browser/outline.js';
 import { DefaultEndOfLine } from '../../../../../editor/common/model.js';
 import { ITextResourcePropertiesService } from '../../../../../editor/common/services/textResourceConfiguration.js';
-import { NotebookLoggingService } from '../../browser/services/notebookLoggingServiceImpl.js';
 import { INotebookLoggingService } from '../../common/notebookLoggingService.js';
+
+class NullNotebookLoggingService implements INotebookLoggingService {
+	_serviceBrand: undefined;
+	info(category: string, output: string): void { }
+	warn(category: string, output: string): void { }
+	error(category: string, output: string): void { }
+	debug(category: string, output: string): void { }
+	trace(context: string, message: string): void { }
+}
 
 export class TestCell extends NotebookCellTextModel {
 	constructor(
@@ -101,7 +109,8 @@ export class TestCell extends NotebookCellTextModel {
 			languageService,
 			DefaultEndOfLine.LF,
 			undefined, // defaultCollapseConfig
-			undefined  // languageDetectionService
+			undefined,  // languageDetectionService
+			new NullNotebookLoggingService()
 		);
 	}
 }
@@ -227,8 +236,7 @@ export function setupInstantiationService(disposables: Pick<DisposableStore, 'ad
 	instantiationService.stub(IOutlineService, new class extends mock<IOutlineService>() { override registerOutlineCreator() { return { dispose() { } }; } });
 	instantiationService.stub(INotebookCellOutlineDataSourceFactory, instantiationService.createInstance(NotebookCellOutlineDataSourceFactory));
 	instantiationService.stub(INotebookOutlineEntryFactory, instantiationService.createInstance(NotebookOutlineEntryFactory));
-	instantiationService.stub(ILoggerService, new NullLoggerService());
-	instantiationService.stub(INotebookLoggingService, instantiationService.createInstance(NotebookLoggingService));
+	instantiationService.stub(INotebookLoggingService, new NullNotebookLoggingService());
 
 	instantiationService.stub(ILanguageDetectionService, new class MockLanguageDetectionService implements ILanguageDetectionService {
 		_serviceBrand: undefined;

@@ -335,7 +335,8 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 				this._languageService,
 				this._modelService.getCreationOptions(cell.language, cellUri, false).defaultEOL,
 				this._defaultCollapseConfig,
-				this._languageDetectionService
+				this._languageDetectionService,
+				this._notebookLoggingService
 			);
 		});
 
@@ -632,6 +633,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	}
 
 	applyEdits(rawEdits: ICellEditOperation[], synchronous: boolean, beginSelectionState: ISelectionState | undefined, endSelectionsComputer: () => ISelectionState | undefined, undoRedoGroup: UndoRedoGroup | undefined, computeUndoRedo: boolean): boolean {
+		this._notebookLoggingService.trace('notebookTextModel', `Begin applying ${rawEdits.length} raw edits`);
 		this._pauseableEmitter.pause();
 		try {
 			this._operationManager.pushStackElement(this._alternativeVersionId, undefined);
@@ -659,6 +661,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 					// Broadcast changes
 					this._pauseableEmitter.fire({ rawEvents: [], versionId: this.versionId, synchronous: synchronous, endSelectionState: endSelections });
+					this._notebookLoggingService.trace('notebookTextModel', `End applying ${rawEdits.length} raw edits`);
 				}
 			}
 		} finally {
@@ -866,7 +869,8 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 				this._languageService,
 				this._modelService.getCreationOptions(cellDto.language, cellUri, false).defaultEOL,
 				this._defaultCollapseConfig,
-				this._languageDetectionService
+				this._languageDetectionService,
+				this._notebookLoggingService
 			);
 			const textModel = this._modelService.getModel(cellUri);
 			if (textModel && textModel instanceof TextModel) {
@@ -1233,7 +1237,6 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 	private _appendNotebookCellOutputItems(cell: NotebookCellTextModel, outputId: string, items: IOutputItemDto[]) {
 		if (cell.changeOutputItems(outputId, true, items)) {
-			this._notebookLoggingService.trace('notebookTextModel', `Appending ${items.length} output items to for output id ${outputId} of cell ${cell.handle}`);
 			this._pauseableEmitter.fire({
 				rawEvents: [{
 					kind: NotebookCellsChangeType.OutputItem,
@@ -1253,7 +1256,6 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 	private _replaceNotebookCellOutputItems(cell: NotebookCellTextModel, outputId: string, items: IOutputItemDto[]) {
 		if (cell.changeOutputItems(outputId, false, items)) {
-			this._notebookLoggingService.trace('notebookTextModel', `Replacing output with ${items.length} items for output id ${outputId} of cell ${cell.handle}`);
 			this._pauseableEmitter.fire({
 				rawEvents: [{
 					kind: NotebookCellsChangeType.OutputItem,
