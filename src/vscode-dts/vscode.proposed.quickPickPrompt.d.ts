@@ -5,15 +5,19 @@
 
 declare module 'vscode' {
 
-	export namespace env {
-		export function getDataChannel<T>(channelId: string): DataChannel<T>;
+	// https://github.com/microsoft/vscode/issues/78335
+
+	export interface QuickPick<T extends QuickPickItem> extends QuickInput {
+		/**
+		 * An optional prompt text providing some ask or explanation to the user.
+		 */
+		prompt: string | undefined;
 	}
 
-	export interface DataChannel<T = unknown> {
-		readonly onDidReceiveData: Event<DataChannelEvent<T>>;
-	}
-
-	export interface DataChannelEvent<T> {
-		data: T;
+	export interface QuickPickOptions {
+		/**
+		 * An optional prompt text providing some ask or explanation to the user.
+		 */
+		prompt?: string;
 	}
 }

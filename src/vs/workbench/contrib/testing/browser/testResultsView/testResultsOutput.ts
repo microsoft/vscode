@@ -67,7 +67,7 @@ class SimpleDiffEditorModel extends EditorModel {
 
 
 export interface IPeekOutputRenderer extends IDisposable {
-	onDidContentSizeChange?: Event<void>;
+	readonly onDidContentSizeChange?: Event<void>;
 	onScrolled?(evt: ScrollEvent): void;
 	/** Updates the displayed test. Should clear if it cannot display the test. */
 	update(subject: InspectSubject): Promise<boolean>;

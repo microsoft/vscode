@@ -61,7 +61,7 @@ interface IQueryResult {
 	model: IPagedModel<IWorkbenchMcpServer>;
 	disposables: DisposableStore;
 	showWelcomeContent?: boolean;
-	onDidChangeModel?: Event<IPagedModel<IWorkbenchMcpServer>>;
+	readonly onDidChangeModel?: Event<IPagedModel<IWorkbenchMcpServer>>;
 }
 
 type Message = {

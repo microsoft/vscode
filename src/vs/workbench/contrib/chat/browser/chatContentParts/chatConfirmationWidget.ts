@@ -33,7 +33,7 @@ export interface IChatConfirmationButton<T> {
 	tooltip?: string;
 	data: T;
 	disabled?: boolean;
-	onDidChangeDisablement?: Event<boolean>;
+	readonly onDidChangeDisablement?: Event<boolean>;
 	moreActions?: (IChatConfirmationButton<T> | Separator)[];
 }
 

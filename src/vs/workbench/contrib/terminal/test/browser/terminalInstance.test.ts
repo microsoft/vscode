@@ -70,9 +70,9 @@ class TestTerminalChildProcess extends Disposable implements ITerminalChildProce
 		throw new Error('Method not implemented.');
 	}
 
-	onProcessOverrideDimensions?: Event<any> | undefined;
-	onProcessResolvedShellLaunchConfig?: Event<any> | undefined;
-	onDidChangeHasChildProcesses?: Event<any> | undefined;
+	readonly onProcessOverrideDimensions?: Event<any> | undefined;
+	readonly onProcessResolvedShellLaunchConfig?: Event<any> | undefined;
+	readonly onDidChangeHasChildProcesses?: Event<any> | undefined;
 
 	onDidChangeProperty = Event.None;
 	onProcessData = Event.None;

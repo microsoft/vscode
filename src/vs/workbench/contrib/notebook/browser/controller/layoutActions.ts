@@ -105,7 +105,6 @@ registerAction2(class NotebookConfigureLayoutFromEditorTitle extends Action2 {
 
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	submenu: MenuId.NotebookEditorLayoutConfigure,
-	rememberDefaultAction: false,
 	title: localize2('customizeNotebook', "Customize Notebook..."),
 	icon: Codicon.gear,
 	group: 'navigation',

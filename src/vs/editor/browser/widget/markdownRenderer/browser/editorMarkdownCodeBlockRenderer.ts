@@ -35,8 +35,7 @@ export class EditorMarkdownCodeBlockRenderer implements IMarkdownCodeBlockRender
 	public async renderCodeBlock(languageAlias: string | undefined, value: string, options: IMarkdownRendererExtraOptions): Promise<HTMLElement> {
 		const editor = isCodeEditor(options.context) ? options.context : undefined;
 
-		// In markdown,
-		// it is possible that we stumble upon language aliases (e.g.js instead of javascript)
+		// In markdown, it is possible that we stumble upon language aliases (e.g.js instead of javascript).
 		// it is possible no alias is given in which case we fall back to the current editor lang
 		let languageId: string | undefined | null;
 		if (languageAlias) {
