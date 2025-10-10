@@ -3,35 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* Ensure consistent title background regardless of number of views */
-
-/* Is this needed? This seems like something that the view management does or should do */
-.composite.viewlet[id="workbench.view.chat.sessions"] .pane-header.expanded.not-collapsible {
-	background-color: var(--vscode-sideBarSectionHeader-background) !important;
-}
-
-/* Is this needed? It does not seem to do something and it seems a bit weird to me. This should be handled by the view management */
-.chat-sessions-view {
-	display: flex;
-	flex-direction: column;
-	height: 100%;
-}
-
-/* Is this needed? It does not seem to do something and it seems a bit weird to me. */
-.chat-sessions-tree-container,
-.getting-started-list-container {
-	flex: 1;
-	display: flex;
-	flex-direction: column;
-	min-height: 0;
-}
-
-/* Is this needed? It does not seem to do something and it seems a bit weird to me */
-.chat-sessions-tree-container > .monaco-list,
-.getting-started-list-container > .monaco-list {
-	flex: 1;
-}
-
 /* Style for empty state message */
 .chat-sessions-message {
 	padding: 20px;
@@ -47,42 +18,11 @@
 	font-style: italic;
 }
 
-/* Style for editing chat sessions */
-.chat-sessions-tree-container .explorer-item.explorer-item-edited {
-	display: flex;
-	align-items: center;
-	height: 22px;
-	padding: 0;
-}
-
-.chat-sessions-tree-container .explorer-item.explorer-item-edited .codicon {
-	margin-right: 6px;
-	flex-shrink: 0;
-}
-
-.chat-sessions-tree-container .explorer-item.explorer-item-edited .monaco-inputbox {
-	flex: 1;
-	width: 100%;
-	line-height: normal;
-	border: none !important;
-	background: transparent !important;
-}
-
-.chat-sessions-tree-container .explorer-item.explorer-item-edited .monaco-inputbox input[type="text"] {
-	outline-width: 1px;
-	outline-style: solid;
-	outline-offset: -1px;
-	outline-color: var(--vscode-focusBorder);
-	opacity: 1;
-	border: none !important; /* Remove any default border */
-}
-
 .getting-started-list-container .monaco-list-row {
 	padding-left: 8px;
 }
 
 /* Style for two line descriptions */
-
 .chat-sessions-tree-container .chat-session-item.multiline {
 	padding: 2px 0;
 }

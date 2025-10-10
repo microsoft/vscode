@@ -323,3 +323,32 @@
 	color: var(--vscode-inputOption-activeForeground);
 	background-color: var(--vscode-inputOption-activeBackground);
 }
+
+.tree-item-edited {
+	display: flex;
+	align-items: center;
+	height: 22px;
+	padding: 0;
+}
+
+.tree-item-edited .codicon {
+	margin-right: 6px;
+	flex-shrink: 0;
+}
+
+.tree-item-edited .monaco-inputbox {
+	flex: 1;
+	width: 100%;
+	line-height: normal;
+	border: none !important;
+	background: transparent !important;
+}
+
+.tree-item-edited .monaco-inputbox input[type="text"] {
+	outline-width: 1px;
+	outline-style: solid;
+	outline-offset: -1px;
+	outline-color: var(--vscode-focusBorder);
+	opacity: 1;
+	border: none !important; /* Remove any default border */
+}

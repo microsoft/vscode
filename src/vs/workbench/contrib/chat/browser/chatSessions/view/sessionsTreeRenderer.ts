@@ -362,13 +362,7 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 			sessionContentElement.style.display = 'none';
 		}
 
-		// Create a simple container that mimics the file explorer's structure
-
-		// These should not be called explorer-item.
-		// They should have their own class name.
-		// Also, might make sense to share these styles across explorer and sessions tree
-		const editContainer = DOM.append(container, DOM.$('.explorer-item.explorer-item-edited'));
-
+		const editContainer = DOM.append(container, DOM.$('.tree-item-edited'));
 		// Add the icon
 		const iconElement = DOM.append(editContainer, DOM.$('.codicon'));
 		if (session.iconPath && ThemeIcon.isThemeIcon(session.iconPath)) {
