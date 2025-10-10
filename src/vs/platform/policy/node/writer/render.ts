@@ -10,6 +10,9 @@ export function renderADMLString(prefix: string, nlsString: NlsString, translati
 
 	if (translations) {
 		value = translations[nlsString.nlsKey];
+		if (!value) {
+			console.warn(`No translation found for key '${nlsString.nlsKey}'. This is expected for newly added strings, but please ensure that the key value here is correct.`);
+		}
 	}
 
 	if (!value) {
@@ -24,6 +27,9 @@ export function renderProfileString(_prefix: string, nlsString: NlsString, trans
 
 	if (translations) {
 		value = translations[nlsString.nlsKey];
+		if (!value) {
+			console.warn(`No translation found for key '${nlsString.nlsKey}'. This is expected for newly added strings, but please ensure that the key value here is correct.`);
+		}
 	}
 
 	if (!value) {

@@ -58,7 +58,10 @@ export class PolicyExportContribution extends Disposable implements IWorkbenchCo
 
 				this.log('Extensions and configuration loaded.');
 				const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
-				const configurationProperties = configurationRegistry.getConfigurationProperties();
+				const configurationProperties = {
+					...configurationRegistry.getExcludedConfigurationProperties(),
+					...configurationRegistry.getConfigurationProperties(),
+				};
 				const configs: Array<{ key: string; schema: IRegisteredConfigurationPropertySchema }> = [];
 				for (const [key, schema] of Object.entries(configurationProperties)) {
 					// Check for the localization property for now to remain backwards compatible.
