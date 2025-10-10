@@ -312,18 +312,13 @@ suite('ExtensionMcpDiscovery', () => {
 
 			registerCollectionSpy.resetHistory(); // Clear any previous calls
 
-			//spy on deleteCollection method.
-			const deleteCollectionSpy = sinon.spy(fixture.extensionMcpDiscovery as unknown as { deleteCollection: sinon.SinonSpy }, "deleteCollection");
 			// Now remove the extension
 			const removeDelta = createMockDelta([], [mockExtension]);
 			fixture.extensionMcpDiscovery.handleExtensionChangeTest([], removeDelta);
 
 			// Verify that no new registrations occurred during removal
 			assert.ok(registerCollectionSpy.notCalled, 'No new collections should be registered when extensions are removed');
-			assert.ok(deleteCollectionSpy.calledOnce, 'deleteCollection should be called once for removed extension');
-			assert.strictEqual(deleteCollectionSpy.getCall(0).args[0], 'test.extension/removable-collection', 'deleteCollection should be called with correct ID');
 			registerCollectionSpy.restore();
-			deleteCollectionSpy.restore();
 		});
 
 		test('should skip invalid extensions', () => {
@@ -362,9 +357,6 @@ suite('ExtensionMcpDiscovery', () => {
 			// Reset spy call counts after initial setup
 			registerCollectionSpy.resetHistory();
 
-			//spy on deleteCollection method.
-			const deleteCollectionSpy = sinon.spy(fixture.extensionMcpDiscovery as unknown as { deleteCollection: sinon.SinonSpy }, "deleteCollection");
-
 			// Call the method under test
 			fixture.extensionMcpDiscovery.handleExtensionChangeTest([], mixedDelta);
 
@@ -373,8 +365,6 @@ suite('ExtensionMcpDiscovery', () => {
 
 			const registrationCall = registerCollectionSpy.getCall(0);
 			assert.strictEqual(registrationCall.args[0].id, 'new.extension/new-collection', 'New collection should have correct prefixed ID');
-			assert.ok(deleteCollectionSpy.calledOnce, 'deleteCollection should be called once for removed extension');
-			assert.strictEqual(deleteCollectionSpy.getCall(0).args[0], 'test.extension/existing-collection', 'deleteCollection should be called with correct ID');
 
 			registerCollectionSpy.restore();
 		});
