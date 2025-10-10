@@ -104,6 +104,85 @@ suite('Types', () => {
 		assert(types.isString('foo'));
 	});
 
+	test('isStringArray', () => {
+		assert(!types.isStringArray(undefined));
+		assert(!types.isStringArray(null));
+		assert(!types.isStringArray(5));
+		assert(!types.isStringArray('foo'));
+		assert(!types.isStringArray(true));
+		assert(!types.isStringArray({}));
+		assert(!types.isStringArray(/test/));
+		assert(!types.isStringArray(new RegExp('')));
+		assert(!types.isStringArray(new Date()));
+		assert(!types.isStringArray(assert));
+		assert(!types.isStringArray(function foo() { /**/ }));
+		assert(!types.isStringArray({ foo: 'bar' }));
+		assert(!types.isStringArray([1, 2, 3]));
+		assert(!types.isStringArray([1, 2, '3']));
+		assert(!types.isStringArray(['foo', 'bar', 5]));
+		assert(!types.isStringArray(['foo', null, 'bar']));
+		assert(!types.isStringArray(['foo', undefined, 'bar']));
+
+		assert(types.isStringArray([]));
+		assert(types.isStringArray(['foo']));
+		assert(types.isStringArray(['foo', 'bar']));
+		assert(types.isStringArray(['foo', 'bar', 'baz']));
+	});
+
+	test('isArrayOf', () => {
+		// Basic non-array values
+		assert(!types.isArrayOf(undefined, types.isString));
+		assert(!types.isArrayOf(null, types.isString));
+		assert(!types.isArrayOf(5, types.isString));
+		assert(!types.isArrayOf('foo', types.isString));
+		assert(!types.isArrayOf(true, types.isString));
+		assert(!types.isArrayOf({}, types.isString));
+		assert(!types.isArrayOf(/test/, types.isString));
+		assert(!types.isArrayOf(new RegExp(''), types.isString));
+		assert(!types.isArrayOf(new Date(), types.isString));
+		assert(!types.isArrayOf(assert, types.isString));
+		assert(!types.isArrayOf(function foo() { /**/ }, types.isString));
+		assert(!types.isArrayOf({ foo: 'bar' }, types.isString));
+
+		// Arrays with wrong types
+		assert(!types.isArrayOf([1, 2, 3], types.isString));
+		assert(!types.isArrayOf([1, 2, '3'], types.isString));
+		assert(!types.isArrayOf(['foo', 'bar', 5], types.isString));
+		assert(!types.isArrayOf(['foo', null, 'bar'], types.isString));
+		assert(!types.isArrayOf(['foo', undefined, 'bar'], types.isString));
+
+		// Valid string arrays
+		assert(types.isArrayOf([], types.isString));
+		assert(types.isArrayOf(['foo'], types.isString));
+		assert(types.isArrayOf(['foo', 'bar'], types.isString));
+		assert(types.isArrayOf(['foo', 'bar', 'baz'], types.isString));
+
+		// Valid number arrays
+		assert(types.isArrayOf([], types.isNumber));
+		assert(types.isArrayOf([1], types.isNumber));
+		assert(types.isArrayOf([1, 2, 3], types.isNumber));
+		assert(!types.isArrayOf([1, 2, '3'], types.isNumber));
+
+		// Valid boolean arrays
+		assert(types.isArrayOf([], types.isBoolean));
+		assert(types.isArrayOf([true], types.isBoolean));
+		assert(types.isArrayOf([true, false, true], types.isBoolean));
+		assert(!types.isArrayOf([true, 1, false], types.isBoolean));
+
+		// Valid function arrays
+		assert(types.isArrayOf([], types.isFunction));
+		assert(types.isArrayOf([assert], types.isFunction));
+		assert(types.isArrayOf([assert, function foo() { /**/ }], types.isFunction));
+		assert(!types.isArrayOf([assert, 'foo'], types.isFunction));
+
+		// Custom type guard
+		const isEven = (n: unknown): n is number => types.isNumber(n) && n % 2 === 0;
+		assert(types.isArrayOf([], isEven));
+		assert(types.isArrayOf([2, 4, 6], isEven));
+		assert(!types.isArrayOf([2, 3, 4], isEven));
+		assert(!types.isArrayOf([1, 3, 5], isEven));
+	});
+
 	test('isNumber', () => {
 		assert(!types.isNumber(undefined));
 		assert(!types.isNumber(null));

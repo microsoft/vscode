@@ -944,7 +944,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			// reset the input in welcome view if it was rendered in experimental mode
 			if (this.viewModel?.getItems().length) {
 				this.resetWelcomeViewInput();
-				this.focusInput();
+				// TODO@bhavyaus
+				// this.focusInput();
 			}
 
 			if (treeItems.length > 0) {
