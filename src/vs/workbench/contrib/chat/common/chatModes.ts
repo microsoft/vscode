@@ -98,6 +98,7 @@ export class ChatModeService extends Disposable implements IChatModeService {
 						description: cachedMode.description,
 						tools: cachedMode.customTools,
 						model: cachedMode.model,
+						handoffs: cachedMode.handoffs,
 						modeInstructions: cachedMode.modeInstructions ?? { content: cachedMode.body ?? '', toolReferences: [] },
 					};
 					const instance = new CustomChatMode(customChatMode);
@@ -200,6 +201,7 @@ export interface IChatModeData {
 	readonly kind: ChatModeKind;
 	readonly customTools?: readonly string[];
 	readonly model?: string;
+	readonly handoffs?: Record<string, string>;
 	readonly modeInstructions?: IChatModeInstructions;
 	readonly body?: string; /* deprecated */
 	readonly uri?: URI;
@@ -214,6 +216,7 @@ export interface IChatMode {
 	readonly kind: ChatModeKind;
 	readonly customTools?: IObservable<readonly string[] | undefined>;
 	readonly model?: IObservable<string | undefined>;
+	readonly handoffs?: IObservable<Record<string, string> | undefined>;
 	readonly modeInstructions?: IObservable<IChatModeInstructions>;
 	readonly uri?: IObservable<URI>;
 }
@@ -242,6 +245,7 @@ function isCachedChatModeData(data: unknown): data is IChatModeData {
 		(mode.customTools === undefined || Array.isArray(mode.customTools)) &&
 		(mode.modeInstructions === undefined || (typeof mode.modeInstructions === 'object' && mode.modeInstructions !== null)) &&
 		(mode.model === undefined || typeof mode.model === 'string') &&
+		(mode.handoffs === undefined || (typeof mode.handoffs === 'object' && mode.handoffs !== null && !Array.isArray(mode.handoffs))) &&
 		(mode.uri === undefined || (typeof mode.uri === 'object' && mode.uri !== null));
 }
 
@@ -251,6 +255,7 @@ export class CustomChatMode implements IChatMode {
 	private readonly _modeInstructions: ISettableObservable<IChatModeInstructions>;
 	private readonly _uriObservable: ISettableObservable<URI>;
 	private readonly _modelObservable: ISettableObservable<string | undefined>;
+	private readonly _handoffsObservable: ISettableObservable<Record<string, string> | undefined>;
 
 	public readonly id: string;
 	public readonly name: string;
@@ -269,6 +274,10 @@ export class CustomChatMode implements IChatMode {
 
 	get model(): IObservable<string | undefined> {
 		return this._modelObservable;
+	}
+
+	get handoffs(): IObservable<Record<string, string> | undefined> {
+		return this._handoffsObservable;
 	}
 
 	get modeInstructions(): IObservable<IChatModeInstructions> {
@@ -293,6 +302,7 @@ export class CustomChatMode implements IChatMode {
 		this._descriptionObservable = observableValue('description', customChatMode.description);
 		this._customToolsObservable = observableValue('customTools', customChatMode.tools);
 		this._modelObservable = observableValue('model', customChatMode.model);
+		this._handoffsObservable = observableValue('handoffs', customChatMode.handoffs);
 		this._modeInstructions = observableValue('_modeInstructions', customChatMode.modeInstructions);
 		this._uriObservable = observableValue('uri', customChatMode.uri);
 	}
@@ -306,6 +316,7 @@ export class CustomChatMode implements IChatMode {
 			this._descriptionObservable.set(newData.description, tx);
 			this._customToolsObservable.set(newData.tools, tx);
 			this._modelObservable.set(newData.model, tx);
+			this._handoffsObservable.set(newData.handoffs, tx);
 			this._modeInstructions.set(newData.modeInstructions, tx);
 			this._uriObservable.set(newData.uri, tx);
 		});
@@ -319,6 +330,7 @@ export class CustomChatMode implements IChatMode {
 			kind: this.kind,
 			customTools: this.customTools.get(),
 			model: this.model.get(),
+			handoffs: this.handoffs.get(),
 			modeInstructions: this.modeInstructions.get(),
 			uri: this.uri.get()
 		};
