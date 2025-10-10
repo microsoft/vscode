@@ -59,7 +59,7 @@ export const events = [
 	},
 	{
 		"type": "promptInputChange",
-		"data": "ls|                                                                                                   [─╯]"
+		"data": "ls|                                                                                                   ─╯"
 	},
 	{
 		"type": "input",
