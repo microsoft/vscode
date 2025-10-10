@@ -314,6 +314,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private welcomeMessageContainer!: HTMLElement;
 	private readonly welcomePart: MutableDisposable<ChatViewWelcomePart> = this._register(new MutableDisposable());
+	private readonly welcomeContextMenuDisposable: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
+
 	private readonly historyViewStore = this._register(new DisposableStore());
 	private readonly chatTodoListWidget: ChatTodoListWidget;
 	private historyList: WorkbenchList<IChatHistoryListItem> | undefined;
@@ -944,7 +946,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			// reset the input in welcome view if it was rendered in experimental mode
 			if (this.viewModel?.getItems().length) {
 				this.resetWelcomeViewInput();
-				this.focusInput();
+				// TODO@bhavyaus
+				// this.focusInput();
 			}
 
 			if (treeItems.length > 0) {
@@ -1065,7 +1068,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				dom.append(this.welcomeMessageContainer, this.welcomePart.value.element);
 
 				// Add right-click context menu to the entire welcome container
-				this._register(dom.addDisposableListener(this.welcomeMessageContainer, dom.EventType.CONTEXT_MENU, (e) => {
+				this.welcomeContextMenuDisposable.value = dom.addDisposableListener(this.welcomeMessageContainer, dom.EventType.CONTEXT_MENU, (e) => {
 					e.preventDefault();
 					e.stopPropagation();
 					this.contextMenuService.showContextMenu({
@@ -1077,7 +1080,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 						getAnchor: () => ({ x: e.clientX, y: e.clientY }),
 						getActionsContext: () => ({})
 					});
-				}));
+				});
 			}
 		}
 
@@ -2605,8 +2608,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		if (this.container.classList.contains('new-welcome-view')) {
 			this.inputPart.layout(layoutHeight, Math.min(width, 650));
-		}
-		else {
+		} else {
 			this.inputPart.layout(layoutHeight, width);
 		}
 
@@ -2621,7 +2623,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.listContainer.style.setProperty('--chat-current-response-min-height', contentHeight * .75 + 'px');
 		}
 		this.tree.layout(contentHeight, width);
-		this.tree.getHTMLElement().style.height = `${contentHeight}px`;
 
 		// Push the welcome message down so it doesn't change position
 		// when followups, attachments or working set appear
