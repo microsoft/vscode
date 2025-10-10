@@ -331,7 +331,7 @@ export function onDidChangeModelLanguage(listener: (e: { readonly model: ITextMo
  * Create a new web worker that has model syncing capabilities built in.
  * Specify an AMD module to load that will `create` an object that will be proxied.
  */
-export function createWebWorker<T extends object>(opts: IInternalWebWorkerOptions): MonacoWebWorker<T> {
+export function createWebWorkerInternal<T extends object>(opts: IInternalWebWorkerOptions): MonacoWebWorker<T> {
 	return actualCreateWebWorker<T>(StandaloneServices.get(IModelService), opts);
 }
 
@@ -547,7 +547,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 
 
 		// eslint-disable-next-line local/code-no-any-casts
-		createWebWorker: <any>createWebWorker,
+		createWebWorkerInternal: <any>createWebWorkerInternal,
 		// eslint-disable-next-line local/code-no-any-casts
 		colorizeElement: <any>colorizeElement,
 		// eslint-disable-next-line local/code-no-any-casts
