@@ -12,12 +12,12 @@ suite('ChatCodeBlockCleaning', () => {
 
 	test('removes block comments', () => {
 		const input = 'echo 1; /* remove this */\necho 2';
-		assert.strictEqual(stripCommentsForShellExecution(input), 'echo 1; \necho 2'.trim());
+		assert.strictEqual(stripCommentsForShellExecution(input), 'echo 1; \necho 2');
 	});
 
 	test('removes line // comments but keeps protocols', () => {
 		const input = 'echo 1 // comment\n# full hash comment\nhttp://example.com//still';
-		const expected = 'echo 1 \n\nhttp://example.com//still'.trim();
+		const expected = 'echo 1 \n\nhttp://example.com//still';
 		assert.strictEqual(stripCommentsForShellExecution(input), expected);
 	});
 
@@ -40,6 +40,7 @@ suite('ChatCodeBlockCleaning', () => {
 	test('empty input', () => {
 		assert.strictEqual(stripCommentsForShellExecution(''), '');
 	});
+
 	test('comment above input', () => {
 		const input = '# comment\necho 1';
 		const expected = 'echo 1';
