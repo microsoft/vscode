@@ -458,17 +458,6 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 		},
 		default: {}
 	},
-	[TerminalSettingId.EnvironmentChangesIndicator]: {
-		markdownDescription: localize('terminal.integrated.environmentChangesIndicator', "Whether to display the environment changes indicator on each terminal which explains whether extensions have made, or want to make changes to the terminal's environment."),
-		type: 'string',
-		enum: ['off', 'on', 'warnonly'],
-		enumDescriptions: [
-			localize('terminal.integrated.environmentChangesIndicator.off', "Disable the indicator."),
-			localize('terminal.integrated.environmentChangesIndicator.on', "Enable the indicator."),
-			localize('terminal.integrated.environmentChangesIndicator.warnonly', "Only show the warning indicator when a terminal's environment is 'stale', not the information indicator that shows a terminal has had its environment modified by an extension."),
-		],
-		default: 'warnonly'
-	},
 	[TerminalSettingId.EnvironmentChangesRelaunch]: {
 		markdownDescription: localize('terminal.integrated.environmentChangesRelaunch', "Whether to relaunch terminals automatically if extensions want to contribute to their environment and have not been interacted with yet."),
 		type: 'boolean',

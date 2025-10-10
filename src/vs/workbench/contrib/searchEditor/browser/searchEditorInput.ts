@@ -64,7 +64,7 @@ export class SearchEditorInput extends EditorInput {
 		return capabilities;
 	}
 
-	private memento: Memento;
+	private memento: Memento<{ searchConfig: SearchConfiguration }>;
 
 	private dirty: boolean = false;
 
@@ -362,7 +362,7 @@ export const getOrMakeSearchEditorInput = (
 			const reuseOldSettings = searchEditorSettings.reusePriorSearchConfiguration;
 			const defaultNumberOfContextLines = searchEditorSettings.defaultNumberOfContextLines;
 
-			const priorConfig: SearchConfiguration = reuseOldSettings ? new Memento(SearchEditorInput.ID, storageService).getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE).searchConfig : {};
+			const priorConfig = reuseOldSettings ? new Memento<{ searchConfig?: SearchConfiguration }>(SearchEditorInput.ID, storageService).getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE).searchConfig ?? {} : {};
 			const defaultConfig = defaultSearchConfig();
 
 			const config = { ...defaultConfig, ...priorConfig, ...existingData.config };

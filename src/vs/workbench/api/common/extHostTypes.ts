@@ -929,11 +929,11 @@ export enum TerminalCompletionItemKind {
 	Flag = 7,
 	SymbolicLinkFile = 8,
 	SymbolicLinkFolder = 9,
-	Commit = 10,
-	Branch = 11,
-	Tag = 12,
-	Stash = 13,
-	Remote = 14,
+	ScmCommit = 10,
+	ScmBranch = 11,
+	ScmTag = 12,
+	ScmStash = 13,
+	ScmRemote = 14,
 	PullRequest = 15,
 	PullRequestDone = 16,
 }
@@ -971,7 +971,7 @@ export class TerminalCompletionList<T extends TerminalCompletionItem = TerminalC
 	/**
 	 * Resources should be shown in the completions list
 	 */
-	resourceRequestConfig?: TerminalResourceRequestConfig;
+	resourceOptions?: TerminalCompletionResourceOptions;
 
 	/**
 	 * The completion items.
@@ -984,15 +984,15 @@ export class TerminalCompletionList<T extends TerminalCompletionItem = TerminalC
 	 * @param items The completion items.
 	 * @param isIncomplete The list is not complete.
 	 */
-	constructor(items?: T[], resourceRequestConfig?: TerminalResourceRequestConfig) {
+	constructor(items?: T[], resourceOptions?: TerminalCompletionResourceOptions) {
 		this.items = items ?? [];
-		this.resourceRequestConfig = resourceRequestConfig;
+		this.resourceOptions = resourceOptions;
 	}
 }
 
-export interface TerminalResourceRequestConfig {
-	filesRequested?: boolean;
-	foldersRequested?: boolean;
+export interface TerminalCompletionResourceOptions {
+	showFiles?: boolean;
+	showFolders?: boolean;
 	fileExtensions?: string[];
 	cwd?: vscode.Uri;
 }

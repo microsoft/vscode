@@ -31,7 +31,10 @@ import { ChatWidget, IChatViewState } from './chatWidget.js';
 
 export interface IChatEditorOptions extends IEditorOptions {
 	target?: { sessionId: string } | { data: IExportableChatData | ISerializableChatData };
-	preferredTitle?: string;
+	title?: {
+		preferred?: string;
+		fallback?: string;
+	};
 	ignoreInView?: boolean;
 }
 
@@ -45,7 +48,7 @@ export class ChatEditor extends EditorPane {
 		return this._scopedContextKeyService;
 	}
 
-	private _memento: Memento | undefined;
+	private _memento: Memento<IChatViewState> | undefined;
 	private _viewState: IChatViewState | undefined;
 	private dimension = new dom.Dimension(0, 0);
 
@@ -159,14 +162,14 @@ export class ChatEditor extends EditorPane {
 		const viewState = options?.viewState ?? input.options.viewState;
 		this.updateModel(editorModel.model, viewState);
 
-		if (isContributedChatSession && options?.preferredTitle) {
-			editorModel.model.setCustomTitle(options?.preferredTitle);
+		if (isContributedChatSession && options?.title?.preferred) {
+			editorModel.model.setCustomTitle(options.title.preferred);
 		}
 	}
 
 	private updateModel(model: IChatModel, viewState?: IChatViewState): void {
 		this._memento = new Memento('interactive-session-editor-' + CHAT_PROVIDER_ID, this.storageService);
-		this._viewState = viewState ?? this._memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE) as IChatViewState;
+		this._viewState = viewState ?? this._memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		this.widget.setModel(model, { ...this._viewState });
 	}
 
