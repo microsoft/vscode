@@ -9,6 +9,7 @@ import { IPolicy, PolicyCategory } from '../../../../../../base/common/policy.js
 import { IConfigurationPropertySchema } from '../../../../../configuration/common/configurationRegistry.js';
 import { Category, NlsString, LanguageTranslations, PolicyType } from '../../../../node/writer/types.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { ILogger } from '../../../../../log/common/log.js';
 
 suite('StringEnumPolicy', () => {
 
@@ -38,6 +39,8 @@ suite('StringEnumPolicy', () => {
 		{ value: 'Option Three', nlsKey: 'test.option.three' }
 	];
 
+	const mockLogger: ILogger = { warn: () => { } } as unknown as ILogger;
+
 	test('should create StringEnumPolicy with enum values', () => {
 		const mockConfig: IConfigurationPropertySchema = {
 			type: 'string',
@@ -51,7 +54,8 @@ suite('StringEnumPolicy', () => {
 			category: mockCategory,
 			policyDescription: mockPolicyDescription,
 			policyEnumDescriptions: mockEnumDescriptions,
-			config: mockConfig
+			config: mockConfig,
+			logger: mockLogger
 		});
 
 		assert.strictEqual(policy.name, 'TestStringEnumPolicy');
@@ -74,7 +78,8 @@ suite('StringEnumPolicy', () => {
 				category: mockCategory,
 				policyDescription: mockPolicyDescription,
 				policyEnumDescriptions: mockEnumDescriptions,
-				config: mockConfig
+				config: mockConfig,
+				logger: mockLogger
 			});
 		}, /missing required 'enum' property/);
 	});
@@ -93,7 +98,8 @@ suite('StringEnumPolicy', () => {
 				category: mockCategory,
 				policyDescription: mockPolicyDescription,
 				policyEnumDescriptions: mockEnumDescriptions,
-				config: mockConfig
+				config: mockConfig,
+				logger: mockLogger
 			});
 		}, /missing required 'enumDescriptions' property/);
 	});
@@ -111,7 +117,8 @@ suite('StringEnumPolicy', () => {
 			category: mockCategory,
 			policyDescription: mockPolicyDescription,
 			policyEnumDescriptions: mockEnumDescriptions,
-			config: mockConfig
+			config: mockConfig,
+			logger: mockLogger
 		});
 
 		const admx = policy.renderADMX('TestKey');
@@ -144,7 +151,8 @@ suite('StringEnumPolicy', () => {
 			category: mockCategory,
 			policyDescription: mockPolicyDescription,
 			policyEnumDescriptions: mockEnumDescriptions,
-			config: mockConfig
+			config: mockConfig,
+			logger: mockLogger
 		});
 
 		const admlStrings = policy.renderADMLStrings();
@@ -171,7 +179,8 @@ suite('StringEnumPolicy', () => {
 			category: mockCategory,
 			policyDescription: mockPolicyDescription,
 			policyEnumDescriptions: [mockEnumDescriptions[0], mockEnumDescriptions[1]],
-			config: mockConfig
+			config: mockConfig,
+			logger: mockLogger
 		});
 
 		const translations: LanguageTranslations = {
@@ -203,7 +212,8 @@ suite('StringEnumPolicy', () => {
 			category: mockCategory,
 			policyDescription: mockPolicyDescription,
 			policyEnumDescriptions: [mockEnumDescriptions[0], mockEnumDescriptions[1]],
-			config: mockConfig
+			config: mockConfig,
+			logger: mockLogger
 		});
 
 		const presentation = policy.renderADMLPresentation();
@@ -224,7 +234,8 @@ suite('StringEnumPolicy', () => {
 			category: mockCategory,
 			policyDescription: mockPolicyDescription,
 			policyEnumDescriptions: mockEnumDescriptions,
-			config: mockConfig
+			config: mockConfig,
+			logger: mockLogger
 		});
 
 		const profileValue = policy.renderProfileValue();
@@ -245,7 +256,8 @@ suite('StringEnumPolicy', () => {
 			category: mockCategory,
 			policyDescription: mockPolicyDescription,
 			policyEnumDescriptions: [mockEnumDescriptions[0], mockEnumDescriptions[1]],
-			config: mockConfig
+			config: mockConfig,
+			logger: mockLogger
 		});
 
 		const profile = policy.renderProfile();
@@ -268,7 +280,8 @@ suite('StringEnumPolicy', () => {
 			category: mockCategory,
 			policyDescription: mockPolicyDescription,
 			policyEnumDescriptions: mockEnumDescriptions,
-			config: mockConfig
+			config: mockConfig,
+			logger: mockLogger
 		});
 
 		const manifestValue = policy.renderProfileManifestValue();
@@ -289,7 +302,8 @@ suite('StringEnumPolicy', () => {
 			category: mockCategory,
 			policyDescription: mockPolicyDescription,
 			policyEnumDescriptions: [mockEnumDescriptions[0], mockEnumDescriptions[1]],
-			config: mockConfig
+			config: mockConfig,
+			logger: mockLogger
 		});
 
 		const translations: LanguageTranslations = {

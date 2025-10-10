@@ -3,15 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ILogger } from '../../../log/common/log.js';
+import { LoggerPrefix } from './constants.js';
 import { Category, LanguageTranslations, NlsString, Policy } from './types.js';
 
-export function renderADMLString(prefix: string, nlsString: NlsString, translations?: LanguageTranslations): string {
+export function renderADMLString(logger: ILogger, prefix: string, nlsString: NlsString, translations?: LanguageTranslations): string {
 	let value: string | undefined;
 
 	if (translations) {
 		value = translations[nlsString.nlsKey];
 		if (!value) {
-			console.warn(`No translation found for key '${nlsString.nlsKey}'. This is expected for newly added strings, but please ensure that the key value here is correct.`);
+			logger.warn(`${LoggerPrefix} No translation found for key '${nlsString.nlsKey}'. This is expected for newly added strings, but please ensure that the key value here is correct.`);
 		}
 	}
 
@@ -22,13 +24,13 @@ export function renderADMLString(prefix: string, nlsString: NlsString, translati
 	return `<string id="${prefix}_${nlsString.nlsKey.replace(/\./g, '_')}">${value}</string>`;
 }
 
-export function renderProfileString(_prefix: string, nlsString: NlsString, translations?: LanguageTranslations): string {
+export function renderProfileString(logger: ILogger, _prefix: string, nlsString: NlsString, translations?: LanguageTranslations): string {
 	let value: string | undefined;
 
 	if (translations) {
 		value = translations[nlsString.nlsKey];
 		if (!value) {
-			console.warn(`No translation found for key '${nlsString.nlsKey}'. This is expected for newly added strings, but please ensure that the key value here is correct.`);
+			logger.warn(`${LoggerPrefix} No translation found for key '${nlsString.nlsKey}'. This is expected for newly added strings, but please ensure that the key value here is correct.`);
 		}
 	}
 
@@ -64,7 +66,7 @@ export function renderADMX(regKey: string, versions: string[], categories: Categ
 `;
 }
 
-export function renderADML(appName: string, versions: string[], categories: Category[], policies: Policy[], translations?: LanguageTranslations): string {
+export function renderADML(logger: ILogger, appName: string, versions: string[], categories: Category[], policies: Policy[], translations?: LanguageTranslations): string {
 	return `<?xml version="1.0" encoding="utf-8"?>
 <policyDefinitionResources revision="1.0" schemaVersion="1.0">
 	<displayName />
@@ -73,7 +75,7 @@ export function renderADML(appName: string, versions: string[], categories: Cate
 		<stringTable>
 			<string id="Application">${appName}</string>
 			${versions.map(v => `<string id="Supported_${v.replace(/\./g, '_')}">${appName} &gt;= ${v}</string>`).join(`\n			`)}
-			${categories.map(c => renderADMLString('Category', c.name, translations)).join(`\n			`)}
+			${categories.map(c => renderADMLString(logger, 'Category', c.name, translations)).join(`\n			`)}
 			${policies.map(p => p.renderADMLStrings(translations)).flat().join(`\n			`)}
 		</stringTable>
 		<presentationTable>
@@ -138,13 +140,13 @@ ${policyEntries}
 	};
 }
 
-export function renderGP(appName: string, regKey: string, versions: string[], categories: Category[], policies: Policy[], translations: Array<{ languageId: string; languageTranslations: LanguageTranslations }>) {
+export function renderGP(logger: ILogger, appName: string, regKey: string, versions: string[], categories: Category[], policies: Policy[], translations: Array<{ languageId: string; languageTranslations: LanguageTranslations }>) {
 	return {
 		admx: renderADMX(regKey, versions, categories, policies),
 		adml: [
-			{ languageId: 'en-us', contents: renderADML(appName, versions, categories, policies) },
+			{ languageId: 'en-us', contents: renderADML(logger, appName, versions, categories, policies) },
 			...translations.map(({ languageId, languageTranslations }) =>
-				({ languageId, contents: renderADML(appName, versions, categories, policies, languageTranslations) }))
+				({ languageId, contents: renderADML(logger, appName, versions, categories, policies, languageTranslations) }))
 		]
 	};
 }

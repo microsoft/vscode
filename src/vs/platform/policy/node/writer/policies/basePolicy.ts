@@ -5,6 +5,7 @@
 
 import { Category, LanguageTranslations, NlsString, Policy, PolicyType } from '../types.js';
 import { renderADMLString } from '../render.js';
+import { ILogger } from '../../../../log/common/log.js';
 
 
 export abstract class BasePolicy implements Policy {
@@ -14,10 +15,11 @@ export abstract class BasePolicy implements Policy {
 		readonly category: Category,
 		readonly minimumVersion: string,
 		protected description: NlsString,
+		protected logger: ILogger
 	) { }
 
 	protected renderADMLString(nlsString: NlsString, translations?: LanguageTranslations): string {
-		return renderADMLString(this.name, nlsString, translations);
+		return renderADMLString(this.logger, this.name, nlsString, translations);
 	}
 
 	renderADMX(regKey: string) {

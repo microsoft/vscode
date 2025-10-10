@@ -8,10 +8,11 @@ import { IConfigurationPropertySchema } from '../../../../configuration/common/c
 import { Category, LanguageTranslations, NlsString, PolicyType } from '../types.js';
 import { BasePolicy } from './basePolicy.js';
 import { renderProfileString } from '../render.js';
+import { ILogger } from '../../../../log/common/log.js';
 
 export class StringEnumPolicy extends BasePolicy {
 
-	static from({ key, policy, category, policyDescription, policyEnumDescriptions, config }: { key: string; policy: IPolicy; category: Category; policyDescription: NlsString; policyEnumDescriptions: NlsString[]; config: IConfigurationPropertySchema }): StringEnumPolicy {
+	static from({ key, policy, category, policyDescription, policyEnumDescriptions, config, logger }: { key: string; policy: IPolicy; category: Category; policyDescription: NlsString; policyEnumDescriptions: NlsString[]; config: IConfigurationPropertySchema; logger: ILogger }): StringEnumPolicy {
 		if (!config.enum) {
 			throw new Error(`[StringEnumPolicy] Failed to convert ${key}: missing required 'enum' property.`);
 		}
@@ -20,7 +21,7 @@ export class StringEnumPolicy extends BasePolicy {
 			throw new Error(`[StringEnumPolicy] Failed to convert ${key}: missing required 'enumDescriptions' property.`);
 		}
 
-		return new StringEnumPolicy(policy.name, category, policy.minimumVersion, policyDescription, config.enum, policyEnumDescriptions);
+		return new StringEnumPolicy(policy.name, category, policy.minimumVersion, policyDescription, config.enum, policyEnumDescriptions, logger);
 	}
 
 	private constructor(
@@ -30,8 +31,9 @@ export class StringEnumPolicy extends BasePolicy {
 		description: NlsString,
 		protected enum_: string[],
 		protected enumDescriptions: NlsString[],
+		logger: ILogger
 	) {
-		super(PolicyType.StringEnum, name, category, minimumVersion, description);
+		super(PolicyType.StringEnum, name, category, minimumVersion, description, logger);
 	}
 
 	protected renderADMXElements(): string[] {
@@ -61,7 +63,7 @@ export class StringEnumPolicy extends BasePolicy {
 		return `<key>pfm_default</key>
 <string>${this.enum_[0]}</string>
 <key>pfm_description</key>
-<string>${renderProfileString(this.name, this.description, translations)}</string>
+<string>${renderProfileString(this.logger, this.name, this.description, translations)}</string>
 <key>pfm_name</key>
 <string>${this.name}</string>
 <key>pfm_title</key>

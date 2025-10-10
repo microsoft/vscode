@@ -9,6 +9,7 @@ import { IPolicy, PolicyCategory } from '../../../../../../base/common/policy.js
 import { IConfigurationPropertySchema } from '../../../../../configuration/common/configurationRegistry.js';
 import { Category, NlsString, LanguageTranslations, PolicyType } from '../../../../node/writer/types.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { ILogger } from '../../../../../log/common/log.js';
 
 suite('NumberPolicy', () => {
 
@@ -32,6 +33,8 @@ suite('NumberPolicy', () => {
 		nlsKey: 'test.numberpolicy.description'
 	};
 
+	const mockLogger: ILogger = { warn: () => { } } as unknown as ILogger;
+
 	test('should create NumberPolicy with default value', () => {
 		const mockConfig: IConfigurationPropertySchema = {
 			type: 'number',
@@ -43,7 +46,8 @@ suite('NumberPolicy', () => {
 			policy: mockPolicy,
 			category: mockCategory,
 			policyDescription: mockPolicyDescription,
-			config: mockConfig
+			config: mockConfig,
+			logger: mockLogger
 		});
 
 		assert.strictEqual(policy.name, 'TestNumberPolicy');
@@ -64,7 +68,8 @@ suite('NumberPolicy', () => {
 				policy: mockPolicy,
 				category: mockCategory,
 				policyDescription: mockPolicyDescription,
-				config: mockConfig
+				config: mockConfig,
+				logger: mockLogger
 			});
 		}, /missing required 'default' property/);
 	});
@@ -80,7 +85,8 @@ suite('NumberPolicy', () => {
 			policy: mockPolicy,
 			category: mockCategory,
 			policyDescription: mockPolicyDescription,
-			config: mockConfig
+			config: mockConfig,
+			logger: mockLogger
 		});
 
 		const admx = policy.renderADMX('TestKey');
@@ -107,7 +113,8 @@ suite('NumberPolicy', () => {
 			policy: mockPolicy,
 			category: mockCategory,
 			policyDescription: mockPolicyDescription,
-			config: mockConfig
+			config: mockConfig,
+			logger: mockLogger
 		});
 
 		const presentation = policy.renderADMLPresentation();
@@ -126,7 +133,8 @@ suite('NumberPolicy', () => {
 			policy: mockPolicy,
 			category: mockCategory,
 			policyDescription: mockPolicyDescription,
-			config: mockConfig
+			config: mockConfig,
+			logger: mockLogger
 		});
 
 		const profileValue = policy.renderProfileValue();
@@ -145,7 +153,8 @@ suite('NumberPolicy', () => {
 			policy: mockPolicy,
 			category: mockCategory,
 			policyDescription: mockPolicyDescription,
-			config: mockConfig
+			config: mockConfig,
+			logger: mockLogger
 		});
 
 		const profile = policy.renderProfile();
@@ -166,7 +175,8 @@ suite('NumberPolicy', () => {
 			policy: mockPolicy,
 			category: mockCategory,
 			policyDescription: mockPolicyDescription,
-			config: mockConfig
+			config: mockConfig,
+			logger: mockLogger
 		});
 
 		const manifestValue = policy.renderProfileManifestValue();
@@ -185,7 +195,8 @@ suite('NumberPolicy', () => {
 			policy: mockPolicy,
 			category: mockCategory,
 			policyDescription: mockPolicyDescription,
-			config: mockConfig
+			config: mockConfig,
+			logger: mockLogger
 		});
 
 		const translations: LanguageTranslations = {
@@ -208,7 +219,8 @@ suite('NumberPolicy', () => {
 			policy: mockPolicy,
 			category: mockCategory,
 			policyDescription: mockPolicyDescription,
-			config: mockConfig
+			config: mockConfig,
+			logger: mockLogger
 		});
 
 		const profileValue = policy.renderProfileValue();
@@ -226,7 +238,8 @@ suite('NumberPolicy', () => {
 			policy: mockPolicy,
 			category: mockCategory,
 			policyDescription: mockPolicyDescription,
-			config: mockConfig
+			config: mockConfig,
+			logger: mockLogger
 		});
 
 		const profileValue = policy.renderProfileValue();
