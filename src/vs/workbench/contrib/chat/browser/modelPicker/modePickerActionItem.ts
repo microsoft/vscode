@@ -16,6 +16,7 @@ import { IActionWidgetService } from '../../../../../platform/actionWidget/brows
 import { IActionWidgetDropdownAction, IActionWidgetDropdownActionProvider, IActionWidgetDropdownOptions } from '../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IChatAgentService } from '../../common/chatAgents.js';
 import { IChatMode, IChatModeService } from '../../common/chatModes.js';
@@ -37,7 +38,8 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IChatModeService chatModeService: IChatModeService,
 		@IMenuService private readonly menuService: IMenuService,
-		@ICommandService commandService: ICommandService
+		@ICommandService commandService: ICommandService,
+		@IHoverService hoverService: IHoverService,
 	) {
 		const makeAction = (mode: IChatMode, currentMode: IChatMode): IActionWidgetDropdownAction => ({
 			...action,
@@ -92,7 +94,7 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 			showItemKeybindings: true
 		};
 
-		super(action, modePickerActionWidgetOptions, actionWidgetService, keybindingService, contextKeyService);
+		super(action, modePickerActionWidgetOptions, actionWidgetService, keybindingService, contextKeyService, hoverService);
 
 		// Listen to changes in the current mode and its properties
 		this._register(autorun(reader => {

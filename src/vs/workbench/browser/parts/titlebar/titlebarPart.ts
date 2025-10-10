@@ -49,9 +49,7 @@ import { IEditorCommandsContext, IEditorPartOptionsChangeEvent, IToolbarActions 
 import { CodeWindow, mainWindow } from '../../../../base/browser/window.js';
 import { ACCOUNTS_ACTIVITY_TILE_ACTION, GLOBAL_ACTIVITY_TITLE_ACTION } from './titlebarActions.js';
 import { IView } from '../../../../base/browser/ui/grid/grid.js';
-import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { safeIntl } from '../../../../base/common/date.js';
 import { IsCompactTitleBarContext, TitleBarVisibleContext } from '../../../common/contextkeys.js';
@@ -277,8 +275,6 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	private readonly layoutToolbarMenuDisposables = this._register(new DisposableStore());
 	private readonly activityToolbarDisposables = this._register(new DisposableStore());
 
-	private readonly hoverDelegate: IHoverDelegate;
-
 	private readonly titleDisposables = this._register(new DisposableStore());
 	private titleBarStyle: TitlebarStyle;
 
@@ -317,8 +313,6 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		this.titleBarStyle = getTitleBarStyle(this.configurationService);
 
 		this.windowTitle = this._register(instantiationService.createInstance(WindowTitle, targetWindow));
-
-		this.hoverDelegate = this._register(createInstantHoverDelegate());
 
 		this.registerListeners(getWindowId(targetWindow));
 	}
@@ -576,7 +570,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 		// Menu Title
 		else {
-			const commandCenter = this.instantiationService.createInstance(CommandCenterControl, this.windowTitle, this.hoverDelegate);
+			const commandCenter = this.instantiationService.createInstance(CommandCenterControl, this.windowTitle);
 			reset(this.title, commandCenter.element);
 			this.titleDisposables.add(commandCenter);
 		}
@@ -631,7 +625,6 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			telemetrySource: 'titlePart',
 			highlightToggledItems: this.editorActionsEnabled || this.isAuxiliary, // Only show toggled state for editor actions or auxiliary title bars
 			actionViewItemProvider: (action, options) => this.actionViewItemProvider(action, options),
-			hoverDelegate: this.hoverDelegate
 		}));
 
 		if (this.editorActionsEnabled) {

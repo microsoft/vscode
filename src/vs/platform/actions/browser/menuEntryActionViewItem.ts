@@ -8,6 +8,7 @@ import { $, addDisposableListener, append, EventType, ModifierKeyEmitter, prepen
 import { StandardKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
 import { ActionViewItem, BaseActionViewItem, SelectActionViewItem } from '../../../base/browser/ui/actionbar/actionViewItems.js';
 import { DropdownMenuActionViewItem, IDropdownMenuActionViewItemOptions } from '../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
+import type { HoverStyle, IHoverLifecycleOptions } from '../../../base/browser/ui/hover/hover.js';
 import { IHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegate.js';
 import { ActionRunner, IAction, IRunEvent, Separator, SubmenuAction } from '../../../base/common/actions.js';
 import { Event } from '../../../base/common/event.js';
@@ -171,6 +172,8 @@ export interface IMenuEntryActionViewItemOptions {
 	readonly draggable?: boolean;
 	readonly keybinding?: string | null;
 	readonly hoverDelegate?: IHoverDelegate;
+	readonly hoverStyle?: HoverStyle;
+	readonly hoverLifecycleOptions?: IHoverLifecycleOptions;
 	readonly keybindingNotRenderedWithLabel?: boolean;
 }
 
@@ -190,7 +193,7 @@ export class MenuEntryActionViewItem<T extends IMenuEntryActionViewItemOptions =
 		@IContextMenuService protected readonly _contextMenuService: IContextMenuService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
 	) {
-		super(undefined, action, { icon: !!(action.class || action.item.icon), label: !action.class && !action.item.icon, draggable: _options?.draggable, keybinding: _options?.keybinding, hoverDelegate: _options?.hoverDelegate, keybindingNotRenderedWithLabel: _options?.keybindingNotRenderedWithLabel });
+		super(undefined, action, { icon: !!(action.class || action.item.icon), label: !action.class && !action.item.icon, draggable: _options?.draggable, keybinding: _options?.keybinding, hoverStyle: _options?.hoverStyle, hoverLifecycleOptions: _options?.hoverLifecycleOptions, hoverDelegate: _options?.hoverDelegate, keybindingNotRenderedWithLabel: _options?.keybindingNotRenderedWithLabel });
 		this._altKey = ModifierKeyEmitter.getInstance();
 	}
 

@@ -5,8 +5,6 @@
 
 import { isActiveDocument, reset } from '../../../../base/browser/dom.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IAction, SubmenuAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -34,7 +32,6 @@ export class CommandCenterControl {
 
 	constructor(
 		windowTitle: WindowTitle,
-		hoverDelegate: IHoverDelegate,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IQuickInputService quickInputService: IQuickInputService,
 	) {
@@ -49,9 +46,9 @@ export class CommandCenterControl {
 			telemetrySource: 'commandCenter',
 			actionViewItemProvider: (action, options) => {
 				if (action instanceof SubmenuItemAction && action.item.submenu === MenuId.CommandCenterCenter) {
-					return instantiationService.createInstance(CommandCenterCenterViewItem, action, windowTitle, { ...options, hoverDelegate });
+					return instantiationService.createInstance(CommandCenterCenterViewItem, action, windowTitle, { ...options });
 				} else {
-					return createActionViewItem(instantiationService, action, { ...options, hoverDelegate });
+					return createActionViewItem(instantiationService, action, { ...options });
 				}
 			}
 		});
@@ -76,8 +73,6 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 
 	private static readonly _quickOpenCommandId = 'workbench.action.quickOpenWithModes';
 
-	private readonly _hoverDelegate: IHoverDelegate;
-
 	constructor(
 		private readonly _submenu: SubmenuItemAction,
 		private readonly _windowTitle: WindowTitle,
@@ -88,7 +83,6 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 		@IEditorGroupsService private _editorGroupService: IEditorGroupsService,
 	) {
 		super(undefined, _submenu.actions.find(action => action.id === 'workbench.action.quickOpenWithModes') ?? _submenu.actions[0], options);
-		this._hoverDelegate = options.hoverDelegate ?? getDefaultHoverDelegate('mouse');
 	}
 
 	override render(container: HTMLElement): void {
@@ -96,12 +90,9 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 		container.classList.add('command-center-center');
 		container.classList.toggle('multiple', (this._submenu.actions.length > 1));
 
-		const hover = this._store.add(this._hoverService.setupManagedHover(this._hoverDelegate, container, this.getTooltip()));
-
-		// update label & tooltip when window title changes
-		this._store.add(this._windowTitle.onDidChange(() => {
-			hover.update(this.getTooltip());
-		}));
+		this._register(this._hoverService.setupDelayedHover(container, () => ({
+			content: this.getTooltip()
+		})));
 
 		const groups: (readonly IAction[])[] = [];
 		for (const action of this._submenu.actions) {
@@ -121,11 +112,6 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 				hiddenItemStrategy: HiddenItemStrategy.NoHide,
 				telemetrySource: 'commandCenterCenter',
 				actionViewItemProvider: (action, options) => {
-					options = {
-						...options,
-						hoverDelegate: this._hoverDelegate,
-					};
-
 					if (action.id !== CommandCenterCenterViewItem._quickOpenCommandId) {
 						return createActionViewItem(this._instaService, action, options);
 					}
@@ -158,18 +144,13 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 							labelElement.textContent = label;
 							reset(container, searchIcon, labelElement);
 
-							const hover = this._store.add(that._hoverService.setupManagedHover(that._hoverDelegate, container, this.getTooltip()));
+							this._store.add(that._hoverService.setupDelayedHover(container, () => ({
+								content: this.getTooltip()
+							}), options.hoverLifecycleOptions));
 
-							// update label & tooltip when window title changes
-							this._store.add(that._windowTitle.onDidChange(() => {
-								hover.update(this.getTooltip());
-								labelElement.textContent = this._getLabel();
-							}));
-
-							// update label & tooltip when tabs visibility changes
+							// update label when tabs visibility changes
 							this._store.add(that._editorGroupService.onDidChangeEditorPartOptions(({ newPartOptions, oldPartOptions }) => {
 								if (newPartOptions.showTabs !== oldPartOptions.showTabs) {
-									hover.update(this.getTooltip());
 									labelElement.textContent = this._getLabel();
 								}
 							}));

@@ -9,7 +9,6 @@ import { addDisposableListener, EventHelper, EventLike, EventType } from '../../
 import { EventType as TouchEventType, Gesture } from '../../touch.js';
 import { IActionViewItem } from './actionbar.js';
 import { IContextViewProvider } from '../contextview/contextview.js';
-import { getDefaultHoverDelegate } from '../hover/hoverDelegateFactory.js';
 import { IHoverDelegate } from '../hover/hoverDelegate.js';
 import { ISelectBoxOptions, ISelectBoxStyles, ISelectOptionItem, SelectBox } from '../selectBox/selectBox.js';
 import { IToggleStyles } from '../toggle/toggle.js';
@@ -19,7 +18,7 @@ import * as platform from '../../../common/platform.js';
 import * as types from '../../../common/types.js';
 import './actionbar.css';
 import * as nls from '../../../../nls.js';
-import type { IManagedHover, IManagedHoverContent } from '../hover/hover.js';
+import { HoverStyle, IHoverLifecycleOptions } from '../hover/hover.js';
 import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2.js';
 
 export interface IBaseActionViewItemOptions {
@@ -28,6 +27,8 @@ export interface IBaseActionViewItemOptions {
 	readonly isTabList?: boolean;
 	readonly useEventAsContext?: boolean;
 	readonly hoverDelegate?: IHoverDelegate;
+	readonly hoverStyle?: HoverStyle;
+	readonly hoverLifecycleOptions?: IHoverLifecycleOptions;
 }
 
 export class BaseActionViewItem extends Disposable implements IActionViewItem {
@@ -36,8 +37,6 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 
 	_context: unknown;
 	readonly _action: IAction;
-
-	private customHover?: IManagedHover;
 
 	get action() {
 		return this._action;
@@ -225,7 +224,7 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 		return this.action.tooltip;
 	}
 
-	protected getHoverContents(): IManagedHoverContent | undefined {
+	protected getHoverContents(): string | (() => HTMLElement) | undefined {
 		return this.getTooltip();
 	}
 
@@ -234,14 +233,11 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 			return;
 		}
 		const title = this.getHoverContents() ?? '';
+		this._store.add(getBaseLayerHoverDelegate().setupDelayedHover(this.element, () => ({
+			content: typeof title === 'function' ? title() : title,
+			style: this.options.hoverStyle ?? HoverStyle.Mouse,
+		}), this.options.hoverLifecycleOptions));
 		this.updateAriaLabel();
-
-		if (!this.customHover && title !== '') {
-			const hoverDelegate = this.options.hoverDelegate ?? getDefaultHoverDelegate('element');
-			this.customHover = this._store.add(getBaseLayerHoverDelegate().setupManagedHover(hoverDelegate, this.element, title));
-		} else if (this.customHover) {
-			this.customHover.update(title);
-		}
 	}
 
 	protected updateAriaLabel(): void {

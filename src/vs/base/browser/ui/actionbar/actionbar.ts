@@ -6,7 +6,6 @@
 import * as DOM from '../../dom.js';
 import { StandardKeyboardEvent } from '../../keyboardEvent.js';
 import { ActionViewItem, BaseActionViewItem, IActionViewItemOptions } from './actionViewItems.js';
-import { createInstantHoverDelegate } from '../hover/hoverDelegateFactory.js';
 import { IHoverDelegate } from '../hover/hoverDelegate.js';
 import { ActionRunner, IAction, IActionRunner, IRunEvent, Separator } from '../../../common/actions.js';
 import { Emitter } from '../../../common/event.js';
@@ -14,6 +13,8 @@ import { KeyCode, KeyMod } from '../../../common/keyCodes.js';
 import { Disposable, DisposableMap, DisposableStore, dispose, IDisposable } from '../../../common/lifecycle.js';
 import * as types from '../../../common/types.js';
 import './actionbar.css';
+import { HoverStyle, type IHoverLifecycleOptions } from '../hover/hover.js';
+import { generateUuid } from '../../../common/uuid.js';
 
 export interface IActionViewItem extends IDisposable {
 	action: IAction;
@@ -67,7 +68,6 @@ export interface IActionOptions extends IActionViewItemOptions {
 export class ActionBar extends Disposable implements IActionRunner {
 
 	private readonly options: IActionBarOptions;
-	private readonly _hoverDelegate: IHoverDelegate;
 
 	private _actionRunner: IActionRunner;
 	private readonly _actionRunnerDisposables = this._register(new DisposableStore());
@@ -117,8 +117,6 @@ export class ActionBar extends Disposable implements IActionRunner {
 			keyDown: this.options.triggerKeys?.keyDown ?? false,
 			keys: this.options.triggerKeys?.keys ?? [KeyCode.Enter, KeyCode.Space]
 		};
-
-		this._hoverDelegate = options.hoverDelegate ?? this._register(createInstantHoverDelegate());
 
 		if (this.options.actionRunner) {
 			this._actionRunner = this.options.actionRunner;
@@ -348,6 +346,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 	push(arg: IAction | ReadonlyArray<IAction>, options: IActionOptions = {}): void {
 		const actions: ReadonlyArray<IAction> = Array.isArray(arg) ? arg : [arg];
+		const hoverLifecycleOptions: IHoverLifecycleOptions = { groupId: generateUuid() };
 
 		let index = types.isNumber(options.index) ? options.index : null;
 
@@ -358,7 +357,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 			let item: IActionViewItem | undefined;
 
-			const viewItemOptions: IActionViewItemOptions = { hoverDelegate: this._hoverDelegate, ...options, isTabList: this.options.ariaRole === 'tablist' };
+			const viewItemOptions: IActionViewItemOptions = { hoverLifecycleOptions, hoverStyle: HoverStyle.Pointer, ...options, isTabList: this.options.ariaRole === 'tablist' };
 			if (this.options.actionViewItemProvider) {
 				item = this.options.actionViewItemProvider(action, viewItemOptions);
 			}

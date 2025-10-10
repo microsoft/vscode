@@ -70,6 +70,7 @@ export class ToggleActionViewItem extends BaseActionViewItem {
 			inputActiveOptionBorder: options.toggleStyles?.inputActiveOptionBorder,
 			inputActiveOptionForeground: options.toggleStyles?.inputActiveOptionForeground,
 			hoverDelegate: options.hoverDelegate,
+			hoverLifecycleOptions: options.hoverLifecycleOptions,
 		}));
 		this._register(this.toggle.onChange(() => {
 			this._action.checked = !!this.toggle && this.toggle.checked;

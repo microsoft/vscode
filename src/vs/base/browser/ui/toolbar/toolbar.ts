@@ -17,6 +17,7 @@ import './toolbar.css';
 import * as nls from '../../../../nls.js';
 import { IHoverDelegate } from '../hover/hoverDelegate.js';
 import { createInstantHoverDelegate } from '../hover/hoverDelegateFactory.js';
+import { HoverStyle, IHoverLifecycleOptions } from '../hover/hover.js';
 
 export interface IToolBarOptions {
 	orientation?: ActionsOrientation;
@@ -31,6 +32,8 @@ export interface IToolBarOptions {
 	allowContextMenu?: boolean;
 	skipTelemetry?: boolean;
 	hoverDelegate?: IHoverDelegate;
+	hoverStyle?: HoverStyle;
+	hoverLifecycleOptions?: IHoverLifecycleOptions;
 
 	/**
 	 * If true, toggled primary items are highlighted with a background color.
@@ -98,7 +101,9 @@ export class ToolBar extends Disposable {
 							menuAsChild: !!this.options.renderDropdownAsChildElement,
 							skipTelemetry: this.options.skipTelemetry,
 							isMenu: true,
-							hoverDelegate: this.options.hoverDelegate
+							hoverDelegate: this.options.hoverDelegate,
+							hoverStyle: this.options.hoverStyle ?? HoverStyle.Pointer,
+							hoverLifecycleOptions: this.options.hoverLifecycleOptions
 						}
 					);
 					this.toggleMenuActionViewItem.setActionContext(this.actionBar.context);
@@ -128,7 +133,8 @@ export class ToolBar extends Disposable {
 							anchorAlignmentProvider: this.options.anchorAlignmentProvider,
 							menuAsChild: !!this.options.renderDropdownAsChildElement,
 							skipTelemetry: this.options.skipTelemetry,
-							hoverDelegate: this.options.hoverDelegate
+							hoverDelegate: this.options.hoverDelegate,
+							hoverLifecycleOptions: this.options.hoverLifecycleOptions
 						}
 					);
 					result.setActionContext(this.actionBar.context);

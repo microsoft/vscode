@@ -5,7 +5,6 @@
 
 import { $, addDisposableListener, disposableWindowInterval, EventType, h } from '../../../../base/browser/dom.js';
 import { renderMarkdown } from '../../../../base/browser/markdownRenderer.js';
-import { IManagedHoverTooltipHTMLElement } from '../../../../base/browser/ui/hover/hover.js';
 import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { findLast } from '../../../../base/common/arraysFind.js';
@@ -545,7 +544,7 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 					return this.getLabelForState() || super.getTooltip();
 				}
 
-				protected override getHoverContents({ state, servers } = displayedStateCurrent.get()): string | undefined | IManagedHoverTooltipHTMLElement {
+				protected override getHoverContents({ state, servers } = displayedStateCurrent.get()): string | undefined | (() => HTMLElement) {
 					const link = (s: IMcpServer) => markdownCommandLink({
 						title: s.definition.label,
 						id: McpCommandIds.ServerOptions,
@@ -569,65 +568,60 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 						return this.getLabelForState() || undefined;
 					}
 
-					return {
-						element: (token): HTMLElement => {
-							hoverIsOpen.set(true, undefined);
+					return () => {
+						hoverIsOpen.set(true, undefined);
 
-							const store = new DisposableStore();
-							store.add(toDisposable(() => hoverIsOpen.set(false, undefined)));
-							store.add(token.onCancellationRequested(() => {
+						const store = new DisposableStore();
+						store.add(toDisposable(() => hoverIsOpen.set(false, undefined)));
+
+						// todo@connor4312/@benibenj: workaround for #257923
+						store.add(disposableWindowInterval(mainWindow, () => {
+							if (!container.isConnected) {
 								store.dispose();
-							}));
+							}
+						}, 2000));
 
-							// todo@connor4312/@benibenj: workaround for #257923
-							store.add(disposableWindowInterval(mainWindow, () => {
-								if (!container.isConnected) {
-									store.dispose();
-								}
-							}, 2000));
+						const container = $('div.mcp-hover-contents');
 
-							const container = $('div.mcp-hover-contents');
+						// Render markdown content
+						markdown.isTrusted = true;
+						const markdownResult = store.add(renderMarkdown(markdown));
+						container.appendChild(markdownResult.element);
 
-							// Render markdown content
-							markdown.isTrusted = true;
-							const markdownResult = store.add(renderMarkdown(markdown));
-							container.appendChild(markdownResult.element);
+						// Add divider
+						const divider = $('hr.mcp-hover-divider');
+						container.appendChild(divider);
 
-							// Add divider
-							const divider = $('hr.mcp-hover-divider');
-							container.appendChild(divider);
+						// Add checkbox for mcpAutoStartConfig setting
+						const checkboxContainer = $('div.mcp-hover-setting');
+						const settingLabelStr = localize('mcp.autoStart', "Automatically start MCP servers when sending a chat message");
 
-							// Add checkbox for mcpAutoStartConfig setting
-							const checkboxContainer = $('div.mcp-hover-setting');
-							const settingLabelStr = localize('mcp.autoStart', "Automatically start MCP servers when sending a chat message");
+						const checkbox = store.add(new Checkbox(
+							settingLabelStr,
+							config.get() !== McpAutoStartValue.Never,
+							{ ...defaultCheckboxStyles }
+						));
 
-							const checkbox = store.add(new Checkbox(
-								settingLabelStr,
-								config.get() !== McpAutoStartValue.Never,
-								{ ...defaultCheckboxStyles }
-							));
+						checkboxContainer.appendChild(checkbox.domNode);
 
-							checkboxContainer.appendChild(checkbox.domNode);
+						// Add label next to checkbox
+						const settingLabel = $('span.mcp-hover-setting-label', undefined, settingLabelStr);
+						checkboxContainer.appendChild(settingLabel);
 
-							// Add label next to checkbox
-							const settingLabel = $('span.mcp-hover-setting-label', undefined, settingLabelStr);
-							checkboxContainer.appendChild(settingLabel);
+						const onChange = () => {
+							const newValue = checkbox.checked ? McpAutoStartValue.NewAndOutdated : McpAutoStartValue.Never;
+							configurationService.updateValue(mcpAutoStartConfig, newValue);
+						};
 
-							const onChange = () => {
-								const newValue = checkbox.checked ? McpAutoStartValue.NewAndOutdated : McpAutoStartValue.Never;
-								configurationService.updateValue(mcpAutoStartConfig, newValue);
-							};
+						store.add(checkbox.onChange(onChange));
 
-							store.add(checkbox.onChange(onChange));
+						store.add(addDisposableListener(settingLabel, EventType.CLICK, () => {
+							checkbox.checked = !checkbox.checked;
+							onChange();
+						}));
+						container.appendChild(checkboxContainer);
 
-							store.add(addDisposableListener(settingLabel, EventType.CLICK, () => {
-								checkbox.checked = !checkbox.checked;
-								onChange();
-							}));
-							container.appendChild(checkboxContainer);
-
-							return container;
-						},
+						return container;
 					};
 				}
 

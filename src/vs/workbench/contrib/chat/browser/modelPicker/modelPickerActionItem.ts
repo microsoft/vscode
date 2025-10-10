@@ -20,6 +20,7 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { DEFAULT_MODEL_PICKER_CATEGORY } from '../../common/modelPicker/modelPickerWidget.js';
 import { ManageModelsAction } from '../actions/manageModelsActions.js';
 import { IActionProvider } from '../../../../../base/browser/ui/dropdown/dropdown.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 
 export interface IModelPickerDelegate {
 	readonly onDidChangeModel: Event<ILanguageModelChatMetadataAndIdentifier>;
@@ -109,6 +110,7 @@ export class ModelPickerActionItem extends ActionWidgetDropdownActionViewItem {
 		@ICommandService commandService: ICommandService,
 		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
 		@IKeybindingService keybindingService: IKeybindingService,
+		@IHoverService hoverService: IHoverService,
 	) {
 		// Modify the original action with a different label and make it show the current model
 		const actionWithLabel: IAction = {
@@ -123,7 +125,7 @@ export class ModelPickerActionItem extends ActionWidgetDropdownActionViewItem {
 			actionBarActionProvider: getModelPickerActionBarActionProvider(commandService, chatEntitlementService)
 		};
 
-		super(actionWithLabel, modelPickerActionWidgetOptions, actionWidgetService, keybindingService, contextKeyService);
+		super(actionWithLabel, modelPickerActionWidgetOptions, actionWidgetService, keybindingService, contextKeyService, hoverService);
 
 		// Listen for model changes from the delegate
 		this._register(delegate.onDidChangeModel(model => {

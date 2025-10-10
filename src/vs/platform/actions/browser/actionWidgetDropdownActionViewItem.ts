@@ -6,13 +6,13 @@
 import { $, append } from '../../../base/browser/dom.js';
 import { BaseActionViewItem } from '../../../base/browser/ui/actionbar/actionViewItems.js';
 import { ILabelRenderer } from '../../../base/browser/ui/dropdown/dropdown.js';
-import { getBaseLayerHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegate2.js';
-import { getDefaultHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { HoverStyle } from '../../../base/browser/ui/hover/hover.js';
 import { IAction } from '../../../base/common/actions.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { IActionWidgetService } from '../../actionWidget/browser/actionWidget.js';
 import { ActionWidgetDropdown, IActionWidgetDropdownOptions } from '../../actionWidget/browser/actionWidgetDropdown.js';
 import { IContextKeyService } from '../../contextkey/common/contextkey.js';
+import { IHoverService } from '../../hover/browser/hover.js';
 import { IKeybindingService } from '../../keybinding/common/keybinding.js';
 
 /**
@@ -28,6 +28,7 @@ export class ActionWidgetDropdownActionViewItem extends BaseActionViewItem {
 		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IHoverService private readonly _hoverService: IHoverService,
 	) {
 		super(undefined, action);
 	}
@@ -44,6 +45,10 @@ export class ActionWidgetDropdownActionViewItem extends BaseActionViewItem {
 		this._register(this.actionWidgetDropdown.onDidChangeVisibility(visible => {
 			this.element?.setAttribute('aria-expanded', `${visible}`);
 		}));
+		this._register(this._hoverService.setupDelayedHover(container, () => ({
+			content: this.action.label,
+			style: this.options.hoverStyle ?? HoverStyle.Mouse,
+		}), this.options.hoverLifecycleOptions));
 
 		this.updateTooltip();
 		this.updateEnabled();
@@ -52,10 +57,6 @@ export class ActionWidgetDropdownActionViewItem extends BaseActionViewItem {
 	protected renderLabel(element: HTMLElement): IDisposable | null {
 		// todo@aeschli: remove codicon, should come through `this.options.classNames`
 		element.classList.add('codicon');
-
-		if (this._action.label) {
-			this._register(getBaseLayerHoverDelegate().setupManagedHover(this.options.hoverDelegate ?? getDefaultHoverDelegate('mouse'), element, this._action.label));
-		}
 
 		return null;
 	}
