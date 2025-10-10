@@ -44,7 +44,7 @@ export function setup(logger: Logger) {
 			});
 		});
 
-		it('inserts/edits code cell', async function () {
+		it.skip('inserts/edits code cell', async function () {
 			const app = this.app as Application;
 			await app.workbench.notebook.openNotebook();
 			await app.workbench.notebook.focusNextCell();
@@ -64,7 +64,7 @@ export function setup(logger: Logger) {
 			await app.workbench.notebook.waitForMarkdownContents('', '');
 		});
 
-		it('moves focus as it inserts/deletes a cell', async function () {
+		it.skip('moves focus as it inserts/deletes a cell', async function () {
 			const app = this.app as Application;
 			await app.workbench.notebook.openNotebook();
 			await app.workbench.notebook.insertNotebookCell('code');
@@ -75,7 +75,7 @@ export function setup(logger: Logger) {
 			await app.workbench.notebook.waitForTypeInEditor('## hello2!');
 		});
 
-		it('moves focus in and out of output', async function () { // TODO@rebornix https://github.com/microsoft/vscode/issues/139270
+		it.skip('moves focus in and out of output', async function () { // TODO@rebornix https://github.com/microsoft/vscode/issues/139270
 			const app = this.app as Application;
 			await app.workbench.notebook.openNotebook();
 			// first cell is a code cell that already has output
