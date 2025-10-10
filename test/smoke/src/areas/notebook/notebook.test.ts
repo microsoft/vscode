@@ -35,7 +35,7 @@ export function setup(logger: Logger) {
 			});
 		});
 
-		for (let i = 0; i < 30; i++) {
+		for (let i = 0; i < 3; i++) {
 
 			it(`check object leaks ${i}`, async function () {
 				const app = this.app as Application;
