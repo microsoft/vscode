@@ -63,10 +63,17 @@ suite('BooleanPolicy', () => {
 
 		const admx = policy.renderADMX('TestKey');
 
-		assert.ok(admx.some(line => line.includes('<policy name="TestBooleanPolicy"')));
-		assert.ok(admx.some(line => line.includes('<boolean id="TestBooleanPolicy"')));
-		assert.ok(admx.some(line => line.includes('<trueValue><decimal value="1" /></trueValue>')));
-		assert.ok(admx.some(line => line.includes('<falseValue><decimal value="0" /></falseValue>')));
+		assert.deepStrictEqual(admx, [
+			'<policy name="TestBooleanPolicy" class="Both" displayName="$(string.TestBooleanPolicy)" explainText="$(string.TestBooleanPolicy_test_policy_description)" key="Software\\Policies\\Microsoft\\TestKey" presentation="$(presentation.TestBooleanPolicy)">',
+			'\t<parentCategory ref="test.category" />',
+			'\t<supportedOn ref="Supported_1_0" />',
+			'\t<elements>',
+			'<boolean id="TestBooleanPolicy" valueName="TestBooleanPolicy">',
+			'\t<trueValue><decimal value="1" /></trueValue><falseValue><decimal value="0" /></falseValue>',
+			'</boolean>',
+			'\t</elements>',
+			'</policy>'
+		]);
 	});
 
 	test('should render ADML strings correctly', () => {
@@ -80,9 +87,10 @@ suite('BooleanPolicy', () => {
 
 		const admlStrings = policy.renderADMLStrings();
 
-		assert.strictEqual(admlStrings.length, 2);
-		assert.ok(admlStrings.some(s => s.includes('id="TestBooleanPolicy"')));
-		assert.ok(admlStrings.some(s => s.includes('Test policy description')));
+		assert.deepStrictEqual(admlStrings, [
+			'<string id="TestBooleanPolicy">TestBooleanPolicy</string>',
+			'<string id="TestBooleanPolicy_test_policy_description">Test policy description</string>'
+		]);
 	});
 
 	test('should render ADML strings with translations', () => {
@@ -100,7 +108,10 @@ suite('BooleanPolicy', () => {
 
 		const admlStrings = policy.renderADMLStrings(translations);
 
-		assert.ok(admlStrings.some(s => s.includes('Translated description')));
+		assert.deepStrictEqual(admlStrings, [
+			'<string id="TestBooleanPolicy">TestBooleanPolicy</string>',
+			'<string id="TestBooleanPolicy_test_policy_description">Translated description</string>'
+		]);
 	});
 
 	test('should render ADML presentation correctly', () => {
@@ -114,8 +125,7 @@ suite('BooleanPolicy', () => {
 
 		const presentation = policy.renderADMLPresentation();
 
-		assert.ok(presentation.includes('<presentation id="TestBooleanPolicy">'));
-		assert.ok(presentation.includes('<checkBox refId="TestBooleanPolicy">'));
+		assert.strictEqual(presentation, '<presentation id="TestBooleanPolicy"><checkBox refId="TestBooleanPolicy">TestBooleanPolicy</checkBox></presentation>');
 	});
 
 	test('should render profile value correctly', () => {
@@ -159,11 +169,7 @@ suite('BooleanPolicy', () => {
 
 		const manifestValue = policy.renderProfileManifestValue();
 
-		assert.ok(manifestValue.includes('<key>pfm_default</key>'));
-		assert.ok(manifestValue.includes('<false/>'));
-		assert.ok(manifestValue.includes('<key>pfm_type</key>'));
-		assert.ok(manifestValue.includes('<string>boolean</string>'));
-		assert.ok(manifestValue.includes('Test policy description'));
+		assert.strictEqual(manifestValue, '<key>pfm_default</key>\n<false/>\n<key>pfm_description</key>\n<string>Test policy description</string>\n<key>pfm_name</key>\n<string>TestBooleanPolicy</string>\n<key>pfm_title</key>\n<string>TestBooleanPolicy</string>\n<key>pfm_type</key>\n<string>boolean</string>');
 	});
 
 	test('should render profile manifest value with translations', () => {
@@ -181,7 +187,7 @@ suite('BooleanPolicy', () => {
 
 		const manifestValue = policy.renderProfileManifestValue(translations);
 
-		assert.ok(manifestValue.includes('Translated manifest description'));
+		assert.strictEqual(manifestValue, '<key>pfm_default</key>\n<false/>\n<key>pfm_description</key>\n<string>Translated manifest description</string>\n<key>pfm_name</key>\n<string>TestBooleanPolicy</string>\n<key>pfm_title</key>\n<string>TestBooleanPolicy</string>\n<key>pfm_type</key>\n<string>boolean</string>');
 	});
 
 	test('should render profile manifest correctly', () => {
@@ -195,8 +201,6 @@ suite('BooleanPolicy', () => {
 
 		const manifest = policy.renderProfileManifest();
 
-		assert.ok(manifest.startsWith('<dict>'));
-		assert.ok(manifest.endsWith('</dict>'));
-		assert.ok(manifest.includes('pfm_type'));
+		assert.strictEqual(manifest, '<dict>\n<key>pfm_default</key>\n<false/>\n<key>pfm_description</key>\n<string>Test policy description</string>\n<key>pfm_name</key>\n<string>TestBooleanPolicy</string>\n<key>pfm_title</key>\n<string>TestBooleanPolicy</string>\n<key>pfm_type</key>\n<string>boolean</string>\n</dict>');
 	});
 });

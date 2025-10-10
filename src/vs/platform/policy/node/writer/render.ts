@@ -78,6 +78,71 @@ export function renderADML(appName: string, versions: string[], categories: Cate
 `;
 }
 
+export function renderMacOSPolicy(appName: string, bundleIdentifier: string, payloadUUID: string, UUID: string, versions: string[], categories: Category[], policies: Policy[], translations: Array<{ languageId: string; languageTranslations: LanguageTranslations }>) {
+	const policyEntries =
+		policies.map(policy => policy.renderProfile())
+			.flat()
+			.map(entry => `\t\t\t\t${entry}`)
+			.join('\n');
+
+
+	return {
+		profile: `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+	<dict>
+		<key>PayloadContent</key>
+		<array>
+			<dict>
+				<key>PayloadDisplayName</key>
+				<string>${appName}</string>
+				<key>PayloadIdentifier</key>
+				<string>${bundleIdentifier}.${UUID}</string>
+				<key>PayloadType</key>
+				<string>${bundleIdentifier}</string>
+				<key>PayloadUUID</key>
+				<string>${UUID}</string>
+				<key>PayloadVersion</key>
+				<integer>1</integer>
+${policyEntries}
+			</dict>
+		</array>
+		<key>PayloadDescription</key>
+		<string>This profile manages ${appName}. For more information see https://code.visualstudio.com/docs/setup/enterprise</string>
+		<key>PayloadDisplayName</key>
+		<string>${appName}</string>
+		<key>PayloadIdentifier</key>
+		<string>${bundleIdentifier}</string>
+		<key>PayloadOrganization</key>
+		<string>Microsoft</string>
+		<key>PayloadType</key>
+		<string>Configuration</string>
+		<key>PayloadUUID</key>
+		<string>${payloadUUID}</string>
+		<key>PayloadVersion</key>
+		<integer>1</integer>
+		<key>TargetDeviceType</key>
+		<integer>5</integer>
+	</dict>
+</plist>`,
+		manifests: [{ languageId: 'en-us', contents: renderProfileManifest(appName, bundleIdentifier, versions, categories, policies) },
+		...translations.map(({ languageId, languageTranslations }) =>
+			({ languageId, contents: renderProfileManifest(appName, bundleIdentifier, versions, categories, policies, languageTranslations) }))
+		]
+	};
+}
+
+export function renderGP(appName: string, regKey: string, versions: string[], categories: Category[], policies: Policy[], translations: Array<{ languageId: string; languageTranslations: LanguageTranslations }>) {
+	return {
+		admx: renderADMX(regKey, versions, categories, policies),
+		adml: [
+			{ languageId: 'en-us', contents: renderADML(appName, versions, categories, policies) },
+			...translations.map(({ languageId, languageTranslations }) =>
+				({ languageId, contents: renderADML(appName, versions, categories, policies, languageTranslations) }))
+		]
+	};
+}
+
 export function renderProfileManifest(appName: string, bundleIdentifier: string, _versions: string[], _categories: Category[], policies: Policy[], translations?: LanguageTranslations): string {
 	const requiredPayloadFields = `
 		<dict>

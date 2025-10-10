@@ -63,10 +63,15 @@ suite('ObjectPolicy', () => {
 
 		const admx = policy.renderADMX('TestKey');
 
-		assert.ok(admx.some(line => line.includes('<policy name="TestObjectPolicy"')));
-		assert.ok(admx.some(line => line.includes('<multiText id="TestObjectPolicy"')));
-		assert.ok(admx.some(line => line.includes('valueName="TestObjectPolicy"')));
-		assert.ok(admx.some(line => line.includes('required="true"')));
+		assert.deepStrictEqual(admx, [
+			'<policy name="TestObjectPolicy" class="Both" displayName="$(string.TestObjectPolicy)" explainText="$(string.TestObjectPolicy_test_objectpolicy_description)" key="Software\\Policies\\Microsoft\\TestKey" presentation="$(presentation.TestObjectPolicy)">',
+			'\t<parentCategory ref="test.category" />',
+			'\t<supportedOn ref="Supported_1_0" />',
+			'\t<elements>',
+			'<multiText id="TestObjectPolicy" valueName="TestObjectPolicy" required="true" />',
+			'\t</elements>',
+			'</policy>'
+		]);
 	});
 
 	test('should render ADML strings correctly', () => {
@@ -80,9 +85,10 @@ suite('ObjectPolicy', () => {
 
 		const admlStrings = policy.renderADMLStrings();
 
-		assert.strictEqual(admlStrings.length, 2);
-		assert.ok(admlStrings.some(s => s.includes('id="TestObjectPolicy"')));
-		assert.ok(admlStrings.some(s => s.includes('Test object policy description')));
+		assert.deepStrictEqual(admlStrings, [
+			'<string id="TestObjectPolicy">TestObjectPolicy</string>',
+			'<string id="TestObjectPolicy_test_objectpolicy_description">Test object policy description</string>'
+		]);
 	});
 
 	test('should render ADML strings with translations', () => {
@@ -100,7 +106,10 @@ suite('ObjectPolicy', () => {
 
 		const admlStrings = policy.renderADMLStrings(translations);
 
-		assert.ok(admlStrings.some(s => s.includes('Translated object description')));
+		assert.deepStrictEqual(admlStrings, [
+			'<string id="TestObjectPolicy">TestObjectPolicy</string>',
+			'<string id="TestObjectPolicy_test_objectpolicy_description">Translated object description</string>'
+		]);
 	});
 
 	test('should render ADML presentation correctly', () => {
@@ -114,8 +123,7 @@ suite('ObjectPolicy', () => {
 
 		const presentation = policy.renderADMLPresentation();
 
-		assert.ok(presentation.includes('<presentation id="TestObjectPolicy">'));
-		assert.ok(presentation.includes('<multiTextBox refId="TestObjectPolicy"'));
+		assert.strictEqual(presentation, '<presentation id="TestObjectPolicy"><multiTextBox refId="TestObjectPolicy" /></presentation>');
 	});
 
 	test('should render profile value correctly', () => {
@@ -159,11 +167,7 @@ suite('ObjectPolicy', () => {
 
 		const manifestValue = policy.renderProfileManifestValue();
 
-		assert.ok(manifestValue.includes('<key>pfm_default</key>'));
-		assert.ok(manifestValue.includes('<string></string>'));
-		assert.ok(manifestValue.includes('<key>pfm_type</key>'));
-		assert.ok(manifestValue.includes('<string>string</string>'));
-		assert.ok(manifestValue.includes('Test object policy description'));
+		assert.strictEqual(manifestValue, '<key>pfm_default</key>\n<string></string>\n<key>pfm_description</key>\n<string>Test object policy description</string>\n<key>pfm_name</key>\n<string>TestObjectPolicy</string>\n<key>pfm_title</key>\n<string>TestObjectPolicy</string>\n<key>pfm_type</key>\n<string>string</string>\n');
 	});
 
 	test('should render profile manifest value with translations', () => {
@@ -181,7 +185,7 @@ suite('ObjectPolicy', () => {
 
 		const manifestValue = policy.renderProfileManifestValue(translations);
 
-		assert.ok(manifestValue.includes('Translated manifest object'));
+		assert.strictEqual(manifestValue, '<key>pfm_default</key>\n<string></string>\n<key>pfm_description</key>\n<string>Translated manifest object</string>\n<key>pfm_name</key>\n<string>TestObjectPolicy</string>\n<key>pfm_title</key>\n<string>TestObjectPolicy</string>\n<key>pfm_type</key>\n<string>string</string>\n');
 	});
 
 	test('should render profile manifest correctly', () => {
@@ -195,9 +199,7 @@ suite('ObjectPolicy', () => {
 
 		const manifest = policy.renderProfileManifest();
 
-		assert.ok(manifest.startsWith('<dict>'));
-		assert.ok(manifest.endsWith('</dict>'));
-		assert.ok(manifest.includes('pfm_type'));
+		assert.strictEqual(manifest, '<dict>\n<key>pfm_default</key>\n<string></string>\n<key>pfm_description</key>\n<string>Test object policy description</string>\n<key>pfm_name</key>\n<string>TestObjectPolicy</string>\n<key>pfm_title</key>\n<string>TestObjectPolicy</string>\n<key>pfm_type</key>\n<string>string</string>\n\n</dict>');
 	});
 
 	test('should render ADMX with proper policy structure', () => {
@@ -210,12 +212,15 @@ suite('ObjectPolicy', () => {
 		});
 
 		const admx = policy.renderADMX('TestKey');
-		const admxText = admx.join('\n');
 
-		assert.ok(admxText.includes('class="Both"'));
-		assert.ok(admxText.includes('displayName="$(string.TestObjectPolicy)"'));
-		assert.ok(admxText.includes('Software\\Policies\\Microsoft\\TestKey'));
-		assert.ok(admxText.includes('<elements>'));
-		assert.ok(admxText.includes('</elements>'));
+		assert.deepStrictEqual(admx, [
+			'<policy name="TestObjectPolicy" class="Both" displayName="$(string.TestObjectPolicy)" explainText="$(string.TestObjectPolicy_test_objectpolicy_description)" key="Software\\Policies\\Microsoft\\TestKey" presentation="$(presentation.TestObjectPolicy)">',
+			'\t<parentCategory ref="test.category" />',
+			'\t<supportedOn ref="Supported_1_0" />',
+			'\t<elements>',
+			'<multiText id="TestObjectPolicy" valueName="TestObjectPolicy" required="true" />',
+			'\t</elements>',
+			'</policy>'
+		]);
 	});
 });

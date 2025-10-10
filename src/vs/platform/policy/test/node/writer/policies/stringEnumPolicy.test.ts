@@ -116,12 +116,19 @@ suite('StringEnumPolicy', () => {
 
 		const admx = policy.renderADMX('TestKey');
 
-		assert.ok(admx.some(line => line.includes('<policy name="TestStringEnumPolicy"')));
-		assert.ok(admx.some(line => line.includes('<enum id="TestStringEnumPolicy"')));
-		assert.ok(admx.some(line => line.includes('<item displayName=')));
-		assert.ok(admx.some(line => line.includes('<string>auto</string>')));
-		assert.ok(admx.some(line => line.includes('<string>manual</string>')));
-		assert.ok(admx.some(line => line.includes('<string>disabled</string>')));
+		assert.deepStrictEqual(admx, [
+			'<policy name="TestStringEnumPolicy" class="Both" displayName="$(string.TestStringEnumPolicy)" explainText="$(string.TestStringEnumPolicy_test_stringenumpolicy_description)" key="Software\\Policies\\Microsoft\\TestKey" presentation="$(presentation.TestStringEnumPolicy)">',
+			'\t<parentCategory ref="test.category" />',
+			'\t<supportedOn ref="Supported_1_0" />',
+			'\t<elements>',
+			'<enum id="TestStringEnumPolicy" valueName="TestStringEnumPolicy">',
+			'\t<item displayName="$(string.TestStringEnumPolicy_test.option.one)"><value><string>auto</string></value></item>',
+			'\t<item displayName="$(string.TestStringEnumPolicy_test.option.two)"><value><string>manual</string></value></item>',
+			'\t<item displayName="$(string.TestStringEnumPolicy_test.option.three)"><value><string>disabled</string></value></item>',
+			'</enum>',
+			'\t</elements>',
+			'</policy>'
+		]);
 	});
 
 	test('should render ADML strings with enum descriptions', () => {
@@ -142,12 +149,13 @@ suite('StringEnumPolicy', () => {
 
 		const admlStrings = policy.renderADMLStrings();
 
-		// Should include policy name, description, and all enum descriptions
-		assert.ok(admlStrings.length > 3);
-		assert.ok(admlStrings.some(s => s.includes('id="TestStringEnumPolicy"')));
-		assert.ok(admlStrings.some(s => s.includes('Option One')));
-		assert.ok(admlStrings.some(s => s.includes('Option Two')));
-		assert.ok(admlStrings.some(s => s.includes('Option Three')));
+		assert.deepStrictEqual(admlStrings, [
+			'<string id="TestStringEnumPolicy">TestStringEnumPolicy</string>',
+			'<string id="TestStringEnumPolicy_test_stringenumpolicy_description">Test string enum policy description</string>',
+			'<string id="TestStringEnumPolicy_test_option_one">Option One</string>',
+			'<string id="TestStringEnumPolicy_test_option_two">Option Two</string>',
+			'<string id="TestStringEnumPolicy_test_option_three">Option Three</string>'
+		]);
 	});
 
 	test('should render ADML strings with translations', () => {
@@ -174,9 +182,12 @@ suite('StringEnumPolicy', () => {
 
 		const admlStrings = policy.renderADMLStrings(translations);
 
-		assert.ok(admlStrings.some(s => s.includes('Translated enum description')));
-		assert.ok(admlStrings.some(s => s.includes('Translated Option One')));
-		assert.ok(admlStrings.some(s => s.includes('Translated Option Two')));
+		assert.deepStrictEqual(admlStrings, [
+			'<string id="TestStringEnumPolicy">TestStringEnumPolicy</string>',
+			'<string id="TestStringEnumPolicy_test_stringenumpolicy_description">Translated enum description</string>',
+			'<string id="TestStringEnumPolicy_test_option_one">Translated Option One</string>',
+			'<string id="TestStringEnumPolicy_test_option_two">Translated Option Two</string>'
+		]);
 	});
 
 	test('should render ADML presentation correctly', () => {
@@ -197,8 +208,7 @@ suite('StringEnumPolicy', () => {
 
 		const presentation = policy.renderADMLPresentation();
 
-		assert.ok(presentation.includes('<presentation id="TestStringEnumPolicy">'));
-		assert.ok(presentation.includes('<dropdownList refId="TestStringEnumPolicy"'));
+		assert.strictEqual(presentation, '<presentation id="TestStringEnumPolicy"><dropdownList refId="TestStringEnumPolicy" /></presentation>');
 	});
 
 	test('should render profile value with first enum option as default', () => {
@@ -263,15 +273,7 @@ suite('StringEnumPolicy', () => {
 
 		const manifestValue = policy.renderProfileManifestValue();
 
-		assert.ok(manifestValue.includes('<key>pfm_default</key>'));
-		assert.ok(manifestValue.includes('<string>compact</string>'));
-		assert.ok(manifestValue.includes('<key>pfm_type</key>'));
-		assert.ok(manifestValue.includes('<string>string</string>'));
-		assert.ok(manifestValue.includes('<key>pfm_range_list</key>'));
-		assert.ok(manifestValue.includes('<array>'));
-		assert.ok(manifestValue.includes('<string>compact</string>'));
-		assert.ok(manifestValue.includes('<string>normal</string>'));
-		assert.ok(manifestValue.includes('<string>expanded</string>'));
+		assert.strictEqual(manifestValue, '<key>pfm_default</key>\n<string>compact</string>\n<key>pfm_description</key>\n<string>Test string enum policy description</string>\n<key>pfm_name</key>\n<string>TestStringEnumPolicy</string>\n<key>pfm_title</key>\n<string>TestStringEnumPolicy</string>\n<key>pfm_type</key>\n<string>string</string>\n<key>pfm_range_list</key>\n<array>\n\t<string>compact</string>\n\t<string>normal</string>\n\t<string>expanded</string>\n</array>');
 	});
 
 	test('should render profile manifest value with translations', () => {
@@ -296,6 +298,6 @@ suite('StringEnumPolicy', () => {
 
 		const manifestValue = policy.renderProfileManifestValue(translations);
 
-		assert.ok(manifestValue.includes('Translated manifest enum'));
+		assert.strictEqual(manifestValue, '<key>pfm_default</key>\n<string>on</string>\n<key>pfm_description</key>\n<string>Translated manifest enum</string>\n<key>pfm_name</key>\n<string>TestStringEnumPolicy</string>\n<key>pfm_title</key>\n<string>TestStringEnumPolicy</string>\n<key>pfm_type</key>\n<string>string</string>\n<key>pfm_range_list</key>\n<array>\n\t<string>on</string>\n\t<string>off</string>\n</array>');
 	});
 });

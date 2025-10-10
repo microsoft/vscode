@@ -85,9 +85,15 @@ suite('NumberPolicy', () => {
 
 		const admx = policy.renderADMX('TestKey');
 
-		assert.ok(admx.some(line => line.includes('<policy name="TestNumberPolicy"')));
-		assert.ok(admx.some(line => line.includes('<decimal id="TestNumberPolicy"')));
-		assert.ok(admx.some(line => line.includes('valueName="TestNumberPolicy"')));
+		assert.deepStrictEqual(admx, [
+			'<policy name="TestNumberPolicy" class="Both" displayName="$(string.TestNumberPolicy)" explainText="$(string.TestNumberPolicy_test_numberpolicy_description)" key="Software\\Policies\\Microsoft\\TestKey" presentation="$(presentation.TestNumberPolicy)">',
+			'\t<parentCategory ref="test.category" />',
+			'\t<supportedOn ref="Supported_1_0" />',
+			'\t<elements>',
+			'<decimal id="TestNumberPolicy" valueName="TestNumberPolicy" />',
+			'\t</elements>',
+			'</policy>'
+		]);
 	});
 
 	test('should render ADML presentation with default value', () => {
@@ -106,9 +112,7 @@ suite('NumberPolicy', () => {
 
 		const presentation = policy.renderADMLPresentation();
 
-		assert.ok(presentation.includes('<presentation id="TestNumberPolicy">'));
-		assert.ok(presentation.includes('<decimalTextBox refId="TestNumberPolicy"'));
-		assert.ok(presentation.includes('defaultValue="256"'));
+		assert.strictEqual(presentation, '<presentation id="TestNumberPolicy"><decimalTextBox refId="TestNumberPolicy" defaultValue="256">TestNumberPolicy</decimalTextBox></presentation>');
 	});
 
 	test('should render profile value with number', () => {
@@ -167,11 +171,7 @@ suite('NumberPolicy', () => {
 
 		const manifestValue = policy.renderProfileManifestValue();
 
-		assert.ok(manifestValue.includes('<key>pfm_default</key>'));
-		assert.ok(manifestValue.includes('<integer>2048</integer>'));
-		assert.ok(manifestValue.includes('<key>pfm_type</key>'));
-		assert.ok(manifestValue.includes('<string>integer</string>'));
-		assert.ok(manifestValue.includes('Test number policy description'));
+		assert.strictEqual(manifestValue, '<key>pfm_default</key>\n<integer>2048</integer>\n<key>pfm_description</key>\n<string>Test number policy description</string>\n<key>pfm_name</key>\n<string>TestNumberPolicy</string>\n<key>pfm_title</key>\n<string>TestNumberPolicy</string>\n<key>pfm_type</key>\n<string>integer</string>');
 	});
 
 	test('should render profile manifest value with translations', () => {
@@ -194,7 +194,7 @@ suite('NumberPolicy', () => {
 
 		const manifestValue = policy.renderProfileManifestValue(translations);
 
-		assert.ok(manifestValue.includes('Translated number description'));
+		assert.strictEqual(manifestValue, '<key>pfm_default</key>\n<integer>999</integer>\n<key>pfm_description</key>\n<string>Translated number description</string>\n<key>pfm_name</key>\n<string>TestNumberPolicy</string>\n<key>pfm_title</key>\n<string>TestNumberPolicy</string>\n<key>pfm_type</key>\n<string>integer</string>');
 	});
 
 	test('should handle zero as default value', () => {

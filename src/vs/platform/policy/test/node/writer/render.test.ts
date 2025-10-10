@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { renderADMLString, renderProfileString, renderADMX, renderADML, renderProfileManifest } from '../../../node/writer/render.js';
+import { renderADMLString, renderProfileString, renderADMX, renderADML, renderProfileManifest, renderMacOSPolicy, renderGP } from '../../../node/writer/render.js';
 import { NlsString, LanguageTranslations, Category, Policy, PolicyType } from '../../../node/writer/types.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
@@ -427,6 +427,263 @@ suite('Render Functions', () => {
 
 			assert.ok(result.includes('<key>pfm_platforms</key>'));
 			assert.ok(result.includes('<string>macOS</string>'));
+		});
+	});
+
+	suite('renderMacOSPolicy', () => {
+
+		const mockCategory: Category = {
+			name: { value: 'Test Category', nlsKey: 'test.category' }
+		};
+
+		const mockPolicy: Policy = {
+			name: 'TestPolicy',
+			type: PolicyType.Boolean,
+			category: mockCategory,
+			minimumVersion: '1.0',
+			renderADMX: () => [],
+			renderADMLStrings: () => [],
+			renderADMLPresentation: () => '',
+			renderProfile: () => ['<key>TestPolicy</key>', '<true/>'],
+			renderProfileManifest: (translations?: LanguageTranslations) => `<dict>
+<key>pfm_name</key>
+<string>TestPolicy</string>
+<key>pfm_description</key>
+<string>${translations ? translations['test.desc'] || 'Default Desc' : 'Default Desc'}</string>
+</dict>`
+		};
+
+		test('should render complete macOS policy profile', () => {
+			const result = renderMacOSPolicy('VS Code', 'com.microsoft.vscode', 'payload-uuid', 'uuid', ['1.0'], [mockCategory], [mockPolicy], []);
+
+			const expected = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+	<dict>
+		<key>PayloadContent</key>
+		<array>
+			<dict>
+				<key>PayloadDisplayName</key>
+				<string>VS Code</string>
+				<key>PayloadIdentifier</key>
+				<string>com.microsoft.vscode.uuid</string>
+				<key>PayloadType</key>
+				<string>com.microsoft.vscode</string>
+				<key>PayloadUUID</key>
+				<string>uuid</string>
+				<key>PayloadVersion</key>
+				<integer>1</integer>
+				<key>TestPolicy</key>
+				<true/>
+			</dict>
+		</array>
+		<key>PayloadDescription</key>
+		<string>This profile manages VS Code. For more information see https://code.visualstudio.com/docs/setup/enterprise</string>
+		<key>PayloadDisplayName</key>
+		<string>VS Code</string>
+		<key>PayloadIdentifier</key>
+		<string>com.microsoft.vscode</string>
+		<key>PayloadOrganization</key>
+		<string>Microsoft</string>
+		<key>PayloadType</key>
+		<string>Configuration</string>
+		<key>PayloadUUID</key>
+		<string>payload-uuid</string>
+		<key>PayloadVersion</key>
+		<integer>1</integer>
+		<key>TargetDeviceType</key>
+		<integer>5</integer>
+	</dict>
+</plist>`;
+
+			assert.strictEqual(result.profile, expected);
+		});
+
+		test('should include en-us manifest by default', () => {
+			const result = renderMacOSPolicy('VS Code', 'com.microsoft.vscode', 'payload-uuid', 'uuid', ['1.0'], [mockCategory], [mockPolicy], []);
+
+			assert.strictEqual(result.manifests.length, 1);
+			assert.strictEqual(result.manifests[0].languageId, 'en-us');
+			assert.ok(result.manifests[0].contents.includes('VS Code Managed Settings'));
+		});
+
+		test('should include translations', () => {
+			const translations = [
+				{ languageId: 'fr-fr', languageTranslations: { 'test.desc': 'Description Française' } },
+				{ languageId: 'de-de', languageTranslations: { 'test.desc': 'Deutsche Beschreibung' } }
+			];
+
+			const result = renderMacOSPolicy('VS Code', 'com.microsoft.vscode', 'payload-uuid', 'uuid', ['1.0'], [mockCategory], [mockPolicy], translations);
+
+			assert.strictEqual(result.manifests.length, 3); // en-us + 2 translations
+			assert.strictEqual(result.manifests[0].languageId, 'en-us');
+			assert.strictEqual(result.manifests[1].languageId, 'fr-fr');
+			assert.strictEqual(result.manifests[2].languageId, 'de-de');
+
+			assert.ok(result.manifests[1].contents.includes('Description Française'));
+			assert.ok(result.manifests[2].contents.includes('Deutsche Beschreibung'));
+		});
+
+		test('should handle multiple policies with correct indentation', () => {
+			const policy2: Policy = {
+				...mockPolicy,
+				name: 'TestPolicy2',
+				renderProfile: () => ['<key>TestPolicy2</key>', '<string>test value</string>']
+			};
+
+			const result = renderMacOSPolicy('VS Code', 'com.microsoft.vscode', 'payload-uuid', 'uuid', ['1.0'], [mockCategory], [mockPolicy, policy2], []);
+
+			assert.ok(result.profile.includes('<key>TestPolicy</key>'));
+			assert.ok(result.profile.includes('<true/>'));
+			assert.ok(result.profile.includes('<key>TestPolicy2</key>'));
+			assert.ok(result.profile.includes('<string>test value</string>'));
+		});
+
+		test('should use provided UUIDs in profile', () => {
+			const result = renderMacOSPolicy('My App', 'com.example.app', 'custom-payload-uuid', 'custom-uuid', ['1.0'], [mockCategory], [mockPolicy], []);
+
+			assert.ok(result.profile.includes('<string>custom-payload-uuid</string>'));
+			assert.ok(result.profile.includes('<string>custom-uuid</string>'));
+			assert.ok(result.profile.includes('<string>com.example.app.custom-uuid</string>'));
+		});
+
+		test('should include enterprise documentation link', () => {
+			const result = renderMacOSPolicy('VS Code', 'com.microsoft.vscode', 'payload-uuid', 'uuid', ['1.0'], [mockCategory], [mockPolicy], []);
+
+			assert.ok(result.profile.includes('https://code.visualstudio.com/docs/setup/enterprise'));
+		});
+
+		test('should set TargetDeviceType to 5', () => {
+			const result = renderMacOSPolicy('VS Code', 'com.microsoft.vscode', 'payload-uuid', 'uuid', ['1.0'], [mockCategory], [mockPolicy], []);
+
+			assert.ok(result.profile.includes('<key>TargetDeviceType</key>'));
+			assert.ok(result.profile.includes('<integer>5</integer>'));
+		});
+	});
+
+	suite('renderGP', () => {
+
+		const mockCategory: Category = {
+			name: { value: 'Test Category', nlsKey: 'test.category' }
+		};
+
+		const mockPolicy: Policy = {
+			name: 'TestPolicy',
+			type: PolicyType.Boolean,
+			category: mockCategory,
+			minimumVersion: '1.85',
+			renderADMX: (regKey: string) => [
+				`<policy name="TestPolicy" class="Both" displayName="$(string.TestPolicy)" key="Software\\Policies\\Microsoft\\${regKey}">`,
+				`	<enabledValue><decimal value="1" /></enabledValue>`,
+				`</policy>`
+			],
+			renderADMLStrings: (translations?: LanguageTranslations) => [
+				`<string id="TestPolicy">${translations ? translations['test.policy'] || 'Test Policy' : 'Test Policy'}</string>`
+			],
+			renderADMLPresentation: () => '<presentation id="TestPolicy"/>',
+			renderProfile: () => [],
+			renderProfileManifest: () => ''
+		};
+
+		test('should render complete GP with ADMX and ADML', () => {
+			const result = renderGP('VS Code', 'VSCode', ['1.85'], [mockCategory], [mockPolicy], []);
+
+			assert.ok(result.admx);
+			assert.ok(result.adml);
+			assert.ok(Array.isArray(result.adml));
+		});
+
+		test('should include regKey in ADMX', () => {
+			const result = renderGP('VS Code', 'CustomRegKey', ['1.85'], [mockCategory], [mockPolicy], []);
+
+			assert.ok(result.admx.includes('CustomRegKey'));
+			assert.ok(result.admx.includes('Software\\Policies\\Microsoft\\CustomRegKey'));
+		});
+
+		test('should include en-us ADML by default', () => {
+			const result = renderGP('VS Code', 'VSCode', ['1.85'], [mockCategory], [mockPolicy], []);
+
+			assert.strictEqual(result.adml.length, 1);
+			assert.strictEqual(result.adml[0].languageId, 'en-us');
+			assert.ok(result.adml[0].contents.includes('VS Code'));
+		});
+
+		test('should include translations in ADML', () => {
+			const translations = [
+				{ languageId: 'fr-fr', languageTranslations: { 'test.policy': 'Politique de test' } },
+				{ languageId: 'de-de', languageTranslations: { 'test.policy': 'Testrichtlinie' } }
+			];
+
+			const result = renderGP('VS Code', 'VSCode', ['1.85'], [mockCategory], [mockPolicy], translations);
+
+			assert.strictEqual(result.adml.length, 3); // en-us + 2 translations
+			assert.strictEqual(result.adml[0].languageId, 'en-us');
+			assert.strictEqual(result.adml[1].languageId, 'fr-fr');
+			assert.strictEqual(result.adml[2].languageId, 'de-de');
+
+			assert.ok(result.adml[1].contents.includes('Politique de test'));
+			assert.ok(result.adml[2].contents.includes('Testrichtlinie'));
+		});
+
+		test('should pass versions to ADMX', () => {
+			const result = renderGP('VS Code', 'VSCode', ['1.85', '1.90'], [mockCategory], [mockPolicy], []);
+
+			assert.ok(result.admx.includes('Supported_1_85'));
+			assert.ok(result.admx.includes('Supported_1_90'));
+		});
+
+		test('should pass versions to ADML', () => {
+			const result = renderGP('VS Code', 'VSCode', ['1.85', '1.90'], [mockCategory], [mockPolicy], []);
+
+			assert.ok(result.adml[0].contents.includes('VS Code &gt;= 1.85'));
+			assert.ok(result.adml[0].contents.includes('VS Code &gt;= 1.90'));
+		});
+
+		test('should pass categories to ADMX', () => {
+			const result = renderGP('VS Code', 'VSCode', ['1.85'], [mockCategory], [mockPolicy], []);
+
+			assert.ok(result.admx.includes('test.category'));
+		});
+
+		test('should pass categories to ADML', () => {
+			const result = renderGP('VS Code', 'VSCode', ['1.85'], [mockCategory], [mockPolicy], []);
+
+			assert.ok(result.adml[0].contents.includes('Category_test_category'));
+		});
+
+		test('should handle multiple policies', () => {
+			const policy2: Policy = {
+				...mockPolicy,
+				name: 'TestPolicy2',
+				renderADMX: (regKey: string) => [
+					`<policy name="TestPolicy2" class="Both" displayName="$(string.TestPolicy2)" key="Software\\Policies\\Microsoft\\${regKey}">`,
+					`	<enabledValue><decimal value="1" /></enabledValue>`,
+					`</policy>`
+				],
+				renderADMLStrings: () => ['<string id="TestPolicy2">Test Policy 2</string>']
+			};
+
+			const result = renderGP('VS Code', 'VSCode', ['1.85'], [mockCategory], [mockPolicy, policy2], []);
+
+			assert.ok(result.admx.includes('TestPolicy'));
+			assert.ok(result.admx.includes('TestPolicy2'));
+			assert.ok(result.adml[0].contents.includes('TestPolicy'));
+			assert.ok(result.adml[0].contents.includes('TestPolicy2'));
+		});
+
+		test('should include app name in ADML', () => {
+			const result = renderGP('My Custom App', 'VSCode', ['1.85'], [mockCategory], [mockPolicy], []);
+
+			assert.ok(result.adml[0].contents.includes('My Custom App'));
+		});
+
+		test('should return structured result with admx and adml properties', () => {
+			const result = renderGP('VS Code', 'VSCode', ['1.85'], [mockCategory], [mockPolicy], []);
+
+			assert.ok('admx' in result);
+			assert.ok('adml' in result);
+			assert.strictEqual(typeof result.admx, 'string');
+			assert.ok(Array.isArray(result.adml));
 		});
 	});
 });

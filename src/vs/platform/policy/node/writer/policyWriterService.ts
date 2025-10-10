@@ -9,7 +9,7 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { IFileService } from '../../../files/common/files.js';
 import { Category, LanguageTranslations, NlsString, Policy, Translations, Version } from './types.js';
 import { IPolicyWriterService } from '../../common/policy.js';
-import { renderADMX, renderADML, renderProfileManifest } from './render.js';
+import { renderMacOSPolicy, renderGP } from './render.js';
 import { IConfigurationPropertySchema, IRegisteredConfigurationPropertySchema } from '../../../configuration/common/configurationRegistry.js';
 import { BooleanPolicy } from './policies/booleanPolicy.js';
 import { NumberPolicy } from './policies/numberPolicy.js';
@@ -57,12 +57,19 @@ export class PolicyWriterService implements IPolicyWriterService {
 	}
 
 	private async writeDarwin(policies: Policy[], translations: Translations) {
+		const appName = this.productService.nameLong;
 		const bundleIdentifier = this.productService.darwinBundleIdentifier;
-		if (!bundleIdentifier) {
+		const payloadUUID = this.productService.darwinProfilePayloadUUID;
+		const UUID = this.productService.darwinProfileUUID;
+
+		if (!appName || !bundleIdentifier || !payloadUUID || !UUID) {
 			throw new Error(`Missing required product information.`);
 		}
+
+		const versions = [...new Set(policies.map(p => p.minimumVersion)).values()].sort();
+		const categories = [...new Set(policies.map(p => p.category))];
 		const root = '.build/policies/darwin';
-		const { profile, manifests } = this.renderMacOSPolicy(policies, translations);
+		const { profile, manifests } = renderMacOSPolicy(appName, bundleIdentifier, payloadUUID, UUID, versions, categories, policies, translations);
 
 		const rootUri = URI.file(path.resolve(root));
 		await this.fileService.del(rootUri, { recursive: true, useTrash: false }).catch(() => { /* ignore if doesn't exist */ });
@@ -70,7 +77,6 @@ export class PolicyWriterService implements IPolicyWriterService {
 		const mobileconfigPath = path.join(root, `${bundleIdentifier}.mobileconfig`);
 		const mobileconfigUri = URI.file(path.resolve(mobileconfigPath));
 		await this.fileService.writeFile(mobileconfigUri, VSBuffer.fromString(profile.replace(/\r?\n/g, '\n')));
-		console.log(`Created .mobileconfig file: ${path.resolve(mobileconfigPath)}`);
 
 		for (const { languageId, contents } of manifests) {
 			const languagePath = path.join(root, languageId === 'en-us' ? 'en-us' : Languages[languageId as keyof typeof Languages]);
@@ -82,8 +88,17 @@ export class PolicyWriterService implements IPolicyWriterService {
 	}
 
 	private async writeWindows(policies: Policy[], translations: Translations) {
+		const appName = this.productService.nameLong;
+		const regKey = this.productService.win32RegValueName;
+
+		if (!appName || !regKey) {
+			throw new Error(`Missing required product information.`);
+		}
+
+		const versions = [...new Set(policies.map(p => p.minimumVersion)).values()].sort();
+		const categories = [...Object.values(policies.reduce((acc, p) => ({ ...acc, [p.category.name.nlsKey]: p.category }), {}))] as Category[];
 		const root = '.build/policies/win32';
-		const { admx, adml } = this.renderGP(policies, translations);
+		const { admx, adml } = renderGP(appName, regKey, versions, categories, policies, translations);
 
 		const rootUri = URI.file(path.resolve(root));
 		await this.fileService.del(rootUri, { recursive: true, useTrash: false }).catch(() => { /* ignore if doesn't exist */ });
@@ -92,15 +107,6 @@ export class PolicyWriterService implements IPolicyWriterService {
 		const admxPath = path.join(root, `${this.productService.win32RegValueName}.admx`);
 		const admxUri = URI.file(path.resolve(admxPath));
 		await this.fileService.writeFile(admxUri, VSBuffer.fromString(admx.replace(/\r?\n/g, '\n')));
-		console.log(`Created .admx file: ${path.resolve(admxPath)}`);
-
-		// Verify file exists using fileService
-		const exists = await this.fileService.exists(admxUri);
-		if (exists) {
-			console.log(`Verified .admx file exists: ${path.resolve(admxPath)}`);
-		} else {
-			throw new Error(`Verification failed - .admx file does not exist: ${path.resolve(admxPath)}`);
-		}
 
 		for (const { languageId, contents } of adml) {
 			const languagePath = path.join(root, languageId === 'en-us' ? 'en-us' : Languages[languageId as keyof typeof Languages]);
@@ -178,92 +184,6 @@ export class PolicyWriterService implements IPolicyWriterService {
 	private getPolicies(configs: Array<{ key: string; schema: IRegisteredConfigurationPropertySchema }>): Policy[] {
 		return configs.map(({ key, schema }) => this.configToPolicy(key, schema));
 	}
-
-	private renderMacOSPolicy(policies: Policy[], translations: Translations) {
-		const appName = this.productService.nameLong;
-		const bundleIdentifier = this.productService.darwinBundleIdentifier;
-		const payloadUUID = this.productService.darwinProfilePayloadUUID;
-		const UUID = this.productService.darwinProfileUUID;
-
-		if (!appName || !bundleIdentifier) {
-			throw new Error(`Missing required product information.`);
-		}
-
-		const versions = [...new Set(policies.map(p => p.minimumVersion)).values()].sort();
-		const categories = [...new Set(policies.map(p => p.category))];
-
-		const policyEntries =
-			policies.map(policy => policy.renderProfile())
-				.flat()
-				.map(entry => `\t\t\t\t${entry}`)
-				.join('\n');
-
-
-		return {
-			profile: `<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-	<dict>
-		<key>PayloadContent</key>
-		<array>
-			<dict>
-				<key>PayloadDisplayName</key>
-				<string>${appName}</string>
-				<key>PayloadIdentifier</key>
-				<string>${bundleIdentifier}.${UUID}</string>
-				<key>PayloadType</key>
-				<string>${bundleIdentifier}</string>
-				<key>PayloadUUID</key>
-				<string>${UUID}</string>
-				<key>PayloadVersion</key>
-				<integer>1</integer>
-${policyEntries}
-			</dict>
-		</array>
-		<key>PayloadDescription</key>
-		<string>This profile manages ${appName}. For more information see https://code.visualstudio.com/docs/setup/enterprise</string>
-		<key>PayloadDisplayName</key>
-		<string>${appName}</string>
-		<key>PayloadIdentifier</key>
-		<string>${bundleIdentifier}</string>
-		<key>PayloadOrganization</key>
-		<string>Microsoft</string>
-		<key>PayloadType</key>
-		<string>Configuration</string>
-		<key>PayloadUUID</key>
-		<string>${payloadUUID}</string>
-		<key>PayloadVersion</key>
-		<integer>1</integer>
-		<key>TargetDeviceType</key>
-		<integer>5</integer>
-	</dict>
-</plist>`,
-			manifests: [{ languageId: 'en-us', contents: renderProfileManifest(appName, bundleIdentifier, versions, categories, policies) },
-			...translations.map(({ languageId, languageTranslations }) =>
-				({ languageId, contents: renderProfileManifest(appName, bundleIdentifier, versions, categories, policies, languageTranslations) }))
-			]
-		};
-	} private renderGP(policies: Policy[], translations: Translations) {
-		const appName = this.productService.nameLong;
-		const regKey = this.productService.win32RegValueName;
-
-		if (!regKey) {
-			throw new Error(`Missing required product information.`);
-		}
-
-		const versions = [...new Set(policies.map(p => p.minimumVersion)).values()].sort();
-		const categories = [...Object.values(policies.reduce((acc, p) => ({ ...acc, [p.category.name.nlsKey]: p.category }), {}))] as Category[];
-
-		return {
-			admx: renderADMX(regKey, versions, categories, policies),
-			adml: [
-				{ languageId: 'en-us', contents: renderADML(appName, versions, categories, policies) },
-				...translations.map(({ languageId, languageTranslations }) =>
-					({ languageId, contents: renderADML(appName, versions, categories, policies, languageTranslations) }))
-			]
-		};
-	}
-
 
 	private async getSpecificNLS(resourceUrlTemplate: string, languageId: string, version: Version) {
 		const resource = {
