@@ -491,7 +491,7 @@ export const events = [
 	},
 	{
 		"type": "promptInputChange",
-		"data": "echo c|[]"
+		"data": "echo c|"
 	},
 	{
 		"type": "output",
