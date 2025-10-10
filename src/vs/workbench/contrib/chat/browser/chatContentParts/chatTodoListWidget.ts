@@ -27,6 +27,9 @@ export class ChatTodoListWidget extends Disposable {
 	private clearButton!: Button;
 	private _currentSessionId: string | undefined;
 	private _userHasScrolledManually: boolean = false;
+	private _isEditingTitle: boolean = false;
+	private _editTitleInput: HTMLInputElement | undefined;
+	private _editButtonContainer: HTMLElement | undefined;
 
 	constructor(
 		@IChatTodoListService private readonly chatTodoListService: IChatTodoListService,
@@ -62,12 +65,29 @@ export class ChatTodoListWidget extends Disposable {
 		titleElement.id = 'todo-list-title';
 		titleElement.textContent = localize('chat.todoList.title', 'Todos');
 
+		// Create edit button container
+		this._editButtonContainer = dom.$('.todo-edit-button-container');
+		const editButton = new Button(this._editButtonContainer, {
+			supportIcons: true,
+			title: localize('chat.todoList.editButton', 'Edit title'),
+			ariaLabel: localize('chat.todoList.editButton.ariaLabel', 'Edit todo list title')
+		});
+		editButton.element.tabIndex = 0;
+		editButton.icon = Codicon.edit;
+		this._register(editButton);
+
+		this._register(editButton.onDidClick((e) => {
+			e.stopPropagation();
+			this.enterEditMode();
+		}));
+
 		// Add clear button container to the expand element
 		this.clearButtonContainer = dom.$('.todo-clear-button-container');
 		this.createClearButton();
 
 		titleSection.appendChild(expandIcon);
 		titleSection.appendChild(titleElement);
+		titleSection.appendChild(this._editButtonContainer);
 
 		this.expandoElement.appendChild(titleSection);
 		this.expandoElement.appendChild(this.clearButtonContainer);
@@ -81,12 +101,21 @@ export class ChatTodoListWidget extends Disposable {
 		container.appendChild(this.expandoElement);
 		container.appendChild(this.todoListContainer);
 
-		this._register(dom.addDisposableListener(this.expandoElement, 'click', () => {
+		this._register(dom.addDisposableListener(this.expandoElement, 'click', (e) => {
+			// Don't toggle if clicking on edit button or input
+			if ((e.target as HTMLElement).closest('.todo-edit-button-container') || 
+			    (e.target as HTMLElement).closest('.todo-title-input')) {
+				return;
+			}
 			this.toggleExpanded();
 		}));
 
 		this._register(dom.addDisposableListener(this.expandoElement, 'keydown', (e) => {
 			if (e.key === 'Enter' || e.key === ' ') {
+				// Don't toggle if we're editing
+				if (this._isEditingTitle) {
+					return;
+				}
 				e.preventDefault();
 				this.toggleExpanded();
 			}
@@ -349,11 +378,24 @@ export class ChatTodoListWidget extends Disposable {
 		const completedTodos = todoList.filter(todo => todo.status === 'completed');
 		const lastCompletedTodo = completedTodos.length > 0 ? completedTodos[completedTodos.length - 1] : undefined;
 
+		// Check for custom title
+		const customTitle = this._currentSessionId ? this.chatTodoListService.getCustomTitle(this._currentSessionId) : undefined;
+
 		const progressText = dom.$('span');
-		if (totalCount === 0) {
-			progressText.textContent = localize('chat.todoList.title', 'Todos');
+		if (customTitle) {
+			// Use custom title with progress count
+			if (totalCount === 0) {
+				progressText.textContent = customTitle;
+			} else {
+				progressText.textContent = localize('chat.todoList.customTitleWithProgress', '{0} ({1}/{2})', customTitle, completedCount, totalCount);
+			}
 		} else {
-			progressText.textContent = localize('chat.todoList.titleWithProgress', 'Todos ({0}/{1})', completedCount, totalCount);
+			// Use default title
+			if (totalCount === 0) {
+				progressText.textContent = localize('chat.todoList.title', 'Todos');
+			} else {
+				progressText.textContent = localize('chat.todoList.titleWithProgress', 'Todos ({0}/{1})', completedCount, totalCount);
+			}
 		}
 		titleElement.appendChild(progressText);
 		const expandButtonLabel = this._isExpanded
@@ -410,6 +452,114 @@ export class ChatTodoListWidget extends Disposable {
 		const titleSection = this.expandoElement.querySelector('.todo-list-title-section') as HTMLElement;
 		if (titleSection) {
 			titleSection.title = title;
+		}
+	}
+
+	private enterEditMode(): void {
+		if (this._isEditingTitle || !this._currentSessionId) {
+			return;
+		}
+
+		this._isEditingTitle = true;
+
+		const titleElement = this.expandoElement.querySelector('.todo-list-title') as HTMLElement;
+		if (!titleElement) {
+			return;
+		}
+
+		// Get current custom title or default
+		const currentCustomTitle = this.chatTodoListService.getCustomTitle(this._currentSessionId);
+		const currentTitle = currentCustomTitle || 'Todos';
+
+		// Create input field
+		this._editTitleInput = dom.$('input.todo-title-input') as HTMLInputElement;
+		this._editTitleInput.type = 'text';
+		this._editTitleInput.value = currentTitle;
+		this._editTitleInput.setAttribute('aria-label', localize('chat.todoList.editTitle.ariaLabel', 'Edit todo list title'));
+		this._editTitleInput.style.width = '100%';
+
+		// Replace title with input
+		titleElement.textContent = '';
+		titleElement.appendChild(this._editTitleInput);
+
+		// Focus and select all
+		this._editTitleInput.focus();
+		this._editTitleInput.select();
+
+		// Handle Enter to save
+		const enterHandler = this._register(dom.addDisposableListener(this._editTitleInput, 'keydown', (e) => {
+			if (e.key === 'Enter') {
+				e.preventDefault();
+				e.stopPropagation();
+				this.saveTitle();
+			} else if (e.key === 'Escape') {
+				e.preventDefault();
+				e.stopPropagation();
+				this.cancelEdit();
+			}
+		}));
+
+		// Handle blur to save (click outside)
+		const blurHandler = this._register(dom.addDisposableListener(this._editTitleInput, 'blur', () => {
+			// Small delay to allow other handlers to execute first
+			setTimeout(() => {
+				if (this._isEditingTitle) {
+					this.saveTitle();
+				}
+			}, 100);
+		}));
+
+		// Stop propagation on click to prevent toggle
+		this._register(dom.addDisposableListener(this._editTitleInput, 'click', (e) => {
+			e.stopPropagation();
+		}));
+
+		// Clean up handlers when we exit edit mode
+		this._register({
+			dispose: () => {
+				enterHandler.dispose();
+				blurHandler.dispose();
+			}
+		});
+	}
+
+	private saveTitle(): void {
+		if (!this._isEditingTitle || !this._editTitleInput || !this._currentSessionId) {
+			return;
+		}
+
+		const newTitle = this._editTitleInput.value.trim();
+		
+		// Save the custom title (or clear it if it's empty or same as default)
+		if (newTitle && newTitle !== 'Todos') {
+			this.chatTodoListService.setCustomTitle(this._currentSessionId, newTitle);
+		} else {
+			// Clear custom title if empty or reset to default
+			this.chatTodoListService.setCustomTitle(this._currentSessionId, undefined);
+		}
+
+		this.exitEditMode();
+	}
+
+	private cancelEdit(): void {
+		this.exitEditMode();
+	}
+
+	private exitEditMode(): void {
+		if (!this._isEditingTitle) {
+			return;
+		}
+
+		this._isEditingTitle = false;
+		this._editTitleInput = undefined;
+
+		// Re-render the title
+		if (this._currentSessionId) {
+			const todoList = this.chatTodoListService.getTodos(this._currentSessionId);
+			const titleElement = this.expandoElement.querySelector('.todo-list-title') as HTMLElement;
+			if (titleElement) {
+				this.updateTitleElement(titleElement, todoList);
+			}
 		}
 	}
 

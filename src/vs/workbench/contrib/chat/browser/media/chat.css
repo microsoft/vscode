@@ -2588,6 +2588,66 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	flex: 1;
 }
 
+.chat-todo-list-widget .todo-edit-button-container {
+	display: flex;
+	align-items: center;
+	opacity: 0;
+	transition: opacity 0.2s ease;
+	margin-left: 4px;
+}
+
+.chat-todo-list-widget .todo-list-expand:hover .todo-edit-button-container,
+.chat-todo-list-widget .todo-list-expand:focus-within .todo-edit-button-container,
+.chat-todo-list-widget .todo-edit-button-container:focus-within {
+	opacity: 1;
+}
+
+.chat-todo-list-widget .todo-edit-button-container .monaco-button {
+	padding: 2px;
+	min-width: unset;
+	background-color: transparent;
+	color: var(--vscode-foreground);
+	border: none;
+	border-radius: 3px;
+	height: 14px;
+	width: 14px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	cursor: pointer;
+}
+
+.chat-todo-list-widget .todo-edit-button-container .monaco-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground) !important;
+}
+
+.chat-todo-list-widget .todo-edit-button-container .monaco-button:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+}
+
+.chat-todo-list-widget .todo-edit-button-container .monaco-button .codicon {
+	font-size: 10px;
+	color: var(--vscode-foreground);
+}
+
+.chat-todo-list-widget .todo-title-input {
+	font-family: inherit;
+	font-size: var(--vscode-chat-font-size-body-s);
+	color: var(--vscode-input-foreground);
+	background-color: var(--vscode-input-background);
+	border: 1px solid var(--vscode-input-border);
+	border-radius: 2px;
+	padding: 2px 4px;
+	outline: none;
+}
+
+.chat-todo-list-widget .todo-title-input:focus {
+	border-color: var(--vscode-focusBorder);
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
 .chat-todo-list-widget .todo-clear-button-container {
 	display: flex;
 	align-items: center;

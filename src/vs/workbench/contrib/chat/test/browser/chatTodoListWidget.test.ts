@@ -28,7 +28,9 @@ suite('ChatTodoListWidget Accessibility', () => {
 		mockTodoListService = {
 			_serviceBrand: undefined,
 			getTodos: (sessionId: string) => sampleTodos,
-			setTodos: (sessionId: string, todos: IChatTodo[]) => { }
+			setTodos: (sessionId: string, todos: IChatTodo[]) => { },
+			getCustomTitle: (sessionId: string) => undefined,
+			setCustomTitle: (sessionId: string, title: string | undefined) => { }
 		};
 
 		// Mock the configuration service
@@ -138,7 +140,9 @@ suite('ChatTodoListWidget Accessibility', () => {
 		const emptyTodoListService: IChatTodoListService = {
 			_serviceBrand: undefined,
 			getTodos: (sessionId: string) => [],
-			setTodos: (sessionId: string, todos: IChatTodo[]) => { }
+			setTodos: (sessionId: string, todos: IChatTodo[]) => { },
+			getCustomTitle: (sessionId: string) => undefined,
+			setCustomTitle: (sessionId: string, title: string | undefined) => { }
 		};
 
 		// eslint-disable-next-line local/code-no-any-casts
@@ -178,5 +182,90 @@ suite('ChatTodoListWidget Accessibility', () => {
 		// Verify aria-labelledby connection works
 		const todoListContainer = widget.domNode.querySelector('.todo-list-container');
 		assert.strictEqual(todoListContainer?.getAttribute('aria-labelledby'), 'todo-list-title');
+	});
+
+	test('edit button is present and visible on hover', () => {
+		widget.render('test-session');
+
+		const editButtonContainer = widget.domNode.querySelector('.todo-edit-button-container');
+		assert.ok(editButtonContainer, 'Should have edit button container');
+
+		const editButton = editButtonContainer?.querySelector('.monaco-button');
+		assert.ok(editButton, 'Should have edit button');
+		assert.strictEqual(editButton?.getAttribute('tabindex'), '0', 'Edit button should be focusable');
+	});
+
+	test('custom title is used when set', () => {
+		// Create a mock service that returns a custom title
+		const customTodoListService: IChatTodoListService = {
+			_serviceBrand: undefined,
+			getTodos: (sessionId: string) => sampleTodos,
+			setTodos: (sessionId: string, todos: IChatTodo[]) => { },
+			getCustomTitle: (sessionId: string) => 'My Custom Title',
+			setCustomTitle: (sessionId: string, title: string | undefined) => { }
+		};
+
+		// eslint-disable-next-line local/code-no-any-casts
+		const configService: IConfigurationService = {
+			_serviceBrand: undefined,
+			getValue: (key: string) => key === 'chat.todoListTool.descriptionField' ? true : undefined
+		} as any;
+
+		const customWidget = store.add(new ChatTodoListWidget(customTodoListService, configService));
+		mainWindow.document.body.appendChild(customWidget.domNode);
+
+		customWidget.render('test-session');
+
+		const titleElement = customWidget.domNode.querySelector('#todo-list-title');
+		assert.ok(titleElement, 'Should have title element');
+
+		// Title should show custom title with progress
+		const titleText = titleElement?.textContent;
+		assert.ok(titleText?.includes('My Custom Title'), `Title should include custom title, but got: "${titleText}"`);
+		assert.ok(titleText?.includes('(1/3)'), `Title should include progress, but got: "${titleText}"`);
+	});
+
+	test('title editing saves and cancels correctly', () => {
+		let savedTitle: string | undefined;
+		const editableTodoListService: IChatTodoListService = {
+			_serviceBrand: undefined,
+			getTodos: (sessionId: string) => sampleTodos,
+			setTodos: (sessionId: string, todos: IChatTodo[]) => { },
+			getCustomTitle: (sessionId: string) => undefined,
+			setCustomTitle: (sessionId: string, title: string | undefined) => {
+				savedTitle = title;
+			}
+		};
+
+		// eslint-disable-next-line local/code-no-any-casts
+		const configService: IConfigurationService = {
+			_serviceBrand: undefined,
+			getValue: (key: string) => key === 'chat.todoListTool.descriptionField' ? true : undefined
+		} as any;
+
+		const editableWidget = store.add(new ChatTodoListWidget(editableTodoListService, configService));
+		mainWindow.document.body.appendChild(editableWidget.domNode);
+
+		editableWidget.render('test-session');
+
+		// Find and click the edit button
+		const editButton = editableWidget.domNode.querySelector('.todo-edit-button-container .monaco-button') as HTMLElement;
+		assert.ok(editButton, 'Should have edit button');
+
+		// Simulate clicking the edit button
+		editButton.click();
+
+		// Check if input field is created
+		const titleInput = editableWidget.domNode.querySelector('.todo-title-input') as HTMLInputElement;
+		assert.ok(titleInput, 'Should have title input field after clicking edit');
+		assert.strictEqual(titleInput.value, 'Todos', 'Input should have default value');
+
+		// Change the value and press Enter
+		titleInput.value = 'My New Title';
+		const enterEvent = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true });
+		titleInput.dispatchEvent(enterEvent);
+
+		// Title should be saved
+		assert.strictEqual(savedTitle, 'My New Title', 'Should save the new title');
 	});
 });
