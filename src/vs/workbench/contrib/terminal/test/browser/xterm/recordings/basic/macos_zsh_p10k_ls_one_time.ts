@@ -35,7 +35,7 @@ export const events = [
 	},
 	{
 		"type": "promptInputChange",
-		"data": "|                                                                                                     [─╯]"
+		"data": "|                                                                                                     ─╯"
 	},
 	{
 		"type": "input",
