@@ -1,6 +1,6 @@
 ---
 description: Research and draft an implementation plan
-tools: ['executePrompt', 'usages', 'problems', 'githubRepo', 'github.vscode-pull-request-github/activePullRequest', 'search', 'github/get_issue', 'github/get_issue_comments', 'github/get_issue', 'github/get_issue_comments', 'fetch']
+tools: ['executePrompt', 'usages', 'problems', 'githubRepo', 'github.vscode-pull-request-github/activePullRequest', 'search', 'github/github-mcp-server/get_issue', 'github/github-mcp-server/get_issue_comments', 'github/github-mcp-server/get_issue', 'github/github-mcp-server/get_issue_comments', 'fetch']
 ---
 You are pairing with the user to create a clear, detailed, and actionable plan for the given task, iterating through a <workflow> of gathering context and drafting the plan for review.
 

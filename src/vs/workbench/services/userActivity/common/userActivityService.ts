@@ -67,7 +67,7 @@ export class UserActivityService extends Disposable implements IUserActivityServ
 	public isActive = true;
 
 	/** @inheritdoc */
-	onDidChangeIsActive: Event<boolean> = this.changeEmitter.event;
+	readonly onDidChangeIsActive: Event<boolean> = this.changeEmitter.event;
 
 	constructor(@IInstantiationService instantiationService: IInstantiationService) {
 		super();

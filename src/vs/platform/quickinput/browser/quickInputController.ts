@@ -487,6 +487,7 @@ export class QuickInputController extends Disposable {
 			}
 			input.canSelectMany = !!options.canPickMany;
 			input.placeholder = options.placeHolder;
+			input.prompt = options.prompt;
 			input.ignoreFocusOut = !!options.ignoreFocusLost;
 			input.matchOnDescription = !!options.matchOnDescription;
 			input.matchOnDetail = !!options.matchOnDetail;

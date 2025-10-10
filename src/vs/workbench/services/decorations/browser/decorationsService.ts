@@ -250,7 +250,7 @@ export class DecorationsService implements IDecorationsService {
 	private readonly _onDidChangeDecorationsDelayed = this._store.add(new DebounceEmitter<URI | URI[]>({ merge: all => all.flat() }));
 	private readonly _onDidChangeDecorations = this._store.add(new Emitter<IResourceDecorationChangeEvent>());
 
-	onDidChangeDecorations: Event<IResourceDecorationChangeEvent> = this._onDidChangeDecorations.event;
+	readonly onDidChangeDecorations: Event<IResourceDecorationChangeEvent> = this._onDidChangeDecorations.event;
 
 	private readonly _provider = new LinkedList<IDecorationsProvider>();
 	private readonly _decorationStyles: DecorationStyles;

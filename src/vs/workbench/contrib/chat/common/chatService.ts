@@ -176,7 +176,7 @@ export interface IChatProgressMessage {
 export interface IChatTask extends IChatTaskDto {
 	deferred: DeferredPromise<string | void>;
 	progress: (IChatWarningMessage | IChatContentReference)[];
-	onDidAddProgress: Event<IChatWarningMessage | IChatContentReference>;
+	readonly onDidAddProgress: Event<IChatWarningMessage | IChatContentReference>;
 	add(progress: IChatWarningMessage | IChatContentReference): void;
 
 	complete: (result: string | void) => void;
@@ -725,7 +725,7 @@ export interface IChatService {
 	_serviceBrand: undefined;
 	transferredSessionData: IChatTransferredSessionData | undefined;
 
-	onDidSubmitRequest: Event<{ chatSessionId: string }>;
+	readonly onDidSubmitRequest: Event<{ chatSessionId: string }>;
 
 	isEnabled(location: ChatAgentLocation): boolean;
 	hasSessions(): boolean;
@@ -757,9 +757,9 @@ export interface IChatService {
 	getChatStorageFolder(): URI;
 	logChatIndex(): void;
 
-	onDidPerformUserAction: Event<IChatUserActionEvent>;
+	readonly onDidPerformUserAction: Event<IChatUserActionEvent>;
 	notifyUserAction(event: IChatUserActionEvent): void;
-	onDidDisposeSession: Event<{ sessionId: string; reason: 'cleared' }>;
+	readonly onDidDisposeSession: Event<{ sessionId: string; reason: 'cleared' }>;
 
 	transferChatSession(transferredSessionData: IChatTransferredSessionData, toWorkspace: URI): void;
 

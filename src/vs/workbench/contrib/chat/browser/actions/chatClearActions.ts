@@ -8,7 +8,7 @@ import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize2 } from '../../../../../nls.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
-import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -36,13 +36,27 @@ export interface INewEditSessionActionContext {
 	agentMode?: boolean;
 
 	/**
-	 * Whether the inputValue is partial and should wait for further user input. If false or not set, the prompt is sent immediately.
+	 * Whether the inputValue is partial and should wait for further user input.
+	 * If false or not set, the prompt is sent immediately.
 	 */
 	isPartialQuery?: boolean;
 }
 
 export function registerNewChatActions() {
-	// This action was previously used for the editor gutter toolbar, but now ACTION_ID_NEW_CHAT is also used for that scenario
+
+	// Add "New Chat" submenu to Chat view menu
+	MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
+		submenu: MenuId.ChatNewMenu,
+		title: localize2('chat.newEdits.label', "New Chat"),
+		icon: Codicon.plus,
+		when: ContextKeyExpr.equals('view', ChatViewId),
+		group: 'navigation',
+		order: -1,
+		isSplitButton: true
+	});
+
+	// This action was previously used for the editor gutter toolbar, but now
+	// ACTION_ID_NEW_CHAT is also used for that scenario
 	registerAction2(class NewChatEditorAction extends Action2 {
 		constructor() {
 			super({
@@ -74,15 +88,13 @@ export function registerNewChatActions() {
 						group: 'z_clear'
 					},
 					{
-						id: MenuId.ViewTitle,
-						when: ContextKeyExpr.equals('view', ChatViewId),
-						group: 'navigation',
-						order: -1,
+						id: MenuId.ChatNewMenu,
+						group: '1_open',
+						order: 1,
 						alt: {
 							id: ACTION_ID_OPEN_CHAT,
 							title: localize2('interactiveSession.open', "New Chat Editor"),
-							icon: Codicon.newFile,
-							precondition: ChatContextKeys.enabled
+							icon: Codicon.newFile
 						}
 					},
 					...[MenuId.EditorTitle, MenuId.CompactWindowEditorTitle].map(id => ({
