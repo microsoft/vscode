@@ -331,7 +331,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 	}
 
 	spliceNotebookCellOutputs(splice: NotebookCellOutputsSplice): void {
-		this._notebookLoggingService.trace('notebookCellTextModel', `splicing outputs at ${splice.start} length: ${splice.deleteCount} with ${splice.newOutputs.length} new outputs`);
+		this._notebookLoggingService.trace('textModelEdits', `splicing outputs at ${splice.start} length: ${splice.deleteCount} with ${splice.newOutputs.length} new outputs`);
 		if (splice.deleteCount > 0 && splice.newOutputs.length > 0) {
 			const commonLen = Math.min(splice.deleteCount, splice.newOutputs.length);
 			// update
@@ -359,7 +359,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 			return false;
 		}
 
-		this._notebookLoggingService.trace('notebookCellTextModel', `replacing an output item at index ${outputIndex}`);
+		this._notebookLoggingService.trace('textModelEdits', `replacing an output item at index ${outputIndex}`);
 		const output = this.outputs[outputIndex];
 		// convert to dto and dispose the cell output model
 		output.replaceData({
@@ -380,7 +380,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		}
 
 		const output = this.outputs[outputIndex];
-		this._notebookLoggingService.trace('notebookCellTextModel', `${append ? 'appending' : 'replacing'} ${items.length} output items to for output index ${outputIndex}`);
+		this._notebookLoggingService.trace('textModelEdits', `${append ? 'appending' : 'replacing'} ${items.length} output items to for output index ${outputIndex}`);
 		if (append) {
 			output.appendData(items);
 		} else {

@@ -633,7 +633,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	}
 
 	applyEdits(rawEdits: ICellEditOperation[], synchronous: boolean, beginSelectionState: ISelectionState | undefined, endSelectionsComputer: () => ISelectionState | undefined, undoRedoGroup: UndoRedoGroup | undefined, computeUndoRedo: boolean): boolean {
-		this._notebookLoggingService.trace('notebookTextModel', `Begin applying ${rawEdits.length} raw edits`);
+		this._notebookLoggingService.trace('textModelEdits', `Begin applying ${rawEdits.length} raw edits`);
 		this._pauseableEmitter.pause();
 		try {
 			this._operationManager.pushStackElement(this._alternativeVersionId, undefined);
@@ -661,7 +661,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 					// Broadcast changes
 					this._pauseableEmitter.fire({ rawEvents: [], versionId: this.versionId, synchronous: synchronous, endSelectionState: endSelections });
-					this._notebookLoggingService.trace('notebookTextModel', `End applying ${rawEdits.length} raw edits`);
+					this._notebookLoggingService.trace('textModelEdits', `End applying ${rawEdits.length} raw edits`);
 				}
 			}
 		} finally {
