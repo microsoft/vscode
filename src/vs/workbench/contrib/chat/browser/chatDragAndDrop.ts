@@ -411,6 +411,11 @@ export class ChatDragAndDrop extends Themable {
 	}
 }
 
+function isImageMimeType(mimeType: string): boolean {
+	// SVG files should be treated as code/text, not images
+	return mimeType.startsWith('image/') && !mimeType.startsWith('image/svg');
+}
+
 function containsImageDragType(e: DragEvent): boolean {
 	// Image detection should not have false positives, only false negatives are allowed
 	if (containsDragType(e, 'image')) {
@@ -420,12 +425,12 @@ function containsImageDragType(e: DragEvent): boolean {
 	if (containsDragType(e, DataTransfers.FILES)) {
 		const files = e.dataTransfer?.files;
 		if (files && files.length > 0) {
-			return Array.from(files).some(file => file.type.startsWith('image/'));
+			return Array.from(files).some(file => isImageMimeType(file.type));
 		}
 
 		const items = e.dataTransfer?.items;
 		if (items && items.length > 0) {
-			return Array.from(items).some(item => item.type.startsWith('image/'));
+			return Array.from(items).some(item => isImageMimeType(item.type));
 		}
 	}
 
@@ -455,5 +460,5 @@ function extractImageFilesFromDragEvent(e: DragEvent): File[] {
 		return [];
 	}
 
-	return Array.from(files).filter(file => file.type.startsWith('image/'));
+	return Array.from(files).filter(file => isImageMimeType(file.type));
 }

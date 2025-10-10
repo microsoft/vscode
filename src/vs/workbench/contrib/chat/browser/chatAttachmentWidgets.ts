@@ -659,8 +659,7 @@ export class NotebookCellOutputChatAttachmentWidget extends AbstractChatAttachme
 			}
 			case 'image/png':
 			case 'image/jpeg':
-			case 'image/svg':
-			case 'image/svg+xml': {
+			case 'image/svg': {
 				this.renderImageOutput(resource, attachment);
 				break;
 			}
