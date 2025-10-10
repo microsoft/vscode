@@ -48,7 +48,9 @@ import { asArray } from '../../../../../../base/common/arrays.js';
 import { OutputMonitor } from './monitoring/outputMonitor.js';
 import { IPollingResult, OutputMonitorState } from './monitoring/types.js';
 
-const TERMINAL_SESSION_STORAGE_KEY = 'chat.terminalSessions';
+const enum TerminalToolStorageKeysInternal {
+	TerminalSession = 'chat.terminalSessions'
+}
 
 interface IStoredTerminalAssociation {
 	sessionId: string;
@@ -727,7 +729,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	// #region Session management
 
 	private _restoreTerminalAssociations(): void {
-		const storedAssociations = this._storageService.get(TERMINAL_SESSION_STORAGE_KEY, StorageScope.WORKSPACE, '{}');
+		const storedAssociations = this._storageService.get(TerminalToolStorageKeysInternal.TerminalSession, StorageScope.WORKSPACE, '{}');
 		try {
 			const associations: Record<number, IStoredTerminalAssociation> = JSON.parse(storedAssociations);
 
@@ -773,7 +775,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			]);
 
 			if (typeof pid === 'number') {
-				const storedAssociations = this._storageService.get(TERMINAL_SESSION_STORAGE_KEY, StorageScope.WORKSPACE, '{}');
+				const storedAssociations = this._storageService.get(TerminalToolStorageKeysInternal.TerminalSession, StorageScope.WORKSPACE, '{}');
 				const associations: Record<number, IStoredTerminalAssociation> = JSON.parse(storedAssociations);
 
 				const existingAssociation = associations[pid] || {};
@@ -785,7 +787,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					isBackground
 				};
 
-				this._storageService.store(TERMINAL_SESSION_STORAGE_KEY, JSON.stringify(associations), StorageScope.WORKSPACE, StorageTarget.USER);
+				this._storageService.store(TerminalToolStorageKeysInternal.TerminalSession, JSON.stringify(associations), StorageScope.WORKSPACE, StorageTarget.USER);
 				this._logService.debug(`RunInTerminalTool: Associated terminal PID ${pid} with session ${sessionId}`);
 			}
 		} catch (error) {
@@ -795,12 +797,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 	private async _removeProcessIdAssociation(pid: number): Promise<void> {
 		try {
-			const storedAssociations = this._storageService.get(TERMINAL_SESSION_STORAGE_KEY, StorageScope.WORKSPACE, '{}');
+			const storedAssociations = this._storageService.get(TerminalToolStorageKeysInternal.TerminalSession, StorageScope.WORKSPACE, '{}');
 			const associations: Record<number, IStoredTerminalAssociation> = JSON.parse(storedAssociations);
 
 			if (associations[pid]) {
 				delete associations[pid];
-				this._storageService.store(TERMINAL_SESSION_STORAGE_KEY, JSON.stringify(associations), StorageScope.WORKSPACE, StorageTarget.USER);
+				this._storageService.store(TerminalToolStorageKeysInternal.TerminalSession, JSON.stringify(associations), StorageScope.WORKSPACE, StorageTarget.USER);
 				this._logService.debug(`RunInTerminalTool: Removed terminal association for PID ${pid}`);
 			}
 		} catch (error) {
