@@ -231,15 +231,15 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	}
 
 	protected override showComposite(composite: Composite): void {
+		this.layoutEmptyMessage(false);
 		super.showComposite(composite);
 		this.layoutCompositeBar();
-		this.layoutEmptyMessage();
 	}
 
 	protected override hideActiveComposite(): Composite | undefined {
 		const composite = super.hideActiveComposite();
 		this.layoutCompositeBar();
-		this.layoutEmptyMessage();
+		this.layoutEmptyMessage(true);
 		return composite;
 	}
 
@@ -621,8 +621,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		}
 	}
 
-	private layoutEmptyMessage(): void {
-		const visible = !this.getActiveComposite();
+	private layoutEmptyMessage(visible = !this.getActiveComposite()): void {
 		this.element.classList.toggle('empty', visible);
 		if (visible) {
 			this.titleLabel?.updateTitle('', '');
