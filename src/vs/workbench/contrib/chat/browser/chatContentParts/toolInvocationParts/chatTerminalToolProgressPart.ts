@@ -111,7 +111,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 				queueMicrotask(() => this._onDidChangeHeight.fire());
 			}
 		} else if (!this.xterm) {
-			console.log(`Can't create terminal for ${this.externalInstanceId} yet - missing required services`);
+			console.warn(`Can't create terminal for ${this.externalInstanceId} yet - missing required services`);
 			return;
 		}
 
@@ -135,13 +135,10 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		this.instanceType = instance.sessionId;
 		if (executeStrategy.startMarker) {
 			try {
-				console.log(`Start marker already exists for ${this.externalInstanceId} - using for initial data`);
 				await this.updateTerminalContent(instance, executeStrategy, executeStrategy.startMarker);
 			} catch (e) {
 				console.error(`Error getting initial terminal data for ${this.externalInstanceId}:`, e);
 			}
-		} else {
-			console.log(`No start marker available yet for ${this.externalInstanceId} - waiting for marker creation event. Has strategy: ${!!executeStrategy}`);
 		}
 
 		this._onDidChangeHeight.fire();
@@ -158,7 +155,6 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	): Promise<void> {
 		const latestPartId = ChatTerminalToolProgressPart.latestPartPerInstance.get(this.instanceType!);
 		if (latestPartId !== this.externalInstanceId) {
-			console.log(`Skipping update for ${this.externalInstanceId} as ${latestPartId} is the latest`);
 			return;
 		}
 
@@ -167,19 +163,16 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			// Try persistent marker first
 			if (this.persistentStartMarker) {
 				startMarker = this.persistentStartMarker;
-				console.log(`Using persistent start marker for ${this.externalInstanceId}`);
 			}
 			// Fall back to strategy marker
 			else if (executeStrategy.startMarker) {
 				startMarker = executeStrategy.startMarker;
 				// Save for future use
 				this.persistentStartMarker = startMarker;
-				console.log(`Using and storing strategy's start marker for ${this.externalInstanceId}`);
 			}
 		}
 
 		if (!startMarker) {
-			console.log(`Cannot update terminal content for ${this.externalInstanceId} - no start marker available`);
 			return;
 		}
 
@@ -190,7 +183,6 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 		data = await instance.xterm?.getRangeAsVT(startMarker, endMarker);
 		if (!data) {
-			console.log(`No data available between markers for ${this.externalInstanceId}`);
 			return;
 		}
 
@@ -311,7 +303,6 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		this._register(ChatTerminalToolProgressPart._onDidChangeTrackingInstance.event(async ({ instance, executeStrategy, targetInstanceId }) => {
 			// Skip if this event is not for this instance
 			if (targetInstanceId !== this.externalInstanceId) {
-				console.log(`Terminal event received but not for this part. Event ID: ${targetInstanceId}, This part ID: ${this.externalInstanceId}`);
 				return;
 			}
 
