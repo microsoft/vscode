@@ -26,16 +26,14 @@ import { IMcpCollectionContribution, IExtensionDescription, ExtensionIdentifier 
  * Testable version of ExtensionMcpDiscovery that exposes protected methods
  */
 class TestableExtensionMcpDiscovery extends ExtensionMcpDiscovery {
-	public override handleExtensionChange(
+
+	public handleExtensionChangeTest(
 		extensions: readonly IExtensionPointUser<IMcpCollectionContribution[]>[],
 		delta: ExtensionPointUserDelta<IMcpCollectionContribution[]>
 	): void {
 		super.handleExtensionChange(extensions, delta);
 	}
 
-	public override deleteCollection(id: string) {
-		super.deleteCollection(id);
-	}
 }
 
 /**
@@ -257,7 +255,7 @@ suite('ExtensionMcpDiscovery', () => {
 			//spy on registercollection
 
 			// Call the method under test
-			fixture.extensionMcpDiscovery.handleExtensionChange([], delta);
+			fixture.extensionMcpDiscovery.handleExtensionChangeTest([], delta);
 
 			// Verify that registerCollection was called for the added extension
 			assert.ok(registerCollectionStub.calledOnce, 'registerCollection should be called once for added extension');
@@ -290,7 +288,7 @@ suite('ExtensionMcpDiscovery', () => {
 			const delta = createMockDelta([mockExtension], []);
 
 			// Call the method under test
-			fixture.extensionMcpDiscovery.handleExtensionChange([], delta);
+			fixture.extensionMcpDiscovery.handleExtensionChangeTest([], delta);
 
 			// Verify that registerCollection was called for the conditional extension
 			assert.ok(registerCollectionStub.calledOnce, 'registerCollection should be called once for conditional extension when context matches');
@@ -310,15 +308,15 @@ suite('ExtensionMcpDiscovery', () => {
 
 			// Spy on registry to monitor any new registrations during removal
 			const registerCollectionSpy = sinon.stub(fixture.mcpRegistry, 'registerCollection').returns({ dispose: sinon.stub() });
-			fixture.extensionMcpDiscovery.handleExtensionChange([], addDelta);
+			fixture.extensionMcpDiscovery.handleExtensionChangeTest([], addDelta);
 
 			registerCollectionSpy.resetHistory(); // Clear any previous calls
 
 			//spy on deleteCollection method.
-			const deleteCollectionSpy = sinon.spy(fixture.extensionMcpDiscovery, "deleteCollection");
+			const deleteCollectionSpy = sinon.spy(fixture.extensionMcpDiscovery as unknown as { deleteCollection: sinon.SinonSpy }, "deleteCollection");
 			// Now remove the extension
 			const removeDelta = createMockDelta([], [mockExtension]);
-			fixture.extensionMcpDiscovery.handleExtensionChange([], removeDelta);
+			fixture.extensionMcpDiscovery.handleExtensionChangeTest([], removeDelta);
 
 			// Verify that no new registrations occurred during removal
 			assert.ok(registerCollectionSpy.notCalled, 'No new collections should be registered when extensions are removed');
@@ -339,7 +337,7 @@ suite('ExtensionMcpDiscovery', () => {
 			const invalidDelta = createMockDelta([invalidExtension], []);
 
 			// Call the method under test
-			fixture.extensionMcpDiscovery.handleExtensionChange([], invalidDelta);
+			fixture.extensionMcpDiscovery.handleExtensionChangeTest([], invalidDelta);
 
 			// Verify that registerCollection was not called for invalid extension
 			assert.ok(registerCollectionSpy.notCalled, 'registerCollection should not be called for invalid extensions');
@@ -356,7 +354,7 @@ suite('ExtensionMcpDiscovery', () => {
 			const addExistingDelta = createMockDelta([existingExtension], []);
 			// Prepare spy for the mixed operation
 			const registerCollectionSpy = sinon.stub(fixture.mcpRegistry, 'registerCollection').returns({ dispose: sinon.stub() });
-			fixture.extensionMcpDiscovery.handleExtensionChange([], addExistingDelta);
+			fixture.extensionMcpDiscovery.handleExtensionChangeTest([], addExistingDelta);
 			// Create mixed delta: add new extension, remove existing one
 			const newExtension = createMockExtensionPointUser('new-collection', 'New Collection', 'new.extension');
 			const mixedDelta = createMockDelta([newExtension], [existingExtension]);
@@ -365,10 +363,10 @@ suite('ExtensionMcpDiscovery', () => {
 			registerCollectionSpy.resetHistory();
 
 			//spy on deleteCollection method.
-			const deleteCollectionSpy = sinon.spy(fixture.extensionMcpDiscovery, "deleteCollection");
+			const deleteCollectionSpy = sinon.spy(fixture.extensionMcpDiscovery as unknown as { deleteCollection: sinon.SinonSpy }, "deleteCollection");
 
 			// Call the method under test
-			fixture.extensionMcpDiscovery.handleExtensionChange([], mixedDelta);
+			fixture.extensionMcpDiscovery.handleExtensionChangeTest([], mixedDelta);
 
 			// Verify new collection was registered (we can't easily test removal with current test setup)
 			assert.ok(registerCollectionSpy.calledOnce, 'New collection should be registered');
