@@ -197,4 +197,37 @@ suite('ChatTodoListWidget Accessibility', () => {
 		const todoListContainer = widget.domNode.querySelector('.todo-list-container');
 		assert.strictEqual(todoListContainer?.getAttribute('aria-labelledby'), 'todo-list-title');
 	});
+
+	test('title text is editable and has proper attributes', () => {
+		widget.render('test-session');
+
+		const titleText = widget.domNode.querySelector('.todo-title-text');
+		assert.ok(titleText, 'Should have title text element');
+		assert.strictEqual(titleText?.getAttribute('role'), 'button');
+		assert.strictEqual(titleText?.getAttribute('tabindex'), '0');
+		assert.ok(titleText?.getAttribute('aria-label')?.includes('Edit title'));
+	});
+
+	test('custom title is displayed when set', () => {
+		mockTodoListService.setMetadata('test-session', { customTitle: 'Custom Title' });
+		widget.render('test-session');
+
+		const titleText = widget.domNode.querySelector('.todo-title-text');
+		assert.ok(titleText?.textContent?.includes('Custom Title'));
+	});
+
+	test('title can be clicked to enter edit mode', () => {
+		widget.render('test-session');
+
+		const titleText = widget.domNode.querySelector('.todo-title-text') as HTMLElement;
+		assert.ok(titleText, 'Should have title text element');
+
+		// Click to edit
+		titleText.click();
+
+		// Should now have an input element
+		const input = widget.domNode.querySelector('.todo-title-input') as HTMLInputElement;
+		assert.ok(input, 'Should have input element after clicking title');
+		assert.strictEqual(input.type, 'text');
+	});
 });
