@@ -20,8 +20,7 @@ export class StringEnumPolicy extends BasePolicy {
 			throw new Error(`[StringEnumPolicy] Failed to convert ${key}: missing required 'enumDescriptions' property.`);
 		}
 
-		const defaultValue = config.enum[0];
-		return new StringEnumPolicy(policy.name, category, policy.minimumVersion, policyDescription, defaultValue, config.enum, policyEnumDescriptions);
+		return new StringEnumPolicy(policy.name, category, policy.minimumVersion, policyDescription, config.enum, policyEnumDescriptions);
 	}
 
 	private constructor(
@@ -29,7 +28,6 @@ export class StringEnumPolicy extends BasePolicy {
 		category: Category,
 		minimumVersion: string,
 		description: NlsString,
-		protected defaultValue: string,
 		protected enum_: string[],
 		protected enumDescriptions: NlsString[],
 	) {
@@ -56,12 +54,12 @@ export class StringEnumPolicy extends BasePolicy {
 	}
 
 	renderProfileValue() {
-		return `<string>${this.defaultValue}</string>`;
+		return `<string>${this.enum_[0]}</string>`;
 	}
 
 	renderProfileManifestValue(translations?: LanguageTranslations): string {
 		return `<key>pfm_default</key>
-<string>${this.defaultValue}</string>
+<string>${this.enum_[0]}</string>
 <key>pfm_description</key>
 <string>${renderProfileString(this.name, this.description, translations)}</string>
 <key>pfm_name</key>

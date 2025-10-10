@@ -66,8 +66,7 @@ export class PolicyWriterService implements IPolicyWriterService {
 			throw new Error(`Missing required product information.`);
 		}
 
-		const versions = [...new Set(policies.map(p => p.minimumVersion)).values()].sort();
-		const categories = [...new Set(policies.map(p => p.category))];
+		const { versions, categories } = this.getVersionsAndCategories(policies);
 		const root = '.build/policies/darwin';
 		const { profile, manifests } = renderMacOSPolicy(appName, bundleIdentifier, payloadUUID, UUID, versions, categories, policies, translations);
 
@@ -95,8 +94,7 @@ export class PolicyWriterService implements IPolicyWriterService {
 			throw new Error(`Missing required product information.`);
 		}
 
-		const versions = [...new Set(policies.map(p => p.minimumVersion)).values()].sort();
-		const categories = [...Object.values(policies.reduce((acc, p) => ({ ...acc, [p.category.name.nlsKey]: p.category }), {}))] as Category[];
+		const { versions, categories } = this.getVersionsAndCategories(policies);
 		const root = '.build/policies/win32';
 		const { admx, adml } = renderGP(appName, regKey, versions, categories, policies, translations);
 
@@ -182,7 +180,13 @@ export class PolicyWriterService implements IPolicyWriterService {
 	}
 
 	private getPolicies(configs: Array<{ key: string; schema: IRegisteredConfigurationPropertySchema }>): Policy[] {
-		return configs.map(({ key, schema }) => this.configToPolicy(key, schema));
+		return configs.map(({ key, schema }) => this.configToPolicy(key, schema)).sort((a, b) => a.name.localeCompare(b.name));
+	}
+
+	private getVersionsAndCategories(policies: Policy[]) {
+		const versions = [...new Set(policies.map(p => p.minimumVersion)).values()].sort();
+		const categories = ([...Object.values(policies.reduce((acc, p) => ({ ...acc, [p.category.name.nlsKey]: p.category }), {}))] as Category[]).sort((a, b) => a.name.nlsKey.localeCompare(b.name.nlsKey));
+		return { versions, categories };
 	}
 
 	private async getSpecificNLS(resourceUrlTemplate: string, languageId: string, version: Version) {
