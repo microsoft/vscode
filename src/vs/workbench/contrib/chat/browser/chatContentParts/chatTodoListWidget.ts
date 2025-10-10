@@ -12,6 +12,11 @@ import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IChatTodoListService, IChatTodo } from '../../common/chatTodoListService.js';
 import { TodoListToolDescriptionFieldSettingId } from '../../common/tools/manageTodoListTool.js';
+import { TodoTitleValidator, DEFAULT_TODO_TITLE } from '../../common/chatTodoTitleValidation.js';
+import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import * as aria from '../../../../../base/browser/ui/aria/aria.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 
 export class ChatTodoListWidget extends Disposable {
 	public readonly domNode: HTMLElement;
@@ -28,9 +33,16 @@ export class ChatTodoListWidget extends Disposable {
 	private _currentSessionId: string | undefined;
 	private _userHasScrolledManually: boolean = false;
 
+	// Title editing properties
+	private titleInputElement: HTMLInputElement | null = null;
+	private _isEditingTitle: boolean = false;
+	private _titleBeforeEdit: string = '';
+	private _editStartTime: number = 0;
+
 	constructor(
 		@IChatTodoListService private readonly chatTodoListService: IChatTodoListService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		super();
 
@@ -349,12 +361,37 @@ export class ChatTodoListWidget extends Disposable {
 		const completedTodos = todoList.filter(todo => todo.status === 'completed');
 		const lastCompletedTodo = completedTodos.length > 0 ? completedTodos[completedTodos.length - 1] : undefined;
 
-		const progressText = dom.$('span');
-		if (totalCount === 0) {
+		// Get custom title or use default
+		const metadata = this._currentSessionId ? this.chatTodoListService.getMetadata(this._currentSessionId) : {};
+		const customTitle = metadata.customTitle;
+
+		const progressText = dom.$('span.todo-title-text');
+		progressText.setAttribute('role', 'button');
+		progressText.setAttribute('tabindex', '0');
+		progressText.setAttribute('aria-label', localize('chat.todoList.editTitle', 'Edit title. Press Enter to start editing'));
+		
+		if (customTitle) {
+			progressText.textContent = customTitle;
+		} else if (totalCount === 0) {
 			progressText.textContent = localize('chat.todoList.title', 'Todos');
 		} else {
 			progressText.textContent = localize('chat.todoList.titleWithProgress', 'Todos ({0}/{1})', completedCount, totalCount);
 		}
+
+		// Add hover effect and click handler for editing
+		this._register(dom.addDisposableListener(progressText, 'click', () => {
+			this.startEditingTitle(progressText);
+		}));
+
+		this._register(dom.addDisposableListener(progressText, 'keydown', (e) => {
+			const keyEvent = new StandardKeyboardEvent(e);
+			if (keyEvent.equals(KeyCode.Enter) || keyEvent.equals(KeyCode.Space)) {
+				e.preventDefault();
+				e.stopPropagation();
+				this.startEditingTitle(progressText);
+			}
+		}));
+
 		titleElement.appendChild(progressText);
 		const expandButtonLabel = this._isExpanded
 			? localize('chat.todoList.collapseButtonWithProgress', 'Collapse {0}', progressText.textContent)
@@ -447,5 +484,169 @@ export class ChatTodoListWidget extends Disposable {
 			default:
 				return 'var(--vscode-foreground)';
 		}
+	}
+
+	private startEditingTitle(textElement: HTMLElement): void {
+		if (this._isEditingTitle || !this._currentSessionId) {
+			return;
+		}
+
+		this._isEditingTitle = true;
+		this._titleBeforeEdit = textElement.textContent || '';
+		this._editStartTime = Date.now();
+
+		// Create input element
+		this.titleInputElement = dom.$('input.todo-title-input') as HTMLInputElement;
+		this.titleInputElement.type = 'text';
+		this.titleInputElement.value = this._titleBeforeEdit;
+		this.titleInputElement.placeholder = localize('chat.todoList.titlePlaceholder', 'My Tasks, Sprint Goals, etc.');
+		this.titleInputElement.setAttribute('aria-label', localize('chat.todoList.titleInput', 'Edit todo list title. Press Enter to save, Escape to cancel'));
+		this.titleInputElement.maxLength = 100;
+
+		// Replace text with input
+		textElement.replaceWith(this.titleInputElement);
+
+		// Select all text
+		this.titleInputElement.select();
+		this.titleInputElement.focus();
+
+		// Add event listeners
+		const keydownListener = dom.addDisposableListener(this.titleInputElement, 'keydown', (e) => {
+			const keyEvent = new StandardKeyboardEvent(e);
+			
+			if (keyEvent.equals(KeyCode.Enter)) {
+				e.preventDefault();
+				e.stopPropagation();
+				this.saveTitle();
+			} else if (keyEvent.equals(KeyCode.Escape)) {
+				e.preventDefault();
+				e.stopPropagation();
+				this.cancelTitleEdit();
+			} else if (keyEvent.keyCode === KeyCode.KeyA && (keyEvent.ctrlKey || keyEvent.metaKey)) {
+				// Ctrl+A / Cmd+A - select all (browser default, just ensure it works)
+				e.stopPropagation();
+			} else {
+				// Stop propagation to prevent expand/collapse
+				e.stopPropagation();
+			}
+		});
+
+		const blurListener = dom.addDisposableListener(this.titleInputElement, 'blur', () => {
+			// Save on blur
+			setTimeout(() => {
+				if (this._isEditingTitle) {
+					this.saveTitle();
+				}
+			}, 100);
+		});
+
+		const inputListener = dom.addDisposableListener(this.titleInputElement, 'input', () => {
+			this.validateTitleInput();
+		});
+
+		// Store listeners for cleanup
+		this._register(keydownListener);
+		this._register(blurListener);
+		this._register(inputListener);
+
+		// Announce to screen readers
+		aria.alert(localize('chat.todoList.editingTitle', 'Editing todo list title'));
+	}
+
+	private validateTitleInput(): void {
+		if (!this.titleInputElement) {
+			return;
+		}
+
+		const value = this.titleInputElement.value;
+		const validation = TodoTitleValidator.validate(value);
+
+		// Update visual feedback
+		if (validation.valid) {
+			this.titleInputElement.classList.remove('error');
+			this.titleInputElement.title = '';
+		} else {
+			this.titleInputElement.classList.add('error');
+			this.titleInputElement.title = validation.message || '';
+		}
+	}
+
+	private saveTitle(): void {
+		if (!this.titleInputElement || !this._currentSessionId) {
+			return;
+		}
+
+		const newTitle = this.titleInputElement.value;
+		const validation = TodoTitleValidator.validate(newTitle);
+		const finalTitle = validation.sanitizedValue || DEFAULT_TODO_TITLE;
+
+		// Update metadata
+		const metadata = this.chatTodoListService.getMetadata(this._currentSessionId);
+		metadata.customTitle = finalTitle !== DEFAULT_TODO_TITLE ? finalTitle : undefined;
+		this.chatTodoListService.setMetadata(this._currentSessionId, metadata);
+
+		// Add to history
+		if (finalTitle !== DEFAULT_TODO_TITLE) {
+			this.chatTodoListService.addTitleToHistory(this._currentSessionId, finalTitle);
+		}
+
+		// Send telemetry
+		const editDuration = Date.now() - this._editStartTime;
+		type TodoTitleEditEvent = {
+			duration: number;
+			lengthBefore: number;
+			lengthAfter: number;
+			wasValidated: boolean;
+			isCustomTitle: boolean;
+		};
+		type TodoTitleEditClassification = {
+			duration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time spent editing title in milliseconds' };
+			lengthBefore: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Length of title before editing' };
+			lengthAfter: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Length of title after editing' };
+			wasValidated: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether validation was triggered' };
+			isCustomTitle: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether a custom title was set' };
+			owner: 'roblourens';
+			comment: 'Tracks todo list title editing usage and performance';
+		};
+		this.telemetryService.publicLog2<TodoTitleEditEvent, TodoTitleEditClassification>('chatTodoList.titleEdit', {
+			duration: editDuration,
+			lengthBefore: this._titleBeforeEdit.length,
+			lengthAfter: finalTitle.length,
+			wasValidated: !validation.valid,
+			isCustomTitle: finalTitle !== DEFAULT_TODO_TITLE
+		});
+
+		// Restore text element and update display
+		this.exitEditMode();
+
+		// Announce to screen readers
+		aria.alert(localize('chat.todoList.titleSaved', 'Title saved: {0}', finalTitle));
+	}
+
+	private cancelTitleEdit(): void {
+		if (!this.titleInputElement) {
+			return;
+		}
+
+		// Restore original title
+		this.exitEditMode();
+
+		// Announce to screen readers
+		aria.alert(localize('chat.todoList.titleEditCancelled', 'Title edit cancelled'));
+	}
+
+	private exitEditMode(): void {
+		if (!this.titleInputElement) {
+			return;
+		}
+
+		this._isEditingTitle = false;
+
+		// Remove input and restore display
+		this.titleInputElement.remove();
+		this.titleInputElement = null;
+
+		// Re-render to show updated title
+		this.updateTodoDisplay();
 	}
 }

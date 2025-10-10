@@ -2647,6 +2647,51 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	color: var(--vscode-descriptionForeground);
 }
 
+.chat-todo-list-widget .todo-title-text {
+	cursor: pointer;
+	padding: 2px 4px;
+	border-radius: 3px;
+	transition: background-color 0.1s;
+}
+
+.chat-todo-list-widget .todo-title-text:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	text-decoration: underline;
+}
+
+.chat-todo-list-widget .todo-title-text:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+}
+
+.chat-todo-list-widget .todo-title-input {
+	font-weight: normal;
+	font-size: var(--vscode-chat-font-size-body-s);
+	color: var(--vscode-input-foreground);
+	background-color: var(--vscode-input-background);
+	border: 1px solid var(--vscode-input-border, var(--vscode-focusBorder));
+	border-radius: 2px;
+	padding: 2px 4px;
+	outline: none;
+	min-width: 120px;
+	max-width: 300px;
+}
+
+.chat-todo-list-widget .todo-title-input:focus {
+	border-color: var(--vscode-focusBorder);
+	box-shadow: 0 0 0 1px var(--vscode-focusBorder);
+}
+
+.chat-todo-list-widget .todo-title-input.error {
+	border-color: var(--vscode-inputValidation-errorBorder);
+	background-color: var(--vscode-inputValidation-errorBackground);
+}
+
+.chat-todo-list-widget .todo-title-input.error:focus {
+	border-color: var(--vscode-inputValidation-errorBorder);
+	box-shadow: 0 0 0 1px var(--vscode-inputValidation-errorBorder);
+}
+
 .chat-todo-list-widget .todo-list-container {
 	margin-top: 2px;
 	max-height: calc(6.5 * 21px);

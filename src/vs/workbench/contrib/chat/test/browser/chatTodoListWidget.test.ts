@@ -9,6 +9,7 @@ import { ChatTodoListWidget } from '../../browser/chatContentParts/chatTodoListW
 import { IChatTodo, IChatTodoListService } from '../../common/chatTodoListService.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 
 suite('ChatTodoListWidget Accessibility', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -16,6 +17,7 @@ suite('ChatTodoListWidget Accessibility', () => {
 	let widget: ChatTodoListWidget;
 	let mockTodoListService: IChatTodoListService;
 	let mockConfigurationService: IConfigurationService;
+	let mockTelemetryService: ITelemetryService;
 
 	const sampleTodos: IChatTodo[] = [
 		{ id: 1, title: 'First task', status: 'not-started' },
@@ -28,7 +30,10 @@ suite('ChatTodoListWidget Accessibility', () => {
 		mockTodoListService = {
 			_serviceBrand: undefined,
 			getTodos: (sessionId: string) => sampleTodos,
-			setTodos: (sessionId: string, todos: IChatTodo[]) => { }
+			setTodos: (sessionId: string, todos: IChatTodo[]) => { },
+			getMetadata: (sessionId: string) => ({}),
+			setMetadata: (sessionId: string, metadata: any) => { },
+			addTitleToHistory: (sessionId: string, title: string) => { }
 		};
 
 		// Mock the configuration service
@@ -38,7 +43,13 @@ suite('ChatTodoListWidget Accessibility', () => {
 			getValue: (key: string) => key === 'chat.todoListTool.descriptionField' ? true : undefined
 		} as any;
 
-		widget = store.add(new ChatTodoListWidget(mockTodoListService, mockConfigurationService));
+		// Mock telemetry service
+		// eslint-disable-next-line local/code-no-any-casts
+		mockTelemetryService = {
+			publicLog2: () => { }
+		} as any;
+
+		widget = store.add(new ChatTodoListWidget(mockTodoListService, mockConfigurationService, mockTelemetryService));
 		mainWindow.document.body.appendChild(widget.domNode);
 	});
 
@@ -138,7 +149,10 @@ suite('ChatTodoListWidget Accessibility', () => {
 		const emptyTodoListService: IChatTodoListService = {
 			_serviceBrand: undefined,
 			getTodos: (sessionId: string) => [],
-			setTodos: (sessionId: string, todos: IChatTodo[]) => { }
+			setTodos: (sessionId: string, todos: IChatTodo[]) => { },
+			getMetadata: (sessionId: string) => ({}),
+			setMetadata: (sessionId: string, metadata: any) => { },
+			addTitleToHistory: (sessionId: string, title: string) => { }
 		};
 
 		// eslint-disable-next-line local/code-no-any-casts
@@ -147,7 +161,11 @@ suite('ChatTodoListWidget Accessibility', () => {
 			getValue: (key: string) => key === 'chat.todoListTool.descriptionField' ? true : undefined
 		} as any;
 
-		const emptyWidget = store.add(new ChatTodoListWidget(emptyTodoListService, emptyConfigurationService));
+		const emptyTelemetryService = {
+			publicLog2: () => { }
+		} as any;
+
+		const emptyWidget = store.add(new ChatTodoListWidget(emptyTodoListService, emptyConfigurationService, emptyTelemetryService));
 		mainWindow.document.body.appendChild(emptyWidget.domNode);
 
 		emptyWidget.render('test-session');
