@@ -44,8 +44,7 @@ export class BasicExecuteStrategy extends Disposable implements ITerminalExecute
 	private readonly _onDidCreateStartMarker = new Emitter<IXtermMarker | undefined>;
 	public onDidCreateStartMarker: Event<IXtermMarker | undefined> = this._onDidCreateStartMarker.event;
 
-
-	startMarker?: IXtermMarker | undefined;
+	get startMarker() { return this._startMarker.value; }
 	endMarker?: IXtermMarker | undefined;
 
 	private readonly _onUpdate = this._register(new Emitter<void>());

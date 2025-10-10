@@ -22,7 +22,7 @@ import type { IMarker as IXtermMarker } from '@xterm/xterm';
 export class NoneExecuteStrategy extends Disposable implements ITerminalExecuteStrategy {
 	readonly type = 'none';
 
-	startMarker?: IXtermMarker | undefined;
+	get startMarker() { return this._startMarker.value; }
 	endMarker?: IXtermMarker | undefined;
 
 	private readonly _onUpdate = this._register(new Emitter<void>());
