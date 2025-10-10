@@ -79,7 +79,7 @@ class NullNotebookLoggingService implements INotebookLoggingService {
 	warn(category: string, output: string): void { }
 	error(category: string, output: string): void { }
 	debug(category: string, output: string): void { }
-	trace(context: string, message: string): void { }
+	trace(category: string, message: string): void { }
 }
 
 export class TestCell extends NotebookCellTextModel {
