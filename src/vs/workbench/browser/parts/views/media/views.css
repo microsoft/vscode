@@ -101,7 +101,7 @@
 	max-width: 300px;
 }
 
-.monaco-workbench:not(.reduce-motion) .pane > .pane-body .welcome-view-content > .button-container {
+.monaco-workbench.monaco-enable-motion .pane > .pane-body .welcome-view-content > .button-container {
 	transition: 0.2s max-width ease-out;
 }
 
@@ -298,9 +298,14 @@
 }
 
 .panel > .title .monaco-action-bar .action-item.viewpane-filter-container {
-	max-width: 400px;
+	max-width: 200px;
 	min-width: 150px;
 	margin-right: 10px;
+}
+
+.panel > .title .monaco-action-bar .action-item.viewpane-filter-container:active,
+.panel > .title .monaco-action-bar .action-item.viewpane-filter-container:focus-within {
+	max-width: 400px;
 }
 
 .pane-body .viewpane-filter-container:not(:empty) {

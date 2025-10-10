@@ -18,7 +18,7 @@ import { Schemas } from '../../../../../../base/common/network.js';
 import { getExcludes, IFileQuery, ISearchConfiguration, ISearchService, QueryType } from '../../../../../services/search/common/search.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
-import { TPromptsStorage } from '../service/promptsService.js';
+import { PromptsStorage } from '../service/promptsService.js';
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
@@ -46,31 +46,18 @@ export class PromptFilesLocator extends Disposable {
 	 *
 	 * @returns List of prompt files found in the workspace.
 	 */
-	public async listFiles(type: PromptsType, storage: TPromptsStorage, token: CancellationToken): Promise<readonly URI[]> {
-		if (storage === 'local') {
+	public async listFiles(type: PromptsType, storage: PromptsStorage, token: CancellationToken): Promise<readonly URI[]> {
+		if (storage === PromptsStorage.local) {
 			return await this.listFilesInLocal(type, token);
-		} else {
+		} else if (storage === PromptsStorage.user) {
 			return await this.listFilesInUserData(type, token);
 		}
+		throw new Error(`Unsupported prompt file storage: ${storage}`);
 	}
 
 	private async listFilesInUserData(type: PromptsType, token: CancellationToken): Promise<readonly URI[]> {
 		const files = await this.resolveFilesAtLocation(this.userDataService.currentProfile.promptsHome, token);
 		return files.filter(file => getPromptFileType(file) === type);
-	}
-
-	public async getCopilotInstructionsFiles(instructionFilePaths: Iterable<string>): Promise<URI[]> {
-		const { folders } = this.workspaceService.getWorkspace();
-		const result: URI[] = [];
-		for (const folder of folders) {
-			for (const instructionFilePath of instructionFilePaths) {
-				const file = joinPath(folder.uri, instructionFilePath);
-				if (await this.fileService.exists(file)) {
-					result.push(file);
-				}
-			}
-		}
-		return result;
 	}
 
 	public createFilesUpdatedEvent(type: PromptsType): { readonly event: Event<void>; dispose: () => void } {
@@ -259,7 +246,7 @@ export class PromptFilesLocator extends Disposable {
 	/**
 	 * Uses the search service to find all files at the provided location
 	 */
-	private async searchFilesInLocation(folder: URI, filePattern: string | undefined, token: CancellationToken | undefined): Promise<URI[]> {
+	private async searchFilesInLocation(folder: URI, filePattern: string | undefined, token: CancellationToken): Promise<URI[]> {
 		const disregardIgnoreFiles = this.configService.getValue<boolean>('explorer.excludeGitIgnore');
 
 		const workspaceRoot = this.workspaceService.getWorkspaceFolder(folder);
@@ -276,7 +263,7 @@ export class PromptFilesLocator extends Disposable {
 
 		try {
 			const searchResult = await this.searchService.fileSearch(searchOptions, token);
-			if (token?.isCancellationRequested) {
+			if (token.isCancellationRequested) {
 				return [];
 			}
 			return searchResult.results.map(r => r.resource);
@@ -287,10 +274,38 @@ export class PromptFilesLocator extends Disposable {
 		}
 		return [];
 	}
+
+
+	public async findAgentMDsInWorkspace(token: CancellationToken): Promise<URI[]> {
+		const result = await Promise.all(this.workspaceService.getWorkspace().folders.map(folder => this.findAgentMDsInFolder(folder.uri, token)));
+		return result.flat(1);
+	}
+	private async findAgentMDsInFolder(folder: URI, token: CancellationToken): Promise<URI[]> {
+		const disregardIgnoreFiles = this.configService.getValue<boolean>('explorer.excludeGitIgnore');
+		const getExcludePattern = (folder: URI) => getExcludes(this.configService.getValue<ISearchConfiguration>({ resource: folder })) || {};
+		const searchOptions: IFileQuery = {
+			folderQueries: [{ folder, disregardIgnoreFiles }],
+			type: QueryType.File,
+			shouldGlobMatchFilePattern: true,
+			excludePattern: getExcludePattern(folder),
+			filePattern: '**/AGENTS.md',
+		};
+
+		try {
+			const searchResult = await this.searchService.fileSearch(searchOptions, token);
+			if (token.isCancellationRequested) {
+				return [];
+			}
+			return searchResult.results.map(r => r.resource);
+		} catch (e) {
+			if (!isCancellationError(e)) {
+				throw e;
+			}
+		}
+		return [];
+
+	}
 }
-
-
-
 
 /**
  * Checks if the provided `pattern` could be a valid glob pattern.

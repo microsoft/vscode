@@ -4,6 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 .interactive-session {
+	/* 11px when base font is 13px */
+	--vscode-chat-font-size-body-xs: 0.846em;
+	/* 12px when base font is 13px */
+	--vscode-chat-font-size-body-s: 0.923em;
+	/* 13px when base font is 13px */
+	--vscode-chat-font-size-body-m: 1em;
+	/* 14px when base font is 13px */
+	--vscode-chat-font-size-body-l: 1.077em;
+	/* 16px when base font is 13px */
+	--vscode-chat-font-size-body-xl: 1.231em;
+	/* 20px when base font is 13px */
+	--vscode-chat-font-size-body-xxl: 1.538em;
+}
+
+.interactive-session {
 	max-width: 950px;
 	margin: auto;
 	position: relative;
@@ -59,7 +74,8 @@
 }
 
 .interactive-item-container .detail-container {
-	font-size: 12px;
+	font-family: var(--vscode-chat-font-family, inherit);
+	font-size: var(--vscode-chat-font-size-body-s);
 	color: var(--vscode-descriptionForeground);
 	overflow: hidden;
 }
@@ -71,7 +87,7 @@
 
 .interactive-item-container .chat-animated-ellipsis {
 	display: inline-block;
-	width: 11px;
+	width: 2em;
 }
 
 .interactive-item-container:not(.show-detail-progress) .chat-animated-ellipsis {
@@ -178,6 +194,10 @@
 	display: none;
 }
 
+.interactive-item-container .chat-footer-toolbar.hidden {
+	display: none !important;
+}
+
 .interactive-item-container .chat-footer-toolbar .monaco-action-bar .actions-container {
 	gap: 4px;
 }
@@ -203,10 +223,14 @@
 	height: 22px;
 }
 
-/* Show toolbar on hover and last response */
+/* Show toolbar on hover and last response. Also show when the item has keyboard focus (focus-within) or when the surrounding list row is marked focused (monaco list keyboard navigation). */
 .interactive-item-container.interactive-response:not(.chat-response-loading):hover .chat-footer-toolbar,
 .interactive-item-container.interactive-response.chat-most-recent-response:not(.chat-response-loading) .chat-footer-toolbar,
-.interactive-item-container.interactive-response:not(.chat-response-loading):hover .chat-footer-toolbar .chat-footer-details {
+.interactive-item-container.interactive-response:not(.chat-response-loading):hover .chat-footer-toolbar .chat-footer-details,
+.interactive-item-container.interactive-response:not(.chat-response-loading):focus-within .chat-footer-toolbar,
+.interactive-item-container.interactive-response:not(.chat-response-loading):focus-within .chat-footer-toolbar .chat-footer-details,
+.monaco-list-row.focused .interactive-item-container.interactive-response:not(.chat-response-loading) .chat-footer-toolbar,
+.monaco-list-row.focused .interactive-item-container.interactive-response:not(.chat-response-loading) .chat-footer-toolbar .chat-footer-details {
 	opacity: 1;
 	visibility: visible;
 }
@@ -221,7 +245,7 @@
 .interactive-item-container .chat-footer-details {
 	display: none;
 	padding: 0;
-	font-size: 11px;
+	font-size: var(--vscode-chat-font-size-body-xs);
 	opacity: 0.7;
 	color: var(--vscode-descriptionForeground);
 	line-height: 16px;
@@ -330,22 +354,25 @@
 }
 
 .interactive-item-container .value .rendered-markdown h1 {
-	font-size: 20px;
+	font-size: var(--vscode-chat-font-size-body-xxl);
 	font-weight: 600;
 	margin: 16px 0 8px 0;
+	font-family: var(--vscode-chat-font-family, inherit);
 
 }
 
 .interactive-item-container .value .rendered-markdown h2 {
-	font-size: 16px;
+	font-size: var(--vscode-chat-font-size-body-xl);
 	font-weight: 600;
 	margin: 16px 0 8px 0;
+	font-family: var(--vscode-chat-font-family, inherit);
 }
 
 .interactive-item-container .value .rendered-markdown h3 {
-	font-size: 14px;
+	font-size: var(--vscode-chat-font-size-body-l);
 	font-weight: 600;
 	margin: 16px 0 8px 0;
+	font-family: var(--vscode-chat-font-family, inherit);
 }
 
 .interactive-item-container.editing-session .value .rendered-markdown p:has(+ [data-code] > .chat-codeblock-pill-widget) {
@@ -353,7 +380,7 @@
 }
 
 .interactive-item-container.editing-session .value .rendered-markdown h3 {
-	font-size: 13px;
+	font-size: var(--vscode-chat-font-size-body-m);
 	margin: 0 0 8px 0;
 	font-weight: unset;
 }
@@ -411,6 +438,8 @@
 
 .interactive-item-container .value .rendered-markdown {
 	line-height: 1.5em;
+	font-size: var(--vscode-chat-font-size-body-m);
+	font-family: var(--vscode-chat-font-family, inherit);
 }
 
 .interactive-item-container .value > .rendered-markdown p {
@@ -435,16 +464,27 @@
 
 	.message .see-more {
 		display: none;
-		color: var(--vscode-textLink-foreground);
-		text-decoration: underline;
-		cursor: pointer;
+		position: absolute;
+		right: 0;
+		top: 20px;
+
+		a {
+			color: var(--vscode-textLink-foreground);
+			text-decoration: underline;
+			cursor: pointer;
+		}
 	}
 
 	.message.can-see-more {
+		position: relative;
+
 		.message-wrapper {
-			mask-image: linear-gradient(#000 0%, transparent 100%);
+			/* This mask fades out the end of the second line of text so the "see more" message can be displayed over it. */
+			mask-image:
+				linear-gradient(to right, rgba(0, 0, 0, 1) calc(100% - 95px), rgba(0, 0, 0, 0) calc(100% - 72px)), linear-gradient(to top, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0) 20px, rgba(0, 0, 0, 1) 2px, rgba(0, 0, 0, 1) 100%);
+			mask-repeat: no-repeat, no-repeat;
 			pointer-events: none;
-			max-height: 2.5em;
+			max-height: 40px;
 		}
 
 		.see-more {
@@ -491,16 +531,43 @@
 		overflow: hidden;
 
 		.output-title {
-			font-size: 13px;
 			padding: 8px 12px;
 			background: var(--vscode-editorWidget-background);
 			border-bottom: 1px solid var(--vscode-widget-border);
+			font-size: var(--vscode-chat-font-size-body-m);
+		}
+
+		.output-error {
+			margin: 6px 4px;
+			color: var(--vscode-errorForeground);
+
+			.output-error-header {
+				display: flex;
+				align-items: center;
+				gap: 7px;
+				margin-bottom: 4px;
+
+				.codicon-error {
+					color: var(--vscode-errorForeground) !important;
+				}
+			}
+
+			.output-error-details {
+				font-family: var(--monaco-monospace-font);
+				font-size: var(--vscode-chat-font-size-body-xs);
+			}
 		}
 	}
 
 	&:not(:last-child) {
 		margin-bottom: 8px;
 	}
+}
+
+.interactive-item-container .value > .from-sub-agent.chat-tool-invocation-part,
+.interactive-item-container .value > .from-sub-agent.chat-confirmation-widget,
+.interactive-item-container .value > .from-sub-agent.chat-terminal-confirmation-widget {
+	margin-left: 18px;
 }
 
 .interactive-item-container .value > .rendered-markdown li > p {
@@ -553,7 +620,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	.monaco-tokenized-source,
 	code {
 		font-family: var(--monaco-monospace-font);
-		font-size: 12px;
+		font-size: var(--vscode-chat-font-size-body-s);
 		color: var(--vscode-textPreformat-foreground);
 		background-color: var(--vscode-textPreformat-background);
 		padding: 1px 3px;
@@ -710,8 +777,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-editing-session .monaco-list-row .chat-collapsible-list-action-bar {
+	padding-left: 5px;
 	display: none;
-	padding-right: 12px;
 }
 
 .interactive-session .chat-editing-session .monaco-list-row:hover .chat-collapsible-list-action-bar,
@@ -720,15 +787,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: inherit;
 }
 
-.interactive-session .chat-editing-session .chat-editing-session-approval-notice {
-	font-size: 12px;
-	padding: 4px 8px;
-	color: var(--vscode-list-warningForeground);
-	text-align: center;
-}
-
 .interactive-session .chat-editing-session .chat-editing-session-container.show-file-icons .monaco-scrollable-element .monaco-list-rows .monaco-list-row {
 	border-radius: 2px;
+}
+
+.interactive-session .chat-editing-session .chat-editing-session-container.show-file-icons .chat-editing-session-list .monaco-scrollable-element:has(.visible.scrollbar.vertical) .monaco-list-row .monaco-icon-label {
+	padding-right: 12px;
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-container .chat-editing-session-overview {
@@ -737,6 +801,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	justify-content: space-between;
 	gap: 6px;
 	padding-right: 4px;
+	cursor: pointer;
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-container .chat-editing-session-overview > .working-set-title {
@@ -752,17 +817,45 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	color: var(--vscode-notificationsWarningIcon-foreground);
 }
 
+/* Inline added/removed line count styling */
+.interactive-session .chat-editing-session .chat-editing-session-container .chat-editing-session-overview .working-set-line-counts {
+	display: inline-flex;
+	gap: 4px;
+	margin-left: 6px;
+	font-weight: 500;
+}
+
+.interactive-session .chat-editing-session .chat-editing-session-container .chat-editing-session-overview .working-set-line-counts .working-set-lines-added {
+	color: var(--vscode-chat-linesAddedForeground);
+}
+
+.interactive-session .chat-editing-session .chat-editing-session-container .chat-editing-session-overview .working-set-line-counts .working-set-lines-removed {
+	color: var(--vscode-chat-linesRemovedForeground);
+}
+
+.interactive-session .chat-editing-session .chat-editing-session-list .working-set-line-counts {
+	margin-left: 6px;
+	display: inline-flex;
+	gap: 4px;
+	font-size: 11px;
+}
+
+.interactive-session .chat-editing-session .chat-editing-session-list .working-set-line-counts .working-set-lines-added {
+	color: var(--vscode-chat-linesAddedForeground);
+}
+
+.interactive-session .chat-editing-session .chat-editing-session-list .working-set-line-counts .working-set-lines-removed {
+	color: var(--vscode-chat-linesRemovedForeground);
+}
+
 .interactive-session .chat-editing-session .working-set-title {
 
 	.monaco-button {
 		padding: 4px 6px 4px 0px;
 		border-radius: 2px;
+		border: none;
 		background-color: unset;
 		color: var(--vscode-foreground)
-	}
-
-	.monaco-button:hover {
-		background-color: var(--vscode-toolbar-hoverBackground);
 	}
 
 	.monaco-button:focus-visible {
@@ -1066,6 +1159,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 				overflow: hidden;
 				text-overflow: ellipsis;
 			}
+
+			.codicon-warning {
+				color: var(--vscode-problemsWarningIcon-foreground);
+			}
+
+			span + .chat-model-label {
+				margin-left: 2px;
+			}
 		}
 
 		.codicon {
@@ -1074,9 +1175,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 }
 
-.chat-execute-toolbar .codicon.codicon-debug-pause {
-	color: var(--vscode-icon-foreground) !important;
-}
+
 
 .interactive-session .chat-input-toolbars .chat-modelPicker-item .action-label {
 	height: 16px;
@@ -1194,12 +1293,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	margin-bottom: 0px;
 }
 
-.chat-notification-widget .chat-info-codicon .codicon,
-.chat-notification-widget .chat-error-codicon .codicon,
-.chat-notification-widget .chat-warning-codicon .codicon {
-	margin-top: 2px;
-}
-
 .interactive-response .interactive-response-error-details .codicon {
 	margin-top: 1px;
 }
@@ -1253,6 +1346,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	/* Have to override default styles which apply to all lists */
 }
 
+.chat-rate-limited-widget .codicon-info {
+	color: var(--vscode-notificationsInfoIcon-foreground) !important;
+	/* Have to override default styles which apply to all lists */
+}
+
 .chat-notification-widget .chat-error-codicon .codicon-error,
 .interactive-response .interactive-response-error-details .codicon-error {
 	color: var(--vscode-errorForeground) !important;
@@ -1271,6 +1369,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: flex;
 	flex-direction: column;
 	gap: 4px;
+	position: relative;
 }
 
 .interactive-session .interactive-input-part.compact {
@@ -1292,9 +1391,35 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	width: fit-content;
 }
 
+.interactive-session .interactive-list .chat-attached-context .chat-attached-context-attachment {
+	font-family: var(--vscode-chat-font-family, inherit);
+	font-size: var(--vscode-chat-font-size-body-xs);
+}
+
 .action-item.chat-attachment-button > .action-label > .codicon {
 	font-size: 14px;
 	height: auto;
+}
+
+.interactive-session .action-item.chat-attachment-button .action-label:not(.has-label) {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 20px;
+	height: 20px;
+	padding: 0;
+	gap: 0;
+	border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
+	border-radius: 4px;
+	box-sizing: border-box;
+
+	.codicon {
+		width: 14px;
+	}
+}
+
+.action-item.chat-attachment-button .codicon {
+	font-size: 14px;
 }
 
 .action-item.chat-mcp {
@@ -1529,6 +1654,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 /* #region Quick Chat */
 
+.quick-input-widget .interactive-session {
+	width: 100%;
+}
+
 .quick-input-widget .interactive-session .interactive-input-part {
 	padding: 8px 6px 8px 6px;
 	margin: 0 3px;
@@ -1557,6 +1686,20 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .quick-input-widget .interactive-response {
 	min-height: 86px;
+}
+
+.quick-input-widget .interactive-session .disclaimer {
+	margin: 8px 12px;
+	color: var(--vscode-descriptionForeground);
+	font-size: 12px;
+
+	a {
+		color: var(--vscode-textLink-foreground);
+	}
+
+	p {
+		margin: 0;
+	}
 }
 
 /* #endregion */
@@ -1650,8 +1793,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border: 1px solid var(--vscode-chat-requestBorder);
 
 	.chat-view-changes-icon {
+		padding: 3px;
 		float: right;
 		cursor: pointer;
+	}
+
+	.chat-view-changes-icon:hover {
+		border-radius: 5px;
+		background-color: var(--vscode-toolbar-hoverBackground);
 	}
 
 	.insertions-and-deletions {
@@ -1736,7 +1885,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .chat-notification-widget,
 .chat-summary-list,
 .chat-used-context-list,
-.chat-quota-error-widget {
+.chat-quota-error-widget,
+.chat-rate-limited-widget {
 	border: 1px solid var(--vscode-chat-requestBorder);
 	border-radius: 4px;
 	margin-bottom: 8px;
@@ -1758,10 +1908,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		padding: 0px 3px;
 	}
 
-	.monaco-icon-label.codicon-warning::before {
-		color: var(--vscode-list-warningForeground);
-	}
-
 	.monaco-icon-label.excluded {
 		color: var(--vscode-notificationsWarningIcon-foreground)
 	}
@@ -1769,10 +1915,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-editing-session-list.collapsed {
 	display: none;
-}
-
-.interactive-item-container .chat-notification-widget {
-	padding: 8px 12px;
 }
 
 .interactive-session .chat-summary-list .monaco-list .monaco-list-row {
@@ -1793,12 +1935,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-used-context-label {
-	font-size: 12px;
+	font-size: var(--vscode-chat-font-size-body-s);
+	font-family: var(--vscode-chat-font-family, inherit);
 	color: var(--vscode-descriptionForeground);
 	user-select: none;
 
 	code {
-		font-size: 11px;
+		font-size: var(--vscode-chat-font-size-body-xs);
 	}
 }
 
@@ -1852,7 +1995,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-file-changes-label .monaco-button .codicon,
 .interactive-session .chat-used-context-label .monaco-button .codicon {
-	font-size: 12px;
+	font-size: var(--vscode-chat-font-size-body-s);
 }
 
 .interactive-item-container .progress-container {
@@ -1866,11 +2009,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	padding-top: 2px;
 
 	> .codicon[class*='codicon-'] {
-		height: 12px;
-		font-size: 12px;
+		font-size: var(--vscode-chat-font-size-body-s);
 
 		&::before {
-			font-size: 12px;
+			font-size: var(--vscode-chat-font-size-body-s);
 		}
 	}
 
@@ -1888,11 +2030,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 		& > p {
 			color: var(--vscode-descriptionForeground);
-			font-size: 12px;
+			font-size: var(--vscode-chat-font-size-body-s);
 			margin: 0;
 
 			code {
-				font-size: 11px;
+				font-size: var(--vscode-chat-font-size-body-xs);
 			}
 		}
 
@@ -1909,7 +2051,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-item-container .chat-notification-widget {
 	display: flex;
+	align-items: center;
 	flex-direction: row;
+	padding: 8px 12px;
 	gap: 6px;
 }
 
@@ -2046,7 +2190,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: initial;
 }
 
-.chat-quota-error-widget {
+.chat-quota-error-widget,
+.chat-rate-limited-widget {
 	padding: 8px 12px;
 	display: flex;
 	gap: 6px;
@@ -2056,7 +2201,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		padding: 2px 11px;
 	}
 
-	.chat-quota-error-button {
+	.chat-quota-error-button,
+	.chat-rate-limited-button {
 		margin-top: 6px;
 		margin-bottom: 2px;
 	}
@@ -2076,7 +2222,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		margin-top: 2px;
 	}
 
-	.chat-quota-error-message {
+	.chat-quota-error-message,
+	.chat-rate-limited-message {
 		.rendered-markdown p {
 			margin: 0px;
 		}
@@ -2332,6 +2479,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 }
 
+.editor-instance .interactive-session .interactive-item-container.interactive-response .checkpoint-restore-container {
+
+	.checkpoint-label-text,
+	.monaco-toolbar {
+		background-color: var(--vscode-editor-background);
+	}
+}
+
 .chat-buttons-container {
 	display: flex;
 	gap: 8px;
@@ -2365,8 +2520,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .chat-row-disabled-overlay.disabled,
 .chat-input-overlay.disabled {
 	position: absolute;
-	width: 100%;
-	height: 100%;
+	inset: 0;
 	background-color: var(--vscode-sideBar-background);
 	opacity: 0.6;
 	display: flex;
@@ -2393,9 +2547,23 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .chat-todo-list-widget {
 	position: sticky;
 	top: 0;
-	z-index: 100;
+	z-index: 2;
 	background-color: var(--vscode-sideBar-background);
-	padding: 4px 16px 6px 16px;
+	padding-left: 12px;
+	padding-right: 12px;
+}
+
+/* Special styling when todo widget is used inline in chat responses (subparts) */
+.chat-todo-list-widget.chat-todo-subpart {
+	padding: 4px 3px 6px 3px;
+	border: 1px solid var(--vscode-chat-requestBorder);
+	border-radius: 4px;
+	margin-bottom: 8px;
+	position: static;
+	z-index: auto;
+}
+
+.chat-todo-list-widget.scrolled {
 	box-shadow: 0 2px 4px var(--vscode-scrollbar-shadow);
 }
 
@@ -2407,6 +2575,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	padding: 2px 0;
 	justify-content: space-between;
 	width: 100%;
+}
+
+.chat-todo-list-widget .todo-list-expand:focus:not(:focus-visible) {
+	outline: none;
 }
 
 .chat-todo-list-widget .todo-list-expand .todo-list-title-section {
@@ -2461,14 +2633,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .chat-todo-list-widget .todo-list-expand:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
-	border-radius: 4px;
 }
 
-.chat-todo-list-widget .todo-list-expand:focus {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: 1px;
-	border-radius: 4px;
-}
 
 .chat-todo-list-widget .expand-icon {
 	flex-shrink: 0;
@@ -2477,12 +2643,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .chat-todo-list-widget .todo-list-title {
 	font-weight: normal;
-	font-size: 12px;
+	font-size: var(--vscode-chat-font-size-body-s);
 	color: var(--vscode-descriptionForeground);
 }
 
 .chat-todo-list-widget .todo-list-container {
-	padding-left: 10px;
 	margin-top: 2px;
 	max-height: calc(6.5 * 21px);
 	/* 6.5 items to show half-line affordance */
@@ -2529,12 +2694,23 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	align-items: center;
 	gap: 8px;
 	scroll-snap-align: start;
-	min-height: 21px
+	min-height: 22px;
+	font-size: var(--vscode-chat-font-size-body-m);
 }
 
-.chat-todo-list-widget .todo-status-icon {
+.chat-todo-list-widget .todo-item:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+	background-color: var(--vscode-list-focusBackground);
+}
+
+.chat-todo-list-widget .todo-item:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.chat-todo-list-widget .todo-item > .todo-status-icon.codicon {
 	flex-shrink: 0;
-	font-size: 14px;
+	font-size: var(--vscode-chat-font-size-body-l);
 }
 
 .chat-todo-list-widget .todo-content {
@@ -2546,18 +2722,372 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	min-width: 0;
 }
 
+.interactive-session .interactive-response .chat-used-context-list.chat-thinking-items {
+	color: var(--vscode-descriptionForeground);
+	padding-top: 0;
+}
 
-.interactive-session .interactive-response .chat-thinking-box {
-	border: 1px solid var(--vscode-panel-border);
-	border-radius: 4px;
-	padding: 0px 8px;
-	margin: 4px 0;
-	background-color: var(--vscode-editor-background);
+.interactive-session .interactive-response .value .chat-thinking-box:not(.chat-thinking-no-outer-header) {
+	outline: none;
+	position: relative;
+	color: var(--vscode-descriptionForeground);
+
+	.chat-used-context {
+		margin: 0px;
+	}
+
+	.monaco-button.hidden,
+	.chat-pinned-preview.hidden {
+		display: none;
+	}
+
+	.chat-thinking-item {
+		padding: 6px 12px;
+		position: relative;
+
+		.progress-container {
+			margin-bottom: 0px;
+			padding-top: 0px;
+		}
+
+		&::before,
+		&::after {
+			position: absolute;
+			content: '';
+			display: block;
+			border-radius: 50%;
+			pointer-events: none;
+		}
+
+		&::before {
+			background: var(--vscode-sideBar-background);
+			top: 8px;
+			left: -10px;
+			width: 13px;
+			height: 16px;
+			z-index: 2;
+		}
+
+		&::after {
+			top: 12px;
+			left: -7px;
+			width: 7px;
+			height: 7px;
+			background: var(--vscode-chat-requestBorder);
+			z-index: 3;
+		}
+	}
 
 	.chat-thinking-text {
-		font-size: inherit;
-		line-height: inherit;
-		display: flex;
-		align-items: flex-start;
+		font-size: var(--vscode-chat-font-size-body-s);
+		padding: 0 10px;
+		display: block;
 	}
+
+	.rendered-markdown > p {
+		margin: 0;
+	}
+}
+
+.interactive-session .interactive-response .value .chat-thinking-box.chat-thinking-no-outer-header {
+	margin-bottom: 0px;
+
+	.chat-thinking-item {
+		padding: 6px 12px;
+		position: relative;
+
+		.progress-container {
+			margin-bottom: 0px;
+			padding-top: 0px;
+		}
+	}
+
+	.chat-thinking-item.hidden {
+		display: none;
+	}
+
+	.chat-thinking-item-header {
+		margin-left: 5px;
+		font-weight: 600;
+		outline: none;
+		display: flex;
+		align-items: center;
+		gap: 6px;
+	}
+
+	.chat-thinking-item-header .codicon {
+		font-size: 12px;
+		line-height: 1;
+		margin-left: auto;
+	}
+
+	.chat-thinking-item-header .monaco-button {
+		display: flex;
+		align-items: center;
+	}
+
+	.chat-thinking-item-header .monaco-button > .monaco-button-label,
+	.chat-thinking-item-header .monaco-button > .monaco-button-mdlabel {
+		order: 1;
+	}
+
+	.chat-thinking-item-header .monaco-button > .codicon {
+		order: 2;
+		margin-left: auto;
+	}
+
+	.chat-thinking-item-wrapper::before,
+	.chat-thinking-item-wrapper::after {
+		position: absolute;
+		content: '';
+		display: block;
+		border-radius: 50%;
+		pointer-events: none;
+	}
+
+	.chat-thinking-item-wrapper::before {
+		background: var(--vscode-sideBar-background);
+		top: 5px;
+		left: -10px;
+		width: 13px;
+		height: 16px;
+		z-index: 2;
+	}
+
+	.chat-thinking-item-wrapper::after {
+		top: 9px;
+		left: -7px;
+		width: 7px;
+		height: 7px;
+		background: var(--vscode-chat-requestBorder);
+		z-index: 3;
+	}
+
+	.chat-thinking-item-wrapper {
+		position: relative;
+
+		.chat-thinking-item.markdown-content {
+			padding-top: 2px;
+		}
+	}
+
+	.chat-thinking-text {
+		font-size: var(--vscode-chat-font-size-body-s);
+		padding: 0 10px;
+		display: block;
+	}
+
+	.rendered-markdown > p {
+		margin: 0;
+	}
+
+	.monaco-button {
+		display: flex;
+		align-items: center;
+		width: 100%;
+
+		&:hover {
+			background: var(--vscode-toolbar-hoverBackground);
+		}
+
+		&:focus {
+			outline: none;
+		}
+
+		&:focus-visible {
+			outline: 1px solid var(--vscode-focusBorder);
+			outline-offset: -1px;
+		}
+	}
+}
+
+.interactive-session .interactive-response .value .chat-thinking-fixed-mode {
+	outline: none;
+
+	.chat-thinking-fixed-header {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		border: 1px solid var(--vscode-chat-requestBorder);
+		color: var(--vscode-descriptionForeground);
+		font-weight: 600;
+		outline: none;
+		margin: 3px;
+		border: none;
+
+		&:focus-visible {
+			outline: 1px solid var(--vscode-focusBorder);
+			outline-offset: -1px;
+		}
+
+		.codicon.chat-thinking-fixed-caret {
+			margin-left: auto;
+			font-size: 12px;
+		}
+
+		.chat-thinking-fixed-spinner {
+			font-size: 12px;
+			opacity: 0.8;
+		}
+
+		/* temp icon while we wait for brain icon */
+		.chat-thinking-fixed-complete {
+			font-size: 12px;
+			color: var(--vscode-testing-iconPassed);
+		}
+
+		.monaco-button {
+			display: flex;
+			align-items: center;
+			width: 100%;
+			border: none;
+			outline: none;
+			padding-left: 10px;
+
+			&:hover {
+				background: var(--vscode-toolbar-hoverBackground);
+			}
+		}
+
+		.monaco-button:focus {
+			outline: none;
+		}
+
+		.monaco-button:focus-visible {
+			outline: 1px solid var(--vscode-focusBorder);
+			outline-offset: -1px;
+		}
+
+		.chat-thinking-item-caret {
+			margin-left: auto;
+			font-size: 12px;
+		}
+
+		.monaco-button-label,
+		.monaco-button-mdlabel {
+			text-align: left;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+		}
+	}
+
+	.chat-thinking-fixed-height-controller {
+		display: flex;
+		flex-direction: column;
+		border: 1px solid var(--vscode-chat-requestBorder);
+		border-radius: 4px;
+		margin-bottom: 8px;
+
+		&.collapsed {
+			max-height: 200px;
+			overflow: hidden;
+		}
+
+		&:not(.collapsed) {
+			max-height: none;
+		}
+
+		&.finished.collapsed .chat-used-context-list.chat-thinking-collapsible {
+			display: none;
+		}
+
+		&.finished:not(.collapsed) .chat-used-context-list.chat-thinking-collapsible {
+			display: block;
+		}
+
+		&.finished .chat-thinking-fixed-header .codicon-pass-filled {
+			display: none;
+		}
+	}
+
+	/* item and dot rendering */
+	.chat-used-context-list.chat-thinking-collapsible {
+		border: none;
+		border-top: 1px solid var(--vscode-chat-requestBorder);
+		border-radius: 0;
+		margin-bottom: 0;
+		position: relative;
+		overflow: hidden;
+
+		.chat-thinking-item.markdown-content {
+			padding: 3px 12px 3px 24px;
+			position: relative;
+
+			.progress-container {
+				margin-bottom: 0px;
+				padding-top: 0px;
+			}
+
+			/* chain of thought lines */
+			&::before {
+				content: '';
+				position: absolute;
+				left: 10.5px;
+				top: 0px;
+				bottom: 0px;
+				width: 1px;
+				background-color: var(--vscode-chat-requestBorder);
+				mask-image: linear-gradient(to bottom, #000 0 7px, transparent 7px 19px, #000 19px 100%);
+			}
+
+			&:first-child::before {
+				mask-image: linear-gradient(to bottom, transparent 0 19px, #000 19px 100%);
+			}
+
+			&:last-child::before {
+				mask-image: linear-gradient(to bottom, #000 0 7px, transparent 7px 100%);
+			}
+
+			&:only-child::before,
+			&:only-child::after {
+				background: none;
+				mask-image: none;
+			}
+
+			&:only-child {
+				padding-inline-start: 10px;
+			}
+
+			&::after {
+				content: '';
+				position: absolute;
+				left: 8px;
+				top: 10px;
+				width: 6px;
+				height: 6px;
+				border-radius: 50%;
+				background-color: var(--vscode-chat-requestBorder);
+			}
+		}
+	}
+}
+
+.editor-instance .interactive-session .interactive-response .value .chat-thinking-box .chat-thinking-item ::before {
+	background: var(--vscode-editor-background);
+}
+
+.editor-instance .chat-todo-list-widget {
+	background-color: var(--vscode-editor-background);
+}
+
+/* Show more attachments button styling */
+.chat-attachments-show-more-button {
+	opacity: 0.8;
+	transition: opacity 0.2s ease;
+}
+
+.chat-attachments-show-more-button:hover {
+	opacity: 1;
+	background-color: var(--vscode-list-hoverBackground) !important;
+}
+
+.chat-attachments-show-more-button:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.chat-attachments-show-more-button .chat-attached-context-custom-text {
+	font-style: italic;
+	color: var(--vscode-descriptionForeground);
 }

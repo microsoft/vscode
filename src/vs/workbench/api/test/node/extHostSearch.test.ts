@@ -174,6 +174,7 @@ suite('ExtHostSearch', () => {
 					},
 					logService
 				);
+				// eslint-disable-next-line local/code-no-any-casts
 				this._pfs = mockPFS as any;
 			}
 
@@ -1000,6 +1001,7 @@ suite('ExtHostSearch', () => {
 		});
 
 		test('basic sibling clause', async () => {
+			// eslint-disable-next-line local/code-no-any-casts
 			(mockPFS as any).Promises = {
 				readdir: (_path: string): any => {
 					if (_path === rootFolderA.fsPath) {
@@ -1045,6 +1047,7 @@ suite('ExtHostSearch', () => {
 		});
 
 		test('multiroot sibling clause', async () => {
+			// eslint-disable-next-line local/code-no-any-casts
 			(mockPFS as any).Promises = {
 				readdir: (_path: string): any => {
 					if (_path === joinPath(rootFolderA, 'folder').fsPath) {

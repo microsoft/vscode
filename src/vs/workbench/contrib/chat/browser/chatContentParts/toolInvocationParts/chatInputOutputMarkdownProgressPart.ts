@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ProgressBar } from '../../../../../../base/browser/ui/progressbar/progressbar.js';
 import { decodeBase64 } from '../../../../../../base/common/buffer.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { Lazy } from '../../../../../../base/common/lazy.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { getExtensionForMimeType } from '../../../../../../base/common/mime.js';
 import { autorun } from '../../../../../../base/common/observable.js';
@@ -14,7 +16,6 @@ import { IModelService } from '../../../../../../editor/common/services/model.js
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ChatResponseResource } from '../../../common/chatModel.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService.js';
-import { isResponseVM } from '../../../common/chatViewModel.js';
 import { IToolResultInputOutputDetails } from '../../../common/languageModelToolsService.js';
 import { IChatCodeBlockInfo } from '../../chat.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
@@ -91,7 +92,6 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 			processedOutput = [{ type: 'embed', value: output, isText: true }];
 		}
 
-		const requestId = isResponseVM(context.element) ? context.element.requestId : context.element.id;
 		const collapsibleListPart = this._register(instantiationService.createInstance(
 			ChatCollapsibleInputOutputContentPart,
 			message,
@@ -123,8 +123,8 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 						}
 
 						// Fall back to text if it's not valid base64
-						const permalinkUri = ChatResponseResource.createUri(context.element.sessionId, requestId, toolInvocation.toolCallId, i, permalinkBasename);
-						return { kind: 'data', value: decoded || new TextEncoder().encode(o.value), mimeType: o.mimeType, uri: permalinkUri };
+						const permalinkUri = ChatResponseResource.createUri(context.element.sessionId, toolInvocation.toolCallId, i, permalinkBasename);
+						return { kind: 'data', value: decoded || new TextEncoder().encode(o.value), mimeType: o.mimeType, uri: permalinkUri, audience: o.audience };
 					}
 				}),
 			},
@@ -137,11 +137,15 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 		this._register(toDisposable(() => ChatInputOutputMarkdownProgressPart._expandedByDefault.set(toolInvocation, collapsibleListPart.expanded)));
 
 		const progressObservable = toolInvocation.kind === 'toolInvocation' ? toolInvocation.progress : undefined;
+		const progressBar = new Lazy(() => this._register(new ProgressBar(collapsibleListPart.domNode)));
 		if (progressObservable) {
 			this._register(autorun(reader => {
 				const progress = progressObservable?.read(reader);
 				if (progress.message) {
 					collapsibleListPart.title = progress.message;
+				}
+				if (progress.progress && !toolInvocation.isComplete) {
+					progressBar.value.setWorked(progress.progress * 100);
 				}
 			}));
 		}

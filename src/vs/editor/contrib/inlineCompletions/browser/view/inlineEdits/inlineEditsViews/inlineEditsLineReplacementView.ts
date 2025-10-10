@@ -65,7 +65,7 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 		this._onDidClick = this._register(new Emitter<IMouseEvent>());
 		this.onDidClick = this._onDidClick.event;
 		this._maxPrefixTrim = this._edit.map(e => e ? getPrefixTrim(e.replacements.flatMap(r => [r.originalRange, r.modifiedRange]), e.originalRange, e.modifiedLines, this._editor.editor) : undefined);
-		this._modifiedLineElements = derived(reader => {
+		this._modifiedLineElements = derived(this, reader => {
 			const lines = [];
 			let requiredWidth = 0;
 
@@ -190,7 +190,7 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 			const viewZoneLineNumber = edit.originalRange.endLineNumberExclusive;
 			return { height: viewZoneHeight, lineNumber: viewZoneLineNumber };
 		});
-		this.minEditorScrollHeight = derived(reader => {
+		this.minEditorScrollHeight = derived(this, reader => {
 			const layout = mapOutFalsy(this._layout).read(reader);
 			if (!layout || this._viewZoneInfo.read(reader) !== undefined) {
 				return 0;
@@ -200,7 +200,7 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 		this._div = n.div({
 			class: 'line-replacement',
 		}, [
-			derived(reader => {
+			derived(this, reader => {
 				const layout = mapOutFalsy(this._layout).read(reader);
 				const modifiedLineElements = this._modifiedLineElements.read(reader);
 				if (!layout || !modifiedLineElements) {
@@ -318,7 +318,7 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 
 		this._register(this._editor.createOverlayWidget({
 			domNode: this._div.element,
-			minContentWidthInPx: derived(reader => {
+			minContentWidthInPx: derived(this, reader => {
 				return this._layout.read(reader)?.minContentWidthRequired ?? 0;
 			}),
 			position: constObservable({ preference: { top: 0, left: 0 } }),

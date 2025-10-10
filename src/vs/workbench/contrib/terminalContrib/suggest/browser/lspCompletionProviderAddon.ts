@@ -61,7 +61,7 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 				const completionItemTemp = createCompletionItemPython(cursorPosition, textBeforeCursor, convertedKind, 'lspCompletionItem', undefined);
 				const terminalCompletion: ITerminalCompletion = {
 					label: item.label,
-					provider: `lsp:${item.extensionId}`,
+					provider: `lsp:${item.extensionId?.value}`,
 					detail: item.detail,
 					documentation: item.documentation,
 					kind: convertedKind,

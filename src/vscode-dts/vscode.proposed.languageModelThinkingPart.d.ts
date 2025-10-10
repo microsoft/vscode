@@ -16,7 +16,7 @@ declare module 'vscode' {
 		/**
 		 * The thinking/reasoning text content.
 		 */
-		value: string;
+		value: string | string[];
 
 		/**
 		 * Optional unique identifier for this thinking sequence.
@@ -28,7 +28,7 @@ declare module 'vscode' {
 		/**
 		 * Optional metadata associated with this thinking sequence.
 		 */
-		metadata?: string;
+		metadata?: { readonly [key: string]: any };
 
 		/**
 		 * Construct a thinking part with the given content.
@@ -36,7 +36,7 @@ declare module 'vscode' {
 		 * @param id Optional unique identifier for this thinking sequence.
 		 * @param metadata Optional metadata associated with this thinking sequence.
 		 */
-		constructor(value: string, id?: string, metadata?: string);
+		constructor(value: string | string[], id?: string, metadata?: { readonly [key: string]: any });
 	}
 
 	export interface LanguageModelChatResponse {

@@ -42,9 +42,9 @@ export interface IWindowsMainService {
 
 	openExistingWindow(window: ICodeWindow, openConfig: IOpenConfiguration): void;
 
-	sendToFocused(channel: string, ...args: any[]): void;
-	sendToOpeningWindow(channel: string, ...args: any[]): void;
-	sendToAll(channel: string, payload?: any, windowIdsToIgnore?: number[]): void;
+	sendToFocused(channel: string, ...args: unknown[]): void;
+	sendToOpeningWindow(channel: string, ...args: unknown[]): void;
+	sendToAll(channel: string, payload?: unknown, windowIdsToIgnore?: number[]): void;
 
 	getWindows(): ICodeWindow[];
 	getWindowCount(): number;
@@ -161,7 +161,10 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 	};
 
 	if (isWindows) {
-		const borderSetting = windowSettings?.border || 'default';
+		let borderSetting = windowSettings?.border || 'default';
+		if (borderSetting === 'system') {
+			borderSetting = 'default';
+		}
 		if (borderSetting !== 'default') {
 			if (borderSetting === 'off') {
 				options.accentColor = false;

@@ -8,7 +8,7 @@ import { encodeBase64 } from '../../../../../base/common/buffer.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
-import { IChatExtensionsContent, IChatToolInputInvocationData, IChatTodoListContent, IChatToolInvocation, IChatToolInvocationSerialized, type IChatTerminalToolInvocationData } from '../chatService.js';
+import { ConfirmedReason, IChatExtensionsContent, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatTerminalToolInvocationData } from '../chatService.js';
 import { IPreparedToolInvocation, isToolResultOutputDetails, IToolConfirmationMessages, IToolData, IToolProgressStep, IToolResult, ToolDataSource } from '../languageModelToolsService.js';
 
 export class ChatToolInvocation implements IChatToolInvocation {
@@ -24,14 +24,13 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		return this._isCompleteDeferred.p;
 	}
 
-	private _confirmDeferred = new DeferredPromise<boolean>();
+	private _confirmDeferred = new DeferredPromise<ConfirmedReason>();
 	public get confirmed() {
 		return this._confirmDeferred;
 	}
 
-	private _isConfirmed: boolean | undefined;
-	public get isConfirmed(): boolean | undefined {
-		return this._isConfirmed;
+	public get isConfirmed(): ConfirmedReason | undefined {
+		return this._confirmDeferred.value;
 	}
 
 	private _resultDetails: IToolResult['toolResultDetails'] | undefined;
@@ -46,12 +45,13 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	public readonly presentation: IPreparedToolInvocation['presentation'];
 	public readonly toolId: string;
 	public readonly source: ToolDataSource;
+	public readonly fromSubAgent: boolean | undefined;
 
 	public readonly toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent;
 
 	public readonly progress = observableValue<{ message?: string | IMarkdownString; progress: number }>(this, { progress: 0 });
 
-	constructor(preparedInvocation: IPreparedToolInvocation | undefined, toolData: IToolData, public readonly toolCallId: string) {
+	constructor(preparedInvocation: IPreparedToolInvocation | undefined, toolData: IToolData, public readonly toolCallId: string, fromSubAgent: boolean | undefined) {
 		const defaultMessage = localize('toolInvocationMessage', "Using {0}", `"${toolData.displayName}"`);
 		const invocationMessage = preparedInvocation?.invocationMessage ?? defaultMessage;
 		this.invocationMessage = invocationMessage;
@@ -62,15 +62,14 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		this.toolSpecificData = preparedInvocation?.toolSpecificData;
 		this.toolId = toolData.id;
 		this.source = toolData.source;
+		this.fromSubAgent = fromSubAgent;
 
 		if (!this._confirmationMessages) {
 			// No confirmation needed
-			this._isConfirmed = true;
-			this._confirmDeferred.complete(true);
+			this._confirmDeferred.complete({ type: ToolConfirmKind.ConfirmationNotNeeded });
 		}
 
-		this._confirmDeferred.p.then(confirmed => {
-			this._isConfirmed = confirmed;
+		this._confirmDeferred.p.then(() => {
 			this._confirmationMessages = undefined;
 		});
 
@@ -95,7 +94,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	public acceptProgress(step: IToolProgressStep) {
 		const prev = this.progress.get();
 		this.progress.set({
-			progress: step.increment ? (prev.progress + step.increment) : prev.progress,
+			progress: step.progress || prev.progress || 0,
 			message: step.message,
 		}, undefined);
 	}
@@ -107,8 +106,8 @@ export class ChatToolInvocation implements IChatToolInvocation {
 			invocationMessage: this.invocationMessage,
 			pastTenseMessage: this.pastTenseMessage,
 			originMessage: this.originMessage,
-			isConfirmed: this._isConfirmed,
-			isComplete: this._isComplete,
+			isConfirmed: this._confirmDeferred.value,
+			isComplete: true,
 			source: this.source,
 			resultDetails: isToolResultOutputDetails(this._resultDetails)
 				? { output: { type: 'data', mimeType: this._resultDetails.output.mimeType, base64Data: encodeBase64(this._resultDetails.output.value) } }
@@ -116,6 +115,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 			toolSpecificData: this.toolSpecificData,
 			toolCallId: this.toolCallId,
 			toolId: this.toolId,
+			fromSubAgent: this.fromSubAgent,
 		};
 	}
 }

@@ -104,10 +104,9 @@ function updateExtensionPackageJSON(input, update) {
         .pipe(packageJsonFilter.restore);
 }
 function fromLocal(extensionPath, forWeb, disableMangle) {
-    const esm = JSON.parse(fs_1.default.readFileSync(path_1.default.join(extensionPath, 'package.json'), 'utf8')).type === 'module';
     const webpackConfigFileName = forWeb
-        ? `extension-browser.webpack.config.${!esm ? 'js' : 'cjs'}`
-        : `extension.webpack.config.${!esm ? 'js' : 'cjs'}`;
+        ? `extension-browser.webpack.config.js`
+        : `extension.webpack.config.js`;
     const isWebPacked = fs_1.default.existsSync(path_1.default.join(extensionPath, webpackConfigFileName));
     let input = isWebPacked
         ? fromLocalWebpack(extensionPath, webpackConfigFileName, disableMangle)
@@ -511,11 +510,12 @@ function translatePackageJSON(packageJSON, packageNLSPath) {
 const extensionsPath = path_1.default.join(root, 'extensions');
 // Additional projects to run esbuild on. These typically build code for webviews
 const esbuildMediaScripts = [
+    'ipynb/esbuild.mjs',
     'markdown-language-features/esbuild-notebook.mjs',
     'markdown-language-features/esbuild-preview.mjs',
     'markdown-math/esbuild.mjs',
+    'mermaid-chat-features/esbuild-chat-webview.mjs',
     'notebook-renderers/esbuild.mjs',
-    'ipynb/esbuild.mjs',
     'simple-browser/esbuild-preview.mjs',
 ];
 async function webpackExtensions(taskName, isWatch, webpackConfigLocations) {

@@ -41,12 +41,16 @@ interface IMonacoEnvironment {
 	globalAPI?: boolean;
 }
 
+// eslint-disable-next-line local/code-no-any-casts
 const monacoEnvironment: IMonacoEnvironment | undefined = (globalThis as any).MonacoEnvironment;
+// eslint-disable-next-line local/code-no-any-casts
 if (monacoEnvironment?.globalAPI || (typeof (globalThis as any).define === 'function' && ((globalThis as any).define).amd)) {
 	globalThis.monaco = api;
 }
 
+// eslint-disable-next-line local/code-no-any-casts
 if (typeof (globalThis as any).require !== 'undefined' && typeof (globalThis as any).require.config === 'function') {
+	// eslint-disable-next-line local/code-no-any-casts
 	(globalThis as any).require.config({
 		ignoreDuplicateModules: [
 			'vscode-languageserver-types',

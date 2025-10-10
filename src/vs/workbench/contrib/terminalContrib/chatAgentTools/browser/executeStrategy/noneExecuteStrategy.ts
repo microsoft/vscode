@@ -5,11 +5,12 @@
 
 import type { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
-import { Emitter } from '../../../../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { Event, Emitter } from '../../../../../../base/common/event.js';
+import { DisposableStore, Disposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
-import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { waitForIdle, waitForIdleWithPromptHeuristics, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
+import { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
+import { setupRecreatingStartMarker } from './strategyHelpers.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
 
 /**
@@ -26,9 +27,15 @@ export class NoneExecuteStrategy extends Disposable implements ITerminalExecuteS
 
 	private readonly _onUpdate = this._register(new Emitter<void>());
 	get onUpdate() { return this._onUpdate.event; }
+	private readonly _startMarker = new MutableDisposable<IXtermMarker>();
+
+
+	private readonly _onDidCreateStartMarker = new Emitter<IXtermMarker | undefined>;
+	public onDidCreateStartMarker: Event<IXtermMarker | undefined> = this._onDidCreateStartMarker.event;
 
 	constructor(
 		private readonly _instance: ITerminalInstance,
+		private readonly _hasReceivedUserInput: () => boolean,
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
 	) {
 		super();
@@ -55,14 +62,20 @@ export class NoneExecuteStrategy extends Disposable implements ITerminalExecuteS
 				throw new CancellationError();
 			}
 
-			// Record where the command started. If the marker gets disposed, re-created it where
-			// the cursor is. This can happen in prompts where they clear the line and rerender it
-			// like powerlevel10k's transient prompt
-			let startMarker = store.add(xterm.raw.registerMarker());
-			store.add(startMarker.onDispose(() => {
-				this._log(`Start marker was disposed, recreating`);
-				startMarker = xterm.raw.registerMarker();
-			}));
+			setupRecreatingStartMarker(
+				xterm,
+				this._startMarker,
+				m => this._onDidCreateStartMarker.fire(m),
+				store,
+				this._log.bind(this)
+			);
+
+			if (this._hasReceivedUserInput()) {
+				this._log('Command timed out, sending SIGINT and retrying');
+				// Send SIGINT (Ctrl+C)
+				await this._instance.sendText('\x03', false);
+				await waitForIdle(this._instance.onData, 100);
+			}
 
 			// Execute the command
 			// IMPORTANT: This uses `sendText` not `runCommand` since when no shell integration
@@ -75,6 +88,7 @@ export class NoneExecuteStrategy extends Disposable implements ITerminalExecuteS
 			this._log('Waiting for idle with prompt heuristics');
 			const promptResult = await waitForIdleWithPromptHeuristics(this._instance.onData, this._instance, 1000, 10000);
 			this._log(`Prompt detection result: ${promptResult.detected ? 'detected' : 'not detected'} - ${promptResult.reason}`);
+
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}
@@ -84,7 +98,7 @@ export class NoneExecuteStrategy extends Disposable implements ITerminalExecuteS
 			let output: string | undefined;
 			const additionalInformationLines: string[] = [];
 			try {
-				output = xterm.getContentsAsText(startMarker, endMarker);
+				output = xterm.getContentsAsText(this._startMarker.value, endMarker);
 				this._log('Fetched output via markers');
 			} catch {
 				this._log('Failed to fetch output via markers');

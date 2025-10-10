@@ -66,7 +66,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			type: 'boolean',
 			tags: ['preview'],
 			experiment: {
-				mode: 'startup'
+				mode: 'auto'
 			}
 		},
 		[InlineChatConfigKeys.HideOnRequest]: {
@@ -75,7 +75,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			type: 'boolean',
 			tags: ['preview'],
 			experiment: {
-				mode: 'startup'
+				mode: 'auto'
 			}
 		},
 		[InlineChatConfigKeys.notebookAgent]: {
@@ -84,7 +84,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			type: 'boolean',
 			tags: ['experimental'],
 			experiment: {
-				mode: 'startup'
+				mode: 'auto'
 			}
 		}
 	}

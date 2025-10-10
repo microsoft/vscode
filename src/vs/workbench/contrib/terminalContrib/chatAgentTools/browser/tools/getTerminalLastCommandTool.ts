@@ -17,7 +17,6 @@ export const GetTerminalLastCommandToolData: IToolData = {
 	displayName: localize('terminalLastCommandTool.displayName', 'Get Terminal Last Command'),
 	modelDescription: 'Get the last command run in the active terminal.',
 	source: ToolDataSource.Internal,
-	canBeReferencedInPrompt: true,
 	icon: Codicon.terminal,
 };
 

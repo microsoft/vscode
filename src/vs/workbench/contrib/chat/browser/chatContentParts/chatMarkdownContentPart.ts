@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import '../media/chatCodeBlockPill.css';
+import './media/chatMarkdownPart.css';
 import * as dom from '../../../../../base/browser/dom.js';
 import { allowedMarkdownHtmlAttributes, MarkdownRendererMarkedOptions, type MarkdownRenderOptions } from '../../../../../base/browser/markdownRenderer.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
@@ -19,13 +21,14 @@ import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { equalsIgnoreCase } from '../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRenderer } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { getIconClasses } from '../../../../../editor/common/services/getIconClasses.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { EditDeltaInfo } from '../../../../../editor/common/textModelEditSource.js';
 import { localize } from '../../../../../nls.js';
 import { getFlatContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
@@ -36,7 +39,8 @@ import { FileKind } from '../../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IEditorService, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
+import { IAiEditTelemetryService } from '../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { MarkedKatexSupport } from '../../../markdown/browser/markedKatexSupport.js';
 import { IMarkdownVulnerability } from '../../common/annotations.js';
 import { IEditSessionEntryDiff } from '../../common/chatEditingService.js';
@@ -48,14 +52,13 @@ import { ChatConfiguration } from '../../common/constants.js';
 import { IChatCodeBlockInfo } from '../chat.js';
 import { IChatRendererDelegate } from '../chatListRenderer.js';
 import { ChatMarkdownDecorationsRenderer } from '../chatMarkdownDecorationsRenderer.js';
-import { allowedChatMarkdownHtmlTags } from '../chatMarkdownRenderer.js';
+import { allowedChatMarkdownHtmlTags } from '../chatContentMarkdownRenderer.js';
 import { ChatEditorOptions } from '../chatOptions.js';
 import { CodeBlockPart, ICodeBlockData, ICodeBlockRenderOptions, localFileLanguageId, parseLocalFileData } from '../codeBlockPart.js';
-import '../media/chatCodeBlockPill.css';
 import { IDisposableReference, ResourcePool } from './chatCollections.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { ChatExtensionsContentPart } from './chatExtensionsContentPart.js';
-import './media/chatMarkdownPart.css';
+import { IOpenEditorOptions, registerOpenEditorListeners } from '../../../../../platform/editor/browser/editor.js';
 
 const $ = dom.$;
 
@@ -64,20 +67,20 @@ export interface IChatMarkdownContentPartOptions {
 }
 
 export class ChatMarkdownContentPart extends Disposable implements IChatContentPart {
-	private static idPool = 0;
 
-	public readonly codeblocksPartId = String(++ChatMarkdownContentPart.idPool);
-	public readonly domNode: HTMLElement;
+	private static ID_POOL = 0;
+
+	readonly codeblocksPartId = String(++ChatMarkdownContentPart.ID_POOL);
+	readonly domNode: HTMLElement;
+
 	private readonly allRefs: IDisposableReference<CodeBlockPart | CollapsedCodeBlock>[] = [];
 
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
-	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
+	readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
-	public readonly codeblocks: IChatCodeBlockInfo[] = [];
+	readonly codeblocks: IChatCodeBlockInfo[] = [];
 
 	private readonly mathLayoutParticipants = new Set<() => void>();
-
-	private _isDisposed = false;
 
 	constructor(
 		private readonly markdown: IChatMarkdownContent,
@@ -85,7 +88,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		private readonly editorPool: EditorPool,
 		fillInIncompleteTokens = false,
 		codeBlockStartIndex = 0,
-		renderer: MarkdownRenderer,
+		renderer: IMarkdownRenderer,
 		markdownRenderOptions: MarkdownRenderOptions | undefined,
 		currentWidth: number,
 		private readonly codeBlockModelCollection: CodeBlockModelCollection,
@@ -94,13 +97,16 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		@IConfigurationService configurationService: IConfigurationService,
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IAiEditTelemetryService private readonly aiEditTelemetryService: IAiEditTelemetryService,
 	) {
 		super();
 
 		const element = context.element;
 		const inUndoStop = (findLast(context.content, e => e.kind === 'undoStop', context.contentIndex) as IChatUndoStop | undefined)?.id;
 
-		// We release editors in order so that it's more likely that the same editor will be assigned if this element is re-rendered right away, like it often is during progressive rendering
+		// We release editors in order so that it's more likely that the same editor will
+		// be assigned if this element is re-rendered right away, like it often is during
+		// progressive rendering
 		const orderedDisposablesList: IDisposable[] = [];
 
 		// Need to track the index of the codeblock within the response so it can have a unique ID,
@@ -113,7 +119,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		const enableMath = configurationService.getValue<boolean>(ChatConfiguration.EnableMath);
 
 		const doRenderMarkdown = () => {
-			if (this._isDisposed) {
+			if (this._store.isDisposed) {
 				return;
 			}
 
@@ -124,11 +130,12 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				})])
 				: [];
 
-			// Don't set to 'false' for responses, respect defaults
-			const markedOpts: MarkdownRendererMarkedOptions = isRequestVM(element) ? {
+			// Enables github-flavored-markdown + line breaks with single newlines
+			// (which matches typical expectations but isn't "proper" in markdown)
+			const markedOpts: MarkdownRendererMarkedOptions = {
 				gfm: true,
 				breaks: true,
-			} : {};
+			};
 
 			const result = this._register(renderer.render(markdown.content, {
 				sanitizerConfig: MarkedKatexSupport.getSanitizerOptions({
@@ -195,14 +202,16 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 							readonly elementId = element.id;
 							readonly isStreaming = false;
 							readonly chatSessionId = element.sessionId;
+							readonly languageId = languageId;
+							readonly editDeltaInfo = EditDeltaInfo.fromText(text);
 							codemapperUri = undefined; // will be set async
-							public get uri() {
+							get uri() {
 								// here we must do a getter because the ref.object is rendered
 								// async and the uri might be undefined when it's read immediately
 								return ref.object.uri;
 							}
 							readonly uriPromise = textModel.then(model => model.uri);
-							public focus() {
+							focus() {
 								ref.object.focus();
 							}
 						}();
@@ -229,13 +238,15 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 							readonly isStreaming = !isCodeBlockComplete;
 							readonly codemapperUri = codeblockEntry?.codemapperUri;
 							readonly chatSessionId = element.sessionId;
-							public get uri() {
+							get uri() {
 								return undefined;
 							}
 							readonly uriPromise = Promise.resolve(undefined);
-							public focus() {
+							focus() {
 								return ref.object.element.focus();
 							}
+							readonly languageId = languageId;
+							readonly editDeltaInfo = EditDeltaInfo.fromText(text);
 						}();
 						this.codeblocks.push(info);
 						orderedDisposablesList.push(ref);
@@ -247,6 +258,24 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				markedExtensions,
 				...markdownRenderOptions,
 			}, this.domNode));
+
+			// Ideally this would happen earlier, but we need to parse the markdown.
+			if (isResponseVM(element) && !element.model.codeBlockInfos && element.model.isComplete) {
+				element.model.initializeCodeBlockInfos(this.codeblocks.map(info => {
+					return {
+						suggestionId: this.aiEditTelemetryService.createSuggestionId({
+							presentation: 'codeBlock',
+							feature: 'sideBarChat',
+							editDeltaInfo: info.editDeltaInfo,
+							languageId: info.languageId,
+							modeId: element.model.request?.modeInfo?.modeId,
+							modelId: element.model.request?.modelId,
+							applyCodeBlockSuggestionId: undefined,
+							source: undefined,
+						})
+					};
+				}));
+			}
 
 			const markdownDecorationsRenderer = instantiationService.createInstance(ChatMarkdownDecorationsRenderer);
 			this._register(markdownDecorationsRenderer.walkTreeAndAnnotateReferenceLinks(markdown, result.element));
@@ -285,18 +314,13 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 					console.error('Failed to load MarkedKatexSupport extension:', e);
 				}).finally(() => {
 					doRenderMarkdown();
-					if (!this._isDisposed) {
+					if (!this._store.isDisposed) {
 						this._onDidChangeHeight.fire();
 					}
 				});
 		} else {
 			doRenderMarkdown();
 		}
-	}
-
-	override dispose(): void {
-		this._isDisposed = true;
-		super.dispose();
 	}
 
 	private renderCodeBlockPill(sessionId: string, requestId: string, inUndoStop: string | undefined, codemapperUri: URI | undefined, isStreaming: boolean): IDisposableReference<CollapsedCodeBlock> {
@@ -356,7 +380,7 @@ export class EditorPool extends Disposable {
 
 	private readonly _pool: ResourcePool<CodeBlockPart>;
 
-	public inUse(): Iterable<CodeBlockPart> {
+	inUse(): Iterable<CodeBlockPart> {
 		return this._pool.inUse;
 	}
 
@@ -395,19 +419,17 @@ export function codeblockHasClosingBackticks(str: string): boolean {
 
 export class CollapsedCodeBlock extends Disposable {
 
-	public readonly element: HTMLElement;
+	readonly element: HTMLElement;
+
+	private _uri: URI | undefined;
+	get uri(): URI | undefined { return this._uri; }
 
 	private readonly hover = this._register(new MutableDisposable());
 	private tooltip: string | undefined;
 
-	private _uri: URI | undefined;
-	public get uri(): URI | undefined {
-		return this._uri;
-	}
+	private currentDiff: IEditSessionEntryDiff | undefined;
 
-	private _currentDiff: IEditSessionEntryDiff | undefined;
-
-	private readonly _progressStore = this._store.add(new DisposableStore());
+	private readonly progressStore = this._store.add(new DisposableStore());
 
 	constructor(
 		private readonly sessionId: string,
@@ -424,45 +446,55 @@ export class CollapsedCodeBlock extends Disposable {
 		@IChatService private readonly chatService: IChatService,
 	) {
 		super();
+
 		this.element = $('.chat-codeblock-pill-widget');
 		this.element.tabIndex = 0;
 		this.element.classList.add('show-file-icons');
 		this.element.role = 'button';
-		this._register(dom.addDisposableListener(this.element, 'click', () => this._showDiff()));
-		this._register(dom.addDisposableListener(this.element, 'keydown', (e) => {
-			if (e.key === 'Enter' || e.key === ' ') {
-				this._showDiff();
-			}
-		}));
-		this._register(dom.addDisposableListener(this.element, dom.EventType.CONTEXT_MENU, domEvent => {
-			const event = new StandardMouseEvent(dom.getWindow(domEvent), domEvent);
-			dom.EventHelper.stop(domEvent, true);
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this._register(registerOpenEditorListeners(this.element, e => this.showDiff(e)));
+
+		this._register(dom.addDisposableListener(this.element, dom.EventType.CONTEXT_MENU, e => {
+			const event = new StandardMouseEvent(dom.getWindow(e), e);
+			dom.EventHelper.stop(e, true);
 
 			this.contextMenuService.showContextMenu({
 				contextKeyService: this.contextKeyService,
 				getAnchor: () => event,
 				getActions: () => {
-					const menu = this.menuService.getMenuActions(MenuId.ChatEditingCodeBlockContext, this.contextKeyService, { arg: { sessionId, requestId, uri: this.uri, stopId: inUndoStop } });
+					const menu = this.menuService.getMenuActions(MenuId.ChatEditingCodeBlockContext, this.contextKeyService, {
+						arg: {
+							sessionId: this.sessionId,
+							requestId: this.requestId,
+							uri: this.uri,
+							stopId: this.inUndoStop
+						}
+					});
+
 					return getFlatContextMenuActions(menu);
 				},
 			});
 		}));
 	}
 
-	private _showDiff(): void {
-		if (this._currentDiff) {
+	private showDiff({ editorOptions: options, openToSide }: IOpenEditorOptions): void {
+		if (this.currentDiff) {
 			this.editorService.openEditor({
-				original: { resource: this._currentDiff.originalURI },
-				modified: { resource: this._currentDiff.modifiedURI },
-				options: { transient: true },
-			});
+				original: { resource: this.currentDiff.originalURI },
+				modified: { resource: this.currentDiff.modifiedURI },
+				options
+			}, openToSide ? SIDE_GROUP : undefined);
 		} else if (this.uri) {
-			this.editorService.openEditor({ resource: this.uri });
+			this.editorService.openEditor({ resource: this.uri, options }, openToSide ? SIDE_GROUP : undefined);
 		}
 	}
 
 	render(uri: URI, isStreaming?: boolean): void {
-		this._progressStore.clear();
+		this.progressStore.clear();
 
 		this._uri = uri;
 
@@ -500,7 +532,7 @@ export class CollapsedCodeBlock extends Disposable {
 			const labelAdded = this.element.querySelector('.label-added') ?? this.element.appendChild(dom.$('span.label-added'));
 			const labelRemoved = this.element.querySelector('.label-removed') ?? this.element.appendChild(dom.$('span.label-removed'));
 			if (changes && !changes?.identical && !changes?.quitEarly) {
-				this._currentDiff = changes;
+				this.currentDiff = changes;
 				labelAdded.textContent = `+${changes.added}`;
 				labelRemoved.textContent = `-${changes.removed}`;
 				const insertionsFragment = changes.added === 1 ? localize('chat.codeblock.insertions.one', "1 insertion") : localize('chat.codeblock.insertions', "{0} insertions", changes.added);
@@ -514,8 +546,7 @@ export class CollapsedCodeBlock extends Disposable {
 		let diffBetweenStops: IObservable<IEditSessionEntryDiff | undefined> | undefined;
 
 		// Show a percentage progress that is driven by the rewrite
-
-		this._progressStore.add(autorun(r => {
+		this.progressStore.add(autorun(r => {
 			if (!editSession) {
 				editSession = session?.editingSessionObs?.promiseResult.read(r)?.data;
 				modifiedEntry = editSession?.getEntry(uri);
@@ -551,6 +582,7 @@ export class CollapsedCodeBlock extends Disposable {
 
 	private updateTooltip(tooltip: string): void {
 		this.tooltip = tooltip;
+
 		if (!this.hover.value) {
 			this.hover.value = this.hoverService.setupDelayedHover(this.element, () => (
 				{

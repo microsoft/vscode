@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IContentActionHandler } from '../../formattedTextRenderer.js';
-import { IContextViewProvider } from '../contextview/contextview.js';
-import { IListStyles, unthemedListStyles } from '../list/listWidget.js';
-import { SelectBoxList } from './selectBoxCustom.js';
-import { SelectBoxNative } from './selectBoxNative.js';
-import { Widget } from '../widget.js';
 import { Event } from '../../../common/event.js';
 import { IDisposable } from '../../../common/lifecycle.js';
 import { isMacintosh } from '../../../common/platform.js';
+import { MarkdownActionHandler } from '../../markdownRenderer.js';
+import { IContextViewProvider } from '../contextview/contextview.js';
+import { IListStyles, unthemedListStyles } from '../list/listWidget.js';
+import { Widget } from '../widget.js';
 import './selectBox.css';
+import { SelectBoxList } from './selectBoxCustom.js';
+import { SelectBoxNative } from './selectBoxNative.js';
 
 
 
@@ -49,7 +49,7 @@ export interface ISelectOptionItem {
 	decoratorRight?: string;
 	description?: string;
 	descriptionIsMarkdown?: boolean;
-	descriptionMarkdownActionHandler?: IContentActionHandler;
+	readonly descriptionMarkdownActionHandler?: MarkdownActionHandler;
 	isDisabled?: boolean;
 }
 

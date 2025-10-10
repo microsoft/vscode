@@ -17,7 +17,7 @@ import { IExtensionDescription } from '../../../platform/extensions/common/exten
 import { coalesce } from '../../../base/common/arrays.js';
 import Severity from '../../../base/common/severity.js';
 import { ThemeIcon as ThemeIconUtils } from '../../../base/common/themables.js';
-import { isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
+import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { MarkdownString } from './extHostTypeConverters.js';
 
 export type Item = string | QuickPickItem;
@@ -68,9 +68,14 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 
 			const instance = ++this._instances;
 
+			if (options?.prompt) {
+				checkProposedApiEnabled(extension, 'quickPickPrompt');
+			}
+
 			const quickPickWidget = proxy.$show(instance, {
 				title: options?.title,
 				placeHolder: options?.placeHolder,
+				prompt: options?.prompt,
 				matchOnDescription: options?.matchOnDescription,
 				matchOnDetail: options?.matchOnDetail,
 				ignoreFocusLost: options?.ignoreFocusOut,
@@ -556,6 +561,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		private _sortByLabel = true;
 		private _keepScrollPosition = false;
 		private _activeItems: T[] = [];
+		private _prompt: string | undefined;
 		private readonly _onDidChangeActiveEmitter = new Emitter<T[]>();
 		private _selectedItems: T[] = [];
 		private readonly _onDidChangeSelectionEmitter = new Emitter<T[]>();
@@ -666,6 +672,16 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		set keepScrollPosition(keepScrollPosition: boolean) {
 			this._keepScrollPosition = keepScrollPosition;
 			this.update({ keepScrollPosition });
+		}
+
+		get prompt() {
+			return this._prompt;
+		}
+
+		set prompt(prompt: string | undefined) {
+			checkProposedApiEnabled(this._extension, 'quickPickPrompt');
+			this._prompt = prompt;
+			this.update({ prompt });
 		}
 
 		get activeItems() {

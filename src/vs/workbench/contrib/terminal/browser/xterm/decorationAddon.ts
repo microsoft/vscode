@@ -72,8 +72,8 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 		}));
 		this._register(this._themeService.onDidColorThemeChange(() => this._refreshStyles(true)));
 		this._updateDecorationVisibility();
-		this._register(this._capabilities.onDidAddCapabilityType(c => this._createCapabilityDisposables(c)));
-		this._register(this._capabilities.onDidRemoveCapabilityType(c => this._removeCapabilityDisposables(c)));
+		this._register(this._capabilities.onDidAddCapability(c => this._createCapabilityDisposables(c.id)));
+		this._register(this._capabilities.onDidRemoveCapability(c => this._removeCapabilityDisposables(c.id)));
 		this._register(lifecycleService.onWillShutdown(() => this._disposeAllDecorations()));
 	}
 

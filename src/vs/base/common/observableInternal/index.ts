@@ -40,8 +40,10 @@ import { addLogger, setLogObservableFn } from './logging/logging.js';
 import { ConsoleObservableLogger, logObservableToConsole } from './logging/consoleObservableLogger.js';
 import { DevToolsLogger } from './logging/debugger/devToolsLogger.js';
 import { env } from '../process.js';
+import { _setDebugGetDependencyGraph } from './observables/baseObservable.js';
+import { debugGetDependencyGraph } from './logging/debugGetDependencyGraph.js';
 
-
+_setDebugGetDependencyGraph(debugGetDependencyGraph);
 setLogObservableFn(logObservableToConsole);
 
 // Remove "//" in the next line to enable logging
@@ -53,7 +55,7 @@ if (enableLogging) {
 	addLogger(new ConsoleObservableLogger());
 }
 
-if (env && env['VSCODE_DEV_DEBUG']) {
+if (env && env['VSCODE_DEV_DEBUG_OBSERVABLES']) {
 	// To debug observables you also need the extension "ms-vscode.debug-value-editor"
 	addLogger(DevToolsLogger.getInstance());
 }

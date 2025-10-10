@@ -22,8 +22,6 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { getCleanPromptName } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { INSTRUCTIONS_LANGUAGE_ID, PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { compare } from '../../../../../base/common/strings.js';
-import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { dirname } from '../../../../../base/common/resources.js';
 import { IPromptFileVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/chatVariableEntries.js';
 import { KeyMod, KeyCode } from '../../../../../base/common/keyCodes.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -224,7 +222,6 @@ export class ChatInstructionsPickerPick implements IChatContextPickerItem {
 
 	constructor(
 		@IPromptsService private readonly promptsService: IPromptsService,
-		@ILabelService private readonly labelService: ILabelService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) { }
 
@@ -242,22 +239,20 @@ export class ChatInstructionsPickerPick implements IChatContextPickerItem {
 
 			let storageType: string | undefined;
 
-			for (const { uri, storage } of value) {
+			for (const promptsPath of value) {
 
-				if (storageType !== storage) {
-					storageType = storage;
+				if (storageType !== promptsPath.storage) {
+					storageType = promptsPath.storage;
 					result.push({
 						type: 'separator',
-						label: storage === 'user'
-							? localize('user-data-dir.capitalized', 'User data folder')
-							: this.labelService.getUriLabel(dirname(uri), { relative: true })
+						label: this.promptsService.getPromptLocationLabel(promptsPath)
 					});
 				}
 
 				result.push({
-					label: getCleanPromptName(uri),
+					label: promptsPath.name ?? getCleanPromptName(promptsPath.uri),
 					asAttachment: (): IPromptFileVariableEntry => {
-						return toPromptFileVariableEntry(uri, PromptFileVariableKind.Instruction);
+						return toPromptFileVariableEntry(promptsPath.uri, PromptFileVariableKind.Instruction);
 					}
 				});
 			}
@@ -273,6 +268,4 @@ export class ChatInstructionsPickerPick implements IChatContextPickerItem {
 			}
 		};
 	}
-
-
 }

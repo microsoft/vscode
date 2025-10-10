@@ -4,36 +4,37 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { onUnexpectedError } from '../common/errors.js';
-import { Event } from '../common/event.js';
 import { escapeDoubleQuotes, IMarkdownString, MarkdownStringTrustedOptions, parseHrefAndDimensions, removeMarkdownEscapes } from '../common/htmlContent.js';
 import { markdownEscapeEscapedIcons } from '../common/iconLabels.js';
 import { defaultGenerator } from '../common/idGenerator.js';
 import { KeyCode } from '../common/keyCodes.js';
 import { Lazy } from '../common/lazy.js';
-import { DisposableStore } from '../common/lifecycle.js';
+import { DisposableStore, IDisposable } from '../common/lifecycle.js';
 import * as marked from '../common/marked/marked.js';
 import { parse } from '../common/marshalling.js';
 import { FileAccess, Schemas } from '../common/network.js';
 import { cloneAndChange } from '../common/objects.js';
 import { dirname, resolvePath } from '../common/resources.js';
 import { escape } from '../common/strings.js';
-import { URI } from '../common/uri.js';
+import { URI, UriComponents } from '../common/uri.js';
 import * as DOM from './dom.js';
 import * as domSanitize from './domSanitize.js';
 import { convertTagToPlaintext } from './domSanitize.js';
-import { DomEmitter } from './event.js';
-import { FormattedTextRenderOptions } from './formattedTextRenderer.js';
 import { StandardKeyboardEvent } from './keyboardEvent.js';
 import { StandardMouseEvent } from './mouseEvent.js';
 import { renderLabelWithIcons } from './ui/iconLabel/iconLabels.js';
 
+export type MarkdownActionHandler = (linkContent: string, mdStr: IMarkdownString) => void;
+
 /**
  * Options for the rendering of markdown with {@link renderMarkdown}.
  */
-export interface MarkdownRenderOptions extends FormattedTextRenderOptions {
+export interface MarkdownRenderOptions {
 	readonly codeBlockRenderer?: (languageId: string, value: string) => Promise<HTMLElement>;
 	readonly codeBlockRendererSync?: (languageId: string, value: string, raw?: string) => HTMLElement;
 	readonly asyncRenderCallback?: () => void;
+
+	readonly actionHandler?: MarkdownActionHandler;
 
 	readonly fillInIncompleteTokens?: boolean;
 
@@ -114,13 +115,17 @@ const defaultMarkedRenderers = Object.freeze({
 	},
 });
 
+export interface IRenderedMarkdown extends IDisposable {
+	readonly element: HTMLElement;
+}
+
 /**
  * Low-level way create a html element from a markdown string.
  *
  * **Note** that for most cases you should be using {@link import('../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js').MarkdownRenderer MarkdownRenderer}
  * which comes with support for pretty code block rendering and which uses the default way of handling links.
  */
-export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRenderOptions = {}, target?: HTMLElement): { element: HTMLElement; dispose: () => void } {
+export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRenderOptions = {}, target?: HTMLElement): IRenderedMarkdown {
 	const disposables = new DisposableStore();
 	let isDisposed = false;
 
@@ -150,7 +155,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	}
 
 	const renderedContent = document.createElement('div');
-	const sanitizerConfig = getDomSanitizerConfig(markdown.isTrusted ?? false, options.sanitizerConfig ?? {});
+	const sanitizerConfig = getDomSanitizerConfig(markdown, options.sanitizerConfig ?? {});
 	domSanitize.safeSetInnerHtml(renderedContent, renderedMarkdown, sanitizerConfig);
 
 	// Rewrite links and images before potentially inserting them into the real dom
@@ -202,17 +207,17 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 
 	// Add event listeners for links
 	if (options.actionHandler) {
-		const onClick = options.actionHandler.disposables.add(new DomEmitter(outElement, 'click'));
-		const onAuxClick = options.actionHandler.disposables.add(new DomEmitter(outElement, 'auxclick'));
-		options.actionHandler.disposables.add(Event.any(onClick.event, onAuxClick.event)(e => {
+		const clickCb = (e: PointerEvent) => {
 			const mouseEvent = new StandardMouseEvent(DOM.getWindow(outElement), e);
 			if (!mouseEvent.leftButton && !mouseEvent.middleButton) {
 				return;
 			}
 			activateLink(markdown, options, mouseEvent);
-		}));
+		};
+		disposables.add(DOM.addDisposableListener(outElement, 'click', clickCb));
+		disposables.add(DOM.addDisposableListener(outElement, 'auxclick', clickCb));
 
-		options.actionHandler.disposables.add(DOM.addDisposableListener(outElement, 'keydown', (e) => {
+		disposables.add(DOM.addDisposableListener(outElement, 'keydown', (e) => {
 			const keyboardEvent = new StandardKeyboardEvent(e);
 			if (!keyboardEvent.equals(KeyCode.Space) && !keyboardEvent.equals(KeyCode.Enter)) {
 				return;
@@ -342,7 +347,7 @@ function preprocessMarkdownString(markdown: IMarkdownString) {
 	return value;
 }
 
-function activateLink(markdown: IMarkdownString, options: MarkdownRenderOptions, event: StandardMouseEvent | StandardKeyboardEvent): void {
+function activateLink(mdStr: IMarkdownString, options: MarkdownRenderOptions, event: StandardMouseEvent | StandardKeyboardEvent): void {
 	const target = event.target.closest('a[data-href]');
 	if (!DOM.isHTMLElement(target)) {
 		return;
@@ -351,10 +356,10 @@ function activateLink(markdown: IMarkdownString, options: MarkdownRenderOptions,
 	try {
 		let href = target.dataset['href'];
 		if (href) {
-			if (markdown.baseUri) {
-				href = resolveWithBaseUri(URI.from(markdown.baseUri), href);
+			if (mdStr.baseUri) {
+				href = resolveWithBaseUri(URI.from(mdStr.baseUri), href);
 			}
-			options.actionHandler!.callback(href, event);
+			options.actionHandler?.(href, mdStr);
 		}
 	} catch (err) {
 		onUnexpectedError(err);
@@ -436,12 +441,17 @@ function resolveWithBaseUri(baseUri: URI, href: string): string {
 	}
 }
 
+type MdStrConfig = {
+	readonly isTrusted?: boolean | MarkdownStringTrustedOptions;
+	readonly baseUri?: UriComponents;
+};
+
 function sanitizeRenderedMarkdown(
 	renderedMarkdown: string,
-	isTrusted: boolean | MarkdownStringTrustedOptions,
+	originalMdStrConfig: MdStrConfig,
 	options: MarkdownSanitizerConfig = {},
 ): TrustedHTML {
-	const sanitizerConfig = getDomSanitizerConfig(isTrusted, options);
+	const sanitizerConfig = getDomSanitizerConfig(originalMdStrConfig, options);
 	return domSanitize.sanitizeHtml(renderedMarkdown, sanitizerConfig);
 }
 
@@ -507,7 +517,8 @@ export const allowedMarkdownHtmlAttributes = Object.freeze<Array<string | domSan
 	},
 ]);
 
-function getDomSanitizerConfig(isTrusted: boolean | MarkdownStringTrustedOptions, options: MarkdownSanitizerConfig): domSanitize.DomSanitizerConfig {
+function getDomSanitizerConfig(mdStrConfig: MdStrConfig, options: MarkdownSanitizerConfig): domSanitize.DomSanitizerConfig {
+	const isTrusted = mdStrConfig.isTrusted ?? false;
 	const allowedLinkSchemes = [
 		Schemas.http,
 		Schemas.https,
@@ -541,6 +552,7 @@ function getDomSanitizerConfig(isTrusted: boolean | MarkdownStringTrustedOptions
 		allowedLinkProtocols: {
 			override: allowedLinkSchemes,
 		},
+		allowRelativeLinkPaths: !!mdStrConfig.baseUri,
 		allowedMediaProtocols: {
 			override: [
 				Schemas.http,
@@ -576,7 +588,7 @@ export function renderAsPlaintext(str: IMarkdownString | string, options?: {
 	}
 
 	const html = marked.parse(value, { async: false, renderer: options?.includeCodeBlocksFences ? plainTextWithCodeBlocksRenderer.value : plainTextRenderer.value });
-	return sanitizeRenderedMarkdown(html, /* isTrusted */ false, {})
+	return sanitizeRenderedMarkdown(html, { isTrusted: false }, {})
 		.toString()
 		.replace(/&(#\d+|[a-zA-Z]+);/g, m => unescapeInfo.get(m) ?? m)
 		.trim();
@@ -976,4 +988,3 @@ function completeTable(tokens: marked.Token[]): marked.Token[] | undefined {
 
 	return undefined;
 }
-

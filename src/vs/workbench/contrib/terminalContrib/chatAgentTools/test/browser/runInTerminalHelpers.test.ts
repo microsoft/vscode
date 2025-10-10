@@ -3,10 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ok } from 'assert';
-import { isPowerShell } from '../../browser/runInTerminalHelpers.js';
+import { ok, strictEqual } from 'assert';
+import { dedupeRules, isPowerShell } from '../../browser/runInTerminalHelpers.js';
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
+import type { IAutoApproveRule, ICommandApprovalResultWithReason } from '../../browser/commandLineAutoApprover.js';
 
 suite('isPowerShell', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -160,5 +162,98 @@ suite('isPowerShell', () => {
 			ok(!isPowerShell('power', OperatingSystem.Linux));
 			ok(!isPowerShell('pwshconfig', OperatingSystem.Linux));
 		});
+	});
+});
+
+suite('dedupeRules', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createMockRule(sourceText: string): IAutoApproveRule {
+		return {
+			regex: new RegExp(sourceText),
+			regexCaseInsensitive: new RegExp(sourceText, 'i'),
+			sourceText,
+			sourceTarget: ConfigurationTarget.USER,
+			isDefaultRule: false
+		};
+	}
+
+	function createMockResult(result: 'approved' | 'denied' | 'noMatch', reason: string, rule?: IAutoApproveRule): ICommandApprovalResultWithReason {
+		return {
+			result,
+			reason,
+			rule
+		};
+	}
+
+	test('should return empty array for empty input', () => {
+		const result = dedupeRules([]);
+		strictEqual(result.length, 0);
+	});
+
+	test('should return same array when no duplicates exist', () => {
+		const result = dedupeRules([
+			createMockResult('approved', 'approved by echo rule', createMockRule('echo')),
+			createMockResult('approved', 'approved by ls rule', createMockRule('ls'))
+		]);
+		strictEqual(result.length, 2);
+		strictEqual(result[0].rule?.sourceText, 'echo');
+		strictEqual(result[1].rule?.sourceText, 'ls');
+	});
+
+	test('should deduplicate rules with same sourceText', () => {
+		const result = dedupeRules([
+			createMockResult('approved', 'approved by echo rule', createMockRule('echo')),
+			createMockResult('approved', 'approved by echo rule again', createMockRule('echo')),
+			createMockResult('approved', 'approved by ls rule', createMockRule('ls'))
+		]);
+		strictEqual(result.length, 2);
+		strictEqual(result[0].rule?.sourceText, 'echo');
+		strictEqual(result[1].rule?.sourceText, 'ls');
+	});
+
+	test('should preserve first occurrence when deduplicating', () => {
+		const result = dedupeRules([
+			createMockResult('approved', 'first echo rule', createMockRule('echo')),
+			createMockResult('approved', 'second echo rule', createMockRule('echo'))
+		]);
+		strictEqual(result.length, 1);
+		strictEqual(result[0].reason, 'first echo rule');
+	});
+
+	test('should filter out results without rules', () => {
+		const result = dedupeRules([
+			createMockResult('noMatch', 'no rule applied'),
+			createMockResult('approved', 'approved by echo rule', createMockRule('echo')),
+			createMockResult('denied', 'denied without rule')
+		]);
+		strictEqual(result.length, 1);
+		strictEqual(result[0].rule?.sourceText, 'echo');
+	});
+
+	test('should handle mix of rules and no-rule results with duplicates', () => {
+		const result = dedupeRules([
+			createMockResult('approved', 'approved by echo rule', createMockRule('echo')),
+			createMockResult('noMatch', 'no rule applied'),
+			createMockResult('approved', 'approved by echo rule again', createMockRule('echo')),
+			createMockResult('approved', 'approved by ls rule', createMockRule('ls')),
+			createMockResult('denied', 'denied without rule')
+		]);
+		strictEqual(result.length, 2);
+		strictEqual(result[0].rule?.sourceText, 'echo');
+		strictEqual(result[1].rule?.sourceText, 'ls');
+	});
+
+	test('should handle multiple duplicates of same rule', () => {
+		const result = dedupeRules([
+			createMockResult('approved', 'npm rule 1', createMockRule('npm')),
+			createMockResult('approved', 'npm rule 2', createMockRule('npm')),
+			createMockResult('approved', 'npm rule 3', createMockRule('npm')),
+			createMockResult('approved', 'git rule', createMockRule('git'))
+		]);
+		strictEqual(result.length, 2);
+		strictEqual(result[0].rule?.sourceText, 'npm');
+		strictEqual(result[0].reason, 'npm rule 1');
+		strictEqual(result[1].rule?.sourceText, 'git');
 	});
 });

@@ -72,6 +72,7 @@ function _cloneAndChange(obj: any, changer: (orig: any) => any, seen: Set<any>):
 		const r2 = {};
 		for (const i2 in obj) {
 			if (_hasOwnProperty.call(obj, i2)) {
+				// eslint-disable-next-line local/code-no-any-casts
 				(r2 as any)[i2] = _cloneAndChange(obj[i2], changer, seen);
 			}
 		}
