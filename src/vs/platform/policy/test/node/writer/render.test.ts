@@ -7,10 +7,12 @@ import assert from 'assert';
 import { renderADMLString, renderProfileString, renderADMX, renderADML, renderProfileManifest, renderMacOSPolicy, renderGP } from '../../../node/writer/render.js';
 import { NlsString, LanguageTranslations, Category, Policy, PolicyType } from '../../../node/writer/types.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ILogger } from '../../../../log/common/log.js';
 
 suite('Render Functions', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+	const mockLogger: ILogger = { warn: () => { } } as unknown as ILogger;
 
 	suite('renderADMLString', () => {
 
@@ -20,7 +22,7 @@ suite('Render Functions', () => {
 				nlsKey: 'test.description'
 			};
 
-			const result = renderADMLString('TestPrefix', nlsString);
+			const result = renderADMLString(mockLogger, 'TestPrefix', nlsString);
 
 			assert.strictEqual(result, '<string id="TestPrefix_test_description">Test description</string>');
 		});
@@ -31,7 +33,7 @@ suite('Render Functions', () => {
 				nlsKey: 'my.test.nls.key'
 			};
 
-			const result = renderADMLString('Prefix', nlsString);
+			const result = renderADMLString(mockLogger, 'Prefix', nlsString);
 
 			assert.ok(result.includes('id="Prefix_my_test_nls_key"'));
 		});
@@ -46,7 +48,7 @@ suite('Render Functions', () => {
 				'test.key': 'Translated value'
 			};
 
-			const result = renderADMLString('TestPrefix', nlsString, translations);
+			const result = renderADMLString(mockLogger, 'TestPrefix', nlsString, translations);
 
 			assert.ok(result.includes('>Translated value</string>'));
 		});
@@ -61,7 +63,7 @@ suite('Render Functions', () => {
 				'other.key': 'Other translation'
 			};
 
-			const result = renderADMLString('TestPrefix', nlsString, translations);
+			const result = renderADMLString(mockLogger, 'TestPrefix', nlsString, translations);
 
 			assert.ok(result.includes('>Original value</string>'));
 		});
@@ -75,7 +77,7 @@ suite('Render Functions', () => {
 				nlsKey: 'profile.description'
 			};
 
-			const result = renderProfileString('ProfilePrefix', nlsString);
+			const result = renderProfileString(mockLogger, 'ProfilePrefix', nlsString);
 
 			assert.strictEqual(result, 'Profile description');
 		});
@@ -90,7 +92,7 @@ suite('Render Functions', () => {
 				'profile.key': 'Translated profile value'
 			};
 
-			const result = renderProfileString('ProfilePrefix', nlsString, translations);
+			const result = renderProfileString(mockLogger, 'ProfilePrefix', nlsString, translations);
 
 			assert.strictEqual(result, 'Translated profile value');
 		});
@@ -105,7 +107,7 @@ suite('Render Functions', () => {
 				'other.key': 'Other translation'
 			};
 
-			const result = renderProfileString('ProfilePrefix', nlsString, translations);
+			const result = renderProfileString(mockLogger, 'ProfilePrefix', nlsString, translations);
 
 			assert.strictEqual(result, 'Original profile value');
 		});
@@ -234,7 +236,7 @@ suite('Render Functions', () => {
 		};
 
 		test('should render ADML with correct XML structure', () => {
-			const result = renderADML('VS Code', ['1.85'], [mockCategory], [mockPolicy]);
+			const result = renderADML(mockLogger, 'VS Code', ['1.85'], [mockCategory], [mockPolicy]);
 
 			assert.ok(result.includes('<?xml version="1.0" encoding="utf-8"?>'));
 			assert.ok(result.includes('<policyDefinitionResources'));
@@ -242,33 +244,33 @@ suite('Render Functions', () => {
 		});
 
 		test('should include application name', () => {
-			const result = renderADML('My Application', ['1.0'], [mockCategory], [mockPolicy]);
+			const result = renderADML(mockLogger, 'My Application', ['1.0'], [mockCategory], [mockPolicy]);
 
 			assert.ok(result.includes('<string id="Application">My Application</string>'));
 		});
 
 		test('should include supported versions with escaped greater-than', () => {
-			const result = renderADML('VS Code', ['1.85', '1.90'], [mockCategory], [mockPolicy]);
+			const result = renderADML(mockLogger, 'VS Code', ['1.85', '1.90'], [mockCategory], [mockPolicy]);
 
 			assert.ok(result.includes('VS Code &gt;= 1.85'));
 			assert.ok(result.includes('VS Code &gt;= 1.90'));
 		});
 
 		test('should include category strings', () => {
-			const result = renderADML('VS Code', ['1.0'], [mockCategory], [mockPolicy]);
+			const result = renderADML(mockLogger, 'VS Code', ['1.0'], [mockCategory], [mockPolicy]);
 
 			assert.ok(result.includes('Category_test_category'));
 		});
 
 		test('should include policy strings', () => {
-			const result = renderADML('VS Code', ['1.0'], [mockCategory], [mockPolicy]);
+			const result = renderADML(mockLogger, 'VS Code', ['1.0'], [mockCategory], [mockPolicy]);
 
 			assert.ok(result.includes('TestPolicy'));
 			assert.ok(result.includes('Test Policy Default'));
 		});
 
 		test('should include policy presentations', () => {
-			const result = renderADML('VS Code', ['1.0'], [mockCategory], [mockPolicy]);
+			const result = renderADML(mockLogger, 'VS Code', ['1.0'], [mockCategory], [mockPolicy]);
 
 			assert.ok(result.includes('<presentationTable>'));
 			assert.ok(result.includes('<presentation id="TestPolicy">'));
@@ -280,7 +282,7 @@ suite('Render Functions', () => {
 				'test.policy': 'Translated'
 			};
 
-			const result = renderADML('VS Code', ['1.0'], [mockCategory], [mockPolicy], translations);
+			const result = renderADML(mockLogger, 'VS Code', ['1.0'], [mockCategory], [mockPolicy], translations);
 
 			assert.ok(result.includes('Test Policy Translated'));
 		});
@@ -289,7 +291,7 @@ suite('Render Functions', () => {
 			const category1: Category = { name: { value: 'Cat1', nlsKey: 'cat1' } };
 			const category2: Category = { name: { value: 'Cat2', nlsKey: 'cat2' } };
 
-			const result = renderADML('VS Code', ['1.0'], [category1, category2], [mockPolicy]);
+			const result = renderADML(mockLogger, 'VS Code', ['1.0'], [category1, category2], [mockPolicy]);
 
 			assert.ok(result.includes('Category_cat1'));
 			assert.ok(result.includes('Category_cat2'));
@@ -586,7 +588,7 @@ suite('Render Functions', () => {
 		};
 
 		test('should render complete GP with ADMX and ADML', () => {
-			const result = renderGP('VS Code', 'VSCode', ['1.85'], [mockCategory], [mockPolicy], []);
+			const result = renderGP(mockLogger, 'VS Code', 'VSCode', ['1.85'], [mockCategory], [mockPolicy], []);
 
 			assert.ok(result.admx);
 			assert.ok(result.adml);
@@ -594,14 +596,14 @@ suite('Render Functions', () => {
 		});
 
 		test('should include regKey in ADMX', () => {
-			const result = renderGP('VS Code', 'CustomRegKey', ['1.85'], [mockCategory], [mockPolicy], []);
+			const result = renderGP(mockLogger, 'VS Code', 'CustomRegKey', ['1.85'], [mockCategory], [mockPolicy], []);
 
 			assert.ok(result.admx.includes('CustomRegKey'));
 			assert.ok(result.admx.includes('Software\\Policies\\Microsoft\\CustomRegKey'));
 		});
 
 		test('should include en-us ADML by default', () => {
-			const result = renderGP('VS Code', 'VSCode', ['1.85'], [mockCategory], [mockPolicy], []);
+			const result = renderGP(mockLogger, 'VS Code', 'VSCode', ['1.85'], [mockCategory], [mockPolicy], []);
 
 			assert.strictEqual(result.adml.length, 1);
 			assert.strictEqual(result.adml[0].languageId, 'en-us');
@@ -614,7 +616,7 @@ suite('Render Functions', () => {
 				{ languageId: 'de-de', languageTranslations: { 'test.policy': 'Testrichtlinie' } }
 			];
 
-			const result = renderGP('VS Code', 'VSCode', ['1.85'], [mockCategory], [mockPolicy], translations);
+			const result = renderGP(mockLogger, 'VS Code', 'VSCode', ['1.85'], [mockCategory], [mockPolicy], translations);
 
 			assert.strictEqual(result.adml.length, 3); // en-us + 2 translations
 			assert.strictEqual(result.adml[0].languageId, 'en-us');
@@ -626,27 +628,27 @@ suite('Render Functions', () => {
 		});
 
 		test('should pass versions to ADMX', () => {
-			const result = renderGP('VS Code', 'VSCode', ['1.85', '1.90'], [mockCategory], [mockPolicy], []);
+			const result = renderGP(mockLogger, 'VS Code', 'VSCode', ['1.85', '1.90'], [mockCategory], [mockPolicy], []);
 
 			assert.ok(result.admx.includes('Supported_1_85'));
 			assert.ok(result.admx.includes('Supported_1_90'));
 		});
 
 		test('should pass versions to ADML', () => {
-			const result = renderGP('VS Code', 'VSCode', ['1.85', '1.90'], [mockCategory], [mockPolicy], []);
+			const result = renderGP(mockLogger, 'VS Code', 'VSCode', ['1.85', '1.90'], [mockCategory], [mockPolicy], []);
 
 			assert.ok(result.adml[0].contents.includes('VS Code &gt;= 1.85'));
 			assert.ok(result.adml[0].contents.includes('VS Code &gt;= 1.90'));
 		});
 
 		test('should pass categories to ADMX', () => {
-			const result = renderGP('VS Code', 'VSCode', ['1.85'], [mockCategory], [mockPolicy], []);
+			const result = renderGP(mockLogger, 'VS Code', 'VSCode', ['1.85'], [mockCategory], [mockPolicy], []);
 
 			assert.ok(result.admx.includes('test.category'));
 		});
 
 		test('should pass categories to ADML', () => {
-			const result = renderGP('VS Code', 'VSCode', ['1.85'], [mockCategory], [mockPolicy], []);
+			const result = renderGP(mockLogger, 'VS Code', 'VSCode', ['1.85'], [mockCategory], [mockPolicy], []);
 
 			assert.ok(result.adml[0].contents.includes('Category_test_category'));
 		});
@@ -663,7 +665,7 @@ suite('Render Functions', () => {
 				renderADMLStrings: () => ['<string id="TestPolicy2">Test Policy 2</string>']
 			};
 
-			const result = renderGP('VS Code', 'VSCode', ['1.85'], [mockCategory], [mockPolicy, policy2], []);
+			const result = renderGP(mockLogger, 'VS Code', 'VSCode', ['1.85'], [mockCategory], [mockPolicy, policy2], []);
 
 			assert.ok(result.admx.includes('TestPolicy'));
 			assert.ok(result.admx.includes('TestPolicy2'));
@@ -672,13 +674,13 @@ suite('Render Functions', () => {
 		});
 
 		test('should include app name in ADML', () => {
-			const result = renderGP('My Custom App', 'VSCode', ['1.85'], [mockCategory], [mockPolicy], []);
+			const result = renderGP(mockLogger, 'My Custom App', 'VSCode', ['1.85'], [mockCategory], [mockPolicy], []);
 
 			assert.ok(result.adml[0].contents.includes('My Custom App'));
 		});
 
 		test('should return structured result with admx and adml properties', () => {
-			const result = renderGP('VS Code', 'VSCode', ['1.85'], [mockCategory], [mockPolicy], []);
+			const result = renderGP(mockLogger, 'VS Code', 'VSCode', ['1.85'], [mockCategory], [mockPolicy], []);
 
 			assert.ok('admx' in result);
 			assert.ok('adml' in result);

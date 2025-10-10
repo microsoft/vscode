@@ -18,6 +18,8 @@ import { StringEnumPolicy } from './policies/stringEnumPolicy.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { ObjectPolicy } from './policies/objectPolicy.js';
 import { PolicyCategoryTitle } from '../../../../base/common/policy.js';
+import { ILogService } from '../../../log/common/log.js';
+import { LoggerPrefix } from './constants.js';
 
 const Languages = {
 	'fr': 'fr-fr',
@@ -40,7 +42,8 @@ export class PolicyWriterService implements IPolicyWriterService {
 
 	constructor(
 		@IProductService private readonly productService: IProductService,
-		@IFileService private readonly fileService: IFileService
+		@IFileService private readonly fileService: IFileService,
+		@ILogService private readonly logService: ILogService
 	) { }
 
 	public async write(configs: Array<{ key: string; schema: IRegisteredConfigurationPropertySchema }>, platform: 'darwin' | 'win32'): Promise<void> {
@@ -76,6 +79,7 @@ export class PolicyWriterService implements IPolicyWriterService {
 		const mobileconfigPath = path.join(root, `${bundleIdentifier}.mobileconfig`);
 		const mobileconfigUri = URI.file(path.resolve(mobileconfigPath));
 		await this.fileService.writeFile(mobileconfigUri, VSBuffer.fromString(profile.replace(/\r?\n/g, '\n')));
+		this.logService.info(`${LoggerPrefix} Successfully wrote to ${mobileconfigPath}.`);
 
 		for (const { languageId, contents } of manifests) {
 			const languagePath = path.join(root, languageId === 'en-us' ? 'en-us' : Languages[languageId as keyof typeof Languages]);
@@ -96,7 +100,7 @@ export class PolicyWriterService implements IPolicyWriterService {
 
 		const { versions, categories } = this.getVersionsAndCategories(policies);
 		const root = '.build/policies/win32';
-		const { admx, adml } = renderGP(appName, regKey, versions, categories, policies, translations);
+		const { admx, adml } = renderGP(this.logService, appName, regKey, versions, categories, policies, translations);
 
 		const rootUri = URI.file(path.resolve(root));
 		await this.fileService.del(rootUri, { recursive: true, useTrash: false }).catch(() => { /* ignore if doesn't exist */ });
@@ -105,6 +109,7 @@ export class PolicyWriterService implements IPolicyWriterService {
 		const admxPath = path.join(root, `${this.productService.win32RegValueName}.admx`);
 		const admxUri = URI.file(path.resolve(admxPath));
 		await this.fileService.writeFile(admxUri, VSBuffer.fromString(admx.replace(/\r?\n/g, '\n')));
+		this.logService.info(`${LoggerPrefix} Successfully wrote to ${admxPath}.`);
 
 		for (const { languageId, contents } of adml) {
 			const languagePath = path.join(root, languageId === 'en-us' ? 'en-us' : Languages[languageId as keyof typeof Languages]);
@@ -153,23 +158,24 @@ export class PolicyWriterService implements IPolicyWriterService {
 			};
 		}) ?? [];
 
+		const logger = this.logService;
 		switch (config.type) {
 			case 'boolean':
-				convertedPolicy = BooleanPolicy.from({ key, policy, category, policyDescription, config });
+				convertedPolicy = BooleanPolicy.from({ key, policy, category, policyDescription, config, logger });
 				break;
 			case 'number':
 			case 'integer':
-				convertedPolicy = NumberPolicy.from({ key, policy, category, policyDescription, config });
+				convertedPolicy = NumberPolicy.from({ key, policy, category, policyDescription, config, logger });
 				break;
 			case 'array':
 			case 'object':
-				convertedPolicy = ObjectPolicy.from({ key, policy, category, policyDescription, config });
+				convertedPolicy = ObjectPolicy.from({ key, policy, category, policyDescription, config, logger });
 				break;
 			case 'string':
 				if (config.enum) {
-					convertedPolicy = StringEnumPolicy.from({ key, policy, category, policyDescription, policyEnumDescriptions, config });
+					convertedPolicy = StringEnumPolicy.from({ key, policy, category, policyDescription, policyEnumDescriptions, config, logger });
 				} else {
-					convertedPolicy = StringPolicy.from({ key, policy, category, policyDescription, config });
+					convertedPolicy = StringPolicy.from({ key, policy, category, policyDescription, config, logger });
 				}
 				break;
 		}
@@ -180,7 +186,15 @@ export class PolicyWriterService implements IPolicyWriterService {
 	}
 
 	private getPolicies(configs: Array<{ key: string; schema: IRegisteredConfigurationPropertySchema }>): Policy[] {
-		return configs.map(({ key, schema }) => this.configToPolicy(key, schema)).sort((a, b) => a.name.localeCompare(b.name));
+		return configs.map(({ key, schema }) => this.configToPolicy(key, schema)).sort((a, b) => {
+			// Order by category first, then within the groups sort alphabetically. This attempts to keep
+			// similar configurations together, but we can revisit this later if we need a custom ordering.
+			const categoryCompare = a.category.name.nlsKey.localeCompare(b.category.name.nlsKey);
+			if (categoryCompare !== 0) {
+				return categoryCompare;
+			}
+			return a.name.localeCompare(b.name);
+		});
 	}
 
 	private getVersionsAndCategories(policies: Policy[]) {

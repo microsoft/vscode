@@ -9,6 +9,7 @@ import { IPolicy, PolicyCategory } from '../../../../../../base/common/policy.js
 import { IConfigurationPropertySchema } from '../../../../../configuration/common/configurationRegistry.js';
 import { Category, NlsString, LanguageTranslations, PolicyType } from '../../../../node/writer/types.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { ILogger } from '../../../../../log/common/log.js';
 
 suite('BooleanPolicy', () => {
 
@@ -37,13 +38,16 @@ suite('BooleanPolicy', () => {
 		default: false
 	};
 
+	const mockLogger: ILogger = { warn: () => { } } as unknown as ILogger;
+
 	test('should create BooleanPolicy from factory method', () => {
 		const policy = BooleanPolicy.from({
 			key: 'test.key',
 			policy: mockPolicy,
 			category: mockCategory,
 			policyDescription: mockPolicyDescription,
-			config: mockConfig
+			config: mockConfig,
+			logger: mockLogger
 		});
 
 		assert.strictEqual(policy.name, 'TestBooleanPolicy');
@@ -58,7 +62,8 @@ suite('BooleanPolicy', () => {
 			policy: mockPolicy,
 			category: mockCategory,
 			policyDescription: mockPolicyDescription,
-			config: mockConfig
+			config: mockConfig,
+			logger: mockLogger
 		});
 
 		const admx = policy.renderADMX('TestKey');
@@ -82,7 +87,8 @@ suite('BooleanPolicy', () => {
 			policy: mockPolicy,
 			category: mockCategory,
 			policyDescription: mockPolicyDescription,
-			config: mockConfig
+			config: mockConfig,
+			logger: mockLogger
 		});
 
 		const admlStrings = policy.renderADMLStrings();
@@ -99,7 +105,8 @@ suite('BooleanPolicy', () => {
 			policy: mockPolicy,
 			category: mockCategory,
 			policyDescription: mockPolicyDescription,
-			config: mockConfig
+			config: mockConfig,
+			logger: mockLogger
 		});
 
 		const translations: LanguageTranslations = {
@@ -120,7 +127,8 @@ suite('BooleanPolicy', () => {
 			policy: mockPolicy,
 			category: mockCategory,
 			policyDescription: mockPolicyDescription,
-			config: mockConfig
+			config: mockConfig,
+			logger: mockLogger
 		});
 
 		const presentation = policy.renderADMLPresentation();
@@ -134,7 +142,8 @@ suite('BooleanPolicy', () => {
 			policy: mockPolicy,
 			category: mockCategory,
 			policyDescription: mockPolicyDescription,
-			config: mockConfig
+			config: mockConfig,
+			logger: mockLogger
 		});
 
 		const profileValue = policy.renderProfileValue();
@@ -148,7 +157,8 @@ suite('BooleanPolicy', () => {
 			policy: mockPolicy,
 			category: mockCategory,
 			policyDescription: mockPolicyDescription,
-			config: mockConfig
+			config: mockConfig,
+			logger: mockLogger
 		});
 
 		const profile = policy.renderProfile();
@@ -164,7 +174,8 @@ suite('BooleanPolicy', () => {
 			policy: mockPolicy,
 			category: mockCategory,
 			policyDescription: mockPolicyDescription,
-			config: mockConfig
+			config: mockConfig,
+			logger: mockLogger
 		});
 
 		const manifestValue = policy.renderProfileManifestValue();
@@ -178,7 +189,8 @@ suite('BooleanPolicy', () => {
 			policy: mockPolicy,
 			category: mockCategory,
 			policyDescription: mockPolicyDescription,
-			config: mockConfig
+			config: mockConfig,
+			logger: mockLogger
 		});
 
 		const translations: LanguageTranslations = {
@@ -196,7 +208,8 @@ suite('BooleanPolicy', () => {
 			policy: mockPolicy,
 			category: mockCategory,
 			policyDescription: mockPolicyDescription,
-			config: mockConfig
+			config: mockConfig,
+			logger: mockLogger
 		});
 
 		const manifest = policy.renderProfileManifest();

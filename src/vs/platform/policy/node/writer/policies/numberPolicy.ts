@@ -8,14 +8,15 @@ import { IConfigurationPropertySchema } from '../../../../configuration/common/c
 import { Category, LanguageTranslations, NlsString, PolicyType } from '../types.js';
 import { BasePolicy } from './basePolicy.js';
 import { renderProfileString } from '../render.js';
+import { ILogger } from '../../../../log/common/log.js';
 
 export class NumberPolicy extends BasePolicy {
 
-	static from({ key, policy, category, policyDescription, config }: { key: string; policy: IPolicy; category: Category; policyDescription: NlsString; config: IConfigurationPropertySchema }): NumberPolicy {
+	static from({ key, policy, category, policyDescription, config, logger }: { key: string; policy: IPolicy; category: Category; policyDescription: NlsString; config: IConfigurationPropertySchema; logger: ILogger }): NumberPolicy {
 		if (config.default === undefined) {
 			throw new Error(`[NumberPolicy] Failed to convert ${key}: missing required 'default' property.`);
 		}
-		return new NumberPolicy(policy.name, category, policy.minimumVersion, policyDescription, config.default);
+		return new NumberPolicy(policy.name, category, policy.minimumVersion, policyDescription, config.default, logger);
 	}
 
 	private constructor(
@@ -24,8 +25,9 @@ export class NumberPolicy extends BasePolicy {
 		minimumVersion: string,
 		description: NlsString,
 		protected readonly defaultValue: number,
+		logger: ILogger,
 	) {
-		super(PolicyType.Number, name, category, minimumVersion, description);
+		super(PolicyType.Number, name, category, minimumVersion, description, logger);
 	}
 
 	protected renderADMXElements(): string[] {
@@ -47,7 +49,7 @@ export class NumberPolicy extends BasePolicy {
 		return `<key>pfm_default</key>
 <integer>${this.defaultValue}</integer>
 <key>pfm_description</key>
-<string>${renderProfileString(this.name, this.description, translations)}</string>
+<string>${renderProfileString(this.logger, this.name, this.description, translations)}</string>
 <key>pfm_name</key>
 <string>${this.name}</string>
 <key>pfm_title</key>

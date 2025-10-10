@@ -8,11 +8,12 @@ import { IConfigurationPropertySchema } from '../../../../configuration/common/c
 import { Category, LanguageTranslations, NlsString, PolicyType } from '../types.js';
 import { BasePolicy } from './basePolicy.js';
 import { renderProfileString } from '../render.js';
+import { ILogger } from '../../../../log/common/log.js';
 
 export class StringPolicy extends BasePolicy {
 
-	static from({ policy, category, policyDescription }: { key: string; policy: IPolicy; category: Category; policyDescription: NlsString; config: IConfigurationPropertySchema }): StringPolicy {
-		return new StringPolicy(policy.name, category, policy.minimumVersion, policyDescription);
+	static from({ policy, category, policyDescription, logger }: { key: string; policy: IPolicy; category: Category; policyDescription: NlsString; config: IConfigurationPropertySchema; logger: ILogger }): StringPolicy {
+		return new StringPolicy(policy.name, category, policy.minimumVersion, policyDescription, logger);
 	}
 
 	private constructor(
@@ -20,8 +21,9 @@ export class StringPolicy extends BasePolicy {
 		category: Category,
 		minimumVersion: string,
 		description: NlsString,
+		logger: ILogger
 	) {
-		super(PolicyType.String, name, category, minimumVersion, description);
+		super(PolicyType.String, name, category, minimumVersion, description, logger);
 	}
 
 	protected renderADMXElements(): string[] {
@@ -40,7 +42,7 @@ export class StringPolicy extends BasePolicy {
 		return `<key>pfm_default</key>
 <string></string>
 <key>pfm_description</key>
-<string>${renderProfileString(this.name, this.description, translations)}</string>
+<string>${renderProfileString(this.logger, this.name, this.description, translations)}</string>
 <key>pfm_name</key>
 <string>${this.name}</string>
 <key>pfm_title</key>
