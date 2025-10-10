@@ -249,6 +249,10 @@ export class PtyService extends Disposable implements IPtyService {
 			const lastReplayEvent = terminal.replayEvent.events.length > 0 ? terminal.replayEvent.events.at(-1) : undefined;
 			if (lastReplayEvent) {
 				postRestoreMessage += '\r\n'.repeat(lastReplayEvent.rows - 1) + `\x1b[H`;
+				// Workaround for newer ConPTY versions where first input character gets ignored.
+				// Send cursor position queries (DSR) and explicit positioning to force ConPTY to
+				// synchronize its internal cursor state, preventing the first character loss issue.
+				postRestoreMessage += '\x1b[6n\x1b[999;999H\x1b[6n\x1b[H';
 			}
 		}
 
@@ -688,6 +692,7 @@ class PersistentTerminalProcess extends Disposable {
 	private _serializer: ITerminalSerializer;
 	private _wasRevived: boolean;
 	private _fixedDimensions: IFixedTerminalDimensions | undefined;
+	private _inputDelayTimer: any;
 
 	get pid(): number { return this._pid; }
 	get shellLaunchConfig(): IShellLaunchConfig { return this._terminalProcess.shellLaunchConfig; }
@@ -795,6 +800,10 @@ class PersistentTerminalProcess extends Disposable {
 		}
 		this._disconnectRunner1.cancel();
 		this._disconnectRunner2.cancel();
+		if (this._inputDelayTimer) {
+			clearTimeout(this._inputDelayTimer);
+			this._inputDelayTimer = undefined;
+		}
 	}
 
 	async detach(forcePersist?: boolean): Promise<void> {
@@ -836,6 +845,12 @@ class PersistentTerminalProcess extends Disposable {
 			// causes conhost to hang when no response is received from the terminal (which wouldn't
 			// be attached yet). https://github.com/microsoft/terminal/issues/11213
 			if (this._wasRevived) {
+				// Delay input for 100ms after revival to let ConPTY stabilize on Windows.
+				// This prevents the first input character from being ignored due to ConPTY
+				// internal state initialization timing issues.
+				this._inputDelayTimer = setTimeout(() => {
+					this._inputDelayTimer = undefined;
+				}, 100);
 				this.triggerReplay();
 			} else {
 				this._onPersistentProcessReady.fire();
@@ -856,6 +871,11 @@ class PersistentTerminalProcess extends Disposable {
 		this._interactionState.setValue(InteractionState.Session, 'input');
 		this._serializer.freeRawReviveBuffer();
 		if (this._inReplay) {
+			return;
+		}
+		// Queue input if we're in the post-revival stabilization period
+		if (this._inputDelayTimer) {
+			setTimeout(() => this.input(data), 50);
 			return;
 		}
 		return this._terminalProcess.input(data);
