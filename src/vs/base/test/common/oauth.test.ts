@@ -1506,7 +1506,8 @@ suite('OAuth', () => {
 			assert.strictEqual(headers['X-Custom-Header'], 'custom-value');
 			assert.strictEqual(headers['Authorization'], 'Bearer token123');
 			assert.strictEqual(headers['Accept'], 'application/json');
-		}); test('should throw error when all discovery endpoints fail', async () => {
+		});
+		test('should throw error when all discovery endpoints fail', async () => {
 			const authorizationServer = 'https://auth.example.com/tenant';
 
 			fetchStub.resolves({
