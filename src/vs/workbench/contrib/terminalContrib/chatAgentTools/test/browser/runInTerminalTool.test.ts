@@ -31,7 +31,7 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 	get commandLineAutoApprover() { return this._commandLineAutoApprover; }
 	get sessionTerminalAssociations() { return this._sessionTerminalAssociations; }
 
-	getCopilotShellOrProfile() {
+	getCopilotProfile() {
 		return this._getCopilotProfile();
 	}
 	setBackendOs(os: OperatingSystem) {
@@ -952,7 +952,7 @@ suite('RunInTerminalTool', () => {
 			const customProfile = Object.freeze({ path: 'C:\\Windows\\System32\\powershell.exe', args: ['-NoProfile'] });
 			setConfig(TerminalChatAgentToolsSettingId.TerminalProfileWindows, customProfile);
 
-			const result = await runInTerminalTool.getCopilotShellOrProfile();
+			const result = await runInTerminalTool.getCopilotProfile();
 			strictEqual(result, customProfile);
 		});
 
@@ -960,7 +960,7 @@ suite('RunInTerminalTool', () => {
 			runInTerminalTool.setBackendOs(OperatingSystem.Linux);
 			setConfig(TerminalChatAgentToolsSettingId.TerminalProfileLinux, null);
 
-			const result = await runInTerminalTool.getCopilotShellOrProfile();
+			const result = await runInTerminalTool.getCopilotProfile();
 			strictEqual(typeof result, 'object');
 			strictEqual((result as ITerminalProfile).path, 'pwsh'); // From the mock ITerminalProfileResolverService
 		});
