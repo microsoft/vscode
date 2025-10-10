@@ -1186,3 +1186,117 @@ export async function fetchResourceMetadata(
 		throw new AggregateError(errors, 'Failed to fetch resource metadata from all attempted URLs');
 	}
 }
+
+export interface IFetchAuthorizationServerMetadataOptions {
+	/**
+	 * Headers to include in the requests
+	 */
+	additionalHeaders?: Record<string, string>;
+	/**
+	 * Optional custom fetch implementation (defaults to global fetch)
+	 */
+	fetch?: IFetcher;
+}
+
+/** Helper to try parsing the response as authorization server metadata */
+async function tryParseAuthServerMetadata(response: CommonResponse): Promise<IAuthorizationServerMetadata | undefined> {
+	if (response.status !== 200) {
+		return undefined;
+	}
+	try {
+		const body = await response.json();
+		if (isAuthorizationServerMetadata(body)) {
+			return body;
+		}
+	} catch {
+		// Failed to parse as JSON or not valid metadata
+	}
+	return undefined;
+}
+
+/** Helper to get error text from response */
+async function getErrText(res: CommonResponse): Promise<string> {
+	try {
+		return await res.text();
+	} catch {
+		return res.statusText;
+	}
+}
+
+/**
+ * Fetches and validates OAuth 2.0 authorization server metadata from the given authorization server URL.
+ *
+ * This function tries multiple discovery endpoints in the following order:
+ * 1. OAuth 2.0 Authorization Server Metadata with path insertion (RFC 8414)
+ * 2. OpenID Connect Discovery with path insertion
+ * 3. OpenID Connect Discovery with path addition
+ *
+ * Path insertion: For issuer URLs with path components (e.g., https://example.com/tenant),
+ * the well-known path is inserted after the origin and before the path:
+ * https://example.com/.well-known/oauth-authorization-server/tenant
+ *
+ * Path addition: The well-known path is simply appended to the existing path:
+ * https://example.com/tenant/.well-known/openid-configuration
+ *
+ * @param authorizationServer The authorization server URL (issuer identifier)
+ * @param options Configuration options for the fetch operation
+ * @returns Promise that resolves to the validated authorization server metadata
+ * @throws Error if all discovery attempts fail or the response is invalid
+ *
+ * @see https://datatracker.ietf.org/doc/html/rfc8414#section-3
+ */
+export async function fetchAuthorizationServerMetadata(
+	authorizationServer: string,
+	options: IFetchAuthorizationServerMetadataOptions = {}
+): Promise<IAuthorizationServerMetadata> {
+	const {
+		additionalHeaders = {},
+		fetch: fetchImpl = fetch
+	} = options;
+
+	const authorizationServerUrl = new URL(authorizationServer);
+	const extraPath = authorizationServerUrl.pathname === '/' ? '' : authorizationServerUrl.pathname;
+
+	const doFetch = async (url: string): Promise<{ metadata: IAuthorizationServerMetadata | undefined; rawResponse: CommonResponse }> => {
+		const rawResponse = await fetchImpl(url, {
+			method: 'GET',
+			headers: {
+				...additionalHeaders,
+				'Accept': 'application/json'
+			}
+		});
+		const metadata = await tryParseAuthServerMetadata(rawResponse);
+		return { metadata, rawResponse };
+	};
+
+	// For the oauth server metadata discovery path, we _INSERT_
+	// the well known path after the origin and before the path.
+	// https://datatracker.ietf.org/doc/html/rfc8414#section-3
+	const pathToFetch = new URL(AUTH_SERVER_METADATA_DISCOVERY_PATH, authorizationServer).toString() + extraPath;
+	let result = await doFetch(pathToFetch);
+	if (result.metadata) {
+		return result.metadata;
+	}
+
+	// Try fetching the OpenID Connect Discovery with path insertion.
+	// For issuer URLs with path components, this inserts the well-known path
+	// after the origin and before the path.
+	const openidPathInsertionUrl = new URL(OPENID_CONNECT_DISCOVERY_PATH, authorizationServer).toString() + extraPath;
+	result = await doFetch(openidPathInsertionUrl);
+	if (result.metadata) {
+		return result.metadata;
+	}
+
+	// Try fetching the other discovery URL. For the openid metadata discovery
+	// path, we _ADD_ the well known path after the existing path.
+	// https://datatracker.ietf.org/doc/html/rfc8414#section-3
+	const openidPathAdditionUrl = authorizationServer.endsWith('/')
+		? authorizationServer + OPENID_CONNECT_DISCOVERY_PATH.substring(1) // Remove leading slash if authServer ends with slash
+		: authorizationServer + OPENID_CONNECT_DISCOVERY_PATH;
+	result = await doFetch(openidPathAdditionUrl);
+	if (result.metadata) {
+		return result.metadata;
+	}
+
+	throw new Error(`Failed to fetch authorization server metadata: ${result.rawResponse.status} ${await getErrText(result.rawResponse)}`);
+}
