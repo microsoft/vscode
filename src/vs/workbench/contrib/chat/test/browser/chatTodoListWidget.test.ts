@@ -4,11 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Event } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ChatTodoListWidget } from '../../browser/chatContentParts/chatTodoListWidget.js';
 import { IChatTodo, IChatTodoListService } from '../../common/chatTodoListService.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 
 suite('ChatTodoListWidget Accessibility', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -16,6 +20,8 @@ suite('ChatTodoListWidget Accessibility', () => {
 	let widget: ChatTodoListWidget;
 	let mockTodoListService: IChatTodoListService;
 	let mockConfigurationService: IConfigurationService;
+	let mockContextMenuService: IContextMenuService;
+	let mockContextKeyService: IContextKeyService;
 
 	const sampleTodos: IChatTodo[] = [
 		{ id: 1, title: 'First task', status: 'not-started' },
@@ -28,7 +34,10 @@ suite('ChatTodoListWidget Accessibility', () => {
 		mockTodoListService = {
 			_serviceBrand: undefined,
 			getTodos: (sessionId: string) => sampleTodos,
-			setTodos: (sessionId: string, todos: IChatTodo[]) => { }
+			setTodos: (sessionId: string, todos: IChatTodo[]) => { },
+			getCustomTitle: (sessionId: string) => undefined,
+			setCustomTitle: (sessionId: string, title: string | undefined) => { },
+			onDidChangeCustomTitle: Event.None
 		};
 
 		// Mock the configuration service
@@ -38,7 +47,22 @@ suite('ChatTodoListWidget Accessibility', () => {
 			getValue: (key: string) => key === 'chat.todoListTool.descriptionField' ? true : undefined
 		} as any;
 
-		widget = store.add(new ChatTodoListWidget(mockTodoListService, mockConfigurationService));
+		// Mock the context menu service
+		// eslint-disable-next-line local/code-no-any-casts
+		mockContextMenuService = {
+			_serviceBrand: undefined,
+			showContextMenu: () => { }
+		} as any;
+
+		// Mock the context key service
+		mockContextKeyService = new MockContextKeyService();
+
+		widget = store.add(new ChatTodoListWidget(
+			mockTodoListService,
+			mockConfigurationService,
+			mockContextMenuService,
+			mockContextKeyService
+		));
 		mainWindow.document.body.appendChild(widget.domNode);
 	});
 
@@ -138,7 +162,10 @@ suite('ChatTodoListWidget Accessibility', () => {
 		const emptyTodoListService: IChatTodoListService = {
 			_serviceBrand: undefined,
 			getTodos: (sessionId: string) => [],
-			setTodos: (sessionId: string, todos: IChatTodo[]) => { }
+			setTodos: (sessionId: string, todos: IChatTodo[]) => { },
+			getCustomTitle: (sessionId: string) => undefined,
+			setCustomTitle: (sessionId: string, title: string | undefined) => { },
+			onDidChangeCustomTitle: Event.None
 		};
 
 		// eslint-disable-next-line local/code-no-any-casts
@@ -147,7 +174,12 @@ suite('ChatTodoListWidget Accessibility', () => {
 			getValue: (key: string) => key === 'chat.todoListTool.descriptionField' ? true : undefined
 		} as any;
 
-		const emptyWidget = store.add(new ChatTodoListWidget(emptyTodoListService, emptyConfigurationService));
+		const emptyWidget = store.add(new ChatTodoListWidget(
+			emptyTodoListService,
+			emptyConfigurationService,
+			mockContextMenuService,
+			mockContextKeyService
+		));
 		mainWindow.document.body.appendChild(emptyWidget.domNode);
 
 		emptyWidget.render('test-session');

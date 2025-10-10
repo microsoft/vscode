@@ -80,6 +80,7 @@ import { registerQuickChatActions } from './actions/chatQuickInputActions.js';
 import { ChatSessionsGettingStartedAction, DeleteChatSessionAction, OpenChatSessionInNewEditorGroupAction, OpenChatSessionInNewWindowAction, OpenChatSessionInSidebarAction, RenameChatSessionAction, ToggleChatSessionsDescriptionDisplayAction } from './actions/chatSessionActions.js';
 import { registerChatTitleActions } from './actions/chatTitleActions.js';
 import { registerChatToolActions } from './actions/chatToolActions.js';
+import { registerChatTodoListActions } from './actions/chatTodoListActions.js';
 import { ChatTransferContribution } from './actions/chatTransfer.js';
 import { IChatAccessibilityService, IChatCodeBlockContextProviderService, IChatWidgetService, IQuickChatService } from './chat.js';
 import { ChatAccessibilityService } from './chatAccessibilityService.js';
@@ -975,6 +976,7 @@ registerChatContextActions();
 registerChatDeveloperActions();
 registerChatEditorActions();
 registerChatToolActions();
+registerChatTodoListActions();
 registerLanguageModelActions();
 
 registerEditorFeature(ChatPasteProvidersFeature);

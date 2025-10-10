@@ -10,8 +10,12 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IChatTodoListService, IChatTodo } from '../../common/chatTodoListService.js';
 import { TodoListToolDescriptionFieldSettingId } from '../../common/tools/manageTodoListTool.js';
+import { MenuId } from '../../../../../platform/actions/common/actions.js';
+import { ActionRunner } from '../../../../../base/common/actions.js';
 
 export class ChatTodoListWidget extends Disposable {
 	public readonly domNode: HTMLElement;
@@ -30,11 +34,20 @@ export class ChatTodoListWidget extends Disposable {
 
 	constructor(
 		@IChatTodoListService private readonly chatTodoListService: IChatTodoListService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super();
 
 		this.domNode = this.createChatTodoWidget();
+
+		// Listen for title changes
+		this._register(this.chatTodoListService.onDidChangeCustomTitle((sessionId) => {
+			if (sessionId === this._currentSessionId) {
+				this.refreshTitle();
+			}
+		}));
 	}
 
 	public get height(): number {
@@ -62,6 +75,13 @@ export class ChatTodoListWidget extends Disposable {
 		titleElement.id = 'todo-list-title';
 		titleElement.textContent = localize('chat.todoList.title', 'Todos');
 
+		// Add context menu support to title section
+		this._register(dom.addDisposableListener(titleSection, dom.EventType.CONTEXT_MENU, (e: MouseEvent) => {
+			e.preventDefault();
+			e.stopPropagation();
+			this.showContextMenu(e);
+		}));
+
 		// Add clear button container to the expand element
 		this.clearButtonContainer = dom.$('.todo-clear-button-container');
 		this.createClearButton();
@@ -81,8 +101,12 @@ export class ChatTodoListWidget extends Disposable {
 		container.appendChild(this.expandoElement);
 		container.appendChild(this.todoListContainer);
 
-		this._register(dom.addDisposableListener(this.expandoElement, 'click', () => {
-			this.toggleExpanded();
+		this._register(dom.addDisposableListener(this.expandoElement, 'click', (e: MouseEvent) => {
+			// Don't toggle if clicking on the clear button
+			const target = e.target as HTMLElement;
+			if (target && !target.closest('.todo-clear-button-container')) {
+				this.toggleExpanded();
+			}
 		}));
 
 		this._register(dom.addDisposableListener(this.expandoElement, 'keydown', (e) => {
@@ -137,6 +161,18 @@ export class ChatTodoListWidget extends Disposable {
 
 		this._currentSessionId = sessionId;
 		this.updateTodoDisplay();
+	}
+
+	public refreshTitle(): void {
+		if (!this._currentSessionId) {
+			return;
+		}
+
+		const todoList = this.chatTodoListService.getTodos(this._currentSessionId);
+		const titleElement = this.expandoElement.querySelector('.todo-list-title') as HTMLElement;
+		if (titleElement) {
+			this.updateTitleElement(titleElement, todoList);
+		}
 	}
 
 	public clear(sessionId: string | undefined, force: boolean = false): void {
@@ -339,6 +375,25 @@ export class ChatTodoListWidget extends Disposable {
 		this.domNode.classList.toggle('scrolled', this.todoListContainer.scrollTop > 0);
 	}
 
+	private showContextMenu(e: MouseEvent): void {
+		if (!this._currentSessionId) {
+			return;
+		}
+
+		const hasCustomTitle = !!this.chatTodoListService.getCustomTitle(this._currentSessionId);
+		const scopedContextKeyService = this.contextKeyService.createOverlay([
+			['chatTodoListHasCustomTitle', hasCustomTitle]
+		]);
+
+		this.contextMenuService.showContextMenu({
+			menuId: MenuId.ChatTodoListTitleContext,
+			getAnchor: () => ({ x: e.clientX, y: e.clientY }),
+			getActionsContext: () => this._currentSessionId,
+			contextKeyService: scopedContextKeyService,
+			actionRunner: new ActionRunner()
+		});
+	}
+
 	private updateTitleElement(titleElement: HTMLElement, todoList: IChatTodo[]): void {
 		titleElement.textContent = '';
 
@@ -349,11 +404,15 @@ export class ChatTodoListWidget extends Disposable {
 		const completedTodos = todoList.filter(todo => todo.status === 'completed');
 		const lastCompletedTodo = completedTodos.length > 0 ? completedTodos[completedTodos.length - 1] : undefined;
 
+		// Use custom title if available, otherwise use default
+		const customTitle = this._currentSessionId ? this.chatTodoListService.getCustomTitle(this._currentSessionId) : undefined;
+		const baseTitle = customTitle || localize('chat.todoList.title', 'Todos');
+
 		const progressText = dom.$('span');
 		if (totalCount === 0) {
-			progressText.textContent = localize('chat.todoList.title', 'Todos');
+			progressText.textContent = baseTitle;
 		} else {
-			progressText.textContent = localize('chat.todoList.titleWithProgress', 'Todos ({0}/{1})', completedCount, totalCount);
+			progressText.textContent = localize('chat.todoList.titleWithProgress', '{0} ({1}/{2})', baseTitle, completedCount, totalCount);
 		}
 		titleElement.appendChild(progressText);
 		const expandButtonLabel = this._isExpanded
