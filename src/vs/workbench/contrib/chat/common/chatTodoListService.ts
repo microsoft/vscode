@@ -24,11 +24,12 @@ export const IChatTodoListService = createDecorator<IChatTodoListService>('chatT
 
 export interface IChatTodoListService {
 	readonly _serviceBrand: undefined;
-	getChatTodoListStorage(): IChatTodoListStorage;
+	getTodos(sessionId: string): IChatTodo[];
+	setTodos(sessionId: string, todos: IChatTodo[]): void;
 }
 
 export class ChatTodoListStorage implements IChatTodoListStorage {
-	private memento: Memento;
+	private memento: Memento<Record<string, IChatTodo[]>>;
 
 	constructor(@IStorageService storageService: IStorageService) {
 		this.memento = new Memento('chat-todo-list', storageService);
@@ -64,7 +65,11 @@ export class ChatTodoListService extends Disposable implements IChatTodoListServ
 		this.todoListStorage = new ChatTodoListStorage(storageService);
 	}
 
-	getChatTodoListStorage(): IChatTodoListStorage {
-		return this.todoListStorage;
+	getTodos(sessionId: string): IChatTodo[] {
+		return this.todoListStorage.getTodoList(sessionId);
+	}
+
+	setTodos(sessionId: string, todos: IChatTodo[]): void {
+		this.todoListStorage.setTodoList(sessionId, todos);
 	}
 }

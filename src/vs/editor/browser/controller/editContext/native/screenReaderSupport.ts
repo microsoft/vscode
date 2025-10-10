@@ -60,6 +60,7 @@ export class ScreenReaderSupport extends Disposable {
 
 	public handleFocusChange(newFocusValue: boolean): void {
 		this._state.value?.onFocusChange(newFocusValue);
+		this.writeScreenReaderContent();
 	}
 
 	public onConfigurationChanged(e: ViewConfigurationChangedEvent): void {

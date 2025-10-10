@@ -395,8 +395,8 @@ export class DiffEditorViewZones extends Disposable {
 		this._register(autorun(reader => {
 			/** @description update scroll modified */
 			const newScrollTopModified = this._originalScrollTop.read(reader)
-				- (this._originalScrollOffsetAnimated.get() - this._modifiedScrollOffsetAnimated.read(reader))
-				- (this._originalTopPadding.get() - this._modifiedTopPadding.read(reader));
+				- (this._originalScrollOffsetAnimated.read(undefined) - this._modifiedScrollOffsetAnimated.read(reader))
+				- (this._originalTopPadding.read(undefined) - this._modifiedTopPadding.read(reader));
 			if (newScrollTopModified !== this._editors.modified.getScrollTop()) {
 				this._editors.modified.setScrollTop(newScrollTopModified, ScrollType.Immediate);
 			}
@@ -405,8 +405,8 @@ export class DiffEditorViewZones extends Disposable {
 		this._register(autorun(reader => {
 			/** @description update scroll original */
 			const newScrollTopOriginal = this._modifiedScrollTop.read(reader)
-				- (this._modifiedScrollOffsetAnimated.get() - this._originalScrollOffsetAnimated.read(reader))
-				- (this._modifiedTopPadding.get() - this._originalTopPadding.read(reader));
+				- (this._modifiedScrollOffsetAnimated.read(undefined) - this._originalScrollOffsetAnimated.read(reader))
+				- (this._modifiedTopPadding.read(undefined) - this._originalTopPadding.read(reader));
 			if (newScrollTopOriginal !== this._editors.original.getScrollTop()) {
 				this._editors.original.setScrollTop(newScrollTopOriginal, ScrollType.Immediate);
 			}
@@ -419,8 +419,8 @@ export class DiffEditorViewZones extends Disposable {
 
 			let deltaOrigToMod = 0;
 			if (m) {
-				const trueTopOriginal = this._editors.original.getTopForLineNumber(m.lineRangeMapping.original.startLineNumber, true) - this._originalTopPadding.get();
-				const trueTopModified = this._editors.modified.getTopForLineNumber(m.lineRangeMapping.modified.startLineNumber, true) - this._modifiedTopPadding.get();
+				const trueTopOriginal = this._editors.original.getTopForLineNumber(m.lineRangeMapping.original.startLineNumber, true) - this._originalTopPadding.read(undefined);
+				const trueTopModified = this._editors.modified.getTopForLineNumber(m.lineRangeMapping.modified.startLineNumber, true) - this._modifiedTopPadding.read(undefined);
 				deltaOrigToMod = trueTopModified - trueTopOriginal;
 			}
 
@@ -438,9 +438,9 @@ export class DiffEditorViewZones extends Disposable {
 			}
 
 			if (this._editors.modified.hasTextFocus()) {
-				this._originalScrollOffset.set(this._modifiedScrollOffset.get() - deltaOrigToMod, undefined, true);
+				this._originalScrollOffset.set(this._modifiedScrollOffset.read(undefined) - deltaOrigToMod, undefined, true);
 			} else {
-				this._modifiedScrollOffset.set(this._originalScrollOffset.get() + deltaOrigToMod, undefined, true);
+				this._modifiedScrollOffset.set(this._originalScrollOffset.read(undefined) + deltaOrigToMod, undefined, true);
 			}
 		}));
 	}

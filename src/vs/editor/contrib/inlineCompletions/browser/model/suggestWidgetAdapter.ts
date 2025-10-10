@@ -203,6 +203,7 @@ export class SuggestItemInfo {
 			insertText,
 			item.completion.kind,
 			isSnippetText,
+			item.container.incomplete ?? false,
 		);
 	}
 
@@ -211,6 +212,7 @@ export class SuggestItemInfo {
 		public readonly insertText: string,
 		public readonly completionItemKind: CompletionItemKind,
 		public readonly isSnippetText: boolean,
+		public readonly listIncomplete: boolean,
 	) { }
 
 	public equals(other: SuggestItemInfo): boolean {

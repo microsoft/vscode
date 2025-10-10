@@ -60,28 +60,42 @@ export interface ITerminalCapabilityStore {
 	readonly items: IterableIterator<TerminalCapability>;
 
 	/**
-	 * Fired when a capability is added. The event data for this is only the
-	 * {@link TerminalCapability} type, use {@link onDidAddCapability} to access the actual
-	 * capability.
-	 */
-	readonly onDidAddCapabilityType: Event<TerminalCapability>;
-
-	/**
-	 * Fired when a capability is removed. The event data for this is only the
-	 * {@link TerminalCapability} type, use {@link onDidAddCapability} to access the actual
-	 * capability.
-	 */
-	readonly onDidRemoveCapabilityType: Event<TerminalCapability>;
-
-	/**
 	 * Fired when a capability is added.
 	 */
-	readonly onDidAddCapability: Event<TerminalCapabilityChangeEvent<any>>;
+	readonly onDidAddCapability: Event<AnyTerminalCapabilityChangeEvent>;
 
 	/**
 	 * Fired when a capability is removed.
+	*/
+	readonly onDidRemoveCapability: Event<AnyTerminalCapabilityChangeEvent>;
+
+	/**
+	 * Fired when a capability if added or removed.
 	 */
-	readonly onDidRemoveCapability: Event<TerminalCapabilityChangeEvent<any>>;
+	readonly onDidChangeCapabilities: Event<void>;
+
+	/** Fired when the command detection capability is added. */
+	readonly onDidAddCommandDetectionCapability: Event<ICommandDetectionCapability>;
+	/** Fired when the command detection capability is removed. */
+	readonly onDidRemoveCommandDetectionCapability: Event<void>;
+	/** Fired when the cwd detection capability is added. */
+	readonly onDidAddCwdDetectionCapability: Event<ICwdDetectionCapability>;
+	/** Fired when the cwd detection capability is removed. */
+	readonly onDidRemoveCwdDetectionCapability: Event<void>;
+
+	/**
+	 * Create an event that's fired when a specific capability type is added. Use this over
+	 * {@link onDidAddCapability} when the generic type needs to be retained.
+	 * @param type The capability type.
+	 */
+	createOnDidAddCapabilityOfTypeEvent<T extends TerminalCapability>(type: T): Event<ITerminalCapabilityImplMap[T]>;
+
+	/**
+	 * Create an event that's fired when a specific capability type is removed. Use this over
+	 * {@link onDidRemoveCapability} when the generic type needs to be retained.
+	 * @param type The capability type.
+	 */
+	createOnDidRemoveCapabilityOfTypeEvent<T extends TerminalCapability>(type: T): Event<ITerminalCapabilityImplMap[T]>;
 
 	/**
 	 * Gets whether the capability exists in the store.
@@ -98,6 +112,10 @@ export interface TerminalCapabilityChangeEvent<T extends TerminalCapability> {
 	id: T;
 	capability: ITerminalCapabilityImplMap[T];
 }
+
+export type AnyTerminalCapabilityChangeEvent = {
+	[K in TerminalCapability]: TerminalCapabilityChangeEvent<K>
+}[TerminalCapability];
 
 /**
  * Maps capability types to their implementation, enabling strongly typed fetching of
@@ -169,7 +187,7 @@ export interface ICommandInvalidationRequest {
 export interface IBufferMarkCapability {
 	type: TerminalCapability.BufferMarkDetection;
 	markers(): IterableIterator<IMarker>;
-	onMarkAdded: Event<IMarkProperties>;
+	readonly onMarkAdded: Event<IMarkProperties>;
 	addMark(properties?: IMarkProperties): void;
 	getMark(id: string): IMarker | undefined;
 }

@@ -1,13 +1,13 @@
 "use strict";
-/*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
- *--------------------------------------------------------------------------------------------*/
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ESBuildTranspiler = exports.TscTranspiler = void 0;
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
 const esbuild_1 = __importDefault(require("esbuild"));
 const typescript_1 = __importDefault(require("typescript"));
 const node_worker_threads_1 = __importDefault(require("node:worker_threads"));
@@ -100,9 +100,7 @@ class TranspileWorker {
                     SuffixTypes[SuffixTypes["Ts"] = 3] = "Ts";
                     SuffixTypes[SuffixTypes["Unknown"] = 0] = "Unknown";
                 })(SuffixTypes || (SuffixTypes = {}));
-                const suffixLen = file.path.endsWith('.d.ts') ? 5 /* SuffixTypes.Dts */
-                    : file.path.endsWith('.ts') ? 3 /* SuffixTypes.Ts */
-                        : 0 /* SuffixTypes.Unknown */;
+                const suffixLen = file.path.endsWith('.d.ts') ? 5 /* SuffixTypes.Dts */ : file.path.endsWith('.ts') ? 3 /* SuffixTypes.Ts */ : 0 /* SuffixTypes.Unknown */;
                 // check if output of a DTS-files isn't just "empty" and iff so
                 // skip this file
                 if (suffixLen === 5 /* SuffixTypes.Dts */ && _isDefaultEmpty(jsSrc)) {

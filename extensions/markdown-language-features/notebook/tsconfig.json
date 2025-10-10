@@ -3,11 +3,10 @@
 	"compilerOptions": {
 		"outDir": "./dist/",
 		"jsx": "react",
-		"moduleResolution": "Node",
+		"module": "esnext",
 		"allowSyntheticDefaultImports": true,
-		"module": "es2020",
 		"lib": [
-			"es2018",
+			"ES2024",
 			"DOM",
 			"DOM.Iterable"
 		]

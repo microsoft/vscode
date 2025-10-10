@@ -46,7 +46,7 @@ export function registerMoveActions() {
 			});
 		}
 
-		async run(accessor: ServicesAccessor, ...args: any[]) {
+		async run(accessor: ServicesAccessor, ...args: unknown[]) {
 			const context = args[0];
 			executeMoveToAction(accessor, MoveToNewLocation.Editor, isChatViewTitleActionContext(context) ? context.sessionId : undefined);
 		}
@@ -69,7 +69,7 @@ export function registerMoveActions() {
 			});
 		}
 
-		async run(accessor: ServicesAccessor, ...args: any[]) {
+		async run(accessor: ServicesAccessor, ...args: unknown[]) {
 			const context = args[0];
 			executeMoveToAction(accessor, MoveToNewLocation.Window, isChatViewTitleActionContext(context) ? context.sessionId : undefined);
 		}
@@ -86,7 +86,7 @@ export function registerMoveActions() {
 			});
 		}
 
-		async run(accessor: ServicesAccessor, ...args: any[]) {
+		async run(accessor: ServicesAccessor, ...args: unknown[]) {
 			return moveToSidebar(accessor);
 		}
 	});
@@ -116,12 +116,18 @@ async function executeMoveToAction(accessor: ServicesAccessor, moveTo: MoveToNew
 
 	const widget = (_sessionId ? widgetService.getWidgetBySessionId(_sessionId) : undefined)
 		?? widgetService.lastFocusedWidget;
-	if (!widget || !widget.viewModel || widget.location !== ChatAgentLocation.Panel) {
+	if (!widget || !widget.viewModel || widget.location !== ChatAgentLocation.Chat) {
 		await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: { pinned: true, auxiliary: { compact: true, bounds: { width: 640, height: 640 } } } }, moveTo === MoveToNewLocation.Window ? AUX_WINDOW_GROUP : ACTIVE_GROUP);
 		return;
 	}
 
 	const sessionId = widget.viewModel.sessionId;
+	const existingWidget = widgetService.getWidgetBySessionId(sessionId);
+	if (!existingWidget) {
+		// Do NOT attempt to open a session that isn't already open since we cannot guarantee its state.
+		await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: { pinned: true, auxiliary: { compact: true, bounds: { width: 640, height: 640 } } } }, moveTo === MoveToNewLocation.Window ? AUX_WINDOW_GROUP : ACTIVE_GROUP);
+		return;
+	}
 	const viewState = widget.getViewState();
 
 	widget.clear();

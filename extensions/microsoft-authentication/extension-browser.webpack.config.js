@@ -2,16 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+// @ts-check
+import path from 'path';
+import { browser as withBrowserDefaults } from '../shared.webpack.config.mjs';
 
-//@ts-check
-
-'use strict';
-
-const path = require('path');
-const withBrowserDefaults = require('../shared.webpack.config').browser;
-
-module.exports = withBrowserDefaults({
-	context: __dirname,
+export default withBrowserDefaults({
+	context: import.meta.dirname,
 	node: {
 		global: true,
 		__filename: false,
@@ -22,10 +18,10 @@ module.exports = withBrowserDefaults({
 	},
 	resolve: {
 		alias: {
-			'./node/authServer': path.resolve(__dirname, 'src/browser/authServer'),
-			'./node/buffer': path.resolve(__dirname, 'src/browser/buffer'),
-			'./node/fetch': path.resolve(__dirname, 'src/browser/fetch'),
-			'./node/authProvider': path.resolve(__dirname, 'src/browser/authProvider'),
+			'./node/authServer': path.resolve(import.meta.dirname, 'src/browser/authServer'),
+			'./node/buffer': path.resolve(import.meta.dirname, 'src/browser/buffer'),
+			'./node/fetch': path.resolve(import.meta.dirname, 'src/browser/fetch'),
+			'./node/authProvider': path.resolve(import.meta.dirname, 'src/browser/authProvider'),
 		}
 	}
 });

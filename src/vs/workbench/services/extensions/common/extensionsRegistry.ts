@@ -226,6 +226,7 @@ export const schema: IJSONSchema = {
 		contributes: {
 			description: nls.localize('vscode.extension.contributes', 'All contributions of the VS Code extension represented by this package.'),
 			type: 'object',
+			// eslint-disable-next-line local/code-no-any-casts
 			properties: {
 				// extensions will fill in
 			} as any as { [key: string]: any },
@@ -392,6 +393,11 @@ export const schema: IJSONSchema = {
 						label: 'onChatParticipant',
 						body: 'onChatParticipant:${1:participantId}',
 						description: nls.localize('vscode.extension.activationEvents.onChatParticipant', 'An activation event emitted when the specified chat participant is invoked.'),
+					},
+					{
+						label: 'onLanguageModelChatProvider',
+						body: 'onLanguageModelChatProvider:${1:vendor}',
+						description: nls.localize('vscode.extension.activationEvents.onLanguageModelChatProvider', 'An activation event emitted when a chat model provider for the given vendor is requested.'),
 					},
 					{
 						label: 'onLanguageModelTool',

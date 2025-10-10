@@ -10,24 +10,19 @@ import { ChatMode, IChatMode, IChatModeService } from '../../common/chatModes.js
 export class MockChatModeService implements IChatModeService {
 	readonly _serviceBrand: undefined;
 
-	private _modes: { builtin: readonly IChatMode[]; custom: readonly IChatMode[] } = { builtin: [ChatMode.Ask], custom: [] };
-
 	public readonly onDidChangeChatModes = Event.None;
+
+	constructor(private readonly _modes: { builtin: readonly IChatMode[]; custom: readonly IChatMode[] } = { builtin: [ChatMode.Ask], custom: [] }) { }
 
 	getModes(): { builtin: readonly IChatMode[]; custom: readonly IChatMode[] } {
 		return this._modes;
 	}
 
 	findModeById(id: string): IChatMode | undefined {
-		return this.getFlatModes().find(mode => mode.id === id);
+		return this._modes.builtin.find(mode => mode.id === id) ?? this._modes.custom.find(mode => mode.id === id);
 	}
 
 	findModeByName(name: string): IChatMode | undefined {
-		return this.getFlatModes().find(mode => mode.name === name);
-	}
-
-	private getFlatModes(): IChatMode[] {
-		const allModes = this.getModes();
-		return [...allModes.builtin, ...allModes.custom];
+		return this._modes.builtin.find(mode => mode.name === name) ?? this._modes.custom.find(mode => mode.name === name);
 	}
 }

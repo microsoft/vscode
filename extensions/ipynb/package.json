@@ -158,7 +158,7 @@
   "scripts": {
     "compile": "npx gulp compile-extension:ipynb && npm run build-notebook",
     "watch": "npx gulp watch-extension:ipynb",
-    "build-notebook": "node ./esbuild"
+    "build-notebook": "node ./esbuild.mjs"
   },
   "dependencies": {
     "@enonic/fnv-plus": "^1.3.0",

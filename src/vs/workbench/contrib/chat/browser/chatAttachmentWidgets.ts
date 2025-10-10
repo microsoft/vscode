@@ -33,6 +33,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { IContextKey, IContextKeyService, IScopedContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { fillInSymbolsDragData } from '../../../../platform/dnd/browser/dnd.js';
+import { IOpenEditorOptions, registerOpenEditorListeners } from '../../../../platform/editor/browser/editor.js';
 import { ITextEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { FileKind, IFileService } from '../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
@@ -43,14 +44,14 @@ import { FolderThemeIcon, IThemeService } from '../../../../platform/theme/commo
 import { fillEditorsDragData } from '../../../browser/dnd.js';
 import { IFileLabelOptions, IResourceLabel, ResourceLabels } from '../../../browser/labels.js';
 import { ResourceContextKey } from '../../../common/contextkeys.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { revealInSideBarCommand } from '../../files/browser/fileActions.contribution.js';
 import { CellUri } from '../../notebook/common/notebookCommon.js';
 import { INotebookService } from '../../notebook/common/notebookService.js';
 import { getHistoryItemEditorTitle, getHistoryItemHoverContent } from '../../scm/browser/util.js';
 import { IChatContentReference } from '../common/chatService.js';
-import { IChatRequestPasteVariableEntry, IChatRequestToolEntry, IChatRequestToolSetEntry, IChatRequestVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, IPromptFileVariableEntry, IPromptTextVariableEntry, ISCMHistoryItemVariableEntry, OmittedState, PromptFileVariableKind } from '../common/chatVariableEntries.js';
+import { IChatRequestPasteVariableEntry, IChatRequestVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, IPromptFileVariableEntry, IPromptTextVariableEntry, ISCMHistoryItemVariableEntry, OmittedState, PromptFileVariableKind, ChatRequestToolReferenceEntry, ISCMHistoryItemChangeVariableEntry, ISCMHistoryItemChangeRangeVariableEntry } from '../common/chatVariableEntries.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
 import { ILanguageModelToolsService, ToolSet } from '../common/languageModelToolsService.js';
 import { getCleanPromptName } from '../common/promptSyntax/config/promptFileLocations.js';
@@ -70,7 +71,7 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 	}
 
 	constructor(
-		private readonly attachment: IChatRequestVariableEntry,
+		protected readonly attachment: IChatRequestVariableEntry,
 		private readonly options: { shouldFocusClearButton: boolean; supportsDeletion: boolean },
 		container: HTMLElement,
 		contextResourceLabels: ResourceLabels,
@@ -128,31 +129,19 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 
 	protected addResourceOpenHandlers(resource: URI, range: IRange | undefined): void {
 		this.element.style.cursor = 'pointer';
-		this._register(dom.addDisposableListener(this.element, dom.EventType.CLICK, async (e: MouseEvent) => {
-			dom.EventHelper.stop(e, true);
-			if (this.attachment.kind === 'directory') {
-				await this.openResource(resource, true);
-			} else {
-				await this.openResource(resource, false, range);
-			}
-		}));
 
-		this._register(dom.addDisposableListener(this.element, dom.EventType.KEY_DOWN, async (e: KeyboardEvent) => {
-			const event = new StandardKeyboardEvent(e);
-			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
-				dom.EventHelper.stop(e, true);
-				if (this.attachment.kind === 'directory') {
-					await this.openResource(resource, true);
-				} else {
-					await this.openResource(resource, false, range);
-				}
+		this._register(registerOpenEditorListeners(this.element, async options => {
+			if (this.attachment.kind === 'directory') {
+				await this.openResource(resource, options, true);
+			} else {
+				await this.openResource(resource, options, false, range);
 			}
 		}));
 	}
 
-	protected async openResource(resource: URI, isDirectory: true): Promise<void>;
-	protected async openResource(resource: URI, isDirectory: false, range: IRange | undefined): Promise<void>;
-	protected async openResource(resource: URI, isDirectory?: boolean, range?: IRange): Promise<void> {
+	protected async openResource(resource: URI, options: Partial<IOpenEditorOptions>, isDirectory: true): Promise<void>;
+	protected async openResource(resource: URI, options: Partial<IOpenEditorOptions>, isDirectory: false, range: IRange | undefined): Promise<void>;
+	protected async openResource(resource: URI, openOptions: Partial<IOpenEditorOptions>, isDirectory?: boolean, range?: IRange): Promise<void> {
 		if (isDirectory) {
 			// Reveal Directory in explorer
 			this.commandService.executeCommand(revealInSideBarCommand.id, resource);
@@ -163,7 +152,11 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 		const openTextEditorOptions: ITextEditorOptions | undefined = range ? { selection: range } : undefined;
 		const options: OpenInternalOptions = {
 			fromUserGesture: true,
-			editorOptions: { ...openTextEditorOptions, preserveFocus: true },
+			openToSide: openOptions.openToSide,
+			editorOptions: {
+				...openTextEditorOptions,
+				...openOptions.editorOptions
+			},
 		};
 		await this.openerService.open(resource, options);
 		this._onDidOpen.fire();
@@ -274,7 +267,7 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		resource = ref && URI.isUri(ref) ? ref : undefined;
 		const clickHandler = async () => {
 			if (resource) {
-				await this.openResource(resource, false, undefined);
+				await this.openResource(resource, { editorOptions: { preserveFocus: true } }, false, undefined);
 			}
 		};
 
@@ -593,7 +586,7 @@ export class PromptTextAttachmentWidget extends AbstractChatAttachmentWidget {
 
 export class ToolSetOrToolItemAttachmentWidget extends AbstractChatAttachmentWidget {
 	constructor(
-		attachment: IChatRequestToolSetEntry | IChatRequestToolEntry,
+		attachment: ChatRequestToolReferenceEntry,
 		currentLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined,
 		options: { shouldFocusClearButton: boolean; supportsDeletion: boolean },
 		container: HTMLElement,
@@ -714,7 +707,7 @@ export class NotebookCellOutputChatAttachmentWidget extends AbstractChatAttachme
 			ariaLabel = this.getAriaLabel(attachment);
 		}
 
-		const clickHandler = async () => await this.openResource(resource, false, undefined);
+		const clickHandler = async () => await this.openResource(resource, { editorOptions: { preserveFocus: true } }, false, undefined);
 		const currentLanguageModelName = this.currentLanguageModel ? this.languageModelsService.lookupLanguageModel(this.currentLanguageModel.identifier)?.name ?? this.currentLanguageModel.identifier : undefined;
 		const buffer = this.getOutputItem(resource, attachment)?.data.buffer ?? new Uint8Array();
 		this._register(createImageElements(resource, attachment.name, attachment.name, this.element, buffer, this.hoverService, ariaLabel, currentLanguageModelName, clickHandler, this.currentLanguageModel, attachment.omittedState));
@@ -819,6 +812,91 @@ export class SCMHistoryItemAttachmentWidget extends AbstractChatAttachmentWidget
 		await this.commandService.executeCommand('_workbench.openMultiDiffEditor', {
 			title: getHistoryItemEditorTitle(attachment.historyItem), multiDiffSourceUri: attachment.value
 		});
+	}
+}
+
+export class SCMHistoryItemChangeAttachmentWidget extends AbstractChatAttachmentWidget {
+	constructor(
+		attachment: ISCMHistoryItemChangeVariableEntry,
+		currentLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined,
+		options: { shouldFocusClearButton: boolean; supportsDeletion: boolean },
+		container: HTMLElement,
+		contextResourceLabels: ResourceLabels,
+		hoverDelegate: IHoverDelegate,
+		@ICommandService commandService: ICommandService,
+		@IHoverService hoverService: IHoverService,
+		@IOpenerService openerService: IOpenerService,
+		@IThemeService themeService: IThemeService,
+		@IEditorService private readonly editorService: IEditorService,
+	) {
+		super(attachment, options, container, contextResourceLabels, hoverDelegate, currentLanguageModel, commandService, openerService);
+
+		const nameSuffix = `\u00A0$(${Codicon.gitCommit.id})${attachment.historyItem.displayId ?? attachment.historyItem.id}`;
+		this.label.setFile(attachment.value, { fileKind: FileKind.FILE, hidePath: true, nameSuffix });
+
+		this.element.ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
+		this._store.add(hoverService.setupManagedHover(hoverDelegate, this.element, () => getHistoryItemHoverContent(themeService, attachment.historyItem), { trapFocus: true }));
+
+		this.addResourceOpenHandlers(attachment.value, undefined);
+		this.attachClearButton();
+	}
+
+	protected override async openResource(resource: URI, options: IOpenEditorOptions, isDirectory: true): Promise<void>;
+	protected override async openResource(resource: URI, options: IOpenEditorOptions, isDirectory: false, range: IRange | undefined): Promise<void>;
+	protected override async openResource(resource: URI, options: IOpenEditorOptions, isDirectory?: boolean, range?: IRange): Promise<void> {
+		const attachment = this.attachment as ISCMHistoryItemChangeVariableEntry;
+		const historyItem = attachment.historyItem;
+
+		await this.editorService.openEditor({
+			resource,
+			label: `${basename(resource.path)} (${historyItem.displayId ?? historyItem.id})`,
+			options: { ...options.editorOptions }
+		}, options.openToSide ? SIDE_GROUP : undefined);
+	}
+}
+
+export class SCMHistoryItemChangeRangeAttachmentWidget extends AbstractChatAttachmentWidget {
+	constructor(
+		attachment: ISCMHistoryItemChangeRangeVariableEntry,
+		currentLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined,
+		options: { shouldFocusClearButton: boolean; supportsDeletion: boolean },
+		container: HTMLElement,
+		contextResourceLabels: ResourceLabels,
+		hoverDelegate: IHoverDelegate,
+		@ICommandService commandService: ICommandService,
+		@IOpenerService openerService: IOpenerService,
+		@IEditorService private readonly editorService: IEditorService,
+	) {
+		super(attachment, options, container, contextResourceLabels, hoverDelegate, currentLanguageModel, commandService, openerService);
+
+		const historyItemStartId = attachment.historyItemChangeStart.historyItem.displayId ?? attachment.historyItemChangeStart.historyItem.id;
+		const historyItemEndId = attachment.historyItemChangeEnd.historyItem.displayId ?? attachment.historyItemChangeEnd.historyItem.id;
+
+		const nameSuffix = `\u00A0$(${Codicon.gitCommit.id})${historyItemStartId}..${historyItemEndId}`;
+		this.label.setFile(attachment.value, { fileKind: FileKind.FILE, hidePath: true, nameSuffix });
+
+		this.element.ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
+
+		this.addResourceOpenHandlers(attachment.value, undefined);
+		this.attachClearButton();
+	}
+
+	protected override async openResource(resource: URI, options: IOpenEditorOptions, isDirectory: true): Promise<void>;
+	protected override async openResource(resource: URI, options: IOpenEditorOptions, isDirectory: false, range: IRange | undefined): Promise<void>;
+	protected override async openResource(resource: URI, options: IOpenEditorOptions, isDirectory?: boolean, range?: IRange): Promise<void> {
+		const attachment = this.attachment as ISCMHistoryItemChangeRangeVariableEntry;
+		const historyItemChangeStart = attachment.historyItemChangeStart;
+		const historyItemChangeEnd = attachment.historyItemChangeEnd;
+
+		const originalUriTitle = `${basename(historyItemChangeStart.uri.fsPath)} (${historyItemChangeStart.historyItem.displayId ?? historyItemChangeStart.historyItem.id})`;
+		const modifiedUriTitle = `${basename(historyItemChangeEnd.uri.fsPath)} (${historyItemChangeEnd.historyItem.displayId ?? historyItemChangeEnd.historyItem.id})`;
+
+		await this.editorService.openEditor({
+			original: { resource: historyItemChangeStart.uri },
+			modified: { resource: historyItemChangeEnd.uri },
+			label: `${originalUriTitle} ↔ ${modifiedUriTitle}`,
+			options: { ...options.editorOptions }
+		}, options.openToSide ? SIDE_GROUP : undefined);
 	}
 }
 

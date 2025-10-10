@@ -121,7 +121,7 @@ export class ResourceMap<T> implements Map<URI, T> {
 			clb = clb.bind(thisArg);
 		}
 		for (const [_, entry] of this.map) {
-			clb(entry.value, entry.uri, <any>this);
+			clb(entry.value, entry.uri, this);
 		}
 	}
 

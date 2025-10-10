@@ -417,7 +417,7 @@ function isVersionValid(currentVersion: string, date: ProductDate, requestedVers
 	return true;
 }
 
-function isStringArray(arr: string[]): boolean {
+function isStringArray(arr: readonly string[]): boolean {
 	if (!Array.isArray(arr)) {
 		return false;
 	}

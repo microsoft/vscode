@@ -235,7 +235,7 @@ export interface ICellOutput {
 	 * Alternative output id that's reused when the output is updated.
 	 */
 	alternativeOutputId: string;
-	onDidChangeData: Event<void>;
+	readonly onDidChangeData: Event<void>;
 	replaceData(items: IOutputDto): void;
 	appendData(items: IOutputItemDto[]): void;
 	appendedSinceVersion(versionId: number, mime: string): VSBuffer | undefined;
@@ -277,13 +277,13 @@ export interface ICell {
 	getHashValue(): number;
 	textBuffer: IReadonlyTextBuffer;
 	textModel?: ITextModel;
-	onDidChangeTextModel: Event<void>;
+	readonly onDidChangeTextModel: Event<void>;
 	getValue(): string;
-	onDidChangeOutputs?: Event<NotebookCellOutputsSplice>;
-	onDidChangeOutputItems?: Event<void>;
-	onDidChangeLanguage: Event<string>;
-	onDidChangeMetadata: Event<void>;
-	onDidChangeInternalMetadata: Event<CellInternalMetadataChangedEvent>;
+	readonly onDidChangeOutputs?: Event<NotebookCellOutputsSplice>;
+	readonly onDidChangeOutputItems?: Event<void>;
+	readonly onDidChangeLanguage: Event<string>;
+	readonly onDidChangeMetadata: Event<void>;
+	readonly onDidChangeInternalMetadata: Event<CellInternalMetadataChangedEvent>;
 }
 
 export interface INotebookSnapshotOptions {
@@ -305,8 +305,8 @@ export interface INotebookTextModel extends INotebookTextModelLike {
 	createSnapshot(options: INotebookSnapshotOptions): NotebookData;
 	restoreSnapshot(snapshot: NotebookData, transientOptions?: TransientOptions): void;
 	applyEdits(rawEdits: ICellEditOperation[], synchronous: boolean, beginSelectionState: ISelectionState | undefined, endSelectionsComputer: () => ISelectionState | undefined, undoRedoGroup: UndoRedoGroup | undefined, computeUndoRedo?: boolean): boolean;
-	onDidChangeContent: Event<NotebookTextModelChangedEvent>;
-	onWillDispose: Event<void>;
+	readonly onDidChangeContent: Event<NotebookTextModelChangedEvent>;
+	readonly onWillDispose: Event<void>;
 }
 
 export type NotebookCellTextModelSplice<T> = [
@@ -1092,14 +1092,6 @@ export interface NotebookExtensionDescription {
 	readonly id: ExtensionIdentifier;
 	readonly location: UriComponents | undefined;
 }
-
-/**
- * Whether the provided mime type is a text stream like `stdout`, `stderr`.
- */
-export function isTextStreamMime(mimeType: string) {
-	return ['application/vnd.code.notebook.stdout', 'application/vnd.code.notebook.stderr'].includes(mimeType);
-}
-
 
 const textDecoder = new TextDecoder();
 

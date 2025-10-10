@@ -57,7 +57,7 @@ import { mainWindow } from '../../../../base/browser/window.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 
 interface IViewModel {
-	onDidChangeHelpInformation: Event<void>;
+	readonly onDidChangeHelpInformation: Event<void>;
 	helpInformation: HelpInformation[];
 }
 

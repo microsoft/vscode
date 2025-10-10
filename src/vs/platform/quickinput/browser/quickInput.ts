@@ -121,9 +121,9 @@ export interface QuickInputUI {
 	progressBar: ProgressBar;
 	list: QuickInputList;
 	tree: QuickInputTreeController;
-	onDidAccept: Event<void>;
-	onDidCustom: Event<void>;
-	onDidTriggerButton: Event<IQuickInputButton>;
+	readonly onDidAccept: Event<void>;
+	readonly onDidCustom: Event<void>;
+	readonly onDidTriggerButton: Event<IQuickInputButton>;
 	ignoreFocusOut: boolean;
 	keyMods: Writeable<IKeyMods>;
 	show(controller: QuickInput): void;
@@ -170,7 +170,7 @@ export abstract class QuickInput extends Disposable implements IQuickInput {
 	private buttonsUpdated = false;
 	private _toggles: IQuickInputToggle[] = [];
 	private togglesUpdated = false;
-	protected noValidationMessage = QuickInput.noPromptMessage;
+	protected noValidationMessage: string | undefined = QuickInput.noPromptMessage;
 	private _validationMessage: string | undefined;
 	private _lastValidationMessage: string | undefined;
 	private _severity: Severity = Severity.Ignore;
@@ -472,12 +472,14 @@ export abstract class QuickInput extends Disposable implements IQuickInput {
 		if (this._lastValidationMessage !== validationMessage) {
 			this._lastValidationMessage = validationMessage;
 			dom.reset(this.ui.message);
-			renderQuickInputDescription(validationMessage, this.ui.message, {
-				callback: (content) => {
-					this.ui.linkOpenerDelegate(content);
-				},
-				disposables: this.visibleDisposables,
-			});
+			if (validationMessage) {
+				renderQuickInputDescription(validationMessage, this.ui.message, {
+					callback: (content) => {
+						this.ui.linkOpenerDelegate(content);
+					},
+					disposables: this.visibleDisposables,
+				});
+			}
 		}
 		if (this._lastSeverity !== this.severity) {
 			this._lastSeverity = this.severity;
@@ -585,6 +587,11 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 
 	readonly type = QuickInputType.QuickPick;
 
+	constructor(ui: QuickInputUI) {
+		super(ui);
+		this.noValidationMessage = undefined;
+	}
+
 	get quickNavigate() {
 		return this._quickNavigate;
 	}
@@ -635,6 +642,15 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 
 	set placeholder(placeholder: string | undefined) {
 		this._placeholder = placeholder;
+		this.update();
+	}
+
+	get prompt() {
+		return this.noValidationMessage;
+	}
+
+	set prompt(prompt: string | undefined) {
+		this.noValidationMessage = prompt;
 		this.update();
 	}
 
@@ -1037,7 +1053,7 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 			count: this.canSelectMany && !this._hideCountBadge,
 			ok: this.ok === 'default' ? this.canSelectMany : this.ok,
 			list: true,
-			message: !!this.validationMessage,
+			message: !!this.validationMessage || !!this.prompt,
 			customButton: this.customButton
 		};
 		this.ui.setVisibilities(visibilities);
@@ -1056,10 +1072,15 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 		let ariaLabel = this.ariaLabel;
 		// Only set aria label to the input box placeholder if we actually have an input box.
 		if (!ariaLabel && visibilities.inputBox) {
-			ariaLabel = this.placeholder || QuickPick.DEFAULT_ARIA_LABEL;
+			ariaLabel = this.placeholder;
 			// If we have a title, include it in the aria label.
 			if (this.title) {
-				ariaLabel += ` - ${this.title}`;
+				ariaLabel = ariaLabel
+					? `${ariaLabel} - ${this.title}`
+					: this.title;
+			}
+			if (!ariaLabel) {
+				ariaLabel = QuickPick.DEFAULT_ARIA_LABEL;
 			}
 		}
 		if (this.ui.list.ariaLabel !== ariaLabel) {
@@ -1158,11 +1179,11 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 			return; // needs to be enabled
 		}
 
-		if (this.activeItems[0]) {
+		if (this.activeItems[0] && !this._canSelectMany) {
 			this._selectedItems = [this.activeItems[0]];
 			this.onDidChangeSelectionEmitter.fire(this.selectedItems);
-			this.handleAccept(inBackground ?? false);
 		}
+		this.handleAccept(inBackground ?? false);
 	}
 }
 
@@ -1261,6 +1282,10 @@ export class InputBox extends QuickInput implements IInputBox {
 		super.show();
 	}
 
+	accept(): void {
+		this.onDidAcceptEmitter.fire();
+	}
+
 	protected override update() {
 		if (!this.visible) {
 			return;
@@ -1331,7 +1356,7 @@ export class QuickInputHoverDelegate extends WorkbenchHoverDelegate {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IHoverService hoverService: IHoverService
 	) {
-		super('element', undefined, (options) => this.getOverrideOptions(options), configurationService, hoverService);
+		super('mouse', undefined, (options) => this.getOverrideOptions(options), configurationService, hoverService);
 	}
 
 	private getOverrideOptions(options: IHoverDelegateOptions): Partial<IHoverOptions> {
