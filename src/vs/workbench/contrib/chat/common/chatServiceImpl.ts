@@ -30,7 +30,7 @@ import { IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRe
 import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, normalizeSerializableChatData, toChatHistoryContent, updateRanges } from './chatModel.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, chatSubcommandLeader, getPromptText, IParsedChatRequest } from './chatParserTypes.js';
 import { ChatRequestParser } from './chatRequestParser.js';
-import { IChatCompleteResponse, IChatDetail, IChatFollowup, IChatProgress, IChatSendRequestData, IChatSendRequestOptions, IChatSendRequestResponseState, IChatService, IChatTransferredSessionData, IChatUserActionEvent } from './chatService.js';
+import { ChatMcpServersStarting, IChatCompleteResponse, IChatDetail, IChatFollowup, IChatProgress, IChatSendRequestData, IChatSendRequestOptions, IChatSendRequestResponseState, IChatService, IChatTransferredSessionData, IChatUserActionEvent } from './chatService.js';
 import { ChatRequestTelemetry, ChatServiceTelemetry } from './chatServiceTelemetry.js';
 import { IChatSessionsService } from './chatSessionsService.js';
 import { ChatSessionStore, IChatTransfer2 } from './chatSessionStore.js';
@@ -94,8 +94,6 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _sessionFollowupCancelTokens = this._register(new DisposableMap<string, CancellationTokenSource>());
 	private readonly _chatServiceTelemetry: ChatServiceTelemetry;
 	private readonly _chatSessionStore: ChatSessionStore;
-
-	private _mcpServersInteractionMessageShown = new WeakSet<ChatModel>();
 
 	readonly requestInProgressObs: IObservable<boolean>;
 
@@ -856,10 +854,7 @@ export class ChatService extends Disposable implements IChatService {
 					const agent = (detectedAgent ?? agentPart?.agent ?? defaultAgent)!;
 					const command = detectedCommand ?? agentSlashCommandPart?.command;
 
-					const [, autostartResult] = await Promise.all([
-						this.extensionService.activateByEvent(`onChatParticipant:${agent.id}`),
-						this.mcpService.autostart(token),
-					]);
+					await this.extensionService.activateByEvent(`onChatParticipant:${agent.id}`);
 
 					// Recompute history in case the agent or command changed
 					const history = this.getHistoryEntriesFromModel(requests, model.sessionId, location, agent.id);
@@ -871,17 +866,10 @@ export class ChatService extends Disposable implements IChatService {
 					completeResponseCreated();
 
 					// Check if there are MCP servers requiring interaction and show message if not shown yet
-					if (!this._mcpServersInteractionMessageShown.has(model) && autostartResult.serversRequiringInteraction.length > 0) {
-						this._mcpServersInteractionMessageShown.add(model);
-						progressCallback([{
-							kind: 'mcpServersInteractionRequired',
-							servers: autostartResult.serversRequiringInteraction,
-							startCommand: {
-								id: 'mcp.startServersWithInteraction',
-								title: localize('chat.startMcpServers', 'Start MCP Servers'),
-								arguments: []
-							}
-						}]);
+					const autostartResult = new ChatMcpServersStarting(this.mcpService.autostart(token));
+					if (!autostartResult.isEmpty) {
+						progressCallback([autostartResult]);
+						await autostartResult.wait();
 					}
 
 					const agentResult = await this.chatAgentService.invokeAgent(agent.id, requestProps, progressCallback, history, token);

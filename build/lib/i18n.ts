@@ -18,7 +18,7 @@ import { l10nJsonFormat, getL10nXlf, l10nJsonDetails, getL10nFilesFromXlf, getL1
 
 const REPO_ROOT_PATH = path.join(__dirname, '../..');
 
-function log(message: any, ...rest: any[]): void {
+function log(message: any, ...rest: unknown[]): void {
 	fancyLog(ansiColors.green('[i18n]'), message, ...rest);
 }
 
@@ -68,7 +68,7 @@ interface LocalizeInfo {
 }
 
 module LocalizeInfo {
-	export function is(value: any): value is LocalizeInfo {
+	export function is(value: unknown): value is LocalizeInfo {
 		const candidate = value as LocalizeInfo;
 		return candidate && typeof candidate.key === 'string' && (candidate.comment === undefined || (Array.isArray(candidate.comment) && candidate.comment.every(element => typeof element === 'string')));
 	}
@@ -744,7 +744,7 @@ export function prepareI18nPackFiles(resultingTranslationPaths: TranslationPath[
 	const parsePromises: Promise<l10nJsonDetails[]>[] = [];
 	const mainPack: I18nPack = { version: i18nPackVersion, contents: {} };
 	const extensionsPacks: Record<string, I18nPack> = {};
-	const errors: any[] = [];
+	const errors: unknown[] = [];
 	return through(function (this: ThroughStream, xlf: File) {
 		let project = path.basename(path.dirname(path.dirname(xlf.relative)));
 		// strip `-new` since vscode-extensions-loc uses the `-new` suffix to indicate that it's from the new loc pipeline

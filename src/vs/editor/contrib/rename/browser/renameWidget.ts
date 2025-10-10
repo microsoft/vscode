@@ -930,7 +930,7 @@ class InputWithButton implements IDisposable {
 			this._buttonNode.className = 'rename-suggestions-button';
 			this._buttonNode.setAttribute('tabindex', '0');
 
-			this._buttonGenHoverText = nls.localize('generateRenameSuggestionsButton', "Generate new name suggestions");
+			this._buttonGenHoverText = nls.localize('generateRenameSuggestionsButton', "Generate New Name Suggestions");
 			this._buttonCancelHoverText = nls.localize('cancelRenameSuggestionsButton', "Cancel");
 			this._buttonHoverContent = this._buttonGenHoverText;
 			this._disposables.add(getBaseLayerHoverDelegate().setupDelayedHover(this._buttonNode, () => ({

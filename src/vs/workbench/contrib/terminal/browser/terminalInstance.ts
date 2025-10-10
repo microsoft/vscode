@@ -459,40 +459,38 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._terminalShellIntegrationEnabledContextKey = TerminalContextKeys.terminalShellIntegrationEnabled.bindTo(scopedContextKeyService);
 
 		this._logService.trace(`terminalInstance#ctor (instanceId: ${this.instanceId})`, this._shellLaunchConfig);
-		this._register(this.capabilities.onDidAddCapabilityType(e => this._logService.debug('terminalInstance added capability', e)));
-		this._register(this.capabilities.onDidRemoveCapabilityType(e => this._logService.debug('terminalInstance removed capability', e)));
+		this._register(this.capabilities.onDidAddCapability(e => this._logService.debug('terminalInstance added capability', e.id)));
+		this._register(this.capabilities.onDidRemoveCapability(e => this._logService.debug('terminalInstance removed capability', e.id)));
 
 		const capabilityListeners = this._register(new DisposableMap<TerminalCapability, IDisposable>());
-		this._register(this.capabilities.onDidAddCapabilityType(capability => {
-			capabilityListeners.get(capability)?.dispose();
-			if (capability === TerminalCapability.CwdDetection) {
-				const cwdDetection = this.capabilities.get(capability);
-				if (cwdDetection) {
-					capabilityListeners.set(capability, cwdDetection.onDidChangeCwd(e => {
+		this._register(this.capabilities.onDidAddCapability(e => {
+			capabilityListeners.get(e.id)?.dispose();
+			switch (e.id) {
+				case TerminalCapability.CwdDetection: {
+					capabilityListeners.set(e.id, e.capability.onDidChangeCwd(e => {
 						this._cwd = e;
 						this._setTitle(this.title, TitleEventSource.Config);
 					}));
+					break;
 				}
-			}
-			if (capability === TerminalCapability.CommandDetection) {
-				const commandDetection = this.capabilities.get(capability);
-				if (commandDetection) {
-					commandDetection.promptInputModel.setShellType(this.shellType);
-					capabilityListeners.set(capability, Event.any(
-						commandDetection.onPromptTypeChanged,
-						commandDetection.promptInputModel.onDidStartInput,
-						commandDetection.promptInputModel.onDidChangeInput,
-						commandDetection.promptInputModel.onDidFinishInput
+				case TerminalCapability.CommandDetection: {
+					e.capability.promptInputModel.setShellType(this.shellType);
+					capabilityListeners.set(e.id, Event.any(
+						e.capability.onPromptTypeChanged,
+						e.capability.promptInputModel.onDidStartInput,
+						e.capability.promptInputModel.onDidChangeInput,
+						e.capability.promptInputModel.onDidFinishInput
 					)(() => {
 						this._labelComputer?.refreshLabel(this);
 						refreshShellIntegrationInfoStatus(this);
 					}));
+					break;
 				}
 			}
 		}));
 		this._register(this.onDidChangeShellType(() => refreshShellIntegrationInfoStatus(this)));
-		this._register(this.capabilities.onDidRemoveCapabilityType(capability => {
-			capabilityListeners.get(capability)?.dispose();
+		this._register(this.capabilities.onDidRemoveCapability(e => {
+			capabilityListeners.get(e.id)?.dispose();
 		}));
 
 		// Resolve just the icon ahead of time so that it shows up immediately in the tabs. This is
@@ -896,11 +894,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					this._updateProcessCwd();
 				}
 			});
-			this._register(this.capabilities.onDidAddCapabilityType(e => {
-				if (e === TerminalCapability.CwdDetection) {
-					onKeyListener?.dispose();
-					onKeyListener = undefined;
-				}
+			this._register(this.capabilities.onDidAddCwdDetectionCapability(() => {
+				onKeyListener?.dispose();
+				onKeyListener = undefined;
 			}));
 		}
 
@@ -923,11 +919,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			const store = new DisposableStore();
 			await Promise.race([
 				new Promise<void>(r => {
-					store.add(this.capabilities.onDidAddCapabilityType(e => {
-						if (e === TerminalCapability.CommandDetection) {
-							commandDetection = this.capabilities.get(TerminalCapability.CommandDetection);
-							r();
-						}
+					store.add(this.capabilities.onDidAddCommandDetectionCapability(e => {
+						commandDetection = e;
+						r();
 					}));
 				}),
 				timeout(2000),
