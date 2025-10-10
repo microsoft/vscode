@@ -19,7 +19,7 @@ import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../..
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
 import Severity from '../../../../../../base/common/severity.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
-import { MarkdownRenderer } from '../../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRendererService } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import * as nls from '../../../../../../nls.js';
 import { getActionBarActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId } from '../../../../../../platform/actions/common/actions.js';
@@ -27,7 +27,6 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IContextViewService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
-import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import product from '../../../../../../platform/product/common/product.js';
 import { defaultInputBoxStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
 import { HoverPosition } from '../../../../../../base/browser/ui/hover/hoverWidget.js';
@@ -40,7 +39,7 @@ import { IChatService } from '../../../common/chatService.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatWidgetService } from '../../chat.js';
-import { allowedChatMarkdownHtmlTags } from '../../chatMarkdownRenderer.js';
+import { allowedChatMarkdownHtmlTags } from '../../chatContentMarkdownRenderer.js';
 import { ChatSessionItemWithProvider, extractTimestamp, getSessionItemContextOverlay, isLocalChatSessionItem, processSessionsWithTimeGrouping } from '../common.js';
 import '../../media/chatSessions.css';
 import { LocalChatSessionsProvider } from '../localChatSessionsProvider.js';
@@ -111,7 +110,6 @@ export class GettingStartedRenderer implements IListRenderer<IGettingStartedItem
 
 export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionItem, FuzzyScore, ISessionTemplateData> {
 	static readonly TEMPLATE_ID = 'session';
-	private markdownRenderer: MarkdownRenderer;
 
 	constructor(
 		private readonly viewLocation: ViewContainerLocation | null,
@@ -121,15 +119,13 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IHoverService private readonly hoverService: IHoverService,
-		@IInstantiationService instantiationService: IInstantiationService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IChatService private readonly chatService: IChatService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 	) {
 		super();
-
-		this.markdownRenderer = instantiationService.createInstance(MarkdownRenderer, {});
 	}
 
 	get templateId(): string {
@@ -235,7 +231,7 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 			if (typeof session.description === 'string') {
 				templateData.descriptionLabel.textContent = session.description;
 			} else {
-				templateData.elementDisposable.add(this.markdownRenderer.render(session.description, {
+				templateData.elementDisposable.add(this.markdownRendererService.render(session.description, {
 					sanitizerConfig: {
 						replaceWithPlaintext: true,
 						allowedTags: {

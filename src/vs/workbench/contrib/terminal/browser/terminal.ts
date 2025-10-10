@@ -67,12 +67,12 @@ export interface ITerminalInstanceService {
 	/**
 	 * An event that's fired when a terminal instance is created.
 	 */
-	onDidCreateInstance: Event<ITerminalInstance>;
+	readonly onDidCreateInstance: Event<ITerminalInstance>;
 
 	/**
 	 * An event that's fired when a new backend is registered.
 	 */
-	onDidRegisterBackend: Event<ITerminalBackend>;
+	readonly onDidRegisterBackend: Event<ITerminalBackend>;
 
 	/**
 	 * Helper function to convert a shell launch config, a profile or undefined into its equivalent
@@ -740,52 +740,52 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	/**
 	 * An event that fires when the terminal instance's title changes.
 	 */
-	onTitleChanged: Event<ITerminalInstance>;
+	readonly onTitleChanged: Event<ITerminalInstance>;
 
 	/**
 	 * An event that fires when the terminal instance's icon changes.
 	 */
-	onIconChanged: Event<{ instance: ITerminalInstance; userInitiated: boolean }>;
+	readonly onIconChanged: Event<{ instance: ITerminalInstance; userInitiated: boolean }>;
 
 	/**
 	 * An event that fires when the terminal instance is disposed.
 	 */
-	onDisposed: Event<ITerminalInstance>;
+	readonly onDisposed: Event<ITerminalInstance>;
 
-	onProcessIdReady: Event<ITerminalInstance>;
-	onProcessReplayComplete: Event<void>;
-	onRequestExtHostProcess: Event<ITerminalInstance>;
-	onDimensionsChanged: Event<void>;
-	onMaximumDimensionsChanged: Event<void>;
-	onDidChangeHasChildProcesses: Event<boolean>;
+	readonly onProcessIdReady: Event<ITerminalInstance>;
+	readonly onProcessReplayComplete: Event<void>;
+	readonly onRequestExtHostProcess: Event<ITerminalInstance>;
+	readonly onDimensionsChanged: Event<void>;
+	readonly onMaximumDimensionsChanged: Event<void>;
+	readonly onDidChangeHasChildProcesses: Event<boolean>;
 
-	onDidFocus: Event<ITerminalInstance>;
-	onDidRequestFocus: Event<void>;
-	onDidBlur: Event<ITerminalInstance>;
-	onDidInputData: Event<string>;
-	onDidChangeSelection: Event<ITerminalInstance>;
-	onDidExecuteText: Event<void>;
-	onDidChangeTarget: Event<TerminalLocation | undefined>;
-	onDidSendText: Event<string>;
-	onDidChangeShellType: Event<TerminalShellType>;
-	onDidChangeVisibility: Event<boolean>;
+	readonly onDidFocus: Event<ITerminalInstance>;
+	readonly onDidRequestFocus: Event<void>;
+	readonly onDidBlur: Event<ITerminalInstance>;
+	readonly onDidInputData: Event<string>;
+	readonly onDidChangeSelection: Event<ITerminalInstance>;
+	readonly onDidExecuteText: Event<void>;
+	readonly onDidChangeTarget: Event<TerminalLocation | undefined>;
+	readonly onDidSendText: Event<string>;
+	readonly onDidChangeShellType: Event<TerminalShellType>;
+	readonly onDidChangeVisibility: Event<boolean>;
 
 	/**
 	 * An event that fires when a terminal is dropped on this instance via drag and drop.
 	 */
-	onRequestAddInstanceToGroup: Event<IRequestAddInstanceToGroupEvent>;
+	readonly onRequestAddInstanceToGroup: Event<IRequestAddInstanceToGroupEvent>;
 
 	/**
 	 * Attach a listener to the raw data stream coming from the pty, including ANSI escape
 	 * sequences.
 	 */
-	onData: Event<string>;
-	onWillData: Event<string>;
+	readonly onData: Event<string>;
+	readonly onWillData: Event<string>;
 
 	/**
 	 * Attach a listener to the binary data stream coming from xterm and going to pty
 	 */
-	onBinary: Event<string>;
+	readonly onBinary: Event<string>;
 
 	/**
 	 * Attach a listener to listen for new lines added to this terminal instance.
@@ -797,14 +797,14 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	 * is exited. The lineData string will contain the fully wrapped line, not containing any LF/CR
 	 * characters.
 	 */
-	onLineData: Event<string>;
+	readonly onLineData: Event<string>;
 
 	/**
 	 * Attach a listener that fires when the terminal's pty process exits. The number in the event
 	 * is the processes' exit code, an exit code of undefined means the process was killed as a result of
 	 * the ITerminalInstance being disposed.
 	 */
-	onExit: Event<number | ITerminalLaunchError | undefined>;
+	readonly onExit: Event<number | ITerminalLaunchError | undefined>;
 
 	/**
 	 * The exit code or undefined when the terminal process hasn't yet exited or

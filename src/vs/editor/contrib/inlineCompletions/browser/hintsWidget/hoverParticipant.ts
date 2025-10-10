@@ -14,7 +14,7 @@ import { IModelDecoration } from '../../../../common/model.js';
 import { HoverAnchor, HoverAnchorType, HoverForeignElementAnchor, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IRenderedHoverPart, IRenderedHoverParts, RenderedHoverParts } from '../../../hover/browser/hoverTypes.js';
 import { InlineCompletionsController } from '../controller/inlineCompletionsController.js';
 import { InlineSuggestionHintsContentWidget } from './inlineCompletionsHintsWidget.js';
-import { MarkdownRenderer } from '../../../../browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import * as nls from '../../../../../nls.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -46,6 +46,7 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IMarkdownRendererService private readonly _markdownRendererService: IMarkdownRendererService,
 	) {
 	}
 
@@ -150,10 +151,10 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 		const $ = dom.$;
 		const markdownHoverElement = $('div.hover-row.markdown-hover');
 		const hoverContentsElement = dom.append(markdownHoverElement, $('div.hover-contents', { ['aria-live']: 'assertive' }));
-		const renderer = this._instantiationService.createInstance(MarkdownRenderer, { editor: this._editor });
 		const render = (code: string) => {
 			const inlineSuggestionAvailable = nls.localize('inlineSuggestionFollows', "Suggestion:");
-			const renderedContents = disposables.add(renderer.render(new MarkdownString().appendText(inlineSuggestionAvailable).appendCodeblock('text', code), {
+			const renderedContents = disposables.add(this._markdownRendererService.render(new MarkdownString().appendText(inlineSuggestionAvailable).appendCodeblock('text', code), {
+				context: this._editor,
 				asyncRenderCallback: () => {
 					hoverContentsElement.className = 'hover-contents code-hover-contents';
 					context.onContentsChanged();

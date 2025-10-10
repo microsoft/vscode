@@ -133,6 +133,11 @@ export interface IPickOptions<T extends IQuickPickItem> {
 	placeHolder?: string;
 
 	/**
+	 * the text to display underneath the input box
+	 */
+	prompt?: string;
+
+	/**
 	 * an optional flag to include the description when filtering the picks
 	 */
 	matchOnDescription?: boolean;
@@ -500,6 +505,11 @@ export interface IQuickPick<T extends IQuickPickItem, O extends { useSeparators:
 	placeholder: string | undefined;
 
 	/**
+	 * Text shown below the quick pick input.
+	 */
+	prompt: string | undefined;
+
+	/**
 	 * An event that is fired when the value of the quick pick input changes.
 	 */
 	readonly onDidChangeValue: Event<string>;
@@ -702,7 +712,7 @@ export interface IQuickInputToggle {
 	 * Event that is fired when the toggle value changes.
 	 * The boolean value indicates whether the change was triggered via keyboard.
 	 */
-	onChange: Event<boolean>;
+	readonly onChange: Event<boolean>;
 }
 
 /**

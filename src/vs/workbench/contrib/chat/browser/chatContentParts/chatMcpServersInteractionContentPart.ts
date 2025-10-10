@@ -12,7 +12,8 @@ import { Lazy } from '../../../../../base/common/lazy.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { IMarkdownRenderResult, MarkdownRenderer, openLinkFromMarkdown } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRendererService, openLinkFromMarkdown } from '../../../../../platform/markdown/browser/markdownRenderer.js';
+import { IRenderedMarkdown } from '../../../../../base/browser/markdownRenderer.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
@@ -32,8 +33,7 @@ export class ChatMcpServersInteractionContentPart extends Disposable implements 
 
 	private workingProgressPart: ChatProgressContentPart | undefined;
 	private interactionContainer: HTMLElement | undefined;
-	private readonly interactionMd = this._register(new MutableDisposable<IMarkdownRenderResult>());
-	private readonly markdownRenderer: MarkdownRenderer;
+	private readonly interactionMd = this._register(new MutableDisposable<IRenderedMarkdown>());
 	private readonly showSpecificServersScheduler = this._register(new RunOnceScheduler(() => this.updateDetailedProgress(this.data.state!.get()), 2500));
 	private readonly previousParts = new Lazy(() => {
 		if (!isResponseVM(this.context.element)) {
@@ -52,11 +52,11 @@ export class ChatMcpServersInteractionContentPart extends Disposable implements 
 		@IMcpService private readonly mcpService: IMcpService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IOpenerService private readonly _openerService: IOpenerService,
+		@IMarkdownRendererService private readonly _markdownRendererService: IMarkdownRendererService,
 	) {
 		super();
 
 		this.domNode = dom.$('.chat-mcp-servers-interaction');
-		this.markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
 
 		// Listen to autostart state changes if available
 		if (data.state) {
@@ -138,7 +138,7 @@ export class ChatMcpServersInteractionContentPart extends Disposable implements 
 			this.workingProgressPart = this._register(this.instantiationService.createInstance(
 				ChatProgressContentPart,
 				{ kind: 'progressMessage', content },
-				this.markdownRenderer,
+				this._markdownRendererService,
 				this.context,
 				true, // forceShowSpinner
 				true, // forceShowMessage
@@ -180,7 +180,7 @@ export class ChatMcpServersInteractionContentPart extends Disposable implements 
 			? localize('mcp.start.single', 'The MCP server {0} may have new tools and requires interaction to start. [Start it now?]({1})', links, '#start')
 			: localize('mcp.start.multiple', 'The MCP servers {0} may have new tools and require interaction to start. [Start them now?]({1})', links, '#start');
 		const str = new MarkdownString(content, { isTrusted: true });
-		const messageMd = this.interactionMd.value = this.markdownRenderer.render(str, {
+		const messageMd = this.interactionMd.value = this._markdownRendererService.render(str, {
 			asyncRenderCallback: () => this._onDidChangeHeight.fire(),
 			actionHandler: (content) => {
 				if (!content.startsWith('command:')) {

@@ -12,11 +12,10 @@ import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import * as nls from '../../../../nls.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { isHighContrast } from '../../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from '../../../browser/editorBrowser.js';
-import { MarkdownRenderer } from '../../../browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import { CompletionItem } from './suggest.js';
 
@@ -42,19 +41,17 @@ export class SuggestDetailsWidget {
 	private readonly _docs: HTMLElement;
 	private readonly _disposables = new DisposableStore();
 
-	private readonly _markdownRenderer: MarkdownRenderer;
 	private readonly _renderDisposeable = new DisposableStore();
 	private _size = new dom.Dimension(330, 0);
 
 	constructor(
 		private readonly _editor: ICodeEditor,
-		@IInstantiationService instaService: IInstantiationService,
 		@IThemeService private readonly _themeService: IThemeService,
+		@IMarkdownRendererService private readonly _markdownRendererService: IMarkdownRendererService,
 	) {
 		this.domNode = dom.$('.suggest-details');
 		this.domNode.classList.add('no-docs');
 
-		this._markdownRenderer = instaService.createInstance(MarkdownRenderer, { editor: _editor });
 
 		this._body = dom.$('.body');
 
@@ -176,7 +173,8 @@ export class SuggestDetailsWidget {
 		} else if (documentation) {
 			this._docs.classList.add('markdown-docs');
 			dom.clearNode(this._docs);
-			const renderedContents = this._markdownRenderer.render(documentation, {
+			const renderedContents = this._markdownRendererService.render(documentation, {
+				context: this._editor,
 				asyncRenderCallback: () => {
 					this.layout(this._size.width, this._type.clientHeight + this._docs.clientHeight);
 					this._onDidChangeContents.fire(this);

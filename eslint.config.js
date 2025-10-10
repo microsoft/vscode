@@ -269,7 +269,7 @@ export default tseslint.config(
 			'src/vs/workbench/services/layout/**',
 			'src/vs/workbench/services/lifecycle/**',
 			// 'src/vs/workbench/services/log/**',
-			// 'src/vs/workbench/services/mcp/**',
+			'src/vs/workbench/services/mcp/**',
 			'src/vs/workbench/services/notification/**',
 			// 'src/vs/workbench/services/output/**',
 			'src/vs/workbench/services/path/**',
@@ -293,7 +293,7 @@ export default tseslint.config(
 			'src/vs/workbench/contrib/files/**',
 			'src/vs/workbench/contrib/chat/browser/chatSetup.ts',
 			'src/vs/workbench/contrib/chat/browser/chatStatus.ts',
-			// 'src/vs/workbench/contrib/mcp/**',
+			'src/vs/workbench/contrib/mcp/**',
 		],
 		ignores: ['**/*.test.ts', '**/*.integrationTest.ts'],
 		languageOptions: {

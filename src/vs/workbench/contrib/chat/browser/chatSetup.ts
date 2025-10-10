@@ -24,7 +24,7 @@ import { equalsIgnoreCase } from '../../../../base/common/strings.js';
 import { isObject } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
-import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -76,6 +76,10 @@ import { ChatViewId, IChatWidgetService, showCopilotView } from './chat.js';
 import { CHAT_SIDEBAR_PANEL_ID } from './chatViewPane.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { chatViewsWelcomeRegistry } from './viewsWelcome/chatViewsWelcome.js';
+import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
+import { NewSymbolName, NewSymbolNameTriggerKind } from '../../../../editor/common/languages.js';
+import { ITextModel } from '../../../../editor/common/model.js';
+import { IRange } from '../../../../editor/common/core/range.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -145,7 +149,7 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 		});
 	}
 
-	static registerBuiltInAgents(instantiationService: IInstantiationService, context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): { disposable: IDisposable } {
+	static registerBuiltInAgents(instantiationService: IInstantiationService, context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): IDisposable {
 		return instantiationService.invokeFunction(accessor => {
 			const chatAgentService = accessor.get(IChatAgentService);
 
@@ -174,9 +178,9 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 				canBeReferencedInPrompt: true,
 				toolReferenceName: 'new',
 				when: ContextKeyExpr.true(),
-			}).disposable);
+			}));
 
-			return { disposable: disposables };
+			return disposables;
 		});
 	}
 
@@ -454,7 +458,7 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 		let result: IChatSetupResult | undefined = undefined;
 		try {
 			result = await ChatSetup.getInstance(this.instantiationService, this.context, this.controller).run({
-				disableChatViewReveal: true, 																			// we are already in a chat context
+				disableChatViewReveal: true, 																				// we are already in a chat context
 				forceAnonymous: this.chatEntitlementService.anonymous ? ChatSetupAnonymous.EnabledWithoutDialog : undefined	// only enable anonymous selectively
 			});
 		} catch (error) {
@@ -583,7 +587,7 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 
 class SetupTool extends Disposable implements IToolImpl {
 
-	static registerTool(instantiationService: IInstantiationService, toolData: IToolData): { tool: SetupTool; disposable: IDisposable } {
+	static registerTool(instantiationService: IInstantiationService, toolData: IToolData): IDisposable {
 		return instantiationService.invokeFunction(accessor => {
 			const toolService = accessor.get(ILanguageModelToolsService);
 
@@ -592,7 +596,7 @@ class SetupTool extends Disposable implements IToolImpl {
 			const tool = instantiationService.createInstance(SetupTool);
 			disposables.add(toolService.registerTool(toolData, tool));
 
-			return { tool, disposable: disposables };
+			return disposables;
 		});
 	}
 
@@ -611,6 +615,41 @@ class SetupTool extends Disposable implements IToolImpl {
 
 	async prepareToolInvocation?(parameters: unknown, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		return undefined;
+	}
+}
+
+class DefaultNewSymbolNamesProvider extends Disposable {
+
+	static registerProvider(instantiationService: IInstantiationService, context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): IDisposable {
+		return instantiationService.invokeFunction(accessor => {
+			const languageFeaturesService = accessor.get(ILanguageFeaturesService);
+
+			const disposables = new DisposableStore();
+
+			const provider = disposables.add(instantiationService.createInstance(DefaultNewSymbolNamesProvider, context, controller));
+			disposables.add(languageFeaturesService.newSymbolNamesProvider.register('*', provider));
+
+			return disposables;
+		});
+	}
+
+	constructor(
+		private readonly context: ChatEntitlementContext,
+		private readonly controller: Lazy<ChatSetupController>,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
+	) {
+		super();
+	}
+
+	async provideNewSymbolNames(model: ITextModel, range: IRange, triggerKind: NewSymbolNameTriggerKind, token: CancellationToken): Promise<NewSymbolName[] | undefined> {
+		await this.instantiationService.invokeFunction(accessor => {
+			return ChatSetup.getInstance(this.instantiationService, this.context, this.controller).run({
+				forceAnonymous: this.chatEntitlementService.anonymous ? ChatSetupAnonymous.EnabledWithDialog : undefined
+			});
+		});
+
+		return [];
 	}
 }
 
@@ -637,7 +676,7 @@ class ChatSetup {
 		let instance = ChatSetup.instance;
 		if (!instance) {
 			instance = ChatSetup.instance = instantiationService.invokeFunction(accessor => {
-				return new ChatSetup(context, controller, instantiationService, accessor.get(ITelemetryService), accessor.get(IWorkbenchLayoutService), accessor.get(IKeybindingService), accessor.get(IChatEntitlementService) as ChatEntitlementService, accessor.get(ILogService), accessor.get(IConfigurationService), accessor.get(IViewsService), accessor.get(IWorkspaceTrustRequestService));
+				return new ChatSetup(context, controller, accessor.get(ITelemetryService), accessor.get(IWorkbenchLayoutService), accessor.get(IKeybindingService), accessor.get(IChatEntitlementService) as ChatEntitlementService, accessor.get(ILogService), accessor.get(IConfigurationService), accessor.get(IViewsService), accessor.get(IWorkspaceTrustRequestService), accessor.get(IMarkdownRendererService));
 			});
 		}
 
@@ -651,7 +690,6 @@ class ChatSetup {
 	private constructor(
 		private readonly context: ChatEntitlementContext,
 		private readonly controller: Lazy<ChatSetupController>,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
@@ -659,7 +697,8 @@ class ChatSetup {
 		@ILogService private readonly logService: ILogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IViewsService private readonly viewsService: IViewsService,
-		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService
+		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
+		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 	) { }
 
 	skipDialog(): void {
@@ -833,7 +872,6 @@ class ChatSetup {
 	private createDialogFooter(disposables: DisposableStore, options?: { forceAnonymous?: ChatSetupAnonymous }): HTMLElement {
 		const element = $('.chat-setup-dialog-footer');
 
-		const markdown = this.instantiationService.createInstance(MarkdownRenderer, {});
 
 		let footer: string;
 		if (options?.forceAnonymous || this.telemetryService.telemetryLevel === TelemetryLevel.NONE) {
@@ -841,7 +879,7 @@ class ChatSetup {
 		} else {
 			footer = localize({ key: 'settings', comment: ['{Locked="["}', '{Locked="]({1})"}', '{Locked="]({2})"}', '{Locked="]({4})"}', '{Locked="]({5})"}'] }, "By continuing, you agree to {0}'s [Terms]({1}) and [Privacy Statement]({2}). {3} Copilot may show [public code]({4}) suggestions and use your data to improve the product. You can change these [settings]({5}) anytime.", defaultChat.provider.default.name, defaultChat.termsStatementUrl, defaultChat.privacyStatementUrl, defaultChat.provider.default.name, defaultChat.publicCodeMatchesUrl, defaultChat.manageSettingsUrl);
 		}
-		element.appendChild($('p', undefined, disposables.add(markdown.render(new MarkdownString(footer, { isTrusted: true }))).element));
+		element.appendChild($('p', undefined, disposables.add(this.markdownRendererService.render(new MarkdownString(footer, { isTrusted: true }))).element));
 
 		return element;
 	}
@@ -887,53 +925,69 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			return; // TODO@bpasero eventually remove this when we figured out extension activation issues
 		}
 
-		const defaultAgentDisposables = markAsSingleton(new MutableDisposable()); // prevents flicker on window reload
-		const vscodeAgentDisposables = markAsSingleton(new MutableDisposable());
-
 		const updateRegistration = () => {
-			if (!context.state.hidden && !context.state.disabled) {
 
-				// Default Agents (always, even if installed to allow for speedy requests right on startup)
-				if (!defaultAgentDisposables.value) {
-					const disposables = defaultAgentDisposables.value = new DisposableStore();
+			// Agent + Tools
+			{
+				const defaultAgentDisposables = markAsSingleton(new MutableDisposable()); // prevents flicker on window reload
+				const vscodeAgentDisposables = markAsSingleton(new MutableDisposable());
+				if (!context.state.hidden && !context.state.disabled) {
 
-					// Panel Agents
-					const panelAgentDisposables = disposables.add(new DisposableStore());
-					for (const mode of [ChatModeKind.Ask, ChatModeKind.Edit, ChatModeKind.Agent]) {
-						const { agent, disposable } = SetupAgent.registerDefaultAgents(this.instantiationService, ChatAgentLocation.Chat, mode, context, controller);
-						panelAgentDisposables.add(disposable);
-						panelAgentDisposables.add(agent.onUnresolvableError(() => {
-							const panelAgentHasGuidance = chatViewsWelcomeRegistry.get().some(descriptor => this.contextKeyService.contextMatchesRules(descriptor.when));
-							if (panelAgentHasGuidance) {
-								// An unresolvable error from our agent registrations means that
-								// Copilot is unhealthy for some reason. We clear our panel
-								// registration to give Copilot a chance to show a custom message
-								// to the user from the views and stop pretending as if there was
-								// a functional agent.
-								this.logService.error('[chat setup] Unresolvable error from Copilot agent registration, clearing registration.');
-								panelAgentDisposables.dispose();
-							}
-						}));
+					// Default Agents (always, even if installed to allow for speedy requests right on startup)
+					if (!defaultAgentDisposables.value) {
+						const disposables = defaultAgentDisposables.value = new DisposableStore();
+
+						// Panel Agents
+						const panelAgentDisposables = disposables.add(new DisposableStore());
+						for (const mode of [ChatModeKind.Ask, ChatModeKind.Edit, ChatModeKind.Agent]) {
+							const { agent, disposable } = SetupAgent.registerDefaultAgents(this.instantiationService, ChatAgentLocation.Chat, mode, context, controller);
+							panelAgentDisposables.add(disposable);
+							panelAgentDisposables.add(agent.onUnresolvableError(() => {
+								const panelAgentHasGuidance = chatViewsWelcomeRegistry.get().some(descriptor => this.contextKeyService.contextMatchesRules(descriptor.when));
+								if (panelAgentHasGuidance) {
+									// An unresolvable error from our agent registrations means that
+									// Copilot is unhealthy for some reason. We clear our panel
+									// registration to give Copilot a chance to show a custom message
+									// to the user from the views and stop pretending as if there was
+									// a functional agent.
+									this.logService.error('[chat setup] Unresolvable error from Copilot agent registration, clearing registration.');
+									panelAgentDisposables.dispose();
+								}
+							}));
+						}
+
+						// Inline Agents
+						disposables.add(SetupAgent.registerDefaultAgents(this.instantiationService, ChatAgentLocation.Terminal, undefined, context, controller).disposable);
+						disposables.add(SetupAgent.registerDefaultAgents(this.instantiationService, ChatAgentLocation.Notebook, undefined, context, controller).disposable);
+						disposables.add(SetupAgent.registerDefaultAgents(this.instantiationService, ChatAgentLocation.EditorInline, undefined, context, controller).disposable);
 					}
 
-					// Inline Agents
-					disposables.add(SetupAgent.registerDefaultAgents(this.instantiationService, ChatAgentLocation.Terminal, undefined, context, controller).disposable);
-					disposables.add(SetupAgent.registerDefaultAgents(this.instantiationService, ChatAgentLocation.Notebook, undefined, context, controller).disposable);
-					disposables.add(SetupAgent.registerDefaultAgents(this.instantiationService, ChatAgentLocation.EditorInline, undefined, context, controller).disposable);
+					// Built-In Agent + Tool (unless installed, signed-in and enabled)
+					if ((!context.state.installed || context.state.entitlement === ChatEntitlement.Unknown || context.state.entitlement === ChatEntitlement.Unresolved) && !vscodeAgentDisposables.value) {
+						const disposables = vscodeAgentDisposables.value = new DisposableStore();
+						disposables.add(SetupAgent.registerBuiltInAgents(this.instantiationService, context, controller));
+					}
+				} else {
+					defaultAgentDisposables.clear();
+					vscodeAgentDisposables.clear();
 				}
 
-				// Built-In Agent + Tool (unless installed, signed-in and enabled)
-				if ((!context.state.installed || context.state.entitlement === ChatEntitlement.Unknown || context.state.entitlement === ChatEntitlement.Unresolved) && !vscodeAgentDisposables.value) {
-					const disposables = vscodeAgentDisposables.value = new DisposableStore();
-					disposables.add(SetupAgent.registerBuiltInAgents(this.instantiationService, context, controller).disposable);
+				if (context.state.installed && !context.state.disabled) {
+					vscodeAgentDisposables.clear(); // we need to do this to prevent showing duplicate agent/tool entries in the list
 				}
-			} else {
-				defaultAgentDisposables.clear();
-				vscodeAgentDisposables.clear();
 			}
 
-			if (context.state.installed && !context.state.disabled) {
-				vscodeAgentDisposables.clear(); // we need to do this to prevent showing duplicate agent/tool entries in the list
+			// Rename Provider
+			{
+				const renameProviderDisposables = markAsSingleton(new MutableDisposable());
+
+				if (!context.state.installed && !context.state.hidden && !context.state.disabled) {
+					if (!renameProviderDisposables.value) {
+						renameProviderDisposables.value = DefaultNewSymbolNamesProvider.registerProvider(this.instantiationService, context, controller);
+					}
+				} else {
+					renameProviderDisposables.clear();
+				}
 			}
 		};
 
