@@ -7,7 +7,7 @@ import { EditorContributionInstantiation, registerEditorContribution } from '../
 import { IMenuItem, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { InlineChatController, InlineChatController1, InlineChatController2 } from './inlineChatController.js';
 import * as InlineChatActions from './inlineChatActions.js';
-import { CTX_INLINE_CHAT_EDITING, CTX_INLINE_CHAT_HAS_AGENT, CTX_INLINE_CHAT_REQUEST_IN_PROGRESS, INLINE_CHAT_ID, MENU_INLINE_CHAT_WIDGET_STATUS } from '../common/inlineChat.js';
+import { CTX_INLINE_CHAT_EDITING, CTX_INLINE_CHAT_V1_ENABLED, CTX_INLINE_CHAT_REQUEST_IN_PROGRESS, INLINE_CHAT_ID, MENU_INLINE_CHAT_WIDGET_STATUS } from '../common/inlineChat.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
@@ -57,7 +57,7 @@ const editActionMenuItem: IMenuItem = {
 		ChatContextKeys.inputHasText,
 		CTX_INLINE_CHAT_REQUEST_IN_PROGRESS.toNegated(),
 		CTX_INLINE_CHAT_EDITING,
-		CTX_INLINE_CHAT_HAS_AGENT
+		CTX_INLINE_CHAT_V1_ENABLED
 	),
 };
 
@@ -72,7 +72,7 @@ const generateActionMenuItem: IMenuItem = {
 		ChatContextKeys.inputHasText,
 		CTX_INLINE_CHAT_REQUEST_IN_PROGRESS.toNegated(),
 		CTX_INLINE_CHAT_EDITING.toNegated(),
-		CTX_INLINE_CHAT_HAS_AGENT
+		CTX_INLINE_CHAT_V1_ENABLED
 	),
 };
 
