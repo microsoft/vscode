@@ -128,8 +128,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			if (e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION)) {
 				this.configuration = this.resolveConfiguration();
 				this.onDidChangeActivityBarLocation();
-			}
-			if (e.affectsConfiguration('workbench.secondarySideBar.showLabels')) {
+			} else if (e.affectsConfiguration('workbench.secondarySideBar.showLabels')) {
 				this.configuration = this.resolveConfiguration();
 				this.updateCompositeBar(true);
 			}
