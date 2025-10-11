@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Giới thiệu các trường Đại học Việt Nam</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      background: #f5f5f5;
+    }
+    header {
+      background: #004080;
+      color: white;
+      padding: 20px 0;
+      text-align: center;
+    }
+    nav {
+      background: #0066cc;
+      text-align: center;
+      padding: 10px;
+    }
+    nav a {
+      color: white;
+      margin: 0 15px;
+      text-decoration: none;
+      font-weight: bold;
+    }
+    nav a:hover {
+      text-decoration: underline;
+    }
+    .content {
+      padding: 40px;
+      text-align: center;
+    }
+    .banner {
+      width: 100%;
+      height: 250px;
+      background: url('https://upload.wikimedia.org/wikipedia/commons/4/4f/Vietnam_National_University_Hanoi_Main_Gate.jpg') center/cover no-repeat;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Trang Giới Thiệu Các Trường Đại Học Việt Nam</h1>
+    <p>Cùng khám phá thông tin về các trường đại học hàng đầu</p>
+  </header>
+  
+  <nav>
+    <a href="index.html">Trang chủ</a>
+    <a href="universities.html">Danh sách trường</a>
+    <a href="contact.html">Liên hệ</a>
+  </nav>
+  
+  <div class="banner"></div>
+
+  <div class="content">
+    <h2>Chào mừng bạn đến với cổng thông tin Đại học Việt Nam</h2>
+    <p>Trang web này giúp học sinh và phụ huynh tìm hiểu thông tin chi tiết về các trường đại học, ngành học, học phí và điểm chuẩn hằng năm.</p>
+  </div>
+</body>
+</html>
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Danh sách các trường đại học</title>
+  <style>
+    body { font-family: Arial; background: #f5f5f5; margin: 0; }
+    header { background: #004080; color: white; text-align: center; padding: 15px; }
+    .university {
+      background: white;
+      border-radius: 10px;
+      margin: 20px auto;
+      padding: 20px;
+      width: 80%;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    .university img { width: 100px; border-radius: 50%; }
+    .university h3 { color: #004080; }
+  </style>
+</head>
+<body>
+  <header><h1>Danh sách các trường đại học nổi bật</h1></header>
+
+  <div class="university">
+    <img src="https://upload.wikimedia.org/wikipedia/commons/3/32/Logo_Đại_học_Quốc_gia_Hà_Nội.svg" alt="VNU">
+    <h3>Đại học Quốc gia Hà Nội (VNU)</h3>
+    <p>Trường hàng đầu miền Bắc Việt Nam, đào tạo đa ngành, đa lĩnh vực.</p>
+    <a href="https://www.vnu.edu.vn/">Website chính thức</a>
+  </div>
+
+  <div class="university">
+    <img src="https://upload.wikimedia.org/wikipedia/commons/9/9a/Logo_ĐHQG_TP.HCM.png" alt="VNU-HCM">
+    <h3>Đại học Quốc gia TP.HCM</h3>
+    <p>Tổ hợp đại học lớn nhất miền Nam, nổi bật với Đại học Bách Khoa và Kinh tế - Luật.</p>
+    <a href="https://vnuhcm.edu.vn/">Website chính thức</a>
+  </div>
+</body>
+</html>
