@@ -64,13 +64,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<Api> {
 			API.fromSimpleString('5.9.0')));
 
 	let experimentTelemetryReporter: IExperimentationTelemetryReporter | undefined;
-	const packageInfo = getPackageInfo(context);
-	if (packageInfo) {
-		const { aiKey } = packageInfo;
-		const vscTelemetryReporter = new VsCodeTelemetryReporter(aiKey);
-		experimentTelemetryReporter = new ExperimentationTelemetryReporter(vscTelemetryReporter);
-		context.subscriptions.push(experimentTelemetryReporter);
-	}
+	// DISABLED: Fix for PowerShell process spawning bug on Windows
+	// The @vscode/extension-telemetry package spawns PowerShell processes to monitor performance
+	// which causes excessive CPU and memory usage on Windows systems
+	// const packageInfo = getPackageInfo(context);
+	// if (packageInfo) {
+	// 	const { aiKey } = packageInfo;
+	// 	const vscTelemetryReporter = new VsCodeTelemetryReporter(aiKey);
+	// 	experimentTelemetryReporter = new ExperimentationTelemetryReporter(vscTelemetryReporter);
+	// 	context.subscriptions.push(experimentTelemetryReporter);
+	// }
 
 	const logger = new Logger();
 
