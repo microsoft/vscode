@@ -26,6 +26,10 @@
 	background-color: var(--vscode-sideBarTitle-background);
 }
 
+.monaco-workbench .part.auxiliarybar > .content {
+	font-size: var(--vscode-workbench-secondary-sidebar-font-size, 13px);
+}
+
 .monaco-workbench .part.auxiliarybar > .title > .title-label {
 	flex: 1;
 }
