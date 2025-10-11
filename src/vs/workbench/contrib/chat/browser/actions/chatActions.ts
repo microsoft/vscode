@@ -1062,15 +1062,19 @@ export function registerChatActions() {
 				category: CHAT_CATEGORY,
 				precondition: ChatContextKeys.enabled,
 				keybinding: {
-					weight: KeybindingWeight.WorkbenchContrib + 1,
+					weight: KeybindingWeight.WorkbenchContrib,
 					primary: KeyMod.CtrlCmd | KeyCode.KeyN,
 					when: ContextKeyExpr.and(ChatContextKeys.inChatSession, ChatContextKeys.inChatEditor)
 				},
-				menu: {
+				menu: [{
 					id: MenuId.ChatTitleBarMenu,
 					group: 'b_new',
 					order: 0
-				}
+				}, {
+					id: MenuId.ChatNewMenu,
+					group: '2_new',
+					order: 2
+				}],
 			});
 		}
 
@@ -1088,11 +1092,15 @@ export function registerChatActions() {
 				f1: true,
 				category: CHAT_CATEGORY,
 				precondition: ChatContextKeys.enabled,
-				menu: {
+				menu: [{
 					id: MenuId.ChatTitleBarMenu,
 					group: 'b_new',
 					order: 1
-				}
+				}, {
+					id: MenuId.ChatNewMenu,
+					group: '2_new',
+					order: 3
+				}]
 			});
 		}
 
@@ -1184,7 +1192,7 @@ export function registerChatActions() {
 			});
 		}
 
-		async run(accessor: ServicesAccessor, ...args: any[]) {
+		async run(accessor: ServicesAccessor, ...args: unknown[]) {
 			const editorService = accessor.get(IEditorService);
 			const editorGroupService = accessor.get(IEditorGroupsService);
 
@@ -1221,9 +1229,9 @@ export function registerChatActions() {
 			});
 		}
 
-		override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+		override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 			const widgetService = accessor.get(IChatWidgetService);
-			const context: { widget?: IChatWidget } | undefined = args[0];
+			const context = args[0] as { widget?: IChatWidget } | undefined;
 			const widget = context?.widget ?? widgetService.lastFocusedWidget;
 			if (!widget) {
 				return;
@@ -1258,7 +1266,7 @@ export function registerChatActions() {
 				f1: true,
 			});
 		}
-		async run(accessor: ServicesAccessor, ...args: any[]) {
+		async run(accessor: ServicesAccessor, ...args: unknown[]) {
 			const historyService = accessor.get(IChatWidgetHistoryService);
 			historyService.clearHistory();
 		}
@@ -1274,7 +1282,7 @@ export function registerChatActions() {
 				f1: true,
 			});
 		}
-		async run(accessor: ServicesAccessor, ...args: any[]) {
+		async run(accessor: ServicesAccessor, ...args: unknown[]) {
 			const editorGroupsService = accessor.get(IEditorGroupsService);
 			const chatService = accessor.get(IChatService);
 			const instantiationService = accessor.get(IInstantiationService);
@@ -1394,7 +1402,7 @@ export function registerChatActions() {
 				]
 			});
 		}
-		run(accessor: ServicesAccessor, ...args: any[]) {
+		run(accessor: ServicesAccessor, ...args: unknown[]) {
 			const widgetService = accessor.get(IChatWidgetService);
 			widgetService.lastFocusedWidget?.focusInput();
 		}

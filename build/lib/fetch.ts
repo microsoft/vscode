@@ -54,8 +54,7 @@ export async function fetchUrl(url: string, options: IFetchOptions, retries = 10
 		try {
 			const response = await fetch(url, {
 				...options.nodeFetchOptions,
-				// eslint-disable-next-line local/code-no-any-casts
-				signal: controller.signal as any /* Typings issue with lib.dom.d.ts */
+				signal: controller.signal
 			});
 			if (verbose) {
 				log(`Fetch completed: Status ${response.status}. Took ${ansiColors.magenta(`${new Date().getTime() - startTime} ms`)}`);

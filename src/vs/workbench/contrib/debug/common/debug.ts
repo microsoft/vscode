@@ -720,17 +720,17 @@ export interface IViewModel extends ITreeElement {
 
 	isMultiSessionView(): boolean;
 
-	onDidFocusSession: Event<IDebugSession | undefined>;
-	onDidFocusThread: Event<{ thread: IThread | undefined; explicit: boolean; session: IDebugSession | undefined }>;
-	onDidFocusStackFrame: Event<{ stackFrame: IStackFrame | undefined; explicit: boolean; session: IDebugSession | undefined }>;
-	onDidSelectExpression: Event<{ expression: IExpression; settingWatch: boolean } | undefined>;
-	onDidEvaluateLazyExpression: Event<IExpressionContainer>;
+	readonly onDidFocusSession: Event<IDebugSession | undefined>;
+	readonly onDidFocusThread: Event<{ thread: IThread | undefined; explicit: boolean; session: IDebugSession | undefined }>;
+	readonly onDidFocusStackFrame: Event<{ stackFrame: IStackFrame | undefined; explicit: boolean; session: IDebugSession | undefined }>;
+	readonly onDidSelectExpression: Event<{ expression: IExpression; settingWatch: boolean } | undefined>;
+	readonly onDidEvaluateLazyExpression: Event<IExpressionContainer>;
 	/**
 	 * Fired when `setVisualizedExpression`, to migrate elements currently
 	 * rendered as `original` to the `replacement`.
 	 */
-	onDidChangeVisualization: Event<{ original: IExpression; replacement: IExpression }>;
-	onWillUpdateViews: Event<void>;
+	readonly onDidChangeVisualization: Event<{ original: IExpression; replacement: IExpression }>;
+	readonly onWillUpdateViews: Event<void>;
 
 	evaluateLazyExpression(expression: IExpressionContainer): void;
 }
@@ -762,16 +762,16 @@ export interface IDebugModel extends ITreeElement {
 	getWatchExpressions(): ReadonlyArray<IExpression & IEvaluate>;
 	registerBreakpointModes(debugType: string, modes: DebugProtocol.BreakpointMode[]): void;
 	getBreakpointModes(forBreakpointType: 'source' | 'exception' | 'data' | 'instruction'): DebugProtocol.BreakpointMode[];
-	onDidChangeBreakpoints: Event<IBreakpointsChangeEvent | undefined>;
-	onDidChangeCallStack: Event<void>;
+	readonly onDidChangeBreakpoints: Event<IBreakpointsChangeEvent | undefined>;
+	readonly onDidChangeCallStack: Event<void>;
 	/**
 	 * The expression has been added, removed, or repositioned.
 	 */
-	onDidChangeWatchExpressions: Event<IExpression | undefined>;
+	readonly onDidChangeWatchExpressions: Event<IExpression | undefined>;
 	/**
 	 * The expression's value has changed.
 	 */
-	onDidChangeWatchExpressionValue: Event<IExpression | undefined>;
+	readonly onDidChangeWatchExpressionValue: Event<IExpression | undefined>;
 
 	fetchCallstack(thread: IThread, levels?: number): Promise<void>;
 }
@@ -960,6 +960,8 @@ export interface IDebuggerContribution extends IPlatformSpecificAdapterContribut
 	hiddenWhen?: string;
 	deprecated?: string;
 	strings?: { [key in DebuggerString]: string };
+	/** @deprecated */
+	uiMessages?: { [key in DebuggerString]: string };
 }
 
 export interface IBreakpointContribution {
@@ -1020,12 +1022,12 @@ export interface IConfigurationManager {
 	/**
 	 * Allows to register on change of selected debug configuration.
 	 */
-	onDidSelectConfiguration: Event<void>;
+	readonly onDidSelectConfiguration: Event<void>;
 
 	/**
 	 * Allows to register on change of selected debug configuration.
 	 */
-	onDidChangeConfigurationProviders: Event<void>;
+	readonly onDidChangeConfigurationProviders: Event<void>;
 
 	hasDebugConfigurationProvider(debugType: string, triggerKind?: DebugConfigurationProviderTriggerKind): boolean;
 	getDynamicProviders(): Promise<{ label: string; type: string; pick: () => Promise<{ launch: ILaunch; config: IConfig; label: string } | undefined> }[]>;
@@ -1043,7 +1045,7 @@ export enum DebuggerString {
 
 export interface IAdapterManager {
 
-	onDidRegisterDebugger: Event<void>;
+	readonly onDidRegisterDebugger: Event<void>;
 
 	hasEnabledDebuggers(): boolean;
 	getDebugAdapterDescriptor(session: IDebugSession): Promise<IAdapterDescriptor | undefined>;
@@ -1137,19 +1139,19 @@ export interface IDebugService {
 	/**
 	 * Allows to register on debug state changes.
 	 */
-	onDidChangeState: Event<State>;
+	readonly onDidChangeState: Event<State>;
 
 	/**
 	 * Allows to register on sessions about to be created (not yet fully initialised).
 	 * This is fired exactly one time for any given session.
 	 */
-	onWillNewSession: Event<IDebugSession>;
+	readonly onWillNewSession: Event<IDebugSession>;
 
 	/**
 	 * Fired when a new debug session is started. This may fire multiple times
 	 * for a single session due to restarts.
 	 */
-	onDidNewSession: Event<IDebugSession>;
+	readonly onDidNewSession: Event<IDebugSession>;
 
 	/**
 	 * Allows to register on end session events.
@@ -1157,7 +1159,7 @@ export interface IDebugService {
 	 * Contains a boolean indicating whether the session will restart. If restart
 	 * is true, the session should not considered to be dead yet.
 	 */
-	onDidEndSession: Event<{ session: IDebugSession; restart: boolean }>;
+	readonly onDidEndSession: Event<{ session: IDebugSession; restart: boolean }>;
 
 	/**
 	 * Gets the configuration manager.

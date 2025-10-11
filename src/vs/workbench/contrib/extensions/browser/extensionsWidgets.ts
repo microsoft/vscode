@@ -32,9 +32,7 @@ import { IExtensionService } from '../../../services/extensions/common/extension
 import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
 import Severity from '../../../../base/common/severity.js';
 import { Color } from '../../../../base/common/color.js';
-import { renderMarkdown } from '../../../../base/browser/markdownRenderer.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
@@ -51,6 +49,7 @@ import { IExplorerService } from '../../files/browser/files.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { VIEW_ID as EXPLORER_VIEW_ID } from '../../files/common/files.js';
 import { IExtensionGalleryManifest, IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 
 export abstract class ExtensionWidget extends Disposable implements IExtensionContainer {
 	private _extension: IExtension | null = null;
@@ -998,7 +997,7 @@ export class ExtensionStatusWidget extends ExtensionWidget {
 	constructor(
 		private readonly container: HTMLElement,
 		private readonly extensionStatusAction: ExtensionStatusAction,
-		@IOpenerService private readonly openerService: IOpenerService,
+		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 	) {
 		super();
 		this.render();
@@ -1023,11 +1022,7 @@ export class ExtensionStatusWidget extends ExtensionWidget {
 					markdown.appendText(`\n`);
 				}
 			}
-			const rendered = disposables.add(renderMarkdown(markdown, {
-				actionHandler: (content) => {
-					this.openerService.open(content, { allowCommands: true }).catch(onUnexpectedError);
-				},
-			}));
+			const rendered = disposables.add(this.markdownRendererService.render(markdown));
 			append(this.container, rendered.element);
 		}
 		this._onDidRender.fire();

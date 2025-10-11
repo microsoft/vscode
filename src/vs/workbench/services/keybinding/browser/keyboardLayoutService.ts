@@ -43,8 +43,7 @@ export class BrowserKeyboardMapperFactoryBase extends Disposable {
 	protected _keymapInfos: KeymapInfo[];
 	protected _mru: KeymapInfo[];
 	private _activeKeymapInfo: KeymapInfo | null;
-	// eslint-disable-next-line local/code-no-any-casts
-	private keyboardLayoutMapAllowed: boolean = (navigator as any).keyboard !== undefined;
+	private keyboardLayoutMapAllowed: boolean = (navigator as INavigatorWithKeyboard).keyboard !== undefined;
 
 	get activeKeymap(): KeymapInfo | null {
 		return this._activeKeymapInfo;
@@ -399,8 +398,7 @@ export class BrowserKeyboardMapperFactoryBase extends Disposable {
 	private async _getBrowserKeyMapping(keyboardEvent?: IKeyboardEvent): Promise<IRawMixedKeyboardMapping | null> {
 		if (this.keyboardLayoutMapAllowed) {
 			try {
-				// eslint-disable-next-line local/code-no-any-casts
-				return await (navigator as any).keyboard.getLayoutMap().then((e: any) => {
+				return await (navigator as INavigatorWithKeyboard).keyboard.getLayoutMap().then((e: any) => {
 					const ret: IKeyboardMapping = {};
 					for (const key of e) {
 						ret[key[0]] = {

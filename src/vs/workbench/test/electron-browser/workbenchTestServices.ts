@@ -65,17 +65,17 @@ export class TestNativeHostService implements INativeHostService {
 
 	readonly windowId = -1;
 
-	onDidOpenMainWindow: Event<number> = Event.None;
-	onDidMaximizeWindow: Event<number> = Event.None;
-	onDidUnmaximizeWindow: Event<number> = Event.None;
-	onDidFocusMainWindow: Event<number> = Event.None;
-	onDidBlurMainWindow: Event<number> = Event.None;
-	onDidFocusMainOrAuxiliaryWindow: Event<number> = Event.None;
-	onDidBlurMainOrAuxiliaryWindow: Event<number> = Event.None;
-	onDidResumeOS: Event<unknown> = Event.None;
+	readonly onDidOpenMainWindow: Event<number> = Event.None;
+	readonly onDidMaximizeWindow: Event<number> = Event.None;
+	readonly onDidUnmaximizeWindow: Event<number> = Event.None;
+	readonly onDidFocusMainWindow: Event<number> = Event.None;
+	readonly onDidBlurMainWindow: Event<number> = Event.None;
+	readonly onDidFocusMainOrAuxiliaryWindow: Event<number> = Event.None;
+	readonly onDidBlurMainOrAuxiliaryWindow: Event<number> = Event.None;
+	readonly onDidResumeOS: Event<unknown> = Event.None;
 	onDidChangeColorScheme = Event.None;
 	onDidChangePassword = Event.None;
-	onDidTriggerWindowSystemContextMenu: Event<{ windowId: number; x: number; y: number }> = Event.None;
+	readonly onDidTriggerWindowSystemContextMenu: Event<{ windowId: number; x: number; y: number }> = Event.None;
 	onDidChangeWindowFullScreen = Event.None;
 	onDidChangeWindowAlwaysOnTop = Event.None;
 	onDidChangeDisplay = Event.None;

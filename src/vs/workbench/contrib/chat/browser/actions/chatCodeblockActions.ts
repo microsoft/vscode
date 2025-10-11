@@ -39,6 +39,7 @@ import { IChatCodeBlockContextProviderService, IChatWidgetService } from '../cha
 import { DefaultChatTextEditor, ICodeBlockActionContext, ICodeCompareBlockActionContext } from '../codeBlockPart.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { ApplyCodeBlockOperation, InsertCodeBlockOperation } from './codeBlockOperations.js';
+import { stripCommentsForShellExecution } from '../../common/codeBlockCleaning.js';
 
 const shellLangIds = [
 	'fish',
@@ -67,7 +68,7 @@ function isResponseFiltered(context: ICodeBlockActionContext) {
 }
 
 abstract class ChatCodeBlockAction extends Action2 {
-	run(accessor: ServicesAccessor, ...args: any[]) {
+	run(accessor: ServicesAccessor, ...args: unknown[]) {
 		let context = args[0];
 		if (!isCodeBlockActionContext(context)) {
 			const codeEditorService = accessor.get(ICodeEditorService);
@@ -143,7 +144,7 @@ export function registerChatCodeBlockActions() {
 			});
 		}
 
-		run(accessor: ServicesAccessor, ...args: any[]) {
+		run(accessor: ServicesAccessor, ...args: unknown[]) {
 			const context = args[0];
 			if (!isCodeBlockActionContext(context) || isResponseFiltered(context)) {
 				return;
@@ -482,7 +483,7 @@ export function registerChatCodeBlockActions() {
 				terminalGroupService.showPanel(true);
 			}
 
-			terminal.runCommand(context.code, false);
+			terminal.runCommand(stripCommentsForShellExecution(context.code), false);
 
 			if (isResponseVM(context.element)) {
 				chatService.notifyUserAction({
@@ -549,7 +550,7 @@ export function registerChatCodeBlockActions() {
 			});
 		}
 
-		run(accessor: ServicesAccessor, ...args: any[]) {
+		run(accessor: ServicesAccessor, ...args: unknown[]) {
 			navigateCodeBlocks(accessor);
 		}
 	});
@@ -571,7 +572,7 @@ export function registerChatCodeBlockActions() {
 			});
 		}
 
-		run(accessor: ServicesAccessor, ...args: any[]) {
+		run(accessor: ServicesAccessor, ...args: unknown[]) {
 			navigateCodeBlocks(accessor, true);
 		}
 	});
@@ -611,7 +612,7 @@ function getContextFromEditor(editor: ICodeEditor, accessor: ServicesAccessor): 
 export function registerChatCodeCompareBlockActions() {
 
 	abstract class ChatCompareCodeBlockAction extends Action2 {
-		run(accessor: ServicesAccessor, ...args: any[]) {
+		run(accessor: ServicesAccessor, ...args: unknown[]) {
 			const context = args[0];
 			if (!isCodeCompareBlockActionContext(context)) {
 				return;

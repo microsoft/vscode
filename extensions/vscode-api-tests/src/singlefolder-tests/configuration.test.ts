@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
-import { assertNoRpc } from '../utils';
+import { assertNoRpc, Mutable } from '../utils';
 
 suite('vscode API - configuration', () => {
 
@@ -30,8 +30,7 @@ suite('vscode API - configuration', () => {
 		assert.strictEqual(config['config0'], true);
 		assert.strictEqual(config['config4'], '');
 
-		// eslint-disable-next-line local/code-no-any-casts
-		assert.throws(() => (<any>config)['config4'] = 'valuevalue');
+		assert.throws(() => (config as Mutable<typeof config>)['config4'] = 'valuevalue');
 
 		assert.ok(config.has('nested.config1'));
 		assert.strictEqual(config.get('nested.config1'), 42);
@@ -45,7 +44,6 @@ suite('vscode API - configuration', () => {
 		assert.ok(config.has('get'));
 		assert.strictEqual(config.get('get'), 'get-prop');
 		assert.deepStrictEqual(config['get'], config.get);
-		// eslint-disable-next-line local/code-no-any-casts
-		assert.throws(() => config['get'] = <any>'get-prop');
+		assert.throws(() => (config as Mutable<typeof config>)['get'] = 'get-prop' as unknown as typeof config.get);
 	});
 });

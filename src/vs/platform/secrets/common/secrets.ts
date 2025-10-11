@@ -24,7 +24,7 @@ export interface ISecretStorageProvider {
 
 export interface ISecretStorageService extends ISecretStorageProvider {
 	readonly _serviceBrand: undefined;
-	onDidChangeSecret: Event<string>;
+	readonly onDidChangeSecret: Event<string>;
 }
 
 export class BaseSecretStorageService extends Disposable implements ISecretStorageService {
@@ -33,7 +33,7 @@ export class BaseSecretStorageService extends Disposable implements ISecretStora
 	private readonly _storagePrefix = 'secret://';
 
 	protected readonly onDidChangeSecretEmitter = this._register(new Emitter<string>());
-	onDidChangeSecret: Event<string> = this.onDidChangeSecretEmitter.event;
+	readonly onDidChangeSecret: Event<string> = this.onDidChangeSecretEmitter.event;
 
 	protected readonly _sequencer = new SequencerByKey<string>();
 

@@ -250,12 +250,12 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 			const image = images[i];
 			const textDescription = dom.$('');
 			textDescription.textContent = image.alt ? nls.localize('imageWithLabel', "Image: {0}", image.alt) : nls.localize('image', "Image");
-			image.parentNode!.replaceChild(textDescription, image);
+			image.replaceWith(textDescription);
 		}
 		const headings = [...renderedComment.element.getElementsByTagName('h1'), ...renderedComment.element.getElementsByTagName('h2'), ...renderedComment.element.getElementsByTagName('h3'), ...renderedComment.element.getElementsByTagName('h4'), ...renderedComment.element.getElementsByTagName('h5'), ...renderedComment.element.getElementsByTagName('h6')];
 		for (const heading of headings) {
 			const textNode = document.createTextNode(heading.textContent || '');
-			heading.parentNode!.replaceChild(textNode, heading);
+			heading.replaceWith(textNode);
 		}
 		while ((renderedComment.element.children.length > 1) && (renderedComment.element.firstElementChild?.tagName === 'HR')) {
 			renderedComment.element.removeChild(renderedComment.element.firstElementChild);
