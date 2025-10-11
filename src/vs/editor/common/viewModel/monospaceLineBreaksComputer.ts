@@ -42,7 +42,7 @@ export class MonospaceLineBreaksComputerFactory implements ILineBreaksComputerFa
 				for (let i = 0, len = requests.length; i < len; i++) {
 					const injectedText = injectedTexts[i];
 					const previousLineBreakData = previousBreakingData[i];
-					if (previousLineBreakData && !previousLineBreakData.injectionOptions && !injectedText) {
+					if (previousLineBreakData && !previousLineBreakData.injectionOptions && !injectedText && !wrapOnEscapedLineFeeds) {
 						result[i] = createLineBreaksFromPreviousLineBreaks(this.classifier, previousLineBreakData, requests[i], tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent, wordBreak);
 					} else {
 						result[i] = createLineBreaks(this.classifier, requests[i], injectedText, tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent, wordBreak, wrapOnEscapedLineFeeds);
@@ -435,14 +435,7 @@ function createLineBreaks(classifier: WrappingCharacterClassifier, _lineText: st
 		visibleColumn += charWidth;
 
 		// literal \n shall trigger a softwrap
-		if (
-			wrapOnEscapedLineFeeds
-			&& i >= 2
-			&& (i < 3 || lineText.charAt(i - 3) !== '\\')
-			&& lineText.charAt(i - 2) === '\\'
-			&& lineText.charAt(i - 1) === 'n'
-			&& lineText.includes('"')
-		) {
+		if (wrapOnEscapedLineFeeds && isEscapedLineBreakAtPosition(lineText, i)) {
 			visibleColumn += breakingColumn;
 		}
 
@@ -494,6 +487,20 @@ function computeCharWidth(charCode: number, visibleColumn: number, tabSize: numb
 
 function tabCharacterWidth(visibleColumn: number, tabSize: number): number {
 	return (tabSize - (visibleColumn % tabSize));
+}
+
+/**
+ * Checks if the current position in the text should trigger a soft wrap due to escaped line feeds.
+ * This handles the wrapOnEscapedLineFeeds feature which allows \n sequences in strings to trigger wrapping.
+ */
+function isEscapedLineBreakAtPosition(lineText: string, i: number): boolean {
+	return (
+		i >= 2
+		&& (i < 3 || lineText.charAt(i - 3) !== '\\')
+		&& lineText.charAt(i - 2) === '\\'
+		&& lineText.charAt(i - 1) === 'n'
+		&& lineText.includes('"')
+	);
 }
 
 /**

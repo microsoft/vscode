@@ -513,7 +513,7 @@ suite('Configuration Resolver Service', () => {
 
 			assert.deepStrictEqual(Object.keys(result), Object.keys(expected));
 			Object.keys(result).forEach(property => {
-				const expectedProperty = (<any>expected)[property];
+				const expectedProperty = (expected as Record<string, unknown>)[property];
 				if (isObject(result[property])) {
 					assert.deepStrictEqual({ ...result[property] }, expectedProperty);
 				} else {
@@ -802,7 +802,7 @@ class MockLabelService implements ILabelService {
 	registerCachedFormatter(formatter: ResourceLabelFormatter): IDisposable {
 		throw new Error('Method not implemented.');
 	}
-	onDidChangeFormatters: Event<IFormatterChangeEvent> = new Emitter<IFormatterChangeEvent>().event;
+	readonly onDidChangeFormatters: Event<IFormatterChangeEvent> = new Emitter<IFormatterChangeEvent>().event;
 }
 
 class MockPathService implements IPathService {

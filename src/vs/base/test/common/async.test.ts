@@ -1210,6 +1210,22 @@ suite('Async', () => {
 			assert.strictEqual((await deferred.p.catch(e => e)).name, 'Canceled');
 			assert.strictEqual(deferred.isRejected, true);
 		});
+
+		test('retains the original settled value', async () => {
+			const deferred = new async.DeferredPromise<number>();
+			assert.strictEqual(deferred.isResolved, false);
+			assert.strictEqual(deferred.value, undefined);
+
+			deferred.complete(42);
+			assert.strictEqual(await deferred.p, 42);
+			assert.strictEqual(deferred.value, 42);
+			assert.strictEqual(deferred.isResolved, true);
+
+			deferred.complete(-1);
+			assert.strictEqual(await deferred.p, 42);
+			assert.strictEqual(deferred.value, 42);
+			assert.strictEqual(deferred.isResolved, true);
+		});
 	});
 
 	suite('Promises.settled', () => {

@@ -7,6 +7,7 @@ import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js'
 import { assertNever } from '../../../../base/common/assert.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { encodeBase64 } from '../../../../base/common/buffer.js';
+import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
@@ -35,10 +36,12 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { ChatModel } from '../common/chatModel.js';
+import { IVariableReference } from '../common/chatModes.js';
 import { ChatToolInvocation } from '../common/chatProgressTypes/chatToolInvocation.js';
 import { ConfirmedReason, IChatService, ToolConfirmKind } from '../common/chatService.js';
+import { ChatRequestToolReferenceEntry, toToolSetVariableEntry, toToolVariableEntry } from '../common/chatVariableEntries.js';
 import { ChatConfiguration } from '../common/constants.js';
-import { CountTokensCallback, createToolSchemaUri, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultInputOutputDetails, stringifyPromptTsxPart, ToolDataSource, ToolSet, IToolAndToolSetEnablementMap } from '../common/languageModelToolsService.js';
+import { CountTokensCallback, createToolSchemaUri, ILanguageModelToolsService, IPreparedToolInvocation, IToolAndToolSetEnablementMap, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultInputOutputDetails, stringifyPromptTsxPart, ToolDataSource, ToolSet } from '../common/languageModelToolsService.js';
 import { getToolConfirmationAlert } from './chatAccessibilityProvider.js';
 
 const jsonSchemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
@@ -56,6 +59,8 @@ interface ITrackedCall {
 const enum AutoApproveStorageKeys {
 	GlobalAutoApproveOptIn = 'chat.tools.global.autoApprove.optIn'
 }
+
+const SkipAutoApproveConfirmationKey = 'vscode.chat.tools.global.autoApprove.testMode';
 
 export const globalAutoApproveDescription = localize2(
 	{
@@ -285,6 +290,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		let requestId: string | undefined;
 		let store: DisposableStore | undefined;
 		let toolResult: IToolResult | undefined;
+		let prepareTimeWatch: StopWatch | undefined;
+		let invocationTimeWatch: StopWatch | undefined;
 		try {
 			if (dto.context) {
 				store = new DisposableStore();
@@ -317,8 +324,11 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				}));
 				token = source.token;
 
+				prepareTimeWatch = StopWatch.create(true);
 				const prepared = await this.prepareToolInvocation(tool, dto, token);
-				toolInvocation = new ChatToolInvocation(prepared, tool.data, dto.callId);
+				prepareTimeWatch.stop();
+
+				toolInvocation = new ChatToolInvocation(prepared, tool.data, dto.callId, dto.fromSubAgent);
 				trackedCall.invocation = toolInvocation;
 				const autoConfirmed = await this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace);
 				if (autoConfirmed) {
@@ -328,7 +338,6 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				model.acceptResponseProgress(request, toolInvocation);
 
 				dto.toolSpecificData = toolInvocation?.toolSpecificData;
-
 				if (prepared?.confirmationMessages) {
 					if (!toolInvocation.isConfirmed?.type && !autoConfirmed) {
 						this.playAccessibilitySignal([toolInvocation]);
@@ -353,7 +362,9 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					}
 				}
 			} else {
+				prepareTimeWatch = StopWatch.create(true);
 				const prepared = await this.prepareToolInvocation(tool, dto, token);
+				prepareTimeWatch.stop();
 				if (prepared?.confirmationMessages && !(await this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace))) {
 					const result = await this._dialogService.confirm({ message: renderAsPlaintext(prepared.confirmationMessages.title), detail: renderAsPlaintext(prepared.confirmationMessages.message) });
 					if (!result.confirmed) {
@@ -368,11 +379,13 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				throw new CancellationError();
 			}
 
+			invocationTimeWatch = StopWatch.create(true);
 			toolResult = await tool.impl.invoke(dto, countTokens, {
 				report: step => {
 					toolInvocation?.acceptProgress(step);
 				}
 			}, token);
+			invocationTimeWatch.stop();
 			this.ensureToolDetails(dto, toolResult, tool.data);
 
 			this._telemetryService.publicLog2<LanguageModelToolInvokedEvent, LanguageModelToolInvokedClassification>(
@@ -383,6 +396,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					toolId: tool.data.id,
 					toolExtensionId: tool.data.source.type === 'extension' ? tool.data.source.extensionId.value : undefined,
 					toolSourceKind: tool.data.source.type,
+					prepareTimeMs: prepareTimeWatch?.elapsed(),
+					invocationTimeMs: invocationTimeWatch?.elapsed(),
 				});
 			return toolResult;
 		} catch (err) {
@@ -395,6 +410,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					toolId: tool.data.id,
 					toolExtensionId: tool.data.source.type === 'extension' ? tool.data.source.extensionId.value : undefined,
 					toolSourceKind: tool.data.source.type,
+					prepareTimeMs: prepareTimeWatch?.elapsed(),
+					invocationTimeMs: invocationTimeWatch?.elapsed(),
 				});
 			this._logService.error(`[LanguageModelToolsService#invokeTool] Error from tool ${dto.toolId} with parameters ${JSON.stringify(dto.parameters)}:\n${toErrorMessage(err, true)}`);
 
@@ -407,7 +424,6 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			throw err;
 		} finally {
 			toolInvocation?.complete(toolResult);
-
 			if (store) {
 				this.cleanupCallDisposables(requestId, store);
 			}
@@ -522,6 +538,10 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			return true;
 		}
 
+		if (this._contextKeyService.getContextKeyValue(SkipAutoApproveConfirmationKey) === true) {
+			return true;
+		}
+
 		const promptResult = await this._dialogService.prompt({
 			type: Severity.Warning,
 			message: localize('autoApprove2.title', 'Enable global auto approve?'),
@@ -578,50 +598,81 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 	}
 
-	toToolEnablementMap(toolOrToolsetNames: Set<string>): Record<string, boolean> {
-		const result: Record<string, boolean> = {};
-		for (const tool of this._tools.values()) {
-			if (tool.data.toolReferenceName && toolOrToolsetNames.has(tool.data.toolReferenceName)) {
-				result[tool.data.id] = true;
-			} else {
-				result[tool.data.id] = false;
-			}
-		}
-
-		for (const toolSet of this._toolSets) {
-			if (toolOrToolsetNames.has(toolSet.referenceName)) {
-				for (const tool of toolSet.getTools()) {
-					result[tool.id] = true;
-				}
-			}
-		}
-
-		return result;
-	}
-
 	/**
 	 * Create a map that contains all tools and toolsets with their enablement state.
 	 * @param toolOrToolSetNames A list of tool or toolset names that are enabled.
 	 * @returns A map of tool or toolset instances to their enablement state.
 	 */
-	toToolAndToolSetEnablementMap(enabledToolOrToolSetNames: readonly string[]): IToolAndToolSetEnablementMap {
-		const toolOrToolSetNames = new Set(enabledToolOrToolSetNames);
+	toToolAndToolSetEnablementMap(enabledQualifiedToolOrToolSetNames: readonly string[]): IToolAndToolSetEnablementMap {
+		const toolOrToolSetNames = new Set(enabledQualifiedToolOrToolSetNames);
 		const result = new Map<ToolSet | IToolData, boolean>();
-		for (const tool of this.getTools()) {
-			if (tool.canBeReferencedInPrompt) {
-				result.set(tool, toolOrToolSetNames.has(tool.toolReferenceName ?? tool.displayName));
+
+		for (const [tool, toolReferenceName] of this.getPromptReferencableTools()) {
+			if (tool instanceof ToolSet) {
+				const enabled = toolOrToolSetNames.has(toolReferenceName) || toolOrToolSetNames.has(tool.referenceName);
+				result.set(tool, enabled);
+				if (enabled) {
+					for (const memberTool of tool.getTools()) {
+						result.set(memberTool, true);
+					}
+				}
+			} else {
+				if (!result.has(tool)) { // already set via an enabled toolset
+					const enabled = toolOrToolSetNames.has(toolReferenceName) || toolOrToolSetNames.has(tool.toolReferenceName ?? tool.displayName);
+					result.set(tool, enabled);
+				}
 			}
 		}
+		// also add all user tool sets (not part of the prompt referencable tools)
 		for (const toolSet of this._toolSets) {
-			const enabled = toolOrToolSetNames.has(toolSet.referenceName);
-			result.set(toolSet, enabled);
-			for (const tool of toolSet.getTools()) {
-				result.set(tool, enabled || toolOrToolSetNames?.has(tool.toolReferenceName ?? tool.displayName));
+			if (toolSet.source.type === 'user') {
+				const enabled = Iterable.every(toolSet.getTools(), t => result.get(t) === true);
+				result.set(toolSet, enabled);
 			}
-
 		}
 		return result;
 	}
+
+	toQualifiedToolNames(map: IToolAndToolSetEnablementMap): string[] {
+		const result: string[] = [];
+		const toolsCoveredByEnabledToolSet = new Set<IToolData>();
+		for (const [tool, toolReferenceName] of this.getPromptReferencableTools()) {
+			if (tool instanceof ToolSet) {
+				if (map.get(tool)) {
+					result.push(toolReferenceName);
+					for (const memberTool of tool.getTools()) {
+						toolsCoveredByEnabledToolSet.add(memberTool);
+					}
+				}
+			} else {
+				if (map.get(tool) && !toolsCoveredByEnabledToolSet.has(tool)) {
+					result.push(toolReferenceName);
+				}
+			}
+		}
+		return result;
+	}
+
+	toToolReferences(variableReferences: readonly IVariableReference[]): ChatRequestToolReferenceEntry[] {
+		const toolsOrToolSetByName = new Map<string, ToolSet | IToolData>();
+		for (const [tool, toolReferenceName] of this.getPromptReferencableTools()) {
+			toolsOrToolSetByName.set(toolReferenceName, tool);
+		}
+
+		const result: ChatRequestToolReferenceEntry[] = [];
+		for (const ref of variableReferences) {
+			const toolOrToolSet = toolsOrToolSetByName.get(ref.name);
+			if (toolOrToolSet) {
+				if (toolOrToolSet instanceof ToolSet) {
+					result.push(toToolSetVariableEntry(toolOrToolSet, ref.range));
+				} else {
+					result.push(toToolVariableEntry(toolOrToolSet, ref.range));
+				}
+			}
+		}
+		return result;
+	}
+
 
 	private readonly _toolSets = new ObservableSet<ToolSet>();
 
@@ -662,7 +713,87 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		this._toolSets.add(result);
 		return result;
 	}
+
+	private *getPromptReferencableTools(): Iterable<[IToolData | ToolSet, string]> {
+		const coveredByToolSets = new Set<IToolData>();
+		for (const toolSet of this.toolSets.get()) {
+			if (toolSet.source.type !== 'user') {
+				yield [toolSet, getToolSetReferenceName(toolSet)];
+				for (const tool of toolSet.getTools()) {
+					yield [tool, getToolReferenceName(tool, toolSet)];
+					coveredByToolSets.add(tool);
+				}
+			}
+		}
+		for (const tool of this.getTools()) {
+			if (tool.canBeReferencedInPrompt && !coveredByToolSets.has(tool)) {
+				yield [tool, getToolReferenceName(tool)];
+			}
+		}
+	}
+
+	*getQualifiedToolNames(): Iterable<string> {
+		for (const [, toolReferenceName] of this.getPromptReferencableTools()) {
+			yield toolReferenceName;
+		}
+	}
+
+	getDeprecatedQualifiedToolNames(): Map<string, string> {
+		const result = new Map<string, string>();
+		const add = (name: string, toolReferenceName: string) => {
+			if (name !== toolReferenceName) {
+				result.set(name, toolReferenceName);
+			}
+		};
+		for (const [tool, toolReferenceName] of this.getPromptReferencableTools()) {
+			if (tool instanceof ToolSet) {
+				add(tool.referenceName, toolReferenceName);
+			} else {
+				add(tool.toolReferenceName ?? tool.displayName, toolReferenceName);
+			}
+		}
+		return result;
+	}
+
+	getToolByQualifiedName(qualifiedName: string): IToolData | ToolSet | undefined {
+		for (const [tool, toolReferenceName] of this.getPromptReferencableTools()) {
+			if (qualifiedName === toolReferenceName) {
+				return tool;
+			}
+			// legacy: check for the old name
+			if (qualifiedName === (tool instanceof ToolSet ? tool.referenceName : tool.toolReferenceName ?? tool.displayName)) {
+				return tool;
+			}
+
+		}
+		return undefined;
+	}
+
+	getQualifiedToolName(tool: IToolData | ToolSet, toolSet?: ToolSet): string {
+		if (tool instanceof ToolSet) {
+			return getToolSetReferenceName(tool);
+		}
+		return getToolReferenceName(tool, toolSet);
+	}
 }
+
+function getToolReferenceName(tool: IToolData, toolSet?: ToolSet) {
+	const toolName = tool.toolReferenceName ?? tool.displayName;
+	if (toolSet) {
+		return `${toolSet.referenceName}/${toolName}`;
+	} else if (tool.source.type === 'extension') {
+		return `${tool.source.extensionId.value.toLowerCase()}/${toolName}`;
+	}
+	return toolName;
+}
+
+function getToolSetReferenceName(toolSet: ToolSet) {
+	if (toolSet.source.type === 'mcp') {
+		return `${toolSet.referenceName}/*`;
+	}
+	return toolSet.referenceName;
+}
+
 
 type LanguageModelToolInvokedEvent = {
 	result: 'success' | 'error' | 'userCancelled';
@@ -670,6 +801,8 @@ type LanguageModelToolInvokedEvent = {
 	toolId: string;
 	toolExtensionId: string | undefined;
 	toolSourceKind: string;
+	prepareTimeMs?: number;
+	invocationTimeMs?: number;
 };
 
 type LanguageModelToolInvokedClassification = {
@@ -678,6 +811,8 @@ type LanguageModelToolInvokedClassification = {
 	toolId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the tool used.' };
 	toolExtensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension that contributed the tool.' };
 	toolSourceKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The source (mcp/extension/internal) of the tool.' };
+	prepareTimeMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Time spent in prepareToolInvocation method in milliseconds.' };
+	invocationTimeMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Time spent in tool invoke method in milliseconds.' };
 	owner: 'roblourens';
 	comment: 'Provides insight into the usage of language model tools.';
 };

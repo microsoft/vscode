@@ -8,7 +8,7 @@ import { ActionViewItem, IActionViewItemOptions } from '../../../../base/browser
 import { alert } from '../../../../base/browser/ui/aria/aria.js';
 import { Action, IAction, Separator } from '../../../../base/common/actions.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { createCommandUri, IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { disposeIfDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -62,7 +62,7 @@ export abstract class DropDownAction extends McpServerAction {
 		return this._actionViewItem;
 	}
 
-	public override run(actionGroups: IAction[][]): Promise<any> {
+	public override run(actionGroups: IAction[][]): Promise<void> {
 		this._actionViewItem?.showMenu(actionGroups);
 		return Promise.resolve();
 	}
@@ -129,7 +129,7 @@ export class InstallAction extends McpServerAction {
 		this.enabled = this.mcpWorkbenchService.canInstall(this.mcpServer) === true;
 	}
 
-	override async run(): Promise<any> {
+	override async run(): Promise<void> {
 		if (!this.mcpServer) {
 			return;
 		}
@@ -201,7 +201,7 @@ export class UninstallAction extends McpServerAction {
 		this.label = localize('uninstall', "Uninstall");
 	}
 
-	override async run(): Promise<any> {
+	override async run(): Promise<void> {
 		if (!this.mcpServer) {
 			return;
 		}
@@ -264,7 +264,7 @@ export class ManageMcpServerAction extends DropDownAction {
 		return groups;
 	}
 
-	override async run(): Promise<any> {
+	override async run(): Promise<void> {
 		return super.run(await this.getActionGroups());
 	}
 
@@ -306,7 +306,7 @@ export class StartServerAction extends McpServerAction {
 		this.label = localize('start', "Start Server");
 	}
 
-	override async run(): Promise<any> {
+	override async run(): Promise<void> {
 		const server = this.getServer();
 		if (!server) {
 			return;
@@ -354,7 +354,7 @@ export class StopServerAction extends McpServerAction {
 		this.label = localize('stop', "Stop Server");
 	}
 
-	override async run(): Promise<any> {
+	override async run(): Promise<void> {
 		const server = this.getServer();
 		if (!server) {
 			return;
@@ -401,7 +401,7 @@ export class RestartServerAction extends McpServerAction {
 		this.label = localize('restart', "Restart Server");
 	}
 
-	override async run(): Promise<any> {
+	override async run(): Promise<void> {
 		const server = this.getServer();
 		if (!server) {
 			return;
@@ -543,7 +543,7 @@ export class ShowServerOutputAction extends McpServerAction {
 		this.label = localize('output', "Show Output");
 	}
 
-	override async run(): Promise<any> {
+	override async run(): Promise<void> {
 		const server = this.getServer();
 		if (!server) {
 			return;
@@ -584,7 +584,7 @@ export class ShowServerConfigurationAction extends McpServerAction {
 		this.enabled = true;
 	}
 
-	override async run(): Promise<any> {
+	override async run(): Promise<void> {
 		if (!this.mcpServer?.local) {
 			return;
 		}
@@ -618,7 +618,7 @@ export class ShowServerJsonConfigurationAction extends McpServerAction {
 		this.enabled = true;
 	}
 
-	override async run(): Promise<any> {
+	override async run(): Promise<void> {
 		const configurationTarget = this.getConfigurationTarget();
 		if (!configurationTarget) {
 			return;
@@ -671,7 +671,7 @@ export class ConfigureModelAccessAction extends McpServerAction {
 		this.label = localize('mcp.configAccess', 'Configure Model Access');
 	}
 
-	override async run(): Promise<any> {
+	override async run(): Promise<void> {
 		const server = this.getServer();
 		if (!server) {
 			return;
@@ -718,7 +718,7 @@ export class ShowSamplingRequestsAction extends McpServerAction {
 		this.enabled = true;
 	}
 
-	override async run(): Promise<any> {
+	override async run(): Promise<void> {
 		const server = this.getServer();
 		if (!server) {
 			return;
@@ -772,7 +772,7 @@ export class BrowseResourcesAction extends McpServerAction {
 		this.enabled = true;
 	}
 
-	override async run(): Promise<any> {
+	override async run(): Promise<void> {
 		const server = this.getServer();
 		if (!server) {
 			return;
@@ -837,7 +837,7 @@ export class McpServerStatusAction extends McpServerAction {
 		}
 
 		if (this.mcpServer.local && this.mcpServer.installState === McpServerInstallState.Installed && this.mcpServer.enablementState === McpServerEnablementState.DisabledByAccess) {
-			const settingsCommandLink = URI.parse(`command:workbench.action.openSettings?${encodeURIComponent(JSON.stringify({ query: `@id:${mcpAccessConfig}` }))}`).toString();
+			const settingsCommandLink = createCommandUri('workbench.action.openSettings', { query: `@id:${mcpAccessConfig}` }).toString();
 			if (this.configurationService.getValue(mcpAccessConfig) === McpAccessValue.None) {
 				this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('disabled - all not allowed', "This MCP Server is disabled because MCP servers are configured to be disabled in the Editor. Please check your [settings]({0}).", settingsCommandLink)) }, true);
 			} else {
@@ -894,7 +894,7 @@ export class McpServerStatusAction extends McpServerAction {
 		this._onDidChangeStatus.fire();
 	}
 
-	override async run(): Promise<any> {
+	override async run(): Promise<void> {
 		if (this._status[0]?.icon === trustIcon) {
 			return this.commandService.executeCommand('workbench.trust.manage');
 		}

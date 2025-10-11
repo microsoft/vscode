@@ -9,14 +9,14 @@ import { Separator } from '../../../../../../base/common/actions.js';
 import { asArray } from '../../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ErrorNoTelemetry } from '../../../../../../base/common/errors.js';
-import { MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { createCommandUri, MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { thenIfNotDisposed, thenRegisterOrDispose } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import Severity from '../../../../../../base/common/severity.js';
 import { isObject } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
-import { MarkdownRenderer } from '../../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
@@ -41,6 +41,7 @@ import { ChatCustomConfirmationWidget, IChatConfirmationButton } from '../chatCo
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatMarkdownContentPart, EditorPool } from '../chatMarkdownContentPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
+import { openTerminalSettingsLinkCommandId } from './chatTerminalToolProgressPart.js';
 
 export const enum TerminalToolConfirmationStorageKeys {
 	TerminalAutoApproveWarningAccepted = 'chat.tools.terminal.autoApprove.warningAccepted'
@@ -69,7 +70,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		toolInvocation: IChatToolInvocation,
 		terminalData: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData,
 		private readonly context: IChatContentPartRenderContext,
-		private readonly renderer: MarkdownRenderer,
+		private readonly renderer: IMarkdownRenderer,
 		private readonly editorPool: EditorPool,
 		private readonly currentWidthDelegate: () => number,
 		private readonly codeBlockModelCollection: CodeBlockModelCollection,
@@ -88,6 +89,11 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		@IHoverService hoverService: IHoverService,
 	) {
 		super(toolInvocation);
+
+		// Tag for sub-agent styling
+		if (toolInvocation.fromSubAgent) {
+			context.container.classList.add('from-sub-agent');
+		}
 
 		if (!toolInvocation.confirmationMessages) {
 			throw new Error('Confirmation messages are missing');
@@ -264,13 +270,19 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 						await this.configurationService.updateValue(TerminalContribSettingId.AutoApprove, newValue, ConfigurationTarget.USER);
 						function formatRuleLinks(newRules: ITerminalNewAutoApproveRule[]): string {
 							return newRules.map(e => {
-								return `[\`${e.key}\`](settings_${ConfigurationTarget.USER} "${localize('ruleTooltip', 'View rule in settings')}")`;
+								const settingsUri = createCommandUri(openTerminalSettingsLinkCommandId, ConfigurationTarget.USER);
+								return `[\`${e.key}\`](${settingsUri.toString()} "${localize('ruleTooltip', 'View rule in settings')}")`;
 							}).join(', ');
 						}
+						const mdTrustSettings = {
+							isTrusted: {
+								enabledCommands: [openTerminalSettingsLinkCommandId]
+							}
+						};
 						if (newRules.length === 1) {
-							terminalData.autoApproveInfo = new MarkdownString(`_${localize('newRule', 'Auto approve rule {0} added', formatRuleLinks(newRules))}_`);
+							terminalData.autoApproveInfo = new MarkdownString(`_${localize('newRule', 'Auto approve rule {0} added', formatRuleLinks(newRules))}_`, mdTrustSettings);
 						} else if (newRules.length > 1) {
-							terminalData.autoApproveInfo = new MarkdownString(`_${localize('newRule.plural', 'Auto approve rules {0} added', formatRuleLinks(newRules))}_`);
+							terminalData.autoApproveInfo = new MarkdownString(`_${localize('newRule.plural', 'Auto approve rules {0} added', formatRuleLinks(newRules))}_`, mdTrustSettings);
 						}
 						toolConfirmKind = ToolConfirmKind.UserAction;
 						break;

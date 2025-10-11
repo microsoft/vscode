@@ -10,6 +10,13 @@
 	display: flex;
 	flex-wrap: wrap;
 	align-items: center;
+	position: relative;
+}
+
+.chat-confirmation-widget .monaco-text-button {
+	padding: 0 12px;
+	min-height: 2em;
+	box-sizing: border-box;
 }
 
 .chat-confirmation-widget:not(:last-child) {
@@ -32,6 +39,24 @@
 		display: flex;
 		align-items: center;
 		border: 0;
+	}
+}
+
+.chat-confirmation-widget-container {
+	position: relative;
+
+	> .monaco-progress-container.active {
+		position: absolute;
+		left: 0px;
+		right: 0;
+		top: 0px;
+		border-top-left-radius: 10px;
+		border-top-right-radius: 10px;
+	}
+
+	.chat-collapsible-top-level-resource-group {
+		margin-top: -12px;
+		margin-bottom: 12px;
 	}
 }
 
@@ -256,7 +281,8 @@
 
 		.monaco-button {
 			overflow-wrap: break-word;
-			padding: 2px 4px;
+			padding: 2px 5px;
+			width: inherit;
 		}
 	}
 }

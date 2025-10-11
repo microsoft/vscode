@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IReference, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { ITransaction, autorun, transaction } from '../../../../../base/common/observable.js';
 import { assertType } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { getCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
-import { TextEdit } from '../../../../../editor/common/languages.js';
+import { Location, TextEdit } from '../../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { SingleModelEditStackElement } from '../../../../../editor/common/model/editStack.js';
@@ -187,6 +188,10 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		};
 	}
 
+	public override hasModificationAt(location: Location): boolean {
+		return location.uri.toString() === this.modifiedModel.uri.toString() && this._textModelChangeService.hasHunkAt(location.range);
+	}
+
 	async restoreFromSnapshot(snapshot: ISnapshotEntry, restoreToDisk = true) {
 		this._stateObs.set(snapshot.state, undefined);
 		await this._textModelChangeService.resetDocumentValues(snapshot.original, restoreToDisk ? snapshot.current : undefined);
@@ -227,7 +232,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 				this._rewriteRatioObs.set(1, tx);
 			}
 		});
-		if (isLastEdits) {
+		if (isLastEdits && this._shouldAutoSave()) {
 			await this._textFileService.save(this.modifiedModel.uri, {
 				reason: SaveReason.AUTO,
 				skipSaveParticipants: true,
@@ -281,5 +286,9 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		const diffInfo = this._textModelChangeService.diffInfo;
 
 		return this._instantiationService.createInstance(ChatEditingCodeEditorIntegration, this, codeEditor, diffInfo, false);
+	}
+
+	private _shouldAutoSave() {
+		return this.modifiedURI.scheme !== Schemas.untitled;
 	}
 }

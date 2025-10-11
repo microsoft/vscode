@@ -87,6 +87,7 @@ suite('Common Editor Config', () => {
 
 	test('wordWrap compat false', () => {
 		const config = new TestWrappingConfiguration({
+			// eslint-disable-next-line local/code-no-any-casts
 			wordWrap: <any>false
 		});
 		assertWrapping(config, false, -1);
@@ -95,6 +96,7 @@ suite('Common Editor Config', () => {
 
 	test('wordWrap compat true', () => {
 		const config = new TestWrappingConfiguration({
+			// eslint-disable-next-line local/code-no-any-casts
 			wordWrap: <any>true
 		});
 		assertWrapping(config, true, 80);

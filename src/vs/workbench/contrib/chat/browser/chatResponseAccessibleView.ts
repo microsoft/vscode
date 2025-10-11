@@ -29,7 +29,7 @@ export class ChatResponseAccessibleView implements IAccessibleViewImplementation
 		}
 		const chatInputFocused = widget.hasInputFocus();
 		if (chatInputFocused) {
-			widget.focusLastMessage();
+			widget.focusResponseItem();
 		}
 
 		const verifiedWidget: IChatWidget = widget;
@@ -47,7 +47,7 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 	constructor(
 		private readonly _widget: IChatWidget,
 		item: ChatTreeItem,
-		private readonly _chatInputFocused: boolean
+		private readonly _wasOpenedFromInput: boolean
 	) {
 		super();
 		this._focusedItem = item;
@@ -126,7 +126,7 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 
 	onClose(): void {
 		this._widget.reveal(this._focusedItem);
-		if (this._chatInputFocused) {
+		if (this._wasOpenedFromInput) {
 			this._widget.focusInput();
 		} else {
 			this._widget.focus(this._focusedItem);

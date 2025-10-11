@@ -151,16 +151,14 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 
 			// Get a repository agnostic name for the status bar action, derive this from the
 			// first command argument which is in the form of "<extension>.<command>/<number>"
-			let repoAgnosticActionName = command.arguments?.[0];
-			if (repoAgnosticActionName && typeof repoAgnosticActionName === 'string') {
-				repoAgnosticActionName = repoAgnosticActionName
-					.substring(0, repoAgnosticActionName.lastIndexOf('/'))
+			let repoAgnosticActionName = '';
+			if (typeof command.arguments?.[0] === 'string') {
+				repoAgnosticActionName = command.arguments[0]
+					.substring(0, command.arguments[0].lastIndexOf('/'))
 					.replace(/^(?:git\.|remoteHub\.)/, '');
 				if (repoAgnosticActionName.length > 1) {
 					repoAgnosticActionName = repoAgnosticActionName[0].toLocaleUpperCase() + repoAgnosticActionName.slice(1);
 				}
-			} else {
-				repoAgnosticActionName = '';
 			}
 
 			const statusbarEntry: IStatusbarEntry = {

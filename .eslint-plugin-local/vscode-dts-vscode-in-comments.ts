@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as eslint from 'eslint';
-import type * as estree from 'estree';
 
 export = new class ApiVsCodeInComments implements eslint.Rule.RuleModule {
 
@@ -40,8 +39,8 @@ export = new class ApiVsCodeInComments implements eslint.Rule.RuleModule {
 						}
 
 						// Types for eslint seem incorrect
-						const start = sourceCode.getLocFromIndex(startIndex + match.index) as any as estree.Position;
-						const end = sourceCode.getLocFromIndex(startIndex + match.index + match[0].length) as any as estree.Position;
+						const start = sourceCode.getLocFromIndex(startIndex + match.index);
+						const end = sourceCode.getLocFromIndex(startIndex + match.index + match[0].length);
 						context.report({
 							messageId: 'comment',
 							loc: { start, end }

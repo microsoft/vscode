@@ -16,11 +16,9 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version-file: .nvmrc
-        env:
-          NODEJS_ORG_MIRROR: https://github.com/joaomoreno/node-mirror/releases/download
 
       - name: Prepare node_modules cache key
         run: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.js compile $(node -p process.arch) > .build/packagelockhash
@@ -97,11 +95,9 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version-file: .nvmrc
-        env:
-          NODEJS_ORG_MIRROR: https://github.com/joaomoreno/node-mirror/releases/download
 
       - name: Prepare node_modules cache key
         run: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.js linux $VSCODE_ARCH $(node -p process.arch) > .build/packagelockhash
@@ -171,11 +167,9 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version-file: .nvmrc
-        env:
-          NODEJS_ORG_MIRROR: https://github.com/joaomoreno/node-mirror/releases/download
 
       - name: Prepare node_modules cache key
         run: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.js darwin $VSCODE_ARCH $(node -p process.arch) > .build/packagelockhash
@@ -234,11 +228,9 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version-file: .nvmrc
-        env:
-          NODEJS_ORG_MIRROR: https://github.com/joaomoreno/node-mirror/releases/download
 
       - name: Prepare node_modules cache key
         shell: pwsh

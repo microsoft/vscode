@@ -47,6 +47,7 @@ suite('NotebookCellLayoutManager', () => {
 		list.cells.push(cell);
 		list.cells.push(cell2);
 		const widget = new MockNotebookWidget();
+		// eslint-disable-next-line local/code-no-any-casts
 		const mgr = store.add(new NotebookCellLayoutManager(widget as any, list as any, new MockLoggingService() as any));
 		mgr.layoutNotebookCell(cell, 200);
 		mgr.layoutNotebookCell(cell2, 200);
@@ -62,6 +63,7 @@ suite('NotebookCellLayoutManager', () => {
 		list.cells.push(cell);
 		list.cells.push(cell2);
 		const widget = new MockNotebookWidget();
+		// eslint-disable-next-line local/code-no-any-casts
 		const mgr = store.add(new NotebookCellLayoutManager(widget as any, list as any, new MockLoggingService() as any));
 
 		const promise = mgr.layoutNotebookCell(cell, 200);
@@ -80,6 +82,7 @@ suite('NotebookCellLayoutManager', () => {
 		const cell = mockCellViewModel();
 		const list = new MockList();
 		const widget = new MockNotebookWidget();
+		// eslint-disable-next-line local/code-no-any-casts
 		const mgr = store.add(new NotebookCellLayoutManager(widget as any, list as any, new MockLoggingService() as any));
 		await mgr.layoutNotebookCell(cell, 200);
 		assert.strictEqual(list.elementHeight(cell), 100);
@@ -90,6 +93,7 @@ suite('NotebookCellLayoutManager', () => {
 		const list = new MockList();
 		list.cells.push(cell);
 		const widget = new MockNotebookWidget();
+		// eslint-disable-next-line local/code-no-any-casts
 		const mgr = store.add(new NotebookCellLayoutManager(widget as any, list as any, new MockLoggingService() as any));
 		await mgr.layoutNotebookCell(cell, 100);
 		assert.strictEqual(list.elementHeight(cell), 100);

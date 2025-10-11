@@ -16,7 +16,7 @@ suite('chat', () => {
 
 		// Register a dummy default model which is required for a participant request to go through
 		disposables.push(lm.registerLanguageModelChatProvider('test-lm-vendor', {
-			async prepareLanguageModelChatInformation(_options, _token) {
+			async provideLanguageModelChatInformation(_options, _token) {
 				return [{
 					id: 'test-lm',
 					name: 'test-lm',
@@ -178,6 +178,7 @@ suite('chat', () => {
 
 		await commands.executeCommand('workbench.action.chat.newChat');
 		const result = await commands.executeCommand('workbench.action.chat.open', { query: 'hello', blockOnResponse: true });
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.strictEqual((result as any).errorDetails.code, 'rate_limited');
 	});
 

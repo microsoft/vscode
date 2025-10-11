@@ -35,6 +35,29 @@ function getEntitlementsForFile(filePath) {
     }
     return path_1.default.join(baseDir, 'azure-pipelines', 'darwin', 'app-entitlements.plist');
 }
+async function retrySignOnKeychainError(fn, maxRetries = 3) {
+    let lastError;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            return await fn();
+        }
+        catch (error) {
+            lastError = error;
+            // Check if this is the specific keychain error we want to retry
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            const isKeychainError = errorMessage.includes('The specified item could not be found in the keychain.');
+            if (!isKeychainError || attempt === maxRetries) {
+                throw error;
+            }
+            console.log(`Signing attempt ${attempt} failed with keychain error, retrying...`);
+            console.log(`Error: ${errorMessage}`);
+            const delay = 1000 * Math.pow(2, attempt - 1);
+            console.log(`Waiting ${Math.round(delay)}ms before retry ${attempt}/${maxRetries}...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+        }
+    }
+    throw lastError;
+}
 async function main(buildDir) {
     const tempDir = process.env['AGENT_TEMPDIRECTORY'];
     const arch = process.env['VSCODE_ARCH'];
@@ -86,7 +109,7 @@ async function main(buildDir) {
             `${infoPlistPath}`
         ]);
     }
-    await (0, osx_sign_1.sign)(appOpts);
+    await retrySignOnKeychainError(() => (0, osx_sign_1.sign)(appOpts));
 }
 if (require.main === module) {
     main(process.argv[2]).catch(async err => {

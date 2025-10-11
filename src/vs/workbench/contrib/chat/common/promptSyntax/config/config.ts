@@ -5,6 +5,7 @@
 
 import type { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { PromptsType } from '../promptTypes.js';
 import { INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, getPromptFileDefaultLocation } from './promptFileLocations.js';
 
@@ -79,6 +80,11 @@ export namespace PromptsConfig {
 	 * Configuration key for the AGENTS.md.
 	 */
 	export const USE_AGENT_MD = 'chat.useAgentsMdFile';
+
+	/**
+	 * Configuration key for nested AGENTS.md files.
+	 */
+	export const USE_NESTED_AGENT_MD = 'chat.useNestedAgentsMdFiles';
 
 	/**
 	 * Checks if the feature is enabled.
@@ -165,54 +171,52 @@ export namespace PromptsConfig {
 
 	/**
 	 * Get value of the prompt file recommendations configuration setting.
+	 * @param configService Configuration service instance
+	 * @param resource Optional resource URI to get workspace folder-specific settings
 	 * @see {@link PROMPT_FILES_SUGGEST_KEY}.
 	 */
-	export function getPromptFilesRecommendationsValue(configService: IConfigurationService): Record<string, boolean | string> | undefined {
-		const configValue = configService.getValue(PromptsConfig.PROMPT_FILES_SUGGEST_KEY);
+	export function getPromptFilesRecommendationsValue(configService: IConfigurationService, resource?: URI): Record<string, boolean | string> | undefined {
+		// Get the merged configuration value (VS Code automatically merges all levels: default → user → workspace → folder)
+		const configValue = configService.getValue(PromptsConfig.PROMPT_FILES_SUGGEST_KEY, { resource });
 
-		if (configValue === undefined || configValue === null || Array.isArray(configValue)) {
+		if (!configValue || typeof configValue !== 'object' || Array.isArray(configValue)) {
 			return undefined;
 		}
 
-		// note! this would be also true for `null` and `array`,
-		// 		 but those cases are already handled above
-		if (typeof configValue === 'object') {
-			const suggestions: Record<string, boolean | string> = {};
+		const suggestions: Record<string, boolean | string> = {};
 
-			for (const [promptName, value] of Object.entries(configValue)) {
-				const cleanPromptName = promptName.trim();
+		for (const [promptName, value] of Object.entries(configValue)) {
+			const cleanPromptName = promptName.trim();
 
-				// Skip empty prompt names
-				if (!cleanPromptName) {
-					continue;
-				}
-
-				// Accept boolean values directly
-				if (typeof value === 'boolean') {
-					suggestions[cleanPromptName] = value;
-					continue;
-				}
-
-				// Accept string values as when clauses
-				if (typeof value === 'string') {
-					const cleanValue = value.trim();
-					if (cleanValue) {
-						suggestions[cleanPromptName] = cleanValue;
-					}
-					continue;
-				}
-
-				// Convert other truthy/falsy values to boolean
-				const booleanValue = asBoolean(value);
-				if (booleanValue !== undefined) {
-					suggestions[cleanPromptName] = booleanValue;
-				}
+			// Skip empty prompt names
+			if (!cleanPromptName) {
+				continue;
 			}
 
-			return suggestions;
+			// Accept boolean values directly
+			if (typeof value === 'boolean') {
+				suggestions[cleanPromptName] = value;
+				continue;
+			}
+
+			// Accept string values as when clauses
+			if (typeof value === 'string') {
+				const cleanValue = value.trim();
+				if (cleanValue) {
+					suggestions[cleanPromptName] = cleanValue;
+				}
+				continue;
+			}
+
+			// Convert other truthy/falsy values to boolean
+			const booleanValue = asBoolean(value);
+			if (booleanValue !== undefined) {
+				suggestions[cleanPromptName] = booleanValue;
+			}
 		}
 
-		return undefined;
+		// Return undefined if no valid suggestions were found
+		return Object.keys(suggestions).length > 0 ? suggestions : undefined;
 	}
 
 }

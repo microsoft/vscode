@@ -5,6 +5,7 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { autorun, IReader, observableValue } from '../../../../base/common/observable.js';
+import { setTimeout0 } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
 import { IQuickTree, IQuickTreeItem, IQuickTreeItemButtonEvent, QuickInputType, QuickPickFocus } from '../../common/quickInput.js';
 import { QuickInput, QuickInputUI, Visibilities } from '../quickInput.js';
@@ -29,7 +30,7 @@ export class QuickTree<T extends IQuickTreeItem> extends QuickInput implements I
 	readonly onDidChangeActive = Event.fromObservable(this._activeItems, this._store);
 
 	private readonly _onDidChangeCheckedLeafItems = new Emitter<T[]>();
-	onDidChangeCheckedLeafItems: Event<T[]> = this._onDidChangeCheckedLeafItems.event;
+	readonly onDidChangeCheckedLeafItems: Event<T[]> = this._onDidChangeCheckedLeafItems.event;
 
 	readonly onDidAccept: Event<void>;
 
@@ -38,6 +39,10 @@ export class QuickTree<T extends IQuickTreeItem> extends QuickInput implements I
 		this.onDidAccept = ui.onDidAccept;
 		this._registerAutoruns();
 		this._register(ui.tree.onDidChangeCheckedLeafItems(e => this._onDidChangeCheckedLeafItems.fire(e as T[])));
+		// Sync active items with tree focus changes
+		this._register(ui.tree.tree.onDidChangeFocus(e => {
+			this._activeItems.set(ui.tree.getActiveItems() as T[], undefined);
+		}));
 	}
 
 	get value(): string { return this._value.get(); }
@@ -66,6 +71,7 @@ export class QuickTree<T extends IQuickTreeItem> extends QuickInput implements I
 	}
 
 	// TODO: Fix the any casting
+	// eslint-disable-next-line local/code-no-any-casts
 	get checkedLeafItems(): readonly T[] { return this.ui.tree.getCheckedLeafItems() as any as readonly T[]; }
 
 	setItemTree(itemTree: T[]): void {
@@ -130,7 +136,10 @@ export class QuickTree<T extends IQuickTreeItem> extends QuickInput implements I
 		super.show(); // TODO: Why have show() bubble up while update() trickles down?
 
 		// Intial state
-		this.ui.count.setCount(this.ui.tree.getCheckedLeafItems().length);
+		// TODO@TylerLeonhardt: Without this setTimeout, the screen reader will not read out
+		// the final count of checked items correctly. Investigate a better way
+		// to do this. ref https://github.com/microsoft/vscode/issues/258617
+		setTimeout0(() => this.ui.count.setCount(this.ui.tree.getCheckedLeafItems().length));
 		const checkAllState = getParentNodeState([...this.ui.tree.tree.getNode().children]);
 		if (this.ui.checkAll.checked !== checkAllState) {
 			this.ui.checkAll.checked = checkAllState;

@@ -6,7 +6,7 @@
 import { localize } from '../../../../nls.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import type { IKeyValueStorage, IExperimentationTelemetry, ExperimentationService as TASClient } from 'tas-client-umd';
-import { MementoObject, Memento } from '../../../common/memento.js';
+import { Memento } from '../../../common/memento.js';
 import { ITelemetryService, TelemetryLevel } from '../../../../platform/telemetry/common/telemetry.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryData } from '../../../../base/common/actions.js';
@@ -23,6 +23,7 @@ import { importAMDNodeModule } from '../../../../amdX.js';
 import { timeout } from '../../../../base/common/async.js';
 import { CopilotAssignmentFilterProvider } from './assignmentFilters.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Emitter } from '../../../../base/common/event.js';
 
 export const IWorkbenchAssignmentService = createDecorator<IWorkbenchAssignmentService>('assignmentService');
 
@@ -32,14 +33,14 @@ export interface IWorkbenchAssignmentService extends IAssignmentService {
 
 class MementoKeyValueStorage implements IKeyValueStorage {
 
-	private readonly mementoObj: MementoObject;
+	private readonly mementoObj: Record<string, unknown>;
 
-	constructor(private readonly memento: Memento) {
+	constructor(private readonly memento: Memento<Record<string, unknown>>) {
 		this.mementoObj = memento.getMemento(StorageScope.APPLICATION, StorageTarget.MACHINE);
 	}
 
 	async getValue<T>(key: string, defaultValue?: T | undefined): Promise<T | undefined> {
-		const value = await this.mementoObj[key];
+		const value = await this.mementoObj[key] as T | undefined;
 
 		return value || defaultValue;
 	}
@@ -50,7 +51,10 @@ class MementoKeyValueStorage implements IKeyValueStorage {
 	}
 }
 
-class WorkbenchAssignmentServiceTelemetry implements IExperimentationTelemetry {
+class WorkbenchAssignmentServiceTelemetry extends Disposable implements IExperimentationTelemetry {
+
+	private readonly _onDidUpdateAssignmentContext = this._register(new Emitter<void>());
+	readonly onDidUpdateAssignmentContext = this._onDidUpdateAssignmentContext.event;
 
 	private _lastAssignmentContext: string | undefined;
 	get assignmentContext(): string[] | undefined {
@@ -60,12 +64,15 @@ class WorkbenchAssignmentServiceTelemetry implements IExperimentationTelemetry {
 	constructor(
 		private readonly telemetryService: ITelemetryService,
 		private readonly productService: IProductService
-	) { }
+	) {
+		super();
+	}
 
 	// __GDPR__COMMON__ "abexp.assignmentcontext" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	setSharedProperty(name: string, value: string): void {
 		if (name === this.productService.tasConfig?.assignmentContextTelemetryPropertyName) {
 			this._lastAssignmentContext = value;
+			this._onDidUpdateAssignmentContext.fire();
 		}
 
 		this.telemetryService.setExperimentProperty(name, value);
@@ -103,6 +110,9 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 
 	private readonly experimentsEnabled: boolean;
 
+	private readonly _onDidRefetchAssignments = this._register(new Emitter<void>());
+	public readonly onDidRefetchAssignments = this._onDidRefetchAssignments.event;
+
 	constructor(
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IStorageService storageService: IStorageService,
@@ -123,8 +133,10 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 			this.tasClient = this.setupTASClient();
 		}
 
-		this.telemetry = new WorkbenchAssignmentServiceTelemetry(telemetryService, productService);
-		this.keyValueStorage = new MementoKeyValueStorage(new Memento('experiment.service.memento', storageService));
+		this.telemetry = this._register(new WorkbenchAssignmentServiceTelemetry(telemetryService, productService));
+		this._register(this.telemetry.onDidUpdateAssignmentContext(() => this._onDidRefetchAssignments.fire()));
+
+		this.keyValueStorage = new MementoKeyValueStorage(new Memento<Record<string, unknown>>('experiment.service.memento', storageService));
 
 		// For development purposes, configure the delay until tas local tas treatment ovverrides are available
 		const overrideDelaySetting = configurationService.getValue('experiments.overrideDelay');
@@ -199,6 +211,7 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 			this.productService.version,
 			this.productService.nameLong,
 			this.telemetryService.machineId,
+			this.telemetryService.devDeviceId,
 			targetPopulation
 		);
 
@@ -219,7 +232,9 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 		});
 
 		await tasClient.initializePromise;
-		tasClient.initialFetch.then(() => this.networkInitialized = true);
+		tasClient.initialFetch.then(() => {
+			this.networkInitialized = true;
+		});
 
 		return tasClient;
 	}

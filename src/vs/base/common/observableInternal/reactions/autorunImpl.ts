@@ -24,6 +24,15 @@ export const enum AutorunState {
 	upToDate = 3,
 }
 
+function autorunStateToString(state: AutorunState): string {
+	switch (state) {
+		case AutorunState.dependenciesMightHaveChanged: return 'dependenciesMightHaveChanged';
+		case AutorunState.stale: return 'stale';
+		case AutorunState.upToDate: return 'upToDate';
+		default: return '<unknown>';
+	}
+}
+
 export class AutorunObserver<TChangeSummary = any> implements IObserver, IReaderWithStore, IDisposable {
 	private _state = AutorunState.stale;
 	private _updateCount = 0;
@@ -173,6 +182,7 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 				const shouldReact = this._changeTracker ? this._changeTracker.handleChange({
 					changedObservable: observable,
 					change,
+					// eslint-disable-next-line local/code-no-any-casts
 					didChange: (o): this is any => o === observable as any,
 				}, this._changeSummary!) : true;
 				if (shouldReact) {
@@ -241,6 +251,7 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 			updateCount: this._updateCount,
 			dependencies: this._dependencies,
 			state: this._state,
+			stateStr: autorunStateToString(this._state),
 		};
 	}
 

@@ -162,7 +162,7 @@ export class InlineCompletionsController extends Disposable {
 			if (!model) { return; }
 			const state = model.state.read(reader);
 			if (!state) { return; }
-			if (!this._focusIsInEditorOrMenu.get()) { return; }
+			if (!this._focusIsInEditorOrMenu.read(undefined)) { return; }
 
 			// This controller is in focus, hence reject others.
 			// However if we display a NES that relates to another edit then trigger NES on that related controller
@@ -172,7 +172,7 @@ export class InlineCompletionsController extends Disposable {
 					continue;
 				} else if (nextEditUri && isEqual(nextEditUri, ctrl.editor.getModel()?.uri)) {
 					// The next edit in other edito is related to this controller, trigger it.
-					ctrl.model.get()?.trigger();
+					ctrl.model.read(undefined)?.trigger();
 				} else {
 					ctrl.reject();
 				}
@@ -193,9 +193,9 @@ export class InlineCompletionsController extends Disposable {
 						continue;
 					}
 					// Find the nes from another editor that points to this.
-					const state = ctrl.model.get()?.state.get();
+					const state = ctrl.model.read(undefined)?.state.read(undefined);
 					if (state?.kind === 'inlineEdit' && isEqual(state.nextEditUri, uri)) {
-						ctrl.model.get()?.stop('automatic');
+						ctrl.model.read(undefined)?.stop('automatic');
 					}
 				}
 			}));
@@ -250,16 +250,16 @@ export class InlineCompletionsController extends Disposable {
 
 		this._register(autorun(reader => {
 			const isFocused = this._focusIsInEditorOrMenu.read(reader);
-			const model = this.model.get();
+			const model = this.model.read(undefined);
 			if (isFocused) {
 				// If this model already has an NES for another editor, then leave as is
 				// Else stop other models.
-				const state = model?.state?.get();
+				const state = model?.state.read(undefined);
 				if (!state || state.kind !== 'inlineEdit' || !state.nextEditUri) {
 					transaction(tx => {
 						for (const ctrl of InlineCompletionsController._instances) {
 							if (ctrl !== this) {
-								ctrl.model.get()?.stop('automatic', tx);
+								ctrl.model.read(undefined)?.stop('automatic', tx);
 							}
 						}
 					});
@@ -276,7 +276,7 @@ export class InlineCompletionsController extends Disposable {
 			}
 
 			if (!model) { return; }
-			if (model.state.get()?.inlineCompletion?.isFromExplicitRequest && model.inlineEditAvailable.get()) {
+			if (model.state.read(undefined)?.inlineCompletion?.isFromExplicitRequest && model.inlineEditAvailable.read(undefined)) {
 				// dont hide inline edits on blur when requested explicitly
 				return;
 			}
@@ -316,14 +316,18 @@ export class InlineCompletionsController extends Disposable {
 			return {};
 		}), async (_value, _, _deltas, store) => {
 			/** @description InlineCompletionsController.playAccessibilitySignalAndReadSuggestion */
-			const model = this.model.get();
-			const state = model?.state.get();
+			let model = this.model.get();
+			let state = model?.state.get();
 			if (!state || !model) { return; }
-			const lineText = state.kind === 'ghostText' ? model.textModel.getLineContent(state.primaryGhostText.lineNumber) : '';
 
 			await timeout(50, cancelOnDispose(store));
 			await waitForState(this._suggestWidgetAdapter.selectedItem, isUndefined, () => false, cancelOnDispose(store));
-			await this._accessibilitySignalService.playSignal(state.kind === 'ghostText' ? AccessibilitySignal.inlineSuggestion : AccessibilitySignal.nextEditSuggestion);
+
+			model = this.model.get();
+			state = model?.state.get();
+			if (!state || !model) { return; }
+			const lineText = state.kind === 'ghostText' ? model.textModel.getLineContent(state.primaryGhostText.lineNumber) : '';
+			this._accessibilitySignalService.playSignal(state.kind === 'ghostText' ? AccessibilitySignal.inlineSuggestion : AccessibilitySignal.nextEditSuggestion);
 
 			if (this.editor.getOption(EditorOption.screenReaderAnnounceInlineSuggestion)) {
 				if (state.kind === 'ghostText') {

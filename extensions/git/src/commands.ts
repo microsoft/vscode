@@ -14,7 +14,7 @@ import { Model } from './model';
 import { GitResourceGroup, Repository, Resource, ResourceGroupType } from './repository';
 import { DiffEditorSelectionHunkToolbarContext, LineChange, applyLineChanges, getIndexDiffInformation, getModifiedRange, getWorkingTreeDiffInformation, intersectDiffWithRange, invertLineChange, toLineChanges, toLineRanges, compareLineChanges } from './staging';
 import { fromGitUri, toGitUri, isGitUri, toMergeUris, toMultiFileDiffEditorUris } from './uri';
-import { DiagnosticSeverityConfig, dispose, fromNow, grep, isDefined, isDescendant, isLinuxSnap, isRemote, isWindows, pathEquals, relativePath, toDiagnosticSeverity, truncate } from './util';
+import { DiagnosticSeverityConfig, dispose, fromNow, grep, isDefined, isDescendant, isLinuxSnap, isRemote, isWindows, pathEquals, relativePath, subject, toDiagnosticSeverity, truncate } from './util';
 import { GitTimelineItem } from './timelineProvider';
 import { ApiRepository } from './api/api1';
 import { getRemoteSourceActions, pickRemoteSource } from './remoteSource';
@@ -1484,6 +1484,15 @@ export class CommandCenter {
 		}
 	}
 
+	@command('git.compareWithWorkspace')
+	async compareWithWorkspace(resource?: Resource): Promise<void> {
+		if (!resource) {
+			return;
+		}
+
+		await resource.compareWithWorkspace();
+	}
+
 	@command('git.rename', { repository: true })
 	async rename(repository: Repository, fromUri: Uri | undefined): Promise<void> {
 		fromUri = fromUri ?? window.activeTextEditor?.document.uri;
@@ -2372,10 +2381,8 @@ export class CommandCenter {
 		let promptToSaveFilesBeforeCommit = config.get<'always' | 'staged' | 'never'>('promptToSaveFilesBeforeCommit');
 
 		// migration
-		if (promptToSaveFilesBeforeCommit as any === true) {
-			promptToSaveFilesBeforeCommit = 'always';
-		} else if (promptToSaveFilesBeforeCommit as any === false) {
-			promptToSaveFilesBeforeCommit = 'never';
+		if (typeof promptToSaveFilesBeforeCommit === 'boolean') {
+			promptToSaveFilesBeforeCommit = promptToSaveFilesBeforeCommit ? 'always' : 'never';
 		}
 
 		let enableSmartCommit = config.get<boolean>('enableSmartCommit') === true;
@@ -3500,6 +3507,8 @@ export class CommandCenter {
 				await worktreeRepository.popStash();
 				throw err;
 			}
+			repository.isWorktreeMigrating = true;
+
 			const message = l10n.t('There are merge conflicts from migrating changes. Please resolve them before committing.');
 			const show = l10n.t('Show Changes');
 			const choice = await window.showWarningMessage(message, show);
@@ -3508,6 +3517,22 @@ export class CommandCenter {
 			}
 			worktreeRepository.dropStash(stashes[0].index);
 		}
+	}
+
+	@command('git.openWorktreeMergeEditor')
+	async openWorktreeMergeEditor(uri: Uri): Promise<void> {
+		type InputData = { uri: Uri; title: string };
+		const mergeUris = toMergeUris(uri);
+
+		const current: InputData = { uri: mergeUris.ours, title: l10n.t('Workspace') };
+		const incoming: InputData = { uri: mergeUris.theirs, title: l10n.t('Worktree') };
+
+		await commands.executeCommand('_open.mergeEditor', {
+			base: mergeUris.base,
+			input1: current,
+			input2: incoming,
+			output: uri
+		});
 	}
 
 	@command('git.createWorktree')
@@ -4879,7 +4904,7 @@ export class CommandCenter {
 		const changes = await repository.diffTrees(commitParentId, commit.hash);
 		const resources = changes.map(c => toMultiFileDiffEditorUris(c, commitParentId, commit.hash));
 
-		const title = `${item.shortRef} - ${truncate(commit.message)}`;
+		const title = `${item.shortRef} - ${subject(commit.message)}`;
 		const multiDiffSourceUri = Uri.from({ scheme: 'scm-history-item', path: `${repository.root}/${commitParentId}..${commit.hash}` });
 		const reveal = { modifiedUri: toGitUri(uri, commit.hash) };
 
@@ -5145,7 +5170,7 @@ export class CommandCenter {
 		const commitShortHashLength = config.get<number>('commitShortHashLength', 7);
 
 		const commit = await repository.getCommit(historyItemId);
-		const title = `${truncate(historyItemId, commitShortHashLength, false)} - ${truncate(commit.message)}`;
+		const title = `${truncate(historyItemId, commitShortHashLength, false)} - ${subject(commit.message)}`;
 		const historyItemParentId = commit.parents.length > 0 ? commit.parents[0] : await repository.getEmptyTree();
 
 		const multiDiffSourceUri = Uri.from({ scheme: 'scm-history-item', path: `${repository.root}/${historyItemParentId}..${historyItemId}` });
@@ -5341,7 +5366,7 @@ export class CommandCenter {
 		};
 
 		// patch this object, so people can call methods directly
-		(this as any)[key] = result;
+		(this as Record<string, unknown>)[key] = result;
 
 		return result;
 	}

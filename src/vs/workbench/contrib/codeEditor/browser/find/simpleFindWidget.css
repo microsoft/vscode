@@ -37,7 +37,7 @@
 	font-size: 12px;
 }
 
-.monaco-workbench.reduce-motion .monaco-editor .find-widget {
+.monaco-workbench.monaco-reduce-motion .monaco-editor .find-widget {
 	transition: top 0ms linear;
 }
 
@@ -107,7 +107,7 @@ div.simple-find-part-wrapper div.button:hover:not(.disabled) {
 	border-bottom-left-radius: 4px;
 }
 
-.monaco-workbench .simple-find-part .monaco-sash.vertical:before{
+.monaco-workbench .simple-find-part .monaco-sash.vertical:before {
 	width: 2px;
 	left: calc(50% - (var(--vscode-sash-hover-size) / 4));
 }

@@ -229,13 +229,13 @@ function* findAllReferencesInClass(node) {
         }
     }
 }
-// NOTE: The following uses TypeScript internals and are subject to change from version to version.
 function findAllReferences(node) {
     const sourceFile = node.getSourceFile();
     const position = node.getStart();
-    const name = ts.getTouchingPropertyName(sourceFile, position);
-    const options = { use: ts.FindAllReferences.FindReferencesUse.References };
-    return ts.FindAllReferences.Core.getReferencedSymbolsForNode(position, name, program, [sourceFile], cancellationToken, options) ?? [];
+    const tsInternal = ts;
+    const name = tsInternal.getTouchingPropertyName(sourceFile, position);
+    const options = { use: tsInternal.FindAllReferences.FindReferencesUse.References };
+    return tsInternal.FindAllReferences.Core.getReferencedSymbolsForNode(position, name, program, [sourceFile], cancellationToken, options) ?? [];
 }
 var DefinitionKind;
 (function (DefinitionKind) {

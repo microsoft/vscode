@@ -137,6 +137,11 @@
         "enablement": "!operationInProgress"
       },
       {
+        "command": "git.compareWithWorkspace",
+        "title": "%command.compareWithWorkspace%",
+        "category": "Git"
+      },
+      {
         "command": "git.openChange",
         "title": "%command.openChange%",
         "category": "Git",
@@ -1983,6 +1988,11 @@
           "group": "2_view@2"
         },
         {
+          "command": "git.compareWithWorkspace",
+          "when": "scmProvider == git && scmResourceGroup == index && scmResourceState == worktree",
+          "group": "worktree_diff"
+        },
+        {
           "command": "git.openFile2",
           "when": "scmProvider == git && scmResourceGroup == index && config.git.showInlineOpenFileAction && config.git.openDiffOnClick",
           "group": "inline@1"
@@ -2026,6 +2036,11 @@
           "command": "git.stage",
           "when": "scmProvider == git && scmResourceGroup == workingTree",
           "group": "inline@2"
+        },
+        {
+          "command": "git.compareWithWorkspace",
+          "when": "scmProvider == git && scmResourceGroup == workingTree && scmResourceState == worktree",
+          "group": "worktree_diff"
         },
         {
           "command": "git.openFile2",
@@ -2282,7 +2297,7 @@
         {
           "command": "git.openMergeEditor",
           "group": "navigation@-10",
-          "when": "config.git.enabled && !git.missing && !isInDiffEditor && !isMergeEditor && resource in git.mergeChanges"
+          "when": "config.git.enabled && !git.missing && !isInDiffEditor && !isMergeEditor && git.activeResourceHasMergeConflicts"
         }
       ],
       "multiDiffEditor/resource/title": [

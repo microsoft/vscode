@@ -65,6 +65,7 @@ const domEval = (container: Element) => {
 		for (const key of preservedScriptAttributes) {
 			const val = node[key] || node.getAttribute && node.getAttribute(key);
 			if (val) {
+				// eslint-disable-next-line local/code-no-any-casts
 				scriptTag.setAttribute(key, val as any);
 			}
 		}

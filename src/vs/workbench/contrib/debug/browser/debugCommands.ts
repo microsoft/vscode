@@ -625,7 +625,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
-async function stopHandler(accessor: ServicesAccessor, _: string, context: CallStackContext | unknown, disconnect: boolean, suspend?: boolean): Promise<void> {
+async function stopHandler(accessor: ServicesAccessor, _: unknown, context: CallStackContext | unknown, disconnect: boolean, suspend?: boolean): Promise<void> {
 	const debugService = accessor.get(IDebugService);
 	let session: IDebugSession | undefined;
 	if (isSessionContext(context)) {
