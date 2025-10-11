@@ -318,16 +318,16 @@ suite('ExtensionRecommendationsService Test', () => {
 		});
 	});
 
-	function setUpFolderWorkspace(folderName: string, recommendedExtensions: string[], ignoredRecommendations: string[] = []): Promise<void> {
-		return setUpFolder(folderName, recommendedExtensions, ignoredRecommendations);
+	function setUpFolderWorkspace(folderName: string, recommendedExtensions: string[], ignoredRecommendations: string[] = [], fileName: 'extensions.json' | 'extensions.jsonc' = 'extensions.json'): Promise<void> {
+		return setUpFolder(folderName, recommendedExtensions, ignoredRecommendations, fileName);
 	}
 
-	async function setUpFolder(folderName: string, recommendedExtensions: string[], ignoredRecommendations: string[] = []): Promise<void> {
+	async function setUpFolder(folderName: string, recommendedExtensions: string[], ignoredRecommendations: string[] = [], fileName: 'extensions.json' | 'extensions.jsonc' = 'extensions.json'): Promise<void> {
 		const fileService = instantiationService.get(IFileService);
 		const folderDir = joinPath(ROOT, folderName);
 		const workspaceSettingsDir = joinPath(folderDir, '.vscode');
 		await fileService.createFolder(workspaceSettingsDir);
-		const configPath = joinPath(workspaceSettingsDir, 'extensions.json');
+		const configPath = joinPath(workspaceSettingsDir, fileName);
 		await fileService.writeFile(configPath, VSBuffer.fromString(JSON.stringify({
 			'recommendations': recommendedExtensions,
 			'unwantedRecommendations': ignoredRecommendations,
@@ -380,6 +380,34 @@ suite('ExtensionRecommendationsService Test', () => {
 
 	test('ExtensionRecommendationsService: No workspace recommendations or prompts when extensions.json has empty array', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		return testNoPromptForValidRecommendations([]);
+	}));
+
+	test('ExtensionRecommendationsService: Workspace recommendations read from extensions.jsonc', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		await setUpFolderWorkspace('myFolderJsonc', mockTestData.validRecommendedExtensions, [], 'extensions.jsonc');
+		testObject = disposableStore.add(instantiationService.createInstance(ExtensionRecommendationsService));
+		await testObject.activationPromise;
+		const recommendations = Object.keys(testObject.getAllRecommendationsWithReason());
+		assert.strictEqual(recommendations.length, mockTestData.validRecommendedExtensions.length);
+		mockTestData.validRecommendedExtensions.forEach(extensionId => {
+			assert.ok(recommendations.includes(extensionId.toLowerCase()));
+		});
+	}));
+
+	test('ExtensionRecommendationsService: extensions.json preferred over extensions.jsonc', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		await setUpFolderWorkspace('myFolderJsonPreferred', ['fromjsonc'], [], 'extensions.jsonc');
+		const fileService = instantiationService.get(IFileService);
+		const folderDir = joinPath(ROOT, 'myFolderJsonPreferred');
+		const workspaceSettingsDir = joinPath(folderDir, '.vscode');
+		await fileService.writeFile(joinPath(workspaceSettingsDir, 'extensions.json'), VSBuffer.fromString(JSON.stringify({
+			'recommendations': ['fromjson'],
+			'unwantedRecommendations': []
+		}, null, '\t')));
+
+		testObject = disposableStore.add(instantiationService.createInstance(ExtensionRecommendationsService));
+		await testObject.activationPromise;
+		const recommendations = Object.keys(testObject.getAllRecommendationsWithReason());
+		assert.ok(recommendations.includes('fromjson'));
+		assert.ok(!recommendations.includes('fromjsonc'));
 	}));
 
 	test('ExtensionRecommendationsService: Prompt for valid workspace recommendations', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
