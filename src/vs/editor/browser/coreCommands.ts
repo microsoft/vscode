@@ -1224,12 +1224,25 @@ export namespace CoreNavigationCommands {
 
 		public runCoreEditorCommand(viewModel: IViewModel, args: Partial<BaseCommandOptions>): void {
 			viewModel.model.pushStackElement();
+			const newCursorStates = CursorMoveCommands.moveToBeginningOfBuffer(viewModel, viewModel.getCursorStates(), this._inSelectionMode);
 			viewModel.setCursorStates(
 				args.source,
 				CursorChangeReason.Explicit,
-				CursorMoveCommands.moveToBeginningOfBuffer(viewModel, viewModel.getCursorStates(), this._inSelectionMode)
+				newCursorStates
 			);
-			viewModel.revealAllCursors(args.source, true);
+			
+			// Check if cursor is at the very beginning of the buffer (line 1, column 1)
+			// and use VerticalRevealType.Top to include padding, otherwise use default behavior
+			const primaryCursor = newCursorStates[0];
+			if (primaryCursor && primaryCursor.modelState.position.lineNumber === 1 && primaryCursor.modelState.position.column === 1) {
+				// When at the very beginning, use Top reveal type to show padding
+				const range = Range.fromPositions(primaryCursor.modelState.position);
+				const viewRange = viewModel.coordinatesConverter.convertModelRangeToViewRange(range);
+				viewModel.revealRange(args.source, true, viewRange, VerticalRevealType.Top, ScrollType.Smooth);
+			} else {
+				// Default behavior for other positions
+				viewModel.revealAllCursors(args.source, true);
+			}
 		}
 	}
 
