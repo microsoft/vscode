@@ -5,13 +5,13 @@
 
 import type { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
-import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Event, Emitter } from '../../../../../../base/common/event.js';
+import { DisposableStore, Disposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
 import { waitForIdle, waitForIdleWithPromptHeuristics, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
-import type { IMarker as IXtermMarker } from '@xterm/xterm';
 import { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { setupRecreatingStartMarker } from './strategyHelpers.js';
+import type { IMarker as IXtermMarker } from '@xterm/xterm';
 
 /**
  * This strategy is used when no shell integration is available. There are very few extension APIs
@@ -19,8 +19,14 @@ import { setupRecreatingStartMarker } from './strategyHelpers.js';
  * with `sendText` instead of `shellIntegration.executeCommand` and relying on idle events instead
  * of execution events.
  */
-export class NoneExecuteStrategy implements ITerminalExecuteStrategy {
+export class NoneExecuteStrategy extends Disposable implements ITerminalExecuteStrategy {
 	readonly type = 'none';
+
+	get startMarker() { return this._startMarker.value; }
+	endMarker?: IXtermMarker | undefined;
+
+	private readonly _onUpdate = this._register(new Emitter<void>());
+	get onUpdate() { return this._onUpdate.event; }
 	private readonly _startMarker = new MutableDisposable<IXtermMarker>();
 
 
@@ -32,6 +38,7 @@ export class NoneExecuteStrategy implements ITerminalExecuteStrategy {
 		private readonly _hasReceivedUserInput: () => boolean,
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
 	) {
+		super();
 	}
 
 	async execute(commandLine: string, token: CancellationToken): Promise<ITerminalExecuteStrategyResult> {

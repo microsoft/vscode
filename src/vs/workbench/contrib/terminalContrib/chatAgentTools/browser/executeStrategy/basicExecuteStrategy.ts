@@ -6,7 +6,7 @@
 import type { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { isNumber } from '../../../../../../base/common/types.js';
 import type { ICommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
@@ -37,13 +37,18 @@ import { setupRecreatingStartMarker } from './strategyHelpers.js';
  * output. We lean on the LLM to be able to differentiate the actual output from prompts and bad
  * output when it's not ideal.
  */
-export class BasicExecuteStrategy implements ITerminalExecuteStrategy {
+export class BasicExecuteStrategy extends Disposable implements ITerminalExecuteStrategy {
 	readonly type = 'basic';
 	private readonly _startMarker = new MutableDisposable<IXtermMarker>();
 
 	private readonly _onDidCreateStartMarker = new Emitter<IXtermMarker | undefined>;
 	public onDidCreateStartMarker: Event<IXtermMarker | undefined> = this._onDidCreateStartMarker.event;
 
+	get startMarker() { return this._startMarker.value; }
+	endMarker?: IXtermMarker | undefined;
+
+	private readonly _onUpdate = this._register(new Emitter<void>());
+	get onUpdate() { return this._onUpdate.event; }
 
 	constructor(
 		private readonly _instance: ITerminalInstance,
@@ -51,6 +56,7 @@ export class BasicExecuteStrategy implements ITerminalExecuteStrategy {
 		private readonly _commandDetection: ICommandDetectionCapability,
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
 	) {
+		super();
 	}
 
 	async execute(commandLine: string, token: CancellationToken): Promise<ITerminalExecuteStrategyResult> {

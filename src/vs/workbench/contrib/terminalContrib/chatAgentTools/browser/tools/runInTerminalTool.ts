@@ -4,18 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
-import { asArray } from '../../../../../../base/common/arrays.js';
 import { timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { createCommandUri, MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { basename } from '../../../../../../base/common/path.js';
 import { OperatingSystem, OS } from '../../../../../../base/common/platform.js';
 import { count } from '../../../../../../base/common/strings.js';
-import type { SingleOrMany } from '../../../../../../base/common/types.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -25,7 +21,7 @@ import { TerminalCapability } from '../../../../../../platform/terminal/common/c
 import { ITerminalLogService, ITerminalProfile } from '../../../../../../platform/terminal/common/terminal.js';
 import { IRemoteAgentService } from '../../../../../services/remote/common/remoteAgentService.js';
 import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
-import { openTerminalSettingsLinkCommandId } from '../../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolProgressPart.js';
+import { ChatTerminalToolProgressPart, openTerminalSettingsLinkCommandId } from '../../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolProgressPart.js';
 import { IChatService, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService.js';
 import { ChatConfiguration } from '../../../../chat/common/constants.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolInvocationPresentation, ToolProgress, type IToolConfirmationMessages, type ToolConfirmationAction } from '../../../../chat/common/languageModelToolsService.js';
@@ -45,6 +41,10 @@ import { dedupeRules, generateAutoApproveActions, isPowerShell } from '../runInT
 import { RunInTerminalToolTelemetry } from '../runInTerminalToolTelemetry.js';
 import { splitCommandLineIntoSubCommands } from '../subCommands.js';
 import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from '../toolTerminalCreator.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
+import { basename } from '../../../../../../base/common/path.js';
+import type { SingleOrMany } from '../../../../../../base/common/types.js';
+import { asArray } from '../../../../../../base/common/arrays.js';
 import { OutputMonitor } from './monitoring/outputMonitor.js';
 import { IPollingResult, OutputMonitorState } from './monitoring/types.js';
 
@@ -522,6 +522,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						break;
 					}
 				}
+				const executionId = generateUuid();
+				toolSpecificData.terminalToolSessionId = executionId;
+				ChatTerminalToolProgressPart.setTrackingInstance(toolTerminal.instance, strategy, executionId);
 				this._logService.debug(`RunInTerminalTool: Using \`${strategy.type}\` execute strategy for command \`${command}\``);
 				store.add(strategy.onDidCreateStartMarker(startMarker => {
 					if (!outputMonitor) {
