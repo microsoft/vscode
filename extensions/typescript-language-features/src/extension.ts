@@ -41,17 +41,20 @@ export function activate(
 	const versionProvider = new DiskTypeScriptVersionProvider();
 
 	let experimentTelemetryReporter: IExperimentationTelemetryReporter | undefined;
-	const packageInfo = getPackageInfo(context);
-	if (packageInfo) {
-		const { name: id, version, aiKey } = packageInfo;
-		const vscTelemetryReporter = new VsCodeTelemetryReporter(aiKey);
-		experimentTelemetryReporter = new ExperimentationTelemetryReporter(vscTelemetryReporter);
-		context.subscriptions.push(experimentTelemetryReporter);
+	// DISABLED: Fix for PowerShell process spawning bug on Windows
+	// The @vscode/extension-telemetry package spawns PowerShell processes to monitor performance
+	// which causes excessive CPU and memory usage on Windows systems
+	// const packageInfo = getPackageInfo(context);
+	// if (packageInfo) {
+	// 	const { name: id, version, aiKey } = packageInfo;
+	// 	const vscTelemetryReporter = new VsCodeTelemetryReporter(aiKey);
+	// 	experimentTelemetryReporter = new ExperimentationTelemetryReporter(vscTelemetryReporter);
+	// 	context.subscriptions.push(experimentTelemetryReporter);
 
-		// Currently we have no experiments, but creating the service adds the appropriate
-		// shared properties to the ExperimentationTelemetryReporter we just created.
-		new ExperimentationService(experimentTelemetryReporter, id, version, context.globalState);
-	}
+	// 	// Currently we have no experiments, but creating the service adds the appropriate
+	// 	// shared properties to the ExperimentationTelemetryReporter we just created.
+	// 	new ExperimentationService(experimentTelemetryReporter, id, version, context.globalState);
+	// }
 
 	context.subscriptions.push(conditionalRegistration([
 		requireGlobalConfiguration('typescript', 'experimental.useTsgo'),
