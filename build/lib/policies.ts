@@ -477,13 +477,13 @@ class StringEnumPolicy extends BasePolicy {
 
 interface QType<T> {
 	Q: string;
-	value(matches: Parser.QueryMatch[]): T | undefined;
+	value(matches: Parser.QueryMatch[], rootNode?: Parser.SyntaxNode): T | undefined;
 }
 
 const NumberQ: QType<number> = {
 	Q: `(number) @value`,
 
-	value(matches: Parser.QueryMatch[]): number | undefined {
+	value(matches: Parser.QueryMatch[], rootNode?: Parser.SyntaxNode): number | undefined {
 		const match = matches[0];
 
 		if (!match) {
@@ -500,9 +500,31 @@ const NumberQ: QType<number> = {
 	}
 };
 
+function resolveIdentifierToString(rootNode: Parser.SyntaxNode, identifierName: string): string | undefined {
+	const constQuery = new Parser.Query(typescript, `
+		(variable_declarator
+			name: (identifier) @constName
+			value: (string (string_fragment) @constValue)
+		)
+	`);
+
+	const matches = constQuery.matches(rootNode);
+	for (const match of matches) {
+		const nameCapture = match.captures.find(c => c.name === 'constName');
+		const valueCapture = match.captures.find(c => c.name === 'constValue');
+		
+		if (nameCapture && valueCapture && nameCapture.node.text === identifierName) {
+			return valueCapture.node.text;
+		}
+	}
+	
+	return undefined;
+}
+
 const StringQ: QType<string | NlsString> = {
 	Q: `[
 		(string (string_fragment) @value)
+		(identifier) @identifier
 		(call_expression
 			function: [
 				(identifier) @localizeFn (#eq? @localizeFn localize)
@@ -515,7 +537,7 @@ const StringQ: QType<string | NlsString> = {
 		)
 	]`,
 
-	value(matches: Parser.QueryMatch[]): string | NlsString | undefined {
+	value(matches: Parser.QueryMatch[], rootNode?: Parser.SyntaxNode): string | NlsString | undefined {
 		const match = matches[0];
 
 		if (!match) {
@@ -523,36 +545,45 @@ const StringQ: QType<string | NlsString> = {
 		}
 
 		const value = match.captures.filter(c => c.name === 'value')[0]?.node.text;
+		const identifier = match.captures.filter(c => c.name === 'identifier')[0]?.node.text;
 
-		if (!value) {
-			throw new Error(`Missing required 'value' property.`);
+		if (identifier && rootNode) {
+			// Try to resolve the identifier to a string constant
+			const resolvedValue = resolveIdentifierToString(rootNode, identifier);
+			if (resolvedValue) {
+				return resolvedValue;
+			} else {
+				throw new Error(`Could not resolve identifier '${identifier}' to a string constant.`);
+			}
+		} else if (value) {
+			const nlsKey = match.captures.filter(c => c.name === 'nlsKey')[0]?.node.text;
+
+			if (nlsKey) {
+				return { value, nlsKey };
+			} else {
+				return value;
+			}
 		}
 
-		const nlsKey = match.captures.filter(c => c.name === 'nlsKey')[0]?.node.text;
-
-		if (nlsKey) {
-			return { value, nlsKey };
-		} else {
-			return value;
-		}
+		throw new Error(`Missing required 'value' property.`);
 	}
 };
 
 const StringArrayQ: QType<(string | NlsString)[]> = {
 	Q: `(array ${StringQ.Q})`,
 
-	value(matches: Parser.QueryMatch[]): (string | NlsString)[] | undefined {
+	value(matches: Parser.QueryMatch[], rootNode?: Parser.SyntaxNode): (string | NlsString)[] | undefined {
 		if (matches.length === 0) {
 			return undefined;
 		}
 
 		return matches.map(match => {
-			return StringQ.value([match]) as string | NlsString;
+			return StringQ.value([match], rootNode) as string | NlsString;
 		});
 	}
 };
 
-function getProperty<T>(qtype: QType<T>, moduleName: string, node: Parser.SyntaxNode, key: string): T | undefined {
+function getProperty<T>(qtype: QType<T>, moduleName: string, node: Parser.SyntaxNode, key: string, rootNode?: Parser.SyntaxNode): T | undefined {
 	const query = new Parser.Query(
 		typescript,
 		`(
@@ -566,7 +597,7 @@ function getProperty<T>(qtype: QType<T>, moduleName: string, node: Parser.Syntax
 
 	try {
 		const matches = query.matches(node).filter(m => m.captures[0].node.parent?.parent === node);
-		return qtype.value(matches);
+		return qtype.value(matches, rootNode);
 	} catch (e) {
 		throw new ParseError(e.message, moduleName, node);
 	}
@@ -576,12 +607,12 @@ function getNumberProperty(moduleName: string, node: Parser.SyntaxNode, key: str
 	return getProperty(NumberQ, moduleName, node, key);
 }
 
-function getStringProperty(moduleName: string, node: Parser.SyntaxNode, key: string): string | NlsString | undefined {
-	return getProperty(StringQ, moduleName, node, key);
+function getStringProperty(moduleName: string, node: Parser.SyntaxNode, key: string, rootNode?: Parser.SyntaxNode): string | NlsString | undefined {
+	return getProperty(StringQ, moduleName, node, key, rootNode);
 }
 
-function getStringArrayProperty(moduleName: string, node: Parser.SyntaxNode, key: string): (string | NlsString)[] | undefined {
-	return getProperty(StringArrayQ, moduleName, node, key);
+function getStringArrayProperty(moduleName: string, node: Parser.SyntaxNode, key: string, rootNode?: Parser.SyntaxNode): (string | NlsString)[] | undefined {
+	return getProperty(StringArrayQ, moduleName, node, key, rootNode);
 }
 
 // TODO: add more policy types
@@ -598,9 +629,10 @@ function getPolicy(
 	configurationNode: Parser.SyntaxNode,
 	settingNode: Parser.SyntaxNode,
 	policyNode: Parser.SyntaxNode,
-	categories: Map<string, Category>
+	categories: Map<string, Category>,
+	rootNode: Parser.SyntaxNode
 ): Policy {
-	const name = getStringProperty(moduleName, policyNode, 'name');
+	const name = getStringProperty(moduleName, policyNode, 'name', rootNode);
 
 	if (!name) {
 		throw new ParseError(`Missing required 'name' property`, moduleName, policyNode);
@@ -608,7 +640,7 @@ function getPolicy(
 		throw new ParseError(`Property 'name' should be a literal string`, moduleName, policyNode);
 	}
 
-	const categoryName = getStringProperty(moduleName, configurationNode, 'title');
+	const categoryName = getStringProperty(moduleName, configurationNode, 'title', rootNode);
 
 	if (!categoryName) {
 		throw new ParseError(`Missing required 'title' property`, moduleName, configurationNode);
@@ -624,7 +656,7 @@ function getPolicy(
 		categories.set(categoryKey, category);
 	}
 
-	const minimumVersion = getStringProperty(moduleName, policyNode, 'minimumVersion');
+	const minimumVersion = getStringProperty(moduleName, policyNode, 'minimumVersion', rootNode);
 
 	if (!minimumVersion) {
 		throw new ParseError(`Missing required 'minimumVersion' property.`, moduleName, policyNode);
@@ -632,7 +664,7 @@ function getPolicy(
 		throw new ParseError(`Property 'minimumVersion' should be a literal string.`, moduleName, policyNode);
 	}
 
-	const description = getStringProperty(moduleName, policyNode, 'description') ?? getStringProperty(moduleName, settingNode, 'description');
+	const description = getStringProperty(moduleName, policyNode, 'description', rootNode) ?? getStringProperty(moduleName, settingNode, 'description', rootNode);
 
 	if (!description) {
 		throw new ParseError(`Missing required 'description' property.`, moduleName, settingNode);
@@ -680,7 +712,7 @@ function getPolicies(moduleName: string, node: Parser.SyntaxNode): Policy[] {
 		const configurationNode = m.captures.filter(c => c.name === 'configuration')[0].node;
 		const settingNode = m.captures.filter(c => c.name === 'setting')[0].node;
 		const policyNode = m.captures.filter(c => c.name === 'policy')[0].node;
-		return getPolicy(moduleName, configurationNode, settingNode, policyNode, categories);
+		return getPolicy(moduleName, configurationNode, settingNode, policyNode, categories, node);
 	});
 }
 
