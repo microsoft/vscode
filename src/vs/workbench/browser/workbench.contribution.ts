@@ -527,16 +527,32 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'description': localize('openDefaultKeybindings', "Controls whether opening keybinding settings also opens an editor showing all default keybindings."),
 				'default': false
 			},
-			'workbench.sideBar.location': {
-				'type': 'string',
-				'enum': ['left', 'right'],
-				'default': 'left',
-				'description': localize('sideBarLocation', "Controls the location of the primary side bar and activity bar. They can either show on the left or right of the workbench. The secondary side bar will show on the opposite side of the workbench.")
-			},
-			'workbench.panel.showLabels': {
-				'type': 'boolean',
-				'default': true,
-				'description': localize('panelShowLabels', "Controls whether activity items in the panel title are shown as label or icon."),
+				'workbench.sideBar.location': {
+					'type': 'string',
+					'enum': ['left', 'right'],
+					'default': 'left',
+					'description': localize('sideBarLocation', "Controls the location of the primary side bar and activity bar. They can either show on the left or right of the workbench. The secondary side bar will show on the opposite side of the workbench.")
+				},
+				'workbench.sideBar.fontSize': {
+					'type': 'number',
+					'default': 13,
+					'minimum': 6,
+					'maximum': 32,
+					'markdownDescription': localize('sideBarFontSize', "Controls the font size used for content inside the primary side bar."),
+					'tags': ['accessibility']
+				},
+				'workbench.secondarySideBar.fontSize': {
+					'type': 'number',
+					'default': 13,
+					'minimum': 6,
+					'maximum': 32,
+					'markdownDescription': localize('secondarySideBarFontSize', "Controls the font size used for content inside the secondary side bar."),
+					'tags': ['accessibility']
+				},
+				'workbench.panel.showLabels': {
+					'type': 'boolean',
+					'default': true,
+					'description': localize('panelShowLabels', "Controls whether activity items in the panel title are shown as label or icon."),
 			},
 			'workbench.panel.defaultLocation': {
 				'type': 'string',
