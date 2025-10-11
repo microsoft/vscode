@@ -115,19 +115,24 @@ export class AIEditorPane extends EditorPane {
 
 		this.answerArea = DOM.$('div', {
 			style: 'flex:1 1 auto; overflow:auto; padding:12px; border:1px solid var(--vscode-panel-border, #3c3c3c); white-space:pre-wrap; background:var(--vscode-editor-background, #1e1e1e); color:var(--vscode-editor-foreground, #d4d4d4); border-radius:4px; font-size:12px; line-height:1.4; margin-bottom:12px;'
-		}, 'Answer will appear here');
+		}, 'AI responses will appear here. Enter your Gemini API key and ask a question!');
 
 		const apiRow = DOM.$('div', {
-			style: 'display:flex; gap:8px; align-items:center; margin-bottom:12px;'
+			style: 'display:flex; flex-direction:column; gap:4px; margin-bottom:12px;'
 		});
 
 		this.apiKeyInput = DOM.$('input', {
 			type: 'password',
-			placeholder: 'Enter your API key...',
-			style: 'flex:1 1 auto; height:32px; padding:8px 12px; box-sizing:border-box; border:1px solid var(--vscode-input-border, #3c3c3c); background:var(--vscode-input-background, #3c3c3c); color:var(--vscode-input-foreground, #cccccc); border-radius:4px; font-size:13px;'
+			placeholder: 'Enter your Gemini API key...',
+			style: 'height:32px; padding:8px 12px; box-sizing:border-box; border:1px solid var(--vscode-input-border, #3c3c3c); background:var(--vscode-input-background, #3c3c3c); color:var(--vscode-input-foreground, #cccccc); border-radius:4px; font-size:13px;'
 		}) as HTMLInputElement;
 
+		const apiKeyHelp = DOM.$('div', {
+			style: 'font-size:11px; color:var(--vscode-descriptionForeground, #999999);'
+		}, 'Get your free API key at: https://ai.google.dev/gemini-api/docs');
+
 		apiRow.appendChild(this.apiKeyInput);
+		apiRow.appendChild(apiKeyHelp);
 
 		const askRow = DOM.$('div', {
 			style: 'display:flex; gap:8px; align-items:center;'
@@ -280,7 +285,86 @@ export class AIEditorPane extends EditorPane {
 	}
 
 	private async queryLLMPlaceholder(apiKey: string, websiteContext: string, question: string): Promise<string> {
-		return `LLM not implemented.\nAPI Key: ${apiKey ? 'provided' : 'missing'}\nURL: ${websiteContext || 'n/a'}\nQuestion: ${question}`;
+		if (!apiKey) {
+			return 'Please enter your Gemini API key to use the AI assistant.';
+		}
+
+		try {
+			// Get website content if available
+			let contextText = '';
+			if (websiteContext) {
+				try {
+					const context = await this.requestService.request({ url: websiteContext }, CancellationToken.None);
+					if (context.res.statusCode && context.res.statusCode < 400) {
+						const text = await asText(context) ?? '';
+						// Extract text content (remove HTML tags)
+						contextText = text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+						// Limit context length
+						if (contextText.length > 2000) {
+							contextText = contextText.substring(0, 2000) + '...';
+						}
+					}
+				} catch (e) {
+					// Ignore context fetch errors
+				}
+			}
+
+			// Prepare prompt
+			const prompt = contextText 
+				? `Based on the following website content, please answer the question:\n\nWebsite: ${websiteContext}\nContent: ${contextText}\n\nQuestion: ${question}`
+				: `Please answer this question: ${question}`;
+
+			// Call Gemini API
+			const response = await this.callGeminiAPI(apiKey, prompt);
+			return response;
+
+		} catch (error) {
+			return `Error calling Gemini API: ${(error as Error).message}`;
+		}
+	}
+
+	private async callGeminiAPI(apiKey: string, prompt: string): Promise<string> {
+		const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
+		
+		const requestBody = {
+			contents: [
+				{
+					parts: [
+						{
+							text: prompt
+						}
+					]
+				}
+			],
+			generationConfig: {
+				temperature: 0.7,
+				topK: 40,
+				topP: 0.95,
+				maxOutputTokens: 1024,
+			}
+		};
+
+		const response = await fetch(url, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				'x-goog-api-key': apiKey
+			},
+			body: JSON.stringify(requestBody)
+		});
+
+		if (!response.ok) {
+			const errorData = await response.json().catch(() => ({}));
+			throw new Error(`API Error ${response.status}: ${errorData.error?.message || response.statusText}`);
+		}
+
+		const data = await response.json();
+		
+		if (data.candidates && data.candidates[0] && data.candidates[0].content) {
+			return data.candidates[0].content.parts[0].text;
+		} else {
+			throw new Error('No response generated from Gemini API');
+		}
 	}
 }
 
