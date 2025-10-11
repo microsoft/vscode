@@ -190,6 +190,7 @@ configurationRegistry.registerConfiguration({
 			},
 			default: {
 				'panel': 'always',
+				'editor': 'always',
 			}
 		},
 		'chat.implicitContext.suggestedContext': {
