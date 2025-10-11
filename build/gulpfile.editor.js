@@ -54,9 +54,6 @@ const extractEditorSrcTask = task.define('extract-editor-src', () => {
 		importIgnorePattern: /\.css$/,
 		destRoot: path.join(root, 'out-editor-src'),
 		tsOutDir: '../out-monaco-editor-core/esm/vs',
-		redirects: {
-			'@vscode/tree-sitter-wasm': '../node_modules/@vscode/tree-sitter-wasm/wasm/web-tree-sitter',
-		}
 	});
 });
 

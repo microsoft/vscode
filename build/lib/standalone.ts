@@ -7,9 +7,6 @@ import fs from 'fs';
 import path from 'path';
 import * as tss from './treeshaking';
 
-const REPO_ROOT = path.join(__dirname, '../../');
-const SRC_DIR = path.join(REPO_ROOT, 'src');
-
 const dirCache: { [dir: string]: boolean } = {};
 
 function writeFile(filePath: string, contents: Buffer | string): void {
@@ -57,21 +54,11 @@ export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: str
 	// Take the extra included .d.ts files from `tsconfig.monaco.json`
 	options.typings = (<string[]>tsConfig.include).filter(includedFile => /\.d\.ts$/.test(includedFile));
 
-	// Add extra .d.ts files from `node_modules/@types/`
-	if (Array.isArray(options.compilerOptions?.types)) {
-		options.compilerOptions.types.forEach((type: string) => {
-			if (type === '@webgpu/types') {
-				options.typings.push(`../node_modules/${type}/dist/index.d.ts`);
-			} else {
-				options.typings.push(`../node_modules/@types/${type}/index.d.ts`);
-			}
-		});
-	}
-
 	const result = tss.shake(options);
 	for (const fileName in result) {
 		if (result.hasOwnProperty(fileName)) {
-			writeFile(path.join(options.destRoot, fileName), result[fileName]);
+			const relativePath = path.relative(options.sourcesRoot, fileName);
+			writeFile(path.join(options.destRoot, relativePath), result[fileName]);
 		}
 	}
 	const copied: { [fileName: string]: boolean } = {};
@@ -80,12 +67,20 @@ export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: str
 			return;
 		}
 		copied[fileName] = true;
-		const srcPath = path.join(options.sourcesRoot, fileName);
-		const dstPath = path.join(options.destRoot, fileName);
-		writeFile(dstPath, fs.readFileSync(srcPath));
+
+		if (path.isAbsolute(fileName)) {
+			const relativePath = path.relative(options.sourcesRoot, fileName);
+			const dstPath = path.join(options.destRoot, relativePath);
+			writeFile(dstPath, fs.readFileSync(fileName));
+		} else {
+			const srcPath = path.join(options.sourcesRoot, fileName);
+			const dstPath = path.join(options.destRoot, fileName);
+			writeFile(dstPath, fs.readFileSync(srcPath));
+		}
 	};
 	const writeOutputFile = (fileName: string, contents: string | Buffer) => {
-		writeFile(path.join(options.destRoot, fileName), contents);
+		const relativePath = path.isAbsolute(fileName) ? path.relative(options.sourcesRoot, fileName) : fileName;
+		writeFile(path.join(options.destRoot, relativePath), contents);
 	};
 	for (const fileName in result) {
 		if (result.hasOwnProperty(fileName)) {
@@ -127,8 +122,7 @@ function transportCSS(module: string, enqueue: (module: string) => void, write: 
 		return false;
 	}
 
-	const filename = path.join(SRC_DIR, module);
-	const fileContents = fs.readFileSync(filename).toString();
+	const fileContents = fs.readFileSync(module).toString();
 	const inlineResources = 'base64'; // see https://github.com/microsoft/monaco-editor/issues/148
 
 	const newContents = _rewriteOrInlineUrls(fileContents, inlineResources === 'base64');
@@ -146,7 +140,7 @@ function transportCSS(module: string, enqueue: (module: string) => void, write: 
 			}
 
 			const imagePath = path.join(path.dirname(module), url);
-			const fileContents = fs.readFileSync(path.join(SRC_DIR, imagePath));
+			const fileContents = fs.readFileSync(imagePath);
 			const MIME = /\.svg$/.test(url) ? 'image/svg+xml' : 'image/png';
 			let DATA = ';base64,' + fileContents.toString('base64');
 

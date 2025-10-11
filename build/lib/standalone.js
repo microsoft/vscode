@@ -44,8 +44,6 @@ exports.extractEditor = extractEditor;
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 const tss = __importStar(require("./treeshaking"));
-const REPO_ROOT = path_1.default.join(__dirname, '../../');
-const SRC_DIR = path_1.default.join(REPO_ROOT, 'src');
 const dirCache = {};
 function writeFile(filePath, contents) {
     function ensureDirs(dirPath) {
@@ -84,21 +82,11 @@ function extractEditor(options) {
     console.log(`Running tree shaker with shakeLevel ${tss.toStringShakeLevel(options.shakeLevel)}`);
     // Take the extra included .d.ts files from `tsconfig.monaco.json`
     options.typings = tsConfig.include.filter(includedFile => /\.d\.ts$/.test(includedFile));
-    // Add extra .d.ts files from `node_modules/@types/`
-    if (Array.isArray(options.compilerOptions?.types)) {
-        options.compilerOptions.types.forEach((type) => {
-            if (type === '@webgpu/types') {
-                options.typings.push(`../node_modules/${type}/dist/index.d.ts`);
-            }
-            else {
-                options.typings.push(`../node_modules/@types/${type}/index.d.ts`);
-            }
-        });
-    }
     const result = tss.shake(options);
     for (const fileName in result) {
         if (result.hasOwnProperty(fileName)) {
-            writeFile(path_1.default.join(options.destRoot, fileName), result[fileName]);
+            const relativePath = path_1.default.relative(options.sourcesRoot, fileName);
+            writeFile(path_1.default.join(options.destRoot, relativePath), result[fileName]);
         }
     }
     const copied = {};
@@ -107,12 +95,20 @@ function extractEditor(options) {
             return;
         }
         copied[fileName] = true;
-        const srcPath = path_1.default.join(options.sourcesRoot, fileName);
-        const dstPath = path_1.default.join(options.destRoot, fileName);
-        writeFile(dstPath, fs_1.default.readFileSync(srcPath));
+        if (path_1.default.isAbsolute(fileName)) {
+            const relativePath = path_1.default.relative(options.sourcesRoot, fileName);
+            const dstPath = path_1.default.join(options.destRoot, relativePath);
+            writeFile(dstPath, fs_1.default.readFileSync(fileName));
+        }
+        else {
+            const srcPath = path_1.default.join(options.sourcesRoot, fileName);
+            const dstPath = path_1.default.join(options.destRoot, fileName);
+            writeFile(dstPath, fs_1.default.readFileSync(srcPath));
+        }
     };
     const writeOutputFile = (fileName, contents) => {
-        writeFile(path_1.default.join(options.destRoot, fileName), contents);
+        const relativePath = path_1.default.isAbsolute(fileName) ? path_1.default.relative(options.sourcesRoot, fileName) : fileName;
+        writeFile(path_1.default.join(options.destRoot, relativePath), contents);
     };
     for (const fileName in result) {
         if (result.hasOwnProperty(fileName)) {
@@ -147,8 +143,7 @@ function transportCSS(module, enqueue, write) {
     if (!/\.css/.test(module)) {
         return false;
     }
-    const filename = path_1.default.join(SRC_DIR, module);
-    const fileContents = fs_1.default.readFileSync(filename).toString();
+    const fileContents = fs_1.default.readFileSync(module).toString();
     const inlineResources = 'base64'; // see https://github.com/microsoft/monaco-editor/issues/148
     const newContents = _rewriteOrInlineUrls(fileContents, inlineResources === 'base64');
     write(module, newContents);
@@ -163,7 +158,7 @@ function transportCSS(module, enqueue, write) {
                 return relativeFontPath;
             }
             const imagePath = path_1.default.join(path_1.default.dirname(module), url);
-            const fileContents = fs_1.default.readFileSync(path_1.default.join(SRC_DIR, imagePath));
+            const fileContents = fs_1.default.readFileSync(imagePath);
             const MIME = /\.svg$/.test(url) ? 'image/svg+xml' : 'image/png';
             let DATA = ';base64,' + fileContents.toString('base64');
             if (!forceBase64 && /\.svg$/.test(url)) {
