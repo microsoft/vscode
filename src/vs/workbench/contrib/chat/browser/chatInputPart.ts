@@ -310,7 +310,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _onDidChangeCurrentChatMode: Emitter<void>;
 	readonly onDidChangeCurrentChatMode: Event<void>;
 
-	private readonly _currentModeObservable = observableValue<IChatMode>('currentMode', ChatMode.Ask);
+	private readonly _currentModeObservable = observableValue<IChatMode>('currentMode', ChatMode.Agent);
 	public get currentModeKind(): ChatModeKind {
 		const mode = this._currentModeObservable.get();
 		return mode.kind === ChatModeKind.Agent && !this.agentService.hasToolsAgent ?
@@ -441,7 +441,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._onDidChangeCurrentLanguageModel = this._register(new Emitter<ILanguageModelChatMetadataAndIdentifier>());
 		this._onDidChangeCurrentChatMode = this._register(new Emitter<void>());
 		this.onDidChangeCurrentChatMode = this._onDidChangeCurrentChatMode.event;
-		this._currentModeObservable.set(ChatMode.Ask, undefined);
+		this._currentModeObservable.set(ChatMode.Agent, undefined);
 		this.inputUri = URI.parse(`${Schemas.vscodeChatInput}:input-${ChatInputPart._counter++}`);
 		this._chatEditsActionsDisposables = this._register(new DisposableStore());
 		this._chatEditsDisposables = this._register(new DisposableStore());
@@ -799,11 +799,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const hasSetDefaultMode = this.storageService.getBoolean(storageKey, StorageScope.WORKSPACE, false);
 			if (!hasSetDefaultMode) {
 				const isFree = this.entitlementService.entitlement === ChatEntitlement.Free;
-				const defaultModeKey = isFree ? 'chat.defaultModeFree' : 'chat.defaultMode';
 				const defaultLanguageModelKey = isFree ? 'chat.defaultLanguageModelFree' : 'chat.defaultLanguageModel';
 				const isAnonymous = this.entitlementService.anonymous;
 				Promise.all([
-					this.experimentService.getTreatment(defaultModeKey),
+					this.experimentService.getTreatment('chat.defaultMode'),
 					this.experimentService.getTreatment(defaultLanguageModelKey),
 				]).then(([defaultModeTreatment, defaultLanguageModelTreatment]) => {
 					if (isAnonymous) {
