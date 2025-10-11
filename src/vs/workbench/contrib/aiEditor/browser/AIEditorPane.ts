@@ -310,7 +310,7 @@ export class AIEditorPane extends EditorPane {
 			}
 
 			// Prepare prompt
-			const prompt = contextText 
+			const prompt = contextText
 				? `Based on the following website content, please answer the question:\n\nWebsite: ${websiteContext}\nContent: ${contextText}\n\nQuestion: ${question}`
 				: `Please answer this question: ${question}`;
 
@@ -341,29 +341,80 @@ export class AIEditorPane extends EditorPane {
 				topK: 40,
 				topP: 0.95,
 				maxOutputTokens: 1024,
-			}
+			},
+			safetySettings: [
+				{
+					category: "HARM_CATEGORY_HARASSMENT",
+					threshold: "BLOCK_MEDIUM_AND_ABOVE"
+				},
+				{
+					category: "HARM_CATEGORY_HATE_SPEECH",
+					threshold: "BLOCK_MEDIUM_AND_ABOVE"
+				},
+				{
+					category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+					threshold: "BLOCK_MEDIUM_AND_ABOVE"
+				},
+				{
+					category: "HARM_CATEGORY_DANGEROUS_CONTENT",
+					threshold: "BLOCK_MEDIUM_AND_ABOVE"
+				}
+			]
 		};
 
-		const response = await fetch(url, {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json',
-				'x-goog-api-key': apiKey
-			},
-			body: JSON.stringify(requestBody)
-		});
+		try {
+			const response = await fetch(url, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					'x-goog-api-key': apiKey
+				},
+				body: JSON.stringify(requestBody)
+			});
 
-		if (!response.ok) {
-			const errorData = await response.json().catch(() => ({}));
-			throw new Error(`API Error ${response.status}: ${errorData.error?.message || response.statusText}`);
-		}
+			if (!response.ok) {
+				const errorText = await response.text();
+				let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+				try {
+					const errorData = JSON.parse(errorText);
+					errorMessage = errorData.error?.message || errorMessage;
+				} catch (e) {
+					// Use the text response if JSON parsing fails
+					errorMessage = errorText || errorMessage;
+				}
+				throw new Error(errorMessage);
+			}
 
-		const data = await response.json();
-		
-		if (data.candidates && data.candidates[0] && data.candidates[0].content) {
-			return data.candidates[0].content.parts[0].text;
-		} else {
-			throw new Error('No response generated from Gemini API');
+			const data = await response.json();
+			
+			// Debug: Log the response structure
+			console.log('Gemini API Response:', JSON.stringify(data, null, 2));
+			
+			// Check for blocked content
+			if (data.candidates && data.candidates.length > 0) {
+				const candidate = data.candidates[0];
+				
+				if (candidate.finishReason === 'SAFETY') {
+					throw new Error('Response blocked by safety filters. Please try rephrasing your question.');
+				}
+				
+				if (candidate.content && candidate.content.parts && candidate.content.parts.length > 0) {
+					return candidate.content.parts[0].text;
+				}
+			}
+			
+			// Check for errors in response
+			if (data.error) {
+				throw new Error(`Gemini API Error: ${data.error.message || 'Unknown error'}`);
+			}
+			
+			throw new Error('No valid response generated from Gemini API. Please check your API key and try again.');
+			
+		} catch (error) {
+			if (error instanceof Error) {
+				throw error;
+			}
+			throw new Error(`Network error: ${error}`);
 		}
 	}
 }
