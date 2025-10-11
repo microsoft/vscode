@@ -141,7 +141,7 @@ export interface IEditorOptions {
 	 */
 	selectOnLineNumbers?: boolean;
 	/**
-	 * Control the width of line numbers by reserving horizontal space for rendering at least the maximum amount of digits.
+	 * Control the width of line numbers by reserving horizontal space to accommodate the maximum number of digits.
 	 * Defaults to 5.
 	 */
 	lineNumbersMinChars?: number;
