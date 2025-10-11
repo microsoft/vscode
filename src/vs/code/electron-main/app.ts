@@ -524,6 +524,10 @@ export class CodeApplication extends Disposable {
 	}
 
 	async startup(): Promise<void> {
+		// Disable web security for AI Editor iframe functionality
+		app.commandLine.appendSwitch('disable-web-security');
+		app.commandLine.appendSwitch('disable-features', 'IsolateOrigins, site-per-process');
+
 		this.logService.debug('Starting VS Code');
 		this.logService.debug(`from: ${this.environmentMainService.appRoot}`);
 		this.logService.debug('args:', this.environmentMainService.args);

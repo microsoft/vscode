@@ -182,6 +182,9 @@ import './contrib/emergencyAlert/electron-browser/emergencyAlert.contribution.js
 // MCP
 import './contrib/mcp/electron-browser/mcp.contribution.js';
 
+// AI Editor (built-in)
+import './contrib/aiEditor/electron-browser/aiEditor.contribution.js';
+
 //#endregion
 
 
