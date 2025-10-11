@@ -7,6 +7,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { IStringDictionary } from '../../../../../base/common/collections.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { timeout } from '../../../../../base/common/async.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -144,6 +145,7 @@ export async function resolveDependencyTasks(parentTask: Task, workspaceFolder: 
 
 /**
  * Collects output, polling duration, and idle status for all terminals.
+ * For multiple terminals, monitors them in parallel to handle concurrent prompts.
  */
 export async function collectTerminalResults(
 	terminals: ITerminalInstance[],
@@ -172,6 +174,15 @@ export async function collectTerminalResults(
 	if (token.isCancellationRequested) {
 		return results;
 	}
+
+	// For dependency tasks with multiple terminals, monitor them in parallel
+	if (terminals.length > 1 && dependencyTasks && dependencyTasks.length > 0) {
+		// Always use parallel monitoring for multiple terminals from dependency tasks
+		// This handles both background tasks and cases where terminals may have prompts
+		return collectParallelTerminalResults(terminals, task, instantiationService, invocationContext, progress, token, disposableStore, isActive, dependencyTasks);
+	}
+
+	// Single terminal - use original sequential logic
 	for (const instance of terminals) {
 		progress.report({ message: new MarkdownString(`Checking output for \`${instance.shellLaunchConfig.name ?? 'unknown'}\``) });
 		const execution = {
@@ -201,6 +212,97 @@ export async function collectTerminalResults(
 			inputToolFreeFormInputCount: outputMonitor.outputMonitorTelemetryCounters.inputToolFreeFormInputCount ?? 0,
 		});
 	}
+	return results;
+}
+
+/**
+ * Collects results from multiple terminals running in parallel for dependency tasks.
+ * This starts all monitors concurrently and handles prompts from any terminal as they arise.
+ */
+async function collectParallelTerminalResults(
+	terminals: ITerminalInstance[],
+	task: Task,
+	instantiationService: IInstantiationService,
+	invocationContext: IToolInvocationContext,
+	progress: ToolProgress,
+	token: CancellationToken,
+	disposableStore: DisposableStore,
+	isActive?: () => Promise<boolean>,
+	dependencyTasks?: Task[]
+): Promise<Array<{
+	name: string;
+	output: string;
+	resources?: ILinkLocation[];
+	pollDurationMs: number;
+	state: OutputMonitorState;
+	inputToolManualAcceptCount: number;
+	inputToolManualRejectCount: number;
+	inputToolManualChars: number;
+	inputToolManualShownCount: number;
+	inputToolFreeFormInputShownCount: number;
+	inputToolFreeFormInputCount: number;
+}>> {
+	progress.report({ message: new MarkdownString(`Starting concurrent monitoring for ${terminals.length} terminals...`) });
+
+	// Log terminal information for debugging
+	terminals.forEach((terminal, index) => {
+		const terminalName = terminal.shellLaunchConfig.name ?? `Terminal ${index + 1}`;
+		progress.report({ message: new MarkdownString(`Terminal ${index + 1}: **${terminalName}** (ID: ${terminal.instanceId})`) });
+	});
+
+	// Give terminals a moment to start and potentially show prompts
+	// This is important for npm commands that might take a moment to show "Ok to proceed?" prompts
+	await timeout(1000);
+
+	// Create monitor promises for all terminals
+	const monitorPromises = terminals.map(async (instance, index) => {
+		const execution = {
+			getOutput: () => getOutput(instance) ?? '',
+			isActive,
+			task,
+			instance,
+			dependencyTasks,
+			sessionId: invocationContext.sessionId
+		};
+
+		// For dependency tasks, give terminals more time to show prompts before considering them idle
+		const outputMonitor = disposableStore.add(instantiationService.createInstance(
+			OutputMonitor,
+			execution,
+			taskProblemPollFn,
+			invocationContext,
+			token,
+			`${task._label} (${instance.shellLaunchConfig.name ?? `Terminal ${index + 1}`})`
+		));
+
+		// Wait for this monitor to complete
+		await Event.toPromise(outputMonitor.onDidFinishCommand);
+
+		const pollingResult = outputMonitor.pollingResult;
+		return {
+			name: instance.shellLaunchConfig.name ?? `Terminal ${index + 1}`,
+			output: pollingResult?.output ?? '',
+			pollDurationMs: pollingResult?.pollDurationMs ?? 0,
+			resources: pollingResult?.resources,
+			state: pollingResult?.state || OutputMonitorState.Idle,
+			inputToolManualAcceptCount: outputMonitor.outputMonitorTelemetryCounters.inputToolManualAcceptCount,
+			inputToolManualRejectCount: outputMonitor.outputMonitorTelemetryCounters.inputToolManualRejectCount,
+			inputToolManualChars: outputMonitor.outputMonitorTelemetryCounters.inputToolManualChars,
+			inputToolManualShownCount: outputMonitor.outputMonitorTelemetryCounters.inputToolManualShownCount,
+			inputToolFreeFormInputShownCount: outputMonitor.outputMonitorTelemetryCounters.inputToolFreeFormInputShownCount,
+			inputToolFreeFormInputCount: outputMonitor.outputMonitorTelemetryCounters.inputToolFreeFormInputCount,
+		};
+	});
+
+	// Monitor all terminals concurrently, but use a more sophisticated completion strategy
+	// Instead of waiting for ALL to complete, we need to handle the case where some terminals
+	// may complete while others are still waiting for input
+	progress.report({ message: new MarkdownString(`Monitoring all terminals for prompts and completion...`) });
+
+	// For now, use Promise.all but add better timeout/cancellation handling
+	// Each OutputMonitor should detect prompts and wait for user input appropriately
+	const results = await Promise.all(monitorPromises);
+
 	return results;
 }
 
