@@ -1,6 +1,7 @@
 {
 	"extends": "../tsconfig.base.json",
 	"compilerOptions": {
+		"ignoreDeprecations": "6.0",
 		"baseUrl": ".",
 		"noFallthroughCasesInSwitch": true,
 		"noUnusedLocals": false,
