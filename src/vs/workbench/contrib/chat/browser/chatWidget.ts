@@ -1258,6 +1258,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 
+		// Only show todo list for local chat sessions
+		if (!this.isLocalChatSession()) {
+			this.chatTodoListWidget.domNode.style.display = 'none';
+			this._onDidChangeContentHeight.fire();
+			return;
+		}
+
 		const todoListConfig = this.configurationService.getValue<{ position?: string }>(ChatConfiguration.TodoList);
 		const todoListWidgetPosition = todoListConfig?.position || 'default';
 
@@ -1281,6 +1288,17 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (todos.length > 0) {
 			this.chatTodoListWidget.render(sessionId);
 		}
+	}
+
+	private isLocalChatSession(): boolean {
+		// If the widget is locked to a coding agent, it means it's a non-local session
+		// (external provider). The ChatEditor calls lockToCodingAgent for non-local sessions.
+		if (this._lockedToCodingAgent) {
+			return false;
+		}
+
+		// Otherwise, it's a local session (Chat View, quick chat, inline chat, or local editor session)
+		return true;
 	}
 
 	private _getGenerateInstructionsMessage(): IMarkdownString {
