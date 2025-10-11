@@ -4784,7 +4784,7 @@ class GuideOptions extends BaseEditorOption<EditorOption.guides, IGuidesOptions,
 					enum: [true, 'active', false],
 					enumDescriptions: [
 						nls.localize('editor.guides.bracketPairs.true', "Enables guides for all bracket pairs and displays vertical guides for multiline bracket pairs."),
-						nls.localize('editor.guides.bracketPairs.active', "Enables guides for only the active bracket pair and displays a vertical guide for an active multiline bracket-pair."),
+						nls.localize('editor.guides.bracketPairs.active', "Enables guides for only the active bracket-pair and displays a vertical guide for an active multiline bracket-pair."),
 						nls.localize('editor.guides.bracketPairs.false', "Disables all guides for bracket pairs."),
 					],
 					default: defaults.bracketPairs,
