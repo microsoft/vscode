@@ -452,17 +452,24 @@ suite('splitCommandLineIntoSubCommands', () => {
 	});
 
 	suite('complex command combinations', () => {
-		test('should handle mixed operators in order', () => {
-			const commandLine = 'ls | grep test && echo found > result.txt || echo failed';
-			const expectedSubCommands = ['ls', 'grep test', 'echo found', 'result.txt', 'echo failed'];
+		test('should handle subshells and braces', () => {
+			const commandLine = 'echo $(cat stuff)';
+			const expectedSubCommands = ['echo $(cat stuff)', 'cat stuff'];
 			const actualSubCommands = splitCommandLineIntoSubCommands(commandLine, 'bash', OperatingSystem.Linux);
 			deepStrictEqual(actualSubCommands, expectedSubCommands);
 		});
 
-		test.skip('should handle subshells and braces', () => {
-			const commandLine = '(cd /tmp && ls) && { echo done; }';
-			const expectedSubCommands = ['(cd /tmp', 'ls)', '{ echo done', '}'];
-			const actualSubCommands = splitCommandLineIntoSubCommands(commandLine, 'zsh', OperatingSystem.Linux);
+		test('should handle nested subshells', () => {
+			const commandLine = 'echo $(echo $(date))';
+			const expectedSubCommands = ['echo $(echo $(date))', 'echo $(date)', 'date'];
+			const actualSubCommands = splitCommandLineIntoSubCommands(commandLine, 'bash', OperatingSystem.Linux);
+			deepStrictEqual(actualSubCommands, expectedSubCommands);
+		});
+
+		test('should support a realistic cURL', () => {
+			const commandLine = 'curl "https://example.com/api?bool&detail=7&other=3" --data \'{"key1":"value1","key2":"value2"}\'';
+			const expectedSubCommands = ['curl "https://example.com/api?bool&detail=7&other=3" --data \'{"key1":"value1","key2":"value2"}\''];
+			const actualSubCommands = splitCommandLineIntoSubCommands(commandLine, 'bash', OperatingSystem.Linux);
 			deepStrictEqual(actualSubCommands, expectedSubCommands);
 		});
 	});
