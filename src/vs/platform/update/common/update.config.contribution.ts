@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isWeb, isWindows } from '../../../base/common/platform.js';
+import { PolicyCategory } from '../../../base/common/policy.js';
 import { localize } from '../../../nls.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
 import { Registry } from '../../registry/common/platform.js';
@@ -30,7 +31,17 @@ configurationRegistry.registerConfiguration({
 			],
 			policy: {
 				name: 'UpdateMode',
+				category: PolicyCategory.Update,
 				minimumVersion: '1.67',
+				localization: {
+					description: 'updateMode',
+					enumDescriptions: [
+						'none',
+						'manual',
+						'start',
+						'default'
+					]
+				},
 			}
 		},
 		'update.channel': {

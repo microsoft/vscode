@@ -13,6 +13,7 @@ import { mnemonicButtonLabel } from '../../../../base/common/labels.js';
 import { Disposable, DisposableStore, IDisposable, isDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isNative, isWeb } from '../../../../base/common/platform.js';
+import { PolicyCategory } from '../../../../base/common/policy.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { MultiCommand } from '../../../../editor/browser/editorExtensions.js';
 import { CopyAction, CutAction, PasteAction } from '../../../../editor/contrib/clipboard/browser/clipboard.js';
@@ -286,7 +287,9 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				included: false,
 				policy: {
 					name: 'ExtensionGalleryServiceUrl',
+					category: PolicyCategory.Extensions,
 					minimumVersion: '1.99',
+					localization: { description: 'extensions.gallery.serviceUrl' }
 				},
 			},
 			'extensions.supportNodeGlobalNavigator': {
