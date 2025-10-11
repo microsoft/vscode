@@ -299,9 +299,9 @@ export class AIEditorPane extends EditorPane {
 						const text = await asText(context) ?? '';
 						// Extract text content (remove HTML tags)
 						contextText = text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-						// Limit context length
-						if (contextText.length > 2000) {
-							contextText = contextText.substring(0, 2000) + '...';
+						// Limit context length more aggressively to avoid token limits
+						if (contextText.length > 1000) {
+							contextText = contextText.substring(0, 1000) + '...';
 						}
 					}
 				} catch (e) {
@@ -309,10 +309,10 @@ export class AIEditorPane extends EditorPane {
 				}
 			}
 
-			// Prepare prompt
-			const prompt = contextText
-				? `Based on the following website content, please answer the question:\n\nWebsite: ${websiteContext}\nContent: ${contextText}\n\nQuestion: ${question}`
-				: `Please answer this question: ${question}`;
+			// Prepare prompt with length consideration
+			const prompt = contextText 
+				? `Based on the following website content, please provide a concise answer:\n\nWebsite: ${websiteContext}\nContent: ${contextText}\n\nQuestion: ${question}\n\nPlease keep your answer brief and focused.`
+				: `Please provide a concise answer to this question: ${question}`;
 
 			// Call Gemini API
 			const response = await this.callGeminiAPI(apiKey, prompt);
@@ -325,7 +325,7 @@ export class AIEditorPane extends EditorPane {
 
 	private async callGeminiAPI(apiKey: string, prompt: string): Promise<string> {
 		const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
-		
+
 		const requestBody = {
 			contents: [
 				{
@@ -340,7 +340,7 @@ export class AIEditorPane extends EditorPane {
 				temperature: 0.7,
 				topK: 40,
 				topP: 0.95,
-				maxOutputTokens: 1024,
+				maxOutputTokens: 2048,
 			},
 			safetySettings: [
 				{
@@ -386,10 +386,10 @@ export class AIEditorPane extends EditorPane {
 			}
 
 			const data = await response.json();
-			
+
 			// Debug: Log the response structure
 			console.log('Gemini API Response:', JSON.stringify(data, null, 2));
-			
+
 			// Check for blocked content
 			if (data.candidates && data.candidates.length > 0) {
 				const candidate = data.candidates[0];
@@ -398,18 +398,27 @@ export class AIEditorPane extends EditorPane {
 					throw new Error('Response blocked by safety filters. Please try rephrasing your question.');
 				}
 				
+				if (candidate.finishReason === 'MAX_TOKENS') {
+					throw new Error('Response was truncated due to token limit. Please ask a shorter question or reduce the website content length.');
+				}
+				
 				if (candidate.content && candidate.content.parts && candidate.content.parts.length > 0) {
 					return candidate.content.parts[0].text;
 				}
+				
+				// If no parts but has content, return a message
+				if (candidate.content && !candidate.content.parts) {
+					throw new Error('Response received but no content parts found. This might be due to content filtering or token limits.');
+				}
 			}
-			
+
 			// Check for errors in response
 			if (data.error) {
 				throw new Error(`Gemini API Error: ${data.error.message || 'Unknown error'}`);
 			}
-			
+
 			throw new Error('No valid response generated from Gemini API. Please check your API key and try again.');
-			
+
 		} catch (error) {
 			if (error instanceof Error) {
 				throw error;
