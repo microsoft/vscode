@@ -481,7 +481,8 @@ class HitTestRequest extends BareHitTestRequest {
 		return MouseTarget.createMargin(type, this.target, this._getMouseColumn(position), position, range, detail);
 	}
 	public fulfillViewZone(type: MouseTargetType.GUTTER_VIEW_ZONE | MouseTargetType.CONTENT_VIEW_ZONE, position: Position, detail: IMouseTargetViewZoneData): IMouseTargetViewZone {
-		return MouseTarget.createViewZone(type, this.target, this._getMouseColumn(position), position, detail);
+		// Always return the usual mouse column for a view zone.
+		return MouseTarget.createViewZone(type, this.target, this._getMouseColumn(), position, detail);
 	}
 	public fulfillContentText(position: Position, range: EditorRange | null, detail: IMouseTargetContentTextData): IMouseTargetContentText {
 		return MouseTarget.createContentText(this.target, this._getMouseColumn(position), position, range, detail);
