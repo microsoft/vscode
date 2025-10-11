@@ -25,7 +25,8 @@ export default class TypeScriptImplementationsCodeLensProvider extends TypeScrip
 		super(client, _cachedResponse);
 		this._register(
 			vscode.workspace.onDidChangeConfiguration(evt => {
-				if (evt.affectsConfiguration(`${language.id}.implementationsCodeLens.showOnInterfaceMethods`)) {
+				if (evt.affectsConfiguration(`${language.id}.implementationsCodeLens.showOnInterfaceMethods`) ||
+					evt.affectsConfiguration(`${language.id}.implementationsCodeLens.showOnClassMethods`)) {
 					this.changeEmitter.fire();
 				}
 			})
@@ -69,9 +70,12 @@ export default class TypeScriptImplementationsCodeLensProvider extends TypeScrip
 	}
 
 	private getCommand(locations: vscode.Location[], codeLens: ReferencesCodeLens): vscode.Command | undefined {
+		if (!locations.length) {
+			return undefined;
+		}
 		return {
 			title: this.getTitle(locations),
-			command: locations.length ? 'editor.action.showReferences' : '',
+			command: 'editor.action.showReferences',
 			arguments: [codeLens.document, codeLens.range.start, locations]
 		};
 	}
@@ -87,23 +91,52 @@ export default class TypeScriptImplementationsCodeLensProvider extends TypeScrip
 		item: Proto.NavigationTree,
 		parent: Proto.NavigationTree | undefined
 	): vscode.Range | undefined {
-		if (item.kind === PConst.Kind.method && parent && parent.kind === PConst.Kind.interface && vscode.workspace.getConfiguration(this.language.id).get<boolean>('implementationsCodeLens.showOnInterfaceMethods')) {
+		const cfg = vscode.workspace.getConfiguration(this.language.id);
+
+		// Keep the class node itself so we enter children
+		if (item.kind === PConst.Kind.class) {
 			return getSymbolRange(document, item);
 		}
-		switch (item.kind) {
-			case PConst.Kind.interface:
-				return getSymbolRange(document, item);
 
-			case PConst.Kind.class:
-			case PConst.Kind.method:
-			case PConst.Kind.memberVariable:
-			case PConst.Kind.memberGetAccessor:
-			case PConst.Kind.memberSetAccessor:
-				if (item.kindModifiers.match(/\babstract\b/g)) {
-					return getSymbolRange(document, item);
-				}
-				break;
+		// Keep the interface node itself so we enter children
+		if (item.kind === PConst.Kind.interface) {
+			return getSymbolRange(document, item);
 		}
+
+		// Interface members (behind existing setting)
+		if (
+			item.kind === PConst.Kind.method &&
+			parent?.kind === PConst.Kind.interface &&
+			cfg.get<boolean>('implementationsCodeLens.showOnInterfaceMethods')
+		) {
+			return getSymbolRange(document, item);
+		}
+
+		// Skip private methods (cannot be overridden)
+		if (item.kind === PConst.Kind.method && /\bprivate\b/.test(item.kindModifiers ?? '')) {
+			return undefined;
+		}
+
+		// Abstract members (always show)
+		if (
+			(item.kind === PConst.Kind.method ||
+				item.kind === PConst.Kind.memberVariable ||
+				item.kind === PConst.Kind.memberGetAccessor ||
+				item.kind === PConst.Kind.memberSetAccessor) &&
+			/\babstract\b/.test(item.kindModifiers ?? '')
+		) {
+			return getSymbolRange(document, item);
+		}
+
+		// Class methods (behind new setting; default off)
+		if (
+			item.kind === PConst.Kind.method &&
+			parent?.kind === PConst.Kind.class &&
+			cfg.get<boolean>('implementationsCodeLens.showOnClassMethods', false)
+		) {
+			return getSymbolRange(document, item);
+		}
+
 		return undefined;
 	}
 }
