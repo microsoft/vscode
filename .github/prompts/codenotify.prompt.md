@@ -1,6 +1,6 @@
 ---
 mode: agent
-tools: ['edit', 'search', 'runCommands', 'Azure MCP/search', 'spotify/search', 'fetch', 'todos']
+tools: ['edit', 'search', 'runCommands', 'fetch', 'todos']
 ---
 
 # Add My Contributions to CODENOTIFY
