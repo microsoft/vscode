@@ -37,6 +37,7 @@ export interface IChatSessionsExtensionPoint {
 	readonly capabilities?: {
 		supportsFileAttachments?: boolean;
 		supportsToolAttachments?: boolean;
+		isReadOnly?: boolean;
 	};
 	readonly commands?: IChatSessionCommandContribution[];
 }
