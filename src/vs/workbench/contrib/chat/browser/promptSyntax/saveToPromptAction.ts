@@ -13,7 +13,7 @@ import { PromptsConfig } from '../../common/promptSyntax/config/config.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { chatSubcommandLeader, IParsedChatRequest } from '../../common/chatParserTypes.js';
-import { PROMPT_LANGUAGE_ID } from '../../common/promptSyntax/promptTypes.js';
+import { PROMPT_LANGUAGE_ID, PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { IChatWidget } from '../chat.js';
 import { ChatModeKind } from '../../common/constants.js';
@@ -21,6 +21,14 @@ import { PromptFileRewriter } from './promptFileRewriter.js';
 import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
+import { PROMPT_SAVE_ANALYZE_COMMAND, PROMPT_SAVE_CHECK_COMMAND, IAnalyzeConversationArgs, IPromptTaskSave } from '../../common/promptSaveContract.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { askForPromptSourceFolder } from './pickers/askForPromptSourceFolder.js';
+import { askForPromptFileName } from './pickers/askForPromptName.js';
 
 /**
  * Action ID for the `Save Prompt` action.
@@ -65,6 +73,8 @@ class SaveToPromptAction extends Action2 {
 	): Promise<void> {
 		const logService = accessor.get(ILogService);
 		const editorService = accessor.get(IEditorService);
+		const commandService = accessor.get(ICommandService);
+		const progressService = accessor.get(IProgressService);
 		const rewriter = accessor.get(IInstantiationService).createInstance(PromptFileRewriter);
 
 		const logPrefix = 'save to prompt';
@@ -72,9 +82,74 @@ class SaveToPromptAction extends Action2 {
 		const mode = chatWidget.input.currentModeObs.get();
 		const model = chatWidget.input.selectedLanguageModel;
 
+		// Try to get LLM-powered analysis
+		let analysis: IPromptTaskSave | undefined;
+		try {
+			// Check if prompt analysis is available
+			const isAvailable = await commandService.executeCommand<boolean>(PROMPT_SAVE_CHECK_COMMAND);
+
+			if (isAvailable) {
+				// Extract conversation turns
+				const viewModel = chatWidget.viewModel;
+				const turns: Array<{ role: 'user' | 'assistant'; content: string }> = [];
+
+				if (viewModel) {
+					for (const request of viewModel.model.getRequests()) {
+						const { message, response: responseModel } = request;
+
+						if (isSaveToPromptSlashCommand(message)) {
+							continue;
+						}
+
+						if (responseModel === undefined) {
+							continue;
+						}
+
+						turns.push({
+							role: 'user',
+							content: request.message.text
+						});
+
+						turns.push({
+							role: 'assistant',
+							content: responseModel.response.getMarkdown()
+						});
+					}
+				}
+
+				// Only call analysis if we have conversation data
+				if (turns.length > 0) {
+					const args: IAnalyzeConversationArgs = { turns };
+
+					analysis = await progressService.withProgress(
+						{
+							location: ProgressLocation.Notification,
+							title: 'Analyzing conversation...'
+						},
+						async () => {
+							return await commandService.executeCommand<IPromptTaskSave>(
+								PROMPT_SAVE_ANALYZE_COMMAND,
+								args
+							);
+						}
+					);
+				}
+			}
+		} catch (error) {
+			// Silently fall back to default behavior
+			logService.debug(`[${logPrefix}]: LLM analysis failed, using default behavior`, error);
+		}
+
 		const output = [];
 		output.push('---');
-		output.push(`description: New prompt created from chat session`);
+
+		// Use LLM-suggested description if available
+		if (analysis) {
+			output.push(`description: ${analysis.description}`);
+		} else {
+			output.push(`description: New prompt created from chat session`);
+		}
+
 		output.push(`mode: ${mode.kind}`);
 		if (mode.kind === ChatModeKind.Agent) {
 			const toolAndToolsetMap = chatWidget.input.selectedToolsModel.entriesMap.get();
@@ -88,33 +163,91 @@ class SaveToPromptAction extends Action2 {
 		const viewModel = chatWidget.viewModel;
 		if (viewModel) {
 
-			for (const request of viewModel.model.getRequests()) {
-				const { message, response: responseModel } = request;
+			// Use LLM-extracted prompt if available
+			if (analysis) {
+				output.push(analysis.prompt);
+			} else {
+				// Fallback to current behavior
+				for (const request of viewModel.model.getRequests()) {
+					const { message, response: responseModel } = request;
 
-				if (isSaveToPromptSlashCommand(message)) {
-					continue;
+					if (isSaveToPromptSlashCommand(message)) {
+						continue;
+					}
+
+					if (responseModel === undefined) {
+						logService.warn(`[${logPrefix}]: skipping request '${request.id}' with no response`);
+						continue;
+					}
+
+					const { response } = responseModel;
+
+					output.push(`<user>`);
+					output.push(request.message.text);
+					output.push(`</user>`);
+					output.push();
+					output.push(`<assistant>`);
+					output.push(response.getMarkdown());
+					output.push(`</assistant>`);
+					output.push();
 				}
-
-				if (responseModel === undefined) {
-					logService.warn(`[${logPrefix}]: skipping request '${request.id}' with no response`);
-					continue;
-				}
-
-				const { response } = responseModel;
-
-				output.push(`<user>`);
-				output.push(request.message.text);
-				output.push(`</user>`);
-				output.push();
-				output.push(`<assistant>`);
-				output.push(response.getMarkdown());
-				output.push(`</assistant>`);
-				output.push();
 			}
+
 			const promptText = output.join('\n');
 
-			const untitledPath = 'new.prompt.md';
-			const untitledResource = URI.from({ scheme: Schemas.untitled, path: untitledPath });
+			// If analysis succeeded, use location picker and direct file save
+			if (analysis) {
+				try {
+					const fileService = accessor.get(IFileService);
+					const openerService = accessor.get(IOpenerService);
+					const instaService = accessor.get(IInstantiationService);
+
+					// Step 1: Ask for location using existing picker
+					const selectedFolder = await instaService.invokeFunction(
+						askForPromptSourceFolder,
+						PromptsType.prompt
+					);
+
+					if (!selectedFolder) {
+						// User cancelled location selection
+						return;
+					}
+
+					// Step 2: Ask for filename with suggested title pre-filled
+					const fileName = await instaService.invokeFunction(
+						askForPromptFileName,
+						PromptsType.prompt,
+						selectedFolder.uri,
+						undefined,
+						analysis.title
+					);
+
+					if (!fileName) {
+						// User cancelled filename input
+						return;
+					}
+
+					// Step 3: Create folder if needed
+					await fileService.createFolder(selectedFolder.uri);
+
+					// Step 4: Write file directly
+					const promptUri = URI.joinPath(selectedFolder.uri, fileName);
+					await fileService.writeFile(promptUri, VSBuffer.fromString(promptText));
+
+					// Step 5: Open in editor
+					await openerService.open(promptUri);
+
+					logService.info(`[${logPrefix}]: Saved prompt to ${promptUri.toString()}`);
+					return;
+				} catch (error) {
+					logService.warn(`[${logPrefix}]: Direct save failed, falling back to untitled`, error);
+					// Fall through to untitled document fallback
+				}
+			}
+
+			// Fallback: Open as untitled document
+			const filename = analysis ? `${analysis.title}.prompt.md` : 'new.prompt.md';
+			const untitledResource = URI.from({ scheme: Schemas.untitled, path: filename });
 
 			const editor = await editorService.openEditor({
 				resource: untitledResource,
