@@ -215,9 +215,6 @@ suite('PromptInputModel', () => {
 
 			await writePromise('foo\x1b[38;2;255;0;0m bar\x1b[0m\x1b[4D');
 			await assertPromptInput('foo|[ bar]');
-
-			await writePromise('\x1b[2D');
-			await assertPromptInput('f|oo[ bar]');
 		});
 		test('no ghost text when foreground color matches earlier text', async () => {
 			await writePromise('$ ');
@@ -491,6 +488,57 @@ suite('PromptInputModel', () => {
 	});
 
 	suite('trailing whitespace', () => {
+		test('cursor index calculation with whitespace', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise('echo   ');
+			await assertPromptInput('echo   |');
+
+			await writePromise('\x1b[3D');
+			await assertPromptInput('echo|   ');
+
+			await writePromise('\x1b[C');
+			await assertPromptInput('echo |  ');
+
+			await writePromise('\x1b[C');
+			await assertPromptInput('echo  | ');
+
+			await writePromise('\x1b[C');
+			await assertPromptInput('echo   |');
+		});
+
+		test('cursor index should not exceed command line length', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise('cmd');
+			await assertPromptInput('cmd|');
+
+			await writePromise('\x1b[10C');
+			await assertPromptInput('cmd|');
+		});
+
+		test('whitespace preservation in cursor calculation', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise('ls   -la');
+			await assertPromptInput('ls   -la|');
+
+			await writePromise('\x1b[3D');
+			await assertPromptInput('ls   |-la');
+
+			await writePromise('\x1b[3D');
+			await assertPromptInput('ls|   -la');
+
+			await writePromise('\x1b[2C');
+			await assertPromptInput('ls  | -la');
+		});
+
 		test('delete whitespace with backspace', async () => {
 			await writePromise('$ ');
 			fireCommandStart();

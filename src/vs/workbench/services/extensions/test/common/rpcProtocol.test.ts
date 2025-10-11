@@ -182,6 +182,7 @@ suite('RPCProtocol', () => {
 
 	test('issue #60450: Converting circular structure to JSON', function (done) {
 		delegate = (a1: number, a2: number) => {
+			// eslint-disable-next-line local/code-no-any-casts
 			const circular = <any>{};
 			circular.self = circular;
 			return circular;
@@ -218,6 +219,7 @@ suite('RPCProtocol', () => {
 
 	test('issue #81424: SerializeRequest should throw if an argument can not be serialized', () => {
 		const badObject = {};
+		// eslint-disable-next-line local/code-no-any-casts
 		(<any>badObject).loop = badObject;
 
 		assert.throws(() => {

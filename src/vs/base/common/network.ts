@@ -145,6 +145,12 @@ export namespace Schemas {
 	 * Scheme used for the accessible view
 	 */
 	export const accessibleView = 'accessible-view';
+
+	/**
+	 * Used for snapshots of chat edits
+	 */
+	export const chatEditingSnapshotScheme = 'chat-editing-snapshot-text-model';
+	export const chatEditingModel = 'chat-editing-text-model';
 }
 
 export function matchesScheme(target: URI | string, scheme: string): boolean {
@@ -407,6 +413,7 @@ export namespace COI {
 	 * isn't enabled the current context
 	 */
 	export function addSearchParam(urlOrSearch: URLSearchParams | Record<string, string>, coop: boolean, coep: boolean): void {
+		// eslint-disable-next-line local/code-no-any-casts
 		if (!(<any>globalThis).crossOriginIsolated) {
 			// depends on the current context being COI
 			return;

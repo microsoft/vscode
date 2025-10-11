@@ -33,6 +33,7 @@ export const BrowserFeatures = {
 			return KeyboardSupport.Always;
 		}
 
+		// eslint-disable-next-line local/code-no-any-casts
 		if ((<any>navigator).keyboard || browser.isSafari) {
 			return KeyboardSupport.FullScreen;
 		}

@@ -15,6 +15,7 @@ import { assertNoRpc, poll } from '../utils';
 	suiteSetup(async () => {
 		// Trigger extension activation and grab the context as some tests depend on it
 		await extensions.getExtension('vscode.vscode-api-tests')?.activate();
+		// eslint-disable-next-line local/code-no-any-casts
 		extensionContext = (global as any).testExtensionContext;
 
 		const config = workspace.getConfiguration('terminal.integrated');

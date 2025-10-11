@@ -14,6 +14,9 @@ import { IChatContentPart } from './chatContentParts.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
+import { addDisposableListener } from '../../../../../base/browser/dom.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { renderMarkdown } from '../../../../../base/browser/markdownRenderer.js';
 
 export class ChatPullRequestContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
@@ -22,29 +25,35 @@ export class ChatPullRequestContentPart extends Disposable implements IChatConte
 	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
 	constructor(
-		private readonly pullRequestContent: IChatPullRequestContent
+		private readonly pullRequestContent: IChatPullRequestContent,
+		@IOpenerService private readonly openerService: IOpenerService
 	) {
 		super();
 
 		this.domNode = dom.$('.chat-pull-request-content-part');
 		const container = dom.append(this.domNode, dom.$('.container'));
-		const icon = dom.append(container, dom.$('.icon'));
 		const contentContainer = dom.append(container, dom.$('.content-container'));
 
-		const titleContainer = dom.append(contentContainer, dom.$('p.title-container'));
+		const titleContainer = dom.append(contentContainer, dom.$('.title-container'));
+		const icon = dom.append(titleContainer, dom.$('.icon'));
 		icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.gitPullRequest));
 		const titleElement = dom.append(titleContainer, dom.$('.title'));
-		titleElement.textContent = this.pullRequestContent.title;
-		const linkElement: HTMLAnchorElement = dom.append(titleContainer, dom.$('a.link'));
-		linkElement.textContent = this.pullRequestContent.linkTag;
-		linkElement.href = this.pullRequestContent.uri.toString();
-
-		const metaElement = dom.append(contentContainer, dom.$('.meta'));
-		const authorElement = dom.append(metaElement, dom.$('.author'));
-		authorElement.textContent = localize('chatPullRequest.author', 'by {0}', this.pullRequestContent.author);
+		titleElement.textContent = `${this.pullRequestContent.title} - ${this.pullRequestContent.author}`;
 
 		const descriptionElement = dom.append(contentContainer, dom.$('.description'));
-		descriptionElement.textContent = this.pullRequestContent.description;
+		const descriptionWrapper = dom.append(descriptionElement, dom.$('.description-wrapper'));
+		const markdown = this._register(renderMarkdown({ value: this.pullRequestContent.description }));
+		dom.append(descriptionWrapper, markdown.element);
+
+		const seeMoreContainer = dom.append(descriptionElement, dom.$('.see-more'));
+		const seeMore: HTMLAnchorElement = dom.append(seeMoreContainer, dom.$('a'));
+		seeMore.textContent = localize('chatPullRequest.seeMore', 'See more');
+		this._register(addDisposableListener(seeMore, 'click', (e) => {
+			e.preventDefault();
+			e.stopPropagation();
+			this.openerService.open(this.pullRequestContent.uri);
+		}));
+		seeMore.href = this.pullRequestContent.uri.toString();
 	}
 
 	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {

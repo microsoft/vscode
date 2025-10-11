@@ -25,6 +25,7 @@ import { KeybindingWeight } from '../../../../platform/keybinding/common/keybind
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ISnippetEdit, SnippetSession } from './snippetSession.js';
 import { TextModelEditSource } from '../../../common/textModelEditSource.js';
+import { IObservable, observableValue } from '../../../../base/common/observable.js';
 
 export interface ISnippetInsertOptions {
 	overwriteBefore: number;
@@ -60,6 +61,7 @@ export class SnippetController2 implements IEditorContribution {
 	static readonly HasPrevTabstop = new RawContextKey('hasPrevTabstop', false, localize('hasPrevTabstop', "Whether there is a previous tab stop when in snippet mode"));
 
 	private readonly _inSnippet: IContextKey<boolean>;
+	private readonly _inSnippetObservable = observableValue(this, false);
 	private readonly _hasNextTabstop: IContextKey<boolean>;
 	private readonly _hasPrevTabstop: IContextKey<boolean>;
 
@@ -84,6 +86,7 @@ export class SnippetController2 implements IEditorContribution {
 
 	dispose(): void {
 		this._inSnippet.reset();
+		this._inSnippetObservable.set(false, undefined);
 		this._hasPrevTabstop.reset();
 		this._hasNextTabstop.reset();
 		this._session?.dispose();
@@ -244,6 +247,7 @@ export class SnippetController2 implements IEditorContribution {
 		}
 
 		this._inSnippet.set(true);
+		this._inSnippetObservable.set(true, undefined);
 		this._hasPrevTabstop.set(!this._session.isAtFirstPlaceholder);
 		this._hasNextTabstop.set(!this._session.isAtLastPlaceholder);
 
@@ -283,6 +287,7 @@ export class SnippetController2 implements IEditorContribution {
 
 	cancel(resetSelection: boolean = false): void {
 		this._inSnippet.reset();
+		this._inSnippetObservable.set(false, undefined);
 		this._hasPrevTabstop.reset();
 		this._hasNextTabstop.reset();
 		this._snippetListener.clear();
@@ -312,6 +317,10 @@ export class SnippetController2 implements IEditorContribution {
 
 	isInSnippet(): boolean {
 		return Boolean(this._inSnippet.get());
+	}
+
+	get isInSnippetObservable(): IObservable<boolean> {
+		return this._inSnippetObservable;
 	}
 
 	getSessionEnclosingRange(): Range | undefined {

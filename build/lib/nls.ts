@@ -11,9 +11,7 @@ import sm from 'source-map';
 import path from 'path';
 import sort from 'gulp-sort';
 
-declare class FileSourceMap extends File {
-	public sourceMap: sm.RawSourceMap;
-}
+type FileWithSourcemap = File & { sourceMap: sm.RawSourceMap };
 
 enum CollectStepResult {
 	Yes,
@@ -42,11 +40,11 @@ function collect(ts: typeof import('typescript'), node: ts.Node, fn: (node: ts.N
 }
 
 function clone<T extends object>(object: T): T {
-	const result = {} as any as T;
+	const result: Record<string, unknown> = {};
 	for (const id in object) {
 		result[id] = object[id];
 	}
-	return result;
+	return result as T;
 }
 
 /**
@@ -57,7 +55,7 @@ export function nls(options: { preserveEnglish: boolean }): NodeJS.ReadWriteStre
 	const input = through();
 	const output = input
 		.pipe(sort()) // IMPORTANT: to ensure stable NLS metadata generation, we must sort the files because NLS messages are globally extracted and indexed across all files
-		.pipe(through(function (f: FileSourceMap) {
+		.pipe(through(function (f: FileWithSourcemap) {
 			if (!f.sourceMap) {
 				return this.emit('error', new Error(`File ${f.relative} does not have sourcemaps.`));
 			}
@@ -248,7 +246,7 @@ module _nls {
 			.concat(importEqualsDeclarations.map(d => d.name))
 
 			// find read-only references to `nls`
-			.map(n => service.getReferencesAtPosition(filename, n.pos + 1))
+			.map(n => service.getReferencesAtPosition(filename, n.pos + 1) ?? [])
 			.flatten()
 			.filter(r => !r.isWriteAccess)
 
@@ -270,14 +268,14 @@ module _nls {
 		// `localize` read-only references
 		const localizeReferences = allLocalizeImportDeclarations
 			.filter(d => d.name.getText() === functionName)
-			.map(n => service.getReferencesAtPosition(filename, n.pos + 1))
+			.map(n => service.getReferencesAtPosition(filename, n.pos + 1) ?? [])
 			.flatten()
 			.filter(r => !r.isWriteAccess);
 
 		// custom named `localize` read-only references
 		const namedLocalizeReferences = allLocalizeImportDeclarations
 			.filter(d => d.propertyName && d.propertyName.getText() === functionName)
-			.map(n => service.getReferencesAtPosition(filename, n.name.pos + 1))
+			.map(n => service.getReferencesAtPosition(filename, n.name.pos + 1) ?? [])
 			.flatten()
 			.filter(r => !r.isWriteAccess);
 
@@ -504,13 +502,13 @@ module _nls {
 		const { javascript, sourcemap, nlsKeys, nlsMessages } = patch(
 			ts,
 			typescript,
-			javascriptFile.contents.toString(),
-			(<any>javascriptFile).sourceMap,
+			javascriptFile.contents!.toString(),
+			javascriptFile.sourceMap,
 			options
 		);
 
 		const result = fileFrom(javascriptFile, javascript);
-		(<any>result).sourceMap = sourcemap;
+		result.sourceMap = sourcemap;
 
 		if (nlsKeys) {
 			moduleToNLSKeys[moduleId] = nlsKeys;

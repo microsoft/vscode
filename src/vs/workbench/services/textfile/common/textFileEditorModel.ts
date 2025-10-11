@@ -1151,8 +1151,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				return; // return early if the encoding is already the same
 			}
 
-			if (this.isDirty() && !this.inConflictMode) {
-				await this.save();
+			if (this.isDirty()) {
+				throw new Error('Cannot re-open a dirty text document with different encoding. Save it first.');
 			}
 
 			this.updatePreferredEncoding(encoding);

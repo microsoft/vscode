@@ -98,7 +98,7 @@ interface IHandler {
 
 export interface IMessagePassingProtocol {
 	send(buffer: VSBuffer): void;
-	onMessage: Event<VSBuffer>;
+	readonly onMessage: Event<VSBuffer>;
 	/**
 	 * Wait for the write buffer (if applicable) to become empty.
 	 */
@@ -596,7 +596,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 						case ResponseType.PromiseError: {
 							this.handlers.delete(id);
 							const error = new Error(response.data.message);
-							(<any>error).stack = Array.isArray(response.data.stack) ? response.data.stack.join('\n') : response.data.stack;
+							error.stack = Array.isArray(response.data.stack) ? response.data.stack.join('\n') : response.data.stack;
 							error.name = response.data.name;
 							e(error);
 							break;
@@ -784,7 +784,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 
 export interface ClientConnectionEvent {
 	protocol: IMessagePassingProtocol;
-	onDidClientDisconnect: Event<void>;
+	readonly onDidClientDisconnect: Event<void>;
 }
 
 interface Connection<TContext> extends Client<TContext> {
@@ -1106,7 +1106,7 @@ export namespace ProxyChannel {
 
 	export function fromService<TContext>(service: unknown, disposables: DisposableStore, options?: ICreateServiceChannelOptions): IServerChannel<TContext> {
 		const handler = service as { [key: string]: unknown };
-		const disableMarshalling = options && options.disableMarshalling;
+		const disableMarshalling = options?.disableMarshalling;
 
 		// Buffer any event that should be supported by
 		// iterating over all property keys and finding them
@@ -1183,7 +1183,7 @@ export namespace ProxyChannel {
 	}
 
 	export function toService<T extends object>(channel: IChannel, options?: ICreateProxyServiceOptions): T {
-		const disableMarshalling = options && options.disableMarshalling;
+		const disableMarshalling = options?.disableMarshalling;
 
 		return new Proxy({}, {
 			get(_target: T, propKey: PropertyKey) {

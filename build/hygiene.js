@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+// @ts-check
 
 const filter = require('gulp-filter');
 const es = require('event-stream');
@@ -20,7 +21,11 @@ const copyrightHeaderLines = [
 	' *--------------------------------------------------------------------------------------------*/',
 ];
 
-function hygiene(some, linting = true) {
+/**
+ * @param {string[] | NodeJS.ReadWriteStream} some
+ * @param {boolean} runEslint
+ */
+function hygiene(some, runEslint = true) {
 	const eslint = require('./gulp-eslint');
 	const gulpstylelint = require('./stylelint');
 	const formatter = require('./lib/formatter');
@@ -39,6 +44,7 @@ function hygiene(some, linting = true) {
 	});
 
 	const unicode = es.through(function (file) {
+		/** @type {string[]} */
 		const lines = file.contents.toString('utf8').split(/\r\n|\r|\n/);
 		file.__lines = lines;
 		const allowInComments = lines.some(line => /allow-any-unicode-comment-file/.test(line));
@@ -76,6 +82,7 @@ function hygiene(some, linting = true) {
 	});
 
 	const indentation = es.through(function (file) {
+		/** @type {string[]} */
 		const lines = file.__lines || file.contents.toString('utf8').split(/\r\n|\r|\n/);
 		file.__lines = lines;
 
@@ -125,14 +132,13 @@ function hygiene(some, linting = true) {
 				);
 				errorCount++;
 			}
-			cb(null, file);
+			cb(undefined, file);
 		} catch (err) {
 			cb(err);
 		}
 	});
 
 	let input;
-
 	if (Array.isArray(some) || typeof some === 'string' || !some) {
 		const options = { base: '.', follow: true, allowEmpty: true };
 		if (some) {
@@ -150,7 +156,7 @@ function hygiene(some, linting = true) {
 	const unicodeFilterStream = filter(unicodeFilter, { restore: true });
 
 	const result = input
-		.pipe(filter((f) => !f.stat.isDirectory()))
+		.pipe(filter((f) => Boolean(f.stat && !f.stat.isDirectory())))
 		.pipe(snapshotFilter)
 		.pipe(yarnLockFilter)
 		.pipe(productJsonFilter)
@@ -164,11 +170,12 @@ function hygiene(some, linting = true) {
 		.pipe(filter(copyrightFilter))
 		.pipe(copyrights);
 
+	/** @type {import('stream').Stream[]} */
 	const streams = [
 		result.pipe(filter(tsFormattingFilter)).pipe(formatting)
 	];
 
-	if (linting) {
+	if (runEslint) {
 		streams.push(
 			result
 				.pipe(filter(eslintFilter))
@@ -179,17 +186,18 @@ function hygiene(some, linting = true) {
 					})
 				)
 		);
-		streams.push(
-			result.pipe(filter(stylelintFilter)).pipe(gulpstylelint(((message, isError) => {
-				if (isError) {
-					console.error(message);
-					errorCount++;
-				} else {
-					console.warn(message);
-				}
-			})))
-		);
 	}
+
+	streams.push(
+		result.pipe(filter(stylelintFilter)).pipe(gulpstylelint(((message, isError) => {
+			if (isError) {
+				console.error(message);
+				errorCount++;
+			} else {
+				console.warn(message);
+			}
+		})))
+	);
 
 	let count = 0;
 	return es.merge(...streams).pipe(
@@ -220,6 +228,9 @@ function hygiene(some, linting = true) {
 
 module.exports.hygiene = hygiene;
 
+/**
+ * @param {string[]} paths
+ */
 function createGitIndexVinyls(paths) {
 	const cp = require('child_process');
 	const repositoryPath = process.cwd();
@@ -294,12 +305,14 @@ if (require.main === module) {
 
 					createGitIndexVinyls(some)
 						.then(
-							(vinyls) =>
-								new Promise((c, e) =>
+							(vinyls) => {
+								/** @type {Promise<void>} */
+								return (new Promise((c, e) =>
 									hygiene(es.readArray(vinyls).pipe(filter(all)))
 										.on('end', () => c())
 										.on('error', e)
-								)
+								))
+							}
 						)
 						.catch((err) => {
 							console.error();

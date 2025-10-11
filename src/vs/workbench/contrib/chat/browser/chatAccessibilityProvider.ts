@@ -17,6 +17,7 @@ import { AcceptToolConfirmationActionId } from './actions/chatToolActions.js';
 import { CancelChatActionId } from './actions/chatExecuteActions.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IChatToolInvocation } from '../common/chatService.js';
+import { migrateLegacyTerminalToolSpecificData } from '../common/chat.js';
 
 export const getToolConfirmationAlert = (accessor: ServicesAccessor, toolInvocation: IChatToolInvocation[]) => {
 	const keybindingService = accessor.get(IKeybindingService);
@@ -28,7 +29,8 @@ export const getToolConfirmationAlert = (accessor: ServicesAccessor, toolInvocat
 		let input = '';
 		if (v.toolSpecificData) {
 			if (v.toolSpecificData.kind === 'terminal') {
-				input = v.toolSpecificData.commandLine.toolEdited ?? v.toolSpecificData.commandLine.original;
+				const terminalData = migrateLegacyTerminalToolSpecificData(v.toolSpecificData);
+				input = terminalData.commandLine.toolEdited ?? terminalData.commandLine.original;
 			} else if (v.toolSpecificData.kind === 'extensions') {
 				input = JSON.stringify(v.toolSpecificData.extensions);
 			} else if (v.toolSpecificData.kind === 'input') {
@@ -86,20 +88,6 @@ export class ChatAccessibilityProvider implements IListAccessibilityProvider<Cha
 			const waitingForConfirmation = toolInvocation.filter(v => !v.isComplete);
 			if (waitingForConfirmation.length) {
 				toolInvocationHint = this._instantiationService.invokeFunction(getToolConfirmationAlert, toolInvocation);
-			} else { // all completed
-				for (const invocation of toolInvocation) {
-					const titleObj = invocation.confirmationMessages?.title;
-					let title = '';
-					if (typeof titleObj === 'string' && titleObj.trim()) {
-						title = titleObj;
-					} else if (titleObj && typeof titleObj === 'object' && 'value' in titleObj && titleObj.value && titleObj.value.trim()) {
-						title = titleObj.value;
-					} else {
-						// Fallback to toolId if no valid title
-						title = invocation.toolId;
-					}
-					toolInvocationHint += localize('toolCompletedHint', "Tool {0} completed.", title);
-				}
 			}
 		}
 		const tableCount = marked.lexer(element.response.toString()).filter(token => token.type === 'table')?.length ?? 0;

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { createCommandUri } from '../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { isCodeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
 import { localize, localize2 } from '../../../../nls.js';
@@ -139,15 +140,8 @@ viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
 });
 
 viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
-	content: localize(
-		{
-			key: 'customizeRunAndDebug',
-			comment: [
-				'Please do not translate the word "command", it is part of our internal syntax which must not change',
-				'{Locked="](command:{0})"}'
-			]
-		},
-		"To customize Run and Debug [create a launch.json file](command:{0}).", `${DEBUG_CONFIGURE_COMMAND_ID}?${encodeURIComponent(JSON.stringify([{ addNew: true }]))}`),
+	content: localize('customizeRunAndDebug',
+		"To customize Run and Debug [create a launch.json file]({0}).", `${createCommandUri(DEBUG_CONFIGURE_COMMAND_ID, { addNew: true }).toString()}`),
 	when: ContextKeyExpr.and(CONTEXT_DEBUGGERS_AVAILABLE, WorkbenchStateContext.notEqualsTo('empty')),
 	group: ViewContentGroups.Debug
 });
@@ -157,12 +151,10 @@ viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
 		{
 			key: 'customizeRunAndDebugOpenFolder',
 			comment: [
-				'Please do not translate the word "command", it is part of our internal syntax which must not change',
 				'Please do not translate "launch.json", it is the specific configuration file name',
-				'{Locked="](command:{0})"}',
 			]
 		},
-		"To customize Run and Debug, [open a folder](command:{0}) and create a launch.json file.", OpenFolderAction.ID),
+		"To customize Run and Debug, [open a folder]({0}) and create a launch.json file.", createCommandUri(OpenFolderAction.ID).toString()),
 	when: ContextKeyExpr.and(CONTEXT_DEBUGGERS_AVAILABLE, WorkbenchStateContext.isEqualTo('empty')),
 	group: ViewContentGroups.Debug
 });

@@ -166,7 +166,7 @@ suite('MarkdownRenderer', () => {
 			mds.appendMarkdown(`[$(zap)-link](#link)`);
 
 			const result: HTMLElement = store.add(renderMarkdown(mds)).element;
-			assert.strictEqual(result.innerHTML, `<p><a data-href="#link" href="" title="#link" draggable="false"><span class="codicon codicon-zap"></span>-link</a></p>`);
+			assert.strictEqual(result.innerHTML, `<p><a draggable="false" title="#link" href="" data-href="#link"><span class="codicon codicon-zap"></span>-link</a></p>`);
 		});
 
 		test('render icon in table', () => {
@@ -186,7 +186,7 @@ suite('MarkdownRenderer', () => {
 </thead>
 <tbody><tr>
 <td><span class="codicon codicon-zap"></span></td>
-<td><a data-href="#link" href="" title="#link" draggable="false"><span class="codicon codicon-zap"></span>-link</a></td>
+<td><a draggable="false" title="#link" href="" data-href="#link"><span class="codicon codicon-zap"></span>-link</a></td>
 </tr>
 </tbody></table>
 `);
@@ -253,7 +253,28 @@ suite('MarkdownRenderer', () => {
 		});
 
 		const result: HTMLElement = store.add(renderMarkdown(md)).element;
-		assert.strictEqual(result.innerHTML, `<p><a data-href="command:doFoo" href="" title="command:doFoo" draggable="false">command1</a> <a data-href="command:doFoo" href="">command2</a></p>`);
+		assert.strictEqual(result.innerHTML, `<p><a draggable="false" title="command:doFoo" href="" data-href="command:doFoo">command1</a> <a href="" data-href="command:doFoo">command2</a></p>`);
+	});
+
+	test('Should remove relative links if there is no base url', () => {
+		const md = new MarkdownString(`[text](./foo) <a href="./bar">bar</a>`, {
+			isTrusted: true,
+			supportHtml: true,
+		});
+
+		const result = store.add(renderMarkdown(md)).element;
+		assert.strictEqual(result.innerHTML, `<p>text bar</p>`);
+	});
+
+	test('Should support relative links if baseurl is set', () => {
+		const md = new MarkdownString(`[text](./foo) <a href="./bar">bar</a>`, {
+			isTrusted: true,
+			supportHtml: true,
+		});
+		md.baseUri = URI.parse('https://example.com/path/');
+
+		const result = store.add(renderMarkdown(md)).element;
+		assert.strictEqual(result.innerHTML, `<p><a draggable="false" title="./foo" href="" data-href="https://example.com/path/foo">text</a> <a href="" data-href="https://example.com/path/bar">bar</a></p>`);
 	});
 
 	suite('PlaintextMarkdownRender', () => {
@@ -345,6 +366,17 @@ suite('MarkdownRenderer', () => {
 
 			const result = store.add(renderMarkdown(mds)).element;
 			assert.strictEqual(result.innerHTML, `<img src="vscode-file://vscode-app/images/cat.gif">`);
+		});
+
+		test('Should only allow checkbox inputs', () => {
+			const mds = new MarkdownString(
+				'text: <input type="text">\ncheckbox:<input type="checkbox">',
+				{ supportHtml: true });
+
+			const result = store.add(renderMarkdown(mds)).element;
+
+			// Inputs should always be disabled too
+			assert.strictEqual(result.innerHTML, `<p>text: \ncheckbox:<input type="checkbox" disabled=""></p>`);
 		});
 	});
 

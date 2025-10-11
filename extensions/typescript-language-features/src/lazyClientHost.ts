@@ -38,16 +38,12 @@ export function createLazyClientHost(
 	onCompletionAccepted: (item: vscode.CompletionItem) => void,
 ): Lazy<TypeScriptServiceClientHost> {
 	return new Lazy(() => {
-		const clientHost = new TypeScriptServiceClientHost(
+		return new TypeScriptServiceClientHost(
 			standardLanguageDescriptions,
 			context,
 			onCaseInsensitiveFileSystem,
 			services,
 			onCompletionAccepted);
-
-		context.subscriptions.push(clientHost);
-
-		return clientHost;
 	});
 }
 

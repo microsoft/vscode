@@ -1,16 +1,17 @@
 "use strict";
-/*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
- *--------------------------------------------------------------------------------------------*/
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
 const assert_1 = __importDefault(require("assert"));
 const path_1 = __importDefault(require("path"));
 const promises_1 = require("fs/promises");
 const cross_spawn_promise_1 = require("@malept/cross-spawn-promise");
+const minimatch_1 = __importDefault(require("minimatch"));
 const MACHO_PREFIX = 'Mach-O ';
 const MACHO_64_MAGIC_LE = 0xfeedfacf;
 const MACHO_UNIVERSAL_MAGIC_LE = 0xbebafeca;
@@ -22,6 +23,15 @@ const MACHO_X86_64_CPU_TYPE = new Set([
     0x07000001,
     0x01000007,
 ]);
+// Files to skip during architecture validation
+const FILES_TO_SKIP = [
+    // MSAL runtime files are only present in ARM64 builds
+    '**/extensions/microsoft-authentication/dist/libmsalruntime.dylib',
+    '**/extensions/microsoft-authentication/dist/msal-node-runtime.node',
+];
+function isFileSkipped(file) {
+    return FILES_TO_SKIP.some(pattern => (0, minimatch_1.default)(file, pattern));
+}
 async function read(file, buf, offset, length, position) {
     let filehandle;
     try {
@@ -109,11 +119,11 @@ const archToCheck = process.argv[2];
 (0, assert_1.default)(process.env['APP_PATH'], 'APP_PATH not set');
 (0, assert_1.default)(archToCheck === 'x64' || archToCheck === 'arm64' || archToCheck === 'universal', `Invalid architecture ${archToCheck} to check`);
 checkMachOFiles(process.env['APP_PATH'], archToCheck).then(invalidFiles => {
-    if (invalidFiles.length > 0) {
-        console.error('\x1b[31mThe following files are built for the wrong architecture:\x1b[0m');
-        for (const file of invalidFiles) {
-            console.error(`\x1b[31m${file}\x1b[0m`);
-        }
+    // Filter out files that should be skipped
+    const actualInvalidFiles = invalidFiles.filter(file => !isFileSkipped(file));
+    if (actualInvalidFiles.length > 0) {
+        console.error('\x1b[31mThese files are built for the wrong architecture:\x1b[0m');
+        actualInvalidFiles.forEach(file => console.error(`\x1b[31m${file}\x1b[0m`));
         process.exit(1);
     }
     else {

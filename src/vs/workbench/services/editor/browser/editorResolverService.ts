@@ -605,7 +605,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		};
 
 		// If the user has already made a choice for this editor we don't want to ask them again
-		if (storedChoices[globForResource] && storedChoices[globForResource].find(editorID => editorID === currentEditor.editorId)) {
+		if (storedChoices[globForResource]?.find(editorID => editorID === currentEditor.editorId)) {
 			return;
 		}
 
