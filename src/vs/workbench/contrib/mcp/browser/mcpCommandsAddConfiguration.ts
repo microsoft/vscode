@@ -18,7 +18,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
-import { IGalleryMcpServerConfiguration, RegistryType } from '../../../../platform/mcp/common/mcpManagement.js';
+import { IMcpGalleryService, RegistryType } from '../../../../platform/mcp/common/mcpManagement.js';
 import { IMcpRemoteServerConfiguration, IMcpServerConfiguration, IMcpServerVariable, IMcpStdioServerConfiguration, McpServerType } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
@@ -121,7 +121,7 @@ type AssistedServerConfiguration = {
 } | {
 	type: 'server.json';
 	name?: string;
-	server: IGalleryMcpServerConfiguration;
+	server: unknown;
 };
 
 export class McpAddConfigurationCommand {
@@ -129,6 +129,7 @@ export class McpAddConfigurationCommand {
 		private readonly workspaceFolder: IWorkspaceFolder | undefined,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IWorkbenchMcpManagementService private readonly _mcpManagementService: IWorkbenchMcpManagementService,
+		@IMcpGalleryService private readonly _mcpGalleryService: IMcpGalleryService,
 		@IWorkspaceContextService private readonly _workspaceService: IWorkspaceContextService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@ICommandService private readonly _commandService: ICommandService,
@@ -410,7 +411,11 @@ export class McpAddConfigurationCommand {
 			if (!packageType) {
 				throw new Error(`Unsupported assisted package type ${type}`);
 			}
-			const { mcpServerConfiguration } = this._mcpManagementService.getMcpServerConfigurationFromManifest(config.server, packageType);
+			const serverConfig = this._mcpGalleryService.mapServerJsonToServerConfiguration(config.server);
+			if (!serverConfig) {
+				throw new Error('Unsupported or invalid server.json configuration');
+			}
+			const { mcpServerConfiguration } = this._mcpManagementService.getMcpServerConfigurationFromManifest(serverConfig, packageType);
 			if (mcpServerConfiguration.config.type !== McpServerType.LOCAL) {
 				throw new Error(`Unexpected server type ${mcpServerConfiguration.config.type} for assisted configuration from server.json.`);
 			}
