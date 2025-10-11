@@ -3,29 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Toggle } from '../../../../base/browser/ui/toggle/toggle.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { localize } from '../../../../nls.js';
+import { IQuickPick, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground } from '../../../../platform/theme/common/colors/inputColors.js';
+import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
 import { getCodeEditor } from '../../../browser/editorBrowser.js';
 import { EditorOption, RenderLineNumbersType } from '../../../common/config/editorOptions.js';
 import { IPosition } from '../../../common/core/position.js';
 import { IRange } from '../../../common/core/range.js';
 import { IEditor, ScrollType } from '../../../common/editorCommon.js';
 import { AbstractEditorNavigationQuickAccessProvider, IQuickAccessTextEditorContext } from './editorNavigationQuickAccess.js';
-import { localize } from '../../../../nls.js';
-import { IQuickPick, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 
 interface IGotoLineQuickPickItem extends IQuickPickItem, Partial<IPosition> { }
 
 export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditorNavigationQuickAccessProvider {
 
 	static PREFIX = ':';
+	private zeroBasedOffset = false;
 
 	constructor() {
 		super({ canAcceptInBackground: true });
 	}
 
 	protected provideWithoutTextEditor(picker: IQuickPick<IGotoLineQuickPickItem, { useSeparators: true }>): IDisposable {
-		const label = localize('cannotRunGotoLine', "Open a text editor first to go to a line.");
+		const label = localize('cannotRunGotoLine', "Open a text editor first to go to a line or offset.");
 
 		picker.items = [{ label }];
 		picker.ariaLabel = label;
@@ -55,7 +60,7 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 
 		// React to picker changes
 		const updatePickerAndEditor = () => {
-			const position = this.parsePosition(editor, picker.value.trim().substr(AbstractGotoLineQuickAccessProvider.PREFIX.length));
+			const position = this.parsePosition(editor, picker.value.trim().substring(AbstractGotoLineQuickAccessProvider.PREFIX.length));
 			const label = this.getPickLabel(editor, position.lineNumber, position.column);
 
 			// Picker
@@ -81,6 +86,25 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 			// Decorate
 			this.addDecorations(editor, range);
 		};
+
+		// Add a toggle to switch between 1- and 0-based offsets.
+		const toggle = new Toggle({
+			title: localize('gotoLineToggle', "Use zero-based offset"),
+			icon: Codicon.symbolNumber,
+			isChecked: this.zeroBasedOffset,
+			inputActiveOptionBorder: asCssVariable(inputActiveOptionBorder),
+			inputActiveOptionForeground: asCssVariable(inputActiveOptionForeground),
+			inputActiveOptionBackground: asCssVariable(inputActiveOptionBackground)
+		});
+
+		disposables.add(
+			toggle.onChange(() => {
+				this.zeroBasedOffset = !this.zeroBasedOffset;
+				updatePickerAndEditor();
+			}));
+
+		picker.toggles = [toggle];
+
 		updatePickerAndEditor();
 		disposables.add(picker.onDidChangeValue(() => updatePickerAndEditor()));
 
@@ -109,6 +133,24 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 	}
 
 	private parsePosition(editor: IEditor, value: string): IPosition {
+
+		// Support ::<offset> notation to navigate to a specific offset in the model.
+		if (value.startsWith(':')) {
+			let offset = parseInt(value.substring(1), 10);
+			if (!isNaN(offset)) {
+				const model = this.getModel(editor);
+				if (model) {
+					if (offset >= 0) {
+						// If offset is 1-based, we need to convert to model's 0-based.
+						offset -= this.zeroBasedOffset ? 0 : 1;
+					} else {
+						// Offset from the end of the buffer
+						offset += model.getValueLength();
+					}
+					return model.getPositionAt(offset);
+				}
+			}
+		}
 
 		// Support line-col formats of `line,col`, `line:col`, `line#col`
 		const numbers = value.split(/,|:|#/).map(part => parseInt(part, 10)).filter(part => !isNaN(part));
