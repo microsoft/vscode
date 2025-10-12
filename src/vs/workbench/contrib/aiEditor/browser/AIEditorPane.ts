@@ -11,16 +11,16 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IRequestService, asText } from '../../../../platform/request/common/request.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import * as nls from '../../../../nls.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 
 export const AI_EDITOR_PANE_ID = 'workbench.editor.aiEditor';
 
 // Safety category constants
-const HARM_CATEGORY_HARASSMENT = "HARM_CATEGORY_HARASSMENT";
-const HARM_CATEGORY_HATE_SPEECH = "HARM_CATEGORY_HATE_SPEECH";
-const HARM_CATEGORY_SEXUALLY_EXPLICIT = "HARM_CATEGORY_SEXUALLY_EXPLICIT";
-const HARM_CATEGORY_DANGEROUS_CONTENT = "HARM_CATEGORY_DANGEROUS_CONTENT";
-const BLOCK_MEDIUM_AND_ABOVE = "BLOCK_MEDIUM_AND_ABOVE";
+const HARM_CATEGORY_HARASSMENT = 'HARM_CATEGORY_HARASSMENT';
+const HARM_CATEGORY_HATE_SPEECH = 'HARM_CATEGORY_HATE_SPEECH';
+const HARM_CATEGORY_SEXUALLY_EXPLICIT = 'HARM_CATEGORY_SEXUALLY_EXPLICIT';
+const HARM_CATEGORY_DANGEROUS_CONTENT = 'HARM_CATEGORY_DANGEROUS_CONTENT';
+const BLOCK_MEDIUM_AND_ABOVE = 'BLOCK_MEDIUM_AND_ABOVE';
 
 export class AIEditorPane extends EditorPane {
 
@@ -30,6 +30,7 @@ export class AIEditorPane extends EditorPane {
 	private urlInput!: HTMLInputElement;
 	private loadBtn!: HTMLButtonElement;
 	private iframe!: HTMLIFrameElement;
+	private webview!: HTMLElement;
 	private contentArea!: HTMLElement;
 	private apiKeyInput!: HTMLInputElement;
 	private questionInput!: HTMLInputElement;
@@ -42,6 +43,7 @@ export class AIEditorPane extends EditorPane {
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
 		@IRequestService private readonly requestService: IRequestService,
+		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super(AI_EDITOR_PANE_ID, group, telemetryService, themeService, storageService);
 	}
@@ -85,9 +87,6 @@ export class AIEditorPane extends EditorPane {
 			style: 'height:32px; padding:0 16px; cursor:pointer; background:var(--vscode-button-background, #0e639c); color:var(--vscode-button-foreground, #ffffff); border:1px solid var(--vscode-button-border, #0e639c); border-radius:4px; font-size:13px; font-weight:500; transition:background-color 0.2s;'
 		}, 'Load') as HTMLButtonElement;
 
-		const viewToggleBtn = DOM.$('button', {
-			style: 'height:32px; padding:0 12px; cursor:pointer; background:var(--vscode-button-secondaryBackground, #3c3c3c); color:var(--vscode-button-secondaryForeground, #cccccc); border:1px solid var(--vscode-button-secondaryBorder, #3c3c3c); border-radius:4px; font-size:13px; font-weight:500; transition:background-color 0.2s;'
-		}, 'Text View') as HTMLButtonElement;
 
 		// Add hover effect for button
 		this._register(DOM.addDisposableListener(this.loadBtn, 'mouseenter', () => {
@@ -99,13 +98,24 @@ export class AIEditorPane extends EditorPane {
 
 		urlRow.appendChild(this.urlInput);
 		urlRow.appendChild(this.loadBtn);
-		urlRow.appendChild(viewToggleBtn);
 
 		// Create iframe for web content display
 		this.iframe = DOM.$('iframe', {
 			style: 'flex:1 1 auto; border:1px solid var(--vscode-panel-border, #3c3c3c); border-radius:4px; background:var(--vscode-editor-background, #1e1e1e);',
-			sandbox: 'allow-scripts allow-forms allow-same-origin allow-popups allow-top-navigation'
+			// Remove sandbox to allow full web functionality
+			referrerPolicy: 'no-referrer-when-downgrade'
 		}) as HTMLIFrameElement;
+
+		// Create webview for better web content support (Electron only)
+		this.webview = DOM.$('webview', {
+			style: 'flex:1 1 auto; border:1px solid var(--vscode-panel-border, #3c3c3c); border-radius:4px; background:var(--vscode-editor-background, #1e1e1e); display:none;',
+			nodeintegration: 'true',
+			websecurity: 'false',
+			allowpopups: 'true',
+			disablewebsecurity: 'true',
+			allowrunninginsecurecontent: 'true',
+			experimentalFeatures: 'true'
+		}) as HTMLElement;
 
 		this.contentArea = DOM.$('div', {
 			style: 'flex:1 1 auto; border:1px solid var(--vscode-panel-border, #3c3c3c); padding:12px; overflow:auto; white-space:pre-wrap; font-family:var(--vscode-editor-font-family, "Consolas", "Courier New", monospace); font-size:12px; line-height:1.4; background:var(--vscode-editor-background, #1e1e1e); color:var(--vscode-editor-foreground, #d4d4d4); border-radius:4px; display:none;'
@@ -114,6 +124,7 @@ export class AIEditorPane extends EditorPane {
 		this.leftPane.appendChild(webSectionTitle);
 		this.leftPane.appendChild(urlRow);
 		this.leftPane.appendChild(this.iframe);
+		this.leftPane.appendChild(this.webview);
 		this.leftPane.appendChild(this.contentArea);
 
 		// Right pane - AI Chat section
@@ -181,24 +192,6 @@ export class AIEditorPane extends EditorPane {
 		this._register(DOM.addDisposableListener(this.askBtn, 'click', () => this.handleAskQuestion()));
 		this._register(DOM.addDisposableListener(this.questionInput, 'keydown', (e: KeyboardEvent) => { if (e.key === 'Enter') { this.handleAskQuestion(); } }));
 
-		// Toggle between iframe and text view
-		let isTextView = false;
-		this._register(DOM.addDisposableListener(viewToggleBtn, 'click', () => {
-			isTextView = !isTextView;
-			if (isTextView) {
-				this.iframe.style.display = 'none';
-				this.contentArea.style.display = 'block';
-				viewToggleBtn.textContent = 'Web View';
-				// Load text content if not already loaded
-				if (this.urlInput.value.trim()) {
-					this.loadTextContent(this.urlInput.value.trim());
-				}
-			} else {
-				this.iframe.style.display = 'block';
-				this.contentArea.style.display = 'none';
-				viewToggleBtn.textContent = 'Text View';
-			}
-		}));
 	}
 
 	layout(dimension: DOM.Dimension): void {
@@ -210,55 +203,376 @@ export class AIEditorPane extends EditorPane {
 
 	private handleLoadUrl(): void {
 		const url = this.urlInput.value.trim();
-		if (!url) { return; }
+		if (!url) {
+			this.showErrorNotification('Please enter a URL first');
+			return;
+		}
 		try {
 			const normalized = url.match(/^https?:\/\//) ? url : `https://${url}`;
-			this.tryNavigate(normalized);
-		} catch {
-			/* noop */
+			this.loadWithAllMethods(normalized);
+		} catch (e) {
+			this.showErrorNotification(`Failed to load URL: ${(e as Error).message}`);
 		}
 	}
 
-	private async tryNavigate(normalized: string): Promise<void> {
-		// Always fetch content and display in text area
-		await this.fallbackFetchIntoSrcdoc(normalized);
+	private async loadWithAllMethods(url: string): Promise<void> {
+		this.showSuccessNotification('Loading page with all available methods...');
+
+		// Method 1: Try simple proxy first (most reliable)
+		try {
+			await this.trySimpleProxy(url);
+			return;
+		} catch (e) {
+			console.log('Simple proxy failed, trying WebView...');
+		}
+
+		// Method 2: Try WebView (best for full functionality)
+		try {
+			await this.tryWebView(url);
+			return;
+		} catch (e) {
+			console.log('WebView failed, trying fetch and inject...');
+		}
+
+		// Method 3: Try fetch and inject content (bypasses CSP completely)
+		try {
+			await this.tryFetchAndInject(url);
+			return;
+		} catch (e) {
+			console.log('Fetch and inject failed, trying direct fetch...');
+		}
+
+		// Method 4: Try direct fetch without proxy
+		try {
+			await this.tryDirectFetch(url);
+			return;
+		} catch (e) {
+			console.log('Direct fetch failed, trying iframe...');
+		}
+
+		// Method 5: Try iframe with different proxies
+		try {
+			await this.tryIframeWithProxies(url);
+			return;
+		} catch (e) {
+			console.log('Iframe with proxies failed, trying direct...');
+		}
+
+		// Method 6: Try direct iframe
+		try {
+			await this.tryDirectIframe(url);
+			return;
+		} catch (e) {
+			console.log('Direct iframe failed, trying text fallback...');
+		}
+
+		// Method 7: Fallback to text content
+		this.showErrorNotification('All loading methods failed. Showing text content only.');
+		await this.loadTextContent(url);
 	}
 
-	private async fallbackFetchIntoSrcdoc(url: string): Promise<void> {
+	private async trySimpleProxy(url: string): Promise<void> {
+		// Show iframe
+		this.iframe.style.display = 'block';
+		this.webview.style.display = 'none';
+		this.contentArea.style.display = 'none';
+
+		// Try the most reliable proxy services first
+		const simpleProxies = [
+			`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+			`https://corsproxy.io/?${encodeURIComponent(url)}`,
+			`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
+			`https://proxy.cors.sh/${url}`,
+			`https://yacdn.org/proxy/${url}`,
+			`https://cors-anywhere.herokuapp.com/${url}`
+		];
+
+		for (const proxyUrl of simpleProxies) {
+			try {
+				this.showSuccessNotification(`Trying simple proxy...`);
+
+				// Set iframe src directly to proxy URL
+				this.iframe.src = proxyUrl;
+
+				// Wait for iframe to load
+				await new Promise<void>((resolve, reject) => {
+					const timeout = setTimeout(() => {
+						reject(new Error('Simple proxy timeout'));
+					}, 15000); // Increased timeout
+
+					this.iframe.onload = () => {
+						clearTimeout(timeout);
+						// Wait a bit more for resources to load
+						setTimeout(() => {
+							resolve();
+						}, 2000);
+					};
+
+					this.iframe.onerror = () => {
+						clearTimeout(timeout);
+						reject(new Error('Simple proxy load failed'));
+					};
+				});
+
+				this.showSuccessNotification('SUCCESS: Loaded with simple proxy!');
+				return;
+
+			} catch (e) {
+				console.log(`Simple proxy failed: ${e}`);
+			}
+		}
+
+		throw new Error('All simple proxies failed');
+	}
+
+	private async tryFetchAndInject(url: string): Promise<void> {
+		// Show iframe
+		this.iframe.style.display = 'block';
+		this.webview.style.display = 'none';
+		this.contentArea.style.display = 'none';
+
+		// Try different proxy services with better error handling
+		const proxies = [
+			{ name: 'CORS Proxy', url: `https://corsproxy.io/?${encodeURIComponent(url)}` },
+			{ name: 'AllOrigins', url: `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}` },
+			{ name: 'CodeTabs', url: `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}` },
+			{ name: 'ProxyCORS', url: `https://proxy.cors.sh/${url}` },
+			{ name: 'CORS Anywhere', url: `https://cors-anywhere.herokuapp.com/${url}` },
+			{ name: 'YACDN', url: `https://yacdn.org/proxy/${url}` },
+			{ name: 'CORS Proxy 2', url: `https://cors-anywhere.herokuapp.com/${url}` }
+		];
+
+		for (const proxy of proxies) {
+			try {
+				this.showSuccessNotification(`Trying ${proxy.name}...`);
+
+				const response = await fetch(proxy.url, {
+					method: 'GET',
+					headers: {
+						'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+						'Accept-Language': 'en-US,en;q=0.5',
+						'Accept-Encoding': 'gzip, deflate, br',
+						'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+						'Cache-Control': 'no-cache',
+						'Pragma': 'no-cache'
+					}
+				});
+
+				if (!response.ok) {
+					throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+				}
+
+				const html = await response.text();
+
+				// Check if we got actual HTML content
+				if (html.includes('500 Internal Server Error') || html.includes('nginx') || html.length < 100) {
+					throw new Error('Proxy returned error page');
+				}
+
+				// Create a data URL with the HTML content
+				const dataUrl = `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
+
+				// Set iframe src to data URL
+				this.iframe.src = dataUrl;
+
+				// Wait for iframe to load
+				await new Promise<void>((resolve, reject) => {
+					const timeout = setTimeout(() => {
+						reject(new Error('Data URL timeout'));
+					}, 15000);
+
+					this.iframe.onload = () => {
+						clearTimeout(timeout);
+						resolve();
+					};
+
+					this.iframe.onerror = () => {
+						clearTimeout(timeout);
+						reject(new Error('Data URL load failed'));
+					};
+				});
+
+				this.showSuccessNotification(`SUCCESS: Loaded with ${proxy.name}!`);
+				return;
+
+			} catch (e) {
+				console.log(`${proxy.name} failed: ${e}`);
+			}
+		}
+
+		throw new Error('All fetch proxies failed');
+	}
+
+	private async tryDirectFetch(url: string): Promise<void> {
+		// Show iframe
+		this.iframe.style.display = 'block';
+		this.webview.style.display = 'none';
+		this.contentArea.style.display = 'none';
+
 		try {
-			// Show iframe and hide text area
-			this.iframe.style.display = 'block';
+			this.showSuccessNotification('Trying direct fetch...');
+
+			// Try direct fetch first
+			const response = await fetch(url, {
+				mode: 'cors',
+				credentials: 'omit',
+				headers: {
+					'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+				}
+			});
+
+			if (!response.ok) {
+				throw new Error(`HTTP ${response.status}`);
+			}
+
+			const html = await response.text();
+
+			// Create a data URL with the HTML content
+			const dataUrl = `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
+
+			// Set iframe src to data URL
+			this.iframe.src = dataUrl;
+
+			// Wait for iframe to load
+			await new Promise<void>((resolve, reject) => {
+				const timeout = setTimeout(() => {
+					reject(new Error('Direct fetch timeout'));
+				}, 10000);
+
+				this.iframe.onload = () => {
+					clearTimeout(timeout);
+					resolve();
+				};
+
+				this.iframe.onerror = () => {
+					clearTimeout(timeout);
+					reject(new Error('Direct fetch load failed'));
+				};
+			});
+
+			this.showSuccessNotification('SUCCESS: Loaded with direct fetch!');
+			return;
+
+		} catch (e) {
+			throw new Error(`Direct fetch failed: ${e}`);
+		}
+	}
+
+	private async tryWebView(url: string): Promise<void> {
+		return new Promise((resolve, reject) => {
+			// Show webview
+			this.webview.style.display = 'block';
+			this.iframe.style.display = 'none';
 			this.contentArea.style.display = 'none';
 
-			// Try direct iframe navigation first
-			this.iframe.src = url;
+			const timeout = setTimeout(() => {
+				reject(new Error('WebView timeout'));
+			}, 20000); // Increased timeout for better loading
 
-			// Add load event listener
+			this.webview.addEventListener('did-finish-load', () => {
+				clearTimeout(timeout);
+				// Wait a bit more for resources to fully load
+				setTimeout(() => {
+					this.showSuccessNotification('SUCCESS: Loaded in WebView!');
+					resolve();
+				}, 3000);
+			});
+
+			this.webview.addEventListener('did-fail-load', () => {
+				clearTimeout(timeout);
+				reject(new Error('WebView load failed'));
+			});
+
+			// Try direct URL first (WebView can bypass many restrictions)
+			(this.webview as HTMLElement & { src: string }).src = url;
+		});
+	}
+
+	private async tryIframeWithProxies(url: string): Promise<void> {
+		const proxies = [
+			`https://corsproxy.io/?${encodeURIComponent(url)}`,
+			`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
+			`https://proxy.cors.sh/${url}`,
+			`https://cors-anywhere.herokuapp.com/${url}`,
+			`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`
+		];
+
+		for (const proxyUrl of proxies) {
+			try {
+				await this.tryIframeWithUrl(proxyUrl);
+				this.showSuccessNotification('SUCCESS: Loaded with proxy!');
+				return;
+			} catch (e) {
+				console.log(`Proxy failed: ${proxyUrl}`);
+			}
+		}
+		throw new Error('All proxies failed');
+	}
+
+	private async tryIframeWithUrl(url: string): Promise<void> {
+		return new Promise((resolve, reject) => {
+			// Show iframe
+			this.iframe.style.display = 'block';
+			this.webview.style.display = 'none';
+			this.contentArea.style.display = 'none';
+
+			const timeout = setTimeout(() => {
+				reject(new Error('Iframe timeout'));
+			}, 10000);
+
 			this.iframe.onload = () => {
-				this.showSuccessNotification('Web content loaded successfully!');
+				clearTimeout(timeout);
+				resolve();
 			};
 
 			this.iframe.onerror = () => {
-				// If iframe fails, fallback to text display
-				this.iframe.style.display = 'none';
-				this.contentArea.style.display = 'block';
-				this.contentArea.textContent = 'Unable to load page in iframe. This might be due to X-Frame-Options or CSP restrictions.';
+				clearTimeout(timeout);
+				reject(new Error('Iframe load failed'));
 			};
 
-		} catch (e) {
-			// Fallback to text display
-			this.iframe.style.display = 'none';
-			this.contentArea.style.display = 'block';
-			this.contentArea.textContent = `Unable to fetch page.\n${(e as Error).message || e}`;
-		}
+			this.iframe.src = url;
+		});
 	}
+
+	private async tryDirectIframe(url: string): Promise<void> {
+		return new Promise((resolve, reject) => {
+			// Show iframe
+			this.iframe.style.display = 'block';
+			this.webview.style.display = 'none';
+			this.contentArea.style.display = 'none';
+
+			const timeout = setTimeout(() => {
+				reject(new Error('Direct iframe timeout'));
+			}, 8000);
+
+			this.iframe.onload = () => {
+				clearTimeout(timeout);
+				this.showSuccessNotification('SUCCESS: Loaded directly!');
+				resolve();
+			};
+
+			this.iframe.onerror = () => {
+				clearTimeout(timeout);
+				reject(new Error('Direct iframe failed'));
+			};
+
+			this.iframe.src = url;
+		});
+	}
+
 
 	private async loadTextContent(url: string): Promise<void> {
 		try {
-			this.contentArea.textContent = 'Loading...';
+			// Show text area and hide other views
+			this.contentArea.style.display = 'block';
+			this.iframe.style.display = 'none';
+			this.webview.style.display = 'none';
+
+			this.contentArea.textContent = 'Loading text content...';
 			const context = await this.requestService.request({ url }, CancellationToken.None);
 			if (context.res.statusCode && context.res.statusCode >= 400) {
 				this.contentArea.textContent = `Failed to load: ${context.res.statusCode}`;
+				this.showErrorNotification(`HTTP Error: ${context.res.statusCode}`);
 				return;
 			}
 			const text = await asText(context) ?? '';
@@ -266,30 +580,41 @@ export class AIEditorPane extends EditorPane {
 			this.showSuccessNotification('Text content loaded successfully!');
 		} catch (e) {
 			this.contentArea.textContent = `Unable to fetch page.\n${(e as Error).message || e}`;
+			this.showErrorNotification(`Failed to load text content: ${(e as Error).message}`);
 		}
 	}
 
 	private showSuccessNotification(message: string): void {
-		// Simple notification - you can enhance this with proper notification service
-		const notification = DOM.$('div', {
-			style: 'position:fixed; top:20px; right:20px; background:var(--vscode-notifications-background, #252526); color:var(--vscode-notifications-foreground, #cccccc); padding:12px; border-radius:4px; z-index:1000; border:1px solid var(--vscode-notifications-border, #3c3c3c);'
-		}, message);
-		DOM.getActiveWindow().document.body.appendChild(notification);
-		setTimeout(() => {
-			if (notification.parentNode) {
-				notification.parentNode.removeChild(notification);
-			}
-		}, 3000);
+		this.notificationService.info(message);
+	}
+
+	private showErrorNotification(message: string): void {
+		this.notificationService.error(message);
 	}
 
 	private async handleAskQuestion(): Promise<void> {
 		const apiKey = this.apiKeyInput.value.trim();
 		const question = this.questionInput.value.trim();
-		if (!question) { return; }
+		if (!question) {
+			this.showErrorNotification('Please enter a question first');
+			return;
+		}
+		if (!apiKey) {
+			this.showErrorNotification('Please enter your Gemini API key first');
+			return;
+		}
+
 		this.answerArea.textContent = 'Thinking...';
 		const websiteContext = this.urlInput.value.trim();
-		const answer = await this.queryLLMPlaceholder(apiKey, websiteContext, question);
-		this.answerArea.textContent = answer;
+
+		try {
+			const answer = await this.queryLLMPlaceholder(apiKey, websiteContext, question);
+			this.answerArea.textContent = answer;
+			this.showSuccessNotification('AI response generated successfully!');
+		} catch (e) {
+			this.answerArea.textContent = `Error: ${(e as Error).message}`;
+			this.showErrorNotification(`AI request failed: ${(e as Error).message}`);
+		}
 	}
 
 	private async queryLLMPlaceholder(apiKey: string, websiteContext: string, question: string): Promise<string> {
