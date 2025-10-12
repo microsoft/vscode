@@ -36,6 +36,7 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { EditorPartMaximizedEditorGroupContext, EditorPartMultipleEditorGroupsContext, IsAuxiliaryWindowContext } from '../../../common/contextkeys.js';
 import { mainWindow } from '../../../../base/browser/window.js';
+import { AIAppComponent } from '../../../contrib/aiApp/browser/aiAppComponent.js';
 
 export interface IEditorPartUIState {
 	readonly serializedGrid: ISerializedGrid;
@@ -160,6 +161,7 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 	private gridWidget!: SerializableGrid<IEditorGroupView>;
 	private readonly gridWidgetDisposables = this._register(new DisposableStore());
 	private readonly gridWidgetView = this._register(new GridWidgetView<IEditorGroupView>());
+	private _aiAppComponent: AIAppComponent | undefined;
 
 	constructor(
 		protected readonly editorPartsView: IEditorPartsView,
@@ -169,7 +171,7 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IStorageService storageService: IStorageService,
+		@IStorageService private readonly storageService: IStorageService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IHostService private readonly hostService: IHostService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService
@@ -1010,16 +1012,15 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		}
 		parent.appendChild(this.container);
 
-		// Grid control
-		this._willRestoreState = !options || options.restorePreviousState;
-		this.doCreateGridControl();
-
-		// Centered layout widget
-		this.centeredLayoutWidget = this._register(new CenteredViewLayout(this.container, this.gridWidgetView, this.profileMemento[EditorPart.EDITOR_PART_CENTERED_VIEW_STORAGE_KEY], this._partOptions.centeredLayoutFixedWidth));
-		this._register(this.onDidChangeEditorPartOptions(e => this.centeredLayoutWidget.setFixedWidth(e.newPartOptions.centeredLayoutFixedWidth ?? false)));
-
-		// Drag & Drop support
-		this.setupDragAndDropSupport(parent, this.container);
+		// Create AI App Component instead of grid control
+		this._aiAppComponent = this._register(new AIAppComponent(
+			this.container,
+			this.themeService,
+			this.configurationService,
+			this.storageService,
+			this.scopedContextKeyService,
+			this.scopedInstantiationService
+		));
 
 		// Context keys
 		this.handleContextKeys();
@@ -1029,9 +1030,7 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		this._isReady = true;
 
 		// Signal restored
-		Promises.settled(this.groups.map(group => group.whenRestored)).finally(() => {
-			this.whenRestoredPromise.complete();
-		});
+		this.whenRestoredPromise.complete();
 
 		return this.container;
 	}
@@ -1318,6 +1317,11 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		// Layout contents
 		const contentAreaSize = super.layoutContents(width, height).contentSize;
 
+		// Layout AI app component if it exists
+		if (this._aiAppComponent) {
+			this._aiAppComponent.layout({ width: contentAreaSize.width, height: contentAreaSize.height });
+		}
+
 		// Layout editor container
 		this.doLayout(Dimension.lift(contentAreaSize), top, left);
 	}
@@ -1500,6 +1504,7 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 
 		super.dispose();
 	}
+
 
 	//#endregion
 }
