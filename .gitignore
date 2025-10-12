@@ -3,6 +3,12 @@
 npm-debug.log
 Thumbs.db
 node_modules/
+
+# Media files
+*.gif
+*.mp4
+*.mov
+*.avi
 .build/
 .vscode/extensions/**/out/
 extensions/**/dist/

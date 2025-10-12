@@ -4,8 +4,7 @@
 
 ## 🎬 Demo Video
 
-👉 Xem video demo tại đây:
-https://youtu.be/paX3lUUy6To
+![Demo](demo.gif)
 
 
 ## Cách chạy
@@ -40,6 +39,8 @@ Sau đó mở trình duyệt và truy cập: `http://localhost:8080`
 ```bash
 npm run watch
 ```
+### 6. Khi chạy app lên thành công
+Ctrl + Shift + P => Search từ khoá AI: Open AI Editor
 
 ## Lưu ý
 - Đảm bảo đã cài đặt Git và Python 3.8+
