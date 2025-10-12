@@ -7,8 +7,8 @@ import '../../platform/update/common/update.config.contribution.js';
 
 import { app, dialog, BrowserWindow, ipcMain } from 'electron';
 import { unlinkSync, promises } from 'fs';
-import { onAuthStateChanged } from 'firebase/auth';
-import { auth } from './firebase.js';
+import { onAuthStateChanged, User } from 'firebase/auth';
+import { auth, firebaseConfig } from './firebase.js';
 import * as path from 'path';
 import { fileURLToPath } from 'node:url';
 import { URI } from '../../base/common/uri.js';
@@ -175,7 +175,7 @@ class CodeMain {
 					});
 				};
 
-				onAuthStateChanged(auth, (user) => {
+				onAuthStateChanged(auth, (user: User | null) => {
 					if (user) {
 						if (authWindow) {
 							authWindow.close();
@@ -193,6 +193,10 @@ class CodeMain {
 						authWindow.close();
 					}
 					launchApplication();
+				});
+
+				ipcMain.handle('get-firebase-config', () => {
+					return firebaseConfig;
 				});
 			});
 		} catch (error) {

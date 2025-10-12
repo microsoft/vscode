@@ -138,6 +138,10 @@ const bundleVSCodeTask = task.define('bundle-vscode', task.series(
 					...bootstrapEntryPoints
 				],
 				resources: vscodeResources,
+				external: [
+					'firebase/app',
+					'firebase/auth'
+				],
 				skipTSBoilerplateRemoval: entryPoint => entryPoint === 'vs/code/electron-browser/workbench/workbench'
 			}
 		}

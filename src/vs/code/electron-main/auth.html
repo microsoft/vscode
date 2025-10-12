@@ -82,69 +82,101 @@
     </div>
 
     <script type="module">
-        import { initializeApp } from '/app/node_modules/firebase/app/dist/index.esm.js';
-        import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword } from '/app/node_modules/firebase/auth/dist/index.esm.js';
+        import { initializeApp } from 'firebase/app';
+        import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
 
-        // This is a workaround to get the firebase config from the main process
-        const firebaseConfig = {
-            apiKey: "AIzaSyDkY-Mezac1UWkPaudQ9ESdkMRuUMosXH0",
-            authDomain: "orium-1b747.firebaseapp.com",
-            projectId: "orium-1b747",
-            storageBucket: "orium-1b747.firebasestorage.app",
-            messagingSenderId: "520785396241",
-            appId: "1:520785396241:web:b492a562a9c3cfe9c427b0"
-        };
+        // Get the firebase config from the main process
+        window.electronAPI.getFirebaseConfig().then(firebaseConfig => {
+            const app = initializeApp(firebaseConfig);
+            const auth = getAuth(app);
 
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
+            const loginButton = document.getElementById('login-button');
+            loginButton.addEventListener('click', () => {
+                const email = document.getElementById('login-email').value;
+                const password = document.getElementById('login-password').value;
+                signInWithEmailAndPassword(auth, email, password)
+                    .then((userCredential) => {
+                        // Signed in
+                        const user = userCredential.user;
+                        window.electronAPI.authSuccess();
+                    })
+                    .catch((error) => {
+                        const errorCode = error.code;
+                        const errorMessage = error.message;
+                        alert(`Login Failed: ${errorMessage}`);
+                    });
+            });
 
-        const loginView = document.getElementById('login-view');
-        const signupView = document.getElementById('signup-view');
-        const showSignup = document.getElementById('show-signup');
-        const showLogin = document.getElementById('show-login');
-
-        showSignup.addEventListener('click', () => {
-            loginView.style.display = 'none';
-            signupView.style.display = 'block';
+            const signupButton = document.getElementById('signup-button');
+            signupButton.addEventListener('click', () => {
+                const email = document.getElementById('signup-email').value;
+                const password = document.getElementById('signup-password').value;
+                createUserWithEmailAndPassword(auth, email, password)
+                    .then((userCredential) => {
+                        // Signed in
+                        const user = userCredential.user;
+                        window.electronAPI.authSuccess();
+                    })
+                    .catch((error) => {
+                        const errorCode = error.code;
+                        const errorMessage = error.message;
+                        alert(`Signup Failed: ${errorMessage}`);
+                    });
+            });
         });
 
-        showLogin.addEventListener('click', () => {
-            signupView.style.display = 'none';
-            loginView.style.display = 'block';
-        });
+        window.electronAPI.getFirebaseConfig().then(firebaseConfig => {
+            const app = initializeApp(firebaseConfig);
+            const auth = getAuth(app);
 
-        const loginButton = document.getElementById('login-button');
-        loginButton.addEventListener('click', () => {
-            const email = document.getElementById('login-email').value;
-            const password = document.getElementById('login-password').value;
-            signInWithEmailAndPassword(auth, email, password)
-                .then((userCredential) => {
-                    // Signed in
-                    const user = userCredential.user;
-                    window.electronAPI.authSuccess();
-                })
-                .catch((error) => {
-                    const errorCode = error.code;
-                    const errorMessage = error.message;
-                    alert(`Login Failed: ${errorMessage}`);
-                });
-        });
+            const loginView = document.getElementById('login-view');
+            const signupView = document.getElementById('signup-view');
+            const showSignup = document.getElementById('show-signup');
+            const showLogin = document.getElementById('show-login');
 
-        const signupButton = document.getElementById('signup-button');
-        signupButton.addEventListener('click', () => {
-            const email = document.getElementById('signup-email').value;
-            const password = document.getElementById('signup-password').value;
-            createUserWithEmailAndPassword(auth, email, password)
-                .then((userCredential) => {
-                    // Signed in
-                    const user = userCredential.user;
-                    window.electronAPI.authSuccess();
-                })
-                .catch((error) => {
-                    const errorCode = error.code;
-                    const errorMessage = error.message;
-                    alert(`Signup Failed: ${errorMessage}`);
-                });
+            showSignup.addEventListener('click', () => {
+                loginView.style.display = 'none';
+                signupView.style.display = 'block';
+            });
+
+            showLogin.addEventListener('click', () => {
+                signupView.style.display = 'none';
+                loginView.style.display = 'block';
+            });
+
+            const loginButton = document.getElementById('login-button');
+            loginButton.addEventListener('click', () => {
+                const email = document.getElementById('login-email').value;
+                const password = document.getElementById('login-password').value;
+                signInWithEmailAndPassword(auth, email, password)
+                    .then((userCredential) => {
+                        // Signed in
+                        const user = userCredential.user;
+                        window.electronAPI.authSuccess();
+                    })
+                    .catch((error) => {
+                        const errorCode = error.code;
+                        const errorMessage = error.message;
+                        alert(`Login Failed: ${errorMessage}`);
+                    });
+            });
+
+            const signupButton = document.getElementById('signup-button');
+            signupButton.addEventListener('click', () => {
+                const email = document.getElementById('signup-email').value;
+                const password = document.getElementById('signup-password').wvalue;
+                createUserWithEmailAndPassword(auth, email, password)
+                    .then((userCredential) => {
+                        // Signed in
+                        const user = userCredential.user;
+                        window.electronAPI.authSuccess();
+                    })
+                    .catch((error) => {
+                        const errorCode = error.code;
+                        const errorMessage = error.message;
+                        alert(`Signup Failed: ${errorMessage}`);
+                    });
+            });
         });
     </script>
 </body>
