@@ -9,23 +9,51 @@ This is a modified version of VSCode that replaces the main editor area with an 
 - **Seamless Integration**: The chat interface automatically analyzes the current website content
 - **Modern UI**: Clean, responsive design that matches VSCode's theme
 
-## Screenshots
+## 📸 Screenshots
 
-### Main Interface
-![Main Interface](screenshots/main-interface.png)
-*The main interface showing the browser on the left (80%) and chat interface on the right (20%)*
+### Main Interface - VSCode AI App in Action
+![VSCode AI App Interface](screenshots/vscode-ai-app-interface.png)
+*The complete VSCode AI App interface showing the 80/20 layout with embedded browser and AI chat*
 
-### URL Input
-![URL Input](screenshots/url-input.png)
-*Enter any website URL to load it in the embedded browser*
+**What you're seeing:**
+- **Left Side (80%)**: Embedded browser displaying Vietnamese news content with URL input bar
+- **Right Side (20%)**: AI chat interface with message history and input controls
+- **URL Bar**: Shows "https://vnexpress.net" with "Go" and "Demo" buttons
+- **Demo Content**: Simulated VNExpress articles about Vietnam's economy, infrastructure, and technology
+- **Chat History**: AI messages showing the app's status and instructions
+- **API Key Input**: Field for entering your OpenAI API key
+- **Message Input**: Text area for asking questions about the loaded content
 
-### AI Chat
-![AI Chat](screenshots/ai-chat.png)
-*Ask questions about the website content using the AI chat interface*
+### Interface Breakdown
 
-### API Key Configuration
-![API Key](screenshots/api-key.png)
-*Configure your OpenAI API key to enable AI functionality*
+**🌐 Browser Component (Left - 80% width):**
+- **Address Bar**: Enter any website URL (e.g., `https://github.com`)
+- **Go Button**: Load the entered URL
+- **Demo Button**: Load Vietnamese news demo content
+- **Content Area**: Displays the loaded website or demo content
+- **Current Display**: Shows 4 Vietnamese news articles about economy, infrastructure, technology, and climate
+
+**🤖 AI Chat Component (Right - 20% width):**
+- **Welcome Message**: Instructions for using the app
+- **Chat History**: Scrollable area showing AI responses and status messages
+- **API Key Field**: Secure input for your OpenAI API key
+- **Message Input**: Multi-line text area for typing questions
+- **Send Button**: Submit your questions to the AI
+
+### Key Features Visible
+
+1. **Real-time Status Updates**: Chat shows loading progress and error handling
+2. **CORS Error Handling**: Automatically falls back to demo content when external sites fail
+3. **Vietnamese News Demo**: Pre-loaded content perfect for testing
+4. **Clean VSCode Theme**: Dark interface matching VSCode's design language
+5. **Responsive Layout**: Proper 80/20 split between browser and chat
+
+### How to Use What You See
+
+1. **Enter API Key**: Type your OpenAI API key in the bottom field
+2. **Ask Questions**: Type questions about the Vietnamese news content
+3. **Try Different URLs**: Use the address bar to load other websites
+4. **Use Demo Content**: Click "Demo" for guaranteed working content
 
 ## Setup Instructions
 
