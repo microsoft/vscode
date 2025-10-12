@@ -15,7 +15,7 @@ export interface IHistory<T> {
 	clear(): void;
 	forEach(callbackfn: (value: T, value2: T, set: Set<T>) => void, thisArg?: any): void;
 	replace?(t: T[]): void;
-	onDidChange?: Event<string[]>;
+	readonly onDidChange?: Event<string[]>;
 }
 
 export class HistoryNavigator<T> implements INavigator<T> {

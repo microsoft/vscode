@@ -199,12 +199,15 @@ export namespace McpServerDefinitionVariableReplacement {
 	}
 }
 
+/** An observable of the auto-starting servers. When 'starting' is empty, the operation is complete. */
 export interface IAutostartResult {
-	serversRequiringInteraction: Array<{
-		serverId: string;
-		serverLabel: string;
-		errorMessage?: string;
-	}>;
+	working: boolean;
+	starting: McpDefinitionReference[];
+	serversRequiringInteraction: Array<McpDefinitionReference & { errorMessage?: string }>;
+}
+
+export namespace IAutostartResult {
+	export const Empty: IAutostartResult = { working: false, starting: [], serversRequiringInteraction: [] };
 }
 
 export interface IMcpService {
@@ -221,7 +224,10 @@ export interface IMcpService {
 	readonly lazyCollectionState: IObservable<{ state: LazyCollectionState; collections: McpCollectionDefinition[] }>;
 
 	/** Auto-starts pending servers based on user settings. */
-	autostart(token?: CancellationToken): Promise<IAutostartResult>;
+	autostart(token?: CancellationToken): IObservable<IAutostartResult>;
+
+	/** Cancels any current autostart @internal */
+	cancelAutostart(): void;
 
 	/** Activatese extensions and runs their MCP servers. */
 	activateCollections(): Promise<void>;

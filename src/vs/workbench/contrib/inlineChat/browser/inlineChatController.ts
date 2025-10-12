@@ -1192,6 +1192,7 @@ export class InlineChatController1 implements IEditorContribution {
 			});
 		}
 
+		this._resetWidget();
 		this._messages.fire(Message.CANCEL_SESSION);
 	}
 
@@ -1416,6 +1417,8 @@ export class InlineChatController2 implements IEditorContribution {
 							if (!response.isComplete) {
 								return;
 							}
+
+							responseListener.value = undefined; // listen only ONCE
 
 							const shouldShow = response.isCanceled // cancelled
 								|| response.result?.errorDetails // errors

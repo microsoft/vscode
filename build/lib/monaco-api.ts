@@ -8,6 +8,7 @@ import type * as ts from 'typescript';
 import path from 'path';
 import fancyLog from 'fancy-log';
 import ansiColors from 'ansi-colors';
+import { IFileMap, TypeScriptLanguageServiceHost } from './typeScriptLanguageServiceHost';
 
 const dtsv = '3';
 
@@ -17,7 +18,7 @@ const SRC = path.join(__dirname, '../../src');
 export const RECIPE_PATH = path.join(__dirname, '../monaco/monaco.d.ts.recipe');
 const DECLARATION_PATH = path.join(__dirname, '../../src/vs/monaco.d.ts');
 
-function logErr(message: any, ...rest: any[]): void {
+function logErr(message: any, ...rest: unknown[]): void {
 	fancyLog(ansiColors.yellow(`[monaco.d.ts]`), message, ...rest);
 }
 
@@ -661,7 +662,7 @@ export class DeclarationResolver {
 		const fileMap: IFileMap = new Map([
 			['file.ts', fileContents]
 		]);
-		const service = this.ts.createLanguageService(new TypeScriptLanguageServiceHost(this.ts, new Map(), fileMap, {}));
+		const service = this.ts.createLanguageService(new TypeScriptLanguageServiceHost(this.ts, new Map(), fileMap, {}, 'defaultLib:es5'));
 		const text = service.getEmitOutput('file.ts', true, true).outputFiles[0].text;
 		return new CacheEntry(
 			this.ts.createSourceFile(fileName, text, this.ts.ScriptTarget.ES5),
@@ -675,69 +676,6 @@ export function run3(resolver: DeclarationResolver): IMonacoDeclarationResult | 
 	return _run(resolver.ts as Typescript, sourceFileGetter);
 }
 
-
-type ILibMap = Map</*libName*/ string, string>;
-type IFileMap = Map</*fileName*/ string, string>;
-
-class TypeScriptLanguageServiceHost implements ts.LanguageServiceHost {
-
-	private readonly _ts: typeof import('typescript');
-	private readonly _libs: ILibMap;
-	private readonly _files: IFileMap;
-	private readonly _compilerOptions: ts.CompilerOptions;
-
-	constructor(ts: typeof import('typescript'), libs: ILibMap, files: IFileMap, compilerOptions: ts.CompilerOptions) {
-		this._ts = ts;
-		this._libs = libs;
-		this._files = files;
-		this._compilerOptions = compilerOptions;
-	}
-
-	// --- language service host ---------------
-
-	getCompilationSettings(): ts.CompilerOptions {
-		return this._compilerOptions;
-	}
-	getScriptFileNames(): string[] {
-		return [
-			...this._libs.keys(),
-			...this._files.keys(),
-		];
-	}
-	getScriptVersion(_fileName: string): string {
-		return '1';
-	}
-	getProjectVersion(): string {
-		return '1';
-	}
-	getScriptSnapshot(fileName: string): ts.IScriptSnapshot {
-		if (this._files.has(fileName)) {
-			return this._ts.ScriptSnapshot.fromString(this._files.get(fileName)!);
-		} else if (this._libs.has(fileName)) {
-			return this._ts.ScriptSnapshot.fromString(this._libs.get(fileName)!);
-		} else {
-			return this._ts.ScriptSnapshot.fromString('');
-		}
-	}
-	getScriptKind(_fileName: string): ts.ScriptKind {
-		return this._ts.ScriptKind.TS;
-	}
-	getCurrentDirectory(): string {
-		return '';
-	}
-	getDefaultLibFileName(_options: ts.CompilerOptions): string {
-		return 'defaultLib:es5';
-	}
-	isDefaultLibFileName(fileName: string): boolean {
-		return fileName === this.getDefaultLibFileName(this._compilerOptions);
-	}
-	readFile(path: string, _encoding?: string): string | undefined {
-		return this._files.get(path) || this._libs.get(path);
-	}
-	fileExists(path: string): boolean {
-		return this._files.has(path) || this._libs.has(path);
-	}
-}
 
 export function execute(): IMonacoDeclarationResult {
 	const r = run3(new DeclarationResolver(new FSProvider()));
