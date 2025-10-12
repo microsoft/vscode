@@ -4,8 +4,7 @@ npm-debug.log
 Thumbs.db
 node_modules/
 
-# Media files
-*.gif
+# Media files (except demo files)
 *.mp4
 *.mov
 *.avi
