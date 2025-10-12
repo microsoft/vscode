@@ -20,7 +20,7 @@ import { Link } from '../../../../platform/opener/browser/link.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { IBannerItem, IBannerService } from '../../../services/banner/browser/bannerService.js';
-import { IMarkdownRendererService } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';

@@ -79,7 +79,7 @@ export interface ITerminalProfileService {
 	refreshAvailableProfiles(): void;
 	getDefaultProfileName(): string | undefined;
 	getDefaultProfile(os?: OperatingSystem): ITerminalProfile | undefined;
-	onDidChangeAvailableProfiles: Event<ITerminalProfile[]>;
+	readonly onDidChangeAvailableProfiles: Event<ITerminalProfile[]>;
 	getContributedDefaultProfile(shellLaunchConfig: IShellLaunchConfig): Promise<IExtensionTerminalProfile | undefined>;
 	registerContributedProfile(args: IRegisterContributedProfileArgs): Promise<void>;
 	getContributedProfileProvider(extensionIdentifier: string, id: string): ITerminalProfileProvider | undefined;
@@ -337,13 +337,13 @@ export interface ITerminalProcessExtHostProxy extends IDisposable {
 	emitReady(pid: number, cwd: string, windowsPty: IProcessReadyWindowsPty | undefined): void;
 	emitExit(exitCode: number | undefined): void;
 
-	onInput: Event<string>;
-	onBinary: Event<string>;
-	onResize: Event<{ cols: number; rows: number }>;
-	onAcknowledgeDataEvent: Event<number>;
-	onShutdown: Event<boolean>;
-	onRequestInitialCwd: Event<void>;
-	onRequestCwd: Event<void>;
+	readonly onInput: Event<string>;
+	readonly onBinary: Event<string>;
+	readonly onResize: Event<{ cols: number; rows: number }>;
+	readonly onAcknowledgeDataEvent: Event<number>;
+	readonly onShutdown: Event<boolean>;
+	readonly onRequestInitialCwd: Event<void>;
+	readonly onRequestCwd: Event<void>;
 }
 
 export interface IStartExtensionTerminalRequest {
@@ -684,6 +684,30 @@ export const terminalContributionsDescriptor: IExtensionPointDescriptor<ITermina
 									}
 								}
 							}]
+						},
+					},
+				},
+			},
+			completionProviders: {
+				type: 'array',
+				description: nls.localize('vscode.extension.contributes.terminal.completionProviders', "Defines terminal completion providers that will be registered when the extension activates."),
+				items: {
+					type: 'object',
+					required: ['id'],
+					defaultSnippets: [{
+						body: {
+							id: '$1',
+							description: '$2'
+						}
+					}],
+					properties: {
+						id: {
+							description: nls.localize('vscode.extension.contributes.terminal.completionProviders.id', "The ID of the terminal completion provider."),
+							type: 'string',
+						},
+						description: {
+							description: nls.localize('vscode.extension.contributes.terminal.completionProviders.description', "A description of what the completion provider does. This will be shown in the settings UI."),
+							type: 'string',
 						},
 					},
 				},

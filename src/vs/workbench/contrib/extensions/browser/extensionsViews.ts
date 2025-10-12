@@ -85,7 +85,7 @@ class ExtensionsViewState extends Disposable implements IExtensionsViewState {
 export interface ExtensionsListViewOptions {
 	server?: IExtensionManagementServer;
 	flexibleHeight?: boolean;
-	onDidChangeTitle?: Event<string>;
+	readonly onDidChangeTitle?: Event<string>;
 	hideBadge?: boolean;
 }
 
