@@ -1566,7 +1566,7 @@ export function registerChatActions() {
 			super({
 				id: 'workbench.action.chat.generateInstructions',
 				title: localize2('generateInstructions', "Generate Workspace Instructions File"),
-				shortTitle: localize2('generateInstructions.short', "Generate Agent Instructions"),
+				shortTitle: localize2('generateInstructions.short', "Generate Chat Instructions"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.sparkle,
 				f1: true,
@@ -1574,7 +1574,7 @@ export function registerChatActions() {
 				menu: {
 					id: CHAT_CONFIG_MENU_ID,
 					when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
-					order: 13,
+					order: 11,
 					group: '1_level'
 				}
 			});
@@ -1624,7 +1624,7 @@ Update \`.github/copilot-instructions.md\` for the user, then ask for feedback o
 					id: CHAT_CONFIG_MENU_ID,
 					when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
 					order: 15,
-					group: '2_configure'
+					group: '3_configure'
 				}
 			});
 		}
