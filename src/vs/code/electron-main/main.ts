@@ -5,8 +5,8 @@
 
 import '../../platform/update/common/update.config.contribution.js';
 
-import { app, dialog } from 'electron';
-import { unlinkSync, promises } from 'fs';
+import { app, dialog, BrowserWindow, ipcMain } from 'electron';
+import { promises, unlinkSync } from 'fs';
 import { URI } from '../../base/common/uri.js';
 import { coalesce, distinct } from '../../base/common/arrays.js';
 import { Promises } from '../../base/common/async.js';
@@ -116,34 +116,61 @@ class CodeMain {
 			}
 
 			// Startup
-			await instantiationService.invokeFunction(async accessor => {
-				const logService = accessor.get(ILogService);
-				const lifecycleMainService = accessor.get(ILifecycleMainService);
-				const fileService = accessor.get(IFileService);
-				const loggerService = accessor.get(ILoggerService);
+			let loginWindow: BrowserWindow | null = new BrowserWindow({
+				width: 400,
+				height: 600,
+				webPreferences: {
+					nodeIntegration: true,
+					contextIsolation: false
+				}
+			});
 
-				// Create the main IPC server by trying to be the server
-				// If this throws an error it means we are not the first
-				// instance of VS Code running and so we would quit.
-				const mainProcessNodeIpcServer = await this.claimInstance(logService, environmentMainService, lifecycleMainService, instantiationService, productService, true);
+			loginWindow.loadFile('src/vs/code/electron-browser/media/login.html');
+			console.log('Login window created.');
 
-				// Write a lockfile to indicate an instance is running
-				// (https://github.com/microsoft/vscode/issues/127861#issuecomment-877417451)
-				FSPromises.writeFile(environmentMainService.mainLockfile, String(process.pid)).catch(err => {
-					logService.warn(`app#startup(): Error writing main lockfile: ${err.stack}`);
-				});
+			let isAuthenticated = false;
 
-				// Delay creation of spdlog for perf reasons (https://github.com/microsoft/vscode/issues/72906)
-				bufferLogger.logger = loggerService.createLogger('main', { name: localize('mainLog', "Main") });
+			ipcMain.on('login-success', () => {
+				isAuthenticated = true;
+				loginWindow?.close();
+			});
 
-				// Lifecycle
-				Event.once(lifecycleMainService.onWillShutdown)(evt => {
-					fileService.dispose();
-					configurationService.dispose();
-					evt.join('instanceLockfile', promises.unlink(environmentMainService.mainLockfile).catch(() => { /* ignored */ }));
-				});
+			loginWindow.on('closed', async () => {
+				loginWindow = null;
+				if (isAuthenticated) {
+					await instantiationService.invokeFunction(async accessor => {
+						const logService = accessor.get(ILogService);
+						const lifecycleMainService = accessor.get(ILifecycleMainService);
+						const fileService = accessor.get(IFileService);
+						const loggerService = accessor.get(ILoggerService);
 
-				return instantiationService.createInstance(CodeApplication, mainProcessNodeIpcServer, instanceEnvironment).startup();
+						// Create the main IPC server by trying to be the server
+						// If this throws an error it means we are not the first
+						// instance of VS Code running and so we would quit.
+						const mainProcessNodeIpcServer = await this.claimInstance(logService, environmentMainService, lifecycleMainService, instantiationService, productService, true);
+
+						// Write a lockfile to indicate an instance is running
+						// (https://github.com/microsoft/vscode/issues/127861#issuecomment-877417451)
+						FSPromises.writeFile(environmentMainService.mainLockfile, String(process.pid)).catch(err => {
+							logService.warn(`app#startup(): Error writing main lockfile: ${err.stack}`);
+						});
+
+						// Delay creation of spdlog for perf reasons (https://github.com/microsoft/vscode/issues/72906)
+						bufferLogger.logger = loggerService.createLogger('main', { name: localize('mainLog', "Main") });
+						dialog.showMessageBoxSync({ message: `Log file path: ${environmentMainService.logsHome.fsPath}` });
+
+						// Lifecycle
+						Event.once(lifecycleMainService.onWillShutdown)(evt => {
+							fileService.dispose();
+							configurationService.dispose();
+							evt.join('instanceLockfile', promises.unlink(environmentMainService.mainLockfile).catch(() => { /* ignored */ }));
+						});
+
+						return instantiationService.createInstance(CodeApplication, mainProcessNodeIpcServer, instanceEnvironment).startup();
+					});
+				} else {
+					app.quit();
+				}
 			});
 		} catch (error) {
 			instantiationService.invokeFunction(this.quit, error);
