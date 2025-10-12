@@ -1,0 +1,9 @@
+This is a placeholder file. Please replace this directory with actual screenshots of the VSCode AI interface.
+
+Required files:
+- main-interface.png
+- ai-chat.png
+- ai-completion.png
+- ai-editor.png
+
+See screenshots/README.md for detailed instructions.

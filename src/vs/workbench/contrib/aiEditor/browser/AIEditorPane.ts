@@ -11,8 +11,16 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IRequestService, asText } from '../../../../platform/request/common/request.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import * as nls from '../../../../nls.js';
 
 export const AI_EDITOR_PANE_ID = 'workbench.editor.aiEditor';
+
+// Safety category constants
+const HARM_CATEGORY_HARASSMENT = "HARM_CATEGORY_HARASSMENT";
+const HARM_CATEGORY_HATE_SPEECH = "HARM_CATEGORY_HATE_SPEECH";
+const HARM_CATEGORY_SEXUALLY_EXPLICIT = "HARM_CATEGORY_SEXUALLY_EXPLICIT";
+const HARM_CATEGORY_DANGEROUS_CONTENT = "HARM_CATEGORY_DANGEROUS_CONTENT";
+const BLOCK_MEDIUM_AND_ABOVE = "BLOCK_MEDIUM_AND_ABOVE";
 
 export class AIEditorPane extends EditorPane {
 
@@ -310,7 +318,7 @@ export class AIEditorPane extends EditorPane {
 			}
 
 			// Prepare prompt with length consideration
-			const prompt = contextText 
+			const prompt = contextText
 				? `Based on the following website content, please provide a concise answer:\n\nWebsite: ${websiteContext}\nContent: ${contextText}\n\nQuestion: ${question}\n\nPlease keep your answer brief and focused.`
 				: `Please provide a concise answer to this question: ${question}`;
 
@@ -344,20 +352,20 @@ export class AIEditorPane extends EditorPane {
 			},
 			safetySettings: [
 				{
-					category: "HARM_CATEGORY_HARASSMENT",
-					threshold: "BLOCK_MEDIUM_AND_ABOVE"
+					category: HARM_CATEGORY_HARASSMENT,
+					threshold: BLOCK_MEDIUM_AND_ABOVE
 				},
 				{
-					category: "HARM_CATEGORY_HATE_SPEECH",
-					threshold: "BLOCK_MEDIUM_AND_ABOVE"
+					category: HARM_CATEGORY_HATE_SPEECH,
+					threshold: BLOCK_MEDIUM_AND_ABOVE
 				},
 				{
-					category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-					threshold: "BLOCK_MEDIUM_AND_ABOVE"
+					category: HARM_CATEGORY_SEXUALLY_EXPLICIT,
+					threshold: BLOCK_MEDIUM_AND_ABOVE
 				},
 				{
-					category: "HARM_CATEGORY_DANGEROUS_CONTENT",
-					threshold: "BLOCK_MEDIUM_AND_ABOVE"
+					category: HARM_CATEGORY_DANGEROUS_CONTENT,
+					threshold: BLOCK_MEDIUM_AND_ABOVE
 				}
 			]
 		};
@@ -393,19 +401,19 @@ export class AIEditorPane extends EditorPane {
 			// Check for blocked content
 			if (data.candidates && data.candidates.length > 0) {
 				const candidate = data.candidates[0];
-				
+
 				if (candidate.finishReason === 'SAFETY') {
 					throw new Error('Response blocked by safety filters. Please try rephrasing your question.');
 				}
-				
+
 				if (candidate.finishReason === 'MAX_TOKENS') {
 					throw new Error('Response was truncated due to token limit. Please ask a shorter question or reduce the website content length.');
 				}
-				
+
 				if (candidate.content && candidate.content.parts && candidate.content.parts.length > 0) {
 					return candidate.content.parts[0].text;
 				}
-				
+
 				// If no parts but has content, return a message
 				if (candidate.content && !candidate.content.parts) {
 					throw new Error('Response received but no content parts found. This might be due to content filtering or token limits.');
