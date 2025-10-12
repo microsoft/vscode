@@ -24,6 +24,7 @@ import { ACTION_ID_NEW_CHAT, ACTION_ID_NEW_EDIT_SESSION, ACTION_ID_OPEN_CHAT, CH
 import { clearChatEditor } from './chatClear.js';
 
 export interface INewEditSessionActionContext {
+
 	/**
 	 * An initial prompt to write to the chat.
 	 */
@@ -55,8 +56,6 @@ export function registerNewChatActions() {
 		isSplitButton: true
 	});
 
-	// This action was previously used for the editor gutter toolbar, but now
-	// ACTION_ID_NEW_CHAT is also used for that scenario
 	registerAction2(class NewChatEditorAction extends Action2 {
 		constructor() {
 			super({
@@ -68,7 +67,10 @@ export function registerNewChatActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor, ...args: unknown[]) {
-			announceChatCleared(accessor.get(IAccessibilitySignalService));
+			const accessibilitySignalService = accessor.get(IAccessibilitySignalService);
+
+			accessibilitySignalService.playSignal(AccessibilitySignal.clear);
+
 			await clearChatEditor(accessor);
 		}
 	});
@@ -117,7 +119,6 @@ export function registerNewChatActions() {
 			});
 		}
 
-
 		async run(accessor: ServicesAccessor, ...args: unknown[]) {
 			const executeCommandContext = args[0] as INewEditSessionActionContext | undefined;
 
@@ -135,7 +136,7 @@ export function registerNewChatActions() {
 				return;
 			}
 
-			announceChatCleared(accessibilitySignalService);
+			accessibilitySignalService.playSignal(AccessibilitySignal.clear);
 
 			await editingSession?.stop();
 			widget.clear();
@@ -162,7 +163,6 @@ export function registerNewChatActions() {
 		}
 	});
 	CommandsRegistry.registerCommandAlias(ACTION_ID_NEW_EDIT_SESSION, ACTION_ID_NEW_CHAT);
-
 
 	registerAction2(class UndoChatEditInteractionAction extends EditingSessionAction {
 		constructor() {
@@ -253,8 +253,4 @@ export function registerNewChatActions() {
 			currentWidget?.focusInput();
 		}
 	});
-}
-
-function announceChatCleared(accessibilitySignalService: IAccessibilitySignalService): void {
-	accessibilitySignalService.playSignal(AccessibilitySignal.clear);
 }
