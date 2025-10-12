@@ -5,8 +5,12 @@
 
 import '../../platform/update/common/update.config.contribution.js';
 
-import { app, dialog } from 'electron';
+import { app, dialog, BrowserWindow, ipcMain } from 'electron';
 import { unlinkSync, promises } from 'fs';
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth } from './firebase.js';
+import * as path from 'path';
+import { fileURLToPath } from 'node:url';
 import { URI } from '../../base/common/uri.js';
 import { coalesce, distinct } from '../../base/common/arrays.js';
 import { Promises } from '../../base/common/async.js';
@@ -143,7 +147,53 @@ class CodeMain {
 					evt.join('instanceLockfile', promises.unlink(environmentMainService.mainLockfile).catch(() => { /* ignored */ }));
 				});
 
-				return instantiationService.createInstance(CodeApplication, mainProcessNodeIpcServer, instanceEnvironment).startup();
+				let codeApplication: CodeApplication;
+
+				const launchApplication = () => {
+					if (!codeApplication) {
+						codeApplication = instantiationService.createInstance(CodeApplication, mainProcessNodeIpcServer, instanceEnvironment);
+						codeApplication.startup();
+					}
+				};
+
+				let authWindow: BrowserWindow | undefined = undefined;
+				const createAuthWindow = () => {
+					authWindow = new BrowserWindow({
+						width: 800,
+						height: 600,
+						webPreferences: {
+							preload: path.join(fileURLToPath(import.meta.url), '../auth-preload.js'),
+						}
+					});
+
+					const authPath = path.join(fileURLToPath(import.meta.url), '../auth.html');
+
+					authWindow.loadURL(authPath);
+
+					authWindow.on('closed', () => {
+						authWindow = undefined;
+					});
+				};
+
+				onAuthStateChanged(auth, (user) => {
+					if (user) {
+						if (authWindow) {
+							authWindow.close();
+						}
+						launchApplication();
+					} else {
+						if (!authWindow) {
+							createAuthWindow();
+						}
+					}
+				});
+
+				ipcMain.on('auth-success', () => {
+					if (authWindow) {
+						authWindow.close();
+					}
+					launchApplication();
+				});
 			});
 		} catch (error) {
 			instantiationService.invokeFunction(this.quit, error);

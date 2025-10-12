@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Login</title>
+    <style>
+        body, html {
+            height: 100%;
+            margin: 0;
+            font-family: sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 40px;
+            border-radius: 5px;
+            background-color: #252526;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+        }
+
+        h2 {
+            margin-bottom: 20px;
+        }
+
+        input {
+            width: 300px;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #3c3c3c;
+            border-radius: 3px;
+            background-color: #3c3c3c;
+            color: #d4d4d4;
+        }
+
+        button {
+            width: 320px;
+            padding: 10px;
+            border: none;
+            border-radius: 3px;
+            background-color: #0e639c;
+            color: white;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        button:hover {
+            background-color: #1177bb;
+        }
+
+        .toggle-link {
+            margin-top: 20px;
+            color: #0e639c;
+            cursor: pointer;
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="login-view">
+            <h2>Login</h2>
+            <input type="email" id="login-email" placeholder="Email" required>
+            <input type="password" id="login-password" placeholder="Password" required>
+            <button id="login-button">Login</button>
+            <p class="toggle-link" id="show-signup">Don't have an account? Sign up</p>
+        </div>
+
+        <div id="signup-view" style="display: none;">
+            <h2>Sign Up</h2>
+            <input type="email" id="signup-email" placeholder="Email" required>
+            <input type="password" id="signup-password" placeholder="Password" required>
+            <button id="signup-button">Sign Up</button>
+            <p class="toggle-link" id="show-login">Already have an account? Login</p>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from '/app/node_modules/firebase/app/dist/index.esm.js';
+        import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword } from '/app/node_modules/firebase/auth/dist/index.esm.js';
+
+        // This is a workaround to get the firebase config from the main process
+        const firebaseConfig = {
+            apiKey: "AIzaSyDkY-Mezac1UWkPaudQ9ESdkMRuUMosXH0",
+            authDomain: "orium-1b747.firebaseapp.com",
+            projectId: "orium-1b747",
+            storageBucket: "orium-1b747.firebasestorage.app",
+            messagingSenderId: "520785396241",
+            appId: "1:520785396241:web:b492a562a9c3cfe9c427b0"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+
+        const loginView = document.getElementById('login-view');
+        const signupView = document.getElementById('signup-view');
+        const showSignup = document.getElementById('show-signup');
+        const showLogin = document.getElementById('show-login');
+
+        showSignup.addEventListener('click', () => {
+            loginView.style.display = 'none';
+            signupView.style.display = 'block';
+        });
+
+        showLogin.addEventListener('click', () => {
+            signupView.style.display = 'none';
+            loginView.style.display = 'block';
+        });
+
+        const loginButton = document.getElementById('login-button');
+        loginButton.addEventListener('click', () => {
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+            signInWithEmailAndPassword(auth, email, password)
+                .then((userCredential) => {
+                    // Signed in
+                    const user = userCredential.user;
+                    window.electronAPI.authSuccess();
+                })
+                .catch((error) => {
+                    const errorCode = error.code;
+                    const errorMessage = error.message;
+                    alert(`Login Failed: ${errorMessage}`);
+                });
+        });
+
+        const signupButton = document.getElementById('signup-button');
+        signupButton.addEventListener('click', () => {
+            const email = document.getElementById('signup-email').value;
+            const password = document.getElementById('signup-password').value;
+            createUserWithEmailAndPassword(auth, email, password)
+                .then((userCredential) => {
+                    // Signed in
+                    const user = userCredential.user;
+                    window.electronAPI.authSuccess();
+                })
+                .catch((error) => {
+                    const errorCode = error.code;
+                    const errorMessage = error.message;
+                    alert(`Signup Failed: ${errorMessage}`);
+                });
+        });
+    </script>
+</body>
+</html>
