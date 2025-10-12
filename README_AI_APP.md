@@ -15,6 +15,8 @@ This is a modified version of VSCode that replaces the main editor area with an 
 ![VSCode AI App Interface](screenshots/vscode-ai-app-interface.png)
 *The complete VSCode AI App interface showing the 80/20 layout with embedded browser and AI chat*
 
+> **Note**: If you don't see the image above, it means the screenshot hasn't been added to the repository yet. See the [Screenshots Directory](screenshots/README.md) for instructions on how to add it.
+
 **What you're seeing:**
 - **Left Side (80%)**: Embedded browser displaying Vietnamese news content with URL input bar
 - **Right Side (20%)**: AI chat interface with message history and input controls
