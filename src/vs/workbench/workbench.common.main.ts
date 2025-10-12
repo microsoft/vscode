@@ -424,4 +424,7 @@ import './contrib/editTelemetry/browser/editTelemetry.contribution.js';
 // Opener
 import './contrib/opener/browser/opener.contribution.js';
 
+// AI Browser
+import './contrib/aiBrowserEditor/browser/aiBrowser.contribution.js';
+
 //#endregion
