@@ -69,11 +69,12 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 		// React to picker changes
 		const updatePickerAndEditor = () => {
 			const inputText = picker.value.trim().substring(AbstractGotoLineQuickAccessProvider.PREFIX.length);
+			const inOffsetMode = inputText.startsWith(':');
 			const position = this.parsePosition(editor, inputText);
-			const label = this.getPickLabel(editor, position.lineNumber, position.column);
+			const label = this.getPickLabel(editor, position.lineNumber, position.column, inOffsetMode);
 
 			// Show toggle only when input text starts with '::'.
-			toggle.visible = inputText.startsWith(':');
+			toggle.visible = inOffsetMode;
 
 			// Picker
 			picker.items = [{
@@ -174,7 +175,7 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 		};
 	}
 
-	private getPickLabel(editor: IEditor, lineNumber: number, column: number | undefined): string {
+	private getPickLabel(editor: IEditor, lineNumber: number, column: number | undefined, inOffsetMode: boolean): string {
 
 		// Location valid: indicate this as picker label
 		if (this.isValidLineNumber(editor, lineNumber)) {
@@ -187,6 +188,12 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 
 		// Location invalid: show generic label
 		const position = editor.getPosition() || { lineNumber: 1, column: 1 };
+
+		// When in offset mode, prompt for an offset.
+		if (inOffsetMode) {
+			return localize('gotoLineOffsetLabel', "Current Line: {0}, Character: {1}. Type a character offset to navigate to.", position.lineNumber, position.column);
+		}
+
 		const lineCount = this.lineCount(editor);
 		if (lineCount > 1) {
 			return localize('gotoLineLabelEmptyWithLimit', "Current Line: {0}, Character: {1}. Type a line number between 1 and {2} to navigate to.", position.lineNumber, position.column, lineCount);
