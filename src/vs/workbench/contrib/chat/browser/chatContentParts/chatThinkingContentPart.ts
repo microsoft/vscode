@@ -49,15 +49,16 @@ function resolvePerModelDefaultThinkingStyle(modelId: string | undefined): Think
 		return ThinkingDisplayMode.Collapsed;
 	}
 	const id = modelId.toLowerCase();
-	if (id.includes('gpt-5-codex')) {
+
+	// TODO @justschen: could have additional styles specific to gemini/codex besides collapased.
+	if (id.includes('gpt-5-codex') || id.includes('gemini')) {
 		return ThinkingDisplayMode.Collapsed;
 	}
+
 	if (id.includes('gpt-5')) {
 		return ThinkingDisplayMode.FixedScrolling;
 	}
-	if (id.includes('gemini')) {
-		return ThinkingDisplayMode.Collapsed;
-	}
+
 	return ThinkingDisplayMode.Collapsed;
 }
 
@@ -98,7 +99,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		this.id = content.id;
 
 		const configuredMode = this.configurationService.getValue<ThinkingDisplayMode>('chat.agent.thinkingStyle') ?? ThinkingDisplayMode.None;
-		let effectiveMode: ThinkingDisplayMode = configuredMode;
+		let effectiveMode = configuredMode;
 		if (configuredMode === ThinkingDisplayMode.Default) {
 			let modelId: string | undefined;
 			if (isResponseViewModel(context.element)) {

@@ -770,15 +770,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// Show if no content, only "used references", ends with a complete tool call, or ends with complete text edits and there is no incomplete tool call (edits are still being applied some time after they are all generated)
 		const lastPart = findLast(partsToRender, part => part.kind !== 'markdownContent' || part.content.value.trim().length > 0);
 
-		const thinkingStyleSetting = this.configService.getValue<ThinkingDisplayMode>('chat.agent.thinkingStyle');
-		let treatAsFixedScrolling = thinkingStyleSetting === ThinkingDisplayMode.FixedScrolling;
-		if (!treatAsFixedScrolling && thinkingStyleSetting === ThinkingDisplayMode.Default) {
-			const lower = element.model.request?.modelId?.toLowerCase();
-			if (lower && lower.includes('gpt-5') && !lower.includes('gpt-5-codex')) {
-				treatAsFixedScrolling = true;
-			}
-		}
-		if (treatAsFixedScrolling && lastPart?.kind === 'thinking') {
+		const thinkingStyle = this.configService.getValue<ThinkingDisplayMode>('chat.agent.thinkingStyle');
+		const defaultScrolling = thinkingStyle === ThinkingDisplayMode.Default && element.model.request?.modelId?.toLowerCase().includes('gpt-5');
+		if ((thinkingStyle === ThinkingDisplayMode.FixedScrolling || defaultScrolling) && lastPart?.kind === 'thinking') {
 			return false;
 		}
 
