@@ -39,11 +39,10 @@ function isResponseViewModel(item: ChatTreeItem): item is IChatResponseViewModel
 }
 
 /**
- * Per current requirement we only special-case three model groups:
- *  - gpt-5          => fixedScrolling
- *  - gpt-5-codex    => collapsed
- *  - gemini         => collapsed
- *  - other models   => collapsed
+ * gpt-5          => fixedScrolling
+ * gpt-5-codex    => collapsed
+ * gemini         => collapsed
+ * all others     => collapsed
  */
 function resolvePerModelDefaultThinkingStyle(modelId: string | undefined): ThinkingDisplayMode {
 	if (!modelId) {
@@ -98,7 +97,6 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 		this.id = content.id;
 
-		// Retrieve user-configured mode. 'default' triggers per-model heuristic mapping.
 		const configuredMode = this.configurationService.getValue<ThinkingDisplayMode>('chat.agent.thinkingStyle') ?? ThinkingDisplayMode.None;
 		let effectiveMode: ThinkingDisplayMode = configuredMode;
 		if (configuredMode === ThinkingDisplayMode.Default) {
