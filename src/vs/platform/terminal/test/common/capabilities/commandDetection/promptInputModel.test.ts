@@ -432,9 +432,6 @@ suite('PromptInputModel', () => {
 			await writePromise('$ ');
 			fireCommandStart();
 			await assertPromptInput('|');
-
-			// Write a command followed by several spaces and a styled "right prompt" at the end of the line.
-			// The model should not treat this right prompt as ghost text.
 			await writePromise('cmd' + ' '.repeat(6) + '\x1b[38;2;255;0;0mRP\x1b[0m\x1b[8D');
 			await assertPromptInput('cmd|' + ' '.repeat(6) + 'RP');
 		});

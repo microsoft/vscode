@@ -548,9 +548,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		if (positionsWithGhostStyle) {
 			// Ghost text must start at the cursor or one char after (e.g. a space)
 			// To account for cursor movement, we also ensure there are not 5+ spaces preceding the ghost text position
-			// If there are, that indicates this is likely a right prompt
-			// preventing right-prompt styles from being misdetected as ghost text.
-			if (positionsWithGhostStyle[0] > buffer.cursorX + 1 && this._detectFiveConsecutiveEmptiesBeforePosition(line, positionsWithGhostStyle[0])) {
+			if (positionsWithGhostStyle[0] > buffer.cursorX + 1 && this._isPositionRightPrompt(line, positionsWithGhostStyle[0])) {
 				return -1;
 			}
 			// Ensure these positions are contiguous
@@ -586,12 +584,10 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 	}
 
 	/**
-	 * Indicates that we're likely in a right prompt at position
-	 * @param line
-	 * @param position
-	 * @returns
+	 * 5+ spaces preceding the position, following the command start,
+	 * indicates that we're likely in a right prompt at the current position
 	 */
-	private _detectFiveConsecutiveEmptiesBeforePosition(line: IBufferLine, position: number): boolean {
+	private _isPositionRightPrompt(line: IBufferLine, position: number): boolean {
 		let count = 0;
 		for (let i = position - 1; i >= this._commandStartX; i--) {
 			const cell = line.getCell(i);
