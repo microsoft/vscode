@@ -5,7 +5,6 @@
 
 import ts from 'typescript';
 import fs from 'node:fs';
-// import path from 'node:path';
 
 export type IFileMap = Map</*fileName*/ string, string>;
 
@@ -49,14 +48,14 @@ export class TypeScriptLanguageServiceHost implements ts.LanguageServiceHost {
 	getCurrentDirectory(): string {
 		return '';
 	}
-	getDefaultLibFileName(_options: ts.CompilerOptions): string {
-		return this.ts.getDefaultLibFilePath(_options);
+	getDefaultLibFileName(options: ts.CompilerOptions): string {
+		return this.ts.getDefaultLibFilePath(options);
 	}
-	readFile(path: string, _encoding?: string): string | undefined {
+	readFile(path: string, encoding?: string): string | undefined {
 		if (this.topLevelFiles.get(path)) {
 			return this.topLevelFiles.get(path);
 		}
-		return ts.sys.readFile(path, _encoding);
+		return ts.sys.readFile(path, encoding);
 	}
 	fileExists(path: string): boolean {
 		if (this.topLevelFiles.has(path)) {
