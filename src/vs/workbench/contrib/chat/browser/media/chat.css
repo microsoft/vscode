@@ -757,7 +757,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-editing-session {
-	margin-bottom: -4px;
+	margin-bottom: -4px; /* reset the 4px gap of the container for editing sessions */
 	width: 100%;
 	position: relative;
 }
