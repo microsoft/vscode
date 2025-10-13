@@ -22,6 +22,8 @@ import { IChatAgentCommand, IChatAgentData, IChatAgentService } from '../../comm
 import { chatSlashCommandBackground, chatSlashCommandForeground } from '../../common/chatColors.js';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader } from '../../common/chatParserTypes.js';
 import { ChatRequestParser } from '../../common/chatRequestParser.js';
+import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { IChatWidget } from '../chat.js';
 import { ChatWidget } from '../chatWidget.js';
 import { dynamicVariableDecorationType } from './chatDynamicVariables.js';
@@ -40,6 +42,8 @@ class InputEditorDecorations extends Disposable {
 	public readonly id = 'inputEditorDecorations';
 
 	private readonly previouslyUsedAgents = new Set<string>();
+	private readonly promptDescriptions = new Map<string, string | undefined>();
+	private readonly pendingPromptResolutions = new Set<string>();
 
 	private readonly viewModelDisposables = this._register(new MutableDisposable());
 
@@ -50,6 +54,7 @@ class InputEditorDecorations extends Disposable {
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILabelService private readonly labelService: ILabelService,
+		@IPromptsService private readonly promptsService: IPromptsService,
 	) {
 		super();
 
@@ -69,6 +74,11 @@ class InputEditorDecorations extends Disposable {
 			this.previouslyUsedAgents.add(agentAndCommandToKey(e.agent, e.slashCommand?.name));
 		}));
 		this._register(this.chatAgentService.onDidChangeAgents(() => this.updateInputEditorDecorations()));
+		this._register(this.promptsService.onDidChangeCustomChatModes(() => {
+			// Clear cached descriptions when prompts change
+			this.promptDescriptions.clear();
+			this.updateInputEditorDecorations();
+		}));
 		this._register(autorun(reader => {
 			// Watch for changes to the current mode and its properties
 			const currentMode = this.widget.input.currentModeObs.read(reader);
@@ -121,6 +131,42 @@ class InputEditorDecorations extends Disposable {
 		const theme = this.themeService.getColorTheme();
 		const transparentForeground = theme.getColor(inputPlaceholderForeground);
 		return transparentForeground?.toString();
+	}
+
+	private async resolvePromptDescription(slashPromptPart: ChatRequestSlashPromptPart): Promise<string | undefined> {
+		const command = slashPromptPart.slashPromptCommand.command;
+
+		// Check cache first
+		if (this.promptDescriptions.has(command)) {
+			return this.promptDescriptions.get(command);
+		}
+
+		// Avoid duplicate resolutions
+		if (this.pendingPromptResolutions.has(command)) {
+			return undefined;
+		}
+
+		try {
+			this.pendingPromptResolutions.add(command);
+			const promptFile = await this.promptsService.resolvePromptSlashCommand(slashPromptPart.slashPromptCommand, CancellationToken.None);
+			const description = promptFile?.header?.description;
+
+			// Cache the result (even if undefined)
+			this.promptDescriptions.set(command, description);
+
+			// Update decorations if we got a description
+			if (description) {
+				this.updateInputEditorDecorations();
+			}
+
+			return description;
+		} catch (error) {
+			// Cache the failure
+			this.promptDescriptions.set(command, undefined);
+			return undefined;
+		} finally {
+			this.pendingPromptResolutions.delete(command);
+		}
 	}
 
 	private async updateInputEditorDecorations() {
@@ -232,6 +278,26 @@ class InputEditorDecorations extends Disposable {
 						}
 					}
 				}];
+			}
+		}
+
+		const onlyPromptCommandAndWhitespace = slashPromptPart && parsedRequest.every(p => p instanceof ChatRequestTextPart && !p.text.trim().length || p instanceof ChatRequestSlashPromptPart);
+		if (onlyPromptCommandAndWhitespace && exactlyOneSpaceAfterPart(slashPromptPart)) {
+			// Prompt slash command with no other text - show the placeholder
+			const cachedDescription = this.promptDescriptions.get(slashPromptPart.slashPromptCommand.command);
+			if (cachedDescription) {
+				placeholderDecoration = [{
+					range: getRangeForPlaceholder(slashPromptPart),
+					renderOptions: {
+						after: {
+							contentText: cachedDescription,
+							color: this.getPlaceholderColor(),
+						}
+					}
+				}];
+			} else if (!this.pendingPromptResolutions.has(slashPromptPart.slashPromptCommand.command)) {
+				// Try to resolve the description asynchronously
+				this.resolvePromptDescription(slashPromptPart);
 			}
 		}
 
