@@ -283,6 +283,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		if (showFoldingControls !== 'mouseover') {
 			return;
 		}
+		this._foldingIconStore.clear();
 		this._foldingIconStore.add(dom.addDisposableListener(this._lineNumbersDomNode, dom.EventType.MOUSE_ENTER, () => {
 			this._isOnGlyphMargin = true;
 			this._setFoldingIconsVisibility(true);
