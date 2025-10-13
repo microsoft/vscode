@@ -591,7 +591,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		let count = 0;
 		for (let i = position - 1; i >= this._commandStartX; i--) {
 			const cell = line.getCell(i);
-			// treat missing cell or whitespace-only cell as empty; stop on first non-empty
+			// treat missing cell or whitespace-only cell as empty; reset count on first non-empty
 			if (!cell || cell.getChars().trim().length === 0) {
 				count++;
 				// If we've already found 5 consecutive empties we can early-return
