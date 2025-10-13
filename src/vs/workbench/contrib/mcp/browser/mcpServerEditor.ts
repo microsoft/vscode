@@ -340,10 +340,10 @@ export class McpServerEditor extends EditorPane {
 		template.mcpServer = mcpServer;
 
 		template.name.textContent = mcpServer.label;
-		template.name.classList.toggle('clickable', !!mcpServer.gallery?.webUrl || !!mcpServer.url);
+		template.name.classList.toggle('clickable', !!mcpServer.gallery?.webUrl);
 		template.description.textContent = mcpServer.description;
-		if (mcpServer.url) {
-			this.transientDisposables.add(onClick(template.name, () => this.openerService.open(URI.parse(mcpServer.gallery?.webUrl ?? mcpServer.url!))));
+		if (mcpServer.gallery?.webUrl) {
+			this.transientDisposables.add(onClick(template.name, () => this.openerService.open(URI.parse(mcpServer.gallery?.webUrl!))));
 		}
 
 		this.renderNavbar(mcpServer, template, preserveFocus);

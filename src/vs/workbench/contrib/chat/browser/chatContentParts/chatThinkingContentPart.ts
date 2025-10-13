@@ -347,15 +347,9 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		const otherId = other?.id;
 		const thisId = this.id;
 
-		// one off case where we have no ids, we compare text instead.
-		if (otherId === undefined && thisId === undefined) {
-			const rawValue = other.value;
-			const otherValueStr = typeof rawValue === 'string' ? rawValue : Array.isArray(rawValue) ? rawValue.join('') : '';
-			const otherValueNormalized = otherValueStr.trim();
-			return this.parseContent(otherValueNormalized) === this.currentThinkingValue;
-		}
-
-		return otherId !== thisId;
+		const otherValueRaw = Array.isArray(other.value) ? other.value.join('') : (other.value ?? '');
+		const isEqual = this.parseContent(otherValueRaw.trim()) === this.currentThinkingValue;
+		return isEqual || otherId !== thisId;
 	}
 
 	override dispose(): void {
