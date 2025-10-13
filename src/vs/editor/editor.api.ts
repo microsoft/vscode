@@ -36,34 +36,3 @@ export const Uri = api.Uri;
 export const Token = api.Token;
 export const editor = api.editor;
 export const languages = api.languages;
-
-interface IMonacoEnvironment {
-	globalAPI?: boolean;
-}
-
-// eslint-disable-next-line local/code-no-any-casts
-const monacoEnvironment: IMonacoEnvironment | undefined = (globalThis as any).MonacoEnvironment;
-// eslint-disable-next-line local/code-no-any-casts
-if (monacoEnvironment?.globalAPI || (typeof (globalThis as any).define === 'function' && ((globalThis as any).define).amd)) {
-	globalThis.monaco = api;
-}
-
-// eslint-disable-next-line local/code-no-any-casts
-if (typeof (globalThis as any).require !== 'undefined' && typeof (globalThis as any).require.config === 'function') {
-	// eslint-disable-next-line local/code-no-any-casts
-	(globalThis as any).require.config({
-		ignoreDuplicateModules: [
-			'vscode-languageserver-types',
-			'vscode-languageserver-types/main',
-			'vscode-languageserver-textdocument',
-			'vscode-languageserver-textdocument/main',
-			'vscode-nls',
-			'vscode-nls/vscode-nls',
-			'jsonc-parser',
-			'jsonc-parser/main',
-			'vscode-uri',
-			'vscode-uri/index',
-			'vs/basic-languages/typescript/typescript'
-		]
-	});
-}
