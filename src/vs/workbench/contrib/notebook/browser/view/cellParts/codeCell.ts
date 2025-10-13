@@ -715,10 +715,10 @@ export class CodeCellLayout {
 	 *   │  │ │                                                                                          │   │
 	 *   │  │ │  ┌─ Execution Order / Run Column (~45px vertical travel band)─┐  ┌─ Editor Part ───────┐ │   │
 	 *   │  │ │  │ (Run button, execution # label)                            │  │ Visible Lines ...   │ │   │
-	 *   │  │ │  │                                                           │  │                      │ │   │
-	 *   │  │ │  │                                                           │  │ EDITOR_HEIGHT=200px  │ │   │
-	 *   │  │ │  │                                                           │  │ (Content=380px)      │ │   │
-	 *   │  │ │  └───────────────────────────────────────────────────────────┘  └──────────────────────┘ │   │
+	 *   │  │ │  │                                                            │  │                     │ │   │
+	 *   │  │ │  │                                                            │  │ EDITOR_HEIGHT=200px │ │   │
+	 *   │  │ │  │                                                            │  │ (Content=380px)     │ │   │
+	 *   │  │ │  └────────────────────────────────────────────────────────────┘  └─────────────────────┘ │   │
 	 *   │  │ │                                                                                          │   │
 	 *   │  │ │  ┌─ Status Bar (22px) ─────────────────────────────────────────────────────────────────┐ │   │
 	 *   │  │ │  │ language | indent | selection info | kernel/status bits ...                         │ │   │
