@@ -1603,11 +1603,12 @@ class ProblemPatternRegistryImpl implements IProblemPatternRegistry {
 				loop: true
 			}
 		]);
-		// esbuild prints a header like `X [ERROR] Missing import` followed by indented
-		// location lines such as `    src/app.ts:10:7:` (watch mode may append notes).
+		// esbuild prints a header like `X [ERROR] Missing import` (severity glyph may
+		// be ✘, ▲, X, etc.) followed by indented location lines such as
+		// `    src/app.ts:10:7:` (watch mode may append notes).
 		this.add('esbuild', [
 			{
-				regexp: /^[✘▲X] \[([A-Z]+)\] (.+)$/,
+				regexp: /^\S \[([A-Z]+)\] (.+)$/,
 				kind: ProblemLocationKind.Location,
 				severity: 1,
 				message: 2
