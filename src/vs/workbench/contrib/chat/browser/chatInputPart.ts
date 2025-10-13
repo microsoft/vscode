@@ -1210,7 +1210,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				// Only prevent default if the keybinding exists AND matches plain Enter (no modifiers)
 				if (chatSubmitKeybinding) {
 					const chords = chatSubmitKeybinding.getDispatchChords();
-					const isPlainEnter = chords.length === 1 && chords[0] === 'Enter';
+					const isPlainEnter = chords.length === 1 && chords[0] === '[Enter]';
 
 					if (isPlainEnter) {
 						// Also check if the action's precondition is met (e.g., inputHasText)
