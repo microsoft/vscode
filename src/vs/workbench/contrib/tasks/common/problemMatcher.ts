@@ -1603,6 +1603,21 @@ class ProblemPatternRegistryImpl implements IProblemPatternRegistry {
 				loop: true
 			}
 		]);
+		this.add('esbuild', [
+			{
+				regexp: /^[✘▲X] \[([A-Z]+)\] (.+)$/,
+				kind: ProblemLocationKind.Location,
+				severity: 1,
+				message: 2
+			},
+			{
+				regexp: /^\s*(?:(.+?):(\d+):(\d+):?(?:\s.*)?)?$/,
+				file: 1,
+				line: 2,
+				character: 3,
+				loop: true
+			}
+		]);
 		this.add('go', {
 			regexp: /^([^:]*: )?((.:)?[^:]*):(\d+)(:(\d+))?: (.*)$/,
 			kind: ProblemLocationKind.Location,
