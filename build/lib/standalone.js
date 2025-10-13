@@ -90,19 +90,19 @@ function extractEditor(options) {
         }
     }
     const copied = {};
-    const copyFile = (fileName) => {
+    const copyFile = (fileName, toFileName) => {
         if (copied[fileName]) {
             return;
         }
         copied[fileName] = true;
         if (path_1.default.isAbsolute(fileName)) {
             const relativePath = path_1.default.relative(options.sourcesRoot, fileName);
-            const dstPath = path_1.default.join(options.destRoot, relativePath);
+            const dstPath = path_1.default.join(options.destRoot, toFileName ?? relativePath);
             writeFile(dstPath, fs_1.default.readFileSync(fileName));
         }
         else {
             const srcPath = path_1.default.join(options.sourcesRoot, fileName);
-            const dstPath = path_1.default.join(options.destRoot, fileName);
+            const dstPath = path_1.default.join(options.destRoot, toFileName ?? fileName);
             writeFile(dstPath, fs_1.default.readFileSync(srcPath));
         }
     };
@@ -134,10 +134,9 @@ function extractEditor(options) {
     }
     delete tsConfig.compilerOptions.moduleResolution;
     writeOutputFile('tsconfig.json', JSON.stringify(tsConfig, null, '\t'));
-    [
-        'vs/loader.js',
-        'typings/css.d.ts'
-    ].forEach(copyFile);
+    copyFile('vs/loader.js');
+    copyFile('typings/css.d.ts');
+    copyFile('../node_modules/@vscode/tree-sitter-wasm/wasm/web-tree-sitter.d.ts', '@vscode/tree-sitter-wasm.d.ts');
 }
 function transportCSS(module, enqueue, write) {
     if (!/\.css/.test(module)) {

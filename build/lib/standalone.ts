@@ -62,7 +62,7 @@ export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: str
 		}
 	}
 	const copied: { [fileName: string]: boolean } = {};
-	const copyFile = (fileName: string) => {
+	const copyFile = (fileName: string, toFileName?: string) => {
 		if (copied[fileName]) {
 			return;
 		}
@@ -70,11 +70,11 @@ export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: str
 
 		if (path.isAbsolute(fileName)) {
 			const relativePath = path.relative(options.sourcesRoot, fileName);
-			const dstPath = path.join(options.destRoot, relativePath);
+			const dstPath = path.join(options.destRoot, toFileName ?? relativePath);
 			writeFile(dstPath, fs.readFileSync(fileName));
 		} else {
 			const srcPath = path.join(options.sourcesRoot, fileName);
-			const dstPath = path.join(options.destRoot, fileName);
+			const dstPath = path.join(options.destRoot, toFileName ?? fileName);
 			writeFile(dstPath, fs.readFileSync(srcPath));
 		}
 	};
@@ -110,10 +110,9 @@ export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: str
 	delete tsConfig.compilerOptions.moduleResolution;
 	writeOutputFile('tsconfig.json', JSON.stringify(tsConfig, null, '\t'));
 
-	[
-		'vs/loader.js',
-		'typings/css.d.ts'
-	].forEach(copyFile);
+	copyFile('vs/loader.js');
+	copyFile('typings/css.d.ts');
+	copyFile('../node_modules/@vscode/tree-sitter-wasm/wasm/web-tree-sitter.d.ts', '@vscode/tree-sitter-wasm.d.ts');
 }
 
 function transportCSS(module: string, enqueue: (module: string) => void, write: (path: string, contents: string | Buffer) => void): boolean {

@@ -55,8 +55,6 @@ export interface ITreeShakingOptions {
 	 * regex pattern to ignore certain imports e.g. `.css` imports
 	 */
 	importIgnorePattern: RegExp;
-
-	// redirects: { [module: string]: string };
 }
 
 export interface ITreeShakingResult {
