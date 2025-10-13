@@ -195,8 +195,8 @@ steps:
       - powershell: |
           . build/azure-pipelines/win32/exec.ps1
           $ErrorActionPreference = "Stop"
-          # Create policies directory
-          exec { mkdir -Force .build }
+          # Create policies directory (remove exec wrapper - directory may already exist)
+          mkdir -Force .build | Out-Null
           $VSCodePath = "$(Agent.BuildDirectory)\VSCode-win32-$(VSCODE_ARCH)\Code.exe"
           Write-Host "Checking if Code.exe exists at: $VSCodePath"
           if (-not (Test-Path $VSCodePath)) {
