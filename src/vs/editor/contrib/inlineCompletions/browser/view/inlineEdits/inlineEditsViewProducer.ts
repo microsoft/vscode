@@ -21,7 +21,7 @@ import { InlineEditsView } from './inlineEditsView.js';
 import { InlineEditTabAction } from './inlineEditsViewInterface.js';
 
 export class InlineEditsViewAndDiffProducer extends Disposable { // TODO: This class is no longer a diff producer. Rename it or get rid of it
-	public static readonly hot = createHotClass(InlineEditsViewAndDiffProducer);
+	public static readonly hot = createHotClass(this);
 
 	private readonly _editorObs: ObservableCodeEditor;
 

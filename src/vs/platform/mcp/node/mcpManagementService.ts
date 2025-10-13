@@ -26,7 +26,7 @@ export class McpUserResourceManagementService extends CommonMcpUserResourceManag
 	}
 
 	override async installFromGallery(server: IGalleryMcpServer, options?: InstallOptions): Promise<ILocalMcpServer> {
-		this.logService.trace('MCP Management Service: installGallery', server.url);
+		this.logService.trace('MCP Management Service: installGallery', server.name, server.galleryUrl);
 
 		this._onInstallMcpServer.fire({ name: server.name, mcpResource: this.mcpResource });
 
@@ -44,7 +44,7 @@ export class McpUserResourceManagementService extends CommonMcpUserResourceManag
 				name: server.name,
 				config: {
 					...mcpServerConfiguration.config,
-					gallery: server.url ?? true,
+					gallery: server.galleryUrl ?? true,
 					version: server.version
 				},
 				inputs: mcpServerConfiguration.inputs
