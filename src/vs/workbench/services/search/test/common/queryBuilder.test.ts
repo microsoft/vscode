@@ -9,7 +9,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { testWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
-import { resolveResourcesForSearchIncludes } from '../../common/queryBuilder.js';
+import { escapeGlobPattern, resolveResourcesForSearchIncludes } from '../../common/queryBuilder.js';
 import { TestContextService } from '../../../../test/common/workbenchTestServices.js';
 
 suite('QueryBuilderCommon', () => {
@@ -37,11 +37,6 @@ suite('QueryBuilderCommon', () => {
 
 		// Test file name with square brackets
 		const fileName = 'file[test].txt';
-
-		// Function matching the one used in queryBuilder.ts
-		function escapeGlobPattern(path: string): string {
-			return path.replace(/([?*[\]])/g, '[$1]');
-		}
 
 		// Without escaping, the pattern treats [test] as a character class
 		const unescapedResult = glob.match(fileName, fileName);
