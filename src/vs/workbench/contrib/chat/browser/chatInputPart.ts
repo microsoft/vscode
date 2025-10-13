@@ -50,7 +50,7 @@ import { MenuWorkbenchButtonBar } from '../../../../platform/actions/browser/but
 import { DropdownWithPrimaryActionViewItem, IDropdownWithPrimaryActionViewItemOptions } from '../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { getFlatActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
-import { IMenuService, MenuId, MenuItemAction, MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { IMenuService, MenuId, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -1213,18 +1213,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					const isPlainEnter = chords.length === 1 && chords[0] === '[Enter]';
 
 					if (isPlainEnter) {
-						// Also check if the action's precondition is met (e.g., inputHasText)
-						const commandAction = MenuRegistry.getCommand(ChatSubmitAction.ID);
-						const preconditionMet = !commandAction?.precondition ||
-							this.contextKeyService.contextMatchesRules(commandAction.precondition);
-
-						// Only prevent default if both keybinding exists and precondition is met
-						if (preconditionMet) {
-							e.preventDefault();
-						}
+						// Do NOT call stopPropagation() so the keybinding service can still process this event
+						e.preventDefault();
 					}
 				}
-				// Do NOT call stopPropagation() so the keybinding service can still process this event
 			}
 		}));
 

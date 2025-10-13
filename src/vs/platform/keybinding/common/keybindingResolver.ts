@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { implies, ContextKeyExpression, ContextKeyExprType, IContext, IContextKeyService } from '../../contextkey/common/contextkey.js';
+import { implies, ContextKeyExpression, ContextKeyExprType, IContext, IContextKeyService, expressionsAreEqualWithConstantSubstitution } from '../../contextkey/common/contextkey.js';
 import { ResolvedKeybindingItem } from './resolvedKeybindingItem.js';
 
 //#region resolution-result
@@ -103,12 +103,7 @@ export class KeybindingResolver {
 			if (!defaultKb.when) {
 				return false;
 			}
-
-			// Check if `when` is entirely included in `defaultKb.when`
-			// e.g. `when` is `a && b`, and `defaultKb.when` is `a && b && c`
-			// this means the removal `when` is more general than the `defaultKb.when`
-			// so the removal applies
-			if (!KeybindingResolver.whenIsEntirelyIncluded(defaultKb.when, when)) {
+			if (!expressionsAreEqualWithConstantSubstitution(when, defaultKb.when)) {
 				return false;
 			}
 		}
