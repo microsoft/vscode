@@ -352,14 +352,14 @@ export class AiBrowserView extends Disposable {
 			// Get API configuration
 			const apiKey = this.configurationService.getValue<string>('aiBrowser.apiKey');
 			const apiProvider = this.configurationService.getValue<string>('aiBrowser.apiProvider') || 'openai';
-			const model = this.configurationService.getValue<string>('aiBrowser.model') || 'gpt-4';
+			const model = this.configurationService.getValue<string>('aiBrowser.model') || 'gpt-3.5-turbo';
 
 			if (!apiKey) {
 				throw new Error('API key not configured. Please set aiBrowser.apiKey in settings.');
 			}
 
-			// Call LLM API
-			const response = await this.callLLMApi(apiKey, apiProvider, model, question);
+			// Call LLM API with fallback models
+			const response = await this.callLLMApiWithFallback(apiKey, apiProvider, model, question);
 
 			// Remove loading message
 			loadingMessage.remove();
@@ -375,6 +375,33 @@ export class AiBrowserView extends Disposable {
 		} finally {
 			this.isLoadingResponse = false;
 			this.sendButton.enabled = this.chatInputBox.value.trim().length > 0;
+		}
+	}
+
+	private async callLLMApiWithFallback(apiKey: string, provider: string, model: string, question: string): Promise<string> {
+		// Define fallback models for OpenAI
+		const fallbackModels = ['gpt-3.5-turbo', 'gpt-4o-mini', 'gpt-4o'];
+
+		// Try the requested model first
+		try {
+			return await this.callLLMApi(apiKey, provider, model, question);
+		} catch (error: any) {
+			// If it's a model access error, try fallback models
+			if (error.message.includes('does not exist') || error.message.includes('not have access')) {
+				for (const fallbackModel of fallbackModels) {
+					if (fallbackModel !== model) {
+						try {
+							console.log(`Trying fallback model: ${fallbackModel}`);
+							return await this.callLLMApi(apiKey, provider, fallbackModel, question);
+						} catch (fallbackError) {
+							console.warn(`Fallback model ${fallbackModel} also failed:`, fallbackError);
+							continue;
+						}
+					}
+				}
+			}
+			// Re-throw the original error if no fallback worked
+			throw error;
 		}
 	}
 
@@ -431,7 +458,14 @@ export class AiBrowserView extends Disposable {
 
 		if (!response.ok) {
 			const errorData = await response.json().catch(() => ({}));
-			throw new Error(errorData.error?.message || `API request failed: ${response.statusText}`);
+			const errorMessage = errorData.error?.message || `API request failed: ${response.statusText}`;
+
+			// Handle specific model access errors
+			if (errorMessage.includes('does not exist') || errorMessage.includes('not have access')) {
+				throw new Error(`Model access error: ${errorMessage}. Try using 'gpt-3.5-turbo' or 'gpt-4o-mini' instead.`);
+			}
+
+			throw new Error(errorMessage);
 		}
 
 		const data = await response.json();
