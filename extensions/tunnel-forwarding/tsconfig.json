@@ -5,7 +5,6 @@
 		"typeRoots": [
 			"./node_modules/@types"
 		],
-		"downlevelIteration": true,
 		"types": [
 			"node"
 		]
