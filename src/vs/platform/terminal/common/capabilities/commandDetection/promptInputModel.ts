@@ -601,7 +601,6 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 			} else {
 				// consecutive sequence broken
 				count = 0;
-				continue;
 			}
 		}
 		return false;
