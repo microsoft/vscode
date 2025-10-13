@@ -50,7 +50,7 @@ import { MenuWorkbenchButtonBar } from '../../../../platform/actions/browser/but
 import { DropdownWithPrimaryActionViewItem, IDropdownWithPrimaryActionViewItemOptions } from '../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { getFlatActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
-import { IMenuService, MenuId, MenuItemAction } from '../../../../platform/actions/common/actions.js';
+import { IMenuService, MenuId, MenuItemAction, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -1199,14 +1199,32 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		options.overflowWidgetsDomNode?.classList.add('hideSuggestTextIcons');
 		this._inputEditorElement.classList.add('hideSuggestTextIcons');
 
-		// Prevent Enter key from creating new lines - but allow keybinding service to still handle the event
-		// We need to prevent Monaco's default Enter behavior while still allowing the VS Code keybinding service
-		// to receive and process the Enter key for ChatSubmitAction
+		// Prevent Enter key from creating new lines - but respect user's custom keybindings
+		// Only prevent default behavior if ChatSubmitAction is bound to Enter AND its precondition is met
 		this._register(this._inputEditor.onKeyDown((e) => {
 			if (e.keyCode === KeyCode.Enter && !hasModifierKeys(e)) {
-				// Only prevent the default Monaco behavior (newline insertion)
+				// Check if ChatSubmitAction has a keybinding for plain Enter in the current context
+				// This respects user's custom keybindings that disable the submit action
+				const chatSubmitKeybinding = this.keybindingService.lookupKeybinding(ChatSubmitAction.ID, this.contextKeyService);
+
+				// Only prevent default if the keybinding exists AND matches plain Enter (no modifiers)
+				if (chatSubmitKeybinding) {
+					const chords = chatSubmitKeybinding.getDispatchChords();
+					const isPlainEnter = chords.length === 1 && chords[0] === 'Enter';
+
+					if (isPlainEnter) {
+						// Also check if the action's precondition is met (e.g., inputHasText)
+						const commandAction = MenuRegistry.getCommand(ChatSubmitAction.ID);
+						const preconditionMet = !commandAction?.precondition ||
+							this.contextKeyService.contextMatchesRules(commandAction.precondition);
+
+						// Only prevent default if both keybinding exists and precondition is met
+						if (preconditionMet) {
+							e.preventDefault();
+						}
+					}
+				}
 				// Do NOT call stopPropagation() so the keybinding service can still process this event
-				e.preventDefault();
 			}
 		}));
 
