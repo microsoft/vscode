@@ -287,7 +287,6 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 			}
 			session.lastData = data;
 			session.lastPreviewNonEmptyRows = this._countNonEmptyRows(data);
-			this._setSessionPreferredRows(session, session.lastPreviewNonEmptyRows);
 			for (const attachment of session.attachments.values()) {
 				if (attachment.disposed || attachment.store.isDisposed || !attachment.xterm) {
 					continue;
