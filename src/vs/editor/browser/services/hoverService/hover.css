@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* stylelint-disable layer-checker */
+
 .monaco-workbench .workbench-hover {
 	position: relative;
 	font-size: 13px;
@@ -13,7 +15,7 @@
 	max-width: 700px;
 	background: var(--vscode-editorHoverWidget-background);
 	border: 1px solid var(--vscode-editorHoverWidget-border);
-	border-radius: 3px;
+	border-radius: 5px;
 	color: var(--vscode-editorHoverWidget-foreground);
 	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
 }

@@ -10,8 +10,7 @@ import { ExtensionIdentifier } from '../../../../platform/extensions/common/exte
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-// eslint-disable-next-line local/code-import-patterns
-import { IChatEntitlementService } from '../../../contrib/chat/common/chatEntitlementService.js';
+import { IChatEntitlementService } from '../../chat/common/chatEntitlementService.js';
 
 export enum ExtensionsFilter {
 
@@ -102,6 +101,7 @@ export class CopilotAssignmentFilterProvider extends Disposable implements IExpe
 
 			copilotExtensionVersion = copilotExtension?.version;
 			copilotChatExtensionVersion = copilotChatExtension?.version;
+			// eslint-disable-next-line local/code-no-any-casts
 			copilotCompletionsVersion = (copilotChatExtension as any)?.completionsCoreVersion;
 		} catch (error) {
 			this._logService.error('Failed to update extension version assignments', error);
@@ -128,7 +128,7 @@ export class CopilotAssignmentFilterProvider extends Disposable implements IExpe
 	private updateCopilotEntitlementInfo() {
 		const newSku = this._chatEntitlementService.sku;
 		const newIsGitHubInternal = this._chatEntitlementService.organisations?.includes('github');
-		const newIsMicrosoftInternal = this._chatEntitlementService.organisations?.includes('microsoft');
+		const newIsMicrosoftInternal = this._chatEntitlementService.organisations?.includes('microsoft') || this._chatEntitlementService.organisations?.includes('ms-copilot') || this._chatEntitlementService.organisations?.includes('MicrosoftCopilot');
 		const newInternalOrg = newIsGitHubInternal ? 'github' : newIsMicrosoftInternal ? 'microsoft' : undefined;
 
 		if (this.copilotSku === newSku && this.copilotInternalOrg === newInternalOrg) {

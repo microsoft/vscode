@@ -12,6 +12,7 @@ export interface IConfirmationPrompt {
 	prompt: string;
 	options: string[];
 	descriptions?: string[];
+	detectedRequestForFreeFormInput: boolean;
 }
 
 export interface IExecution {
@@ -19,7 +20,7 @@ export interface IExecution {
 	isActive?: () => Promise<boolean>;
 	task?: Task | Pick<Task, 'configurationProperties'>;
 	instance: Pick<ITerminalInstance, 'sendText' | 'instanceId' | 'onDidInputData' | 'onData' | 'focus' | 'registerMarker'>;
-	sessionId: string;
+	sessionId: string | undefined;
 }
 
 export interface IPollingResult {

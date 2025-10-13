@@ -4,26 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 import { assertNever } from '../../../../../base/common/assert.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { markdownCommandLink } from '../../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import Severity from '../../../../../base/common/severity.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickTreeItem } from '../../../../../platform/quickinput/common/quickInput.js';
-import { URI } from '../../../../../base/common/uri.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ExtensionEditorTab, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { McpCommandIds } from '../../../mcp/common/mcpCommandIds.js';
 import { IMcpRegistry } from '../../../mcp/common/mcpRegistryTypes.js';
-import { IMcpServer, IMcpService, IMcpWorkbenchService, McpConnectionState, McpServerEditorTab } from '../../../mcp/common/mcpTypes.js';
+import { IMcpServer, IMcpService, IMcpWorkbenchService, McpConnectionState, McpServerCacheState, McpServerEditorTab } from '../../../mcp/common/mcpTypes.js';
+import { startServerAndWaitForLiveTools } from '../../../mcp/common/mcpTypesUtils.js';
+import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { ILanguageModelToolsService, IToolData, ToolDataSource, ToolSet } from '../../common/languageModelToolsService.js';
 import { ConfigureToolSets } from '../tools/toolSetsContribution.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import Severity from '../../../../../base/common/severity.js';
-import { markdownCommandLink } from '../../../../../base/common/htmlContent.js';
 
 const enum BucketOrdinal { User, BuiltIn, Mcp, Extension }
 
@@ -81,11 +82,12 @@ interface IToolTreeItemData extends IToolTreeItem {
 
 /**
  * Callback tree item - represents action items like "Add MCP Server" or "Configure Tool Sets".
- * These are non-selectable items that execute actions when clicked.
+ * These are non-selectable items that execute actions when clicked. Can return
+ * false to keep the picker open.
  */
 interface ICallbackTreeItem extends IToolTreeItem {
 	readonly itemType: 'callback';
-	readonly run: () => void;
+	readonly run: () => boolean | void;
 	readonly pickable: false;
 }
 
@@ -187,7 +189,7 @@ export async function showToolsPicker(
 	accessor: ServicesAccessor,
 	placeHolder: string,
 	description?: string,
-	toolsEntries?: ReadonlyMap<ToolSet | IToolData, boolean>
+	getToolsEntries?: () => ReadonlyMap<ToolSet | IToolData, boolean>
 ): Promise<ReadonlyMap<ToolSet | IToolData, boolean> | undefined> {
 
 	const quickPickService = accessor.get(IQuickInputService);
@@ -207,178 +209,232 @@ export async function showToolsPicker(
 		}
 	}
 
-	// Create default entries if none provided
-	if (!toolsEntries) {
-		const defaultEntries = new Map();
-		for (const tool of toolsService.getTools()) {
-			if (tool.canBeReferencedInPrompt) {
-				defaultEntries.set(tool, false);
+	function computeItems(previousToolsEntries?: ReadonlyMap<ToolSet | IToolData, boolean>) {
+		// Create default entries if none provided
+		let toolsEntries = getToolsEntries ? new Map(getToolsEntries()) : undefined;
+		if (!toolsEntries) {
+			const defaultEntries = new Map();
+			for (const tool of toolsService.getTools()) {
+				if (tool.canBeReferencedInPrompt) {
+					defaultEntries.set(tool, false);
+				}
 			}
+			for (const toolSet of toolsService.toolSets.get()) {
+				defaultEntries.set(toolSet, false);
+			}
+			toolsEntries = defaultEntries;
 		}
+		previousToolsEntries?.forEach((value, key) => {
+			toolsEntries.set(key, value);
+		});
+
+		// Build tree structure
+		const treeItems: AnyTreeItem[] = [];
+		const bucketMap = new Map<string, IBucketTreeItem>();
+
+		const getKey = (source: ToolDataSource): string => {
+			switch (source.type) {
+				case 'mcp':
+				case 'extension':
+					return ToolDataSource.toKey(source);
+				case 'internal':
+					return BucketOrdinal.BuiltIn.toString();
+				case 'user':
+					return BucketOrdinal.User.toString();
+				case 'external':
+					throw new Error('should not be reachable');
+				default:
+					assertNever(source);
+			}
+		};
+
+		const mcpServers = new Map(mcpService.servers.get().map(s => [s.definition.id, { server: s, seen: false }]));
+		const createBucket = (source: ToolDataSource, key: string): IBucketTreeItem | undefined => {
+			if (source.type === 'mcp') {
+				const mcpServerEntry = mcpServers.get(source.definitionId);
+				if (!mcpServerEntry) {
+					return undefined;
+				}
+				mcpServerEntry.seen = true;
+				const mcpServer = mcpServerEntry.server;
+				const buttons: ActionableButton[] = [];
+				const collection = mcpRegistry.collections.get().find(c => c.id === mcpServer.collection.id);
+				if (collection?.source) {
+					buttons.push({
+						iconClass: ThemeIcon.asClassName(Codicon.settingsGear),
+						tooltip: localize('configMcpCol', "Configure {0}", collection.label),
+						action: () => collection.source ? collection.source instanceof ExtensionIdentifier ? extensionsWorkbenchService.open(collection.source.value, { tab: ExtensionEditorTab.Features, feature: 'mcp' }) : mcpWorkbenchService.open(collection.source, { tab: McpServerEditorTab.Configuration }) : undefined
+					});
+				} else if (collection?.presentation?.origin) {
+					buttons.push({
+						iconClass: ThemeIcon.asClassName(Codicon.settingsGear),
+						tooltip: localize('configMcpCol', "Configure {0}", collection.label),
+						action: () => editorService.openEditor({
+							resource: collection!.presentation!.origin,
+						})
+					});
+				}
+				if (mcpServer.connectionState.get().state === McpConnectionState.Kind.Error) {
+					buttons.push({
+						iconClass: ThemeIcon.asClassName(Codicon.warning),
+						tooltip: localize('mcpShowOutput', "Show Output"),
+						action: () => mcpServer.showOutput(),
+					});
+				}
+				const cacheState = mcpServer.cacheState.get();
+				const children: AnyTreeItem[] = [];
+				let collapsed = true;
+				if (cacheState === McpServerCacheState.Unknown || cacheState === McpServerCacheState.Outdated) {
+					collapsed = false;
+					children.push({
+						itemType: 'callback',
+						iconClass: ThemeIcon.asClassName(Codicon.sync),
+						label: localize('mcpUpdate', "Update Tools"),
+						pickable: false,
+						run: () => {
+							treePicker.busy = true;
+							(async () => {
+								const ok = await startServerAndWaitForLiveTools(mcpServer, { promptType: 'all-untrusted' });
+								if (!ok) {
+									mcpServer.showOutput();
+									treePicker.hide();
+									return;
+								}
+								treePicker.busy = false;
+								computeItems(collectResults());
+							})();
+							return false;
+						},
+					});
+				}
+				const bucket: IBucketTreeItem = {
+					itemType: 'bucket',
+					ordinal: BucketOrdinal.Mcp,
+					id: key,
+					label: localize('mcplabel', "MCP Server: {0}", source.label),
+					checked: undefined,
+					collapsed,
+					children,
+					buttons,
+				};
+				const iconPath = mcpServer.serverMetadata.get()?.icons.getUrl(22);
+				if (iconPath) {
+					bucket.iconPath = iconPath;
+				} else {
+					bucket.iconClass = ThemeIcon.asClassName(Codicon.mcp);
+				}
+				return bucket;
+			} else if (source.type === 'extension') {
+				return {
+					itemType: 'bucket',
+					ordinal: BucketOrdinal.Extension,
+					id: key,
+					label: localize('ext', 'Extension: {0}', source.label),
+					checked: undefined,
+					children: [],
+					buttons: [],
+					collapsed: true,
+					iconClass: ThemeIcon.asClassName(Codicon.extensions)
+				};
+			} else if (source.type === 'internal') {
+				return {
+					itemType: 'bucket',
+					ordinal: BucketOrdinal.BuiltIn,
+					id: key,
+					label: localize('defaultBucketLabel', "Built-In"),
+					checked: undefined,
+					children: [],
+					buttons: [],
+					collapsed: false
+				};
+			} else {
+				return {
+					itemType: 'bucket',
+					ordinal: BucketOrdinal.User,
+					id: key,
+					label: localize('userBucket', "User Defined Tool Sets"),
+					checked: undefined,
+					children: [],
+					buttons: [],
+					collapsed: true
+				};
+			}
+		};
+
+		const getBucket = (source: ToolDataSource): IBucketTreeItem | undefined => {
+			const key = getKey(source);
+			let bucket = bucketMap.get(key);
+			if (!bucket) {
+				bucket = createBucket(source, key);
+				if (bucket) {
+					bucketMap.set(key, bucket);
+				}
+			}
+			return bucket;
+		};
+
 		for (const toolSet of toolsService.toolSets.get()) {
-			defaultEntries.set(toolSet, false);
+			if (!toolsEntries.has(toolSet)) {
+				continue;
+			}
+			const bucket = getBucket(toolSet.source);
+			if (!bucket) {
+				continue;
+			}
+			const toolSetChecked = toolsEntries.get(toolSet) === true;
+			if (toolSet.source.type === 'mcp') {
+				// bucket represents the toolset
+				bucket.toolset = toolSet;
+				if (toolSetChecked) {
+					bucket.checked = toolSetChecked;
+				}
+				// all mcp tools are part of toolsService.getTools()
+			} else {
+				const treeItem = createToolSetTreeItem(toolSet, toolSetChecked, editorService);
+				bucket.children.push(treeItem);
+				const children = [];
+				for (const tool of toolSet.getTools()) {
+					const toolChecked = toolSetChecked || toolsEntries.get(tool) === true;
+					const toolTreeItem = createToolTreeItemFromData(tool, toolChecked);
+					children.push(toolTreeItem);
+				}
+				if (children.length > 0) {
+					treeItem.children = children;
+				}
+			}
 		}
-		toolsEntries = defaultEntries;
-	}
-
-	// Build tree structure
-	const treeItems: AnyTreeItem[] = [];
-	const bucketMap = new Map<string, IBucketTreeItem>();
-
-	const getKey = (source: ToolDataSource): string => {
-		switch (source.type) {
-			case 'mcp':
-			case 'extension':
-				return ToolDataSource.toKey(source);
-			case 'internal':
-				return BucketOrdinal.BuiltIn.toString();
-			case 'user':
-				return BucketOrdinal.User.toString();
-			case 'external':
-				throw new Error('should not be reachable');
-			default:
-				assertNever(source);
+		for (const tool of toolsService.getTools()) {
+			if (!tool.canBeReferencedInPrompt || !toolsEntries.has(tool)) {
+				continue;
+			}
+			const bucket = getBucket(tool.source);
+			if (!bucket) {
+				continue;
+			}
+			const toolChecked = bucket.checked === true || toolsEntries.get(tool) === true;
+			const toolTreeItem = createToolTreeItemFromData(tool, toolChecked);
+			bucket.children.push(toolTreeItem);
 		}
-	};
 
-	const createBucket = (source: ToolDataSource, key: string): IBucketTreeItem | undefined => {
-		if (source.type === 'mcp') {
-			const { definitionId } = source;
-			const mcpServer = mcpService.servers.get().find(candidate => candidate.definition.id === definitionId);
-			if (!mcpServer) {
-				return undefined;
+		// Show entries for MCP servers that don't have any tools in them and might need to be started.
+		for (const { server, seen } of mcpServers.values()) {
+			const cacheState = server.cacheState.get();
+			if (!seen && (cacheState === McpServerCacheState.Unknown || cacheState === McpServerCacheState.Outdated)) {
+				getBucket({ type: 'mcp', definitionId: server.definition.id, label: server.definition.label, instructions: '', serverLabel: '', collectionId: server.collection.id });
 			}
+		}
 
-			const buttons: ActionableButton[] = [];
-			const collection = mcpRegistry.collections.get().find(c => c.id === mcpServer.collection.id);
-			if (collection?.source) {
-				buttons.push({
-					iconClass: ThemeIcon.asClassName(Codicon.settingsGear),
-					tooltip: localize('configMcpCol', "Configure {0}", collection.label),
-					action: () => collection.source ? collection.source instanceof ExtensionIdentifier ? extensionsWorkbenchService.open(collection.source.value, { tab: ExtensionEditorTab.Features, feature: 'mcp' }) : mcpWorkbenchService.open(collection.source, { tab: McpServerEditorTab.Configuration }) : undefined
-				});
-			} else if (collection?.presentation?.origin) {
-				buttons.push({
-					iconClass: ThemeIcon.asClassName(Codicon.settingsGear),
-					tooltip: localize('configMcpCol', "Configure {0}", collection.label),
-					action: () => editorService.openEditor({
-						resource: collection!.presentation!.origin,
-					})
-				});
-			}
-			if (mcpServer.connectionState.get().state === McpConnectionState.Kind.Error) {
-				buttons.push({
-					iconClass: ThemeIcon.asClassName(Codicon.warning),
-					tooltip: localize('mcpShowOutput', "Show Output"),
-					action: () => mcpServer.showOutput(),
-				});
-			}
-			return {
-				itemType: 'bucket',
-				ordinal: BucketOrdinal.Mcp,
-				id: key,
-				label: localize('mcplabel', "MCP Server: {0}", source.label),
-				checked: undefined,
-				collapsed: true,
-				children: [],
-				buttons,
-				iconClass: ThemeIcon.asClassName(Codicon.mcp)
-			};
-		} else if (source.type === 'extension') {
-			return {
-				itemType: 'bucket',
-				ordinal: BucketOrdinal.Extension,
-				id: key,
-				label: localize('ext', 'Extension: {0}', source.label),
-				checked: undefined,
-				children: [],
-				buttons: [],
-				collapsed: true,
-				iconClass: ThemeIcon.asClassName(Codicon.extensions)
-			};
-		} else if (source.type === 'internal') {
-			return {
-				itemType: 'bucket',
-				ordinal: BucketOrdinal.BuiltIn,
-				id: key,
-				label: localize('defaultBucketLabel', "Built-In"),
-				checked: undefined,
-				children: [],
-				buttons: [],
-				collapsed: false
-			};
+		// Convert bucket map to sorted tree items
+		const sortedBuckets = Array.from(bucketMap.values()).sort((a, b) => a.ordinal - b.ordinal);
+		treeItems.push(...sortedBuckets);
+
+		if (treeItems.length === 0) {
+			treePicker.placeholder = localize('noTools', "Add tools to chat");
 		} else {
-			return {
-				itemType: 'bucket',
-				ordinal: BucketOrdinal.User,
-				id: key,
-				label: localize('userBucket', "User Defined Tool Sets"),
-				checked: undefined,
-				children: [],
-				buttons: [],
-				collapsed: true
-			};
+			treePicker.placeholder = placeHolder;
 		}
-	};
-
-	const getBucket = (source: ToolDataSource): IBucketTreeItem | undefined => {
-		const key = getKey(source);
-		let bucket = bucketMap.get(key);
-		if (!bucket) {
-			bucket = createBucket(source, key);
-			if (bucket) {
-				bucketMap.set(key, bucket);
-			}
-		}
-		return bucket;
-	};
-
-	for (const toolSet of toolsService.toolSets.get()) {
-		if (!toolsEntries.has(toolSet)) {
-			continue;
-		}
-		const bucket = getBucket(toolSet.source);
-		if (!bucket) {
-			continue;
-		}
-		const toolSetChecked = toolsEntries.get(toolSet) === true;
-		if (toolSet.source.type === 'mcp') {
-			// bucket represents the toolset
-			bucket.toolset = toolSet;
-			if (toolSetChecked) {
-				bucket.checked = toolSetChecked;
-			}
-			// all mcp tools are part of toolsService.getTools()
-		} else {
-			const treeItem = createToolSetTreeItem(toolSet, toolSetChecked, editorService);
-			bucket.children.push(treeItem);
-			const children = [];
-			for (const tool of toolSet.getTools()) {
-				const toolChecked = toolSetChecked || toolsEntries.get(tool) === true;
-				const toolTreeItem = createToolTreeItemFromData(tool, toolChecked);
-				children.push(toolTreeItem);
-			}
-			if (children.length > 0) {
-				treeItem.children = children;
-			}
-		}
+		treePicker.setItemTree(treeItems);
 	}
-	for (const tool of toolsService.getTools()) {
-		if (!tool.canBeReferencedInPrompt || !toolsEntries.has(tool)) {
-			continue;
-		}
-		const bucket = getBucket(tool.source);
-		if (!bucket) {
-			continue;
-		}
-		const toolChecked = bucket.checked === true || toolsEntries.get(tool) === true;
-		const toolTreeItem = createToolTreeItemFromData(tool, toolChecked);
-		bucket.children.push(toolTreeItem);
-	}
-
-	// Convert bucket map to sorted tree items
-	const sortedBuckets = Array.from(bucketMap.values()).sort((a, b) => a.ordinal - b.ordinal);
-	treeItems.push(...sortedBuckets);
 
 	// Create and configure the tree picker
 	const store = new DisposableStore();
@@ -390,11 +446,8 @@ export async function showToolsPicker(
 	treePicker.matchOnDescription = true;
 	treePicker.matchOnLabel = true;
 
-	if (treeItems.length === 0) {
-		treePicker.placeholder = localize('noTools', "Add tools to chat");
-	}
 
-	treePicker.setItemTree(treeItems);
+	computeItems();
 
 	// Handle button triggers
 	store.add(treePicker.onDidTriggerItemButton(e => {
@@ -418,7 +471,7 @@ export async function showToolsPicker(
 					}
 				}
 			};
-			traverse(treeItems);
+			traverse(treePicker.itemTree);
 			if (count > toolLimit) {
 				treePicker.severity = Severity.Warning;
 				treePicker.validationMessage = localize('toolLimitExceeded', "{0} tools are enabled. You may experience degraded tool calling above {1} tools.", count, markdownCommandLink({ title: String(toolLimit), id: '_chat.toolPicker.closeAndOpenVirtualThreshold' }));
@@ -448,12 +501,12 @@ export async function showToolsPicker(
 						traverse(item.children);
 					}
 				} else if (isToolTreeItem(item)) {
-					result.set(item.tool, item.checked);
+					result.set(item.tool, item.checked || result.get(item.tool) === true); // tools can be in user tool sets and other buckets
 				}
 			}
 		};
 
-		traverse(treeItems);
+		traverse(treePicker.itemTree);
 		return result;
 	};
 
@@ -471,14 +524,20 @@ export async function showToolsPicker(
 
 	// Handle acceptance
 	let didAccept = false;
+	const didAcceptFinalItem = store.add(new Emitter<void>());
 	store.add(treePicker.onDidAccept(() => {
 		// Check if a callback item was activated
 		const activeItems = treePicker.activeItems;
 		const callbackItem = activeItems.find(isCallbackTreeItem);
-		if (callbackItem) {
-			callbackItem.run();
-		} else {
+		if (!callbackItem) {
 			didAccept = true;
+			treePicker.hide();
+			return;
+		}
+
+		const ret = callbackItem.run();
+		if (ret !== false) {
+			didAcceptFinalItem.fire();
 		}
 	}));
 
@@ -509,7 +568,7 @@ export async function showToolsPicker(
 
 	treePicker.show();
 
-	await Promise.race([Event.toPromise(Event.any(treePicker.onDidAccept, treePicker.onDidHide), store)]);
+	await Promise.race([Event.toPromise(Event.any(treePicker.onDidHide, didAcceptFinalItem.event), store)]);
 
 	store.dispose();
 

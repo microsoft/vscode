@@ -10,7 +10,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { revive } from '../../../../base/common/marshalling.js';
+import { revive, Revived } from '../../../../base/common/marshalling.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { equalsIgnoreCase } from '../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -141,13 +141,21 @@ export interface IChatAgentRequest {
 	isParticipantDetected?: boolean;
 	variables: IChatRequestVariableData;
 	location: ChatAgentLocation;
-	locationData?: IChatLocationData;
+	locationData?: Revived<IChatLocationData>;
 	acceptedConfirmationData?: any[];
 	rejectedConfirmationData?: any[];
 	userSelectedModelId?: string;
 	userSelectedTools?: UserSelectedTools;
 	modeInstructions?: IChatRequestModeInstructions;
 	editedFileEvents?: IChatAgentEditedFileEvent[];
+
+	/**
+	 * Summary data for chat sessions context
+	 */
+	chatSummary?: {
+		prompt?: string;
+		history?: string;
+	};
 }
 
 export interface IChatQuestion {
@@ -731,26 +739,35 @@ export function getFullyQualifiedId(chatAgentData: IChatAgentData): string {
 	return `${chatAgentData.extensionId.value}.${chatAgentData.id}`;
 }
 
-export function reviveSerializedAgent(raw: ISerializableChatAgentData): IChatAgentData {
-	const agent = 'name' in raw ?
+/**
+ * There was a period where serialized chat agent data used 'id' instead of 'name'.
+ * Don't copy this pattern, serialized data going forward should be versioned with strict interfaces.
+ */
+interface IOldSerializedChatAgentData extends Omit<ISerializableChatAgentData, 'name'> {
+	id: string;
+	extensionPublisher?: string;
+}
+
+export function reviveSerializedAgent(raw: ISerializableChatAgentData | IOldSerializedChatAgentData): IChatAgentData {
+	const normalized: ISerializableChatAgentData = 'name' in raw ?
 		raw :
 		{
-			...(raw as any),
-			name: (raw as any).id,
+			...raw,
+			name: raw.id,
 		};
 
 	// Fill in required fields that may be missing from old data
-	if (!('extensionPublisherId' in agent)) {
-		agent.extensionPublisherId = agent.extensionPublisher ?? '';
+	if (!normalized.extensionPublisherId) {
+		normalized.extensionPublisherId = (raw as IOldSerializedChatAgentData).extensionPublisher ?? '';
 	}
 
-	if (!('extensionDisplayName' in agent)) {
-		agent.extensionDisplayName = '';
+	if (!normalized.extensionDisplayName) {
+		normalized.extensionDisplayName = '';
 	}
 
-	if (!('extensionId' in agent)) {
-		agent.extensionId = new ExtensionIdentifier('');
+	if (!normalized.extensionId) {
+		normalized.extensionId = new ExtensionIdentifier('');
 	}
 
-	return revive(agent);
+	return revive(normalized);
 }

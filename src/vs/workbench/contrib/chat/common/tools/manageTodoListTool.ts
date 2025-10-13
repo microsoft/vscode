@@ -19,17 +19,15 @@ import {
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IChatTodo, IChatTodoListService } from '../chatTodoListService.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IsSimulationContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { localize } from '../../../../../nls.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 
-export const TodoListToolSettingId = 'chat.todoListTool.enabled';
 export const TodoListToolWriteOnlySettingId = 'chat.todoListTool.writeOnly';
+export const TodoListToolDescriptionFieldSettingId = 'chat.todoListTool.descriptionField';
 
 export const ManageTodoListToolToolId = 'manage_todo_list';
 
-export function createManageTodoListToolData(writeOnly: boolean): IToolData {
+export function createManageTodoListToolData(writeOnly: boolean, includeDescription: boolean = true): IToolData {
 	const baseProperties: any = {
 		todoList: {
 			type: 'array',
@@ -47,17 +45,19 @@ export function createManageTodoListToolData(writeOnly: boolean): IToolData {
 						type: 'string',
 						description: 'Concise action-oriented todo label (3-7 words). Displayed in UI.'
 					},
-					description: {
-						type: 'string',
-						description: 'Detailed context, requirements, or implementation notes. Include file paths, specific methods, or acceptance criteria.'
-					},
+					...(includeDescription && {
+						description: {
+							type: 'string',
+							description: 'Detailed context, requirements, or implementation notes. Include file paths, specific methods, or acceptance criteria.'
+						}
+					}),
 					status: {
 						type: 'string',
 						enum: ['not-started', 'in-progress', 'completed'],
 						description: 'not-started: Not begun | in-progress: Currently working (max 1) | completed: Fully finished with no blockers'
 					},
 				},
-				required: ['id', 'title', 'description', 'status']
+				required: includeDescription ? ['id', 'title', 'description', 'status'] : ['id', 'title', 'status']
 			}
 		}
 	};
@@ -78,10 +78,6 @@ export function createManageTodoListToolData(writeOnly: boolean): IToolData {
 	return {
 		id: ManageTodoListToolToolId,
 		toolReferenceName: 'todos',
-		when: ContextKeyExpr.or(
-			ContextKeyExpr.equals(`config.${TodoListToolSettingId}`, true),
-			IsSimulationContext
-		),
 		canBeReferencedInPrompt: true,
 		icon: ThemeIcon.fromId(Codicon.checklist.id),
 		displayName: localize('tool.manageTodoList.displayName', 'Manage and track todo items for task planning'),
@@ -103,7 +99,7 @@ interface IManageTodoListToolInputParams {
 	todoList: Array<{
 		id: number;
 		title: string;
-		description: string;
+		description?: string;
 		status: 'not-started' | 'in-progress' | 'completed';
 	}>;
 	chatSessionId?: string;
@@ -113,6 +109,7 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 
 	constructor(
 		private readonly writeOnly: boolean,
+		private readonly includeDescription: boolean,
 		@IChatTodoListService private readonly chatTodoListService: IChatTodoListService,
 		@ILogService private readonly logService: ILogService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService
@@ -195,7 +192,7 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 		const todoList = items.map(todo => ({
 			id: todo.id.toString(),
 			title: todo.title,
-			description: todo.description,
+			description: todo.description || '',
 			status: todo.status
 		}));
 
@@ -304,7 +301,7 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 		const todoList: IChatTodo[] = args.todoList.map((parsedTodo) => ({
 			id: parsedTodo.id,
 			title: parsedTodo.title,
-			description: parsedTodo.description,
+			description: parsedTodo.description || '',
 			status: parsedTodo.status
 		}));
 
@@ -342,7 +339,10 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 			content: [{
 				kind: 'text',
 				value: `Successfully wrote todo list${warnings.length ? '\n\n' + warnings.join('\n') : ''}`
-			}]
+			}],
+			toolMetadata: {
+				warnings: warnings
+			}
 		};
 	}
 
@@ -374,7 +374,7 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 			}
 
 			const lines = [`- ${checkbox} ${todo.title}`];
-			if (todo.description && todo.description.trim()) {
+			if (this.includeDescription && todo.description && todo.description.trim()) {
 				lines.push(`  - ${todo.description.trim()}`);
 			}
 

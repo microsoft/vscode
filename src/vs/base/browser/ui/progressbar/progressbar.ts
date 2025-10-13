@@ -177,7 +177,7 @@ export class ProgressBar extends Disposable {
 	}
 
 	/**
-	 * Tells the progress bar the total amount of work that has been completed.
+	 * Tells the progress bar the total amount of work (0 to 100) that has been completed.
 	 */
 	setWorked(value: number): ProgressBar {
 		value = Math.max(1, Number(value));

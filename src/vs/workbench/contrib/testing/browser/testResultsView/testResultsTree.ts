@@ -57,7 +57,7 @@ interface ITreeElement {
 	context: unknown;
 	id: string;
 	label: string;
-	onDidChange: Event<void>;
+	readonly onDidChange: Event<void>;
 	labelWithIcons?: readonly (HTMLSpanElement | string)[];
 	icon?: ThemeIcon;
 	description?: string;
@@ -69,7 +69,7 @@ interface ITreeElement {
 	context: unknown;
 	id: string;
 	label: string;
-	onDidChange: Event<void>;
+	readonly onDidChange: Event<void>;
 	labelWithIcons?: readonly (HTMLSpanElement | string)[];
 	icon?: ThemeIcon;
 	description?: string;
@@ -157,7 +157,7 @@ class TestCaseElement implements ITreeElement {
 			return Event.None;
 		}
 
-		return Event.filter(this.results.onChange, e => e.item.item.extId === this.test.item.extId);
+		return Event.filter(this.results.onChange, e => e.item.item.extId === this.test.item.extId && e.reason !== TestResultItemChangeReason.NewMessage);
 	}
 
 	public get state() {
@@ -247,7 +247,7 @@ class TestMessageElement implements ITreeElement {
 		}
 
 		// rerender when the test case changes so it gets retired events
-		return Event.filter(this.result.onChange, e => e.item.item.extId === this.test.item.extId);
+		return Event.filter(this.result.onChange, e => e.item.item.extId === this.test.item.extId && e.reason !== TestResultItemChangeReason.NewMessage);
 	}
 
 	public get context(): ITestMessageMenuArgs {
@@ -301,7 +301,7 @@ export class OutputPeekTree extends Disposable {
 
 	constructor(
 		container: HTMLElement,
-		onDidReveal: Event<{ subject: InspectSubject; preserveFocus: boolean }>,
+		readonly onDidReveal: Event<{ subject: InspectSubject; preserveFocus: boolean }>,
 		options: { showRevealLocationOnMessages: boolean; locationForProgress: string },
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@ITestResultService results: ITestResultService,

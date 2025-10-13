@@ -546,6 +546,11 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		// Retrieve the positions of all cells with the same style as `lastNonWhitespaceCell`
 		const positionsWithGhostStyle = styleMap.get(this._getCellStyleAsString(lastNonWhitespaceCell));
 		if (positionsWithGhostStyle) {
+			// Ghost text must start at the cursor or one char after (e.g. a space),
+			// preventing right-prompt styles from being misdetected as ghost text.
+			if (positionsWithGhostStyle[0] > buffer.cursorX + 1) {
+				return -1;
+			}
 			// Ensure these positions are contiguous
 			for (let i = 1; i < positionsWithGhostStyle.length; i++) {
 				if (positionsWithGhostStyle[i] !== positionsWithGhostStyle[i - 1] + 1) {

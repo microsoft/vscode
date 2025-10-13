@@ -5,10 +5,9 @@
 
 import { h } from '../../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { MarkdownRenderer } from '../../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { isMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IPreferencesService, type IOpenSettingsOptions } from '../../../../../services/preferences/common/preferences.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../../common/chat.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, type IChatMarkdownContent, type IChatTerminalToolInvocationData, type ILegacyChatTerminalToolInvocationData } from '../../../common/chatService.js';
@@ -22,9 +21,9 @@ import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 import '../media/chatTerminalToolProgressPart.css';
 import { TerminalContribSettingId } from '../../../../terminal/terminalContribExports.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
-import { matchesScheme, Schemas } from '../../../../../../base/common/network.js';
 import type { ICodeBlockRenderOptions } from '../../codeBlockPart.js';
 import { ChatConfiguration } from '../../../common/constants.js';
+import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 
 export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart {
 	public readonly domNode: HTMLElement;
@@ -38,14 +37,12 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
 		terminalData: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData,
 		context: IChatContentPartRenderContext,
-		renderer: MarkdownRenderer,
+		renderer: IMarkdownRenderer,
 		editorPool: EditorPool,
 		currentWidthDelegate: () => number,
 		codeBlockStartIndex: number,
 		codeBlockModelCollection: CodeBlockModelCollection,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IOpenerService openerService: IOpenerService,
-		@IPreferencesService preferencesService: IPreferencesService,
 	) {
 		super(toolInvocation);
 
@@ -58,13 +55,11 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 		const command = terminalData.commandLine.userEdited ?? terminalData.commandLine.toolEdited ?? terminalData.commandLine.original;
 
-		const markdownRenderer = instantiationService.createInstance(MarkdownRenderer, {});
 		const titlePart = this._register(instantiationService.createInstance(
 			ChatQueryTitlePart,
 			elements.title,
 			new MarkdownString(`$(${Codicon.terminal.id})\n\n\`\`\`${terminalData.language}\n${command}\n\`\`\``, { supportThemeIcons: true }),
 			undefined,
-			markdownRenderer,
 		));
 		this._register(titlePart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 
@@ -72,7 +67,10 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		if (toolInvocation.pastTenseMessage) {
 			pastTenseMessage = `${typeof toolInvocation.pastTenseMessage === 'string' ? toolInvocation.pastTenseMessage : toolInvocation.pastTenseMessage.value}`;
 		}
-		const markdownContent = new MarkdownString(pastTenseMessage, { supportThemeIcons: true });
+		const markdownContent = new MarkdownString(pastTenseMessage, {
+			supportThemeIcons: true,
+			isTrusted: isMarkdownString(toolInvocation.pastTenseMessage) ? toolInvocation.pastTenseMessage.isTrusted : false,
+		});
 		const chatMarkdownContent: IChatMarkdownContent = {
 			kind: 'markdownContent',
 			content: markdownContent,
@@ -86,50 +84,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 				wordWrap: 'on'
 			}
 		};
-		this.markdownPart = this._register(instantiationService.createInstance(ChatMarkdownContentPart, chatMarkdownContent, context, editorPool, false, codeBlockStartIndex, renderer, {
-			actionHandler: (content) => {
-				if (matchesScheme(content, Schemas.https)) {
-					openerService.open(content);
-					return;
-				}
-				const [type, scopeRaw] = content.split('_');
-				switch (type) {
-					case 'settings': {
-						if (scopeRaw === 'global') {
-							preferencesService.openSettings({
-								query: `@id:${ChatConfiguration.GlobalAutoApprove}`
-							});
-						} else {
-							const scope = parseInt(scopeRaw);
-							const target = !isNaN(scope) ? scope as ConfigurationTarget : undefined;
-							const options: IOpenSettingsOptions = {
-								jsonEditor: true,
-								revealSetting: {
-									key: TerminalContribSettingId.AutoApprove
-								}
-							};
-							switch (target) {
-								case ConfigurationTarget.APPLICATION: preferencesService.openApplicationSettings(options); break;
-								case ConfigurationTarget.USER:
-								case ConfigurationTarget.USER_LOCAL: preferencesService.openUserSettings(options); break;
-								case ConfigurationTarget.USER_REMOTE: preferencesService.openRemoteSettings(options); break;
-								case ConfigurationTarget.WORKSPACE:
-								case ConfigurationTarget.WORKSPACE_FOLDER: preferencesService.openWorkspaceSettings(options); break;
-								default: {
-									// Fallback if something goes wrong
-									preferencesService.openSettings({
-										target: ConfigurationTarget.USER,
-										query: `@id:${TerminalContribSettingId.AutoApprove}`,
-									});
-									break;
-								}
-							}
-						}
-						break;
-					}
-				}
-			},
-		}, currentWidthDelegate(), codeBlockModelCollection, { codeBlockRenderOptions }));
+		this.markdownPart = this._register(instantiationService.createInstance(ChatMarkdownContentPart, chatMarkdownContent, context, editorPool, false, codeBlockStartIndex, renderer, {}, currentWidthDelegate(), codeBlockModelCollection, { codeBlockRenderOptions }));
 		this._register(this.markdownPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 
 		elements.message.append(this.markdownPart.domNode);
@@ -137,3 +92,40 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		this.domNode = progressPart.domNode;
 	}
 }
+
+export const openTerminalSettingsLinkCommandId = '_chat.openTerminalSettingsLink';
+
+CommandsRegistry.registerCommand(openTerminalSettingsLinkCommandId, async (accessor, scopeRaw: string) => {
+	const preferencesService = accessor.get(IPreferencesService);
+
+	if (scopeRaw === 'global') {
+		preferencesService.openSettings({
+			query: `@id:${ChatConfiguration.GlobalAutoApprove}`
+		});
+	} else {
+		const scope = parseInt(scopeRaw);
+		const target = !isNaN(scope) ? scope as ConfigurationTarget : undefined;
+		const options: IOpenSettingsOptions = {
+			jsonEditor: true,
+			revealSetting: {
+				key: TerminalContribSettingId.AutoApprove
+			}
+		};
+		switch (target) {
+			case ConfigurationTarget.APPLICATION: preferencesService.openApplicationSettings(options); break;
+			case ConfigurationTarget.USER:
+			case ConfigurationTarget.USER_LOCAL: preferencesService.openUserSettings(options); break;
+			case ConfigurationTarget.USER_REMOTE: preferencesService.openRemoteSettings(options); break;
+			case ConfigurationTarget.WORKSPACE:
+			case ConfigurationTarget.WORKSPACE_FOLDER: preferencesService.openWorkspaceSettings(options); break;
+			default: {
+				// Fallback if something goes wrong
+				preferencesService.openSettings({
+					target: ConfigurationTarget.USER,
+					query: `@id:${TerminalContribSettingId.AutoApprove}`,
+				});
+				break;
+			}
+		}
+	}
+});

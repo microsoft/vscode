@@ -256,7 +256,7 @@ function expandMultiSelection(focused: WorkbenchListWidget, previousFocus: unkno
 	}
 }
 
-function revealFocusedStickyScroll(tree: ObjectTree<any, any> | DataTree<any, any> | AsyncDataTree<any, any>, postRevealAction?: (focus: any) => void): void {
+function revealFocusedStickyScroll(tree: ObjectTree<unknown, unknown> | DataTree<unknown, unknown> | AsyncDataTree<unknown, unknown>, postRevealAction?: (focus: unknown) => void): void {
 	const focus = tree.getStickyScrollFocus();
 
 	if (focus.length === 0) {
@@ -700,7 +700,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
 	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyI),
 	when: WorkbenchListFocusContextKey,
-	handler: async (accessor: ServicesAccessor, ...args: any[]) => {
+	handler: async (accessor: ServicesAccessor) => {
 		const listService = accessor.get(IListService);
 		const lastFocusedList = listService.lastFocusedList;
 		if (!lastFocusedList) {

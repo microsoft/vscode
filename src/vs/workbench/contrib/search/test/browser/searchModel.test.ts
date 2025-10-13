@@ -198,6 +198,7 @@ suite('SearchModel', () => {
 				}
 				return new Promise(resolve => {
 					queueMicrotask(() => {
+						// eslint-disable-next-line local/code-no-any-casts
 						resolve(<any>{});
 					});
 				});
@@ -225,6 +226,7 @@ suite('SearchModel', () => {
 					},
 					asyncResults: new Promise(resolve => {
 						queueMicrotask(() => {
+							// eslint-disable-next-line local/code-no-any-casts
 							resolve(<any>{
 								results: [],
 								messages: []

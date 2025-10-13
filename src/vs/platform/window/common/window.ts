@@ -395,7 +395,7 @@ export interface INativeOpenFileRequest extends IOpenFileRequest {
 export interface INativeRunActionInWindowRequest {
 	readonly id: string;
 	readonly from: 'menu' | 'touchbar' | 'mouse';
-	readonly args?: any[];
+	readonly args?: unknown[];
 }
 
 export interface INativeRunKeybindingInWindowRequest {
@@ -471,7 +471,7 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
  * https://github.com/electron/electron/blob/master/docs/api/web-contents.md#contentssetzoomlevellevel
  */
 export function zoomLevelToZoomFactor(zoomLevel = 0): number {
-	return Math.pow(1.2, zoomLevel);
+	return 1.2 ** zoomLevel;
 }
 
 export const DEFAULT_EMPTY_WINDOW_SIZE = { width: 1200, height: 800 } as const;

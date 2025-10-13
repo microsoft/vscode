@@ -618,7 +618,7 @@ declare namespace monaco {
 		/**
 		 * Test if `obj` is an `IPosition`.
 		 */
-		static isIPosition(obj: any): obj is IPosition;
+		static isIPosition(obj: unknown): obj is IPosition;
 		toJSON(): IPosition;
 	}
 
@@ -782,7 +782,7 @@ declare namespace monaco {
 		/**
 		 * Test if `obj` is an `IRange`.
 		 */
-		static isIRange(obj: any): obj is IRange;
+		static isIRange(obj: unknown): obj is IRange;
 		/**
 		 * Test if the two ranges are touching in any way.
 		 */
@@ -908,7 +908,7 @@ declare namespace monaco {
 		/**
 		 * Test if `obj` is an `ISelection`.
 		 */
-		static isISelection(obj: any): obj is ISelection;
+		static isISelection(obj: unknown): obj is ISelection;
 		/**
 		 * Create with a direction.
 		 */
@@ -2635,7 +2635,7 @@ declare namespace monaco.editor {
 		cursorState: ICursorState[];
 		viewState: IViewState;
 		contributionsState: {
-			[id: string]: any;
+			[id: string]: unknown;
 		};
 	}
 
@@ -2850,7 +2850,7 @@ declare namespace monaco.editor {
 		 * @param handlerId The id of the handler or the id of a contribution.
 		 * @param payload Extra data to be sent to the handler.
 		 */
-		trigger(source: string | null | undefined, handlerId: string, payload: any): void;
+		trigger(source: string | null | undefined, handlerId: string, payload: unknown): void;
 		/**
 		 * Gets the current model attached to this editor.
 		 */
@@ -2880,7 +2880,7 @@ declare namespace monaco.editor {
 		 * An event emitted when decorations change in the editor,
 		 * but the change is not caused by us setting or clearing the collection.
 		 */
-		onDidChange: IEvent<IModelDecorationsChangedEvent>;
+		readonly onDidChange: IEvent<IModelDecorationsChangedEvent>;
 		/**
 		 * Get the decorations count.
 		 */
@@ -2922,11 +2922,11 @@ declare namespace monaco.editor {
 		/**
 		 * Store view state.
 		 */
-		saveViewState?(): any;
+		saveViewState?(): unknown;
 		/**
 		 * Restore view state.
 		 */
-		restoreViewState?(state: any): void;
+		restoreViewState?(state: unknown): void;
 	}
 
 	/**
@@ -3612,6 +3612,10 @@ declare namespace monaco.editor {
 		 * Controls the max number of text cursors that can be in an active editor at once.
 		 */
 		multiCursorLimit?: number;
+		/**
+		 * Enables middle mouse button to open links and Go To Definition
+		 */
+		mouseMiddleClickAction?: MouseMiddleClickAction;
 		/**
 		 * Configure the editor's accessibility support.
 		 * Defaults to 'auto'. It is best to leave this to 'auto'.
@@ -4770,6 +4774,7 @@ declare namespace monaco.editor {
 		syntaxHighlightingEnabled?: boolean;
 		suppressSuggestions?: boolean;
 		minShowDelay?: number;
+		suppressInSnippetMode?: boolean;
 		/**
 		 * Does not clear active inline suggestions when the editor loses focus.
 		 */
@@ -5143,91 +5148,92 @@ declare namespace monaco.editor {
 		mouseWheelZoom = 84,
 		multiCursorMergeOverlapping = 85,
 		multiCursorModifier = 86,
-		multiCursorPaste = 87,
-		multiCursorLimit = 88,
-		occurrencesHighlight = 89,
-		occurrencesHighlightDelay = 90,
-		overtypeCursorStyle = 91,
-		overtypeOnPaste = 92,
-		overviewRulerBorder = 93,
-		overviewRulerLanes = 94,
-		padding = 95,
-		pasteAs = 96,
-		parameterHints = 97,
-		peekWidgetDefaultFocus = 98,
-		placeholder = 99,
-		definitionLinkOpensInPeek = 100,
-		quickSuggestions = 101,
-		quickSuggestionsDelay = 102,
-		readOnly = 103,
-		readOnlyMessage = 104,
-		renameOnType = 105,
-		renderRichScreenReaderContent = 106,
-		renderControlCharacters = 107,
-		renderFinalNewline = 108,
-		renderLineHighlight = 109,
-		renderLineHighlightOnlyWhenFocus = 110,
-		renderValidationDecorations = 111,
-		renderWhitespace = 112,
-		revealHorizontalRightPadding = 113,
-		roundedSelection = 114,
-		rulers = 115,
-		scrollbar = 116,
-		scrollBeyondLastColumn = 117,
-		scrollBeyondLastLine = 118,
-		scrollPredominantAxis = 119,
-		selectionClipboard = 120,
-		selectionHighlight = 121,
-		selectionHighlightMaxLength = 122,
-		selectionHighlightMultiline = 123,
-		selectOnLineNumbers = 124,
-		showFoldingControls = 125,
-		showUnused = 126,
-		snippetSuggestions = 127,
-		smartSelect = 128,
-		smoothScrolling = 129,
-		stickyScroll = 130,
-		stickyTabStops = 131,
-		stopRenderingLineAfter = 132,
-		suggest = 133,
-		suggestFontSize = 134,
-		suggestLineHeight = 135,
-		suggestOnTriggerCharacters = 136,
-		suggestSelection = 137,
-		tabCompletion = 138,
-		tabIndex = 139,
-		trimWhitespaceOnDelete = 140,
-		unicodeHighlighting = 141,
-		unusualLineTerminators = 142,
-		useShadowDOM = 143,
-		useTabStops = 144,
-		wordBreak = 145,
-		wordSegmenterLocales = 146,
-		wordSeparators = 147,
-		wordWrap = 148,
-		wordWrapBreakAfterCharacters = 149,
-		wordWrapBreakBeforeCharacters = 150,
-		wordWrapColumn = 151,
-		wordWrapOverride1 = 152,
-		wordWrapOverride2 = 153,
-		wrappingIndent = 154,
-		wrappingStrategy = 155,
-		showDeprecated = 156,
-		inertialScroll = 157,
-		inlayHints = 158,
-		wrapOnEscapedLineFeeds = 159,
-		effectiveCursorStyle = 160,
-		editorClassName = 161,
-		pixelRatio = 162,
-		tabFocusMode = 163,
-		layoutInfo = 164,
-		wrappingInfo = 165,
-		defaultColorDecorators = 166,
-		colorDecoratorsActivatedOn = 167,
-		inlineCompletionsAccessibilityVerbose = 168,
-		effectiveEditContext = 169,
-		scrollOnMiddleClick = 170,
-		effectiveAllowVariableFonts = 171
+		mouseMiddleClickAction = 87,
+		multiCursorPaste = 88,
+		multiCursorLimit = 89,
+		occurrencesHighlight = 90,
+		occurrencesHighlightDelay = 91,
+		overtypeCursorStyle = 92,
+		overtypeOnPaste = 93,
+		overviewRulerBorder = 94,
+		overviewRulerLanes = 95,
+		padding = 96,
+		pasteAs = 97,
+		parameterHints = 98,
+		peekWidgetDefaultFocus = 99,
+		placeholder = 100,
+		definitionLinkOpensInPeek = 101,
+		quickSuggestions = 102,
+		quickSuggestionsDelay = 103,
+		readOnly = 104,
+		readOnlyMessage = 105,
+		renameOnType = 106,
+		renderRichScreenReaderContent = 107,
+		renderControlCharacters = 108,
+		renderFinalNewline = 109,
+		renderLineHighlight = 110,
+		renderLineHighlightOnlyWhenFocus = 111,
+		renderValidationDecorations = 112,
+		renderWhitespace = 113,
+		revealHorizontalRightPadding = 114,
+		roundedSelection = 115,
+		rulers = 116,
+		scrollbar = 117,
+		scrollBeyondLastColumn = 118,
+		scrollBeyondLastLine = 119,
+		scrollPredominantAxis = 120,
+		selectionClipboard = 121,
+		selectionHighlight = 122,
+		selectionHighlightMaxLength = 123,
+		selectionHighlightMultiline = 124,
+		selectOnLineNumbers = 125,
+		showFoldingControls = 126,
+		showUnused = 127,
+		snippetSuggestions = 128,
+		smartSelect = 129,
+		smoothScrolling = 130,
+		stickyScroll = 131,
+		stickyTabStops = 132,
+		stopRenderingLineAfter = 133,
+		suggest = 134,
+		suggestFontSize = 135,
+		suggestLineHeight = 136,
+		suggestOnTriggerCharacters = 137,
+		suggestSelection = 138,
+		tabCompletion = 139,
+		tabIndex = 140,
+		trimWhitespaceOnDelete = 141,
+		unicodeHighlighting = 142,
+		unusualLineTerminators = 143,
+		useShadowDOM = 144,
+		useTabStops = 145,
+		wordBreak = 146,
+		wordSegmenterLocales = 147,
+		wordSeparators = 148,
+		wordWrap = 149,
+		wordWrapBreakAfterCharacters = 150,
+		wordWrapBreakBeforeCharacters = 151,
+		wordWrapColumn = 152,
+		wordWrapOverride1 = 153,
+		wordWrapOverride2 = 154,
+		wrappingIndent = 155,
+		wrappingStrategy = 156,
+		showDeprecated = 157,
+		inertialScroll = 158,
+		inlayHints = 159,
+		wrapOnEscapedLineFeeds = 160,
+		effectiveCursorStyle = 161,
+		editorClassName = 162,
+		pixelRatio = 163,
+		tabFocusMode = 164,
+		layoutInfo = 165,
+		wrappingInfo = 166,
+		defaultColorDecorators = 167,
+		colorDecoratorsActivatedOn = 168,
+		inlineCompletionsAccessibilityVerbose = 169,
+		effectiveEditContext = 170,
+		scrollOnMiddleClick = 171,
+		effectiveAllowVariableFonts = 172
 	}
 
 	export const EditorOptions: {
@@ -5323,6 +5329,7 @@ declare namespace monaco.editor {
 		mouseWheelZoom: IEditorOption<EditorOption.mouseWheelZoom, boolean>;
 		multiCursorMergeOverlapping: IEditorOption<EditorOption.multiCursorMergeOverlapping, boolean>;
 		multiCursorModifier: IEditorOption<EditorOption.multiCursorModifier, 'altKey' | 'metaKey' | 'ctrlKey'>;
+		mouseMiddleClickAction: IEditorOption<EditorOption.mouseMiddleClickAction, MouseMiddleClickAction>;
 		multiCursorPaste: IEditorOption<EditorOption.multiCursorPaste, 'spread' | 'full'>;
 		multiCursorLimit: IEditorOption<EditorOption.multiCursorLimit, number>;
 		occurrencesHighlight: IEditorOption<EditorOption.occurrencesHighlight, 'off' | 'singleFile' | 'multiFile'>;
@@ -5414,6 +5421,8 @@ declare namespace monaco.editor {
 	type ComputedEditorOptionValue<T extends IEditorOption<any, any>> = T extends IEditorOption<any, infer R> ? R : never;
 
 	export type FindComputedEditorOptionValueById<T extends EditorOption> = NonNullable<ComputedEditorOptionValue<EditorOptionsType[FindEditorOptionsKeyById<T>]>>;
+
+	export type MouseMiddleClickAction = 'default' | 'openLink' | 'ctrlLeftClick';
 
 	export interface IEditorConstructionOptions extends IEditorOptions {
 		/**
@@ -5678,7 +5687,7 @@ declare namespace monaco.editor {
 		/**
 		 * Event fired when the widget layout changes.
 		 */
-		onDidLayout?: IEvent<void>;
+		readonly onDidLayout?: IEvent<void>;
 		/**
 		 * Render this overlay widget in a location where it could overflow the editor's view dom node.
 		 */
@@ -6496,7 +6505,7 @@ declare namespace monaco.editor {
 	export const EditorZoom: IEditorZoom;
 
 	export interface IEditorZoom {
-		onDidChangeZoomLevel: IEvent<number>;
+		readonly onDidChangeZoomLevel: IEvent<number>;
 		getZoomLevel(): number;
 		setZoomLevel(zoomLevel: number): void;
 	}
@@ -6508,6 +6517,16 @@ declare namespace monaco.editor {
 
 declare namespace monaco.languages {
 
+
+	export class EditDeltaInfo {
+		readonly linesAdded: number;
+		readonly linesRemoved: number;
+		readonly charsAdded: number;
+		readonly charsRemoved: number;
+		static fromText(text: string): EditDeltaInfo;
+		static tryCreate(linesAdded: number | undefined, linesRemoved: number | undefined, charsAdded: number | undefined, charsRemoved: number | undefined): EditDeltaInfo | undefined;
+		constructor(linesAdded: number, linesRemoved: number, charsAdded: number, charsRemoved: number);
+	}
 	export interface IRelativePattern {
 		/**
 		 * A base file path to which this pattern will be matched against relatively.
@@ -7580,7 +7599,7 @@ declare namespace monaco.languages {
 		 * Will be called when an item is shown.
 		 * @param updatedInsertText Is useful to understand bracket completion.
 		*/
-		handleItemDidShow?(completions: T, item: T['items'][number], updatedInsertText: string): void;
+		handleItemDidShow?(completions: T, item: T['items'][number], updatedInsertText: string, editDeltaInfo: EditDeltaInfo): void;
 		/**
 		 * Will be called when an item is partially accepted. TODO: also handle full acceptance here!
 		 * @param acceptedCharacters Deprecated. Use `info.acceptedCharacters` instead.
@@ -7649,6 +7668,7 @@ declare namespace monaco.languages {
 		timeUntilShown: number | undefined;
 		timeUntilProviderRequest: number;
 		timeUntilProviderResponse: number;
+		notShownReason: string | undefined;
 		editorType: string;
 		viewKind: string | undefined;
 		error: string | undefined;
@@ -7665,6 +7685,8 @@ declare namespace monaco.languages {
 		sameShapeReplacements?: boolean;
 		typingInterval: number;
 		typingIntervalCharacterCount: number;
+		selectedSuggestionInfo: boolean;
+		availableProviders: string;
 	};
 
 	export interface CodeAction {
@@ -8371,7 +8393,7 @@ declare namespace monaco.languages {
 		id: string;
 		title: string;
 		tooltip?: string;
-		arguments?: any[];
+		arguments?: unknown[];
 	}
 
 	export interface CommentThreadRevealOptions {
@@ -8470,13 +8492,14 @@ declare namespace monaco.languages {
 	}
 
 	export interface DocumentSemanticTokensProvider {
-		onDidChange?: IEvent<void>;
+		readonly onDidChange?: IEvent<void>;
 		getLegend(): SemanticTokensLegend;
 		provideDocumentSemanticTokens(model: editor.ITextModel, lastResultId: string | null, token: CancellationToken): ProviderResult<SemanticTokens | SemanticTokensEdits>;
 		releaseDocumentSemanticTokens(resultId: string | undefined): void;
 	}
 
 	export interface DocumentRangeSemanticTokensProvider {
+		readonly onDidChange?: IEvent<void>;
 		getLegend(): SemanticTokensLegend;
 		provideDocumentRangeSemanticTokens(model: editor.ITextModel, range: Range, token: CancellationToken): ProviderResult<SemanticTokens>;
 	}

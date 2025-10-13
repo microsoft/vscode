@@ -50,7 +50,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	get widget(): ChatWidget { return this._widget; }
 
 	private readonly modelDisposables = this._register(new DisposableStore());
-	private memento: Memento;
+	private memento: Memento<IViewPaneState>;
 	private readonly viewState: IViewPaneState;
 
 	private _restoringSession: Promise<void> | undefined;
@@ -78,11 +78,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		// View state for the ViewPane is currently global per-provider basically, but some other strictly per-model state will require a separate memento.
 		this.memento = new Memento('interactive-session-view-' + CHAT_PROVIDER_ID, this.storageService);
-		this.viewState = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE) as IViewPaneState;
+		this.viewState = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
 
 		if (this.chatOptions.location === ChatAgentLocation.Chat && !this.viewState.hasMigratedCurrentSession) {
-			const editsMemento = new Memento('interactive-session-view-' + CHAT_PROVIDER_ID + `-edits`, this.storageService);
-			const lastEditsState = editsMemento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE) as IViewPaneState;
+			const editsMemento = new Memento<IViewPaneState>('interactive-session-view-' + CHAT_PROVIDER_ID + `-edits`, this.storageService);
+			const lastEditsState = editsMemento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
 			if (lastEditsState.sessionId) {
 				this.logService.trace(`ChatViewPane: last edits session was ${lastEditsState.sessionId}`);
 				if (!this.chatService.isPersistedSessionEmpty(lastEditsState.sessionId)) {
@@ -285,9 +285,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	override saveState(): void {
-		if (this._widget) {
-			// Since input history is per-provider, this is handled by a separate service and not the memento here.
-			// TODO multiple chat views will overwrite each other
+		// Don't do saveState when no widget, or no viewModel in which case the state has not yet been restored -
+		// in that case the default state would overwrite the real state
+		if (this._widget?.viewModel) {
 			this._widget.saveState();
 
 			this.updateViewState();
@@ -301,7 +301,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		const newViewState = viewState ?? this._widget.getViewState();
 		for (const [key, value] of Object.entries(newViewState)) {
 			// Assign all props to the memento so they get saved
-			(this.viewState as any)[key] = value;
+			(this.viewState as Record<string, unknown>)[key] = value;
 		}
 	}
 }

@@ -20,6 +20,7 @@ suite('computeGhostText', () => {
 		const tempModel = createTextModel(cleanedText);
 		const range = Range.fromPositions(tempModel.getPositionAt(rangeStartOffset), tempModel.getPositionAt(rangeEndOffset));
 		const options = ['prefix', 'subword'] as const;
+		// eslint-disable-next-line local/code-no-any-casts
 		const result = {} as any;
 		for (const option of options) {
 			result[option] = computeGhostText(new TextReplacement(range, suggestion), tempModel, option)?.render(cleanedText, true);

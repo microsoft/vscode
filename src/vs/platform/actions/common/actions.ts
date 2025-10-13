@@ -35,7 +35,23 @@ export interface ISubmenuItem {
 	group?: 'navigation' | string;
 	order?: number;
 	isSelection?: boolean;
-	rememberDefaultAction?: boolean;	// for dropdown menu: if true the last executed action is remembered as the default action
+	/**
+	 * A split button shows the first action
+	 * as primary action and the rest of the
+	 * actions in a dropdown.
+	 *
+	 * Use `togglePrimaryAction` to promote
+	 * the action that was last used to be
+	 * the primary action and remember that
+	 * choice.
+	 */
+	isSplitButton?: boolean | {
+		/**
+		 * Will update the primary action based
+		 * on the action that was last run.
+		 */
+		togglePrimaryAction: true;
+	};
 }
 
 export function isIMenuItem(item: any): item is IMenuItem {
@@ -230,6 +246,8 @@ export class MenuId {
 	static readonly ChatCodeBlock = new MenuId('ChatCodeblock');
 	static readonly ChatCompareBlock = new MenuId('ChatCompareBlock');
 	static readonly ChatMessageTitle = new MenuId('ChatMessageTitle');
+	static readonly ChatHistory = new MenuId('ChatHistory');
+	static readonly ChatWelcomeHistoryContext = new MenuId('ChatWelcomeHistoryContext');
 	static readonly ChatMessageFooter = new MenuId('ChatMessageFooter');
 	static readonly ChatExecute = new MenuId('ChatExecute');
 	static readonly ChatExecuteSecondary = new MenuId('ChatExecuteSecondary');
@@ -248,6 +266,7 @@ export class MenuId {
 	static readonly ChatInlineSymbolAnchorContext = new MenuId('ChatInlineSymbolAnchorContext');
 	static readonly ChatMessageCheckpoint: MenuId = new MenuId('ChatMessageCheckpoint');
 	static readonly ChatMessageRestoreCheckpoint: MenuId = new MenuId('ChatMessageRestoreCheckpoint');
+	static readonly ChatNewMenu = new MenuId('ChatNewMenu');
 	static readonly ChatEditingCodeBlockContext = new MenuId('ChatEditingCodeBlockContext');
 	static readonly ChatTitleBarMenu = new MenuId('ChatTitleBarMenu');
 	static readonly ChatAttachmentsContext = new MenuId('ChatAttachmentsContext');
@@ -574,7 +593,7 @@ export class MenuItemAction implements IAction {
 
 	}
 
-	run(...args: any[]): Promise<void> {
+	run(...args: unknown[]): Promise<void> {
 		let runArgs: any[] = [];
 
 		if (this._options?.arg) {
@@ -647,7 +666,7 @@ export interface IAction2F1RequiredOptions {
 
 export abstract class Action2 {
 	constructor(readonly desc: Readonly<IAction2Options>) { }
-	abstract run(accessor: ServicesAccessor, ...args: any[]): void;
+	abstract run(accessor: ServicesAccessor, ...args: unknown[]): void;
 }
 
 export function registerAction2(ctor: { new(): Action2 }): IDisposable {

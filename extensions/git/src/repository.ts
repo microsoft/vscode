@@ -1813,8 +1813,12 @@ export class Repository implements Disposable {
 		return await this.repository.getCommit(ref);
 	}
 
-	async showCommit(ref: string): Promise<string> {
-		return await this.run(Operation.Show, () => this.repository.showCommit(ref));
+	async showChanges(ref: string): Promise<string> {
+		return await this.run(Operation.Log(false), () => this.repository.showChanges(ref));
+	}
+
+	async showChangesBetween(ref1: string, ref2: string, path?: string): Promise<string> {
+		return await this.run(Operation.Log(false), () => this.repository.showChangesBetween(ref1, ref2, path));
 	}
 
 	async getEmptyTree(): Promise<string> {

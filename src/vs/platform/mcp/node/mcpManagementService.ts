@@ -32,18 +32,22 @@ export class McpUserResourceManagementService extends CommonMcpUserResourceManag
 
 		try {
 			const manifest = await this.updateMetadataFromGallery(server);
-			const packageType = options?.packageType ?? manifest.packages?.[0]?.registry_type ?? RegistryType.REMOTE;
+			const packageType = options?.packageType ?? manifest.packages?.[0]?.registryType ?? RegistryType.REMOTE;
 
-			const { config, inputs } = this.getMcpServerConfigurationFromManifest(manifest, packageType);
+			const { mcpServerConfiguration, notices } = this.getMcpServerConfigurationFromManifest(manifest, packageType);
+
+			if (notices.length > 0) {
+				this.logService.warn(`MCP Management Service: Warnings while installing ${server.name}`, notices);
+			}
 
 			const installable: IInstallableMcpServer = {
 				name: server.name,
 				config: {
-					...config,
+					...mcpServerConfiguration.config,
 					gallery: server.url ?? true,
 					version: server.version
 				},
-				inputs
+				inputs: mcpServerConfiguration.inputs
 			};
 
 			await this.mcpResourceScannerService.addMcpServers([installable], this.mcpResource, this.target);

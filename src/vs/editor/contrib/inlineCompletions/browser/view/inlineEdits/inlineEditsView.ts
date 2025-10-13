@@ -134,6 +134,7 @@ export class InlineEditsView extends Disposable {
 			}
 
 			const indicatorDisplayRange = derivedOpts({ owner: this, equalsFn: equalsIfDefined(itemEquals()) }, reader => {
+				/** @description indicatorDisplayRange */
 				const ghostTextIndicator = this._ghostTextIndicator.read(reader);
 				if (ghostTextIndicator) {
 					return ghostTextIndicator.lineRange;
@@ -158,6 +159,7 @@ export class InlineEditsView extends Disposable {
 			});
 
 			const modelWithGhostTextSupport = derived<InlineEditModel | undefined>(this, reader => {
+				/** @description modelWithGhostTextSupport */
 				const model = this._model.read(reader);
 				if (model) {
 					return model;
@@ -472,7 +474,16 @@ export class InlineEditsView extends Disposable {
 	private determineRenderState(model: IInlineEditModel, reader: IReader, diff: DetailedLineRangeMapping[], newText: StringText) {
 		const inlineEdit = model.inlineEdit;
 
-		const view = this.determineView(model, reader, diff, newText);
+		let view = this.determineView(model, reader, diff, newText);
+
+		if (this._willRenderAboveCursor(reader, inlineEdit, view)) {
+			switch (view) {
+				case InlineCompletionViewKind.LineReplacement:
+				case InlineCompletionViewKind.WordReplacements:
+					view = InlineCompletionViewKind.SideBySide;
+					break;
+			}
+		}
 
 		this._previousView = { id: this.getCacheId(model), view, editorWidth: this._editor.getLayoutInfo().width, timestamp: Date.now() };
 
@@ -556,6 +567,30 @@ export class InlineEditsView extends Disposable {
 		}
 
 		return undefined;
+	}
+
+	private _willRenderAboveCursor(reader: IReader, inlineEdit: InlineEditWithChanges, view: InlineCompletionViewKind): boolean {
+		const useCodeShifting = this._useCodeShifting.read(reader);
+		if (useCodeShifting === 'always') {
+			return false;
+		}
+
+		for (const cursorPosition of inlineEdit.multiCursorPositions) {
+			if (view === InlineCompletionViewKind.WordReplacements &&
+				cursorPosition.lineNumber === inlineEdit.originalLineRange.startLineNumber + 1
+			) {
+				return true;
+			}
+
+			if (view === InlineCompletionViewKind.LineReplacement &&
+				cursorPosition.lineNumber >= inlineEdit.originalLineRange.endLineNumberExclusive &&
+				cursorPosition.lineNumber < inlineEdit.modifiedLineRange.endLineNumberExclusive + inlineEdit.modifiedLineRange.length
+			) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	private _viewHasBeenShownLongerThan(durationMs: number): boolean {

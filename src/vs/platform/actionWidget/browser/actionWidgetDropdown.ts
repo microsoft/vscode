@@ -124,7 +124,7 @@ export class ActionWidgetDropdown extends BaseDropdown {
 
 		actionBarActions = actionBarActions.map(action => ({
 			...action,
-			run: async (...args: any[]) => {
+			run: async (...args: unknown[]) => {
 				this.actionWidgetService.hide();
 				return action.run(...args);
 			}

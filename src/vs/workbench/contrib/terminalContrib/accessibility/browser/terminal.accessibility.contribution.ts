@@ -289,7 +289,7 @@ class FocusAccessibleBufferAction extends Action2 {
 			]
 		});
 	}
-	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 		const terminalService = accessor.get(ITerminalService);
 		const terminal = await terminalService.getActiveOrCreateInstance();
 		if (!terminal?.xterm) {

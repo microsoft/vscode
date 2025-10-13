@@ -28,6 +28,7 @@ export class ExtHostConsoleForwarder extends AbstractExtHostConsoleForwarder {
 		const stream = method === 'error' || method === 'warn' ? process.stderr : process.stdout;
 		this._isMakingConsoleCall = true;
 		stream.write(`\n${NativeLogMarkers.Start}\n`);
+		// eslint-disable-next-line local/code-no-any-casts
 		original.apply(console, args as any);
 		stream.write(`\n${NativeLogMarkers.End}\n`);
 		this._isMakingConsoleCall = false;
@@ -49,6 +50,7 @@ export class ExtHostConsoleForwarder extends AbstractExtHostConsoleForwarder {
 			set: () => { },
 			get: () => (chunk: Uint8Array | string, encoding?: BufferEncoding, callback?: (err?: Error) => void) => {
 				if (!this._isMakingConsoleCall) {
+					// eslint-disable-next-line local/code-no-any-casts
 					buf += (chunk as any).toString(encoding);
 					const eol = buf.length > MAX_STREAM_BUFFER_LENGTH ? buf.length : buf.lastIndexOf('\n');
 					if (eol !== -1) {
