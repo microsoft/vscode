@@ -26,7 +26,7 @@ function writeFile(filePath: string, contents: Buffer | string): void {
 	fs.writeFileSync(filePath, contents);
 }
 
-export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: string; tsOutDir: string }): void {
+export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: string; tsOutDir: string; additionalFilesToCopyOut?: string[]; }): void {
 	const ts = require('typescript') as typeof import('typescript');
 
 	const tsConfig = JSON.parse(fs.readFileSync(path.join(options.sourcesRoot, 'tsconfig.monaco.json')).toString());
@@ -109,6 +109,10 @@ export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: str
 
 	delete tsConfig.compilerOptions.moduleResolution;
 	writeOutputFile('tsconfig.json', JSON.stringify(tsConfig, null, '\t'));
+
+	options.additionalFilesToCopyOut?.forEach((file) => {
+		copyFile(file);
+	});
 
 	copyFile('vs/loader.js');
 	copyFile('typings/css.d.ts');

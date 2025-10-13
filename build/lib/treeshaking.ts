@@ -111,7 +111,7 @@ function createTypeScriptLanguageService(ts: typeof import('typescript'), option
 
 	// Add entrypoints
 	options.entryPoints.forEach(entryPoint => {
-		const filePath = path.join(options.sourcesRoot, `${entryPoint}.ts`);
+		const filePath = path.join(options.sourcesRoot, entryPoint);
 		FILES.set(filePath, fs.readFileSync(filePath).toString());
 	});
 
@@ -423,14 +423,21 @@ function markNodes(ts: typeof import('typescript'), languageService: ts.Language
 			if (importText.endsWith('.js')) { // ESM: code imports require to be relative and to have a '.js' file extension
 				importText = importText.substr(0, importText.length - 3);
 			}
-			fullPath = path.join(path.dirname(nodeSourceFile.fileName), importText) + '.ts';
+			fullPath = path.join(path.dirname(nodeSourceFile.fileName), importText);
 		} else {
-			fullPath = importText + '.ts';
+			fullPath = importText;
 		}
+
+		if (fs.existsSync(fullPath + '.ts')) {
+			fullPath = fullPath + '.ts';
+		} else {
+			fullPath = fullPath + '.js';
+		}
+
 		enqueueFile(fullPath);
 	}
 
-	options.entryPoints.forEach(moduleId => enqueueFile(path.join(options.sourcesRoot, moduleId + '.ts')));
+	options.entryPoints.forEach(moduleId => enqueueFile(path.join(options.sourcesRoot, moduleId)));
 	// Add fake usage files
 	options.inlineEntryPoints.forEach((_, index) => enqueueFile(path.join(options.sourcesRoot, `inlineEntryPoint.${index}.ts`)));
 
