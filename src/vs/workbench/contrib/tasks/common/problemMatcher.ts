@@ -1606,6 +1606,12 @@ class ProblemPatternRegistryImpl implements IProblemPatternRegistry {
 		// esbuild prints a header like `X [ERROR] Missing import` (severity glyph may
 		// be ✘, ▲, X, etc.) followed by indented location lines such as
 		// `    src/app.ts:10:7:` (watch mode may append notes).
+		// esbuild prints a header like `X [ERROR] Missing import` where the leading
+		// severity glyph varies by platform/TTY (ASCII `X`, Unicode ✘/▲, terminals that
+		// rewrite the character, etc.). Using `\S` instead of enumerating symbols keeps
+		// the matcher resilient to those variations, while the second line captures the
+		// indented location lines such as `    src/app.ts:10:7:` (watch mode may append
+		// notes).
 		this.add('esbuild', [
 			{
 				regexp: /^\S \[([A-Z]+)\] (.+)$/,
