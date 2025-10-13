@@ -2041,8 +2041,7 @@ class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {
 			applyTo: ApplyToKind.allDocuments,
 			fileLocation: FileLocationKind.Relative,
 			filePrefix: '${workspaceFolder}',
-			pattern: ProblemPatternRegistry.get('esbuild'),
-			severity: Severity.Info
+			pattern: ProblemPatternRegistry.get('esbuild')
 		});
 
 		this.add({
@@ -2054,7 +2053,6 @@ class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {
 			fileLocation: FileLocationKind.Relative,
 			filePrefix: '${workspaceFolder}',
 			pattern: ProblemPatternRegistry.get('esbuild'),
-			severity: Severity.Info,
 			watching: {
 				activeOnStart: true,
 				beginsPattern: { regexp: /> \[watch\] build started/ },
