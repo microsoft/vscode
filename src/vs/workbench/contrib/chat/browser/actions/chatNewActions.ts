@@ -20,7 +20,7 @@ import { ChatModeKind } from '../../common/constants.js';
 import { ChatViewId, IChatWidgetService } from '../chat.js';
 import { EditingSessionAction, getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
-import { ACTION_ID_NEW_CHAT, ACTION_ID_NEW_EDIT_SESSION, ACTION_ID_OPEN_CHAT, CHAT_CATEGORY, handleCurrentEditingSession } from './chatActions.js';
+import { ACTION_ID_NEW_CHAT, ACTION_ID_NEW_EDIT_SESSION, CHAT_CATEGORY, handleCurrentEditingSession } from './chatActions.js';
 import { clearChatEditor } from './chatClear.js';
 
 export interface INewEditSessionActionContext {
@@ -93,11 +93,6 @@ export function registerNewChatActions() {
 						id: MenuId.ChatNewMenu,
 						group: '1_open',
 						order: 1,
-						alt: {
-							id: ACTION_ID_OPEN_CHAT,
-							title: localize2('interactiveSession.open', "New Chat Editor"),
-							icon: Codicon.newFile
-						}
 					},
 					...[MenuId.EditorTitle, MenuId.CompactWindowEditorTitle].map(id => ({
 						id,
