@@ -66,7 +66,6 @@ export class CodeCell extends Disposable {
 		const cellIndex = this.notebookEditor.getCellIndex(this.viewCell);
 		const debugPrefix = `[Cell ${cellIndex}]`;
 		const debug = this._debug = (output: string) => {
-			// console.log(`${debugPrefix} ${output}`);
 			notebookLogService.debug('CellLayout', `${debugPrefix} ${output}`);
 		};
 
