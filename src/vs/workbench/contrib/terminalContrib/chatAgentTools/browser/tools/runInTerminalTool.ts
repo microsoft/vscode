@@ -21,11 +21,11 @@ import { TerminalCapability } from '../../../../../../platform/terminal/common/c
 import { ITerminalLogService, ITerminalProfile } from '../../../../../../platform/terminal/common/terminal.js';
 import { IRemoteAgentService } from '../../../../../services/remote/common/remoteAgentService.js';
 import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
-import { ChatTerminalToolProgressPart, openTerminalSettingsLinkCommandId } from '../../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolProgressPart.js';
+import { openTerminalSettingsLinkCommandId } from '../../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolProgressPart.js';
 import { IChatService, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService.js';
 import { ChatConfiguration } from '../../../../chat/common/constants.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolInvocationPresentation, ToolProgress, type IToolConfirmationMessages, type ToolConfirmationAction } from '../../../../chat/common/languageModelToolsService.js';
-import { ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
+import { ITerminalChatService, ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import type { XtermTerminal } from '../../../../terminal/browser/xterm/xtermTerminal.js';
 import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
 import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
@@ -173,7 +173,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
-		@IChatService private readonly _chatService: IChatService
+		@IChatService private readonly _chatService: IChatService,
+		@ITerminalChatService private readonly _terminalChatService: ITerminalChatService
 	) {
 		super();
 
@@ -524,7 +525,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				}
 				const executionId = generateUuid();
 				toolSpecificData.terminalToolSessionId = executionId;
-				ChatTerminalToolProgressPart.setTrackingInstance(toolTerminal.instance, strategy, executionId);
+				this._terminalChatService.registerExecution({
+					chatSessionId,
+					toolCallId: invocation.callId,
+					terminalSessionId: executionId,
+					instance: toolTerminal.instance,
+					executeStrategy: strategy
+				});
 
 				this._logService.debug(`RunInTerminalTool: Using \`${strategy.type}\` execute strategy for command \`${command}\``);
 				store.add(strategy.onDidCreateStartMarker(startMarker => {

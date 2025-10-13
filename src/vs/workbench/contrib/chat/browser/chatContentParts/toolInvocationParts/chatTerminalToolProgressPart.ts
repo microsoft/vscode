@@ -4,19 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { h } from '../../../../../../base/browser/dom.js';
-import { Emitter } from '../../../../../../base/common/event.js';
-import type { IMarker as IXtermMarker } from '@xterm/xterm';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { isMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IPreferencesService, type IOpenSettingsOptions } from '../../../../../services/preferences/common/preferences.js';
-import { ITerminalChatService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
-import { XtermTerminal } from '../../../../terminal/browser/xterm/xtermTerminal.js';
-// TODO@meganrogge fix
-// eslint-disable-next-line local/code-import-patterns
-import type { ITerminalExecuteStrategy } from '../../../../terminalContrib/chatAgentTools/browser/executeStrategy/executeStrategy.js';
+import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../../common/chat.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, type IChatMarkdownContent, type IChatTerminalToolInvocationData, type ILegacyChatTerminalToolInvocationData } from '../../../common/chatService.js';
 import { CodeBlockModelCollection } from '../../../common/codeBlockModelCollection.js';
@@ -35,187 +29,9 @@ import { CommandsRegistry } from '../../../../../../platform/commands/common/com
 export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart {
 	public readonly domNode: HTMLElement;
 	private readonly container: HTMLElement;
-	private static readonly trackingInstances = new Map<string, {
-		instance: ITerminalInstance;
-		executeStrategy: ITerminalExecuteStrategy;
-	}>();
-
-	// Map from real terminal instance IDs to chat terminal parts
-	private static readonly instanceToPartMap = new Map<string, Set<ChatTerminalToolProgressPart>>();
-
-	// Track the latest part for each terminal instance type (command, output display, etc)
-	private static readonly latestPartPerInstance = new Map<string, string>();
-
-	static _onDidChangeTrackingInstance = new Emitter<{
-		instance: ITerminalInstance;
-		executeStrategy: ITerminalExecuteStrategy;
-		targetInstanceId: string;
-	}>();
-
-	static setTrackingInstance(instance: ITerminalInstance, executeStrategy: ITerminalExecuteStrategy, targetInstanceId: string) {
-		this.trackingInstances.set(targetInstanceId, { instance, executeStrategy });
-
-		// This is a special tracking ID for determining which response should show the terminal output
-		this.latestPartPerInstance.set(instance.sessionId, targetInstanceId);
-
-		const terminalParts = this.instanceToPartMap.get(targetInstanceId);
-		if (terminalParts && terminalParts.size > 0) {
-			for (const part of terminalParts) {
-				part.setupTerminalForInstance(instance, executeStrategy);
-			}
-		}
-
-		this._onDidChangeTrackingInstance.fire({ instance, executeStrategy, targetInstanceId });
-	}
-
 	private markdownPart: ChatMarkdownContentPart | undefined;
-	private xterm: XtermTerminal | undefined;
-	private terminalAttached = false;
-	private lastData: string | undefined;
-	private dataListener: { dispose: () => void } | undefined;
-	private persistentStartMarker: IXtermMarker | undefined;
-	private persistentEndMarker: IXtermMarker | undefined;
-
-	/**
-	 * Sets up the terminal instance with proper event listeners
-	 */
-	private async setupTerminalForInstance(
-		instance: ITerminalInstance,
-		executeStrategy: ITerminalExecuteStrategy,
-		xtermElement?: HTMLElement
-	) {
-		if (!this.xterm && xtermElement) {
-			try {
-				const embeddedTerminal = await this._terminalChatService.createEmbeddedTerminal(
-					this.chatSessionId,
-					this.toolInvocation.toolCallId,
-					instance,
-					executeStrategy
-				);
-				this._register(embeddedTerminal.store);
-				this.xterm = embeddedTerminal.xterm;
-			} catch (error) {
-				console.error(`Error creating terminal for ${this.externalInstanceId}:`, error);
-				return;
-			}
-
-			if (!this.terminalAttached) {
-				this.xterm.attachToElement(xtermElement);
-				this.terminalAttached = true;
-				this.container.append(xtermElement);
-				// Ensure terminal is visible immediately
-				queueMicrotask(() => this._onDidChangeHeight.fire());
-			}
-		} else if (!this.xterm) {
-			console.warn(`Can't create terminal for ${this.externalInstanceId} yet - missing target element`);
-			return;
-		}
-
-		if (this.dataListener) {
-			this.dataListener.dispose();
-			this.dataListener = undefined;
-		}
-
-		this.dataListener = executeStrategy.onDidCreateStartMarker(async (marker) => {
-			if (marker) {
-				this.persistentStartMarker = marker;
-			}
-			await this.updateTerminalContent(instance, executeStrategy, marker);
-		});
-
-
-		if (this.dataListener) {
-			this._register(this.dataListener);
-		}
-
-		this.instanceType = instance.sessionId;
-		if (executeStrategy.startMarker) {
-			try {
-				await this.updateTerminalContent(instance, executeStrategy, executeStrategy.startMarker);
-			} catch (e) {
-				console.error(`Error getting initial terminal data for ${this.externalInstanceId}:`, e);
-			}
-		}
-
-		this._onDidChangeHeight.fire();
-	}
-
-	/**
-	 * Updates the terminal content display with the latest output between markers
-	 */
-	private async updateTerminalContent(
-		instance: ITerminalInstance,
-		executeStrategy: ITerminalExecuteStrategy,
-		startMarker?: IXtermMarker,
-		data?: string
-	): Promise<void> {
-		const latestPartId = ChatTerminalToolProgressPart.latestPartPerInstance.get(this.instanceType!);
-		if (latestPartId !== this.externalInstanceId) {
-			return;
-		}
-
-		// Use markers in order of preference
-		if (!startMarker) {
-			// Try persistent marker first
-			if (this.persistentStartMarker) {
-				startMarker = this.persistentStartMarker;
-			}
-			// Fall back to strategy marker
-			else if (executeStrategy.startMarker) {
-				startMarker = executeStrategy.startMarker;
-				// Save for future use
-				this.persistentStartMarker = startMarker;
-			}
-		}
-
-		if (!startMarker) {
-			return;
-		}
-
-		const endMarker = this.persistentEndMarker || executeStrategy.endMarker;
-		if (executeStrategy.endMarker && !this.persistentEndMarker) {
-			this.persistentEndMarker = executeStrategy.endMarker;
-		}
-
-		data = await instance.xterm?.getRangeAsVT(startMarker, endMarker);
-		if (!data) {
-			return;
-		}
-
-		if (data === this.lastData) {
-			return;
-		}
-
-		this.lastData = data;
-		if (this.xterm) {
-			this.xterm.raw.clear();
-			this.xterm.write('\x1b[H\x1b[K');
-			this.xterm.write(data);
-		}
-	}
-
-	public get codeblocks(): IChatCodeBlockInfo[] {
-		return this.markdownPart?.codeblocks ?? [];
-	}
-
-	override dispose(): void {
-		this.xterm = undefined;
-		this.dataListener = undefined;
-
-		const parts = ChatTerminalToolProgressPart.instanceToPartMap.get(this.externalInstanceId);
-		if (parts) {
-			parts.delete(this);
-			if (parts.size === 0) {
-				ChatTerminalToolProgressPart.instanceToPartMap.delete(this.externalInstanceId);
-			}
-		}
-
-		super.dispose();
-	}
-
 	private readonly externalInstanceId: string;
 	private readonly chatSessionId: string;
-	private instanceType: string | undefined;
 
 	constructor(
 		toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
@@ -235,14 +51,6 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 		this.externalInstanceId = terminalData.terminalToolSessionId || generateUuid();
 		this.chatSessionId = context.element.sessionId;
-
-		// Register this part in the static map for lookup
-		let parts = ChatTerminalToolProgressPart.instanceToPartMap.get(this.externalInstanceId);
-		if (!parts) {
-			parts = new Set<ChatTerminalToolProgressPart>();
-			ChatTerminalToolProgressPart.instanceToPartMap.set(this.externalInstanceId, parts);
-		}
-		parts.add(this);
 
 		const elements = h('.chat-terminal-content-part@container', [
 			h('.chat-terminal-content-title@title'),
@@ -283,30 +91,29 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		};
 		this.markdownPart = this._register(instantiationService.createInstance(ChatMarkdownContentPart, chatMarkdownContent, context, editorPool, false, codeBlockStartIndex, renderer, {}, currentWidthDelegate(), codeBlockModelCollection, { codeBlockRenderOptions }));
 		this._register(this.markdownPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
-		// const icon = !toolInvocation.isConfirmed ?
-		// 	Codicon.error :
-		// 	toolInvocation.isComplete ?
-		// 		Codicon.check : ThemeIcon.modify(Codicon.loading, 'spin');
 		this.container = elements.container;
 		this.container.append(this.markdownPart.domNode);
 
+		const attachment = this._terminalChatService.registerProgressPart({
+			chatSessionId: this.chatSessionId,
+			toolCallId: this.toolInvocation.toolCallId,
+			terminalSessionId: this.externalInstanceId,
+			onDidChangeHeight: () => this._onDidChangeHeight.fire()
+		});
+		this._register(attachment);
 
-		const existingTracking = ChatTerminalToolProgressPart.trackingInstances.get(this.externalInstanceId);
-		if (existingTracking) {
-			this.setupTerminalForInstance(existingTracking.instance, existingTracking.executeStrategy, elements.xtermElement);
-		}
-
-		// Listen for when our specific terminal instance is set
-		this._register(ChatTerminalToolProgressPart._onDidChangeTrackingInstance.event(async ({ instance, executeStrategy, targetInstanceId }) => {
-			// Skip if this event is not for this instance
-			if (targetInstanceId !== this.externalInstanceId) {
-				return;
-			}
-
-			this.setupTerminalForInstance(instance, executeStrategy, elements.xtermElement);
-		}));
+		attachment.attachToElement(elements.xtermElement).then(() => {
+			this.container.append(elements.xtermElement);
+			queueMicrotask(() => this._onDidChangeHeight.fire());
+		}).catch(error => {
+			console.error(`[chatTerminal] Failed to attach embedded terminal for ${this.externalInstanceId}`, error);
+		});
 
 		this.domNode = this.container;
+	}
+
+	public get codeblocks(): IChatCodeBlockInfo[] {
+		return this.markdownPart?.codeblocks ?? [];
 	}
 }
 

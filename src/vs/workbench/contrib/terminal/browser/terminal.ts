@@ -405,18 +405,31 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	 */
 	createOnInstanceCapabilityEvent<T extends TerminalCapability, K>(capabilityId: T, getEvent: (capability: ITerminalCapabilityImplMap[T]) => Event<K>): IDynamicListEventMultiplexer<{ instance: ITerminalInstance; data: K }>;
 }
-
-
-export interface ITerminalChatEmbeddedTerminal {
-	readonly xterm: XtermTerminal;
-	readonly store: IDisposable;
-}
-
 export interface ITerminalChatService {
 	readonly _serviceBrand: undefined;
 	serialize(): string;
 	deserialize(serialized: string): void;
-	createEmbeddedTerminal(chatSessionId: string, chatRequestId: string, instance: ITerminalInstance, executeStrategy: ITerminalExecuteStrategy): Promise<ITerminalChatEmbeddedTerminal>;
+	registerExecution(registration: ITerminalChatExecutionRegistration): void;
+	registerProgressPart(registration: ITerminalChatProgressPartRegistration): ITerminalChatProgressPartHandle;
+}
+
+export interface ITerminalChatExecutionRegistration {
+	readonly chatSessionId: string;
+	readonly toolCallId: string;
+	readonly terminalSessionId: string;
+	readonly instance: ITerminalInstance;
+	readonly executeStrategy: ITerminalExecuteStrategy;
+}
+
+export interface ITerminalChatProgressPartRegistration {
+	readonly chatSessionId: string;
+	readonly toolCallId: string;
+	readonly terminalSessionId: string;
+	readonly onDidChangeHeight: () => void;
+}
+
+export interface ITerminalChatProgressPartHandle extends IDisposable {
+	attachToElement(element: HTMLElement): Promise<void>;
 }
 
 
