@@ -8,10 +8,7 @@
 		"esModuleInterop": true,
 		// Needed to suppress warnings in upstream completions
 		"noImplicitReturns": false,
-		"noUnusedParameters": false,
-		"typeRoots": [
-			"./node_modules/@types"
-		]
+		"noUnusedParameters": false
 	},
 	"include": [
 		"src/**/*",
