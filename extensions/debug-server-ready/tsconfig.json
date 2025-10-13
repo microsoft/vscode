@@ -4,6 +4,9 @@
 		"outDir": "./out",
 		"types": [
 			"node"
+		],
+		"typeRoots": [
+			"./node_modules/@types"
 		]
 	},
 	"include": [
