@@ -200,4 +200,21 @@ suite('NewPromptsParser', () => {
 		assert.ok(result.header.tools);
 		assert.deepEqual(result.header.tools, ['built-in', 'browser-click', 'openPullRequest', 'copilotCodingAgent']);
 	});
+
+	test('slash command parsing', async () => {
+		const uri = URI.parse('file:///test/prompt-with-slashes.md');
+		const content = [
+			/* 01 */"---",
+			/* 02 */"description: Test slash commands",
+			/* 03 */"---",
+			/* 04 */"This prompt references /my-command and /another-command.",
+			/* 05 */"You can use /test-cmd to execute a test.",
+		].join('\n');
+		const result = new NewPromptsParser().parse(uri, content);
+		assert.ok(result.body);
+		assert.strictEqual(result.body.slashCommandReferences.length, 3);
+		assert.strictEqual(result.body.slashCommandReferences[0].command, 'my-command');
+		assert.strictEqual(result.body.slashCommandReferences[1].command, 'another-command');
+		assert.strictEqual(result.body.slashCommandReferences[2].command, 'test-cmd');
+	});
 });
