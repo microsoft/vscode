@@ -58,7 +58,7 @@ import { IChatRequestVariableEntry } from '../common/chatVariableEntries.js';
 import { IChatChangesSummaryPart, IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
 import { getNWords } from '../common/chatWordCounter.js';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ThinkingDisplayMode } from '../common/constants.js';
 import { MarkUnhelpfulActionId } from './actions/chatTitleActions.js';
 import { ChatTreeItem, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidgetService } from './chat.js';
 import { ChatAgentHover, getChatAgentHoverOptions } from './chatAgentHover.js';
@@ -770,8 +770,15 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// Show if no content, only "used references", ends with a complete tool call, or ends with complete text edits and there is no incomplete tool call (edits are still being applied some time after they are all generated)
 		const lastPart = findLast(partsToRender, part => part.kind !== 'markdownContent' || part.content.value.trim().length > 0);
 
-		const thinkingStyle = this.configService.getValue<string>('chat.agent.thinkingStyle');
-		if (thinkingStyle === 'fixedScrolling' && lastPart?.kind === 'thinking') {
+		const thinkingStyleSetting = this.configService.getValue<ThinkingDisplayMode>('chat.agent.thinkingStyle');
+		let treatAsFixedScrolling = thinkingStyleSetting === ThinkingDisplayMode.FixedScrolling;
+		if (!treatAsFixedScrolling && thinkingStyleSetting === ThinkingDisplayMode.Default) {
+			const lower = element.model.request?.modelId?.toLowerCase();
+			if (lower && lower.includes('gpt-5') && !lower.includes('gpt-5-codex')) {
+				treatAsFixedScrolling = true;
+			}
+		}
+		if (treatAsFixedScrolling && lastPart?.kind === 'thinking') {
 			return false;
 		}
 
@@ -1018,7 +1025,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				contentIndex: contentIndex,
 				container: templateData.rowContainer,
 			};
-			const newPart = this.renderChatContentPart(partToRender, templateData, context);
+			const newPart = this.renderChatContentPart(partToRender, templateData, context, element);
 			if (newPart) {
 				renderedParts[contentIndex] = newPart;
 				// Maybe the part can't be rendered in this context, but this shouldn't really happen
@@ -1135,7 +1142,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private shouldShowThinkingPart(): boolean {
-		return this.configService.getValue<string>('chat.agent.thinkingStyle') !== 'none';
+		return this.configService.getValue<ThinkingDisplayMode>('chat.agent.thinkingStyle') !== ThinkingDisplayMode.None;
 	}
 
 	private getDataForProgressiveRender(element: IChatResponseViewModel) {
@@ -1205,7 +1212,20 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	// 	return false;
 	// }
 
-	private renderChatContentPart(content: IChatRendererContent, templateData: IChatListItemTemplate, context: IChatContentPartRenderContext): IChatContentPart | undefined {
+	private finalizeCurrentThinkingPart(): void {
+		if (!this._currentThinkingPart) {
+			return;
+		}
+		const style = this.configService.getValue<ThinkingDisplayMode>('chat.agent.thinkingStyle');
+		if (style === ThinkingDisplayMode.CollapsedPreview) {
+			this._currentThinkingPart.collapseContent();
+		}
+		this._currentThinkingPart.finalizeTitleIfDefault();
+		this._currentThinkingPart.resetId();
+		this._currentThinkingPart = undefined;
+	}
+
+	private renderChatContentPart(content: IChatRendererContent, templateData: IChatListItemTemplate, context: IChatContentPartRenderContext, element?: IChatResponseViewModel): IChatContentPart | undefined {
 		try {
 
 			if (this.shouldShowThinkingPart()) {
@@ -1216,14 +1236,16 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					return this.renderNoContent(other => content.kind === other.kind);
 				}
 
-				// we got a non-thinking and non-thinking tool content part
-				if (this._currentThinkingPart && content.kind !== 'working' && content.kind !== 'thinking' && !this._streamingThinking) {
-					if (this.configService.getValue<string>('chat.agent.thinkingStyle') === 'collapsedPreview') {
-						this._currentThinkingPart.collapseContent();
+				const isNonThinkingContent = content.kind !== 'working' && content.kind !== 'thinking';
+				if (element) {
+					const modelId = element.model.request?.modelId?.toLowerCase();
+					if (modelId?.includes('gemini') && this._currentThinkingPart && isNonThinkingContent) {
+						this.finalizeCurrentThinkingPart();
 					}
-					this._currentThinkingPart?.finalizeTitleIfDefault();
-					this._currentThinkingPart?.resetId();
-					this._currentThinkingPart = undefined;
+				}
+
+				if (this._currentThinkingPart && isNonThinkingContent && !this._streamingThinking) {
+					this.finalizeCurrentThinkingPart();
 				}
 			}
 
