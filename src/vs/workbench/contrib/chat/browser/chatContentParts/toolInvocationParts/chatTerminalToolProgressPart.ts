@@ -7,17 +7,12 @@ import { h } from '../../../../../../base/browser/dom.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
-import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { isMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
-import { TerminalCapabilityStore } from '../../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
-import { TerminalLocation } from '../../../../../../platform/terminal/common/terminal.js';
 import { IPreferencesService, type IOpenSettingsOptions } from '../../../../../services/preferences/common/preferences.js';
-import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
-import { TerminalInstance, TerminalInstanceColorProvider } from '../../../../terminal/browser/terminalInstance.js';
+import { ITerminalChatService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { XtermTerminal } from '../../../../terminal/browser/xterm/xtermTerminal.js';
 // TODO@meganrogge fix
 // eslint-disable-next-line local/code-import-patterns
@@ -87,21 +82,22 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	private async setupTerminalForInstance(
 		instance: ITerminalInstance,
 		executeStrategy: ITerminalExecuteStrategy,
-		instantiationService?: IInstantiationService,
-		keybindingService?: IKeybindingService,
-		contextKeyService?: IContextKeyService,
 		xtermElement?: HTMLElement
 	) {
-		if (!this.xterm && instantiationService && keybindingService && contextKeyService && xtermElement) {
-			const xtermCtor = await TerminalInstance.getXtermConstructor(keybindingService, contextKeyService);
-			const capabilities = new TerminalCapabilityStore();
-			this._register(capabilities);
-			this.xterm = this._register(instantiationService.createInstance(XtermTerminal, xtermCtor, {
-				rows: 10,
-				cols: instance.cols,
-				capabilities,
-				xtermColorProvider: instantiationService.createInstance(TerminalInstanceColorProvider, TerminalLocation.Panel)
-			}, undefined));
+		if (!this.xterm && xtermElement) {
+			try {
+				const embeddedTerminal = await this._terminalChatService.createEmbeddedTerminal(
+					this.chatSessionId,
+					this.toolInvocation.toolCallId,
+					instance,
+					executeStrategy
+				);
+				this._register(embeddedTerminal.store);
+				this.xterm = embeddedTerminal.xterm;
+			} catch (error) {
+				console.error(`Error creating terminal for ${this.externalInstanceId}:`, error);
+				return;
+			}
 
 			if (!this.terminalAttached) {
 				this.xterm.attachToElement(xtermElement);
@@ -111,7 +107,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 				queueMicrotask(() => this._onDidChangeHeight.fire());
 			}
 		} else if (!this.xterm) {
-			console.warn(`Can't create terminal for ${this.externalInstanceId} yet - missing required services`);
+			console.warn(`Can't create terminal for ${this.externalInstanceId} yet - missing target element`);
 			return;
 		}
 
@@ -218,6 +214,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	}
 
 	private readonly externalInstanceId: string;
+	private readonly chatSessionId: string;
 	private instanceType: string | undefined;
 
 	constructor(
@@ -230,14 +227,14 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		codeBlockStartIndex: number,
 		codeBlockModelCollection: CodeBlockModelCollection,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@ITerminalChatService private readonly _terminalChatService: ITerminalChatService,
 	) {
 		super(toolInvocation);
 
 		terminalData = migrateLegacyTerminalToolSpecificData(terminalData);
 
 		this.externalInstanceId = terminalData.terminalToolSessionId || generateUuid();
+		this.chatSessionId = context.element.sessionId;
 
 		// Register this part in the static map for lookup
 		let parts = ChatTerminalToolProgressPart.instanceToPartMap.get(this.externalInstanceId);
@@ -296,7 +293,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 		const existingTracking = ChatTerminalToolProgressPart.trackingInstances.get(this.externalInstanceId);
 		if (existingTracking) {
-			this.setupTerminalForInstance(existingTracking.instance, existingTracking.executeStrategy, instantiationService, keybindingService, contextKeyService, elements.xtermElement);
+			this.setupTerminalForInstance(existingTracking.instance, existingTracking.executeStrategy, elements.xtermElement);
 		}
 
 		// Listen for when our specific terminal instance is set
@@ -306,7 +303,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 				return;
 			}
 
-			this.setupTerminalForInstance(instance, executeStrategy, instantiationService, keybindingService, contextKeyService, elements.xtermElement);
+			this.setupTerminalForInstance(instance, executeStrategy, elements.xtermElement);
 		}));
 
 		this.domNode = this.container;

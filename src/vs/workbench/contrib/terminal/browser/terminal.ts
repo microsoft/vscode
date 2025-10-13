@@ -34,6 +34,8 @@ import type { Barrier } from '../../../../base/common/async.js';
 import type { IProgressState } from '@xterm/addon-progress';
 import type { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import type { TerminalEditorInput } from './terminalEditorInput.js';
+// eslint-disable-next-line local/code-import-patterns
+import { ITerminalExecuteStrategy } from '../../terminalContrib/chatAgentTools/browser/executeStrategy/executeStrategy.js';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalConfigurationService = createDecorator<ITerminalConfigurationService>('terminalConfigurationService');
@@ -41,6 +43,7 @@ export const ITerminalEditorService = createDecorator<ITerminalEditorService>('t
 export const ITerminalEditingService = createDecorator<ITerminalEditingService>('terminalEditingService');
 export const ITerminalGroupService = createDecorator<ITerminalGroupService>('terminalGroupService');
 export const ITerminalInstanceService = createDecorator<ITerminalInstanceService>('terminalInstanceService');
+export const ITerminalChatService = createDecorator<ITerminalChatService>('terminalChatService');
 
 /**
  * A terminal contribution that gets created whenever a terminal is created. A contribution has
@@ -402,6 +405,20 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	 */
 	createOnInstanceCapabilityEvent<T extends TerminalCapability, K>(capabilityId: T, getEvent: (capability: ITerminalCapabilityImplMap[T]) => Event<K>): IDynamicListEventMultiplexer<{ instance: ITerminalInstance; data: K }>;
 }
+
+
+export interface ITerminalChatEmbeddedTerminal {
+	readonly xterm: XtermTerminal;
+	readonly store: IDisposable;
+}
+
+export interface ITerminalChatService {
+	readonly _serviceBrand: undefined;
+	serialize(): string;
+	deserialize(serialized: string): void;
+	createEmbeddedTerminal(chatSessionId: string, chatRequestId: string, instance: ITerminalInstance, executeStrategy: ITerminalExecuteStrategy): Promise<ITerminalChatEmbeddedTerminal>;
+}
+
 
 /**
  * A service that provides convenient access to the terminal configuration and derived values.
