@@ -249,10 +249,6 @@ export class PtyService extends Disposable implements IPtyService {
 			const lastReplayEvent = terminal.replayEvent.events.length > 0 ? terminal.replayEvent.events.at(-1) : undefined;
 			if (lastReplayEvent) {
 				postRestoreMessage += '\r\n'.repeat(lastReplayEvent.rows - 1) + `\x1b[H`;
-				// Workaround for newer ConPTY versions where first input character gets ignored.
-				// Send cursor position queries (DSR) and explicit positioning to force ConPTY to
-				// synchronize its internal cursor state, preventing the first character loss issue.
-				postRestoreMessage += '\x1b[6n\x1b[999;999H\x1b[6n\x1b[H';
 			}
 		}
 
@@ -683,7 +679,15 @@ class PersistentTerminalProcess extends Disposable {
 	private readonly _onDidChangeProperty = this._register(new Emitter<IProcessProperty<any>>());
 	readonly onDidChangeProperty = this._onDidChangeProperty.event;
 
+	// -----------------------------------------------------------------------------------
+	// Replay & revive input gating state
+	// -----------------------------------------------------------------------------------
 	private _inReplay = false;
+	// Active only for revived Windows terminals: buffer user input until first real process
+	// output after replay (or timeout) to avoid first-keystroke loss with newer ConPTY builds.
+	private _reviveInputGateActive: boolean = false;
+	private _reviveInputBuffered: string[] = [];
+	private _reviveGateTimeoutHandle: any;
 
 	private _pid = -1;
 	private _cwd = '';
@@ -786,12 +790,66 @@ class PersistentTerminalProcess extends Disposable {
 			this._onDidChangeProperty.fire(e);
 		}));
 
+		// Listen to raw process data early (before buffering) to detect the first real output after replay.
+		this._register(this._terminalProcess.onProcessData(data => this._handleRawProcessData(data)));
+
 		// Data buffering to reduce the amount of messages going to the renderer
 		this._bufferer = new TerminalDataBufferer((_, data) => this._onProcessData.fire(data));
 		this._register(this._bufferer.startBuffering(this._persistentProcessId, this._terminalProcess.onProcessData));
 
 		// Data recording for reconnect
 		this._register(this.onProcessData(e => this._serializer.handleData(e)));
+		// Activate revive input gate for revived Windows terminals.
+		if (this._wasRevived && isWindows) {
+			this._activateReviveInputGate('constructor');
+		}
+	}
+
+	private _handleRawProcessData(data: string): void {
+		// Ignore synthetic replay data
+		if (this._inReplay) {
+			return;
+		}
+		if (this._reviveInputGateActive && this._wasRevived) {
+			this._logService.debug(`Persistent process "${this._persistentProcessId}": first real output len=${data.length}, releasing revive input gate`);
+			this._releaseReviveInputGate('firstRealOutput');
+		}
+	}
+
+	private _activateReviveInputGate(reason: string): void {
+		if (this._reviveInputGateActive) {
+			return;
+		}
+		this._reviveInputGateActive = true;
+		this._reviveInputBuffered = [];
+		this._logService.debug(`Persistent process "${this._persistentProcessId}": activating revive input gate (${reason})`);
+		// Fallback timeout if shell emits no prompt/output quickly
+		this._reviveGateTimeoutHandle = setTimeout(() => {
+			if (this._reviveInputGateActive) {
+				this._logService.warn(`Persistent process "${this._persistentProcessId}": revive input gate timeout, flushing ${this._reviveInputBuffered.length} buffered chunk(s)`);
+				this._releaseReviveInputGate('timeout');
+			}
+		}, 400);
+	}
+
+	private _releaseReviveInputGate(reason: string): void {
+		if (!this._reviveInputGateActive) {
+			return;
+		}
+		this._reviveInputGateActive = false;
+		if (this._reviveGateTimeoutHandle) {
+			clearTimeout(this._reviveGateTimeoutHandle);
+			this._reviveGateTimeoutHandle = undefined;
+		}
+		if (this._reviveInputBuffered.length) {
+			this._logService.debug(`Persistent process "${this._persistentProcessId}": flushing ${this._reviveInputBuffered.length} buffered input chunk(s), reason=${reason}`);
+			for (const chunk of this._reviveInputBuffered) {
+				this._terminalProcess.input(chunk);
+			}
+			this._reviveInputBuffered = [];
+		} else {
+			this._logService.debug(`Persistent process "${this._persistentProcessId}": no buffered input to flush, reason=${reason}`);
+		}
 	}
 
 	async attach(): Promise<void> {
@@ -800,10 +858,6 @@ class PersistentTerminalProcess extends Disposable {
 		}
 		this._disconnectRunner1.cancel();
 		this._disconnectRunner2.cancel();
-		if (this._inputDelayTimer) {
-			clearTimeout(this._inputDelayTimer);
-			this._inputDelayTimer = undefined;
-		}
 	}
 
 	async detach(forcePersist?: boolean): Promise<void> {
@@ -834,8 +888,7 @@ class PersistentTerminalProcess extends Disposable {
 		if (!this._isStarted) {
 			const result = await this._terminalProcess.start();
 			if (result && 'message' in result) {
-				// it's a terminal launch error
-				return result;
+				return result; // terminal launch error
 			}
 			this._isStarted = true;
 
@@ -857,7 +910,7 @@ class PersistentTerminalProcess extends Disposable {
 			}
 			return result;
 		}
-
+		// Subsequent start(): treat as replay request
 		this._onProcessReady.fire({ pid: this._pid, cwd: this._cwd, windowsPty: this._terminalProcess.getWindowsPty() });
 		this._onDidChangeProperty.fire({ type: ProcessPropertyType.Title, value: this._terminalProcess.currentTitle });
 		this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: this._terminalProcess.shellType });
@@ -871,11 +924,12 @@ class PersistentTerminalProcess extends Disposable {
 		this._interactionState.setValue(InteractionState.Session, 'input');
 		this._serializer.freeRawReviveBuffer();
 		if (this._inReplay) {
+			this._logService.debug(`Persistent process "${this._persistentProcessId}": dropping user input during replay (len=${data.length})`);
 			return;
 		}
-		// Queue input if we're in the post-revival stabilization period
-		if (this._inputDelayTimer) {
-			setTimeout(() => this.input(data), 50);
+		if (this._reviveInputGateActive) {
+			this._logService.debug(`Persistent process "${this._persistentProcessId}": buffering user input during revive gate (len=${data.length})`);
+			this._reviveInputBuffered.push(data);
 			return;
 		}
 		return this._terminalProcess.input(data);
@@ -926,15 +980,16 @@ class PersistentTerminalProcess extends Disposable {
 		if (this._interactionState.value === InteractionState.None) {
 			this._interactionState.setValue(InteractionState.ReplayOnly, 'triggerReplay');
 		}
+		this._inReplay = true;
 		const ev = await this._serializer.generateReplayEvent();
 		let dataLength = 0;
-		for (const e of ev.events) {
-			dataLength += e.data.length;
-		}
+		for (const e of ev.events) { dataLength += e.data.length; }
 		this._logService.info(`Persistent process "${this._persistentProcessId}": Replaying ${dataLength} chars and ${ev.events.length} size events`);
 		this._onProcessReplay.fire(ev);
 		this._terminalProcess.clearUnacknowledgedChars();
+		this._inReplay = false;
 		this._onPersistentProcessReady.fire();
+		this._logService.debug(`Persistent process "${this._persistentProcessId}": replay complete (revived=${this._wasRevived}), gateActive=${this._reviveInputGateActive}`);
 	}
 
 	sendCommandResult(reqId: number, isError: boolean, serializedPayload: any): void {
