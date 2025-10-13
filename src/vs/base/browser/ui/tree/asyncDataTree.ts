@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDragAndDropData } from '../../dnd.js';
-import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListDragAndDrop, IListDragOverReaction, IListVirtualDelegate } from '../list/list.js';
+import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListDragAndDrop, IListDragOverReaction, IListMouseEvent, IListTouchEvent, IListVirtualDelegate } from '../list/list.js';
 import { ElementsDragAndDropData, ListViewTargetSector } from '../list/listView.js';
 import { IListStyles } from '../list/listWidget.js';
-import { ComposedTreeDelegate, TreeFindMode as TreeFindMode, IAbstractTreeOptions, IAbstractTreeOptionsUpdate, TreeFindMatchType, AbstractTreePart, LabelFuzzyScore, FindFilter, FindController, ITreeFindToggleChangeEvent, IFindControllerOptions } from './abstractTree.js';
+import { ComposedTreeDelegate, TreeFindMode as TreeFindMode, IAbstractTreeOptions, IAbstractTreeOptionsUpdate, TreeFindMatchType, AbstractTreePart, LabelFuzzyScore, FindFilter, FindController, ITreeFindToggleChangeEvent, IFindControllerOptions, IStickyScrollDelegate, AbstractTree } from './abstractTree.js';
 import { ICompressedTreeElement, ICompressedTreeNode } from './compressedObjectTreeModel.js';
 import { getVisibleState, isFilterResult } from './indexTreeModel.js';
 import { CompressibleObjectTree, ICompressibleKeyboardNavigationLabelProvider, ICompressibleObjectTreeOptions, ICompressibleTreeRenderer, IObjectTreeOptions, IObjectTreeSetChildrenOptions, ObjectTree } from './objectTree.js';
@@ -302,7 +302,7 @@ class AsyncFindController<TInput, T, TFilterData> extends FindController<T, TFil
 		contextViewProvider: IContextViewProvider,
 		options: IAbstractTreeOptions<IAsyncDataTreeNode<TInput, T>, TFilterData>,
 	) {
-		super(tree as any, filter, contextViewProvider, options);
+		super(tree as unknown as AbstractTree<T, TFilterData, unknown>, filter, contextViewProvider, options);
 		// Always make sure to end the session before disposing
 		this.disposables.add(toDisposable(async () => {
 			if (this.activeSession) {
@@ -413,7 +413,7 @@ class AsyncFindController<TInput, T, TFilterData> extends FindController<T, TFil
 			return true;
 		}
 
-		return !FuzzyScore.isDefault(node.filterData as any as FuzzyScore);
+		return !FuzzyScore.isDefault(node.filterData as unknown as FuzzyScore);
 	}
 }
 
@@ -429,10 +429,10 @@ function asObjectTreeOptions<TInput, T, TFilterData>(options?: IAsyncDataTreeOpt
 		dnd: options.dnd && new AsyncDataTreeNodeListDragAndDrop(options.dnd),
 		multipleSelectionController: options.multipleSelectionController && {
 			isSelectionSingleChangeEvent(e) {
-				return options.multipleSelectionController!.isSelectionSingleChangeEvent({ ...e, element: e.element } as any);
+				return options.multipleSelectionController!.isSelectionSingleChangeEvent({ ...e, element: e.element }! as IListMouseEvent<T> | IListTouchEvent<T>);
 			},
 			isSelectionRangeChangeEvent(e) {
-				return options.multipleSelectionController!.isSelectionRangeChangeEvent({ ...e, element: e.element } as any);
+				return options.multipleSelectionController!.isSelectionRangeChangeEvent({ ...e, element: e.element }! as IListMouseEvent<T> | IListTouchEvent<T>);
 			}
 		},
 		accessibilityProvider: options.accessibilityProvider && {
@@ -473,10 +473,10 @@ function asObjectTreeOptions<TInput, T, TFilterData>(options?: IAsyncDataTreeOpt
 		sorter: undefined,
 		expandOnlyOnTwistieClick: typeof options.expandOnlyOnTwistieClick === 'undefined' ? undefined : (
 			typeof options.expandOnlyOnTwistieClick !== 'function' ? options.expandOnlyOnTwistieClick : (
-				e => (options.expandOnlyOnTwistieClick as ((e: T) => boolean))(e.element as T)
+				((e: IAsyncDataTreeNode<TInput, T>) => (options.expandOnlyOnTwistieClick as ((e: T) => boolean))(e.element as T)) as ((e: unknown) => boolean)
 			)
 		),
-		defaultFindVisibility: e => {
+		defaultFindVisibility: (e: IAsyncDataTreeNode<TInput, T>) => {
 			if (e.hasChildren && e.stale) {
 				return TreeVisibility.Visible;
 			} else if (typeof options.defaultFindVisibility === 'number') {
@@ -486,10 +486,10 @@ function asObjectTreeOptions<TInput, T, TFilterData>(options?: IAsyncDataTreeOpt
 			} else {
 				return (options.defaultFindVisibility as ((e: T) => TreeVisibility))(e.element as T);
 			}
-		}
+		},
+		stickyScrollDelegate: options.stickyScrollDelegate as IStickyScrollDelegate<IAsyncDataTreeNode<TInput, T>, TFilterData> | undefined
 	};
 }
-
 export interface IAsyncDataTreeOptionsUpdate extends IAbstractTreeOptionsUpdate { }
 export interface IAsyncDataTreeUpdateChildrenOptions<T> extends IObjectTreeSetChildrenOptions<T> { }
 
@@ -1477,7 +1477,8 @@ function asCompressibleObjectTreeOptions<TInput, T, TFilterData>(options?: IComp
 			getCompressedNodeKeyboardNavigationLabel(els) {
 				return options.keyboardNavigationLabelProvider!.getCompressedNodeKeyboardNavigationLabel(els.map(e => e.element as T));
 			}
-		}
+		},
+		stickyScrollDelegate: objectTreeOptions.stickyScrollDelegate as IStickyScrollDelegate<IAsyncDataTreeNode<TInput, T>, TFilterData> | undefined
 	};
 }
 

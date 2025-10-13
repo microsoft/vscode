@@ -21,6 +21,6 @@
     "katex": "^0.16.22",
     "tas-client-umd": "0.2.0",
     "vscode-oniguruma": "1.7.0",
-    "vscode-textmate": "9.2.0"
+    "vscode-textmate": "^9.2.1"
   }
 }

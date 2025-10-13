@@ -166,15 +166,15 @@ export function addDisposableListener(node: EventTarget, type: string, handler: 
 }
 
 export interface IAddStandardDisposableListenerSignature {
-	(node: HTMLElement, type: 'click', handler: (event: IMouseEvent) => void, useCapture?: boolean): IDisposable;
-	(node: HTMLElement, type: 'mousedown', handler: (event: IMouseEvent) => void, useCapture?: boolean): IDisposable;
-	(node: HTMLElement, type: 'keydown', handler: (event: IKeyboardEvent) => void, useCapture?: boolean): IDisposable;
-	(node: HTMLElement, type: 'keypress', handler: (event: IKeyboardEvent) => void, useCapture?: boolean): IDisposable;
-	(node: HTMLElement, type: 'keyup', handler: (event: IKeyboardEvent) => void, useCapture?: boolean): IDisposable;
-	(node: HTMLElement, type: 'pointerdown', handler: (event: PointerEvent) => void, useCapture?: boolean): IDisposable;
-	(node: HTMLElement, type: 'pointermove', handler: (event: PointerEvent) => void, useCapture?: boolean): IDisposable;
-	(node: HTMLElement, type: 'pointerup', handler: (event: PointerEvent) => void, useCapture?: boolean): IDisposable;
-	(node: HTMLElement, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable;
+	(node: HTMLElement | Element | Document, type: 'click', handler: (event: IMouseEvent) => void, useCapture?: boolean): IDisposable;
+	(node: HTMLElement | Element | Document, type: 'mousedown', handler: (event: IMouseEvent) => void, useCapture?: boolean): IDisposable;
+	(node: HTMLElement | Element | Document, type: 'keydown', handler: (event: IKeyboardEvent) => void, useCapture?: boolean): IDisposable;
+	(node: HTMLElement | Element | Document, type: 'keypress', handler: (event: IKeyboardEvent) => void, useCapture?: boolean): IDisposable;
+	(node: HTMLElement | Element | Document, type: 'keyup', handler: (event: IKeyboardEvent) => void, useCapture?: boolean): IDisposable;
+	(node: HTMLElement | Element | Document, type: 'pointerdown', handler: (event: PointerEvent) => void, useCapture?: boolean): IDisposable;
+	(node: HTMLElement | Element | Document, type: 'pointermove', handler: (event: PointerEvent) => void, useCapture?: boolean): IDisposable;
+	(node: HTMLElement | Element | Document, type: 'pointerup', handler: (event: PointerEvent) => void, useCapture?: boolean): IDisposable;
+	(node: HTMLElement | Element | Document, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable;
 }
 function _wrapAsStandardMouseEvent(targetWindow: Window, handler: (e: IMouseEvent) => void): (e: MouseEvent) => void {
 	return function (e: MouseEvent) {
@@ -186,7 +186,7 @@ function _wrapAsStandardKeyboardEvent(handler: (e: IKeyboardEvent) => void): (e:
 		return handler(new StandardKeyboardEvent(e));
 	};
 }
-export const addStandardDisposableListener: IAddStandardDisposableListenerSignature = function addStandardDisposableListener(node: HTMLElement, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable {
+export const addStandardDisposableListener: IAddStandardDisposableListenerSignature = function addStandardDisposableListener(node: HTMLElement | Element | Document, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable {
 	let wrapHandler = handler;
 
 	if (type === 'click' || type === 'mousedown' || type === 'contextmenu') {
@@ -421,13 +421,13 @@ export interface IEventMerger<R, E> {
 }
 
 const MINIMUM_TIME_MS = 8;
-const DEFAULT_EVENT_MERGER: IEventMerger<Event, Event> = function (lastEvent: Event | null, currentEvent: Event) {
+function DEFAULT_EVENT_MERGER<T>(_lastEvent: unknown, currentEvent: T) {
 	return currentEvent;
-};
+}
 
 class TimeoutThrottledDomListener<R, E extends Event> extends Disposable {
 
-	constructor(node: any, type: string, handler: (event: R) => void, eventMerger: IEventMerger<R, E> = <any>DEFAULT_EVENT_MERGER, minimumTimeMs: number = MINIMUM_TIME_MS) {
+	constructor(node: Node, type: string, handler: (event: R) => void, eventMerger: IEventMerger<R, E> = DEFAULT_EVENT_MERGER as IEventMerger<R, E>, minimumTimeMs: number = MINIMUM_TIME_MS) {
 		super();
 
 		let lastEvent: R | null = null;
@@ -715,6 +715,7 @@ export function getDomNodeZoomLevel(domNode: HTMLElement): number {
 	let testElement: HTMLElement | null = domNode;
 	let zoom = 1.0;
 	do {
+		// eslint-disable-next-line local/code-no-any-casts
 		const elementZoomLevel = (getComputedStyle(testElement) as any).zoom;
 		if (elementZoomLevel !== null && elementZoomLevel !== undefined && elementZoomLevel !== '1') {
 			zoom *= elementZoomLevel;
@@ -1320,6 +1321,7 @@ function _$<T extends Element>(namespace: Namespace, description: string, attrs?
 			}
 
 			if (/^on\w+$/.test(name)) {
+				// eslint-disable-next-line local/code-no-any-casts
 				(<any>result)[name] = value;
 			} else if (name === 'selected') {
 				if (value) {
@@ -1514,6 +1516,7 @@ export function windowOpenWithSuccess(url: string, noOpener = true): boolean {
 	if (newTab) {
 		if (noOpener) {
 			// see `windowOpenNoOpener` for details on why this is important
+			// eslint-disable-next-line local/code-no-any-casts
 			(newTab as any).opener = null;
 		}
 		newTab.location.href = url;
@@ -1653,6 +1656,7 @@ export interface IDetectedFullscreen {
 export function detectFullscreen(targetWindow: Window): IDetectedFullscreen | null {
 
 	// Browser fullscreen: use DOM APIs to detect
+	// eslint-disable-next-line local/code-no-any-casts
 	if (targetWindow.document.fullscreenElement || (<any>targetWindow.document).webkitFullscreenElement || (<any>targetWindow.document).webkitIsFullScreen) {
 		return { mode: DetectedFullscreenMode.DOCUMENT, guess: false };
 	}
@@ -2005,6 +2009,7 @@ export function h(tag: string, ...args: [] | [attributes: { $: string } & Partia
 		attributes = {};
 		children = args[0];
 	} else {
+		// eslint-disable-next-line local/code-no-any-casts
 		attributes = args[0] as any || {};
 		children = args[1];
 	}
@@ -2107,6 +2112,7 @@ export function svgElem(tag: string, ...args: [] | [attributes: { $: string } & 
 		attributes = {};
 		children = args[0];
 	} else {
+		// eslint-disable-next-line local/code-no-any-casts
 		attributes = args[0] as any || {};
 		children = args[1];
 	}
@@ -2118,6 +2124,7 @@ export function svgElem(tag: string, ...args: [] | [attributes: { $: string } & 
 	}
 
 	const tagName = match.groups['tag'] || 'div';
+	// eslint-disable-next-line local/code-no-any-casts
 	const el = document.createElementNS('http://www.w3.org/2000/svg', tagName) as any as HTMLElement;
 
 	if (match.groups['id']) {
@@ -2280,11 +2287,13 @@ export namespace n {
 			const obsRef = attributes.obsRef;
 			delete attributes.obsRef;
 
+			// eslint-disable-next-line local/code-no-any-casts
 			return new ObserverNodeWithElement(tag as any, ref, obsRef, elementNs, className, attributes, children);
 		};
 	}
 
 	function node<TMap extends Record<string, any>, TKey extends keyof TMap>(tag: TKey, elementNs: string | undefined = undefined): DomCreateFn<TMap[TKey], TMap[TKey]> {
+		// eslint-disable-next-line local/code-no-any-casts
 		const f = nodeNs(elementNs) as any;
 		return (attributes, children) => {
 			return f(tag, attributes, children);
@@ -2312,6 +2321,7 @@ export namespace n {
 				return value;
 			}
 		});
+		// eslint-disable-next-line local/code-no-any-casts
 		return result as any;
 	}
 }
@@ -2423,12 +2433,14 @@ export abstract class ObserverNode<T extends HTMLOrSVGElement = HTMLOrSVGElement
 				if (isObservable(value)) {
 					this._deriveds.push(derived(this, reader => {
 						/** @description set.tabIndex */
+						// eslint-disable-next-line local/code-no-any-casts
 						this._element.tabIndex = value.read(reader) as any;
 					}));
 				} else {
 					this._element.tabIndex = value;
 				}
 			} else if (key.startsWith('on')) {
+				// eslint-disable-next-line local/code-no-any-casts
 				(this._element as any)[key] = value;
 			} else {
 				if (isObservable(value)) {
@@ -2513,6 +2525,7 @@ function resolve<T>(value: ValueOrList<T>, reader: IReader | undefined, cb: (val
 		}
 		return;
 	}
+	// eslint-disable-next-line local/code-no-any-casts
 	cb(value as any);
 }
 function getClassName(className: ValueOrList<string | undefined | false> | undefined, reader: IReader | undefined): string {

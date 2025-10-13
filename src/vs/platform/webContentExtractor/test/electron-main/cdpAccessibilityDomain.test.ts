@@ -19,6 +19,7 @@ suite('CDP Accessibility Domain', () => {
 
 	function createAXProperty(name: string, value: any, type: AXValueType = 'string'): AXProperty {
 		return {
+			// eslint-disable-next-line local/code-no-any-casts
 			name: name as any,
 			value: createAXValue(type, value)
 		};

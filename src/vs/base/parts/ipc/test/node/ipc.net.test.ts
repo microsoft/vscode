@@ -84,10 +84,12 @@ class Ether {
 	private _ba: Buffer[];
 
 	public get a(): Socket {
+		// eslint-disable-next-line local/code-no-any-casts
 		return <any>this._a;
 	}
 
 	public get b(): Socket {
+		// eslint-disable-next-line local/code-no-any-casts
 		return <any>this._b;
 	}
 
@@ -647,6 +649,7 @@ suite('WebSocketNodeSocket', () => {
 	async function testReading(frames: number[][], permessageDeflate: boolean): Promise<string> {
 		const disposables = new DisposableStore();
 		const socket = new FakeNodeSocket();
+		// eslint-disable-next-line local/code-no-any-casts
 		const webSocket = disposables.add(new WebSocketNodeSocket(<any>socket, permessageDeflate, null, false));
 
 		const barrier = new Barrier();
@@ -779,6 +782,7 @@ suite('WebSocketNodeSocket', () => {
 
 		const disposables = new DisposableStore();
 		const socket = new FakeNodeSocket();
+		// eslint-disable-next-line local/code-no-any-casts
 		const webSocket = disposables.add(new WebSocketNodeSocket(<any>socket, false, null, false));
 
 		let receivedData: string = '';

@@ -27,7 +27,8 @@ import { ICodeEditor, isCodeEditor } from '../../../../editor/browser/editorBrow
 import { EditorAction, registerEditorAction } from '../../../../editor/browser/editorExtensions.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { CodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
-import { EDITOR_FONT_DEFAULTS, EditorOption } from '../../../../editor/common/config/editorOptions.js';
+import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
+import { EDITOR_FONT_DEFAULTS } from '../../../../editor/common/config/fontInfo.js';
 import { Position } from '../../../../editor/common/core/position.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { IDecorationOptions } from '../../../../editor/common/editorCommon.js';
@@ -1192,7 +1193,9 @@ registerAction2(class extends Action2 {
 		if (selectedText && selectedText.length > 0) {
 			return clipboardService.writeText(selectedText);
 		} else if (element) {
-			return clipboardService.writeText(await this.tryEvaluateAndCopy(debugService, element) || element.toString());
+			const retValue = await this.tryEvaluateAndCopy(debugService, element);
+			const textToCopy = retValue || removeAnsiEscapeCodes(element.toString());
+			return clipboardService.writeText(textToCopy);
 		}
 	}
 

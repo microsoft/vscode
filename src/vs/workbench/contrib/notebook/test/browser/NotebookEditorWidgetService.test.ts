@@ -34,6 +34,7 @@ class TestNotebookEditorWidgetService extends NotebookEditorWidgetService {
 	protected override createWidget(): NotebookEditorWidget {
 		return new class extends mock<NotebookEditorWidget>() {
 			override onWillHide = () => { };
+			// eslint-disable-next-line local/code-no-any-casts
 			override getDomNode = () => { return { remove: () => { } } as any; };
 			override dispose = () => { };
 		};
@@ -87,6 +88,7 @@ suite('NotebookEditorWidgetService', () => {
 			override getPart(group: IEditorGroup | GroupIdentifier): IEditorPart;
 			override getPart(container: unknown): IEditorPart;
 			override getPart(container: unknown): import("../../../../services/editor/common/editorGroupsService.js").IEditorPart {
+				// eslint-disable-next-line local/code-no-any-casts
 				return { windowId: 0 } as any;
 			}
 		});

@@ -24,8 +24,8 @@ export interface INotebookEditorService {
 
 	retrieveExistingWidgetFromURI(resource: URI): IBorrowValue<NotebookEditorWidget> | undefined;
 	retrieveAllExistingWidgets(): IBorrowValue<NotebookEditorWidget>[];
-	onDidAddNotebookEditor: Event<INotebookEditor>;
-	onDidRemoveNotebookEditor: Event<INotebookEditor>;
+	readonly onDidAddNotebookEditor: Event<INotebookEditor>;
+	readonly onDidRemoveNotebookEditor: Event<INotebookEditor>;
 	addNotebookEditor(editor: INotebookEditor): void;
 	removeNotebookEditor(editor: INotebookEditor): void;
 	getNotebookEditor(editorId: string): INotebookEditor | undefined;

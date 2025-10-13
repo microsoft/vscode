@@ -68,6 +68,7 @@ suite('Buffer Content Tracker', () => {
 		instantiationService.stub(IContextMenuService, store.add(instantiationService.createInstance(ContextMenuService)));
 		instantiationService.stub(ILifecycleService, store.add(new TestLifecycleService()));
 		instantiationService.stub(IContextKeyService, store.add(new MockContextKeyService()));
+		// eslint-disable-next-line local/code-no-any-casts
 		instantiationService.stub(IAccessibilitySignalService, {
 			playSignal: async () => { },
 			isSoundEnabled(signal: unknown) { return false; },

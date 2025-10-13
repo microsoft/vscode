@@ -824,7 +824,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						}
 					}
 
-					if (typeof defaultLanguageModelTreatment === 'string' && this._currentModeObservable.get().kind === ChatModeKind.Agent) {
+					if (typeof defaultLanguageModelTreatment === 'string') {
 						this.storageService.store(storageKey, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 						this.logService.trace(`Applying default language model from experiment: ${defaultLanguageModelTreatment}`);
 						this.setExpModelOrWait(defaultLanguageModelTreatment);
@@ -985,7 +985,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	setValue(value: string, transient: boolean): void {
 		this.inputEditor.setValue(value);
 		// always leave cursor at the end
-		this.inputEditor.setPosition({ lineNumber: 1, column: value.length + 1 });
+		const model = this.inputEditor.getModel();
+		if (model) {
+			this.inputEditor.setPosition(getLastPosition(model));
+		}
 
 		if (!transient) {
 			this.saveCurrentValue(this.getInputState());
@@ -1236,7 +1239,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.inputActionsToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, toolbarsContainer, MenuId.ChatInput, {
 			telemetrySource: this.options.menus.telemetrySource,
 			menuOptions: { shouldForwardArgs: true },
-			hiddenItemStrategy: HiddenItemStrategy.Ignore,
+			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			hoverDelegate,
 			actionViewItemProvider: (action, options) => {
 				if (action.id === ChatOpenModelPickerActionId && action instanceof MenuItemAction) {
@@ -1279,7 +1282,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				shouldForwardArgs: true
 			},
 			hoverDelegate,
-			hiddenItemStrategy: HiddenItemStrategy.Ignore, // keep it lean when hiding items and avoid a "..." overflow menu
+			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			actionViewItemProvider: (action, options) => {
 				if (this.location === ChatAgentLocation.Chat || this.location === ChatAgentLocation.EditorInline) {
 					if ((action.id === ChatSubmitAction.ID || action.id === CancelAction.ID || action.id === ChatEditingSessionSubmitAction.ID || action.id === ChatDelegateToEditSessionAction.ID) && action instanceof MenuItemAction) {
@@ -1362,7 +1365,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			telemetrySource: this.options.menus.telemetrySource,
 			label: true,
 			menuOptions: { shouldForwardArgs: true, renderShortTitle: true },
-			hiddenItemStrategy: HiddenItemStrategy.Ignore,
+			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			hoverDelegate,
 			actionViewItemProvider: (action, options) => {
 				if (action.id === 'workbench.action.chat.attachContext') {
@@ -1918,7 +1921,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			followupsHeight: this.followupsContainer.offsetHeight,
 			inputPartEditorHeight: Math.min(this._inputEditor.getContentHeight(), this.inputEditorMaxHeight),
 			inputPartHorizontalPadding: this.options.renderStyle === 'compact' ? 16 : 32,
-			inputPartVerticalPadding: this.options.renderStyle === 'compact' ? 12 : 28,
+			inputPartVerticalPadding: this.options.renderStyle === 'compact' ? 12 : (16 /* entire part */ + 6 /* input container */ + (3 * 4) /* flex gap: todo|edits|input */),
 			attachmentsHeight: this.attachmentsHeight,
 			editorBorder: 2,
 			inputPartHorizontalPaddingInside: 12,

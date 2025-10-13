@@ -41,7 +41,7 @@ import { IViewsService } from '../../../../../services/views/common/viewsService
 import { IChatService } from '../../../common/chatService.js';
 import { IChatSessionItemProvider } from '../../../common/chatSessionsService.js';
 import { ChatSessionUri } from '../../../common/chatUri.js';
-import { ChatConfiguration } from '../../../common/constants.js';
+import { ChatConfiguration, ChatEditorTitleMaxLength } from '../../../common/constants.js';
 import { IChatWidgetService, ChatViewId } from '../../chat.js';
 import { IChatEditorOptions } from '../../chatEditor.js';
 import { ChatEditorInput } from '../../chatEditorInput.js';
@@ -81,6 +81,7 @@ export class SessionsViewPane extends ViewPane {
 	constructor(
 		private readonly provider: IChatSessionItemProvider,
 		private readonly sessionTracker: ChatSessionTracker,
+		private readonly viewId: string,
 		options: IViewPaneOptions,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -140,7 +141,7 @@ export class SessionsViewPane extends ViewPane {
 			icon: Codicon.plus,
 		}, undefined, undefined, undefined, undefined);
 
-		const menu = this.menuService.createMenu(MenuId.ChatSessionsMenu, this.contextKeyService);
+		const menu = this.menuService.createMenu(MenuId.ChatSessionsMenu, this.scopedContextKeyService);
 
 		const actions = menu.getActions({ shouldForwardArgs: true });
 		const primaryActions = getActionBarActions(
@@ -296,7 +297,7 @@ export class SessionsViewPane extends ViewPane {
 		const accessibilityProvider = new SessionsAccessibilityProvider();
 
 		// Use the existing ResourceLabels service for consistent styling
-		const renderer = this.instantiationService.createInstance(SessionsRenderer);
+		const renderer = this.instantiationService.createInstance(SessionsRenderer, this.viewDescriptorService.getViewLocationById(this.viewId));
 		this._register(renderer);
 
 		const getResourceForElement = (element: ChatSessionItemWithProvider): URI | null => {
@@ -493,7 +494,9 @@ export class SessionsViewPane extends ViewPane {
 			const options: IChatEditorOptions = {
 				pinned: true,
 				ignoreInView: true,
-				preferredTitle: truncate(session.label, 30),
+				title: {
+					preferred: truncate(session.label, ChatEditorTitleMaxLength),
+				},
 				preserveFocus: true,
 			};
 			await this.editorService.openEditor({

@@ -674,16 +674,16 @@ export class QuickInputList extends Disposable {
 	readonly onLeave: Event<void> = this._onLeave.event;
 
 	private readonly _visibleCountObservable = observableValue('VisibleCount', 0);
-	onChangedVisibleCount: Event<number> = Event.fromObservable(this._visibleCountObservable, this._store);
+	readonly onChangedVisibleCount: Event<number> = Event.fromObservable(this._visibleCountObservable, this._store);
 
 	private readonly _allVisibleCheckedObservable = observableValue('AllVisibleChecked', false);
-	onChangedAllVisibleChecked: Event<boolean> = Event.fromObservable(this._allVisibleCheckedObservable, this._store);
+	readonly onChangedAllVisibleChecked: Event<boolean> = Event.fromObservable(this._allVisibleCheckedObservable, this._store);
 
 	private readonly _checkedCountObservable = observableValue('CheckedCount', 0);
-	onChangedCheckedCount: Event<number> = Event.fromObservable(this._checkedCountObservable, this._store);
+	readonly onChangedCheckedCount: Event<number> = Event.fromObservable(this._checkedCountObservable, this._store);
 
 	private readonly _checkedElementsObservable = observableValueOpts({ equalsFn: equals }, new Array<IQuickPickItem>());
-	onChangedCheckedElements: Event<IQuickPickItem[]> = Event.fromObservable(this._checkedElementsObservable, this._store);
+	readonly onChangedCheckedElements: Event<IQuickPickItem[]> = Event.fromObservable(this._checkedElementsObservable, this._store);
 
 	private readonly _onButtonTriggered = new Emitter<IQuickPickItemButtonEvent<IQuickPickItem>>();
 	onButtonTriggered = this._onButtonTriggered.event;

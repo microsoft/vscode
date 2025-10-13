@@ -46,7 +46,7 @@ export const SkipToolConfirmationActionId = 'workbench.action.chat.skipTool';
 abstract class ToolConfirmationAction extends Action2 {
 	protected abstract getReason(): ConfirmedReason;
 
-	run(accessor: ServicesAccessor, ...args: any[]) {
+	run(accessor: ServicesAccessor, ...args: unknown[]) {
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const widget = chatWidgetService.lastFocusedWidget;
 		const lastItem = widget?.viewModel?.getItems().at(-1);
@@ -126,7 +126,7 @@ class ConfigureToolsAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 
 		const instaService = accessor.get(IInstantiationService);
 		const chatWidgetService = accessor.get(IChatWidgetService);

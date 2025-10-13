@@ -355,7 +355,7 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 	abstract enterWorkspace(workspaceUri: URI): Promise<void>;
 
 	protected async doEnterWorkspace(workspaceUri: URI): Promise<IEnterWorkspaceResult | undefined> {
-		if (!!this.environmentService.extensionTestsLocationURI) {
+		if (this.environmentService.extensionTestsLocationURI) {
 			throw new Error('Entering a new workspace is not possible in tests.');
 		}
 
@@ -381,7 +381,7 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 
 	private doCopyWorkspaceSettings(toWorkspace: IWorkspaceIdentifier, filter?: (config: IConfigurationPropertySchema) => boolean): Promise<void> {
 		const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
-		const targetWorkspaceConfiguration: any = {};
+		const targetWorkspaceConfiguration: Record<string, unknown> = {};
 		for (const key of this.configurationService.keys().workspace) {
 			if (configurationProperties[key]) {
 				if (filter && !filter(configurationProperties[key])) {

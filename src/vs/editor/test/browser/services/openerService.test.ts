@@ -24,7 +24,7 @@ suite('OpenerService', function () {
 		declare readonly _serviceBrand: undefined;
 		onWillExecuteCommand = () => Disposable.None;
 		onDidExecuteCommand = () => Disposable.None;
-		executeCommand(id: string, ...args: any[]): Promise<any> {
+		executeCommand(id: string, ...args: unknown[]): Promise<any> {
 			lastCommand = { id, args };
 			return Promise.resolve(undefined);
 		}

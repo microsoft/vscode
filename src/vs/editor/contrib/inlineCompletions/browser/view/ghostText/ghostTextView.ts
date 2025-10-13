@@ -271,6 +271,7 @@ export class GhostTextView extends Disposable {
 						color: 'orange',
 					},
 					ref: (dom) => {
+						// eslint-disable-next-line local/code-no-any-casts
 						(dom as any as WidgetDomElement).ghostTextViewWarningWidgetData = { range: Range.fromPositions(state.position) };
 					}
 				}, [
@@ -292,6 +293,7 @@ export class GhostTextView extends Disposable {
 	}
 
 	public static getWarningWidgetContext(domNode: HTMLElement): { range: Range } | undefined {
+		// eslint-disable-next-line local/code-no-any-casts
 		const data = (domNode as any as WidgetDomElement).ghostTextViewWarningWidgetData;
 		if (data) {
 			return data;

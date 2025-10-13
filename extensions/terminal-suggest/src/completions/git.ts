@@ -89,7 +89,7 @@ const postProcessBranches =
 								name: branch.replace("*", "").trim(),
 								description: "Current branch",
 								priority: 100,
-								icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.Branch}`
+								icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.ScmBranch}`
 							};
 						} else if (parts[0] === "+") {
 							// Branch checked out in another worktree.
@@ -112,7 +112,7 @@ const postProcessBranches =
 					return {
 						name,
 						description,
-						icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.Branch}`,
+						icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.ScmBranch}`,
 						priority: 75,
 					};
 				})
@@ -148,7 +148,7 @@ export const gitGenerators = {
 			return lines.map((line) => {
 				return {
 					name: line.substring(0, hashLength),
-					icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.Commit}`,
+					icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.ScmCommit}`,
 					description: line.substring(descriptionStart),
 				};
 			});
@@ -194,7 +194,7 @@ export const gitGenerators = {
 			return output.split("\n").map((line) => {
 				return {
 					name: line.substring(0, 7),
-					icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.Commit}`,
+					icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.ScmCommit}`,
 					description: line.substring(7),
 				};
 			});
@@ -217,7 +217,7 @@ export const gitGenerators = {
 					// account for conventional commit messages
 					name: file.split(":").slice(2).join(":"),
 					insertValue: file.split(":")[0],
-					icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.Stash}`,
+					icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.ScmStash}`,
 				};
 			});
 		},
@@ -329,7 +329,7 @@ export const gitGenerators = {
 			return Object.keys(remoteURLs).map((remote) => {
 				return {
 					name: remote,
-					icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.Remote}`,
+					icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.ScmRemote}`,
 					description: "Remote",
 				};
 			});
@@ -347,7 +347,7 @@ export const gitGenerators = {
 		postProcess: function (output) {
 			return output.split("\n").map((tag) => ({
 				name: tag,
-				icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.Tag}`
+				icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.ScmTag}`
 			}));
 		},
 	} satisfies Fig.Generator,
@@ -8117,7 +8117,7 @@ const completionSpec: Fig.Spec = {
 						{
 							name: "-",
 							description: "Switch to the last used branch",
-							icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.Branch}`
+							icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.ScmBranch}`
 						},
 						{
 							name: "--",
@@ -9283,7 +9283,7 @@ const completionSpec: Fig.Spec = {
 						{
 							name: "-",
 							description: "Switch to the last used branch",
-							icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.Branch}`
+							icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.ScmBranch}`
 						},
 					],
 				},

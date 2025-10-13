@@ -26,11 +26,11 @@ import { IQuickInputService } from '../../../../../platform/quickinput/common/qu
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IRemoteCodingAgent, IRemoteCodingAgentsService } from '../../../remoteCodingAgents/common/remoteCodingAgentsService.js';
-import { IChatAgentHistoryEntry, IChatAgentService } from '../../common/chatAgents.js';
+import { IChatAgent, IChatAgentHistoryEntry, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys, ChatContextKeyExprs } from '../../common/chatContextKeys.js';
 import { IChatModel, IChatRequestModel, toChatHistoryContent } from '../../common/chatModel.js';
 import { IChatMode, IChatModeService } from '../../common/chatModes.js';
-import { chatAgentLeader, chatVariableLeader } from '../../common/chatParserTypes.js';
+import { chatVariableLeader } from '../../common/chatParserTypes.js';
 import { ChatRequestParser } from '../../common/chatRequestParser.js';
 import { IChatPullRequestContent, IChatService } from '../../common/chatService.js';
 import { IChatSessionsExtensionPoint, IChatSessionsService } from '../../common/chatSessionsService.js';
@@ -53,8 +53,8 @@ export interface IChatExecuteActionContext {
 }
 
 abstract class SubmitAction extends Action2 {
-	async run(accessor: ServicesAccessor, ...args: any[]) {
-		const context: IChatExecuteActionContext | undefined = args[0];
+	async run(accessor: ServicesAccessor, ...args: unknown[]) {
+		const context = args[0] as IChatExecuteActionContext | undefined;
 		const telemetryService = accessor.get(ITelemetryService);
 		const widgetService = accessor.get(IChatWidgetService);
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
@@ -247,8 +247,8 @@ export class ChatDelegateToEditSessionAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
-		const context: IChatExecuteActionContext | undefined = args[0];
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+		const context = args[0] as IChatExecuteActionContext | undefined;
 		const widgetService = accessor.get(IChatWidgetService);
 		const instantiationService = accessor.get(IInstantiationService);
 		const inlineWidget = context?.widget ?? widgetService.lastFocusedWidget;
@@ -314,7 +314,7 @@ class ToggleChatModeAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, ...args: any[]) {
+	async run(accessor: ServicesAccessor, ...args: unknown[]) {
 		const commandService = accessor.get(ICommandService);
 		const configurationService = accessor.get(IConfigurationService);
 		const instaService = accessor.get(IInstantiationService);
@@ -383,7 +383,7 @@ class SwitchToNextModelAction extends Action2 {
 		});
 	}
 
-	override run(accessor: ServicesAccessor, ...args: any[]): void {
+	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
 		const widgetService = accessor.get(IChatWidgetService);
 		const widget = widgetService.lastFocusedWidget;
 		widget?.input.switchToNextModel();
@@ -424,7 +424,7 @@ class OpenModelPickerAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 		const widgetService = accessor.get(IChatWidgetService);
 		const widget = widgetService.lastFocusedWidget;
 		if (widget) {
@@ -467,7 +467,7 @@ export class OpenModePickerAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 		const widgetService = accessor.get(IChatWidgetService);
 		const widget = widgetService.lastFocusedWidget;
 		if (widget) {
@@ -490,8 +490,8 @@ class ChangeChatModelAction extends Action2 {
 		});
 	}
 
-	override run(accessor: ServicesAccessor, ...args: any[]): void {
-		const modelInfo: Pick<ILanguageModelChatMetadata, 'vendor' | 'id' | 'family'> = args[0];
+	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
+		const modelInfo = args[0] as Pick<ILanguageModelChatMetadata, 'vendor' | 'id' | 'family'>;
 		// Type check the arg
 		assertType(typeof modelInfo.vendor === 'string' && typeof modelInfo.id === 'string' && typeof modelInfo.family === 'string');
 		const widgetService = accessor.get(IChatWidgetService);
@@ -567,8 +567,8 @@ class SubmitWithoutDispatchingAction extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor, ...args: any[]) {
-		const context: IChatExecuteActionContext | undefined = args[0];
+	run(accessor: ServicesAccessor, ...args: unknown[]) {
+		const context = args[0] as IChatExecuteActionContext | undefined;
 
 		const widgetService = accessor.get(IChatWidgetService);
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
@@ -607,13 +607,21 @@ export class CreateRemoteAgentJobAction extends Action2 {
 					id: MenuId.ChatExecute,
 					group: 'navigation',
 					order: 3.4,
-					when: ContextKeyExpr.and(ChatContextKeys.hasRemoteCodingAgent, ChatContextKeys.lockedToCodingAgent.negate()),
+					when: ContextKeyExpr.and(
+						ChatContextKeys.hasRemoteCodingAgent,
+						ChatContextKeys.lockedToCodingAgent.negate(),
+						ContextKeyExpr.equals(`config.${ChatConfiguration.DelegateToCodingAgentInSecondaryMenu}`, false)
+					),
 				},
 				{
 					id: MenuId.ChatExecuteSecondary,
 					group: 'group_3',
 					order: 1,
-					when: ContextKeyExpr.and(ChatContextKeys.hasRemoteCodingAgent, ChatContextKeys.lockedToCodingAgent.negate()),
+					when: ContextKeyExpr.and(
+						ChatContextKeys.hasRemoteCodingAgent,
+						ChatContextKeys.lockedToCodingAgent.negate(),
+						ContextKeyExpr.equals(`config.${ChatConfiguration.DelegateToCodingAgentInSecondaryMenu}`, true)
+					),
 				}
 			]
 		});
@@ -647,27 +655,29 @@ export class CreateRemoteAgentJobAction extends Action2 {
 
 	private async createWithChatSessions(
 		chatSessionsService: IChatSessionsService,
-		chatAgentService: IChatAgentService,
+		chatService: IChatService,
 		quickPickService: IQuickInputService,
-		widget: IChatWidget,
+		sessionId: string,
+		attachedContext: ChatRequestVariableSet,
 		userPrompt: string,
+		chatSummary?: {
+			prompt?: string;
+			history?: string;
+		}
 	) {
 		const contributions = chatSessionsService.getAllChatSessionContributions();
 		const agent = await this.pickCodingAgent(quickPickService, contributions);
 		if (!agent) {
 			throw new Error('No coding agent selected');
 		}
-		// TODO(jospicer): The chat history doesn't get sent to chat participants!
-		const { name, type } = agent;
-		const chatAgent = chatAgentService.getAgent(type);
-		if (!chatAgent) {
-			throw new Error(`Could not find chat agent with type ${type}`);
-		}
-		const trimmed = userPrompt.trim();
-		const mentionPrefix = `${chatAgentLeader}${name}`;
-		const finalPrompt = trimmed.startsWith(mentionPrefix) ? trimmed : `${mentionPrefix} ${trimmed}`;
-		widget.setInput(finalPrompt);
-		widget.acceptInput();
+		// TODO(jospicer): The previous chat history doesn't get sent to chat participants!
+		const { type } = agent;
+
+		await chatService.sendRequest(sessionId, userPrompt, {
+			agentIdSilent: type,
+			attachedContext: attachedContext.asArray(),
+			chatSummary,
+		});
 	}
 
 	private async createWithLegacy(
@@ -750,7 +760,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 		return relativePaths;
 	}
 
-	async run(accessor: ServicesAccessor, ...args: any[]) {
+	async run(accessor: ServicesAccessor, ...args: unknown[]) {
 		const contextKeyService = accessor.get(IContextKeyService);
 		const remoteJobCreatingKey = ChatContextKeys.remoteJobCreating.bindTo(contextKeyService);
 
@@ -760,6 +770,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			const configurationService = accessor.get(IConfigurationService);
 			const widgetService = accessor.get(IChatWidgetService);
 			const chatAgentService = accessor.get(IChatAgentService);
+			const chatService = accessor.get(IChatService);
 			const commandService = accessor.get(ICommandService);
 			const quickPickService = accessor.get(IQuickInputService);
 			const remoteCodingAgentService = accessor.get(IRemoteCodingAgentsService);
@@ -770,8 +781,8 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			if (!widget) {
 				return;
 			}
-			const session = widget.viewModel?.sessionId;
-			if (!session) {
+			const sessionId = widget.viewModel?.sessionId;
+			if (!sessionId) {
 				return;
 			}
 			const chatModel = widget.viewModel?.model;
@@ -789,20 +800,15 @@ export class CreateRemoteAgentJobAction extends Action2 {
 				userPrompt = 'implement this.';
 			}
 
-			const attachedContext = widget.input.getAttachedAndImplicitContext(session);
+			const attachedContext = widget.input.getAttachedAndImplicitContext(sessionId);
 			widget.input.acceptInput(true);
 
 			const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Chat);
 			const instantiationService = accessor.get(IInstantiationService);
 			const requestParser = instantiationService.createInstance(ChatRequestParser);
 
-			const isChatSessionsExperimentEnabled = configurationService.getValue<boolean>(ChatConfiguration.UseCloudButtonV2);
-			if (isChatSessionsExperimentEnabled) {
-				return await this.createWithChatSessions(chatSessionsService, chatAgentService, quickPickService, widget, userPrompt);
-			}
-
 			// Add the request to the model first
-			const parsedRequest = requestParser.parseChatRequest(session, userPrompt, ChatAgentLocation.Chat);
+			const parsedRequest = requestParser.parseChatRequest(sessionId, userPrompt, ChatAgentLocation.Chat);
 			const addedRequest = chatModel.addRequest(
 				parsedRequest,
 				{ variables: attachedContext.asArray() },
@@ -824,23 +830,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 					)
 				});
 
-				const userPromptEntry: IChatAgentHistoryEntry = {
-					request: {
-						sessionId: session,
-						requestId: generateUuid(),
-						agentId: '',
-						message: userPrompt,
-						command: undefined,
-						variables: { variables: attachedContext.asArray() },
-						location: ChatAgentLocation.Chat,
-						editedFileEvents: [],
-					},
-					response: [],
-					result: {}
-				};
-				const historyEntries = [userPromptEntry];
-				title = await chatAgentService.getChatTitle(defaultAgent.id, historyEntries, CancellationToken.None);
-				summarizedUserPrompt = await chatAgentService.getChatSummary(defaultAgent.id, historyEntries, CancellationToken.None);
+				({ title, summarizedUserPrompt } = await this.generateSummarizedUserPrompt(sessionId, userPrompt, attachedContext, title, chatAgentService, defaultAgent, summarizedUserPrompt));
 			}
 
 			let summary: string = '';
@@ -858,32 +848,29 @@ export class CreateRemoteAgentJobAction extends Action2 {
 						CreateRemoteAgentJobAction.markdownStringTrustedOptions
 					)
 				});
-				const historyEntries: IChatAgentHistoryEntry[] = chatRequests
-					.map(req => ({
-						request: {
-							sessionId: session,
-							requestId: req.id,
-							agentId: req.response?.agent?.id ?? '',
-							message: req.message.text,
-							command: req.response?.slashCommand?.name,
-							variables: req.variableData,
-							location: ChatAgentLocation.Chat,
-							editedFileEvents: req.editedFileEvents,
-						},
-						response: toChatHistoryContent(req.response!.response.value),
-						result: req.response?.result ?? {}
-					}));
-
-				// TODO: Determine a cutoff point where we stop including earlier history
-				//      For example, if the user has already delegated to a coding agent once,
-				// 		 prefer the conversation afterwards.
-
-				title ??= await chatAgentService.getChatTitle(defaultAgent.id, historyEntries, CancellationToken.None);
-				summary += await chatAgentService.getChatSummary(defaultAgent.id, historyEntries, CancellationToken.None);
+				({ title, summary } = await this.generateSummarizedChatHistory(chatRequests, sessionId, title, chatAgentService, defaultAgent, summary));
 			}
 
 			if (title) {
 				summary += `\nTITLE: ${title}\n`;
+			}
+
+
+			const isChatSessionsExperimentEnabled = configurationService.getValue<boolean>(ChatConfiguration.UseCloudButtonV2);
+			if (isChatSessionsExperimentEnabled) {
+				await chatService.removeRequest(sessionId, addedRequest.id);
+				return await this.createWithChatSessions(
+					chatSessionsService,
+					chatService,
+					quickPickService,
+					sessionId,
+					attachedContext,
+					userPrompt,
+					{
+						prompt: summarizedUserPrompt,
+						history: summary,
+					},
+				);
 			}
 
 			chatModel.acceptResponseProgress(addedRequest, {
@@ -903,6 +890,52 @@ export class CreateRemoteAgentJobAction extends Action2 {
 		} finally {
 			remoteJobCreatingKey.set(false);
 		}
+	}
+
+	private async generateSummarizedChatHistory(chatRequests: IChatRequestModel[], sessionId: string, title: string | undefined, chatAgentService: IChatAgentService, defaultAgent: IChatAgent, summary: string) {
+		const historyEntries: IChatAgentHistoryEntry[] = chatRequests
+			.map(req => ({
+				request: {
+					sessionId: sessionId,
+					requestId: req.id,
+					agentId: req.response?.agent?.id ?? '',
+					message: req.message.text,
+					command: req.response?.slashCommand?.name,
+					variables: req.variableData,
+					location: ChatAgentLocation.Chat,
+					editedFileEvents: req.editedFileEvents,
+				},
+				response: toChatHistoryContent(req.response!.response.value),
+				result: req.response?.result ?? {}
+			}));
+
+		// TODO: Determine a cutoff point where we stop including earlier history
+		//      For example, if the user has already delegated to a coding agent once,
+		// 		 prefer the conversation afterwards.
+		title ??= await chatAgentService.getChatTitle(defaultAgent.id, historyEntries, CancellationToken.None);
+		summary += await chatAgentService.getChatSummary(defaultAgent.id, historyEntries, CancellationToken.None);
+		return { title, summary };
+	}
+
+	private async generateSummarizedUserPrompt(sessionId: string, userPrompt: string, attachedContext: ChatRequestVariableSet, title: string | undefined, chatAgentService: IChatAgentService, defaultAgent: IChatAgent, summarizedUserPrompt: string | undefined) {
+		const userPromptEntry: IChatAgentHistoryEntry = {
+			request: {
+				sessionId: sessionId,
+				requestId: generateUuid(),
+				agentId: '',
+				message: userPrompt,
+				command: undefined,
+				variables: { variables: attachedContext.asArray() },
+				location: ChatAgentLocation.Chat,
+				editedFileEvents: [],
+			},
+			response: [],
+			result: {}
+		};
+		const historyEntries = [userPromptEntry];
+		title = await chatAgentService.getChatTitle(defaultAgent.id, historyEntries, CancellationToken.None);
+		summarizedUserPrompt = await chatAgentService.getChatSummary(defaultAgent.id, historyEntries, CancellationToken.None);
+		return { title, summarizedUserPrompt };
 	}
 }
 
@@ -938,8 +971,8 @@ export class ChatSubmitWithCodebaseAction extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor, ...args: any[]) {
-		const context: IChatExecuteActionContext | undefined = args[0];
+	run(accessor: ServicesAccessor, ...args: unknown[]) {
+		const context = args[0] as IChatExecuteActionContext | undefined;
 
 		const widgetService = accessor.get(IChatWidgetService);
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
@@ -996,8 +1029,8 @@ class SendToNewChatAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, ...args: any[]) {
-		const context: IChatExecuteActionContext | undefined = args[0];
+	async run(accessor: ServicesAccessor, ...args: unknown[]) {
+		const context = args[0] as IChatExecuteActionContext | undefined;
 
 		const widgetService = accessor.get(IChatWidgetService);
 		const dialogService = accessor.get(IDialogService);
@@ -1047,8 +1080,8 @@ export class CancelAction extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor, ...args: any[]) {
-		const context: IChatExecuteActionContext | undefined = args[0];
+	run(accessor: ServicesAccessor, ...args: unknown[]) {
+		const context = args[0] as IChatExecuteActionContext | undefined;
 		const widgetService = accessor.get(IChatWidgetService);
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
 		if (!widget) {
@@ -1092,8 +1125,8 @@ export class CancelEdit extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor, ...args: any[]) {
-		const context: IChatExecuteActionContext | undefined = args[0];
+	run(accessor: ServicesAccessor, ...args: unknown[]) {
+		const context = args[0] as IChatExecuteActionContext | undefined;
 
 		const widgetService = accessor.get(IChatWidgetService);
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;

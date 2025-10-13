@@ -95,7 +95,7 @@ function createTypeScriptBuilder(config, projectFile, cmd) {
         }
     }
     function isExternalModule(sourceFile) {
-        return sourceFile.externalModuleIndicator
+        return !!sourceFile.externalModuleIndicator
             || /declare\s+module\s+('|")(.+)\1/.test(sourceFile.getText());
     }
     function build(out, onError, token = CancellationToken.None) {

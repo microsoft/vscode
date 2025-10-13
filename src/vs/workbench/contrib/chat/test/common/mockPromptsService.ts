@@ -38,6 +38,7 @@ export class MockPromptsService implements IPromptsService {
 	asPromptSlashCommand(_command: string): any { return undefined; }
 	resolvePromptSlashCommand(_data: any, _token: CancellationToken): Promise<any> { throw new Error('Not implemented'); }
 	findPromptSlashCommands(): Promise<any[]> { throw new Error('Not implemented'); }
+	getPromptCommandName(uri: URI): Promise<string> { throw new Error('Not implemented'); }
 	parse(_uri: URI, _type: any, _token: CancellationToken): Promise<any> { throw new Error('Not implemented'); }
 	parseNew(_uri: URI, _token: CancellationToken): Promise<any> { throw new Error('Not implemented'); }
 	getPromptFileType(_resource: URI): any { return undefined; }
