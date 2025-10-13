@@ -7,6 +7,7 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { removeAnsiEscapeCodes } from '../../../../base/common/strings.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ITerminalExecuteStrategy } from '../../terminalContrib/chatAgentTools/browser/executeStrategy/executeStrategy.js';
 import { ITerminalChatExecutionRegistration, ITerminalChatProgressPartHandle, ITerminalChatProgressPartRegistration, ITerminalChatService, ITerminalInstance } from './terminal.js';
@@ -47,6 +48,7 @@ interface ITerminalChatSessionState {
 	persistentEndMarker?: IXtermMarker;
 	lastData?: string;
 	lastExitCode: number | undefined;
+	lastPreviewNonEmptyRows: number;
 	preferredRows: number;
 }
 
@@ -129,7 +131,9 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		}));
 		session.store.add(registration.executeStrategy.onDidFinishCommand(exitCode => {
 			session.lastExitCode = exitCode;
-			const targetRows = exitCode === 0 ? COLLAPSED_ROWS : DEFAULT_ROWS;
+			refreshScheduler.schedule(0);
+			const nonEmptyRows = session.lastPreviewNonEmptyRows || DEFAULT_ROWS;
+			const targetRows = exitCode === 0 ? COLLAPSED_ROWS : Math.min(DEFAULT_ROWS, nonEmptyRows || DEFAULT_ROWS);
 			this._setSessionPreferredRows(session, targetRows);
 			this._updateSessionDecorations(session);
 		}));
@@ -210,6 +214,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 				persistentEndMarker: undefined,
 				lastData: undefined,
 				lastExitCode: undefined,
+				lastPreviewNonEmptyRows: DEFAULT_ROWS,
 				preferredRows: DEFAULT_ROWS
 			};
 			this._sessions.set(id, newSession);
@@ -281,6 +286,8 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 				return;
 			}
 			session.lastData = data;
+			session.lastPreviewNonEmptyRows = this._countNonEmptyRows(data);
+			this._setSessionPreferredRows(session, session.lastPreviewNonEmptyRows);
 			for (const attachment of session.attachments.values()) {
 				if (attachment.disposed || attachment.store.isDisposed || !attachment.xterm) {
 					continue;
@@ -437,6 +444,19 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 	private _shouldShowShellIntegrationDecorations(): boolean {
 		const value = this._configurationService.getValue<'both' | 'gutter' | 'overviewRuler' | 'never'>(TerminalSettingId.ShellIntegrationDecorationsEnabled);
 		return value === 'both' || value === 'gutter';
+	}
+
+	private _countNonEmptyRows(data: string): number {
+		const sanitized = removeAnsiEscapeCodes(data)
+			.replace(/\r/g, '')
+			.split(/\n/);
+		let count = 0;
+		for (const line of sanitized) {
+			if (line.trim().length > 0) {
+				count++;
+			}
+		}
+		return count;
 	}
 
 	private _setSessionPreferredRows(session: ITerminalChatSessionState, rows: number): void {
