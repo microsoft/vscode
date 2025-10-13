@@ -2032,6 +2032,35 @@ class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {
 			filePrefix: '${workspaceFolder}',
 			pattern: ProblemPatternRegistry.get('go')
 		});
+
+		this.add({
+			name: 'esbuild',
+			label: localize('esbuild', 'esbuild problems'),
+			owner: 'esbuild',
+			source: 'esbuild',
+			applyTo: ApplyToKind.allDocuments,
+			fileLocation: FileLocationKind.Relative,
+			filePrefix: '${workspaceFolder}',
+			pattern: ProblemPatternRegistry.get('esbuild'),
+			severity: Severity.Info
+		});
+
+		this.add({
+			name: 'esbuild-watch',
+			label: localize('esbuild-watch', 'esbuild watch mode problems'),
+			owner: 'esbuild',
+			source: 'esbuild',
+			applyTo: ApplyToKind.allDocuments,
+			fileLocation: FileLocationKind.Relative,
+			filePrefix: '${workspaceFolder}',
+			pattern: ProblemPatternRegistry.get('esbuild'),
+			severity: Severity.Info,
+			watching: {
+				activeOnStart: true,
+				beginsPattern: { regexp: /> \[watch\] build started/ },
+				endsPattern: { regexp: /> \[watch\] build finished/ }
+			}
+		});
 	}
 }
 
