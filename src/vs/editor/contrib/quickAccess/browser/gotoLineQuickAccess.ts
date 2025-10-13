@@ -103,7 +103,7 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 		// Add a toggle to switch between 1- and 0-based offsets.
 		const toggle = new Toggle({
 			title: localize('gotoLineToggle', "Use zero-based offset"),
-			icon: Codicon.symbolNumber,
+			icon: Codicon.symbolArray,
 			isChecked: this.useZeroBasedOffset,
 			inputActiveOptionBorder: asCssVariable(inputActiveOptionBorder),
 			inputActiveOptionForeground: asCssVariable(inputActiveOptionForeground),
