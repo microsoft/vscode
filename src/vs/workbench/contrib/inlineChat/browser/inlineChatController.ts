@@ -122,19 +122,20 @@ export class InlineChatController implements IEditorContribution {
 		return editor.getContribution<InlineChatController>(InlineChatController.ID);
 	}
 
-	private readonly _delegate: IObservable<InlineChatController1 | InlineChatController2>;
+	protected readonly _delegate: IObservable<InlineChatController1 | InlineChatController2>;
 
 	constructor(
 		editor: ICodeEditor,
 		@IConfigurationService configurationService: IConfigurationService,
-		@INotebookEditorService private readonly _notebookEditorService: INotebookEditorService
 	) {
-		const inlineChat2 = observableConfigValue(InlineChatConfigKeys.EnableV2, false, configurationService);
-		const notebookAgent = observableConfigValue(InlineChatConfigKeys.notebookAgent, false, configurationService);
+		this._delegate = this.createDelegateObs(editor, configurationService);
+	}
 
-		this._delegate = derived(r => {
-			const isNotebookCell = this._notebookEditorService.isCellEditor(editor);
-			if (isNotebookCell ? notebookAgent.read(r) : inlineChat2.read(r)) {
+	protected createDelegateObs(editor: ICodeEditor, configurationService: IConfigurationService): IObservable<InlineChatController1 | InlineChatController2> {
+		const inlineChat2 = observableConfigValue(InlineChatConfigKeys.EnableV2, false, configurationService);
+
+		return derived(r => {
+			if (inlineChat2.read(r)) {
 				return InlineChatController2.get(editor)!;
 			} else {
 				return InlineChatController1.get(editor)!;
@@ -168,6 +169,21 @@ export class InlineChatController implements IEditorContribution {
 
 	acceptSession() {
 		return this._delegate.get().acceptSession();
+	}
+}
+
+export class NotebookInlineChatController extends InlineChatController {
+
+	protected override createDelegateObs(editor: ICodeEditor, configurationService: IConfigurationService): IObservable<InlineChatController1 | InlineChatController2> {
+		const notebookAgent = observableConfigValue(InlineChatConfigKeys.notebookAgent, false, configurationService);
+
+		return derived(r => {
+			if (notebookAgent.read(r)) {
+				return InlineChatController2.get(editor)!;
+			} else {
+				return InlineChatController1.get(editor)!;
+			}
+		});
 	}
 }
 
@@ -1264,9 +1280,9 @@ export class InlineChatController2 implements IEditorContribution {
 	}
 
 	constructor(
-		private readonly _editor: ICodeEditor,
+		protected readonly _editor: ICodeEditor,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
-		@INotebookEditorService private readonly _notebookEditorService: INotebookEditorService,
+		@INotebookEditorService protected readonly _notebookEditorService: INotebookEditorService,
 		@IInlineChatSessionService private readonly _inlineChatSessions: IInlineChatSessionService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -1275,64 +1291,17 @@ export class InlineChatController2 implements IEditorContribution {
 		@IChatAttachmentResolveService private readonly _chatAttachmentResolveService: IChatAttachmentResolveService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IInlineChatSessionService inlineChatService: IInlineChatSessionService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IChatService chatService: IChatService,
+		@IChatService private readonly chatService: IChatService,
 	) {
 
 		const ctxInlineChatVisible = CTX_INLINE_CHAT_VISIBLE.bindTo(contextKeyService);
 
 		this._zone = new Lazy<InlineChatZoneWidget>(() => {
 
-
-			const location: IChatWidgetLocationOptions = {
-				location: ChatAgentLocation.EditorInline,
-				resolveData: () => {
-					assertType(this._editor.hasModel());
-					const wholeRange = this._editor.getSelection();
-					const document = this._editor.getModel().uri;
-
-					return {
-						type: ChatAgentLocation.EditorInline,
-						selection: this._editor.getSelection(),
-						document,
-						wholeRange,
-						close: () => this._showWidgetOverrideObs.set(false, undefined),
-						delegateSessionId: chatService.editingSessions.find(session =>
-							session.entries.get().some(e => e.hasModificationAt({
-								range: wholeRange,
-								uri: document
-							}))
-						)?.chatSessionId,
-					};
-				}
-			};
-
-			// inline chat in notebooks
-			// check if this editor is part of a notebook editor
-			// if so, update the location and use the notebook specific widget
-			let notebookEditor: INotebookEditor | undefined;
-			for (const editor of this._notebookEditorService.listNotebookEditors()) {
-				for (const [, codeEditor] of editor.codeEditors) {
-					if (codeEditor === this._editor) {
-						location.location = ChatAgentLocation.Notebook;
-						notebookEditor = editor;
-						// set location2 so that the notebook agent intent is used
-						location.resolveData = () => {
-							assertType(this._editor.hasModel());
-
-							return {
-								type: ChatAgentLocation.Notebook,
-								sessionInputUri: this._editor.getModel().uri,
-							};
-						};
-
-						break;
-					}
-				}
-			}
+			const { locationOpts, notebookEditor } = this.getLocationOpts();
 
 			const result = this._instaService.createInstance(InlineChatZoneWidget,
-				location,
+				locationOpts,
 				{
 					enableWorkingSet: 'implicit',
 					rendererOptions: {
@@ -1477,6 +1446,33 @@ export class InlineChatController2 implements IEditorContribution {
 		}));
 	}
 
+	protected getLocationOpts(): { locationOpts: IChatWidgetLocationOptions; notebookEditor?: INotebookEditor } {
+		return {
+			locationOpts: {
+				location: ChatAgentLocation.EditorInline,
+				resolveData: () => {
+					assertType(this._editor.hasModel());
+					const wholeRange = this._editor.getSelection();
+					const document = this._editor.getModel().uri;
+
+					return {
+						type: ChatAgentLocation.EditorInline,
+						selection: this._editor.getSelection(),
+						document,
+						wholeRange,
+						close: () => this._showWidgetOverrideObs.set(false, undefined),
+						delegateSessionId: this.chatService.editingSessions.find(session =>
+							session.entries.get().some(e => e.hasModificationAt({
+								range: wholeRange,
+								uri: document
+							}))
+						)?.chatSessionId,
+					};
+				}
+			}
+		};
+	}
+
 	dispose(): void {
 		this._store.dispose();
 	}
@@ -1555,6 +1551,36 @@ export class InlineChatController2 implements IEditorContribution {
 			}
 		}
 		return undefined;
+	}
+}
+
+export class NotebookInlineAgentChatController extends InlineChatController2 {
+	override getLocationOpts(): { locationOpts: IChatWidgetLocationOptions; notebookEditor?: INotebookEditor } {
+
+		let notebookEditor: INotebookEditor | undefined;
+		for (const editor of this._notebookEditorService.listNotebookEditors()) {
+			for (const [, codeEditor] of editor.codeEditors) {
+				if (codeEditor === this._editor) {
+					notebookEditor = editor;
+					break;
+				}
+			}
+		}
+
+		return {
+			locationOpts: {
+				location: ChatAgentLocation.Notebook,
+				resolveData: () => {
+					assertType(this._editor.hasModel());
+
+					return {
+						type: ChatAgentLocation.Notebook,
+						sessionInputUri: this._editor.getModel().uri,
+					};
+				},
+			},
+			notebookEditor
+		};
 	}
 }
 
