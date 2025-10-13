@@ -244,6 +244,7 @@ export class MenuId {
 	static readonly InlineEditToolbar = new MenuId('InlineEditToolbar');
 	static readonly ChatContext = new MenuId('ChatContext');
 	static readonly ChatCodeBlock = new MenuId('ChatCodeblock');
+	static readonly ChatMathBlock = new MenuId('ChatMathBlock');
 	static readonly ChatCompareBlock = new MenuId('ChatCompareBlock');
 	static readonly ChatMessageTitle = new MenuId('ChatMessageTitle');
 	static readonly ChatHistory = new MenuId('ChatHistory');

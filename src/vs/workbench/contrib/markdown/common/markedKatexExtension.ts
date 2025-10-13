@@ -41,6 +41,12 @@ export namespace MarkedKatexExtension {
 				// On failure, just use the original text including the wrapping $ or $$
 				out = token.raw;
 			}
+			// Wrap the output with a container that includes the LaTeX source as a data attribute for copy functionality
+			if (isBlock && out !== token.raw) {
+				// Escape the LaTeX source for use in a data attribute
+				const escapedSource = token.text.replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+				out = `<div class="katex-block-container" data-latex-source="${escapedSource}">${out}</div>`;
+			}
 			return out + (isBlock ? '\n' : '');
 		};
 	}

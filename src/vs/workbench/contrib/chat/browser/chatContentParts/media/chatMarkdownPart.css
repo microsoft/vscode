@@ -20,4 +20,44 @@
 		width: fit-content;
 		overflow: hidden;
 	}
+
+	.chat-math-block {
+		position: relative;
+		margin: 1em 0;
+	}
+
+	.chat-math-block-toolbar {
+		position: absolute;
+		top: 4px;
+		right: 4px;
+		opacity: 0;
+		transition: opacity 0.2s;
+		z-index: 1;
+	}
+
+	.chat-math-block:hover .chat-math-block-toolbar {
+		opacity: 1;
+	}
+
+	.chat-math-block-toolbar button {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 24px;
+		height: 24px;
+		padding: 0;
+		border: none;
+		background: var(--vscode-toolbar-hoverBackground);
+		color: var(--vscode-icon-foreground);
+		cursor: pointer;
+		border-radius: 2px;
+	}
+
+	.chat-math-block-toolbar button:hover {
+		background: var(--vscode-toolbar-activeBackground);
+	}
+
+	.chat-math-block-toolbar button .codicon {
+		font-size: 14px;
+	}
 }

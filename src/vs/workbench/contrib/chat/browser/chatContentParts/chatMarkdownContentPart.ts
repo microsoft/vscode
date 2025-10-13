@@ -33,6 +33,7 @@ import { localize } from '../../../../../nls.js';
 import { getFlatContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { FileKind } from '../../../../../platform/files/common/files.js';
@@ -287,21 +288,62 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				return this.mathLayoutParticipants;
 			});
 
-			// Make katex blocks horizontally scrollable
-			for (const katexBlock of this.domNode.querySelectorAll('.katex-display')) {
-				if (!dom.isHTMLElement(katexBlock)) {
+			// Make katex blocks horizontally scrollable and add copy button
+			for (const katexBlockContainer of this.domNode.querySelectorAll('.katex-block-container')) {
+				if (!dom.isHTMLElement(katexBlockContainer)) {
 					continue;
 				}
 
-				const scrollable = new DomScrollableElement(katexBlock.cloneNode(true) as HTMLElement, {
+				const katexDisplay = katexBlockContainer.querySelector('.katex-display');
+				if (!katexDisplay || !dom.isHTMLElement(katexDisplay)) {
+					continue;
+				}
+
+				// Get the LaTeX source from data attribute
+				const latexSource = katexBlockContainer.getAttribute('data-latex-source');
+				if (!latexSource) {
+					continue;
+				}
+
+				// Create a wrapper for the math block with toolbar
+				const mathBlockWrapper = dom.$('.chat-math-block');
+				
+				// Create toolbar
+				const toolbar = dom.$('.chat-math-block-toolbar');
+				const copyButton = dom.$('button.monaco-button.monaco-text-button', {
+					title: 'Copy LaTeX Source',
+					'aria-label': 'Copy LaTeX Source',
+				});
+				copyButton.appendChild(dom.$('span.codicon.codicon-copy'));
+				
+				this._register(dom.addDisposableListener(copyButton, 'click', () => {
+					this.instantiationService.invokeFunction(accessor => {
+						const clipboardService = accessor.get(IClipboardService);
+						// Unescape the HTML entities
+						const unescapedSource = latexSource
+							.replace(/&quot;/g, '"')
+							.replace(/&lt;/g, '<')
+							.replace(/&gt;/g, '>');
+						clipboardService.writeText(unescapedSource);
+					});
+				}));
+
+				toolbar.appendChild(copyButton);
+				mathBlockWrapper.appendChild(toolbar);
+
+				// Make the katex display scrollable
+				const scrollable = new DomScrollableElement(katexDisplay.cloneNode(true) as HTMLElement, {
 					vertical: ScrollbarVisibility.Hidden,
 					horizontal: ScrollbarVisibility.Auto,
 				});
 				orderedDisposablesList.push(scrollable);
-				katexBlock.replaceWith(scrollable.getDomNode());
+				mathBlockWrapper.appendChild(scrollable.getDomNode());
 
 				layoutParticipants.value.add(() => { scrollable.scanDomNode(); });
 				scrollable.scanDomNode();
+
+				// Replace the original container
+				katexBlockContainer.replaceWith(mathBlockWrapper);
 			}
 
 			orderedDisposablesList.reverse().forEach(d => this._register(d));
