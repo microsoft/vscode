@@ -198,10 +198,22 @@ steps:
           # Create policies directory
           exec { mkdir -Force .build }
           $VSCodePath = "$(Agent.BuildDirectory)\VSCode-win32-$(VSCODE_ARCH)\Code.exe"
-          & $VSCodePath --disable-gpu --wait --transient --export-policy-type="win32"
+          Write-Host "Checking if Code.exe exists at: $VSCodePath"
+          if (-not (Test-Path $VSCodePath)) {
+            throw "Code.exe not found at expected path: $VSCodePath"
+          }
+          Write-Host "Launching Code.exe to export policy definitions..."
+          Write-Host "Command: $VSCodePath --disable-gpu --wait --transient --export-policy-type=`"win32`""
+          & $VSCodePath --disable-gpu --wait --transient --export-policy-type="win32" 2>&1 | Tee-Object -Variable output
+          $exitCode = $lastexitcode
+          if ($exitCode -ne 0) {
+            Write-Host "##[error]Code.exe failed with exit code: $exitCode"
+            Write-Host "##[error]Output: $output"
+            throw "Policy export failed with exit code $exitCode"
+          }
+          Write-Host "Policy generation completed successfully"
         displayName: Generate policy definitions
         retryCountOnTaskFailure: 3
-
       - powershell: |
           . build/azure-pipelines/win32/exec.ps1
           $ErrorActionPreference = "Stop"
