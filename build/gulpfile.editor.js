@@ -41,22 +41,23 @@ const extractEditorSrcTask = task.define('extract-editor-src', () => {
 	standalone.extractEditor({
 		sourcesRoot: path.join(root, 'src'),
 		entryPoints: [
-			'vs/editor/editor.main',
-			'vs/editor/editor.worker.start',
-			'vs/editor/common/services/editorWebWorkerMain',
+			'vs/editor/editor.main.ts',
+			'vs/editor/editor.worker.start.ts',
+			'vs/editor/common/services/editorWebWorkerMain.ts',
 		],
 		inlineEntryPoints: [
 			apiusages,
 			extrausages
 		],
 		typings: [],
+		additionalFilesToCopyOut: [
+			'vs/base/browser/dompurify/dompurify.js',
+			'vs/base/common/marked/marked.js',
+		],
 		shakeLevel: 2, // 0-Files, 1-InnerFile, 2-ClassMembers
 		importIgnorePattern: /\.css$/,
 		destRoot: path.join(root, 'out-editor-src'),
 		tsOutDir: '../out-monaco-editor-core/esm/vs',
-		redirects: {
-			'@vscode/tree-sitter-wasm': '../node_modules/@vscode/tree-sitter-wasm/wasm/web-tree-sitter',
-		}
 	});
 });
 
