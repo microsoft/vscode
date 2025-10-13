@@ -211,6 +211,7 @@ export type IValue = IStringValue | INumberValue | IBooleanValue | IArrayValue |
 interface ParsedBody {
 	readonly fileReferences: readonly IBodyFileReference[];
 	readonly variableReferences: readonly IBodyVariableReference[];
+	readonly slashCommandReferences: readonly IBodySlashCommandReference[];
 	readonly bodyOffset: number;
 }
 
@@ -228,6 +229,10 @@ export class PromptBody {
 		return this.getParsedBody().variableReferences;
 	}
 
+	public get slashCommandReferences(): readonly IBodySlashCommandReference[] {
+		return this.getParsedBody().slashCommandReferences;
+	}
+
 	public get offset(): number {
 		return this.getParsedBody().bodyOffset;
 	}
@@ -237,6 +242,7 @@ export class PromptBody {
 			const markdownLinkRanges: Range[] = [];
 			const fileReferences: IBodyFileReference[] = [];
 			const variableReferences: IBodyVariableReference[] = [];
+			const slashCommandReferences: IBodySlashCommandReference[] = [];
 			const bodyOffset = Iterable.reduce(Iterable.slice(this.linesWithEOL, 0, this.range.startLineNumber - 1), (len, line) => line.length + len, 0);
 			for (let i = this.range.startLineNumber - 1, lineStartOffset = bodyOffset; i < this.range.endLineNumber - 1; i++) {
 				const line = this.linesWithEOL[i];
@@ -247,6 +253,18 @@ export class PromptBody {
 					const range = new Range(i + 1, linkStartOffset + 1, i + 1, linkEndOffset + 1);
 					fileReferences.push({ content: match[2], range, isMarkdownLink: true });
 					markdownLinkRanges.push(new Range(i + 1, match.index + 1, i + 1, match.index + match[0].length + 1));
+				}
+				// Parse slash commands: /command-name
+				const slashReg = /\/([\p{L}\d_\-\.]+)(?=(\s|$|\b))/giu;
+				const slashMatches = line.matchAll(slashReg);
+				for (const match of slashMatches) {
+					const fullRange = new Range(i + 1, match.index + 1, i + 1, match.index + match[0].length + 1);
+					if (markdownLinkRanges.some(mdRange => Range.areIntersectingOrTouching(mdRange, fullRange))) {
+						continue;
+					}
+					const command = match[1];
+					const range = new Range(i + 1, match.index + 1, i + 1, match.index + match[0].length + 1);
+					slashCommandReferences.push({ command, range, offset: lineStartOffset + match.index });
 				}
 				const reg = new RegExp(`${chatVariableLeader}([\\w]+:)?([^\\s#]+)`, 'g');
 				const matches = line.matchAll(reg);
@@ -272,7 +290,7 @@ export class PromptBody {
 				}
 				lineStartOffset += line.length;
 			}
-			this._parsed = { fileReferences: fileReferences.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range)), variableReferences, bodyOffset };
+			this._parsed = { fileReferences: fileReferences.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range)), variableReferences, slashCommandReferences, bodyOffset };
 		}
 		return this._parsed;
 	}
@@ -305,6 +323,12 @@ export interface IBodyFileReference {
 
 export interface IBodyVariableReference {
 	readonly name: string;
+	readonly range: Range;
+	readonly offset: number;
+}
+
+export interface IBodySlashCommandReference {
+	readonly command: string;
 	readonly range: Range;
 	readonly offset: number;
 }
