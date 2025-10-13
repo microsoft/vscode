@@ -248,7 +248,18 @@ export class PtyService extends Disposable implements IPtyService {
 		if (isWindows) {
 			const lastReplayEvent = terminal.replayEvent.events.length > 0 ? terminal.replayEvent.events.at(-1) : undefined;
 			if (lastReplayEvent) {
-				postRestoreMessage += '\r\n'.repeat(lastReplayEvent.rows - 1) + `\x1b[H`;
+				// NOTE: We intentionally avoid sending an explicit cursor home ("\x1b[H") here.
+				// The previous implementation appended many newlines followed by ESC[H to visually
+				// relocate the cursor to the top-left after replay. That created a divergence between
+				// xterm's visual state and ConPTY's internal cursor bookkeeping on newer passthrough
+				// builds, contributing to first-keystroke loss. Instead, we add a *small* bounded
+				// number of padding lines so restored history sits above the upcoming prompt without
+				// synthetic cursor reposition sequences.
+				const paddingLines = Math.min(5, Math.max(0, lastReplayEvent.rows - 1));
+				postRestoreMessage += '\r\n'.repeat(paddingLines);
+				if (process.env['VSCODE_TERMINAL_REVIVE_DEBUG']) {
+					this._logService.debug(`[Revive] Windows paddingLines=${paddingLines} originalRows=${lastReplayEvent.rows}`);
+				}
 			}
 		}
 
@@ -696,7 +707,6 @@ class PersistentTerminalProcess extends Disposable {
 	private _serializer: ITerminalSerializer;
 	private _wasRevived: boolean;
 	private _fixedDimensions: IFixedTerminalDimensions | undefined;
-	private _inputDelayTimer: any;
 
 	get pid(): number { return this._pid; }
 	get shellLaunchConfig(): IShellLaunchConfig { return this._terminalProcess.shellLaunchConfig; }
@@ -891,19 +901,8 @@ class PersistentTerminalProcess extends Disposable {
 				return result; // terminal launch error
 			}
 			this._isStarted = true;
-
-			// If the process was revived, trigger a replay on first start. An alternative approach
-			// could be to start it on the pty host before attaching but this fails on Windows as
-			// conpty's inherit cursor option which is required, ends up sending DSR CPR which
-			// causes conhost to hang when no response is received from the terminal (which wouldn't
-			// be attached yet). https://github.com/microsoft/terminal/issues/11213
 			if (this._wasRevived) {
-				// Delay input for 100ms after revival to let ConPTY stabilize on Windows.
-				// This prevents the first input character from being ignored due to ConPTY
-				// internal state initialization timing issues.
-				this._inputDelayTimer = setTimeout(() => {
-					this._inputDelayTimer = undefined;
-				}, 100);
+				this._logService.debug(`Persistent process "${this._persistentProcessId}": start (revived) scheduling replay; gateActive=${this._reviveInputGateActive}`);
 				this.triggerReplay();
 			} else {
 				this._onPersistentProcessReady.fire();
