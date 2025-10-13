@@ -6,6 +6,7 @@
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ITerminalExecuteStrategy } from '../../terminalContrib/chatAgentTools/browser/executeStrategy/executeStrategy.js';
 import { ITerminalChatExecutionRegistration, ITerminalChatProgressPartHandle, ITerminalChatProgressPartRegistration, ITerminalChatService, ITerminalInstance } from './terminal.js';
@@ -15,9 +16,12 @@ import { TerminalCapabilityStore } from '../../../../platform/terminal/common/ca
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { TerminalLocation } from '../../../../platform/terminal/common/terminal.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { TerminalLocation, TerminalSettingId } from '../../../../platform/terminal/common/terminal.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import type { IMarker as IXtermMarker } from '@xterm/xterm';
+import { DecorationSelector, updateLayout } from './xterm/decorationStyles.js';
+import { terminalDecorationError, terminalDecorationIncomplete, terminalDecorationSuccess } from './terminalIcons.js';
+import type { IDecoration, IMarker as IXtermMarker } from '@xterm/xterm';
 
 interface ITerminalChatAttachment {
 	readonly id: string;
@@ -26,6 +30,9 @@ interface ITerminalChatAttachment {
 	readonly createdAt: number;
 	xterm: XtermTerminal | undefined;
 	disposed: boolean;
+	decorationMarker?: IXtermMarker;
+	decoration?: IDecoration;
+	decorationElement?: HTMLElement;
 }
 
 interface ITerminalChatSessionState {
@@ -39,6 +46,7 @@ interface ITerminalChatSessionState {
 	persistentStartMarker?: IXtermMarker;
 	persistentEndMarker?: IXtermMarker;
 	lastData?: string;
+	lastExitCode: number | undefined;
 	preferredRows: number;
 }
 
@@ -56,9 +64,18 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILogService private readonly _logService: ILogService
 	) {
 		super();
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationsEnabled)) {
+				this._updateAllSessionDecorations();
+			}
+			if (e.affectsConfiguration(TerminalSettingId.FontSize) || e.affectsConfiguration(TerminalSettingId.LineHeight)) {
+				this._refreshDecorationLayouts();
+			}
+		}));
 	}
 
 	override dispose(): void {
@@ -88,11 +105,13 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		const session = this._ensureSession(registration.terminalSessionId, registration.chatSessionId, registration.toolCallId);
 		session.instance = registration.instance;
 		session.executeStrategy = registration.executeStrategy;
+		session.lastExitCode = undefined;
 
 		if (!session.store.isDisposed) {
 			session.store.clear();
 		}
 		this._setSessionPreferredRows(session, DEFAULT_ROWS);
+		this._updateSessionDecorations(session);
 
 		const refreshScheduler = new RunOnceScheduler(() => {
 			void this._refreshSession(session);
@@ -109,8 +128,10 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 			refreshScheduler.schedule();
 		}));
 		session.store.add(registration.executeStrategy.onDidFinishCommand(exitCode => {
+			session.lastExitCode = exitCode;
 			const targetRows = exitCode === 0 ? COLLAPSED_ROWS : DEFAULT_ROWS;
 			this._setSessionPreferredRows(session, targetRows);
+			this._updateSessionDecorations(session);
 		}));
 
 		this._latestSessionByInstance.set(registration.instance.sessionId, registration.terminalSessionId);
@@ -145,9 +166,11 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 			}
 			xterm.attachToElement(element);
 			registration.onDidChangeHeight();
+			this._updateAttachmentDecoration(session, attachment);
 			queueMicrotask(() => {
-				if (!attachment.disposed) {
+				if (!attachment.disposed && !attachment.store.isDisposed) {
 					registration.onDidChangeHeight();
+					this._updateAttachmentDecoration(session, attachment);
 				}
 			});
 		};
@@ -167,6 +190,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 
 		attachment.store.add(toDisposable(() => session.attachments.delete(attachmentId)));
 		attachment.store.add(handle);
+		attachment.store.add(toDisposable(() => this._disposeAttachmentDecoration(attachment)));
 
 		return handle;
 	}
@@ -185,6 +209,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 				persistentStartMarker: undefined,
 				persistentEndMarker: undefined,
 				lastData: undefined,
+				lastExitCode: undefined,
 				preferredRows: DEFAULT_ROWS
 			};
 			this._sessions.set(id, newSession);
@@ -262,6 +287,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 				}
 				attachment.registration.onDidChangeHeight();
 				attachment.xterm.raw.clear();
+				this._prepareAttachmentForRender(attachment);
 				attachment.xterm.write('\x1b[H\x1b[K');
 				attachment.xterm.write(data, () => {
 					if (attachment.disposed || attachment.store.isDisposed) {
@@ -272,6 +298,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 						return;
 					}
 					xtermInstance.scrollToTop();
+					this._updateAttachmentDecoration(session, attachment);
 					attachment.registration.onDidChangeHeight();
 				});
 			}
@@ -287,6 +314,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		try {
 			attachment.registration.onDidChangeHeight();
 			attachment.xterm.raw.clear();
+			this._prepareAttachmentForRender(attachment);
 			attachment.xterm.write('\x1b[H\x1b[K');
 			attachment.xterm.write(session.lastData, () => {
 				if (attachment.disposed || attachment.store.isDisposed) {
@@ -297,11 +325,118 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 					return;
 				}
 				xtermInstance.scrollToTop();
+				this._updateAttachmentDecoration(session, attachment);
 				attachment.registration.onDidChangeHeight();
 			});
 		} catch (error) {
 			this._logService.error('[terminalChat] Failed to render cached terminal preview content', error);
 		}
+	}
+
+	private _prepareAttachmentForRender(attachment: ITerminalChatAttachment): void {
+		if (!attachment.xterm) {
+			return;
+		}
+		this._disposeAttachmentDecoration(attachment);
+		const marker = attachment.xterm.raw.registerMarker(0);
+		if (marker) {
+			attachment.decorationMarker = marker;
+		}
+	}
+
+	private _disposeAttachmentDecoration(attachment: ITerminalChatAttachment): void {
+		attachment.decoration?.dispose();
+		attachment.decoration = undefined;
+		attachment.decorationElement = undefined;
+		if (attachment.decorationMarker) {
+			attachment.decorationMarker.dispose();
+			attachment.decorationMarker = undefined;
+		}
+	}
+
+	private _updateSessionDecorations(session: ITerminalChatSessionState): void {
+		for (const attachment of session.attachments.values()) {
+			this._updateAttachmentDecoration(session, attachment);
+		}
+	}
+
+	private _updateAllSessionDecorations(): void {
+		for (const session of this._sessions.values()) {
+			this._updateSessionDecorations(session);
+		}
+	}
+
+	private _refreshDecorationLayouts(): void {
+		for (const session of this._sessions.values()) {
+			for (const attachment of session.attachments.values()) {
+				if (attachment.decorationElement) {
+					updateLayout(this._configurationService, attachment.decorationElement);
+					attachment.registration.onDidChangeHeight();
+				}
+			}
+		}
+	}
+
+	private _updateAttachmentDecoration(session: ITerminalChatSessionState, attachment: ITerminalChatAttachment): void {
+		if (attachment.disposed || attachment.store.isDisposed || !attachment.xterm) {
+			return;
+		}
+		if (!this._shouldShowShellIntegrationDecorations()) {
+			if (attachment.decoration || attachment.decorationMarker) {
+				this._disposeAttachmentDecoration(attachment);
+				attachment.registration.onDidChangeHeight();
+			}
+			return;
+		}
+		if (!attachment.decorationMarker) {
+			const marker = attachment.xterm.raw.registerMarker(0);
+			if (!marker) {
+				return;
+			}
+			attachment.decorationMarker = marker;
+		}
+		if (!attachment.decoration) {
+			const decoration = attachment.xterm.raw.registerDecoration({ marker: attachment.decorationMarker });
+			if (!decoration) {
+				return;
+			}
+			attachment.decoration = decoration;
+			decoration.onRender(element => {
+				if (!element) {
+					return;
+				}
+				attachment.decorationElement = element;
+				this._applyDecorationPresentation(attachment, session.lastExitCode);
+			});
+		}
+		if (attachment.decorationElement) {
+			this._applyDecorationPresentation(attachment, session.lastExitCode);
+		}
+	}
+
+	private _applyDecorationPresentation(attachment: ITerminalChatAttachment, exitCode: number | undefined): void {
+		const element = attachment.decorationElement;
+		if (!element) {
+			return;
+		}
+		updateLayout(this._configurationService, element);
+		element.className = '';
+		element.classList.add(DecorationSelector.CommandDecoration, DecorationSelector.Codicon, DecorationSelector.XtermDecoration);
+		if (exitCode === undefined) {
+			element.classList.add(DecorationSelector.DefaultColor, DecorationSelector.Default);
+			element.classList.add(...ThemeIcon.asClassNameArray(terminalDecorationIncomplete));
+		} else if (exitCode) {
+			element.classList.add(DecorationSelector.ErrorColor);
+			element.classList.add(...ThemeIcon.asClassNameArray(terminalDecorationError));
+		} else {
+			element.classList.add(...ThemeIcon.asClassNameArray(terminalDecorationSuccess));
+		}
+		attachment.registration.onDidChangeHeight();
+	}
+
+	private _shouldShowShellIntegrationDecorations(): boolean {
+		const value = this._configurationService.getValue<'both' | 'gutter' | 'overviewRuler' | 'never'>(TerminalSettingId.ShellIntegrationDecorationsEnabled);
+		return value === 'both' || value === 'gutter';
 	}
 
 	private _setSessionPreferredRows(session: ITerminalChatSessionState, rows: number): void {
