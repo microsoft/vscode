@@ -39,9 +39,12 @@ interface ITerminalChatSessionState {
 	persistentStartMarker?: IXtermMarker;
 	persistentEndMarker?: IXtermMarker;
 	lastData?: string;
+	preferredRows: number;
 }
 
 const DEFAULT_COLS = 80;
+const DEFAULT_ROWS = 10;
+const COLLAPSED_ROWS = 1;
 
 export class TerminalChatService extends Disposable implements ITerminalChatService {
 	_serviceBrand: undefined;
@@ -89,6 +92,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		if (!session.store.isDisposed) {
 			session.store.clear();
 		}
+		this._setSessionPreferredRows(session, DEFAULT_ROWS);
 
 		const refreshScheduler = new RunOnceScheduler(() => {
 			void this._refreshSession(session);
@@ -103,6 +107,10 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 				session.persistentStartMarker = marker;
 			}
 			refreshScheduler.schedule();
+		}));
+		session.store.add(registration.executeStrategy.onDidFinishCommand(exitCode => {
+			const targetRows = exitCode === 0 ? COLLAPSED_ROWS : DEFAULT_ROWS;
+			this._setSessionPreferredRows(session, targetRows);
 		}));
 
 		this._latestSessionByInstance.set(registration.instance.sessionId, registration.terminalSessionId);
@@ -166,7 +174,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 	private _ensureSession(id: string, chatSessionId: string, toolCallId: string): ITerminalChatSessionState {
 		let session = this._sessions.get(id);
 		if (!session) {
-			session = {
+			const newSession: ITerminalChatSessionState = {
 				id,
 				chatSessionId,
 				toolCallId,
@@ -176,9 +184,11 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 				store: new DisposableStore(),
 				persistentStartMarker: undefined,
 				persistentEndMarker: undefined,
-				lastData: undefined
+				lastData: undefined,
+				preferredRows: DEFAULT_ROWS
 			};
-			this._sessions.set(id, session);
+			this._sessions.set(id, newSession);
+			session = newSession;
 		}
 		return session;
 	}
@@ -202,7 +212,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		attachment.store.add(capabilities);
 		const cols = session.instance?.cols ?? DEFAULT_COLS;
 		const xterm = this._instantiationService.createInstance(XtermTerminal, xtermCtor, {
-			rows: 10,
+			rows: session.preferredRows,
 			cols,
 			capabilities,
 			xtermColorProvider: this._instantiationService.createInstance(TerminalInstanceColorProvider, TerminalLocation.Panel)
@@ -250,10 +260,20 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 				if (attachment.disposed || attachment.store.isDisposed || !attachment.xterm) {
 					continue;
 				}
+				attachment.registration.onDidChangeHeight();
 				attachment.xterm.raw.clear();
 				attachment.xterm.write('\x1b[H\x1b[K');
-				attachment.xterm.write(data);
-				attachment.registration.onDidChangeHeight();
+				attachment.xterm.write(data, () => {
+					if (attachment.disposed || attachment.store.isDisposed) {
+						return;
+					}
+					const xtermInstance = attachment.xterm;
+					if (!xtermInstance) {
+						return;
+					}
+					xtermInstance.scrollToTop();
+					attachment.registration.onDidChangeHeight();
+				});
 			}
 		} catch (error) {
 			this._logService.error('[terminalChat] Failed to refresh terminal preview content', error);
@@ -265,12 +285,41 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 			return;
 		}
 		try {
+			attachment.registration.onDidChangeHeight();
 			attachment.xterm.raw.clear();
 			attachment.xterm.write('\x1b[H\x1b[K');
-			attachment.xterm.write(session.lastData);
-			attachment.registration.onDidChangeHeight();
+			attachment.xterm.write(session.lastData, () => {
+				if (attachment.disposed || attachment.store.isDisposed) {
+					return;
+				}
+				const xtermInstance = attachment.xterm;
+				if (!xtermInstance) {
+					return;
+				}
+				xtermInstance.scrollToTop();
+				attachment.registration.onDidChangeHeight();
+			});
 		} catch (error) {
 			this._logService.error('[terminalChat] Failed to render cached terminal preview content', error);
+		}
+	}
+
+	private _setSessionPreferredRows(session: ITerminalChatSessionState, rows: number): void {
+		if (session.preferredRows === rows) {
+			return;
+		}
+		session.preferredRows = rows;
+		for (const attachment of session.attachments.values()) {
+			if (attachment.disposed || attachment.store.isDisposed || !attachment.xterm) {
+				continue;
+			}
+			try {
+				const cols = attachment.xterm.raw.cols ?? session.instance?.cols ?? DEFAULT_COLS;
+				attachment.xterm.resize(cols, rows);
+				attachment.registration.onDidChangeHeight();
+			} catch (error) {
+				this._logService.error('[terminalChat] Failed to resize terminal preview', error);
+			}
 		}
 	}
 }

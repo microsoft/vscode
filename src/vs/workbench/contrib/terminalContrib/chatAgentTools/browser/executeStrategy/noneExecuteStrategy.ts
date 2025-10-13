@@ -32,6 +32,7 @@ export class NoneExecuteStrategy extends Disposable implements ITerminalExecuteS
 
 	private readonly _onDidCreateStartMarker = new Emitter<IXtermMarker | undefined>;
 	public onDidCreateStartMarker: Event<IXtermMarker | undefined> = this._onDidCreateStartMarker.event;
+	readonly onDidFinishCommand: Event<number | undefined> = Event.None;
 
 	constructor(
 		private readonly _instance: ITerminalInstance,

@@ -35,6 +35,9 @@ export class RichExecuteStrategy extends Disposable implements ITerminalExecuteS
 	private readonly _onUpdate = this._register(new Emitter<void>());
 	get onUpdate() { return this._onUpdate.event; }
 
+	private readonly _onDidFinishCommand = this._register(new Emitter<number | undefined>());
+	readonly onDidFinishCommand = this._onDidFinishCommand.event;
+
 	constructor(
 		private readonly _instance: ITerminalInstance,
 		private readonly _commandDetection: ICommandDetectionCapability,
@@ -56,6 +59,7 @@ export class RichExecuteStrategy extends Disposable implements ITerminalExecuteS
 			const onDone: Promise<ITerminalCommand | void> = Promise.race([
 				Event.toPromise(this._commandDetection.onCommandFinished, store).then(e => {
 					this._log('onDone via end event');
+					this._onDidFinishCommand.fire(e.exitCode);
 					return e;
 				}),
 				Event.toPromise(token.onCancellationRequested as Event<undefined>, store).then(() => {
