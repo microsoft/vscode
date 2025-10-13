@@ -551,9 +551,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private initSelectedModel() {
 		const persistedSelection = this.storageService.get(this.getSelectedModelStorageKey(), StorageScope.APPLICATION);
-		if (persistedSelection && persistedSelection.startsWith('github.copilot-chat/')) {
-			this.storageService.store(this.getSelectedModelStorageKey(), persistedSelection, StorageScope.APPLICATION, StorageTarget.USER);
-		}
 		const persistedAsDefault = this.storageService.getBoolean(this.getSelectedModelIsDefaultStorageKey(), StorageScope.APPLICATION, persistedSelection === 'copilot/gpt-4.1');
 
 		if (persistedSelection) {
