@@ -12,7 +12,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { groupBy } from '../../../../base/common/collections.js';
 import { debounce } from '../../../../base/common/decorators.js';
 import { CancellationError } from '../../../../base/common/errors.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isLinuxSnap, isMacintosh } from '../../../../base/common/platform.js';
 import { IProductConfiguration } from '../../../../base/common/product.js';
@@ -69,7 +69,7 @@ export class BaseIssueReporterService extends Disposable {
 	public publicGithubButton!: Button | ButtonWithDropdown;
 	private publicGithubSingle?: Button; // simple button reused for ack/create/preview
 	private publicGithubDropdown?: ButtonWithDropdown; // dropdown variant (create + preview)
-	private publicGithubSingleClickDisposable?: { dispose(): void };
+	private readonly publicGithubSingleClickDisposable = this._register(new MutableDisposable());
 	public internalGithubButton!: Button;
 	public nonGitHubIssueUrl = false;
 	public needsUpdate = false;
@@ -302,33 +302,30 @@ export class BaseIssueReporterService extends Disposable {
 			}
 		}
 
-		// Hide both then show target
-		this.publicGithubSingle.element.style.display = 'none';
-		this.publicGithubDropdown.element.style.display = 'none';
-
+		// Show/hide buttons based on desired state
 		if (wanted === 'dropdown') {
+			this.publicGithubSingle.element.style.display = 'none';
+
 			this.publicGithubDropdown.label = localize('createOnGitHub', "Create on GitHub");
 			this.publicGithubDropdown.enabled = true;
 			this.publicGithubDropdown.element.style.display = '';
 			this.publicGithubButton = this.publicGithubDropdown;
+			this.publicGithubSingleClickDisposable.clear();
 		} else {
-			// Rebind single button click as needed
-			if (this.publicGithubSingleClickDisposable) {
-				this.publicGithubSingleClickDisposable.dispose();
-				this.publicGithubSingleClickDisposable = undefined;
-			}
+			this.publicGithubDropdown.element.style.display = 'none';
 
 			if (wanted === 'ack') {
 				this.publicGithubSingle.label = localize('acknowledge', "Confirm Version Acknowledgement");
 				this.publicGithubSingle.enabled = false;
+				this.publicGithubSingleClickDisposable.clear();
 			} else if (wanted === 'create') {
 				this.publicGithubSingle.label = localize('createOnGitHub', "Create on GitHub");
 				this.publicGithubSingle.enabled = true;
-				this.publicGithubSingleClickDisposable = this._register(this.publicGithubSingle.onDidClick(() => this.createAction.run()));
+				this.publicGithubSingleClickDisposable.value = this.publicGithubSingle.onDidClick(() => this.createAction.run());
 			} else { // preview
 				this.publicGithubSingle.label = localize('previewOnGitHub', "Preview on GitHub");
 				this.publicGithubSingle.enabled = true;
-				this.publicGithubSingleClickDisposable = this._register(this.publicGithubSingle.onDidClick(() => this.previewAction.run()));
+				this.publicGithubSingleClickDisposable.value = this.publicGithubSingle.onDidClick(() => this.previewAction.run());
 			}
 			this.publicGithubSingle.element.style.display = '';
 			this.publicGithubButton = this.publicGithubSingle;
