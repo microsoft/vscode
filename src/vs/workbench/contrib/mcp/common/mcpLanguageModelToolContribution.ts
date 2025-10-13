@@ -122,11 +122,11 @@ export class McpLanguageModelToolContribution extends Disposable implements IWor
 			const collection = collectionObservable.read(reader);
 			for (const tool of server.tools.read(reader)) {
 				const existing = tools.get(tool.id);
-				const iconURI = tool.icons.getUrl(22);
+				const icons = tool.icons.getUrl(22);
 				const toolData: IToolData = {
 					id: tool.id,
 					source: collectionData.value.source,
-					icon: iconURI ? { dark: iconURI, light: iconURI } : Codicon.tools,
+					icon: icons || Codicon.tools,
 					// duplicative: https://github.com/modelcontextprotocol/modelcontextprotocol/pull/813
 					displayName: tool.definition.annotations?.title || tool.definition.title || tool.definition.name,
 					toolReferenceName: tool.referenceName,
@@ -222,7 +222,7 @@ class McpToolImplementation implements IToolImpl {
 			content: []
 		};
 
-		const callResult = await this._tool.callWithProgress(invocation.parameters as Record<string, any>, progress, { chatRequestId: invocation.chatRequestId, chatSessionId: invocation.context?.sessionId }, token);
+		const callResult = await this._tool.callWithProgress(invocation.parameters as Record<string, unknown>, progress, { chatRequestId: invocation.chatRequestId, chatSessionId: invocation.context?.sessionId }, token);
 		const details: IToolResultInputOutputDetails = {
 			input: JSON.stringify(invocation.parameters, undefined, 2),
 			output: [],

@@ -51,7 +51,7 @@ const terminalChatAgentProfileSchema: IJSONSchema = {
 	required: ['path'],
 	properties: {
 		path: {
-			description: localize('terminalChatAgentProfile.path', "A single path to a shell executable."),
+			description: localize('terminalChatAgentProfile.path', "A path to a shell executable."),
 			type: 'string',
 		},
 		...terminalProfileBaseProperties,
@@ -260,14 +260,14 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			// real parser https://github.com/microsoft/vscode/issues/261794
 
 			// `(command)` many shells execute commands inside parentheses
-			'/\\(.+\\)/': { approve: false, matchCommandLine: true },
+			'/\\(.+\\)/s': { approve: false, matchCommandLine: true },
 
 			// `{command}` many shells support execution inside curly braces, additionally this
 			// typically means the sub-command detection system falls over currently
-			'/\\{.+\\}/': { approve: false, matchCommandLine: true },
+			'/\\{.+\\}/s': { approve: false, matchCommandLine: true },
 
 			// `\`command\`` many shells support execution inside backticks
-			'/`.+`/': { approve: false, matchCommandLine: true },
+			'/`.+`/s': { approve: false, matchCommandLine: true },
 
 			// endregion
 

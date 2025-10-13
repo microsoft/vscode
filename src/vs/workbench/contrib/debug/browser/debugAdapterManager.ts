@@ -38,7 +38,7 @@ import { ILifecycleService, LifecyclePhase } from '../../../services/lifecycle/c
 const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 
 export interface IAdapterManagerDelegate {
-	onDidNewSession: Event<IDebugSession>;
+	readonly onDidNewSession: Event<IDebugSession>;
 	configurationManager(): IConfigurationManager;
 }
 

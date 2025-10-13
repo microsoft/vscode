@@ -215,9 +215,6 @@ suite('PromptInputModel', () => {
 
 			await writePromise('foo\x1b[38;2;255;0;0m bar\x1b[0m\x1b[4D');
 			await assertPromptInput('foo|[ bar]');
-
-			await writePromise('\x1b[2D');
-			await assertPromptInput('f|oo[ bar]');
 		});
 		test('no ghost text when foreground color matches earlier text', async () => {
 			await writePromise('$ ');

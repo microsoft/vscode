@@ -6,6 +6,7 @@
 import fs from 'fs';
 import path from 'path';
 import type * as ts from 'typescript';
+import { IFileMap, ILibMap, TypeScriptLanguageServiceHost } from './typeScriptLanguageServiceHost';
 
 const TYPESCRIPT_LIB_FOLDER = path.dirname(require.resolve('typescript/lib/lib.d.ts'));
 
@@ -114,13 +115,13 @@ function createTypeScriptLanguageService(ts: typeof import('typescript'), option
 
 	// Add fake usage files
 	options.inlineEntryPoints.forEach((inlineEntryPoint, index) => {
-		FILES[`inlineEntryPoint.${index}.ts`] = inlineEntryPoint;
+		FILES.set(`inlineEntryPoint.${index}.ts`, inlineEntryPoint);
 	});
 
 	// Add additional typings
 	options.typings.forEach((typing) => {
 		const filePath = path.join(options.sourcesRoot, typing);
-		FILES[typing] = fs.readFileSync(filePath).toString();
+		FILES.set(typing, fs.readFileSync(filePath).toString());
 	});
 
 	// Resolve libs
@@ -128,7 +129,7 @@ function createTypeScriptLanguageService(ts: typeof import('typescript'), option
 
 	const compilerOptions = ts.convertCompilerOptionsFromJson(options.compilerOptions, options.sourcesRoot).options;
 
-	const host = new TypeScriptLanguageServiceHost(ts, RESOLVED_LIBS, FILES, compilerOptions);
+	const host = new TypeScriptLanguageServiceHost(ts, RESOLVED_LIBS, FILES, compilerOptions, 'defaultLib:lib.d.ts');
 	return ts.createLanguageService(host);
 }
 
@@ -136,7 +137,7 @@ function createTypeScriptLanguageService(ts: typeof import('typescript'), option
  * Read imports and follow them until all files have been handled
  */
 function discoverAndReadFiles(ts: typeof import('typescript'), options: ITreeShakingOptions): IFileMap {
-	const FILES: IFileMap = {};
+	const FILES: IFileMap = new Map();
 
 	const in_queue: { [module: string]: boolean } = Object.create(null);
 	const queue: string[] = [];
@@ -163,7 +164,7 @@ function discoverAndReadFiles(ts: typeof import('typescript'), options: ITreeSha
 		const dts_filename = path.join(options.sourcesRoot, redirectedModuleId + '.d.ts');
 		if (fs.existsSync(dts_filename)) {
 			const dts_filecontents = fs.readFileSync(dts_filename).toString();
-			FILES[`${moduleId}.d.ts`] = dts_filecontents;
+			FILES.set(`${moduleId}.d.ts`, dts_filecontents);
 			continue;
 		}
 
@@ -196,7 +197,7 @@ function discoverAndReadFiles(ts: typeof import('typescript'), options: ITreeSha
 			enqueue(importedModuleId);
 		}
 
-		FILES[`${moduleId}.ts`] = ts_filecontents;
+		FILES.set(`${moduleId}.ts`, ts_filecontents);
 	}
 
 	return FILES;
@@ -208,16 +209,16 @@ function discoverAndReadFiles(ts: typeof import('typescript'), options: ITreeSha
 function processLibFiles(ts: typeof import('typescript'), options: ITreeShakingOptions): ILibMap {
 
 	const stack: string[] = [...options.compilerOptions.lib];
-	const result: ILibMap = {};
+	const result: ILibMap = new Map();
 
 	while (stack.length > 0) {
 		const filename = `lib.${stack.shift()!.toLowerCase()}.d.ts`;
 		const key = `defaultLib:${filename}`;
-		if (!result[key]) {
+		if (!result.has(key)) {
 			// add this file
 			const filepath = path.join(TYPESCRIPT_LIB_FOLDER, filename);
 			const sourceText = fs.readFileSync(filepath).toString();
-			result[key] = sourceText;
+			result.set(key, sourceText);
 
 			// precess dependencies and "recurse"
 			const info = ts.preProcessFile(sourceText);
@@ -230,72 +231,6 @@ function processLibFiles(ts: typeof import('typescript'), options: ITreeShakingO
 	return result;
 }
 
-interface ILibMap { [libName: string]: string }
-interface IFileMap { [fileName: string]: string }
-
-/**
- * A TypeScript language service host
- */
-class TypeScriptLanguageServiceHost implements ts.LanguageServiceHost {
-
-	private readonly _ts: typeof import('typescript');
-	private readonly _libs: ILibMap;
-	private readonly _files: IFileMap;
-	private readonly _compilerOptions: ts.CompilerOptions;
-
-	constructor(ts: typeof import('typescript'), libs: ILibMap, files: IFileMap, compilerOptions: ts.CompilerOptions) {
-		this._ts = ts;
-		this._libs = libs;
-		this._files = files;
-		this._compilerOptions = compilerOptions;
-	}
-
-	// --- language service host ---------------
-
-	getCompilationSettings(): ts.CompilerOptions {
-		return this._compilerOptions;
-	}
-	getScriptFileNames(): string[] {
-		return (
-			([] as string[])
-				.concat(Object.keys(this._libs))
-				.concat(Object.keys(this._files))
-		);
-	}
-	getScriptVersion(_fileName: string): string {
-		return '1';
-	}
-	getProjectVersion(): string {
-		return '1';
-	}
-	getScriptSnapshot(fileName: string): ts.IScriptSnapshot {
-		if (this._files.hasOwnProperty(fileName)) {
-			return this._ts.ScriptSnapshot.fromString(this._files[fileName]);
-		} else if (this._libs.hasOwnProperty(fileName)) {
-			return this._ts.ScriptSnapshot.fromString(this._libs[fileName]);
-		} else {
-			return this._ts.ScriptSnapshot.fromString('');
-		}
-	}
-	getScriptKind(_fileName: string): ts.ScriptKind {
-		return this._ts.ScriptKind.TS;
-	}
-	getCurrentDirectory(): string {
-		return '';
-	}
-	getDefaultLibFileName(_options: ts.CompilerOptions): string {
-		return 'defaultLib:lib.d.ts';
-	}
-	isDefaultLibFileName(fileName: string): boolean {
-		return fileName === this.getDefaultLibFileName(this._compilerOptions);
-	}
-	readFile(path: string, _encoding?: string): string | undefined {
-		return this._files[path] || this._libs[path];
-	}
-	fileExists(path: string): boolean {
-		return path in this._files || path in this._libs;
-	}
-}
 //#endregion
 
 //#region Tree Shaking
@@ -306,17 +241,31 @@ const enum NodeColor {
 	Black = 2
 }
 
+type ObjectLiteralElementWithName = ts.ObjectLiteralElement & { name: ts.PropertyName; parent: ts.ObjectLiteralExpression | ts.JsxAttributes };
+
+declare module 'typescript' {
+	interface Node {
+		$$$color?: NodeColor;
+		$$$neededSourceFile?: boolean;
+		symbol?: ts.Symbol;
+	}
+
+	function getContainingObjectLiteralElement(node: ts.Node): ObjectLiteralElementWithName | undefined;
+	function getNameFromPropertyName(name: ts.PropertyName): string | undefined;
+	function getPropertySymbolsFromContextualType(node: ObjectLiteralElementWithName, checker: ts.TypeChecker, contextualType: ts.Type, unionSymbolOk: boolean): ReadonlyArray<ts.Symbol>;
+}
+
 function getColor(node: ts.Node): NodeColor {
-	return (<any>node).$$$color || NodeColor.White;
+	return node.$$$color || NodeColor.White;
 }
 function setColor(node: ts.Node, color: NodeColor): void {
-	(<any>node).$$$color = color;
+	node.$$$color = color;
 }
 function markNeededSourceFile(node: ts.SourceFile): void {
-	(<any>node).$$$neededSourceFile = true;
+	node.$$$neededSourceFile = true;
 }
 function isNeededSourceFile(node: ts.SourceFile): boolean {
-	return Boolean((<any>node).$$$neededSourceFile);
+	return Boolean(node.$$$neededSourceFile);
 }
 function nodeOrParentIsBlack(node: ts.Node): boolean {
 	while (node) {
@@ -684,11 +633,10 @@ function markNodes(ts: typeof import('typescript'), languageService: ts.Language
 		if (nodeOrParentIsBlack(node)) {
 			continue;
 		}
-		const symbol: ts.Symbol | undefined = (<any>node).symbol;
-		if (!symbol) {
+		if (!node.symbol) {
 			continue;
 		}
-		const aliased = checker.getAliasedSymbol(symbol);
+		const aliased = checker.getAliasedSymbol(node.symbol);
 		if (aliased.declarations && aliased.declarations.length > 0) {
 			if (nodeOrParentIsBlack(aliased.declarations[0]) || nodeOrChildIsBlack(aliased.declarations[0])) {
 				setColor(node, NodeColor.Black);
@@ -910,12 +858,6 @@ class SymbolImportTuple {
  */
 function getRealNodeSymbol(ts: typeof import('typescript'), checker: ts.TypeChecker, node: ts.Node): SymbolImportTuple[] {
 
-	// Use some TypeScript internals to avoid code duplication
-	type ObjectLiteralElementWithName = ts.ObjectLiteralElement & { name: ts.PropertyName; parent: ts.ObjectLiteralExpression | ts.JsxAttributes };
-	const getPropertySymbolsFromContextualType: (node: ObjectLiteralElementWithName, checker: ts.TypeChecker, contextualType: ts.Type, unionSymbolOk: boolean) => ReadonlyArray<ts.Symbol> = (<any>ts).getPropertySymbolsFromContextualType;
-	const getContainingObjectLiteralElement: (node: ts.Node) => ObjectLiteralElementWithName | undefined = (<any>ts).getContainingObjectLiteralElement;
-	const getNameFromPropertyName: (name: ts.PropertyName) => string | undefined = (<any>ts).getNameFromPropertyName;
-
 	// Go to the original declaration for cases:
 	//
 	//   (1) when the aliased symbol was declared in the location(parent).
@@ -990,7 +932,7 @@ function getRealNodeSymbol(ts: typeof import('typescript'), checker: ts.TypeChec
 		//      bar<Test>(({pr/*goto*/op1})=>{});
 		if (ts.isPropertyName(node) && ts.isBindingElement(parent) && ts.isObjectBindingPattern(parent.parent) &&
 			(node === (parent.propertyName || parent.name))) {
-			const name = getNameFromPropertyName(node);
+			const name = ts.getNameFromPropertyName(node);
 			const type = checker.getTypeAtLocation(parent.parent);
 			if (name && type) {
 				if (type.isUnion()) {
@@ -1013,11 +955,11 @@ function getRealNodeSymbol(ts: typeof import('typescript'), checker: ts.TypeChec
 		//      }
 		//      function Foo(arg: Props) {}
 		//      Foo( { pr/*1*/op1: 10, prop2: false })
-		const element = getContainingObjectLiteralElement(node);
+		const element = ts.getContainingObjectLiteralElement(node);
 		if (element) {
 			const contextualType = element && checker.getContextualType(element.parent);
 			if (contextualType) {
-				const propertySymbols = getPropertySymbolsFromContextualType(element, checker, contextualType, /*unionSymbolOk*/ false);
+				const propertySymbols = ts.getPropertySymbolsFromContextualType(element, checker, contextualType, /*unionSymbolOk*/ false);
 				if (propertySymbols) {
 					symbol = propertySymbols[0];
 				}

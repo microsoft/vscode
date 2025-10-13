@@ -616,7 +616,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 	// #region Terminal init
 
-	protected async _getCopilotShellOrProfile(): Promise<string | ITerminalProfile> {
+	protected async _getCopilotProfile(): Promise<ITerminalProfile> {
 		const os = await this._osBackend;
 
 		// Check for chat agent terminal profile first
@@ -626,25 +626,25 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 
 		// When setting is null, use the previous behavior
-		const defaultShell = await this._terminalProfileResolverService.getDefaultShell({
+		const defaultProfile = await this._terminalProfileResolverService.getDefaultProfile({
 			os,
 			remoteAuthority: this._remoteAgentService.getConnection()?.remoteAuthority
 		});
 
 		// Force pwsh over cmd as cmd doesn't have shell integration
-		if (basename(defaultShell) === 'cmd.exe') {
-			return 'C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe';
+		if (basename(defaultProfile.path) === 'cmd.exe') {
+			return {
+				...defaultProfile,
+				path: 'C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe',
+				profileName: 'PowerShell'
+			};
 		}
 
-		return defaultShell;
+		return defaultProfile;
 	}
 
 	private async _getCopilotShell(): Promise<string> {
-		const shellOrProfile = await this._getCopilotShellOrProfile();
-		if (typeof shellOrProfile === 'string') {
-			return shellOrProfile;
-		}
-		return shellOrProfile.path;
+		return (await this._getCopilotProfile()).path;
 	}
 
 	private _getChatTerminalProfile(os: OperatingSystem): ITerminalProfile | undefined {
@@ -682,8 +682,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 	private async _initBackgroundTerminal(chatSessionId: string, termId: string, token: CancellationToken): Promise<IToolTerminal> {
 		this._logService.debug(`RunInTerminalTool: Creating background terminal with ID=${termId}`);
-		const shellOrProfile = await this._getCopilotShellOrProfile();
-		const toolTerminal = await this._terminalToolCreator.createTerminal(shellOrProfile, token);
+		const profile = await this._getCopilotProfile();
+		const toolTerminal = await this._terminalToolCreator.createTerminal(profile, token);
 		this._registerInputListener(toolTerminal);
 		this._sessionTerminalAssociations.set(chatSessionId, toolTerminal);
 		if (token.isCancellationRequested) {
@@ -701,8 +701,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			this._terminalToolCreator.refreshShellIntegrationQuality(cachedTerminal);
 			return cachedTerminal;
 		}
-		const shellOrProfile = await this._getCopilotShellOrProfile();
-		const toolTerminal = await this._terminalToolCreator.createTerminal(shellOrProfile, token);
+		const profile = await this._getCopilotProfile();
+		const toolTerminal = await this._terminalToolCreator.createTerminal(profile, token);
 		this._registerInputListener(toolTerminal);
 		this._sessionTerminalAssociations.set(chatSessionId, toolTerminal);
 		if (token.isCancellationRequested) {
@@ -859,23 +859,23 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const isGlobalAutoApproved = config?.value ?? config.defaultValue;
 		if (isGlobalAutoApproved) {
 			const settingsUri = createCommandUri(openTerminalSettingsLinkCommandId, 'global');
-			return new MarkdownString(`_${localize('autoApprove.global', 'Auto approved by setting {0}', `[\`${ChatConfiguration.GlobalAutoApprove}\`](${settingsUri.toString()} "${localize('ruleTooltip.global', 'View settings')}")`)}_`, mdTrustSettings);
+			return new MarkdownString(`*${localize('autoApprove.global', 'Auto approved by setting {0}', `[\`${ChatConfiguration.GlobalAutoApprove}\`](${settingsUri.toString()} "${localize('ruleTooltip.global', 'View settings')}")`)}*`, mdTrustSettings);
 		}
 
 		if (isAutoApproved) {
 			switch (autoApproveReason) {
 				case 'commandLine': {
 					if (commandLineResult.rule) {
-						return new MarkdownString(`_${localize('autoApprove.rule', 'Auto approved by rule {0}', formatRuleLinks(commandLineResult))}_`, mdTrustSettings);
+						return new MarkdownString(`*${localize('autoApprove.rule', 'Auto approved by rule {0}', formatRuleLinks(commandLineResult))}*`, mdTrustSettings);
 					}
 					break;
 				}
 				case 'subCommand': {
 					const uniqueRules = dedupeRules(subCommandResults);
 					if (uniqueRules.length === 1) {
-						return new MarkdownString(`_${localize('autoApprove.rule', 'Auto approved by rule {0}', formatRuleLinks(uniqueRules))}_`, mdTrustSettings);
+						return new MarkdownString(`*${localize('autoApprove.rule', 'Auto approved by rule {0}', formatRuleLinks(uniqueRules))}*`, mdTrustSettings);
 					} else if (uniqueRules.length > 1) {
-						return new MarkdownString(`_${localize('autoApprove.rules', 'Auto approved by rules {0}', formatRuleLinks(uniqueRules))}_`, mdTrustSettings);
+						return new MarkdownString(`*${localize('autoApprove.rules', 'Auto approved by rules {0}', formatRuleLinks(uniqueRules))}*`, mdTrustSettings);
 					}
 					break;
 				}
@@ -884,16 +884,16 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			switch (autoApproveReason) {
 				case 'commandLine': {
 					if (commandLineResult.rule) {
-						return new MarkdownString(`_${localize('autoApproveDenied.rule', 'Auto approval denied by rule {0}', formatRuleLinks(commandLineResult))}_`, mdTrustSettings);
+						return new MarkdownString(`*${localize('autoApproveDenied.rule', 'Auto approval denied by rule {0}', formatRuleLinks(commandLineResult))}*`, mdTrustSettings);
 					}
 					break;
 				}
 				case 'subCommand': {
 					const uniqueRules = dedupeRules(subCommandResults.filter(e => e.result === 'denied'));
 					if (uniqueRules.length === 1) {
-						return new MarkdownString(`_${localize('autoApproveDenied.rule', 'Auto approval denied by rule {0}', formatRuleLinks(uniqueRules))}_`);
+						return new MarkdownString(`*${localize('autoApproveDenied.rule', 'Auto approval denied by rule {0}', formatRuleLinks(uniqueRules))}*`);
 					} else if (uniqueRules.length > 1) {
-						return new MarkdownString(`_${localize('autoApproveDenied.rules', 'Auto approval denied by rules {0}', formatRuleLinks(uniqueRules))}_`);
+						return new MarkdownString(`*${localize('autoApproveDenied.rules', 'Auto approval denied by rules {0}', formatRuleLinks(uniqueRules))}*`);
 					}
 					break;
 				}

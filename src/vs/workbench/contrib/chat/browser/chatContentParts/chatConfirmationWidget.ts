@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
-import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
+import { IRenderedMarkdown, renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { Button, ButtonWithDropdown, IButton, IButtonOptions } from '../../../../../base/browser/ui/button/button.js';
 import { Action, Separator } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import type { ThemeIcon } from '../../../../../base/common/themables.js';
-import { IMarkdownRenderResult, MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { localize } from '../../../../../nls.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
@@ -33,7 +33,7 @@ export interface IChatConfirmationButton<T> {
 	tooltip?: string;
 	data: T;
 	disabled?: boolean;
-	onDidChangeDisablement?: Event<boolean>;
+	readonly onDidChangeDisablement?: Event<boolean>;
 	moreActions?: (IChatConfirmationButton<T> | Separator)[];
 }
 
@@ -43,12 +43,13 @@ export interface IChatConfirmationWidgetOptions<T> {
 	subtitle?: string | IMarkdownString;
 	buttons: IChatConfirmationButton<T>[];
 	toolbarData?: { arg: any; partType: string; partSource?: string };
+	silent?: boolean;
 }
 
 export class ChatQueryTitlePart extends Disposable {
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
-	private readonly _renderedTitle = this._register(new MutableDisposable<IMarkdownRenderResult>());
+	private readonly _renderedTitle = this._register(new MutableDisposable<IRenderedMarkdown>());
 
 	public get title() {
 		return this._title;
@@ -63,7 +64,7 @@ export class ChatQueryTitlePart extends Disposable {
 
 		const previousEl = this._renderedTitle.value?.element;
 		if (previousEl?.parentElement) {
-			previousEl.parentElement.replaceChild(next.element, previousEl);
+			previousEl.replaceWith(next.element);
 		} else {
 			this.element.appendChild(next.element); // unreachable?
 		}
@@ -75,7 +76,7 @@ export class ChatQueryTitlePart extends Disposable {
 		private readonly element: HTMLElement,
 		private _title: IMarkdownString | string,
 		subtitle: string | IMarkdownString | undefined,
-		private readonly _renderer: MarkdownRenderer,
+		@IMarkdownRendererService private readonly _renderer: IMarkdownRendererService,
 	) {
 		super();
 
@@ -126,14 +127,15 @@ abstract class BaseSimpleChatConfirmationWidget<T> extends Disposable {
 	}
 
 	private readonly messageElement: HTMLElement;
-	protected readonly markdownRenderer: MarkdownRenderer;
 	private readonly title: string | IMarkdownString;
 
+	private readonly silent: boolean;
 	private readonly notification = this._register(new MutableDisposable<DisposableStore>());
 
 	constructor(
 		options: IChatConfirmationWidgetOptions<T>,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
+		@IMarkdownRendererService protected readonly _markdownRendererService: IMarkdownRendererService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IHostService private readonly _hostService: IHostService,
@@ -142,8 +144,9 @@ abstract class BaseSimpleChatConfirmationWidget<T> extends Disposable {
 	) {
 		super();
 
-		const { title, subtitle, message, buttons } = options;
+		const { title, subtitle, message, buttons, silent } = options;
 		this.title = title;
+		this.silent = !!silent;
 
 
 		const elements = dom.h('.chat-confirmation-widget-container@container', [
@@ -158,14 +161,12 @@ abstract class BaseSimpleChatConfirmationWidget<T> extends Disposable {
 		]);
 		configureAccessibilityContainer(elements.container, title, message);
 		this._domNode = elements.root;
-		this.markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
 
 		const titlePart = this._register(instantiationService.createInstance(
 			ChatQueryTitlePart,
 			elements.title,
 			title,
-			subtitle,
-			this.markdownRenderer,
+			subtitle
 		));
 
 		this._register(titlePart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
@@ -235,7 +236,7 @@ abstract class BaseSimpleChatConfirmationWidget<T> extends Disposable {
 	protected renderMessage(element: HTMLElement, listContainer: HTMLElement): void {
 		this.messageElement.append(element);
 
-		if (this.showingButtons && this._configurationService.getValue<boolean>('chat.notifyWindowOnConfirmation')) {
+		if (this.showingButtons && this._configurationService.getValue<boolean>('chat.notifyWindowOnConfirmation') && !this.silent) {
 			const targetWindow = dom.getWindow(listContainer);
 			if (!targetWindow.document.hasFocus()) {
 				this.notifyConfirmationNeeded(targetWindow);
@@ -281,19 +282,20 @@ export class SimpleChatConfirmationWidget<T> extends BaseSimpleChatConfirmationW
 		private readonly _container: HTMLElement,
 		options: IChatConfirmationWidgetOptions<T>,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IMarkdownRendererService markdownRendererService: IMarkdownRendererService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IHostService hostService: IHostService,
 		@IViewsService viewsService: IViewsService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
-		super(options, instantiationService, contextMenuService, configurationService, hostService, viewsService, contextKeyService);
+		super(options, instantiationService, markdownRendererService, contextMenuService, configurationService, hostService, viewsService, contextKeyService);
 		this.updateMessage(options.message);
 	}
 
 	public updateMessage(message: string | IMarkdownString): void {
 		this._renderedMessage?.remove();
-		const renderedMessage = this._register(this.markdownRenderer.render(
+		const renderedMessage = this._register(this._markdownRendererService.render(
 			typeof message === 'string' ? new MarkdownString(message) : message,
 			{ asyncRenderCallback: () => this._onDidChangeHeight.fire() }
 		));
@@ -334,7 +336,6 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 	}
 
 	private readonly messageElement: HTMLElement;
-	protected readonly markdownRenderer: MarkdownRenderer;
 	private readonly title: string | IMarkdownString;
 
 	private readonly notification = this._register(new MutableDisposable<DisposableStore>());
@@ -342,6 +343,7 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 	constructor(
 		options: IChatConfirmationWidget2Options<T>,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
+		@IMarkdownRendererService protected readonly markdownRendererService: IMarkdownRendererService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IHostService private readonly _hostService: IHostService,
@@ -371,14 +373,11 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 		this._domNode = elements.root;
 		this._buttonsDomNode = elements.buttons;
 
-		this.markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
-
 		const titlePart = this._register(instantiationService.createInstance(
 			ChatQueryTitlePart,
 			elements.title,
 			new MarkdownString(icon ? `$(${icon.id}) ${typeof title === 'string' ? title : title.value}` : typeof title === 'string' ? title : title.value),
 			subtitle,
-			this.markdownRenderer,
 		));
 
 		this._register(titlePart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
@@ -453,7 +452,7 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 
 	protected renderMessage(element: HTMLElement | IMarkdownString | string, listContainer: HTMLElement): void {
 		if (!dom.isHTMLElement(element)) {
-			const messageElement = this._register(this.markdownRenderer.render(
+			const messageElement = this._register(this.markdownRendererService.render(
 				typeof element === 'string' ? new MarkdownString(element) : element,
 				{ asyncRenderCallback: () => this._onDidChangeHeight.fire() }
 			));
@@ -509,19 +508,20 @@ export class ChatConfirmationWidget<T> extends BaseChatConfirmationWidget<T> {
 		private readonly _container: HTMLElement,
 		options: IChatConfirmationWidget2Options<T>,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IMarkdownRendererService markdownRendererService: IMarkdownRendererService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IHostService hostService: IHostService,
 		@IViewsService viewsService: IViewsService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
-		super(options, instantiationService, contextMenuService, configurationService, hostService, viewsService, contextKeyService);
+		super(options, instantiationService, markdownRendererService, contextMenuService, configurationService, hostService, viewsService, contextKeyService);
 		this.renderMessage(options.message, this._container);
 	}
 
 	public updateMessage(message: string | IMarkdownString): void {
 		this._renderedMessage?.remove();
-		const renderedMessage = this._register(this.markdownRenderer.render(
+		const renderedMessage = this._register(this.markdownRendererService.render(
 			typeof message === 'string' ? new MarkdownString(message) : message,
 			{ asyncRenderCallback: () => this._onDidChangeHeight.fire() }
 		));
@@ -534,13 +534,14 @@ export class ChatCustomConfirmationWidget<T> extends BaseChatConfirmationWidget<
 		container: HTMLElement,
 		options: IChatConfirmationWidget2Options<T>,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IMarkdownRendererService markdownRendererService: IMarkdownRendererService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IHostService hostService: IHostService,
 		@IViewsService viewsService: IViewsService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
-		super(options, instantiationService, contextMenuService, configurationService, hostService, viewsService, contextKeyService);
+		super(options, instantiationService, markdownRendererService, contextMenuService, configurationService, hostService, viewsService, contextKeyService);
 		this.renderMessage(options.message, container);
 	}
 }

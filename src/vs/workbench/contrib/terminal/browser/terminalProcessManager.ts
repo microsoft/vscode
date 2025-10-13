@@ -43,6 +43,7 @@ import { mainWindow } from '../../../../base/browser/window.js';
 import { shouldUseEnvironmentVariableCollection } from '../../../../platform/terminal/common/terminalEnvironment.js';
 import { TerminalContribSettingId } from '../terminalContribExports.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { BugIndicatingError } from '../../../../base/common/errors.js';
 
 const enum ProcessConstants {
 	/**
@@ -444,8 +445,11 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 		let baseEnv: IProcessEnvironment;
 		if (shellLaunchConfig.useShellEnvironment) {
-			// TODO: Avoid as any?
-			baseEnv = await backend.getShellEnvironment() as any;
+			const shellEnv = await backend.getShellEnvironment();
+			if (!shellEnv) {
+				throw new BugIndicatingError('Cannot fetch shell environment to use');
+			}
+			baseEnv = shellEnv;
 		} else {
 			baseEnv = await this._terminalProfileResolverService.getEnvironment(this.remoteAuthority);
 		}

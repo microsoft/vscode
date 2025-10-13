@@ -93,17 +93,29 @@ declare module 'vscode' {
 		Method = 2,
 		Alias = 3,
 		Argument = 4,
+		/**
+		 * An option, for example in `code --locale`, `--locale` is the option
+		 */
 		Option = 5,
+		/**
+		 * The value of an option, for example in `code --locale en-US`, `en-US` is the option value
+		 */
 		OptionValue = 6,
+		/**
+		 * A flag, for example in `git commit --amend"`, `--amend` is the flag
+		 */
 		Flag = 7,
 		SymbolicLinkFile = 8,
 		SymbolicLinkFolder = 9,
-		Commit = 10,
-		Branch = 11,
-		Tag = 12,
-		Stash = 13,
-		Remote = 14,
+		ScmCommit = 10,
+		ScmBranch = 11,
+		ScmTag = 12,
+		ScmStash = 13,
+		ScmRemote = 14,
 		PullRequest = 15,
+		/**
+		 * The pull request has been closed
+		 */
 		PullRequestDone = 16,
 	}
 
@@ -118,22 +130,21 @@ declare module 'vscode' {
 		/**
 		 * The complete terminal command line.
 		 */
-		commandLine: string;
+		readonly commandLine: string;
 		/**
 		 * The index of the cursor in the command line.
 		 */
-		cursorPosition: number;
+		readonly cursorIndex: number;
 		/**
-		 * Whether completions should be provided when it is not clear to what type of completion is
-		 * well known.
+		 * Whether completions should be provided when none are explicitly suggested. This will display
+		 * fallback suggestions like files and folders.
 		 */
-		allowFallbackCompletions: boolean;
+		readonly allowFallbackCompletions: boolean;
 	}
 
 	export namespace window {
 		/**
 		 * Register a completion provider for terminals.
-		 * @param id The unique identifier of the terminal provider, used as a settings key and shown in the information hover of the suggest widget.
 		 * @param provider The completion provider.
 		 * @returns A {@link Disposable} that unregisters this provider when being disposed.
 		 *
@@ -146,7 +157,7 @@ declare module 'vscode' {
 		 * 	}
 		 * });
 		 */
-		export function registerTerminalCompletionProvider<T extends TerminalCompletionItem>(id: string, provider: TerminalCompletionProvider<T>, ...triggerCharacters: string[]): Disposable;
+		export function registerTerminalCompletionProvider<T extends TerminalCompletionItem>(provider: TerminalCompletionProvider<T>, ...triggerCharacters: string[]): Disposable;
 	}
 
 	/**
@@ -156,14 +167,14 @@ declare module 'vscode' {
 	 * @example <caption>Create a completion list that requests files for the terminal cwd</caption>
 	 * const list = new TerminalCompletionList([
 	 * 	{ label: 'ls', replacementIndex: 0, replacementLength: 0, kind: TerminalCompletionItemKind.Method }
-	 * ], { filesRequested: true, cwd: Uri.file('/home/user') });
+	 * ], { showFiles: true, cwd: Uri.file('/home/user') });
 	 */
 	export class TerminalCompletionList<T extends TerminalCompletionItem = TerminalCompletionItem> {
 
 		/**
 		 * Resources that should be shown in the completions list for the cwd of the terminal.
 		 */
-		resourceRequestConfig?: TerminalResourceRequestConfig;
+		resourceOptions?: TerminalCompletionResourceOptions;
 
 		/**
 		 * The completion items.
@@ -174,9 +185,9 @@ declare module 'vscode' {
 		 * Creates a new completion list.
 		 *
 		 * @param items The completion items.
-		 * @param resourceRequestConfig Indicates which resources should be shown as completions for the cwd of the terminal.
+		 * @param resourceOptions Indicates which resources should be shown as completions for the cwd of the terminal.
 		 */
-		constructor(items?: T[], resourceRequestConfig?: TerminalResourceRequestConfig);
+		constructor(items: T[], resourceOptions?: TerminalCompletionResourceOptions);
 	}
 
 
@@ -186,19 +197,19 @@ declare module 'vscode' {
 	 * When a provider indicates that it wants file/folder resources, the terminal will surface completions for files and
 	 * folders that match {@link globPattern} from the provided {@link cwd}.
 	 */
-	export interface TerminalResourceRequestConfig {
+	export interface TerminalCompletionResourceOptions {
 		/**
 		 * Show files as completion items.
 		 */
-		filesRequested?: boolean;
+		showFiles?: boolean;
 		/**
 		 * Show folders as completion items.
 		 */
-		foldersRequested?: boolean;
+		showDirectories?: boolean;
 		/**
-		 * A {@link GlobPattern glob pattern} that controls which files suggest should surface.
+		 * A glob pattern string that controls which files suggest should surface. Note that this will only apply if {@param showFiles} or {@param showDirectories} is set to true.
 		 */
-		globPattern?: GlobPattern;
+		globPattern?: string;
 		/**
 		 * The cwd from which to request resources.
 		 */
