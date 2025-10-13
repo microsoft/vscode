@@ -116,6 +116,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 								picked: item.picked,
 								alwaysShow: item.alwaysShow,
 								tooltip: allowedTooltips ? MarkdownString.fromStrict(item.tooltip) : undefined,
+								resourceUri: item.resourceUri,
 								handle
 							});
 						}
@@ -613,6 +614,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 						picked: item.picked,
 						alwaysShow: item.alwaysShow,
 						tooltip: allowedTooltips ? MarkdownString.fromStrict(item.tooltip) : undefined,
+						resourceUri: item.resourceUri,
 						buttons: item.buttons?.map<TransferQuickInputButton>((button, i) => {
 							return {
 								...getIconPathOrClass(button.iconPath),
