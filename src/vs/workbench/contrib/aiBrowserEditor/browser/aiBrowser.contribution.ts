@@ -10,25 +10,19 @@ import { SyncDescriptor } from '../../../../platform/instantiation/common/descri
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { AiBrowserEditorInput } from './aiBrowserEditorInput.js';
 import { AiBrowserEditor } from './aiBrowserEditor.js';
-import { localize } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import * as nls from '../../../../nls.js';
 
 // Register the command to open AI Browser
 class OpenAiBrowserAction extends Action2 {
-	static readonly ID = 'workbench.action.openAiBrowser';
+	static readonly ID = 'aiBrowser.open';
 
 	constructor() {
 		super({
 			id: OpenAiBrowserAction.ID,
-			title: {
-				value: localize('openAiBrowser', "Open AI Browser"),
-				original: 'Open AI Browser'
-			},
-			category: {
-				value: localize('view', "View"),
-				original: 'View'
-			},
+			title: nls.localize2("aiBrowser.open", "AI Browser: Open"),
+			category: nls.localize2("view", "View"),
 			f1: true, // Show in Command Palette (F1 or Cmd+Shift+P)
 		});
 	}
@@ -73,7 +67,7 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane)
 		EditorPaneDescriptor.create(
 			AiBrowserEditor,
 			AiBrowserEditor.ID,
-			'AI Browser'
+			nls.localize("aiBrowser.title", "AI Browser")
 		),
 		[new SyncDescriptor(AiBrowserEditorInput)]
 	);

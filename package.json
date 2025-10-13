@@ -223,6 +223,30 @@
     "yaserver": "^0.4.0",
     "zx": "^8.7.0"
   },
+  "contributes": {
+    "configuration": {
+      "title": "AI Browser",
+      "properties": {
+        "aiBrowser.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "API key for LLM service (OpenAI or Anthropic)",
+          "scope": "application"
+        },
+        "aiBrowser.apiProvider": {
+          "type": "string",
+          "enum": ["openai", "anthropic"],
+          "default": "openai",
+          "description": "LLM API provider to use"
+        },
+        "aiBrowser.model": {
+          "type": "string",
+          "default": "gpt-4",
+          "description": "Model to use for chat (e.g., gpt-4, claude-3-5-sonnet-20241022)"
+        }
+      }
+    }
+  },
   "overrides": {
     "node-gyp-build": "4.8.1",
     "kerberos@2.1.1": {

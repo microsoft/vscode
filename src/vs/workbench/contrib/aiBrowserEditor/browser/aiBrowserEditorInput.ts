@@ -10,6 +10,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IEditorSerializer } from '../../../common/editor.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IBaseUntypedEditorInput } from '../../../../platform/editor/common/editor.js';
+import * as nls from '../../../../nls.js';
 
 export class AiBrowserEditorInput extends EditorInput {
 
@@ -35,11 +36,11 @@ export class AiBrowserEditorInput extends EditorInput {
 	}
 
 	override getName(): string {
-		return 'AI Browser';
+		return nls.localize("aiBrowser.name", "AI Browser");
 	}
 
 	override getDescription(): string {
-		return 'AI-Powered Web Browser';
+		return nls.localize("aiBrowser.description", "AI-Powered Web Browser");
 	}
 
 	override getIcon(): ThemeIcon | undefined {
