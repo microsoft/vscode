@@ -1192,6 +1192,7 @@ export class InlineChatController1 implements IEditorContribution {
 			});
 		}
 
+		this._resetWidget();
 		this._messages.fire(Message.CANCEL_SESSION);
 	}
 

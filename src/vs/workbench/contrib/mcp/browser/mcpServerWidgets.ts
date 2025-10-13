@@ -24,14 +24,13 @@ import { McpServerStatusAction } from './mcpServerActions.js';
 import { reset } from '../../../../base/browser/dom.js';
 import { mcpLicenseIcon, mcpServerIcon, mcpServerRemoteIcon, mcpServerWorkspaceIcon, mcpStarredIcon } from './mcpServerIcons.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
-import { renderMarkdown } from '../../../../base/browser/markdownRenderer.js';
-import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { ExtensionHoverOptions, ExtensionIconBadge } from '../../extensions/browser/extensionsWidgets.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { LocalMcpServerScope } from '../../../services/mcp/common/mcpWorkbenchManagementService.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { registerColor } from '../../../../platform/theme/common/colorUtils.js';
 import { textLinkForeground } from '../../../../platform/theme/common/colorRegistry.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 
 export abstract class McpServerWidget extends Disposable implements IMcpServerContainer {
 	private _mcpServer: IWorkbenchMcpServer | null = null;
@@ -451,7 +450,7 @@ export class McpServerStatusWidget extends McpServerWidget {
 	constructor(
 		private readonly container: HTMLElement,
 		private readonly extensionStatusAction: McpServerStatusAction,
-		@IOpenerService private readonly openerService: IOpenerService,
+		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 	) {
 		super();
 		this.render();
@@ -476,11 +475,7 @@ export class McpServerStatusWidget extends McpServerWidget {
 					markdown.appendText(`\n`);
 				}
 			}
-			const rendered = disposables.add(renderMarkdown(markdown, {
-				actionHandler: (content) => {
-					this.openerService.open(content, { allowCommands: true }).catch(onUnexpectedError);
-				}
-			}));
+			const rendered = disposables.add(this.markdownRendererService.render(markdown));
 			dom.append(this.container, rendered.element);
 		}
 		this._onDidRender.fire();

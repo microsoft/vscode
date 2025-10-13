@@ -1062,15 +1062,19 @@ export function registerChatActions() {
 				category: CHAT_CATEGORY,
 				precondition: ChatContextKeys.enabled,
 				keybinding: {
-					weight: KeybindingWeight.WorkbenchContrib + 1,
+					weight: KeybindingWeight.WorkbenchContrib,
 					primary: KeyMod.CtrlCmd | KeyCode.KeyN,
 					when: ContextKeyExpr.and(ChatContextKeys.inChatSession, ChatContextKeys.inChatEditor)
 				},
-				menu: {
+				menu: [{
 					id: MenuId.ChatTitleBarMenu,
 					group: 'b_new',
 					order: 0
-				}
+				}, {
+					id: MenuId.ChatNewMenu,
+					group: '2_new',
+					order: 2
+				}],
 			});
 		}
 
@@ -1088,11 +1092,15 @@ export function registerChatActions() {
 				f1: true,
 				category: CHAT_CATEGORY,
 				precondition: ChatContextKeys.enabled,
-				menu: {
+				menu: [{
 					id: MenuId.ChatTitleBarMenu,
 					group: 'b_new',
 					order: 1
-				}
+				}, {
+					id: MenuId.ChatNewMenu,
+					group: '2_new',
+					order: 3
+				}]
 			});
 		}
 
@@ -1632,7 +1640,7 @@ Update \`.github/copilot-instructions.md\` for the user, then ask for feedback o
 		title: localize2('config.label', "Configure Chat..."),
 		group: 'navigation',
 		when: ContextKeyExpr.equals('view', ChatViewId),
-		icon: Codicon.settingsGear,
+		icon: Codicon.gear,
 		order: 6
 	});
 }
