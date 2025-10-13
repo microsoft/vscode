@@ -67,7 +67,6 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ISharedWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { ResourceLabels } from '../../../browser/labels.js';
-import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
@@ -75,14 +74,13 @@ import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions, setupSimpleEd
 import { IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatEditingSession, ModifiedFileEntryState } from '../common/chatEditingService.js';
-import { ChatEntitlement, IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { IChatRequestModeInfo } from '../common/chatModel.js';
 import { ChatMode, IChatMode, IChatModeService } from '../common/chatModes.js';
 import { IChatFollowup } from '../common/chatService.js';
 import { ChatRequestVariableSet, IChatRequestVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemChangeRangeVariableEntry, isSCMHistoryItemChangeVariableEntry, isSCMHistoryItemVariableEntry } from '../common/chatVariableEntries.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
 import { ChatInputHistoryMaxEntries, IChatHistoryEntry, IChatInputState, IChatWidgetHistoryService } from '../common/chatWidgetHistoryService.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, validateChatMode } from '../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../common/constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
 import { ILanguageModelToolsService } from '../common/languageModelToolsService.js';
 import { PromptsType } from '../common/promptSyntax/promptTypes.js';
@@ -405,8 +403,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@ILabelService private readonly labelService: ILabelService,
 		@IChatAgentService private readonly agentService: IChatAgentService,
 		@ISharedWebContentExtractorService private readonly sharedWebExtracterService: ISharedWebContentExtractorService,
-		@IWorkbenchAssignmentService private readonly experimentService: IWorkbenchAssignmentService,
-		@IChatEntitlementService private readonly entitlementService: IChatEntitlementService,
 		@IChatModeService private readonly chatModeService: IChatModeService,
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@ILanguageModelToolsService private readonly toolService: ILanguageModelToolsService,
@@ -554,10 +550,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	private initSelectedModel() {
-		let persistedSelection = this.storageService.get(this.getSelectedModelStorageKey(), StorageScope.APPLICATION);
+		const persistedSelection = this.storageService.get(this.getSelectedModelStorageKey(), StorageScope.APPLICATION);
 		if (persistedSelection && persistedSelection.startsWith('github.copilot-chat/')) {
-			// Convert the persisted selection to make it backwards comptabile with the old LM API. TODO @lramos15 - Remove this after a bit
-			persistedSelection = persistedSelection.replace('github.copilot-chat/', 'copilot/');
 			this.storageService.store(this.getSelectedModelStorageKey(), persistedSelection, StorageScope.APPLICATION, StorageTarget.USER);
 		}
 		const persistedAsDefault = this.storageService.getBoolean(this.getSelectedModelIsDefaultStorageKey(), StorageScope.APPLICATION, persistedSelection === 'copilot/gpt-4.1');
@@ -792,72 +786,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				this.setChatMode(persistedMode);
 			}
 		}
-
-		// TODO@roblourens This is for an experiment which will be obsolete in a month or two and can then be removed.
-		if (modelIsEmpty) {
-			const storageKey = this.getDefaultModeExperimentStorageKey();
-			const hasSetDefaultMode = this.storageService.getBoolean(storageKey, StorageScope.WORKSPACE, false);
-			if (!hasSetDefaultMode) {
-				const isFree = this.entitlementService.entitlement === ChatEntitlement.Free;
-				const defaultModeKey = isFree ? 'chat.defaultModeFree' : 'chat.defaultMode';
-				const defaultLanguageModelKey = isFree ? 'chat.defaultLanguageModelFree' : 'chat.defaultLanguageModel';
-				const isAnonymous = this.entitlementService.anonymous;
-				Promise.all([
-					this.experimentService.getTreatment(defaultModeKey),
-					this.experimentService.getTreatment(defaultLanguageModelKey),
-				]).then(([defaultModeTreatment, defaultLanguageModelTreatment]) => {
-					if (isAnonymous) {
-						// be deterministic for anonymous users
-						// to support agentic flows with default
-						// model.
-						defaultModeTreatment = ChatModeKind.Agent;
-						defaultLanguageModelTreatment = undefined;
-					}
-
-					if (typeof defaultModeTreatment === 'string') {
-						this.storageService.store(storageKey, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
-						const defaultMode = validateChatMode(defaultModeTreatment);
-						if (defaultMode) {
-							this.logService.trace(`Applying default mode from experiment: ${defaultMode}`);
-							this.setChatMode(defaultMode, false);
-							this.checkModelSupported();
-						}
-					}
-
-					if (typeof defaultLanguageModelTreatment === 'string') {
-						this.storageService.store(storageKey, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
-						this.logService.trace(`Applying default language model from experiment: ${defaultLanguageModelTreatment}`);
-						this.setExpModelOrWait(defaultLanguageModelTreatment);
-					}
-				});
-			}
-		}
-	}
-
-	private setExpModelOrWait(modelId: string) {
-		const model = this.languageModelsService.lookupLanguageModel(modelId);
-		if (model) {
-			this.setCurrentLanguageModel({ metadata: model, identifier: modelId });
-			this.checkModelSupported();
-			this._waitForPersistedLanguageModel.clear();
-		} else {
-			this._waitForPersistedLanguageModel.value = this.languageModelsService.onDidChangeLanguageModels(() => {
-				const model = this.languageModelsService.lookupLanguageModel(modelId);
-				if (model) {
-					this._waitForPersistedLanguageModel.clear();
-
-					if (model.isUserSelectable) {
-						this.setCurrentLanguageModel({ metadata: model, identifier: modelId });
-						this.checkModelSupported();
-					}
-				}
-			});
-		}
-	}
-
-	private getDefaultModeExperimentStorageKey(): string {
-		const tag = this.options.widgetViewKindTag;
-		return `chat.${tag}.hasSetDefaultModeByExperiment`;
 	}
 
 	logInputHistory(): void {
