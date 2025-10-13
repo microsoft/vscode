@@ -51,6 +51,7 @@ export class ComputeAutomaticInstructions {
 
 	constructor(
 		private readonly _readFileTool: IToolData | undefined,
+		private readonly _executePromptTool: IToolData | undefined,
 		@IPromptsService private readonly _promptsService: IPromptsService,
 		@ILogService public readonly _logService: ILogService,
 		@ILabelService private readonly _labelService: ILabelService,
@@ -99,6 +100,12 @@ export class ComputeAutomaticInstructions {
 			const text = instructionsWithPatternsList.join('\n');
 			variables.add(toPromptTextVariableEntry(text, true));
 			telemetryEvent.listedInstructionsCount++;
+		}
+
+		const slashCommandsList = await this._getSlashCommandsList(token);
+		if (slashCommandsList.length > 0) {
+			const text = slashCommandsList.join('\n');
+			variables.add(toPromptTextVariableEntry(text, true));
 		}
 
 		this.sendTelemetry(telemetryEvent);
@@ -333,6 +340,34 @@ export class ComputeAutomaticInstructions {
 			'Make sure to acquire the instructions before making any changes to the code.',
 			'| File | Applies To | Description |',
 			'| ------- | --------- | ----------- |',
+		].concat(entries);
+	}
+
+	private async _getSlashCommandsList(token: CancellationToken): Promise<string[]> {
+		if (!this._executePromptTool) {
+			this._logService.trace('[InstructionsContextComputer] No executePrompt tool available, skipping slash commands list.');
+			return [];
+		}
+
+		const slashCommands = await this._promptsService.findPromptSlashCommands();
+		if (slashCommands.length === 0) {
+			return [];
+		}
+
+		const entries: string[] = [];
+		for (const cmd of slashCommands) {
+			const description = cmd.detail || '';
+			const uri = cmd.promptPath ? getFilePath(cmd.promptPath.uri) : '';
+			entries.push(`| /${cmd.command} | ${uri} | ${description} |`);
+		}
+
+		const toolName = 'execute_prompt'; // workaround https://github.com/microsoft/vscode/issues/252167
+		return [
+			'Here is a list of available slash commands that can be invoked from this prompt.',
+			'These commands can be used to execute other prompts and include their results.',
+			`Use the \`${toolName}\` tool to invoke these commands.`,
+			'| Command | File | Description |',
+			'| ------- | ---- | ----------- |',
 		].concat(entries);
 	}
 
