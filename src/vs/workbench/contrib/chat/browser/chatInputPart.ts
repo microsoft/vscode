@@ -824,7 +824,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						}
 					}
 
-					if (typeof defaultLanguageModelTreatment === 'string' && this._currentModeObservable.get().kind === ChatModeKind.Agent) {
+					if (typeof defaultLanguageModelTreatment === 'string') {
 						this.storageService.store(storageKey, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 						this.logService.trace(`Applying default language model from experiment: ${defaultLanguageModelTreatment}`);
 						this.setExpModelOrWait(defaultLanguageModelTreatment);
