@@ -865,11 +865,13 @@ export class ChatService extends Disposable implements IChatService {
 					}
 					completeResponseCreated();
 
-					// Check if there are MCP servers requiring interaction and show message if not shown yet
-					const autostartResult = new ChatMcpServersStarting(this.mcpService.autostart(token));
-					if (!autostartResult.isEmpty) {
-						progressCallback([autostartResult]);
-						await autostartResult.wait();
+					// MCP autostart: only run for native VS Code sessions (sidebar, new editors) but not for extension contributed sessions that have inputType set.
+					if (!model.inputType) {
+						const autostartResult = new ChatMcpServersStarting(this.mcpService.autostart(token));
+						if (!autostartResult.isEmpty) {
+							progressCallback([autostartResult]);
+							await autostartResult.wait();
+						}
 					}
 
 					const agentResult = await this.chatAgentService.invokeAgent(agent.id, requestProps, progressCallback, history, token);
