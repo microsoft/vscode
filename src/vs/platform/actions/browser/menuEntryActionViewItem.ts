@@ -9,7 +9,7 @@ import { StandardKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
 import { ActionViewItem, BaseActionViewItem, SelectActionViewItem } from '../../../base/browser/ui/actionbar/actionViewItems.js';
 import { DropdownMenuActionViewItem, IDropdownMenuActionViewItemOptions } from '../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
 import { IHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegate.js';
-import { ActionRunner, IAction, IRunEvent, Separator, SubmenuAction } from '../../../base/common/actions.js';
+import { ActionRunner, IAction, IActionRunner, IRunEvent, Separator, SubmenuAction } from '../../../base/common/actions.js';
 import { Event } from '../../../base/common/event.js';
 import { UILabelProvider } from '../../../base/common/keybindingLabels.js';
 import { ResolvedKeybinding } from '../../../base/common/keybindings.js';
@@ -517,6 +517,17 @@ export class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 		super.setActionContext(newContext);
 		this._defaultAction.setActionContext(newContext);
 		this._dropdown.setActionContext(newContext);
+	}
+
+	override set actionRunner(actionRunner: IActionRunner) {
+		super.actionRunner = actionRunner;
+
+		this._defaultAction.actionRunner = actionRunner;
+		this._dropdown.actionRunner = actionRunner;
+	}
+
+	override get actionRunner(): IActionRunner {
+		return super.actionRunner;
 	}
 
 	override render(container: HTMLElement): void {
