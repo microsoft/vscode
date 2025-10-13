@@ -23,10 +23,18 @@ interface IGotoLineQuickPickItem extends IQuickPickItem, Partial<IPosition> { }
 export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditorNavigationQuickAccessProvider {
 
 	static PREFIX = ':';
-	private zeroBasedOffset = false;
+	private _useZeroBasedOffset = false;
 
 	constructor() {
 		super({ canAcceptInBackground: true });
+	}
+
+	get useZeroBasedOffset() {
+		return this._useZeroBasedOffset;
+	}
+
+	set useZeroBasedOffset(value: boolean) {
+		this._useZeroBasedOffset = value;
 	}
 
 	protected provideWithoutTextEditor(picker: IQuickPick<IGotoLineQuickPickItem, { useSeparators: true }>): IDisposable {
@@ -60,8 +68,12 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 
 		// React to picker changes
 		const updatePickerAndEditor = () => {
-			const position = this.parsePosition(editor, picker.value.trim().substring(AbstractGotoLineQuickAccessProvider.PREFIX.length));
+			const inputText = picker.value.trim().substring(AbstractGotoLineQuickAccessProvider.PREFIX.length);
+			const position = this.parsePosition(editor, inputText);
 			const label = this.getPickLabel(editor, position.lineNumber, position.column);
+
+			// Show toggle only when input text starts with '::'.
+			toggle.visible = inputText.startsWith(':');
 
 			// Picker
 			picker.items = [{
@@ -91,7 +103,7 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 		const toggle = new Toggle({
 			title: localize('gotoLineToggle', "Use zero-based offset"),
 			icon: Codicon.symbolNumber,
-			isChecked: this.zeroBasedOffset,
+			isChecked: this.useZeroBasedOffset,
 			inputActiveOptionBorder: asCssVariable(inputActiveOptionBorder),
 			inputActiveOptionForeground: asCssVariable(inputActiveOptionForeground),
 			inputActiveOptionBackground: asCssVariable(inputActiveOptionBackground)
@@ -99,7 +111,7 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 
 		disposables.add(
 			toggle.onChange(() => {
-				this.zeroBasedOffset = !this.zeroBasedOffset;
+				this.useZeroBasedOffset = !this.useZeroBasedOffset;
 				updatePickerAndEditor();
 			}));
 
@@ -142,7 +154,7 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 				if (model) {
 					if (offset >= 0) {
 						// If offset is 1-based, we need to convert to model's 0-based.
-						offset -= this.zeroBasedOffset ? 0 : 1;
+						offset -= this.useZeroBasedOffset ? 0 : 1;
 					} else {
 						// Offset from the end of the buffer
 						offset += model.getValueLength();
