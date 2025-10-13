@@ -62,8 +62,11 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		for (const session of this._sessions.values()) {
 			session.store.dispose();
 			for (const attachment of session.attachments.values()) {
+				attachment.disposed = true;
+				attachment.xterm = undefined;
 				attachment.store.dispose();
 			}
+			session.attachments.clear();
 		}
 		this._sessions.clear();
 		this._latestSessionByInstance.clear();
@@ -126,7 +129,10 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 				return;
 			}
 			const xterm = await this._getOrCreateXterm(session, attachment);
-			if (attachment.disposed) {
+			if (!xterm) {
+				return;
+			}
+			if (attachment.disposed || attachment.store.isDisposed) {
 				return;
 			}
 			xterm.attachToElement(element);
@@ -147,6 +153,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 				attachment.disposed = true;
 				session.attachments.delete(attachmentId);
 				attachment.store.dispose();
+				attachment.xterm = undefined;
 			}
 		};
 
@@ -176,12 +183,22 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		return session;
 	}
 
-	private async _getOrCreateXterm(session: ITerminalChatSessionState, attachment: ITerminalChatAttachment): Promise<XtermTerminal> {
+	private async _getOrCreateXterm(session: ITerminalChatSessionState, attachment: ITerminalChatAttachment): Promise<XtermTerminal | undefined> {
+		if (attachment.disposed || attachment.store.isDisposed) {
+			return undefined;
+		}
 		if (attachment.xterm) {
 			return attachment.xterm;
 		}
 		const xtermCtor = await TerminalInstance.getXtermConstructor(this._keybindingService, this._contextKeyService);
+		if (attachment.disposed || attachment.store.isDisposed) {
+			return undefined;
+		}
 		const capabilities = new TerminalCapabilityStore();
+		if (attachment.store.isDisposed) {
+			capabilities.dispose();
+			return undefined;
+		}
 		attachment.store.add(capabilities);
 		const cols = session.instance?.cols ?? DEFAULT_COLS;
 		const xterm = this._instantiationService.createInstance(XtermTerminal, xtermCtor, {
@@ -190,6 +207,10 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 			capabilities,
 			xtermColorProvider: this._instantiationService.createInstance(TerminalInstanceColorProvider, TerminalLocation.Panel)
 		}, undefined);
+		if (attachment.store.isDisposed) {
+			xterm.dispose();
+			return undefined;
+		}
 		attachment.store.add(xterm);
 		attachment.xterm = xterm;
 		await this._applyLastDataToAttachment(session, attachment);
@@ -226,7 +247,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 			}
 			session.lastData = data;
 			for (const attachment of session.attachments.values()) {
-				if (attachment.disposed || !attachment.xterm) {
+				if (attachment.disposed || attachment.store.isDisposed || !attachment.xterm) {
 					continue;
 				}
 				attachment.xterm.raw.clear();
@@ -240,7 +261,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 	}
 
 	private async _applyLastDataToAttachment(session: ITerminalChatSessionState, attachment: ITerminalChatAttachment): Promise<void> {
-		if (!session.lastData || !attachment.xterm || attachment.disposed) {
+		if (!session.lastData || !attachment.xterm || attachment.disposed || attachment.store.isDisposed) {
 			return;
 		}
 		try {
