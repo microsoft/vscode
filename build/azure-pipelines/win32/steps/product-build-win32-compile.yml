@@ -191,13 +191,27 @@ steps:
         Move-Item -Path "$(Build.ArtifactStagingDirectory)/cli/$AppName.exe" -Destination "$(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)/bin/$CliAppName.exe"
       displayName: Move VS Code CLI
 
+    # Policy generation: For ARM64, build a temporary x64 version to generate policies
+    # since ARM64 binaries cannot execute on x64 build agents
+    - ${{ if and(ne(parameters.VSCODE_CIBUILD, true), eq(parameters.VSCODE_ARCH, 'arm64')) }}:
+      - powershell: |
+          . build/azure-pipelines/win32/exec.ps1
+          $ErrorActionPreference = "Stop"
+          Write-Host "Building temporary x64 version for policy generation..."
+          exec { npm run gulp "vscode-win32-x64-min-ci" }
+        displayName: Build temporary x64 version for policy generation
+        env:
+          GITHUB_TOKEN: "$(github-distro-mixin-password)"
+
     - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
       - powershell: |
           . build/azure-pipelines/win32/exec.ps1
           $ErrorActionPreference = "Stop"
           # Create policies directory (remove exec wrapper - directory may already exist)
           mkdir -Force .build | Out-Null
-          $AppRoot = "$(Agent.BuildDirectory)\VSCode-win32-$(VSCODE_ARCH)"
+          # For ARM64 builds, use the temporary x64 build; for x64 builds, use the actual build
+          $BuildArch = if ('$(VSCODE_ARCH)' -eq 'arm64') { 'x64' } else { '$(VSCODE_ARCH)' }
+          $AppRoot = "$(Agent.BuildDirectory)\VSCode-win32-$BuildArch"
           $AppProductJson = Get-Content -Raw -Path "$AppRoot\resources\app\product.json" | ConvertFrom-Json
           $AppNameShort = $AppProductJson.nameShort
           $VSCodePath = "$AppRoot\$AppNameShort.exe"
@@ -217,6 +231,7 @@ steps:
           Write-Host "Policy generation completed successfully"
         displayName: Generate policy definitions
         retryCountOnTaskFailure: 3
+
       - powershell: |
           . build/azure-pipelines/win32/exec.ps1
           $ErrorActionPreference = "Stop"
