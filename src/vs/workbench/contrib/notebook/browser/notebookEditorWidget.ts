@@ -87,7 +87,7 @@ import { cellRangesToIndexes, ICellRange } from '../common/notebookRange.js';
 import { INotebookRendererMessagingService } from '../common/notebookRendererMessagingService.js';
 import { INotebookService } from '../common/notebookService.js';
 import { IWebviewElement } from '../../webview/browser/webview.js';
-import { EditorContributionCtor, EditorContributionInstantiation, EditorExtensionsRegistry } from '../../../../editor/browser/editorExtensions.js';
+import { EditorExtensionsRegistry } from '../../../../editor/browser/editorExtensions.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { NotebookPerfMarks } from '../common/notebookPerformance.js';
 import { BaseCellEditorOptions } from './viewModel/cellEditorOptions.js';
@@ -107,7 +107,6 @@ import { NotebookCellEditorPool } from './view/notebookCellEditorPool.js';
 import { InlineCompletionsController } from '../../../../editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController.js';
 import { NotebookCellLayoutManager } from './notebookCellLayoutManager.js';
 import { FloatingEditorToolbar } from '../../../../editor/contrib/floatingMenu/browser/floatingMenu.js';
-import { InlineChatController, InlineChatController2, NotebookInlineAgentChatController, NotebookInlineChatController } from '../../inlineChat/browser/inlineChatController.js';
 
 const $ = DOM.$;
 
@@ -122,13 +121,9 @@ export function getDefaultNotebookCreationOptions(): INotebookEditorCreationOpti
 		'editor.contrib.testingDecorations',
 		'store.contrib.stickyScrollController',
 		'editor.contrib.findController',
-		'editor.contrib.emptyTextEditorHint',
-		'editor.contrib.inlineChatController',
-		'editor.contrib.inlineChatController2'
+		'editor.contrib.emptyTextEditorHint'
 	];
 	const contributions = EditorExtensionsRegistry.getEditorContributions().filter(c => skipContributions.indexOf(c.id) === -1);
-	contributions.push({ id: InlineChatController.ID, ctor: NotebookInlineChatController as EditorContributionCtor, instantiation: EditorContributionInstantiation.Lazy });
-	contributions.push({ id: InlineChatController2.ID, ctor: NotebookInlineAgentChatController as EditorContributionCtor, instantiation: EditorContributionInstantiation.Lazy });
 
 	return {
 		menuIds: {
