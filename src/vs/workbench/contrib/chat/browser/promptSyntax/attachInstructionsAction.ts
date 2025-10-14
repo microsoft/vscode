@@ -140,7 +140,7 @@ class ManageInstructionsFilesAction extends Action2 {
 		super({
 			id: CONFIGURE_INSTRUCTIONS_ACTION_ID,
 			title: localize2('configure-instructions', "Configure Instructions..."),
-			shortTitle: localize2('configure-instructions.short', "Instructions"),
+			shortTitle: localize2('configure-instructions.short', "Chat Instructions"),
 			icon: Codicon.bookmark,
 			f1: true,
 			precondition: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
@@ -148,8 +148,8 @@ class ManageInstructionsFilesAction extends Action2 {
 			menu: {
 				id: CHAT_CONFIG_MENU_ID,
 				when: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
-				order: 11,
-				group: '0_level'
+				order: 10,
+				group: '1_level'
 			}
 		});
 	}

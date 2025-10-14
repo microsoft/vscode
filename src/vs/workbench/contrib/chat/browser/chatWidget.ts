@@ -2559,6 +2559,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	layout(height: number, width: number): void {
 		width = Math.min(width, 950);
+		const heightUpdated = this.bodyDimension && this.bodyDimension.height !== height;
 		this.bodyDimension = new dom.Dimension(width, height);
 
 		const layoutHeight = this._dynamicMessageLayoutData?.enabled ? this._dynamicMessageLayoutData.maxHeight : height;
@@ -2575,12 +2576,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const inputHeight = this.inputPart.inputPartHeight;
 		const chatTodoListWidgetHeight = this.chatTodoListWidget.height;
 		const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight >= this.tree.scrollHeight - 2;
+		const lastItem = this.viewModel?.getItems().at(-1);
 
 		const contentHeight = Math.max(0, height - inputHeight - chatTodoListWidgetHeight);
 		if (this.viewOptions.renderStyle === 'compact' || this.viewOptions.renderStyle === 'minimal') {
 			this.listContainer.style.removeProperty('--chat-current-response-min-height');
 		} else {
 			this.listContainer.style.setProperty('--chat-current-response-min-height', contentHeight * .75 + 'px');
+			if (heightUpdated && lastItem) {
+				this.tree.updateElementHeight(lastItem, undefined);
+			}
 		}
 		this.tree.layout(contentHeight, width);
 
@@ -2599,7 +2604,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this.renderer.layout(width);
 
-		const lastItem = this.viewModel?.getItems().at(-1);
 		const lastResponseIsRendering = isResponseVM(lastItem) && lastItem.renderData;
 		if (lastElementVisible && (!lastResponseIsRendering || checkModeOption(this.input.currentModeKind, this.viewOptions.autoScroll))) {
 			this.scrollToEnd();
