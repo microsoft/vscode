@@ -638,9 +638,10 @@ class OutdentLinesAction extends EditorAction {
 }
 
 export class InsertLineBeforeAction extends EditorAction {
+	public static readonly ID = 'editor.action.insertLineBefore';
 	constructor() {
 		super({
-			id: 'editor.action.insertLineBefore',
+			id: InsertLineBeforeAction.ID,
 			label: nls.localize2('lines.insertBefore', "Insert Line Above"),
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
@@ -662,9 +663,10 @@ export class InsertLineBeforeAction extends EditorAction {
 }
 
 export class InsertLineAfterAction extends EditorAction {
+	public static readonly ID = 'editor.action.insertLineAfter';
 	constructor() {
 		super({
-			id: 'editor.action.insertLineAfter',
+			id: InsertLineAfterAction.ID,
 			label: nls.localize2('lines.insertAfter', "Insert Line Below"),
 			precondition: EditorContextKeys.writable,
 			kbOpts: {

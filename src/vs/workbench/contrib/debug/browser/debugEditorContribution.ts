@@ -54,6 +54,7 @@ import { Expression } from '../common/debugModel.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { InsertLineAfterAction } from '../../../../editor/contrib/linesOperations/browser/linesOperations.js';
 
 const MAX_NUM_INLINE_VALUES = 100; // JS Global scope can have 700+ entries. We want to limit ourselves for perf reasons
 const MAX_INLINE_DECORATOR_LENGTH = 150; // Max string length of each inline decorator when debugging. If exceeded ... is added
@@ -689,7 +690,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				});
 			}
 			this.editor.setPosition(position);
-			return this.commandService.executeCommand('editor.action.insertLineAfter');
+			return this.commandService.executeCommand(InsertLineAfterAction.ID);
 		};
 
 		await insertLine(configurationsArrayPosition);
