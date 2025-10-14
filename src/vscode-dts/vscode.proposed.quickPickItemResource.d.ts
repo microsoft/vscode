@@ -13,7 +13,8 @@ declare module 'vscode' {
 		 *
 		 * Will be used to derive the {@link label}, when it is not provided (falsy or empty).
 		 * Will be used to derive the {@link description}, when it is not provided (falsy or empty).
-		 * Will be used to derive the icon from current file icon theme, when {@link iconPath} has {@link ThemeIcon.File} value.
+		 * Will be used to derive the icon from current file icon theme, when {@link iconPath} has either
+		 * {@link ThemeIcon.File} or {@link ThemeIcon.Folder} value.
 		 */
 		resourceUri?: Uri;
 	}

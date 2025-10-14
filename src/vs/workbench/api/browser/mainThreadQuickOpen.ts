@@ -248,20 +248,23 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 		}
 
 		const resourceUri = URI.from(item.resourceUri);
-		const customLabel = new Lazy(() => this.customEditorLabelService.getName(resourceUri));
+		let { label, description } = item;
+		if (!label) {
+			label = this.customEditorLabelService.getName(resourceUri) || '';
+			if (!label) {
+				label = basenameOrAuthority(resourceUri);
+				description = this.labelService.getUriLabel(dirname(resourceUri), { relative: true });
+			}
+		}
 
-		const label = new Lazy(() =>
-			item.label || customLabel.value || basenameOrAuthority(resourceUri) || ''
-		);
-
-		const description = new Lazy(() =>
-			item.description || this.labelService.getUriLabel(!!customLabel.value ? resourceUri : dirname(resourceUri), { relative: true })
-		);
+		if (!description) {
+			description = this.labelService.getUriLabel(resourceUri, { relative: true });
+		}
 
 		// Replace iconClass with iconClasses if iconClass is the default file icon and no iconPath is provided.
 		let iconClass = item.iconClass;
 		let iconClasses: Lazy<string[] | undefined> | undefined;
-		if (iconClass === 'codicon codicon-file' && !item.iconPath) {
+		if ((iconClass === 'codicon codicon-file' || iconClass === 'codicon codicon-folder') && !item.iconPath) {
 			iconClass = undefined;
 			iconClasses = new Lazy(() => getIconClasses(this.modelService, this.languageService, resourceUri));
 		}
@@ -269,8 +272,8 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 		return {
 			...item,
 			iconClass,
-			get label() { return label.value; },
-			get description() { return description.value; },
+			label,
+			description,
 			get iconClasses() { return iconClasses?.value; }
 		};
 	}
