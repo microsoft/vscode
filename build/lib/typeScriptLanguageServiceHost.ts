@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import ts from 'typescript';
+import fs from 'node:fs';
+// import path from 'node:path';
 
-export type ILibMap = Map</*libName*/ string, string>;
 export type IFileMap = Map</*fileName*/ string, string>;
 
 /**
@@ -15,10 +16,8 @@ export class TypeScriptLanguageServiceHost implements ts.LanguageServiceHost {
 
 	constructor(
 		private readonly ts: typeof import('typescript'),
-		private readonly libs: ILibMap,
-		private readonly files: IFileMap,
+		private readonly topLevelFiles: IFileMap,
 		private readonly compilerOptions: ts.CompilerOptions,
-		private readonly defaultLibName: string,
 	) { }
 
 	// --- language service host ---------------
@@ -27,8 +26,8 @@ export class TypeScriptLanguageServiceHost implements ts.LanguageServiceHost {
 	}
 	getScriptFileNames(): string[] {
 		return [
-			...this.libs.keys(),
-			...this.files.keys(),
+			...this.topLevelFiles.keys(),
+			this.ts.getDefaultLibFilePath(this.compilerOptions)
 		];
 	}
 	getScriptVersion(_fileName: string): string {
@@ -38,12 +37,10 @@ export class TypeScriptLanguageServiceHost implements ts.LanguageServiceHost {
 		return '1';
 	}
 	getScriptSnapshot(fileName: string): ts.IScriptSnapshot {
-		if (this.files.has(fileName)) {
-			return this.ts.ScriptSnapshot.fromString(this.files.get(fileName)!);
-		} else if (this.libs.has(fileName)) {
-			return this.ts.ScriptSnapshot.fromString(this.libs.get(fileName)!);
+		if (this.topLevelFiles.has(fileName)) {
+			return this.ts.ScriptSnapshot.fromString(this.topLevelFiles.get(fileName)!);
 		} else {
-			return this.ts.ScriptSnapshot.fromString('');
+			return ts.ScriptSnapshot.fromString(fs.readFileSync(fileName).toString());
 		}
 	}
 	getScriptKind(_fileName: string): ts.ScriptKind {
@@ -53,15 +50,18 @@ export class TypeScriptLanguageServiceHost implements ts.LanguageServiceHost {
 		return '';
 	}
 	getDefaultLibFileName(_options: ts.CompilerOptions): string {
-		return this.defaultLibName;
-	}
-	isDefaultLibFileName(fileName: string): boolean {
-		return fileName === this.getDefaultLibFileName(this.compilerOptions);
+		return this.ts.getDefaultLibFilePath(_options);
 	}
 	readFile(path: string, _encoding?: string): string | undefined {
-		return this.files.get(path) || this.libs.get(path);
+		if (this.topLevelFiles.get(path)) {
+			return this.topLevelFiles.get(path);
+		}
+		return ts.sys.readFile(path, _encoding);
 	}
 	fileExists(path: string): boolean {
-		return this.files.has(path) || this.libs.has(path);
+		if (this.topLevelFiles.has(path)) {
+			return true;
+		}
+		return ts.sys.fileExists(path);
 	}
 }
