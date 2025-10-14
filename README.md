@@ -1,78 +1,299 @@
-# Visual Studio Code - Open Source ("Code - OSS")
-[![Feature Requests](https://img.shields.io/github/issues/microsoft/vscode/feature-request.svg)](https://github.com/microsoft/vscode/issues?q=is%3Aopen+is%3Aissue+label%3Afeature-request+sort%3Areactions-%2B1-desc)
-[![Bugs](https://img.shields.io/github/issues/microsoft/vscode/bug.svg)](https://github.com/microsoft/vscode/issues?utf8=✓&q=is%3Aissue+is%3Aopen+label%3Abug)
-[![Gitter](https://img.shields.io/badge/chat-on%20gitter-yellow.svg)](https://gitter.im/Microsoft/vscode)
-
-## The Repository
-
-This repository ("`Code - OSS`") is where we (Microsoft) develop the [Visual Studio Code](https://code.visualstudio.com) product together with the community. Not only do we work on code and issues here, we also publish our [roadmap](https://github.com/microsoft/vscode/wiki/Roadmap), [monthly iteration plans](https://github.com/microsoft/vscode/wiki/Iteration-Plans), and our [endgame plans](https://github.com/microsoft/vscode/wiki/Running-the-Endgame). This source code is available to everyone under the standard [MIT license](https://github.com/microsoft/vscode/blob/main/LICENSE.txt).
-
-## Visual Studio Code
+# Specter IDE
 
 <p align="center">
-  <img alt="VS Code in action" src="https://user-images.githubusercontent.com/35271042/118224532-3842c400-b438-11eb-923d-a5f66fa6785a.png">
+  <img src="resources/specter-logo.png" alt="Specter Logo" width="200"/>
 </p>
 
-[Visual Studio Code](https://code.visualstudio.com) is a distribution of the `Code - OSS` repository with Microsoft-specific customizations released under a traditional [Microsoft product license](https://code.visualstudio.com/License/).
+<h3 align="center">AI-Powered Offensive Security Testing Platform</h3>
 
-[Visual Studio Code](https://code.visualstudio.com) combines the simplicity of a code editor with what developers need for their core edit-build-debug cycle. It provides comprehensive code editing, navigation, and understanding support along with lightweight debugging, a rich extensibility model, and lightweight integration with existing tools.
+<p align="center">
+  <a href="https://github.com/BugB-Tech/bsurf_b2c"><img src="https://img.shields.io/github/stars/BugB-Tech/bsurf_b2c?style=social" alt="GitHub Stars"></a>
+  <a href="https://github.com/BugB-Tech/bsurf_b2c/blob/bugb/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License"></a>
+  <a href="https://discord.gg/specter"><img src="https://img.shields.io/discord/xxxxxx?color=7289da&label=Discord&logo=discord&logoColor=white" alt="Discord"></a>
+</p>
 
-Visual Studio Code is updated monthly with new features and bug fixes. You can download it for Windows, macOS, and Linux on [Visual Studio Code's website](https://code.visualstudio.com/Download). To get the latest releases every day, install the [Insiders build](https://code.visualstudio.com/insiders).
+---
+
+## Overview
+
+**Specter** is an AI-powered IDE built for offensive security testing. It enables security engineers to create, execute, and share automated security testing workflows through natural language prompts and visual workflow builders.
+
+Built on top of VS Code, Specter integrates with **certxgen** (our automation framework with 100+ exploit templates) and provides an intelligent agent that generates executable Python notebooks with visual workflow graphs.
+
+### Key Features
+
+- 🤖 **AI-Powered Workflow Generation** - Describe security tests in natural language
+- 📊 **Visual Workflow Builder** - See your testing workflow as an interactive graph
+- 🔧 **100+ Pre-built Templates** - certxgen exploit templates ready to use
+- 🛠️ **Tool Integration** - nmap, pyats, Pacu, Atomic Red Team, and more
+- 📓 **Jupyter Notebooks** - Editable, executable testing workflows
+- 🌐 **Marketplace** - Share and discover security workflows
+- 🔒 **Local Execution** - All tests run on your machine
+- 🎯 **Target Validation** - Built-in safety and compliance checks
+
+---
+
+## Quick Start
+
+### Prerequisites
+
+- **Node.js** v22.15.1 or later
+- **Python** 3.x (for notebook execution)
+- **certxgen** CLI (install from [certxgen repo](https://github.com/bugb/certxgen))
+
+### Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/BugB-Tech/bsurf_b2c.git
+cd bsurf_b2c
+
+# Install dependencies
+npm install
+
+# Build and run
+npm run watch &
+./scripts/code.sh
+```
+
+For detailed setup instructions, see [SETUP.md](documents/03-SETUP.md)
+
+---
+
+## Usage Example
+
+### Generate a Security Workflow
+
+1. **Open Specter IDE**
+2. **Open Security Chat** (Cmd+Shift+P → "Specter: Open Security Chat")
+3. **Enter your prompt:**
+   ```
+   Check if Redis is vulnerable on 192.168.1.100
+   ```
+4. **Review the generated workflow:**
+   - Python notebook with step-by-step testing code
+   - Visual graph showing the testing flow
+5. **Execute the workflow** and see real-time progress
+
+### Example Workflow
+
+**Prompt:** "Test mobile app on Genymotion for common vulnerabilities"
+
+**Generated Workflow:**
+```python
+# Cell 1: Connect to Genymotion
+import subprocess
+result = subprocess.run(['adb', 'devices'])
+
+# Cell 2: Install and configure testing tools
+subprocess.run(['pip', 'install', 'frida-tools'])
+
+# Cell 3: Run certxgen mobile test suite
+subprocess.run([
+    'certxgen', 'run',
+    'mobile-vuln-scan.yaml',
+    '--target', 'emulator-5554'
+])
+```
+
+---
+
+## Architecture
+
+```
+User Prompt
+  ↓
+AI Agent (Claude/GPT-4)
+  ↓
+Workflow Plan
+  ↓
+Python Notebook + certxgen YAMLs
+  ↓
+Visual Graph (Reactflow)
+  ↓
+Jupyter Execution
+  ↓
+Real-time Results
+```
+
+See [Architecture Documentation](documents/02-DEVELOPMENT.md#architecture-overview) for details.
+
+---
+
+## Project Structure
+
+```
+bsurf_b2c/
+├── src/vs/workbench/
+│   ├── contrib/specter/        # Specter UI components
+│   └── services/specter/       # Specter backend services
+├── extensions/                  # Built-in extensions
+├── documents/                   # Project documentation
+│   ├── 01-IDEATION.md
+│   ├── 02-DEVELOPMENT.md
+│   ├── 03-SETUP.md
+│   └── 04-ROADMAP.md
+├── product.json                 # Product configuration
+└── package.json                 # Dependencies
+```
+
+---
+
+## Development
+
+### Setup Development Environment
+
+```bash
+# Install Node.js 22+
+nvm install 22
+nvm use 22
+
+# Clone and install
+git clone https://github.com/BugB-Tech/bsurf_b2c.git
+cd bsurf_b2c
+npm install
+
+# Start development
+npm run watch           # Terminal 1 (keep running)
+./scripts/code.sh       # Terminal 2
+```
+
+### Making Changes
+
+1. Create feature branch: `git checkout -b bugb/feature/your-feature`
+2. Make changes in `src/vs/workbench/contrib/specter/`
+3. Test: Reload window (Cmd+R in development IDE)
+4. Commit: `git commit -m "feat: add your feature"`
+5. Push: `git push origin bugb/feature/your-feature`
+6. Create Pull Request
+
+See [Contributing Guide](documents/05-CONTRIBUTING.md) for details.
+
+---
+
+## Documentation
+
+- 📖 [Ideation Document](documents/01-IDEATION.md) - Product vision, features, strategy
+- 🔧 [Development Guide](documents/02-DEVELOPMENT.md) - Codebase structure, architecture
+- 🚀 [Setup Guide](documents/03-SETUP.md) - Installation and configuration
+- 🗺️ [Roadmap](documents/04-ROADMAP.md) - Timeline and milestones
+- 🤝 [Contributing](documents/05-CONTRIBUTING.md) - How to contribute
+
+---
+
+## Roadmap
+
+### Phase 1: Foundation (Weeks 1-8)
+- ✅ Fork VS Code
+- ✅ Rebrand to Specter
+- 🔄 AI workflow generator
+- 🔄 Visual graph builder
+- 🔄 Tool integrations (nmap, pyats, certxgen)
+
+### Phase 2: Platform (Weeks 9-14)
+- ⏳ Marketplace MVP
+- ⏳ bswarm integration
+- ⏳ Safety & compliance layer
+- ⏳ Beta launch
+
+### Phase 3: Growth (Weeks 15-20)
+- ⏳ Enterprise features
+- ⏳ Product suite integration (ASM, CNAPP)
+- ⏳ Public launch
+
+See detailed [Roadmap](documents/04-ROADMAP.md)
+
+---
+
+## Technology Stack
+
+| Component | Technology |
+|-----------|-----------|
+| **IDE Base** | VS Code (Electron, TypeScript) |
+| **AI/LLM** | Claude API, OpenAI API, Ollama |
+| **Notebooks** | Jupyter, Python |
+| **Visualization** | Reactflow |
+| **Automation** | certxgen (Rust CLI) |
+| **Threat Intel** | bswarm MCP Server |
+
+---
+
+## Marketplace
+
+Specter includes a built-in marketplace for sharing security workflows:
+
+- **Browse** - Discover workflows created by the community
+- **Install** - One-click installation of workflows
+- **Publish** - Share your workflows with others
+- **Categories** - Web App Testing, Network Scanning, Cloud Security, Mobile Testing, API Security
+
+**Featured Workflows:**
+- 🐞 Log4Shell Scanner
+- 🔓 Redis Unauthorized Access Checker
+- ☁️ AWS Misconfiguration Detector
+- 📱 Mobile App Security Suite
+
+---
 
 ## Contributing
 
-There are many ways in which you can participate in this project, for example:
+We welcome contributions! Here's how you can help:
 
-* [Submit bugs and feature requests](https://github.com/microsoft/vscode/issues), and help us verify as they are checked in
-* Review [source code changes](https://github.com/microsoft/vscode/pulls)
-* Review the [documentation](https://github.com/microsoft/vscode-docs) and make pull requests for anything from typos to additional and new content
+- 🐛 **Report Bugs** - Open an issue on GitHub
+- 💡 **Suggest Features** - Share your ideas in Discussions
+- 📝 **Improve Docs** - Help us improve documentation
+- 🔧 **Submit PRs** - Contribute code (see [Contributing Guide](documents/05-CONTRIBUTING.md))
+- 🎨 **Create Workflows** - Build and share security workflows
 
-If you are interested in fixing issues and contributing directly to the code base,
-please see the document [How to Contribute](https://github.com/microsoft/vscode/wiki/How-to-Contribute), which covers the following:
+### Contributors
 
-* [How to build and run from source](https://github.com/microsoft/vscode/wiki/How-to-Contribute)
-* [The development workflow, including debugging and running tests](https://github.com/microsoft/vscode/wiki/How-to-Contribute#debugging)
-* [Coding guidelines](https://github.com/microsoft/vscode/wiki/Coding-Guidelines)
-* [Submitting pull requests](https://github.com/microsoft/vscode/wiki/How-to-Contribute#pull-requests)
-* [Finding an issue to work on](https://github.com/microsoft/vscode/wiki/How-to-Contribute#where-to-contribute)
-* [Contributing to translations](https://aka.ms/vscodeloc)
+<a href="https://github.com/BugB-Tech/bsurf_b2c/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=BugB-Tech/bsurf_b2c" />
+</a>
 
-## Feedback
-
-* Ask a question on [Stack Overflow](https://stackoverflow.com/questions/tagged/vscode)
-* [Request a new feature](CONTRIBUTING.md)
-* Upvote [popular feature requests](https://github.com/microsoft/vscode/issues?q=is%3Aopen+is%3Aissue+label%3Afeature-request+sort%3Areactions-%2B1-desc)
-* [File an issue](https://github.com/microsoft/vscode/issues)
-* Connect with the extension author community on [GitHub Discussions](https://github.com/microsoft/vscode-discussions/discussions) or [Slack](https://aka.ms/vscode-dev-community)
-* Follow [@code](https://twitter.com/code) and let us know what you think!
-
-See our [wiki](https://github.com/microsoft/vscode/wiki/Feedback-Channels) for a description of each of these channels and information on some other available community-driven channels.
-
-## Related Projects
-
-Many of the core components and extensions to VS Code live in their own repositories on GitHub. For example, the [node debug adapter](https://github.com/microsoft/vscode-node-debug) and the [mono debug adapter](https://github.com/microsoft/vscode-mono-debug) repositories are separate from each other. For a complete list, please visit the [Related Projects](https://github.com/microsoft/vscode/wiki/Related-Projects) page on our [wiki](https://github.com/microsoft/vscode/wiki).
-
-## Bundled Extensions
-
-VS Code includes a set of built-in extensions located in the [extensions](extensions) folder, including grammars and snippets for many languages. Extensions that provide rich language support (code completion, Go to Definition) for a language have the suffix `language-features`. For example, the `json` extension provides coloring for `JSON` and the `json-language-features` extension provides rich language support for `JSON`.
-
-## Development Container
-
-This repository includes a Visual Studio Code Dev Containers / GitHub Codespaces development container.
-
-* For [Dev Containers](https://aka.ms/vscode-remote/download/containers), use the **Dev Containers: Clone Repository in Container Volume...** command which creates a Docker volume for better disk I/O on macOS and Windows.
-  * If you already have VS Code and Docker installed, you can also click [here](https://vscode.dev/redirect?url=vscode://ms-vscode-remote.remote-containers/cloneInVolume?url=https://github.com/microsoft/vscode) to get started. This will cause VS Code to automatically install the Dev Containers extension if needed, clone the source code into a container volume, and spin up a dev container for use.
-
-* For Codespaces, install the [GitHub Codespaces](https://marketplace.visualstudio.com/items?itemName=GitHub.codespaces) extension in VS Code, and use the **Codespaces: Create New Codespace** command.
-
-Docker / the Codespace should have at least **4 Cores and 6 GB of RAM (8 GB recommended)** to run a full build. See the [development container README](.devcontainer/README.md) for more information.
-
-## Code of Conduct
-
-This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/). For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
+---
 
 ## License
 
-Copyright (c) Microsoft Corporation. All rights reserved.
+Specter is licensed under the [MIT License](LICENSE).
 
-Licensed under the [MIT](LICENSE.txt) license.
+Built on top of [VS Code](https://github.com/microsoft/vscode) (MIT License).
+
+---
+
+## Support
+
+- 📧 **Email:** support@bugb.com
+- 💬 **Discord:** [Join our community](https://discord.gg/specter)
+- 🐦 **Twitter:** [@BugBSecurity](https://twitter.com/bugbsecurity)
+- 📚 **Docs:** [docs.bugb.com/specter](https://docs.bugb.com/specter)
+- 🎥 **YouTube:** [Specter Tutorials](https://youtube.com/bugbsecurity)
+
+---
+
+## Security
+
+Security researchers: please report vulnerabilities to security@bugb.com
+
+See our [Security Policy](SECURITY.md) for details.
+
+---
+
+## Acknowledgments
+
+- Built on [VS Code](https://github.com/microsoft/vscode) by Microsoft
+- AI powered by [Anthropic Claude](https://www.anthropic.com/)
+- Inspired by the security community
+
+---
+
+<p align="center">
+  Made with ❤️ by <a href="https://bugb.com">BugB-Tech</a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/BugB-Tech/bsurf_b2c">GitHub</a> •
+  <a href="https://docs.bugb.com/specter">Documentation</a> •
+  <a href="https://discord.gg/specter">Discord</a> •
+  <a href="https://twitter.com/bugbsecurity">Twitter</a>
+</p>
