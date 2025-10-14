@@ -215,7 +215,7 @@ div.chat-welcome-view {
 	flex-wrap: wrap;
 	justify-content: flex-start;
 	gap: 8px;
-	padding: 32px 18px 8px 18px;
+	padding: 32px 16px 8px 16px;
 	/* Extra top padding for title */
 
 	.chat-welcome-view-suggested-prompts-title {
