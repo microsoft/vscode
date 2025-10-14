@@ -55,7 +55,7 @@ export class PolicyWriterService implements IPolicyWriterService {
 		} else if (platform === 'win32') {
 			await this.writeWindows(policies, translations);
 		} else if (platform === 'linux') {
-			await this.writeLinux(policies, translations);
+			await this.writeLinux(policies);
 		} else {
 			throw new Error(`Unsupported platform: ${platform}`);
 		}
@@ -122,23 +122,17 @@ export class PolicyWriterService implements IPolicyWriterService {
 		}
 	}
 
-	private async writeLinux(policies: Policy[], translations: Translations) {
-		const appName = this.productService.nameLong;
-
-		if (!appName) {
-			throw new Error(`Missing required product information.`);
-		}
-
+	private async writeLinux(policies: Policy[]) {
 		const root = '.build/policies/linux';
-		const { jsonPolicies } = renderJsonPolicies(this.logService, policies, translations);
+		const policyFileContents = JSON.stringify(renderJsonPolicies(policies), undefined, 4);
 
-		for (const { languageId, contents } of jsonPolicies) {
-			const languagePath = path.join(root, languageId === 'en-us' ? '' : Languages[languageId as keyof typeof Languages]);
-			const languageUri = URI.file(path.resolve(languagePath));
-			await this.fileService.createFolder(languageUri);
-			const admlUri = URI.file(path.resolve(path.join(languagePath, `policy.json`)));
-			await this.fileService.writeFile(admlUri, VSBuffer.fromString(JSON.stringify(contents, undefined, 4).replace(/\r?\n/g, '\n')));
-		}
+		const rootUri = URI.file(path.resolve(root));
+		await this.fileService.del(rootUri, { recursive: true, useTrash: false }).catch(() => { /* ignore if doesn't exist */ });
+		await this.fileService.createFolder(rootUri);
+		const jsonPath = path.join(root, `policy.json`);
+		const jsonUri = URI.file(path.resolve(jsonPath));
+		await this.fileService.writeFile(jsonUri, VSBuffer.fromString(policyFileContents.replace(/\r?\n/g, '\n')));
+		this.logService.info(`${LoggerPrefix} Successfully wrote to ${jsonPath}.`);
 	}
 
 	private configToPolicy(key: string, config: IConfigurationPropertySchema): Policy {

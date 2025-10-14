@@ -124,7 +124,6 @@ suite('Render Functions', () => {
 			type: PolicyType.Boolean,
 			category: mockCategory,
 			minimumVersion: '1.85',
-			description: { value: 'Test Policy Description', nlsKey: 'test.policy.desc' },
 			renderADMX: (regKey: string) => [
 				`<policy name="TestPolicy" class="Both" displayName="$(string.TestPolicy)" key="Software\\Policies\\Microsoft\\${regKey}">`,
 				`	<enabledValue><decimal value="1" /></enabledValue>`,
@@ -200,7 +199,6 @@ suite('Render Functions', () => {
 				type: PolicyType.String,
 				category: mockCategory,
 				minimumVersion: '1.85',
-				description: { value: 'Test Policy 2 Description', nlsKey: 'test.policy2.desc' },
 				renderADMX: (regKey: string) => [
 					`<policy name="TestPolicy2" class="Both" displayName="$(string.TestPolicy2)" key="Software\\Policies\\Microsoft\\${regKey}">`,
 					`	<enabledValue><string /></enabledValue>`,
@@ -230,7 +228,6 @@ suite('Render Functions', () => {
 			type: PolicyType.String,
 			category: mockCategory,
 			minimumVersion: '1.85',
-			description: { value: 'Test Policy Description', nlsKey: 'test.policy.desc' },
 			renderADMX: () => [],
 			renderADMLStrings: (translations?: LanguageTranslations) => [
 				`<string id="TestPolicy">Test Policy ${translations ? translations['test.policy'] || 'Default' : 'Default'}</string>`
@@ -315,7 +312,6 @@ suite('Render Functions', () => {
 			type: PolicyType.Boolean,
 			category: mockCategory,
 			minimumVersion: '1.0',
-			description: { value: 'Test Policy Description', nlsKey: 'test.policy.desc' },
 			renderADMX: () => [],
 			renderADMLStrings: () => [],
 			renderADMLPresentation: () => '',
@@ -451,7 +447,6 @@ suite('Render Functions', () => {
 			type: PolicyType.Boolean,
 			category: mockCategory,
 			minimumVersion: '1.0',
-			description: { value: 'Test Policy Description', nlsKey: 'test.policy.desc' },
 			renderADMX: () => [],
 			renderADMLStrings: () => [],
 			renderADMLPresentation: () => '',
@@ -584,7 +579,6 @@ suite('Render Functions', () => {
 			type: PolicyType.Boolean,
 			category: mockCategory,
 			minimumVersion: '1.85',
-			description: { value: 'Test Policy Description', nlsKey: 'test.policy.desc' },
 			renderADMX: (regKey: string) => [
 				`<policy name="TestPolicy" class="Both" displayName="$(string.TestPolicy)" key="Software\\Policies\\Microsoft\\${regKey}">`,
 				`	<enabledValue><decimal value="1" /></enabledValue>`,

@@ -279,23 +279,10 @@ export function renderProfileManifest(appName: string, bundleIdentifier: string,
 </plist>`;
 }
 
-export function renderJsonPolicyObject(logger: ILogger, policies: Policy[], translations?: LanguageTranslations): object {
+export function renderJsonPolicies(policies: Policy[]) {
 	const policyObject: { [key: string]: string | number | boolean | object | null } = {};
 	for (const policy of policies) {
 		policyObject[policy.name] = policy.renderJsonValue();
-		policyObject[`_${policy.name}.comment`] = renderString(logger, policy.description, translations);
 	}
 	return policyObject;
-}
-
-export function renderJsonPolicies(logger: ILogger, policies: Policy[], translations: Array<{ languageId: string; languageTranslations: LanguageTranslations }>) {
-	return {
-		jsonPolicies: [{
-			languageId: 'en-us',
-			contents: renderJsonPolicyObject(logger, policies)
-		}, ...translations?.map(({ languageId, languageTranslations }) => ({
-			languageId,
-			contents: renderJsonPolicyObject(logger, policies, languageTranslations)
-		})) ?? []]
-	};
 }

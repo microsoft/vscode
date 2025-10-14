@@ -14,7 +14,7 @@ export abstract class BasePolicy implements Policy {
 		readonly name: string,
 		readonly category: Category,
 		readonly minimumVersion: string,
-		readonly description: NlsString,
+		protected description: NlsString,
 		protected logger: ILogger
 	) { }
 
