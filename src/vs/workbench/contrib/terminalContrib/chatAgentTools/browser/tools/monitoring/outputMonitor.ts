@@ -324,7 +324,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 					continue;
 				}
 
-				if (recentlyIdle || isActive === false) {
+				if (recentlyIdle && isActive !== true) {
 					return OutputMonitorState.Idle;
 				}
 			}
