@@ -160,7 +160,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 				let initialTokens: (IAuthorizationTokenResponse & { created_at: number })[] | undefined = undefined;
 				if (clientId) {
 					initialTokens = await this.dynamicAuthProviderStorageService.getSessionsForDynamicAuthProvider(authProviderId, clientId);
-					// If we don't already have a client id, check if the server support the Client Id Metadata flow (see docs on the property)
+					// If we don't already have a client id, check if the server supports the Client Id Metadata flow (see docs on the property)
 					// and add the "client id" if so.
 				} else if (serverMetadata.client_id_metadata_document_supported) {
 					clientId = this.productService.authClientIdMetadataUrl;
