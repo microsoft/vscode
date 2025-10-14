@@ -108,6 +108,7 @@ import { IModelPickerDelegate, ModelPickerActionItem } from './modelPicker/model
 import { IModePickerDelegate, ModePickerActionItem } from './modelPicker/modePickerActionItem.js';
 import { assertType } from '../../../../base/common/types.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 
 const $ = dom.$;
 
@@ -715,10 +716,23 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				// Map model IDs to ILanguageModelChatMetadataAndIdentifier
 				const models = contributedModels
 					.map(modelId => {
-						const metadata = this.languageModelsService.lookupLanguageModel(modelId);
-						return metadata ? { identifier: modelId, metadata } : undefined;
-					})
-					.filter((entry): entry is ILanguageModelChatMetadataAndIdentifier => entry !== undefined && entry.metadata.isUserSelectable);
+						// const metadata = this.languageModelsService.lookupLanguageModel(modelId);
+						return {
+							identifier: modelId,
+							metadata: {
+								extension: new ExtensionIdentifier('spcr-test.joshbot'), // TODO: Can grab this from contribution
+								name: modelId,
+								id: modelId,
+								vendor: 'joshbot',
+								version: '1',
+								family: 'joshbotfamily',
+								maxInputTokens: 10_000,
+								maxOutputTokens: 10_000,
+								modelPickerCategory: undefined,
+							}
+						} satisfies ILanguageModelChatMetadataAndIdentifier;
+					});
+				// .filter((entry): entry is ILanguageModelChatMetadataAndIdentifier => entry !== undefined && entry.metadata.isUserSelectable);
 				models.sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
 				return models;
 			}
