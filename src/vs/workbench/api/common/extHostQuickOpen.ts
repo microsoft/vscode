@@ -8,8 +8,8 @@ import { Emitter } from '../../../base/common/event.js';
 import { dispose, IDisposable } from '../../../base/common/lifecycle.js';
 import { ExtHostCommands } from './extHostCommands.js';
 import { IExtHostWorkspaceProvider } from './extHostWorkspace.js';
-import { InputBox, InputBoxOptions, InputBoxValidationMessage, QuickInput, QuickInputButton, QuickPick, QuickPickItem, QuickPickItemButtonEvent, QuickPickOptions, WorkspaceFolder, WorkspaceFolderPickOptions } from 'vscode';
-import { ExtHostQuickOpenShape, IMainContext, MainContext, TransferQuickInput, TransferQuickInputButton, TransferQuickPickItemOrSeparator } from './extHost.protocol.js';
+import { InputBox, InputBoxOptions, InputBoxValidationMessage, QuickInput, QuickInputButton, QuickInputToggle, QuickInputToggleEvent, QuickPick, QuickPickItem, QuickPickItemButtonEvent, QuickPickOptions, WorkspaceFolder, WorkspaceFolderPickOptions } from 'vscode';
+import { ExtHostQuickOpenShape, IMainContext, MainContext, TransferQuickInput, TransferQuickInputButton, TransferQuickInputToggle, TransferQuickPickItemOrSeparator } from './extHost.protocol.js';
 import { URI } from '../../../base/common/uri.js';
 import { ThemeIcon, QuickInputButtons, QuickPickItemKind, InputBoxValidationSeverity } from './extHostTypes.js';
 import { isCancellationError } from '../../../base/common/errors.js';
@@ -261,6 +261,11 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 			session?._fireDidTriggerButton(handle);
 		}
 
+		$onDidTriggerToggle(sessionId: number, handle: number, checked: boolean): void {
+			const session = this._sessions.get(sessionId);
+			session?._fireDidTriggerToggle(handle, checked);
+		}
+
 		$onDidTriggerItemButton(sessionId: number, itemHandle: number, buttonHandle: number): void {
 			const session = this._sessions.get(sessionId);
 			if (session instanceof ExtHostQuickPick) {
@@ -292,10 +297,15 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		private _placeholder: string | undefined;
 		private _buttons: QuickInputButton[] = [];
 		private _handlesToButtons = new Map<number, QuickInputButton>();
+		private _toggles: QuickInputToggle[] = [];
+		private _handlesToToggles = new Map<number, QuickInputToggle>();
+		private _togglesToHandles = new Map<QuickInputToggle, number>();
+		private _checkedToggles: number[] = [];
 		private readonly _onDidAcceptEmitter = new Emitter<void>();
 		private readonly _onDidChangeValueEmitter = new Emitter<string>();
 		private readonly _onDidTriggerButtonEmitter = new Emitter<QuickInputButton>();
 		private readonly _onDidHideEmitter = new Emitter<void>();
+		private readonly _onDidTriggerToggleEmitter = new Emitter<QuickInputToggleEvent>();
 		private _updateTimeout: Timeout | undefined;
 		private _pendingUpdate: TransferQuickInput = { id: this._id };
 
@@ -304,7 +314,8 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 			this._onDidTriggerButtonEmitter,
 			this._onDidHideEmitter,
 			this._onDidAcceptEmitter,
-			this._onDidChangeValueEmitter
+			this._onDidChangeValueEmitter,
+			this._onDidTriggerToggleEmitter
 		];
 
 		constructor(protected _extension: IExtensionDescription, private _onDidDispose: () => void) {
@@ -400,9 +411,8 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		}
 
 		set buttons(buttons: QuickInputButton[]) {
-			const allowedButtonLocation = isProposedApiEnabled(this._extension, 'quickInputButtonLocation');
-			if (!allowedButtonLocation && buttons.some(button => button.location)) {
-				console.warn(`Extension '${this._extension.identifier.value}' uses a button location which is proposed API that is only available when running out of dev or with the following command line switch: --enable-proposed-api ${this._extension.identifier.value}`);
+			if (buttons.some(button => button.location)) {
+				checkProposedApiEnabled(this._extension, 'quickInputButtonLocation');
 			}
 			this._buttons = buttons.slice();
 			this._handlesToButtons.clear();
@@ -416,13 +426,57 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 						...getIconPathOrClass(button.iconPath),
 						tooltip: button.tooltip,
 						handle: button === QuickInputButtons.Back ? -1 : i,
-						location: allowedButtonLocation ? button.location : undefined
+						location: button.location
 					};
 				})
 			});
 		}
 
 		onDidTriggerButton = this._onDidTriggerButtonEmitter.event;
+
+		get toggles() {
+			return this._toggles;
+		}
+
+		set toggles(toggles: QuickInputToggle[]) {
+			checkProposedApiEnabled(this._extension, 'quickInputToggle');
+			this._toggles = toggles.slice();
+			this._handlesToToggles.clear();
+			this._togglesToHandles.clear();
+			toggles.forEach((toggle, i) => {
+				this._handlesToToggles.set(i, toggle);
+				this._togglesToHandles.set(toggle, i);
+			});
+			this.update({
+				toggles: toggles.map<TransferQuickInputToggle>((toggle, i) => {
+					return {
+						...getIconPathOrClass(toggle.iconPath),
+						tooltip: toggle.tooltip,
+						handle: i,
+					};
+				})
+			});
+		}
+
+		get checkedToggles() {
+			checkProposedApiEnabled(this._extension, 'quickInputToggle');
+			return this._checkedToggles.map(o => this._handlesToToggles.get(o)!);
+		}
+
+		set checkedToggles(checkedToggles: QuickInputToggle[]) {
+			checkProposedApiEnabled(this._extension, 'quickInputToggle');
+			const handles: number[] = [];
+			for (const toggle of checkedToggles) {
+				const handle = this._togglesToHandles.get(toggle);
+				if (handle !== undefined) {
+					handles.push(handle);
+				}
+			}
+			this._checkedToggles = handles;
+			this.update({ checkedToggles: handles });
+		}
+
+		onDidTriggerToggle = this._onDidTriggerToggleEmitter.event;
 
 		show(): void {
 			this._visible = true;
@@ -450,6 +504,13 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 			const button = this._handlesToButtons.get(handle);
 			if (button) {
 				this._onDidTriggerButtonEmitter.fire(button);
+			}
+		}
+
+		_fireDidTriggerToggle(handle: number, checked: boolean) {
+			const toggle = this._handlesToToggles.get(handle);
+			if (toggle) {
+				this._onDidTriggerToggleEmitter.fire({ toggle, checked });
 			}
 		}
 
@@ -499,7 +560,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 				}
 				this.dispatchUpdate();
 			} else if (this._visible && !this._updateTimeout) {
-				// Defer the update so that multiple changes to setters dont cause a redraw each
+				// Defer the update so that multiple changes to setters don't cause a redraw each
 				this._updateTimeout = setTimeout(() => {
 					this._updateTimeout = undefined;
 					this.dispatchUpdate();
