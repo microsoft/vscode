@@ -348,6 +348,7 @@ div.chat-welcome-view {
 		padding: 2px 12px 4px 12px;
 		gap: 8px;
 		outline: none;
+		cursor: pointer;
 
 		.chat-welcome-history-title {
 			font-size: 13px;
