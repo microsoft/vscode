@@ -47,6 +47,7 @@ suite('ObservableChatSession', function () {
 
 		proxy = {
 			$provideChatSessionContent: sinon.stub(),
+			$provideHandleOptionsChange: sinon.stub(),
 			$interruptChatSessionActiveResponse: sinon.stub(),
 			$invokeChatSessionRequestHandler: sinon.stub(),
 			$disposeChatSessionContent: sinon.stub(),
@@ -341,6 +342,7 @@ suite('MainThreadChatSessions', function () {
 
 		proxy = {
 			$provideChatSessionContent: sinon.stub(),
+			$provideHandleOptionsChange: sinon.stub(),
 			$interruptChatSessionActiveResponse: sinon.stub(),
 			$invokeChatSessionRequestHandler: sinon.stub(),
 			$disposeChatSessionContent: sinon.stub(),

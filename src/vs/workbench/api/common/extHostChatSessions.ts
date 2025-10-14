@@ -118,12 +118,12 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		};
 	}
 
-	registerChatSessionContentProvider(extension: IExtensionDescription, chatSessionType: string, chatParticipant: vscode.ChatParticipant, provider: vscode.ChatSessionContentProvider, capabilities?: vscode.ChatSessionCapabilities): vscode.Disposable {
+	registerChatSessionContentProvider(extension: IExtensionDescription, chatSessionType: string, chatParticipant: vscode.ChatParticipant, provider: vscode.ChatSessionContentProvider, capabilities?: vscode.ChatSessionCapabilities, options?: vscode.ChatSessionOptions): vscode.Disposable {
 		const handle = this._nextChatSessionContentProviderHandle++;
 		const disposables = new DisposableStore();
 
 		this._chatSessionContentProviders.set(handle, { provider, extension, capabilities, disposable: disposables });
-		this._proxy.$registerChatSessionContentProvider(handle, chatSessionType);
+		this._proxy.$registerChatSessionContentProvider(handle, chatSessionType, options?.models);
 
 		return new extHostTypes.Disposable(() => {
 			this._chatSessionContentProviders.delete(handle);
@@ -276,6 +276,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			hasActiveResponseCallback: !!session.activeResponseCallback,
 			hasRequestHandler: !!session.requestHandler,
 			supportsInterruption: !!capabilities?.supportsInterruptions,
+			options: session.options,
 			history: session.history.map(turn => {
 				if (turn instanceof extHostTypes.ChatRequestTurn) {
 					return { type: 'request' as const, prompt: turn.prompt, participant: turn.participant };
@@ -291,6 +292,25 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 				}
 			})
 		};
+	}
+
+	async $provideHandleOptionsChange(handle: number, sessionId: string, updates: ReadonlyArray<{ optionId: string; value: string | undefined }>, token: CancellationToken): Promise<void> {
+		const provider = this._chatSessionContentProviders.get(handle);
+		if (!provider) {
+			this._logService.warn(`No provider for handle ${handle}`);
+			return;
+		}
+
+		if (!provider.provider.provideHandleOptionsChange) {
+			this._logService.debug(`Provider for handle ${handle} does not implement provideHandleOptionsChange`);
+			return;
+		}
+
+		try {
+			await provider.provider.provideHandleOptionsChange(sessionId, updates, token);
+		} catch (error) {
+			this._logService.error(`Error calling provideHandleOptionsChange for handle ${handle}, sessionId ${sessionId}:`, error);
+		}
 	}
 
 	async $interruptChatSessionActiveResponse(providerHandle: number, sessionId: string, requestId: string): Promise<void> {

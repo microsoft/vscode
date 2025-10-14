@@ -35,6 +35,7 @@ export class ObservableChatSession extends Disposable implements ChatSession {
 	readonly sessionId: string;
 	readonly providerHandle: number;
 	readonly history: Array<IChatSessionHistoryItem>;
+	readonly options?: { model?: string };
 
 	private readonly _progressObservable = observableValue<IChatProgress[]>(this, []);
 	private readonly _isCompleteObservable = observableValue<boolean>(this, false);
@@ -105,6 +106,11 @@ export class ObservableChatSession extends Disposable implements ChatSession {
 				this._proxy.$provideChatSessionContent(this._providerHandle, this.sessionId, token),
 				token
 			);
+
+			// Store options from the session content
+			if (sessionContent.options) {
+				(this as any).options = sessionContent.options;
+			}
 
 			this.history.length = 0;
 			this.history.push(...sessionContent.history.map((turn: IChatSessionHistoryItemDto) => {
@@ -307,6 +313,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		readonly onDidChangeItems: Emitter<void>;
 	}>());
 	private readonly _contentProvidersRegistrations = this._register(new DisposableMap<number>());
+	private readonly _contentProviderModels = new Map<number, string[] | undefined>();
 
 	private readonly _activeSessions = new Map<string, ObservableChatSession>();
 	private readonly _sessionDisposables = new Map<string, IDisposable>();
@@ -464,16 +471,18 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		this._itemProvidersRegistrations.deleteAndDispose(handle);
 	}
 
-	$registerChatSessionContentProvider(handle: number, chatSessionType: string): void {
+	$registerChatSessionContentProvider(handle: number, chatSessionType: string, models?: string[]): void {
 		const provider: IChatSessionContentProvider = {
 			provideChatSessionContent: (id, token) => this._provideChatSessionContent(handle, id, token)
 		};
 
+		this._contentProviderModels.set(handle, models);
 		this._contentProvidersRegistrations.set(handle, this._chatSessionsService.registerChatSessionContentProvider(chatSessionType, provider));
 	}
 
 	$unregisterChatSessionContentProvider(handle: number): void {
 		this._contentProvidersRegistrations.deleteAndDispose(handle);
+		this._contentProviderModels.delete(handle);
 		// dispose all sessions from this provider and clean up its disposables
 		for (const [key, session] of this._activeSessions) {
 			if (session.providerHandle === handle) {
@@ -557,6 +566,24 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 				resource: sessionUri,
 				options: { pinned: true },
 			}, position);
+		}
+	}
+
+	/**
+	 * Get the available models for a session provider
+	 */
+	getModelsForProvider(handle: number): string[] | undefined {
+		return this._contentProviderModels.get(handle);
+	}
+
+	/**
+	 * Notify the extension about option changes for a session
+	 */
+	async notifyOptionsChange(handle: number, sessionId: string, updates: ReadonlyArray<{ optionId: string; value: string | undefined }>): Promise<void> {
+		try {
+			await this._proxy.$provideHandleOptionsChange(handle, sessionId, updates, CancellationToken.None);
+		} catch (error) {
+			this._logService.error(`Error notifying extension about options change for handle ${handle}, sessionId ${sessionId}:`, error);
 		}
 	}
 }

@@ -3155,12 +3155,18 @@ export interface MainThreadChatStatusShape {
 
 export type IChatSessionHistoryItemDto = { type: 'request'; prompt: string; participant: string } | { type: 'response'; parts: IChatProgressDto[]; participant: string };
 
+export interface ChatSessionOptionUpdateDto {
+	readonly optionId: string;
+	readonly value: string | undefined;
+}
+
 export interface ChatSessionDto {
 	id: string;
 	history: Array<IChatSessionHistoryItemDto>;
 	hasActiveResponseCallback: boolean;
 	hasRequestHandler: boolean;
 	supportsInterruption: boolean;
+	options?: { model?: string };
 }
 
 
@@ -3169,7 +3175,7 @@ export interface MainThreadChatSessionsShape extends IDisposable {
 	$unregisterChatSessionItemProvider(handle: number): void;
 	$onDidChangeChatSessionItems(handle: number): void;
 	$onDidCommitChatSessionItem(handle: number, original: string, modified: string): void;
-	$registerChatSessionContentProvider(handle: number, chatSessionType: string): void;
+	$registerChatSessionContentProvider(handle: number, chatSessionType: string, models?: string[]): void;
 	$unregisterChatSessionContentProvider(handle: number): void;
 
 	$handleProgressChunk(handle: number, sessionId: string, requestId: string, chunks: (IChatProgressDto | [IChatProgressDto, number])[]): Promise<void>;
@@ -3184,6 +3190,7 @@ export interface ExtHostChatSessionsShape {
 	$provideNewChatSessionItem(providerHandle: number, options: { request: IChatAgentRequest; metadata?: any }, token: CancellationToken): Promise<Dto<IChatSessionItem>>;
 
 	$provideChatSessionContent(providerHandle: number, sessionId: string, token: CancellationToken): Promise<ChatSessionDto>;
+	$provideHandleOptionsChange(providerHandle: number, sessionId: string, updates: ReadonlyArray<ChatSessionOptionUpdateDto>, token: CancellationToken): Promise<void>;
 	$interruptChatSessionActiveResponse(providerHandle: number, sessionId: string, requestId: string): Promise<void>;
 	$disposeChatSessionContent(providerHandle: number, sessionId: string): Promise<void>;
 	$invokeChatSessionRequestHandler(providerHandle: number, id: string, request: IChatAgentRequest, history: any[], token: CancellationToken): Promise<IChatAgentResult>;
