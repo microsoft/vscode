@@ -5,16 +5,18 @@
 
 import { onUnexpectedError } from '../common/errors.js';
 
+type TrustedTypePolicyOptions = import('trusted-types/lib/index.d.ts').TrustedTypePolicyOptions;
+
 export function createTrustedTypesPolicy<Options extends TrustedTypePolicyOptions>(
 	policyName: string,
 	policyOptions?: Options,
-): undefined | Pick<TrustedTypePolicy<Options>, 'name' | Extract<keyof Options, keyof TrustedTypePolicyOptions>> {
+): undefined | Pick<TrustedTypePolicy, 'name' | Extract<keyof Options, keyof TrustedTypePolicyOptions>> {
 
 	interface IMonacoEnvironment {
 		createTrustedTypesPolicy<Options extends TrustedTypePolicyOptions>(
 			policyName: string,
 			policyOptions?: Options,
-		): undefined | Pick<TrustedTypePolicy<Options>, 'name' | Extract<keyof Options, keyof TrustedTypePolicyOptions>>;
+		): undefined | Pick<TrustedTypePolicy, 'name' | Extract<keyof Options, keyof TrustedTypePolicyOptions>>;
 	}
 	// eslint-disable-next-line local/code-no-any-casts
 	const monacoEnvironment: IMonacoEnvironment | undefined = (globalThis as any).MonacoEnvironment;

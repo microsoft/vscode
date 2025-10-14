@@ -7,6 +7,12 @@
 			"ES2024",
 			"DOM",
 			"DOM.Iterable"
+		],
+		"types": [
+			"node"
+		],
+		"typeRoots": [
+			"../node_modules/@types"
 		]
 	}
 }

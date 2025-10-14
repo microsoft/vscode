@@ -28,13 +28,11 @@ export interface ICommandService {
 
 export type ICommandsMap = Map<string, ICommand>;
 
-export interface ICommandHandler {
-	(accessor: ServicesAccessor, ...args: any[]): void;
-}
+export type ICommandHandler<Args extends unknown[] = unknown[]> = (accessor: ServicesAccessor, ...args: Args) => void;
 
-export interface ICommand {
+export interface ICommand<Args extends unknown[] = unknown[]> {
 	id: string;
-	handler: ICommandHandler;
+	handler: ICommandHandler<Args>;
 	metadata?: ICommandMetadata | null;
 }
 
@@ -59,8 +57,8 @@ export interface ICommandMetadata {
 
 export interface ICommandRegistry {
 	readonly onDidRegisterCommand: Event<string>;
-	registerCommand(id: string, command: ICommandHandler): IDisposable;
-	registerCommand(command: ICommand): IDisposable;
+	registerCommand<Args extends unknown[]>(id: string, command: ICommandHandler<Args>): IDisposable;
+	registerCommand<Args extends unknown[]>(command: ICommand<Args>): IDisposable;
 	registerCommandAlias(oldId: string, newId: string): IDisposable;
 	getCommand(id: string): ICommand | undefined;
 	getCommands(): ICommandsMap;

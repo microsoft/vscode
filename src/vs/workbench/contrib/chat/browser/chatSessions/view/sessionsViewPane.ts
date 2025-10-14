@@ -141,7 +141,7 @@ export class SessionsViewPane extends ViewPane {
 			icon: Codicon.plus,
 		}, undefined, undefined, undefined, undefined);
 
-		const menu = this.menuService.createMenu(MenuId.ChatSessionsMenu, this.contextKeyService);
+		const menu = this.menuService.createMenu(MenuId.ChatSessionsMenu, this.scopedContextKeyService);
 
 		const actions = menu.getActions({ shouldForwardArgs: true });
 		const primaryActions = getActionBarActions(

@@ -166,7 +166,7 @@ suite('MarkdownRenderer', () => {
 			mds.appendMarkdown(`[$(zap)-link](#link)`);
 
 			const result: HTMLElement = store.add(renderMarkdown(mds)).element;
-			assert.strictEqual(result.innerHTML, `<p><a draggable="false" title="#link" href="" data-href="#link"><span class="codicon codicon-zap"></span>-link</a></p>`);
+			assert.strictEqual(result.innerHTML, `<p><a href="" title="#link" draggable="false" data-href="#link"><span class="codicon codicon-zap"></span>-link</a></p>`);
 		});
 
 		test('render icon in table', () => {
@@ -186,7 +186,7 @@ suite('MarkdownRenderer', () => {
 </thead>
 <tbody><tr>
 <td><span class="codicon codicon-zap"></span></td>
-<td><a draggable="false" title="#link" href="" data-href="#link"><span class="codicon codicon-zap"></span>-link</a></td>
+<td><a href="" title="#link" draggable="false" data-href="#link"><span class="codicon codicon-zap"></span>-link</a></td>
 </tr>
 </tbody></table>
 `);
@@ -253,7 +253,7 @@ suite('MarkdownRenderer', () => {
 		});
 
 		const result: HTMLElement = store.add(renderMarkdown(md)).element;
-		assert.strictEqual(result.innerHTML, `<p><a draggable="false" title="command:doFoo" href="" data-href="command:doFoo">command1</a> <a href="" data-href="command:doFoo">command2</a></p>`);
+		assert.strictEqual(result.innerHTML, `<p><a href="" title="command:doFoo" draggable="false" data-href="command:doFoo">command1</a> <a href="" data-href="command:doFoo">command2</a></p>`);
 	});
 
 	test('Should remove relative links if there is no base url', () => {
@@ -274,7 +274,7 @@ suite('MarkdownRenderer', () => {
 		md.baseUri = URI.parse('https://example.com/path/');
 
 		const result = store.add(renderMarkdown(md)).element;
-		assert.strictEqual(result.innerHTML, `<p><a draggable="false" title="./foo" href="" data-href="https://example.com/path/foo">text</a> <a href="" data-href="https://example.com/path/bar">bar</a></p>`);
+		assert.strictEqual(result.innerHTML, `<p><a href="" title="./foo" draggable="false" data-href="https://example.com/path/foo">text</a> <a href="" data-href="https://example.com/path/bar">bar</a></p>`);
 	});
 
 	suite('PlaintextMarkdownRender', () => {

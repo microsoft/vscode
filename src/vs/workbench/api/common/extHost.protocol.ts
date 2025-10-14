@@ -654,6 +654,8 @@ export interface TransferQuickPick extends BaseTransferQuickInput {
 
 	placeholder?: string;
 
+	prompt?: string;
+
 	buttons?: TransferQuickInputButton[];
 
 	items?: TransferQuickPickItemOrSeparator[];
@@ -3036,13 +3038,25 @@ export interface ExtHostMcpShape {
 	$waitForInitialCollectionProviders(): Promise<void>;
 }
 
+export interface IMcpAuthenticationDetails {
+	authorizationServer: UriComponents;
+	authorizationServerMetadata: IAuthorizationServerMetadata;
+	resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined;
+	scopes: string[] | undefined;
+}
+
+export interface IMcpAuthenticationOptions {
+	errorOnUserInteraction?: boolean;
+	forceNewRegistration?: boolean;
+}
+
 export interface MainThreadMcpShape {
 	$onDidChangeState(id: number, state: McpConnectionState): void;
 	$onDidPublishLog(id: number, level: LogLevel, log: string): void;
 	$onDidReceiveMessage(id: number, message: string): void;
 	$upsertMcpCollection(collection: McpCollectionDefinition.FromExtHost, servers: McpServerDefinition.Serialized[]): void;
 	$deleteMcpCollection(collectionId: string): void;
-	$getTokenFromServerMetadata(id: number, authorizationServer: UriComponents, serverMetadata: IAuthorizationServerMetadata, resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined, scopes: string[] | undefined, errorOnUserInteraction?: boolean): Promise<string | undefined>;
+	$getTokenFromServerMetadata(id: number, authDetails: IMcpAuthenticationDetails, options?: IMcpAuthenticationOptions): Promise<string | undefined>;
 }
 
 export interface MainThreadDataChannelsShape extends IDisposable {

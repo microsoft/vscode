@@ -166,7 +166,8 @@
   },
   "devDependencies": {
     "@jupyterlab/nbformat": "^3.2.9",
-    "@types/markdown-it": "12.2.3"
+    "@types/markdown-it": "12.2.3",
+    "@types/node": "^22.18.10"
   },
   "repository": {
     "type": "git",

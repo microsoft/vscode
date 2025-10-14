@@ -406,7 +406,7 @@ function generateDeclarationFile(ts: Typescript, recipe: string, sourceFileGette
 
 	const generateUsageImport = (moduleId: string) => {
 		const importName = 'm' + (++usageCounter);
-		usageImports.push(`import * as ${importName} from './${moduleId.replace(/\.d\.ts$/, '')}';`);
+		usageImports.push(`import * as ${importName} from './${moduleId}';`);
 		return importName;
 	};
 
@@ -641,6 +641,9 @@ export class DeclarationResolver {
 		if (/\.d\.ts$/.test(moduleId)) {
 			return path.join(SRC, moduleId);
 		}
+		if (/\.js$/.test(moduleId)) {
+			return path.join(SRC, moduleId.replace(/\.js$/, '.ts'));
+		}
 		return path.join(SRC, `${moduleId}.ts`);
 	}
 
@@ -662,7 +665,7 @@ export class DeclarationResolver {
 		const fileMap: IFileMap = new Map([
 			['file.ts', fileContents]
 		]);
-		const service = this.ts.createLanguageService(new TypeScriptLanguageServiceHost(this.ts, new Map(), fileMap, {}, 'defaultLib:es5'));
+		const service = this.ts.createLanguageService(new TypeScriptLanguageServiceHost(this.ts, fileMap, {}));
 		const text = service.getEmitOutput('file.ts', true, true).outputFiles[0].text;
 		return new CacheEntry(
 			this.ts.createSourceFile(fileName, text, this.ts.ScriptTarget.ES5),

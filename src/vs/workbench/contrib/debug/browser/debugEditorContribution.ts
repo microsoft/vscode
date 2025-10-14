@@ -52,6 +52,7 @@ import { ExceptionWidget } from './exceptionWidget.js';
 import { CONTEXT_EXCEPTION_WIDGET_VISIBLE, IDebugConfiguration, IDebugEditorContribution, IDebugService, IDebugSession, IExceptionInfo, IExpression, IStackFrame, State } from '../common/debug.js';
 import { Expression } from '../common/debugModel.js';
 import { IHostService } from '../../../services/host/browser/host.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 
 const MAX_NUM_INLINE_VALUES = 100; // JS Global scope can have 700+ entries. We want to limit ourselves for perf reasons
@@ -279,7 +280,8 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
-		@ILanguageFeatureDebounceService featureDebounceService: ILanguageFeatureDebounceService
+		@ILanguageFeatureDebounceService featureDebounceService: ILanguageFeatureDebounceService,
+		@IEditorService private readonly editorService: IEditorService
 	) {
 		this.oldDecorations = this.editor.createDecorationsCollection();
 		this.debounceInfo = featureDebounceService.for(languageFeaturesService.inlineValuesProvider, 'InlineValues', { min: DEAFULT_INLINE_DEBOUNCE_DELAY });
@@ -584,9 +586,18 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		if (this.exceptionWidget && !sameUri) {
 			this.closeExceptionWidget();
 		} else if (sameUri) {
-			const exceptionInfo = await focusedSf.thread.exceptionInfo;
-			if (exceptionInfo) {
-				this.showExceptionWidget(exceptionInfo, this.debugService.getViewModel().focusedSession, exceptionSf.range.startLineNumber, exceptionSf.range.startColumn);
+			// Only show exception widget in the active editor to prevent disrupting workflow in multiple editor groups with the same file
+			const activeControl = this.editorService.activeTextEditorControl;
+			const isActiveEditor = activeControl === this.editor;
+
+			if (isActiveEditor) {
+				const exceptionInfo = await focusedSf.thread.exceptionInfo;
+				if (exceptionInfo) {
+					this.showExceptionWidget(exceptionInfo, this.debugService.getViewModel().focusedSession, exceptionSf.range.startLineNumber, exceptionSf.range.startColumn);
+				}
+			} else {
+				// For non-active editors, close any existing exception widget
+				this.closeExceptionWidget();
 			}
 		}
 	}

@@ -233,7 +233,11 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		} else {
 			if (options.sanitizerConfig?.replaceWithPlaintext) {
 				const replacement = convertTagToPlaintext(input);
-				input.parentElement?.replaceChild(replacement, input);
+				if (replacement) {
+					input.parentElement?.replaceChild(replacement, input);
+				} else {
+					input.remove();
+				}
 			} else {
 				input.remove();
 			}

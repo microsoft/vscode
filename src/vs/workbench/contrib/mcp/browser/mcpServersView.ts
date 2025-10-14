@@ -543,7 +543,7 @@ export class McpServersViewsContribution extends Disposable implements IWorkbenc
 				when: ContextKeyExpr.and(DefaultViewsContext, HasInstalledMcpServersContext.toNegated(), ChatContextKeys.Setup.hidden.negate(), McpServersGalleryStatusContext.isEqualTo(McpGalleryManifestStatus.Available), ContextKeyDefinedExpr.create(`config.${mcpGalleryServiceUrlConfig}`).negate(), ProductQualityContext.isEqualTo('stable'), ContextKeyDefinedExpr.create(`config.${mcpGalleryServiceEnablementConfig}`).negate()),
 				weight: 40,
 				order: 4,
-				canToggleVisibility: false
+				canToggleVisibility: true
 			},
 			{
 				id: 'workbench.views.mcp.welcomeView',

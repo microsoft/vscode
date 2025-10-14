@@ -36,11 +36,9 @@ import { ILifecycleService } from '../../../../services/lifecycle/common/lifecyc
 import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from '../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { CellUri } from '../../../notebook/common/notebookCommon.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
-import { IChatAgentService } from '../../common/chatAgents.js';
 import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingAgentSupportsReadonlyReferencesContextKey, chatEditingResourceContextKey, ChatEditingSessionState, IChatEditingService, IChatEditingSession, IChatRelatedFile, IChatRelatedFilesProvider, IModifiedFileEntry, inChatEditingSessionContextKey, IStreamingEdits, ModifiedFileEntryState, parseChatMultiDiffUri } from '../../common/chatEditingService.js';
 import { ChatModel, IChatResponseModel, isCellTextEditOperation } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
-import { ChatAgentLocation } from '../../common/constants.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { AbstractChatEditingModifiedFileEntry } from './chatEditingModifiedFileEntry.js';
 import { ChatEditingSession } from './chatEditingSession.js';
@@ -411,8 +409,7 @@ class ChatDecorationsProvider extends Disposable implements IDecorationsProvider
 	readonly onDidChange: Event<URI[]>;
 
 	constructor(
-		private readonly _sessions: IObservable<readonly IChatEditingSession[]>,
-		@IChatAgentService private readonly _chatAgentService: IChatAgentService
+		private readonly _sessions: IObservable<readonly IChatEditingSession[]>
 	) {
 		super();
 		this.onDidChange = Event.any(
@@ -432,11 +429,10 @@ class ChatDecorationsProvider extends Disposable implements IDecorationsProvider
 		}
 		const isModified = this._modifiedUris.get().some(e => e.toString() === uri.toString());
 		if (isModified) {
-			const defaultAgentName = this._chatAgentService.getDefaultAgent(ChatAgentLocation.Chat)?.fullName;
 			return {
 				weight: 1000,
 				letter: Codicon.diffModified,
-				tooltip: defaultAgentName ? localize('chatEditing.modified', "Pending changes from {0}", defaultAgentName) : localize('chatEditing.modified2', "Pending changes from chat"),
+				tooltip: localize('chatEditing.modified2', "Pending changes from chat"),
 				bubble: true
 			};
 		}

@@ -23,6 +23,7 @@ import { terminalChatAgentToolsConfiguration, TerminalChatAgentToolsSettingId } 
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
 import { count } from '../../../../../../base/common/strings.js';
+import { ITerminalProfile } from '../../../../../../platform/terminal/common/terminal.js';
 
 class TestRunInTerminalTool extends RunInTerminalTool {
 	protected override _osBackend: Promise<OperatingSystem> = Promise.resolve(OperatingSystem.Windows);
@@ -30,8 +31,8 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 	get commandLineAutoApprover() { return this._commandLineAutoApprover; }
 	get sessionTerminalAssociations() { return this._sessionTerminalAssociations; }
 
-	getCopilotShellOrProfile() {
-		return this._getCopilotShellOrProfile();
+	getCopilotProfile() {
+		return this._getCopilotProfile();
 	}
 	setBackendOs(os: OperatingSystem) {
 		this._osBackend = Promise.resolve(os);
@@ -70,7 +71,7 @@ suite('RunInTerminalTool', () => {
 			onDidDisposeSession: chatServiceDisposeEmitter.event
 		});
 		instantiationService.stub(ITerminalProfileResolverService, {
-			getDefaultShell: async () => 'pwsh'
+			getDefaultProfile: async () => ({ path: 'pwsh' } as ITerminalProfile)
 		});
 
 		storageService = instantiationService.get(IStorageService);
@@ -951,7 +952,7 @@ suite('RunInTerminalTool', () => {
 			const customProfile = Object.freeze({ path: 'C:\\Windows\\System32\\powershell.exe', args: ['-NoProfile'] });
 			setConfig(TerminalChatAgentToolsSettingId.TerminalProfileWindows, customProfile);
 
-			const result = await runInTerminalTool.getCopilotShellOrProfile();
+			const result = await runInTerminalTool.getCopilotProfile();
 			strictEqual(result, customProfile);
 		});
 
@@ -959,8 +960,9 @@ suite('RunInTerminalTool', () => {
 			runInTerminalTool.setBackendOs(OperatingSystem.Linux);
 			setConfig(TerminalChatAgentToolsSettingId.TerminalProfileLinux, null);
 
-			const result = await runInTerminalTool.getCopilotShellOrProfile();
-			strictEqual(result, 'pwsh'); // From the mock ITerminalProfileResolverService
+			const result = await runInTerminalTool.getCopilotProfile();
+			strictEqual(typeof result, 'object');
+			strictEqual((result as ITerminalProfile).path, 'pwsh'); // From the mock ITerminalProfileResolverService
 		});
 	});
 });

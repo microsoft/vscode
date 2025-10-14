@@ -439,6 +439,18 @@ export interface ITaskSourceConfigElement {
 	element: any;
 }
 
+export interface ITaskConfig {
+	label: string;
+	task?: CommandString;
+	type?: string;
+	command?: string | CommandString;
+	args?: string[] | CommandString[];
+	presentation?: IPresentationOptions;
+	isBackground?: boolean;
+	problemMatcher?: string | string[];
+	group?: string | TaskGroup;
+}
+
 interface IBaseTaskSource {
 	readonly kind: string;
 	readonly label: string;

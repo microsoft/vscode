@@ -1,21 +1,26 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TypeScriptLanguageServiceHost = void 0;
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+const typescript_1 = __importDefault(require("typescript"));
+const node_fs_1 = __importDefault(require("node:fs"));
 /**
  * A TypeScript language service host
  */
 class TypeScriptLanguageServiceHost {
     ts;
-    libs;
-    files;
+    topLevelFiles;
     compilerOptions;
-    defaultLibName;
-    constructor(ts, libs, files, compilerOptions, defaultLibName) {
+    constructor(ts, topLevelFiles, compilerOptions) {
         this.ts = ts;
-        this.libs = libs;
-        this.files = files;
+        this.topLevelFiles = topLevelFiles;
         this.compilerOptions = compilerOptions;
-        this.defaultLibName = defaultLibName;
     }
     // --- language service host ---------------
     getCompilationSettings() {
@@ -23,8 +28,8 @@ class TypeScriptLanguageServiceHost {
     }
     getScriptFileNames() {
         return [
-            ...this.libs.keys(),
-            ...this.files.keys(),
+            ...this.topLevelFiles.keys(),
+            this.ts.getDefaultLibFilePath(this.compilerOptions)
         ];
     }
     getScriptVersion(_fileName) {
@@ -34,14 +39,11 @@ class TypeScriptLanguageServiceHost {
         return '1';
     }
     getScriptSnapshot(fileName) {
-        if (this.files.has(fileName)) {
-            return this.ts.ScriptSnapshot.fromString(this.files.get(fileName));
-        }
-        else if (this.libs.has(fileName)) {
-            return this.ts.ScriptSnapshot.fromString(this.libs.get(fileName));
+        if (this.topLevelFiles.has(fileName)) {
+            return this.ts.ScriptSnapshot.fromString(this.topLevelFiles.get(fileName));
         }
         else {
-            return this.ts.ScriptSnapshot.fromString('');
+            return typescript_1.default.ScriptSnapshot.fromString(node_fs_1.default.readFileSync(fileName).toString());
         }
     }
     getScriptKind(_fileName) {
@@ -50,17 +52,20 @@ class TypeScriptLanguageServiceHost {
     getCurrentDirectory() {
         return '';
     }
-    getDefaultLibFileName(_options) {
-        return this.defaultLibName;
+    getDefaultLibFileName(options) {
+        return this.ts.getDefaultLibFilePath(options);
     }
-    isDefaultLibFileName(fileName) {
-        return fileName === this.getDefaultLibFileName(this.compilerOptions);
-    }
-    readFile(path, _encoding) {
-        return this.files.get(path) || this.libs.get(path);
+    readFile(path, encoding) {
+        if (this.topLevelFiles.get(path)) {
+            return this.topLevelFiles.get(path);
+        }
+        return typescript_1.default.sys.readFile(path, encoding);
     }
     fileExists(path) {
-        return this.files.has(path) || this.libs.has(path);
+        if (this.topLevelFiles.has(path)) {
+            return true;
+        }
+        return typescript_1.default.sys.fileExists(path);
     }
 }
 exports.TypeScriptLanguageServiceHost = TypeScriptLanguageServiceHost;

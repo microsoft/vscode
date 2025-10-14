@@ -8,10 +8,9 @@ import { disposableTimeout } from '../../../base/common/async.js';
 import { CancellationError } from '../../../base/common/errors.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
-import { IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata } from '../../../base/common/oauth.js';
 import { ISettableObservable, observableValue } from '../../../base/common/observable.js';
 import Severity from '../../../base/common/severity.js';
-import { URI, UriComponents } from '../../../base/common/uri.js';
+import { URI } from '../../../base/common/uri.js';
 import * as nls from '../../../nls.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IDialogService, IPromptButton } from '../../../platform/dialogs/common/dialogs.js';
@@ -24,11 +23,12 @@ import { IAuthenticationMcpAccessService } from '../../services/authentication/b
 import { IAuthenticationMcpService } from '../../services/authentication/browser/authenticationMcpService.js';
 import { IAuthenticationMcpUsageService } from '../../services/authentication/browser/authenticationMcpUsageService.js';
 import { AuthenticationSession, AuthenticationSessionAccount, IAuthenticationService } from '../../services/authentication/common/authentication.js';
+import { IDynamicAuthenticationProviderStorageService } from '../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
 import { ExtensionHostKind, extensionHostKindToString } from '../../services/extensions/common/extensionHostKind.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { Proxied } from '../../services/extensions/common/proxyIdentifier.js';
-import { ExtHostContext, ExtHostMcpShape, MainContext, MainThreadMcpShape } from '../common/extHost.protocol.js';
+import { ExtHostContext, ExtHostMcpShape, IMcpAuthenticationDetails, IMcpAuthenticationOptions, MainContext, MainThreadMcpShape } from '../common/extHost.protocol.js';
 
 @extHostNamedCustomer(MainContext.MainThreadMcp)
 export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
@@ -51,6 +51,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		@IAuthenticationMcpService private readonly authenticationMcpServersService: IAuthenticationMcpService,
 		@IAuthenticationMcpAccessService private readonly authenticationMCPServerAccessService: IAuthenticationMcpAccessService,
 		@IAuthenticationMcpUsageService private readonly authenticationMCPServerUsageService: IAuthenticationMcpUsageService,
+		@IDynamicAuthenticationProviderStorageService private readonly _dynamicAuthenticationProviderStorageService: IDynamicAuthenticationProviderStorageService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) {
@@ -178,16 +179,23 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		this._servers.get(id)?.pushMessage(message);
 	}
 
-	async $getTokenFromServerMetadata(id: number, authServerComponents: UriComponents, serverMetadata: IAuthorizationServerMetadata, resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined, scopes: string[] | undefined, errorOnUserInteraction?: boolean): Promise<string | undefined> {
+	async $getTokenFromServerMetadata(id: number, authDetails: IMcpAuthenticationDetails, { errorOnUserInteraction, forceNewRegistration }: IMcpAuthenticationOptions = {}): Promise<string | undefined> {
 		const server = this._serverDefinitions.get(id);
 		if (!server) {
 			return undefined;
 		}
-		const authorizationServer = URI.revive(authServerComponents);
-		const resolvedScopes = scopes ?? resourceMetadata?.scopes_supported ?? serverMetadata.scopes_supported ?? [];
+		const authorizationServer = URI.revive(authDetails.authorizationServer);
+		const resolvedScopes = authDetails.scopes ?? authDetails.resourceMetadata?.scopes_supported ?? authDetails.authorizationServerMetadata.scopes_supported ?? [];
 		let providerId = await this._authenticationService.getOrActivateProviderIdForServer(authorizationServer);
+		if (forceNewRegistration && providerId) {
+			this._authenticationService.unregisterAuthenticationProvider(providerId);
+			// TODO: Encapsulate this and the unregister in one call in the auth service
+			await this._dynamicAuthenticationProviderStorageService.removeDynamicProvider(providerId);
+			providerId = undefined;
+		}
+
 		if (!providerId) {
-			const provider = await this._authenticationService.createDynamicAuthenticationProvider(authorizationServer, serverMetadata, resourceMetadata);
+			const provider = await this._authenticationService.createDynamicAuthenticationProvider(authorizationServer, authDetails.authorizationServerMetadata, authDetails.resourceMetadata);
 			if (!provider) {
 				return undefined;
 			}

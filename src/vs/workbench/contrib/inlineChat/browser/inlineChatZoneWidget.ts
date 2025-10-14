@@ -21,6 +21,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IChatWidgetViewOptions } from '../../chat/browser/chat.js';
 import { IChatWidgetLocationOptions } from '../../chat/browser/chatWidget.js';
+import { ChatMode } from '../../chat/common/chatModes.js';
 import { isResponseVM } from '../../chat/common/chatViewModel.js';
 import { INotebookEditor } from '../../notebook/browser/notebookBrowser.js';
 import { ACTION_REGENERATE_RESPONSE, ACTION_REPORT_ISSUE, ACTION_TOGGLE_DIFF, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, MENU_INLINE_CHAT_SIDE, MENU_INLINE_CHAT_WIDGET_SECONDARY, MENU_INLINE_CHAT_WIDGET_STATUS } from '../common/inlineChat.js';
@@ -95,6 +96,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 					renderDetectedCommandsWithRequest: true,
 					...options?.rendererOptions
 				},
+				defaultMode: ChatMode.Ask
 			}
 		});
 		this._disposables.add(this.widget);

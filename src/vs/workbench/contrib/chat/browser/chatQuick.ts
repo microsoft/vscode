@@ -9,28 +9,29 @@ import { disposableTimeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
-import { autorun } from '../../../../base/common/observable.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
-import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
-import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { localize } from '../../../../nls.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
+import product from '../../../../platform/product/common/product.js';
 import { IQuickInputService, IQuickWidget } from '../../../../platform/quickinput/common/quickInput.js';
 import { editorBackground, inputBackground, quickInputBackground, quickInputForeground } from '../../../../platform/theme/common/colorRegistry.js';
-import product from '../../../../platform/product/common/product.js';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../common/theme.js';
+import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ChatModel, isCellTextEditOperation } from '../common/chatModel.js';
+import { ChatMode } from '../common/chatModes.js';
 import { IParsedChatRequest } from '../common/chatParserTypes.js';
 import { IChatProgress, IChatService } from '../common/chatService.js';
 import { ChatAgentLocation } from '../common/constants.js';
 import { IQuickChatOpenOptions, IQuickChatService, showChatView } from './chat.js';
 import { ChatWidget } from './chatWidget.js';
-import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 
 export class QuickChatService extends Disposable implements IQuickChatService {
 	readonly _serviceBrand: undefined;
@@ -229,7 +230,14 @@ class QuickChat extends Disposable {
 				ChatWidget,
 				ChatAgentLocation.Chat,
 				{ isQuickChat: true },
-				{ autoScroll: true, renderInputOnTop: true, renderStyle: 'compact', menus: { inputSideToolbar: MenuId.ChatInputSide, telemetrySource: 'chatQuick' }, enableImplicitContext: true },
+				{
+					autoScroll: true,
+					renderInputOnTop: true,
+					renderStyle: 'compact',
+					menus: { inputSideToolbar: MenuId.ChatInputSide, telemetrySource: 'chatQuick' },
+					enableImplicitContext: true,
+					defaultMode: ChatMode.Ask
+				},
 				{
 					listForeground: quickInputForeground,
 					listBackground: quickInputBackground,

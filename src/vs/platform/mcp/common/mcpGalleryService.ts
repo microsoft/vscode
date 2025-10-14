@@ -13,16 +13,14 @@ import { localize } from '../../../nls.js';
 import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { asJson, asText, IRequestService } from '../../request/common/request.js';
-import { GalleryMcpServerStatus, IGalleryMcpServer, IGalleryMcpServerConfiguration, IMcpGalleryService, IMcpServerArgument, IMcpServerInput, IMcpServerKeyValueInput, IMcpServerPackage, IQueryOptions, RegistryType, SseTransport, StreamableHttpTransport, Transport, TransportType } from './mcpManagement.js';
+import { GalleryMcpServerStatus, IGalleryMcpServer, IMcpGalleryService, IMcpServerArgument, IMcpServerInput, IMcpServerKeyValueInput, IMcpServerPackage, IQueryOptions, RegistryType, SseTransport, StreamableHttpTransport, Transport, TransportType } from './mcpManagement.js';
 import { IMcpGalleryManifestService, McpGalleryManifestStatus, getMcpGalleryManifestResourceUri, McpGalleryResourceType, IMcpGalleryManifest } from './mcpGalleryManifest.js';
 import { IPageIterator, IPager, PageIteratorPager, singlePagePager } from '../../../base/common/paging.js';
 import { CancellationError } from '../../../base/common/errors.js';
-import { basename } from '../../../base/common/path.js';
 
 interface IMcpRegistryInfo {
-	readonly id: string;
 	readonly isLatest: boolean;
-	readonly publishedAt?: string;
+	readonly publishedAt: string;
 	readonly updatedAt: string;
 }
 
@@ -355,7 +353,6 @@ namespace McpServerSchemaVersion_2025_07_09 {
 					};
 				}),
 				registryInfo: {
-					id: registryInfo.id,
 					isLatest: registryInfo.is_latest,
 					publishedAt: registryInfo.published_at,
 					updatedAt: registryInfo.updated_at,
@@ -464,12 +461,10 @@ namespace McpServerSchemaVersion_2025_29_09 {
 		readonly server: RawGalleryMcpServer;
 		readonly _meta: {
 			readonly 'io.modelcontextprotocol.registry/official': {
-				readonly id: string;
+				readonly status: GalleryMcpServerStatus;
 				readonly isLatest: boolean;
 				readonly publishedAt: string;
 				readonly updatedAt: string;
-				readonly releaseDate?: string;
-				readonly status?: GalleryMcpServerStatus;
 			};
 		};
 	}
@@ -629,19 +624,15 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 		});
 	}
 
-	async getMcpServersFromGallery(urls: string[]): Promise<IGalleryMcpServer[]> {
+	async getMcpServersFromGallery(names: string[]): Promise<IGalleryMcpServer[]> {
 		const mcpGalleryManifest = await this.mcpGalleryManifestService.getMcpGalleryManifest();
 		if (!mcpGalleryManifest) {
 			return [];
 		}
 
 		const mcpServers: IGalleryMcpServer[] = [];
-		await Promise.allSettled(urls.map(async url => {
-			const mcpServerUrl = this.getServerUrl(basename(url), mcpGalleryManifest);
-			if (mcpServerUrl !== url) {
-				return;
-			}
-			const mcpServer = await this.getMcpServer(mcpServerUrl);
+		await Promise.allSettled(names.map(async name => {
+			const mcpServer = await this.getMcpServerByName(name, mcpGalleryManifest);
 			if (mcpServer) {
 				mcpServers.push(mcpServer);
 			}
@@ -650,36 +641,21 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 		return mcpServers;
 	}
 
-	async getMcpServerConfiguration(gallery: IGalleryMcpServer, token: CancellationToken): Promise<IGalleryMcpServerConfiguration> {
-		if (gallery.configuration) {
-			return gallery.configuration;
+	private async getMcpServerByName(name: string, mcpGalleryManifest: IMcpGalleryManifest): Promise<IGalleryMcpServer | undefined> {
+		const mcpServerUrl = this.getLatestServerVersionUrl(name, mcpGalleryManifest);
+		if (mcpServerUrl) {
+			const mcpServer = await this.getMcpServer(mcpServerUrl);
+			if (mcpServer) {
+				return mcpServer;
+			}
 		}
 
-		if (!gallery.url) {
-			throw new Error(`No manifest URL found for ${gallery.name}`);
+		const byNameUrl = this.getNamedServerUrl(name, mcpGalleryManifest);
+		if (byNameUrl) {
+			return this.getMcpServer(byNameUrl);
 		}
 
-		const context = await this.requestService.request({
-			type: 'GET',
-			url: gallery.url,
-		}, token);
-
-		const result = await asJson(context);
-		if (!result) {
-			throw new Error(`Failed to fetch configuration from ${gallery.url}`);
-		}
-
-		const server = this.serializeMcpServer(result);
-		if (!server) {
-			throw new Error(`Failed to serialize MCP server data from ${gallery.url}`, result);
-		}
-
-		const configuration = this.toGalleryMcpServerConfiguration(server.packages, server.remotes);
-		if (!configuration) {
-			throw new Error(`Failed to fetch configuration for ${gallery.url}`);
-		}
-
-		return configuration;
+		return undefined;
 	}
 
 	async getReadme(gallery: IGalleryMcpServer, token: CancellationToken): Promise<string> {
@@ -746,15 +722,13 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 			dark: server.githubInfo.owner_avatar_url
 		} : undefined;
 
-		const serverUrl = manifest ? this.getServerUrl(server.registryInfo.id, manifest) : undefined;
 		const webUrl = manifest ? this.getWebUrl(server.name, manifest) : undefined;
 		const publisherUrl = manifest ? this.getPublisherUrl(publisher, manifest) : undefined;
 
 		return {
-			id: server.registryInfo.id,
 			name: server.name,
 			displayName,
-			url: serverUrl,
+			galleryUrl: manifest?.url,
 			webUrl,
 			description: server.description,
 			status: server.status ?? GalleryMcpServerStatus.Active,
@@ -770,17 +744,10 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 			license: server.githubInfo?.license,
 			starsCount: server.githubInfo?.stargazer_count,
 			topics: server.githubInfo?.topics,
-			configuration: this.toGalleryMcpServerConfiguration(server.packages, server.remotes)
-		};
-	}
-
-	private toGalleryMcpServerConfiguration(packages?: readonly IMcpServerPackage[], remotes?: ReadonlyArray<SseTransport | StreamableHttpTransport>): IGalleryMcpServerConfiguration | undefined {
-		if (!packages && !remotes) {
-			return undefined;
-		}
-		return {
-			packages,
-			remotes
+			configuration: {
+				packages: server.packages,
+				remotes: server.remotes
+			}
 		};
 	}
 
@@ -860,45 +827,9 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 
 		if (!mcpGalleryManifest) {
 			mcpGalleryManifest = await this.mcpGalleryManifestService.getMcpGalleryManifest();
-			if (mcpGalleryManifest && mcpServerUrl !== this.getServerUrl(basename(mcpServerUrl), mcpGalleryManifest)) {
-				mcpGalleryManifest = null;
-			}
 		}
 
-		return this.toGalleryMcpServer(server, mcpGalleryManifest);
-	}
-
-	async getMcpServerByName(name: string): Promise<IGalleryMcpServer | undefined> {
-		const mcpGalleryManifest = await this.mcpGalleryManifestService.getMcpGalleryManifest();
-		if (!mcpGalleryManifest) {
-			return undefined;
-		}
-
-		const mcpServerUrl = this.getNamedServerUrl(name, mcpGalleryManifest);
-		if (!mcpServerUrl) {
-			return undefined;
-		}
-
-		const context = await this.requestService.request({
-			type: 'GET',
-			url: mcpServerUrl,
-		}, CancellationToken.None);
-
-		if (context.res.statusCode && context.res.statusCode >= 400 && context.res.statusCode < 500) {
-			return undefined;
-		}
-
-		const data = await asJson(context);
-		if (!data) {
-			return undefined;
-		}
-
-		const server = this.serializeMcpServer(data);
-		if (!server) {
-			throw new Error(`Failed to serialize MCP server from ${mcpServerUrl}`, data);
-		}
-
-		return this.toGalleryMcpServer(server, mcpGalleryManifest);
+		return this.toGalleryMcpServer(server, mcpGalleryManifest && mcpServerUrl.startsWith(mcpGalleryManifest.url) ? mcpGalleryManifest : null);
 	}
 
 	private serializeMcpServer(data: unknown): IRawGalleryMcpServer | undefined {
@@ -921,20 +852,20 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 		return undefined;
 	}
 
-	private getServerUrl(id: string, mcpGalleryManifest: IMcpGalleryManifest): string | undefined {
-		const resourceUriTemplate = getMcpGalleryManifestResourceUri(mcpGalleryManifest, McpGalleryResourceType.McpServerResourceUri);
-		if (!resourceUriTemplate) {
-			return undefined;
-		}
-		return format2(resourceUriTemplate, { id });
-	}
-
 	private getNamedServerUrl(name: string, mcpGalleryManifest: IMcpGalleryManifest): string | undefined {
 		const namedResourceUriTemplate = getMcpGalleryManifestResourceUri(mcpGalleryManifest, McpGalleryResourceType.McpServerNamedResourceUri);
 		if (!namedResourceUriTemplate) {
 			return undefined;
 		}
 		return format2(namedResourceUriTemplate, { name });
+	}
+
+	private getLatestServerVersionUrl(name: string, mcpGalleryManifest: IMcpGalleryManifest): string | undefined {
+		const latestVersionResourceUriTemplate = getMcpGalleryManifestResourceUri(mcpGalleryManifest, McpGalleryResourceType.McpServerLatestVersionUri);
+		if (!latestVersionResourceUriTemplate) {
+			return undefined;
+		}
+		return format2(latestVersionResourceUriTemplate, { name });
 	}
 
 	private getSearchUrl(mcpGalleryManifest: IMcpGalleryManifest): string | undefined {

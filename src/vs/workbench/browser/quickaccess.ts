@@ -29,6 +29,7 @@ export interface IWorkbenchQuickAccessConfiguration {
 		readonly commandPalette: {
 			readonly history: number;
 			readonly preserveInput: boolean;
+			readonly showAskInChat: boolean;
 			readonly experimental: {
 				readonly suggestCommands: boolean;
 				readonly enableNaturalLanguageSearch: boolean;
@@ -53,6 +54,7 @@ export function getQuickNavigateHandler(id: string, next?: boolean): ICommandHan
 		quickInputService.navigate(!!next, quickNavigate);
 	};
 }
+
 export class PickerEditorState extends Disposable {
 	private _editorViewState: {
 		editor: EditorInput;

@@ -19,8 +19,8 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { FuzzyScore } from '../../../../base/common/filters.js';
 import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../base/common/iterator.js';
-import { combinedDisposable, Disposable, DisposableStore, IDisposable, MutableDisposable, thenIfNotDisposed, toDisposable } from '../../../../base/common/lifecycle.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { combinedDisposable, Disposable, DisposableStore, IDisposable, MutableDisposable, thenIfNotDisposed, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { autorun, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
@@ -53,13 +53,13 @@ import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/w
 import { EditorResourceAccessor } from '../../../../workbench/common/editor.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { ViewContainerLocation } from '../../../common/views.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchLayoutService, Position } from '../../../services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { checkModeOption } from '../common/chat.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, inChatEditingSessionContextKey, ModifiedFileEntryState } from '../common/chatEditingService.js';
-import { ChatEntitlement, IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { IChatLayoutService } from '../common/chatLayoutService.js';
 import { IChatModel, IChatResponseModel } from '../common/chatModel.js';
 import { IChatModeService } from '../common/chatModes.js';
@@ -84,7 +84,7 @@ import { ChatTreeItem, ChatViewId, IChatAcceptInputOptions, IChatAccessibilitySe
 import { ChatAccessibilityProvider } from './chatAccessibilityProvider.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { ChatTodoListWidget } from './chatContentParts/chatTodoListWidget.js';
-import { ChatInputPart, IChatInputStyles } from './chatInputPart.js';
+import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from './chatInputPart.js';
 import { ChatListDelegate, ChatListItemRenderer, IChatListItemTemplate, IChatRendererDelegate } from './chatListRenderer.js';
 import { ChatEditorOptions } from './chatOptions.js';
 import { ChatViewPane } from './chatViewPane.js';
@@ -314,6 +314,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private welcomeMessageContainer!: HTMLElement;
 	private readonly welcomePart: MutableDisposable<ChatViewWelcomePart> = this._register(new MutableDisposable());
+	private readonly welcomeContextMenuDisposable: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
+
 	private readonly historyViewStore = this._register(new DisposableStore());
 	private readonly chatTodoListWidget: ChatTodoListWidget;
 	private historyList: WorkbenchList<IChatHistoryListItem> | undefined;
@@ -683,7 +685,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const renderFollowups = this.viewOptions.renderFollowups ?? false;
 			const renderStyle = this.viewOptions.renderStyle;
 			this.createInput(this.container, { renderFollowups, renderStyle });
-			this.input.setChatMode(this.lastWelcomeViewChatMode ?? ChatModeKind.Ask);
+			this.input.setChatMode(this.lastWelcomeViewChatMode ?? ChatModeKind.Agent);
 		}
 	}
 
@@ -944,7 +946,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			// reset the input in welcome view if it was rendered in experimental mode
 			if (this.viewModel?.getItems().length) {
 				this.resetWelcomeViewInput();
-				this.focusInput();
+				// TODO@bhavyaus
+				// this.focusInput();
 			}
 
 			if (treeItems.length > 0) {
@@ -1065,7 +1068,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				dom.append(this.welcomeMessageContainer, this.welcomePart.value.element);
 
 				// Add right-click context menu to the entire welcome container
-				this._register(dom.addDisposableListener(this.welcomeMessageContainer, dom.EventType.CONTEXT_MENU, (e) => {
+				this.welcomeContextMenuDisposable.value = dom.addDisposableListener(this.welcomeMessageContainer, dom.EventType.CONTEXT_MENU, (e) => {
 					e.preventDefault();
 					e.stopPropagation();
 					this.contextMenuService.showContextMenu({
@@ -1077,7 +1080,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 						getAnchor: () => ({ x: e.clientX, y: e.clientY }),
 						getActionsContext: () => ({})
 					});
-				}));
+				});
 			}
 		}
 
@@ -2012,7 +2015,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private createInput(container: HTMLElement, options?: { renderFollowups: boolean; renderStyle?: 'compact' | 'minimal' }): void {
-		const commonConfig = {
+		const commonConfig: IChatInputPartOptions = {
 			renderFollowups: options?.renderFollowups ?? true,
 			renderStyle: options?.renderStyle === 'minimal' ? 'compact' : options?.renderStyle,
 			menus: {
@@ -2026,6 +2029,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			supportsChangingModes: this.viewOptions.supportsChangingModes,
 			dndContainer: this.viewOptions.dndContainer,
 			widgetViewKindTag: this.getWidgetViewKindTag(),
+			defaultMode: this.viewOptions.defaultMode
 		};
 
 		if (this.viewModel?.editing) {
@@ -2596,6 +2600,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	layout(height: number, width: number): void {
 		width = Math.min(width, 950);
+		const heightUpdated = this.bodyDimension && this.bodyDimension.height !== height;
 		this.bodyDimension = new dom.Dimension(width, height);
 
 		const layoutHeight = this._dynamicMessageLayoutData?.enabled ? this._dynamicMessageLayoutData.maxHeight : height;
@@ -2605,23 +2610,25 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		if (this.container.classList.contains('new-welcome-view')) {
 			this.inputPart.layout(layoutHeight, Math.min(width, 650));
-		}
-		else {
+		} else {
 			this.inputPart.layout(layoutHeight, width);
 		}
 
 		const inputHeight = this.inputPart.inputPartHeight;
 		const chatTodoListWidgetHeight = this.chatTodoListWidget.height;
 		const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight >= this.tree.scrollHeight - 2;
+		const lastItem = this.viewModel?.getItems().at(-1);
 
 		const contentHeight = Math.max(0, height - inputHeight - chatTodoListWidgetHeight);
 		if (this.viewOptions.renderStyle === 'compact' || this.viewOptions.renderStyle === 'minimal') {
 			this.listContainer.style.removeProperty('--chat-current-response-min-height');
 		} else {
 			this.listContainer.style.setProperty('--chat-current-response-min-height', contentHeight * .75 + 'px');
+			if (heightUpdated && lastItem) {
+				this.tree.updateElementHeight(lastItem, undefined);
+			}
 		}
 		this.tree.layout(contentHeight, width);
-		this.tree.getHTMLElement().style.height = `${contentHeight}px`;
 
 		// Push the welcome message down so it doesn't change position
 		// when followups, attachments or working set appear
@@ -2638,7 +2645,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this.renderer.layout(width);
 
-		const lastItem = this.viewModel?.getItems().at(-1);
 		const lastResponseIsRendering = isResponseVM(lastItem) && lastItem.renderData;
 		if (lastElementVisible && (!lastResponseIsRendering || checkModeOption(this.input.currentModeKind, this.viewOptions.autoScroll))) {
 			this.scrollToEnd();

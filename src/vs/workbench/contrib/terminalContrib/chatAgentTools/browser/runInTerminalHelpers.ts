@@ -7,7 +7,7 @@ import { Separator } from '../../../../../base/common/actions.js';
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { posix as pathPosix, win32 as pathWin32 } from '../../../../../base/common/path.js';
 import { OperatingSystem } from '../../../../../base/common/platform.js';
-import { removeAnsiEscapeCodes } from '../../../../../base/common/strings.js';
+import { escapeRegExpCharacters, removeAnsiEscapeCodes } from '../../../../../base/common/strings.js';
 import { localize } from '../../../../../nls.js';
 import type { TerminalNewAutoApproveButtonData } from '../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
 import type { ToolConfirmationAction } from '../../../chat/common/languageModelToolsService.js';
@@ -141,7 +141,7 @@ export function generateAutoApproveActions(commandLine: string, subCommands: str
 				data: {
 					type: 'newRule',
 					rule: {
-						key: commandLine,
+						key: `/^${escapeRegExpCharacters(commandLine)}$/`,
 						value: {
 							approve: true,
 							matchCommandLine: true

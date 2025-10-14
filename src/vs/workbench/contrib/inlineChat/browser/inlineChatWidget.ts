@@ -56,6 +56,7 @@ import { isResponseVM } from '../../chat/common/chatViewModel.js';
 import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_RESPONSE_FOCUSED, inlineChatBackground, inlineChatForeground } from '../common/inlineChat.js';
 import { HunkInformation, Session } from './inlineChatSession.js';
 import './media/inlineChat.css';
+import { ChatMode } from '../../chat/common/chatModes.js';
 
 export interface InlineChatWidgetViewState {
 	editorViewState: ICodeEditorViewState;
@@ -164,6 +165,7 @@ export class InlineChatWidget {
 					return true;
 				},
 				dndContainer: this._elements.root,
+				defaultMode: ChatMode.Ask,
 				..._options.chatWidgetViewOptions
 			},
 			{

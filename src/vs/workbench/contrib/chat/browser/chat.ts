@@ -19,6 +19,7 @@ import { IWorkbenchLayoutService } from '../../../services/layout/browser/layout
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IChatAgentCommand, IChatAgentData } from '../common/chatAgents.js';
 import { IChatResponseModel } from '../common/chatModel.js';
+import { IChatMode } from '../common/chatModes.js';
 import { IParsedChatRequest } from '../common/chatParserTypes.js';
 import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
 import { IChatElicitationRequest, IChatLocationData, IChatSendRequestOptions } from '../common/chatService.js';
@@ -179,6 +180,7 @@ export interface IChatWidgetViewOptions {
 	enableWorkingSet?: 'explicit' | 'implicit';
 	supportsChangingModes?: boolean;
 	dndContainer?: HTMLElement;
+	defaultMode?: IChatMode;
 }
 
 export interface IChatViewViewContext {

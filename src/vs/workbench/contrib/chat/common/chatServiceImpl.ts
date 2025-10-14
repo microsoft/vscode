@@ -328,13 +328,13 @@ export class ChatService extends Disposable implements IChatService {
 		await this._chatSessionStore.clearAllSessions();
 	}
 
-	startSession(location: ChatAgentLocation, token: CancellationToken, isGlobalEditingSession: boolean = true, inputType?: string): ChatModel {
+	startSession(location: ChatAgentLocation, token: CancellationToken, isGlobalEditingSession: boolean = true, options?: { canUseTools?: boolean; inputType?: string }): ChatModel {
 		this.trace('startSession');
-		return this._startSession(undefined, location, isGlobalEditingSession, token, inputType);
+		return this._startSession(undefined, location, isGlobalEditingSession, token, options);
 	}
 
-	private _startSession(someSessionHistory: IExportableChatData | ISerializableChatData | undefined, location: ChatAgentLocation, isGlobalEditingSession: boolean, token: CancellationToken, inputType?: string): ChatModel {
-		const model = this.instantiationService.createInstance(ChatModel, someSessionHistory, { initialLocation: location, inputType });
+	private _startSession(someSessionHistory: IExportableChatData | ISerializableChatData | undefined, location: ChatAgentLocation, isGlobalEditingSession: boolean, token: CancellationToken, options?: { canUseTools?: boolean; inputType?: string }): ChatModel {
+		const model = this.instantiationService.createInstance(ChatModel, someSessionHistory, { initialLocation: location, canUseTools: options?.canUseTools ?? true, inputType: options?.inputType });
 		if (location === ChatAgentLocation.Chat) {
 			model.startEditingSession(isGlobalEditingSession);
 		}
@@ -400,7 +400,7 @@ export class ChatService extends Disposable implements IChatService {
 			return undefined;
 		}
 
-		const session = this._startSession(sessionData, sessionData.initialLocation ?? ChatAgentLocation.Chat, true, CancellationToken.None);
+		const session = this._startSession(sessionData, sessionData.initialLocation ?? ChatAgentLocation.Chat, true, CancellationToken.None, { canUseTools: true });
 
 		const isTransferred = this.transferredSessionData?.sessionId === sessionId;
 		if (isTransferred) {
@@ -470,7 +470,8 @@ export class ChatService extends Disposable implements IChatService {
 		const chatSessionType = parsed.chatSessionType;
 		const content = await this.chatSessionService.provideChatSessionContent(chatSessionType, parsed.sessionId, CancellationToken.None);
 
-		const model = this._startSession(undefined, location, true, CancellationToken.None, chatSessionType);
+		// Contributed sessions do not use UI tools
+		const model = this._startSession(undefined, location, true, CancellationToken.None, { canUseTools: false, inputType: chatSessionType });
 		// Record mapping from internal model session id to external contributed chat session identity
 		this._modelToExternalSession.set(model.sessionId, { chatSessionType, chatSessionId: parsed.sessionId });
 		if (!this._contentProviderSessionModels.has(chatSessionType)) {
@@ -865,11 +866,13 @@ export class ChatService extends Disposable implements IChatService {
 					}
 					completeResponseCreated();
 
-					// Check if there are MCP servers requiring interaction and show message if not shown yet
-					const autostartResult = new ChatMcpServersStarting(this.mcpService.autostart(token));
-					if (!autostartResult.isEmpty) {
-						progressCallback([autostartResult]);
-						await autostartResult.wait();
+					// MCP autostart: only run for native VS Code sessions (sidebar, new editors) but not for extension contributed sessions that have inputType set.
+					if (model.canUseTools) {
+						const autostartResult = new ChatMcpServersStarting(this.mcpService.autostart(token));
+						if (!autostartResult.isEmpty) {
+							progressCallback([autostartResult]);
+							await autostartResult.wait();
+						}
 					}
 
 					const agentResult = await this.chatAgentService.invokeAgent(agent.id, requestProps, progressCallback, history, token);

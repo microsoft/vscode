@@ -2,7 +2,10 @@
 	"extends": "../tsconfig.base.json",
 	"compilerOptions": {
 		"outDir": "./out",
-		"types": []
+		"types": [],
+		"typeRoots": [
+			"./node_modules/@types"
+		]
 	},
 	"include": [
 		"src/**/*",

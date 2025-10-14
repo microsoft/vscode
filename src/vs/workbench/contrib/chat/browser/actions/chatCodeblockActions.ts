@@ -39,6 +39,7 @@ import { IChatCodeBlockContextProviderService, IChatWidgetService } from '../cha
 import { DefaultChatTextEditor, ICodeBlockActionContext, ICodeCompareBlockActionContext } from '../codeBlockPart.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { ApplyCodeBlockOperation, InsertCodeBlockOperation } from './codeBlockOperations.js';
+import { stripCommentsForShellExecution } from '../../common/codeBlockCleaning.js';
 
 const shellLangIds = [
 	'fish',
@@ -482,7 +483,7 @@ export function registerChatCodeBlockActions() {
 				terminalGroupService.showPanel(true);
 			}
 
-			terminal.runCommand(context.code, false);
+			terminal.runCommand(stripCommentsForShellExecution(context.code), false);
 
 			if (isResponseVM(context.element)) {
 				chatService.notifyUserAction({

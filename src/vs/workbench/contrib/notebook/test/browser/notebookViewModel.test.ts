@@ -32,6 +32,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { ILanguageDetectionService } from '../../../../services/languageDetection/common/languageDetectionWorkerService.js';
+import { INotebookLoggingService } from '../../common/notebookLoggingService.js';
 
 suite('NotebookViewModel', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -45,6 +46,7 @@ suite('NotebookViewModel', () => {
 	let languageService: ILanguageService;
 	let languageDetectionService: ILanguageDetectionService;
 	let notebookExecutionStateService: INotebookExecutionStateService;
+	let notebookLogger: INotebookLoggingService;
 
 	suiteSetup(() => {
 		disposables = new DisposableStore();
@@ -56,6 +58,7 @@ suite('NotebookViewModel', () => {
 		languageService = instantiationService.get(ILanguageService);
 		languageDetectionService = instantiationService.get(ILanguageDetectionService);
 		notebookExecutionStateService = instantiationService.get(INotebookExecutionStateService);
+		notebookLogger = instantiationService.get(INotebookLoggingService);
 
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(IThemeService, new TestThemeService());
@@ -64,7 +67,7 @@ suite('NotebookViewModel', () => {
 	suiteTeardown(() => disposables.dispose());
 
 	test('ctor', function () {
-		const notebook = new NotebookTextModel('notebook', URI.parse('test'), [], {}, { transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false, cellContentMetadata: {} }, undoRedoService, modelService, languageService, languageDetectionService, notebookExecutionStateService);
+		const notebook = new NotebookTextModel('notebook', URI.parse('test'), [], {}, { transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false, cellContentMetadata: {} }, undoRedoService, modelService, languageService, languageDetectionService, notebookExecutionStateService, notebookLogger);
 		const model = new NotebookEditorTestModel(notebook);
 		const options = new NotebookOptions(mainWindow, false, undefined, instantiationService.get(IConfigurationService), instantiationService.get(INotebookExecutionStateService), instantiationService.get(ICodeEditorService));
 		const eventDispatcher = new NotebookEventDispatcher();

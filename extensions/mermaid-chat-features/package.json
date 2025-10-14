@@ -79,8 +79,7 @@
     "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
   },
   "devDependencies": {
-    "@types/jsdom": "^21.1.7",
-    "@types/node": "^24"
+    "@types/node": "^22.18.10"
   },
   "dependencies": {
     "dompurify": "^3.2.6",

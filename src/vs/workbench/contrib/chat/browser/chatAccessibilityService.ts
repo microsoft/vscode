@@ -8,7 +8,7 @@ import { Disposable, DisposableMap, DisposableStore } from '../../../../base/com
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { AccessibilityProgressSignalScheduler } from '../../../../platform/accessibilitySignal/browser/progressAccessibilitySignalScheduler.js';
-import { IChatAccessibilityService } from './chat.js';
+import { IChatAccessibilityService, showChatWidgetInViewOrEditor } from './chat.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
@@ -128,6 +128,7 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 
 		disposables.add(Event.once(notification.onClick)(async () => {
 			await this._hostService.focus(targetWindow, { mode: FocusMode.Force });
+			await this._instantiationService.invokeFunction(showChatWidgetInViewOrEditor, widget);
 			widget.input.focus();
 			disposables.dispose();
 			this.notifications.delete(disposables);

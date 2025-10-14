@@ -1,14 +1,10 @@
 {
 	"extends": "../tsconfig.base.json",
 	"compilerOptions": {
-		"baseUrl": ".",
+		"outDir": "./out",
 		"noFallthroughCasesInSwitch": true,
 		"noUnusedLocals": false,
-		"outDir": "dist",
-		"resolveJsonModule": true,
-		"rootDir": "src",
 		"skipLibCheck": true,
-		"sourceMap": true,
 		"lib": [
 			"WebWorker"
 		]

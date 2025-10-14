@@ -42,7 +42,7 @@ interface TrustedExtensionsQuickPickItem extends IQuickPickItem {
 class ManageTrustedExtensionsForAccountActionImpl {
 	private readonly _viewDetailsButton = {
 		tooltip: localize('viewExtensionDetails', "View extension details"),
-		iconClass: ThemeIcon.asClassName(Codicon.eye),
+		iconClass: ThemeIcon.asClassName(Codicon.info),
 	};
 
 	private readonly _managePreferencesButton = {

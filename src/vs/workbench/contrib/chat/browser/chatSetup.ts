@@ -249,7 +249,16 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 	}
 
 	private async doInvoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatWidgetService: IChatWidgetService, chatAgentService: IChatAgentService, languageModelToolsService: ILanguageModelToolsService): Promise<IChatAgentResult> {
-		if (!this.context.state.installed || this.context.state.disabled || this.context.state.untrusted || this.context.state.entitlement === ChatEntitlement.Available || this.context.state.entitlement === ChatEntitlement.Unknown) {
+		if (
+			!this.context.state.installed ||									// Extension not installed: run setup to install
+			this.context.state.disabled ||										// Extension disabled: run setup to enable
+			this.context.state.untrusted ||										// Workspace untrusted: run setup to ask for trust
+			this.context.state.entitlement === ChatEntitlement.Available ||		// Entitlement available: run setup to sign up
+			(
+				this.context.state.entitlement === ChatEntitlement.Unknown &&	// Entitlement unknown: run setup to sign in / sign up
+				!this.chatEntitlementService.anonymous							// unless anonymous access is enabled
+			)
+		) {
 			return this.doInvokeWithSetup(request, progress, chatService, languageModelsService, chatWidgetService, chatAgentService, languageModelToolsService);
 		}
 
@@ -925,12 +934,15 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			return; // TODO@bpasero eventually remove this when we figured out extension activation issues
 		}
 
+		const defaultAgentDisposables = markAsSingleton(new MutableDisposable()); // prevents flicker on window reload
+		const vscodeAgentDisposables = markAsSingleton(new MutableDisposable());
+
+		const renameProviderDisposables = markAsSingleton(new MutableDisposable());
+
 		const updateRegistration = () => {
 
 			// Agent + Tools
 			{
-				const defaultAgentDisposables = markAsSingleton(new MutableDisposable()); // prevents flicker on window reload
-				const vscodeAgentDisposables = markAsSingleton(new MutableDisposable());
 				if (!context.state.hidden && !context.state.disabled) {
 
 					// Default Agents (always, even if installed to allow for speedy requests right on startup)
@@ -979,8 +991,6 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 			// Rename Provider
 			{
-				const renameProviderDisposables = markAsSingleton(new MutableDisposable());
-
 				if (!context.state.installed && !context.state.hidden && !context.state.disabled) {
 					if (!renameProviderDisposables.value) {
 						renameProviderDisposables.value = DefaultNewSymbolNamesProvider.registerProvider(this.instantiationService, context, controller);

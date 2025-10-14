@@ -19,6 +19,7 @@
 	border-radius: 2px;
 	background-color: var(--vscode-button-background);
 	color: var(--vscode-button-foreground);
+	border: 1px solid var(--vscode-contrastBorder);
 }
 
 .chat-diff-change-content-widget .monaco-action-bar .action-item .action-label {

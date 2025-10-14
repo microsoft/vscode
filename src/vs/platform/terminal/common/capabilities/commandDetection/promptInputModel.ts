@@ -546,6 +546,11 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		// Retrieve the positions of all cells with the same style as `lastNonWhitespaceCell`
 		const positionsWithGhostStyle = styleMap.get(this._getCellStyleAsString(lastNonWhitespaceCell));
 		if (positionsWithGhostStyle) {
+			// Ghost text must start at the cursor or one char after (e.g. a space)
+			// To account for cursor movement, we also ensure there are not 5+ spaces preceding the ghost text position
+			if (positionsWithGhostStyle[0] > buffer.cursorX + 1 && this._isPositionRightPrompt(line, positionsWithGhostStyle[0])) {
+				return -1;
+			}
 			// Ensure these positions are contiguous
 			for (let i = 1; i < positionsWithGhostStyle.length; i++) {
 				if (positionsWithGhostStyle[i] !== positionsWithGhostStyle[i - 1] + 1) {
@@ -576,6 +581,29 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		}
 
 		return ghostTextIndex >= cursorIndex ? ghostTextIndex : -1;
+	}
+
+	/**
+	 * 5+ spaces preceding the position, following the command start,
+	 * indicates that we're likely in a right prompt at the current position
+	 */
+	private _isPositionRightPrompt(line: IBufferLine, position: number): boolean {
+		let count = 0;
+		for (let i = position - 1; i >= this._commandStartX; i--) {
+			const cell = line.getCell(i);
+			// treat missing cell or whitespace-only cell as empty; reset count on first non-empty
+			if (!cell || cell.getChars().trim().length === 0) {
+				count++;
+				// If we've already found 5 consecutive empties we can early-return
+				if (count >= 5) {
+					return true;
+				}
+			} else {
+				// consecutive sequence broken
+				count = 0;
+			}
+		}
+		return false;
 	}
 
 	private _getCellStyleAsString(cell: IBufferCell): string {

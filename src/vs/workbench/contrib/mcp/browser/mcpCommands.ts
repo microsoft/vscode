@@ -900,8 +900,8 @@ MenuRegistry.appendMenuItem(CHAT_CONFIG_MENU_ID, {
 		title: localize2('mcp.servers', "MCP Servers")
 	},
 	when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
-	order: 14,
-	group: '0_level'
+	order: 10,
+	group: '2_level'
 });
 
 abstract class OpenMcpResourceCommand extends Action2 {
