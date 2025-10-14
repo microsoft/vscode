@@ -1205,16 +1205,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			if (e.keyCode === KeyCode.Enter && !hasModifierKeys(e)) {
 				// Check if ChatSubmitAction has a keybinding for plain Enter in the current context
 				// This respects user's custom keybindings that disable the submit action
-				const chatSubmitKeybinding = this.keybindingService.lookupKeybinding(ChatSubmitAction.ID, this.contextKeyService);
-
-				// Only prevent default if the keybinding exists AND matches plain Enter (no modifiers)
-				if (chatSubmitKeybinding) {
-					const chords = chatSubmitKeybinding.getDispatchChords();
+				for (const keybinding of this.keybindingService.lookupKeybindings(ChatSubmitAction.ID)) {
+					const chords = keybinding.getDispatchChords();
 					const isPlainEnter = chords.length === 1 && chords[0] === '[Enter]';
-
 					if (isPlainEnter) {
 						// Do NOT call stopPropagation() so the keybinding service can still process this event
 						e.preventDefault();
+						break;
 					}
 				}
 			}
