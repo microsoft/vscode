@@ -859,7 +859,7 @@ export interface IListAccessibilityProvider<T> extends IListViewAccessibilityPro
 	getWidgetAriaLabel(): string | IObservable<string>;
 	getWidgetRole?(): AriaRole;
 	getAriaLevel?(element: T): number | undefined;
-	onDidChangeActiveDescendant?: Event<void>;
+	readonly onDidChangeActiveDescendant?: Event<void>;
 	getActiveDescendantId?(element: T): string | undefined;
 }
 

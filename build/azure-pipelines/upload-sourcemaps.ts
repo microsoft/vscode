@@ -10,6 +10,7 @@ import vfs from 'vinyl-fs';
 import * as util from '../lib/util';
 import { getProductionDependencies } from '../lib/dependencies';
 import { ClientAssertionCredential } from '@azure/identity';
+import Stream from 'stream';
 const azure = require('gulp-azure-storage');
 
 const root = path.dirname(path.dirname(__dirname));
@@ -28,7 +29,7 @@ function src(base: string, maps = `${base}/**/*.map`) {
 }
 
 function main(): Promise<void> {
-	const sources: any[] = [];
+	const sources: Stream[] = [];
 
 	// vscode client maps (default)
 	if (!base) {

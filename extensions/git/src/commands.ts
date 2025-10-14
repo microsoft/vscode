@@ -2381,12 +2381,8 @@ export class CommandCenter {
 		let promptToSaveFilesBeforeCommit = config.get<'always' | 'staged' | 'never'>('promptToSaveFilesBeforeCommit');
 
 		// migration
-		// eslint-disable-next-line local/code-no-any-casts
-		if (promptToSaveFilesBeforeCommit as any === true) {
-			promptToSaveFilesBeforeCommit = 'always';
-			// eslint-disable-next-line local/code-no-any-casts
-		} else if (promptToSaveFilesBeforeCommit as any === false) {
-			promptToSaveFilesBeforeCommit = 'never';
+		if (typeof promptToSaveFilesBeforeCommit === 'boolean') {
+			promptToSaveFilesBeforeCommit = promptToSaveFilesBeforeCommit ? 'always' : 'never';
 		}
 
 		let enableSmartCommit = config.get<boolean>('enableSmartCommit') === true;
@@ -5370,8 +5366,7 @@ export class CommandCenter {
 		};
 
 		// patch this object, so people can call methods directly
-		// eslint-disable-next-line local/code-no-any-casts
-		(this as any)[key] = result;
+		(this as Record<string, unknown>)[key] = result;
 
 		return result;
 	}

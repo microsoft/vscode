@@ -15,8 +15,8 @@ const INITIALIZE = '$initialize';
 
 export interface IWebWorker extends IDisposable {
 	getId(): number;
-	onMessage: Event<Message>;
-	onError: Event<unknown>;
+	readonly onMessage: Event<Message>;
+	readonly onError: Event<unknown>;
 	postMessage(message: Message, transfer: ArrayBuffer[]): void;
 }
 

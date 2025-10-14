@@ -120,7 +120,7 @@ export interface MainThreadCommandsShape extends IDisposable {
 	$registerCommand(id: string): void;
 	$unregisterCommand(id: string): void;
 	$fireCommandActivationEvent(id: string): void;
-	$executeCommand(id: string, args: any[] | SerializableObjectWithBuffers<any[]>, retry: boolean): Promise<unknown | undefined>;
+	$executeCommand(id: string, args: unknown[] | SerializableObjectWithBuffers<unknown[]>, retry: boolean): Promise<unknown | undefined>;
 	$getCommands(): Promise<string[]>;
 }
 
@@ -486,7 +486,8 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$registerNewSymbolNamesProvider(handle: number, selector: IDocumentFilterDto[]): void;
 	$registerDocumentSemanticTokensProvider(handle: number, selector: IDocumentFilterDto[], legend: languages.SemanticTokensLegend, eventHandle: number | undefined): void;
 	$emitDocumentSemanticTokensEvent(eventHandle: number): void;
-	$registerDocumentRangeSemanticTokensProvider(handle: number, selector: IDocumentFilterDto[], legend: languages.SemanticTokensLegend): void;
+	$registerDocumentRangeSemanticTokensProvider(handle: number, selector: IDocumentFilterDto[], legend: languages.SemanticTokensLegend, eventHandle: number | undefined): void;
+	$emitDocumentRangeSemanticTokensEvent(eventHandle: number): void;
 	$registerCompletionsProvider(handle: number, selector: IDocumentFilterDto[], triggerCharacters: string[], supportsResolveDetails: boolean, extensionId: ExtensionIdentifier): void;
 	$registerInlineCompletionsSupport(handle: number, selector: IDocumentFilterDto[], supportsHandleDidShowCompletionItem: boolean, extensionId: string, extensionVersion: string, yieldToId: string | undefined, yieldsToExtensionIds: string[], displayName: string | undefined, debounceDelayMs: number | undefined, excludesExtensionIds: string[], eventHandle: number | undefined): void;
 	$emitInlineCompletionsChange(handle: number): void;
@@ -652,6 +653,8 @@ export interface TransferQuickPick extends BaseTransferQuickInput {
 	value?: string;
 
 	placeholder?: string;
+
+	prompt?: string;
 
 	buttons?: TransferQuickInputButton[];
 
@@ -2476,7 +2479,7 @@ export interface ITerminalCommandDto {
 
 export interface ITerminalCompletionContextDto {
 	commandLine: string;
-	cursorPosition: number;
+	cursorIndex: number;
 	allowFallbackCompletions: boolean;
 }
 
@@ -2508,7 +2511,7 @@ export class TerminalCompletionListDto<T extends ITerminalCompletionItemDto = IT
 	/**
 	 * Resources should be shown in the completions list
 	 */
-	resourceRequestConfig?: TerminalResourceRequestConfigDto;
+	resourceOptions?: TerminalCompletionResourceOptionsDto;
 
 	/**
 	 * The completion items.
@@ -2521,15 +2524,15 @@ export class TerminalCompletionListDto<T extends ITerminalCompletionItemDto = IT
 	 * @param items The completion items.
 	 * @param isIncomplete The list is not complete.
 	 */
-	constructor(items?: T[], resourceRequestConfig?: TerminalResourceRequestConfigDto) {
+	constructor(items?: T[], resourceOptions?: TerminalCompletionResourceOptionsDto) {
 		this.items = items ?? [];
-		this.resourceRequestConfig = resourceRequestConfig;
+		this.resourceOptions = resourceOptions;
 	}
 }
 
-export interface TerminalResourceRequestConfigDto {
-	filesRequested?: boolean;
-	foldersRequested?: boolean;
+export interface TerminalCompletionResourceOptionsDto {
+	showFiles?: boolean;
+	showFolders?: boolean;
 	globPattern?: string | IRelativePattern;
 	cwd: UriComponents;
 	pathSeparator: string;
@@ -3035,13 +3038,25 @@ export interface ExtHostMcpShape {
 	$waitForInitialCollectionProviders(): Promise<void>;
 }
 
+export interface IMcpAuthenticationDetails {
+	authorizationServer: UriComponents;
+	authorizationServerMetadata: IAuthorizationServerMetadata;
+	resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined;
+	scopes: string[] | undefined;
+}
+
+export interface IMcpAuthenticationOptions {
+	errorOnUserInteraction?: boolean;
+	forceNewRegistration?: boolean;
+}
+
 export interface MainThreadMcpShape {
 	$onDidChangeState(id: number, state: McpConnectionState): void;
 	$onDidPublishLog(id: number, level: LogLevel, log: string): void;
 	$onDidReceiveMessage(id: number, message: string): void;
 	$upsertMcpCollection(collection: McpCollectionDefinition.FromExtHost, servers: McpServerDefinition.Serialized[]): void;
 	$deleteMcpCollection(collectionId: string): void;
-	$getTokenFromServerMetadata(id: number, authorizationServer: UriComponents, serverMetadata: IAuthorizationServerMetadata, resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined, errorOnUserInteraction?: boolean): Promise<string | undefined>;
+	$getTokenFromServerMetadata(id: number, authDetails: IMcpAuthenticationDetails, options?: IMcpAuthenticationOptions): Promise<string | undefined>;
 }
 
 export interface MainThreadDataChannelsShape extends IDisposable {

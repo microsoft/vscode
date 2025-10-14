@@ -14,11 +14,13 @@ import { isFalsyOrWhitespace } from '../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { ExtensionsRegistry } from '../../../services/extensions/common/extensionsRegistry.js';
 import { ChatContextKeys } from './chatContextKeys.js';
@@ -205,7 +207,7 @@ export interface ILanguageModelChatResponse {
 }
 
 export interface ILanguageModelChatProvider {
-	onDidChange: Event<void>;
+	readonly onDidChange: Event<void>;
 	provideLanguageModelChatInfo(options: { silent: boolean }, token: CancellationToken): Promise<ILanguageModelChatMetadataAndIdentifier[]>;
 	sendChatRequest(modelId: string, messages: IChatMessage[], from: ExtensionIdentifier, options: { [name: string]: any }, token: CancellationToken): Promise<ILanguageModelChatResponse>;
 	provideTokenCount(modelId: string, message: string | IChatMessage, token: CancellationToken): Promise<number>;
@@ -239,7 +241,7 @@ export interface ILanguageModelsService {
 	readonly _serviceBrand: undefined;
 
 	// TODO @lramos15 - Make this a richer event in the future. Right now it just indicates some change happened, but not what
-	onDidChangeLanguageModels: Event<void>;
+	readonly onDidChangeLanguageModels: Event<void>;
 
 	updateModelPickerPreference(modelIdentifier: string, showInModelPicker: boolean): void;
 
@@ -316,8 +318,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 	private readonly _modelCache = new Map<string, ILanguageModelChatMetadata>();
 	private readonly _vendors = new Map<string, IUserFriendlyLanguageModel>();
 	private readonly _resolveLMSequencer = new SequencerByKey<string>();
-	private readonly _modelPickerUserPreferences: Record<string, boolean> = {}; // We use a record instead of a map for better serialization when storing
-
+	private _modelPickerUserPreferences: Record<string, boolean> = {};
 	private readonly _hasUserSelectableModels: IContextKey<boolean>;
 	private readonly _onLanguageModelChange = this._store.add(new Emitter<void>());
 	readonly onDidChangeLanguageModels: Event<void> = this._onLanguageModelChange.event;
@@ -326,12 +327,22 @@ export class LanguageModelsService implements ILanguageModelsService {
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@ILogService private readonly _logService: ILogService,
 		@IStorageService private readonly _storageService: IStorageService,
-		@IContextKeyService _contextKeyService: IContextKeyService
+		@IContextKeyService _contextKeyService: IContextKeyService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
 	) {
 		this._hasUserSelectableModels = ChatContextKeys.languageModelsAreUserSelectable.bindTo(_contextKeyService);
 		this._modelPickerUserPreferences = this._storageService.getObject<Record<string, boolean>>('chatModelPickerPreferences', StorageScope.PROFILE, this._modelPickerUserPreferences);
+		// TODO @lramos15 - Remove after a few releases, as this is just cleaning a bad storage state
+		const entitlementChangeHandler = () => {
+			if ((this._chatEntitlementService.entitlement === ChatEntitlement.Business || this._chatEntitlementService.entitlement === ChatEntitlement.Enterprise) && !this._chatEntitlementService.isInternal) {
+				this._modelPickerUserPreferences = {};
+				this._storageService.store('chatModelPickerPreferences', this._modelPickerUserPreferences, StorageScope.PROFILE, StorageTarget.USER);
+			}
+		};
 
-
+		entitlementChangeHandler();
+		this._store.add(this._chatEntitlementService.onDidChangeEntitlement(entitlementChangeHandler));
 
 		this._store.add(this.onDidChangeLanguageModels(() => {
 			this._hasUserSelectableModels.set(this._modelCache.size > 0 && Array.from(this._modelCache.values()).some(model => model.isUserSelectable));
@@ -357,7 +368,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 					}
 					this._vendors.set(item.vendor, item);
 					// Have some models we want from this vendor, so activate the extension
-					if (this._hasStoredModelForvendor(item.vendor)) {
+					if (this._hasStoredModelForVendor(item.vendor)) {
 						this._extensionService.activateByEvent(`onLanguageModelChatProvider:${item.vendor}`);
 					}
 				}
@@ -370,7 +381,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 		}));
 	}
 
-	private _hasStoredModelForvendor(vendor: string): boolean {
+	private _hasStoredModelForVendor(vendor: string): boolean {
 		return Object.keys(this._modelPickerUserPreferences).some(modelId => {
 			return modelId.startsWith(vendor);
 		});
@@ -409,6 +420,9 @@ export class LanguageModelsService implements ILanguageModelsService {
 
 	lookupLanguageModel(modelIdentifier: string): ILanguageModelChatMetadata | undefined {
 		const model = this._modelCache.get(modelIdentifier);
+		if (model && this._configurationService.getValue('chat.experimentalShowAllModels')) {
+			return { ...model, isUserSelectable: true };
+		}
 		if (model && this._modelPickerUserPreferences[modelIdentifier] !== undefined) {
 			return { ...model, isUserSelectable: this._modelPickerUserPreferences[modelIdentifier] };
 		}

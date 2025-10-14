@@ -321,7 +321,7 @@ export class OpenEditorsView extends ViewPane {
 				dirtyEditorFocusedContext.set(element.editor.isDirty() && !element.editor.isSaving());
 				readonlyEditorFocusedContext.set(!!element.editor.isReadonly());
 				resourceContext.set(resource ?? null);
-			} else if (!!element) {
+			} else if (element) {
 				groupFocusedContext.set(true);
 			}
 		}));

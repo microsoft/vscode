@@ -685,7 +685,7 @@ export abstract class ReferenceCollection<T> {
 
 	private readonly references: Map<string, { readonly object: T; counter: number }> = new Map();
 
-	acquire(key: string, ...args: any[]): IReference<T> {
+	acquire(key: string, ...args: unknown[]): IReference<T> {
 		let reference = this.references.get(key);
 
 		if (!reference) {
@@ -706,7 +706,7 @@ export abstract class ReferenceCollection<T> {
 		return { object, dispose };
 	}
 
-	protected abstract createReferencedObject(key: string, ...args: any[]): T;
+	protected abstract createReferencedObject(key: string, ...args: unknown[]): T;
 	protected abstract destroyReferencedObject(key: string, object: T): void;
 }
 

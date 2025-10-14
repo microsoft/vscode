@@ -3732,7 +3732,7 @@
   },
   "devDependencies": {
     "@types/byline": "4.2.31",
-    "@types/mocha": "^9.1.1",
+    "@types/mocha": "^10.0.10",
     "@types/node": "22.x",
     "@types/picomatch": "2.3.0",
     "@types/which": "3.0.0"

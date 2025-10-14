@@ -46,8 +46,8 @@ import { NullWorkbenchAssignmentService } from '../../../../services/assignment/
 import { IExtensionService, nullExtensionDescription } from '../../../../services/extensions/common/extensions.js';
 import { TextModelResolverService } from '../../../../services/textmodelResolver/common/textModelResolverService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { TestChatEntitlementService, TestViewsService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
-import { TestContextService, TestExtensionService } from '../../../../test/common/workbenchTestServices.js';
+import { TestViewsService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { TestChatEntitlementService, TestContextService, TestExtensionService } from '../../../../test/common/workbenchTestServices.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { IChatAccessibilityService, IChatWidget, IChatWidgetService } from '../../../chat/browser/chat.js';
 import { ChatInputBoxContentProvider } from '../../../chat/browser/chatEdinputInputContentProvider.js';

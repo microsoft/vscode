@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
-import { alert } from '../../../../base/browser/ui/aria/aria.js';
 import { assertNever } from '../../../../base/common/assert.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { encodeBase64 } from '../../../../base/common/buffer.js';
+import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { combinedDisposable, Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -34,7 +34,6 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
-import { AccessibilityWorkbenchSettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { ChatModel } from '../common/chatModel.js';
 import { IVariableReference } from '../common/chatModes.js';
@@ -291,6 +290,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		let requestId: string | undefined;
 		let store: DisposableStore | undefined;
 		let toolResult: IToolResult | undefined;
+		let prepareTimeWatch: StopWatch | undefined;
+		let invocationTimeWatch: StopWatch | undefined;
 		try {
 			if (dto.context) {
 				store = new DisposableStore();
@@ -323,7 +324,9 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				}));
 				token = source.token;
 
+				prepareTimeWatch = StopWatch.create(true);
 				const prepared = await this.prepareToolInvocation(tool, dto, token);
+				prepareTimeWatch.stop();
 
 				toolInvocation = new ChatToolInvocation(prepared, tool.data, dto.callId, dto.fromSubAgent);
 				trackedCall.invocation = toolInvocation;
@@ -335,8 +338,6 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				model.acceptResponseProgress(request, toolInvocation);
 
 				dto.toolSpecificData = toolInvocation?.toolSpecificData;
-				this.informScreenReader(prepared?.invocationMessage ?? `${tool.data.displayName} started`);
-
 				if (prepared?.confirmationMessages) {
 					if (!toolInvocation.isConfirmed?.type && !autoConfirmed) {
 						this.playAccessibilitySignal([toolInvocation]);
@@ -361,7 +362,9 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					}
 				}
 			} else {
+				prepareTimeWatch = StopWatch.create(true);
 				const prepared = await this.prepareToolInvocation(tool, dto, token);
+				prepareTimeWatch.stop();
 				if (prepared?.confirmationMessages && !(await this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace))) {
 					const result = await this._dialogService.confirm({ message: renderAsPlaintext(prepared.confirmationMessages.title), detail: renderAsPlaintext(prepared.confirmationMessages.message) });
 					if (!result.confirmed) {
@@ -376,11 +379,13 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				throw new CancellationError();
 			}
 
+			invocationTimeWatch = StopWatch.create(true);
 			toolResult = await tool.impl.invoke(dto, countTokens, {
 				report: step => {
 					toolInvocation?.acceptProgress(step);
 				}
 			}, token);
+			invocationTimeWatch.stop();
 			this.ensureToolDetails(dto, toolResult, tool.data);
 
 			this._telemetryService.publicLog2<LanguageModelToolInvokedEvent, LanguageModelToolInvokedClassification>(
@@ -391,6 +396,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					toolId: tool.data.id,
 					toolExtensionId: tool.data.source.type === 'extension' ? tool.data.source.extensionId.value : undefined,
 					toolSourceKind: tool.data.source.type,
+					prepareTimeMs: prepareTimeWatch?.elapsed(),
+					invocationTimeMs: invocationTimeWatch?.elapsed(),
 				});
 			return toolResult;
 		} catch (err) {
@@ -403,6 +410,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					toolId: tool.data.id,
 					toolExtensionId: tool.data.source.type === 'extension' ? tool.data.source.extensionId.value : undefined,
 					toolSourceKind: tool.data.source.type,
+					prepareTimeMs: prepareTimeWatch?.elapsed(),
+					invocationTimeMs: invocationTimeWatch?.elapsed(),
 				});
 			this._logService.error(`[LanguageModelToolsService#invokeTool] Error from tool ${dto.toolId} with parameters ${JSON.stringify(dto.parameters)}:\n${toErrorMessage(err, true)}`);
 
@@ -415,9 +424,6 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			throw err;
 		} finally {
 			toolInvocation?.complete(toolResult);
-			if (ChatContextKeys.requestInProgress.getValue(this._contextKeyService)) {
-				this.informScreenReader(toolInvocation?.pastTenseMessage ?? `${tool.data.displayName} finished`);
-			}
 			if (store) {
 				this.cleanupCallDisposables(requestId, store);
 			}
@@ -448,12 +454,6 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 
 		return prepared;
-	}
-
-	private informScreenReader(msg: string | IMarkdownString): void {
-		if (this._configurationService.getValue(AccessibilityWorkbenchSettingId.VerboseChatProgressUpdates)) {
-			alert(typeof msg === 'string' ? msg : msg.value);
-		}
 	}
 
 	private playAccessibilitySignal(toolInvocations: ChatToolInvocation[]): void {
@@ -801,6 +801,8 @@ type LanguageModelToolInvokedEvent = {
 	toolId: string;
 	toolExtensionId: string | undefined;
 	toolSourceKind: string;
+	prepareTimeMs?: number;
+	invocationTimeMs?: number;
 };
 
 type LanguageModelToolInvokedClassification = {
@@ -809,6 +811,8 @@ type LanguageModelToolInvokedClassification = {
 	toolId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the tool used.' };
 	toolExtensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension that contributed the tool.' };
 	toolSourceKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The source (mcp/extension/internal) of the tool.' };
+	prepareTimeMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Time spent in prepareToolInvocation method in milliseconds.' };
+	invocationTimeMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Time spent in tool invoke method in milliseconds.' };
 	owner: 'roblourens';
 	comment: 'Provides insight into the usage of language model tools.';
 };

@@ -207,7 +207,7 @@ export abstract class NotebookMultiCellAction extends Action2 {
 		super(desc);
 	}
 
-	parseArgs(accessor: ServicesAccessor, ...args: any[]): INotebookCommandContext | undefined {
+	parseArgs(accessor: ServicesAccessor, ...args: unknown[]): INotebookCommandContext | undefined {
 		return undefined;
 	}
 

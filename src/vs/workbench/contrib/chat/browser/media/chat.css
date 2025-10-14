@@ -757,7 +757,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-editing-session {
-	margin-bottom: -4px;
+	margin-bottom: -4px; /* reset the 4px gap of the container for editing sessions */
 	width: 100%;
 	position: relative;
 }
@@ -1653,6 +1653,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 /* #region Quick Chat */
+
+.quick-input-widget .interactive-session {
+	width: 100%;
+}
 
 .quick-input-widget .interactive-session .interactive-input-part {
 	padding: 8px 6px 8px 6px;
@@ -2905,8 +2909,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		align-items: center;
 		gap: 4px;
 		border: 1px solid var(--vscode-chat-requestBorder);
-		color: var(--vscode-descriptionForeground);
-		font-weight: 600;
+		color: var(--vscode-interactive-session-foreground);
+		opacity: 0.85;
 		outline: none;
 		margin: 3px;
 		border: none;
@@ -2916,20 +2920,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 			outline-offset: -1px;
 		}
 
-		.codicon.chat-thinking-fixed-caret {
+		.chat-thinking-fixed-title-icon {
+			font-size: 16px;
 			margin-left: auto;
-			font-size: 12px;
+			line-height: 0;
 		}
 
-		.chat-thinking-fixed-spinner {
-			font-size: 12px;
-			opacity: 0.8;
-		}
-
-		/* temp icon while we wait for brain icon */
-		.chat-thinking-fixed-complete {
-			font-size: 12px;
-			color: var(--vscode-testing-iconPassed);
+		.chat-thinking-fixed-title-icon .codicon-check {
+			color: var(--vscode-debugIcon-startForeground) !important;
 		}
 
 		.monaco-button {
@@ -2938,7 +2936,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 			width: 100%;
 			border: none;
 			outline: none;
-			padding-left: 10px;
+			padding: 3px 8px;
 
 			&:hover {
 				background: var(--vscode-toolbar-hoverBackground);
@@ -2992,9 +2990,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 			display: block;
 		}
 
-		&.finished .chat-thinking-fixed-header .codicon-pass-filled {
-			display: none;
-		}
 	}
 
 	/* item and dot rendering */

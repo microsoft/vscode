@@ -64,7 +64,7 @@ class ManageModeAction extends ConfigModeActionImpl {
 		super({
 			id: CONFIGURE_MODES_ACTION_ID,
 			title: localize2('configure-modes', "Configure Chat Modes..."),
-			shortTitle: localize('configure-modes.short', "Modes"),
+			shortTitle: localize('configure-modes.short', "Chat Modes"),
 			icon: Codicon.bookmark,
 			f1: true,
 			precondition: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
@@ -73,7 +73,7 @@ class ManageModeAction extends ConfigModeActionImpl {
 				{
 					id: CHAT_CONFIG_MENU_ID,
 					when: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
-					order: 12,
+					order: 10,
 					group: '0_level'
 				}
 			]

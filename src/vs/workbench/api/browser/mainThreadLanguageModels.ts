@@ -237,7 +237,7 @@ class LanguageModelAccessAuthProvider implements IAuthenticationProvider {
 
 	// Important for updating the UI
 	private _onDidChangeSessions: Emitter<AuthenticationSessionsChangeEvent> = new Emitter<AuthenticationSessionsChangeEvent>();
-	onDidChangeSessions: Event<AuthenticationSessionsChangeEvent> = this._onDidChangeSessions.event;
+	readonly onDidChangeSessions: Event<AuthenticationSessionsChangeEvent> = this._onDidChangeSessions.event;
 
 	private _session: AuthenticationSession | undefined;
 

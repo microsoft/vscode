@@ -75,6 +75,9 @@ try {
 catch (err) {
     // ignore
 }
+class ReporterError extends Error {
+    __reporter__ = true;
+}
 function createReporter(id) {
     const errorLog = getErrorLog(id);
     const errors = [];
@@ -87,15 +90,11 @@ function createReporter(id) {
         return event_stream_1.default.through(undefined, function () {
             errorLog.onEnd();
             if (emitError && errors.length > 0) {
-                // eslint-disable-next-line local/code-no-any-casts
                 if (!errors.__logged__) {
                     errorLog.log();
                 }
-                // eslint-disable-next-line local/code-no-any-casts
                 errors.__logged__ = true;
-                const err = new Error(`Found ${errors.length} errors`);
-                // eslint-disable-next-line local/code-no-any-casts
-                err.__reporter__ = true;
+                const err = new ReporterError(`Found ${errors.length} errors`);
                 this.emit('error', err);
             }
             else {

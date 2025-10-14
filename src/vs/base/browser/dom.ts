@@ -421,14 +421,13 @@ export interface IEventMerger<R, E> {
 }
 
 const MINIMUM_TIME_MS = 8;
-const DEFAULT_EVENT_MERGER: IEventMerger<Event, Event> = function (lastEvent: Event | null, currentEvent: Event) {
+function DEFAULT_EVENT_MERGER<T>(_lastEvent: unknown, currentEvent: T) {
 	return currentEvent;
-};
+}
 
 class TimeoutThrottledDomListener<R, E extends Event> extends Disposable {
 
-	// eslint-disable-next-line local/code-no-any-casts
-	constructor(node: any, type: string, handler: (event: R) => void, eventMerger: IEventMerger<R, E> = <any>DEFAULT_EVENT_MERGER, minimumTimeMs: number = MINIMUM_TIME_MS) {
+	constructor(node: Node, type: string, handler: (event: R) => void, eventMerger: IEventMerger<R, E> = DEFAULT_EVENT_MERGER as IEventMerger<R, E>, minimumTimeMs: number = MINIMUM_TIME_MS) {
 		super();
 
 		let lastEvent: R | null = null;

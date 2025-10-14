@@ -137,7 +137,7 @@ export function addEditorAction(descriptor: IActionDescriptor): IDisposable {
 	}
 
 	const precondition = ContextKeyExpr.deserialize(descriptor.precondition);
-	const run = (accessor: ServicesAccessor, ...args: any[]): void | Promise<void> => {
+	const run = (accessor: ServicesAccessor, ...args: unknown[]): void | Promise<void> => {
 		return EditorCommand.runEditorCommand(accessor, args, precondition, (accessor, editor, args) => Promise.resolve(descriptor.run(editor, ...args)));
 	};
 
