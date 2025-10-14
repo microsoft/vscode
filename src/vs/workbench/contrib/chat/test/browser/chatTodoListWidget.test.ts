@@ -25,6 +25,15 @@ suite('ChatTodoListWidget Accessibility', () => {
 		{ id: 3, title: 'Third task', status: 'completed' }
 	];
 
+	function createMockContextMenuService(): IContextMenuService {
+		// eslint-disable-next-line local/code-no-any-casts
+		// Mock implementation needed because IContextMenuService interface requires DOM interaction
+		return {
+			_serviceBrand: undefined,
+			showContextMenu: (delegate: any) => { }
+		} as any;
+	}
+
 	setup(() => {
 		// Mock the todo list service
 		mockTodoListService = {
@@ -40,12 +49,7 @@ suite('ChatTodoListWidget Accessibility', () => {
 			getValue: (key: string) => key === 'chat.todoListTool.descriptionField' ? true : undefined
 		} as any;
 
-		// Mock the context menu service
-		// eslint-disable-next-line local/code-no-any-casts
-		mockContextMenuService = {
-			_serviceBrand: undefined,
-			showContextMenu: (delegate: any) => { }
-		} as any;
+		mockContextMenuService = createMockContextMenuService();
 
 		widget = store.add(new ChatTodoListWidget(mockTodoListService, mockConfigurationService, mockContextMenuService));
 		mainWindow.document.body.appendChild(widget.domNode);
@@ -156,11 +160,7 @@ suite('ChatTodoListWidget Accessibility', () => {
 			getValue: (key: string) => key === 'chat.todoListTool.descriptionField' ? true : undefined
 		} as any;
 
-		// eslint-disable-next-line local/code-no-any-casts
-		const emptyContextMenuService: IContextMenuService = {
-			_serviceBrand: undefined,
-			showContextMenu: (delegate: any) => { }
-		} as any;
+		const emptyContextMenuService = createMockContextMenuService();
 
 		const emptyWidget = store.add(new ChatTodoListWidget(emptyTodoListService, emptyConfigurationService, emptyContextMenuService));
 		mainWindow.document.body.appendChild(emptyWidget.domNode);

@@ -555,13 +555,14 @@ export class ChatTodoListWidget extends Disposable {
 		}));
 
 		// Handle blur to save
+		const BLUR_SAVE_DELAY_MS = 100; // Allow time for other actions (like clicking menu items) to complete
 		this._register(dom.addDisposableListener(this._editInputBox.inputElement, 'blur', () => {
 			// Small timeout to allow other actions (like clicking save button) to complete
 			setTimeout(() => {
 				if (this._editingTodoId === todo.id) {
 					this.saveEdit(todo);
 				}
-			}, 100);
+			}, BLUR_SAVE_DELAY_MS);
 		}));
 	}
 
@@ -572,7 +573,8 @@ export class ChatTodoListWidget extends Disposable {
 
 		const newTitle = this._editInputBox.value.trim();
 
-		if (newTitle && newTitle !== todo.title) {
+		// Only save if title is non-empty and different from original
+		if (newTitle.length > 0 && newTitle !== todo.title) {
 			// Update the todo
 			const todos = this.chatTodoListService.getTodos(this._currentSessionId);
 			const updatedTodos = todos.map(t => t.id === todo.id ? { ...t, title: newTitle } : t);
@@ -581,7 +583,7 @@ export class ChatTodoListWidget extends Disposable {
 			// Re-render the list
 			this.updateTodoDisplay();
 		} else {
-			// Just cancel if no change or empty
+			// Cancel if title is empty or unchanged
 			this.cancelEditing();
 		}
 
