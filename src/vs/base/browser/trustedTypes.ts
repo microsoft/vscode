@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { TrustedTypePolicy } from 'trusted-types/lib/index.js';
 import { onUnexpectedError } from '../common/errors.js';
 
 type TrustedTypePolicyOptions = import('trusted-types/lib/index.d.ts').TrustedTypePolicyOptions;
