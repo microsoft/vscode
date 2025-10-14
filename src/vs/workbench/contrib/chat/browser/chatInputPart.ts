@@ -12,6 +12,7 @@ import { ActionViewItem, IActionViewItemOptions } from '../../../../base/browser
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
 import { Button, ButtonWithIcon } from '../../../../base/browser/ui/button/button.js';
 import { createInstantHoverDelegate, getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -22,10 +23,11 @@ import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { autorun, IObservable, observableValue } from '../../../../base/common/observable.js';
+import { autorun, IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
+import { assertType } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IEditorConstructionOptions } from '../../../../editor/browser/config/editorConfiguration.js';
 import { EditorExtensionsRegistry } from '../../../../editor/browser/editorExtensions.js';
@@ -68,6 +70,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { ISharedWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { ResourceLabels } from '../../../browser/labels.js';
 import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
+import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
@@ -75,7 +78,6 @@ import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions, setupSimpleEd
 import { IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatEditingSession, ModifiedFileEntryState } from '../common/chatEditingService.js';
-import { ChatEntitlement, IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { IChatRequestModeInfo } from '../common/chatModel.js';
 import { ChatMode, IChatMode, IChatModeService } from '../common/chatModes.js';
 import { IChatFollowup } from '../common/chatService.js';
@@ -94,19 +96,17 @@ import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { DefaultChatAttachmentWidget, ElementChatAttachmentWidget, FileAttachmentWidget, ImageAttachmentWidget, NotebookCellOutputChatAttachmentWidget, PasteAttachmentWidget, PromptFileAttachmentWidget, PromptTextAttachmentWidget, SCMHistoryItemAttachmentWidget, SCMHistoryItemChangeAttachmentWidget, SCMHistoryItemChangeRangeAttachmentWidget, ToolSetOrToolItemAttachmentWidget } from './chatAttachmentWidgets.js';
 import { IDisposableReference } from './chatContentParts/chatCollections.js';
 import { CollapsibleListPool, IChatCollapsibleListItem } from './chatContentParts/chatReferencesContentPart.js';
+import { ChatTodoListWidget } from './chatContentParts/chatTodoListWidget.js';
 import { ChatDragAndDrop } from './chatDragAndDrop.js';
 import { ChatEditingShowChangesAction, ViewPreviousEditsAction } from './chatEditing/chatEditingActions.js';
 import { ChatFollowups } from './chatFollowups.js';
 import { ChatSelectedTools } from './chatSelectedTools.js';
-import { ChatTodoListWidget } from './chatContentParts/chatTodoListWidget.js';
 import { IChatViewState } from './chatWidget.js';
 import { ChatImplicitContext } from './contrib/chatImplicitContext.js';
 import { ChatRelatedFiles } from './contrib/chatInputRelatedFilesContrib.js';
 import { resizeImage } from './imageUtils.js';
 import { IModelPickerDelegate, ModelPickerActionItem } from './modelPicker/modelPickerActionItem.js';
 import { IModePickerDelegate, ModePickerActionItem } from './modelPicker/modePickerActionItem.js';
-import { assertType } from '../../../../base/common/types.js';
-import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 
 const $ = dom.$;
 
@@ -118,7 +118,8 @@ export interface IChatInputStyles {
 	listBackground: string;
 }
 
-interface IChatInputPartOptions {
+export interface IChatInputPartOptions {
+	defaultMode?: IChatMode;
 	renderFollowups: boolean;
 	renderStyle?: 'compact';
 	menus: {
@@ -310,7 +311,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _onDidChangeCurrentChatMode: Emitter<void>;
 	readonly onDidChangeCurrentChatMode: Event<void>;
 
-	private readonly _currentModeObservable = observableValue<IChatMode>('currentMode', ChatMode.Ask);
+	private readonly _currentModeObservable: ISettableObservable<IChatMode>;
 	public get currentModeKind(): ChatModeKind {
 		const mode = this._currentModeObservable.get();
 		return mode.kind === ChatModeKind.Agent && !this.agentService.hasToolsAgent ?
@@ -441,11 +442,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._onDidChangeCurrentLanguageModel = this._register(new Emitter<ILanguageModelChatMetadataAndIdentifier>());
 		this._onDidChangeCurrentChatMode = this._register(new Emitter<void>());
 		this.onDidChangeCurrentChatMode = this._onDidChangeCurrentChatMode.event;
-		this._currentModeObservable.set(ChatMode.Ask, undefined);
 		this.inputUri = URI.parse(`${Schemas.vscodeChatInput}:input-${ChatInputPart._counter++}`);
 		this._chatEditsActionsDisposables = this._register(new DisposableStore());
 		this._chatEditsDisposables = this._register(new DisposableStore());
 		this._attemptedWorkingSetEntriesCount = 0;
+		this._currentModeObservable = observableValue<IChatMode>('currentMode', this.options.defaultMode ?? ChatMode.Agent);
 
 		this._register(this.editorService.onDidActiveEditorChange(() => {
 			this._indexOfLastOpenedContext = -1;
@@ -798,13 +799,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const storageKey = this.getDefaultModeExperimentStorageKey();
 			const hasSetDefaultMode = this.storageService.getBoolean(storageKey, StorageScope.WORKSPACE, false);
 			if (!hasSetDefaultMode) {
-				const isFree = this.entitlementService.entitlement === ChatEntitlement.Free;
-				const defaultModeKey = isFree ? 'chat.defaultModeFree' : 'chat.defaultMode';
-				const defaultLanguageModelKey = isFree ? 'chat.defaultLanguageModelFree' : 'chat.defaultLanguageModel';
 				const isAnonymous = this.entitlementService.anonymous;
 				Promise.all([
-					this.experimentService.getTreatment(defaultModeKey),
-					this.experimentService.getTreatment(defaultLanguageModelKey),
+					this.experimentService.getTreatment('chat.defaultMode'),
+					this.experimentService.getTreatment('chat.defaultLanguageModel'),
 				]).then(([defaultModeTreatment, defaultLanguageModelTreatment]) => {
 					if (isAnonymous) {
 						// be deterministic for anonymous users
