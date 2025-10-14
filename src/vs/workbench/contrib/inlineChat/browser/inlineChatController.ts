@@ -52,6 +52,7 @@ import { IChatWidgetLocationOptions } from '../../chat/browser/chatWidget.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { IChatEditingSession, ModifiedFileEntryState } from '../../chat/common/chatEditingService.js';
 import { ChatModel, ChatRequestRemovalReason, IChatRequestModel, IChatTextEditGroup, IChatTextEditGroupState, IResponse } from '../../chat/common/chatModel.js';
+import { ChatMode } from '../../chat/common/chatModes.js';
 import { IChatService } from '../../chat/common/chatService.js';
 import { IChatRequestVariableEntry } from '../../chat/common/chatVariableEntries.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
@@ -1338,7 +1339,8 @@ export class InlineChatController2 implements IEditorContribution {
 					enableWorkingSet: 'implicit',
 					rendererOptions: {
 						renderTextEditsAsSummary: _uri => true
-					}
+					},
+					defaultMode: ChatMode.Ask
 				},
 				{ editor: this._editor, notebookEditor },
 			);
