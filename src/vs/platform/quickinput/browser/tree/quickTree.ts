@@ -5,6 +5,7 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { autorun, IReader, observableValue } from '../../../../base/common/observable.js';
+import { setTimeout0 } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
 import { IQuickTree, IQuickTreeItem, IQuickTreeItemButtonEvent, QuickInputType, QuickPickFocus } from '../../common/quickInput.js';
 import { QuickInput, QuickInputUI, Visibilities } from '../quickInput.js';
@@ -135,7 +136,10 @@ export class QuickTree<T extends IQuickTreeItem> extends QuickInput implements I
 		super.show(); // TODO: Why have show() bubble up while update() trickles down?
 
 		// Intial state
-		this.ui.count.setCount(this.ui.tree.getCheckedLeafItems().length);
+		// TODO@TylerLeonhardt: Without this setTimeout, the screen reader will not read out
+		// the final count of checked items correctly. Investigate a better way
+		// to do this. ref https://github.com/microsoft/vscode/issues/258617
+		setTimeout0(() => this.ui.count.setCount(this.ui.tree.getCheckedLeafItems().length));
 		const checkAllState = getParentNodeState([...this.ui.tree.tree.getNode().children]);
 		if (this.ui.checkAll.checked !== checkAllState) {
 			this.ui.checkAll.checked = checkAllState;
