@@ -8,6 +8,7 @@ import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Event } from '../../../../../base/common/event.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
@@ -121,6 +122,7 @@ export interface IChatSuggestedPrompts {
 	readonly label: string;
 	readonly description?: string;
 	readonly prompt: string;
+	readonly uri?: URI;
 }
 
 export interface IChatViewWelcomeRenderOptions {
