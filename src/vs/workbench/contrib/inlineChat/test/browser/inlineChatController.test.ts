@@ -83,7 +83,6 @@ import { IInlineChatSessionService } from '../../browser/inlineChatSessionServic
 import { InlineChatSessionServiceImpl } from '../../browser/inlineChatSessionServiceImpl.js';
 import { CTX_INLINE_CHAT_RESPONSE_TYPE, InlineChatConfigKeys, InlineChatResponseType } from '../../common/inlineChat.js';
 import { TestWorkerService } from './testWorkerService.js';
-import { INotebookEditor } from '../../../notebook/browser/notebookBrowser.js';
 
 suite('InlineChatController', function () {
 
