@@ -493,9 +493,7 @@ export async function getCompletionItemsFromSpecs(
 		}
 		showFiles = true;
 		showFolders = true;
-	}
-	// For arguments when no fig suggestions are found these are fallback suggestions
-	else if (terminalContext.wasExplicitlyInvoked && !items.length && !showFiles && !showFolders && !hasCurrentArg) {
+	} else if (terminalContext.wasExplicitlyInvoked && !items.length && !showFiles && !showFolders && !hasCurrentArg) {
 		showFiles = true;
 		showFolders = true;
 	}
