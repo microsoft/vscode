@@ -501,7 +501,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 				}
 				this.dispatchUpdate();
 			} else if (this._visible && !this._updateTimeout) {
-				// Defer the update so that multiple changes to setters dont cause a redraw each
+				// Defer the update so that multiple changes to setters don't cause a redraw each
 				this._updateTimeout = setTimeout(() => {
 					this._updateTimeout = undefined;
 					this.dispatchUpdate();

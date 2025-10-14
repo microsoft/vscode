@@ -10,7 +10,6 @@ import { URI } from '../../../base/common/uri.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { ICustomEditorLabelService } from '../../services/editor/common/customEditorLabelService.js';
-import { Uri } from 'vscode';
 import { basenameOrAuthority, dirname } from '../../../base/common/resources.js';
 import { ILabelService } from '../../../platform/label/common/label.js';
 import { IModelService } from '../../../editor/common/services/model.js';
@@ -92,7 +91,7 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 
 	$setItems(instance: number, items: TransferQuickPickItemOrSeparator[]): Promise<void> {
 		if (this._items[instance]) {
-			this._items[instance].resolve(items);
+			this._items[instance].resolve(items.map(item => this.processResourceUri(item)));
 			delete this._items[instance];
 		}
 		return Promise.resolve();
@@ -243,12 +242,12 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 	/**
 	 * Derives icon, label and description for Quick Pick items that represent a resource URI.
 	 */
-	private processResourceUri(item: TransferQuickPickItem): IQuickPickItem {
-		if (!item.resourceUri) {
+	private processResourceUri(item: TransferQuickPickItemOrSeparator): TransferQuickPickItemOrSeparator {
+		if (item.type === 'separator' || !item.resourceUri) {
 			return item;
 		}
 
-		const resourceUri = Uri.from(item.resourceUri);
+		const resourceUri = URI.from(item.resourceUri);
 		const customLabel = new Lazy(() => this.customEditorLabelService.getName(resourceUri));
 
 		const label = new Lazy(() =>
@@ -259,15 +258,20 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 			item.description || this.labelService.getUriLabel(!!customLabel.value ? resourceUri : dirname(resourceUri), { relative: true })
 		);
 
-		const iconClasses = new Lazy(() =>
-			item.iconClass === 'codicon-file' ? getIconClasses(this.modelService, this.languageService, resourceUri, undefined, undefined) :
-				item.iconClass ? [item.iconClass] : undefined);
+		// Replace iconClass with iconClasses if iconClass is the default file icon and no iconPath is provided.
+		let iconClass = item.iconClass;
+		let iconClasses: Lazy<string[] | undefined> | undefined;
+		if (iconClass === 'codicon codicon-file' && !item.iconPath) {
+			iconClass = undefined;
+			iconClasses = new Lazy(() => getIconClasses(this.modelService, this.languageService, resourceUri));
+		}
 
 		return {
 			...item,
+			iconClass,
 			get label() { return label.value; },
 			get description() { return description.value; },
-			get iconClasses() { return iconClasses.value; }
+			get iconClasses() { return iconClasses?.value; }
 		};
 	}
 }
