@@ -330,7 +330,7 @@ function doSanitizeHtml(untrusted: string, config: DomSanitizerConfig | undefine
 			return dompurify.sanitize(untrusted, {
 				...resolvedConfig,
 				RETURN_TRUSTED_TYPE: true
-			});
+			}) as TrustedHTML;
 		}
 	} finally {
 		dompurify.removeAllHooks();
