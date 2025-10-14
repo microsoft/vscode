@@ -925,12 +925,15 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			return; // TODO@bpasero eventually remove this when we figured out extension activation issues
 		}
 
+		const defaultAgentDisposables = markAsSingleton(new MutableDisposable()); // prevents flicker on window reload
+		const vscodeAgentDisposables = markAsSingleton(new MutableDisposable());
+
+		const renameProviderDisposables = markAsSingleton(new MutableDisposable());
+
 		const updateRegistration = () => {
 
 			// Agent + Tools
 			{
-				const defaultAgentDisposables = markAsSingleton(new MutableDisposable()); // prevents flicker on window reload
-				const vscodeAgentDisposables = markAsSingleton(new MutableDisposable());
 				if (!context.state.hidden && !context.state.disabled) {
 
 					// Default Agents (always, even if installed to allow for speedy requests right on startup)
@@ -979,8 +982,6 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 			// Rename Provider
 			{
-				const renameProviderDisposables = markAsSingleton(new MutableDisposable());
-
 				if (!context.state.installed && !context.state.hidden && !context.state.disabled) {
 					if (!renameProviderDisposables.value) {
 						renameProviderDisposables.value = DefaultNewSymbolNamesProvider.registerProvider(this.instantiationService, context, controller);
