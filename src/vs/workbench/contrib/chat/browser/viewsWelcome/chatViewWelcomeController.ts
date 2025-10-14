@@ -221,19 +221,17 @@ export class ChatViewWelcomePart extends Disposable {
 					}
 
 					// Add context menu handler
-					if (prompt.uri) {
-						this._register(dom.addDisposableListener(promptElement, dom.EventType.CONTEXT_MENU, async (e: MouseEvent) => {
-							e.preventDefault();
-							e.stopImmediatePropagation();
+					this._register(dom.addDisposableListener(promptElement, dom.EventType.CONTEXT_MENU, async (e: MouseEvent) => {
+						e.preventDefault();
+						e.stopImmediatePropagation();
 
-							const actions = this.getPromptContextMenuActions(prompt);
+						const actions = this.getPromptContextMenuActions(prompt);
 
-							this.contextMenuService.showContextMenu({
-								getAnchor: () => promptElement,
-								getActions: () => actions,
-							});
-						}));
-					}
+						this.contextMenuService.showContextMenu({
+							getAnchor: () => promptElement,
+							getActions: () => actions,
+						});
+					}));
 
 					const executePrompt = () => {
 						type SuggestedPromptClickEvent = { suggestedPrompt: string };
