@@ -172,11 +172,6 @@ export class ChatViewWelcomePart extends Disposable {
 			const messageResult = this.renderMarkdownMessageContent(content.message, options);
 			dom.append(message, messageResult.element);
 
-			if (content.isNew && content.inputPart) {
-				content.inputPart.querySelector('.chat-attachments-container')?.remove();
-				dom.append(this.element, content.inputPart);
-			}
-
 			// Additional message (new user mode)
 			if (!content.isNew && content.additionalMessage) {
 				const disclaimers = dom.append(this.element, $('.chat-welcome-view-disclaimer'));

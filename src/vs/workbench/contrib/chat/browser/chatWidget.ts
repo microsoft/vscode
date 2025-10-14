@@ -44,12 +44,10 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { WorkbenchList, WorkbenchObjectTree } from '../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
-import product from '../../../../platform/product/common/product.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { buttonSecondaryBackground, buttonSecondaryForeground, buttonSecondaryHoverBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { EditorResourceAccessor } from '../../../../workbench/common/editor.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { ViewContainerLocation } from '../../../common/views.js';
@@ -94,12 +92,6 @@ import './media/chatViewWelcome.css';
 import { ChatViewWelcomePart, IChatSuggestedPrompts, IChatViewWelcomeContent } from './viewsWelcome/chatViewWelcomeController.js';
 
 const $ = dom.$;
-
-const defaultChat = {
-	provider: product.defaultChatAgent?.provider ?? { default: { id: '', name: '' }, enterprise: { id: '', name: '' }, apple: { id: '', name: '' }, google: { id: '', name: '' } },
-	termsStatementUrl: product.defaultChatAgent?.termsStatementUrl ?? '',
-	privacyStatementUrl: product.defaultChatAgent?.privacyStatementUrl ?? ''
-};
 
 export interface IChatViewState {
 	inputValue?: string;
@@ -473,7 +465,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IChatModeService private readonly chatModeService: IChatModeService,
 		@IChatTodoListService private readonly chatTodoListService: IChatTodoListService,
 		@IChatLayoutService private readonly chatLayoutService: IChatLayoutService,
@@ -1067,6 +1058,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				);
 				dom.append(this.welcomeMessageContainer, this.welcomePart.value.element);
 
+				// Add input part at the bottom of the container for new welcome view
+				if (welcomeContent.isNew && welcomeContent.inputPart) {
+					welcomeContent.inputPart.classList.add('chat-welcome-view-input-part');
+					welcomeContent.inputPart.querySelector('.chat-attachments-container')?.remove();
+					dom.append(this.welcomeMessageContainer, welcomeContent.inputPart);
+				}
+
 				// Add right-click context menu to the entire welcome container
 				this.welcomeContextMenuDisposable.value = dom.addDisposableListener(this.welcomeMessageContainer, dom.EventType.CONTEXT_MENU, (e) => {
 					e.preventDefault();
@@ -1376,7 +1374,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const message = expEmptyState ? disclaimerMessage : `${agentHelpMessage}\n\n${disclaimerMessage}`;
 
 			return {
-				title: localize('agentTitle', "Build with agent mode"),
+				title: localize('agentTitle', "Bsurf Code"),
 				message: new MarkdownString(message),
 				icon,
 				additionalMessage,
@@ -1386,55 +1384,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private getNewWelcomeViewContent(): IChatViewWelcomeContent {
-		let additionalMessage: string | IMarkdownString | undefined = undefined;
-		if (this.chatEntitlementService.anonymous) {
-			additionalMessage = new MarkdownString(localize({ key: 'settings', comment: ['{Locked="]({2})"}', '{Locked="]({3})"}'] }, "AI responses may be inaccurate.\nBy continuing with {0} Copilot, you agree to {1}'s [Terms]({2}) and [Privacy Statement]({3}).", defaultChat.provider.default.name, defaultChat.provider.default.name, defaultChat.termsStatementUrl, defaultChat.privacyStatementUrl), { isTrusted: true });
-		} else {
-			additionalMessage = localize('expChatAdditionalMessage', "AI responses may be inaccurate.");
-		}
-
 		const welcomeContent: IChatViewWelcomeContent = {
-			title: localize('expChatTitle', 'Build with agent mode'),
-			message: new MarkdownString(localize('expchatMessage', "Let's get started")),
-			icon: Codicon.chatSparkle,
+			title: localize('expChatTitle', 'Bsurf Code'),
+			message: new MarkdownString(localize('expchatMessage', "Kick off a new project. Make changes across your entire codebase.")),
+			icon: Codicon.sparkleFilled,
 			inputPart: this.inputPart.element,
-			additionalMessage,
+			additionalMessage: undefined,
 			isNew: true,
-			suggestedPrompts: this.getNewSuggestedPrompts(),
+			suggestedPrompts: [],
 		};
 		return welcomeContent;
-	}
-
-	private getNewSuggestedPrompts(): IChatSuggestedPrompts[] {
-		// Check if the workbench is empty
-		const isEmpty = this.contextService.getWorkbenchState() === WorkbenchState.EMPTY;
-		if (isEmpty) {
-			return [
-				{
-					icon: Codicon.vscode,
-					label: localize('chatWidget.suggestedPrompts.gettingStarted', "Ask @vscode"),
-					prompt: localize('chatWidget.suggestedPrompts.gettingStartedPrompt', "@vscode How do I change the theme to light mode?"),
-				},
-				{
-					icon: Codicon.newFolder,
-					label: localize('chatWidget.suggestedPrompts.newProject', "Create Project"),
-					prompt: localize('chatWidget.suggestedPrompts.newProjectPrompt', "Create a #new Hello World project in TypeScript"),
-				}
-			];
-		} else {
-			return [
-				{
-					icon: Codicon.debugAlt,
-					label: localize('chatWidget.suggestedPrompts.buildWorkspace', "Build Workspace"),
-					prompt: localize('chatWidget.suggestedPrompts.buildWorkspacePrompt', "How do I build this workspace?"),
-				},
-				{
-					icon: Codicon.gear,
-					label: localize('chatWidget.suggestedPrompts.findConfig', "Show Config"),
-					prompt: localize('chatWidget.suggestedPrompts.findConfigPrompt', "Where is the configuration for this project defined?"),
-				}
-			];
-		}
 	}
 
 	private getPromptFileSuggestions(): IChatSuggestedPrompts[] {

@@ -27,82 +27,299 @@
 	outline: none; /* never show outline for empty group if it is the last */
 }
 
-/* Watermark & shortcuts */
+/* Watermark - Specter/Windsurf Style */
 
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark  {
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark.specter-watermark {
 	display: flex;
-	height: 100%;
-	max-width: 290px;
-	margin: auto;
 	flex-direction: column;
 	align-items: center;
 	justify-content: center;
+	padding: 8vh 20px;
+	height: 100%;
+	max-width: 100%;
+	margin: 0;
+	width: 100%;
+	box-sizing: border-box;
+	overflow-y: auto;
+	overflow-x: hidden;
+	container-type: inline-size;
+	min-width: 0;
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container:not(.empty) > .editor-group-watermark {
 	display: none;
 }
 
-.monaco-workbench .part.editor > .content:not(.empty) .editor-group-container.empty > .editor-group-watermark,
-.monaco-workbench .part.editor > .content.auxiliary .editor-group-container.empty > .editor-group-watermark {
-	max-width: 200px;
-	height: calc(100% - 70px);
+/* Responsive behavior for narrow widths */
+@media (max-width: 600px) {
+	.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark.specter-watermark {
+		padding: 15px;
+		justify-content: flex-start;
+	}
+	
+	.monaco-workbench .editor-group-watermark.specter-watermark .getting-started .task {
+		gap: 8px;
+		font-size: 12px;
+	}
+	
+	.monaco-workbench .editor-group-watermark.specter-watermark .getting-started .keybinding {
+		font-size: 10px;
+		padding: 2px 4px;
+	}
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark > .letterpress {
+/* Narrow layout class (added dynamically by TypeScript) */
+.monaco-workbench .editor-group-watermark.specter-watermark.narrow-layout .specter-columns {
+	flex-direction: column;
+	gap: 20px;
+}
+
+.monaco-workbench .editor-group-watermark.specter-watermark.narrow-layout .start-section,
+.monaco-workbench .editor-group-watermark.specter-watermark.narrow-layout .recent-section {
+	max-width: 100%;
 	width: 100%;
-	max-height: 100%;
-	aspect-ratio: 1/1;
-	background-image: url('./letterpress-light.svg');
-	background-size: contain;
-	background-position-x: center;
-	background-repeat: no-repeat;
 }
 
-.monaco-workbench.vs-dark .part.editor > .content .editor-group-container .editor-group-watermark > .letterpress {
-	background-image: url('./letterpress-dark.svg');
+.monaco-workbench .editor-group-watermark.specter-watermark.narrow-layout .specter-title {
+	font-size: 24px;
+	margin-top: 20px;
+	margin-bottom: 40px;
 }
 
-.monaco-workbench.hc-light .part.editor > .content .editor-group-container .editor-group-watermark > .letterpress {
-	background-image: url('./letterpress-hcLight.svg');
+.monaco-workbench .editor-group-watermark.specter-watermark.narrow-layout .getting-started {
+	margin-bottom: 25px;
 }
 
-.monaco-workbench.hc-black .part.editor > .content .editor-group-container .editor-group-watermark > .letterpress {
-	background-image: url('./letterpress-hcDark.svg');
-}
+/* Specter Title */
 
-.monaco-workbench .part.editor > .content:not(.empty) .editor-group-container > .editor-group-watermark > .shortcuts,
-.monaco-workbench .part.editor > .content.auxiliary .editor-group-container > .editor-group-watermark > .shortcuts,
-.monaco-workbench .part.editor > .content .editor-group-container.max-height-478px > .editor-group-watermark > .shortcuts {
-	display: none;
-}
-
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark > .shortcuts > .watermark-box {
-	display: inline-table;
-	border-collapse: separate;
-	border-spacing: 11px 17px;
-}
-
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark > .shortcuts dl {
-	display: table-row;
-	opacity: .8;
-	cursor: default;
-	color: var(--vscode-editorWatermark-foreground);
-}
-
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark > .shortcuts dt {
-	text-align: right;
-	letter-spacing: 0.04em
-}
-
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark > .shortcuts dd {
+.monaco-workbench .editor-group-watermark.specter-watermark .specter-title {
+	font-size: clamp(24px, 5vw, 36px);
+	font-weight: 400;
+	letter-spacing: -0.5px;
+	color: var(--vscode-foreground);
+	margin-top: 0;
+	margin-bottom: 6vh;
+	width: 100%;
+	max-width: min(620px, 90%);
 	text-align: left;
+	padding-left: 0;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark > .shortcuts dt,
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark > .shortcuts dd {
-	display: table-cell;
-	vertical-align: middle;
+/* Specter Sections */
+
+.monaco-workbench .editor-group-watermark.specter-watermark .specter-section {
+	width: 100%;
+	margin-bottom: 30px;
+	max-width: none;
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+}
+
+.monaco-workbench .editor-group-watermark.specter-watermark .section-title {
+	font-size: 15px;
+	font-weight: 500;
+	color: var(--vscode-foreground);
+	opacity: 1;
+	margin-bottom: 16px;
+}
+
+/* Getting Started Section */
+
+.monaco-workbench .editor-group-watermark.specter-watermark .getting-started {
+	max-width: min(620px, 90%);
+	width: 100%;
+	margin-bottom: clamp(25px, 4vh, 50px);
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+}
+
+.monaco-workbench .editor-group-watermark.specter-watermark .getting-started .tasks {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	margin-bottom: 12px;
+	width: 100%;
+}
+
+.monaco-workbench .editor-group-watermark.specter-watermark .getting-started .task {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	font-size: 13px;
+	width: 100%;
+	min-width: 0;
+	flex-wrap: nowrap;
+}
+
+.monaco-workbench .editor-group-watermark.specter-watermark .getting-started .task .task-left {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+}
+
+.monaco-workbench .editor-group-watermark.specter-watermark .getting-started .task input[type="radio"] {
+	width: 18px;
+	height: 18px;
+	cursor: pointer;
+	background: transparent;
+	border: 2px solid var(--vscode-foreground);
+	appearance: none;
+	border-radius: 50%;
+	flex-shrink: 0;
+}
+
+.monaco-workbench .editor-group-watermark.specter-watermark .getting-started .task input[type="radio"]:checked {
+	border-color: var(--vscode-focusBorder);
+	background: transparent;
+}
+
+.monaco-workbench .editor-group-watermark.specter-watermark .getting-started .task label {
+	cursor: pointer;
+	flex: 0 1 auto;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	min-width: 0;
+}
+
+.monaco-workbench .editor-group-watermark.specter-watermark .getting-started .keybinding {
+	font-size: 11px;
+	padding: 2px 6px;
+	background: var(--vscode-keybindingLabel-background);
+	border: 1px solid var(--vscode-keybindingLabel-border);
+	border-radius: 3px;
+	color: var(--vscode-keybindingLabel-foreground);
+	flex: 0 0 auto;
+	white-space: nowrap;
+	margin-left: 12px;
+}
+
+.monaco-workbench .editor-group-watermark.specter-watermark .section-footer {
+	display: flex;
+	justify-content: space-between;
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	opacity: 0.6;
+	width: 100%;
+	align-items: center;
+}
+
+.monaco-workbench .editor-group-watermark.specter-watermark .section-footer a {
+	color: var(--vscode-descriptionForeground);
+	text-decoration: none;
+}
+
+.monaco-workbench .editor-group-watermark.specter-watermark .section-footer a:hover {
+	text-decoration: underline;
+}
+
+/* Two-column layout for Start and Recent */
+
+.monaco-workbench .editor-group-watermark.specter-watermark .specter-columns {
+	display: flex;
+	gap: 30px;
+	width: 100%;
+	max-width: min(620px, 90%);
+	align-items: flex-start;
+	padding: 0;
+	flex-wrap: wrap;
+	margin-bottom: 0;
+}
+
+/* Responsive: Stack vertically when container is narrow */
+@container (max-width: 500px) {
+	.monaco-workbench .editor-group-watermark.specter-watermark .specter-columns {
+		flex-direction: column;
+		gap: 30px;
+	}
+	
+	.monaco-workbench .editor-group-watermark.specter-watermark .start-section,
+	.monaco-workbench .editor-group-watermark.specter-watermark .recent-section {
+		max-width: 100%;
+		width: 100%;
+	}
+}
+
+/* Fallback for browsers without container queries */
+@media (max-width: 700px) {
+	.monaco-workbench .editor-group-watermark.specter-watermark .specter-columns {
+		flex-direction: column;
+		gap: 30px;
+	}
+	
+	.monaco-workbench .editor-group-watermark.specter-watermark .start-section,
+	.monaco-workbench .editor-group-watermark.specter-watermark .recent-section {
+		max-width: 100%;
+		width: 100%;
+	}
+}
+
+/* Start Section */
+
+.monaco-workbench .editor-group-watermark.specter-watermark .start-section {
+	flex: 1 1 300px;
+	max-width: 320px;
+	min-width: 200px;
+}
+
+.monaco-workbench .editor-group-watermark.specter-watermark .start-section .buttons {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.monaco-workbench .editor-group-watermark.specter-watermark .specter-button {
+	width: 100%;
+	height: 36px;
+	padding: 0 14px;
+	font-size: 13px;
+	text-align: left;
+	border: none;
+	border-radius: 5px;
+	background: transparent;
+	color: var(--vscode-foreground);
+	cursor: pointer;
+	transition: all 0.2s;
+}
+
+.monaco-workbench .editor-group-watermark.specter-watermark .specter-button:hover {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.monaco-workbench .editor-group-watermark.specter-watermark .specter-button.prominent {
+	background: rgb(0, 120, 212);
+	border: none;
+	color: white;
+	font-weight: 500;
+}
+
+.monaco-workbench .editor-group-watermark.specter-watermark .specter-button.prominent:hover {
+	background: rgb(0, 100, 180);
+}
+
+/* Recent Projects Section */
+
+.monaco-workbench .editor-group-watermark.specter-watermark .recent-section {
+	flex: 1 1 250px;
+	min-width: 200px;
+	max-width: 100%;
+}
+
+.monaco-workbench .editor-group-watermark.specter-watermark .recent-section .recent-list {
+	font-size: 13px;
+}
+
+.monaco-workbench .editor-group-watermark.specter-watermark .recent-section .no-recent {
+	color: var(--vscode-descriptionForeground);
+	font-style: italic;
+	opacity: 0.5;
+	font-size: 12px;
 }
 
 /* Title */
