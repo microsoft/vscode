@@ -20897,7 +20897,6 @@ declare module 'vscode' {
 		static image(data: Uint8Array, mime: string): LanguageModelDataPart;
 
 		/**
-
 		 * Create a new {@linkcode LanguageModelDataPart} for a json.
 		 * @param value Json data - may end up as UInt8Array
 		 * @param mimeType The MIME type if any. Common values are `application/json`.
