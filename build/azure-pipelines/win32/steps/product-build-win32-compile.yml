@@ -197,11 +197,32 @@ steps:
       - powershell: |
           . build/azure-pipelines/win32/exec.ps1
           $ErrorActionPreference = "Stop"
+          Write-Host "Building native extensions for x64 architecture..."
+          # Rebuild native extensions for x64
+          exec { npm rebuild --arch=x64 }
+        displayName: Rebuild native extensions for x64
+        env:
+          npm_config_arch: x64
+
+      - powershell: |
+          . build/azure-pipelines/win32/exec.ps1
+          $ErrorActionPreference = "Stop"
           Write-Host "Building temporary x64 version for policy generation..."
           exec { npm run gulp "vscode-win32-x64-min-ci" }
         displayName: Build temporary x64 version for policy generation
         env:
           GITHUB_TOKEN: "$(github-distro-mixin-password)"
+          npm_config_arch: x64
+
+      - powershell: |
+          . build/azure-pipelines/win32/exec.ps1
+          $ErrorActionPreference = "Stop"
+          Write-Host "Rebuilding native extensions back to arm64 architecture..."
+          # Rebuild native extensions back to ARM64 for the actual build
+          exec { npm rebuild --arch=arm64 }
+        displayName: Rebuild native extensions back to arm64
+        env:
+          npm_config_arch: arm64
 
     - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
       - powershell: |
