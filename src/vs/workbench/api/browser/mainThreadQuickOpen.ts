@@ -248,18 +248,18 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 		}
 
 		const resourceUri = URI.from(item.resourceUri);
-		let { label, description } = item;
+		let label = item.label;
+		let hasCustomLabel = true;
 		if (!label) {
 			label = this.customEditorLabelService.getName(resourceUri) || '';
 			if (!label) {
 				label = basenameOrAuthority(resourceUri);
-				description = this.labelService.getUriLabel(dirname(resourceUri), { relative: true });
+				hasCustomLabel = false;
 			}
 		}
 
-		if (!description) {
-			description = this.labelService.getUriLabel(resourceUri, { relative: true });
-		}
+		const description = item.description || this.labelService.getUriLabel(
+			hasCustomLabel ? resourceUri : dirname(resourceUri), { relative: true });
 
 		// Replace iconClass with iconClasses if iconClass is the default file icon and no iconPath is provided.
 		let iconClass = item.iconClass;
