@@ -20902,7 +20902,7 @@ declare module 'vscode' {
 		 * *Note* that this function is not expecting "stringified JSON" but
 		 * an object that can be stringified. This function will throw an error
 		 * when the passed value cannot be JSON-stringified.
-		 * @param value Json data - may end up as UInt8Array
+		 * @param value  A JSON-stringifyable value.
 		 * @param mimeType Optional MIME type, defaults to `application/json`
 		 */
 		static json(value: any, mime?: string): LanguageModelDataPart;
