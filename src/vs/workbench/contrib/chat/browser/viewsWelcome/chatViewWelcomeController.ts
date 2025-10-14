@@ -7,6 +7,8 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { Action, IAction } from '../../../../../base/common/actions.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -217,6 +219,22 @@ export class ChatViewWelcomePart extends Disposable {
 						descriptionElement.textContent = prompt.description;
 						descriptionElement.title = prompt.description;
 					}
+
+					// Add context menu handler
+					if (prompt.uri) {
+						this._register(dom.addDisposableListener(promptElement, dom.EventType.CONTEXT_MENU, async (e: MouseEvent) => {
+							e.preventDefault();
+							e.stopImmediatePropagation();
+
+							const actions = this.getPromptContextMenuActions(prompt);
+
+							this.contextMenuService.showContextMenu({
+								getAnchor: () => promptElement,
+								getActions: () => actions,
+							});
+						}));
+					}
+
 					const executePrompt = () => {
 						type SuggestedPromptClickEvent = { suggestedPrompt: string };
 
@@ -273,6 +291,29 @@ export class ChatViewWelcomePart extends Disposable {
 		} catch (err) {
 			this.logService.error('Failed to render chat view welcome content', err);
 		}
+	}
+
+	private getPromptContextMenuActions(prompt: IChatSuggestedPrompts): IAction[] {
+		const actions: IAction[] = [];
+
+		if (prompt.uri) {
+			actions.push(new Action(
+				'chat.openPromptFile',
+				localize('openPromptFile', "Open Prompt File"),
+				ThemeIcon.asClassName(Codicon.goToFile),
+				true,
+				async () => {
+					// TODO: Telemetry?
+					try {
+						await this.openerService.open(prompt.uri!);
+					} catch (error) {
+						this.logService.error('Failed to open prompt file:', error);
+					}
+				}
+			));
+		}
+
+		return actions;
 	}
 
 	public needsRerender(content: IChatViewWelcomeContent): boolean {
