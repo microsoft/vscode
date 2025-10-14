@@ -20899,7 +20899,7 @@ declare module 'vscode' {
 		/**
 		 * Create a new {@linkcode LanguageModelDataPart} for a json.
 		 * @param value Json data - may end up as UInt8Array
-		 * @param mimeType The MIME type if any. Common values are `application/json`.
+		 * @param mimeType Optional MIME type, defaults to `application/json`
 		 */
 		static json(value: any, mime?: string): LanguageModelDataPart;
 
