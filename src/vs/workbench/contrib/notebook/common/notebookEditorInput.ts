@@ -212,7 +212,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		}
 
 		const pathCandidate = this.hasCapability(EditorInputCapabilities.Untitled)
-			? await this._suggestName(this.resourceWithNotebookExtension(provider))
+			? await this._suggestName(provider)
 			: this.editorModelReference.object.resource;
 
 		let target: URI | undefined;
@@ -248,17 +248,13 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		return await this.editorModelReference.object.saveAs(target);
 	}
 
-	private async _suggestName(resource: URI) {
-		if (this.fileService.hasProvider(this.resource)) {
-			return this.resource;
-		}
-
+	private async _suggestName(provider: NotebookProviderInfo) {
+		const resource = this.ensureProviderExtension(provider);
 		const remoteAuthority = this.environmentService.remoteAuthority;
 		return toLocalResource(resource, remoteAuthority, this.pathService.defaultUriScheme);
 	}
 
-	private resourceWithNotebookExtension(provider: NotebookProviderInfo): URI {
-		// guess file extensions
+	private ensureProviderExtension(provider: NotebookProviderInfo) {
 		const firstSelector = provider.selectors[0];
 		let selectorStr = firstSelector && typeof firstSelector === 'string' ? firstSelector : undefined;
 		if (!selectorStr && firstSelector) {
