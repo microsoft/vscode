@@ -174,10 +174,24 @@ export async function collectTerminalResults(
 	}
 	for (const instance of terminals) {
 		progress.report({ message: new MarkdownString(`Checking output for \`${instance.shellLaunchConfig.name ?? 'unknown'}\``) });
+
+		// For composite tasks, find the actual dependency task running in this terminal
+		let actualTask = task;
+		if (dependencyTasks?.length) {
+			// Try to match terminal name with dependency task label
+			const matchingDependencyTask = dependencyTasks.find(depTask =>
+				instance.shellLaunchConfig.name === depTask._label ||
+				instance.title === depTask._label
+			);
+			if (matchingDependencyTask) {
+				actualTask = matchingDependencyTask;
+			}
+		}
+
 		const execution = {
 			getOutput: () => getOutput(instance) ?? '',
 			isActive,
-			task,
+			task: actualTask,
 			instance,
 			dependencyTasks,
 			sessionId: invocationContext.sessionId
