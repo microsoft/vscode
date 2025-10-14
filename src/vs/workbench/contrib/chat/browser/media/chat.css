@@ -2696,6 +2696,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	scroll-snap-align: start;
 	min-height: 22px;
 	font-size: var(--vscode-chat-font-size-body-m);
+	padding: 4px 8px;
+	position: relative;
 }
 
 .chat-todo-list-widget .todo-item:focus {
@@ -2708,6 +2710,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	background-color: var(--vscode-list-hoverBackground);
 }
 
+.chat-todo-list-widget .todo-item:focus-within {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
 .chat-todo-list-widget .todo-item > .todo-status-icon.codicon {
 	flex-shrink: 0;
 	font-size: var(--vscode-chat-font-size-body-l);
@@ -2715,11 +2722,49 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .chat-todo-list-widget .todo-content {
 	color: var(--vscode-foreground);
-	flex-grow: 1;
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
 	overflow: hidden;
 	white-space: nowrap;
 	text-overflow: ellipsis;
-	min-width: 0;
+}
+
+.chat-todo-list-widget .todo-actions {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	flex-shrink: 0;
+}
+
+.chat-todo-list-widget .todo-edit-button {
+	padding: 2px 4px;
+	height: 20px;
+	width: 20px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.chat-todo-list-widget .todo-edit-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.chat-todo-list-widget .todo-edit-button:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.chat-todo-list-widget .todo-edit-button .codicon {
+	font-size: 14px;
+	color: var(--vscode-foreground);
+}
+
+/* Edit mode styling */
+.chat-todo-list-widget .todo-item .monaco-inputbox {
+	flex: 1;
+	margin: 0 4px;
 }
 
 .interactive-session .interactive-response .chat-used-context-list.chat-thinking-items {

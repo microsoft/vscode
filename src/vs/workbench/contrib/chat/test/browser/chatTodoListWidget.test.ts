@@ -9,6 +9,7 @@ import { ChatTodoListWidget } from '../../browser/chatContentParts/chatTodoListW
 import { IChatTodo, IChatTodoListService } from '../../common/chatTodoListService.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 
 suite('ChatTodoListWidget Accessibility', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -16,6 +17,7 @@ suite('ChatTodoListWidget Accessibility', () => {
 	let widget: ChatTodoListWidget;
 	let mockTodoListService: IChatTodoListService;
 	let mockConfigurationService: IConfigurationService;
+	let mockContextViewService: IContextViewService;
 
 	const sampleTodos: IChatTodo[] = [
 		{ id: 1, title: 'First task', status: 'not-started' },
@@ -38,7 +40,16 @@ suite('ChatTodoListWidget Accessibility', () => {
 			getValue: (key: string) => key === 'chat.todoListTool.descriptionField' ? true : undefined
 		} as any;
 
-		widget = store.add(new ChatTodoListWidget(mockTodoListService, mockConfigurationService));
+		// Mock the context view service
+		// eslint-disable-next-line local/code-no-any-casts
+		mockContextViewService = {
+			_serviceBrand: undefined,
+			showContextView: () => { },
+			hideContextView: () => { },
+			layout: () => { }
+		} as any;
+
+		widget = store.add(new ChatTodoListWidget(mockTodoListService, mockConfigurationService, mockContextViewService));
 		mainWindow.document.body.appendChild(widget.domNode);
 	});
 
@@ -147,7 +158,15 @@ suite('ChatTodoListWidget Accessibility', () => {
 			getValue: (key: string) => key === 'chat.todoListTool.descriptionField' ? true : undefined
 		} as any;
 
-		const emptyWidget = store.add(new ChatTodoListWidget(emptyTodoListService, emptyConfigurationService));
+		// eslint-disable-next-line local/code-no-any-casts
+		const emptyContextViewService: IContextViewService = {
+			_serviceBrand: undefined,
+			showContextView: () => { },
+			hideContextView: () => { },
+			layout: () => { }
+		} as any;
+
+		const emptyWidget = store.add(new ChatTodoListWidget(emptyTodoListService, emptyConfigurationService, emptyContextViewService));
 		mainWindow.document.body.appendChild(emptyWidget.domNode);
 
 		emptyWidget.render('test-session');
@@ -178,5 +197,30 @@ suite('ChatTodoListWidget Accessibility', () => {
 		// Verify aria-labelledby connection works
 		const todoListContainer = widget.domNode.querySelector('.todo-list-container');
 		assert.strictEqual(todoListContainer?.getAttribute('aria-labelledby'), 'todo-list-title');
+	});
+
+	test('edit button is present and has proper attributes', () => {
+		widget.render('test-session');
+
+		const todoItems = widget.domNode.querySelectorAll('.todo-item');
+		assert.ok(todoItems.length > 0, 'Should have todo items');
+
+		const firstItem = todoItems[0] as HTMLElement;
+		const editButton = firstItem.querySelector('.todo-edit-button');
+		assert.ok(editButton, 'Should have edit button');
+
+		// Check button has proper attributes
+		assert.ok(editButton.getAttribute('aria-label')?.includes('Edit title'), 'Edit button should have aria-label');
+	});
+
+	test('action container is initially hidden', () => {
+		widget.render('test-session');
+
+		const todoItems = widget.domNode.querySelectorAll('.todo-item');
+		const firstItem = todoItems[0] as HTMLElement;
+		const actionContainer = firstItem.querySelector('.todo-actions') as HTMLElement;
+
+		assert.ok(actionContainer, 'Should have action container');
+		assert.strictEqual(actionContainer.style.display, 'none', 'Action container should be hidden by default');
 	});
 });

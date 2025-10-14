@@ -5,11 +5,14 @@
 
 import * as dom from '../../../../../base/browser/dom.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
+import { defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IChatTodoListService, IChatTodo } from '../../common/chatTodoListService.js';
 import { TodoListToolDescriptionFieldSettingId } from '../../common/tools/manageTodoListTool.js';
 
@@ -27,10 +30,13 @@ export class ChatTodoListWidget extends Disposable {
 	private clearButton!: Button;
 	private _currentSessionId: string | undefined;
 	private _userHasScrolledManually: boolean = false;
+	private _editingTodoId: number | null = null;
+	private _editInputBox: InputBox | undefined;
 
 	constructor(
 		@IChatTodoListService private readonly chatTodoListService: IChatTodoListService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IContextViewService private readonly contextViewService: IContextViewService
 	) {
 		super();
 
@@ -192,6 +198,9 @@ export class ChatTodoListWidget extends Disposable {
 			const todoElement = dom.$('li.todo-item');
 			todoElement.setAttribute('role', 'listitem');
 			todoElement.setAttribute('tabindex', '0');
+			todoElement.style.display = 'flex';
+			todoElement.style.alignItems = 'center';
+			todoElement.style.gap = '8px';
 
 			// Add tooltip if description exists and description field is enabled
 			const includeDescription = this.configurationService.getValue<boolean>(TodoListToolDescriptionFieldSettingId) !== false;
@@ -223,6 +232,52 @@ export class ChatTodoListWidget extends Disposable {
 			todoContent.appendChild(titleElement);
 			todoContent.appendChild(statusElement);
 
+			// Create action container for buttons
+			const actionContainer = dom.$('.todo-actions');
+			actionContainer.style.display = 'none'; // Hidden by default
+			actionContainer.style.marginLeft = 'auto';
+			actionContainer.style.paddingLeft = '8px';
+
+			// Create edit button
+			const editButton = this._register(new Button(actionContainer, {
+				supportIcons: true,
+				title: localize('chat.todo.editTitle', "Edit title"),
+				ariaLabel: localize('chat.todo.editTitle.ariaLabel', "Edit title for {0}", todo.title)
+			}));
+			editButton.icon = Codicon.edit;
+			editButton.element.classList.add('todo-edit-button');
+
+			// Edit button click handler
+			this._register(editButton.onDidClick(() => {
+				this.startEditingTodo(todo, todoElement);
+			}));
+
+			// Show/hide actions on hover
+			this._register(dom.addDisposableListener(todoElement, 'mouseenter', () => {
+				if (this._editingTodoId !== todo.id) {
+					actionContainer.style.display = 'flex';
+				}
+			}));
+
+			this._register(dom.addDisposableListener(todoElement, 'mouseleave', () => {
+				// Keep visible if button is focused
+				if (!editButton.element.matches(':focus')) {
+					actionContainer.style.display = 'none';
+				}
+			}));
+
+			// Keep visible when button is focused
+			this._register(dom.addDisposableListener(editButton.element, 'focus', () => {
+				actionContainer.style.display = 'flex';
+			}));
+
+			this._register(dom.addDisposableListener(editButton.element, 'blur', () => {
+				// Hide when focus leaves and not hovering
+				if (!todoElement.matches(':hover')) {
+					actionContainer.style.display = 'none';
+				}
+			}));
+
 			const ariaLabel = includeDescription && todo.description && todo.description.trim()
 				? localize('chat.todoList.itemWithDescription', '{0}, {1}, {2}', todo.title, statusText, todo.description)
 				: localize('chat.todoList.item', '{0}, {1}', todo.title, statusText);
@@ -230,6 +285,7 @@ export class ChatTodoListWidget extends Disposable {
 			todoElement.setAttribute('aria-describedby', `todo-status-${index}`);
 			todoElement.appendChild(statusIcon);
 			todoElement.appendChild(todoContent);
+			todoElement.appendChild(actionContainer);
 
 			this.todoListContainer.appendChild(todoElement);
 
@@ -446,6 +502,127 @@ export class ChatTodoListWidget extends Disposable {
 			case 'not-started':
 			default:
 				return 'var(--vscode-foreground)';
+		}
+	}
+
+	private startEditingTodo(todo: IChatTodo, todoElement: HTMLElement): void {
+		if (this._editingTodoId !== null) {
+			this.cancelEditing();
+		}
+
+		this._editingTodoId = todo.id;
+
+		// Hide action buttons during edit
+		const actionContainer = todoElement.querySelector('.todo-actions') as HTMLElement;
+		if (actionContainer) {
+			actionContainer.style.display = 'none';
+		}
+
+		// Get the title element and replace it with an input box
+		const todoContent = todoElement.querySelector('.todo-content') as HTMLElement;
+		const titleElement = todoElement.querySelector('.todo-title') as HTMLElement;
+		if (!todoContent || !titleElement) {
+			return;
+		}
+
+		// Hide the title element
+		titleElement.style.display = 'none';
+
+		// Create and configure the input box
+		const inputBoxContainer = dom.$('.todo-edit-input-container');
+		this._editInputBox = new InputBox(inputBoxContainer, this.contextViewService, {
+			ariaLabel: localize('chat.todo.editTitleInput', "Edit todo title"),
+			inputBoxStyles: defaultInputBoxStyles
+		});
+
+		this._editInputBox.value = todo.title;
+		todoContent.insertBefore(inputBoxContainer, titleElement);
+
+		// Focus and select all text
+		this._editInputBox.focus();
+		this._editInputBox.select();
+
+		// Save on Enter
+		const onEnter = dom.addDisposableListener(this._editInputBox.inputElement, 'keydown', (e) => {
+			if (e.key === 'Enter') {
+				e.preventDefault();
+				e.stopPropagation();
+				this.saveEdit(todo);
+			} else if (e.key === 'Escape') {
+				e.preventDefault();
+				e.stopPropagation();
+				this.cancelEditing();
+			}
+		});
+
+		// Save on blur
+		const onBlur = dom.addDisposableListener(this._editInputBox.inputElement, 'blur', () => {
+			// Small delay to allow click events on other elements to process
+			setTimeout(() => {
+				if (this._editingTodoId === todo.id) {
+					this.saveEdit(todo);
+				}
+			}, 100);
+		});
+
+		// Store cleanup handlers
+		if (this._editInputBox) {
+			const inputBox = this._editInputBox;
+			this._register({
+				dispose: () => {
+					onEnter.dispose();
+					onBlur.dispose();
+					inputBox.dispose();
+				}
+			});
+		}
+	}
+
+	private saveEdit(todo: IChatTodo): void {
+		if (!this._currentSessionId || !this._editInputBox) {
+			this.cancelEditing();
+			return;
+		}
+
+		const newTitle = this._editInputBox.value.trim();
+		if (!newTitle) {
+			// Don't allow empty titles, just cancel
+			this.cancelEditing();
+			return;
+		}
+
+		// Update the todo in the service
+		const todoList = this.chatTodoListService.getTodos(this._currentSessionId);
+		const updatedTodos = todoList.map(t => {
+			if (t.id === todo.id) {
+				return { ...t, title: newTitle };
+			}
+			return t;
+		});
+
+		this.chatTodoListService.setTodos(this._currentSessionId, updatedTodos);
+
+		// Clear editing state
+		this._editingTodoId = null;
+		if (this._editInputBox) {
+			this._editInputBox.dispose();
+			this._editInputBox = undefined;
+		}
+
+		// Re-render the list
+		this.render(this._currentSessionId);
+	}
+
+	private cancelEditing(): void {
+		this._editingTodoId = null;
+		if (this._editInputBox) {
+			this._editInputBox.dispose();
+			this._editInputBox = undefined;
+		}
+
+		// Re-render to restore original state
+		if (this._currentSessionId) {
+			this.render(this._currentSessionId);
 		}
 	}
 }
