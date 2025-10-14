@@ -257,14 +257,29 @@ export class ChatViewWelcomePart extends Disposable {
 					};
 					// Add click handler
 					this._register(dom.addDisposableListener(promptElement, dom.EventType.CLICK, executePrompt));
-					// Add keyboard handler for Enter and Space keys
+					// Add keyboard handler
 					this._register(dom.addDisposableListener(promptElement, dom.EventType.KEY_DOWN, (e) => {
 						const event = new StandardKeyboardEvent(e);
+
+						// Execute prompt on Enter or Space
 						if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 							e.preventDefault();
 							e.stopPropagation();
 							executePrompt();
 						}
+
+						// Context menu via keyboard (Shift+F10)
+						if (event.keyCode === KeyCode.F10 && event.shiftKey) {
+							e.preventDefault();
+							e.stopPropagation();
+							const actions = this.getPromptContextMenuActions(prompt);
+							this.contextMenuService.showContextMenu({
+								getAnchor: () => promptElement,
+								getActions: () => actions,
+							});
+							return;
+						}
+
 					}));
 				}
 			}
