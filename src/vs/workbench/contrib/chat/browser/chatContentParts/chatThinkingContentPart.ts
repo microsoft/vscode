@@ -140,7 +140,10 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			this.fixedContainer.appendChild(header);
 			this.fixedContainer.appendChild(this.wrapper);
 
-			this._register(button.onDidClick(() => this.setFixedCollapsedState(!this.fixedCollapsed, true)));
+			this._register(button.onDidClick(() => {
+				this.setFixedCollapsedState(!this.fixedCollapsed, true);
+				this._onDidChangeHeight.fire();
+			}));
 
 			if (this.currentThinkingValue) {
 				this.renderMarkdown(this.currentThinkingValue);
@@ -174,7 +177,6 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 				fixedScrollViewport.scrollTop = fixedScrollViewport.scrollHeight;
 			}
 		}
-		this._onDidChangeHeight.fire();
 	}
 
 	private createThinkingItemContainer(): void {
@@ -192,12 +194,12 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			if (this.headerButton) {
 				this.headerButton.icon = collapsed ? Codicon.chevronRight : Codicon.chevronDown;
 			}
-			this._onDidChangeHeight.fire();
 		};
 
-		const toggle = () => setPerItemCollapsedState(!body.classList.contains('hidden'));
-
-		this._register(button.onDidClick(() => toggle()));
+		this._register(button.onDidClick(() => {
+			setPerItemCollapsedState(!body.classList.contains('hidden'));
+			this._onDidChangeHeight.fire();
+		}));
 
 		itemWrapper.appendChild(header);
 		itemWrapper.appendChild(body);
