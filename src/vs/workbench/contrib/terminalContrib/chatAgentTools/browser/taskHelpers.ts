@@ -144,7 +144,6 @@ export async function resolveDependencyTasks(parentTask: Task, workspaceFolder: 
 
 /**
  * Collects output, polling duration, and idle status for all terminals.
- * For multiple terminals, monitors them in parallel to handle concurrent prompts.
  */
 export async function collectTerminalResults(
 	terminals: ITerminalInstance[],
@@ -173,7 +172,6 @@ export async function collectTerminalResults(
 	if (token.isCancellationRequested) {
 		return results;
 	}
-
 	for (const instance of terminals) {
 		progress.report({ message: new MarkdownString(`Checking output for \`${instance.shellLaunchConfig.name ?? 'unknown'}\``) });
 		const execution = {
