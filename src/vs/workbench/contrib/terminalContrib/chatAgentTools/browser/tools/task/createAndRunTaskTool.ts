@@ -101,51 +101,10 @@ export class CreateAndRunTaskTool implements IToolImpl {
 		const result: ITaskSummary | undefined = raceResult && typeof raceResult === 'object' ? raceResult as ITaskSummary : undefined;
 
 		const dependencyTasks = await resolveDependencyTasks(task, args.workspaceFolder, this._configurationService, this._tasksService);
-
-		// Debug: Report dependency task information
-		if (dependencyTasks && dependencyTasks.length > 0) {
-			_progress.report({ message: new MarkdownString(`Found ${dependencyTasks.length} dependency tasks: ${dependencyTasks.map(t => `\`${t._label}\``).join(', ')}`) });
-		} else if (task.configurationProperties?.dependsOn) {
-			_progress.report({ message: new MarkdownString(`Task has dependsOn configuration but no dependency tasks resolved`) });
-		}
-
-		// Wait for dependency tasks to create terminals (retry logic)
-		let resources: URI[] | undefined;
-		let terminals: ITerminalInstance[] | undefined;
-		const maxRetries = 10; // Try for up to 5 seconds
-		let retryCount = 0;
-
-		while (retryCount < maxRetries && (!terminals || terminals.length === 0)) {
-			if (retryCount > 0) {
-				await timeout(500); // Wait 500ms between retries
-				_progress.report({ message: new MarkdownString(`Waiting for terminals... (attempt ${retryCount + 1}/${maxRetries})`) });
-			}
-
-			resources = this._tasksService.getTerminalsForTasks(dependencyTasks ?? task);
-			terminals = resources?.map(resource =>
-				this._terminalService.instances.find(t =>
-					t.resource.path === resource?.path && t.resource.scheme === resource.scheme
-				)
-			).filter(Boolean) as ITerminalInstance[];
-
-			if (retryCount === 0 && (!resources || resources.length === 0)) {
-				_progress.report({ message: new MarkdownString(`No terminal resources found for tasks on first attempt`) });
-			}
-
-			retryCount++;
-		}
-
-		if (terminals && terminals.length > 0) {
-			_progress.report({ message: new MarkdownString(`Found ${terminals.length} terminals: ${terminals.map(t => `\`${t.shellLaunchConfig.name ?? 'unnamed'}\``).join(', ')}`) });
-		}
-
+		const resources = this._tasksService.getTerminalsForTasks(dependencyTasks ?? task);
+		const terminals = resources?.map(resource => this._terminalService.instances.find(t => t.resource.path === resource?.path && t.resource.scheme === resource.scheme)).filter(Boolean) as ITerminalInstance[];
 		if (!terminals || terminals.length === 0) {
-			// Provide more detailed error information
-			const taskLabels = dependencyTasks?.map(t => t._label).join(', ') ?? task._label;
-			return {
-				content: [{ kind: 'text', value: `Task started but no terminals found after ${maxRetries} retries for: ${taskLabels}` }],
-				toolResultMessage: new MarkdownString(localize('copilotChat.noTerminal', 'Task started but no terminals found after {0} retries for: `{1}`', maxRetries, taskLabels))
-			};
+			return { content: [{ kind: 'text', value: `Task started but no terminal was found for: ${args.task.label}` }], toolResultMessage: new MarkdownString(localize('copilotChat.noTerminal', 'Task started but no terminal was found for: `{0}`', args.task.label)) };
 		}
 		const store = new DisposableStore();
 		const terminalResults = await collectTerminalResults(
