@@ -140,6 +140,11 @@ declare module 'vscode' {
 		readonly history: ReadonlyArray<ChatRequestTurn | ChatResponseTurn2>;
 
 		/**
+		 * Options configured for this session.
+		 */
+		readonly options?: { model?: string };
+
+		/**
 		 * Callback invoked by the editor for a currently running response. This allows the session to push items for the
 		 * current response and stream these in as them come in. The current response will be considered complete once the
 		 * callback resolved.
@@ -166,6 +171,28 @@ declare module 'vscode' {
 		 * @param token A cancellation token that can be used to cancel the operation.
 		 */
 		provideChatSessionContent(sessionId: string, token: CancellationToken): Thenable<ChatSession> | ChatSession;
+
+		/**
+		 * Optional callback invoked when the editor updates one or more contributed chat session options for the given session.
+		 * Implement this to keep the extension's state in sync with selections performed in the UI (for example switching models or modes).
+		 *
+		 * @param sessionId Identifier of the chat session being updated.
+		 * @param updates Collection of option identifiers and their new values. Only the options that changed are included.
+		 * @param token A cancellation token that can be used to cancel the notification if the session is disposed.
+		 */
+		provideHandleOptionsChange?(sessionId: string, updates: ReadonlyArray<ChatSessionOptionUpdate>, token: CancellationToken): void;
+	}
+
+	export interface ChatSessionOptionUpdate {
+		/**
+		 * Identifier of the option that changed (for example `model`).
+		 */
+		readonly optionId: string;
+
+		/**
+		 * The new value assigned to the option. When `undefined`, the option is cleared.
+		 */
+		readonly value: string | undefined;
 	}
 
 	export namespace chat {
@@ -189,7 +216,7 @@ declare module 'vscode' {
 		 *
 		 * @returns A disposable that unregisters the provider when disposed.
 		 */
-		export function registerChatSessionContentProvider(chatSessionType: string, provider: ChatSessionContentProvider, chatParticipant: ChatParticipant, capabilities?: ChatSessionCapabilities): Disposable;
+		export function registerChatSessionContentProvider(chatSessionType: string, provider: ChatSessionContentProvider, chatParticipant: ChatParticipant, capabilities?: ChatSessionCapabilities, options?: ChatSessionOptions): Disposable;
 	}
 
 	export interface ChatContext {
@@ -210,6 +237,13 @@ declare module 'vscode' {
 		 * Whether sessions can be interrupted and resumed without side-effects.
 		 */
 		supportsInterruptions?: boolean;
+	}
+
+	export interface ChatSessionOptions {
+		/**
+		 * Set of available models.
+		 */
+		models?: string[];
 	}
 
 	export interface ChatSessionShowOptions {
