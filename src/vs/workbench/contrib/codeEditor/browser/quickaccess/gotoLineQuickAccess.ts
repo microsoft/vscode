@@ -31,16 +31,15 @@ export class GotoLineQuickAccessProvider extends AbstractGotoLineQuickAccessProv
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
-		super();
+		super({
+			get value() {
+				return configurationService.getValue<boolean>(GotoLineQuickAccessProvider.zeroBasedOffsetSetting);
+			},
+			set value(value: boolean) {
+				configurationService.updateValue(GotoLineQuickAccessProvider.zeroBasedOffsetSetting, value);
+			}
+		});
 		this.onDidActiveTextEditorControlChange = this.editorService.onDidActiveEditorChange;
-	}
-
-	override get useZeroBasedOffset(): boolean {
-		return this.configurationService.getValue<boolean>(GotoLineQuickAccessProvider.zeroBasedOffsetSetting);
-	}
-
-	override set useZeroBasedOffset(value: boolean) {
-		this.configurationService.updateValue(GotoLineQuickAccessProvider.zeroBasedOffsetSetting, value);
 	}
 
 	private get configuration() {

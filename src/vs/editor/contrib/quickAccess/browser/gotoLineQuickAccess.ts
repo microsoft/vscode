@@ -23,18 +23,9 @@ interface IGotoLineQuickPickItem extends IQuickPickItem, Partial<IPosition> { }
 export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditorNavigationQuickAccessProvider {
 
 	static PREFIX = ':';
-	private _useZeroBasedOffset = false;
 
-	constructor() {
+	constructor(private useZeroBasedOffset: { value: boolean } = { value: false }) {
 		super({ canAcceptInBackground: true });
-	}
-
-	get useZeroBasedOffset() {
-		return this._useZeroBasedOffset;
-	}
-
-	set useZeroBasedOffset(value: boolean) {
-		this._useZeroBasedOffset = value;
 	}
 
 	protected provideWithoutTextEditor(picker: IQuickPick<IGotoLineQuickPickItem, { useSeparators: true }>): IDisposable {
@@ -104,7 +95,7 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 		const toggle = new Toggle({
 			title: localize('gotoLineToggle', "Use zero-based offset"),
 			icon: Codicon.symbolArray,
-			isChecked: this.useZeroBasedOffset,
+			isChecked: this.useZeroBasedOffset.value,
 			inputActiveOptionBorder: asCssVariable(inputActiveOptionBorder),
 			inputActiveOptionForeground: asCssVariable(inputActiveOptionForeground),
 			inputActiveOptionBackground: asCssVariable(inputActiveOptionBackground)
@@ -112,7 +103,7 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 
 		disposables.add(
 			toggle.onChange(() => {
-				this.useZeroBasedOffset = !this.useZeroBasedOffset;
+				this.useZeroBasedOffset.value = !this.useZeroBasedOffset.value;
 				updatePickerAndEditor();
 			}));
 
@@ -153,10 +144,12 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 			if (!isNaN(offset)) {
 				const model = this.getModel(editor);
 				if (model) {
-					if (offset >= 0) {
-						// If offset is 1-based, we need to convert to model's 0-based.
-						offset -= this.useZeroBasedOffset ? 0 : 1;
-					} else {
+					const reverse = offset < 0;
+					if (!this.useZeroBasedOffset.value) {
+						// Convert 1-based offset to model's 0-based.
+						offset -= Math.sign(offset);
+					}
+					if (reverse) {
 						// Offset from the end of the buffer
 						offset += model.getValueLength();
 					}
