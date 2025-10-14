@@ -18,6 +18,7 @@ import { IRenderedMarkdown } from '../../../../../base/browser/markdownRenderer.
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
@@ -143,6 +144,7 @@ export class ChatViewWelcomePart extends Disposable {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) {
 		super();
 
