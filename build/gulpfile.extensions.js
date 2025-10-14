@@ -92,8 +92,6 @@ const tasks = compilations.map(function (tsconfigFile) {
 		const reporter = createReporter('extensions');
 
 		return new Promise((resolve, reject) => {
-			console.log(`Compiling ${absolutePath}...`);
-
 			const child = cp.spawn('npx', ['tsgo', '-p', absolutePath], {
 				cwd: root,
 				stdio: ['pipe', 'pipe', 'pipe']

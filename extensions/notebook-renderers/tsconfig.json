@@ -6,6 +6,7 @@
 			"es2024",
 			"dom"
 		],
+		"skipLibCheck": true,
 		"types": [
 			"node"
 		],
