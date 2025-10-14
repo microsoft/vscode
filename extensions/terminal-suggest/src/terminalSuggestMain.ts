@@ -495,11 +495,9 @@ export async function getCompletionItemsFromSpecs(
 		showFolders = true;
 	}
 	// For arguments when no fig suggestions are found these are fallback suggestions
-	else if (!items.length && !showFiles && !showFolders && !hasCurrentArg) {
-		if (terminalContext.allowFallbackCompletions) {
-			showFiles = true;
-			showFolders = true;
-		}
+	else if (terminalContext.wasExplicitlyInvoked && !items.length && !showFiles && !showFolders && !hasCurrentArg) {
+		showFiles = true;
+		showFolders = true;
 	}
 
 	let cwd: vscode.Uri | undefined;

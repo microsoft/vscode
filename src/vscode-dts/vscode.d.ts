@@ -8377,10 +8377,9 @@ declare module 'vscode' {
 		 */
 		readonly cursorIndex: number;
 		/**
-		 * Whether completions should be provided when none are explicitly suggested. This will display
-		 * fallback suggestions like files and folders.
+		 * Whether completions were explicitly invoked.
 		 */
-		readonly allowFallbackCompletions: boolean;
+		readonly wasExplicitlyInvoked: boolean;
 	}
 
 	/**

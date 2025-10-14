@@ -2480,7 +2480,7 @@ export interface ITerminalCommandDto {
 export interface ITerminalCompletionContextDto {
 	commandLine: string;
 	cursorIndex: number;
-	allowFallbackCompletions: boolean;
+	wasExplicitlyInvoked: boolean;
 }
 
 export interface ITerminalCompletionItemDto {
