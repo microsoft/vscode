@@ -6,13 +6,13 @@
 				"git": {
 					"name": "language-docker",
 					"repositoryUrl": "https://github.com/moby/moby",
-					"commitHash": "c2029cb2574647e4bc28ed58486b8e85883eedb9",
-					"tag": "28.0.0"
+					"commitHash": "f8215cc266744ef195a50a70d427c345da2acdbb",
+					"tag": "28.5.1"
 				}
 			},
 			"license": "Apache-2.0",
 			"description": "The file syntaxes/docker.tmLanguage was included from https://github.com/moby/moby/blob/master/contrib/syntax/textmate/Docker.tmbundle/Syntaxes/Dockerfile.tmLanguage.",
-			"version": "28.0.0"
+			"version": "28.5.1"
 		}
 	],
 	"version": 1
