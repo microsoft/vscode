@@ -182,6 +182,9 @@ import './contrib/emergencyAlert/electron-browser/emergencyAlert.contribution.js
 // MCP
 import './contrib/mcp/electron-browser/mcp.contribution.js';
 
+// Specter - Security Testing Platform
+import './contrib/specter/browser/specter.contribution.js';
+
 //#endregion
 
 
