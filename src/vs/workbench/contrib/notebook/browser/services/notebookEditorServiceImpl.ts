@@ -289,13 +289,15 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 		return [...this._notebookEditors].map(e => e[1]);
 	}
 
-	isCellEditor(candidate: ICodeEditor): boolean {
+	getNotebookForPossibleCell(candidate: ICodeEditor): INotebookEditor | undefined {
 		for (const editor of this._notebookEditors.values()) {
 			for (const [, codeEditor] of editor.codeEditors) {
-				return codeEditor === candidate;
+				if (codeEditor === candidate) {
+					return editor;
+				}
 			}
 		}
-		return false;
+		return undefined;
 	}
 
 	updateReplContextKey(uri: string): void {

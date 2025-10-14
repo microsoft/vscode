@@ -80,12 +80,12 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			}
 		},
 		[InlineChatConfigKeys.notebookAgent]: {
-			markdownDescription: localize('notebookAgent', "Enable agent-like behavior for inline chat widget in notebooks. Depends on the `#inlineChat.enableV2#` setting being enabled."),
+			markdownDescription: localize('notebookAgent', "Enable agent-like behavior for inline chat widget in notebooks."),
 			default: false,
 			type: 'boolean',
 			tags: ['experimental'],
 			experiment: {
-				mode: 'auto'
+				mode: 'startup'
 			}
 		}
 	}

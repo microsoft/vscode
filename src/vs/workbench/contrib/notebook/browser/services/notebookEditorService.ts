@@ -31,6 +31,6 @@ export interface INotebookEditorService {
 	removeNotebookEditor(editor: INotebookEditor): void;
 	getNotebookEditor(editorId: string): INotebookEditor | undefined;
 	listNotebookEditors(): readonly INotebookEditor[];
-	isCellEditor(editor: ICodeEditor): boolean;
+	getNotebookForPossibleCell(editor: ICodeEditor): INotebookEditor | undefined;
 	updateReplContextKey(uri: string): void;
 }
