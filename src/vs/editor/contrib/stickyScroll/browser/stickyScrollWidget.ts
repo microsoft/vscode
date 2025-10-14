@@ -51,7 +51,7 @@ const STICKY_IS_FOLDING_ICON_ATTR = 'data-sticky-is-folding-icon';
 
 export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
-	private readonly _foldingIconStore = new DisposableStore();
+	private readonly _foldingIconStore = this._register(new DisposableStore());
 	private readonly _rootDomNode: HTMLElement = document.createElement('div');
 	private readonly _lineNumbersDomNode: HTMLElement = document.createElement('div');
 	private readonly _linesDomNodeScrollable: HTMLElement = document.createElement('div');
@@ -118,7 +118,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			updateScrollLeftPosition();
 			this._updateWidgetWidth();
 		}));
-		this._register(this._foldingIconStore);
 		updateScrollLeftPosition();
 
 		this._register(this._editor.onDidLayoutChange((e) => {
