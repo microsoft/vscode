@@ -542,8 +542,11 @@ export class ChatTodoListWidget extends Disposable {
 		this._editInputBox.focus();
 		this._editInputBox.select();
 
+		// Store reference for disposal
+		const inputBox = this._editInputBox;
+
 		// Save on Enter
-		const onEnter = dom.addDisposableListener(this._editInputBox.inputElement, 'keydown', (e) => {
+		const onEnter = dom.addDisposableListener(inputBox.inputElement, 'keydown', (e) => {
 			if (e.key === 'Enter') {
 				e.preventDefault();
 				e.stopPropagation();
@@ -556,26 +559,23 @@ export class ChatTodoListWidget extends Disposable {
 		});
 
 		// Save on blur
-		const onBlur = dom.addDisposableListener(this._editInputBox.inputElement, 'blur', () => {
-			// Small delay to allow click events on other elements to process
-			setTimeout(() => {
+		const onBlur = dom.addDisposableListener(inputBox.inputElement, 'blur', () => {
+			// Use requestAnimationFrame to allow click events to process first
+			dom.getWindow(inputBox.inputElement).requestAnimationFrame(() => {
 				if (this._editingTodoId === todo.id) {
 					this.saveEdit(todo);
 				}
-			}, 100);
+			});
 		});
 
-		// Store cleanup handlers
-		if (this._editInputBox) {
-			const inputBox = this._editInputBox;
-			this._register({
-				dispose: () => {
-					onEnter.dispose();
-					onBlur.dispose();
-					inputBox.dispose();
-				}
-			});
-		}
+		// Register cleanup handlers
+		this._register({
+			dispose: () => {
+				onEnter.dispose();
+				onBlur.dispose();
+				inputBox.dispose();
+			}
+		});
 	}
 
 	private saveEdit(todo: IChatTodo): void {
@@ -609,7 +609,10 @@ export class ChatTodoListWidget extends Disposable {
 			this._editInputBox = undefined;
 		}
 
-		// Re-render the list
+		// Re-render the list to update the UI
+		// Note: Full re-render is intentional to maintain consistent state,
+		// handle scroll position, and auto-collapse behavior. The list is
+		// typically small so performance impact is minimal.
 		this.render(this._currentSessionId);
 	}
 
@@ -621,6 +624,8 @@ export class ChatTodoListWidget extends Disposable {
 		}
 
 		// Re-render to restore original state
+		// Note: Full re-render ensures clean state restoration and
+		// maintains consistency with how the widget handles all updates.
 		if (this._currentSessionId) {
 			this.render(this._currentSessionId);
 		}
