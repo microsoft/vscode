@@ -9,6 +9,7 @@ require('events').EventEmitter.defaultMaxListeners = 100;
 const gulp = require('gulp');
 const path = require('path');
 const nodeUtil = require('util');
+const cp = require('child_process');
 const es = require('event-stream');
 const filter = require('gulp-filter');
 const util = require('./lib/util');
@@ -78,9 +79,6 @@ const tasks = compilations.map(function (tsconfigFile) {
 	const absolutePath = path.join(root, tsconfigFile);
 	const relativeDirname = path.dirname(tsconfigFile.replace(/^(.*\/)?extensions\//i, ''));
 
-	const overrideOptions = {};
-	overrideOptions.sourceMap = true;
-
 	const name = relativeDirname.replace(/\//g, '-');
 
 	const srcRoot = path.dirname(tsconfigFile);
@@ -89,94 +87,51 @@ const tasks = compilations.map(function (tsconfigFile) {
 	const srcOpts = { cwd: root, base: srcBase, dot: true };
 
 	const out = path.join(srcRoot, 'out');
-	const baseUrl = getBaseUrl(out);
 
-	function createPipeline(build, emitError, transpileOnly) {
-		const tsb = require('./lib/tsb');
-		const sourcemaps = require('gulp-sourcemaps');
-
+	async function runTsgo(build, emitError) {
+		const exec = nodeUtil.promisify(cp.exec);
 		const reporter = createReporter('extensions');
 
-		overrideOptions.inlineSources = Boolean(build);
-		overrideOptions.base = path.dirname(absolutePath);
-
-		const compilation = tsb.create(absolutePath, overrideOptions, { verbose: false, transpileOnly, transpileOnlyIncludesDts: transpileOnly, transpileWithEsbuild: true }, err => reporter(err.toString()));
-
-		const pipeline = function () {
-			const input = es.through();
-			const tsFilter = filter(['**/*.ts', '!**/lib/lib*.d.ts', '!**/node_modules/**'], { restore: true, dot: true });
-			const output = input
-				.pipe(plumber({
-					errorHandler: function (err) {
-						if (err && !err.__reporter__) {
-							reporter(err);
-						}
-					}
-				}))
-				.pipe(tsFilter)
-				.pipe(util.loadSourcemaps())
-				.pipe(compilation())
-				.pipe(build ? util.stripSourceMappingURL() : es.through())
-				.pipe(sourcemaps.write('.', {
-					sourceMappingURL: !build ? null : f => `${baseUrl}/${f.relative}.map`,
-					addComment: !!build,
-					includeContent: !!build,
-					// note: trailing slash is important, else the source URLs in V8's file coverage are incorrect
-					sourceRoot: '../src/',
-				}))
-				.pipe(tsFilter.restore)
-				.pipe(reporter.end(emitError));
-
-			return es.duplex(input, output);
-		};
-
-		// add src-stream for project files
-		pipeline.tsProjectSrc = () => {
-			return compilation.src(srcOpts);
-		};
-		return pipeline;
+		try {
+			await exec(`npx tsgo -p "${absolutePath}"`, { cwd: root });
+		} catch (err) {
+			const errorMsg = err.toString();
+			reporter(errorMsg);
+			reporter.end(emitError);
+		}
 	}
 
 	const cleanTask = task.define(`clean-extension-${name}`, util.rimraf(out));
 
-	const transpileTask = task.define(`transpile-extension:${name}`, task.series(cleanTask, () => {
-		const pipeline = createPipeline(false, true, true);
-		const nonts = gulp.src(src, srcOpts).pipe(filter(['**', '!**/*.ts']));
-		const input = es.merge(nonts, pipeline.tsProjectSrc());
-
-		return input
-			.pipe(pipeline())
+	const transpileTask = task.define(`transpile-extension:${name}`, task.series(cleanTask, async () => {
+		await runTsgo(false, true);
+		// Copy non-TypeScript files
+		return gulp.src(src, srcOpts)
+			.pipe(filter(['**', '!**/*.ts']))
 			.pipe(gulp.dest(out));
 	}));
 
-	const compileTask = task.define(`compile-extension:${name}`, task.series(cleanTask, () => {
-		const pipeline = createPipeline(false, true);
-		const nonts = gulp.src(src, srcOpts).pipe(filter(['**', '!**/*.ts']));
-		const input = es.merge(nonts, pipeline.tsProjectSrc());
-
-		return input
-			.pipe(pipeline())
+	const compileTask = task.define(`compile-extension:${name}`, task.series(cleanTask, async () => {
+		await runTsgo(false, true);
+		// Copy non-TypeScript files
+		return gulp.src(src, srcOpts)
+			.pipe(filter(['**', '!**/*.ts']))
 			.pipe(gulp.dest(out));
 	}));
 
 	const watchTask = task.define(`watch-extension:${name}`, task.series(cleanTask, () => {
-		const pipeline = createPipeline(false);
-		const nonts = gulp.src(src, srcOpts).pipe(filter(['**', '!**/*.ts']));
-		const input = es.merge(nonts, pipeline.tsProjectSrc());
+		// Initial compilation
+		runTsgo(false, false);
+
 		const watchInput = watcher(src, { ...srcOpts, ...{ readDelay: 200 } });
 
-		return watchInput
-			.pipe(util.incremental(pipeline, input))
-			.pipe(gulp.dest(out));
-	}));
+		watchInput.on('data', () => {
+			runTsgo(false, false);
+		});
 
-	const compileBuildTask = task.define(`compile-build-extension-${name}`, task.series(cleanTask, () => {
-		const pipeline = createPipeline(true, true);
-		const nonts = gulp.src(src, srcOpts).pipe(filter(['**', '!**/*.ts']));
-		const input = es.merge(nonts, pipeline.tsProjectSrc());
-
-		return input
-			.pipe(pipeline())
+		// Copy non-TypeScript files
+		return gulp.src(src, srcOpts)
+			.pipe(filter(['**', '!**/*.ts']))
 			.pipe(gulp.dest(out));
 	}));
 
@@ -185,7 +140,7 @@ const tasks = compilations.map(function (tsconfigFile) {
 	gulp.task(compileTask);
 	gulp.task(watchTask);
 
-	return { transpileTask, compileTask, watchTask, compileBuildTask };
+	return { transpileTask, compileTask, watchTask };
 });
 
 const transpileExtensionsTask = task.define('transpile-extensions', task.parallel(...tasks.map(t => t.transpileTask)));
@@ -198,9 +153,6 @@ exports.compileExtensionsTask = compileExtensionsTask;
 const watchExtensionsTask = task.define('watch-extensions', task.parallel(...tasks.map(t => t.watchTask)));
 gulp.task(watchExtensionsTask);
 exports.watchExtensionsTask = watchExtensionsTask;
-
-const compileExtensionsBuildLegacyTask = task.define('compile-extensions-build-legacy', task.parallel(...tasks.map(t => t.compileBuildTask)));
-gulp.task(compileExtensionsBuildLegacyTask);
 
 //#region Extension media
 
