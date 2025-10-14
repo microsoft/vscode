@@ -27,6 +27,7 @@ import { IConfirmationPrompt, IExecution, IPollingResult, OutputMonitorState, Po
 import { getTextResponseFromStream } from './utils.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TerminalChatAgentToolsSettingId } from '../../../common/terminalChatAgentToolsConfiguration.js';
+import { ILogService } from '../../../../../../../platform/log/common/log.js';
 
 export interface IOutputMonitor extends Disposable {
 	readonly pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
@@ -85,6 +86,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		@IChatService private readonly _chatService: IChatService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 
@@ -103,6 +105,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 		let modelOutputEvalResponse;
 		let resources;
+		let output;
 
 		let extended = false;
 		try {
@@ -132,6 +135,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 						} else {
 							resources = idleResult.resources;
 							modelOutputEvalResponse = idleResult.modelOutputEvalResponse;
+							output = idleResult.output;
 						}
 						break;
 					}
@@ -147,7 +151,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		} finally {
 			this._pollingResult = {
 				state: this._state,
-				output: this._execution.getOutput(),
+				output: output ?? this._execution.getOutput(),
 				modelOutputEvalResponse: token.isCancellationRequested ? 'Cancelled' : modelOutputEvalResponse,
 				pollDurationMs: Date.now() - pollStartTime,
 				resources
@@ -159,7 +163,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	}
 
 
-	private async _handleIdleState(token: CancellationToken): Promise<{ resources?: ILinkLocation[]; modelOutputEvalResponse?: string; shouldContinuePollling: boolean }> {
+	private async _handleIdleState(token: CancellationToken): Promise<{ resources?: ILinkLocation[]; modelOutputEvalResponse?: string; shouldContinuePollling: boolean; output?: string }> {
 		const confirmationPrompt = await this._determineUserInputOptions(this._execution, token);
 
 		if (confirmationPrompt?.detectedRequestForFreeFormInput) {
@@ -206,7 +210,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		const custom = await this._pollFn?.(this._execution, token, this._taskService);
 		const resources = custom?.resources;
 		const modelOutputEvalResponse = await this._assessOutputForErrors(this._execution.getOutput(), token);
-		return { resources, modelOutputEvalResponse, shouldContinuePollling: false };
+		return { resources, modelOutputEvalResponse, shouldContinuePollling: false, output: custom?.output };
 	}
 
 	private async _handleTimeoutState(command: string, invocationContext: IToolInvocationContext | undefined, extended: boolean, token: CancellationToken): Promise<boolean> {
@@ -313,7 +317,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 				const recentlyIdle = consecutiveIdleEvents >= PollingConsts.MinIdleEvents;
 				const isActive = execution.isActive ? await execution.isActive() : undefined;
-
+				this._logService.trace(`OutputMonitor: waitForIdle check: waited=${waited}ms, recentlyIdle=${recentlyIdle}, isActive=${isActive}`);
 				// Keep polling if still active with no recent data
 				if (recentlyIdle && isActive === true) {
 					consecutiveIdleEvents = 0;
@@ -389,7 +393,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		}
 		const lastFiveLines = execution.getOutput(this._lastPromptMarker).trimEnd().split('\n').slice(-5).join('\n');
 		const promptText =
-			`Analyze the following terminal output. If it contains a prompt requesting user input (such as a confirmation, selection, or yes/no question) and that prompt has NOT already been answered, extract the prompt text. The prompt may ask to choose from a set. If so, extract the possible options as a JSON object with keys 'prompt', 'options' (an array of strings or an object with option to description mappings), and 'freeFormInput': false. If no options are provided, and free form input is requested, for example: Password:, return the word freeFormInput. For example, if the options are "[Y] Yes  [A] Yes to All  [N] No  [L] No to All  [C] Cancel", the option to description mappings would be {"Y": "Yes", "A": "Yes to All", "N": "No", "L": "No to All", "C": "Cancel"}. If there is no such prompt, return null.
+			`Analyze the following terminal output. If it contains a prompt requesting user input (such as a confirmation, selection, or yes/no question) and that prompt has NOT already been answered, extract the prompt text. The prompt may ask to choose from a set. If so, extract the possible options as a JSON object with keys 'prompt', 'options' (an array of strings or an object with option to description mappings), and 'freeFormInput': false. If no options are provided, and free form input is requested, for example: Password:, return the word freeFormInput. For example, if the options are "[Y] Yes  [A] Yes to All  [N] No  [L] No to All  [C] Cancel", the option to description mappings would be {"Y": "Yes", "A": "Yes to All", "N": "No", "L": "No to All", "C": "Cancel"}. If there is no such prompt, return null. If the option is ambiguous or non-specific (like "any key" or "some key"), return null.
 			Examples:
 			1. Output: "Do you want to overwrite? (y/n)"
 				Response: {"prompt": "Do you want to overwrite?", "options": ["y", "n"], "freeFormInput": false}
@@ -408,6 +412,12 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 			6. Output: "Continue [y/N]"
 				Response: {"prompt": "Continue", "options": ["y", "N"], "freeFormInput": false}
+
+			7. Output: "Press any key to close the terminal."
+				Response: null
+
+			8. Output: "Terminal will be reused by tasks, press any key to close it."
+				Response: null
 
 			Alternatively, the prompt may request free form input, for example:
 			1. Output: "Enter your username:"
@@ -434,10 +444,25 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 					if (this._lastPrompt === obj.prompt) {
 						return;
 					}
+					// Filter out non-specific options like "any key"
+					const NON_SPECIFIC_OPTIONS = new Set(['any key', 'some key', 'a key']);
+					const isNonSpecificOption = (option: string): boolean => {
+						const lowerOption = option.toLowerCase().trim();
+						return NON_SPECIFIC_OPTIONS.has(lowerOption);
+					};
 					if (Array.isArray(obj.options) && obj.options.every(isString)) {
-						return { prompt: obj.prompt, options: obj.options, detectedRequestForFreeFormInput: obj.freeFormInput };
+						const filteredOptions = obj.options.filter(opt => !isNonSpecificOption(opt));
+						if (filteredOptions.length === 0) {
+							return undefined;
+						}
+						return { prompt: obj.prompt, options: filteredOptions, detectedRequestForFreeFormInput: obj.freeFormInput };
 					} else if (isObject(obj.options) && Object.values(obj.options).every(isString)) {
-						return { prompt: obj.prompt, options: Object.keys(obj.options), descriptions: Object.values(obj.options), detectedRequestForFreeFormInput: obj.freeFormInput };
+						const keys = Object.keys(obj.options).filter(key => !isNonSpecificOption(key));
+						if (keys.length === 0) {
+							return undefined;
+						}
+						const descriptions = keys.map(key => (obj.options as Record<string, string>)[key]);
+						return { prompt: obj.prompt, options: keys, descriptions, detectedRequestForFreeFormInput: obj.freeFormInput };
 					}
 				}
 			}

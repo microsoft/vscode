@@ -20,7 +20,7 @@ import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common
 import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_EDITOR_FOCUSED } from '../../../notebook/common/notebookContextKeys.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, IChatEditingService, IChatEditingSession, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState } from '../../common/chatEditingService.js';
+import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, IChatEditingService, IChatEditingSession, IModifiedFileEntry, IModifiedFileEntryChangeHunk, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { ctxHasEditorModification, ctxIsCurrentlyBeingModified, ctxIsGlobalEditingSession, ctxReviewModeEnabled } from './chatEditingEditorContextKeys.js';
 
@@ -34,7 +34,7 @@ abstract class ChatEditingEditorAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, ...args: any[]) {
+	override async run(accessor: ServicesAccessor, ...args: unknown[]) {
 
 		const instaService = accessor.get(IInstantiationService);
 		const chatEditingService = accessor.get(IChatEditingService);
@@ -59,7 +59,7 @@ abstract class ChatEditingEditorAction extends Action2 {
 		return instaService.invokeFunction(this.runChatEditingCommand.bind(this), session, entry, ctrl, ...args);
 	}
 
-	abstract runChatEditingCommand(accessor: ServicesAccessor, session: IChatEditingSession, entry: IModifiedFileEntry, integration: IModifiedFileEntryEditorIntegration, ...args: any[]): Promise<void> | void;
+	abstract runChatEditingCommand(accessor: ServicesAccessor, session: IChatEditingSession, entry: IModifiedFileEntry, integration: IModifiedFileEntryEditorIntegration, ...args: unknown[]): Promise<void> | void;
 }
 
 abstract class NavigateAction extends ChatEditingEditorAction {
@@ -226,15 +226,17 @@ export class RejectAction extends KeepOrUndoAction {
 	}
 }
 
+const acceptHunkId = 'chatEditor.action.acceptHunk';
+const undoHunkId = 'chatEditor.action.undoHunk';
 abstract class AcceptRejectHunkAction extends ChatEditingEditorAction {
 
 	constructor(private readonly _accept: boolean) {
 		super(
 			{
-				id: _accept ? 'chatEditor.action.acceptHunk' : 'chatEditor.action.undoHunk',
+				id: _accept ? acceptHunkId : undoHunkId,
 				title: _accept ? localize2('acceptHunk', 'Keep this Change') : localize2('undo', 'Undo this Change'),
+				shortTitle: _accept ? localize2('acceptHunkShort', 'Keep') : localize2('undoShort', 'Undo'),
 				precondition: ContextKeyExpr.and(ctxHasEditorModification, ctxIsCurrentlyBeingModified.negate()),
-				icon: _accept ? Codicon.check : Codicon.discard,
 				f1: true,
 				keybinding: {
 					when: ContextKeyExpr.or(EditorContextKeys.focus, NOTEBOOK_CELL_LIST_FOCUSED),
@@ -251,20 +253,38 @@ abstract class AcceptRejectHunkAction extends ChatEditingEditorAction {
 		);
 	}
 
-	override async runChatEditingCommand(accessor: ServicesAccessor, session: IChatEditingSession, entry: IModifiedFileEntry, ctrl: IModifiedFileEntryEditorIntegration, ...args: any[]): Promise<void> {
+	override async runChatEditingCommand(accessor: ServicesAccessor, session: IChatEditingSession, entry: IModifiedFileEntry, ctrl: IModifiedFileEntryEditorIntegration, ...args: unknown[]): Promise<void> {
 
 		const instaService = accessor.get(IInstantiationService);
 
 		if (this._accept) {
-			await ctrl.acceptNearestChange(args[0]);
+			await ctrl.acceptNearestChange(args[0] as IModifiedFileEntryChangeHunk | undefined);
 		} else {
-			await ctrl.rejectNearestChange(args[0]);
+			await ctrl.rejectNearestChange(args[0] as IModifiedFileEntryChangeHunk | undefined);
 		}
 
 		if (entry.changesCount.get() === 0) {
 			// no more changes, move to next file
 			await instaService.invokeFunction(openNextOrPreviousChange, session, entry, true);
 		}
+	}
+}
+
+export class AcceptHunkAction extends AcceptRejectHunkAction {
+
+	static readonly ID = acceptHunkId;
+
+	constructor() {
+		super(true);
+	}
+}
+
+export class RejectHunkAction extends AcceptRejectHunkAction {
+
+	static readonly ID = undoHunkId;
+
+	constructor() {
+		super(false);
 	}
 }
 
@@ -297,8 +317,8 @@ class ToggleDiffAction extends ChatEditingEditorAction {
 		});
 	}
 
-	override runChatEditingCommand(_accessor: ServicesAccessor, _session: IChatEditingSession, _entry: IModifiedFileEntry, integration: IModifiedFileEntryEditorIntegration, ...args: any[]): Promise<void> | void {
-		integration.toggleDiff(args[0]);
+	override runChatEditingCommand(_accessor: ServicesAccessor, _session: IChatEditingSession, _entry: IModifiedFileEntry, integration: IModifiedFileEntryEditorIntegration, ...args: unknown[]): Promise<void> | void {
+		integration.toggleDiff(args[0] as IModifiedFileEntryChangeHunk | undefined);
 	}
 }
 
@@ -338,7 +358,7 @@ export class ReviewChangesAction extends ChatEditingEditorAction {
 		});
 	}
 
-	override runChatEditingCommand(_accessor: ServicesAccessor, _session: IChatEditingSession, entry: IModifiedFileEntry, _integration: IModifiedFileEntryEditorIntegration, ..._args: any[]): void {
+	override runChatEditingCommand(_accessor: ServicesAccessor, _session: IChatEditingSession, entry: IModifiedFileEntry, _integration: IModifiedFileEntryEditorIntegration, ..._args: unknown[]): void {
 		entry.enableReviewModeUntilSettled();
 	}
 }
@@ -422,8 +442,8 @@ export function registerChatEditorActions() {
 	registerAction2(AcceptAction);
 	registerAction2(RejectAction);
 	registerAction2(AcceptAllEditsAction);
-	registerAction2(class AcceptHunkAction extends AcceptRejectHunkAction { constructor() { super(true); } });
-	registerAction2(class RejectHunkAction extends AcceptRejectHunkAction { constructor() { super(false); } });
+	registerAction2(AcceptHunkAction);
+	registerAction2(RejectHunkAction);
 	registerAction2(ToggleDiffAction);
 	registerAction2(ToggleAccessibleDiffViewAction);
 

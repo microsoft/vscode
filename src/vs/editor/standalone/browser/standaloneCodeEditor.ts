@@ -42,6 +42,8 @@ import { mainWindow } from '../../../base/browser/window.js';
 import { setHoverDelegateFactory } from '../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IHoverService, WorkbenchHoverDelegate } from '../../../platform/hover/browser/hover.js';
 import { setBaseLayerHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegate2.js';
+import { IMarkdownRendererService } from '../../../platform/markdown/browser/markdownRenderer.js';
+import { EditorMarkdownCodeBlockRenderer } from '../../browser/widget/markdownRenderer/browser/editorMarkdownCodeBlockRenderer.js';
 
 /**
  * Description of an action contribution
@@ -280,6 +282,7 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
+		@IMarkdownRendererService markdownRendererService: IMarkdownRendererService,
 	) {
 		const options = { ..._options };
 		options.ariaLabel = options.ariaLabel || StandaloneCodeEditorNLS.editorViewAccessibleLabel;
@@ -295,6 +298,8 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 
 		setHoverDelegateFactory((placement, enableInstantHover) => instantiationService.createInstance(WorkbenchHoverDelegate, placement, { instantHover: enableInstantHover }, {}));
 		setBaseLayerHoverDelegate(hoverService);
+
+		markdownRendererService.setDefaultCodeBlockRenderer(instantiationService.createInstance(EditorMarkdownCodeBlockRenderer));
 	}
 
 	public addCommand(keybinding: number, handler: ICommandHandler, context?: string): string | null {
@@ -335,7 +340,7 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 		);
 		const contextMenuGroupId = _descriptor.contextMenuGroupId || null;
 		const contextMenuOrder = _descriptor.contextMenuOrder || 0;
-		const run = (_accessor?: ServicesAccessor, ...args: any[]): Promise<void> => {
+		const run = (_accessor?: ServicesAccessor, ...args: unknown[]): Promise<void> => {
 			return Promise.resolve(_descriptor.run(this, ...args));
 		};
 
@@ -427,6 +432,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		@ILanguageService languageService: ILanguageService,
 		@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
+		@IMarkdownRendererService markdownRendererService: IMarkdownRendererService,
 	) {
 		const options = { ..._options };
 		updateConfigurationService(configurationService, options, false);
@@ -439,7 +445,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		}
 		const _model: ITextModel | null | undefined = options.model;
 		delete options.model;
-		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, hoverService, keybindingService, themeService, notificationService, accessibilityService, languageConfigurationService, languageFeaturesService);
+		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, hoverService, keybindingService, themeService, notificationService, accessibilityService, languageConfigurationService, languageFeaturesService, markdownRendererService);
 
 		this._configurationService = configurationService;
 		this._standaloneThemeService = themeService;

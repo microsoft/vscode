@@ -44,7 +44,7 @@ export interface IStickyScrollController {
 	findScrollWidgetState(): StickyScrollWidgetState;
 	dispose(): void;
 	selectEditor(): void;
-	onDidChangeStickyScrollHeight: Event<{ height: number }>;
+	readonly onDidChangeStickyScrollHeight: Event<{ height: number }>;
 }
 
 export class StickyScrollController extends Disposable implements IEditorContribution, IStickyScrollController {

@@ -7,7 +7,7 @@ import * as dom from '../../../../../../base/browser/dom.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { markdownCommandLink, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
-import { MarkdownRenderer } from '../../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { localize } from '../../../../../../nls.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService.js';
@@ -47,11 +47,12 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 	constructor(
 		private readonly toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
 		private readonly context: IChatContentPartRenderContext,
-		private readonly renderer: MarkdownRenderer,
+		private readonly renderer: IMarkdownRenderer,
 		private readonly listPool: CollapsibleListPool,
 		private readonly editorPool: EditorPool,
 		private readonly currentWidthDelegate: () => number,
 		private readonly codeBlockModelCollection: CodeBlockModelCollection,
+		private readonly announcedToolProgressKeys: Set<string> | undefined,
 		private readonly codeBlockStartIndex: number,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
@@ -198,7 +199,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			);
 		}
 
-		return this.instantiationService.createInstance(ChatToolProgressSubPart, this.toolInvocation, this.context, this.renderer);
+		return this.instantiationService.createInstance(ChatToolProgressSubPart, this.toolInvocation, this.context, this.renderer, this.announcedToolProgressKeys);
 	}
 
 	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {

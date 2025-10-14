@@ -474,6 +474,7 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 			this._editors.original.restoreViewState(diffEditorState.original);
 			this._editors.modified.restoreViewState(diffEditorState.modified);
 			if (diffEditorState.modelState) {
+				// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 				this._diffModel.get()?.restoreSerializedState(diffEditorState.modelState as any);
 			}
 		}

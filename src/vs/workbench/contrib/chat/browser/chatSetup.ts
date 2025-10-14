@@ -24,7 +24,7 @@ import { equalsIgnoreCase } from '../../../../base/common/strings.js';
 import { isObject } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
-import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -65,17 +65,21 @@ import { IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAge
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementRequests, ChatEntitlementService, IChatEntitlementService, isProUser } from '../../../services/chat/common/chatEntitlementService.js';
 import { ChatModel, ChatRequestModel, IChatRequestModel, IChatRequestVariableData } from '../common/chatModel.js';
-import { ChatMode } from '../common/chatModes.js';
+import { ChatMode, IChatModeService } from '../common/chatModes.js';
 import { ChatRequestAgentPart, ChatRequestToolPart } from '../common/chatParserTypes.js';
 import { IChatProgress, IChatService } from '../common/chatService.js';
 import { IChatRequestToolEntry } from '../common/chatVariableEntries.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, validateChatMode } from '../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../common/constants.js';
 import { ILanguageModelsService } from '../common/languageModels.js';
-import { CHAT_CATEGORY, CHAT_OPEN_ACTION_ID, CHAT_SETUP_ACTION_ID } from './actions/chatActions.js';
+import { CHAT_CATEGORY, CHAT_OPEN_ACTION_ID, CHAT_SETUP_ACTION_ID, CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID } from './actions/chatActions.js';
 import { ChatViewId, IChatWidgetService, showCopilotView } from './chat.js';
 import { CHAT_SIDEBAR_PANEL_ID } from './chatViewPane.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { chatViewsWelcomeRegistry } from './viewsWelcome/chatViewsWelcome.js';
+import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
+import { NewSymbolName, NewSymbolNameTriggerKind } from '../../../../editor/common/languages.js';
+import { ITextModel } from '../../../../editor/common/model.js';
+import { IRange } from '../../../../editor/common/core/range.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -96,6 +100,12 @@ const defaultChat = {
 	termsStatementUrl: product.defaultChatAgent?.termsStatementUrl ?? '',
 	privacyStatementUrl: product.defaultChatAgent?.privacyStatementUrl ?? ''
 };
+
+enum ChatSetupAnonymous {
+	Disabled = 0,
+	EnabledWithDialog = 1,
+	EnabledWithoutDialog = 2
+}
 
 //#region Contribution
 
@@ -139,7 +149,7 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 		});
 	}
 
-	static registerBuiltInAgents(instantiationService: IInstantiationService, context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): { disposable: IDisposable } {
+	static registerBuiltInAgents(instantiationService: IInstantiationService, context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): IDisposable {
 		return instantiationService.invokeFunction(accessor => {
 			const chatAgentService = accessor.get(IChatAgentService);
 
@@ -168,9 +178,9 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 				canBeReferencedInPrompt: true,
 				toolReferenceName: 'new',
 				when: ContextKeyExpr.true(),
-			}).disposable);
+			}));
 
-			return { disposable: disposables };
+			return disposables;
 		});
 	}
 
@@ -323,9 +333,17 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 				if (ready === 'error' || ready === 'timedout') {
 					let warningMessage: string;
 					if (ready === 'timedout') {
-						warningMessage = localize('chatTookLongWarning', "Chat took too long to get ready. Please ensure you are signed in to {0} and that the extension `{1}` is installed and enabled.", defaultChat.provider.default.name, defaultChat.chatExtensionId);
+						if (this.chatEntitlementService.anonymous) {
+							warningMessage = localize('chatTookLongWarningAnonymous', "Chat took too long to get ready. Please ensure that the extension `{0}` is installed and enabled.", defaultChat.chatExtensionId);
+						} else {
+							warningMessage = localize('chatTookLongWarning', "Chat took too long to get ready. Please ensure you are signed in to {0} and that the extension `{1}` is installed and enabled.", defaultChat.provider.default.name, defaultChat.chatExtensionId);
+						}
 					} else {
-						warningMessage = localize('chatFailedWarning', "Chat failed to get ready. Please ensure you are signed in to {0} and that the extension `{1}` is installed and enabled.", defaultChat.provider.default.name, defaultChat.chatExtensionId);
+						if (this.chatEntitlementService.anonymous) {
+							warningMessage = localize('chatFailedWarningAnonymous', "Chat failed to get ready. Please ensure that the extension `{0}` is installed and enabled.", defaultChat.chatExtensionId);
+						} else {
+							warningMessage = localize('chatFailedWarning', "Chat failed to get ready. Please ensure you are signed in to {0} and that the extension `{1}` is installed and enabled.", defaultChat.provider.default.name, defaultChat.chatExtensionId);
+						}
 					}
 
 					this.logService.warn(warningMessage, {
@@ -440,8 +458,8 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 		let result: IChatSetupResult | undefined = undefined;
 		try {
 			result = await ChatSetup.getInstance(this.instantiationService, this.context, this.controller).run({
-				disableChatViewReveal: true, 							// we are already in a chat context
-				forceAnonymous: this.chatEntitlementService.anonymous	// only enable anonymous selectively
+				disableChatViewReveal: true, 																				// we are already in a chat context
+				forceAnonymous: this.chatEntitlementService.anonymous ? ChatSetupAnonymous.EnabledWithoutDialog : undefined	// only enable anonymous selectively
 			});
 		} catch (error) {
 			this.logService.error(`[chat setup] Error during setup: ${toErrorMessage(error)}`);
@@ -569,7 +587,7 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 
 class SetupTool extends Disposable implements IToolImpl {
 
-	static registerTool(instantiationService: IInstantiationService, toolData: IToolData): { tool: SetupTool; disposable: IDisposable } {
+	static registerTool(instantiationService: IInstantiationService, toolData: IToolData): IDisposable {
 		return instantiationService.invokeFunction(accessor => {
 			const toolService = accessor.get(ILanguageModelToolsService);
 
@@ -578,7 +596,7 @@ class SetupTool extends Disposable implements IToolImpl {
 			const tool = instantiationService.createInstance(SetupTool);
 			disposables.add(toolService.registerTool(toolData, tool));
 
-			return { tool, disposable: disposables };
+			return disposables;
 		});
 	}
 
@@ -595,8 +613,43 @@ class SetupTool extends Disposable implements IToolImpl {
 		return result;
 	}
 
-	async prepareToolInvocation?(parameters: any, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
+	async prepareToolInvocation?(parameters: unknown, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		return undefined;
+	}
+}
+
+class DefaultNewSymbolNamesProvider extends Disposable {
+
+	static registerProvider(instantiationService: IInstantiationService, context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): IDisposable {
+		return instantiationService.invokeFunction(accessor => {
+			const languageFeaturesService = accessor.get(ILanguageFeaturesService);
+
+			const disposables = new DisposableStore();
+
+			const provider = disposables.add(instantiationService.createInstance(DefaultNewSymbolNamesProvider, context, controller));
+			disposables.add(languageFeaturesService.newSymbolNamesProvider.register('*', provider));
+
+			return disposables;
+		});
+	}
+
+	constructor(
+		private readonly context: ChatEntitlementContext,
+		private readonly controller: Lazy<ChatSetupController>,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
+	) {
+		super();
+	}
+
+	async provideNewSymbolNames(model: ITextModel, range: IRange, triggerKind: NewSymbolNameTriggerKind, token: CancellationToken): Promise<NewSymbolName[] | undefined> {
+		await this.instantiationService.invokeFunction(accessor => {
+			return ChatSetup.getInstance(this.instantiationService, this.context, this.controller).run({
+				forceAnonymous: this.chatEntitlementService.anonymous ? ChatSetupAnonymous.EnabledWithDialog : undefined
+			});
+		});
+
+		return [];
 	}
 }
 
@@ -623,7 +676,7 @@ class ChatSetup {
 		let instance = ChatSetup.instance;
 		if (!instance) {
 			instance = ChatSetup.instance = instantiationService.invokeFunction(accessor => {
-				return new ChatSetup(context, controller, instantiationService, accessor.get(ITelemetryService), accessor.get(IWorkbenchLayoutService), accessor.get(IKeybindingService), accessor.get(IChatEntitlementService) as ChatEntitlementService, accessor.get(ILogService), accessor.get(IConfigurationService), accessor.get(IViewsService), accessor.get(IWorkspaceTrustRequestService));
+				return new ChatSetup(context, controller, accessor.get(ITelemetryService), accessor.get(IWorkbenchLayoutService), accessor.get(IKeybindingService), accessor.get(IChatEntitlementService) as ChatEntitlementService, accessor.get(ILogService), accessor.get(IConfigurationService), accessor.get(IViewsService), accessor.get(IWorkspaceTrustRequestService), accessor.get(IMarkdownRendererService));
 			});
 		}
 
@@ -637,7 +690,6 @@ class ChatSetup {
 	private constructor(
 		private readonly context: ChatEntitlementContext,
 		private readonly controller: Lazy<ChatSetupController>,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
@@ -645,14 +697,15 @@ class ChatSetup {
 		@ILogService private readonly logService: ILogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IViewsService private readonly viewsService: IViewsService,
-		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService
+		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
+		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 	) { }
 
 	skipDialog(): void {
 		this.skipDialogOnce = true;
 	}
 
-	async run(options?: { disableChatViewReveal?: boolean; forceSignInDialog?: boolean; additionalScopes?: readonly string[]; forceAnonymous?: boolean }): Promise<IChatSetupResult> {
+	async run(options?: { disableChatViewReveal?: boolean; forceSignInDialog?: boolean; additionalScopes?: readonly string[]; forceAnonymous?: ChatSetupAnonymous }): Promise<IChatSetupResult> {
 		if (this.pendingRun) {
 			return this.pendingRun;
 		}
@@ -666,7 +719,7 @@ class ChatSetup {
 		}
 	}
 
-	private async doRun(options?: { disableChatViewReveal?: boolean; forceSignInDialog?: boolean; additionalScopes?: readonly string[]; forceAnonymous?: boolean }): Promise<IChatSetupResult> {
+	private async doRun(options?: { disableChatViewReveal?: boolean; forceSignInDialog?: boolean; additionalScopes?: readonly string[]; forceAnonymous?: ChatSetupAnonymous }): Promise<IChatSetupResult> {
 		this.context.update({ later: false });
 
 		const dialogSkipped = this.skipDialogOnce;
@@ -685,8 +738,8 @@ class ChatSetup {
 		let setupStrategy: ChatSetupStrategy;
 		if (!options?.forceSignInDialog && (dialogSkipped || isProUser(this.chatEntitlementService.entitlement) || this.chatEntitlementService.entitlement === ChatEntitlement.Free)) {
 			setupStrategy = ChatSetupStrategy.DefaultSetup; // existing pro/free users setup without a dialog
-		} else if (options?.forceAnonymous) {
-			setupStrategy = ChatSetupStrategy.DefaultSetup; // anonymous users setup without a dialog
+		} else if (options?.forceAnonymous === ChatSetupAnonymous.EnabledWithoutDialog) {
+			setupStrategy = ChatSetupStrategy.DefaultSetup; // anonymous setup without a dialog
 		} else {
 			setupStrategy = await this.showDialog(options);
 		}
@@ -732,7 +785,7 @@ class ChatSetup {
 		return { success, dialogSkipped };
 	}
 
-	private async showDialog(options?: { forceSignInDialog?: boolean }): Promise<ChatSetupStrategy> {
+	private async showDialog(options?: { forceSignInDialog?: boolean; forceAnonymous?: ChatSetupAnonymous }): Promise<ChatSetupStrategy> {
 		const disposables = new DisposableStore();
 
 		const dialogVariant = this.configurationService.getValue<'default' | 'apple' | unknown>('chat.setup.signInDialogVariant');
@@ -750,7 +803,7 @@ class ChatSetup {
 				alignment: DialogContentsAlignment.Vertical,
 				cancelId: buttons.length - 1,
 				disableCloseButton: true,
-				renderFooter: this.telemetryService.telemetryLevel !== TelemetryLevel.NONE ? footer => footer.appendChild(this.createDialogFooter(disposables)) : undefined,
+				renderFooter: footer => footer.appendChild(this.createDialogFooter(disposables, options)),
 				buttonOptions: buttons.map(button => button[2])
 			}, this.keybindingService, this.layoutService)
 		));
@@ -761,12 +814,12 @@ class ChatSetup {
 		return buttons[button]?.[1] ?? ChatSetupStrategy.Canceled;
 	}
 
-	private getButtons(variant: 'default' | 'apple' | unknown, options?: { forceSignInDialog?: boolean }): Array<[string, ChatSetupStrategy, { styleButton?: (button: IButton) => void } | undefined]> {
+	private getButtons(variant: 'default' | 'apple' | unknown, options?: { forceSignInDialog?: boolean; forceAnonymous?: ChatSetupAnonymous }): Array<[string, ChatSetupStrategy, { styleButton?: (button: IButton) => void } | undefined]> {
 		type ContinueWithButton = [string, ChatSetupStrategy, { styleButton?: (button: IButton) => void } | undefined];
 		const styleButton = (...classes: string[]) => ({ styleButton: (button: IButton) => button.element.classList.add(...classes) });
 
 		let buttons: Array<ContinueWithButton>;
-		if (this.context.state.entitlement === ChatEntitlement.Unknown || options?.forceSignInDialog) {
+		if (!options?.forceAnonymous && (this.context.state.entitlement === ChatEntitlement.Unknown || options?.forceSignInDialog)) {
 			const defaultProviderButton: ContinueWithButton = [localize('continueWith', "Continue with {0}", defaultChat.provider.default.name), ChatSetupStrategy.SetupWithoutEnterpriseProvider, styleButton('continue-button', 'default')];
 			const defaultProviderLink: ContinueWithButton = [defaultProviderButton[0], defaultProviderButton[1], styleButton('link-button')];
 
@@ -800,9 +853,13 @@ class ChatSetup {
 		return buttons;
 	}
 
-	private getDialogTitle(options?: { forceSignInDialog?: boolean }): string {
+	private getDialogTitle(options?: { forceSignInDialog?: boolean; forceAnonymous?: ChatSetupAnonymous }): string {
 		if (this.chatEntitlementService.anonymous) {
-			return localize('enableMore', "Enable more AI features");
+			if (options?.forceAnonymous) {
+				return localize('startUsing', "Start using GitHub Copilot");
+			} else {
+				return localize('enableMore', "Enable more AI features");
+			}
 		}
 
 		if (this.context.state.entitlement === ChatEntitlement.Unknown || options?.forceSignInDialog) {
@@ -812,13 +869,17 @@ class ChatSetup {
 		return localize('startUsing', "Start using GitHub Copilot");
 	}
 
-	private createDialogFooter(disposables: DisposableStore): HTMLElement {
+	private createDialogFooter(disposables: DisposableStore, options?: { forceAnonymous?: ChatSetupAnonymous }): HTMLElement {
 		const element = $('.chat-setup-dialog-footer');
 
-		const markdown = this.instantiationService.createInstance(MarkdownRenderer, {});
 
-		const footer = localize({ key: 'settings', comment: ['{Locked="["}', '{Locked="]({1})"}', '{Locked="]({2})"}', '{Locked="]({4})"}', '{Locked="]({5})"}'] }, "By continuing, you agree to {0}'s [Terms]({1}) and [Privacy Statement]({2}). {3} Copilot may show [public code]({4}) suggestions and use your data to improve the product. You can change these [settings]({5}) anytime.", defaultChat.provider.default.name, defaultChat.termsStatementUrl, defaultChat.privacyStatementUrl, defaultChat.provider.default.name, defaultChat.publicCodeMatchesUrl, defaultChat.manageSettingsUrl);
-		element.appendChild($('p', undefined, disposables.add(markdown.render(new MarkdownString(footer, { isTrusted: true }))).element));
+		let footer: string;
+		if (options?.forceAnonymous || this.telemetryService.telemetryLevel === TelemetryLevel.NONE) {
+			footer = localize({ key: 'settingsAnonymous', comment: ['{Locked="["}', '{Locked="]({1})"}', '{Locked="]({2})"}'] }, "By continuing, you agree to {0}'s [Terms]({1}) and [Privacy Statement]({2}).", defaultChat.provider.default.name, defaultChat.termsStatementUrl, defaultChat.privacyStatementUrl);
+		} else {
+			footer = localize({ key: 'settings', comment: ['{Locked="["}', '{Locked="]({1})"}', '{Locked="]({2})"}', '{Locked="]({4})"}', '{Locked="]({5})"}'] }, "By continuing, you agree to {0}'s [Terms]({1}) and [Privacy Statement]({2}). {3} Copilot may show [public code]({4}) suggestions and use your data to improve the product. You can change these [settings]({5}) anytime.", defaultChat.provider.default.name, defaultChat.termsStatementUrl, defaultChat.privacyStatementUrl, defaultChat.provider.default.name, defaultChat.publicCodeMatchesUrl, defaultChat.manageSettingsUrl);
+		}
+		element.appendChild($('p', undefined, disposables.add(this.markdownRendererService.render(new MarkdownString(footer, { isTrusted: true }))).element));
 
 		return element;
 	}
@@ -834,6 +895,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		@ICommandService private readonly commandService: ICommandService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IChatEntitlementService chatEntitlementService: ChatEntitlementService,
+		@IChatModeService private readonly chatModeService: IChatModeService,
 		@ILogService private readonly logService: ILogService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
@@ -863,53 +925,69 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			return; // TODO@bpasero eventually remove this when we figured out extension activation issues
 		}
 
-		const defaultAgentDisposables = markAsSingleton(new MutableDisposable()); // prevents flicker on window reload
-		const vscodeAgentDisposables = markAsSingleton(new MutableDisposable());
-
 		const updateRegistration = () => {
-			if (!context.state.hidden && !context.state.disabled) {
 
-				// Default Agents (always, even if installed to allow for speedy requests right on startup)
-				if (!defaultAgentDisposables.value) {
-					const disposables = defaultAgentDisposables.value = new DisposableStore();
+			// Agent + Tools
+			{
+				const defaultAgentDisposables = markAsSingleton(new MutableDisposable()); // prevents flicker on window reload
+				const vscodeAgentDisposables = markAsSingleton(new MutableDisposable());
+				if (!context.state.hidden && !context.state.disabled) {
 
-					// Panel Agents
-					const panelAgentDisposables = disposables.add(new DisposableStore());
-					for (const mode of [ChatModeKind.Ask, ChatModeKind.Edit, ChatModeKind.Agent]) {
-						const { agent, disposable } = SetupAgent.registerDefaultAgents(this.instantiationService, ChatAgentLocation.Chat, mode, context, controller);
-						panelAgentDisposables.add(disposable);
-						panelAgentDisposables.add(agent.onUnresolvableError(() => {
-							const panelAgentHasGuidance = chatViewsWelcomeRegistry.get().some(descriptor => this.contextKeyService.contextMatchesRules(descriptor.when));
-							if (panelAgentHasGuidance) {
-								// An unresolvable error from our agent registrations means that
-								// Copilot is unhealthy for some reason. We clear our panel
-								// registration to give Copilot a chance to show a custom message
-								// to the user from the views and stop pretending as if there was
-								// a functional agent.
-								this.logService.error('[chat setup] Unresolvable error from Copilot agent registration, clearing registration.');
-								panelAgentDisposables.dispose();
-							}
-						}));
+					// Default Agents (always, even if installed to allow for speedy requests right on startup)
+					if (!defaultAgentDisposables.value) {
+						const disposables = defaultAgentDisposables.value = new DisposableStore();
+
+						// Panel Agents
+						const panelAgentDisposables = disposables.add(new DisposableStore());
+						for (const mode of [ChatModeKind.Ask, ChatModeKind.Edit, ChatModeKind.Agent]) {
+							const { agent, disposable } = SetupAgent.registerDefaultAgents(this.instantiationService, ChatAgentLocation.Chat, mode, context, controller);
+							panelAgentDisposables.add(disposable);
+							panelAgentDisposables.add(agent.onUnresolvableError(() => {
+								const panelAgentHasGuidance = chatViewsWelcomeRegistry.get().some(descriptor => this.contextKeyService.contextMatchesRules(descriptor.when));
+								if (panelAgentHasGuidance) {
+									// An unresolvable error from our agent registrations means that
+									// Copilot is unhealthy for some reason. We clear our panel
+									// registration to give Copilot a chance to show a custom message
+									// to the user from the views and stop pretending as if there was
+									// a functional agent.
+									this.logService.error('[chat setup] Unresolvable error from Copilot agent registration, clearing registration.');
+									panelAgentDisposables.dispose();
+								}
+							}));
+						}
+
+						// Inline Agents
+						disposables.add(SetupAgent.registerDefaultAgents(this.instantiationService, ChatAgentLocation.Terminal, undefined, context, controller).disposable);
+						disposables.add(SetupAgent.registerDefaultAgents(this.instantiationService, ChatAgentLocation.Notebook, undefined, context, controller).disposable);
+						disposables.add(SetupAgent.registerDefaultAgents(this.instantiationService, ChatAgentLocation.EditorInline, undefined, context, controller).disposable);
 					}
 
-					// Inline Agents
-					disposables.add(SetupAgent.registerDefaultAgents(this.instantiationService, ChatAgentLocation.Terminal, undefined, context, controller).disposable);
-					disposables.add(SetupAgent.registerDefaultAgents(this.instantiationService, ChatAgentLocation.Notebook, undefined, context, controller).disposable);
-					disposables.add(SetupAgent.registerDefaultAgents(this.instantiationService, ChatAgentLocation.EditorInline, undefined, context, controller).disposable);
+					// Built-In Agent + Tool (unless installed, signed-in and enabled)
+					if ((!context.state.installed || context.state.entitlement === ChatEntitlement.Unknown || context.state.entitlement === ChatEntitlement.Unresolved) && !vscodeAgentDisposables.value) {
+						const disposables = vscodeAgentDisposables.value = new DisposableStore();
+						disposables.add(SetupAgent.registerBuiltInAgents(this.instantiationService, context, controller));
+					}
+				} else {
+					defaultAgentDisposables.clear();
+					vscodeAgentDisposables.clear();
 				}
 
-				// Built-In Agent + Tool (unless installed, signed-in and enabled)
-				if ((!context.state.installed || context.state.entitlement === ChatEntitlement.Unknown || context.state.entitlement === ChatEntitlement.Unresolved) && !vscodeAgentDisposables.value) {
-					const disposables = vscodeAgentDisposables.value = new DisposableStore();
-					disposables.add(SetupAgent.registerBuiltInAgents(this.instantiationService, context, controller).disposable);
+				if (context.state.installed && !context.state.disabled) {
+					vscodeAgentDisposables.clear(); // we need to do this to prevent showing duplicate agent/tool entries in the list
 				}
-			} else {
-				defaultAgentDisposables.clear();
-				vscodeAgentDisposables.clear();
 			}
 
-			if (context.state.installed && !context.state.disabled) {
-				vscodeAgentDisposables.clear(); // we need to do this to prevent showing duplicate agent/tool entries in the list
+			// Rename Provider
+			{
+				const renameProviderDisposables = markAsSingleton(new MutableDisposable());
+
+				if (!context.state.installed && !context.state.hidden && !context.state.disabled) {
+					if (!renameProviderDisposables.value) {
+						renameProviderDisposables.value = DefaultNewSymbolNamesProvider.registerProvider(this.instantiationService, context, controller);
+					}
+				} else {
+					renameProviderDisposables.clear();
+				}
 			}
 		};
 
@@ -938,7 +1016,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				});
 			}
 
-			override async run(accessor: ServicesAccessor, mode?: ChatModeKind, options?: { forceSignInDialog?: boolean; additionalScopes?: readonly string[]; forceAnonymous?: boolean }): Promise<boolean> {
+			override async run(accessor: ServicesAccessor, mode?: ChatModeKind | string, options?: { forceSignInDialog?: boolean; additionalScopes?: readonly string[]; forceAnonymous?: ChatSetupAnonymous }): Promise<boolean> {
 				const viewsService = accessor.get(IViewsService);
 				const layoutService = accessor.get(IWorkbenchLayoutService);
 				const instantiationService = accessor.get(IInstantiationService);
@@ -973,6 +1051,28 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			}
 		}
 
+		class ChatSetupTriggerSupportAnonymousAction extends Action2 {
+
+			constructor() {
+				super({
+					id: CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID,
+					title: ChatSetupTriggerAction.CHAT_SETUP_ACTION_LABEL
+				});
+			}
+
+			override async run(accessor: ServicesAccessor): Promise<unknown> {
+				const commandService = accessor.get(ICommandService);
+				const telemetryService = accessor.get(ITelemetryService);
+				const chatEntitlementService = accessor.get(IChatEntitlementService);
+
+				telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: CHAT_SETUP_ACTION_ID, from: 'api' });
+
+				return commandService.executeCommand(CHAT_SETUP_ACTION_ID, undefined, {
+					forceAnonymous: chatEntitlementService.anonymous ? ChatSetupAnonymous.EnabledWithDialog : undefined
+				});
+			}
+		}
+
 		class ChatSetupTriggerForceSignInDialogAction extends Action2 {
 
 			constructor() {
@@ -992,11 +1092,11 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			}
 		}
 
-		class ChatSetupTriggerAnonymouslyAction extends Action2 {
+		class ChatSetupTriggerAnonymousWithoutDialogAction extends Action2 {
 
 			constructor() {
 				super({
-					id: 'workbench.action.chat.triggerSetupAnonymously',
+					id: 'workbench.action.chat.triggerSetupAnonymousWithoutDialog',
 					title: ChatSetupTriggerAction.CHAT_SETUP_ACTION_LABEL
 				});
 			}
@@ -1007,7 +1107,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 				telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: CHAT_SETUP_ACTION_ID, from: 'api' });
 
-				return commandService.executeCommand(CHAT_SETUP_ACTION_ID, undefined, { forceAnonymous: true });
+				return commandService.executeCommand(CHAT_SETUP_ACTION_ID, undefined, { forceAnonymous: ChatSetupAnonymous.EnabledWithoutDialog });
 			}
 		}
 
@@ -1137,7 +1237,8 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		registerAction2(ChatSetupTriggerAction);
 		registerAction2(ChatSetupTriggerForceSignInDialogAction);
 		registerAction2(ChatSetupFromAccountsAction);
-		registerAction2(ChatSetupTriggerAnonymouslyAction);
+		registerAction2(ChatSetupTriggerAnonymousWithoutDialogAction);
+		registerAction2(ChatSetupTriggerSupportAnonymousAction);
 		registerAction2(UpgradePlanAction);
 		registerAction2(EnableOveragesAction);
 	}
@@ -1151,7 +1252,23 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				const params = new URLSearchParams(url.query);
 				this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: CHAT_SETUP_ACTION_ID, from: 'url', detail: params.get('referrer') ?? undefined });
 
-				await this.commandService.executeCommand(CHAT_SETUP_ACTION_ID, validateChatMode(params.get('mode')));
+				const modeParam = params.get('mode');
+				let modeToUse: ChatModeKind | string | undefined;
+				if (modeParam) {
+					// check if the given param is a valid mode ID
+					let foundMode = this.chatModeService.findModeById(modeParam);
+					if (!foundMode) {
+						// if not, check if the given param is a valid mode name, note the name is case insensitive
+						foundMode = this.chatModeService.findModeByName(modeParam);
+					}
+
+					if (foundMode) {
+						modeToUse = foundMode.id;
+					}
+				}
+
+				// execute the command to change the mode in panel, note that the command only supports mode IDs, not names
+				await this.commandService.executeCommand(CHAT_SETUP_ACTION_ID, modeToUse);
 
 				return true;
 			}
@@ -1354,7 +1471,7 @@ interface IChatSetupControllerOptions {
 	readonly useSocialProvider?: string;
 	readonly useEnterpriseProvider?: boolean;
 	readonly additionalScopes?: readonly string[];
-	readonly forceAnonymous?: boolean;
+	readonly forceAnonymous?: ChatSetupAnonymous;
 }
 
 class ChatSetupController extends Disposable {

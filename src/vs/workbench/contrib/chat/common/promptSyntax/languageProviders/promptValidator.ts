@@ -26,6 +26,7 @@ import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IPromptsService } from '../service/promptsService.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 
+
 const MARKERS_OWNER_ID = 'prompts-diagnostics-provider';
 
 export class PromptValidator {
@@ -34,7 +35,7 @@ export class PromptValidator {
 		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
 		@IChatModeService private readonly chatModeService: IChatModeService,
 		@IFileService private readonly fileService: IFileService,
-		@ILabelService private readonly labelService: ILabelService
+		@ILabelService private readonly labelService: ILabelService,
 	) { }
 
 	public async validate(promptAST: ParsedPromptFile, promptType: PromptsType, report: (markers: IMarkerData) => void): Promise<void> {
@@ -57,21 +58,27 @@ export class PromptValidator {
 				report(toMarker(localize('promptValidator.invalidFileReference', "Invalid file reference '{0}'.", ref.content), ref.range, MarkerSeverity.Warning));
 				continue;
 			}
-			fileReferenceChecks.push((async () => {
-				try {
-					const exists = await this.fileService.exists(resolved);
-					if (exists) {
-						return;
+			if (promptAST.uri.scheme === resolved.scheme) {
+				// only validate if the link is in the file system of the prompt file
+				fileReferenceChecks.push((async () => {
+					try {
+						const exists = await this.fileService.exists(resolved);
+						if (exists) {
+							return;
+						}
+					} catch {
 					}
-				} catch {
-				}
-				const loc = this.labelService.getUriLabel(resolved);
-				report(toMarker(localize('promptValidator.fileNotFound', "File '{0}' not found at '{1}'.", ref.content, loc), ref.range, MarkerSeverity.Warning));
-			})());
+					const loc = this.labelService.getUriLabel(resolved);
+					report(toMarker(localize('promptValidator.fileNotFound', "File '{0}' not found at '{1}'.", ref.content, loc), ref.range, MarkerSeverity.Warning));
+				})());
+			}
 		}
 
 		// Validate variable references (tool or toolset names)
 		if (body.variableReferences.length) {
+			const headerTools = promptAST.header?.tools;
+			const headerToolsMap = headerTools ? this.languageModelToolsService.toToolAndToolSetEnablementMap(headerTools) : undefined;
+
 			const available = new Set<string>(this.languageModelToolsService.getQualifiedToolNames());
 			const deprecatedNames = this.languageModelToolsService.getDeprecatedQualifiedToolNames();
 			for (const variable of body.variableReferences) {
@@ -81,6 +88,11 @@ export class PromptValidator {
 						report(toMarker(localize('promptValidator.deprecatedVariableReference', "Tool or toolset '{0}' has been renamed, use '{1}' instead.", variable.name, currentName), variable.range, MarkerSeverity.Info));
 					} else {
 						report(toMarker(localize('promptValidator.unknownVariableReference', "Unknown tool or toolset '{0}'.", variable.name), variable.range, MarkerSeverity.Warning));
+					}
+				} else if (headerToolsMap) {
+					const tool = this.languageModelToolsService.getToolByQualifiedName(variable.name);
+					if (tool && headerToolsMap.get(tool) === false) {
+						report(toMarker(localize('promptValidator.disabledTool', "Tool or toolset '{0}' also needs to be enabled in the header.", variable.name), variable.range, MarkerSeverity.Warning));
 					}
 				}
 			}
@@ -122,7 +134,7 @@ export class PromptValidator {
 			}
 			case PromptsType.instructions:
 				this.validateApplyTo(attributes, report);
-				this.validateExcludeMode(attributes, report);
+				this.validateExcludeAgent(attributes, report);
 				break;
 
 			case PromptsType.mode:
@@ -232,9 +244,6 @@ export class PromptValidator {
 			case 'array':
 				this.validateToolsArray(attribute.value, report);
 				break;
-			case 'object':
-				//this.validateToolsObject(attribute.value, report);
-				break;
 			default:
 				report(toMarker(localize('promptValidator.toolsMustBeArrayOrMap', "The 'tools' attribute must be an array."), attribute.value.range, MarkerSeverity.Error));
 		}
@@ -287,13 +296,13 @@ export class PromptValidator {
 		}
 	}
 
-	private validateExcludeMode(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): undefined {
-		const attribute = attributes.find(attr => attr.key === 'excludeMode');
+	private validateExcludeAgent(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): undefined {
+		const attribute = attributes.find(attr => attr.key === 'excludeAgent');
 		if (!attribute) {
 			return;
 		}
 		if (attribute.value.type !== 'array') {
-			report(toMarker(localize('promptValidator.excludeModeMustBeArray', "The 'excludeMode' attribute must be an array."), attribute.value.range, MarkerSeverity.Error));
+			report(toMarker(localize('promptValidator.excludeAgentMustBeArray', "The 'excludeAgent' attribute must be an array."), attribute.value.range, MarkerSeverity.Error));
 			return;
 		}
 	}
@@ -301,7 +310,7 @@ export class PromptValidator {
 
 const validAttributeNames = {
 	[PromptsType.prompt]: ['description', 'model', 'tools', 'mode'],
-	[PromptsType.instructions]: ['description', 'applyTo', 'excludeMode'],
+	[PromptsType.instructions]: ['description', 'applyTo', 'excludeAgent'],
 	[PromptsType.mode]: ['description', 'model', 'tools', 'advancedOptions']
 };
 const validAttributeNamesNoExperimental = {
@@ -315,7 +324,7 @@ export function getValidAttributeNames(promptType: PromptsType, includeExperimen
 }
 
 export function isExperimentalAttribute(attributeName: string): boolean {
-	return attributeName === 'advancedOptions' || attributeName === 'excludeMode';
+	return attributeName === 'advancedOptions' || attributeName === 'excludeAgent';
 }
 
 function toMarker(message: string, range: Range, severity = MarkerSeverity.Error): IMarkerData {

@@ -19,7 +19,7 @@ export class McpGalleryManifestService extends Disposable implements IMcpGallery
 	}
 
 	constructor(
-		@IProductService protected readonly productService: IProductService,
+		@IProductService private readonly productService: IProductService,
 	) {
 		super();
 	}
@@ -42,8 +42,12 @@ export class McpGalleryManifestService extends Disposable implements IMcpGallery
 				type: McpGalleryResourceType.McpServersQueryService
 			},
 			{
-				id: `${serversUrl}/{id}`,
-				type: McpGalleryResourceType.McpServerResourceUri
+				id: `${serversUrl}/{name}/versions/{version}`,
+				type: McpGalleryResourceType.McpServerVersionUri
+			},
+			{
+				id: `${serversUrl}/{name}/versions/latest`,
+				type: McpGalleryResourceType.McpServerLatestVersionUri
 			}
 		];
 

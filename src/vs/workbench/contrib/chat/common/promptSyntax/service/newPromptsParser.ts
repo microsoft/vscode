@@ -285,7 +285,7 @@ export class PromptBody {
 		try {
 			if (path.startsWith('/')) {
 				return this.uri.with({ path });
-			} else if (path.match(/^[a-zA-Z]:\\/)) {
+			} else if (path.match(/^[a-zA-Z]+:\//)) {
 				return URI.parse(path);
 			} else {
 				const dirName = dirname(this.uri);

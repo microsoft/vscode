@@ -6,13 +6,14 @@
 import type { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { isNumber } from '../../../../../../base/common/types.js';
 import type { ICommandDetectionCapability, ITerminalCommand } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
 import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { trackIdleOnPrompt, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
+import { setupRecreatingStartMarker } from './strategyHelpers.js';
 
 /**
  * This strategy is used when the terminal has rich shell integration/command detection is
@@ -23,7 +24,7 @@ import type { IMarker as IXtermMarker } from '@xterm/xterm';
  */
 export class RichExecuteStrategy implements ITerminalExecuteStrategy {
 	readonly type = 'rich';
-	private _startMarker: IXtermMarker | undefined;
+	private readonly _startMarker = new MutableDisposable<IXtermMarker>();
 
 	private readonly _onDidCreateStartMarker = new Emitter<IXtermMarker | undefined>;
 	public onDidCreateStartMarker: Event<IXtermMarker | undefined> = this._onDidCreateStartMarker.event;
@@ -58,31 +59,13 @@ export class RichExecuteStrategy implements ITerminalExecuteStrategy {
 				}),
 			]);
 
-			// Record where the command started. If the marker gets disposed, re-created it where
-			// the cursor is. This can happen in prompts where they clear the line and rerender it
-			// like powerlevel10k's transient prompt
-			const recreateStartMarker = () => {
-				if (store.isDisposed) {
-					return;
-				}
-				const marker = xterm.raw.registerMarker();
-				if (!marker) {
-					this._startMarker = undefined;
-					this._onDidCreateStartMarker.fire(undefined);
-					return;
-				}
-				this._startMarker = marker;
-				this._onDidCreateStartMarker.fire(marker);
-				store.add(marker);
-				store.add(marker.onDispose(() => {
-					recreateStartMarker();
-				}));
-			};
-			recreateStartMarker();
-			store.add(toDisposable(() => {
-				this._startMarker = undefined;
-				this._onDidCreateStartMarker.fire(undefined);
-			}));
+			setupRecreatingStartMarker(
+				xterm,
+				this._startMarker,
+				m => this._onDidCreateStartMarker.fire(m),
+				store,
+				this._log.bind(this)
+			);
 
 			// Execute the command
 			this._log(`Executing command line \`${commandLine}\``);
@@ -108,7 +91,7 @@ export class RichExecuteStrategy implements ITerminalExecuteStrategy {
 			}
 			if (output === undefined) {
 				try {
-					output = xterm.getContentsAsText(this._startMarker, endMarker);
+					output = xterm.getContentsAsText(this._startMarker.value, endMarker);
 					this._log('Fetched output via markers');
 				} catch {
 					this._log('Failed to fetch output via markers');

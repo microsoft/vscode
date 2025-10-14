@@ -14,7 +14,6 @@ import { basename, joinPath } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
-import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
@@ -120,7 +119,6 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 			titleEl.root,
 			title,
 			subtitle,
-			_instantiationService.createInstance(MarkdownRenderer, {}),
 		));
 		this._register(titlePart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 

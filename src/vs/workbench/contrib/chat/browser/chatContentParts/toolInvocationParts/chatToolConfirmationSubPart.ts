@@ -12,7 +12,7 @@ import { count } from '../../../../../../base/common/strings.js';
 import { isEmptyObject } from '../../../../../../base/common/types.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { ElementSizeObserver } from '../../../../../../editor/browser/config/elementSizeObserver.js';
-import { MarkdownRenderer } from '../../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../../nls.js';
@@ -25,7 +25,7 @@ import { ChatContextKeys } from '../../../common/chatContextKeys.js';
 import { IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService.js';
 import { CodeBlockModelCollection } from '../../../common/codeBlockModelCollection.js';
 import { createToolInputUri, createToolSchemaUri, ILanguageModelToolsService } from '../../../common/languageModelToolsService.js';
-import { AcceptToolConfirmationActionId } from '../../actions/chatToolActions.js';
+import { AcceptToolConfirmationActionId, SkipToolConfirmationActionId } from '../../actions/chatToolActions.js';
 import { IChatCodeBlockInfo, IChatWidgetService } from '../../chat.js';
 import { renderFileWidgets } from '../../chatInlineAnchorWidget.js';
 import { ICodeBlockRenderOptions } from '../../codeBlockPart.js';
@@ -48,7 +48,7 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 	constructor(
 		toolInvocation: IChatToolInvocation,
 		private readonly context: IChatContentPartRenderContext,
-		private readonly renderer: MarkdownRenderer,
+		private readonly renderer: IMarkdownRenderer,
 		private readonly editorPool: EditorPool,
 		private readonly currentWidthDelegate: () => number,
 		private readonly codeBlockModelCollection: CodeBlockModelCollection,
@@ -78,6 +78,9 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 		const allowLabel = localize('allow', "Allow");
 		const allowKeybinding = keybindingService.lookupKeybinding(AcceptToolConfirmationActionId)?.getLabel();
 		const allowTooltip = allowKeybinding ? `${allowLabel} (${allowKeybinding})` : allowLabel;
+		const skipLabel = localize('skip.detail', 'Proceed without running this tool');
+		const skipKeybinding = keybindingService.lookupKeybinding(SkipToolConfirmationActionId)?.getLabel();
+		const skipTooltip = skipKeybinding ? `${skipLabel} (${skipKeybinding})` : skipLabel;
 
 		const enum ConfirmationOutcome {
 			Allow,
@@ -100,7 +103,7 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 			},
 			{
 				label: localize('skip', "Skip"),
-				tooltip: localize('skip.detail', 'Proceed without running this tool'),
+				tooltip: skipTooltip,
 				data: ConfirmationOutcome.Skip,
 				isSecondary: true,
 			}];

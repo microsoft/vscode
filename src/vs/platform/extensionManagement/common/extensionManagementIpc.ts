@@ -46,11 +46,11 @@ function transformOutgoingExtension(extension: ILocalExtension, transformer: IUR
 
 export class ExtensionManagementChannel implements IServerChannel {
 
-	onInstallExtension: Event<InstallExtensionEvent>;
-	onDidInstallExtensions: Event<readonly InstallExtensionResult[]>;
-	onUninstallExtension: Event<UninstallExtensionEvent>;
-	onDidUninstallExtension: Event<DidUninstallExtensionEvent>;
-	onDidUpdateExtensionMetadata: Event<DidUpdateExtensionMetadata>;
+	readonly onInstallExtension: Event<InstallExtensionEvent>;
+	readonly onDidInstallExtensions: Event<readonly InstallExtensionResult[]>;
+	readonly onUninstallExtension: Event<UninstallExtensionEvent>;
+	readonly onDidUninstallExtension: Event<DidUninstallExtensionEvent>;
+	readonly onDidUpdateExtensionMetadata: Event<DidUpdateExtensionMetadata>;
 
 	constructor(private service: IExtensionManagementService, private getUriTransformer: (requestContext: any) => IURITransformer | null) {
 		this.onInstallExtension = Event.buffer(service.onInstallExtension, true);
@@ -240,7 +240,9 @@ export class ExtensionManagementChannelClient extends CommontExtensionManagement
 		if (!thing) {
 			return false;
 		}
+		// eslint-disable-next-line local/code-no-any-casts
 		return typeof (<any>thing).path === 'string' &&
+			// eslint-disable-next-line local/code-no-any-casts
 			typeof (<any>thing).scheme === 'string';
 	}
 

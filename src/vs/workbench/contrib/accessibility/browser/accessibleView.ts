@@ -200,6 +200,9 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 	}
 
 	private _playDiffSignals(): void {
+		if (this._currentProvider?.id !== AccessibleViewProviderId.DiffEditor && this._currentProvider?.id !== AccessibleViewProviderId.InlineCompletions) {
+			return;
+		}
 		const position = this._editorWidget.getPosition();
 		const model = this._editorWidget.getModel();
 		if (!position || !model) {

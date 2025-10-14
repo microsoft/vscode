@@ -126,14 +126,13 @@ export const enum GalleryMcpServerStatus {
 }
 
 export interface IGalleryMcpServer {
-	readonly id: string;
 	readonly name: string;
 	readonly displayName: string;
 	readonly description: string;
 	readonly version: string;
 	readonly isLatest: boolean;
 	readonly status: GalleryMcpServerStatus;
-	readonly url?: string;
+	readonly galleryUrl?: string;
 	readonly webUrl?: string;
 	readonly codicon?: string;
 	readonly icon?: {
@@ -143,7 +142,7 @@ export interface IGalleryMcpServer {
 	readonly lastUpdated?: number;
 	readonly publishDate?: number;
 	readonly repositoryUrl?: string;
-	readonly configuration?: IGalleryMcpServerConfiguration;
+	readonly configuration: IGalleryMcpServerConfiguration;
 	readonly readmeUrl?: string;
 	readonly readme?: string;
 	readonly publisher: string;
@@ -169,8 +168,6 @@ export interface IMcpGalleryService {
 	query(options?: IQueryOptions, token?: CancellationToken): Promise<IPager<IGalleryMcpServer>>;
 	getMcpServersFromGallery(urls: string[]): Promise<IGalleryMcpServer[]>;
 	getMcpServer(url: string): Promise<IGalleryMcpServer | undefined>;
-	getMcpServerByName(name: string): Promise<IGalleryMcpServer | undefined>;
-	getMcpServerConfiguration(extension: IGalleryMcpServer, token: CancellationToken): Promise<IGalleryMcpServerConfiguration>;
 	getReadme(extension: IGalleryMcpServer, token: CancellationToken): Promise<string>;
 }
 
@@ -214,6 +211,12 @@ export interface IInstallableMcpServer {
 	readonly inputs?: IMcpServerVariable[];
 }
 
+export type McpServerConfiguration = Omit<IInstallableMcpServer, 'name'>;
+export interface McpServerConfigurationParseResult {
+	readonly mcpServerConfiguration: McpServerConfiguration;
+	readonly notices: string[];
+}
+
 export const IMcpManagementService = createDecorator<IMcpManagementService>('IMcpManagementService');
 export interface IMcpManagementService {
 	readonly _serviceBrand: undefined;
@@ -229,7 +232,7 @@ export interface IMcpManagementService {
 	updateMetadata(local: ILocalMcpServer, server: IGalleryMcpServer, profileLocation?: URI): Promise<ILocalMcpServer>;
 	uninstall(server: ILocalMcpServer, options?: UninstallOptions): Promise<void>;
 
-	getMcpServerConfigurationFromManifest(manifest: IGalleryMcpServerConfiguration, packageType: RegistryType): Omit<IInstallableMcpServer, 'name'>;
+	getMcpServerConfigurationFromManifest(manifest: IGalleryMcpServerConfiguration, packageType: RegistryType): McpServerConfigurationParseResult;
 }
 
 export const IAllowedMcpServersService = createDecorator<IAllowedMcpServersService>('IAllowedMcpServersService');

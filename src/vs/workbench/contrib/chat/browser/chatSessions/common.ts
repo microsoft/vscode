@@ -123,6 +123,7 @@ export function extractTimestamp(item: IChatSessionItem): number | undefined {
 
 	// For other items, timestamp might already be set
 	if ('timestamp' in item) {
+		// eslint-disable-next-line local/code-no-any-casts
 		return (item as any).timestamp;
 	}
 

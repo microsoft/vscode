@@ -8,7 +8,7 @@ import { EditSuggestionId } from '../../../../../../editor/common/textModelEditS
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { TelemetryTrustedValue } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
-import { DataChannelForwardingTelemetryService } from '../forwardingTelemetryService.js';
+import { DataChannelForwardingTelemetryService } from '../../../../../../platform/dataChannel/browser/forwardingTelemetryService.js';
 import { IAiEditTelemetryService, IEditTelemetryCodeAcceptedData, IEditTelemetryCodeSuggestedData } from './aiEditTelemetryService.js';
 
 export class AiEditTelemetryServiceImpl implements IAiEditTelemetryService {

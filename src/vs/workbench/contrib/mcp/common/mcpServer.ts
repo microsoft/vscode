@@ -489,7 +489,7 @@ export class McpServer extends Disposable implements IMcpServer {
 		return new AsyncIterableProducer<IMcpResource[]>(async emitter => {
 			await McpServer.callOn(this, async (handler) => {
 				for await (const resource of handler.listResourcesIterable({}, cts.token)) {
-					emitter.emitOne(resource.map(r => new McpResource(this, r, McpIcons.fromStored(this._parseIcons(r)))));
+					emitter.emitOne(resource.map(r => new McpResource(this, r, McpIcons.fromParsed(this._parseIcons(r)))));
 					if (cts.token.isCancellationRequested) {
 						return;
 					}
@@ -501,7 +501,7 @@ export class McpServer extends Disposable implements IMcpServer {
 	public resourceTemplates(token?: CancellationToken): Promise<IMcpResourceTemplate[]> {
 		return McpServer.callOn(this, async (handler) => {
 			const templates = await handler.listResourceTemplates({}, token);
-			return templates.map(t => new McpResourceTemplate(this, t));
+			return templates.map(t => new McpResourceTemplate(this, t, McpIcons.fromParsed(this._parseIcons(t))));
 		}, token);
 	}
 
@@ -1074,6 +1074,7 @@ class McpResourceTemplate implements IMcpResourceTemplate {
 	constructor(
 		private readonly _server: McpServer,
 		private readonly _definition: MCP.ResourceTemplate,
+		public readonly icons: IMcpIcons,
 	) {
 		this.name = _definition.name;
 		this.description = _definition.description;

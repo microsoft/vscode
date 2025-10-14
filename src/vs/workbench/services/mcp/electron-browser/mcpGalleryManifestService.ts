@@ -55,10 +55,6 @@ export class WorkbenchMcpGalleryManifestService extends McpGalleryManifestServic
 	}
 
 	private async doGetMcpGalleryManifest(): Promise<void> {
-		if (this.productService.quality === 'stable') {
-			return;
-		}
-
 		await this.getAndUpdateMcpGalleryManifest();
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
