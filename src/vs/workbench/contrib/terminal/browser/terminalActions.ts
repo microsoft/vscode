@@ -501,9 +501,6 @@ export function registerTerminalActions() {
 		}
 		async run(accessor: ServicesAccessor, instance: ITerminalInstance) {
 			const c = getTerminalServices(accessor);
-			if (!instance) {
-				return;
-			}
 			c.service.setActiveInstance(instance);
 			focusActiveTerminal(instance, c);
 		}
