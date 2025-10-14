@@ -4,7 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { h } from '../../../../../../base/browser/dom.js';
+import { ActionBar } from '../../../../../../base/browser/ui/actionbar/actionbar.js';
+import { Action } from '../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { isMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -23,7 +26,10 @@ import { TerminalContribSettingId } from '../../../../terminal/terminalContribEx
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
 import type { ICodeBlockRenderOptions } from '../../codeBlockPart.js';
 import { ChatConfiguration } from '../../../common/constants.js';
-import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { localize } from '../../../../../../nls.js';
+import { TerminalCommandId } from '../../../../terminal/common/terminal.js';
+import { getTerminalInstanceByToolSessionId, onDidRegisterTerminalInstanceForToolSession } from '../../../../terminalContrib/browser/terminalChatAgentToolsExports.js';
 
 export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart {
 	public readonly domNode: HTMLElement;
@@ -43,13 +49,15 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		codeBlockStartIndex: number,
 		codeBlockModelCollection: CodeBlockModelCollection,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@ICommandService commandService: ICommandService,
 	) {
 		super(toolInvocation);
 
 		terminalData = migrateLegacyTerminalToolSpecificData(terminalData);
 
 		const elements = h('.chat-terminal-content-part@container', [
-			h('.chat-terminal-content-title@title'),
+			h('.chat-terminal-content-title@title',
+				[h('.chat-terminal-action-bar@actionBar')]),
 			h('.chat-terminal-content-message@message')
 		]);
 
@@ -62,6 +70,37 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			undefined,
 		));
 		this._register(titlePart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
+
+		let terminalInstance = getTerminalInstanceByToolSessionId(terminalData.terminalToolSessionId);
+		if (elements.actionBar) {
+			const actionBar = new ActionBar(elements.actionBar, {});
+			this._register(actionBar);
+			const focusAction = new Action(
+				TerminalCommandId.FocusInstance,
+				localize('runInTerminalTool.showTerminalButtonLabel', "Focus Terminal"),
+				ThemeIcon.asClassName(Codicon.linkExternal),
+				!!terminalInstance,
+				async () => {
+					if (terminalInstance) {
+						await commandService.executeCommand(TerminalCommandId.FocusInstance, terminalInstance);
+					}
+				}
+			);
+			focusAction.tooltip = localize('runInTerminalTool.focusTerminal', "Focus Terminal");
+			actionBar.push([focusAction], { icon: true, label: false });
+
+			if (!terminalInstance && terminalData.terminalToolSessionId) {
+				const listener = onDidRegisterTerminalInstanceForToolSession(e => {
+					if (e.terminalToolSessionId === terminalData.terminalToolSessionId) {
+						terminalInstance = getTerminalInstanceByToolSessionId(e.terminalToolSessionId);
+						if (terminalInstance) {
+							focusAction.enabled = true;
+						}
+					}
+				});
+				this._register(listener);
+			}
+		}
 
 		let pastTenseMessage: string | undefined;
 		if (toolInvocation.pastTenseMessage) {

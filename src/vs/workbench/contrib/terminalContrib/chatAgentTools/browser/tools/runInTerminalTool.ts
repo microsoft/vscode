@@ -31,7 +31,7 @@ import { ChatConfiguration } from '../../../../chat/common/constants.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolInvocationPresentation, ToolProgress, type IToolConfirmationMessages, type ToolConfirmationAction } from '../../../../chat/common/languageModelToolsService.js';
 import { ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import type { XtermTerminal } from '../../../../terminal/browser/xterm/xtermTerminal.js';
-import { ITerminalProfileResolverService, TerminalCommandId } from '../../../../terminal/common/terminal.js';
+import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
 import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 import { getRecommendedToolsOverRunInTerminal } from '../alternativeRecommendation.js';
 import { CommandLineAutoApprover, type IAutoApproveRule, type ICommandApprovalResult, type ICommandApprovalResultWithReason } from '../commandLineAutoApprover.js';
@@ -47,7 +47,7 @@ import { splitCommandLineIntoSubCommands } from '../subCommands.js';
 import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from '../toolTerminalCreator.js';
 import { OutputMonitor } from './monitoring/outputMonitor.js';
 import { IPollingResult, OutputMonitorState } from './monitoring/types.js';
-import { ChatModel } from '../../../../chat/common/chatModel.js';
+import { registerTerminalInstanceForToolSession } from '../../../browser/terminalChatAgentToolsExports.js';
 
 const enum TerminalToolStorageKeysInternal {
 	TerminalSession = 'chat.terminalSessions'
@@ -397,13 +397,18 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		const timingStart = Date.now();
 		const termId = generateUuid();
+		// The prepared data should always include a terminalToolSessionId; assert and narrow the type.
+		const terminalToolSessionId = (toolSpecificData as IChatTerminalToolInvocationData).terminalToolSessionId;
+		if (!terminalToolSessionId) {
+			throw new Error('terminalToolSessionId missing from toolSpecificData');
+		}
 
 		const store = new DisposableStore();
 
 		this._logService.debug(`RunInTerminalTool: Creating ${args.isBackground ? 'background' : 'foreground'} terminal. termId=${termId}, chatSessionId=${chatSessionId}`);
 		const toolTerminal = await (args.isBackground
-			? this._initBackgroundTerminal(chatSessionId, termId, token)
-			: this._initForegroundTerminal(chatSessionId, termId, token));
+			? this._initBackgroundTerminal(chatSessionId, termId, terminalToolSessionId, token)
+			: this._initForegroundTerminal(chatSessionId, termId, terminalToolSessionId, token));
 
 		const timingConnectMs = Date.now() - timingStart;
 
@@ -583,7 +588,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				});
 			}
 
-			this._handleTerminalVisibility(invocation, toolTerminal);
+			this._handleTerminalVisibility(toolTerminal);
 
 			const resultText: string[] = [];
 			if (didUserEditCommand) {
@@ -615,37 +620,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 	}
 
-	private _handleTerminalVisibility(invocation: IToolInvocation, toolTerminal: IToolTerminal) {
+	private _handleTerminalVisibility(toolTerminal: IToolTerminal) {
 		if (this._configurationService.getValue(TerminalChatAgentToolsSettingId.OutputLocation) === 'terminal') {
 			this._terminalService.setActiveInstance(toolTerminal.instance);
 			this._terminalService.revealTerminal(toolTerminal.instance, true);
-		} else {
-			this._addShowTerminalButton(invocation, toolTerminal);
 		}
-	}
-
-	private _addShowTerminalButton(invocation: IToolInvocation, toolTerminal: IToolTerminal) {
-		const sessionId = invocation.context?.sessionId;
-		if (!sessionId) {
-			throw new Error('No session ID');
-		}
-		const chatModel = this._chatService.getSession(sessionId);
-		if (!(chatModel instanceof ChatModel)) {
-			throw new Error('No model');
-		}
-		const request = chatModel.getRequests().at(-1);
-		if (!request) {
-			throw new Error('No request');
-		}
-		chatModel.acceptResponseProgress(request, {
-			command: {
-				id: TerminalCommandId.FocusInstance,
-				arguments: [toolTerminal.instance],
-				tooltip: localize('runInTerminalTool.focusTerminal', "Focus Terminal"),
-				title: localize('runInTerminalTool.showTerminalButton', "$(link-external)"),
-			},
-			kind: 'command'
-		});
 	}
 
 	// #region Terminal init
@@ -714,10 +693,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		return false;
 	}
 
-	private async _initBackgroundTerminal(chatSessionId: string, termId: string, token: CancellationToken): Promise<IToolTerminal> {
+	private async _initBackgroundTerminal(chatSessionId: string, termId: string, terminalToolSessionId: string, token: CancellationToken): Promise<IToolTerminal> {
 		this._logService.debug(`RunInTerminalTool: Creating background terminal with ID=${termId}`);
 		const profile = await this._getCopilotProfile();
 		const toolTerminal = await this._terminalToolCreator.createTerminal(profile, token);
+		registerTerminalInstanceForToolSession(terminalToolSessionId, toolTerminal.instance, this._configurationService.getValue(TerminalChatAgentToolsSettingId.OutputLocation) === 'none');
 		this._registerInputListener(toolTerminal);
 		this._sessionTerminalAssociations.set(chatSessionId, toolTerminal);
 		if (token.isCancellationRequested) {
@@ -728,15 +708,17 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		return toolTerminal;
 	}
 
-	private async _initForegroundTerminal(chatSessionId: string, termId: string, token: CancellationToken): Promise<IToolTerminal> {
+	private async _initForegroundTerminal(chatSessionId: string, termId: string, terminalToolSessionId: string, token: CancellationToken): Promise<IToolTerminal> {
 		const cachedTerminal = this._sessionTerminalAssociations.get(chatSessionId);
 		if (cachedTerminal) {
 			this._logService.debug(`RunInTerminalTool: Using cached foreground terminal with session ID \`${chatSessionId}\``);
 			this._terminalToolCreator.refreshShellIntegrationQuality(cachedTerminal);
+			registerTerminalInstanceForToolSession(terminalToolSessionId, cachedTerminal.instance, this._configurationService.getValue(TerminalChatAgentToolsSettingId.OutputLocation) === 'none');
 			return cachedTerminal;
 		}
 		const profile = await this._getCopilotProfile();
 		const toolTerminal = await this._terminalToolCreator.createTerminal(profile, token);
+		registerTerminalInstanceForToolSession(terminalToolSessionId, toolTerminal.instance, this._configurationService.getValue(TerminalChatAgentToolsSettingId.OutputLocation) === 'none');
 		this._registerInputListener(toolTerminal);
 		this._sessionTerminalAssociations.set(chatSessionId, toolTerminal);
 		if (token.isCancellationRequested) {

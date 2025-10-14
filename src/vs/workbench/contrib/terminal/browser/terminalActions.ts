@@ -496,7 +496,8 @@ export function registerTerminalActions() {
 			super({
 				id: TerminalCommandId.FocusInstance,
 				title: terminalStrings.focusInstance,
-				precondition: sharedWhenClause.terminalAvailable
+				precondition: sharedWhenClause.terminalAvailable,
+				icon: Codicon.linkExternal
 			});
 		}
 		async run(accessor: ServicesAccessor, instance: ITerminalInstance) {
