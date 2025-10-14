@@ -8364,7 +8364,7 @@ declare module 'vscode' {
 	 * Context information passed to {@link TerminalCompletionProvider.provideTerminalCompletions}.
 	 *
 	 * It contains the full command line, the current cursor position, and a flag indicating whether
-	 * fallback completions are allowed when the exact completion type cannot be determined.
+	 * completions were explicitly invoked.
 	 */
 	export interface TerminalCompletionContext {
 		/**
