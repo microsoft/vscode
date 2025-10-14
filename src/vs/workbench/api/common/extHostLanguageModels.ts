@@ -324,6 +324,8 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 	async getDefaultLanguageModel(extension: IExtensionDescription, forceResolveModels?: boolean): Promise<vscode.LanguageModelChat | undefined> {
 		let defaultModelId: string | undefined;
 
+		console.log('Resolving default');
+
 		if (forceResolveModels) {
 			await this.selectLanguageModels(extension, {});
 		}
@@ -345,8 +347,9 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 
 		const model = this._localModels.get(modelId);
 		if (!model) {
-			// model gone? is this an error on us?
-			return;
+			console.log('Attempting to resolve model because it is not cached', modelId);
+			// model gone? is this an error on us? Try to resolve model again
+			return (await this.selectLanguageModels(extension, { id: modelId }))[0];
 		}
 
 		// make sure auth information is correct
