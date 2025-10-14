@@ -9,12 +9,12 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 // Local registry used as a bridge between the run-in-terminal tool implementation
 // and chat UI components
 const terminalInstancesByToolSessionId = new Map<string, ITerminalInstance>();
-const onDidRegisterTerminalInstanceForToolSessionEmitter = new Emitter<{ terminalToolSessionId: string; hidden: boolean }>();
-export const onDidRegisterTerminalInstanceForToolSession: Event<{ terminalToolSessionId: string; hidden: boolean }> = onDidRegisterTerminalInstanceForToolSessionEmitter.event;
+const onDidRegisterTerminalInstanceForToolSessionEmitter = new Emitter<{ terminalToolSessionId: string }>();
+export const onDidRegisterTerminalInstanceForToolSession: Event<{ terminalToolSessionId: string }> = onDidRegisterTerminalInstanceForToolSessionEmitter.event;
 
-export function registerTerminalInstanceForToolSession(terminalToolSessionId: string, instance: ITerminalInstance, hidden: boolean): void {
+export function registerTerminalInstanceForToolSession(terminalToolSessionId: string, instance: ITerminalInstance): void {
 	terminalInstancesByToolSessionId.set(terminalToolSessionId, instance);
-	onDidRegisterTerminalInstanceForToolSessionEmitter.fire({ terminalToolSessionId, hidden });
+	onDidRegisterTerminalInstanceForToolSessionEmitter.fire({ terminalToolSessionId });
 	instance.onDisposed(() => {
 		terminalInstancesByToolSessionId.delete(terminalToolSessionId);
 	});

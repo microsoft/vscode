@@ -23,7 +23,7 @@ import { ChatCustomProgressPart } from '../chatProgressContentPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 import '../media/chatTerminalToolProgressPart.css';
 import { TerminalContribSettingId } from '../../../../terminal/terminalContribExports.js';
-import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import type { ICodeBlockRenderOptions } from '../../codeBlockPart.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
@@ -50,6 +50,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		codeBlockModelCollection: CodeBlockModelCollection,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICommandService commandService: ICommandService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super(toolInvocation);
 
@@ -71,34 +72,37 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		));
 		this._register(titlePart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 
-		let terminalInstance = getTerminalInstanceByToolSessionId(terminalData.terminalToolSessionId);
-		if (elements.actionBar) {
-			const actionBar = new ActionBar(elements.actionBar, {});
-			this._register(actionBar);
-			const focusAction = new Action(
-				TerminalCommandId.FocusInstance,
-				localize('runInTerminalTool.showTerminalButtonLabel', "Focus Terminal"),
-				ThemeIcon.asClassName(Codicon.linkExternal),
-				!!terminalInstance,
-				async () => {
-					if (terminalInstance) {
-						await commandService.executeCommand(TerminalCommandId.FocusInstance, terminalInstance);
-					}
-				}
-			);
-			focusAction.tooltip = localize('runInTerminalTool.focusTerminal', "Focus Terminal");
-			actionBar.push([focusAction], { icon: true, label: false });
-
-			if (!terminalInstance && terminalData.terminalToolSessionId) {
-				const listener = onDidRegisterTerminalInstanceForToolSession(e => {
-					if (e.terminalToolSessionId === terminalData.terminalToolSessionId) {
-						terminalInstance = getTerminalInstanceByToolSessionId(e.terminalToolSessionId);
+		// Only show focus action when output location is set to 'none'
+		if (configurationService.getValue<string>('chat.tools.terminal.outputLocation') === 'none') {
+			let terminalInstance = getTerminalInstanceByToolSessionId(terminalData.terminalToolSessionId);
+			if (elements.actionBar) {
+				const actionBar = new ActionBar(elements.actionBar, {});
+				this._register(actionBar);
+				const focusAction = new Action(
+					TerminalCommandId.FocusInstance,
+					localize('runInTerminalTool.showTerminalButtonLabel', "Focus Terminal"),
+					ThemeIcon.asClassName(Codicon.linkExternal),
+					!!terminalInstance,
+					async () => {
 						if (terminalInstance) {
-							focusAction.enabled = true;
+							await commandService.executeCommand(TerminalCommandId.FocusInstance, terminalInstance);
 						}
 					}
-				});
-				this._register(listener);
+				);
+				focusAction.tooltip = localize('runInTerminalTool.focusTerminal', "Focus Terminal");
+				actionBar.push([focusAction], { icon: true, label: false });
+
+				if (!terminalInstance && terminalData.terminalToolSessionId) {
+					const listener = onDidRegisterTerminalInstanceForToolSession(e => {
+						if (e.terminalToolSessionId === terminalData.terminalToolSessionId) {
+							terminalInstance = getTerminalInstanceByToolSessionId(e.terminalToolSessionId);
+							if (terminalInstance) {
+								focusAction.enabled = true;
+							}
+						}
+					});
+					this._register(listener);
+				}
 			}
 		}
 
