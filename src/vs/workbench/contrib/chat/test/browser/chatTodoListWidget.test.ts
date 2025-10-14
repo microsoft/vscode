@@ -179,4 +179,228 @@ suite('ChatTodoListWidget Accessibility', () => {
 		const todoListContainer = widget.domNode.querySelector('.todo-list-container');
 		assert.strictEqual(todoListContainer?.getAttribute('aria-labelledby'), 'todo-list-title');
 	});
+
+	test('aria-label indicates edit capability', () => {
+		widget.render('test-session');
+
+		const todoItems = widget.domNode.querySelectorAll('.todo-item');
+		assert.strictEqual(todoItems.length, 3, 'Should have 3 todo items');
+
+		// Check that aria-label includes "press Enter to edit"
+		todoItems.forEach((item) => {
+			const ariaLabel = item.getAttribute('aria-label');
+			assert.ok(ariaLabel?.includes('press Enter to edit'), 'Aria label should indicate edit capability');
+		});
+	});
+});
+
+suite('ChatTodoListWidget Inline Editing', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	let widget: ChatTodoListWidget;
+	let mockTodoListService: IChatTodoListService;
+	let mockConfigurationService: IConfigurationService;
+	let todosStorage: IChatTodo[];
+
+	const createSampleTodos = (): IChatTodo[] => [
+		{ id: 1, title: 'First task', status: 'not-started' },
+		{ id: 2, title: 'Second task', status: 'in-progress', description: 'This is a task description' },
+		{ id: 3, title: 'Third task', status: 'completed' }
+	];
+
+	setup(() => {
+		todosStorage = createSampleTodos();
+
+		// Mock the todo list service with mutable storage
+		mockTodoListService = {
+			_serviceBrand: undefined,
+			getTodos: (sessionId: string) => todosStorage,
+			setTodos: (sessionId: string, todos: IChatTodo[]) => {
+				todosStorage = todos;
+			}
+		};
+
+		// Mock the configuration service
+		// eslint-disable-next-line local/code-no-any-casts
+		mockConfigurationService = {
+			_serviceBrand: undefined,
+			getValue: (key: string) => key === 'chat.todoListTool.descriptionField' ? true : undefined
+		} as any;
+
+		widget = store.add(new ChatTodoListWidget(mockTodoListService, mockConfigurationService));
+		mainWindow.document.body.appendChild(widget.domNode);
+	});
+
+	teardown(() => {
+		if (widget.domNode.parentNode) {
+			widget.domNode.parentNode.removeChild(widget.domNode);
+		}
+	});
+
+	test('double-click activates edit mode', () => {
+		widget.render('test-session');
+
+		const todoItems = widget.domNode.querySelectorAll('.todo-item');
+		const firstItem = todoItems[0] as HTMLElement;
+
+		// Simulate double-click
+		const dblClickEvent = new MouseEvent('dblclick', { bubbles: true, cancelable: true });
+		firstItem.dispatchEvent(dblClickEvent);
+
+		// Check that input box appears
+		const inputContainer = widget.domNode.querySelector('.todo-edit-input-container');
+		assert.ok(inputContainer, 'Input container should be created');
+
+		const inputBox = inputContainer?.querySelector('.monaco-inputbox');
+		assert.ok(inputBox, 'InputBox should be created');
+	});
+
+	test('Enter key activates edit mode when todo is focused', () => {
+		widget.render('test-session');
+
+		const todoItems = widget.domNode.querySelectorAll('.todo-item');
+		const firstItem = todoItems[0] as HTMLElement;
+
+		// Simulate Enter key press
+		const keydownEvent = new KeyboardEvent('keydown', {
+			key: 'Enter',
+			bubbles: true,
+			cancelable: true
+		});
+		firstItem.dispatchEvent(keydownEvent);
+
+		// Check that input box appears
+		const inputContainer = widget.domNode.querySelector('.todo-edit-input-container');
+		assert.ok(inputContainer, 'Input container should be created');
+	});
+
+	test('Escape key cancels edit mode', () => {
+		widget.render('test-session');
+
+		const todoItems = widget.domNode.querySelectorAll('.todo-item');
+		const firstItem = todoItems[0] as HTMLElement;
+		const originalTitle = todosStorage[0].title;
+
+		// Start editing
+		const dblClickEvent = new MouseEvent('dblclick', { bubbles: true, cancelable: true });
+		firstItem.dispatchEvent(dblClickEvent);
+
+		// Verify input box exists
+		let inputContainer = widget.domNode.querySelector('.todo-edit-input-container');
+		assert.ok(inputContainer, 'Input container should exist');
+
+		// Get input element and change value
+		const inputElement = inputContainer?.querySelector('input') as HTMLInputElement;
+		assert.ok(inputElement, 'Input element should exist');
+		inputElement.value = 'Modified title';
+
+		// Simulate Escape key
+		const escapeEvent = new KeyboardEvent('keydown', {
+			key: 'Escape',
+			bubbles: true,
+			cancelable: true
+		});
+		inputElement.dispatchEvent(escapeEvent);
+
+		// Wait for re-render
+		setTimeout(() => {
+			// Check that edit was cancelled and title unchanged
+			const updatedTodos = mockTodoListService.getTodos('test-session');
+			assert.strictEqual(updatedTodos[0].title, originalTitle, 'Title should remain unchanged');
+
+			// Input box should be gone
+			inputContainer = widget.domNode.querySelector('.todo-edit-input-container');
+			assert.ok(!inputContainer, 'Input container should be removed');
+		}, 200);
+	});
+
+	test('saving with Enter key updates todo title', (done) => {
+		widget.render('test-session');
+
+		const todoItems = widget.domNode.querySelectorAll('.todo-item');
+		const firstItem = todoItems[0] as HTMLElement;
+		const newTitle = 'Updated First Task';
+
+		// Start editing
+		const dblClickEvent = new MouseEvent('dblclick', { bubbles: true, cancelable: true });
+		firstItem.dispatchEvent(dblClickEvent);
+
+		// Get input element and change value
+		const inputContainer = widget.domNode.querySelector('.todo-edit-input-container');
+		const inputElement = inputContainer?.querySelector('input') as HTMLInputElement;
+		assert.ok(inputElement, 'Input element should exist');
+		inputElement.value = newTitle;
+
+		// Simulate Enter key to save
+		const enterEvent = new KeyboardEvent('keydown', {
+			key: 'Enter',
+			bubbles: true,
+			cancelable: true
+		});
+		inputElement.dispatchEvent(enterEvent);
+
+		// Wait for save and re-render
+		setTimeout(() => {
+			const updatedTodos = mockTodoListService.getTodos('test-session');
+			assert.strictEqual(updatedTodos[0].title, newTitle, 'Title should be updated');
+			done();
+		}, 200);
+	});
+
+	test('empty title is not saved', (done) => {
+		widget.render('test-session');
+
+		const todoItems = widget.domNode.querySelectorAll('.todo-item');
+		const firstItem = todoItems[0] as HTMLElement;
+		const originalTitle = todosStorage[0].title;
+
+		// Start editing
+		const dblClickEvent = new MouseEvent('dblclick', { bubbles: true, cancelable: true });
+		firstItem.dispatchEvent(dblClickEvent);
+
+		// Get input element and clear value
+		const inputContainer = widget.domNode.querySelector('.todo-edit-input-container');
+		const inputElement = inputContainer?.querySelector('input') as HTMLInputElement;
+		inputElement.value = '   '; // Only whitespace
+
+		// Simulate Enter key to save
+		const enterEvent = new KeyboardEvent('keydown', {
+			key: 'Enter',
+			bubbles: true,
+			cancelable: true
+		});
+		inputElement.dispatchEvent(enterEvent);
+
+		// Wait for save attempt and re-render
+		setTimeout(() => {
+			const updatedTodos = mockTodoListService.getTodos('test-session');
+			assert.strictEqual(updatedTodos[0].title, originalTitle, 'Title should remain unchanged when empty');
+			done();
+		}, 200);
+	});
+
+	test('editing one todo at a time', () => {
+		widget.render('test-session');
+
+		const todoItems = widget.domNode.querySelectorAll('.todo-item');
+		const firstItem = todoItems[0] as HTMLElement;
+		const secondItem = todoItems[1] as HTMLElement;
+
+		// Start editing first item
+		const dblClick1 = new MouseEvent('dblclick', { bubbles: true, cancelable: true });
+		firstItem.dispatchEvent(dblClick1);
+
+		let inputContainers = widget.domNode.querySelectorAll('.todo-edit-input-container');
+		assert.strictEqual(inputContainers.length, 1, 'Should have one input container');
+
+		// Start editing second item (should cancel first edit)
+		const dblClick2 = new MouseEvent('dblclick', { bubbles: true, cancelable: true });
+		secondItem.dispatchEvent(dblClick2);
+
+		// After re-render, should still have only one input
+		setTimeout(() => {
+			inputContainers = widget.domNode.querySelectorAll('.todo-edit-input-container');
+			assert.strictEqual(inputContainers.length, 1, 'Should still have only one input container');
+		}, 100);
+	});
 });

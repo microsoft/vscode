@@ -5,11 +5,13 @@
 
 import * as dom from '../../../../../base/browser/dom.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IChatTodoListService, IChatTodo } from '../../common/chatTodoListService.js';
 import { TodoListToolDescriptionFieldSettingId } from '../../common/tools/manageTodoListTool.js';
 
@@ -27,6 +29,9 @@ export class ChatTodoListWidget extends Disposable {
 	private clearButton!: Button;
 	private _currentSessionId: string | undefined;
 	private _userHasScrolledManually: boolean = false;
+	private _editingTodoId: number | null = null;
+	private _editInputBox: InputBox | undefined;
+	private _todoElementsMap: Map<number, HTMLElement> = new Map();
 
 	constructor(
 		@IChatTodoListService private readonly chatTodoListService: IChatTodoListService,
@@ -172,6 +177,7 @@ export class ChatTodoListWidget extends Disposable {
 
 	private renderTodoList(todoList: IChatTodo[]): void {
 		this.todoListContainer.textContent = '';
+		this._todoElementsMap.clear();
 
 		const titleElement = this.expandoElement.querySelector('.todo-list-title') as HTMLElement;
 		if (titleElement) {
@@ -192,6 +198,9 @@ export class ChatTodoListWidget extends Disposable {
 			const todoElement = dom.$('li.todo-item');
 			todoElement.setAttribute('role', 'listitem');
 			todoElement.setAttribute('tabindex', '0');
+
+			// Store reference to todo element
+			this._todoElementsMap.set(todo.id, todoElement);
 
 			// Add tooltip if description exists and description field is enabled
 			const includeDescription = this.configurationService.getValue<boolean>(TodoListToolDescriptionFieldSettingId) !== false;
@@ -224,12 +233,25 @@ export class ChatTodoListWidget extends Disposable {
 			todoContent.appendChild(statusElement);
 
 			const ariaLabel = includeDescription && todo.description && todo.description.trim()
-				? localize('chat.todoList.itemWithDescription', '{0}, {1}, {2}', todo.title, statusText, todo.description)
-				: localize('chat.todoList.item', '{0}, {1}', todo.title, statusText);
+				? localize('chat.todoList.itemWithDescription', '{0}, {1}, {2}, press Enter to edit', todo.title, statusText, todo.description)
+				: localize('chat.todoList.item', '{0}, {1}, press Enter to edit', todo.title, statusText);
 			todoElement.setAttribute('aria-label', ariaLabel);
 			todoElement.setAttribute('aria-describedby', `todo-status-${index}`);
 			todoElement.appendChild(statusIcon);
 			todoElement.appendChild(todoContent);
+
+			// Add double-click event listener to edit
+			this._register(dom.addDisposableListener(todoElement, 'dblclick', () => {
+				this.startEditingTodo(todo, todoElement);
+			}));
+
+			// Add Enter key listener to edit when focused
+			this._register(dom.addDisposableListener(todoElement, 'keydown', (e) => {
+				if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+					e.preventDefault();
+					this.startEditingTodo(todo, todoElement);
+				}
+			}));
 
 			this.todoListContainer.appendChild(todoElement);
 
@@ -289,6 +311,100 @@ export class ChatTodoListWidget extends Disposable {
 		}
 
 		this._onDidChangeHeight.fire();
+	}
+
+	private startEditingTodo(todo: IChatTodo, todoElement: HTMLElement): void {
+		if (this._editingTodoId !== null) {
+			this.cancelEditing();
+		}
+
+		this._editingTodoId = todo.id;
+
+		const titleElement = todoElement.querySelector('.todo-title') as HTMLElement;
+		const todoContent = todoElement.querySelector('.todo-content') as HTMLElement;
+		const currentTitle = todo.title;
+
+		// Hide original title
+		titleElement.style.display = 'none';
+
+		// Create InputBox container
+		const inputContainer = dom.$('.todo-edit-input-container');
+		todoContent.insertBefore(inputContainer, titleElement);
+
+		// Create InputBox
+		this._editInputBox = this._register(new InputBox(inputContainer, undefined, {
+			placeholder: localize('chat.todoList.editPlaceholder', 'Enter todo title'),
+			ariaLabel: localize('chat.todoList.editAriaLabel', 'Edit todo title'),
+			inputBoxStyles: defaultInputBoxStyles
+		}));
+
+		this._editInputBox.value = currentTitle;
+		this._editInputBox.focus();
+		this._editInputBox.select();
+
+		// Handle keyboard events
+		this._register(dom.addDisposableListener(this._editInputBox.inputElement, 'keydown', (e) => {
+			if (e.key === 'Enter') {
+				e.preventDefault();
+				e.stopPropagation();
+				this.saveEdit(todo);
+			} else if (e.key === 'Escape') {
+				e.preventDefault();
+				e.stopPropagation();
+				this.cancelEditing();
+			}
+		}));
+
+		// Handle blur to save
+		this._register(dom.addDisposableListener(this._editInputBox.inputElement, 'blur', () => {
+			// Use setTimeout to allow other events (like button clicks) to complete first
+			setTimeout(() => {
+				if (this._editingTodoId === todo.id) {
+					this.saveEdit(todo);
+				}
+			}, 100);
+		}));
+	}
+
+	private saveEdit(todo: IChatTodo): void {
+		if (!this._editInputBox || !this._currentSessionId || this._editingTodoId === null) {
+			return;
+		}
+
+		const newTitle = this._editInputBox.value.trim();
+		if (newTitle && newTitle !== todo.title) {
+			// Update todo list
+			const todos = this.chatTodoListService.getTodos(this._currentSessionId);
+			const updatedTodos = todos.map(t =>
+				t.id === todo.id ? { ...t, title: newTitle } : t
+			);
+			this.chatTodoListService.setTodos(this._currentSessionId, updatedTodos);
+		}
+
+		// Clear editing state
+		this._editingTodoId = null;
+		if (this._editInputBox) {
+			this._editInputBox.dispose();
+			this._editInputBox = undefined;
+		}
+
+		// Re-render the list
+		if (this._currentSessionId) {
+			this.render(this._currentSessionId);
+		}
+	}
+
+	private cancelEditing(): void {
+		if (this._editInputBox) {
+			this._editInputBox.dispose();
+			this._editInputBox = undefined;
+		}
+		this._editingTodoId = null;
+
+		// Re-render to restore original state
+		if (this._currentSessionId) {
+			this.render(this._currentSessionId);
+		}
 	}
 
 	private clearAllTodos(): void {

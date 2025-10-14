@@ -2722,6 +2722,33 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	min-width: 0;
 }
 
+.chat-todo-list-widget .todo-item .todo-title {
+	cursor: text;
+}
+
+.chat-todo-list-widget .todo-item:focus .todo-title {
+	outline: none;
+}
+
+.chat-todo-list-widget .todo-edit-input-container {
+	flex: 1;
+	margin: 0;
+}
+
+.chat-todo-list-widget .todo-edit-input-container .monaco-inputbox {
+	width: 100%;
+}
+
+.chat-todo-list-widget .todo-edit-input-container .monaco-inputbox .ibwrapper {
+	background: var(--vscode-input-background);
+	border: 1px solid var(--vscode-input-border);
+}
+
+.chat-todo-list-widget .todo-edit-input-container .monaco-inputbox .ibwrapper input {
+	padding: 2px 4px;
+	color: var(--vscode-input-foreground);
+}
+
 .interactive-session .interactive-response .chat-used-context-list.chat-thinking-items {
 	color: var(--vscode-descriptionForeground);
 	padding-top: 0;
