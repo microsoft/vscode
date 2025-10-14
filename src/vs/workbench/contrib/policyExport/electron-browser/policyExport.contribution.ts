@@ -41,8 +41,8 @@ export class PolicyExportContribution extends Disposable implements IWorkbenchCo
 
 	private async exportPolicyAndQuit(platform: string): Promise<void> {
 		try {
-			if (platform !== 'darwin' && platform !== 'win32') {
-				throw new Error(`Received invalid platform: ${platform}. Usage: <code> --export-policy-type=darwin|win32`);
+			if (platform !== 'darwin' && platform !== 'win32' && platform !== 'linux') {
+				throw new Error(`Received invalid platform: ${platform}. Usage: <code> --export-policy-type=darwin|win32|linux`);
 			}
 
 			await this.progressService.withProgress({

@@ -9,7 +9,7 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { IFileService } from '../../../files/common/files.js';
 import { Category, LanguageTranslations, NlsString, Policy, Translations, Version } from './types.js';
 import { IPolicyWriterService } from '../../common/policy.js';
-import { renderMacOSPolicy, renderGP } from './render.js';
+import { renderMacOSPolicy, renderGP, renderJsonPolicies } from './render.js';
 import { IConfigurationPropertySchema, IRegisteredConfigurationPropertySchema } from '../../../configuration/common/configurationRegistry.js';
 import { BooleanPolicy } from './policies/booleanPolicy.js';
 import { NumberPolicy } from './policies/numberPolicy.js';
@@ -54,6 +54,8 @@ export class PolicyWriterService implements IPolicyWriterService {
 			await this.writeDarwin(policies, translations);
 		} else if (platform === 'win32') {
 			await this.writeWindows(policies, translations);
+		} else if (platform === 'linux') {
+			await this.writeLinux(policies);
 		} else {
 			throw new Error(`Unsupported platform: ${platform}`);
 		}
@@ -118,6 +120,19 @@ export class PolicyWriterService implements IPolicyWriterService {
 			const admlUri = URI.file(path.resolve(path.join(languagePath, `${this.productService.win32RegValueName}.adml`)));
 			await this.fileService.writeFile(admlUri, VSBuffer.fromString(contents.replace(/\r?\n/g, '\n')));
 		}
+	}
+
+	private async writeLinux(policies: Policy[]) {
+		const root = '.build/policies/linux';
+		const policyFileContents = JSON.stringify(renderJsonPolicies(policies), undefined, 4);
+
+		const rootUri = URI.file(path.resolve(root));
+		await this.fileService.del(rootUri, { recursive: true, useTrash: false }).catch(() => { /* ignore if doesn't exist */ });
+		await this.fileService.createFolder(rootUri);
+		const jsonPath = path.join(root, `policy.json`);
+		const jsonUri = URI.file(path.resolve(jsonPath));
+		await this.fileService.writeFile(jsonUri, VSBuffer.fromString(policyFileContents.replace(/\r?\n/g, '\n')));
+		this.logService.info(`${LoggerPrefix} Successfully wrote to ${jsonPath}.`);
 	}
 
 	private configToPolicy(key: string, config: IConfigurationPropertySchema): Policy {

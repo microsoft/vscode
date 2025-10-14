@@ -7,6 +7,7 @@ export interface Policy {
 	readonly type: PolicyType;
 	readonly category: Category;
 	readonly minimumVersion: string;
+	renderJsonValue(): string | number | boolean | object | null;
 	renderADMX(regKey: string): string[];
 	renderADMLStrings(translations?: LanguageTranslations): string[];
 	renderADMLPresentation(): string;

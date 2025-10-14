@@ -24,7 +24,7 @@ export function renderADMLString(logger: ILogger, prefix: string, nlsString: Nls
 	return `<string id="${prefix}_${nlsString.nlsKey.replace(/\./g, '_')}">${value}</string>`;
 }
 
-export function renderProfileString(logger: ILogger, _prefix: string, nlsString: NlsString, translations?: LanguageTranslations): string {
+export function renderString(logger: ILogger, nlsString: NlsString, translations?: LanguageTranslations): string {
 	let value: string | undefined;
 
 	if (translations) {
@@ -277,4 +277,12 @@ export function renderProfileManifest(appName: string, bundleIdentifier: string,
 	<integer>1</integer>
 </dict>
 </plist>`;
+}
+
+export function renderJsonPolicies(policies: Policy[]) {
+	const policyObject: { [key: string]: string | number | boolean | object | null } = {};
+	for (const policy of policies) {
+		policyObject[policy.name] = policy.renderJsonValue();
+	}
+	return policyObject;
 }
