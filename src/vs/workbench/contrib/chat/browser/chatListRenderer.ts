@@ -1576,6 +1576,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					} else {
 						const itemContent = { ...content, value: item };
 						const itemPart = templateData.instantiationService.createInstance(ChatThinkingContentPart, itemContent, context);
+						itemPart.addDisposable(itemPart.onDidChangeHeight(() => this.updateItemHeight(templateData)));
 						this._currentThinkingPart = itemPart;
 					}
 				}
@@ -1587,6 +1588,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				this._currentThinkingPart.setupThinkingContainer(content, context);
 			} else {
 				const part = templateData.instantiationService.createInstance(ChatThinkingContentPart, content, context);
+				part.addDisposable(part.onDidChangeHeight(() => this.updateItemHeight(templateData)));
 				this._currentThinkingPart = part;
 			}
 			return this._currentThinkingPart;

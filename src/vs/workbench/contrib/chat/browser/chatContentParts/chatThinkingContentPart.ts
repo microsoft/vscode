@@ -174,6 +174,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 				fixedScrollViewport.scrollTop = fixedScrollViewport.scrollHeight;
 			}
 		}
+		this._onDidChangeHeight.fire();
 	}
 
 	private createThinkingItemContainer(): void {
@@ -191,6 +192,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			if (this.headerButton) {
 				this.headerButton.icon = collapsed ? Codicon.chevronRight : Codicon.chevronDown;
 			}
+			this._onDidChangeHeight.fire();
 		};
 
 		const toggle = () => setPerItemCollapsedState(!body.classList.contains('hidden'));
