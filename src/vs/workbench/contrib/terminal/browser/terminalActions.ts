@@ -491,6 +491,24 @@ export function registerTerminalActions() {
 		run: (c) => c.groupService.activeGroup?.resizePane(Direction.Down)
 	});
 
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TerminalCommandId.FocusInstance,
+				title: terminalStrings.focusInstance,
+				precondition: sharedWhenClause.terminalAvailable
+			});
+		}
+		async run(accessor: ServicesAccessor, instance: ITerminalInstance) {
+			const c = getTerminalServices(accessor);
+			if (!instance) {
+				return;
+			}
+			c.service.setActiveInstance(instance);
+			focusActiveTerminal(instance, c);
+		}
+	});
+
 	registerTerminalAction({
 		id: TerminalCommandId.Focus,
 		title: terminalStrings.focus,
