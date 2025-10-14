@@ -20886,27 +20886,28 @@ declare module 'vscode' {
 	}
 
 	/**
- * A language model response part containing arbitrary data, returned from a {@link LanguageModelChatResponse}.
- */
+	 * A language model response part containing arbitrary data, returned from a {@link LanguageModelChatResponse}.
+	 */
 	export class LanguageModelDataPart {
 		/**
-		 * Factory function to create a `LanguageModelDataPart` for an image.
+		 * Create a new {@linkcode LanguageModelDataPart} for an image.
 		 * @param data Binary image data
 		 * @param mimeType The MIME type of the image. Common values are `image/png` and `image/jpeg`.
 		 */
 		static image(data: Uint8Array, mime: string): LanguageModelDataPart;
 
 		/**
-		 * Factory function to create a `LanguageModelDataPart` for a json.
-		 * @param data Json data
-		 * @param mimeType The MIME type if any
+
+		 * Create a new {@linkcode LanguageModelDataPart} for a json.
+		 * @param value Json data - may end up as UInt8Array
+		 * @param mimeType The MIME type if any. Common values are `application/json`.
 		 */
 		static json(value: any, mime?: string): LanguageModelDataPart;
 
 		/**
-		 * Factory function to create a `LanguageModelDataPart` for text.
-		 * @param data Text data
-		 * @param mimeType The MIME type if any
+		 * Create a new {@linkcode LanguageModelDataPart} for text.
+		 * @param value Text data
+		 * @param mimeType The MIME type if any. Common values are `text/plain` and `text/markdown`.
 		 */
 		static text(value: string, mime?: string): LanguageModelDataPart;
 
@@ -20916,13 +20917,13 @@ declare module 'vscode' {
 		mimeType: string;
 
 		/**
-		 * The data of the part.
+		 * The byte data for this part.
 		 */
 		data: Uint8Array;
 
 		/**
 		 * Construct a generic data part with the given content.
-		 * @param value The data of the part.
+		 * @param data The byte data for this part.
 		 * @param mimeType The mime type of the data.
 		 */
 		constructor(data: Uint8Array, mimeType: string);
