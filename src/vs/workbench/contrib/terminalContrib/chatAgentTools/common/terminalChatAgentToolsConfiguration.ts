@@ -390,7 +390,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 	}
 	,
 	[TerminalChatAgentToolsSettingId.OutputLocation]: {
-		markdownDescription: localize('outputLocation.description', "Where to show the run in terminal tool session when running a foreground command."),
+		markdownDescription: localize('outputLocation.description', "Where to show the output from the run in terminal tool session."),
 		type: 'string',
 		enum: ['terminal', 'none'],
 		enumDescriptions: [
