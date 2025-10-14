@@ -2,9 +2,6 @@
 	"extends": "../tsconfig.base.json",
 	"compilerOptions": {
 		"outDir": "./out",
-		"typeRoots": [
-			"./node_modules/@types"
-		],
 		"skipLibCheck": true
 	},
 	"include": [
