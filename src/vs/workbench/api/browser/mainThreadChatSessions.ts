@@ -35,7 +35,11 @@ export class ObservableChatSession extends Disposable implements ChatSession {
 	readonly sessionId: string;
 	readonly providerHandle: number;
 	readonly history: Array<IChatSessionHistoryItem>;
-	readonly options?: { model?: string };
+	private _options?: { model?: string };
+
+	get options(): { model?: string } | undefined {
+		return this._options;
+	}
 
 	private readonly _progressObservable = observableValue<IChatProgress[]>(this, []);
 	private readonly _isCompleteObservable = observableValue<boolean>(this, false);
@@ -109,7 +113,7 @@ export class ObservableChatSession extends Disposable implements ChatSession {
 
 			// Store options from the session content
 			if (sessionContent.options) {
-				(this as any).options = sessionContent.options;
+				this._options = sessionContent.options;
 			}
 
 			this.history.length = 0;
