@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, clearNode } from '../../../../../base/browser/dom.js';
+import * as dom from '../../../../../base/browser/dom.js';
 import { IChatThinkingPart } from '../../common/chatService.js';
 import { IChatContentPartRenderContext, IChatContentPart } from './chatContentParts.js';
 import { IChatRendererContent } from '../../common/chatViewModel.js';
@@ -50,7 +51,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private fixedScrollViewport: HTMLElement | undefined;
 	private fixedContainer: HTMLElement | undefined;
 	private headerButton: ButtonWithIcon | undefined;
-	private caret: HTMLElement | undefined;
+	private statusIcon: HTMLElement | undefined;
 	private lastExtractedTitle: string | undefined;
 	private hasMultipleItems: boolean = false;
 
@@ -90,14 +91,12 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			if (header) {
 				header.remove();
 				this.domNode.classList.add('chat-thinking-no-outer-header');
-				this._onDidChangeHeight.fire();
 			}
 		} else if (this.fixedScrollingMode) {
 			const header = this.domNode.querySelector('.chat-used-context-label');
 			if (header) {
 				header.remove();
 				this.domNode.classList.add('chat-thinking-no-outer-header', 'chat-thinking-fixed-mode');
-				this._onDidChangeHeight.fire();
 			}
 			this.currentTitle = this.defaultTitle;
 		}
@@ -131,9 +130,11 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 			const button = this.headerButton = this._register(new ButtonWithIcon(header, {}));
 			button.label = this.defaultTitle;
-			button.icon = ThemeIcon.modify(Codicon.loading, 'spin');
-			this.caret = $('.codicon.codicon-chevron-right.chat-thinking-fixed-caret');
-			button.element.appendChild(this.caret);
+			button.icon = Codicon.chevronRight;
+			this.statusIcon = $('.chat-thinking-fixed-title-icon');
+			const spinnerEl = dom.h(ThemeIcon.asCSSSelector(ThemeIcon.modify(Codicon.loading, 'spin')));
+			this.statusIcon.appendChild(spinnerEl.root);
+			button.element.appendChild(this.statusIcon);
 
 			this.fixedScrollViewport = this.wrapper;
 			this.textContainer = $('.chat-thinking-item.markdown-content');
@@ -142,7 +143,10 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			this.fixedContainer.appendChild(header);
 			this.fixedContainer.appendChild(this.wrapper);
 
-			this._register(button.onDidClick(() => this.setFixedCollapsedState(!this.fixedCollapsed, true)));
+			this._register(button.onDidClick(() => {
+				this.setFixedCollapsedState(!this.fixedCollapsed, true);
+				this._onDidChangeHeight.fire();
+			}));
 
 			if (this.currentThinkingValue) {
 				this.renderMarkdown(this.currentThinkingValue);
@@ -166,9 +170,8 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		}
 		this.fixedCollapsed = collapsed;
 		this.fixedContainer.classList.toggle('collapsed', collapsed);
-		if (this.caret) {
-			this.caret.classList.toggle('codicon-chevron-right', collapsed);
-			this.caret.classList.toggle('codicon-chevron-down', !collapsed);
+		if (this.headerButton) {
+			this.headerButton.icon = collapsed ? Codicon.chevronRight : Codicon.chevronDown;
 		}
 		if (this.fixedCollapsed && userInitiated) {
 			const fixedScrollViewport = this.fixedScrollViewport ?? this.wrapper;
@@ -176,7 +179,6 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 				fixedScrollViewport.scrollTop = fixedScrollViewport.scrollHeight;
 			}
 		}
-		this._onDidChangeHeight.fire();
 	}
 
 	private createThinkingItemContainer(): void {
@@ -194,12 +196,12 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			if (this.headerButton) {
 				this.headerButton.icon = collapsed ? Codicon.chevronRight : Codicon.chevronDown;
 			}
-			this._onDidChangeHeight.fire();
 		};
 
-		const toggle = () => setPerItemCollapsedState(!body.classList.contains('hidden'));
-
-		this._register(button.onDidClick(() => toggle()));
+		this._register(button.onDidClick(() => {
+			setPerItemCollapsedState(!body.classList.contains('hidden'));
+			this._onDidChangeHeight.fire();
+		}));
 
 		itemWrapper.appendChild(header);
 		itemWrapper.appendChild(body);
@@ -278,7 +280,11 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			}
 			if (this.headerButton) {
 				this.headerButton.label = finalLabel;
-				this.headerButton.icon = Codicon.passFilled;
+			}
+			if (this.statusIcon && this.fixedContainer) {
+				this.fixedContainer.classList.add('finished');
+				this.setFixedCollapsedState(true);
+				this.statusIcon.replaceChildren(dom.h(ThemeIcon.asCSSSelector(Codicon.check)).root);
 			}
 
 			this.currentTitle = finalLabel;
@@ -296,14 +302,8 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			this.currentTitle = suffix;
 		}
 
-		if (this.fixedScrollingMode) {
-			if (this.fixedContainer) {
-				this.fixedContainer.classList.add('finished');
-				this.setFixedCollapsedState(true);
-				if (this.headerButton) {
-					this.headerButton.icon = Codicon.passFilled;
-				}
-			}
+		if (!this.fixedScrollingMode && this.statusIcon) {
+			this.statusIcon.replaceChildren(dom.h(ThemeIcon.asCSSSelector(Codicon.check)).root);
 		}
 	}
 
