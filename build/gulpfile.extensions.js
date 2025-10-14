@@ -89,16 +89,55 @@ const tasks = compilations.map(function (tsconfigFile) {
 	const out = path.join(srcRoot, 'out');
 
 	async function runTsgo(build, emitError) {
-		const exec = nodeUtil.promisify(cp.exec);
 		const reporter = createReporter('extensions');
 
-		try {
-			await exec(`npx tsgo -p "${absolutePath}"`, { cwd: root });
-		} catch (err) {
-			const errorMsg = err.toString();
-			reporter(errorMsg);
-			reporter.end(emitError);
-		}
+		return new Promise((resolve, reject) => {
+			console.log(`Compiling ${absolutePath}...`);
+
+			const child = cp.spawn('npx', ['tsgo', '-p', absolutePath], {
+				cwd: root,
+				stdio: ['pipe', 'pipe', 'pipe']
+			});
+
+			let stdout = '';
+			let stderr = '';
+
+			child.stdout.on('data', (data) => {
+				const output = data.toString();
+				stdout += output;
+				console.log(output);
+			});
+
+			child.stderr.on('data', (data) => {
+				const output = data.toString();
+				stderr += output;
+				console.error(output);
+			});
+
+			child.on('exit', (code) => {
+				if (code !== 0) {
+					const errorMsg = `tsgo exited with code ${code} for ${absolutePath}\nstdout: ${stdout}\nstderr: ${stderr}`;
+					reporter(errorMsg);
+					if (emitError) {
+						reject(new Error(errorMsg));
+					} else {
+						resolve();
+					}
+				} else {
+					resolve();
+				}
+			});
+
+			child.on('error', (err) => {
+				const errorMsg = `Failed to spawn tsgo: ${err.toString()}\nstdout: ${stdout}\nstderr: ${stderr}`;
+				reporter(errorMsg);
+				if (emitError) {
+					reject(err);
+				} else {
+					resolve();
+				}
+			});
+		});
 	}
 
 	const cleanTask = task.define(`clean-extension-${name}`, util.rimraf(out));
