@@ -220,19 +220,6 @@ export class ChatViewWelcomePart extends Disposable {
 						descriptionElement.title = prompt.description;
 					}
 
-					// Add context menu handler
-					this._register(dom.addDisposableListener(promptElement, dom.EventType.CONTEXT_MENU, async (e: MouseEvent) => {
-						e.preventDefault();
-						e.stopImmediatePropagation();
-
-						const actions = this.getPromptContextMenuActions(prompt);
-
-						this.contextMenuService.showContextMenu({
-							getAnchor: () => promptElement,
-							getActions: () => actions,
-						});
-					}));
-
 					const executePrompt = () => {
 						type SuggestedPromptClickEvent = { suggestedPrompt: string };
 
@@ -255,8 +242,22 @@ export class ChatViewWelcomePart extends Disposable {
 							this.chatWidgetService.lastFocusedWidget.setInput(prompt.prompt);
 						}
 					};
+					// Add context menu handler
+					this._register(dom.addDisposableListener(promptElement, dom.EventType.CONTEXT_MENU, async (e: MouseEvent) => {
+						e.preventDefault();
+						e.stopImmediatePropagation();
+
+						const actions = this.getPromptContextMenuActions(prompt);
+
+						this.contextMenuService.showContextMenu({
+							getAnchor: () => promptElement,
+							getActions: () => actions,
+						});
+					}));
+
 					// Add click handler
 					this._register(dom.addDisposableListener(promptElement, dom.EventType.CLICK, executePrompt));
+
 					// Add keyboard handler
 					this._register(dom.addDisposableListener(promptElement, dom.EventType.KEY_DOWN, (e) => {
 						const event = new StandardKeyboardEvent(e);
