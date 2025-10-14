@@ -9,6 +9,14 @@ import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions
 import { URI } from '../../../base/common/uri.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { ICustomEditorLabelService } from '../../services/editor/common/customEditorLabelService.js';
+import { Uri } from 'vscode';
+import { basenameOrAuthority, dirname } from '../../../base/common/resources.js';
+import { ILabelService } from '../../../platform/label/common/label.js';
+import { IModelService } from '../../../editor/common/services/model.js';
+import { ILanguageService } from '../../../editor/common/languages/language.js';
+import { Lazy } from '../../../base/common/lazy.js';
+import { getIconClasses } from '../../../editor/common/services/getIconClasses.js';
 
 interface QuickInputSession {
 	input: IQuickInput;
@@ -35,7 +43,11 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IQuickInputService quickInputService: IQuickInputService
+		@IQuickInputService quickInputService: IQuickInputService,
+		@ILabelService private readonly labelService: ILabelService,
+		@ICustomEditorLabelService private readonly customEditorLabelService: ICustomEditorLabelService,
+		@IModelService private readonly modelService: IModelService,
+		@ILanguageService private readonly languageService: ILanguageService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostQuickOpen);
 		this._quickInputService = quickInputService;
@@ -176,9 +188,9 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 				}
 			} else if (param === 'items') {
 				handlesToItems.clear();
-				params[param].forEach((item: TransferQuickPickItemOrSeparator) => {
+				const items = params[param].map((item: TransferQuickPickItemOrSeparator) => {
 					if (item.type === 'separator') {
-						return;
+						return item;
 					}
 
 					if (item.buttons) {
@@ -190,18 +202,17 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 							return button;
 						});
 					}
+
 					handlesToItems.set(item.handle, item);
+					return this.processResourceUri(item);
 				});
-				// eslint-disable-next-line local/code-no-any-casts
-				(input as any)[param] = params[param];
+				(<IQuickPick<IQuickPickItem>>input).items = items;
 			} else if (param === 'activeItems' || param === 'selectedItems') {
-				// eslint-disable-next-line local/code-no-any-casts
-				(input as any)[param] = params[param]
+				(<IQuickPick<IQuickPickItem>>input)[param] = params[param]
 					.filter((handle: number) => handlesToItems.has(handle))
 					.map((handle: number) => handlesToItems.get(handle));
 			} else if (param === 'buttons') {
-				// eslint-disable-next-line local/code-no-any-casts
-				(input as any)[param] = params.buttons!.map(button => {
+				(<IQuickPick<IQuickPickItem>>input).buttons = params.buttons!.map(button => {
 					if (button.handle === -1) {
 						return this._quickInputService.backButton;
 					}
@@ -227,5 +238,36 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 			this.sessions.delete(sessionId);
 		}
 		return Promise.resolve(undefined);
+	}
+
+	/**
+	 * Derives icon, label and description for Quick Pick items that represent a resource URI.
+	 */
+	private processResourceUri(item: TransferQuickPickItem): IQuickPickItem {
+		if (!item.resourceUri) {
+			return item;
+		}
+
+		const resourceUri = Uri.from(item.resourceUri);
+		const customLabel = new Lazy(() => this.customEditorLabelService.getName(resourceUri));
+
+		const label = new Lazy(() =>
+			item.label || customLabel.value || basenameOrAuthority(resourceUri) || ''
+		);
+
+		const description = new Lazy(() =>
+			item.description || this.labelService.getUriLabel(!!customLabel.value ? resourceUri : dirname(resourceUri), { relative: true })
+		);
+
+		const iconClasses = new Lazy(() =>
+			item.iconClass === 'codicon-file' ? getIconClasses(this.modelService, this.languageService, resourceUri, undefined, undefined) :
+				item.iconClass ? [item.iconClass] : undefined);
+
+		return {
+			...item,
+			get label() { return label.value; },
+			get description() { return description.value; },
+			get iconClasses() { return iconClasses.value; }
+		};
 	}
 }
