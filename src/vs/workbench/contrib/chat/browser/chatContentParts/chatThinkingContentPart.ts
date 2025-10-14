@@ -6,7 +6,7 @@
 import { $, clearNode } from '../../../../../base/browser/dom.js';
 import { IChatThinkingPart } from '../../common/chatService.js';
 import { IChatContentPartRenderContext, IChatContentPart } from './chatContentParts.js';
-import { IChatRendererContent, IChatResponseViewModel } from '../../common/chatViewModel.js';
+import { IChatRendererContent, isResponseVM } from '../../common/chatViewModel.js';
 import { ThinkingDisplayMode } from '../../common/constants.js';
 import { ChatTreeItem } from '../chat.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -32,10 +32,6 @@ function extractTextFromPart(content: IChatThinkingPart): string {
 function extractTitleFromThinkingContent(content: string): string | undefined {
 	const headerMatch = content.match(/^\*\*([^*]+)\*\*\s*/);
 	return headerMatch ? headerMatch[1].trim() : undefined;
-}
-
-function isResponseViewModel(item: ChatTreeItem): item is IChatResponseViewModel {
-	return typeof (item as IChatResponseViewModel).model !== 'undefined';
 }
 
 /**
@@ -102,7 +98,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		let effectiveMode = configuredMode;
 		if (configuredMode === ThinkingDisplayMode.Default) {
 			let modelId: string | undefined;
-			if (isResponseViewModel(context.element)) {
+			if (isResponseVM(context.element)) {
 				modelId = context.element.model.request?.modelId;
 			}
 			effectiveMode = resolvePerModelDefaultThinkingStyle(modelId);
