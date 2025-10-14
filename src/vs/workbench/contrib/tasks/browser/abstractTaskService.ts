@@ -818,10 +818,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 
 						const defaultAgent = this._chatAgentService.getDefaultAgent(ChatAgentLocation.Chat);
-						const providerName = defaultAgent?.fullName;
-						if (providerName) {
+						if (defaultAgent) {
 							actions.push({
-								label: nls.localize('troubleshootWithChat', "Fix with {0}", providerName),
+								label: nls.localize('troubleshootWithChat', "Fix with AI"),
 								run: async () => {
 									this._commandService.executeCommand(CHAT_OPEN_ACTION_ID, {
 										mode: ChatModeKind.Agent,

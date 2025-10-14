@@ -134,6 +134,9 @@ function extractEditor(options) {
     }
     delete tsConfig.compilerOptions.moduleResolution;
     writeOutputFile('tsconfig.json', JSON.stringify(tsConfig, null, '\t'));
+    options.additionalFilesToCopyOut?.forEach((file) => {
+        copyFile(file);
+    });
     copyFile('vs/loader.js');
     copyFile('typings/css.d.ts');
     copyFile('../node_modules/@vscode/tree-sitter-wasm/wasm/web-tree-sitter.d.ts', '@vscode/tree-sitter-wasm.d.ts');

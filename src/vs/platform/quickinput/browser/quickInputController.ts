@@ -29,7 +29,7 @@ import { autorun, observableValue } from '../../../base/common/observable.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../storage/common/storage.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
-import { Platform, platform } from '../../../base/common/platform.js';
+import { Platform, platform, setTimeout0 } from '../../../base/common/platform.js';
 import { getWindowControlsStyle, WindowControlsStyle } from '../../window/common/window.js';
 import { getZoomFactor } from '../../../base/browser/browser.js';
 import { TriStateCheckbox } from '../../../base/browser/ui/toggle/toggle.js';
@@ -227,7 +227,10 @@ export class QuickInputController extends Disposable {
 			visibleCount.setCount(c);
 		}));
 		this._register(list.onChangedCheckedCount(c => {
-			count.setCount(c);
+			// TODO@TylerLeonhardt: Without this setTimeout, the screen reader will not read out
+			// the final count of checked items correctly. Investigate a better way
+			// to do this. ref https://github.com/microsoft/vscode/issues/258617
+			setTimeout0(() => count.setCount(c));
 		}));
 		this._register(list.onLeave(() => {
 			// Defer to avoid the input field reacting to the triggering key.

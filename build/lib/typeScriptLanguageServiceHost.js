@@ -52,14 +52,14 @@ class TypeScriptLanguageServiceHost {
     getCurrentDirectory() {
         return '';
     }
-    getDefaultLibFileName(_options) {
-        return this.ts.getDefaultLibFilePath(_options);
+    getDefaultLibFileName(options) {
+        return this.ts.getDefaultLibFilePath(options);
     }
-    readFile(path, _encoding) {
+    readFile(path, encoding) {
         if (this.topLevelFiles.get(path)) {
             return this.topLevelFiles.get(path);
         }
-        return typescript_1.default.sys.readFile(path, _encoding);
+        return typescript_1.default.sys.readFile(path, encoding);
     }
     fileExists(path) {
         if (this.topLevelFiles.has(path)) {
