@@ -214,16 +214,16 @@ export class InlineCompletionsController extends Disposable {
 			}
 		}));
 
+		// These commands don't trigger onDidType.
+		const triggerCommands = new Set([
+			CoreEditingCommands.Tab.id,
+			CoreEditingCommands.DeleteLeft.id,
+			CoreEditingCommands.DeleteRight.id,
+			inlineSuggestCommitId,
+			'acceptSelectedSuggestion',
+		]);
 		this._register(this._commandService.onDidExecuteCommand((e) => {
-			// These commands don't trigger onDidType.
-			const commands = new Set([
-				CoreEditingCommands.Tab.id,
-				CoreEditingCommands.DeleteLeft.id,
-				CoreEditingCommands.DeleteRight.id,
-				inlineSuggestCommitId,
-				'acceptSelectedSuggestion',
-			]);
-			if (commands.has(e.commandId) && editor.hasTextFocus() && this._enabled.get()) {
+			if (triggerCommands.has(e.commandId) && editor.hasTextFocus() && this._enabled.get()) {
 				let noDelay = false;
 				if (e.commandId === inlineSuggestCommitId) {
 					noDelay = true;
