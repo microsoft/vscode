@@ -781,7 +781,7 @@
   },
   "devDependencies": {
     "@types/dompurify": "^3.0.5",
-    "@types/lodash.throttle": "^4.1.3",
+    "@types/lodash.throttle": "^4.1.9",
     "@types/markdown-it": "12.2.3",
     "@types/picomatch": "^2.3.0",
     "@types/vscode-notebook-renderer": "^1.60.0",
