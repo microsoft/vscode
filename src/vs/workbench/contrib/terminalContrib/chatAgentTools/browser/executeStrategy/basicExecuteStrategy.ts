@@ -50,7 +50,7 @@ export class BasicExecuteStrategy extends Disposable implements ITerminalExecute
 	private readonly _onUpdate = this._register(new Emitter<void>());
 	get onUpdate() { return this._onUpdate.event; }
 
-	private readonly _onDidFinishCommand = this._register(new Emitter<number | undefined>());
+	private readonly _onDidFinishCommand = this._register(new Emitter<{ exitCode?: number; data?: string }>());
 	readonly onDidFinishCommand = this._onDidFinishCommand.event;
 
 	constructor(
@@ -75,7 +75,7 @@ export class BasicExecuteStrategy extends Disposable implements ITerminalExecute
 					this._log('onDone 1 of 2 via end event, waiting for short idle prompt');
 					return idlePromptPromise.then(() => {
 						this._log('onDone 2 of 2 via short idle prompt');
-						this._onDidFinishCommand.fire(e.exitCode);
+						this._onDidFinishCommand.fire({ exitCode: e.exitCode, data: e.getOutput() });
 						return e;
 					});
 				}),

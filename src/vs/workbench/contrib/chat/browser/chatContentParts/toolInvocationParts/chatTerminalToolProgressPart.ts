@@ -92,7 +92,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		this.markdownPart = this._register(instantiationService.createInstance(ChatMarkdownContentPart, chatMarkdownContent, context, editorPool, false, codeBlockStartIndex, renderer, {}, currentWidthDelegate(), codeBlockModelCollection, { codeBlockRenderOptions }));
 		this._register(this.markdownPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 		this.container = elements.container;
-		this.container.append(this.markdownPart.domNode);
+		elements.title.append(this.markdownPart.domNode);
 
 		const attachment = this._terminalChatService.registerProgressPart({
 			chatSessionId: this.chatSessionId,
@@ -103,7 +103,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		this._register(attachment);
 
 		attachment.attachToElement(elements.xtermElement).then(() => {
-			this.container.append(elements.xtermElement);
+			elements.title.append(elements.xtermElement);
 			queueMicrotask(() => this._onDidChangeHeight.fire());
 		}).catch(error => {
 			console.error(`[chatTerminal] Failed to attach embedded terminal for ${this.externalInstanceId}`, error);

@@ -17,7 +17,7 @@ export interface ITerminalExecuteStrategy {
 	readonly endMarker?: IXtermMarker;
 
 	readonly onUpdate: Event<void>;
-	readonly onDidFinishCommand: Event<number | undefined>;
+	readonly onDidFinishCommand: Event<{ exitCode?: number; data?: string }>;
 
 	/**
 	 * Executes a command line and gets a result designed to be passed directly to an LLM. The

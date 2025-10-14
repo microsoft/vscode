@@ -52,6 +52,21 @@ interface ITerminalChatSessionState {
 	preferredRows: number;
 }
 
+interface ISerializedTerminalChatSession {
+	readonly id: string;
+	readonly chatSessionId: string;
+	readonly toolCallId: string;
+	readonly lastData?: string;
+	readonly lastExitCode?: number;
+	readonly lastPreviewNonEmptyRows?: number;
+	readonly preferredRows?: number;
+}
+
+interface ISerializedTerminalChatState {
+	readonly version: 1;
+	readonly sessions: ISerializedTerminalChatSession[];
+}
+
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 10;
 const COLLAPSED_ROWS = 1;
@@ -96,11 +111,84 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 	}
 
 	serialize(): string {
-		throw new Error('Method not implemented.');
+		const sessions: ISerializedTerminalChatSession[] = [];
+		for (const session of this._sessions.values()) {
+			sessions.push({
+				id: session.id,
+				chatSessionId: session.chatSessionId,
+				toolCallId: session.toolCallId,
+				lastData: session.lastData,
+				lastExitCode: session.lastExitCode,
+				lastPreviewNonEmptyRows: session.lastPreviewNonEmptyRows,
+				preferredRows: session.preferredRows
+			});
+		}
+
+		const payload: ISerializedTerminalChatState = {
+			version: 1,
+			sessions
+		};
+		return JSON.stringify(payload);
 	}
 
-	deserialize(_serialized: string): void {
-		throw new Error('Method not implemented.');
+	deserialize(serialized: string): void {
+		if (!serialized) {
+			return;
+		}
+
+		let parsed: unknown;
+		try {
+			parsed = JSON.parse(serialized);
+		} catch (error) {
+			this._logService.error('[terminalChat] Failed to parse serialized terminal chat data', error);
+			return;
+		}
+
+		let sessions: unknown;
+		if (Array.isArray(parsed)) {
+			sessions = parsed;
+		} else if (parsed && typeof parsed === 'object') {
+			sessions = (parsed as Partial<ISerializedTerminalChatState>).sessions;
+		}
+
+		if (!Array.isArray(sessions)) {
+			return;
+		}
+
+		for (const candidate of sessions) {
+			if (!candidate || typeof candidate !== 'object') {
+				continue;
+			}
+			const {
+				id,
+				chatSessionId,
+				toolCallId,
+				lastData,
+				lastExitCode,
+				lastPreviewNonEmptyRows,
+				preferredRows
+			} = candidate as ISerializedTerminalChatSession;
+
+			if (typeof id !== 'string' || typeof chatSessionId !== 'string' || typeof toolCallId !== 'string') {
+				continue;
+			}
+
+			const session = this._ensureSession(id, chatSessionId, toolCallId);
+
+			session.lastData = typeof lastData === 'string' ? lastData : undefined;
+			session.lastExitCode = typeof lastExitCode === 'number' ? lastExitCode : undefined;
+			session.lastPreviewNonEmptyRows = typeof lastPreviewNonEmptyRows === 'number' ? lastPreviewNonEmptyRows : DEFAULT_ROWS;
+
+			const targetRows = typeof preferredRows === 'number' ? preferredRows : DEFAULT_ROWS;
+			this._setSessionPreferredRows(session, targetRows);
+			this._updateSessionDecorations(session);
+
+			if (session.lastData) {
+				for (const attachment of session.attachments.values()) {
+					void this._applyLastDataToAttachment(session, attachment);
+				}
+			}
+		}
 	}
 
 	registerExecution(registration: ITerminalChatExecutionRegistration): void {
@@ -115,27 +203,23 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		this._setSessionPreferredRows(session, DEFAULT_ROWS);
 		this._updateSessionDecorations(session);
 
-		const refreshScheduler = new RunOnceScheduler(() => {
-			void this._refreshSession(session);
-		}, 100);
+		const refreshScheduler = new RunOnceScheduler(() => this._refreshSession(session), 100);
 		session.store.add(refreshScheduler);
-		session.store.add(registration.instance.onData(() => {
-			refreshScheduler.schedule();
-		}));
-
+		session.store.add(registration.instance.onData(() => refreshScheduler.schedule()));
 		session.store.add(registration.executeStrategy.onDidCreateStartMarker(marker => {
 			if (marker) {
 				session.persistentStartMarker = marker;
 			}
 			refreshScheduler.schedule();
 		}));
-		session.store.add(registration.executeStrategy.onDidFinishCommand(exitCode => {
-			session.lastExitCode = exitCode;
-			refreshScheduler.schedule(0);
-			const nonEmptyRows = session.lastPreviewNonEmptyRows || DEFAULT_ROWS;
-			const targetRows = exitCode === 0 ? COLLAPSED_ROWS : Math.min(DEFAULT_ROWS, nonEmptyRows || DEFAULT_ROWS);
+
+		session.store.add(registration.executeStrategy.onDidFinishCommand(result => {
+			session.lastExitCode = result.exitCode;
+			const nonEmptyRows = result.data ? this._countNonEmptyRows(result.data) : DEFAULT_ROWS;
+			const targetRows = result.exitCode === 0 ? COLLAPSED_ROWS : Math.min(DEFAULT_ROWS, nonEmptyRows || DEFAULT_ROWS);
 			this._setSessionPreferredRows(session, targetRows);
 			this._updateSessionDecorations(session);
+			refreshScheduler.schedule(0);
 		}));
 
 		this._latestSessionByInstance.set(registration.instance.sessionId, registration.terminalSessionId);
@@ -286,7 +370,6 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 				return;
 			}
 			session.lastData = data;
-			session.lastPreviewNonEmptyRows = this._countNonEmptyRows(data);
 			for (const attachment of session.attachments.values()) {
 				if (attachment.disposed || attachment.store.isDisposed || !attachment.xterm) {
 					continue;
