@@ -14,7 +14,7 @@ export abstract class BasePolicy implements Policy {
 		readonly name: string,
 		readonly category: Category,
 		readonly minimumVersion: string,
-		protected description: NlsString,
+		readonly description: NlsString,
 		protected logger: ILogger
 	) { }
 
@@ -59,6 +59,7 @@ ${this.renderProfileManifestValue(translations)}
 </dict>`;
 	}
 
+	abstract renderJsonValue(): string | number | boolean | object | null;
 	abstract renderProfileValue(): string;
 	abstract renderProfileManifestValue(translations?: LanguageTranslations): string;
 }

@@ -7,7 +7,7 @@ import { IPolicy } from '../../../../../base/common/policy.js';
 import { IConfigurationPropertySchema } from '../../../../configuration/common/configurationRegistry.js';
 import { Category, LanguageTranslations, NlsString, PolicyType } from '../types.js';
 import { BasePolicy } from './basePolicy.js';
-import { renderProfileString } from '../render.js';
+import { renderString } from '../render.js';
 import { ILogger } from '../../../../log/common/log.js';
 
 export class NumberPolicy extends BasePolicy {
@@ -41,6 +41,10 @@ export class NumberPolicy extends BasePolicy {
 		return `<decimalTextBox refId="${this.name}" defaultValue="${this.defaultValue}">${this.name}</decimalTextBox>`;
 	}
 
+	override renderJsonValue() {
+		return this.defaultValue;
+	}
+
 	renderProfileValue() {
 		return `<integer>${this.defaultValue}</integer>`;
 	}
@@ -49,7 +53,7 @@ export class NumberPolicy extends BasePolicy {
 		return `<key>pfm_default</key>
 <integer>${this.defaultValue}</integer>
 <key>pfm_description</key>
-<string>${renderProfileString(this.logger, this.name, this.description, translations)}</string>
+<string>${renderString(this.logger, this.description, translations)}</string>
 <key>pfm_name</key>
 <string>${this.name}</string>
 <key>pfm_title</key>

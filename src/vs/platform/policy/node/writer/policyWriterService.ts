@@ -9,7 +9,7 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { IFileService } from '../../../files/common/files.js';
 import { Category, LanguageTranslations, NlsString, Policy, Translations, Version } from './types.js';
 import { IPolicyWriterService } from '../../common/policy.js';
-import { renderMacOSPolicy, renderGP } from './render.js';
+import { renderMacOSPolicy, renderGP, renderJsonPolicies } from './render.js';
 import { IConfigurationPropertySchema, IRegisteredConfigurationPropertySchema } from '../../../configuration/common/configurationRegistry.js';
 import { BooleanPolicy } from './policies/booleanPolicy.js';
 import { NumberPolicy } from './policies/numberPolicy.js';
@@ -54,6 +54,8 @@ export class PolicyWriterService implements IPolicyWriterService {
 			await this.writeDarwin(policies, translations);
 		} else if (platform === 'win32') {
 			await this.writeWindows(policies, translations);
+		} else if (platform === 'linux') {
+			await this.writeLinux(policies, translations);
 		} else {
 			throw new Error(`Unsupported platform: ${platform}`);
 		}
@@ -117,6 +119,25 @@ export class PolicyWriterService implements IPolicyWriterService {
 			await this.fileService.createFolder(languageUri);
 			const admlUri = URI.file(path.resolve(path.join(languagePath, `${this.productService.win32RegValueName}.adml`)));
 			await this.fileService.writeFile(admlUri, VSBuffer.fromString(contents.replace(/\r?\n/g, '\n')));
+		}
+	}
+
+	private async writeLinux(policies: Policy[], translations: Translations) {
+		const appName = this.productService.nameLong;
+
+		if (!appName) {
+			throw new Error(`Missing required product information.`);
+		}
+
+		const root = '.build/policies/linux';
+		const { jsonPolicies } = renderJsonPolicies(this.logService, policies, translations);
+
+		for (const { languageId, contents } of jsonPolicies) {
+			const languagePath = path.join(root, languageId === 'en-us' ? '' : Languages[languageId as keyof typeof Languages]);
+			const languageUri = URI.file(path.resolve(languagePath));
+			await this.fileService.createFolder(languageUri);
+			const admlUri = URI.file(path.resolve(path.join(languagePath, `policy.json`)));
+			await this.fileService.writeFile(admlUri, VSBuffer.fromString(JSON.stringify(contents, undefined, 4).replace(/\r?\n/g, '\n')));
 		}
 	}
 

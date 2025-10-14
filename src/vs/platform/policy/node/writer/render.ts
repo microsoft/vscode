@@ -24,7 +24,7 @@ export function renderADMLString(logger: ILogger, prefix: string, nlsString: Nls
 	return `<string id="${prefix}_${nlsString.nlsKey.replace(/\./g, '_')}">${value}</string>`;
 }
 
-export function renderProfileString(logger: ILogger, _prefix: string, nlsString: NlsString, translations?: LanguageTranslations): string {
+export function renderString(logger: ILogger, nlsString: NlsString, translations?: LanguageTranslations): string {
 	let value: string | undefined;
 
 	if (translations) {
@@ -277,4 +277,25 @@ export function renderProfileManifest(appName: string, bundleIdentifier: string,
 	<integer>1</integer>
 </dict>
 </plist>`;
+}
+
+export function renderJsonPolicyObject(logger: ILogger, policies: Policy[], translations?: LanguageTranslations): object {
+	const policyObject: { [key: string]: string | number | boolean | object | null } = {};
+	for (const policy of policies) {
+		policyObject[policy.name] = policy.renderJsonValue();
+		policyObject[`_${policy.name}.comment`] = renderString(logger, policy.description, translations);
+	}
+	return policyObject;
+}
+
+export function renderJsonPolicies(logger: ILogger, policies: Policy[], translations: Array<{ languageId: string; languageTranslations: LanguageTranslations }>) {
+	return {
+		jsonPolicies: [{
+			languageId: 'en-us',
+			contents: renderJsonPolicyObject(logger, policies)
+		}, ...translations?.map(({ languageId, languageTranslations }) => ({
+			languageId,
+			contents: renderJsonPolicyObject(logger, policies, languageTranslations)
+		})) ?? []]
+	};
 }

@@ -38,7 +38,7 @@ export interface IPolicyWriterService {
 	write(configs: Array<{
 		key: string;
 		schema: IRegisteredConfigurationPropertySchema;
-	}>, platform: 'darwin' | 'win32'): Promise<void>;
+	}>, platform: 'darwin' | 'win32' | 'linux'): Promise<void>;
 }
 
 export abstract class AbstractPolicyService extends Disposable implements IPolicyService {

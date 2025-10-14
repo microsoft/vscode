@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { renderADMLString, renderProfileString, renderADMX, renderADML, renderProfileManifest, renderMacOSPolicy, renderGP } from '../../../node/writer/render.js';
+import { renderADMLString, renderString, renderADMX, renderADML, renderProfileManifest, renderMacOSPolicy, renderGP } from '../../../node/writer/render.js';
 import { NlsString, LanguageTranslations, Category, Policy, PolicyType } from '../../../node/writer/types.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ILogger } from '../../../../log/common/log.js';
@@ -77,7 +77,7 @@ suite('Render Functions', () => {
 				nlsKey: 'profile.description'
 			};
 
-			const result = renderProfileString(mockLogger, 'ProfilePrefix', nlsString);
+			const result = renderString(mockLogger, nlsString);
 
 			assert.strictEqual(result, 'Profile description');
 		});
@@ -92,7 +92,7 @@ suite('Render Functions', () => {
 				'profile.key': 'Translated profile value'
 			};
 
-			const result = renderProfileString(mockLogger, 'ProfilePrefix', nlsString, translations);
+			const result = renderString(mockLogger, nlsString, translations);
 
 			assert.strictEqual(result, 'Translated profile value');
 		});
@@ -107,7 +107,7 @@ suite('Render Functions', () => {
 				'other.key': 'Other translation'
 			};
 
-			const result = renderProfileString(mockLogger, 'ProfilePrefix', nlsString, translations);
+			const result = renderString(mockLogger, nlsString, translations);
 
 			assert.strictEqual(result, 'Original profile value');
 		});
@@ -124,6 +124,7 @@ suite('Render Functions', () => {
 			type: PolicyType.Boolean,
 			category: mockCategory,
 			minimumVersion: '1.85',
+			description: { value: 'Test Policy Description', nlsKey: 'test.policy.desc' },
 			renderADMX: (regKey: string) => [
 				`<policy name="TestPolicy" class="Both" displayName="$(string.TestPolicy)" key="Software\\Policies\\Microsoft\\${regKey}">`,
 				`	<enabledValue><decimal value="1" /></enabledValue>`,
@@ -132,7 +133,8 @@ suite('Render Functions', () => {
 			renderADMLStrings: () => ['<string id="TestPolicy">Test Policy</string>'],
 			renderADMLPresentation: () => '<presentation id="TestPolicy"/>',
 			renderProfile: () => ['<key>TestPolicy</key>', '<true/>'],
-			renderProfileManifest: () => '<dict><key>pfm_name</key><string>TestPolicy</string></dict>'
+			renderProfileManifest: () => '<dict><key>pfm_name</key><string>TestPolicy</string></dict>',
+			renderJsonValue: () => false
 		};
 
 		test('should render ADMX with correct XML structure', () => {
@@ -198,6 +200,7 @@ suite('Render Functions', () => {
 				type: PolicyType.String,
 				category: mockCategory,
 				minimumVersion: '1.85',
+				description: { value: 'Test Policy 2 Description', nlsKey: 'test.policy2.desc' },
 				renderADMX: (regKey: string) => [
 					`<policy name="TestPolicy2" class="Both" displayName="$(string.TestPolicy2)" key="Software\\Policies\\Microsoft\\${regKey}">`,
 					`	<enabledValue><string /></enabledValue>`,
@@ -206,7 +209,8 @@ suite('Render Functions', () => {
 				renderADMLStrings: () => ['<string id="TestPolicy2">Test Policy 2</string>'],
 				renderADMLPresentation: () => '<presentation id="TestPolicy2"/>',
 				renderProfile: () => ['<key>TestPolicy2</key>', '<string/>'],
-				renderProfileManifest: () => '<dict><key>pfm_name</key><string>TestPolicy2</string></dict>'
+				renderProfileManifest: () => '<dict><key>pfm_name</key><string>TestPolicy2</string></dict>',
+				renderJsonValue: () => ''
 			};
 			const result = renderADMX('VSCode', ['1.0'], [mockCategory], [mockPolicy, policy2]);
 
@@ -226,13 +230,15 @@ suite('Render Functions', () => {
 			type: PolicyType.String,
 			category: mockCategory,
 			minimumVersion: '1.85',
+			description: { value: 'Test Policy Description', nlsKey: 'test.policy.desc' },
 			renderADMX: () => [],
 			renderADMLStrings: (translations?: LanguageTranslations) => [
 				`<string id="TestPolicy">Test Policy ${translations ? translations['test.policy'] || 'Default' : 'Default'}</string>`
 			],
 			renderADMLPresentation: () => '<presentation id="TestPolicy"><textBox refId="TestPolicy"/></presentation>',
 			renderProfile: () => [],
-			renderProfileManifest: () => ''
+			renderProfileManifest: () => '',
+			renderJsonValue: () => ''
 		};
 
 		test('should render ADML with correct XML structure', () => {
@@ -309,6 +315,7 @@ suite('Render Functions', () => {
 			type: PolicyType.Boolean,
 			category: mockCategory,
 			minimumVersion: '1.0',
+			description: { value: 'Test Policy Description', nlsKey: 'test.policy.desc' },
 			renderADMX: () => [],
 			renderADMLStrings: () => [],
 			renderADMLPresentation: () => '',
@@ -318,7 +325,8 @@ suite('Render Functions', () => {
 <string>TestPolicy</string>
 <key>pfm_description</key>
 <string>${translations ? translations['test.desc'] || 'Default Desc' : 'Default Desc'}</string>
-</dict>`
+</dict>`,
+			renderJsonValue: () => false
 		};
 
 		test('should render profile manifest with correct XML structure', () => {
@@ -443,6 +451,7 @@ suite('Render Functions', () => {
 			type: PolicyType.Boolean,
 			category: mockCategory,
 			minimumVersion: '1.0',
+			description: { value: 'Test Policy Description', nlsKey: 'test.policy.desc' },
 			renderADMX: () => [],
 			renderADMLStrings: () => [],
 			renderADMLPresentation: () => '',
@@ -452,7 +461,8 @@ suite('Render Functions', () => {
 <string>TestPolicy</string>
 <key>pfm_description</key>
 <string>${translations ? translations['test.desc'] || 'Default Desc' : 'Default Desc'}</string>
-</dict>`
+</dict>`,
+			renderJsonValue: () => false
 		};
 
 		test('should render complete macOS policy profile', () => {
@@ -574,6 +584,7 @@ suite('Render Functions', () => {
 			type: PolicyType.Boolean,
 			category: mockCategory,
 			minimumVersion: '1.85',
+			description: { value: 'Test Policy Description', nlsKey: 'test.policy.desc' },
 			renderADMX: (regKey: string) => [
 				`<policy name="TestPolicy" class="Both" displayName="$(string.TestPolicy)" key="Software\\Policies\\Microsoft\\${regKey}">`,
 				`	<enabledValue><decimal value="1" /></enabledValue>`,
@@ -584,7 +595,8 @@ suite('Render Functions', () => {
 			],
 			renderADMLPresentation: () => '<presentation id="TestPolicy"/>',
 			renderProfile: () => [],
-			renderProfileManifest: () => ''
+			renderProfileManifest: () => '',
+			renderJsonValue: () => false
 		};
 
 		test('should render complete GP with ADMX and ADML', () => {
