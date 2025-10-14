@@ -114,6 +114,18 @@ export interface IChatSessionsService {
 	canResolveContentProvider(chatSessionType: string): Promise<boolean>;
 	provideChatSessionContent(chatSessionType: string, id: string, token: CancellationToken): Promise<ChatSession>;
 
+	// Get available models for a session type
+	getModelsForSessionType(chatSessionType: string): string[] | undefined;
+
+	// Set available models for a session type (called by MainThreadChatSessions)
+	setModelsForSessionType(chatSessionType: string, handle: number, models?: string[]): void;
+
+	// Set callback for notifying extensions about option changes
+	setOptionsChangeCallback(callback: (chatSessionType: string, sessionId: string, updates: ReadonlyArray<{ optionId: string; value: string | undefined }>) => Promise<void>): void;
+
+	// Notify extension about option changes
+	notifySessionOptionsChange(chatSessionType: string, sessionId: string, updates: ReadonlyArray<{ optionId: string; value: string | undefined }>): Promise<void>;
+
 	// Editable session support
 	setEditableSession(sessionId: string, data: IEditableData | null): Promise<void>;
 	getEditableData(sessionId: string): IEditableData | undefined;

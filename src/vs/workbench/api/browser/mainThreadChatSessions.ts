@@ -314,6 +314,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 	}>());
 	private readonly _contentProvidersRegistrations = this._register(new DisposableMap<number>());
 	private readonly _contentProviderModels = new Map<number, string[] | undefined>();
+	private readonly _sessionTypeToHandle = new Map<string, number>();
 
 	private readonly _activeSessions = new Map<string, ObservableChatSession>();
 	private readonly _sessionDisposables = new Map<string, IDisposable>();
@@ -332,6 +333,18 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		super();
 
 		this._proxy = this._extHostContext.getProxy(ExtHostContext.ExtHostChatSessions);
+
+		// Register callback for options changes
+		this._chatSessionsService.setOptionsChangeCallback(async (chatSessionType: string, sessionId: string, updates: ReadonlyArray<{ optionId: string; value: string | undefined }>) => {
+			const handle = this._getHandleForSessionType(chatSessionType);
+			if (handle !== undefined) {
+				await this.notifyOptionsChange(handle, sessionId, updates);
+			}
+		});
+	}
+
+	private _getHandleForSessionType(chatSessionType: string): number | undefined {
+		return this._sessionTypeToHandle.get(chatSessionType);
 	}
 
 	$registerChatSessionItemProvider(handle: number, chatSessionType: string): void {
@@ -477,12 +490,25 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		};
 
 		this._contentProviderModels.set(handle, models);
+		this._sessionTypeToHandle.set(chatSessionType, handle);
 		this._contentProvidersRegistrations.set(handle, this._chatSessionsService.registerChatSessionContentProvider(chatSessionType, provider));
+
+		// Store models in the service so they can be accessed by the chat widget
+		this._chatSessionsService.setModelsForSessionType(chatSessionType, handle, models);
 	}
 
 	$unregisterChatSessionContentProvider(handle: number): void {
 		this._contentProvidersRegistrations.deleteAndDispose(handle);
 		this._contentProviderModels.delete(handle);
+
+		// Remove session type mapping
+		for (const [sessionType, h] of this._sessionTypeToHandle) {
+			if (h === handle) {
+				this._sessionTypeToHandle.delete(sessionType);
+				break;
+			}
+		}
+
 		// dispose all sessions from this provider and clean up its disposables
 		for (const [key, session] of this._activeSessions) {
 			if (session.providerHandle === handle) {

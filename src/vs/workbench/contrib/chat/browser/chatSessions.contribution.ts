@@ -143,6 +143,8 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	private readonly _onDidChangeInProgress = this._register(new Emitter<void>());
 	public get onDidChangeInProgress() { return this._onDidChangeInProgress.event; }
 	private readonly inProgressMap: Map<string, number> = new Map();
+	private readonly _sessionTypeModels: Map<string, string[]> = new Map();
+	private readonly _sessionTypeHandles: Map<string, number> = new Map();
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
@@ -588,6 +590,45 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	public notifySessionItemsChanged(chatSessionType: string): void {
 		this._onDidChangeSessionItems.fire(chatSessionType);
+	}
+
+	/**
+	 * Store models for a session type (called by MainThreadChatSessions)
+	 */
+	public setModelsForSessionType(chatSessionType: string, handle: number, models?: string[]): void {
+		if (models) {
+			this._sessionTypeModels.set(chatSessionType, models);
+		} else {
+			this._sessionTypeModels.delete(chatSessionType);
+		}
+		this._sessionTypeHandles.set(chatSessionType, handle);
+	}
+
+	/**
+	 * Get available models for a session type
+	 */
+	public getModelsForSessionType(chatSessionType: string): string[] | undefined {
+		return this._sessionTypeModels.get(chatSessionType);
+	}
+
+	private _optionsChangeCallback?: (chatSessionType: string, sessionId: string, updates: ReadonlyArray<{ optionId: string; value: string | undefined }>) => Promise<void>;
+
+	/**
+	 * Set the callback for notifying extensions about option changes
+	 */
+	public setOptionsChangeCallback(callback: (chatSessionType: string, sessionId: string, updates: ReadonlyArray<{ optionId: string; value: string | undefined }>) => Promise<void>): void {
+		this._optionsChangeCallback = callback;
+	}
+
+	/**
+	 * Notify extension about option changes for a session
+	 */
+	public async notifySessionOptionsChange(chatSessionType: string, sessionId: string, updates: ReadonlyArray<{ optionId: string; value: string | undefined }>): Promise<void> {
+		if (this._optionsChangeCallback) {
+			await this._optionsChangeCallback(chatSessionType, sessionId, updates);
+		} else {
+			this._logService.warn(`No options change callback registered for session type: ${chatSessionType}`);
+		}
 	}
 }
 
