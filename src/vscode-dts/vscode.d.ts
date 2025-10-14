@@ -20905,6 +20905,8 @@ declare module 'vscode' {
 
 		/**
 		 * Create a new {@linkcode LanguageModelDataPart} for text.
+		 * 
+		 * *Note* that an UTF-8 encoder is used to create bytes for the string.
 		 * @param value Text data
 		 * @param mimeType The MIME type if any. Common values are `text/plain` and `text/markdown`.
 		 */
