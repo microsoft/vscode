@@ -30,6 +30,7 @@ import { Range } from '../../../../common/core/range.js';
 import { CursorChangeReason } from '../../../../common/cursorEvents.js';
 import { ILanguageFeatureDebounceService } from '../../../../common/services/languageFeatureDebounce.js';
 import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures.js';
+import { InsertLineAfterAction, InsertLineBeforeAction } from '../../../linesOperations/browser/linesOperations.js';
 import { InlineSuggestionHintsContentWidget } from '../hintsWidget/inlineCompletionsHintsWidget.js';
 import { TextModelChangeRecorder } from '../model/changeRecorder.js';
 import { InlineCompletionsModel } from '../model/inlineCompletionsModel.js';
@@ -221,6 +222,8 @@ export class InlineCompletionsController extends Disposable {
 			CoreEditingCommands.DeleteRight.id,
 			inlineSuggestCommitId,
 			'acceptSelectedSuggestion',
+			InsertLineAfterAction.ID,
+			InsertLineBeforeAction.ID,
 		]);
 		this._register(this._commandService.onDidExecuteCommand((e) => {
 			if (triggerCommands.has(e.commandId) && editor.hasTextFocus() && this._enabled.get()) {
