@@ -9,6 +9,7 @@ import { ChatTodoListWidget } from '../../browser/chatContentParts/chatTodoListW
 import { IChatTodo, IChatTodoListService } from '../../common/chatTodoListService.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 
 suite('ChatTodoListWidget Accessibility', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -16,6 +17,7 @@ suite('ChatTodoListWidget Accessibility', () => {
 	let widget: ChatTodoListWidget;
 	let mockTodoListService: IChatTodoListService;
 	let mockConfigurationService: IConfigurationService;
+	let mockContextMenuService: IContextMenuService;
 
 	const sampleTodos: IChatTodo[] = [
 		{ id: 1, title: 'First task', status: 'not-started' },
@@ -38,7 +40,14 @@ suite('ChatTodoListWidget Accessibility', () => {
 			getValue: (key: string) => key === 'chat.todoListTool.descriptionField' ? true : undefined
 		} as any;
 
-		widget = store.add(new ChatTodoListWidget(mockTodoListService, mockConfigurationService));
+		// Mock the context menu service
+		// eslint-disable-next-line local/code-no-any-casts
+		mockContextMenuService = {
+			_serviceBrand: undefined,
+			showContextMenu: (delegate: any) => { }
+		} as any;
+
+		widget = store.add(new ChatTodoListWidget(mockTodoListService, mockConfigurationService, mockContextMenuService));
 		mainWindow.document.body.appendChild(widget.domNode);
 	});
 
@@ -147,7 +156,13 @@ suite('ChatTodoListWidget Accessibility', () => {
 			getValue: (key: string) => key === 'chat.todoListTool.descriptionField' ? true : undefined
 		} as any;
 
-		const emptyWidget = store.add(new ChatTodoListWidget(emptyTodoListService, emptyConfigurationService));
+		// eslint-disable-next-line local/code-no-any-casts
+		const emptyContextMenuService: IContextMenuService = {
+			_serviceBrand: undefined,
+			showContextMenu: (delegate: any) => { }
+		} as any;
+
+		const emptyWidget = store.add(new ChatTodoListWidget(emptyTodoListService, emptyConfigurationService, emptyContextMenuService));
 		mainWindow.document.body.appendChild(emptyWidget.domNode);
 
 		emptyWidget.render('test-session');
@@ -178,5 +193,29 @@ suite('ChatTodoListWidget Accessibility', () => {
 		// Verify aria-labelledby connection works
 		const todoListContainer = widget.domNode.querySelector('.todo-list-container');
 		assert.strictEqual(todoListContainer?.getAttribute('aria-labelledby'), 'todo-list-title');
+	});
+
+	test('todo items have aria-haspopup attribute for context menu', () => {
+		widget.render('test-session');
+
+		const todoItems = widget.domNode.querySelectorAll('.todo-item');
+		assert.strictEqual(todoItems.length, 3, 'Should have 3 todo items');
+
+		todoItems.forEach(item => {
+			assert.strictEqual(item.getAttribute('aria-haspopup'), 'menu', 'Todo items should indicate they have context menu');
+		});
+	});
+
+	test('todo items aria-label mentions context menu availability', () => {
+		widget.render('test-session');
+
+		const todoItems = widget.domNode.querySelectorAll('.todo-item');
+		assert.strictEqual(todoItems.length, 3, 'Should have 3 todo items');
+
+		todoItems.forEach(item => {
+			const ariaLabel = item.getAttribute('aria-label');
+			assert.ok(ariaLabel?.includes('right-click or press Shift+F10 for more options'), 
+				`Todo item aria-label should mention context menu: "${ariaLabel}"`);
+		});
 	});
 });

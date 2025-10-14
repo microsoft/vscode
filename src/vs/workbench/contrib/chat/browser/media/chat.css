@@ -2696,11 +2696,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	scroll-snap-align: start;
 	min-height: 22px;
 	font-size: var(--vscode-chat-font-size-body-m);
+	position: relative;
+	padding: 2px 4px;
+	border-radius: 3px;
 }
 
 .chat-todo-list-widget .todo-item:focus {
 	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: 1px;
+	outline-offset: -1px;
 	background-color: var(--vscode-list-focusBackground);
 }
 
@@ -2720,6 +2723,22 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	white-space: nowrap;
 	text-overflow: ellipsis;
 	min-width: 0;
+	display: flex;
+	align-items: center;
+}
+
+.chat-todo-list-widget .todo-edit-container {
+	flex: 1;
+	margin: 0 4px;
+}
+
+.chat-todo-list-widget .todo-edit-container .monaco-inputbox {
+	width: 100%;
+}
+
+.chat-todo-list-widget .todo-edit-container .monaco-inputbox .ibwrapper .input {
+	padding: 2px 4px;
+	font-size: var(--vscode-chat-font-size-body-m);
 }
 
 .interactive-session .interactive-response .chat-used-context-list.chat-thinking-items {
