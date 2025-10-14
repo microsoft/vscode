@@ -30,6 +30,14 @@
 			.chat-attachments-container {
 				display: none;
 			}
+			
+			position: absolute !important;
+			bottom: 16px !important;
+			left: 50% !important;
+			transform: translateX(-50%) !important;
+			width: calc(100% - 32px) !important;
+			max-width: 650px !important;
+			z-index: 10 !important;
 		}
 
 		.chat-input-toolbars > .chat-input-toolbar > div {
@@ -46,10 +54,13 @@
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		justify-content: center;
+		justify-content: space-between;
 		overflow: hidden;
 		flex: 1;
 		position: relative;
+		height: 100%;
+		z-index: 1;
+		padding: 0;
 		/* Allow absolute positioning of prompts */
 
 		&.has-chat-history {
@@ -64,12 +75,24 @@
 				margin-bottom: auto;
 			}
 		}
-	}
-
-	.new-welcome-view & > .chat-welcome-view-input-part {
-		max-width: 650px;
-		margin-bottom: 8px;
-		/* Reduced margin to make room for prompts below */
+		
+		/* Center the welcome view content */
+		& > .chat-welcome-view {
+			flex: 0 0 auto;
+			align-self: center;
+			margin: auto 0;
+		}
+		
+		/* Input part positioned at bottom of container */
+		& > .chat-welcome-view-input-part {
+			width: calc(100% - 32px);
+			max-width: 650px;
+			margin: 0 auto;
+			margin-bottom: 16px;
+			position: relative;
+			z-index: 1;
+			flex: 0 0 auto;
+		}
 	}
 }
 
@@ -86,20 +109,23 @@ div.chat-welcome-view {
 	display: flex;
 	flex-direction: column;
 	align-items: center;
+	justify-content: center;
 	padding: 12px;
+	position: relative;
+	z-index: 1;
 
 	& > .chat-welcome-view-icon {
-		min-height: 48px;
+		min-height: 80px;
 	}
 
 	& > .chat-welcome-view-icon .codicon {
-		font-size: 40px;
+		font-size: 56px;
 	}
 
 	& > .chat-welcome-view-title {
-		font-size: 24px;
-		margin-top: 5px;
-		font-weight: 500;
+		font-size: 28px;
+		margin-top: 16px;
+		font-weight: 400;
 		text-align: center;
 		line-height: normal;
 		padding: 0 8px;
@@ -171,9 +197,12 @@ div.chat-welcome-view {
 
 	& > .chat-welcome-new-view-message {
 		text-align: center;
-		max-width: 350px;
-		padding: 0 20px 32px;
-		font-size: 16px;
+		max-width: 450px;
+		padding: 0 20px;
+		padding-bottom: 8px;
+		font-size: 15px;
+		line-height: 1.6;
+		color: var(--vscode-descriptionForeground);
 
 		a {
 			color: var(--vscode-input-placeholderForeground);
@@ -181,43 +210,21 @@ div.chat-welcome-view {
 	}
 
 	& > .chat-welcome-view-additional-message {
-		color: var(--vscode-input-placeholderForeground);
-		text-align: center;
-		max-width: 400px;
-		margin-top: 8px;
-		padding: 0 12px;
-		font-size: 12px;
-
-		a {
-			color: var(--vscode-textLink-foreground);
-		}
+		display: none;
+		/* Hidden - not showing disclaimer text */
 	}
 
 	& > .chat-welcome-view-disclaimer {
-		color: var(--vscode-input-placeholderForeground);
-		text-align: center;
-		margin: -16px auto;
-		max-width: 400px;
-		padding: 0 12px;
-
-		a {
-			color: var(--vscode-textLink-foreground);
-		}
+		display: none;
+		/* Hidden - not showing disclaimer text */
 	}
 }
 
 /* Suggested prompts section - positioned at bottom of welcome container */
 .chat-welcome-view-suggested-prompts {
-	position: absolute;
-	bottom: 0;
-	left: 0;
-	right: 0;
-	display: flex;
-	flex-wrap: wrap;
-	justify-content: flex-start;
-	row-gap: 8px;
-	padding: 32px 12px 12px 12px;
-	/* Extra top padding for title */
+	display: none !important;
+	/* Hidden as we're not using suggested prompts */
+}
 
 	.chat-welcome-view-suggested-prompts-title {
 		position: absolute;

@@ -3,112 +3,129 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, append, clearNode, h } from '../../../../base/browser/dom.js';
-import { KeybindingLabel } from '../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
-import { coalesce, shuffle } from '../../../../base/common/arrays.js';
+import { $, append, clearNode } from '../../../../base/browser/dom.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { isMacintosh, isWeb, OS } from '../../../../base/common/platform.js';
-import { localize } from '../../../../nls.js';
-import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
-import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from '../../../../platform/storage/common/storage.js';
-import { defaultKeybindingLabelStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { editorForeground, registerColor, transparent } from '../../../../platform/theme/common/colorRegistry.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
-
-interface WatermarkEntry {
-	readonly id: string;
-	readonly text: string;
-	readonly when?: {
-		native?: ContextKeyExpression;
-		web?: ContextKeyExpression;
-	};
-}
-
-const showCommands: WatermarkEntry = { text: localize('watermark.showCommands', "Show All Commands"), id: 'workbench.action.showCommands' };
-const gotoFile: WatermarkEntry = { text: localize('watermark.quickAccess', "Go to File"), id: 'workbench.action.quickOpen' };
-const openFile: WatermarkEntry = { text: localize('watermark.openFile', "Open File"), id: 'workbench.action.files.openFile' };
-const openFolder: WatermarkEntry = { text: localize('watermark.openFolder', "Open Folder"), id: 'workbench.action.files.openFolder' };
-const openFileOrFolder: WatermarkEntry = { text: localize('watermark.openFileFolder', "Open File or Folder"), id: 'workbench.action.files.openFileFolder' };
-const openRecent: WatermarkEntry = { text: localize('watermark.openRecent', "Open Recent"), id: 'workbench.action.openRecent' };
-const newUntitledFile: WatermarkEntry = { text: localize('watermark.newUntitledFile', "New Untitled Text File"), id: 'workbench.action.files.newUntitledFile' };
-const findInFiles: WatermarkEntry = { text: localize('watermark.findInFiles', "Find in Files"), id: 'workbench.action.findInFiles' };
-const toggleTerminal: WatermarkEntry = { text: localize({ key: 'watermark.toggleTerminal', comment: ['toggle is a verb here'] }, "Toggle Terminal"), id: 'workbench.action.terminal.toggleTerminal', when: { web: ContextKeyExpr.equals('terminalProcessSupported', true) } };
-const startDebugging: WatermarkEntry = { text: localize('watermark.startDebugging', "Start Debugging"), id: 'workbench.action.debug.start', when: { web: ContextKeyExpr.equals('terminalProcessSupported', true) } };
-const openSettings: WatermarkEntry = { text: localize('watermark.openSettings', "Open Settings"), id: 'workbench.action.openSettings' };
-
-const showChat = ContextKeyExpr.and(ContextKeyExpr.equals('chatSetupHidden', false), ContextKeyExpr.equals('chatSetupDisabled', false));
-const openChat: WatermarkEntry = { text: localize('watermark.openChat', "Open Chat"), id: 'workbench.action.chat.open', when: { native: showChat, web: showChat } };
-
-const emptyWindowEntries: WatermarkEntry[] = coalesce([
-	showCommands,
-	...(isMacintosh && !isWeb ? [openFileOrFolder] : [openFile, openFolder]),
-	openRecent,
-	isMacintosh && !isWeb ? newUntitledFile : undefined, // fill in one more on macOS to get to 5 entries
-	openChat
-]);
-
-const randomEmptyWindowEntries: WatermarkEntry[] = [
-	/* Nothing yet */
-];
-
-const workspaceEntries: WatermarkEntry[] = [
-	showCommands,
-	gotoFile,
-	openChat
-];
-
-const randomWorkspaceEntries: WatermarkEntry[] = [
-	findInFiles,
-	startDebugging,
-	toggleTerminal,
-	openSettings,
-];
+import { localize } from '../../../../nls.js';
 
 export class EditorGroupWatermark extends Disposable {
 
-	private static readonly CACHED_WHEN = 'editorGroupWatermark.whenConditions';
-
-	private readonly cachedWhen: { [when: string]: boolean };
-
 	private readonly shortcuts: HTMLElement;
 	private readonly transientDisposables = this._register(new DisposableStore());
-	private readonly keybindingLabels = this._register(new DisposableStore());
+	private readonly rootElement: HTMLElement;
+	private resizeObserver: ResizeObserver | undefined;
 
 	private enabled = false;
 	private workbenchState: WorkbenchState;
 
 	constructor(
 		container: HTMLElement,
-		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IKeybindingService keybindingService: IKeybindingService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IStorageService private readonly storageService: IStorageService
+		@IStorageService storageService: IStorageService,
+		@ICommandService private readonly commandService: ICommandService
 	) {
 		super();
 
-		this.cachedWhen = this.storageService.getObject(EditorGroupWatermark.CACHED_WHEN, StorageScope.PROFILE, Object.create(null));
 		this.workbenchState = this.contextService.getWorkbenchState();
 
-		const elements = h('.editor-group-watermark', [
-			h('.letterpress'),
-			h('.shortcuts@shortcuts'),
-		]);
-
-		append(container, elements.root);
-		this.shortcuts = elements.shortcuts;
+		// Create Specter-style watermark structure
+		const root = append(container, $('.editor-group-watermark.specter-watermark'));
+		this.rootElement = root;
+		
+		// Set up resize observer for responsive layout
+		if (typeof ResizeObserver !== 'undefined') {
+			this.resizeObserver = new ResizeObserver(() => {
+				this.updateResponsiveLayout();
+			});
+			this.resizeObserver.observe(container);
+			this._register({
+				dispose: () => {
+					if (this.resizeObserver) {
+						this.resizeObserver.disconnect();
+					}
+				}
+			});
+		}
+		
+		// Title
+		append(root, $('.specter-title', undefined, 'Specter'));
+		
+		// Getting Started Section
+		const gettingStarted = append(root, $('.specter-section.getting-started'));
+		append(gettingStarted, $('.section-title', undefined, localize('specter.gettingStarted', 'Getting started with Specter')));
+		
+		const tasks = append(gettingStarted, $('.tasks'));
+		
+		// Task 1 - Code with Bsurf
+		const task1 = append(tasks, $('.task'));
+		const task1Left = append(task1, $('.task-left'));
+		const task1Radio = append(task1Left, $('input', { type: 'radio', name: 'specter-tasks' }));
+		const task1Label = append(task1Left, $('label', undefined, localize('specter.codeWithBsurf', 'Code with Bsurf')));
+		append(task1, $('.keybinding', undefined, 'Cmd+L'));
+		
+		// Add click handler to open chat panel
+		task1Radio.onclick = () => this.commandService.executeCommand('workbench.action.chat.open');
+		task1Label.onclick = () => this.commandService.executeCommand('workbench.action.chat.open');
+		
+		// Task 2
+		const task2 = append(tasks, $('.task'));
+		const task2Left = append(task2, $('.task-left'));
+		append(task2Left, $('input', { type: 'radio', name: 'specter-tasks' }));
+		append(task2Left, $('label', undefined, localize('specter.openPalette', 'Open Command Palette')));
+		append(task2, $('.keybinding', undefined, 'Shift+Cmd+P'));
+		
+		const footer = append(gettingStarted, $('.section-footer'));
+		append(footer, $('span', undefined, '0% done'));
+		const changeKeys = append(footer, $('a', { href: '#' }, localize('specter.changeKeys', 'Change keybindings')));
+		changeKeys.onclick = () => this.commandService.executeCommand('workbench.action.openGlobalKeybindings');
+		
+		// Two-column layout for Start and Recent
+		const columnsContainer = append(root, $('.specter-columns'));
+		
+		// Start Section (Left column)
+		const startSection = append(columnsContainer, $('.specter-section.start-section'));
+		append(startSection, $('.section-title', undefined, localize('specter.start', 'Start')));
+		
+		const buttons = append(startSection, $('.buttons'));
+		
+		// Open Folder Button
+		const openFolderBtn = append(buttons, $('button.specter-button.prominent', undefined, localize('specter.openFolder', 'Open Folder')));
+		openFolderBtn.onclick = () => this.commandService.executeCommand('workbench.action.files.openFolder');
+		
+		// Generate Project Button
+		append(buttons, $('button.specter-button', undefined, localize('specter.newProject', '+ Generate a New Project')));
+		
+		// Clone Repository Button
+		const cloneBtn = append(buttons, $('button.specter-button', undefined, localize('specter.clone', 'Clone Repository')));
+		cloneBtn.onclick = () => this.commandService.executeCommand('git.clone');
+		
+		// SSH Button
+		const sshBtn = append(buttons, $('button.specter-button', undefined, localize('specter.ssh', 'Connect via SSH')));
+		sshBtn.onclick = () => this.commandService.executeCommand('opensshremotes.openEmptyWindow');
+		
+		// Recent Projects Section (Right column)
+		const recentSection = append(columnsContainer, $('.specter-section.recent-section'));
+		append(recentSection, $('.section-title', undefined, localize('specter.recent', 'Recent Projects')));
+		
+		const recentList = append(recentSection, $('.recent-list'));
+		this.shortcuts = recentList;
 
 		this.registerListeners();
-
 		this.render();
 	}
 
 	private registerListeners(): void {
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('workbench.tips.enabled') && this.enabled !== this.configurationService.getValue<boolean>('workbench.tips.enabled')) {
+			if (e.affectsConfiguration('workbench.tips.enabled')) {
 				this.render();
 			}
 		}));
@@ -119,25 +136,10 @@ export class EditorGroupWatermark extends Disposable {
 				this.render();
 			}
 		}));
-
-		this._register(this.storageService.onWillSaveState(e => {
-			if (e.reason === WillSaveStateReason.SHUTDOWN) {
-				const entries = [...emptyWindowEntries, ...randomEmptyWindowEntries, ...workspaceEntries, ...randomWorkspaceEntries];
-				for (const entry of entries) {
-					const when = isWeb ? entry.when?.web : entry.when?.native;
-					if (when) {
-						this.cachedWhen[entry.id] = this.contextKeyService.contextMatchesRules(when);
-					}
-				}
-
-				this.storageService.store(EditorGroupWatermark.CACHED_WHEN, JSON.stringify(this.cachedWhen), StorageScope.PROFILE, StorageTarget.MACHINE);
-			}
-		}));
 	}
 
 	private render(): void {
 		this.enabled = this.configurationService.getValue<boolean>('workbench.tips.enabled');
-
 		clearNode(this.shortcuts);
 		this.transientDisposables.clear();
 
@@ -145,48 +147,23 @@ export class EditorGroupWatermark extends Disposable {
 			return;
 		}
 
-		const fixedEntries = this.filterEntries(this.workbenchState !== WorkbenchState.EMPTY ? workspaceEntries : emptyWindowEntries, false /* not shuffled */);
-		const randomEntries = this.filterEntries(this.workbenchState !== WorkbenchState.EMPTY ? randomWorkspaceEntries : randomEmptyWindowEntries, true /* shuffled */).slice(0, Math.max(0, 5 - fixedEntries.length));
-		const entries = [...fixedEntries, ...randomEntries];
-
-		const box = append(this.shortcuts, $('.watermark-box'));
-
-		const update = () => {
-			clearNode(box);
-			this.keybindingLabels.clear();
-
-			for (const entry of entries) {
-				const keys = this.keybindingService.lookupKeybinding(entry.id);
-				if (!keys) {
-					continue;
-				}
-
-				const dl = append(box, $('dl'));
-				const dt = append(dl, $('dt'));
-				dt.textContent = entry.text;
-
-				const dd = append(dl, $('dd'));
-
-				const label = this.keybindingLabels.add(new KeybindingLabel(dd, OS, { renderUnboundKeybindings: true, ...defaultKeybindingLabelStyles }));
-				label.set(keys);
-			}
-		};
-
-		update();
-		this.transientDisposables.add(this.keybindingService.onDidUpdateKeybindings(update));
+		// Show "No recent projects" message
+		append(this.shortcuts, $('.no-recent', undefined, localize('specter.noRecent', 'No recent projects')));
 	}
 
-	private filterEntries(entries: WatermarkEntry[], shuffleEntries: boolean): WatermarkEntry[] {
-		const filteredEntries = entries
-			.filter(entry => (isWeb && !entry.when?.web) || (!isWeb && !entry.when?.native) || this.cachedWhen[entry.id])
-			.filter(entry => !!CommandsRegistry.getCommand(entry.id))
-			.filter(entry => !!this.keybindingService.lookupKeybinding(entry.id));
-
-		if (shuffleEntries) {
-			shuffle(filteredEntries);
+	private updateResponsiveLayout(): void {
+		// Update layout based on container width
+		// The CSS handles most of this, but we can add dynamic adjustments here if needed
+		if (this.rootElement) {
+			const width = this.rootElement.clientWidth;
+			
+			// Add a class for narrow layouts
+			if (width < 500) {
+				this.rootElement.classList.add('narrow-layout');
+			} else {
+				this.rootElement.classList.remove('narrow-layout');
+			}
 		}
-
-		return filteredEntries;
 	}
 }
 

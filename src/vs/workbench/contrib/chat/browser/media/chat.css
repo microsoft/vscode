@@ -25,6 +25,25 @@
 	/* For chat dnd */
 }
 
+.interactive-session::before {
+	content: '';
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background-image: 
+		linear-gradient(30deg, transparent 45%, var(--vscode-editor-foreground) 45%, var(--vscode-editor-foreground) 47%, transparent 47%),
+		linear-gradient(-30deg, transparent 45%, var(--vscode-editor-foreground) 45%, var(--vscode-editor-foreground) 47%, transparent 47%),
+		linear-gradient(30deg, transparent 53%, var(--vscode-editor-foreground) 53%, var(--vscode-editor-foreground) 55%, transparent 55%),
+		linear-gradient(-30deg, transparent 53%, var(--vscode-editor-foreground) 53%, var(--vscode-editor-foreground) 55%, transparent 55%);
+	background-size: 60px 60px;
+	background-position: 0 0, 0 0, 30px 30px, 30px 30px;
+	opacity: 0.015;
+	pointer-events: none;
+	z-index: 0;
+}
+
 .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row > .monaco-tl-row > .monaco-tl-twistie {
 	/* Hide twisties from chat tree rows, but not from nested trees within a chat response */
 	display: none !important;
@@ -35,6 +54,8 @@
 	display: flex;
 	flex-direction: column;
 	color: var(--vscode-interactive-session-foreground);
+	position: relative;
+	z-index: 1;
 
 	cursor: default;
 	user-select: text;
@@ -748,9 +769,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-input-container {
 	box-sizing: border-box;
 	cursor: text;
-	background-color: var(--vscode-input-background);
+	background-color: var(--vscode-editor-background);
 	border: 1px solid var(--vscode-input-border, transparent);
-	border-radius: 4px;
+	border-radius: 8px;
 	padding: 0 6px 6px 6px;
 	/* top padding is inside the editor widget */
 	max-width: 100%;
@@ -1089,6 +1110,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	gap: 4px;
 	align-items: center;
 	position: relative;
+	z-index: 1;
 }
 
 .interactive-session .chat-input-container.focused {
@@ -1106,7 +1128,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .interactive-input-part .chat-editor-container .interactive-input-editor .monaco-editor,
 .interactive-session .interactive-input-part .chat-editor-container .interactive-input-editor .monaco-editor .monaco-editor-background {
-	background-color: var(--vscode-input-background);
+	background-color: var(--vscode-editor-background);
 }
 
 .interactive-session .interactive-input-part.editing .chat-input-container .chat-editor-container .monaco-editor,
