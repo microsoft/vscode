@@ -20,6 +20,7 @@ import { getOutput } from './outputHelpers.js';
 import { OutputMonitor } from './tools/monitoring/outputMonitor.js';
 import { IExecution, IPollingResult, OutputMonitorState } from './tools/monitoring/types.js';
 import { Event } from '../../../../../base/common/event.js';
+import { IReconnectionTaskData } from '../../../tasks/browser/terminalTaskSystem.js';
 
 
 export function getTaskDefinition(id: string) {
@@ -172,26 +173,46 @@ export async function collectTerminalResults(
 	if (token.isCancellationRequested) {
 		return results;
 	}
+
+	const commonTaskIdToTaskMap: { [key: string]: Task } = {};
+	const taskIdToTaskMap: { [key: string]: Task } = {};
+	const taskLabelToTaskMap: { [key: string]: Task } = {};
+
+	for (const dependencyTask of dependencyTasks ?? []) {
+		commonTaskIdToTaskMap[dependencyTask.getCommonTaskId()] = dependencyTask;
+		taskIdToTaskMap[dependencyTask._id] = dependencyTask;
+		taskLabelToTaskMap[dependencyTask._label] = dependencyTask;
+	}
+
 	for (const instance of terminals) {
 		progress.report({ message: new MarkdownString(`Checking output for \`${instance.shellLaunchConfig.name ?? 'unknown'}\``) });
 
+		let terminalTask = task;
+
 		// For composite tasks, find the actual dependency task running in this terminal
-		let actualTask = task;
 		if (dependencyTasks?.length) {
-			// Try to match terminal name with dependency task label
-			const matchingDependencyTask = dependencyTasks.find(depTask =>
-				instance.shellLaunchConfig.name === depTask._label ||
-				instance.title === depTask._label
-			);
-			if (matchingDependencyTask) {
-				actualTask = matchingDependencyTask;
+			// Use reconnection data if possible to match, since the properties here are unique
+			const reconnectionData = instance.reconnectionProperties?.data as IReconnectionTaskData | undefined;
+			if (reconnectionData) {
+				if (reconnectionData.lastTask in commonTaskIdToTaskMap) {
+					terminalTask = commonTaskIdToTaskMap[reconnectionData.lastTask];
+				} else if (reconnectionData.id in taskIdToTaskMap) {
+					terminalTask = taskIdToTaskMap[reconnectionData.id];
+				}
+			} else {
+				// Otherwise, fallback to label matching
+				if (instance.shellLaunchConfig.name && instance.shellLaunchConfig.name in taskLabelToTaskMap) {
+					terminalTask = taskLabelToTaskMap[instance.shellLaunchConfig.name];
+				} else if (instance.title in taskLabelToTaskMap) {
+					terminalTask = taskLabelToTaskMap[instance.title];
+				}
 			}
 		}
 
 		const execution = {
 			getOutput: () => getOutput(instance) ?? '',
 			isActive,
-			task: actualTask,
+			task: terminalTask,
 			instance,
 			dependencyTasks,
 			sessionId: invocationContext.sessionId
