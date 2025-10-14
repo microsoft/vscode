@@ -8270,7 +8270,6 @@ declare module 'vscode' {
 	 *
 	 * The kind is used to render an appropriate icon in the suggest list and to convey the semantic
 	 * meaning of the suggestion (file, folder, flag, commit, branch, etc.).
-	 *
 	 */
 	export enum TerminalCompletionItemKind {
 		/**
