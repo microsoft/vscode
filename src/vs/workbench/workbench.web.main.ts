@@ -73,7 +73,7 @@
 	}
 	globalThis._VSCODE_FILE_ROOT = baseUrl;
 
-	const trustedTypesPolicy: Pick<TrustedTypePolicy<{ createScriptURL(value: string): string }>, 'name' | 'createScriptURL'> | undefined = require.getConfig().trustedTypesPolicy;
+	const trustedTypesPolicy: Pick<TrustedTypePolicy, 'name' | 'createScriptURL'> | undefined = require.getConfig().trustedTypesPolicy;
 	if (trustedTypesPolicy) {
 		globalThis._VSCODE_WEB_PACKAGE_TTP = trustedTypesPolicy;
 	}
