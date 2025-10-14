@@ -94,15 +94,15 @@ declare module 'vscode' {
 		Alias = 3,
 		Argument = 4,
 		/**
-		 * An option, for example in `code --locale`, `--locale` is the option
+		 * An option, for example in `code --locale en`, `--locale` is the option. An option expects a value to follow.
 		 */
 		Option = 5,
 		/**
-		 * The value of an option, for example in `code --locale en-US`, `en-US` is the option value
+		 * The value of an option, for example in `code --locale en-US`, `en-US` is the option value.
 		 */
 		OptionValue = 6,
 		/**
-		 * A flag, for example in `git commit --amend"`, `--amend` is the flag
+		 * A flag, for example in `git commit --amend"`, `--amend` is the flag.
 		 */
 		Flag = 7,
 		SymbolicLinkFile = 8,
