@@ -293,6 +293,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private chatModeKindKey: IContextKey<ChatModeKind>;
 	private withinEditSessionKey: IContextKey<boolean>;
 	private filePartOfEditSessionKey: IContextKey<boolean>;
+	private inContributedSessionWithModelsKey: IContextKey<boolean>;
 
 	private modelWidget: ModelPickerActionItem | undefined;
 	private modeWidget: ModePickerActionItem | undefined;
@@ -480,6 +481,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.chatModeKindKey = ChatContextKeys.chatModeKind.bindTo(contextKeyService);
 		this.withinEditSessionKey = ChatContextKeys.withinEditSessionDiff.bindTo(contextKeyService);
 		this.filePartOfEditSessionKey = ChatContextKeys.filePartOfEditSession.bindTo(contextKeyService);
+		this.inContributedSessionWithModelsKey = ChatContextKeys.inContributedSessionWithModels.bindTo(contextKeyService);
 
 		const chatToolCount = ChatContextKeys.chatToolCount.bindTo(contextKeyService);
 
@@ -764,6 +766,20 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return undefined;
 	}
 
+	/**
+	 * Update the context key that tracks whether we're in a contributed session with models
+	 */
+	private updateContributedSessionContext(): void {
+		const sessionInfo = this.getContributedSessionInfo();
+		if (sessionInfo) {
+			const contributedModels = this.chatSessionsService.getModelsForSessionType(sessionInfo.chatSessionType);
+			// Set to true if we have models registered (even if empty array means explicitly no models)
+			this.inContributedSessionWithModelsKey.set(contributedModels !== undefined && contributedModels.length > 0);
+		} else {
+			this.inContributedSessionWithModelsKey.set(false);
+		}
+	}
+
 	private setCurrentLanguageModelToDefault() {
 		const defaultLanguageModelId = this.languageModelsService.getLanguageModelIds().find(id => this.languageModelsService.lookupLanguageModel(id)?.isDefault);
 		const hasUserSelectableLanguageModels = this.languageModelsService.getLanguageModelIds().find(id => {
@@ -834,6 +850,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._attachmentModel.clearAndSetContext(...attachments);
 
 		this.selectedToolsModel.resetSessionEnablementState();
+
+		// Update contributed session context when model changes
+		this.updateContributedSessionContext();
 
 		if (state.inputValue) {
 			this.setValue(state.inputValue, false);
@@ -1138,6 +1157,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	render(container: HTMLElement, initialValue: string, widget: IChatWidget) {
 		this._widget = widget;
+		
+		// Update contributed session context when widget is set
+		this.updateContributedSessionContext();
+		
 		let elements;
 		if (this.options.renderStyle === 'compact') {
 			elements = dom.h('.interactive-input-part', [
