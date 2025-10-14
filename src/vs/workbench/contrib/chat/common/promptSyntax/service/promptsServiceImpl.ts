@@ -53,6 +53,16 @@ export class PromptsService extends Disposable implements IPromptsService {
 	private parsedPromptFileCache = new ResourceMap<[number, ParsedPromptFile]>();
 
 	/**
+	 * Cache for parsed prompt files keyed by command name.
+	 */
+	private promptFileByCommandCache = new Map<string, ParsedPromptFile | undefined>();
+
+	/**
+	 * Set to track pending prompt file resolutions to avoid duplicates.
+	 */
+	private pendingPromptFileResolutions = new Set<string>();
+
+	/**
 	 * Contributed files from extensions keyed by prompt type then name.
 	 */
 	private readonly contributedFiles = {
@@ -83,6 +93,16 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 		this._register(this.modelService.onModelRemoved((model) => {
 			this.parsedPromptFileCache.delete(model.uri);
+			// Clear prompt file cache when prompt files are removed
+			if (this.getPromptFileType(model.uri) === PromptsType.prompt) {
+				this.promptFileByCommandCache.clear();
+			}
+		}));
+
+		// Track prompt file updates (adds / removes / content changes) to invalidate command-based cache
+		const promptFileTracker = this._register(new PromptFileUpdateTracker(this.fileLocator, this.modelService));
+		this._register(promptFileTracker.onDidChangeContent(() => {
+			this.promptFileByCommandCache.clear();
 		}));
 	}
 
@@ -179,18 +199,42 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	public async resolvePromptSlashCommand(data: IChatPromptSlashCommand, token: CancellationToken): Promise<ParsedPromptFile | undefined> {
+		const command = data.command;
+
+		// Check cache first
+		if (this.promptFileByCommandCache.has(command)) {
+			return this.promptFileByCommandCache.get(command);
+		}
+
+		// Avoid duplicate resolutions
+		if (this.pendingPromptFileResolutions.has(command)) {
+			return undefined;
+		}
+
 		const promptUri = await this.getPromptPath(data);
 		if (!promptUri) {
 			return undefined;
 		}
+
 		try {
-			return await this.parseNew(promptUri, token);
+			this.pendingPromptFileResolutions.add(command);
+			const parsedFile = await this.parseNew(promptUri, token);
+
+			// Cache the result (even if undefined)
+			this.promptFileByCommandCache.set(command, parsedFile);
+
+			return parsedFile;
 		} catch (error) {
 			this.logger.error(`[resolvePromptSlashCommand] Failed to parse prompt file: ${promptUri}`, error);
+			// Cache the failure
+			this.promptFileByCommandCache.set(command, undefined);
 			return undefined;
+		} finally {
+			this.pendingPromptFileResolutions.delete(command);
 		}
-
 	}
+
+
 
 	private async getPromptPath(data: IChatPromptSlashCommand): Promise<URI | undefined> {
 		if (data.promptPath) {
@@ -407,4 +451,55 @@ export class ChatModeUpdateTracker extends Disposable {
 		this.listeners.clear();
 	}
 
+}
+
+export class PromptFileUpdateTracker extends Disposable {
+
+	private static readonly PROMPT_FILE_UPDATE_DELAY_MS = 200;
+
+	private readonly listeners = new ResourceMap<IDisposable>();
+	private readonly onDidPromptFileChange: Emitter<void>;
+
+	public get onDidChangeContent(): Event<void> {
+		return this.onDidPromptFileChange.event;
+	}
+
+	constructor(
+		fileLocator: PromptFilesLocator,
+		@IModelService modelService: IModelService,
+	) {
+		super();
+		this.onDidPromptFileChange = this._register(new Emitter<void>());
+		const delayer = this._register(new Delayer<void>(PromptFileUpdateTracker.PROMPT_FILE_UPDATE_DELAY_MS));
+		const trigger = () => delayer.trigger(() => this.onDidPromptFileChange.fire());
+
+		// File add/remove/rename events for prompt files
+		const filesUpdatedEventRegistration = this._register(fileLocator.createFilesUpdatedEvent(PromptsType.prompt));
+		this._register(filesUpdatedEventRegistration.event(() => trigger()));
+
+		const onAdd = (model: ITextModel) => {
+			if (model.getLanguageId() === PROMPT_LANGUAGE_ID) {
+				this.listeners.set(model.uri, model.onDidChangeContent(() => trigger()));
+			}
+		};
+		const onRemove = (languageId: string, uri: URI) => {
+			if (languageId === PROMPT_LANGUAGE_ID) {
+				this.listeners.get(uri)?.dispose();
+				this.listeners.delete(uri);
+				trigger();
+			}
+		};
+		this._register(modelService.onModelAdded(model => onAdd(model)));
+		this._register(modelService.onModelLanguageChanged(e => {
+			onRemove(e.oldLanguageId, e.model.uri);
+			onAdd(e.model);
+		}));
+		this._register(modelService.onModelRemoved(model => onRemove(model.getLanguageId(), model.uri)));
+	}
+
+	public override dispose(): void {
+		super.dispose();
+		this.listeners.forEach(listener => listener.dispose());
+		this.listeners.clear();
+	}
 }

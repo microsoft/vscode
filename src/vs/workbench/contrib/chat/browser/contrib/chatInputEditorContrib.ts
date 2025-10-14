@@ -37,13 +37,15 @@ function agentAndCommandToKey(agent: IChatAgentData, subcommand: string | undefi
 	return subcommand ? `${agent.id}__${subcommand}` : agent.id;
 }
 
+function isWhitespaceOrPromptPart(p: IParsedChatRequestPart): boolean {
+	return (p instanceof ChatRequestTextPart && !p.text.trim().length) || (p instanceof ChatRequestSlashPromptPart);
+}
+
 class InputEditorDecorations extends Disposable {
 
 	public readonly id = 'inputEditorDecorations';
 
 	private readonly previouslyUsedAgents = new Set<string>();
-	private readonly promptDescriptions = new Map<string, string | undefined>();
-	private readonly pendingPromptResolutions = new Set<string>();
 
 	private readonly viewModelDisposables = this._register(new MutableDisposable());
 
@@ -75,8 +77,6 @@ class InputEditorDecorations extends Disposable {
 		}));
 		this._register(this.chatAgentService.onDidChangeAgents(() => this.updateInputEditorDecorations()));
 		this._register(this.promptsService.onDidChangeCustomChatModes(() => {
-			// Clear cached descriptions when prompts change
-			this.promptDescriptions.clear();
 			this.updateInputEditorDecorations();
 		}));
 		this._register(autorun(reader => {
@@ -133,41 +133,7 @@ class InputEditorDecorations extends Disposable {
 		return transparentForeground?.toString();
 	}
 
-	private async resolvePromptDescription(slashPromptPart: ChatRequestSlashPromptPart): Promise<string | undefined> {
-		const command = slashPromptPart.slashPromptCommand.command;
 
-		// Check cache first
-		if (this.promptDescriptions.has(command)) {
-			return this.promptDescriptions.get(command);
-		}
-
-		// Avoid duplicate resolutions
-		if (this.pendingPromptResolutions.has(command)) {
-			return undefined;
-		}
-
-		try {
-			this.pendingPromptResolutions.add(command);
-			const promptFile = await this.promptsService.resolvePromptSlashCommand(slashPromptPart.slashPromptCommand, CancellationToken.None);
-			const description = promptFile?.header?.description;
-
-			// Cache the result (even if undefined)
-			this.promptDescriptions.set(command, description);
-
-			// Update decorations if we got a description
-			if (description) {
-				this.updateInputEditorDecorations();
-			}
-
-			return description;
-		} catch (error) {
-			// Cache the failure
-			this.promptDescriptions.set(command, undefined);
-			return undefined;
-		} finally {
-			this.pendingPromptResolutions.delete(command);
-		}
-	}
 
 	private async updateInputEditorDecorations() {
 		const inputValue = this.widget.inputEditor.getValue();
@@ -281,24 +247,29 @@ class InputEditorDecorations extends Disposable {
 			}
 		}
 
-		const onlyPromptCommandAndWhitespace = slashPromptPart && parsedRequest.every(p => p instanceof ChatRequestTextPart && !p.text.trim().length || p instanceof ChatRequestSlashPromptPart);
+		const onlyPromptCommandAndWhitespace = slashPromptPart && parsedRequest.every(isWhitespaceOrPromptPart);
 		if (onlyPromptCommandAndWhitespace && exactlyOneSpaceAfterPart(slashPromptPart)) {
 			// Prompt slash command with no other text - show the placeholder
-			const cachedDescription = this.promptDescriptions.get(slashPromptPart.slashPromptCommand.command);
-			if (cachedDescription) {
-				placeholderDecoration = [{
-					range: getRangeForPlaceholder(slashPromptPart),
-					renderOptions: {
-						after: {
-							contentText: cachedDescription,
-							color: this.getPlaceholderColor(),
+			// Resolve the prompt file (this will use cache if available)
+			this.promptsService.resolvePromptSlashCommand(slashPromptPart.slashPromptCommand, CancellationToken.None).then(promptFile => {
+				const description = promptFile?.header?.description;
+				if (description) {
+					// Create placeholder decoration
+					const decoration: IDecorationOptions[] = [{
+						range: getRangeForPlaceholder(slashPromptPart),
+						renderOptions: {
+							after: {
+								contentText: description,
+								color: this.getPlaceholderColor(),
+							}
 						}
-					}
-				}];
-			} else if (!this.pendingPromptResolutions.has(slashPromptPart.slashPromptCommand.command)) {
-				// Try to resolve the description asynchronously
-				this.resolvePromptDescription(slashPromptPart);
-			}
+					}];
+					// Update the specific placeholder decoration
+					this.widget.inputEditor.setDecorationsByType(decorationDescription, placeholderDecorationType, decoration);
+				}
+			}).catch(() => {
+				// Ignore errors, just don't show description
+			});
 		}
 
 		this.widget.inputEditor.setDecorationsByType(decorationDescription, placeholderDecorationType, placeholderDecoration ?? []);
