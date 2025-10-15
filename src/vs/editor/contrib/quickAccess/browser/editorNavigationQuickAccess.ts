@@ -95,9 +95,16 @@ export abstract class AbstractEditorNavigationQuickAccessProvider implements IQu
 				// changes even later because it could be that the user has
 				// configured quick access to remain open when focus is lost and
 				// we always want to restore the current location.
+				// However, we should NOT update the restore point when cursor changes
+				// are triggered by preview navigation (source = JUMP), as those are
+				// temporary preview positions, not actual user selections.
 				let lastKnownEditorViewState = editor.saveViewState() ?? undefined;
-				disposables.add(codeEditor.onDidChangeCursorPosition(() => {
-					lastKnownEditorViewState = editor.saveViewState() ?? undefined;
+				disposables.add(codeEditor.onDidChangeCursorPosition((e) => {
+					// Ignore cursor changes from preview navigation (JUMP source)
+					// which are triggered by the quick access provider itself
+					if (e.source !== TextEditorSelectionSource.JUMP) {
+						lastKnownEditorViewState = editor.saveViewState() ?? undefined;
+					}
 				}));
 
 				context.restoreViewState = () => {
