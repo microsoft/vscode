@@ -244,4 +244,13 @@ export async function taskProblemPollFn(execution: IExecution, token: Cancellati
 	throw new Error('Polling failed');
 }
 
+export async function isTaskBusy(task: Task, tasksService: ITaskService, dependencyTasks?: Task[]): Promise<boolean> {
+	const busyTasks = await tasksService.getBusyTasks();
+	if (!busyTasks.length) {
+		return false;
+	}
+	const ids = new Set<string>([task._id, ...(dependencyTasks?.map(t => t._id) ?? [])]);
+	return busyTasks.some(t => ids.has(t._id));
+}
+
 export interface ILinkLocation { uri: URI; range?: Range }

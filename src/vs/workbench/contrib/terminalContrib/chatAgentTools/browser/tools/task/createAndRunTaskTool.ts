@@ -11,7 +11,7 @@ import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, ITo
 import { ITaskService, ITaskSummary, Task } from '../../../../../tasks/common/taskService.js';
 import { TaskRunSource } from '../../../../../tasks/common/tasks.js';
 import { ITerminalInstance, ITerminalService } from '../../../../../terminal/browser/terminal.js';
-import { collectTerminalResults, IConfiguredTask, resolveDependencyTasks } from '../../taskHelpers.js';
+import { collectTerminalResults, IConfiguredTask, isTaskBusy, resolveDependencyTasks } from '../../taskHelpers.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
@@ -115,7 +115,7 @@ export class CreateAndRunTaskTool implements IToolImpl {
 			_progress,
 			token,
 			store,
-			() => this._isTaskActive(task),
+			() => isTaskBusy(task, this._tasksService, dependencyTasks),
 			dependencyTasks
 		);
 		store.dispose();
@@ -144,10 +144,6 @@ export class CreateAndRunTaskTool implements IToolImpl {
 		};
 	}
 
-	private async _isTaskActive(task: Task): Promise<boolean> {
-		const activeTasks = await this._tasksService.getActiveTasks();
-		return activeTasks?.includes(task) ?? false;
-	}
 
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		const args = context.parameters as ICreateAndRunTaskToolInput;

@@ -11,9 +11,9 @@ import { IConfigurationService } from '../../../../../../../platform/configurati
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../../../chat/common/languageModelToolsService.js';
-import { ITaskService, Task, TasksAvailableContext } from '../../../../../tasks/common/taskService.js';
+import { ITaskService, TasksAvailableContext } from '../../../../../tasks/common/taskService.js';
 import { ITerminalService } from '../../../../../terminal/browser/terminal.js';
-import { collectTerminalResults, getTaskDefinition, getTaskForTool, resolveDependencyTasks } from '../../taskHelpers.js';
+import { collectTerminalResults, getTaskDefinition, getTaskForTool, isTaskBusy, resolveDependencyTasks } from '../../taskHelpers.js';
 import { toolResultDetailsFromResponse, toolResultMessageFromResponse } from './taskHelpers.js';
 import { TaskToolEvent, TaskToolClassification } from './taskToolsTelemetry.js';
 
@@ -102,7 +102,7 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 			_progress,
 			token,
 			store,
-			() => this._isTaskActive(task),
+			() => isTaskBusy(task, this._tasksService, dependencyTasks),
 			dependencyTasks
 		);
 		store.dispose();
@@ -129,9 +129,5 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 			toolResultMessage,
 			toolResultDetails
 		};
-	}
-	private async _isTaskActive(task: Task): Promise<boolean> {
-		const activeTasks = await this._tasksService.getActiveTasks();
-		return activeTasks?.includes(task) ?? false;
 	}
 }
