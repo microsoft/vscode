@@ -75,8 +75,6 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 					overflow: 'hidden',
 				}
 			}),
-			h('div.monaco-editor@overflowWidgetsDomNode', {
-			}),
 		]);
 		this._scrollable = this._register(new Scrollable({
 			forceIntegerValues: false,
@@ -91,13 +89,15 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		this._elements = h('div.monaco-component.multiDiffEditor', {}, [
 			h('div', {}, [this._scrollableElement.getDomNode()]),
 			h('div.placeholder@placeholder', {}, [h('div')]),
+			h('div.monaco-editor@overflowWidgetsDomNode', {
+			}),
 		]);
 		this._sizeObserver = this._register(new ObservableElementSizeObserver(this._element, undefined));
 		this._objectPool = this._register(new ObjectPool<TemplateData, DiffEditorItemTemplate>((data) => {
 			const template = this._instantiationService.createInstance(
 				DiffEditorItemTemplate,
 				this._scrollableElements.content,
-				this._scrollableElements.overflowWidgetsDomNode,
+				this._elements.overflowWidgetsDomNode,
 				this._workbenchUIElementFactory
 			);
 			template.setData(data);

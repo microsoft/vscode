@@ -32,6 +32,11 @@
 			place-items: center;
 			place-content: center;
 		}
+
+		&.monaco-editor {
+			pointer-events: none;
+			z-index: 1001;
+		}
 	}
 
 	.active {
