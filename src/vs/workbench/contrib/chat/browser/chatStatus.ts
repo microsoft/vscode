@@ -286,13 +286,19 @@ function isNewUser(chatEntitlementService: IChatEntitlementService): boolean {
 }
 
 function canUseCopilot(chatEntitlementService: IChatEntitlementService): boolean {
-	const newUser = isNewUser(chatEntitlementService);
-	const disabled = chatEntitlementService.sentiment.disabled || chatEntitlementService.sentiment.untrusted;
-	const signedOut = chatEntitlementService.entitlement === ChatEntitlement.Unknown;
-	const free = chatEntitlementService.entitlement === ChatEntitlement.Free;
-	const allFreeQuotaReached = free && chatEntitlementService.quotas.chat?.percentRemaining === 0 && chatEntitlementService.quotas.completions?.percentRemaining === 0;
+	if (!chatEntitlementService.sentiment.installed || chatEntitlementService.sentiment.disabled || chatEntitlementService.sentiment.untrusted) {
+		return false; // copilot not installed or not enabled
+	}
 
-	return !newUser && !signedOut && !allFreeQuotaReached && !disabled;
+	if (chatEntitlementService.entitlement === ChatEntitlement.Unknown || chatEntitlementService.entitlement === ChatEntitlement.Available) {
+		return chatEntitlementService.anonymous; // signed out or not-yet-signed-up users can only use Copilot if anonymous access is allowed
+	}
+
+	if (chatEntitlementService.entitlement === ChatEntitlement.Free && chatEntitlementService.quotas.chat?.percentRemaining === 0 && chatEntitlementService.quotas.completions?.percentRemaining === 0) {
+		return false; // free user with no quota left
+	}
+
+	return true;
 }
 
 function isCompletionsEnabled(configurationService: IConfigurationService, modeId: string = '*'): boolean {
@@ -423,7 +429,7 @@ class ChatStatusDashboard extends Disposable {
 		else if (this.chatEntitlementService.anonymous && this.chatEntitlementService.sentiment.installed) {
 			addSeparator(localize('anonymousTitle', "Copilot Usage"));
 
-			this.createQuotaIndicator(this.element, disposables, localize('quotaDisabled', "Disabled"), localize('completionsLabel', "Code completions"), false); // TODO@bpasero revisit this in the future when Completions are supported
+			this.createQuotaIndicator(this.element, disposables, localize('quotaLimited', "Limited"), localize('completionsLabel', "Code completions"), false);
 			this.createQuotaIndicator(this.element, disposables, localize('quotaLimited', "Limited"), localize('chatsLabel', "Chat messages"), false);
 		}
 

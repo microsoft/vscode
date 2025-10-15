@@ -37,7 +37,7 @@ import { IChatAgentService } from '../../chat/common/chatAgents.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { MODE_FILE_EXTENSION } from '../../chat/common/promptSyntax/config/promptFileLocations.js';
 import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../../chat/common/promptSyntax/promptTypes.js';
-import { ACTION_START, CTX_INLINE_CHAT_HAS_AGENT, CTX_INLINE_CHAT_VISIBLE, InlineChatConfigKeys } from '../common/inlineChat.js';
+import { ACTION_START, CTX_INLINE_CHAT_V1_ENABLED, CTX_INLINE_CHAT_VISIBLE, InlineChatConfigKeys } from '../common/inlineChat.js';
 import { AbstractInline1ChatAction } from './inlineChatActions.js';
 import { InlineChatController } from './inlineChatController.js';
 import './media/inlineChat.css';
@@ -66,7 +66,7 @@ export class InlineChatExpandLineAction extends EditorAction2 {
 			category: AbstractInline1ChatAction.category,
 			title: localize2('startWithCurrentLine', "Start in Editor with Current Line"),
 			f1: true,
-			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE.negate(), CTX_INLINE_CHAT_HAS_AGENT, EditorContextKeys.writable),
+			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE.negate(), CTX_INLINE_CHAT_V1_ENABLED, EditorContextKeys.writable),
 			keybinding: [{
 				when: CTX_INLINE_CHAT_SHOWING_HINT,
 				weight: KeybindingWeight.WorkbenchContrib + 1,
@@ -119,7 +119,7 @@ export class ShowInlineChatHintAction extends EditorAction2 {
 			category: AbstractInline1ChatAction.category,
 			title: localize2('showHint', "Show Inline Chat Hint"),
 			f1: false,
-			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE.negate(), CTX_INLINE_CHAT_HAS_AGENT, EditorContextKeys.writable),
+			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE.negate(), CTX_INLINE_CHAT_V1_ENABLED, EditorContextKeys.writable),
 		});
 	}
 
