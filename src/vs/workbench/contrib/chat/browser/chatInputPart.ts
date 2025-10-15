@@ -1803,6 +1803,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	clearTodoListWidget(sessionId: string | undefined, force: boolean): void {
 		this._chatInputTodoListWidget.value?.clear(sessionId, force);
+		this._chatInputTodoListWidget.clear();
+		this._chatEditingTodosDisposables.clear();
+		dom.clearNode(this.chatInputTodoListWidgetContainer);
+		this._onDidChangeHeight.fire();
 	}
 
 	async renderChatEditingSessionState(chatEditingSession: IChatEditingSession | null) {
