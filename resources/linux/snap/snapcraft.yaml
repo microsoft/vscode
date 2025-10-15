@@ -12,7 +12,7 @@ architectures:
 
 grade: stable
 confinement: classic
-base: core20
+base: core24
 compression: lzo
 
 parts:
@@ -60,17 +60,21 @@ parts:
       - -usr/share/man
     override-build: |
       snapcraftctl build
-      patchelf --force-rpath --set-rpath '$ORIGIN/../../lib/x86_64-linux-gnu:$ORIGIN:/snap/core20/current/lib/x86_64-linux-gnu' $SNAPCRAFT_PART_INSTALL/usr/share/@@NAME@@/chrome_crashpad_handler
+      if [ "$(uname -m)" = "x86_64" ]; then
+        patchelf --force-rpath --set-rpath '$ORIGIN/../../lib/x86_64-linux-gnu:$ORIGIN:/snap/core24/current/lib/x86_64-linux-gnu' $SNAPCRAFT_PART_INSTALL/usr/share/@@NAME@@/chrome_crashpad_handler
+      elif [ "$(uname -m)" = "aarch64" ] || [ "$(uname -m)" = "arm64" ]; then
+        patchelf --force-rpath --set-rpath '$ORIGIN/../../lib/aarch64-linux-gnu:$ORIGIN:/snap/core24/current/lib/aarch64-linux-gnu' $SNAPCRAFT_PART_INSTALL/usr/share/@@NAME@@/chrome_crashpad_handler
+      fi
       chmod 0755 $SNAPCRAFT_PART_INSTALL/usr/share/@@NAME@@/chrome-sandbox
   cleanup:
     after:
       - code
     plugin: nil
     build-snaps:
-      - core20
+      - core24
     override-prime: |
       set -eux
-      for snap in "core20"; do
+      for snap in "core24"; do
         cd "/snap/$snap/current" && find . -type f,l -exec rm -f "$SNAPCRAFT_PRIME/{}" \;
       done
       patchelf --print-rpath $SNAPCRAFT_PRIME/usr/share/@@NAME@@/chrome_crashpad_handler
