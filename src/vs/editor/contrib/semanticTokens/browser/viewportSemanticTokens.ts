@@ -58,16 +58,16 @@ export class ViewportSemanticTokensContribution extends Disposable implements IE
 			}
 		};
 		const bindRangeProvidersChangeListeners = () => {
-			dispose(this._rangeProvidersChangeListeners);
-			this._rangeProvidersChangeListeners = [];
+			this._cleanupProviderListeners();
 			if (this._editor.hasModel()) {
 				const model = this._editor.getModel();
 				for (const provider of this._provider.all(model)) {
-					if (typeof provider.onDidChange === 'function') {
-						this._rangeProvidersChangeListeners.push(provider.onDidChange(() => {
-							this._cancelAll();
-							scheduleTokenizeViewport();
-						}));
+					const disposable = provider.onDidChange?.(() => {
+						this._cancelAll();
+						scheduleTokenizeViewport();
+					});
+					if (disposable) {
+						this._rangeProvidersChangeListeners.push(disposable);
 					}
 				}
 			}
@@ -106,9 +106,13 @@ export class ViewportSemanticTokensContribution extends Disposable implements IE
 	}
 
 	public override dispose(): void {
+		this._cleanupProviderListeners();
+		super.dispose();
+	}
+
+	private _cleanupProviderListeners(): void {
 		dispose(this._rangeProvidersChangeListeners);
 		this._rangeProvidersChangeListeners = [];
-		super.dispose();
 	}
 
 	private _cancelAll(): void {
