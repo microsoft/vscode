@@ -230,8 +230,8 @@ suite('PromptsService', () => {
 			assert.deepEqual(
 				result1.body.variableReferences,
 				[
-					{ name: "my-tool", range: new Range(10, 5, 10, 12), offset: 239 },
-					{ name: "my-other-tool", range: new Range(11, 5, 11, 18), offset: 251 },
+					{ name: 'my-tool', range: new Range(10, 5, 10, 12), offset: 239 },
+					{ name: 'my-other-tool', range: new Range(11, 5, 11, 18), offset: 251 },
 				]
 			);
 
@@ -821,8 +821,8 @@ suite('PromptsService', () => {
 			const uri = URI.parse('file://extensions/my-extension/textMate.instructions.md');
 			const extension = {} as IExtensionDescription;
 			const registered = service.registerContributedFile(PromptsType.instructions,
-				"TextMate Instructions",
-				"Instructions to follow when authoring TextMate grammars",
+				'TextMate Instructions',
+				'Instructions to follow when authoring TextMate grammars',
 				uri,
 				extension
 			);
@@ -830,7 +830,7 @@ suite('PromptsService', () => {
 			const actual = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
 			assert.strictEqual(actual.length, 1);
 			assert.strictEqual(actual[0].uri.toString(), uri.toString());
-			assert.strictEqual(actual[0].name, "TextMate Instructions");
+			assert.strictEqual(actual[0].name, 'TextMate Instructions');
 			assert.strictEqual(actual[0].storage, PromptsStorage.extension);
 			assert.strictEqual(actual[0].type, PromptsType.instructions);
 			registered.dispose();
