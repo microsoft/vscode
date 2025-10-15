@@ -516,7 +516,8 @@
 				"git": {
 					"name": "nodejs",
 					"repositoryUrl": "https://github.com/nodejs/node",
-					"commitHash": "f8fe6858549f75a4b4e9633abf39dd2038dbf496"
+					"commitHash": "f8fe6858549f75a4b4e9633abf39dd2038dbf496",
+					"tag": "22.19.0"
 				}
 			},
 			"isOnlyProductionDependency": true,
@@ -528,7 +529,8 @@
 				"git": {
 					"name": "electron",
 					"repositoryUrl": "https://github.com/electron/electron",
-					"commitHash": "9a2b4f84be2f4bcc468a63ef93520e60790b8f3c"
+					"commitHash": "9a2b4f84be2f4bcc468a63ef93520e60790b8f3c",
+					"tag": "37.6.0"
 				}
 			},
 			"isOnlyProductionDependency": true,
@@ -587,12 +589,12 @@
 				"git": {
 					"name": "spdlog original",
 					"repositoryUrl": "https://github.com/gabime/spdlog",
-					"commitHash": "4fba14c79f356ae48d6141c561bf9fd7ba33fabd"
+					"commitHash": "7e635fca68d014934b4af8a1cf874f63989352b7"
 				}
 			},
 			"isOnlyProductionDependency": true,
 			"license": "MIT",
-			"version": "0.14.0"
+			"version": "1.12.0"
 		},
 		{
 			"component": {
@@ -634,12 +636,13 @@
 				"git": {
 					"name": "ripgrep",
 					"repositoryUrl": "https://github.com/BurntSushi/ripgrep",
-					"commitHash": "973de50c9ef451da2cfcdfa86f2b2711d8d6ff48"
+					"commitHash": "af6b6c543b224d348a8876f0c06245d9ea7929c5",
+					"tag": "13.0.0"
 				}
 			},
 			"isOnlyProductionDependency": true,
 			"license": "MIT",
-			"version": "0.10.0"
+			"version": "13.0.0"
 		},
 		{
 			"name": "@vscode/win32-app-container-tokens",

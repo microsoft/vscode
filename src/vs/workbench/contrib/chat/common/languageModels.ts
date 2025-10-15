@@ -14,6 +14,7 @@ import { isFalsyOrWhitespace } from '../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -327,6 +328,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 		@ILogService private readonly _logService: ILogService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IContextKeyService _contextKeyService: IContextKeyService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
 	) {
 		this._hasUserSelectableModels = ChatContextKeys.languageModelsAreUserSelectable.bindTo(_contextKeyService);
@@ -418,6 +420,9 @@ export class LanguageModelsService implements ILanguageModelsService {
 
 	lookupLanguageModel(modelIdentifier: string): ILanguageModelChatMetadata | undefined {
 		const model = this._modelCache.get(modelIdentifier);
+		if (model && this._configurationService.getValue('chat.experimentalShowAllModels')) {
+			return { ...model, isUserSelectable: true };
+		}
 		if (model && this._modelPickerUserPreferences[modelIdentifier] !== undefined) {
 			return { ...model, isUserSelectable: this._modelPickerUserPreferences[modelIdentifier] };
 		}
