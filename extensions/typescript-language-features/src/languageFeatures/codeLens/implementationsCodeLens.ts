@@ -26,7 +26,7 @@ export default class TypeScriptImplementationsCodeLensProvider extends TypeScrip
 		this._register(
 			vscode.workspace.onDidChangeConfiguration(evt => {
 				if (evt.affectsConfiguration(`${language.id}.implementationsCodeLens.showOnInterfaceMethods`) ||
-					evt.affectsConfiguration(`${language.id}.implementationsCodeLens.showOnClassMethods`)) {
+					evt.affectsConfiguration(`${language.id}.implementationsCodeLens.showOnAllClassMethods`)) {
 					this.changeEmitter.fire();
 				}
 			})
@@ -70,12 +70,9 @@ export default class TypeScriptImplementationsCodeLensProvider extends TypeScrip
 	}
 
 	private getCommand(locations: vscode.Location[], codeLens: ReferencesCodeLens): vscode.Command | undefined {
-		if (!locations.length) {
-			return undefined;
-		}
 		return {
 			title: this.getTitle(locations),
-			command: 'editor.action.showReferences',
+			command: locations.length ? 'editor.action.showReferences' : '',
 			arguments: [codeLens.document, codeLens.range.start, locations]
 		};
 	}
@@ -93,33 +90,15 @@ export default class TypeScriptImplementationsCodeLensProvider extends TypeScrip
 	): vscode.Range | undefined {
 		const cfg = vscode.workspace.getConfiguration(this.language.id);
 
-		// Keep the class node itself so we enter children
-		if (item.kind === PConst.Kind.class) {
-			return getSymbolRange(document, item);
-		}
-
-		// Keep the interface node itself so we enter children
+		// Always show on interfaces
 		if (item.kind === PConst.Kind.interface) {
 			return getSymbolRange(document, item);
 		}
 
-		// Interface members (behind existing setting)
+		// Always show on abstract classes/properties
 		if (
-			item.kind === PConst.Kind.method &&
-			parent?.kind === PConst.Kind.interface &&
-			cfg.get<boolean>('implementationsCodeLens.showOnInterfaceMethods')
-		) {
-			return getSymbolRange(document, item);
-		}
-
-		// Skip private methods (cannot be overridden)
-		if (item.kind === PConst.Kind.method && /\bprivate\b/.test(item.kindModifiers ?? '')) {
-			return undefined;
-		}
-
-		// Abstract members (always show)
-		if (
-			(item.kind === PConst.Kind.method ||
+			(item.kind === PConst.Kind.class ||
+				item.kind === PConst.Kind.method ||
 				item.kind === PConst.Kind.memberVariable ||
 				item.kind === PConst.Kind.memberGetAccessor ||
 				item.kind === PConst.Kind.memberSetAccessor) &&
@@ -128,12 +107,25 @@ export default class TypeScriptImplementationsCodeLensProvider extends TypeScrip
 			return getSymbolRange(document, item);
 		}
 
-		// Class methods (behind new setting; default off)
+		// If configured, show interface members
+		if (
+			item.kind === PConst.Kind.method &&
+			parent?.kind === PConst.Kind.interface &&
+			cfg.get<boolean>('implementationsCodeLens.showOnInterfaceMethods', false)
+		) {
+			return getSymbolRange(document, item);
+		}
+
+
+		// If configured show on all class methods
 		if (
 			item.kind === PConst.Kind.method &&
 			parent?.kind === PConst.Kind.class &&
-			cfg.get<boolean>('implementationsCodeLens.showOnClassMethods', false)
+			cfg.get<boolean>('implementationsCodeLens.showOnAllClassMethods', false)
 		) {
+			if (/\bprivate\b/.test(item.kindModifiers ?? '')) {
+				return undefined;
+			}
 			return getSymbolRange(document, item);
 		}
 
