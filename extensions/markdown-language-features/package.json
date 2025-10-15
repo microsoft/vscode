@@ -767,7 +767,7 @@
   },
   "dependencies": {
     "@vscode/extension-telemetry": "^0.9.8",
-    "dompurify": "^3.2.4",
+    "dompurify": "^3.2.7",
     "highlight.js": "^11.8.0",
     "markdown-it": "^12.3.2",
     "markdown-it-front-matter": "^0.2.4",
@@ -783,6 +783,7 @@
     "@types/dompurify": "^3.0.5",
     "@types/lodash.throttle": "^4.1.9",
     "@types/markdown-it": "12.2.3",
+    "@types/node": "22.x",
     "@types/picomatch": "^2.3.0",
     "@types/vscode-notebook-renderer": "^1.60.0",
     "@types/vscode-webview": "^1.57.0",
