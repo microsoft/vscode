@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.106.0",
-  "distro": "83bba123096af4c03a5f4419dc4e7f33d14e354c",
+  "distro": "cf7a6d44d8299723d955936df569ea424e6b68fd",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -132,10 +132,10 @@
     "@types/node": "22.x",
     "@types/sinon": "^10.0.2",
     "@types/sinon-test": "^2.4.2",
-    "@types/trusted-types": "^1.0.6",
+    "@types/trusted-types": "^2.0.7",
     "@types/vscode-notebook-renderer": "^1.72.0",
     "@types/webpack": "^5.28.5",
-    "@types/wicg-file-system-access": "^2020.9.6",
+    "@types/wicg-file-system-access": "^2023.10.7",
     "@types/windows-foreground-love": "^0.3.0",
     "@types/winreg": "^1.2.30",
     "@types/yauzl": "^2.10.0",

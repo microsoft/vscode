@@ -215,6 +215,9 @@ suite('PromptInputModel', () => {
 
 			await writePromise('foo\x1b[38;2;255;0;0m bar\x1b[0m\x1b[4D');
 			await assertPromptInput('foo|[ bar]');
+
+			await writePromise('\x1b[2D');
+			await assertPromptInput('f|oo[ bar]');
 		});
 		test('no ghost text when foreground color matches earlier text', async () => {
 			await writePromise('$ ');
@@ -424,6 +427,13 @@ suite('PromptInputModel', () => {
 				await writePromise('\x1b[C\x1b[C\x1b[C\x1b[C\x1b[C');
 				await assertPromptInput(`find . -name test|`);
 			});
+		});
+		test('Does not detect right prompt as ghost text', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+			await writePromise('cmd' + ' '.repeat(6) + '\x1b[38;2;255;0;0mRP\x1b[0m\x1b[8D');
+			await assertPromptInput('cmd|' + ' '.repeat(6) + 'RP');
 		});
 	});
 

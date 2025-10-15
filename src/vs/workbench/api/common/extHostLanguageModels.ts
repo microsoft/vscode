@@ -121,6 +121,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 	private readonly _modelAccessList = new ExtensionIdentifierMap<ExtensionIdentifierSet>();
 	private readonly _pendingRequest = new Map<number, { languageModelId: string; res: LanguageModelResponse }>();
 	private readonly _ignoredFileProviders = new Map<number, vscode.LanguageModelIgnoredFileProvider>();
+	private _languageModelProxyProvider: vscode.LanguageModelProxyProvider | undefined;
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
@@ -345,8 +346,8 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 
 		const model = this._localModels.get(modelId);
 		if (!model) {
-			// model gone? is this an error on us?
-			return;
+			// model gone? is this an error on us? Try to resolve model again
+			return (await this.selectLanguageModels(extension, { id: modelId }))[0];
 		}
 
 		// make sure auth information is correct
@@ -607,6 +608,27 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		return this._proxy.$fileIsIgnored(uri, token);
 	}
 
+	async getModelProxy(extension: IExtensionDescription): Promise<vscode.LanguageModelProxyInfo | undefined> {
+		checkProposedApiEnabled(extension, 'languageModelProxy');
+
+		if (!this._languageModelProxyProvider) {
+			this._logService.warn('[LanguageModelProxy] No LanguageModelProxyProvider registered');
+			return undefined;
+		}
+
+		const requestingExtensionId = ExtensionIdentifier.toKey(extension.identifier);
+		try {
+			const result = await Promise.resolve(this._languageModelProxyProvider.provideModelProxy(requestingExtensionId, CancellationToken.None));
+			if (result) {
+				return result;
+			}
+		} catch (err) {
+			this._logService.error(`[LanguageModelProxy] Provider ${ExtensionIdentifier.toKey(extension.identifier)} failed`, err);
+		}
+
+		return undefined;
+	}
+
 	async $isFileIgnored(handle: number, uri: UriComponents, token: CancellationToken): Promise<boolean> {
 		const provider = this._ignoredFileProviders.get(handle);
 		if (!provider) {
@@ -625,6 +647,17 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		return toDisposable(() => {
 			this._proxy.$unregisterFileIgnoreProvider(handle);
 			this._ignoredFileProviders.delete(handle);
+		});
+	}
+
+	registerLanguageModelProxyProvider(extension: IExtensionDescription, provider: vscode.LanguageModelProxyProvider): vscode.Disposable {
+		checkProposedApiEnabled(extension, 'chatParticipantPrivate');
+
+		this._languageModelProxyProvider = provider;
+		return toDisposable(() => {
+			if (this._languageModelProxyProvider === provider) {
+				this._languageModelProxyProvider = undefined;
+			}
 		});
 	}
 }

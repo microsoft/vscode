@@ -32,7 +32,7 @@ import { IObservableViewZone, PlaceholderViewZone, ViewZoneOverlayWidget, applyO
  */
 export class HideUnchangedRegionsFeature extends Disposable {
 	private static readonly _breadcrumbsSourceFactory = observableValue<((textModel: ITextModel, instantiationService: IInstantiationService) => IDiffEditorBreadcrumbsSource)>(
-		HideUnchangedRegionsFeature, () => ({
+		this, () => ({
 			dispose() {
 			},
 			getBreadcrumbItems(startRange, reader) {
