@@ -442,7 +442,7 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemVie
 		const historyItemViewModel = node.element.historyItemViewModel;
 		const historyItem = historyItemViewModel.historyItem;
 
-		const hoverContent = { markdown: historyItem.tooltip, markdownNotSupportedFallback: historyItem.message };
+		const hoverContent = { markdown: historyItem.tooltip ?? historyItem.message, markdownNotSupportedFallback: historyItem.message };
 		const historyItemHover = this._hoverService.setupManagedHover(this.hoverDelegate, templateData.element, hoverContent);
 		templateData.elementDisposables.add(historyItemHover);
 
