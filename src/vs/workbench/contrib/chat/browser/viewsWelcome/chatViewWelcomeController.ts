@@ -263,7 +263,7 @@ export class ChatViewWelcomePart extends Disposable {
 							e.stopPropagation();
 							executePrompt();
 						}
-						else if (event.keyCode === KeyCode.F10 && event.shiftKey) {
+						else if (event.equals(KeyCode.F10) && event.shiftKey) {
 							e.preventDefault();
 							e.stopPropagation();
 							const actions = this.getPromptContextMenuActions(prompt);
@@ -271,7 +271,6 @@ export class ChatViewWelcomePart extends Disposable {
 								getAnchor: () => promptElement,
 								getActions: () => actions,
 							});
-							return;
 						}
 					}));
 				}
