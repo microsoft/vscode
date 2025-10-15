@@ -234,6 +234,12 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		} else {
 			this._onDidChangeProperty.fire({ type: ProcessPropertyType.FailedShellIntegrationActivation, value: true });
 			this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellIntegrationInjectionFailureReason, value: injection.reason });
+			// Even if shell integration injection failed, still set the nonce if one was provided
+			// This allows extensions to use shell integration with custom shells
+			if (this._options.shellIntegration.nonce) {
+				this._ptyOptions.env ||= {};
+				this._ptyOptions.env['VSCODE_NONCE'] = this._options.shellIntegration.nonce;
+			}
 		}
 
 		try {
@@ -536,6 +542,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		const object = this._writeQueue.shift()!;
 		this._logService.trace('node-pty.IPty#write', object.data);
 		if (object.isBinary) {
+			// TODO: node-pty's write should accept a Buffer
+			// eslint-disable-next-line local/code-no-any-casts
 			this._ptyProcess!.write(Buffer.from(object.data, 'binary') as any);
 		} else {
 			this._ptyProcess!.write(object.data);

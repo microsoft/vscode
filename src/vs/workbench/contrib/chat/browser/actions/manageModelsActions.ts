@@ -10,6 +10,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize2 } from '../../../../../nls.js';
 import { Action2 } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
@@ -34,11 +35,16 @@ export class ManageModelsAction extends Action2 {
 			id: ManageModelsAction.ID,
 			title: localize2('manageLanguageModels', 'Manage Language Models...'),
 			category: CHAT_CATEGORY,
-			precondition: ChatContextKeys.enabled,
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.or(
+				ChatContextKeys.Entitlement.planFree,
+				ChatContextKeys.Entitlement.planPro,
+				ChatContextKeys.Entitlement.planProPlus,
+				ChatContextKeys.Entitlement.internal
+			)),
 			f1: true
 		});
 	}
-	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 		const languageModelsService = accessor.get(ILanguageModelsService);
 		const quickInputService = accessor.get(IQuickInputService);
 		const commandService = accessor.get(ICommandService);
@@ -81,9 +87,10 @@ export class ManageModelsAction extends Action2 {
 		}));
 
 		store.add(quickPick.onDidTriggerItemButton(async (event) => {
-			const managementCommand = (event.item as IVendorQuickPickItem).managementCommand;
+			const selectedItem = event.item as IVendorQuickPickItem;
+			const managementCommand = selectedItem.managementCommand;
 			if (managementCommand) {
-				commandService.executeCommand(managementCommand);
+				commandService.executeCommand(managementCommand, selectedItem.vendor);
 			}
 		}));
 
@@ -105,6 +112,11 @@ export class ManageModelsAction extends Action2 {
 			vendor: model.metadata.vendor,
 			picked: model.metadata.isUserSelectable
 		}));
+
+		if (modelItems.length === 0) {
+			store.dispose();
+			return;
+		}
 
 		const quickPick = quickInputService.createQuickPick<IModelQuickPickItem>();
 		quickPick.items = modelItems;

@@ -180,7 +180,7 @@ export class NotebookFindInputFilterButton extends Disposable {
 		super();
 		this._toggleStyles = options.toggleStyles;
 
-		this._filtersAction = new Action('notebookFindFilterAction', tooltip, 'notebook-filters ' + ThemeIcon.asClassName(filterIcon));
+		this._filtersAction = this._register(new Action('notebookFindFilterAction', tooltip, 'notebook-filters ' + ThemeIcon.asClassName(filterIcon)));
 		this._filtersAction.checked = false;
 		this._filterButtonContainer = dom.$('.find-filter-button');
 		this._filterButtonContainer.classList.add('monaco-custom-toggle');
@@ -347,12 +347,12 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		const findHistoryConfig = this._configurationService.getValue<'never' | 'workspace'>('editor.find.history');
 		const replaceHistoryConfig = this._configurationService.getValue<'never' | 'workspace'>('editor.find.replaceHistory');
 
-		this._filters = new NotebookFindFilters(findFilters.markupSource, findFilters.markupPreview, findFilters.codeSource, findFilters.codeOutput, { findScopeType: NotebookFindScopeType.None });
+		this._filters = this._register(new NotebookFindFilters(findFilters.markupSource, findFilters.markupPreview, findFilters.codeSource, findFilters.codeOutput, { findScopeType: NotebookFindScopeType.None }));
 		this._state.change({ filters: this._filters }, false);
 
-		this._filters.onDidChange(() => {
+		this._register(this._filters.onDidChange(() => {
 			this._state.change({ filters: this._filters }, false);
-		});
+		}));
 
 		this._domNode = document.createElement('div');
 		this._domNode.classList.add('simple-fr-find-part-wrapper');
@@ -368,10 +368,10 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		}));
 
 		this._register(this._state.onFindReplaceStateChange((e) => this._onStateChanged(e)));
-		this._scopedContextKeyService = contextKeyService.createScoped(this._domNode);
+		this._scopedContextKeyService = this._register(contextKeyService.createScoped(this._domNode));
 
 		const progressContainer = dom.$('.find-replace-progress');
-		this._progressBar = new ProgressBar(progressContainer, defaultProgressBarStyles);
+		this._progressBar = this._register(new ProgressBar(progressContainer, defaultProgressBarStyles));
 		this._domNode.appendChild(progressContainer);
 
 		const isInteractiveWindow = contextKeyService.getContextKeyValue('notebookType') === 'interactive';
@@ -489,7 +489,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		}));
 		this.inSelectionToggle.domNode.style.display = 'inline';
 
-		this.inSelectionToggle.onChange(() => {
+		this._register(this.inSelectionToggle.onChange(() => {
 			const checked = this.inSelectionToggle.checked;
 			if (checked) {
 				// selection logic:
@@ -530,7 +530,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 				this.clearCellSelectionDecorations();
 				this.clearTextSelectionDecorations();
 			}
-		});
+		}));
 
 		const closeBtn = this._register(new SimpleButton({
 			label: NLS_CLOSE_BTN_LABEL,

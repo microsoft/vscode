@@ -611,6 +611,7 @@ interface ThemeItem extends IQuickPickItem {
 }
 
 function isItem(i: QuickPickInput<ThemeItem>): i is ThemeItem {
+	// eslint-disable-next-line local/code-no-any-casts
 	return (<any>i)['type'] !== 'separator';
 }
 

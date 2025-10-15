@@ -122,10 +122,10 @@ export class ToggleActionViewItem extends BaseActionViewItem {
 export class Toggle extends Widget {
 
 	private readonly _onChange = this._register(new Emitter<boolean>());
-	readonly onChange: Event<boolean /* via keyboard */> = this._onChange.event;
+	get onChange(): Event<boolean /* via keyboard */> { return this._onChange.event; }
 
 	private readonly _onKeyDown = this._register(new Emitter<IKeyboardEvent>());
-	readonly onKeyDown: Event<IKeyboardEvent> = this._onKeyDown.event;
+	get onKeyDown(): Event<IKeyboardEvent> { return this._onKeyDown.event; }
 
 	private readonly _opts: IToggleOpts;
 	private _icon: ThemeIcon | undefined;
@@ -258,47 +258,25 @@ export class Toggle extends Widget {
 	}
 }
 
-export class Checkbox extends Widget {
 
+abstract class BaseCheckbox extends Widget {
 	static readonly CLASS_NAME = 'monaco-checkbox';
 
-	private readonly _onChange = this._register(new Emitter<boolean>());
+	protected readonly _onChange = this._register(new Emitter<boolean>());
 	readonly onChange: Event<boolean /* via keyboard */> = this._onChange.event;
 
-	private checkbox: Toggle;
-	private styles: ICheckboxStyles;
-
-	readonly domNode: HTMLElement;
-
-	constructor(private title: string, private isChecked: boolean, styles: ICheckboxStyles) {
+	constructor(
+		protected readonly checkbox: Toggle,
+		readonly domNode: HTMLElement,
+		protected readonly styles: ICheckboxStyles
+	) {
 		super();
 
-		this.checkbox = this._register(new Toggle({ title: this.title, isChecked: this.isChecked, icon: Codicon.check, actionClassName: Checkbox.CLASS_NAME, hoverDelegate: styles.hoverDelegate, ...unthemedToggleStyles }));
-
-		this.domNode = this.checkbox.domNode;
-
-		this.styles = styles;
-
 		this.applyStyles();
-
-		this._register(this.checkbox.onChange(keyboard => {
-			this.applyStyles();
-			this._onChange.fire(keyboard);
-		}));
-	}
-
-	get checked(): boolean {
-		return this.checkbox.checked;
 	}
 
 	get enabled(): boolean {
 		return this.checkbox.enabled;
-	}
-
-	set checked(newIsChecked: boolean) {
-		this.checkbox.checked = newIsChecked;
-
-		this.applyStyles();
 	}
 
 	focus(): void {
@@ -333,6 +311,105 @@ export class Checkbox extends Widget {
 			this.domNode.style.height =
 			this.domNode.style.fontSize = `${size}px`;
 		this.domNode.style.fontSize = `${size - 2}px`;
+	}
+}
+
+export class Checkbox extends BaseCheckbox {
+	constructor(title: string, isChecked: boolean, styles: ICheckboxStyles) {
+		const toggle = new Toggle({ title, isChecked, icon: Codicon.check, actionClassName: BaseCheckbox.CLASS_NAME, hoverDelegate: styles.hoverDelegate, ...unthemedToggleStyles });
+		super(toggle, toggle.domNode, styles);
+
+		this._register(toggle);
+		this._register(this.checkbox.onChange(keyboard => {
+			this.applyStyles();
+			this._onChange.fire(keyboard);
+		}));
+	}
+
+	get checked(): boolean {
+		return this.checkbox.checked;
+	}
+
+	set checked(newIsChecked: boolean) {
+		this.checkbox.checked = newIsChecked;
+		this.applyStyles();
+	}
+
+	protected override applyStyles(enabled?: boolean): void {
+		if (this.checkbox.checked) {
+			this.checkbox.setIcon(Codicon.check);
+		} else {
+			this.checkbox.setIcon(undefined);
+		}
+		super.applyStyles(enabled);
+	}
+}
+
+export class TriStateCheckbox extends BaseCheckbox {
+	constructor(
+		title: string,
+		private _state: boolean | 'partial',
+		styles: ICheckboxStyles
+	) {
+		let icon: ThemeIcon | undefined;
+		switch (_state) {
+			case true:
+				icon = Codicon.check;
+				break;
+			case 'partial':
+				icon = Codicon.dash;
+				break;
+			case false:
+				icon = undefined;
+				break;
+		}
+		const checkbox = new Toggle({
+			title,
+			isChecked: _state === true,
+			icon,
+			actionClassName: Checkbox.CLASS_NAME,
+			hoverDelegate: styles.hoverDelegate,
+			...unthemedToggleStyles
+		});
+		super(
+			checkbox,
+			checkbox.domNode,
+			styles
+		);
+
+		this._register(checkbox);
+		this._register(this.checkbox.onChange(keyboard => {
+			this._state = this.checkbox.checked;
+			this.applyStyles();
+			this._onChange.fire(keyboard);
+		}));
+	}
+
+	get checked(): boolean | 'partial' {
+		return this._state;
+	}
+
+	set checked(newState: boolean | 'partial') {
+		if (this._state !== newState) {
+			this._state = newState;
+			this.checkbox.checked = newState === true;
+			this.applyStyles();
+		}
+	}
+
+	protected override applyStyles(enabled?: boolean): void {
+		switch (this._state) {
+			case true:
+				this.checkbox.setIcon(Codicon.check);
+				break;
+			case 'partial':
+				this.checkbox.setIcon(Codicon.dash);
+				break;
+			case false:
+				this.checkbox.setIcon(undefined);
+				break;
+		}
+		super.applyStyles(enabled);
 	}
 }
 

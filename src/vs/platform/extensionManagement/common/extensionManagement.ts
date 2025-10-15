@@ -209,6 +209,7 @@ export interface IGalleryExtensionVersion {
 	version: string;
 	date: string;
 	isPreReleaseVersion: boolean;
+	targetPlatforms: TargetPlatform[];
 }
 
 export interface IGalleryExtension {
@@ -462,6 +463,8 @@ export interface DidUpdateExtensionMetadata {
 export const enum ExtensionGalleryErrorCode {
 	Timeout = 'Timeout',
 	Cancelled = 'Cancelled',
+	ClientError = 'ClientError',
+	ServerError = 'ServerError',
 	Failed = 'Failed',
 	DownloadFailedWriting = 'DownloadFailedWriting',
 	Offline = 'Offline',

@@ -1,8 +1,8 @@
 {
 	"compilerOptions": {
-		"target": "es2022",
+		"target": "es2024",
 		"lib": [
-			"ES2020"
+			"ES2024"
 		],
 		"module": "nodenext",
 		"alwaysStrict": true,

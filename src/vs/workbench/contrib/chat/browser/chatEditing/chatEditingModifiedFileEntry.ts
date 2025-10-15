@@ -10,7 +10,7 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { clamp } from '../../../../../base/common/numbers.js';
 import { autorun, derived, IObservable, ITransaction, observableValue, observableValueOpts, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { TextEdit } from '../../../../../editor/common/languages.js';
+import { Location, TextEdit } from '../../../../../editor/common/languages.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -20,10 +20,12 @@ import { editorBackground, registerColor, transparent } from '../../../../../pla
 import { IUndoRedoElement, IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRedo.js';
 import { IEditorPane } from '../../../../common/editor.js';
 import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService.js';
+import { IAiEditTelemetryService } from '../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
+import { EditDeltaInfo } from '../../../../../editor/common/textModelEditSource.js';
 import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { ChatEditKind, IModifiedEntryTelemetryInfo, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, ISnapshotEntry, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
-import { IChatService } from '../../common/chatService.js';
+import { ChatUserAction, IChatService } from '../../common/chatService.js';
 
 class AutoAcceptControl {
 	constructor(
@@ -90,7 +92,7 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 
 	readonly abstract originalURI: URI;
 
-	protected readonly _userEditScheduler = this._register(new RunOnceScheduler(() => this._notifyAction('userModified'), 1000));
+	protected readonly _userEditScheduler = this._register(new RunOnceScheduler(() => this._notifySessionAction('userModified'), 1000));
 
 	constructor(
 		readonly modifiedURI: URI,
@@ -102,6 +104,7 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 		@IFileService protected readonly _fileService: IFileService,
 		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
 		@IInstantiationService protected readonly _instantiationService: IInstantiationService,
+		@IAiEditTelemetryService private readonly _aiEditTelemetryService: IAiEditTelemetryService,
 	) {
 		super();
 
@@ -146,11 +149,11 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 			if (inProgress === false && !this.reviewMode.read(r)) {
 				// AUTO accept mode (when request is done)
 
-				const acceptTimeout = this._autoAcceptTimeout.get() * 1000;
+				const acceptTimeout = this._autoAcceptTimeout.read(undefined) * 1000;
 				const future = Date.now() + acceptTimeout;
 				const update = () => {
 
-					const reviewMode = this.reviewMode.get();
+					const reviewMode = this.reviewMode.read(undefined);
 					if (reviewMode) {
 						// switched back to review mode
 						this._autoAcceptCtrl.set(undefined, undefined);
@@ -178,6 +181,8 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 			super.dispose();
 		}
 	}
+
+	public abstract hasModificationAt(location: Location): boolean;
 
 	acquire() {
 		this._refCounter++;
@@ -216,7 +221,7 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 			this._autoAcceptCtrl.set(undefined, tx);
 		});
 
-		this._notifyAction('accepted');
+		this._notifySessionAction('accepted');
 	}
 
 	protected abstract _doAccept(): Promise<void>;
@@ -227,7 +232,7 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 			return;
 		}
 
-		this._notifyAction('rejected');
+		this._notifySessionAction('rejected');
 		await this._doReject();
 		transaction(tx => {
 			this._stateObs.set(ModifiedFileEntryState.Rejected, tx);
@@ -237,10 +242,36 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 
 	protected abstract _doReject(): Promise<void>;
 
-	protected _notifyAction(outcome: 'accepted' | 'rejected' | 'userModified') {
+	protected _notifySessionAction(outcome: 'accepted' | 'rejected' | 'userModified') {
+		this._notifyAction({ kind: 'chatEditingSessionAction', uri: this.modifiedURI, hasRemainingEdits: false, outcome });
+	}
+
+	protected _notifyAction(action: ChatUserAction) {
+		if (action.kind === 'chatEditingHunkAction') {
+			this._aiEditTelemetryService.handleCodeAccepted({
+				suggestionId: undefined, // TODO@hediet try to figure this out
+				acceptanceMethod: 'accept',
+				presentation: 'highlightedEdit',
+				modelId: this._telemetryInfo.modelId,
+				modeId: this._telemetryInfo.modeId,
+				applyCodeBlockSuggestionId: this._telemetryInfo.applyCodeBlockSuggestionId,
+				editDeltaInfo: new EditDeltaInfo(
+					action.linesAdded,
+					action.linesRemoved,
+					-1,
+					-1,
+				),
+				feature: this._telemetryInfo.feature,
+				languageId: action.languageId,
+				source: undefined,
+			});
+		}
+
 		this._chatService.notifyUserAction({
-			action: { kind: 'chatEditingSessionAction', uri: this.modifiedURI, hasRemainingEdits: false, outcome },
+			action,
 			agentId: this._telemetryInfo.agentId,
+			modelId: this._telemetryInfo.modelId,
+			modeId: this._telemetryInfo.modeId,
 			command: this._telemetryInfo.command,
 			sessionId: this._telemetryInfo.sessionId,
 			requestId: this._telemetryInfo.requestId,

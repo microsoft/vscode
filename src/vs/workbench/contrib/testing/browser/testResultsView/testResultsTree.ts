@@ -57,7 +57,7 @@ interface ITreeElement {
 	context: unknown;
 	id: string;
 	label: string;
-	onDidChange: Event<void>;
+	readonly onDidChange: Event<void>;
 	labelWithIcons?: readonly (HTMLSpanElement | string)[];
 	icon?: ThemeIcon;
 	description?: string;
@@ -69,7 +69,7 @@ interface ITreeElement {
 	context: unknown;
 	id: string;
 	label: string;
-	onDidChange: Event<void>;
+	readonly onDidChange: Event<void>;
 	labelWithIcons?: readonly (HTMLSpanElement | string)[];
 	icon?: ThemeIcon;
 	description?: string;
@@ -157,7 +157,7 @@ class TestCaseElement implements ITreeElement {
 			return Event.None;
 		}
 
-		return Event.filter(this.results.onChange, e => e.item.item.extId === this.test.item.extId);
+		return Event.filter(this.results.onChange, e => e.item.item.extId === this.test.item.extId && e.reason !== TestResultItemChangeReason.NewMessage);
 	}
 
 	public get state() {
@@ -247,7 +247,7 @@ class TestMessageElement implements ITreeElement {
 		}
 
 		// rerender when the test case changes so it gets retired events
-		return Event.filter(this.result.onChange, e => e.item.item.extId === this.test.item.extId);
+		return Event.filter(this.result.onChange, e => e.item.item.extId === this.test.item.extId && e.reason !== TestResultItemChangeReason.NewMessage);
 	}
 
 	public get context(): ITestMessageMenuArgs {
@@ -301,7 +301,7 @@ export class OutputPeekTree extends Disposable {
 
 	constructor(
 		container: HTMLElement,
-		onDidReveal: Event<{ subject: InspectSubject; preserveFocus: boolean }>,
+		readonly onDidReveal: Event<{ subject: InspectSubject; preserveFocus: boolean }>,
 		options: { showRevealLocationOnMessages: boolean; locationForProgress: string },
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@ITestResultService results: ITestResultService,
@@ -906,15 +906,17 @@ class TreeActionsProvider {
 				...getTestItemContextOverlay(element.test, capabilities),
 			);
 
-			primary.push(new Action(
-				'testing.outputPeek.goToTest',
-				localize('testing.goToTest', "Go to Test"),
-				ThemeIcon.asClassName(Codicon.goToFile),
-				undefined,
-				() => this.commandService.executeCommand('vscode.revealTest', element.test.item.extId),
-			));
+			const { extId, uri } = element.test.item;
+			if (uri) {
+				primary.push(new Action(
+					'testing.outputPeek.goToTest',
+					localize('testing.goToTest', "Go to Test"),
+					ThemeIcon.asClassName(Codicon.goToFile),
+					undefined,
+					() => this.commandService.executeCommand('vscode.revealTest', extId),
+				));
+			}
 
-			const extId = element.test.item.extId;
 			if (element.test.tasks[element.taskIndex].messages.some(m => m.type === TestMessageType.Output)) {
 				primary.push(new Action(
 					'testing.outputPeek.showResultOutput',

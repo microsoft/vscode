@@ -8,22 +8,23 @@ import { assert } from '../../../../../base/common/assert.js';
 import { DeferredPromise, RunOnceScheduler, timeout } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { themeColorFromId } from '../../../../../base/common/themables.js';
 import { assertType } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { EditOperation, ISingleEditOperation } from '../../../../../editor/common/core/editOperation.js';
 import { StringEdit } from '../../../../../editor/common/core/edits/stringEdit.js';
-import { Range } from '../../../../../editor/common/core/range.js';
+import { IRange, Range } from '../../../../../editor/common/core/range.js';
+import { LineRange } from '../../../../../editor/common/core/ranges/lineRange.js';
 import { IDocumentDiff, nullDocumentDiff } from '../../../../../editor/common/diff/documentDiffProvider.js';
 import { DetailedLineRangeMapping } from '../../../../../editor/common/diff/rangeMapping.js';
-import { TextEdit } from '../../../../../editor/common/languages.js';
+import { TextEdit, VersionedExtensionId } from '../../../../../editor/common/languages.js';
 import { IModelDeltaDecoration, ITextModel, ITextSnapshot, MinimapPosition, OverviewRulerLane } from '../../../../../editor/common/model.js';
 import { ModelDecorationOptions } from '../../../../../editor/common/model/textModel.js';
 import { offsetEditFromContentChanges, offsetEditFromLineRangeMapping, offsetEditToEditOperations } from '../../../../../editor/common/model/textModelStringEdit.js';
 import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker.js';
-import { TextModelEditSource, EditSources } from '../../../../../editor/common/textModelEditSource.js';
+import { EditSources, TextModelEditSource } from '../../../../../editor/common/textModelEditSource.js';
 import { IModelContentChangedEvent } from '../../../../../editor/common/textModelEvents.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { editorSelectionBackground } from '../../../../../platform/theme/common/colorRegistry.js';
@@ -33,6 +34,8 @@ import { IChatResponseModel } from '../../common/chatModel.js';
 import { IDocumentDiff2 } from './chatEditingCodeEditorIntegration.js';
 import { pendingRewriteMinimap } from './chatEditingModifiedFileEntry.js';
 
+type affectedLines = { linesAdded: number; linesRemoved: number; lineCount: number; hasRemainingEdits: boolean };
+type acceptedOrRejectedLines = affectedLines & { state: 'accepted' | 'rejected' };
 
 export class ChatEditingTextModelChangeService extends Disposable {
 
@@ -97,10 +100,24 @@ export class ChatEditingTextModelChangeService extends Disposable {
 	private readonly _didAcceptOrRejectAllHunks = this._register(new Emitter<ModifiedFileEntryState.Accepted | ModifiedFileEntryState.Rejected>());
 	public readonly onDidAcceptOrRejectAllHunks = this._didAcceptOrRejectAllHunks.event;
 
+	private readonly _didAcceptOrRejectLines = this._register(new Emitter<acceptedOrRejectedLines>());
+	public readonly onDidAcceptOrRejectLines = this._didAcceptOrRejectLines.event;
+
+	private notifyHunkAction(state: 'accepted' | 'rejected', affectedLines: affectedLines) {
+		if (affectedLines.lineCount > 0) {
+			this._didAcceptOrRejectLines.fire({ state, ...affectedLines });
+		}
+	}
+
+	private _didUserEditModelFired = false;
 	private readonly _didUserEditModel = this._register(new Emitter<void>());
 	public readonly onDidUserEditModel = this._didUserEditModel.event;
 
 	private _originalToModifiedEdit: StringEdit = StringEdit.empty;
+
+	private lineChangeCount: number = 0;
+	private linesAdded: number = 0;
+	private linesRemoved: number = 0;
 
 	constructor(
 		private readonly originalModel: ITextModel,
@@ -117,6 +134,23 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		this._register(toDisposable(() => {
 			this.clearCurrentEditLineDecoration();
 		}));
+
+		this._register(autorun(r => this.updateLineChangeCount(this._diffInfo.read(r))));
+	}
+
+	private updateLineChangeCount(diff: IDocumentDiff) {
+		this.lineChangeCount = 0;
+		this.linesAdded = 0;
+		this.linesRemoved = 0;
+
+		for (const change of diff.changes) {
+			const modifiedRange = change.modified.endLineNumberExclusive - change.modified.startLineNumber;
+			this.linesAdded += Math.max(0, modifiedRange);
+			const originalRange = change.original.endLineNumberExclusive - change.original.startLineNumber;
+			this.linesRemoved += Math.max(0, originalRange);
+
+			this.lineChangeCount += Math.max(modifiedRange, originalRange);
+		}
 	}
 
 	public clearCurrentEditLineDecoration() {
@@ -139,7 +173,19 @@ export class ChatEditingTextModelChangeService extends Disposable {
 
 		const sessionId = responseModel.session.sessionId;
 		const request = responseModel.session.getRequests().at(-1);
-		const source = EditSources.chatApplyEdits({ modelId: request?.modelId, requestId: request?.id, sessionId: sessionId });
+		const languageId = this.modifiedModel.getLanguageId();
+		const agent = responseModel.agent;
+		const extensionId = VersionedExtensionId.tryCreate(agent?.extensionId.value, agent?.extensionVersion);
+
+		const source = EditSources.chatApplyEdits({
+			modelId: request?.modelId,
+			requestId: request?.id,
+			sessionId: sessionId,
+			languageId,
+			mode: request?.modeInfo?.modeId,
+			extensionId,
+			codeBlockSuggestionId: request?.modeInfo?.applyCodeBlockSuggestionId,
+		});
 
 		if (isAtomicEdits) {
 			// EDIT and DONE
@@ -233,20 +279,26 @@ export class ChatEditingTextModelChangeService extends Disposable {
 	 * Keeps the current modified document as the final contents.
 	 */
 	public keep() {
+		this.notifyHunkAction('accepted', { linesAdded: this.linesAdded, linesRemoved: this.linesRemoved, lineCount: this.lineChangeCount, hasRemainingEdits: false });
 		this.originalModel.setValue(this.modifiedModel.createSnapshot());
-		this._diffInfo.set(nullDocumentDiff, undefined);
-		this._originalToModifiedEdit = StringEdit.empty;
+		this._reset();
 	}
 
 	/**
 	 * Undoes the current modified document as the final contents.
 	 */
 	public undo() {
+		this.notifyHunkAction('rejected', { linesAdded: this.linesAdded, linesRemoved: this.linesRemoved, lineCount: this.lineChangeCount, hasRemainingEdits: false });
 		this.modifiedModel.pushStackElement();
 		this._applyEdits([(EditOperation.replace(this.modifiedModel.getFullModelRange(), this.originalModel.getValue()))], EditSources.chatUndoEdits());
 		this.modifiedModel.pushStackElement();
+		this._reset();
+	}
+
+	private _reset() {
 		this._originalToModifiedEdit = StringEdit.empty;
 		this._diffInfo.set(nullDocumentDiff, undefined);
+		this._didUserEditModelFired = false;
 	}
 
 	public async resetDocumentValues(newOriginal: string | ITextSnapshot | undefined, newModified: string | undefined): Promise<void> {
@@ -307,7 +359,10 @@ export class ChatEditingTextModelChangeService extends Disposable {
 
 			this._allEditsAreFromUs = false;
 			this._updateDiffInfoSeq();
-			this._didUserEditModel.fire();
+			if (!this._didUserEditModelFired) {
+				this._didUserEditModelFired = true;
+				this._didUserEditModel.fire();
+			}
 		}
 	}
 
@@ -322,7 +377,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 			edits.push(EditOperation.replace(edit.originalRange, newText));
 		}
 		this.originalModel.pushEditOperations(null, edits, _ => null);
-		await this._updateDiffInfoSeq();
+		await this._updateDiffInfoSeq('accepted');
 		if (this._diffInfo.get().identical) {
 			this._didAcceptOrRejectAllHunks.fire(ModifiedFileEntryState.Accepted);
 		}
@@ -340,7 +395,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 			edits.push(EditOperation.replace(edit.modifiedRange, newText));
 		}
 		this.modifiedModel.pushEditOperations(null, edits, _ => null);
-		await this._updateDiffInfoSeq();
+		await this._updateDiffInfoSeq('rejected');
 		if (this._diffInfo.get().identical) {
 			this._didAcceptOrRejectAllHunks.fire(ModifiedFileEntryState.Rejected);
 		}
@@ -349,14 +404,31 @@ export class ChatEditingTextModelChangeService extends Disposable {
 	}
 
 
-	private async _updateDiffInfoSeq() {
+	private async _updateDiffInfoSeq(notifyAction: 'accepted' | 'rejected' | undefined = undefined) {
 		const myDiffOperationId = ++this._diffOperationIds;
 		await Promise.resolve(this._diffOperation);
+		const previousCount = this.lineChangeCount;
+		const previousAdded = this.linesAdded;
+		const previousRemoved = this.linesRemoved;
 		if (this._diffOperationIds === myDiffOperationId) {
 			const thisDiffOperation = this._updateDiffInfo();
 			this._diffOperation = thisDiffOperation;
 			await thisDiffOperation;
+			if (notifyAction) {
+				const affectedLines = {
+					linesAdded: previousAdded - this.linesAdded,
+					linesRemoved: previousRemoved - this.linesRemoved,
+					lineCount: previousCount - this.lineChangeCount,
+					hasRemainingEdits: this.lineChangeCount > 0
+				};
+				this.notifyHunkAction(notifyAction, affectedLines);
+			}
 		}
+	}
+
+	public hasHunkAt(range: IRange) {
+		// return true if the range overlaps a diff range
+		return this._diffInfo.get().changes.some(c => c.modified.intersectsStrict(LineRange.fromRangeInclusive(range)));
 	}
 
 	private async _updateDiffInfo(): Promise<IDocumentDiff | undefined> {

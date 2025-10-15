@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Emitter } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TreeProjection } from '../../../browser/explorerProjections/treeProjection.js';
@@ -13,6 +13,8 @@ import { TestResultItemChange, TestResultItemChangeReason } from '../../../commo
 import { TestDiffOpType, TestItemExpandState, TestResultItem, TestResultState } from '../../../common/testTypes.js';
 import { TestTreeTestHarness } from '../testObjectTree.js';
 import { TestTestItem } from '../../common/testStubs.js';
+import { upcastPartial } from '../../../../../../base/test/common/mock.js';
+import { ITestResultService } from '../../../common/testResultService.js';
 
 class TestHierarchicalByLocationProjection extends TreeProjection {
 }
@@ -20,7 +22,7 @@ class TestHierarchicalByLocationProjection extends TreeProjection {
 suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 	let harness: TestTreeTestHarness<TestHierarchicalByLocationProjection>;
 	let onTestChanged: Emitter<TestResultItemChange>;
-	let resultsService: any;
+	let resultsService: ITestResultService;
 	let ds: DisposableStore;
 
 	teardown(() => {
@@ -32,14 +34,14 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 	setup(() => {
 		ds = new DisposableStore();
 		onTestChanged = ds.add(new Emitter());
-		resultsService = {
+		resultsService = upcastPartial<ITestResultService>({
 			results: [],
-			onResultsChanged: () => undefined,
+			onResultsChanged: Event.None,
 			onTestChanged: onTestChanged.event,
-			getStateById: () => ({ state: { state: 0 }, computedState: 0 }),
-		};
+			getStateById: () => undefined,
+		});
 
-		harness = ds.add(new TestTreeTestHarness(l => new TestHierarchicalByLocationProjection({}, l, resultsService as any)));
+		harness = ds.add(new TestTreeTestHarness(l => new TestHierarchicalByLocationProjection({}, l, resultsService)));
 	});
 
 	test('renders initial tree', async () => {
@@ -130,10 +132,10 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 		});
 
 		// Applies the change:
-		resultsService.getStateById = () => [undefined, resultInState(TestResultState.Queued)];
+		resultsService.getStateById = () => [undefined!, resultInState(TestResultState.Queued)];
 		onTestChanged.fire({
 			reason: TestResultItemChangeReason.OwnStateChange,
-			result: null as any,
+			result: undefined!,
 			previousState: TestResultState.Unset,
 			item: resultInState(TestResultState.Queued),
 			previousOwnDuration: undefined,
@@ -146,10 +148,10 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 		]);
 
 		// Falls back if moved into unset state:
-		resultsService.getStateById = () => [undefined, resultInState(TestResultState.Failed)];
+		resultsService.getStateById = () => [undefined!, resultInState(TestResultState.Failed)];
 		onTestChanged.fire({
 			reason: TestResultItemChangeReason.OwnStateChange,
-			result: null as any,
+			result: undefined!,
 			previousState: TestResultState.Queued,
 			item: resultInState(TestResultState.Unset),
 			previousOwnDuration: undefined,

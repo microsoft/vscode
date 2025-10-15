@@ -127,7 +127,7 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 		super(viewType, model, UUID.generateUuid(), viewContext, configurationService, textModelService, undoRedoService, codeEditorService, inlineChatSessionService);
 
 		const { bottomToolbarGap } = this.viewContext.notebookOptions.computeBottomToolbarDimensions(this.viewType);
-
+		const layoutConfiguration = this.viewContext.notebookOptions.getLayoutConfiguration();
 		this._layoutInfo = {
 			chatHeight: 0,
 			editorHeight: 0,
@@ -142,7 +142,10 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 			totalHeight: 100,
 			layoutState: CellLayoutState.Uninitialized,
 			foldHintHeight: 0,
-			statusBarHeight: 0
+			statusBarHeight: 0,
+			outlineWidth: 1,
+			bottomMargin: layoutConfiguration.markdownCellBottomMargin,
+			topMargin: layoutConfiguration.markdownCellTopMargin,
 		};
 
 		this._register(this.onDidChangeState(e => {
@@ -230,8 +233,8 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 			foldHintHeight = 0;
 		}
 		let commentOffset: number;
+		const notebookLayoutConfiguration = this.viewContext.notebookOptions.getLayoutConfiguration();
 		if (this.getEditState() === CellEditState.Editing) {
-			const notebookLayoutConfiguration = this.viewContext.notebookOptions.getLayoutConfiguration();
 			commentOffset = notebookLayoutConfiguration.editorToolbarHeight
 				+ notebookLayoutConfiguration.cellTopMargin // CELL_TOP_MARGIN
 				+ this._chatHeight
@@ -261,6 +264,9 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 			commentHeight: state.commentHeight ?
 				this._commentHeight :
 				this._layoutInfo.commentHeight,
+			outlineWidth: 1,
+			bottomMargin: notebookLayoutConfiguration.markdownCellBottomMargin,
+			topMargin: notebookLayoutConfiguration.markdownCellTopMargin,
 		};
 
 		this._onDidChangeLayout.fire(state);
@@ -320,6 +326,7 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 
 	override dispose() {
 		super.dispose();
+		// eslint-disable-next-line local/code-no-any-casts
 		(this.foldingDelegate as any) = null;
 	}
 }

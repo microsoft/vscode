@@ -5,10 +5,17 @@
 		"jsx": "react",
 		"esModuleInterop": true,
 		"lib": [
-			"es2018",
+			"es2024",
 			"DOM",
 			"DOM.Iterable"
-		]
+		],
+		"types": [
+			"vscode-webview"
+		],
+		"typeRoots": [
+			"../node_modules/@types"
+		],
+		"skipLibCheck": true
 	},
 	"typeAcquisition": {
 		"include": [

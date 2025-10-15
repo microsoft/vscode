@@ -160,6 +160,7 @@ async function withAsyncTestCodeEditorAndInlineCompletionsModel(
 				}],
 				[ILabelService, new class extends mock<ILabelService>() { }],
 				[IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { }],
+				// eslint-disable-next-line local/code-no-any-casts
 				[IAccessibilitySignalService, {
 					playSignal: async () => { },
 					isSoundEnabled(signal: unknown) { return false; },

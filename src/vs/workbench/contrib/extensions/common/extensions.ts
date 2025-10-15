@@ -162,7 +162,7 @@ export interface IExtensionsWorkbenchService {
 	checkForUpdates(): Promise<void>;
 	getExtensionRuntimeStatus(extension: IExtension): IExtensionRuntimeStatus | undefined;
 	updateAll(): Promise<InstallExtensionResult[]>;
-	updateRunningExtensions(): Promise<void>;
+	updateRunningExtensions(message?: string): Promise<void>;
 
 	readonly onDidChangeExtensionsNotification: Event<IExtensionsNotification | undefined>;
 	getExtensionsNotification(): IExtensionsNotification | undefined;
@@ -203,8 +203,8 @@ export interface IExtensionContainer extends IDisposable {
 }
 
 export interface IExtensionsViewState {
-	onFocus: Event<IExtension>;
-	onBlur: Event<IExtension>;
+	readonly onFocus: Event<IExtension>;
+	readonly onBlur: Event<IExtension>;
 	filters: {
 		featureId?: string;
 	};

@@ -83,6 +83,7 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 					}
 					return r;
 				}
+				// eslint-disable-next-line local/code-no-any-casts
 				const isThenable = <T>(obj: ProviderResult<T>): obj is Thenable<T> => obj && (<any>obj)['then'];
 
 				const r = next(document, position, context, token);

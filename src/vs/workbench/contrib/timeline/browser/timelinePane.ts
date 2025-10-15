@@ -821,7 +821,7 @@ export class TimelinePane extends ViewPane {
 			return;
 		}
 
-		this.tree.setChildren(null, this.getItems() as any);
+		this.tree.setChildren(null, this.getItems());
 		this._isEmpty = !this.hasVisibleItems;
 
 		if (this.uri === undefined) {
@@ -1289,13 +1289,13 @@ class TimelinePaneCommands extends Disposable {
 					}
 				});
 			}
-			run(accessor: ServicesAccessor, ...args: any[]) {
+			run(accessor: ServicesAccessor, ...args: unknown[]) {
 				pane.reset();
 			}
 		}));
 
 		this._register(CommandsRegistry.registerCommand('timeline.toggleFollowActiveEditor',
-			(accessor: ServicesAccessor, ...args: any[]) => pane.followActiveEditor = !pane.followActiveEditor
+			(accessor: ServicesAccessor, ...args: unknown[]) => pane.followActiveEditor = !pane.followActiveEditor
 		));
 
 		this._register(MenuRegistry.appendMenuItem(MenuId.TimelineTitle, ({
@@ -1361,7 +1361,7 @@ class TimelinePaneCommands extends Disposable {
 						toggled: ContextKeyExpr.regex(`timelineExcludeSources`, new RegExp(`\\b${escapeRegExpCharacters(source.id)}\\b`)).negate()
 					});
 				}
-				run(accessor: ServicesAccessor, ...args: any[]) {
+				run(accessor: ServicesAccessor, ...args: unknown[]) {
 					if (excluded.has(source.id)) {
 						excluded.delete(source.id);
 					} else {

@@ -5,6 +5,7 @@
 
 
 import { groupBy } from '../../../../base/common/arrays.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { extUri } from '../../../../base/common/resources.js';
@@ -13,8 +14,10 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IMarkerService, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
 import { IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
+import { EditorResourceAccessor } from '../../../common/editor.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
-import { IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPickService, IChatContextPicker } from '../../chat/browser/chatContextPickService.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPickService, IChatContextPicker, picksWithPromiseFn } from '../../chat/browser/chatContextPickService.js';
 import { IDiagnosticVariableEntryFilterData } from '../../chat/common/chatVariableEntries.js';
 
 class MarkerChatContextPick implements IChatContextPickerItem {
@@ -27,21 +30,61 @@ class MarkerChatContextPick implements IChatContextPickerItem {
 	constructor(
 		@IMarkerService private readonly _markerService: IMarkerService,
 		@ILabelService private readonly _labelService: ILabelService,
+		@IEditorService private readonly _editorService: IEditorService,
 	) { }
 
 	asPicker(): IChatContextPicker {
+		return {
+			placeholder: localize('chatContext.diagnstic.placeholder', 'Select a problem to attach'),
+			picks: picksWithPromiseFn(async (query: string, token: CancellationToken) => {
+				return this.getPicksForQuery(query);
+			})
+		};
+	}
 
+	/**
+	 * @internal For testing purposes only
+	 */
+	getPicksForQuery(query: string): (IChatContextPickerPickItem | IQuickPickSeparator)[] {
 		const markers = this._markerService.read({ severities: MarkerSeverity.Error | MarkerSeverity.Warning | MarkerSeverity.Info });
 		const grouped = groupBy(markers, (a, b) => extUri.compare(a.resource, b.resource));
+
+		// Get the active editor URI for prioritization
+		const activeEditorUri = EditorResourceAccessor.getCanonicalUri(this._editorService.activeEditor);
+
+		// Sort groups to prioritize active file
+		const sortedGroups = grouped.sort((groupA, groupB) => {
+			const resourceA = groupA[0].resource;
+			const resourceB = groupB[0].resource;
+
+			// If one group is from the active file, prioritize it
+			if (activeEditorUri) {
+				const isAActiveFile = extUri.isEqual(resourceA, activeEditorUri);
+				const isBActiveFile = extUri.isEqual(resourceB, activeEditorUri);
+
+				if (isAActiveFile && !isBActiveFile) {
+					return -1; // A comes first
+				}
+				if (!isAActiveFile && isBActiveFile) {
+					return 1; // B comes first
+				}
+			}
+
+			// Otherwise, sort by resource URI as before
+			return extUri.compare(resourceA, resourceB);
+		});
 
 		const severities = new Set<MarkerSeverity>();
 		const items: (IChatContextPickerPickItem | IQuickPickSeparator)[] = [];
 
 		let pickCount = 0;
-		for (const group of grouped) {
+		for (const group of sortedGroups) {
 			const resource = group[0].resource;
+			const isActiveFile = activeEditorUri && extUri.isEqual(resource, activeEditorUri);
+			const fileLabel = this._labelService.getUriLabel(resource, { relative: true });
+			const separatorLabel = isActiveFile ? `${fileLabel} (current file)` : fileLabel;
 
-			items.push({ type: 'separator', label: this._labelService.getUriLabel(resource, { relative: true }) });
+			items.push({ type: 'separator', label: separatorLabel });
 			for (const marker of group) {
 				pickCount++;
 				severities.add(marker.severity);
@@ -65,11 +108,7 @@ class MarkerChatContextPick implements IChatContextPickerItem {
 			},
 		});
 
-
-		return {
-			placeholder: localize('chatContext.diagnstic.placeholder', 'Select a problem to attach'),
-			picks: Promise.resolve(items)
-		};
+		return items;
 	}
 }
 

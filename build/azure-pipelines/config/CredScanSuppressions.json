@@ -4,12 +4,19 @@
 		{
 			"file": [
 				"src/vs/base/test/common/uri.test.ts",
-				"src/vs/workbench/api/test/browser/extHostTelemetry.test.ts"
+				"src/vs/workbench/api/test/browser/extHostTelemetry.test.ts",
+				"src/vs/base/test/common/yaml.test.ts"
 			],
 			"_justification": "These are dummy credentials in tests."
 		},
 		{
 			"file": [
+				".build/linux/deb/amd64/code-amd64/usr/share/code/resources/app/extensions/github-authentication/dist/extension.js",
+				".build/linux/deb/amd64/code-amd64/usr/share/code/resources/app/extensions/emmet/dist/node/emmetNodeMain.js",
+				".build/linux/deb/armhf/code-armhf/usr/share/code/resources/app/extensions/github-authentication/dist/extension.js",
+				".build/linux/deb/armhf/code-armhf/usr/share/code/resources/app/extensions/emmet/dist/node/emmetNodeMain.js",
+				".build/linux/deb/arm64/code-arm64/usr/share/code/resources/app/extensions/github-authentication/dist/extension.js",
+				".build/linux/deb/arm64/code-arm64/usr/share/code/resources/app/extensions/emmet/dist/node/emmetNodeMain.js",
 				".build/linux/rpm/x86_64/rpmbuild/BUILD/usr/share/code/resources/app/extensions/github-authentication/dist/extension.js",
 				".build/linux/rpm/x86_64/rpmbuild/BUILD/usr/share/code/resources/app/extensions/emmet/dist/node/emmetNodeMain.js",
 				".build/linux/rpm/armv7hl/rpmbuild/BUILD/usr/share/code/resources/app/extensions/github-authentication/dist/extension.js",
@@ -33,6 +40,12 @@
 		},
 		{
 			"file": [
+				".build/linux/deb/amd64/code-insiders-amd64/usr/share/code-insiders/resources/app/extensions/github-authentication/dist/extension.js",
+				".build/linux/deb/amd64/code-insiders-amd64/usr/share/code-insiders/resources/app/extensions/emmet/dist/node/emmetNodeMain.js",
+				".build/linux/deb/armhf/code-insiders-armhf/usr/share/code-insiders/resources/app/extensions/github-authentication/dist/extension.js",
+				".build/linux/deb/armhf/code-insiders-armhf/usr/share/code-insiders/resources/app/extensions/emmet/dist/node/emmetNodeMain.js",
+				".build/linux/deb/arm64/code-insiders-arm64/usr/share/code-insiders/resources/app/extensions/github-authentication/dist/extension.js",
+				".build/linux/deb/arm64/code-insiders-arm64/usr/share/code-insiders/resources/app/extensions/emmet/dist/node/emmetNodeMain.js",
 				".build/linux/rpm/x86_64/rpmbuild/BUILD/usr/share/code-insiders/resources/app/extensions/github-authentication/dist/extension.js",
 				".build/linux/rpm/x86_64/rpmbuild/BUILD/usr/share/code-insiders/resources/app/extensions/emmet/dist/node/emmetNodeMain.js",
 				".build/linux/rpm/armv7hl/rpmbuild/BUILD/usr/share/code-insiders/resources/app/extensions/github-authentication/dist/extension.js",
@@ -56,6 +69,12 @@
 		},
 		{
 			"file": [
+				".build/linux/deb/amd64/code-exploration-amd64/usr/share/code-exploration/resources/app/extensions/github-authentication/dist/extension.js",
+				".build/linux/deb/amd64/code-exploration-amd64/usr/share/code-exploration/resources/app/extensions/emmet/dist/node/emmetNodeMain.js",
+				".build/linux/deb/armhf/code-exploration-armhf/usr/share/code-exploration/resources/app/extensions/github-authentication/dist/extension.js",
+				".build/linux/deb/armhf/code-exploration-armhf/usr/share/code-exploration/resources/app/extensions/emmet/dist/node/emmetNodeMain.js",
+				".build/linux/deb/arm64/code-exploration-arm64/usr/share/code-exploration/resources/app/extensions/github-authentication/dist/extension.js",
+				".build/linux/deb/arm64/code-exploration-arm64/usr/share/code-exploration/resources/app/extensions/emmet/dist/node/emmetNodeMain.js",
 				".build/linux/rpm/x86_64/rpmbuild/BUILD/usr/share/code-exploration/resources/app/extensions/github-authentication/dist/extension.js",
 				".build/linux/rpm/x86_64/rpmbuild/BUILD/usr/share/code-exploration/resources/app/extensions/emmet/dist/node/emmetNodeMain.js",
 				".build/linux/rpm/armv7hl/rpmbuild/BUILD/usr/share/code-exploration/resources/app/extensions/github-authentication/dist/extension.js",

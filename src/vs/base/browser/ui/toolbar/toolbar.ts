@@ -7,7 +7,7 @@ import { IContextMenuProvider } from '../../contextmenu.js';
 import { ActionBar, ActionsOrientation, IActionViewItemProvider } from '../actionbar/actionbar.js';
 import { AnchorAlignment } from '../contextview/contextview.js';
 import { DropdownMenuActionViewItem } from '../dropdown/dropdownActionViewItem.js';
-import { Action, IAction, IActionRunner, SubmenuAction } from '../../../common/actions.js';
+import { Action, IAction, IActionRunner, Separator, SubmenuAction } from '../../../common/actions.js';
 import { Codicon } from '../../../common/codicons.js';
 import { ThemeIcon } from '../../../common/themables.js';
 import { EventMultiplexer } from '../../../common/event.js';
@@ -31,6 +31,7 @@ export interface IToolBarOptions {
 	allowContextMenu?: boolean;
 	skipTelemetry?: boolean;
 	hoverDelegate?: IHoverDelegate;
+	trailingSeparator?: boolean;
 
 	/**
 	 * If true, toggled primary items are highlighted with a background color.
@@ -61,7 +62,7 @@ export class ToolBar extends Disposable {
 	private readonly element: HTMLElement;
 
 	private _onDidChangeDropdownVisibility = this._register(new EventMultiplexer<boolean>());
-	readonly onDidChangeDropdownVisibility = this._onDidChangeDropdownVisibility.event;
+	get onDidChangeDropdownVisibility() { return this._onDidChangeDropdownVisibility.event; }
 	private readonly disposables = this._register(new DisposableStore());
 
 	constructor(container: HTMLElement, contextMenuProvider: IContextMenuProvider, options: IToolBarOptions = { orientation: ActionsOrientation.HORIZONTAL }) {
@@ -201,6 +202,10 @@ export class ToolBar extends Disposable {
 		if (this.hasSecondaryActions && secondaryActions) {
 			this.toggleMenuAction.menuActions = secondaryActions.slice(0);
 			primaryActionsToSet.push(this.toggleMenuAction);
+		}
+
+		if (primaryActionsToSet.length > 0 && this.options.trailingSeparator) {
+			primaryActionsToSet.push(new Separator());
 		}
 
 		primaryActionsToSet.forEach(action => {

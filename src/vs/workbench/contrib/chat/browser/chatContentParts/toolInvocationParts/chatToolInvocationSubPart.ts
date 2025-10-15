@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
+import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService.js';
 import { IChatCodeBlockInfo } from '../../chat.js';
 
 export abstract class BaseChatToolInvocationSubPart extends Disposable {
@@ -23,12 +25,27 @@ export abstract class BaseChatToolInvocationSubPart extends Disposable {
 	public readonly codeblocksPartId = 'tool-' + (BaseChatToolInvocationSubPart.idPool++);
 
 	constructor(
-		toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
+		protected readonly toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
 	) {
 		super();
 
 		if (toolInvocation.kind === 'toolInvocation' && !toolInvocation.isComplete) {
 			toolInvocation.isCompletePromise.then(() => this._onNeedsRerender.fire());
 		}
+	}
+
+	protected getIcon() {
+		const toolInvocation = this.toolInvocation;
+		const isSkipped = typeof toolInvocation.isConfirmed !== 'boolean' && toolInvocation.isConfirmed?.type === ToolConfirmKind.Skipped;
+		if (isSkipped) {
+			return Codicon.circleSlash;
+		}
+		const isConfirmed = typeof toolInvocation.isConfirmed === 'boolean'
+			? toolInvocation.isConfirmed
+			: toolInvocation.isConfirmed?.type !== ToolConfirmKind.Denied;
+		return !isConfirmed ?
+			Codicon.error :
+			toolInvocation.isComplete ?
+				Codicon.check : ThemeIcon.modify(Codicon.loading, 'spin');
 	}
 }

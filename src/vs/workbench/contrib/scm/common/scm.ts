@@ -193,8 +193,8 @@ export interface ISCMTitleMenu {
 
 export interface ISCMRepositoryMenus {
 	readonly titleMenu: ISCMTitleMenu;
-	readonly repositoryContextMenu: IMenu;
 	getRepositoryMenu(repository: ISCMRepository): IMenu;
+	getRepositoryContextMenu(repository: ISCMRepository): IMenu;
 	getResourceGroupMenu(group: ISCMResourceGroup): IMenu;
 	getResourceMenu(resource: ISCMResource): IMenu;
 	getResourceFolderMenu(group: ISCMResourceGroup): IMenu;
@@ -243,7 +243,3 @@ export interface ISCMViewService {
 	readonly activeRepository: IObservable<ISCMRepository | undefined>;
 	pinActiveRepository(repository: ISCMRepository | undefined): void;
 }
-
-export const SCM_CHANGES_EDITOR_ID = 'workbench.editor.scmChangesEditor';
-
-export interface ISCMChangesEditor { }

@@ -20,6 +20,7 @@ export const enum InlineChatConfigKeys {
 	LineEmptyHint = 'inlineChat.lineEmptyHint',
 	LineNLHint = 'inlineChat.lineNaturalLanguageHint',
 	EnableV2 = 'inlineChat.enableV2',
+	notebookAgent = 'inlineChat.notebookAgent',
 	HideOnRequest = 'inlineChat.hideOnRequest'
 }
 
@@ -63,14 +64,29 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			description: localize('enableV2', "Whether to use the next version of inline chat."),
 			default: false,
 			type: 'boolean',
-			tags: ['preview', 'onExp'],
+			tags: ['preview'],
+			experiment: {
+				mode: 'auto'
+			}
 		},
 		[InlineChatConfigKeys.HideOnRequest]: {
 			markdownDescription: localize('hideOnRequest', "Whether to hide the inline chat widget after making a request. When enabled, the widget hides after a request has been made and instead the chat overlay shows. When hidden, the widget can always be shown again with the inline chat keybinding or from the chat overlay widget. *Note* that this setting requires `#inlineChat.enableV2#` to be enabled."),
 			default: false,
 			type: 'boolean',
-			tags: ['preview', 'onExp'],
+			tags: ['preview'],
+			experiment: {
+				mode: 'auto'
+			}
 		},
+		[InlineChatConfigKeys.notebookAgent]: {
+			markdownDescription: localize('notebookAgent', "Enable agent-like behavior for inline chat widget in notebooks. Depends on the `#inlineChat.enableV2#` setting being enabled."),
+			default: false,
+			type: 'boolean',
+			tags: ['experimental'],
+			experiment: {
+				mode: 'auto'
+			}
+		}
 	}
 });
 
