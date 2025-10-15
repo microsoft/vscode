@@ -132,6 +132,6 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 	}
 	private async _isTaskActive(task: Task): Promise<boolean> {
 		const activeTasks = await this._tasksService.getActiveTasks();
-		return activeTasks?.includes(task) ?? false;
+		return activeTasks?.some((t) => t._id === task._id);
 	}
 }

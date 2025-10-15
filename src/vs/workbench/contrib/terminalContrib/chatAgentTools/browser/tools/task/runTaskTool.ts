@@ -107,7 +107,7 @@ export class RunTaskTool implements IToolImpl {
 
 	private async _isTaskActive(task: Task): Promise<boolean> {
 		const activeTasks = await this._tasksService.getActiveTasks();
-		return Promise.resolve(activeTasks?.includes(task));
+		return Promise.resolve(activeTasks?.some((t) => t._id === task._id));
 	}
 
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
