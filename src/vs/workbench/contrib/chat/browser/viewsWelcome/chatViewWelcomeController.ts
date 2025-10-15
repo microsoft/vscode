@@ -250,7 +250,7 @@ export class ChatViewWelcomePart extends Disposable {
 						const actions = this.getPromptContextMenuActions(prompt);
 
 						this.contextMenuService.showContextMenu({
-							getAnchor: () => promptElement,
+							getAnchor: () => ({ x: e.clientX, y: e.clientY }),
 							getActions: () => actions,
 						});
 					}));
