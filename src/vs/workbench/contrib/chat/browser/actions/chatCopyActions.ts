@@ -119,7 +119,7 @@ export function registerChatCopyActions() {
 			// Try to find a KaTeX element from the selection or active element
 			let selectedElement: Node | null = null;
 
-			// If there is a selection, and focus is inside the widget, extract the inner katex element.
+			// If there is a selection, and focus is inside the widget, extract the inner KaTeX element.
 			const activeElement = dom.getActiveElement();
 			const nativeSelection = dom.getActiveWindow().getSelection();
 			if (widget && nativeSelection && nativeSelection.rangeCount > 0 && dom.isAncestor(activeElement, widget.domNode)) {
