@@ -116,7 +116,7 @@ export class CreateAndRunTaskTool implements IToolImpl {
 			_progress,
 			token,
 			store,
-			() => isTaskBusy(task, this._tasksService, dependencyTasks),
+			(terminalTask) => isTaskBusy(terminalTask, this._tasksService),
 			dependencyTasks
 		);
 		store.dispose();
@@ -144,7 +144,6 @@ export class CreateAndRunTaskTool implements IToolImpl {
 			toolResultDetails
 		};
 	}
-
 
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		const args = context.parameters as ICreateAndRunTaskToolInput;

@@ -103,7 +103,7 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 			_progress,
 			token,
 			store,
-			() => isTaskBusy(task, this._tasksService, dependencyTasks),
+			(terminalTask) => isTaskBusy(terminalTask, this._tasksService),
 			dependencyTasks
 		);
 		store.dispose();

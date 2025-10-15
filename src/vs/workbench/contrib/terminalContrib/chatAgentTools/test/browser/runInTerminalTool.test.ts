@@ -438,8 +438,8 @@ suite('RunInTerminalTool', () => {
 
 		test('should handle matchCommandLine: true patterns', async () => {
 			setAutoApprove({
-				"/dangerous/": { approve: false, matchCommandLine: true },
-				"echo": { approve: true, matchCommandLine: true }
+				'/dangerous/': { approve: false, matchCommandLine: true },
+				'echo': { approve: true, matchCommandLine: true }
 			});
 
 			const result1 = await executeToolTest({ command: 'echo hello world' });
@@ -451,8 +451,8 @@ suite('RunInTerminalTool', () => {
 
 		test('should only approve when neither sub-commands or command lines are denied', async () => {
 			setAutoApprove({
-				"foo": true,
-				"/^foo$/": { approve: false, matchCommandLine: true },
+				'foo': true,
+				'/^foo$/': { approve: false, matchCommandLine: true },
 			});
 
 			const result1 = await executeToolTest({ command: 'foo' });

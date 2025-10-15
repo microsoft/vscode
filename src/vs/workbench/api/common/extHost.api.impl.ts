@@ -1552,6 +1552,14 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerLanguageModelChatProvider: (vendor, provider) => {
 				return extHostLanguageModels.registerLanguageModelChatProvider(extension, vendor, provider);
 			},
+			getModelProxy: () => {
+				checkProposedApiEnabled(extension, 'languageModelProxy');
+				return extHostLanguageModels.getModelProxy(extension);
+			},
+			registerLanguageModelProxyProvider: (provider) => {
+				checkProposedApiEnabled(extension, 'chatParticipantPrivate');
+				return extHostLanguageModels.registerLanguageModelProxyProvider(extension, provider);
+			},
 			// --- embeddings
 			get embeddingModels() {
 				checkProposedApiEnabled(extension, 'embeddings');
@@ -1892,7 +1900,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			LanguageModelChatMessage: extHostTypes.LanguageModelChatMessage,
 			LanguageModelChatMessage2: extHostTypes.LanguageModelChatMessage2,
 			LanguageModelToolResultPart: extHostTypes.LanguageModelToolResultPart,
-			LanguageModelToolResultPart2: extHostTypes.LanguageModelToolResultPart2,
+			LanguageModelToolResultPart2: extHostTypes.LanguageModelToolResultPart,
 			LanguageModelTextPart: extHostTypes.LanguageModelTextPart,
 			LanguageModelTextPart2: extHostTypes.LanguageModelTextPart,
 			LanguageModelPartAudience: extHostTypes.LanguageModelPartAudience,
