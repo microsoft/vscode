@@ -92,7 +92,7 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 		codeEditorWidgetOptions: IDiffCodeEditorWidgetOptions,
 		@IContextKeyService private readonly _parentContextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _parentInstantiationService: IInstantiationService,
-		@ICodeEditorService codeEditorService: ICodeEditorService,
+		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
 		@IEditorProgressService private readonly _editorProgressService: IEditorProgressService,
 	) {
@@ -180,7 +180,7 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 		});
 		this._diffValue = this._diffModel.map((m, r) => m?.diff.read(r));
 		this.onDidUpdateDiff = Event.fromObservableLight(this._diffValue);
-		codeEditorService.willCreateDiffEditor();
+		this._codeEditorService.willCreateDiffEditor();
 
 		this._contextKeyService.createKey('isInDiffEditor', true);
 
@@ -344,7 +344,10 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 
 		this._createDiffEditorContributions();
 
-		codeEditorService.addDiffEditor(this);
+		this._codeEditorService.addDiffEditor(this);
+		this._register(toDisposable(() => {
+			this._codeEditorService.removeDiffEditor(this);
+		}));
 
 		this._gutter = derivedDisposable(this, reader => {
 			return this._options.shouldRenderGutterMenu.read(reader)
@@ -474,6 +477,7 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 			this._editors.original.restoreViewState(diffEditorState.original);
 			this._editors.modified.restoreViewState(diffEditorState.modified);
 			if (diffEditorState.modelState) {
+				// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 				this._diffModel.get()?.restoreSerializedState(diffEditorState.modelState as any);
 			}
 		}

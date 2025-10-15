@@ -900,8 +900,8 @@ MenuRegistry.appendMenuItem(CHAT_CONFIG_MENU_ID, {
 		title: localize2('mcp.servers', "MCP Servers")
 	},
 	when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
-	order: 14,
-	group: '0_level'
+	order: 10,
+	group: '2_level'
 });
 
 abstract class OpenMcpResourceCommand extends Action2 {
@@ -1090,5 +1090,20 @@ export class McpStartPromptingServerCommand extends Action2 {
 		editor.setSelection(Range.fromPositions(range.getEndPosition().delta(0, text.length)));
 		widget.focusInput();
 		SuggestController.get(editor)?.triggerSuggest();
+	}
+}
+
+export class McpSkipCurrentAutostartCommand extends Action2 {
+	constructor() {
+		super({
+			id: McpCommandIds.SkipCurrentAutostart,
+			title: localize2('mcp.skipCurrentAutostart', "Skip Current Autostart"),
+			category,
+			f1: false,
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		accessor.get(IMcpService).cancelAutostart();
 	}
 }

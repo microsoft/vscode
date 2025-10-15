@@ -49,12 +49,12 @@ export abstract class CoreEditorCommand<T> extends EditorCommand {
 
 export namespace EditorScroll_ {
 
-	const isEditorScrollArgs = function (arg: any): boolean {
+	const isEditorScrollArgs = function (arg: unknown): boolean {
 		if (!types.isObject(arg)) {
 			return false;
 		}
 
-		const scrollArg: RawArguments = arg;
+		const scrollArg: RawArguments = arg as RawArguments;
 
 		if (!types.isString(scrollArg.to)) {
 			return false;
@@ -235,12 +235,12 @@ export namespace EditorScroll_ {
 
 export namespace RevealLine_ {
 
-	const isRevealLineArgs = function (arg: any): boolean {
+	const isRevealLineArgs = function (arg: unknown): boolean {
 		if (!types.isObject(arg)) {
 			return false;
 		}
 
-		const reveaLineArg: RawArguments = arg;
+		const reveaLineArg: RawArguments = arg as RawArguments;
 
 		if (!types.isNumber(reveaLineArg.lineNumber) && !types.isString(reveaLineArg.lineNumber)) {
 			return false;

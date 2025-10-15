@@ -54,7 +54,7 @@ export function registerChatTitleActions() {
 			});
 		}
 
-		run(accessor: ServicesAccessor, ...args: any[]) {
+		run(accessor: ServicesAccessor, ...args: unknown[]) {
 			const item = args[0];
 			if (!isResponseVM(item)) {
 				return;
@@ -101,7 +101,7 @@ export function registerChatTitleActions() {
 			});
 		}
 
-		run(accessor: ServicesAccessor, ...args: any[]) {
+		run(accessor: ServicesAccessor, ...args: unknown[]) {
 			const item = args[0];
 			if (!isResponseVM(item)) {
 				return;
@@ -153,7 +153,7 @@ export function registerChatTitleActions() {
 			});
 		}
 
-		run(accessor: ServicesAccessor, ...args: any[]) {
+		run(accessor: ServicesAccessor, ...args: unknown[]) {
 			const item = args[0];
 			if (!isResponseVM(item)) {
 				return;
@@ -199,7 +199,7 @@ export function registerChatTitleActions() {
 			});
 		}
 
-		async run(accessor: ServicesAccessor, ...args: any[]) {
+		async run(accessor: ServicesAccessor, ...args: unknown[]) {
 			const chatWidgetService = accessor.get(IChatWidgetService);
 
 			let item = args[0];
@@ -285,7 +285,7 @@ export function registerChatTitleActions() {
 			});
 		}
 
-		async run(accessor: ServicesAccessor, ...args: any[]) {
+		async run(accessor: ServicesAccessor, ...args: unknown[]) {
 			const item = args[0];
 			if (!isResponseVM(item)) {
 				return;

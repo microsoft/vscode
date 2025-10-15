@@ -82,6 +82,7 @@ if (-not $env:VSCODE_PYTHON_AUTOACTIVATE_GUARD) {
 
 		try {
 			Invoke-Expression $activateScript
+			$Global:__VSCodeState.OriginalPrompt = $function:Prompt
 		}
 		catch {
 			$activationError = $_

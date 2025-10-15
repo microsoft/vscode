@@ -99,10 +99,8 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		if (commandDetectionCapability) {
 			this._registerCommandHandlers();
 		} else {
-			this._register(this._capabilities.onDidAddCapabilityType(c => {
-				if (c === TerminalCapability.CommandDetection) {
-					this._registerCommandHandlers();
-				}
+			this._register(this._capabilities.onDidAddCommandDetectionCapability(() => {
+				this._registerCommandHandlers();
 			}));
 		}
 		this._register(this._quickFixService.onDidRegisterProvider(result => this.registerCommandFinishedListener(convertToQuickFixOptions(result))));

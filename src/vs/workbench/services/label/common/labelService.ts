@@ -138,7 +138,7 @@ export class LabelService extends Disposable implements ILabelService {
 	private readonly _onDidChangeFormatters = this._register(new Emitter<IFormatterChangeEvent>({ leakWarningThreshold: 400 }));
 	readonly onDidChangeFormatters = this._onDidChangeFormatters.event;
 
-	private readonly storedFormattersMemento: Memento;
+	private readonly storedFormattersMemento: Memento<IStoredFormatters>;
 	private readonly storedFormatters: IStoredFormatters;
 	private os: OperatingSystem;
 	private userHome: URI | undefined;

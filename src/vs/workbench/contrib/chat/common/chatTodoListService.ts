@@ -29,7 +29,7 @@ export interface IChatTodoListService {
 }
 
 export class ChatTodoListStorage implements IChatTodoListStorage {
-	private memento: Memento;
+	private memento: Memento<Record<string, IChatTodo[]>>;
 
 	constructor(@IStorageService storageService: IStorageService) {
 		this.memento = new Memento('chat-todo-list', storageService);

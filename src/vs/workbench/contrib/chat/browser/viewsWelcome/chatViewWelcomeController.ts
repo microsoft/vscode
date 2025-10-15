@@ -12,7 +12,8 @@ import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { IMarkdownRenderResult, MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
+import { IRenderedMarkdown } from '../../../../../base/browser/markdownRenderer.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -135,18 +136,17 @@ export class ChatViewWelcomePart extends Disposable {
 		public readonly content: IChatViewWelcomeContent,
 		options: IChatViewWelcomeRenderOptions | undefined,
 		@IOpenerService private openerService: IOpenerService,
-		@IInstantiationService private instantiationService: IInstantiationService,
 		@ILogService private logService: ILogService,
 		@IChatWidgetService private chatWidgetService: IChatWidgetService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IConfigurationService private configurationService: IConfigurationService,
+		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 	) {
 		super();
 
 		this.element = dom.$('.chat-welcome-view');
 
 		try {
-			const renderer = this.instantiationService.createInstance(MarkdownRenderer, {});
 
 			// Icon
 			const icon = dom.append(this.element, $('.chat-welcome-view-icon'));
@@ -169,7 +169,7 @@ export class ChatViewWelcomePart extends Disposable {
 			const message = dom.append(this.element, content.isNew ? $('.chat-welcome-new-view-message') : $('.chat-welcome-view-message'));
 			message.classList.toggle('empty-state', expEmptyState);
 
-			const messageResult = this.renderMarkdownMessageContent(renderer, content.message, options);
+			const messageResult = this.renderMarkdownMessageContent(content.message, options);
 			dom.append(message, messageResult.element);
 
 			if (content.isNew && content.inputPart) {
@@ -183,7 +183,7 @@ export class ChatViewWelcomePart extends Disposable {
 				if (typeof content.additionalMessage === 'string') {
 					disclaimers.textContent = content.additionalMessage;
 				} else {
-					const additionalMessageResult = this.renderMarkdownMessageContent(renderer, content.additionalMessage, options);
+					const additionalMessageResult = this.renderMarkdownMessageContent(content.additionalMessage, options);
 					disclaimers.appendChild(additionalMessageResult.element);
 				}
 			}
@@ -252,7 +252,7 @@ export class ChatViewWelcomePart extends Disposable {
 			// Tips
 			if (content.tips) {
 				const tips = dom.append(this.element, $('.chat-welcome-view-tips'));
-				const tipsResult = this._register(renderer.render(content.tips));
+				const tipsResult = this._register(this.markdownRendererService.render(content.tips));
 				tips.appendChild(tipsResult.element);
 			}
 
@@ -262,7 +262,7 @@ export class ChatViewWelcomePart extends Disposable {
 				if (typeof content.additionalMessage === 'string') {
 					additionalMsg.textContent = content.additionalMessage;
 				} else {
-					const additionalMessageResult = this.renderMarkdownMessageContent(renderer, content.additionalMessage, options);
+					const additionalMessageResult = this.renderMarkdownMessageContent(content.additionalMessage, options);
 					additionalMsg.appendChild(additionalMessageResult.element);
 				}
 			}
@@ -286,8 +286,8 @@ export class ChatViewWelcomePart extends Disposable {
 			}));
 	}
 
-	private renderMarkdownMessageContent(renderer: MarkdownRenderer, content: IMarkdownString, options: IChatViewWelcomeRenderOptions | undefined): IMarkdownRenderResult {
-		const messageResult = this._register(renderer.render(content));
+	private renderMarkdownMessageContent(content: IMarkdownString, options: IChatViewWelcomeRenderOptions | undefined): IRenderedMarkdown {
+		const messageResult = this._register(this.markdownRendererService.render(content));
 		const firstLink = options?.firstLinkToButton ? messageResult.element.querySelector('a') : undefined;
 		if (firstLink) {
 			const target = firstLink.getAttribute('data-href');

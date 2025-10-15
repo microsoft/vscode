@@ -56,6 +56,7 @@ type RecordedTestCase = {
 const recordedTestCases: RecordedTestCase[] = [
 	{
 		name: 'rich_windows11_pwsh7_echo_3_times',
+		// eslint-disable-next-line local/code-no-any-casts
 		events: rich_windows11_pwsh7_echo_3_times as any as RecordedSessionEvent[],
 		finalAssertions: (commandDetection: ICommandDetectionCapability | undefined) => {
 			assertCommandDetectionState(commandDetection, ['echo a', 'echo b', 'echo c'], '|');
@@ -63,6 +64,7 @@ const recordedTestCases: RecordedTestCase[] = [
 	},
 	{
 		name: 'rich_windows11_pwsh7_ls_one_time',
+		// eslint-disable-next-line local/code-no-any-casts
 		events: rich_windows11_pwsh7_ls_one_time as any as RecordedSessionEvent[],
 		finalAssertions: (commandDetection: ICommandDetectionCapability | undefined) => {
 			assertCommandDetectionState(commandDetection, ['ls'], '|');
@@ -70,6 +72,7 @@ const recordedTestCases: RecordedTestCase[] = [
 	},
 	{
 		name: 'rich_windows11_pwsh7_type_foo',
+		// eslint-disable-next-line local/code-no-any-casts
 		events: rich_windows11_pwsh7_type_foo as any as RecordedSessionEvent[],
 		finalAssertions: (commandDetection: ICommandDetectionCapability | undefined) => {
 			assertCommandDetectionState(commandDetection, [], 'foo|');
@@ -77,6 +80,7 @@ const recordedTestCases: RecordedTestCase[] = [
 	},
 	{
 		name: 'rich_windows11_pwsh7_type_foo_left_twice',
+		// eslint-disable-next-line local/code-no-any-casts
 		events: rich_windows11_pwsh7_type_foo_left_twice as any as RecordedSessionEvent[],
 		finalAssertions: (commandDetection: ICommandDetectionCapability | undefined) => {
 			assertCommandDetectionState(commandDetection, [], 'f|oo');
@@ -84,6 +88,7 @@ const recordedTestCases: RecordedTestCase[] = [
 	},
 	{
 		name: 'rich_macos_zsh_omz_echo_3_times',
+		// eslint-disable-next-line local/code-no-any-casts
 		events: rich_macos_zsh_omz_echo_3_times as any as RecordedSessionEvent[],
 		finalAssertions: (commandDetection: ICommandDetectionCapability | undefined) => {
 			assertCommandDetectionState(commandDetection, ['echo a', 'echo b', 'echo c'], '|');
@@ -91,6 +96,7 @@ const recordedTestCases: RecordedTestCase[] = [
 	},
 	{
 		name: 'rich_macos_zsh_omz_ls_one_time',
+		// eslint-disable-next-line local/code-no-any-casts
 		events: rich_macos_zsh_omz_ls_one_time as any as RecordedSessionEvent[],
 		finalAssertions: (commandDetection: ICommandDetectionCapability | undefined) => {
 			assertCommandDetectionState(commandDetection, ['ls'], '|');
@@ -98,6 +104,7 @@ const recordedTestCases: RecordedTestCase[] = [
 	},
 	{
 		name: 'basic_macos_zsh_p10k_ls_one_time',
+		// eslint-disable-next-line local/code-no-any-casts
 		events: basic_macos_zsh_p10k_ls_one_time as any as RecordedSessionEvent[],
 		finalAssertions: (commandDetection: ICommandDetectionCapability | undefined) => {
 			// Prompt input model doesn't work for p10k yet
@@ -155,6 +162,7 @@ suite('Terminal Contrib Shell Integration Recordings', () => {
 			})
 		}, store);
 		const terminalConfigurationService = instantiationService.get(ITerminalConfigurationService) as TestTerminalConfigurationService;
+		// eslint-disable-next-line local/code-no-any-casts
 		terminalConfigurationService.setConfig(terminalConfig as any);
 		const shellIntegrationAddon = store.add(new ShellIntegrationAddon('', true, undefined, NullTelemetryService, new NullLogService));
 		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;

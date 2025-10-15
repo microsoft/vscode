@@ -202,17 +202,15 @@ export class ToolTerminalCreator {
 					result.complete(ShellIntegrationQuality.Basic);
 				}, 200));
 			} else {
-				store.add(instance.capabilities.onDidAddCapabilityType(e => {
-					if (e === TerminalCapability.CommandDetection) {
-						siNoneTimer.clear();
-						// When command detection lights up, allow up to 200ms for the rich command
-						// detection sequence to come in before declaring it as basic shell
-						// integration.
-						store.add(disposableTimeout(() => {
-							this._logService.info(`ToolTerminalCreator#_waitForShellIntegration: Timed out 200ms, using basic SI (via listener)`);
-							result.complete(ShellIntegrationQuality.Basic);
-						}, 200));
-					}
+				store.add(instance.capabilities.onDidAddCommandDetectionCapability(e => {
+					siNoneTimer.clear();
+					// When command detection lights up, allow up to 200ms for the rich command
+					// detection sequence to come in before declaring it as basic shell
+					// integration.
+					store.add(disposableTimeout(() => {
+						this._logService.info(`ToolTerminalCreator#_waitForShellIntegration: Timed out 200ms, using basic SI (via listener)`);
+						result.complete(ShellIntegrationQuality.Basic);
+					}, 200));
 				}));
 			}
 		}

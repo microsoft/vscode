@@ -33,7 +33,7 @@ export interface FoundInFrameResult {
 export interface IWebviewManagerService {
 	_serviceBrand: unknown;
 
-	onFoundInFrame: Event<FoundInFrameResult>;
+	readonly onFoundInFrame: Event<FoundInFrameResult>;
 
 	setIgnoreMenuShortcuts(id: WebviewWebContentsId | WebviewWindowId, enabled: boolean): Promise<void>;
 
