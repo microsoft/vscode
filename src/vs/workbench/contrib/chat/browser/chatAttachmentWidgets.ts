@@ -48,7 +48,7 @@ import { IPreferencesService } from '../../../services/preferences/common/prefer
 import { revealInSideBarCommand } from '../../files/browser/fileActions.contribution.js';
 import { CellUri } from '../../notebook/common/notebookCommon.js';
 import { INotebookService } from '../../notebook/common/notebookService.js';
-import { getHistoryItemEditorTitle, getHistoryItemHoverContent } from '../../scm/browser/util.js';
+import { getHistoryItemEditorTitle } from '../../scm/browser/util.js';
 import { IChatContentReference } from '../common/chatService.js';
 import { IChatRequestPasteVariableEntry, IChatRequestVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, IPromptFileVariableEntry, IPromptTextVariableEntry, ISCMHistoryItemVariableEntry, OmittedState, PromptFileVariableKind, ChatRequestToolReferenceEntry, ISCMHistoryItemChangeVariableEntry, ISCMHistoryItemChangeRangeVariableEntry } from '../common/chatVariableEntries.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
@@ -797,7 +797,8 @@ export class SCMHistoryItemAttachmentWidget extends AbstractChatAttachmentWidget
 		this.element.style.cursor = 'pointer';
 		this.element.ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
 
-		this._store.add(hoverService.setupManagedHover(hoverDelegate, this.element, () => getHistoryItemHoverContent(themeService, attachment.historyItem), { trapFocus: true }));
+		const hoverContent = { markdown: attachment.historyItem.tooltip, markdownNotSupportedFallback: attachment.historyItem.message };
+		this._store.add(hoverService.setupManagedHover(hoverDelegate, this.element, hoverContent, { trapFocus: true }));
 
 		this._store.add(dom.addDisposableListener(this.element, dom.EventType.CLICK, (e: MouseEvent) => {
 			dom.EventHelper.stop(e, true);
@@ -842,7 +843,9 @@ export class SCMHistoryItemChangeAttachmentWidget extends AbstractChatAttachment
 		this.label.setFile(attachment.value, { fileKind: FileKind.FILE, hidePath: true, nameSuffix });
 
 		this.element.ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
-		this._store.add(hoverService.setupManagedHover(hoverDelegate, this.element, () => getHistoryItemHoverContent(themeService, attachment.historyItem), { trapFocus: true }));
+
+		const hoverContent = { markdown: attachment.historyItem.tooltip, markdownNotSupportedFallback: attachment.historyItem.message };
+		this._store.add(hoverService.setupManagedHover(hoverDelegate, this.element, hoverContent, { trapFocus: true }));
 
 		this.addResourceOpenHandlers(attachment.value, undefined);
 		this.attachClearButton();
