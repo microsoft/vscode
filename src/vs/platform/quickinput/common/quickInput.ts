@@ -794,7 +794,13 @@ export enum QuickInputButtonLocation {
 	/**
 	 * To the right of the input box.
 	 */
-	Inline = 2
+	Inline = 2,
+
+	/**
+	 * At the far end inside the input box.
+	 * Used by the public API to create toggles.
+	 */
+	Input = 3,
 }
 
 /**

@@ -400,7 +400,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		}
 
 		set buttons(buttons: QuickInputButton[]) {
-			if (buttons.some(button => button.location)) {
+			if (buttons.some(button => button.location || button.checked !== undefined)) {
 				checkProposedApiEnabled(this._extension, 'quickInputButtonLocation');
 			}
 			this._buttons = buttons.slice();
@@ -415,7 +415,8 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 						...getIconPathOrClass(button.iconPath),
 						tooltip: button.tooltip,
 						handle: button === QuickInputButtons.Back ? -1 : i,
-						location: button.location
+						location: button.location,
+						checked: button.checked
 					};
 				})
 			});

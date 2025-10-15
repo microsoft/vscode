@@ -625,7 +625,6 @@ export interface TransferQuickPickItem {
 
 export interface TransferQuickInputButton extends quickInput.IQuickInputButton {
 	handle: number;
-	location?: number;
 	checked?: boolean;
 }
 
