@@ -15,7 +15,7 @@ import { InlineChatNotebookContribution } from './inlineChatNotebook.js';
 import { IWorkbenchContributionsRegistry, registerWorkbenchContribution2, Extensions as WorkbenchExtensions, WorkbenchPhase } from '../../../common/contributions.js';
 import { InlineChatAccessibleView } from './inlineChatAccessibleView.js';
 import { IInlineChatSessionService } from './inlineChatSessionService.js';
-import { InlineChatEnabler, InlineChatSessionServiceImpl } from './inlineChatSessionServiceImpl.js';
+import { InlineChatEnabler, InlineChatEscapeToolContribution, InlineChatSessionServiceImpl } from './inlineChatSessionServiceImpl.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { CancelAction, ChatSubmitAction } from '../../chat/browser/actions/chatExecuteActions.js';
 import { localize } from '../../../../nls.js';
@@ -117,5 +117,6 @@ const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegist
 workbenchContributionsRegistry.registerWorkbenchContribution(InlineChatNotebookContribution, LifecyclePhase.Restored);
 
 registerWorkbenchContribution2(InlineChatEnabler.Id, InlineChatEnabler, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(InlineChatEscapeToolContribution.Id, InlineChatEscapeToolContribution, WorkbenchPhase.AfterRestored);
 AccessibleViewRegistry.register(new InlineChatAccessibleView());
 AccessibleViewRegistry.register(new InlineChatAccessibilityHelp());
