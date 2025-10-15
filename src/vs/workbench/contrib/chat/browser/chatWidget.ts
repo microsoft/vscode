@@ -67,7 +67,6 @@ import { chatAgentLeader, ChatRequestAgentPart, ChatRequestDynamicVariablePart, 
 import { ChatRequestParser } from '../common/chatRequestParser.js';
 import { IChatLocationData, IChatSendRequestOptions, IChatService } from '../common/chatService.js';
 import { IChatSlashCommandService } from '../common/chatSlashCommands.js';
-import { IChatTodoListService } from '../common/chatTodoListService.js';
 import { ChatRequestVariableSet, IChatRequestVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../common/chatVariableEntries.js';
 import { ChatViewModel, IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
 import { IChatInputState } from '../common/chatWidgetHistoryService.js';
@@ -475,7 +474,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IChatModeService private readonly chatModeService: IChatModeService,
-		@IChatTodoListService private readonly chatTodoListService: IChatTodoListService,
 		@IChatLayoutService private readonly chatLayoutService: IChatLayoutService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@ICommandService private readonly commandService: ICommandService,
@@ -914,7 +912,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// Unlock coding agent when clearing
 		this.unlockFromCodingAgent();
 		this._onDidClear.fire();
-		this.chatTodoListWidget.clear(this.viewModel?.sessionId, true);
+		this.clearTodoListWidget(this.viewModel?.sessionId);
 	}
 
 	public toggleHistoryVisibility(): void {
@@ -1255,8 +1253,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private renderChatTodoListWidget(): void {
 		const sessionId = this.viewModel?.sessionId;
-		if (!sessionId) {
-			this.chatTodoListWidget.render(sessionId);
+		if (!sessionId || !this._isReady) {
 			return;
 		}
 
@@ -1278,11 +1275,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 
-		// Handle 'default' - render the widget if there are todos
-		const todos = this.chatTodoListService.getTodos(sessionId);
-		if (todos.length > 0) {
-			this.chatTodoListWidget.render(sessionId);
-		}
+		this.chatTodoListWidget.render(sessionId);
+	}
+
+	private clearTodoListWidget(sessionId: string | undefined, force: boolean = false): void {
+		this.chatTodoListWidget.clear(sessionId, force);
+		this.inputPart.clearTodoListWidget(sessionId, force);
 	}
 
 	private _getGenerateInstructionsMessage(): IMarkdownString {
@@ -1522,7 +1520,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// Build the final result array
 		for (const { promptName } of topPrompts) {
 			const description = this.promptDescriptionsCache.get(promptName);
-			const commandLabel = localize('chatWidget.promptFile.commandLabel', "/{0}", promptName);
+			const commandLabel = localize('chatWidget.promptFile.commandLabel', "{0}", promptName);
 			const descriptionText = description?.trim() ? description : undefined;
 			result.push({
 				icon: Codicon.run,
@@ -2244,7 +2242,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this._onDidChangeAgent.fire({ agent: e.agent, slashCommand: e.command });
 			}
 			if (e.kind === 'addRequest' || e.kind === 'removeRequest') {
-				this.chatTodoListWidget.clear(model.sessionId, e.kind === 'removeRequest' /*force*/);
+				this.clearTodoListWidget(model.sessionId, e.kind === 'removeRequest' /*force*/);
 			}
 		}));
 

@@ -624,4 +624,5 @@ export const codiconsLibrary = {
 	quotes: register('quotes', 0xec60),
 	rename: register('rename', 0xec61),
 	runWithDeps: register('run-with-deps', 0xec62),
+	debugConnected: register('debug-connected', 0xec63),
 } as const;
