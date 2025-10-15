@@ -21,6 +21,7 @@ const overviewRulerCommentUnresolvedForeground = registerColor('editorOverviewRu
 
 const editorGutterCommentGlyphForeground = registerColor('editorGutter.commentGlyphForeground', { dark: editorForeground, light: editorForeground, hcDark: Color.black, hcLight: Color.white }, nls.localize('editorGutterCommentGlyphForeground', 'Editor gutter decoration color for commenting glyphs.'));
 registerColor('editorGutter.commentUnresolvedGlyphForeground', editorGutterCommentGlyphForeground, nls.localize('editorGutterCommentUnresolvedGlyphForeground', 'Editor gutter decoration color for commenting glyphs for unresolved comment threads.'));
+registerColor('editorGutter.commentDraftGlyphForeground', editorGutterCommentGlyphForeground, nls.localize('editorGutterCommentDraftGlyphForeground', 'Editor gutter decoration color for commenting glyphs for comment threads with draft comments.'));
 
 export class CommentGlyphWidget extends Disposable {
 	public static description = 'comment-glyph-widget';
