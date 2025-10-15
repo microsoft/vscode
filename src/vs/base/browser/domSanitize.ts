@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, IDisposable, toDisposable } from '../common/lifecycle.js';
 import { Schemas } from '../common/network.js';
-import dompurify from './dompurify/dompurify.js';
-
+import { reset } from './dom.js';
+// eslint-disable-next-line no-restricted-imports
+import dompurify, * as DomPurifyTypes from './dompurify/dompurify.js';
 
 /**
  * List of safe, non-input html tags.
@@ -54,6 +54,7 @@ export const basicMarkupHtmlTags = Object.freeze([
 	'rp',
 	'rt',
 	'ruby',
+	's',
 	'samp',
 	'small',
 	'small',
@@ -102,46 +103,52 @@ export const defaultAllowedAttrs = Object.freeze([
 ]);
 
 
-type UponSanitizeElementCb = (currentNode: Element, data: dompurify.SanitizeElementHookEvent, config: dompurify.Config) => void;
-type UponSanitizeAttributeCb = (currentNode: Element, data: dompurify.SanitizeAttributeHookEvent, config: dompurify.Config) => void;
+const fakeRelativeUrlProtocol = 'vscode-relative-path';
 
-function addDompurifyHook(hook: 'uponSanitizeElement', cb: UponSanitizeElementCb): IDisposable;
-function addDompurifyHook(hook: 'uponSanitizeAttribute', cb: UponSanitizeAttributeCb): IDisposable;
-function addDompurifyHook(hook: 'uponSanitizeElement' | 'uponSanitizeAttribute', cb: any): IDisposable {
-	dompurify.addHook(hook, cb);
-	return toDisposable(() => dompurify.removeHook(hook));
+interface AllowedLinksConfig {
+	readonly override: readonly string[] | '*';
+	readonly allowRelativePaths: boolean;
+}
+
+function validateLink(value: string, allowedProtocols: AllowedLinksConfig): boolean {
+	if (allowedProtocols.override === '*') {
+		return true; // allow all protocols
+	}
+
+	try {
+		const url = new URL(value, fakeRelativeUrlProtocol + '://');
+		if (allowedProtocols.override.includes(url.protocol.replace(/:$/, ''))) {
+			return true;
+		}
+
+		if (allowedProtocols.allowRelativePaths
+			&& url.protocol === fakeRelativeUrlProtocol + ':'
+			&& !value.trim().toLowerCase().startsWith(fakeRelativeUrlProtocol)
+		) {
+			return true;
+		}
+
+		return false;
+	} catch (e) {
+		return false;
+	}
 }
 
 /**
  * Hooks dompurify using `afterSanitizeAttributes` to check that all `href` and `src`
  * attributes are valid.
  */
-function hookDomPurifyHrefAndSrcSanitizer(allowedLinkProtocols: readonly string[] | '*', allowedMediaProtocols: readonly string[]): IDisposable {
-	// https://github.com/cure53/DOMPurify/blob/main/demos/hooks-scheme-allowlist.html
-	// build an anchor to map URLs to
-	const anchor = document.createElement('a');
-
-	function validateLink(value: string, allowedProtocols: readonly string[] | '*'): boolean {
-		if (allowedProtocols === '*') {
-			return true; // allow all protocols
-		}
-
-		anchor.href = value;
-		return allowedProtocols.includes(anchor.protocol.replace(/:$/, ''));
-	}
-
+function hookDomPurifyHrefAndSrcSanitizer(allowedLinkProtocols: AllowedLinksConfig, allowedMediaProtocols: AllowedLinksConfig) {
 	dompurify.addHook('afterSanitizeAttributes', (node) => {
 		// check all href/src attributes for validity
 		for (const attr of ['href', 'src']) {
 			if (node.hasAttribute(attr)) {
 				const attrValue = node.getAttribute(attr) as string;
 				if (attr === 'href') {
-
 					if (!attrValue.startsWith('#') && !validateLink(attrValue, allowedLinkProtocols)) {
 						node.removeAttribute(attr);
 					}
-
-				} else {// 'src'
+				} else { // 'src'
 					if (!validateLink(attrValue, allowedMediaProtocols)) {
 						node.removeAttribute(attr);
 					}
@@ -149,8 +156,6 @@ function hookDomPurifyHrefAndSrcSanitizer(allowedLinkProtocols: readonly string[
 			}
 		}
 	});
-
-	return toDisposable(() => dompurify.removeHook('afterSanitizeAttributes'));
 }
 
 /**
@@ -164,6 +169,7 @@ export interface SanitizeAttributeRule {
 	readonly attributeName: string;
 	shouldKeep: SanitizeAttributePredicate;
 }
+
 
 export interface DomSanitizerConfig {
 	/**
@@ -190,11 +196,21 @@ export interface DomSanitizerConfig {
 	};
 
 	/**
+	 * If set, allows relative paths for links.
+	 */
+	readonly allowRelativeLinkPaths?: boolean;
+
+	/**
 	 * List of allowed protocols for `src` attributes.
 	 */
 	readonly allowedMediaProtocols?: {
-		readonly override?: readonly string[];
+		readonly override?: readonly string[] | '*';
 	};
+
+	/**
+	 * If set, allows relative paths for media (images, videos, etc).
+	 */
+	readonly allowRelativeMediaPaths?: boolean;
 
 	/**
 	 * If set, replaces unsupported tags with their plaintext representation instead of removing them.
@@ -207,12 +223,9 @@ export interface DomSanitizerConfig {
 const defaultDomPurifyConfig = Object.freeze({
 	ALLOWED_TAGS: [...basicMarkupHtmlTags],
 	ALLOWED_ATTR: [...defaultAllowedAttrs],
-	RETURN_DOM: false,
-	RETURN_DOM_FRAGMENT: false,
-	RETURN_TRUSTED_TYPE: true,
 	// We sanitize the src/href attributes later if needed
 	ALLOW_UNKNOWN_PROTOCOLS: true,
-} satisfies dompurify.Config);
+} satisfies DomPurifyTypes.Config);
 
 /**
  * Sanitizes an html string.
@@ -223,9 +236,14 @@ const defaultDomPurifyConfig = Object.freeze({
  * @returns A sanitized string of html.
  */
 export function sanitizeHtml(untrusted: string, config?: DomSanitizerConfig): TrustedHTML {
-	const store = new DisposableStore();
+	return doSanitizeHtml(untrusted, config, 'trusted');
+}
+
+function doSanitizeHtml(untrusted: string, config: DomSanitizerConfig | undefined, outputType: 'dom'): DocumentFragment;
+function doSanitizeHtml(untrusted: string, config: DomSanitizerConfig | undefined, outputType: 'trusted'): TrustedHTML;
+function doSanitizeHtml(untrusted: string, config: DomSanitizerConfig | undefined, outputType: 'dom' | 'trusted'): TrustedHTML | DocumentFragment {
 	try {
-		const resolvedConfig: dompurify.Config = { ...defaultDomPurifyConfig };
+		const resolvedConfig: DomPurifyTypes.Config = { ...defaultDomPurifyConfig };
 
 		if (config?.allowedTags) {
 			if (config.allowedTags.override) {
@@ -272,16 +290,22 @@ export function sanitizeHtml(untrusted: string, config?: DomSanitizerConfig): Tr
 
 		resolvedConfig.ALLOWED_ATTR = Array.from(allowedAttrNames);
 
-		store.add(hookDomPurifyHrefAndSrcSanitizer(
-			config?.allowedLinkProtocols?.override ?? [Schemas.http, Schemas.https],
-			config?.allowedMediaProtocols?.override ?? [Schemas.http, Schemas.https]));
+		hookDomPurifyHrefAndSrcSanitizer(
+			{
+				override: config?.allowedLinkProtocols?.override ?? [Schemas.http, Schemas.https],
+				allowRelativePaths: config?.allowRelativeLinkPaths ?? false
+			},
+			{
+				override: config?.allowedMediaProtocols?.override ?? [Schemas.http, Schemas.https],
+				allowRelativePaths: config?.allowRelativeMediaPaths ?? false
+			});
 
 		if (config?.replaceWithPlaintext) {
-			store.add(addDompurifyHook('uponSanitizeElement', replaceWithPlainTextHook));
+			dompurify.addHook('uponSanitizeElement', replaceWithPlainTextHook);
 		}
 
 		if (allowedAttrPredicates.size) {
-			store.add(addDompurifyHook('uponSanitizeAttribute', (node, e) => {
+			dompurify.addHook('uponSanitizeAttribute', (node, e) => {
 				const predicate = allowedAttrPredicates.get(e.attrName);
 				if (predicate) {
 					const result = predicate.shouldKeep(node, e);
@@ -294,44 +318,57 @@ export function sanitizeHtml(untrusted: string, config?: DomSanitizerConfig): Tr
 				} else {
 					e.keepAttr = allowedAttrNames.has(e.attrName);
 				}
-			}));
+			});
 		}
 
-		return dompurify.sanitize(untrusted, {
-			...resolvedConfig,
-			RETURN_TRUSTED_TYPE: true
-		});
+		if (outputType === 'dom') {
+			return dompurify.sanitize(untrusted, {
+				...resolvedConfig,
+				RETURN_DOM_FRAGMENT: true
+			});
+		} else {
+			return dompurify.sanitize(untrusted, {
+				...resolvedConfig,
+				RETURN_TRUSTED_TYPE: true
+			}) as unknown as TrustedHTML; // Cast from lib TrustedHTML to global TrustedHTML
+		}
 	} finally {
-		store.dispose();
+		dompurify.removeAllHooks();
 	}
 }
 
 const selfClosingTags = ['area', 'base', 'br', 'col', 'command', 'embed', 'hr', 'img', 'input', 'keygen', 'link', 'meta', 'param', 'source', 'track', 'wbr'];
 
-function replaceWithPlainTextHook(element: Element, data: dompurify.SanitizeElementHookEvent, _config: dompurify.Config) {
+const replaceWithPlainTextHook: DomPurifyTypes.UponSanitizeElementHook = (node, data, _config) => {
 	if (!data.allowedTags[data.tagName] && data.tagName !== 'body') {
-		const replacement = convertTagToPlaintext(element);
-		if (element.nodeType === Node.COMMENT_NODE) {
-			// Workaround for https://github.com/cure53/DOMPurify/issues/1005
-			// The comment will be deleted in the next phase. However if we try to remove it now, it will cause
-			// an exception. Instead we insert the text node before the comment.
-			element.parentElement?.insertBefore(replacement, element);
-		} else {
-			element.parentElement?.replaceChild(replacement, element);
+		const replacement = convertTagToPlaintext(node);
+		if (replacement) {
+			if (node.nodeType === Node.COMMENT_NODE) {
+				// Workaround for https://github.com/cure53/DOMPurify/issues/1005
+				// The comment will be deleted in the next phase. However if we try to remove it now, it will cause
+				// an exception. Instead we insert the text node before the comment.
+				node.parentElement?.insertBefore(replacement, node);
+			} else {
+				node.parentElement?.replaceChild(replacement, node);
+			}
 		}
 	}
-}
+};
 
-export function convertTagToPlaintext(element: Element): DocumentFragment {
+export function convertTagToPlaintext(node: Node): DocumentFragment | undefined {
+	if (!node.ownerDocument) {
+		return;
+	}
+
 	let startTagText: string;
 	let endTagText: string | undefined;
-	if (element.nodeType === Node.COMMENT_NODE) {
-		startTagText = `<!--${element.textContent}-->`;
-	} else {
-		const tagName = element.tagName.toLowerCase();
+	if (node.nodeType === Node.COMMENT_NODE) {
+		startTagText = `<!--${node.textContent}-->`;
+	} else if (node instanceof Element) {
+		const tagName = node.tagName.toLowerCase();
 		const isSelfClosing = selfClosingTags.includes(tagName);
-		const attrString = element.attributes.length ?
-			' ' + Array.from(element.attributes)
+		const attrString = node.attributes.length ?
+			' ' + Array.from(node.attributes)
 				.map(attr => `${attr.name}="${attr.value}"`)
 				.join(' ')
 			: '';
@@ -339,16 +376,18 @@ export function convertTagToPlaintext(element: Element): DocumentFragment {
 		if (!isSelfClosing) {
 			endTagText = `</${tagName}>`;
 		}
+	} else {
+		return;
 	}
 
 	const fragment = document.createDocumentFragment();
-	const textNode = element.ownerDocument.createTextNode(startTagText);
+	const textNode = node.ownerDocument.createTextNode(startTagText);
 	fragment.appendChild(textNode);
-	while (element.firstChild) {
-		fragment.appendChild(element.firstChild);
+	while (node.firstChild) {
+		fragment.appendChild(node.firstChild);
 	}
 
-	const endTagTextNode = endTagText ? element.ownerDocument.createTextNode(endTagText) : undefined;
+	const endTagTextNode = endTagText ? node.ownerDocument.createTextNode(endTagText) : undefined;
 	if (endTagTextNode) {
 		fragment.appendChild(endTagTextNode);
 	}
@@ -360,5 +399,6 @@ export function convertTagToPlaintext(element: Element): DocumentFragment {
  * Sanitizes the given `value` and reset the given `node` with it.
  */
 export function safeSetInnerHtml(node: HTMLElement, untrusted: string, config?: DomSanitizerConfig): void {
-	node.innerHTML = sanitizeHtml(untrusted, config) as any;
+	const fragment = doSanitizeHtml(untrusted, config, 'dom');
+	reset(node, fragment);
 }

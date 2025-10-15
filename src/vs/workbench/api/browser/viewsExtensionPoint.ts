@@ -259,12 +259,12 @@ const viewsExtensionPoint: IExtensionPoint<ViewExtensionPointType> = ExtensionsR
 	extensionPoint: 'views',
 	deps: [viewsContainersExtensionPoint],
 	jsonSchema: viewsContribution,
-	activationEventsGenerator: (viewExtensionPointTypeArray, result) => {
+	activationEventsGenerator: function* (viewExtensionPointTypeArray) {
 		for (const viewExtensionPointType of viewExtensionPointTypeArray) {
 			for (const viewDescriptors of Object.values(viewExtensionPointType)) {
 				for (const viewDescriptor of viewDescriptors) {
 					if (viewDescriptor.id) {
-						result.push(`onView:${viewDescriptor.id}`);
+						yield `onView:${viewDescriptor.id}`;
 					}
 				}
 			}
@@ -525,6 +525,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 						extensionId: extension.description.identifier,
 						originalContainerId: key,
 						group: item.group,
+						// eslint-disable-next-line local/code-no-any-casts
 						remoteAuthority: item.remoteName || (<any>item).remoteAuthority, // TODO@roblou - delete after remote extensions are updated
 						virtualWorkspace: item.virtualWorkspace,
 						hideByDefault: initialVisibility === InitialVisibility.Hidden,

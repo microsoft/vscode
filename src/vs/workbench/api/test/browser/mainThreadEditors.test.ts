@@ -14,12 +14,18 @@ import { ICodeEditorService } from '../../../../editor/browser/services/codeEdit
 import { EditOperation } from '../../../../editor/common/core/editOperation.js';
 import { Position } from '../../../../editor/common/core/position.js';
 import { Range } from '../../../../editor/common/core/range.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { ILanguageConfigurationService } from '../../../../editor/common/languages/languageConfigurationRegistry.js';
 import { ITextSnapshot } from '../../../../editor/common/model.js';
 import { IEditorWorkerService } from '../../../../editor/common/services/editorWorker.js';
+import { LanguageService } from '../../../../editor/common/services/languageService.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { ModelService } from '../../../../editor/common/services/modelService.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
+import { ITreeSitterLibraryService } from '../../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
 import { TestCodeEditorService } from '../../../../editor/test/browser/editorTestServices.js';
+import { TestLanguageConfigurationService } from '../../../../editor/test/common/modes/testLanguageConfigurationService.js';
+import { TestTreeSitterLibraryService } from '../../../../editor/test/common/services/testTreeSitterLibraryService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
@@ -39,9 +45,6 @@ import { UndoRedoService } from '../../../../platform/undoRedo/common/undoRedoSe
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { UriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentityService.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { MainThreadBulkEdits } from '../../browser/mainThreadBulkEdits.js';
-import { IWorkspaceTextEditDto } from '../../common/extHost.protocol.js';
-import { SingleProxyRPCProtocol } from '../common/testRPCProtocol.js';
 import { BulkEditService } from '../../../contrib/bulkEdit/browser/bulkEditService.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -53,14 +56,11 @@ import { IPaneCompositePartService } from '../../../services/panecomposite/brows
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { ICopyOperation, ICreateFileOperation, ICreateOperation, IDeleteOperation, IMoveOperation, IWorkingCopyFileService } from '../../../services/workingCopy/common/workingCopyFileService.js';
 import { IWorkingCopyService } from '../../../services/workingCopy/common/workingCopyService.js';
-import { TestEditorGroupsService, TestEditorService, TestEnvironmentService, TestFileService, TestLifecycleService, TestWorkingCopyService } from '../../../test/browser/workbenchTestServices.js';
-import { TestContextService, TestTextResourcePropertiesService } from '../../../test/common/workbenchTestServices.js';
-import { ILanguageService } from '../../../../editor/common/languages/language.js';
-import { LanguageService } from '../../../../editor/common/services/languageService.js';
-import { ILanguageConfigurationService } from '../../../../editor/common/languages/languageConfigurationRegistry.js';
-import { TestLanguageConfigurationService } from '../../../../editor/test/common/modes/testLanguageConfigurationService.js';
-import { ITreeSitterLibraryService } from '../../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
-import { TestTreeSitterLibraryService } from '../../../../editor/test/common/services/testTreeSitterLibraryService.js';
+import { TestEditorGroupsService, TestEditorService, TestEnvironmentService, TestLifecycleService, TestWorkingCopyService } from '../../../test/browser/workbenchTestServices.js';
+import { TestContextService, TestFileService, TestTextResourcePropertiesService } from '../../../test/common/workbenchTestServices.js';
+import { MainThreadBulkEdits } from '../../browser/mainThreadBulkEdits.js';
+import { IWorkspaceTextEditDto } from '../../common/extHost.protocol.js';
+import { SingleProxyRPCProtocol } from '../common/testRPCProtocol.js';
 
 suite('MainThreadEditors', () => {
 
@@ -112,6 +112,7 @@ suite('MainThreadEditors', () => {
 		services.set(IEditorGroupsService, new TestEditorGroupsService());
 		services.set(ITextFileService, new class extends mock<ITextFileService>() {
 			override isDirty() { return false; }
+			// eslint-disable-next-line local/code-no-any-casts
 			override files = <any>{
 				onDidSave: Event.None,
 				onDidRevert: Event.None,

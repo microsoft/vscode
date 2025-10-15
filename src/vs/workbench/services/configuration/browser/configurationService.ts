@@ -7,8 +7,8 @@ import { URI } from '../../../../base/common/uri.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { equals } from '../../../../base/common/objects.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
-import { Queue, Barrier, Promises, Delayer, RunOnceScheduler } from '../../../../base/common/async.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Queue, Barrier, Promises, Delayer, Throttler } from '../../../../base/common/async.js';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from '../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
 import { IWorkspaceContextService, Workspace as BaseWorkspace, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkspaceFolder, toWorkspaceFolder, isWorkspaceFolder, IWorkspaceFoldersWillChangeEvent, IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier, IAnyWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
 import { ConfigurationModel, ConfigurationChangeEvent, mergeChanges } from '../../../../platform/configuration/common/configurationModels.js';
@@ -47,7 +47,6 @@ import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/e
 import { workbenchConfigurationNodeBase } from '../../../common/configuration.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { runWhenWindowIdle } from '../../../../base/browser/dom.js';
-import { ASSIGNMENT_REFETCH_INTERVAL } from '../../../../platform/assignment/common/assignment.js';
 
 function getLocalUserConfigurationScopes(userDataProfile: IUserDataProfile, hasRemote: boolean): ConfigurationScope[] | undefined {
 	const isDefaultProfile = userDataProfile.isDefault || userDataProfile.useDefaultFlags?.settings;
@@ -1341,6 +1340,7 @@ class ConfigurationDefaultOverridesContribution extends Disposable implements IW
 	private readonly processedExperimentalSettings = new Set<string>();
 	private readonly autoExperimentalSettings = new Set<string>();
 	private readonly configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+	private readonly throttler = this._register(new Throttler());
 
 	constructor(
 		@IWorkbenchAssignmentService private readonly workbenchAssignmentService: IWorkbenchAssignmentService,
@@ -1350,29 +1350,11 @@ class ConfigurationDefaultOverridesContribution extends Disposable implements IW
 	) {
 		super();
 
-		this.updateDefaults().then(() => {
-			if (ASSIGNMENT_REFETCH_INTERVAL !== 0) {
-				this._register(this.scheduleProcessingAutoExperimentalSettings(ASSIGNMENT_REFETCH_INTERVAL));
-			}
-		});
+		this.throttler.queue(() => this.updateDefaults());
+		this._register(workbenchAssignmentService.onDidRefetchAssignments(() => this.throttler.queue(() => this.processExperimentalSettings(this.autoExperimentalSettings, true))));
 
 		// When configuration is updated make sure to apply experimental configuration overrides
 		this._register(this.configurationRegistry.onDidUpdateConfiguration(({ properties }) => this.processExperimentalSettings(properties, false)));
-	}
-
-	private scheduleProcessingAutoExperimentalSettings(interval: number): IDisposable {
-		const processAutoExperimentalSettingsScheduler = new RunOnceScheduler(async () => {
-			try {
-				if (this.autoExperimentalSettings.size) {
-					await this.processExperimentalSettings(this.autoExperimentalSettings, true);
-				}
-			} finally {
-				processAutoExperimentalSettingsScheduler.schedule();
-			}
-		}, interval);
-
-		processAutoExperimentalSettingsScheduler.schedule();
-		return processAutoExperimentalSettingsScheduler;
 	}
 
 	private async updateDefaults(): Promise<void> {
@@ -1395,7 +1377,7 @@ class ConfigurationDefaultOverridesContribution extends Disposable implements IW
 		const allProperties = this.configurationRegistry.getConfigurationProperties();
 		for (const property of properties) {
 			const schema = allProperties[property];
-			if (!schema.experiment) {
+			if (!schema?.experiment) {
 				continue;
 			}
 			if (!autoRefetch && this.processedExperimentalSettings.has(property)) {

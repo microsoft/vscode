@@ -5,7 +5,7 @@
 
 import { sumBy } from '../../../../base/common/arrays.js';
 import { LineEdit } from '../../../../editor/common/core/edits/lineEdit.js';
-import { AnnotatedStringEdit, BaseStringEdit, IEditData, StringEdit } from '../../../../editor/common/core/edits/stringEdit.js';
+import { AnnotatedStringEdit, BaseStringEdit, IEditData } from '../../../../editor/common/core/edits/stringEdit.js';
 import { AbstractText } from '../../../../editor/common/core/text/abstractText.js';
 
 /**
@@ -13,39 +13,37 @@ import { AbstractText } from '../../../../editor/common/core/text/abstractText.j
  * stay unmodified after a certain amount of time after acceptance.
 */
 export class ArcTracker {
-	/** Invariant: applies to valueBeforeTrackedEdit. */
 	private _updatedTrackedEdit: AnnotatedStringEdit<IsTrackedEditData>;
+	private _trackedEdit: BaseStringEdit;
 
 	constructor(
-		public readonly valueBeforeTrackedEdit: AbstractText,
-		private readonly _trackedEdit: BaseStringEdit,
+		private readonly _valueBeforeTrackedEdit: AbstractText,
+		trackedEdit: BaseStringEdit,
 	) {
-		const eNormalized = _trackedEdit.removeCommonSuffixPrefix(valueBeforeTrackedEdit.getValue());
-		this._updatedTrackedEdit = eNormalized.mapData(() => new IsTrackedEditData(true));
-	}
-
-	handleEdits(edit: BaseStringEdit): void {
-		const e = edit.mapData(_d => new IsTrackedEditData(false));
-		const composedEdit = this._updatedTrackedEdit.compose(e); // (still) applies to valueBeforeTrackedEdit
-
-		// decomposeSplit computes e1 and e2 such that all replacements in e1 have the given property
-		// and no replacement in e2 has the property, and such that e1.compose(e2).equals(composedEdit).
-		// Thus, e1 applies to valueBeforeTrackedEdit.
-		const onlyTrackedEdit = composedEdit.decomposeSplit(e => e.data.isTrackedEdit).e1;
-		this._updatedTrackedEdit = onlyTrackedEdit;
-	}
-
-	getTrackedEdit(): StringEdit {
-		return this._updatedTrackedEdit.toStringEdit();
-	}
-
-	getAcceptedRestrainedCharactersCount(): number {
-		const s = sumBy(this._updatedTrackedEdit.replacements, e => e.getNewLength());
-		return s;
+		this._trackedEdit = trackedEdit.removeCommonSuffixPrefix(_valueBeforeTrackedEdit.getValue());
+		this._updatedTrackedEdit = this._trackedEdit.mapData(() => new IsTrackedEditData(true));
 	}
 
 	getOriginalCharacterCount(): number {
 		return sumBy(this._trackedEdit.replacements, e => e.getNewLength());
+	}
+
+	/**
+	 * edit must apply to _updatedTrackedEdit.apply(_valueBeforeTrackedEdit)
+	*/
+	handleEdits(edit: BaseStringEdit): void {
+		const e = edit.mapData(_d => new IsTrackedEditData(false));
+		const composedEdit = this._updatedTrackedEdit.compose(e); // (still) applies to _valueBeforeTrackedEdit
+
+		// TODO@hediet improve memory by using:
+		// composedEdit = const onlyTrackedEdit = composedEdit.decomposeSplit(e => !e.data.isTrackedEdit).e2;
+
+		this._updatedTrackedEdit = composedEdit;
+	}
+
+	getAcceptedRestrainedCharactersCount(): number {
+		const s = sumBy(this._updatedTrackedEdit.replacements, e => e.data.isTrackedEdit ? e.getNewLength() : 0);
+		return s;
 	}
 
 	getDebugState(): unknown {
@@ -59,13 +57,20 @@ export class ArcTracker {
 	}
 
 	public getLineCountInfo(): { deletedLineCounts: number; insertedLineCounts: number } {
-		const e = this.getTrackedEdit();
-		const le = LineEdit.fromStringEdit(e, this.valueBeforeTrackedEdit);
+		const e = this._updatedTrackedEdit.toStringEdit(r => r.data.isTrackedEdit);
+		const le = LineEdit.fromStringEdit(e, this._valueBeforeTrackedEdit);
 		const deletedLineCount = sumBy(le.replacements, r => r.lineRange.length);
 		const insertedLineCount = sumBy(le.getNewLineRanges(), r => r.length);
 		return {
 			deletedLineCounts: deletedLineCount,
 			insertedLineCounts: insertedLineCount,
+		};
+	}
+
+	public getValues(): unknown {
+		return {
+			arc: this.getAcceptedRestrainedCharactersCount(),
+			...this.getLineCountInfo(),
 		};
 	}
 }

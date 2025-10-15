@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { setDefaultResultOrder } from 'dns';
 import * as fs from 'fs';
 import { hostname, release } from 'os';
 import { raceTimeout } from '../../base/common/async.js';
@@ -108,6 +109,10 @@ class CliMain extends Disposable {
 
 			// Error handler
 			this.registerErrorHandler(logService);
+
+			// DNS result order
+			// Refs https://github.com/microsoft/vscode/issues/264136
+			setDefaultResultOrder('ipv4first');
 
 			// Run based on argv
 			await this.doRun(environmentService, fileService, userDataProfilesService, instantiationService);
@@ -242,7 +247,7 @@ class CliMain extends Disposable {
 		const appenders: ITelemetryAppender[] = [];
 		const isInternal = isInternalTelemetry(productService, configurationService);
 		if (supportsTelemetry(productService, environmentService)) {
-			if (productService.aiConfig && productService.aiConfig.ariaKey) {
+			if (productService.aiConfig?.ariaKey) {
 				appenders.push(new OneDataSystemAppender(requestService, isInternal, 'monacoworkbench', null, productService.aiConfig.ariaKey));
 			}
 

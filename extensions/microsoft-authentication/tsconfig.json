@@ -1,23 +1,14 @@
 {
 	"extends": "../tsconfig.base.json",
 	"compilerOptions": {
-		"baseUrl": ".",
-		"module": "commonjs",
-		"moduleResolution": "node",
+		"outDir": "./out",
 		"noFallthroughCasesInSwitch": true,
 		"noUnusedLocals": false,
-		"outDir": "dist",
-		"resolveJsonModule": true,
-		"rootDir": "src",
 		"skipLibCheck": true,
-		"sourceMap": true,
 		"lib": [
 			"WebWorker"
 		]
 	},
-	"exclude": [
-		"node_modules"
-	],
 	"include": [
 		"src/**/*",
 		"../../src/vscode-dts/vscode.d.ts",

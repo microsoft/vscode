@@ -846,7 +846,7 @@ class KeybindingsJsonSchema {
 	private readonly commandsSchemas: IJSONSchema[] = [];
 	private readonly commandsEnum: string[] = [];
 	private readonly removalCommandsEnum: string[] = [];
-	private readonly commandsEnumDescriptions: (string | undefined)[] = [];
+	private readonly commandsEnumDescriptions: string[] = [];
 	private readonly schema: IJSONSchema = {
 		id: KeybindingsJsonSchema.schemaId,
 		type: 'array',
@@ -873,7 +873,7 @@ class KeybindingsJsonSchema {
 			'commandNames': {
 				'type': 'string',
 				'enum': this.commandsEnum,
-				'enumDescriptions': <any>this.commandsEnumDescriptions,
+				'enumDescriptions': this.commandsEnumDescriptions,
 				'description': nls.localize('keybindings.json.command', "Name of the command to execute"),
 			},
 			'commandType': {
@@ -884,7 +884,7 @@ class KeybindingsJsonSchema {
 					{
 						'type': 'string',
 						'enum': this.removalCommandsEnum,
-						'enumDescriptions': <any>this.commandsEnumDescriptions,
+						'enumDescriptions': this.commandsEnumDescriptions,
 						'description': nls.localize('keybindings.json.removalCommand', "Name of the command to remove keyboard shortcut for"),
 					},
 					{
@@ -960,7 +960,11 @@ class KeybindingsJsonSchema {
 					knownCommands.add(commandId);
 
 					this.commandsEnum.push(commandId);
-					this.commandsEnumDescriptions.push(isLocalizedString(description) ? description.value : description);
+					this.commandsEnumDescriptions.push(
+						description === undefined
+							? '' // `enumDescriptions` is an array of strings, so we can't use undefined
+							: (isLocalizedString(description) ? description.value : description)
+					);
 
 					// Also add the negative form for keybinding removal
 					this.removalCommandsEnum.push(`-${commandId}`);

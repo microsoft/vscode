@@ -21,6 +21,24 @@ declare module 'vscode' {
 		 * @return A {@link Disposable} that unregisters this provider when being disposed.
 		 */
 		export function registerInlineCompletionItemProvider(selector: DocumentSelector, provider: InlineCompletionItemProvider, metadata: InlineCompletionItemProviderMetadata): Disposable;
+
+		/**
+		 * temporary: to be removed
+		 */
+		export const inlineCompletionsUnificationState: InlineCompletionsUnificationState;
+		/**
+		 * temporary: to be removed
+		 */
+		export const onDidChangeCompletionsUnificationState: Event<void>;
+	}
+
+	/**
+	 * temporary: to be removed
+	 */
+	export interface InlineCompletionsUnificationState {
+		codeUnification: boolean;
+		modelUnification: boolean;
+		expAssignments: string[];
 	}
 
 	export interface InlineCompletionItem {
@@ -113,7 +131,7 @@ declare module 'vscode' {
 		// eslint-disable-next-line local/vscode-dts-provider-naming
 		handleListEndOfLifetime?(list: InlineCompletionList, reason: InlineCompletionsDisposeReason): void;
 
-		onDidChange?: Event<void>;
+		readonly onDidChange?: Event<void>;
 
 		// #region Deprecated methods
 

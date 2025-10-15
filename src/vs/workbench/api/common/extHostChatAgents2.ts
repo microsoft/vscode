@@ -495,7 +495,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 
 		// in-place converting for location-data
 		let location: vscode.ChatRequestEditorData | vscode.ChatRequestNotebookData | undefined;
-		if (request.locationData?.type === ChatAgentLocation.Editor) {
+		if (request.locationData?.type === ChatAgentLocation.EditorInline) {
 			// editor data
 			const document = this._documents.getDocument(request.locationData.document);
 			location = new extHostTypes.ChatRequestEditorData(document, typeConvert.Selection.to(request.locationData.selection), typeConvert.Range.to(request.locationData.wholeRange));
@@ -541,7 +541,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		this._onDidChangeChatRequestTools.fire(request.extRequest);
 	}
 
-	async $invokeAgent(handle: number, requestDto: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[] }, token: CancellationToken): Promise<IChatAgentResult | undefined> {
+	async $invokeAgent(handle: number, requestDto: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[]; chatSessionContext?: { chatSessionType: string; chatSessionId: string; isUntitled: boolean }; chatSummary?: { prompt?: string; history?: string } }, token: CancellationToken): Promise<IChatAgentResult | undefined> {
 		const agent = this._agents.get(handle);
 		if (!agent) {
 			throw new Error(`[CHAT](${handle}) CANNOT invoke agent because the agent is not registered`);
@@ -575,9 +575,27 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			inFlightRequest = { requestId: requestDto.requestId, extRequest, extension: agent.extension };
 			this._inFlightRequests.add(inFlightRequest);
 
+
+			// If this request originates from a contributed chat session editor, attempt to resolve the ChatSession API object
+			let chatSessionContext: vscode.ChatSessionContext | undefined;
+			if (context.chatSessionContext) {
+				chatSessionContext = {
+					chatSessionItem: {
+						id: context.chatSessionContext.chatSessionId,
+						label: context.chatSessionContext.isUntitled ? 'Untitled Session' : 'Session',
+					},
+					isUntitled: context.chatSessionContext.isUntitled,
+				};
+			}
+
+			const chatContext: vscode.ChatContext = {
+				history,
+				chatSessionContext,
+				chatSummary: context.chatSummary
+			};
 			const task = agent.invoke(
 				extRequest,
-				{ history },
+				chatContext,
 				stream.apiObject,
 				token
 			);
@@ -599,7 +617,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 						responseIsIncomplete: true
 					};
 				}
-				if (errorDetails?.responseIsRedacted || errorDetails?.isQuotaExceeded || errorDetails?.confirmationButtons || errorDetails?.code) {
+				if (errorDetails?.responseIsRedacted || errorDetails?.isQuotaExceeded || errorDetails?.isRateLimited || errorDetails?.confirmationButtons || errorDetails?.code) {
 					checkProposedApiEnabled(agent.extension, 'chatParticipantPrivate');
 				}
 
@@ -613,7 +631,8 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			}
 
 			const isQuotaExceeded = e instanceof Error && e.name === 'ChatQuotaExceeded';
-			return { errorDetails: { message: toErrorMessage(e), responseIsIncomplete: true, isQuotaExceeded } };
+			const isRateLimited = e instanceof Error && e.name === 'ChatRateLimited';
+			return { errorDetails: { message: toErrorMessage(e), responseIsIncomplete: true, isQuotaExceeded, isRateLimited } };
 
 		} finally {
 			if (inFlightRequest) {

@@ -270,9 +270,9 @@
 	display: none;
 }
 
-.monaco-workbench .inline-chat .status:hover .actions.secondary,
-.monaco-workbench .inline-chat:focus .status .actions.secondary,
-.monaco-workbench .inline-chat .status:focus-within .actions.secondary {
+.monaco-workbench .inline-chat .status:hover .actions.secondary:not(.has-no-actions),
+.monaco-workbench .inline-chat:focus .status .actions.secondary:not(.has-no-actions),
+.monaco-workbench .inline-chat .status:focus-within .actions.secondary:not(.has-no-actions) {
 	display: inherit;
 }
 
@@ -301,6 +301,15 @@
 	}
 }
 
+.monaco-workbench .inline-chat .status .disclaimer {
+	a {
+		color: var(--vscode-textLink-foreground);
+	}
+
+	p {
+		margin: 0;
+	}
+}
 
 /* TODO@jrieken not needed? */
 .monaco-workbench .inline-chat .status .monaco-toolbar .action-label.checked {

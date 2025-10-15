@@ -41,22 +41,23 @@ const extractEditorSrcTask = task.define('extract-editor-src', () => {
 	standalone.extractEditor({
 		sourcesRoot: path.join(root, 'src'),
 		entryPoints: [
-			'vs/editor/editor.main',
-			'vs/editor/editor.worker.start',
-			'vs/editor/common/services/editorWebWorkerMain',
+			'vs/editor/editor.main.ts',
+			'vs/editor/editor.worker.start.ts',
+			'vs/editor/common/services/editorWebWorkerMain.ts',
 		],
 		inlineEntryPoints: [
 			apiusages,
 			extrausages
 		],
 		typings: [],
+		additionalFilesToCopyOut: [
+			'vs/base/browser/dompurify/dompurify.js',
+			'vs/base/common/marked/marked.js',
+		],
 		shakeLevel: 2, // 0-Files, 1-InnerFile, 2-ClassMembers
 		importIgnorePattern: /\.css$/,
 		destRoot: path.join(root, 'out-editor-src'),
 		tsOutDir: '../out-monaco-editor-core/esm/vs',
-		redirects: {
-			'@vscode/tree-sitter-wasm': '../node_modules/@vscode/tree-sitter-wasm/wasm/web-tree-sitter',
-		}
 	});
 });
 
@@ -148,6 +149,31 @@ const finalEditorResourcesTask = task.define('final-editor-resources', () => {
 			.pipe(es.through(function (data) {
 				const json = JSON.parse(data.contents.toString());
 				json.private = false;
+
+				let markedVersion;
+				let dompurifyVersion;
+				try {
+					const markedManifestPath = path.join(root, 'src/vs/base/common/marked/cgmanifest.json');
+					const dompurifyManifestPath = path.join(root, 'src/vs/base/browser/dompurify/cgmanifest.json');
+
+					const markedManifest = JSON.parse(fs.readFileSync(markedManifestPath, 'utf8'));
+					const dompurifyManifest = JSON.parse(fs.readFileSync(dompurifyManifestPath, 'utf8'));
+
+					markedVersion = markedManifest.registrations[0].version;
+					dompurifyVersion = dompurifyManifest.registrations[0].version;
+
+					if (!markedVersion || !dompurifyVersion) {
+						throw new Error('Unable to read versions from cgmanifest.json files');
+					}
+				} catch (error) {
+					throw new Error(`Failed to read cgmanifest.json files for monaco-editor-core dependencies: ${error.message}`);
+				}
+
+				setUnsetField(json, 'dependencies', {
+					'marked': markedVersion,
+					'dompurify': dompurifyVersion
+				});
+
 				data.contents = Buffer.from(JSON.stringify(json, null, '  '));
 				this.emit('data', data);
 			}))
@@ -262,3 +288,16 @@ const monacoTypecheckTask = task.define('monaco-typecheck', createTscCompileTask
 exports.monacoTypecheckTask = monacoTypecheckTask;
 
 //#endregion
+
+/**
+ * Sets a field on an object only if it's not already set, otherwise throws an error
+ * @param {any} obj - The object to modify
+ * @param {string} field - The field name to set
+ * @param {any} value - The value to set
+ */
+function setUnsetField(obj, field, value) {
+	if (obj[field] !== undefined) {
+		throw new Error(`Field "${field}" is already set (but was expected to not be).`);
+	}
+	obj[field] = value;
+}

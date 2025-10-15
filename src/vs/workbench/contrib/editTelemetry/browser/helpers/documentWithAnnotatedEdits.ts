@@ -103,9 +103,9 @@ export abstract class EditSourceBase {
 			case 'inlineCompletionAccept': {
 				const type = 'type' in data ? data.type : undefined;
 				if ('$nes' in data && data.$nes) {
-					return this._cache.get(new InlineSuggestEditSource('nes', data.$extensionId ?? '', type));
+					return this._cache.get(new InlineSuggestEditSource('nes', data.$extensionId ?? '', data.$providerId ?? '', type));
 				}
-				return this._cache.get(new InlineSuggestEditSource('completion', data.$extensionId ?? '', type));
+				return this._cache.get(new InlineSuggestEditSource('completion', data.$extensionId ?? '', data.$providerId ?? '', type));
 			}
 			case 'snippet':
 				return this._cache.get(new IdeEditSource('suggest'));
@@ -141,6 +141,7 @@ export class InlineSuggestEditSource extends EditSourceBase {
 	constructor(
 		public readonly kind: 'completion' | 'nes',
 		public readonly extensionId: string,
+		public readonly providerId: string,
 		public readonly type: 'word' | 'line' | undefined,
 	) { super(); }
 

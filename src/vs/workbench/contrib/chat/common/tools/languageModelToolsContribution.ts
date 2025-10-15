@@ -39,9 +39,9 @@ export interface IRawToolContribution {
 
 const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawToolContribution[]>({
 	extensionPoint: 'languageModelTools',
-	activationEventsGenerator: (contributions: IRawToolContribution[], result) => {
+	activationEventsGenerator: function* (contributions: readonly IRawToolContribution[]) {
 		for (const contrib of contributions) {
-			result.push(`onLanguageModelTool:${contrib.name}`);
+			yield `onLanguageModelTool:${contrib.name}`;
 		}
 	},
 	jsonSchema: {
@@ -99,7 +99,7 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 					type: 'boolean'
 				},
 				icon: {
-					markdownDescription: localize('icon', "An icon that represents this tool. Either a file path, an object with file paths for dark and light themes, or a theme icon reference, like `\\$(zap)`"),
+					markdownDescription: localize('icon', 'An icon that represents this tool. Either a file path, an object with file paths for dark and light themes, or a theme icon reference, like "\\$(zap)"'),
 					anyOf: [{
 						type: 'string'
 					},

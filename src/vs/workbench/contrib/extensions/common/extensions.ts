@@ -203,8 +203,8 @@ export interface IExtensionContainer extends IDisposable {
 }
 
 export interface IExtensionsViewState {
-	onFocus: Event<IExtension>;
-	onBlur: Event<IExtension>;
+	readonly onFocus: Event<IExtension>;
+	readonly onBlur: Event<IExtension>;
 	filters: {
 		featureId?: string;
 	};

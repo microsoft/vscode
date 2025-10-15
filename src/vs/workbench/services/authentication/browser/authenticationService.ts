@@ -12,7 +12,7 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { ISecretStorageService } from '../../../../platform/secrets/common/secrets.js';
 import { IAuthenticationAccessService } from './authenticationAccessService.js';
-import { AuthenticationProviderInformation, AuthenticationSession, AuthenticationSessionAccount, AuthenticationSessionsChangeEvent, IAuthenticationCreateSessionOptions, IAuthenticationGetSessionsOptions, IAuthenticationProvider, IAuthenticationProviderHostDelegate, IAuthenticationService, IAuthenticationWWWAuthenticateRequest, isAuthenticationWWWAuthenticateRequest } from '../common/authentication.js';
+import { AuthenticationProviderInformation, AuthenticationSession, AuthenticationSessionAccount, AuthenticationSessionsChangeEvent, IAuthenticationCreateSessionOptions, IAuthenticationGetSessionsOptions, IAuthenticationProvider, IAuthenticationProviderHostDelegate, IAuthenticationService, IAuthenticationWwwAuthenticateRequest, isAuthenticationWwwAuthenticateRequest } from '../common/authentication.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/environmentService.js';
 import { ActivationKind, IExtensionService } from '../../extensions/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -81,10 +81,10 @@ const authenticationExtPoint = ExtensionsRegistry.registerExtensionPoint<Authent
 		type: 'array',
 		items: authenticationDefinitionSchema
 	},
-	activationEventsGenerator: (authenticationProviders, result) => {
+	activationEventsGenerator: function* (authenticationProviders) {
 		for (const authenticationProvider of authenticationProviders) {
 			if (authenticationProvider.id) {
-				result.push(`onAuthenticationRequest:${authenticationProvider.id}`);
+				yield `onAuthenticationRequest:${authenticationProvider.id}`;
 			}
 		}
 	}
@@ -276,7 +276,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		return accounts;
 	}
 
-	async getSessions(id: string, scopeListOrRequest?: ReadonlyArray<string> | IAuthenticationWWWAuthenticateRequest, options?: IAuthenticationGetSessionsOptions, activateImmediate: boolean = false): Promise<ReadonlyArray<AuthenticationSession>> {
+	async getSessions(id: string, scopeListOrRequest?: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, options?: IAuthenticationGetSessionsOptions, activateImmediate: boolean = false): Promise<ReadonlyArray<AuthenticationSession>> {
 		if (this._disposedSource.token.isCancellationRequested) {
 			return [];
 		}
@@ -291,12 +291,12 @@ export class AuthenticationService extends Disposable implements IAuthentication
 					throw new Error(`The authorization server '${authServerStr}' is not supported by the authentication provider '${id}'.`);
 				}
 			}
-			if (isAuthenticationWWWAuthenticateRequest(scopeListOrRequest)) {
+			if (isAuthenticationWwwAuthenticateRequest(scopeListOrRequest)) {
 				if (!authProvider.getSessionsFromChallenges) {
 					throw new Error(`The authentication provider '${id}' does not support getting sessions from challenges.`);
 				}
 				return await authProvider.getSessionsFromChallenges(
-					{ challenges: parseWWWAuthenticateHeader(scopeListOrRequest.wwwAuthenticate), scopes: scopeListOrRequest.scopes },
+					{ challenges: parseWWWAuthenticateHeader(scopeListOrRequest.wwwAuthenticate), fallbackScopes: scopeListOrRequest.fallbackScopes },
 					{ ...options }
 				);
 			}
@@ -306,19 +306,19 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		}
 	}
 
-	async createSession(id: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWWWAuthenticateRequest, options?: IAuthenticationCreateSessionOptions): Promise<AuthenticationSession> {
+	async createSession(id: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, options?: IAuthenticationCreateSessionOptions): Promise<AuthenticationSession> {
 		if (this._disposedSource.token.isCancellationRequested) {
 			throw new Error('Authentication service is disposed.');
 		}
 
 		const authProvider = this._authenticationProviders.get(id) || await this.tryActivateProvider(id, !!options?.activateImmediate);
 		if (authProvider) {
-			if (isAuthenticationWWWAuthenticateRequest(scopeListOrRequest)) {
+			if (isAuthenticationWwwAuthenticateRequest(scopeListOrRequest)) {
 				if (!authProvider.createSessionFromChallenges) {
 					throw new Error(`The authentication provider '${id}' does not support creating sessions from challenges.`);
 				}
 				return await authProvider.createSessionFromChallenges(
-					{ challenges: parseWWWAuthenticateHeader(scopeListOrRequest.wwwAuthenticate), scopes: scopeListOrRequest.scopes },
+					{ challenges: parseWWWAuthenticateHeader(scopeListOrRequest.wwwAuthenticate), fallbackScopes: scopeListOrRequest.fallbackScopes },
 					{ ...options }
 				);
 			}
@@ -396,12 +396,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 	}
 
 	private async tryActivateProvider(providerId: string, activateImmediate: boolean): Promise<IAuthenticationProvider> {
-		try {
-			await this._extensionService.activateByEvent(getAuthenticationProviderActivationEvent(providerId), activateImmediate ? ActivationKind.Immediate : ActivationKind.Normal);
-		} catch (e) {
-			this._logService.error(`Extension Service failed to activate authentication provider '${providerId}':`, e);
-			throw e;
-		}
+		await this._extensionService.activateByEvent(getAuthenticationProviderActivationEvent(providerId), activateImmediate ? ActivationKind.Immediate : ActivationKind.Normal);
 		let provider = this._authenticationProviders.get(providerId);
 		if (provider) {
 			return provider;

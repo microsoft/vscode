@@ -17,7 +17,7 @@ import { TestInstantiationService } from '../../../../platform/instantiation/tes
 import { ILogService, NullLogService } from '../../../../platform/log/common/log.js';
 import { ChatSessionsService } from '../../../contrib/chat/browser/chatSessions.contribution.js';
 import { IChatAgentRequest } from '../../../contrib/chat/common/chatAgents.js';
-import { IChatProgress } from '../../../contrib/chat/common/chatService.js';
+import { IChatProgress, IChatProgressMessage } from '../../../contrib/chat/common/chatService.js';
 import { IChatSessionItem, IChatSessionsService } from '../../../contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../../contrib/chat/common/constants.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -138,7 +138,7 @@ suite('ObservableChatSession', function () {
 		// Verify history was loaded
 		assert.strictEqual(session.history.length, 2);
 		assert.strictEqual(session.history[0].type, 'request');
-		assert.strictEqual((session.history[0] as any).prompt, 'Previous question');
+		assert.strictEqual(session.history[0].prompt, 'Previous question');
 		assert.strictEqual(session.history[1].type, 'response');
 
 		// Verify capabilities were set up
@@ -211,7 +211,14 @@ suite('ObservableChatSession', function () {
 
 		assert.ok(session.requestHandler);
 
-		const request = { requestId: 'req1', prompt: 'Test prompt' } as any;
+		const request: IChatAgentRequest = {
+			requestId: 'req1',
+			sessionId: 'test-session',
+			agentId: 'test-agent',
+			message: 'Test prompt',
+			location: ChatAgentLocation.Chat,
+			variables: { variables: [] }
+		};
 		const progressCallback = sinon.stub();
 
 		await session.requestHandler!(request, progressCallback, [], CancellationToken.None);
@@ -225,7 +232,14 @@ suite('ObservableChatSession', function () {
 
 		assert.ok(session.requestHandler);
 
-		const request = { requestId: 'req1', prompt: 'Test prompt' } as any;
+		const request: IChatAgentRequest = {
+			requestId: 'req1',
+			sessionId: 'test-session',
+			agentId: 'test-agent',
+			message: 'Test prompt',
+			location: ChatAgentLocation.Chat,
+			variables: { variables: [] }
+		};
 		const progressCallback = sinon.stub();
 
 		let resolveRequest: () => void;
@@ -301,13 +315,13 @@ suite('ObservableChatSession', function () {
 		// Verify all history was loaded correctly
 		assert.strictEqual(session.history.length, 4);
 		assert.strictEqual(session.history[0].type, 'request');
-		assert.strictEqual((session.history[0] as any).prompt, 'First question');
+		assert.strictEqual(session.history[0].prompt, 'First question');
 		assert.strictEqual(session.history[1].type, 'response');
-		assert.strictEqual((session.history[1].parts[0] as any).content.value, 'First answer');
+		assert.strictEqual((session.history[1].parts[0] as IChatProgressMessage).content.value, 'First answer');
 		assert.strictEqual(session.history[2].type, 'request');
-		assert.strictEqual((session.history[2] as any).prompt, 'Second question');
+		assert.strictEqual(session.history[2].prompt, 'Second question');
 		assert.strictEqual(session.history[3].type, 'response');
-		assert.strictEqual((session.history[3].parts[0] as any).content.value, 'Second answer');
+		assert.strictEqual((session.history[3].parts[0] as IChatProgressMessage).content.value, 'Second answer');
 
 		// Session should be complete since it has no capabilities
 		assert.strictEqual(session.isCompleteObs.get(), true);
@@ -380,14 +394,13 @@ suite('MainThreadChatSessions', function () {
 			requestId: 'test-request',
 			agentId: 'test-agent',
 			message: 'my prompt',
-			location: ChatAgentLocation.Panel,
+			location: ChatAgentLocation.Chat,
 			variables: { variables: [] }
 		};
 
 		// Valid
 		const chatSessionItem = await chatSessionsService.provideNewChatSessionItem('test-type', {
 			request: mockRequest,
-			prompt: 'my prompt',
 			metadata: {}
 		}, CancellationToken.None);
 		assert.strictEqual(chatSessionItem.id, 'new-session-id');
@@ -397,7 +410,6 @@ suite('MainThreadChatSessions', function () {
 		await assert.rejects(
 			chatSessionsService.provideNewChatSessionItem('invalid-type', {
 				request: mockRequest,
-				prompt: 'my prompt',
 				metadata: {}
 			}, CancellationToken.None)
 		);
@@ -500,10 +512,10 @@ suite('MainThreadChatSessions', function () {
 
 		// Verify all history items are correctly loaded
 		assert.strictEqual(session.history[0].type, 'request');
-		assert.strictEqual((session.history[0] as any).prompt, 'First question');
+		assert.strictEqual(session.history[0].prompt, 'First question');
 		assert.strictEqual(session.history[1].type, 'response');
 		assert.strictEqual(session.history[2].type, 'request');
-		assert.strictEqual((session.history[2] as any).prompt, 'Second question');
+		assert.strictEqual(session.history[2].prompt, 'Second question');
 		assert.strictEqual(session.history[3].type, 'response');
 
 		// Session should be complete since it has no active capabilities

@@ -121,6 +121,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 	private readonly _modelAccessList = new ExtensionIdentifierMap<ExtensionIdentifierSet>();
 	private readonly _pendingRequest = new Map<number, { languageModelId: string; res: LanguageModelResponse }>();
 	private readonly _ignoredFileProviders = new Map<number, vscode.LanguageModelIgnoredFileProvider>();
+	private _languageModelProxyProvider: vscode.LanguageModelProxyProvider | undefined;
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
@@ -141,8 +142,8 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		this._proxy.$registerLanguageModelProvider(vendor);
 
 		let providerChangeEventDisposable: IDisposable | undefined;
-		if (provider.onDidChangeLanguageModelInformation) {
-			providerChangeEventDisposable = provider.onDidChangeLanguageModelInformation(() => {
+		if (provider.onDidChangeLanguageModelChatInformation) {
+			providerChangeEventDisposable = provider.onDidChangeLanguageModelChatInformation(() => {
 				this._proxy.$onLMProviderChange(vendor);
 			});
 		}
@@ -164,14 +165,16 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		});
 	}
 
-	async $prepareLanguageModelProvider(vendor: string, options: { silent: boolean }, token: CancellationToken): Promise<ILanguageModelChatMetadataAndIdentifier[]> {
+	async $provideLanguageModelChatInfo(vendor: string, options: { silent: boolean }, token: CancellationToken): Promise<ILanguageModelChatMetadataAndIdentifier[]> {
 		const data = this._languageModelProviders.get(vendor);
 		if (!data) {
 			return [];
 		}
 		this._clearModelCache(vendor);
-		const modelInformation = await data.provider.prepareLanguageModelChatInformation(options, token) ?? [];
-		const modelMetadataAndIdentifier: ILanguageModelChatMetadataAndIdentifier[] = modelInformation.map(m => {
+		// TODO @lramos15 - Remove this old prepare method support in debt week
+		// eslint-disable-next-line local/code-no-any-casts
+		const modelInformation: vscode.LanguageModelChatInformation[] = (data.provider.provideLanguageModelChatInformation ? await data.provider.provideLanguageModelChatInformation(options, token) : await (data.provider as any).prepareLanguageModelChatInformation(options, token)) ?? [];
+		const modelMetadataAndIdentifier: ILanguageModelChatMetadataAndIdentifier[] = modelInformation.map((m): ILanguageModelChatMetadataAndIdentifier => {
 			let auth;
 			if (m.requiresAuthorization && isProposedApiEnabled(data.extension, 'chatProvider')) {
 				auth = {
@@ -179,6 +182,10 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 					accountLabel: typeof m.requiresAuthorization === 'object' ? m.requiresAuthorization.label : undefined
 				};
 			}
+			if (m.capabilities.editTools) {
+				checkProposedApiEnabled(data.extension, 'chatProvider');
+			}
+
 			return {
 				metadata: {
 					extension: data.extension.identifier,
@@ -198,6 +205,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 					modelPickerCategory: m.category ?? DEFAULT_MODEL_PICKER_CATEGORY,
 					capabilities: m.capabilities ? {
 						vision: m.capabilities.imageInput,
+						editTools: m.capabilities.editTools,
 						toolCalling: !!m.capabilities.toolCalling,
 						agentMode: !!m.capabilities.toolCalling
 					} : undefined,
@@ -278,7 +286,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			value = data.provider.provideLanguageModelChatResponse(
 				knownModel.info,
 				messages.value.map(typeConvert.LanguageModelChatMessage2.to),
-				{ ...options, modelOptions: options.modelOptions ?? {}, requestInitiator: ExtensionIdentifier.toKey(from) },
+				{ ...options, modelOptions: options.modelOptions ?? {}, requestInitiator: ExtensionIdentifier.toKey(from), toolMode: options.toolMode ?? extHostTypes.LanguageModelChatToolMode.Auto },
 				progress,
 				token
 			);
@@ -338,8 +346,8 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 
 		const model = this._localModels.get(modelId);
 		if (!model) {
-			// model gone? is this an error on us?
-			return;
+			// model gone? is this an error on us? Try to resolve model again
+			return (await this.selectLanguageModels(extension, { id: modelId }))[0];
 		}
 
 		// make sure auth information is correct
@@ -359,6 +367,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				capabilities: {
 					supportsImageToText: model.metadata.capabilities?.vision ?? false,
 					supportsToolCalling: !!model.metadata.capabilities?.toolCalling,
+					editToolsHint: model.metadata.capabilities?.editTools,
 				},
 				maxInputTokens: model.metadata.maxInputTokens,
 				countTokens(text, token) {
@@ -599,6 +608,27 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		return this._proxy.$fileIsIgnored(uri, token);
 	}
 
+	async getModelProxy(extension: IExtensionDescription): Promise<vscode.LanguageModelProxyInfo | undefined> {
+		checkProposedApiEnabled(extension, 'languageModelProxy');
+
+		if (!this._languageModelProxyProvider) {
+			this._logService.warn('[LanguageModelProxy] No LanguageModelProxyProvider registered');
+			return undefined;
+		}
+
+		const requestingExtensionId = ExtensionIdentifier.toKey(extension.identifier);
+		try {
+			const result = await Promise.resolve(this._languageModelProxyProvider.provideModelProxy(requestingExtensionId, CancellationToken.None));
+			if (result) {
+				return result;
+			}
+		} catch (err) {
+			this._logService.error(`[LanguageModelProxy] Provider ${ExtensionIdentifier.toKey(extension.identifier)} failed`, err);
+		}
+
+		return undefined;
+	}
+
 	async $isFileIgnored(handle: number, uri: UriComponents, token: CancellationToken): Promise<boolean> {
 		const provider = this._ignoredFileProviders.get(handle);
 		if (!provider) {
@@ -617,6 +647,17 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		return toDisposable(() => {
 			this._proxy.$unregisterFileIgnoreProvider(handle);
 			this._ignoredFileProviders.delete(handle);
+		});
+	}
+
+	registerLanguageModelProxyProvider(extension: IExtensionDescription, provider: vscode.LanguageModelProxyProvider): vscode.Disposable {
+		checkProposedApiEnabled(extension, 'chatParticipantPrivate');
+
+		this._languageModelProxyProvider = provider;
+		return toDisposable(() => {
+			if (this._languageModelProxyProvider === provider) {
+				this._languageModelProxyProvider = undefined;
+			}
 		});
 	}
 }

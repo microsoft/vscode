@@ -192,12 +192,15 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 					}
 					handlesToItems.set(item.handle, item);
 				});
+				// eslint-disable-next-line local/code-no-any-casts
 				(input as any)[param] = params[param];
 			} else if (param === 'activeItems' || param === 'selectedItems') {
+				// eslint-disable-next-line local/code-no-any-casts
 				(input as any)[param] = params[param]
 					.filter((handle: number) => handlesToItems.has(handle))
 					.map((handle: number) => handlesToItems.get(handle));
 			} else if (param === 'buttons') {
+				// eslint-disable-next-line local/code-no-any-casts
 				(input as any)[param] = params.buttons!.map(button => {
 					if (button.handle === -1) {
 						return this._quickInputService.backButton;
@@ -210,6 +213,7 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 					return button;
 				});
 			} else {
+				// eslint-disable-next-line local/code-no-any-casts
 				(input as any)[param] = params[param];
 			}
 		}

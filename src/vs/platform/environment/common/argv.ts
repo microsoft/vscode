@@ -31,6 +31,7 @@ export interface NativeParsedArgs {
 		maximize?: boolean;
 		'reuse-window'?: boolean;
 		'new-window'?: boolean;
+		profile?: string;
 		help?: boolean;
 	};
 

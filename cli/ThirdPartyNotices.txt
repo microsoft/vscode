@@ -4390,7 +4390,7 @@ DEALINGS IN THE SOFTWARE.
 ---------------------------------------------------------
 
 js-sys 0.3.69 - MIT OR Apache-2.0
-https://github.com/rustwasm/wasm-bindgen/tree/master/crates/js-sys
+https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/js-sys
 
 Copyright (c) 2014 Alex Crichton
 
@@ -10536,7 +10536,7 @@ DEALINGS IN THE SOFTWARE.
 ---------------------------------------------------------
 
 wasm-bindgen 0.2.92 - MIT OR Apache-2.0
-https://github.com/rustwasm/wasm-bindgen
+https://github.com/wasm-bindgen/wasm-bindgen
 
 Copyright (c) 2014 Alex Crichton
 
@@ -10568,7 +10568,7 @@ DEALINGS IN THE SOFTWARE.
 ---------------------------------------------------------
 
 wasm-bindgen-backend 0.2.92 - MIT OR Apache-2.0
-https://github.com/rustwasm/wasm-bindgen/tree/master/crates/backend
+https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/backend
 
 Copyright (c) 2014 Alex Crichton
 
@@ -10600,7 +10600,7 @@ DEALINGS IN THE SOFTWARE.
 ---------------------------------------------------------
 
 wasm-bindgen-futures 0.4.42 - MIT OR Apache-2.0
-https://github.com/rustwasm/wasm-bindgen/tree/master/crates/futures
+https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/futures
 
 Copyright (c) 2014 Alex Crichton
 
@@ -10632,7 +10632,7 @@ DEALINGS IN THE SOFTWARE.
 ---------------------------------------------------------
 
 wasm-bindgen-macro 0.2.92 - MIT OR Apache-2.0
-https://github.com/rustwasm/wasm-bindgen/tree/master/crates/macro
+https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/macro
 
 Copyright (c) 2014 Alex Crichton
 
@@ -10664,7 +10664,7 @@ DEALINGS IN THE SOFTWARE.
 ---------------------------------------------------------
 
 wasm-bindgen-macro-support 0.2.92 - MIT OR Apache-2.0
-https://github.com/rustwasm/wasm-bindgen/tree/master/crates/macro-support
+https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/macro-support
 
 Copyright (c) 2014 Alex Crichton
 
@@ -10696,7 +10696,7 @@ DEALINGS IN THE SOFTWARE.
 ---------------------------------------------------------
 
 wasm-bindgen-shared 0.2.92 - MIT OR Apache-2.0
-https://github.com/rustwasm/wasm-bindgen/tree/master/crates/shared
+https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/shared
 
 Copyright (c) 2014 Alex Crichton
 
@@ -10758,7 +10758,7 @@ DEALINGS IN THE SOFTWARE.
 ---------------------------------------------------------
 
 web-sys 0.3.69 - MIT OR Apache-2.0
-https://github.com/rustwasm/wasm-bindgen/tree/master/crates/web-sys
+https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/web-sys
 
 Copyright (c) 2014 Alex Crichton
 
@@ -11718,7 +11718,7 @@ ICU 1.8.1 to ICU 57.1 © 1995-2016 International Business Machines Corporation a
 ---------------------------------------------------------
 
 zeroize 1.7.0 - Apache-2.0 OR MIT
-https://github.com/RustCrypto/utils/tree/master/zeroize
+https://github.com/RustCrypto/utils
 
 All crates licensed under either of
 

@@ -7,10 +7,22 @@ declare module 'vscode' {
 
 	// https://github.com/microsoft/vscode/issues/226562
 
+	/**
+	 * A provider that supplies terminal completion items.
+	 *
+	 * Implementations of this interface should return an array of {@link TerminalCompletionItem} or a
+	 * {@link TerminalCompletionList} describing completions for the current command line.
+	 *
+	 * @example <caption>Simple provider returning a single completion</caption>
+	 * window.registerTerminalCompletionProvider('extension-provider-id', {
+	 * 	provideTerminalCompletions(terminal, context) {
+	 * 		return [{ label: '--help', replacementIndex: Math.max(0, context.cursorPosition - 2), replacementLength: 2 }];
+	 * 	}
+	 * });
+	 */
 	export interface TerminalCompletionProvider<T extends TerminalCompletionItem> {
-		id: string;
 		/**
-		 * Provide completions for the given position and document.
+		 * Provide completions for the given terminal and context.
 		 * @param terminal The terminal for which completions are being provided.
 		 * @param context Information about the terminal's current state.
 		 * @param token A cancellation token.
@@ -20,6 +32,21 @@ declare module 'vscode' {
 	}
 
 
+	/**
+	 * Represents a completion suggestion for a terminal command line.
+	 *
+	 * @example <caption>Completion item for `ls -|`</caption>
+	 * const item = {
+	 * 	label: '-A',
+	 * 	replacementIndex: 3,
+	 * 	replacementLength: 1,
+	 * 	detail: 'List all entries except for . and .. (always set for the super-user)',
+	 * 	kind: TerminalCompletionItemKind.Flag
+	 * };
+	 *
+	 * The fields on a completion item describe what text should be shown to the user
+	 * and which portion of the command line should be replaced when the item is accepted.
+	 */
 	export interface TerminalCompletionItem {
 		/**
 		 * The label of the completion.
@@ -41,7 +68,6 @@ declare module 'vscode' {
 		 */
 		detail?: string;
 
-
 		/**
 		 * A human-readable string that represents a doc-comment.
 		 */
@@ -55,7 +81,11 @@ declare module 'vscode' {
 
 
 	/**
-	 * Terminal item kinds.
+	 * The kind of an individual terminal completion item.
+	 *
+	 * The kind is used to render an appropriate icon in the suggest list and to convey the semantic
+	 * meaning of the suggestion (file, folder, flag, commit, branch, etc.).
+	 *
 	 */
 	export enum TerminalCompletionItemKind {
 		File = 0,
@@ -63,42 +93,69 @@ declare module 'vscode' {
 		Method = 2,
 		Alias = 3,
 		Argument = 4,
+		/**
+		 * An option, for example in `code --locale`, `--locale` is the option
+		 */
 		Option = 5,
+		/**
+		 * The value of an option, for example in `code --locale en-US`, `en-US` is the option value
+		 */
 		OptionValue = 6,
+		/**
+		 * A flag, for example in `git commit --amend"`, `--amend` is the flag
+		 */
 		Flag = 7,
 		SymbolicLinkFile = 8,
 		SymbolicLinkFolder = 9,
-		Commit = 10,
-		Branch = 11,
-		Tag = 12,
-		Stash = 13,
-		Remote = 14,
+		ScmCommit = 10,
+		ScmBranch = 11,
+		ScmTag = 12,
+		ScmStash = 13,
+		ScmRemote = 14,
 		PullRequest = 15,
+		/**
+		 * The pull request has been closed
+		 */
 		PullRequestDone = 16,
 	}
 
+
+	/**
+	 * Context information passed to {@link TerminalCompletionProvider.provideTerminalCompletions}.
+	 *
+	 * It contains the full command line, the current cursor position, and a flag indicating whether
+	 * fallback completions are allowed when the exact completion type cannot be determined.
+	 */
 	export interface TerminalCompletionContext {
 		/**
 		 * The complete terminal command line.
 		 */
-		commandLine: string;
+		readonly commandLine: string;
 		/**
 		 * The index of the cursor in the command line.
 		 */
-		cursorPosition: number;
+		readonly cursorIndex: number;
 		/**
-		 * Whether completions should be provided when it is not clear to what type of completion is
-		 * well known.
+		 * Whether completions should be provided when none are explicitly suggested. This will display
+		 * fallback suggestions like files and folders.
 		 */
-		allowFallbackCompletions: boolean;
+		readonly allowFallbackCompletions: boolean;
 	}
 
 	export namespace window {
 		/**
-		 * Register a completion provider for a certain type of terminal.
-		 *
+		 * Register a completion provider for terminals.
 		 * @param provider The completion provider.
 		 * @returns A {@link Disposable} that unregisters this provider when being disposed.
+		 *
+		 * @example <caption>Register a provider for an extension</caption>
+		 * window.registerTerminalCompletionProvider('extension-provider-id', {
+		 * 	provideTerminalCompletions(terminal, context) {
+		 * 		return new TerminalCompletionList([
+		 * 			{ label: '--version', replacementIndex: Math.max(0, context.cursorPosition - 2), replacementLength: 2 }
+		 * 		]);
+		 * 	}
+		 * });
 		 */
 		export function registerTerminalCompletionProvider<T extends TerminalCompletionItem>(provider: TerminalCompletionProvider<T>, ...triggerCharacters: string[]): Disposable;
 	}
@@ -106,13 +163,18 @@ declare module 'vscode' {
 	/**
 	 * Represents a collection of {@link TerminalCompletionItem completion items} to be presented
 	 * in the terminal.
+	 *
+	 * @example <caption>Create a completion list that requests files for the terminal cwd</caption>
+	 * const list = new TerminalCompletionList([
+	 * 	{ label: 'ls', replacementIndex: 0, replacementLength: 0, kind: TerminalCompletionItemKind.Method }
+	 * ], { showFiles: true, cwd: Uri.file('/home/user') });
 	 */
 	export class TerminalCompletionList<T extends TerminalCompletionItem = TerminalCompletionItem> {
 
 		/**
 		 * Resources that should be shown in the completions list for the cwd of the terminal.
 		 */
-		resourceRequestConfig?: TerminalResourceRequestConfig;
+		resourceOptions?: TerminalCompletionResourceOptions;
 
 		/**
 		 * The completion items.
@@ -123,31 +185,34 @@ declare module 'vscode' {
 		 * Creates a new completion list.
 		 *
 		 * @param items The completion items.
-		 * @param resourceRequestConfig Indicates which resources should be shown as completions for the cwd of the terminal.
+		 * @param resourceOptions Indicates which resources should be shown as completions for the cwd of the terminal.
 		 */
-		constructor(items?: T[], resourceRequestConfig?: TerminalResourceRequestConfig);
+		constructor(items: T[], resourceOptions?: TerminalCompletionResourceOptions);
 	}
 
-	export interface TerminalResourceRequestConfig {
+
+	/**
+	 * Configuration for requesting file and folder resources to be shown as completions.
+	 *
+	 * When a provider indicates that it wants file/folder resources, the terminal will surface completions for files and
+	 * folders that match {@link globPattern} from the provided {@link cwd}.
+	 */
+	export interface TerminalCompletionResourceOptions {
 		/**
 		 * Show files as completion items.
 		 */
-		filesRequested?: boolean;
+		showFiles?: boolean;
 		/**
 		 * Show folders as completion items.
 		 */
-		foldersRequested?: boolean;
+		showDirectories?: boolean;
 		/**
-		 * File extensions to filter by.
+		 * A glob pattern string that controls which files suggest should surface. Note that this will only apply if {@param showFiles} or {@param showDirectories} is set to true.
 		 */
-		fileExtensions?: string[];
+		globPattern?: string;
 		/**
-		 * If no cwd is provided, no resources will be shown as completions.
+		 * The cwd from which to request resources.
 		 */
-		cwd?: Uri;
-		/**
-		 * Environment variables to use when constructing paths.
-		 */
-		env?: { [key: string]: string | null | undefined };
+		cwd: Uri;
 	}
 }

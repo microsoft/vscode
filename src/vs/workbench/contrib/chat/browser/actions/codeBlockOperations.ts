@@ -89,6 +89,7 @@ export class InsertCodeBlockOperation {
 				modelId: request?.modelId,
 				presentation: 'codeBlock',
 				applyCodeBlockSuggestionId: undefined,
+				source: undefined,
 			});
 		}
 	}
