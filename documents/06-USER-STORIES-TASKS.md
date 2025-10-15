@@ -370,25 +370,27 @@ Agent: Uses certxgen template "log4j_rce"
 
 ### Category A: Database & Storage
 
-#### TASK-A1: Create Database Schema
+#### TASK-A1: Create Database Schema ✅ Completed Oct 14, 2025
 **Description:** Design and implement SQLite schema for Specter
 
 **Subtasks:**
-- [ ] A1.1: Design table structure (config, conversations, messages, workflows, executions)
-- [ ] A1.2: Define relationships and foreign keys
-- [ ] A1.3: Create indexes for performance
-- [ ] A1.4: Write schema.sql file
-- [ ] A1.5: Add migration system for schema updates
+- [x] A1.1: Design table structure (config, conversations, messages, workflows, executions)
+- [x] A1.2: Define relationships and foreign keys
+- [x] A1.3: Create indexes for performance
+- [x] A1.4: Write schema.sql file
+- [x] A1.5: Add migration system for schema updates
 
 **Files:**
 - `src/vs/workbench/services/specter/common/database/schema.sql`
 - `src/vs/workbench/services/specter/common/database/migrations.ts`
+- `src/vs/workbench/services/specter/common/database/types.ts`
+- `src/vs/workbench/services/specter/common/database/README.md`
 
 **Acceptance Criteria:**
-- [ ] Schema creates all required tables
-- [ ] Foreign key constraints work
-- [ ] Indexes improve query performance
-- [ ] Default config values are inserted
+- [x] Schema creates all required tables
+- [x] Foreign key constraints work
+- [x] Indexes improve query performance
+- [x] Default config values are inserted
 
 **Effort:** 1 hour  
 **Priority:** P0
@@ -1047,7 +1049,8 @@ A3 (Config)
 
 ### Phase 1: Foundation (Week 1)
 - [x] Schema design
-- [ ] Database service (A1, A2, A3)
+- [x] Database schema (A1) ✅ Oct 14, 2025
+- [ ] Database service (A2, A3)
 - [ ] Config UI (F1)
 - **Target:** Database operational, API key configurable
 
