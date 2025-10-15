@@ -305,6 +305,16 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 			status: parsedTodo.status
 		}));
 
+		// Reject todo lists with less than 3 items
+		if (todoList.length < 3) {
+			return {
+				content: [{
+					kind: 'text',
+					value: 'This task is too simple for a todo list. Tasks with fewer than 3 items don\'t need a todo list. Either skip creating todos or add more detailed steps to reach at least 3 items.'
+				}]
+			};
+		}
+
 		const existingTodos = this.chatTodoListService.getTodos(chatSessionId);
 		const changes = this.calculateTodoChanges(existingTodos, todoList);
 
@@ -313,10 +323,7 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 
 		// Build warnings
 		const warnings: string[] = [];
-		if (todoList.length < 3) {
-			warnings.push('Warning: Small todo list (<3 items). This task might not need a todo list.');
-		}
-		else if (todoList.length > 10) {
+		if (todoList.length > 10) {
 			warnings.push('Warning: Large todo list (>10 items). Consider keeping the list focused and actionable.');
 		}
 
