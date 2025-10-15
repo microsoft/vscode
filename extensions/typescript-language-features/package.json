@@ -221,7 +221,7 @@
           "typescript.implementationsCodeLens.showOnAllClassMethods": {
             "type": "boolean",
             "default": false,
-            "description": "%typescript.implementationsCodeLens.showOnAllClassMethods.desc%",
+            "description": "%typescript.implementationsCodeLens.showOnAllClassMethods%",
             "scope": "window"
           },
           "typescript.reportStyleChecksAsWarnings": {
