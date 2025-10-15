@@ -193,12 +193,6 @@ const apiMenus: IAPIMenu[] = [
 		proposed: 'contribSourceControlHistoryItemMenu'
 	},
 	{
-		key: 'scm/historyItem/hover',
-		id: MenuId.SCMHistoryItemHover,
-		description: localize('menus.historyItemHover', "The Source Control history item hover menu"),
-		proposed: 'contribSourceControlHistoryItemMenu'
-	},
-	{
 		key: 'scm/historyItemRef/context',
 		id: MenuId.SCMHistoryItemRefContext,
 		description: localize('menus.historyItemRefContext', "The Source Control history item reference context menu"),

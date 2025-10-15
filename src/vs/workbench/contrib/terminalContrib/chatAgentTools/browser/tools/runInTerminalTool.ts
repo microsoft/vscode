@@ -640,7 +640,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			};
 		}
 
-		return defaultProfile;
+		// Setting icon: undefined allows the system to use the default Copilot terminal icon (not overridden or removed)
+		return { ...defaultProfile, icon: undefined };
 	}
 
 	private async _getCopilotShell(): Promise<string> {

@@ -4,8 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
+import * as nls from '../../../../nls.js';
 import { raceCancellationError } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IContextKeyService, IScopedContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -51,6 +55,8 @@ export class ChatEditor extends EditorPane {
 	private _memento: Memento<IChatViewState> | undefined;
 	private _viewState: IChatViewState | undefined;
 	private dimension = new dom.Dimension(0, 0);
+	private _loadingContainer: HTMLElement | undefined;
+	private _editorContainer: HTMLElement | undefined;
 
 	constructor(
 		group: IEditorGroup,
@@ -71,6 +77,7 @@ export class ChatEditor extends EditorPane {
 	}
 
 	protected override createEditor(parent: HTMLElement): void {
+		this._editorContainer = parent;
 		this._scopedContextKeyService = this._register(this.contextKeyService.createScoped(parent));
 		const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
 		ChatContextKeys.inChatEditor.bindTo(this._scopedContextKeyService).set(true);
@@ -128,6 +135,48 @@ export class ChatEditor extends EditorPane {
 		super.clearInput();
 	}
 
+	private showLoadingInChatWidget(message: string): void {
+		if (!this._editorContainer) {
+			return;
+		}
+
+		// If already showing, just update text
+		if (this._loadingContainer) {
+			const existingText = this._loadingContainer.querySelector('.chat-loading-content span');
+			if (existingText) {
+				existingText.textContent = message;
+				return; // aria-live will announce the text change
+			}
+			this.hideLoadingInChatWidget(); // unexpected structure
+		}
+
+		// Mark container busy for assistive technologies
+		this._editorContainer.setAttribute('aria-busy', 'true');
+
+		this._loadingContainer = dom.append(this._editorContainer, dom.$('.chat-loading-overlay'));
+		// Accessibility: announce loading state politely without stealing focus
+		this._loadingContainer.setAttribute('role', 'status');
+		this._loadingContainer.setAttribute('aria-live', 'polite');
+		// Rely on live region text content instead of aria-label to avoid duplicate announcements
+		this._loadingContainer.tabIndex = -1; // ensure it isn't focusable
+		const loadingContent = dom.append(this._loadingContainer, dom.$('.chat-loading-content'));
+		const spinner = renderIcon(ThemeIcon.modify(Codicon.loading, 'spin'));
+		spinner.setAttribute('aria-hidden', 'true');
+		loadingContent.appendChild(spinner);
+		const text = dom.append(loadingContent, dom.$('span'));
+		text.textContent = message;
+	}
+
+	private hideLoadingInChatWidget(): void {
+		if (this._loadingContainer) {
+			this._loadingContainer.remove();
+			this._loadingContainer = undefined;
+		}
+		if (this._editorContainer) {
+			this._editorContainer.removeAttribute('aria-busy');
+		}
+	}
+
 	override async setInput(input: ChatEditorInput, options: IChatEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
 		if (token.isCancellationRequested) {
@@ -141,29 +190,49 @@ export class ChatEditor extends EditorPane {
 		let isContributedChatSession = false;
 		const chatSessionType = getChatSessionType(input);
 		if (chatSessionType !== 'local') {
-			await raceCancellationError(this.chatSessionsService.canResolveContentProvider(chatSessionType), token);
-			const contributions = this.chatSessionsService.getAllChatSessionContributions();
-			const contribution = contributions.find(c => c.type === chatSessionType);
-			if (contribution) {
-				this.widget.lockToCodingAgent(contribution.name, contribution.displayName, contribution.type);
-				isContributedChatSession = true;
-			} else {
-				this.widget.unlockFromCodingAgent();
+			// Show single loading state for contributed sessions
+			const loadingMessage = nls.localize('chatEditor.loadingSession', "Loading...");
+			this.showLoadingInChatWidget(loadingMessage);
+
+			try {
+				await raceCancellationError(this.chatSessionsService.canResolveContentProvider(chatSessionType), token);
+				const contributions = this.chatSessionsService.getAllChatSessionContributions();
+				const contribution = contributions.find(c => c.type === chatSessionType);
+				if (contribution) {
+					this.widget.lockToCodingAgent(contribution.name, contribution.displayName, contribution.type);
+					isContributedChatSession = true;
+				} else {
+					this.widget.unlockFromCodingAgent();
+				}
+			} catch (error) {
+				this.hideLoadingInChatWidget();
+				throw error;
 			}
 		} else {
 			this.widget.unlockFromCodingAgent();
 		}
 
-		const editorModel = await raceCancellationError(input.resolve(), token);
+		try {
+			const editorModel = await raceCancellationError(input.resolve(), token);
 
-		if (!editorModel) {
-			throw new Error(`Failed to get model for chat editor. id: ${input.sessionId}`);
-		}
-		const viewState = options?.viewState ?? input.options.viewState;
-		this.updateModel(editorModel.model, viewState);
+			if (!editorModel) {
+				throw new Error(`Failed to get model for chat editor. id: ${input.sessionId}`);
+			}
 
-		if (isContributedChatSession && options?.title?.preferred) {
-			editorModel.model.setCustomTitle(options.title.preferred);
+			// Hide loading state before updating model
+			if (chatSessionType !== 'local') {
+				this.hideLoadingInChatWidget();
+			}
+
+			const viewState = options?.viewState ?? input.options.viewState;
+			this.updateModel(editorModel.model, viewState);
+
+			if (isContributedChatSession && options?.title?.preferred) {
+				editorModel.model.setCustomTitle(options.title.preferred);
+			}
+		} catch (error) {
+			this.hideLoadingInChatWidget();
+			throw error;
 		}
 	}
 
