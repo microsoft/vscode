@@ -753,7 +753,6 @@ export class QuickInputList extends Disposable {
 				hideTwistiesOfChildlessElements: true,
 				renderIndentGuides: RenderIndentGuides.None,
 				findWidgetEnabled: false,
-				indent: 0,
 				horizontalScrolling: false,
 				allowNonCollapsibleParents: true,
 				alwaysConsumeMouseWheel: true
