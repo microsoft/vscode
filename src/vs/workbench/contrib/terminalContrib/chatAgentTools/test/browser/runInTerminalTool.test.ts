@@ -37,6 +37,17 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 	setBackendOs(os: OperatingSystem) {
 		this._osBackend = Promise.resolve(os);
 	}
+
+	// Test helpers for accessing static private members
+	static setBackgroundExecution(id: string, execution: any) {
+		(RunInTerminalTool as any)._backgroundExecutions.set(id, execution);
+	}
+	static deleteBackgroundExecution(id: string) {
+		(RunInTerminalTool as any)._backgroundExecutions.delete(id);
+	}
+	static hasBackgroundExecution(id: string): boolean {
+		return (RunInTerminalTool as any)._backgroundExecutions.has(id);
+	}
 }
 
 suite('RunInTerminalTool', () => {
@@ -981,7 +992,7 @@ suite('RunInTerminalTool', () => {
 			};
 
 			// Manually add to background executions to simulate the scenario
-			(RunInTerminalTool as any)._backgroundExecutions.set(termId, execution);
+			TestRunInTerminalTool.setBackgroundExecution(termId, execution);
 
 			try {
 				RunInTerminalTool.getBackgroundOutput(termId);
@@ -990,7 +1001,7 @@ suite('RunInTerminalTool', () => {
 				strictEqual(e.message, 'Terminal is closed', 'Expected "Terminal is closed" error message');
 			} finally {
 				// Clean up
-				(RunInTerminalTool as any)._backgroundExecutions.delete(termId);
+				TestRunInTerminalTool.deleteBackgroundExecution(termId);
 			}
 		});
 
@@ -1007,16 +1018,16 @@ suite('RunInTerminalTool', () => {
 			};
 
 			// Manually add to background executions
-			(RunInTerminalTool as any)._backgroundExecutions.set(termId, execution);
+			TestRunInTerminalTool.setBackgroundExecution(termId, execution);
 
 			// Verify it exists
-			strictEqual((RunInTerminalTool as any)._backgroundExecutions.has(termId), true);
+			strictEqual(TestRunInTerminalTool.hasBackgroundExecution(termId), true);
 
 			// Fire the terminal disposal event
 			terminalServiceDisposeEmitter.fire(mockTerminal);
 
 			// Verify the background execution was cleaned up
-			strictEqual((RunInTerminalTool as any)._backgroundExecutions.has(termId), false);
+			strictEqual(TestRunInTerminalTool.hasBackgroundExecution(termId), false);
 		});
 
 		test('should return output successfully for active terminal', () => {
@@ -1033,14 +1044,14 @@ suite('RunInTerminalTool', () => {
 			};
 
 			// Manually add to background executions
-			(RunInTerminalTool as any)._backgroundExecutions.set(termId, execution);
+			TestRunInTerminalTool.setBackgroundExecution(termId, execution);
 
 			try {
 				const output = RunInTerminalTool.getBackgroundOutput(termId);
 				strictEqual(output, expectedOutput, 'Expected to get output from active terminal');
 			} finally {
 				// Clean up
-				(RunInTerminalTool as any)._backgroundExecutions.delete(termId);
+				TestRunInTerminalTool.deleteBackgroundExecution(termId);
 			}
 		});
 	});
