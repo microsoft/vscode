@@ -543,12 +543,14 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 }
 
 .monaco-editor .comment-range-glyph.comment-thread,
-.monaco-editor .comment-range-glyph.comment-thread-unresolved {
+.monaco-editor .comment-range-glyph.comment-thread-unresolved,
+.monaco-editor .comment-range-glyph.comment-thread-draft {
 	z-index: 20;
 }
 
 .monaco-editor .comment-range-glyph.comment-thread:before,
-.monaco-editor .comment-range-glyph.comment-thread-unresolved:before {
+.monaco-editor .comment-range-glyph.comment-thread-unresolved:before,
+.monaco-editor .comment-range-glyph.comment-thread-draft:before {
 	font-family: "codicon";
 	font-size: 13px;
 	width: 18px !important;
@@ -568,6 +570,10 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 .monaco-editor .comment-range-glyph.comment-thread-unresolved:before {
 	content: var(--vscode-icon-comment-unresolved-content);
 	font-family: var(--vscode-icon-comment-unresolved-font-family);
+}
+.monaco-editor .comment-range-glyph.comment-thread-draft:before {
+	content: var(--vscode-icon-comment-draft-content);
+	font-family: var(--vscode-icon-comment-draft-font-family);
 }
 
 .monaco-editor.inline-comment .margin-view-overlays .codicon-folding-expanded,
