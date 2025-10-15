@@ -512,6 +512,12 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'description': localize('workbench.quickOpen.preserveInput', "Controls whether the last typed input to Quick Open should be restored when opening it the next time."),
 				'default': false
 			},
+			'workbench.quickOpen.useZeroBasedOffset': {
+				'type': 'boolean',
+				tags: ['experimental'],
+				'description': localize('workbench.quickOpen.useZeroBasedOffset', "Controls whether 'Go To' character offset in Quick Open will use zero-based offset (default is one-based)."),
+				'default': false
+			},
 			'workbench.settings.openDefaultSettings': {
 				'type': 'boolean',
 				'description': localize('openDefaultSettings', "Controls whether opening settings also opens an editor showing all default settings."),

@@ -903,28 +903,7 @@ class AdditionalDetailsWidget extends Disposable {
 			const supportUri = getMcpGalleryManifestResourceUri(manifest, McpGalleryResourceType.ContactSupportUri);
 			if (supportUri) {
 				try {
-					resources.push([localize('support', "Support"), ThemeIcon.fromId(Codicon.commentDiscussion.id), URI.parse(supportUri)]);
-				} catch (error) {/* Ignore */ }
-			}
-
-			const privacyUri = getMcpGalleryManifestResourceUri(manifest, McpGalleryResourceType.PrivacyPolicyUri);
-			if (privacyUri) {
-				try {
-					resources.push([localize('privacy', "Privacy Policy"), ThemeIcon.fromId(Codicon.law.id), URI.parse(privacyUri)]);
-				} catch (error) {/* Ignore */ }
-			}
-
-			const termsUri = getMcpGalleryManifestResourceUri(manifest, McpGalleryResourceType.TermsOfServiceUri);
-			if (termsUri) {
-				try {
-					resources.push([localize('terms', "Terms of Service"), ThemeIcon.fromId(Codicon.law.id), URI.parse(termsUri)]);
-				} catch (error) {/* Ignore */ }
-			}
-
-			const reportUri = getMcpGalleryManifestResourceUri(manifest, McpGalleryResourceType.ReportUri);
-			if (reportUri) {
-				try {
-					resources.push([localize('report', "Report abuse"), ThemeIcon.fromId(Codicon.report.id), URI.parse(reportUri)]);
+					resources.push([localize('support', "Contact Support"), ThemeIcon.fromId(Codicon.commentDiscussion.id), URI.parse(supportUri)]);
 				} catch (error) {/* Ignore */ }
 			}
 		}

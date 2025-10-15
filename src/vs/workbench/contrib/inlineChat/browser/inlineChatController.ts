@@ -56,7 +56,6 @@ import { ChatMode } from '../../chat/common/chatModes.js';
 import { IChatService } from '../../chat/common/chatService.js';
 import { IChatRequestVariableEntry } from '../../chat/common/chatVariableEntries.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
-import { INotebookEditor } from '../../notebook/browser/notebookBrowser.js';
 import { isNotebookContainingCellEditor as isNotebookWithCellEditor } from '../../notebook/browser/notebookEditor.js';
 import { INotebookEditorService } from '../../notebook/browser/services/notebookEditorService.js';
 import { ICellEditOperation } from '../../notebook/common/notebookCommon.js';
@@ -128,12 +127,14 @@ export class InlineChatController implements IEditorContribution {
 	constructor(
 		editor: ICodeEditor,
 		@IConfigurationService configurationService: IConfigurationService,
+		@INotebookEditorService private readonly _notebookEditorService: INotebookEditorService
 	) {
-
 		const inlineChat2 = observableConfigValue(InlineChatConfigKeys.EnableV2, false, configurationService);
+		const notebookAgent = observableConfigValue(InlineChatConfigKeys.notebookAgent, false, configurationService);
 
 		this._delegate = derived(r => {
-			if (inlineChat2.read(r)) {
+			const isNotebookCell = !!this._notebookEditorService.getNotebookForPossibleCell(editor);
+			if (isNotebookCell ? notebookAgent.read(r) : inlineChat2.read(r)) {
 				return InlineChatController2.get(editor)!;
 			} else {
 				return InlineChatController1.get(editor)!;
@@ -251,15 +252,9 @@ export class InlineChatController1 implements IEditorContribution {
 			// check if this editor is part of a notebook editor
 			// and iff so, use the notebook location but keep the resolveData
 			// talk about editor data
-			let notebookEditor: INotebookEditor | undefined;
-			for (const editor of notebookEditorService.listNotebookEditors()) {
-				for (const [, codeEditor] of editor.codeEditors) {
-					if (codeEditor === this._editor) {
-						notebookEditor = editor;
-						location.location = ChatAgentLocation.Notebook;
-						break;
-					}
-				}
+			const notebookEditor = notebookEditorService.getNotebookForPossibleCell(this._editor);
+			if (!!notebookEditor) {
+				location.location = ChatAgentLocation.Notebook;
 			}
 
 			const zone = _instaService.createInstance(InlineChatZoneWidget, location, undefined, { editor: this._editor, notebookEditor });
@@ -1310,27 +1305,17 @@ export class InlineChatController2 implements IEditorContribution {
 			// inline chat in notebooks
 			// check if this editor is part of a notebook editor
 			// if so, update the location and use the notebook specific widget
-			let notebookEditor: INotebookEditor | undefined;
-			for (const editor of this._notebookEditorService.listNotebookEditors()) {
-				for (const [, codeEditor] of editor.codeEditors) {
-					if (codeEditor === this._editor) {
-						location.location = ChatAgentLocation.Notebook;
-						notebookEditor = editor;
-						// set location2 so that the notebook agent intent is used
-						if (configurationService.getValue(InlineChatConfigKeys.notebookAgent)) {
-							location.resolveData = () => {
-								assertType(this._editor.hasModel());
+			const notebookEditor = this._notebookEditorService.getNotebookForPossibleCell(this._editor);
+			if (!!notebookEditor) {
+				location.location = ChatAgentLocation.Notebook;
+				location.resolveData = () => {
+					assertType(this._editor.hasModel());
 
-								return {
-									type: ChatAgentLocation.Notebook,
-									sessionInputUri: this._editor.getModel().uri,
-								};
-							};
-						}
-
-						break;
-					}
-				}
+					return {
+						type: ChatAgentLocation.Notebook,
+						sessionInputUri: this._editor.getModel().uri,
+					};
+				};
 			}
 
 			const result = this._instaService.createInstance(InlineChatZoneWidget,

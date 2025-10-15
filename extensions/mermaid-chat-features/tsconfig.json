@@ -15,6 +15,7 @@
 		"../../src/vscode-dts/vscode.proposed.chatOutputRenderer.d.ts",
 		"../../src/vscode-dts/vscode.proposed.chatParticipantAdditions.d.ts",
 		"../../src/vscode-dts/vscode.proposed.languageModelThinkingPart.d.ts",
-		"../../src/vscode-dts/vscode.proposed.chatParticipantPrivate.d.ts"
+		"../../src/vscode-dts/vscode.proposed.chatParticipantPrivate.d.ts",
+		"../../src/vscode-dts/vscode.proposed.languageModelProxy.d.ts"
 	]
 }

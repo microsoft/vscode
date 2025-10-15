@@ -396,4 +396,9 @@ steps:
           mkdir -p $(Build.ArtifactStagingDirectory)/out/snap
           mv $(SNAP_PATH) $(Build.ArtifactStagingDirectory)/out/snap/$(SNAP_PACKAGE_NAME)
         fi
+
+        # SBOM generation uses hard links which are not supported by the Linux kernel
+        # for files that have the SUID bit set, so we need to remove the SUID bit from
+        # the chrome-sandbox file.
+        sudo chmod u-s $(Agent.BuildDirectory)/VSCode-linux-$(VSCODE_ARCH)/chrome-sandbox
       displayName: Move artifacts to out directory

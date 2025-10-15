@@ -505,8 +505,9 @@ export class LanguageModelsService implements ILanguageModelsService {
 
 		this._providers.set(vendor, provider);
 
-		// TODO @lramos15 - Smarter restore logic. Don't resolve models for all providers, but only those which were known to need restoring
-		this._resolveLanguageModels(vendor, true);
+		if (this._hasStoredModelForVendor(vendor)) {
+			this._resolveLanguageModels(vendor, true);
+		}
 
 		const modelChangeListener = provider.onDidChange(async () => {
 			await this._resolveLanguageModels(vendor, true);

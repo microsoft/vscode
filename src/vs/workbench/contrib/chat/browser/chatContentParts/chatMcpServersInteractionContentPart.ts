@@ -68,16 +68,15 @@ export class ChatMcpServersInteractionContentPart extends Disposable implements 
 	}
 
 	private updateForState(state: IAutostartResult): void {
-		// Handle working progress state
-		if (state.working && !this.workingProgressPart) {
+		if (!state.working) {
+			this.workingProgressPart?.domNode.remove();
+			this.workingProgressPart = undefined;
+			this.showSpecificServersScheduler.cancel();
+		} else if (!this.workingProgressPart) {
 			if (!this.showSpecificServersScheduler.isScheduled()) {
 				this.showSpecificServersScheduler.schedule();
 			}
-		} else if (!state.working && this.workingProgressPart) {
-			this.workingProgressPart.domNode.remove();
-			this.workingProgressPart = undefined;
-			this.showSpecificServersScheduler.cancel();
-		} else if (state.working && this.workingProgressPart) {
+		} else if (this.workingProgressPart) {
 			this.updateDetailedProgress(state);
 		}
 

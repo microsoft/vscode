@@ -378,7 +378,8 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 
 		await chatService.resendRequest(requestModel, {
 			...widget?.getModeRequestOptions(),
-			modeInfo
+			modeInfo,
+			userSelectedModelId: widget?.input.currentLanguageModel
 		});
 	}
 
@@ -594,7 +595,7 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 }
 
 
-class SetupTool extends Disposable implements IToolImpl {
+class SetupTool implements IToolImpl {
 
 	static registerTool(instantiationService: IInstantiationService, toolData: IToolData): IDisposable {
 		return instantiationService.invokeFunction(accessor => {
@@ -627,7 +628,7 @@ class SetupTool extends Disposable implements IToolImpl {
 	}
 }
 
-class DefaultNewSymbolNamesProvider extends Disposable {
+class DefaultNewSymbolNamesProvider {
 
 	static registerProvider(instantiationService: IInstantiationService, context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): IDisposable {
 		return instantiationService.invokeFunction(accessor => {
@@ -635,7 +636,7 @@ class DefaultNewSymbolNamesProvider extends Disposable {
 
 			const disposables = new DisposableStore();
 
-			const provider = disposables.add(instantiationService.createInstance(DefaultNewSymbolNamesProvider, context, controller));
+			const provider = instantiationService.createInstance(DefaultNewSymbolNamesProvider, context, controller);
 			disposables.add(languageFeaturesService.newSymbolNamesProvider.register('*', provider));
 
 			return disposables;
@@ -648,7 +649,6 @@ class DefaultNewSymbolNamesProvider extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 	) {
-		super();
 	}
 
 	async provideNewSymbolNames(model: ITextModel, range: IRange, triggerKind: NewSymbolNameTriggerKind, token: CancellationToken): Promise<NewSymbolName[] | undefined> {

@@ -23,6 +23,7 @@ import { IEditorGroupsService } from '../../../../services/editor/common/editorG
 
 export class GotoLineQuickAccessProvider extends AbstractGotoLineQuickAccessProvider {
 
+	private static zeroBasedOffsetSetting = 'workbench.quickOpen.useZeroBasedOffset';
 	protected readonly onDidActiveTextEditorControlChange: Event<void>;
 
 	constructor(
@@ -30,7 +31,14 @@ export class GotoLineQuickAccessProvider extends AbstractGotoLineQuickAccessProv
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
-		super();
+		super({
+			get value() {
+				return configurationService.getValue<boolean>(GotoLineQuickAccessProvider.zeroBasedOffsetSetting);
+			},
+			set value(value: boolean) {
+				configurationService.updateValue(GotoLineQuickAccessProvider.zeroBasedOffsetSetting, value);
+			}
+		});
 		this.onDidActiveTextEditorControlChange = this.editorService.onDidActiveEditorChange;
 	}
 
