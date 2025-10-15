@@ -33,6 +33,7 @@ const dirs = [
 	'extensions/markdown-math',
 	'extensions/media-preview',
 	'extensions/merge-conflict',
+	'extensions/mermaid-chat-features',
 	'extensions/microsoft-authentication',
 	'extensions/notebook-renderers',
 	'extensions/npm',
@@ -41,6 +42,7 @@ const dirs = [
 	'extensions/search-result',
 	'extensions/simple-browser',
 	'extensions/tunnel-forwarding',
+	'extensions/terminal-suggest',
 	'extensions/typescript-language-features',
 	'extensions/vscode-api-tests',
 	'extensions/vscode-colorize-tests',
@@ -52,6 +54,7 @@ const dirs = [
 	'test/integration/browser',
 	'test/monaco',
 	'test/smoke',
+	'test/mcp',
 	'.vscode/extensions/vscode-selfhost-import-aid',
 	'.vscode/extensions/vscode-selfhost-test-provider',
 ];

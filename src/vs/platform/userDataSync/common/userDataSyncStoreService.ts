@@ -487,10 +487,6 @@ export class UserDataSyncStoreClient extends Disposable {
 			throw new UserDataSyncStoreError('Server returned ' + context.res.statusCode, url, UserDataSyncErrorCode.EmptyResponse, context.res.statusCode, context.res.headers[HEADER_OPERATION_ID]);
 		}
 
-		if (hasNoContent(context)) {
-			throw new UserDataSyncStoreError('Empty response', url, UserDataSyncErrorCode.EmptyResponse, context.res.statusCode, context.res.headers[HEADER_OPERATION_ID]);
-		}
-
 		const serverData = await asJson<IDownloadLatestDataType>(context);
 		if (!serverData) {
 			return null;

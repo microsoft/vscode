@@ -11,6 +11,8 @@ import { onObservableChange } from '../../common/observableUtils.js';
 import { ICoverageAccessor, TestCoverage } from '../../common/testCoverage.js';
 import { LiveTestResult } from '../../common/testResult.js';
 import { IFileCoverage } from '../../common/testTypes.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { upcastDeepPartial, upcastPartial } from '../../../../../base/test/common/mock.js';
 
 suite('TestCoverage', () => {
 	let sandbox: SinonSandbox;
@@ -24,7 +26,7 @@ suite('TestCoverage', () => {
 		coverageAccessor = {
 			getCoverageDetails: sandbox.stub().resolves([]),
 		};
-		testCoverage = new TestCoverage({} as LiveTestResult, 'taskId', { extUri: { ignorePathCasing: () => true } } as any, coverageAccessor);
+		testCoverage = new TestCoverage({} as LiveTestResult, 'taskId', upcastDeepPartial<IUriIdentityService>({ extUri: upcastPartial({ ignorePathCasing: () => true }) }), coverageAccessor);
 	});
 
 	teardown(() => {

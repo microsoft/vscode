@@ -178,7 +178,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	public readonly id: string;
 	private _foldingRanges: FoldingRegions | null = null;
 	private _onDidFoldingStateChanged = new Emitter<void>();
-	onDidFoldingStateChanged: Event<void> = this._onDidFoldingStateChanged.event;
+	readonly onDidFoldingStateChanged: Event<void> = this._onDidFoldingStateChanged.event;
 	private _hiddenRanges: ICellRange[] = [];
 	private _focused: boolean = true;
 

@@ -36,6 +36,7 @@ export function createHotClass<T>(clazz: T): IObservable<T> {
 		return constObservable(clazz);
 	}
 
+	// eslint-disable-next-line local/code-no-any-casts
 	const id = (clazz as any).name;
 
 	let existing = classes.get(id);

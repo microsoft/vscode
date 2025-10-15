@@ -30,7 +30,7 @@ import { fuzzyContains } from '../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
-import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { localize } from '../../../../nls.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { MenuEntryActionViewItem, createActionViewItem, getActionBarActions, getFlatContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
@@ -71,6 +71,7 @@ import { ITestRunProfile, InternalTestItem, TestControllerCapability, TestItemEx
 import { TestingContextKeys } from '../common/testingContextKeys.js';
 import { ITestingContinuousRunService } from '../common/testingContinuousRunService.js';
 import { ITestingPeekOpener } from '../common/testingPeekOpener.js';
+import { CountSummary, collectTestStateCounts, getTestProgressText } from '../common/testingProgressMessages.js';
 import { cmpPriority, isFailedState, isStateWithResult, statesInOrder } from '../common/testingStates.js';
 import { ITestTreeProjection, TestExplorerTreeElement, TestItemTreeElement, TestTreeErrorMessage } from './explorerProjections/index.js';
 import { ListProjection } from './explorerProjections/listProjection.js';
@@ -82,7 +83,6 @@ import * as icons from './icons.js';
 import './media/testing.css';
 import { DebugLastRun, ReRunLastRun } from './testExplorerActions.js';
 import { TestingExplorerFilter } from './testingExplorerFilter.js';
-import { CountSummary, collectTestStateCounts, getTestProgressText } from './testingProgressUiService.js';
 
 const enum LastFocusState {
 	Input,
@@ -1451,14 +1451,11 @@ interface IErrorTemplateData {
 class ErrorRenderer implements ITreeRenderer<TestTreeErrorMessage, FuzzyScore, IErrorTemplateData> {
 	static readonly ID = 'error';
 
-	private readonly renderer: MarkdownRenderer;
 
 	constructor(
 		@IHoverService private readonly hoverService: IHoverService,
-		@IInstantiationService instantionService: IInstantiationService,
-	) {
-		this.renderer = instantionService.createInstance(MarkdownRenderer, {});
-	}
+		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
+	) { }
 
 	get templateId(): string {
 		return ErrorRenderer.ID;
@@ -1475,7 +1472,7 @@ class ErrorRenderer implements ITreeRenderer<TestTreeErrorMessage, FuzzyScore, I
 		if (typeof element.message === 'string') {
 			data.label.innerText = element.message;
 		} else {
-			const result = this.renderer.render(element.message, undefined, document.createElement('span'));
+			const result = this.markdownRendererService.render(element.message, undefined, document.createElement('span'));
 			data.label.appendChild(result.element);
 		}
 		data.disposable.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), data.label, element.description));

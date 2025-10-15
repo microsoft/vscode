@@ -114,32 +114,47 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.experimental.treeSitterTelemetry': {
 			type: 'boolean',
 			default: false,
-			markdownDescription: nls.localize('editor.experimental.treeSitterTelemetry', "Controls whether tree sitter parsing should be turned on and telemetry collected. Setting `editor.experimental.preferTreeSitter` for specific languages will take precedence."),
-			tags: ['experimental', 'onExP']
+			markdownDescription: nls.localize('editor.experimental.treeSitterTelemetry', "Controls whether tree sitter parsing should be turned on and telemetry collected. Setting `#editor.experimental.preferTreeSitter#` for specific languages will take precedence."),
+			tags: ['experimental'],
+			experiment: {
+				mode: 'auto'
+			}
 		},
 		'editor.experimental.preferTreeSitter.css': {
 			type: 'boolean',
 			default: false,
-			markdownDescription: nls.localize('editor.experimental.preferTreeSitter.css', "Controls whether tree sitter parsing should be turned on for css. This will take precedence over `editor.experimental.treeSitterTelemetry` for css."),
-			tags: ['experimental', 'onExP']
+			markdownDescription: nls.localize('editor.experimental.preferTreeSitter.css', "Controls whether tree sitter parsing should be turned on for css. This will take precedence over `#editor.experimental.treeSitterTelemetry#` for css."),
+			tags: ['experimental'],
+			experiment: {
+				mode: 'auto'
+			}
 		},
 		'editor.experimental.preferTreeSitter.typescript': {
 			type: 'boolean',
 			default: false,
-			markdownDescription: nls.localize('editor.experimental.preferTreeSitter.typescript', "Controls whether tree sitter parsing should be turned on for typescript. This will take precedence over `editor.experimental.treeSitterTelemetry` for typescript."),
-			tags: ['experimental', 'onExP']
+			markdownDescription: nls.localize('editor.experimental.preferTreeSitter.typescript', "Controls whether tree sitter parsing should be turned on for typescript. This will take precedence over `#editor.experimental.treeSitterTelemetry#` for typescript."),
+			tags: ['experimental'],
+			experiment: {
+				mode: 'auto'
+			}
 		},
 		'editor.experimental.preferTreeSitter.ini': {
 			type: 'boolean',
 			default: false,
-			markdownDescription: nls.localize('editor.experimental.preferTreeSitter.ini', "Controls whether tree sitter parsing should be turned on for ini. This will take precedence over `editor.experimental.treeSitterTelemetry` for ini."),
-			tags: ['experimental', 'onExP']
+			markdownDescription: nls.localize('editor.experimental.preferTreeSitter.ini', "Controls whether tree sitter parsing should be turned on for ini. This will take precedence over `#editor.experimental.treeSitterTelemetry#` for ini."),
+			tags: ['experimental'],
+			experiment: {
+				mode: 'auto'
+			}
 		},
 		'editor.experimental.preferTreeSitter.regex': {
 			type: 'boolean',
 			default: false,
-			markdownDescription: nls.localize('editor.experimental.preferTreeSitter.regex', "Controls whether tree sitter parsing should be turned on for regex. This will take precedence over `editor.experimental.treeSitterTelemetry` for regex."),
-			tags: ['experimental', 'onExP']
+			markdownDescription: nls.localize('editor.experimental.preferTreeSitter.regex', "Controls whether tree sitter parsing should be turned on for regex. This will take precedence over `#editor.experimental.treeSitterTelemetry#` for regex."),
+			tags: ['experimental'],
+			experiment: {
+				mode: 'auto'
+			}
 		},
 		'editor.language.brackets': {
 			type: ['array', 'null'],

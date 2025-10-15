@@ -24,7 +24,7 @@ import { localize } from '../../../../nls.js';
 import type { IManagedHover } from '../hover/hover.js';
 import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2.js';
 import { IActionProvider } from '../dropdown/dropdown.js';
-import { safeSetInnerHtml, SanitizeOptions } from '../../domSanitize.js';
+import { safeSetInnerHtml, DomSanitizerConfig } from '../../domSanitize.js';
 
 export interface IButtonOptions extends Partial<IButtonStyles> {
 	readonly title?: boolean | string;
@@ -79,7 +79,7 @@ export interface IButtonWithDescription extends IButton {
 }
 
 // Only allow a very limited set of inline html tags
-const buttonSanitizerOptions = Object.freeze<SanitizeOptions>({
+const buttonSanitizerConfig = Object.freeze<DomSanitizerConfig>({
 	allowedTags: {
 		override: ['b', 'i', 'u', 'code', 'span'],
 	},
@@ -253,7 +253,7 @@ export class Button extends Disposable implements IButton {
 			// Don't include outer `<p>`
 			const root = rendered.element.querySelector('p')?.innerHTML;
 			if (root) {
-				safeSetInnerHtml(labelElement, root, buttonSanitizerOptions);
+				safeSetInnerHtml(labelElement, root, buttonSanitizerConfig);
 			} else {
 				reset(labelElement);
 			}
@@ -616,8 +616,8 @@ export class ButtonBar {
  * This is a Button that supports an icon to the left, and markdown to the right, with proper separation and wrapping the markdown label, which Button doesn't do.
  */
 export class ButtonWithIcon extends Button {
-	private _iconElement: HTMLElement;
-	private _mdlabelElement: HTMLElement;
+	private readonly _iconElement: HTMLElement;
+	private readonly _mdlabelElement: HTMLElement;
 
 	public get labelElement() { return this._mdlabelElement; }
 
@@ -654,7 +654,7 @@ export class ButtonWithIcon extends Button {
 
 			const root = rendered.element.querySelector('p')?.innerHTML;
 			if (root) {
-				safeSetInnerHtml(this._mdlabelElement, root, buttonSanitizerOptions);
+				safeSetInnerHtml(this._mdlabelElement, root, buttonSanitizerConfig);
 			} else {
 				reset(this._mdlabelElement);
 			}

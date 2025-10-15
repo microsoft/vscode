@@ -24,10 +24,7 @@ export interface CallbackTask extends BaseTask {
 export type Task = PromiseTask | StreamTask | CallbackTask;
 
 function _isPromise(p: Promise<void> | NodeJS.ReadWriteStream): p is Promise<void> {
-	if (typeof (<any>p).then === 'function') {
-		return true;
-	}
-	return false;
+	return typeof (p as Promise<void>).then === 'function';
 }
 
 function _renderTime(time: number): string {

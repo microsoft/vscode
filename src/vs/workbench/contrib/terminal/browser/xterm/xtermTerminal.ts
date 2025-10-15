@@ -241,7 +241,10 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			},
 		}));
 		this._updateSmoothScrolling();
-		this._core = (this.raw as any)._core as IXtermCore;
+		interface ITerminalWithCore extends RawXtermTerminal {
+			_core: IXtermCore;
+		}
+		this._core = (this.raw as ITerminalWithCore)._core as IXtermCore;
 
 		this._register(this._configurationService.onDidChangeConfiguration(async e => {
 			if (e.affectsConfiguration(TerminalSettingId.GpuAcceleration)) {
@@ -327,7 +330,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	}
 
 	*getBufferReverseIterator(): IterableIterator<string> {
-		for (let i = this.raw.buffer.active.length; i >= 0; i--) {
+		for (let i = this.raw.buffer.active.length - 1; i >= 0; i--) {
 			const { lineData, lineIndex } = getFullBufferLineAsString(i, this.raw.buffer.active);
 			if (lineData) {
 				i = lineIndex;

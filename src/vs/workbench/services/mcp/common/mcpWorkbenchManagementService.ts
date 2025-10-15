@@ -23,6 +23,12 @@ import { IRemoteUserDataProfilesService } from '../../userDataProfile/common/rem
 import { AbstractMcpManagementService, AbstractMcpResourceManagementService, ILocalMcpServerInfo } from '../../../../platform/mcp/common/mcpManagementService.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { ResourceMap } from '../../../../base/common/map.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+
+export const USER_CONFIG_ID = 'usrlocal';
+export const REMOTE_USER_CONFIG_ID = 'usrremote';
+export const WORKSPACE_CONFIG_ID = 'workspace';
+export const WORKSPACE_FOLDER_CONFIG_ID_PREFIX = 'ws';
 
 export interface IWorkbencMcpServerInstallOptions extends InstallOptions {
 	target?: ConfigurationTarget | IWorkspaceFolder;
@@ -35,28 +41,41 @@ export const enum LocalMcpServerScope {
 }
 
 export interface IWorkbenchLocalMcpServer extends ILocalMcpServer {
-	readonly scope?: LocalMcpServerScope;
+	readonly id: string;
+	readonly scope: LocalMcpServerScope;
+}
+
+export interface InstallWorkbenchMcpServerEvent extends InstallMcpServerEvent {
+	readonly scope: LocalMcpServerScope;
 }
 
 export interface IWorkbenchMcpServerInstallResult extends InstallMcpServerResult {
 	readonly local?: IWorkbenchLocalMcpServer;
 }
 
+export interface UninstallWorkbenchMcpServerEvent extends UninstallMcpServerEvent {
+	readonly scope: LocalMcpServerScope;
+}
+
+export interface DidUninstallWorkbenchMcpServerEvent extends DidUninstallMcpServerEvent {
+	readonly scope: LocalMcpServerScope;
+}
+
 export const IWorkbenchMcpManagementService = refineServiceDecorator<IMcpManagementService, IWorkbenchMcpManagementService>(IMcpManagementService);
 export interface IWorkbenchMcpManagementService extends IMcpManagementService {
 	readonly _serviceBrand: undefined;
 
-	readonly onDidInstallMcpServers: Event<readonly IWorkbenchMcpServerInstallResult[]>;
-
-	readonly onInstallMcpServerInCurrentProfile: Event<InstallMcpServerEvent>;
+	readonly onInstallMcpServerInCurrentProfile: Event<InstallWorkbenchMcpServerEvent>;
 	readonly onDidInstallMcpServersInCurrentProfile: Event<readonly IWorkbenchMcpServerInstallResult[]>;
 	readonly onDidUpdateMcpServersInCurrentProfile: Event<readonly IWorkbenchMcpServerInstallResult[]>;
-	readonly onUninstallMcpServerInCurrentProfile: Event<UninstallMcpServerEvent>;
-	readonly onDidUninstallMcpServerInCurrentProfile: Event<DidUninstallMcpServerEvent>;
+	readonly onUninstallMcpServerInCurrentProfile: Event<UninstallWorkbenchMcpServerEvent>;
+	readonly onDidUninstallMcpServerInCurrentProfile: Event<DidUninstallWorkbenchMcpServerEvent>;
 	readonly onDidChangeProfile: Event<void>;
 
 	getInstalled(): Promise<IWorkbenchLocalMcpServer[]>;
 	install(server: IInstallableMcpServer | URI, options?: IWorkbencMcpServerInstallOptions): Promise<IWorkbenchLocalMcpServer>;
+	installFromGallery(server: IGalleryMcpServer, options?: InstallOptions): Promise<IWorkbenchLocalMcpServer>;
+	updateMetadata(local: ILocalMcpServer, server: IGalleryMcpServer, profileLocation?: URI): Promise<IWorkbenchLocalMcpServer>;
 }
 
 export class WorkbenchMcpManagementService extends AbstractMcpManagementService implements IWorkbenchMcpManagementService {
@@ -76,7 +95,7 @@ export class WorkbenchMcpManagementService extends AbstractMcpManagementService 
 	private _onDidUninstallMcpServer = this._register(new Emitter<DidUninstallMcpServerEvent>());
 	readonly onDidUninstallMcpServer = this._onDidUninstallMcpServer.event;
 
-	private readonly _onInstallMcpServerInCurrentProfile = this._register(new Emitter<InstallMcpServerEvent>());
+	private readonly _onInstallMcpServerInCurrentProfile = this._register(new Emitter<InstallWorkbenchMcpServerEvent>());
 	readonly onInstallMcpServerInCurrentProfile = this._onInstallMcpServerInCurrentProfile.event;
 
 	private readonly _onDidInstallMcpServersInCurrentProfile = this._register(new Emitter<readonly IWorkbenchMcpServerInstallResult[]>());
@@ -85,10 +104,10 @@ export class WorkbenchMcpManagementService extends AbstractMcpManagementService 
 	private readonly _onDidUpdateMcpServersInCurrentProfile = this._register(new Emitter<readonly IWorkbenchMcpServerInstallResult[]>());
 	readonly onDidUpdateMcpServersInCurrentProfile = this._onDidUpdateMcpServersInCurrentProfile.event;
 
-	private readonly _onUninstallMcpServerInCurrentProfile = this._register(new Emitter<UninstallMcpServerEvent>());
+	private readonly _onUninstallMcpServerInCurrentProfile = this._register(new Emitter<UninstallWorkbenchMcpServerEvent>());
 	readonly onUninstallMcpServerInCurrentProfile = this._onUninstallMcpServerInCurrentProfile.event;
 
-	private readonly _onDidUninstallMcpServerInCurrentProfile = this._register(new Emitter<DidUninstallMcpServerEvent>());
+	private readonly _onDidUninstallMcpServerInCurrentProfile = this._register(new Emitter<DidUninstallWorkbenchMcpServerEvent>());
 	readonly onDidUninstallMcpServerInCurrentProfile = this._onDidUninstallMcpServerInCurrentProfile.event;
 
 	private readonly _onDidChangeProfile = this._register(new Emitter<void>());
@@ -100,6 +119,7 @@ export class WorkbenchMcpManagementService extends AbstractMcpManagementService 
 	constructor(
 		private readonly mcpManagementService: IMcpManagementService,
 		@IAllowedMcpServersService allowedMcpServersService: IAllowedMcpServersService,
+		@ILogService logService: ILogService,
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
@@ -108,7 +128,7 @@ export class WorkbenchMcpManagementService extends AbstractMcpManagementService 
 		@IRemoteUserDataProfilesService private readonly remoteUserDataProfilesService: IRemoteUserDataProfilesService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
-		super(allowedMcpServersService);
+		super(allowedMcpServersService, logService);
 
 		this.workspaceMcpManagementService = this._register(instantiationService.createInstance(WorkspaceMcpManagementService));
 		const remoteAgentConnection = remoteAgentService.getConnection();
@@ -119,7 +139,7 @@ export class WorkbenchMcpManagementService extends AbstractMcpManagementService 
 		this._register(this.mcpManagementService.onInstallMcpServer(e => {
 			this._onInstallMcpServer.fire(e);
 			if (uriIdentityService.extUri.isEqual(e.mcpResource, this.userDataProfileService.currentProfile.mcpResource)) {
-				this._onInstallMcpServerInCurrentProfile.fire(e);
+				this._onInstallMcpServerInCurrentProfile.fire({ ...e, scope: LocalMcpServerScope.User });
 			}
 		}));
 
@@ -142,20 +162,20 @@ export class WorkbenchMcpManagementService extends AbstractMcpManagementService 
 		this._register(this.mcpManagementService.onUninstallMcpServer(e => {
 			this._onUninstallMcpServer.fire(e);
 			if (uriIdentityService.extUri.isEqual(e.mcpResource, this.userDataProfileService.currentProfile.mcpResource)) {
-				this._onUninstallMcpServerInCurrentProfile.fire(e);
+				this._onUninstallMcpServerInCurrentProfile.fire({ ...e, scope: LocalMcpServerScope.User });
 			}
 		}));
 
 		this._register(this.mcpManagementService.onDidUninstallMcpServer(e => {
 			this._onDidUninstallMcpServer.fire(e);
 			if (uriIdentityService.extUri.isEqual(e.mcpResource, this.userDataProfileService.currentProfile.mcpResource)) {
-				this._onDidUninstallMcpServerInCurrentProfile.fire(e);
+				this._onDidUninstallMcpServerInCurrentProfile.fire({ ...e, scope: LocalMcpServerScope.User });
 			}
 		}));
 
 		this._register(this.workspaceMcpManagementService.onInstallMcpServer(async e => {
 			this._onInstallMcpServer.fire(e);
-			this._onInstallMcpServerInCurrentProfile.fire(e);
+			this._onInstallMcpServerInCurrentProfile.fire({ ...e, scope: LocalMcpServerScope.Workspace });
 		}));
 
 		this._register(this.workspaceMcpManagementService.onDidInstallMcpServers(async e => {
@@ -166,12 +186,12 @@ export class WorkbenchMcpManagementService extends AbstractMcpManagementService 
 
 		this._register(this.workspaceMcpManagementService.onUninstallMcpServer(async e => {
 			this._onUninstallMcpServer.fire(e);
-			this._onUninstallMcpServerInCurrentProfile.fire(e);
+			this._onUninstallMcpServerInCurrentProfile.fire({ ...e, scope: LocalMcpServerScope.Workspace });
 		}));
 
 		this._register(this.workspaceMcpManagementService.onDidUninstallMcpServer(async e => {
 			this._onDidUninstallMcpServer.fire(e);
-			this._onDidUninstallMcpServerInCurrentProfile.fire(e);
+			this._onDidUninstallMcpServerInCurrentProfile.fire({ ...e, scope: LocalMcpServerScope.Workspace });
 		}));
 
 		this._register(this.workspaceMcpManagementService.onDidUpdateMcpServers(e => {
@@ -185,7 +205,7 @@ export class WorkbenchMcpManagementService extends AbstractMcpManagementService 
 				this._onInstallMcpServer.fire(e);
 				const remoteMcpResource = await this.getRemoteMcpResource(this.userDataProfileService.currentProfile.mcpResource);
 				if (remoteMcpResource ? uriIdentityService.extUri.isEqual(e.mcpResource, remoteMcpResource) : this.userDataProfileService.currentProfile.isDefault) {
-					this._onInstallMcpServerInCurrentProfile.fire(e);
+					this._onInstallMcpServerInCurrentProfile.fire({ ...e, scope: LocalMcpServerScope.RemoteUser });
 				}
 			}));
 
@@ -196,7 +216,7 @@ export class WorkbenchMcpManagementService extends AbstractMcpManagementService 
 				this._onUninstallMcpServer.fire(e);
 				const remoteMcpResource = await this.getRemoteMcpResource(this.userDataProfileService.currentProfile.mcpResource);
 				if (remoteMcpResource ? uriIdentityService.extUri.isEqual(e.mcpResource, remoteMcpResource) : this.userDataProfileService.currentProfile.isDefault) {
-					this._onUninstallMcpServerInCurrentProfile.fire(e);
+					this._onUninstallMcpServerInCurrentProfile.fire({ ...e, scope: LocalMcpServerScope.RemoteUser });
 				}
 			}));
 
@@ -204,7 +224,7 @@ export class WorkbenchMcpManagementService extends AbstractMcpManagementService 
 				this._onDidUninstallMcpServer.fire(e);
 				const remoteMcpResource = await this.getRemoteMcpResource(this.userDataProfileService.currentProfile.mcpResource);
 				if (remoteMcpResource ? uriIdentityService.extUri.isEqual(e.mcpResource, remoteMcpResource) : this.userDataProfileService.currentProfile.isDefault) {
-					this._onDidUninstallMcpServerInCurrentProfile.fire(e);
+					this._onDidUninstallMcpServerInCurrentProfile.fire({ ...e, scope: LocalMcpServerScope.RemoteUser });
 				}
 			}));
 		}
@@ -233,7 +253,7 @@ export class WorkbenchMcpManagementService extends AbstractMcpManagementService 
 		return { mcpServerInstallResult, mcpServerInstallResultInCurrentProfile };
 	}
 
-	private async handleRemoteInstallMcpServerResultsFromEvent(e: readonly InstallMcpServerResult[], emitter: Emitter<readonly InstallMcpServerResult[]>, currentProfileEmitter: Emitter<readonly InstallMcpServerResult[]>): Promise<void> {
+	private async handleRemoteInstallMcpServerResultsFromEvent(e: readonly InstallMcpServerResult[], emitter: Emitter<readonly InstallMcpServerResult[]>, currentProfileEmitter: Emitter<readonly IWorkbenchMcpServerInstallResult[]>): Promise<void> {
 		const mcpServerInstallResult: IWorkbenchMcpServerInstallResult[] = [];
 		const mcpServerInstallResultInCurrentProfile: IWorkbenchMcpServerInstallResult[] = [];
 		const remoteMcpResource = await this.getRemoteMcpResource(this.userDataProfileService.currentProfile.mcpResource);
@@ -276,7 +296,33 @@ export class WorkbenchMcpManagementService extends AbstractMcpManagementService 
 	}
 
 	private toWorkspaceMcpServer(server: ILocalMcpServer, scope: LocalMcpServerScope): IWorkbenchLocalMcpServer {
-		return { ...server, scope };
+		return { ...server, id: `mcp.config.${this.getConfigId(server, scope)}.${server.name}`, scope };
+	}
+
+	private getConfigId(server: ILocalMcpServer, scope: LocalMcpServerScope): string {
+		if (scope === LocalMcpServerScope.User) {
+			return USER_CONFIG_ID;
+		}
+
+		if (scope === LocalMcpServerScope.RemoteUser) {
+			return REMOTE_USER_CONFIG_ID;
+		}
+
+		if (scope === LocalMcpServerScope.Workspace) {
+			const workspace = this.workspaceContextService.getWorkspace();
+			if (workspace.configuration && this.uriIdentityService.extUri.isEqual(workspace.configuration, server.mcpResource)) {
+				return WORKSPACE_CONFIG_ID;
+			}
+
+			const workspaceFolders = workspace.folders;
+			for (let index = 0; index < workspaceFolders.length; index++) {
+				const workspaceFolder = workspaceFolders[index];
+				if (this.uriIdentityService.extUri.isEqual(this.uriIdentityService.extUri.joinPath(workspaceFolder.uri, WORKSPACE_STANDALONE_CONFIGURATIONS[MCP_CONFIGURATION_KEY]), server.mcpResource)) {
+					return `${WORKSPACE_FOLDER_CONFIG_ID_PREFIX}${index}`;
+				}
+			}
+		}
+		return 'unknown';
 	}
 
 	async install(server: IInstallableMcpServer, options?: IWorkbencMcpServerInstallOptions): Promise<IWorkbenchLocalMcpServer> {
@@ -288,7 +334,8 @@ export class WorkbenchMcpManagementService extends AbstractMcpManagementService 
 				throw new Error(`Illegal target: ${options.target}`);
 			}
 			options.mcpResource = mcpResource;
-			return this.workspaceMcpManagementService.install(server, options);
+			const result = await this.workspaceMcpManagementService.install(server, options);
+			return this.toWorkspaceMcpServer(result, LocalMcpServerScope.Workspace);
 		}
 
 		if (options.target === ConfigurationTarget.USER_REMOTE) {
@@ -296,7 +343,8 @@ export class WorkbenchMcpManagementService extends AbstractMcpManagementService 
 				throw new Error(`Illegal target: ${options.target}`);
 			}
 			options.mcpResource = await this.getRemoteMcpResource(options.mcpResource);
-			return this.remoteMcpManagementService.install(server, options);
+			const result = await this.remoteMcpManagementService.install(server, options);
+			return this.toWorkspaceMcpServer(result, LocalMcpServerScope.RemoteUser);
 		}
 
 		if (options.target && options.target !== ConfigurationTarget.USER && options.target !== ConfigurationTarget.USER_LOCAL) {
@@ -304,30 +352,35 @@ export class WorkbenchMcpManagementService extends AbstractMcpManagementService 
 		}
 
 		options.mcpResource = this.userDataProfileService.currentProfile.mcpResource;
-		return this.mcpManagementService.install(server, options);
+		const result = await this.mcpManagementService.install(server, options);
+		return this.toWorkspaceMcpServer(result, LocalMcpServerScope.User);
 	}
 
-	installFromGallery(server: IGalleryMcpServer, options?: InstallOptions): Promise<ILocalMcpServer> {
+	async installFromGallery(server: IGalleryMcpServer, options?: InstallOptions): Promise<IWorkbenchLocalMcpServer> {
 		options = options ?? {};
 		if (!options.mcpResource) {
 			options.mcpResource = this.userDataProfileService.currentProfile.mcpResource;
 		}
-		return this.mcpManagementService.installFromGallery(server, options);
+		const result = await this.mcpManagementService.installFromGallery(server, options);
+		return this.toWorkspaceMcpServer(result, LocalMcpServerScope.User);
 	}
 
-	updateMetadata(local: IWorkbenchLocalMcpServer, server: IGalleryMcpServer, profileLocation: URI): Promise<ILocalMcpServer> {
+	async updateMetadata(local: IWorkbenchLocalMcpServer, server: IGalleryMcpServer, profileLocation: URI): Promise<IWorkbenchLocalMcpServer> {
 		if (local.scope === LocalMcpServerScope.Workspace) {
-			return this.workspaceMcpManagementService.updateMetadata(local, server, profileLocation);
+			const result = await this.workspaceMcpManagementService.updateMetadata(local, server, profileLocation);
+			return this.toWorkspaceMcpServer(result, LocalMcpServerScope.Workspace);
 		}
 
 		if (local.scope === LocalMcpServerScope.RemoteUser) {
 			if (!this.remoteMcpManagementService) {
 				throw new Error(`Illegal target: ${local.scope}`);
 			}
-			return this.remoteMcpManagementService.updateMetadata(local, server, profileLocation);
+			const result = await this.remoteMcpManagementService.updateMetadata(local, server, profileLocation);
+			return this.toWorkspaceMcpServer(result, LocalMcpServerScope.RemoteUser);
 		}
 
-		return this.mcpManagementService.updateMetadata(local, server, profileLocation);
+		const result = await this.mcpManagementService.updateMetadata(local, server, profileLocation);
+		return this.toWorkspaceMcpServer(result, LocalMcpServerScope.User);
 	}
 
 	async uninstall(server: IWorkbenchLocalMcpServer): Promise<void> {
@@ -389,6 +442,10 @@ class WorkspaceMcpResourceManagementService extends AbstractMcpResourceManagemen
 	protected override async getLocalServerInfo(): Promise<ILocalMcpServerInfo | undefined> {
 		return undefined;
 	}
+
+	override canInstall(server: IGalleryMcpServer | IInstallableMcpServer): true | IMarkdownString {
+		throw new Error('Not supported');
+	}
 }
 
 class WorkspaceMcpManagementService extends AbstractMcpManagementService implements IMcpManagementService {
@@ -416,11 +473,11 @@ class WorkspaceMcpManagementService extends AbstractMcpManagementService impleme
 	constructor(
 		@IAllowedMcpServersService allowedMcpServersService: IAllowedMcpServersService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@ILogService private readonly logService: ILogService,
+		@ILogService logService: ILogService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
-		super(allowedMcpServersService);
+		super(allowedMcpServersService, logService);
 		this.initialize();
 	}
 
