@@ -20,6 +20,7 @@ import { getOutput } from './outputHelpers.js';
 import { OutputMonitor } from './tools/monitoring/outputMonitor.js';
 import { IExecution, IPollingResult, OutputMonitorState } from './tools/monitoring/types.js';
 import { Event } from '../../../../../base/common/event.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 
 
 export function getTaskDefinition(id: string) {
@@ -148,6 +149,7 @@ export async function resolveDependencyTasks(parentTask: Task, workspaceFolder: 
 export async function collectTerminalResults(
 	terminals: ITerminalInstance[],
 	task: Task,
+	tasksService: ITaskService,
 	instantiationService: IInstantiationService,
 	invocationContext: IToolInvocationContext,
 	progress: ToolProgress,
@@ -182,6 +184,22 @@ export async function collectTerminalResults(
 			dependencyTasks,
 			sessionId: invocationContext.sessionId
 		};
+		if (task.configurationProperties.problemMatchers?.length) {
+			const busyTasks = await tasksService.getBusyTasks();
+			const ids = new Set<string>([task._id, ...(dependencyTasks?.map(t => t._id) ?? [])]);
+			if (!busyTasks.some(t => ids.has(t._id))) {
+				// Poll for busy tasks until the required tasks are busy
+				await new Promise<void>(resolve => {
+					const interval = mainWindow.setInterval(async () => {
+						const updatedBusyTasks = await tasksService.getBusyTasks();
+						if (updatedBusyTasks.some(t => ids.has(t._id))) {
+							mainWindow.clearInterval(interval);
+							resolve();
+						}
+					}, 100);
+				});
+			}
+		}
 		const outputMonitor = disposableStore.add(instantiationService.createInstance(OutputMonitor, execution, taskProblemPollFn, invocationContext, token, task._label));
 		await Event.toPromise(outputMonitor.onDidFinishCommand);
 		const pollingResult = outputMonitor.pollingResult;

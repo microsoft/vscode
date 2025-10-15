@@ -97,6 +97,7 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 		const terminalResults = await collectTerminalResults(
 			terminals,
 			task,
+			this._tasksService,
 			this._instantiationService,
 			invocation.context!,
 			_progress,

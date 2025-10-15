@@ -110,6 +110,7 @@ export class CreateAndRunTaskTool implements IToolImpl {
 		const terminalResults = await collectTerminalResults(
 			terminals,
 			task,
+			this._tasksService,
 			this._instantiationService,
 			invocation.context!,
 			_progress,
