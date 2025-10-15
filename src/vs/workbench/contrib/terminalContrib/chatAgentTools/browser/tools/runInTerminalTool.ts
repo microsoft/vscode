@@ -640,6 +640,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			};
 		}
 
+		// Ensure the Copilot terminal icon is not overridden
 		return { ...defaultProfile, icon: undefined };
 	}
 
