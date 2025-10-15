@@ -142,8 +142,7 @@ export abstract class BaseWindow extends Disposable {
 				// this can happen for timeouts on unfocused windows
 				let didClear = false;
 
-				// eslint-disable-next-line local/code-no-any-casts
-				const handle = (window as any).vscodeOriginalSetTimeout.apply(this, [(...args: unknown[]) => {
+				const handle = (window as { vscodeOriginalSetTimeout?: typeof window.setTimeout }).vscodeOriginalSetTimeout?.apply(this, [(...args: unknown[]) => {
 					if (didClear) {
 						return;
 					}
@@ -152,8 +151,7 @@ export abstract class BaseWindow extends Disposable {
 
 				const timeoutDisposable = toDisposable(() => {
 					didClear = true;
-					// eslint-disable-next-line local/code-no-any-casts
-					(window as any).vscodeOriginalClearTimeout(handle);
+					(window as { vscodeOriginalClearTimeout?: typeof window.clearTimeout }).vscodeOriginalClearTimeout?.apply(this, [handle]);
 					timeoutDisposables.delete(timeoutDisposable);
 				});
 

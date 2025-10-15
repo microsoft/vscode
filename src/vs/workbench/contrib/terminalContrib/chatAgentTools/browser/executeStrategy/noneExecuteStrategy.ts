@@ -6,11 +6,12 @@
 import type { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { DisposableStore, MutableDisposable, toDisposable, type IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
 import { waitForIdle, waitForIdleWithPromptHeuristics, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
 import { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
+import { setupRecreatingStartMarker } from './strategyHelpers.js';
 
 /**
  * This strategy is used when no shell integration is available. There are very few extension APIs
@@ -54,32 +55,13 @@ export class NoneExecuteStrategy implements ITerminalExecuteStrategy {
 				throw new CancellationError();
 			}
 
-			// Record where the command started. If the marker gets disposed, re-create it where
-			// the cursor is. This can happen in prompts where they clear the line and rerender it
-			// like powerlevel10k's transient prompt
-			const markerListener = new MutableDisposable<IDisposable>();
-			const recreateStartMarker = () => {
-				if (store.isDisposed) {
-					return;
-				}
-				const marker = xterm.raw.registerMarker();
-				this._startMarker.value = marker ?? undefined;
-				this._onDidCreateStartMarker.fire(marker);
-				if (!marker) {
-					markerListener.clear();
-					return;
-				}
-				markerListener.value = marker.onDispose(() => {
-					this._log(`Start marker was disposed, recreating`);
-					recreateStartMarker();
-				});
-			};
-			recreateStartMarker();
-			store.add(toDisposable(() => {
-				markerListener.dispose();
-				this._startMarker.clear();
-				this._onDidCreateStartMarker.fire(undefined);
-			}));
+			setupRecreatingStartMarker(
+				xterm,
+				this._startMarker,
+				m => this._onDidCreateStartMarker.fire(m),
+				store,
+				this._log.bind(this)
+			);
 
 			if (this._hasReceivedUserInput()) {
 				this._log('Command timed out, sending SIGINT and retrying');

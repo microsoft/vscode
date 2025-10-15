@@ -29,7 +29,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { ISimpleSuggestWidgetFontInfo } from '../../../../services/suggest/browser/simpleSuggestWidgetRenderer.js';
 import { ITerminalConfigurationService } from '../../../terminal/browser/terminal.js';
-import { GOLDEN_LINE_HEIGHT_RATIO, MINIMUM_LINE_HEIGHT } from '../../../../../editor/common/config/fontInfo.js';
+import { GOLDEN_LINE_HEIGHT_RATIO } from '../../../../../editor/common/config/fontInfo.js';
 import { TerminalCompletionModel } from './terminalCompletionModel.js';
 import { TerminalCompletionItem, TerminalCompletionItemKind, type ITerminalCompletion } from './terminalCompletionItem.js';
 import { localize } from '../../../../../nls.js';
@@ -208,10 +208,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			});
 		}
 
-		this._register(Event.runAndSubscribe(Event.any(
-			this._capabilities.onDidAddCapabilityType,
-			this._capabilities.onDidRemoveCapabilityType
-		), () => {
+		this._register(Event.runAndSubscribe(this._capabilities.onDidChangeCapabilities, () => {
 			const commandDetection = this._capabilities.get(TerminalCapability.CommandDetection);
 			if (commandDetection) {
 				if (this._promptInputModel !== commandDetection.promptInputModel) {
@@ -682,8 +679,10 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	}
 
 	private _getTerminalDimensions(): { width: number; height: number } {
-		// eslint-disable-next-line local/code-no-any-casts
-		const cssCellDims = (this._terminal as any as { _core: IXtermCore })._core._renderService.dimensions.css.cell;
+		interface XtermWithCore extends Terminal {
+			_core: IXtermCore;
+		}
+		const cssCellDims = (this._terminal as XtermWithCore)._core._renderService.dimensions.css.cell;
 		return {
 			width: cssCellDims.width,
 			height: cssCellDims.height,
@@ -708,8 +707,10 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			return this._cachedFontInfo;
 		}
 
-		// eslint-disable-next-line local/code-no-any-casts
-		const core = (this._terminal as any)._core as IXtermCore;
+		interface XtermWithCore extends Terminal {
+			_core: IXtermCore;
+		}
+		const core = (this._terminal as XtermWithCore)._core;
 		const font = this._terminalConfigurationService.getFont(dom.getActiveWindow(), core);
 		let lineHeight: number = font.lineHeight;
 		const fontSize: number = font.fontSize;
@@ -717,17 +718,16 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		const letterSpacing: number = font.letterSpacing;
 		const fontWeight: string = this._configurationService.getValue('editor.fontWeight');
 
-		if (lineHeight <= 1) {
-			lineHeight = GOLDEN_LINE_HEIGHT_RATIO * fontSize;
-		} else if (lineHeight < MINIMUM_LINE_HEIGHT) {
-			// Values too small to be line heights in pixels are in ems.
-			lineHeight = lineHeight * fontSize;
-		}
+		// Unlike editor suggestions, line height in terminal is always multiplied to the font size.
+		// Make sure that we still enforce a minimum line height to avoid content from being clipped.
+		// See https://github.com/microsoft/vscode/issues/255851
+		lineHeight = lineHeight * fontSize;
 
 		// Enforce integer, minimum constraints
 		lineHeight = Math.round(lineHeight);
-		if (lineHeight < MINIMUM_LINE_HEIGHT) {
-			lineHeight = MINIMUM_LINE_HEIGHT;
+		const minTerminalLineHeight = GOLDEN_LINE_HEIGHT_RATIO * fontSize;
+		if (lineHeight < minTerminalLineHeight) {
+			lineHeight = minTerminalLineHeight;
 		}
 
 		const fontInfo = {

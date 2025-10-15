@@ -165,8 +165,7 @@ export class Debugger implements IDebugger, IDebuggerMetadata {
 	}
 
 	get strings() {
-		// eslint-disable-next-line local/code-no-any-casts
-		return this.debuggerContribution.strings ?? (this.debuggerContribution as any).uiMessages;
+		return this.debuggerContribution.strings ?? this.debuggerContribution.uiMessages;
 	}
 
 	interestedInLanguage(languageId: string): boolean {

@@ -53,7 +53,7 @@ type Listener<T> = { fn: (evt: T) => void; thisArg: unknown };
 
 interface EmitterLike<T> {
 	fire(data: T): void;
-	event: Event<T>;
+	readonly event: Event<T>;
 }
 
 interface PreloadStyles {
@@ -831,7 +831,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		// Remove a highlight element created with wrapNodeInHighlight.
 		function _removeHighlight(highlightElement: Element) {
 			if (highlightElement.childNodes.length === 1) {
-				highlightElement.parentNode?.replaceChild(highlightElement.firstChild!, highlightElement);
+				highlightElement.replaceWith(highlightElement.firstChild!);
 			} else {
 				// If the highlight somehow contains multiple nodes now, move them all.
 				while (highlightElement.firstChild) {

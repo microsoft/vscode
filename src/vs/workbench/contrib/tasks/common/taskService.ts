@@ -63,11 +63,11 @@ export interface IWorkspaceFolderTaskResult extends IWorkspaceTaskResult {
 
 export interface ITaskService {
 	readonly _serviceBrand: undefined;
-	onDidStateChange: Event<ITaskEvent>;
+	readonly onDidStateChange: Event<ITaskEvent>;
 	/** Fired when task providers are registered or unregistered */
-	onDidChangeTaskProviders: Event<void>;
+	readonly onDidChangeTaskProviders: Event<void>;
 	isReconnected: boolean;
-	onDidReconnectToTasks: Event<void>;
+	readonly onDidReconnectToTasks: Event<void>;
 	supportsMultipleTaskExecutions: boolean;
 
 	configureAction(): Action;
@@ -103,8 +103,8 @@ export interface ITaskService {
 	registerTaskProvider(taskProvider: ITaskProvider, type: string): IDisposable;
 
 	registerTaskSystem(scheme: string, taskSystemInfo: ITaskSystemInfo): void;
-	onDidChangeTaskSystemInfo: Event<void>;
-	onDidChangeTaskConfig: Event<void>;
+	readonly onDidChangeTaskSystemInfo: Event<void>;
+	readonly onDidChangeTaskConfig: Event<void>;
 	readonly hasTaskSystemInfo: boolean;
 	registerSupportedExecutions(custom?: boolean, shell?: boolean, process?: boolean): void;
 

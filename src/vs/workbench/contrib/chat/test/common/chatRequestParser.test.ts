@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MockObject, mockObject } from '../../../../../base/test/common/mock.js';
+import { mockObject } from '../../../../../base/test/common/mock.js';
 import { assertSnapshot } from '../../../../../base/test/common/snapshot.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -22,6 +22,7 @@ import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { IToolData, ToolDataSource, ToolSet } from '../../common/languageModelToolsService.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { MockChatService } from './mockChatService.js';
+import { MockChatVariablesService } from './mockChatVariables.js';
 import { MockPromptsService } from './mockPromptsService.js';
 
 suite('ChatRequestParser', () => {
@@ -30,7 +31,7 @@ suite('ChatRequestParser', () => {
 	let instantiationService: TestInstantiationService;
 	let parser: ChatRequestParser;
 
-	let variableService: MockObject<IChatVariablesService>;
+	let variableService: MockChatVariablesService;
 	setup(async () => {
 		instantiationService = testDisposables.add(new TestInstantiationService());
 		instantiationService.stub(IStorageService, testDisposables.add(new TestStorageService()));
@@ -41,12 +42,8 @@ suite('ChatRequestParser', () => {
 		instantiationService.stub(IChatAgentService, testDisposables.add(instantiationService.createInstance(ChatAgentService)));
 		instantiationService.stub(IPromptsService, testDisposables.add(new MockPromptsService()));
 
-		variableService = mockObject<IChatVariablesService>()();
-		variableService.getDynamicVariables.returns([]);
-		variableService.getSelectedToolAndToolSets.returns([]);
-
-		// eslint-disable-next-line local/code-no-any-casts
-		instantiationService.stub(IChatVariablesService, variableService as any);
+		variableService = new MockChatVariablesService();
+		instantiationService.stub(IChatVariablesService, variableService);
 	});
 
 	test('plain text', async () => {
@@ -333,7 +330,7 @@ suite('ChatRequestParser', () => {
 		// eslint-disable-next-line local/code-no-any-casts
 		instantiationService.stub(IChatAgentService, agentsService as any);
 
-		variableService.getSelectedToolAndToolSets.returns(new Map([
+		variableService.setSelectedToolAndToolSets('1', new Map([
 			[{ id: 'get_selection', toolReferenceName: 'selection', canBeReferencedInPrompt: true, displayName: '', modelDescription: '', source: ToolDataSource.Internal }, true],
 			[{ id: 'get_debugConsole', toolReferenceName: 'debugConsole', canBeReferencedInPrompt: true, displayName: '', modelDescription: '', source: ToolDataSource.Internal }, true]
 		] satisfies [IToolData | ToolSet, boolean][]));
@@ -349,7 +346,7 @@ suite('ChatRequestParser', () => {
 		// eslint-disable-next-line local/code-no-any-casts
 		instantiationService.stub(IChatAgentService, agentsService as any);
 
-		variableService.getSelectedToolAndToolSets.returns(new Map([
+		variableService.setSelectedToolAndToolSets('1', new Map([
 			[{ id: 'get_selection', toolReferenceName: 'selection', canBeReferencedInPrompt: true, displayName: '', modelDescription: '', source: ToolDataSource.Internal }, true],
 			[{ id: 'get_debugConsole', toolReferenceName: 'debugConsole', canBeReferencedInPrompt: true, displayName: '', modelDescription: '', source: ToolDataSource.Internal }, true]
 		] satisfies [IToolData | ToolSet, boolean][]));

@@ -15,6 +15,10 @@ export const isRemote = env.remoteName !== undefined;
 export const isLinux = process.platform === 'linux';
 export const isLinuxSnap = isLinux && !!process.env['SNAP'] && !!process.env['SNAP_REVISION'];
 
+export type Mutable<T> = {
+	-readonly [P in keyof T]: T[P]
+};
+
 export function log(...args: any[]): void {
 	console.log.apply(console, ['git:', ...args]);
 }
@@ -37,11 +41,6 @@ export function combinedDisposable(disposables: IDisposable[]): IDisposable {
 }
 
 export const EmptyDisposable = toDisposable(() => null);
-
-export function fireEvent<T>(event: Event<T>): Event<T> {
-	// eslint-disable-next-line local/code-no-any-casts
-	return (listener: (e: T) => any, thisArgs?: any, disposables?: Disposable[]) => event(_ => (listener as any).call(thisArgs), null, disposables);
-}
 
 export function mapEvent<I, O>(event: Event<I>, map: (i: I) => O): Event<O> {
 	return (listener: (e: O) => any, thisArgs?: any, disposables?: Disposable[]) => event(i => listener.call(thisArgs, map(i)), null, disposables);
@@ -111,8 +110,8 @@ export function once(fn: (...args: any[]) => any): (...args: any[]) => any {
 
 export function assign<T>(destination: T, ...sources: any[]): T {
 	for (const source of sources) {
-		// eslint-disable-next-line local/code-no-any-casts
-		Object.keys(source).forEach(key => (destination as any)[key] = source[key]);
+		Object.keys(source).forEach(key =>
+			(destination as Record<string, unknown>)[key] = source[key]);
 	}
 
 	return destination;
@@ -238,8 +237,7 @@ export function readBytes(stream: Readable, bytes: number): Promise<Buffer> {
 			bytesRead += bytesToRead;
 
 			if (bytesRead === bytes) {
-				// eslint-disable-next-line local/code-no-any-casts
-				(stream as any).destroy(); // Will trigger the close event eventually
+				stream.destroy(); // Will trigger the close event eventually
 			}
 		});
 

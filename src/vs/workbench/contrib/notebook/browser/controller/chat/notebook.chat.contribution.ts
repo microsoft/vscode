@@ -131,7 +131,7 @@ class NotebookChatContribution extends Disposable implements IWorkbenchContribut
 			return;
 		}
 
-		const variables = await selectedKernel.provideVariables(notebook.uri, undefined, 'named', 0, CancellationToken.None);
+		const variables = selectedKernel.provideVariables(notebook.uri, undefined, 'named', 0, CancellationToken.None);
 
 		for await (const variable of variables) {
 			if (pattern && !variable.name.toLowerCase().includes(pattern)) {
@@ -163,7 +163,7 @@ export class SelectAndInsertKernelVariableAction extends Action2 {
 
 	static readonly ID = 'notebook.chat.selectAndInsertKernelVariable';
 
-	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 		const editorService = accessor.get(IEditorService);
 		const notebookKernelService = accessor.get(INotebookKernelService);
 		const quickInputService = accessor.get(IQuickInputService);
@@ -174,14 +174,14 @@ export class SelectAndInsertKernelVariableAction extends Action2 {
 			return;
 		}
 
-		const context = args[0];
+		const context = args[0] as { widget: IChatWidget; range?: Range; variable?: string } | undefined;
 		if (!context || !('widget' in context) || !('range' in context)) {
 			return;
 		}
 
-		const widget = <IChatWidget>context.widget;
-		const range = <Range | undefined>context.range;
-		const variable = <string | undefined>context.variable;
+		const widget = context.widget;
+		const range = context.range;
+		const variable = context.variable;
 
 		if (variable !== undefined) {
 			this.addVariableReference(widget, variable, range, false);
@@ -195,7 +195,7 @@ export class SelectAndInsertKernelVariableAction extends Action2 {
 			return;
 		}
 
-		const variables = await selectedKernel.provideVariables(notebook.uri, undefined, 'named', 0, CancellationToken.None);
+		const variables = selectedKernel.provideVariables(notebook.uri, undefined, 'named', 0, CancellationToken.None);
 
 		const quickPickItems: IQuickPickItem[] = [];
 		for await (const variable of variables) {
