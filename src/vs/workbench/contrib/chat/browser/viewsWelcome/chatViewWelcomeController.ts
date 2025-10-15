@@ -265,8 +265,7 @@ export class ChatViewWelcomePart extends Disposable {
 							e.stopPropagation();
 							executePrompt();
 						}
-
-						if (event.keyCode === KeyCode.F10 && event.shiftKey) {
+						else if (event.keyCode === KeyCode.F10 && event.shiftKey) {
 							e.preventDefault();
 							e.stopPropagation();
 							const actions = this.getPromptContextMenuActions(prompt);
