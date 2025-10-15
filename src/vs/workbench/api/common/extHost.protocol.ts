@@ -625,6 +625,8 @@ export interface TransferQuickPickItem {
 
 export interface TransferQuickInputButton extends quickInput.IQuickInputButton {
 	handle: number;
+	location?: number;
+	checked?: boolean;
 }
 
 export type TransferQuickInput = TransferQuickPick | TransferInputBox;
@@ -644,20 +646,6 @@ export interface BaseTransferQuickInput {
 	busy?: boolean;
 
 	visible?: boolean;
-
-	toggles?: TransferQuickInputToggle[];
-
-	checkedToggles?: number[];
-}
-
-export interface TransferQuickInputToggle {
-	handle: number;
-
-	iconPath?: { light?: URI; dark: URI };
-
-	iconClass?: string;
-
-	tooltip?: string;
 }
 
 export interface TransferQuickPick extends BaseTransferQuickInput {
@@ -2438,7 +2426,6 @@ export interface ExtHostQuickOpenShape {
 	$onDidAccept(sessionId: number): void;
 	$onDidChangeValue(sessionId: number, value: string): void;
 	$onDidTriggerButton(sessionId: number, handle: number): void;
-	$onDidTriggerToggle(sessionId: number, handle: number, checked: boolean): void;
 	$onDidTriggerItemButton(sessionId: number, itemHandle: number, buttonHandle: number): void;
 	$onDidHide(sessionId: number): void;
 }
