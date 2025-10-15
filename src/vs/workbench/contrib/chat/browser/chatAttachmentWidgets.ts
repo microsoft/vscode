@@ -8,7 +8,7 @@ import { $ } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
-import type { IHoverOptions } from '../../../../base/browser/ui/hover/hover.js';
+import type { IHoverLifecycleOptions, IHoverOptions } from '../../../../base/browser/ui/hover/hover.js';
 import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -67,6 +67,9 @@ const commonHoverOptions: Partial<IHoverOptions> = {
 		hoverPosition: HoverPosition.BELOW
 	},
 	trapFocus: true,
+};
+const commonHoverLifecycleOptions: IHoverLifecycleOptions = {
+	groupId: 'chat-attachments',
 };
 
 abstract class AbstractChatAttachmentWidget extends Disposable {
@@ -245,7 +248,7 @@ export class FileAttachmentWidget extends AbstractChatAttachmentWidget {
 		this._register(this.hoverService.setupDelayedHover(this.element, {
 			...commonHoverOptions,
 			content: hoverElement,
-		}));
+		}, commonHoverLifecycleOptions));
 	}
 }
 
@@ -411,7 +414,7 @@ export class PasteAttachmentWidget extends AbstractChatAttachmentWidget {
 		this._register(this.hoverService.setupDelayedHover(this.element, {
 			...commonHoverOptions,
 			content: hoverContent,
-		}));
+		}, commonHoverLifecycleOptions));
 
 		const copiedFromResource = attachment.copiedFrom?.uri;
 		if (copiedFromResource) {
@@ -588,7 +591,7 @@ export class PromptTextAttachmentWidget extends AbstractChatAttachmentWidget {
 		this._register(hoverService.setupDelayedHover(this.element, {
 			...commonHoverOptions,
 			content: attachment.value,
-		}));
+		}, commonHoverLifecycleOptions));
 	}
 }
 
@@ -636,7 +639,7 @@ export class ToolSetOrToolItemAttachmentWidget extends AbstractChatAttachmentWid
 			this._register(hoverService.setupDelayedHover(this.element, {
 				...commonHoverOptions,
 				content: hoverContent,
-			}));
+			}, commonHoverLifecycleOptions));
 		}
 
 		this.attachClearButton();
@@ -803,7 +806,7 @@ export class SCMHistoryItemAttachmentWidget extends AbstractChatAttachmentWidget
 		this._store.add(hoverService.setupDelayedHover(this.element, {
 			...commonHoverOptions,
 			content: hoverContent,
-		}));
+		}, commonHoverLifecycleOptions));
 
 		this._store.add(dom.addDisposableListener(this.element, dom.EventType.CLICK, (e: MouseEvent) => {
 			dom.EventHelper.stop(e, true);
@@ -853,7 +856,7 @@ export class SCMHistoryItemChangeAttachmentWidget extends AbstractChatAttachment
 		this._store.add(hoverService.setupDelayedHover(this.element, {
 			...commonHoverOptions,
 			content: hoverContent,
-		}));
+		}, commonHoverLifecycleOptions));
 
 		this.addResourceOpenHandlers(attachment.value, undefined);
 		this.attachClearButton();
