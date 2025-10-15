@@ -32,7 +32,7 @@ import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { MCP_CONFIGURATION_KEY, WORKSPACE_STANDALONE_CONFIGURATIONS } from '../../../services/configuration/common/configuration.js';
 import { ACTIVE_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
-import { DidUninstallWorkbenchMcpServerEvent, IWorkbenchLocalMcpServer, IWorkbenchMcpManagementService, IWorkbenchMcpServerInstallResult, LocalMcpServerScope, REMOTE_USER_CONFIG_ID, USER_CONFIG_ID, WORKSPACE_CONFIG_ID, WORKSPACE_FOLDER_CONFIG_ID_PREFIX } from '../../../services/mcp/common/mcpWorkbenchManagementService.js';
+import { DidUninstallWorkbenchMcpServerEvent, IWorkbenchLocalMcpServer, IWorkbenchMcpManagementService, IWorkbenchMcpServerInstallResult, IWorkbencMcpServerInstallOptions, LocalMcpServerScope, REMOTE_USER_CONFIG_ID, USER_CONFIG_ID, WORKSPACE_CONFIG_ID, WORKSPACE_FOLDER_CONFIG_ID_PREFIX } from '../../../services/mcp/common/mcpWorkbenchManagementService.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 import { mcpConfigurationSection } from '../common/mcpConfiguration.js';
 import { McpServerInstallData, McpServerInstallClassification } from '../common/mcpServer.js';
@@ -431,19 +431,19 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		return new MarkdownString().appendText(localize('cannot be installed', "Cannot install the '{0}' MCP Server because it is not available in this setup.", mcpServer.label));
 	}
 
-	async install(server: IWorkbenchMcpServer): Promise<IWorkbenchMcpServer> {
+	async install(server: IWorkbenchMcpServer, installOptions?: IWorkbencMcpServerInstallOptions): Promise<IWorkbenchMcpServer> {
 		if (!(server instanceof McpWorkbenchServer)) {
 			throw new Error('Invalid server instance');
 		}
 
 		if (server.installable) {
 			const installable = server.installable;
-			return this.doInstall(server, () => this.mcpManagementService.install(installable));
+			return this.doInstall(server, () => this.mcpManagementService.install(installable, installOptions));
 		}
 
 		if (server.gallery) {
 			const gallery = server.gallery;
-			return this.doInstall(server, () => this.mcpManagementService.installFromGallery(gallery));
+			return this.doInstall(server, () => this.mcpManagementService.installFromGallery(gallery, installOptions));
 		}
 
 		throw new Error('No installable server found');
