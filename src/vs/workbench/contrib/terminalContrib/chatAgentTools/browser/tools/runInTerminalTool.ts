@@ -653,7 +653,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			};
 		}
 
-		return defaultProfile;
+		return { ...defaultProfile, icon: undefined };
 	}
 
 	private async _getCopilotShell(): Promise<string> {
