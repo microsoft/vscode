@@ -154,7 +154,7 @@ export async function collectTerminalResults(
 	progress: ToolProgress,
 	token: CancellationToken,
 	disposableStore: DisposableStore,
-	isActive?: () => Promise<boolean>,
+	isActive?: (task: Task) => Promise<boolean>,
 	dependencyTasks?: Task[]
 ): Promise<Array<{
 	name: string;
@@ -209,14 +209,21 @@ export async function collectTerminalResults(
 			}
 		}
 
-		const execution = {
+		const execution: IExecution & { dependencyTasks: Task[] | undefined } = {
 			getOutput: () => getOutput(instance) ?? '',
-			isActive,
 			task: terminalTask,
 			instance,
 			dependencyTasks,
 			sessionId: invocationContext.sessionId
 		};
+
+		// Active check should be always based on the associated task
+		if (isActive) {
+			execution.isActive = async function () {
+				return isActive?.(this.task as Task) ?? false;
+			};
+		}
+
 		const outputMonitor = disposableStore.add(instantiationService.createInstance(OutputMonitor, execution, taskProblemPollFn, invocationContext, token, task._label));
 		await Event.toPromise(outputMonitor.onDidFinishCommand);
 		const pollingResult = outputMonitor.pollingResult;
