@@ -107,7 +107,7 @@ export default class TypeScriptImplementationsCodeLensProvider extends TypeScrip
 			return getSymbolRange(document, item);
 		}
 
-		// If configured, show interface members
+		// If configured, show on interface methods
 		if (
 			item.kind === PConst.Kind.method &&
 			parent?.kind === PConst.Kind.interface &&
@@ -117,12 +117,13 @@ export default class TypeScriptImplementationsCodeLensProvider extends TypeScrip
 		}
 
 
-		// If configured show on all class methods
+		// If configured, show on all class methods
 		if (
 			item.kind === PConst.Kind.method &&
 			parent?.kind === PConst.Kind.class &&
 			cfg.get<boolean>('implementationsCodeLens.showOnAllClassMethods', false)
 		) {
+			// But not private ones as these can never be overridden
 			if (/\bprivate\b/.test(item.kindModifiers ?? '')) {
 				return undefined;
 			}
