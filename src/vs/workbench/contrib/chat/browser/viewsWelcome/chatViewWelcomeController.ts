@@ -262,14 +262,12 @@ export class ChatViewWelcomePart extends Disposable {
 					this._register(dom.addDisposableListener(promptElement, dom.EventType.KEY_DOWN, (e) => {
 						const event = new StandardKeyboardEvent(e);
 
-						// Execute prompt on Enter or Space
 						if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 							e.preventDefault();
 							e.stopPropagation();
 							executePrompt();
 						}
 
-						// Context menu via keyboard (Shift+F10)
 						if (event.keyCode === KeyCode.F10 && event.shiftKey) {
 							e.preventDefault();
 							e.stopPropagation();
@@ -317,7 +315,6 @@ export class ChatViewWelcomePart extends Disposable {
 				ThemeIcon.asClassName(Codicon.goToFile),
 				true,
 				async () => {
-					// TODO: Telemetry?
 					try {
 						await this.openerService.open(prompt.uri!);
 					} catch (error) {
