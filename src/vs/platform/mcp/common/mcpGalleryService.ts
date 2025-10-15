@@ -83,10 +83,10 @@ interface IGalleryMcpServerDataSerializer {
 }
 
 
-namespace McpServerSchemaVersion_2025_07_09 {
+namespace McpServerSchemaVersion_v0 {
 
-	export const VERSION = '2025-07-09';
-	export const SCHEMA = `https://static.modelcontextprotocol.io/schemas/${VERSION}/server.schema.json`;
+	export const VERSION = 'v0';
+	export const SCHEMA = `https://static.modelcontextprotocol.io/schemas/2025-07-09/server.schema.json`;
 
 	interface RawGalleryMcpServerInput {
 		readonly description?: string;
@@ -226,7 +226,7 @@ namespace McpServerSchemaVersion_2025_07_09 {
 		}
 
 		public toRawGalleryMcpServer(input: unknown): IRawGalleryMcpServer | undefined {
-			if (!input || typeof input !== 'object' || (<RawGalleryMcpServer>input).$schema !== McpServerSchemaVersion_2025_07_09.SCHEMA) {
+			if (!input || typeof input !== 'object' || (<RawGalleryMcpServer>input).$schema !== McpServerSchemaVersion_v0.SCHEMA) {
 				return undefined;
 			}
 
@@ -365,10 +365,9 @@ namespace McpServerSchemaVersion_2025_07_09 {
 	export const SERIALIZER = new Serializer();
 }
 
-namespace McpServerSchemaVersion_2025_29_09 {
+namespace McpServerSchemaVersion_v0_1 {
 
-	export const VERSION = '2025-09-29';
-	export const SCHEMA = `https://static.modelcontextprotocol.io/schemas/${VERSION}/server.schema.json`;
+	export const VERSION = 'v0.1';
 
 	interface RawGalleryMcpServerInput {
 		readonly description?: string;
@@ -507,10 +506,6 @@ namespace McpServerSchemaVersion_2025_29_09 {
 				return undefined;
 			}
 
-			if ((<RawGalleryMcpServerInfo>input).server.$schema && (<RawGalleryMcpServerInfo>input).server.$schema !== McpServerSchemaVersion_2025_29_09.SCHEMA) {
-				return undefined;
-			}
-
 			const from = <RawGalleryMcpServerInfo>input;
 
 			return {
@@ -580,8 +575,8 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 	) {
 		super();
 		this.galleryMcpServerDataSerializers = new Map();
-		this.galleryMcpServerDataSerializers.set(McpServerSchemaVersion_2025_07_09.VERSION, McpServerSchemaVersion_2025_07_09.SERIALIZER);
-		this.galleryMcpServerDataSerializers.set(McpServerSchemaVersion_2025_29_09.VERSION, McpServerSchemaVersion_2025_29_09.SERIALIZER);
+		this.galleryMcpServerDataSerializers.set(McpServerSchemaVersion_v0.VERSION, McpServerSchemaVersion_v0.SERIALIZER);
+		this.galleryMcpServerDataSerializers.set(McpServerSchemaVersion_v0_1.VERSION, McpServerSchemaVersion_v0_1.SERIALIZER);
 	}
 
 	isEnabled(): boolean {
@@ -796,7 +791,7 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 			return { servers: [] };
 		}
 
-		const result = this.serializeMcpServersResult(data);
+		const result = this.serializeMcpServersResult(data, mcpGalleryManifest);
 
 		if (!result) {
 			throw new Error(`Failed to serialize MCP servers result from ${mcpGalleryUrl}`, data);
@@ -820,36 +815,30 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 			return undefined;
 		}
 
-		const server = this.serializeMcpServer(data);
+		if (!mcpGalleryManifest) {
+			mcpGalleryManifest = await this.mcpGalleryManifestService.getMcpGalleryManifest();
+		}
+		mcpGalleryManifest = mcpGalleryManifest && mcpServerUrl.startsWith(mcpGalleryManifest.url) ? mcpGalleryManifest : null;
+
+		const server = this.serializeMcpServer(data, mcpGalleryManifest);
 		if (!server) {
 			throw new Error(`Failed to serialize MCP server from ${mcpServerUrl}`, data);
 		}
 
-		if (!mcpGalleryManifest) {
-			mcpGalleryManifest = await this.mcpGalleryManifestService.getMcpGalleryManifest();
-		}
-
-		return this.toGalleryMcpServer(server, mcpGalleryManifest && mcpServerUrl.startsWith(mcpGalleryManifest.url) ? mcpGalleryManifest : null);
+		return this.toGalleryMcpServer(server, mcpGalleryManifest);
 	}
 
-	private serializeMcpServer(data: unknown): IRawGalleryMcpServer | undefined {
-		for (const [, serializer] of this.galleryMcpServerDataSerializers) {
-			const result = serializer.toRawGalleryMcpServer(data);
-			if (result) {
-				return result;
-			}
-		}
-		return undefined;
+	private serializeMcpServer(data: unknown, mcpGalleryManifest: IMcpGalleryManifest | null): IRawGalleryMcpServer | undefined {
+		return this.getSerializer(mcpGalleryManifest)?.toRawGalleryMcpServer(data);
 	}
 
-	private serializeMcpServersResult(data: unknown): IRawGalleryMcpServersResult | undefined {
-		for (const [, serializer] of this.galleryMcpServerDataSerializers) {
-			const result = serializer.toRawGalleryMcpServerResult(data);
-			if (result) {
-				return result;
-			}
-		}
-		return undefined;
+	private serializeMcpServersResult(data: unknown, mcpGalleryManifest: IMcpGalleryManifest | null): IRawGalleryMcpServersResult | undefined {
+		return this.getSerializer(mcpGalleryManifest)?.toRawGalleryMcpServerResult(data);
+	}
+
+	private getSerializer(mcpGalleryManifest: IMcpGalleryManifest | null): IGalleryMcpServerDataSerializer | undefined {
+		const version = mcpGalleryManifest?.version ?? 'v0';
+		return this.galleryMcpServerDataSerializers.get(version);
 	}
 
 	private getNamedServerUrl(name: string, mcpGalleryManifest: IMcpGalleryManifest): string | undefined {
