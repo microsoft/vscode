@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { disposableTimeout } from '../../../../base/common/async.js';
+import { disposableTimeout, timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
+import { ToolDataSource } from '../../chat/common/languageModelToolsService.js';
 import { IMcpServer, IMcpServerStartOpts, IMcpService, McpConnectionState, McpServerCacheState } from './mcpTypes.js';
 
 /**
@@ -44,31 +45,49 @@ export function startServerByFilter(mcpService: IMcpService, filter: (s: IMcpSer
  * Starts a server (if needed) and waits for its tools to be live. Returns
  * true/false whether this happened successfully.
  */
-export function startServerAndWaitForLiveTools(server: IMcpServer, opts?: IMcpServerStartOpts, token?: CancellationToken): Promise<boolean> {
+export async function startServerAndWaitForLiveTools(server: IMcpServer, opts?: IMcpServerStartOpts, token?: CancellationToken): Promise<boolean> {
+	const r = await server.start(opts);
+
 	const store = new DisposableStore();
-	return new Promise<boolean>(resolve => {
-		server.start(opts).catch(() => undefined).then(r => {
-			if (token?.isCancellationRequested || !r || r.state === McpConnectionState.Kind.Error || r.state === McpConnectionState.Kind.Stopped) {
-				return resolve(false);
-			}
+	const ok = await new Promise<boolean>(resolve => {
+		if (token?.isCancellationRequested || r.state === McpConnectionState.Kind.Error || r.state === McpConnectionState.Kind.Stopped) {
+			return resolve(false);
+		}
 
-			if (token) {
-				store.add(token.onCancellationRequested(() => {
-					resolve(false);
-				}));
-			}
-
-			store.add(autorun(reader => {
-				const connState = server.connectionState.read(reader).state;
-				if (connState === McpConnectionState.Kind.Error || connState === McpConnectionState.Kind.Stopped) {
-					resolve(false); // some error, don't block the request
-				}
-
-				const toolState = server.cacheState.read(reader);
-				if (toolState === McpServerCacheState.Live) {
-					resolve(true); // got tools, all done
-				}
+		if (token) {
+			store.add(token.onCancellationRequested(() => {
+				resolve(false);
 			}));
-		});
-	}).finally(() => store.dispose());
+		}
+
+		store.add(autorun(reader => {
+			const connState = server.connectionState.read(reader).state;
+			if (connState === McpConnectionState.Kind.Error || connState === McpConnectionState.Kind.Stopped) {
+				resolve(false); // some error, don't block the request
+			}
+
+			const toolState = server.cacheState.read(reader);
+			if (toolState === McpServerCacheState.Live) {
+				resolve(true); // got tools, all done
+			}
+		}));
+	});
+
+	if (ok) {
+		await timeout(0); // let the tools register in the language model contribution
+	}
+
+	return ok;
+}
+
+export function mcpServerToSourceData(server: IMcpServer): ToolDataSource {
+	const metadata = server.serverMetadata.get();
+	return {
+		type: 'mcp',
+		serverLabel: metadata?.serverName,
+		instructions: metadata?.serverInstructions,
+		label: server.definition.label,
+		collectionId: server.collection.id,
+		definitionId: server.definition.id
+	};
 }

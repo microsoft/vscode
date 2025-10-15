@@ -1129,25 +1129,38 @@ export class DebugSession implements IDebugSession {
 			}
 		}));
 
-		this.rawListeners.add(this.raw.onDidContinued(event => {
+		this.rawListeners.add(this.raw.onDidContinued(async event => {
 			const allThreads = event.body.allThreadsContinued !== false;
 
-			statusQueue.cancel(allThreads ? undefined : [event.body.threadId]);
+			let affectedThreads: number[] | Promise<number[]>;
+			if (!allThreads) {
+				affectedThreads = [event.body.threadId];
+				if (this.threadIds.includes(event.body.threadId)) {
+					affectedThreads = [event.body.threadId];
+				} else {
+					this.fetchThreadsScheduler?.cancel();
+					affectedThreads = this.fetchThreads().then(() => [event.body.threadId]);
+				}
+			} else if (this.fetchThreadsScheduler?.isScheduled()) {
+				this.fetchThreadsScheduler.cancel();
+				affectedThreads = this.fetchThreads().then(() => this.threadIds);
+			} else {
+				affectedThreads = this.threadIds;
+			}
 
-			const threadId = allThreads ? undefined : event.body.threadId;
-			if (typeof threadId === 'number') {
+			statusQueue.cancel(allThreads ? undefined : [event.body.threadId]);
+			await statusQueue.run(affectedThreads, threadId => {
 				this.stoppedDetails = this.stoppedDetails.filter(sd => sd.threadId !== threadId);
 				const tokens = this.cancellationMap.get(threadId);
 				this.cancellationMap.delete(threadId);
 				tokens?.forEach(t => t.dispose(true));
-			} else {
-				this.stoppedDetails = [];
-				this.cancelAllRequests();
-			}
-			this.lastContinuedThreadId = threadId;
+				this.model.clearThreads(this.getId(), false, threadId);
+				return Promise.resolve();
+			});
+
 			// We need to pass focus to other sessions / threads with a timeout in case a quick stop event occurs #130321
+			this.lastContinuedThreadId = allThreads ? undefined : event.body.threadId;
 			this.passFocusScheduler.schedule();
-			this.model.clearThreads(this.getId(), false, threadId);
 			this._onDidChangeState.fire();
 		}));
 
@@ -1177,6 +1190,7 @@ export class DebugSession implements IDebugSession {
 
 					resolved.forEach((child) => {
 						// Since we can not display multiple trees in a row, we are displaying these variables one after the other (ignoring their names)
+						// eslint-disable-next-line local/code-no-any-casts
 						(<any>child).name = null;
 						this.appendToRepl({ output: '', expression: child, sev: outputSeverity, source }, event.body.category === 'important');
 					});
@@ -1598,7 +1612,7 @@ export class ThreadStatusScheduler extends Disposable {
 	 * Runs the operation.
 	 * If thread is undefined it affects all threads.
 	 */
-	public async run(threadIdsP: Promise<number[]>, operation: (threadId: number, ct: CancellationToken) => Promise<unknown>) {
+	public async run(threadIdsP: Promise<number[]> | number[], operation: (threadId: number, ct: CancellationToken) => Promise<unknown>) {
 		const cancelledWhileLookingUpThreads = new Set<number | undefined>();
 		this.pendingCancellations.push(cancelledWhileLookingUpThreads);
 		const threadIds = await threadIdsP;

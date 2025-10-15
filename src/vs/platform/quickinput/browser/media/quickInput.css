@@ -54,6 +54,10 @@
 	justify-content: flex-end;
 }
 
+.quick-input-right-action-bar > .actions-container > .action-item {
+	margin-left: 4px;
+}
+
 .quick-input-titlebar .monaco-action-bar .action-label.codicon {
 	background-position: center;
 	background-repeat: no-repeat;
@@ -92,6 +96,10 @@
 .quick-input-check-all {
 	align-self: center;
 	margin: 0;
+}
+
+.quick-input-widget .quick-input-header .monaco-checkbox {
+	margin-top: 6px;
 }
 
 .quick-input-filter {
@@ -189,10 +197,6 @@
 	padding: 0 6px;
 }
 
-.quick-input-list .quick-input-list-entry.indented {
-	padding-left: 1.3em;
-}
-
 .quick-input-list .quick-input-list-entry.quick-input-list-separator-border {
 	border-top-width: 1px;
 	border-top-style: solid;
@@ -215,7 +219,11 @@
 
 .quick-input-widget .monaco-checkbox {
 	margin-right: 0;
-	align-self: center;
+}
+
+.quick-input-widget .quick-input-list .monaco-checkbox,
+.quick-input-widget .quick-input-tree .monaco-checkbox {
+	margin-top: 4px;
 }
 
 .quick-input-list .quick-input-list-icon {
@@ -434,13 +442,6 @@
 
 .quick-input-tree .quick-input-tree-rows .monaco-highlighted-label > span {
 	opacity: 1;
-}
-
-.quick-input-tree .quick-input-tree-detail {
-	opacity: 0.7;
-	line-height: normal;
-	text-overflow: ellipsis;
-	overflow: hidden;
 }
 
 .quick-input-tree .quick-input-tree-entry-action-bar {

@@ -1179,6 +1179,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 	getAutoUpdateValue(): AutoUpdateConfigurationValue {
 		const autoUpdate = this.configurationService.getValue<AutoUpdateConfigurationValue>(AutoUpdateConfigurationKey);
+		// eslint-disable-next-line local/code-no-any-casts
 		if (<any>autoUpdate === 'onlySelectedExtensions') {
 			return false;
 		}
@@ -1218,7 +1219,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		if (this.configurationService.getValue(AutoRestartConfigurationKey) === true) {
 			this.autoRestartListenerDisposable.value = this.hostService.onDidChangeFocus(focus => {
 				if (!focus && this.configurationService.getValue(AutoRestartConfigurationKey) === true) {
-					this.updateRunningExtensions(true);
+					this.updateRunningExtensions(undefined, true);
 				}
 			});
 		}
@@ -1583,7 +1584,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return undefined;
 	}
 
-	async updateRunningExtensions(auto: boolean = false): Promise<void> {
+	async updateRunningExtensions(message = nls.localize('restart', "Changing extension enablement"), auto: boolean = false): Promise<void> {
 		const toAdd: ILocalExtension[] = [];
 		const toRemove: string[] = [];
 
@@ -1624,7 +1625,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 
 		if (toAdd.length || toRemove.length) {
-			if (await this.extensionService.stopExtensionHosts(nls.localize('restart', "Changing extension enablement"), auto)) {
+			if (await this.extensionService.stopExtensionHosts(message, auto)) {
 				await this.extensionService.startExtensionHosts({ toAdd, toRemove });
 				if (auto) {
 					this.notificationService.notify({

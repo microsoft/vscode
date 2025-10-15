@@ -9,28 +9,29 @@ import { timeout } from '../../../../../base/common/async.js';
 import { ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { upcast } from '../../../../../base/common/types.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IDialogService, IPrompt } from '../../../../../platform/dialogs/common/dialogs.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogger, ILoggerService, ILogService, NullLogger, NullLogService } from '../../../../../platform/log/common/log.js';
-import { mcpEnabledConfig } from '../../../../../platform/mcp/common/mcpManagement.js';
+import { mcpAccessConfig, McpAccessValue } from '../../../../../platform/mcp/common/mcpManagement.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { ISecretStorageService } from '../../../../../platform/secrets/common/secrets.js';
 import { TestSecretStorageService } from '../../../../../platform/secrets/test/common/testSecretStorageService.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
+import { IWorkspaceFolderData } from '../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationResolverService } from '../../../../services/configurationResolver/common/configurationResolver.js';
-import { ConfigurationResolverExpression } from '../../../../services/configurationResolver/common/configurationResolverExpression.js';
+import { ConfigurationResolverExpression, Replacement } from '../../../../services/configurationResolver/common/configurationResolverExpression.js';
 import { IOutputService } from '../../../../services/output/common/output.js';
 import { TestLoggerService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { McpRegistry } from '../../common/mcpRegistry.js';
 import { IMcpHostDelegate, IMcpMessageTransport } from '../../common/mcpRegistryTypes.js';
 import { McpServerConnection } from '../../common/mcpServerConnection.js';
-import { LazyCollectionState, McpCollectionDefinition, McpServerDefinition, McpServerTransportStdio, McpServerTransportType, McpServerTrust, McpStartServerInteraction } from '../../common/mcpTypes.js';
+import { LazyCollectionState, McpCollectionDefinition, McpServerDefinition, McpServerLaunch, McpServerTransportStdio, McpServerTransportType, McpServerTrust, McpStartServerInteraction } from '../../common/mcpTypes.js';
 import { TestMcpMessageTransport } from './mcpRegistryTypes.js';
 
-class TestConfigurationResolverService implements Partial<IConfigurationResolverService> {
+class TestConfigurationResolverService {
 	declare readonly _serviceBrand: undefined;
 
 	private interactiveCounter = 0;
@@ -44,7 +45,7 @@ class TestConfigurationResolverService implements Partial<IConfigurationResolver
 		this.resolvedVariables.set('fileBasename', 'test.txt');
 	}
 
-	resolveAsync(folder: any, value: any): Promise<any> {
+	resolveAsync<T>(folder: IWorkspaceFolderData | undefined, value: T): Promise<unknown> {
 		const parsed = ConfigurationResolverExpression.parse(value);
 		for (const variable of parsed.unresolved()) {
 			const resolved = this.resolvedVariables.get(variable.inner);
@@ -56,7 +57,7 @@ class TestConfigurationResolverService implements Partial<IConfigurationResolver
 		return Promise.resolve(parsed.toObject());
 	}
 
-	resolveWithInteraction(folder: any, config: any, section?: string, variables?: Record<string, string>, target?: ConfigurationTarget): Promise<Map<string, string> | undefined> {
+	resolveWithInteraction(folder: IWorkspaceFolderData | undefined, config: unknown, section?: string, variables?: Record<string, string>, target?: ConfigurationTarget): Promise<Map<string, string> | undefined> {
 		const parsed = ConfigurationResolverExpression.parse(config);
 		// For testing, we simulate interaction by returning a map with some variables
 		const result = new Map<string, string>();
@@ -65,7 +66,13 @@ class TestConfigurationResolverService implements Partial<IConfigurationResolver
 
 		// If variables are provided, include those too
 		for (const [k, v] of result.entries()) {
-			parsed.resolve({ id: '${' + k + '}' } as any, v);
+			const replacement: Replacement = {
+				id: '${' + k + '}',
+				inner: k,
+				name: k.split(':')[0] || k,
+				arg: k.split(':')[1]
+			};
+			parsed.resolve(replacement, v);
 		}
 
 		return Promise.resolve(result);
@@ -74,6 +81,10 @@ class TestConfigurationResolverService implements Partial<IConfigurationResolver
 
 class TestMcpHostDelegate implements IMcpHostDelegate {
 	priority = 0;
+
+	substituteVariables(serverDefinition: McpServerDefinition, launch: McpServerLaunch): Promise<McpServerLaunch> {
+		return Promise.resolve(launch);
+	}
 
 	canStart(): boolean {
 		return true;
@@ -88,10 +99,10 @@ class TestMcpHostDelegate implements IMcpHostDelegate {
 	}
 }
 
-class TestDialogService implements Partial<IDialogService> {
+class TestDialogService {
 	declare readonly _serviceBrand: undefined;
 
-	private _promptResult: boolean | undefined;
+	private _promptResult: boolean | undefined = true;
 	private _promptSpy: sinon.SinonStub;
 
 	constructor() {
@@ -109,7 +120,7 @@ class TestDialogService implements Partial<IDialogService> {
 		return this._promptSpy;
 	}
 
-	prompt(options: any): Promise<any> {
+	prompt<T>(options: IPrompt<T>): Promise<{ result?: T }> {
 		return this._promptSpy(options);
 	}
 }
@@ -139,7 +150,7 @@ suite('Workbench - MCP - Registry', () => {
 		testConfigResolverService = new TestConfigurationResolverService();
 		testStorageService = store.add(new TestStorageService());
 		testDialogService = new TestDialogService();
-		configurationService = new TestConfigurationService({ [mcpEnabledConfig]: true });
+		configurationService = new TestConfigurationService({ [mcpAccessConfig]: McpAccessValue.All });
 		trustNonceBearer = { trustedAtNonce: undefined };
 
 		const services = new ServiceCollection(
@@ -203,13 +214,21 @@ suite('Workbench - MCP - Registry', () => {
 
 		assert.strictEqual(registry.collections.get().length, 1);
 
-		configurationService.setUserConfiguration(mcpEnabledConfig, false);
-		configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
+		configurationService.setUserConfiguration(mcpAccessConfig, McpAccessValue.None);
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			affectsConfiguration: () => true,
+			affectedKeys: new Set([mcpAccessConfig]),
+			change: { keys: [mcpAccessConfig], overrides: [] },
+			source: ConfigurationTarget.USER
+		} as IConfigurationChangeEvent); assert.strictEqual(registry.collections.get().length, 0);
 
-		assert.strictEqual(registry.collections.get().length, 0);
-
-		configurationService.setUserConfiguration(mcpEnabledConfig, true);
-		configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
+		configurationService.setUserConfiguration(mcpAccessConfig, McpAccessValue.All);
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			affectsConfiguration: () => true,
+			affectedKeys: new Set([mcpAccessConfig]),
+			change: { keys: [mcpAccessConfig], overrides: [] },
+			source: ConfigurationTarget.USER
+		} as IConfigurationChangeEvent);
 	});
 
 	test('registerDelegate adds delegate to registry', () => {
@@ -252,14 +271,14 @@ suite('Workbench - MCP - Registry', () => {
 
 		assert.ok(connection);
 		assert.strictEqual(connection.definition, definition);
-		assert.strictEqual((connection.launchDefinition as any).command, '/test/workspace/cmd');
-		assert.strictEqual((connection.launchDefinition as any).env.PATH, 'interactiveValue0');
+		assert.strictEqual((connection.launchDefinition as unknown as { command: string }).command, '/test/workspace/cmd');
+		assert.strictEqual((connection.launchDefinition as unknown as { env: { PATH: string } }).env.PATH, 'interactiveValue0');
 		connection.dispose();
 
 		const connection2 = await registry.resolveConnection({ collectionRef: testCollection, definitionRef: definition, logger, trustNonceBearer }) as McpServerConnection;
 
 		assert.ok(connection2);
-		assert.strictEqual((connection2.launchDefinition as any).env.PATH, 'interactiveValue0');
+		assert.strictEqual((connection2.launchDefinition as unknown as { env: { PATH: string } }).env.PATH, 'interactiveValue0');
 		connection2.dispose();
 
 		registry.clearSavedInputs(StorageScope.WORKSPACE);
@@ -267,7 +286,7 @@ suite('Workbench - MCP - Registry', () => {
 		const connection3 = await registry.resolveConnection({ collectionRef: testCollection, definitionRef: definition, logger, trustNonceBearer }) as McpServerConnection;
 
 		assert.ok(connection3);
-		assert.strictEqual((connection3.launchDefinition as any).env.PATH, 'interactiveValue4');
+		assert.strictEqual((connection3.launchDefinition as unknown as { env: { PATH: string } }).env.PATH, 'interactiveValue4');
 		connection3.dispose();
 	});
 

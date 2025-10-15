@@ -131,10 +131,10 @@ export function create(
 		const transpiler = !config.transpileWithEsbuild
 			? new TscTranspiler(logFn, printDiagnostic, projectPath, cmdLine)
 			: new ESBuildTranspiler(logFn, printDiagnostic, projectPath, cmdLine);
-		result = <any>(() => createTranspileStream(transpiler));
+		result = (() => createTranspileStream(transpiler)) as IncrementalCompiler;
 	} else {
 		const _builder = builder.createTypeScriptBuilder({ logFn }, projectPath, cmdLine);
-		result = <any>((token: builder.CancellationToken) => createCompileStream(_builder, token));
+		result = ((token: builder.CancellationToken) => createCompileStream(_builder, token)) as IncrementalCompiler;
 	}
 
 	result.src = (opts?: { cwd?: string; base?: string }) => {

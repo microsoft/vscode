@@ -139,8 +139,26 @@ export class ChatToolOutputSubPart extends BaseChatToolInvocationSubPart {
 				}));
 			}
 		}, (error) => {
-			// TODO: show error in UI too
 			console.error('Error rendering tool output:', error);
+
+			const errorNode = dom.$('.output-error');
+
+			const errorHeaderNode = dom.$('.output-error-header');
+			dom.append(errorNode, errorHeaderNode);
+
+			const iconElement = dom.$('div');
+			iconElement.classList.add(...ThemeIcon.asClassNameArray(Codicon.error));
+			errorHeaderNode.append(iconElement);
+
+			const errorTitleNode = dom.$('.output-error-title');
+			errorTitleNode.textContent = localize('chat.toolOutputError', "Error rendering the tool output");
+			errorHeaderNode.append(errorTitleNode);
+
+			const errorMessageNode = dom.$('.output-error-details');
+			errorMessageNode.textContent = error?.message || String(error);
+			errorNode.append(errorMessageNode);
+
+			progressPart.domNode.replaceWith(errorNode);
 		});
 
 		return parent;

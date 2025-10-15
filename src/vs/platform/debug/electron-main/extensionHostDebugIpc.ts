@@ -3,11 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AddressInfo, createServer } from 'net';
-import { IOpenExtensionWindowResult } from '../common/extensionHostDebug.js';
-import { ExtensionHostDebugBroadcastChannel } from '../common/extensionHostDebugIpc.js';
+import { BrowserWindow } from 'electron';
+import { Socket } from 'net';
+import { VSBuffer } from '../../../base/common/buffer.js';
+import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
+import { generateUuid } from '../../../base/common/uuid.js';
+import { ISocket } from '../../../base/parts/ipc/common/ipc.net.js';
+import { upgradeToISocket } from '../../../base/parts/ipc/node/ipc.net.js';
 import { OPTIONS, parseArgs } from '../../environment/node/argv.js';
 import { IWindowsMainService, OpenContext } from '../../windows/electron-main/windows.js';
+import { IOpenExtensionWindowResult } from '../common/extensionHostDebug.js';
+import { ExtensionHostDebugBroadcastChannel } from '../common/extensionHostDebugIpc.js';
 
 export class ElectronExtensionHostDebugBroadcastChannel<TContext> extends ExtensionHostDebugBroadcastChannel<TContext> {
 
@@ -20,9 +26,20 @@ export class ElectronExtensionHostDebugBroadcastChannel<TContext> extends Extens
 	override call(ctx: TContext, command: string, arg?: any): Promise<any> {
 		if (command === 'openExtensionDevelopmentHostWindow') {
 			return this.openExtensionDevelopmentHostWindow(arg[0], arg[1]);
+		} else if (command === 'attachToCurrentWindowRenderer') {
+			return this.attachToCurrentWindowRenderer(arg[0]);
 		} else {
 			return super.call(ctx, command, arg);
 		}
+	}
+
+	private async attachToCurrentWindowRenderer(windowId: number): Promise<IOpenExtensionWindowResult> {
+		const codeWindow = this.windowsMainService.getWindowById(windowId);
+		if (!codeWindow?.win) {
+			return { success: false };
+		}
+
+		return this.openCdp(codeWindow.win);
 	}
 
 	private async openExtensionDevelopmentHostWindow(args: string[], debugRenderer: boolean): Promise<IOpenExtensionWindowResult> {
@@ -50,68 +67,92 @@ export class ElectronExtensionHostDebugBroadcastChannel<TContext> extends Extens
 			return { success: true };
 		}
 
+		return this.openCdp(win);
+	}
+
+	private async openCdpServer(ident: string, onSocket: (socket: ISocket) => void) {
+		const { createServer } = await import('http'); // Lazy due to https://github.com/nodejs/node/issues/59686
+		const server = createServer((req, res) => {
+			res.statusCode = 404;
+			res.end();
+		});
+
+		server.on('upgrade', (req, socket) => {
+			if (!req.url?.includes(ident)) {
+				socket.end();
+				return;
+			}
+			const upgraded = upgradeToISocket(req, socket as Socket, {
+				debugLabel: 'extension-host-cdp-' + generateUuid(),
+			});
+
+			if (upgraded) {
+				onSocket(upgraded);
+			}
+		});
+
+		return server;
+	}
+
+	private async openCdp(win: BrowserWindow): Promise<IOpenExtensionWindowResult> {
 		const debug = win.webContents.debugger;
 
 		let listeners = debug.isAttached() ? Infinity : 0;
-		const server = createServer(listener => {
+		const ident = generateUuid();
+		const server = await this.openCdpServer(ident, listener => {
 			if (listeners++ === 0) {
 				debug.attach();
 			}
 
-			let closed = false;
+			const store = new DisposableStore();
+			store.add(listener);
+
 			const writeMessage = (message: object) => {
-				if (!closed) { // in case sendCommand promises settle after closed
-					listener.write(JSON.stringify(message) + '\0'); // null-delimited, CDP-compatible
+				if (!store.isDisposed) { // in case sendCommand promises settle after closed
+					listener.write(VSBuffer.fromString(JSON.stringify(message))); // null-delimited, CDP-compatible
 				}
 			};
 
 			const onMessage = (_event: Electron.Event, method: string, params: unknown, sessionId?: string) =>
-				writeMessage(({ method, params, sessionId }));
+				writeMessage({ method, params, sessionId });
 
-			win.on('close', () => {
-				debug.removeListener('message', onMessage);
+			const onWindowClose = () => {
 				listener.end();
-				closed = true;
-			});
+				store.dispose();
+			};
+
+			win.addListener('close', onWindowClose);
+			store.add(toDisposable(() => win.removeListener('close', onWindowClose)));
 
 			debug.addListener('message', onMessage);
+			store.add(toDisposable(() => debug.removeListener('message', onMessage)));
 
-			let buf = Buffer.alloc(0);
-			listener.on('data', data => {
-				buf = Buffer.concat([buf, data]);
-				for (let delimiter = buf.indexOf(0); delimiter !== -1; delimiter = buf.indexOf(0)) {
-					let data: { id: number; sessionId: string; params: {} };
-					try {
-						const contents = buf.slice(0, delimiter).toString('utf8');
-						buf = buf.slice(delimiter + 1);
-						data = JSON.parse(contents);
-					} catch (e) {
-						console.error('error reading cdp line', e);
-					}
-
-					// depends on a new API for which electron.d.ts has not been updated:
-					// @ts-ignore
-					debug.sendCommand(data.method, data.params, data.sessionId)
-						.then((result: object) => writeMessage({ id: data.id, sessionId: data.sessionId, result }))
-						.catch((error: Error) => writeMessage({ id: data.id, sessionId: data.sessionId, error: { code: 0, message: error.message } }));
+			store.add(listener.onData(rawData => {
+				let data: { id: number; sessionId: string; method: string; params: {} };
+				try {
+					data = JSON.parse(rawData.toString());
+				} catch (e) {
+					console.error('error reading cdp line', e);
+					return;
 				}
-			});
 
-			listener.on('error', err => {
-				console.error('error on cdp pipe:', err);
-			});
+				debug.sendCommand(data.method, data.params, data.sessionId)
+					.then((result: object) => writeMessage({ id: data.id, sessionId: data.sessionId, result }))
+					.catch((error: Error) => writeMessage({ id: data.id, sessionId: data.sessionId, error: { code: 0, message: error.message } }));
+			}));
 
-			listener.on('close', () => {
-				closed = true;
+			store.add(listener.onClose(() => {
 				if (--listeners === 0) {
 					debug.detach();
 				}
-			});
+			}));
 		});
 
-		await new Promise<void>(r => server.listen(0, r));
+		await new Promise<void>(r => server.listen(0, '127.0.0.1', r));
 		win.on('close', () => server.close());
 
-		return { rendererDebugPort: (server.address() as AddressInfo).port, success: true };
+		const serverAddr = server.address();
+		const serverAddrBase = typeof serverAddr === 'string' ? serverAddr : `ws://127.0.0.1:${serverAddr?.port}`;
+		return { rendererDebugAddr: `${serverAddrBase}/${ident}`, success: true };
 	}
 }

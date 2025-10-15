@@ -16,6 +16,7 @@ import { SimplePagedScreenReaderStrategy } from '../../../browser/controller/edi
 import { ISimpleModel } from '../../../common/viewModel/screenReaderSimpleModel.js';
 import { TextAreaState } from '../../../browser/controller/editContext/textArea/textAreaEditContextState.js';
 import { ITextAreaInputHost, TextAreaInput, TextAreaWrapper } from '../../../browser/controller/editContext/textArea/textAreaEditContextInput.js';
+import { Selection } from '../../../common/core/selection.js';
 
 // To run this test, open imeTester.html
 
@@ -29,6 +30,10 @@ class SingleLineTestModel implements ISimpleModel {
 
 	_setText(text: string) {
 		this._line = text;
+	}
+
+	getLineContent(lineNumber: number): string {
+		return this._line;
 	}
 
 	getLineMaxColumn(lineNumber: number): number {
@@ -117,7 +122,7 @@ function doCreateTest(description: string, inputStr: string, expectedStr: string
 			};
 		},
 		getScreenReaderContent: (): TextAreaState => {
-			const selection = new Range(1, 1 + cursorOffset, 1, 1 + cursorOffset + cursorLength);
+			const selection = new Selection(1, 1 + cursorOffset, 1, 1 + cursorOffset + cursorLength);
 
 			const screenReaderContentState = screenReaderStrategy.fromEditorSelection(model, selection, 10, true);
 			return TextAreaState.fromScreenReaderContentState(screenReaderContentState);

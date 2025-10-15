@@ -20,7 +20,7 @@ export = new class NoAsyncSuite implements eslint.Rule.RuleModule {
 		function hasAsyncSuite(node: any) {
 			if (isCallExpression(node) && node.arguments.length >= 2 && isFunctionExpression(node.arguments[1]) && node.arguments[1].async) {
 				return context.report({
-					node: node as any,
+					node: node,
 					message: 'suite factory function should never be async'
 				});
 			}

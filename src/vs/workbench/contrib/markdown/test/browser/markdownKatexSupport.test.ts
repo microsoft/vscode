@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+import assert from 'assert';
 import { getWindow } from '../../../../../base/browser/dom.js';
 import { basicMarkupHtmlTags, defaultAllowedAttrs } from '../../../../../base/browser/domSanitize.js';
 import { renderMarkdown } from '../../../../../base/browser/markdownRenderer.js';
@@ -28,11 +29,13 @@ suite('Markdown Katex Support Test', () => {
 
 	test('Basic inline equation', async () => {
 		const rendered = await renderMarkdownWithKatex('Hello $\\frac{1}{2}$ World!');
+		assert.ok(rendered.element.innerHTML.includes('katex'));
 		await assertSnapshot(rendered.element.innerHTML);
 	});
 
 	test('Should support inline equation wrapped in parans', async () => {
 		const rendered = await renderMarkdownWithKatex('Hello ($\\frac{1}{2}$) World!');
+		assert.ok(rendered.element.innerHTML.includes('katex'));
 		await assertSnapshot(rendered.element.innerHTML);
 	});
 
@@ -43,6 +46,31 @@ suite('Markdown Katex Support Test', () => {
 			'\\int_{-\\infty}^{\\infty} e^{-x^2} dx = \\sqrt{\\pi}',
 			'$$',
 		].join('\n'));
+		assert.ok(rendered.element.innerHTML.includes('katex'));
+		await assertSnapshot(rendered.element.innerHTML);
+	});
+
+	test('Should not render math when dollar sign is preceded by word character', async () => {
+		const rendered = await renderMarkdownWithKatex('for ($i = 1; $i -le 20; $i++) { echo "hello world"; Start-Sleep 1 }');
+		assert.ok(!rendered.element.innerHTML.includes('katex'));
+		await assertSnapshot(rendered.element.innerHTML);
+	});
+
+	test('Should not render math when dollar sign is followed by word character', async () => {
+		const rendered = await renderMarkdownWithKatex('The cost is $10dollars for this item');
+		assert.ok(!rendered.element.innerHTML.includes('katex'));
+		await assertSnapshot(rendered.element.innerHTML);
+	});
+
+	test('Should still render math with special characters around dollars', async () => {
+		const rendered = await renderMarkdownWithKatex('Hello ($\\frac{1}{2}$) and [$x^2$] work fine');
+		assert.ok(rendered.element.innerHTML.includes('katex'));
+		await assertSnapshot(rendered.element.innerHTML);
+	});
+
+	test('Should still render math at start and end of line', async () => {
+		const rendered = await renderMarkdownWithKatex('$\\frac{1}{2}$ at start, and at end $x^2$');
+		assert.ok(rendered.element.innerHTML.includes('katex'));
 		await assertSnapshot(rendered.element.innerHTML);
 	});
 });

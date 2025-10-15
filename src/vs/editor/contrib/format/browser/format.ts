@@ -247,6 +247,10 @@ export async function formatDocumentRangesWithProvider(
 				allEdits.push(...minimalEdits);
 			}
 		}
+
+		if (cts.token.isCancellationRequested) {
+			return true;
+		}
 	} finally {
 		cts.dispose();
 	}
@@ -456,10 +460,17 @@ export function getOnTypeFormattingEdits(
 	});
 }
 
+function isFormattingOptions(obj: any): obj is FormattingOptions {
+	const candidate = obj as FormattingOptions | undefined;
+
+	return !!candidate && typeof candidate === 'object' && typeof candidate.tabSize === 'number' && typeof candidate.insertSpaces === 'boolean';
+}
+
 CommandsRegistry.registerCommand('_executeFormatRangeProvider', async function (accessor, ...args) {
 	const [resource, range, options] = args;
 	assertType(URI.isUri(resource));
 	assertType(Range.isIRange(range));
+	assertType(isFormattingOptions(options));
 
 	const resolverService = accessor.get(ITextModelService);
 	const workerService = accessor.get(IEditorWorkerService);
@@ -475,6 +486,7 @@ CommandsRegistry.registerCommand('_executeFormatRangeProvider', async function (
 CommandsRegistry.registerCommand('_executeFormatDocumentProvider', async function (accessor, ...args) {
 	const [resource, options] = args;
 	assertType(URI.isUri(resource));
+	assertType(isFormattingOptions(options));
 
 	const resolverService = accessor.get(ITextModelService);
 	const workerService = accessor.get(IEditorWorkerService);
@@ -492,6 +504,7 @@ CommandsRegistry.registerCommand('_executeFormatOnTypeProvider', async function 
 	assertType(URI.isUri(resource));
 	assertType(Position.isIPosition(position));
 	assertType(typeof ch === 'string');
+	assertType(isFormattingOptions(options));
 
 	const resolverService = accessor.get(ITextModelService);
 	const workerService = accessor.get(IEditorWorkerService);

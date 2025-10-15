@@ -428,6 +428,13 @@ suite('PromptInputModel', () => {
 				await assertPromptInput(`find . -name test|`);
 			});
 		});
+		test('Does not detect right prompt as ghost text', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+			await writePromise('cmd' + ' '.repeat(6) + '\x1b[38;2;255;0;0mRP\x1b[0m\x1b[8D');
+			await assertPromptInput('cmd|' + ' '.repeat(6) + 'RP');
+		});
 	});
 
 	test('wide input (Korean)', async () => {
@@ -491,6 +498,57 @@ suite('PromptInputModel', () => {
 	});
 
 	suite('trailing whitespace', () => {
+		test('cursor index calculation with whitespace', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise('echo   ');
+			await assertPromptInput('echo   |');
+
+			await writePromise('\x1b[3D');
+			await assertPromptInput('echo|   ');
+
+			await writePromise('\x1b[C');
+			await assertPromptInput('echo |  ');
+
+			await writePromise('\x1b[C');
+			await assertPromptInput('echo  | ');
+
+			await writePromise('\x1b[C');
+			await assertPromptInput('echo   |');
+		});
+
+		test('cursor index should not exceed command line length', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise('cmd');
+			await assertPromptInput('cmd|');
+
+			await writePromise('\x1b[10C');
+			await assertPromptInput('cmd|');
+		});
+
+		test('whitespace preservation in cursor calculation', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise('ls   -la');
+			await assertPromptInput('ls   -la|');
+
+			await writePromise('\x1b[3D');
+			await assertPromptInput('ls   |-la');
+
+			await writePromise('\x1b[3D');
+			await assertPromptInput('ls|   -la');
+
+			await writePromise('\x1b[2C');
+			await assertPromptInput('ls  | -la');
+		});
+
 		test('delete whitespace with backspace', async () => {
 			await writePromise('$ ');
 			fireCommandStart();

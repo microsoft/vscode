@@ -13,7 +13,7 @@ import { IViewDescriptorService, ViewContainerLocation } from '../../common/view
 import { DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { IView } from '../../../base/browser/ui/grid/grid.js';
 import { IWorkbenchLayoutService, Parts } from '../../services/layout/browser/layoutService.js';
-import { CompositePart, ICompositeTitleLabel } from './compositePart.js';
+import { CompositePart, ICompositePartOptions, ICompositeTitleLabel } from './compositePart.js';
 import { IPaneCompositeBarOptions, PaneCompositeBar } from './paneCompositeBar.js';
 import { Dimension, EventHelper, trackFocus, $, addDisposableListener, EventType, prepend, getWindow } from '../../../base/browser/dom.js';
 import { Registry } from '../../../platform/registry/common/platform.js';
@@ -28,7 +28,6 @@ import { IComposite } from '../../common/composite.js';
 import { localize } from '../../../nls.js';
 import { CompositeDragAndDropObserver, toggleDropEffect } from '../dnd.js';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../common/theme.js';
-import { IPartOptions } from '../part.js';
 import { IMenuService, MenuId } from '../../../platform/actions/common/actions.js';
 import { ActionsOrientation } from '../../../base/browser/ui/actionbar/actionbar.js';
 import { Gesture, EventType as GestureEventType } from '../../../base/browser/touch.js';
@@ -135,7 +134,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 
 	constructor(
 		readonly partId: Parts.PANEL_PART | Parts.AUXILIARYBAR_PART | Parts.SIDEBAR_PART,
-		partOptions: IPartOptions,
+		partOptions: ICompositePartOptions,
 		activePaneCompositeSettingsKey: string,
 		private readonly activePaneContextKey: IContextKey<string>,
 		private paneFocusContextKey: IContextKey<boolean>,
@@ -250,9 +249,8 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 
 		super.create(parent);
 
-		const contentArea = this.getContentArea();
-		if (contentArea) {
-			this.createEmptyPaneMessage(contentArea);
+		if (this.contentArea) {
+			this.createEmptyPaneMessage(this.contentArea);
 		}
 
 		this.updateCompositeBar();
@@ -266,7 +264,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		this.emptyPaneMessageElement = $('.empty-pane-message-area');
 
 		const messageElement = $('.empty-pane-message');
-		messageElement.innerText = localize('pane.emptyMessage', "Drag a view here to display.");
+		messageElement.textContent = localize('pane.emptyMessage', "Drag a view here to display.");
 
 		this.emptyPaneMessageElement.appendChild(messageElement);
 		parent.appendChild(this.emptyPaneMessageElement);
@@ -325,7 +323,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 
 					else if (dragData.type === 'view') {
 						const viewToMove = this.viewDescriptorService.getViewDescriptorById(dragData.id)!;
-						if (viewToMove && viewToMove.canMoveView) {
+						if (viewToMove.canMoveView) {
 							this.viewDescriptorService.moveViewToLocation(viewToMove, this.location, 'dnd');
 
 							const newContainer = this.viewDescriptorService.getViewContainerByViewId(viewToMove.id)!;
@@ -366,8 +364,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 				hoverDelegate: this.toolbarHoverDelegate,
 				hiddenItemStrategy: HiddenItemStrategy.NoHide,
 				highlightToggledItems: true,
-				telemetrySource: this.nameForTelemetry,
-				toolbarOptions: { forceLeadingSeparatorInPrimaryActions: true /* separate from view toolbar */ }
+				telemetrySource: this.nameForTelemetry
 			}
 		));
 
@@ -645,7 +642,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		// Each toolbar item has 4px margin
 		const toolBarWidth = this.toolBar.getItemsWidth() + this.toolBar.getItemsLength() * 4;
 		const globalToolBarWidth = this.globalToolBar ? this.globalToolBar.getItemsWidth() + this.globalToolBar.getItemsLength() * 4 : 0;
-		return toolBarWidth + globalToolBarWidth + 5; // 5px padding left
+		return toolBarWidth + globalToolBarWidth + 8; // 8px padding left
 	}
 
 	private onTitleAreaContextMenu(event: StandardMouseEvent): void {

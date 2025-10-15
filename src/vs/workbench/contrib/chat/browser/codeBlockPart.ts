@@ -22,7 +22,8 @@ import { EditorExtensionsRegistry } from '../../../../editor/browser/editorExten
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { DiffEditorWidget } from '../../../../editor/browser/widget/diffEditor/diffEditorWidget.js';
-import { EDITOR_FONT_DEFAULTS, EditorOption, IEditorOptions } from '../../../../editor/common/config/editorOptions.js';
+import { EditorOption, IEditorOptions } from '../../../../editor/common/config/editorOptions.js';
+import { EDITOR_FONT_DEFAULTS } from '../../../../editor/common/config/fontInfo.js';
 import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { ScrollType } from '../../../../editor/common/editorCommon.js';
 import { TextEdit } from '../../../../editor/common/languages.js';
@@ -132,13 +133,13 @@ export function parseLocalFileData(text: string) {
 }
 
 export interface ICodeBlockActionContext {
-	code: string;
-	codemapperUri?: URI;
-	languageId?: string;
-	codeBlockIndex: number;
-	element: unknown;
+	readonly code: string;
+	readonly codemapperUri?: URI;
+	readonly languageId?: string;
+	readonly codeBlockIndex: number;
+	readonly element: unknown;
 
-	chatSessionId: string | undefined;
+	readonly chatSessionId: string | undefined;
 }
 
 export interface ICodeBlockRenderOptions {
@@ -287,6 +288,14 @@ export class CodeBlockPart extends Disposable {
 			this.element.classList.add('focused');
 			WordHighlighterContribution.get(this.editor)?.restoreViewState(true);
 		}));
+		this._register(Event.any(
+			this.editor.onDidChangeModel,
+			this.editor.onDidChangeModelContent
+		)(() => {
+			if (this.currentCodeBlockData) {
+				this.updateContexts(this.currentCodeBlockData);
+			}
+		}));
 
 		// Parent list scrolled
 		if (delegate.onDidScroll) {
@@ -405,8 +414,8 @@ export class CodeBlockPart extends Disposable {
 			this.layout(width);
 		}
 
-		await this.updateEditor(data);
-		if (this.isDisposed) {
+		const didUpdate = await this.updateEditor(data);
+		if (!didUpdate || this.isDisposed || this.currentCodeBlockData !== data) {
 			return;
 		}
 
@@ -440,6 +449,7 @@ export class CodeBlockPart extends Disposable {
 
 	reset() {
 		this.clearWidgets();
+		this.currentCodeBlockData = undefined;
 	}
 
 	private clearWidgets() {
@@ -447,23 +457,21 @@ export class CodeBlockPart extends Disposable {
 		GlyphHoverController.get(this.editor)?.hideGlyphHover();
 	}
 
-	private async updateEditor(data: ICodeBlockData): Promise<void> {
+	private async updateEditor(data: ICodeBlockData): Promise<boolean> {
 		const textModel = await data.textModel;
+		if (this.isDisposed || this.currentCodeBlockData !== data || textModel.isDisposed()) {
+			return false;
+		}
+
 		this.editor.setModel(textModel);
 		if (data.range) {
 			this.editor.setSelection(data.range);
 			this.editor.revealRangeInCenter(data.range, ScrollType.Immediate);
 		}
 
-		this.toolbar.context = {
-			code: textModel.getTextBuffer().getValueInRange(data.range ?? textModel.getFullModelRange(), EndOfLinePreference.TextDefined),
-			codeBlockIndex: data.codeBlockIndex,
-			element: data.element,
-			languageId: textModel.getLanguageId(),
-			codemapperUri: data.codemapperUri,
-			chatSessionId: data.chatSessionId
-		} satisfies ICodeBlockActionContext;
-		this.resourceContextKey.set(textModel.uri);
+		this.updateContexts(data);
+
+		return true;
 	}
 
 	private getVulnerabilitiesLabel(): string {
@@ -476,6 +484,23 @@ export class CodeBlockPart extends Disposable {
 			localize('vulnerabilitiesSingular', "{0} vulnerability", 1);
 		const icon = (element: IChatResponseViewModel) => element.vulnerabilitiesListExpanded ? Codicon.chevronDown : Codicon.chevronRight;
 		return `${referencesLabel} $(${icon(this.currentCodeBlockData.element as IChatResponseViewModel).id})`;
+	}
+
+	private updateContexts(data: ICodeBlockData) {
+		const textModel = this.editor.getModel();
+		if (!textModel) {
+			return;
+		}
+
+		this.toolbar.context = {
+			code: textModel.getTextBuffer().getValueInRange(data.range ?? textModel.getFullModelRange(), EndOfLinePreference.TextDefined),
+			codeBlockIndex: data.codeBlockIndex,
+			element: data.element,
+			languageId: textModel.getLanguageId(),
+			codemapperUri: data.codemapperUri,
+			chatSessionId: data.chatSessionId
+		} satisfies ICodeBlockActionContext;
+		this.resourceContextKey.set(textModel.uri);
 	}
 }
 

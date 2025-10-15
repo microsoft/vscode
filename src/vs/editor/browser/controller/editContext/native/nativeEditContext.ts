@@ -5,7 +5,7 @@
 
 import './nativeEditContext.css';
 import { isFirefox } from '../../../../../base/browser/browser.js';
-import { addDisposableListener, getWindow, getWindowId } from '../../../../../base/browser/dom.js';
+import { addDisposableListener, getActiveElement, getWindow, getWindowId } from '../../../../../base/browser/dom.js';
 import { FastDomNode } from '../../../../../base/browser/fastDomNode.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
@@ -100,7 +100,8 @@ export class NativeEditContext extends AbstractEditContext {
 		overflowGuardContainer.appendChild(this._imeTextArea);
 		this._parent = overflowGuardContainer.domNode;
 
-		this._focusTracker = this._register(new FocusTracker(this.domNode.domNode, (newFocusValue: boolean) => {
+		this._focusTracker = this._register(new FocusTracker(logService, this.domNode.domNode, (newFocusValue: boolean) => {
+			logService.trace('NativeEditContext#handleFocusChange : ', newFocusValue);
 			this._screenReaderSupport.handleFocusChange(newFocusValue);
 			this._context.viewModel.setHasFocus(newFocusValue);
 		}));
@@ -188,6 +189,7 @@ export class NativeEditContext extends AbstractEditContext {
 			this._emitTypeEvent(this._viewController, e);
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'compositionstart', (e) => {
+			this._updateEditContext();
 			// Utlimately fires onDidCompositionStart() on the editor to notify for example suggest model of composition state
 			// Updates the composition state of the cursor controller which determines behavior of typing with interceptors
 			this._viewController.compositionStart();
@@ -195,6 +197,7 @@ export class NativeEditContext extends AbstractEditContext {
 			this._context.viewModel.onCompositionStart();
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'compositionend', (e) => {
+			this._updateEditContext();
 			// Utlimately fires compositionEnd() on the editor to notify for example suggest model of composition state
 			// Updates the composition state of the cursor controller which determines behavior of typing with interceptors
 			this._viewController.compositionEnd();
@@ -308,6 +311,11 @@ export class NativeEditContext extends AbstractEditContext {
 
 	private _onWillPaste(): void {
 		this._screenReaderSupport.onWillPaste();
+	}
+
+	public onWillCopy(): void {
+		this.logService.trace('NativeEditContext#onWillCopy');
+		this.logService.trace('NativeEditContext#isFocused : ', this.domNode.domNode === getActiveElement());
 	}
 
 	public writeScreenReaderContent(): void {

@@ -125,3 +125,10 @@ export function normalizeMimeType(mimeType: string, strict?: true): string | und
 	// media and subtype must ALWAYS be lowercase, parameter not
 	return `${match[1].toLowerCase()}/${match[2].toLowerCase()}${match[3] ?? ''}`;
 }
+
+/**
+ * Whether the provided mime type is a text stream like `stdout`, `stderr`.
+ */
+export function isTextStreamMime(mimeType: string) {
+	return ['application/vnd.code.notebook.stdout', 'application/vnd.code.notebook.stderr'].includes(mimeType);
+}

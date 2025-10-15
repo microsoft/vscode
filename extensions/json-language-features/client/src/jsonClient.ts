@@ -392,7 +392,7 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 			} catch (e) {
 				throw new ResponseError(2, e.toString(), e);
 			}
-		} else if (schemaDownloadEnabled) {
+		} else if (schemaDownloadEnabled && workspace.isTrusted) {
 			if (runtime.telemetry && uri.authority === 'schema.management.azure.com') {
 				/* __GDPR__
 					"json.schema" : {
@@ -409,6 +409,9 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 				throw new ResponseError(4, e.toString());
 			}
 		} else {
+			if (!workspace.isTrusted) {
+				throw new ResponseError(1, l10n.t('Downloading schemas is disabled in untrusted workspaces'));
+			}
 			throw new ResponseError(1, l10n.t('Downloading schemas is disabled through setting \'{0}\'', SettingIds.enableSchemaDownload));
 		}
 	});
@@ -533,6 +536,7 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 			client.sendNotification(DidChangeConfigurationNotification.type, { settings: getSettings() });
 		}
 	}));
+	toDispose.push(workspace.onDidGrantWorkspaceTrust(updateSchemaDownloadSetting));
 
 	toDispose.push(createLanguageStatusItem(documentSelector, (uri: string) => client.sendRequest(LanguageStatusRequest.type, uri)));
 
@@ -569,6 +573,11 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 	}
 
 	function updateSchemaDownloadSetting() {
+		if (!workspace.isTrusted) {
+			schemaResolutionErrorStatusBarItem.tooltip = l10n.t('Unable to download schemas in untrusted workspaces.');
+			schemaResolutionErrorStatusBarItem.command = 'workbench.trust.manage';
+			return;
+		}
 		schemaDownloadEnabled = workspace.getConfiguration().get(SettingIds.enableSchemaDownload) !== false;
 		if (schemaDownloadEnabled) {
 			schemaResolutionErrorStatusBarItem.tooltip = l10n.t('Unable to resolve schema. Click to retry.');
@@ -763,6 +772,7 @@ function getSchemaId(schema: JSONSchemaSettings, settingsLocation?: Uri): string
 }
 
 function isThenable<T>(obj: ProviderResult<T>): obj is Thenable<T> {
+	// eslint-disable-next-line local/code-no-any-casts
 	return obj && (<any>obj)['then'];
 }
 

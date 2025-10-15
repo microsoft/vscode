@@ -1,6 +1,14 @@
 {
 	// --- Chat ---
 	// "inlineChat.enableV2": true,
+	"chat.tools.terminal.autoApprove": {
+		"/^npm (test|lint|run compile)\\b/": true,
+		"/^npx tsc\\b.*--noEmit/": true,
+		"scripts/test.bat": true,
+		"scripts/test.sh": true,
+		"scripts/test-integration.bat": true,
+		"scripts/test-integration.sh": true,
+	},
 
 	// --- Editor ---
 	"editor.insertSpaces": false,
@@ -93,7 +101,8 @@
 		"src/vs/workbench/api/test/browser/extHostDocumentData.test.perf-data.ts": true,
 		"src/vs/base/test/node/uri.test.data.txt": true,
 		"src/vs/editor/test/node/diffing/fixtures/**": true,
-		"build/loader.min": true
+		"build/loader.min": true,
+		"**/*.snap": true,
 	},
 
 	// --- TypeScript ---
@@ -203,12 +212,19 @@
 	],
 
 	// --- Workbench ---
-	"remote.extensionKind": {
-		"msjsdiag.debugger-for-chrome": "workspace"
-	},
-	"terminal.integrated.suggest.enabled": true,
-	"application.experimental.rendererProfiling": true,
+	// "application.experimental.rendererProfiling": true, // https://github.com/microsoft/vscode/issues/265654
 
 	"editor.aiStats.enabled": true, // Team selfhosting on ai stats
-	"chat.checkpoints.showFileChanges": true
+	"chat.emptyState.history.enabled": true,
+	"github.copilot.chat.advanced.taskTools.enabled": true,
+	"chat.promptFilesRecommendations": {
+		"plan-fast": true,
+		"plan-deep": true
+	},
+	// Needed for kusto tool in data.prompt.md
+	"azureMcp.enabledServices": [
+		"kusto"
+	],
+	"azureMcp.serverMode": "all",
+	"azureMcp.readOnly": true
 }

@@ -199,10 +199,10 @@ export abstract class AbstractScrollableElement extends Widget {
 	private _inertialSpeed: { X: number; Y: number } = { X: 0, Y: 0 };
 
 	private readonly _onScroll = this._register(new Emitter<ScrollEvent>());
-	public readonly onScroll: Event<ScrollEvent> = this._onScroll.event;
+	public get onScroll(): Event<ScrollEvent> { return this._onScroll.event; }
 
 	private readonly _onWillScroll = this._register(new Emitter<ScrollEvent>());
-	public readonly onWillScroll: Event<ScrollEvent> = this._onWillScroll.event;
+	public get onWillScroll(): Event<ScrollEvent> { return this._onWillScroll.event; }
 
 	public get options(): Readonly<ScrollableElementResolvedOptions> {
 		return this._options;
@@ -495,7 +495,7 @@ export abstract class AbstractScrollableElement extends Widget {
 			// Check that we are scrolling towards a location which is valid
 			desiredScrollPosition = this._scrollable.validateScrollPosition(desiredScrollPosition);
 
-			if (this._options.inertialScroll && (deltaX || deltaY)) {
+			if (this._options.inertialScroll && (deltaX || deltaY) && !classifier.isPhysicalMouseWheel()) {
 				let startPeriodic = false;
 				// Only start periodic if it's not running
 				if (this._inertialSpeed.X === 0 && this._inertialSpeed.Y === 0) {

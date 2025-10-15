@@ -81,8 +81,6 @@ extends:
               os: macOS
             steps:
               - template: build/azure-pipelines/product-compile.yml@self
-                parameters:
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 
       - stage: macOS
         dependsOn:
@@ -102,7 +100,6 @@ extends:
               - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
                 parameters:
                   VSCODE_ARCH: arm64
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_TEST_ARTIFACT_NAME: electron
                   VSCODE_RUN_ELECTRON_TESTS: true
@@ -116,7 +113,6 @@ extends:
               - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
                 parameters:
                   VSCODE_ARCH: arm64
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_TEST_ARTIFACT_NAME: browser
                   VSCODE_RUN_BROWSER_TESTS: true
@@ -130,7 +126,6 @@ extends:
               - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
                 parameters:
                   VSCODE_ARCH: arm64
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_TEST_ARTIFACT_NAME: remote
                   VSCODE_RUN_REMOTE_TESTS: true

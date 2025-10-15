@@ -10,7 +10,7 @@ import {
 	StorageScope
 } from "../../../../../platform/storage/common/storage.js";
 import { TestStorageService } from "../../../../test/common/workbenchTestServices.js";
-import { McpSamplingLog } from "../../common/mcpSamplingLog.js";
+import { ISamplingStoredData, McpSamplingLog } from "../../common/mcpSamplingLog.js";
 import { IMcpServer } from "../../common/mcpTypes.js";
 
 suite("MCP - Sampling Log", () => {
@@ -20,7 +20,7 @@ suite("MCP - Sampling Log", () => {
 		readDefinitions: () => ({
 			get: () => ({ collection: { scope: StorageScope.APPLICATION } }),
 		}),
-	} as any;
+	} as IMcpServer;
 
 	let log: McpSamplingLog;
 	let storage: TestStorageService;
@@ -48,7 +48,7 @@ suite("MCP - Sampling Log", () => {
 		// storage.testEmitWillSaveState(WillSaveStateReason.NONE);
 		await storage.flush();
 		assert.deepStrictEqual(
-			(storage.getObject("mcp.sampling.logs", StorageScope.APPLICATION) as any),
+			(storage.getObject("mcp.sampling.logs", StorageScope.APPLICATION) as unknown),
 			[
 				[
 					"testServer",
@@ -90,7 +90,7 @@ suite("MCP - Sampling Log", () => {
 		);
 
 		await storage.flush();
-		const data = (storage.getObject("mcp.sampling.logs", StorageScope.APPLICATION) as any)[0][1];
+		const data = (storage.getObject("mcp.sampling.logs", StorageScope.APPLICATION) as [string, any][])[0][1];
 
 		// Verify the bin for the current day has 2 requests
 		assert.strictEqual(data.bins[0], 2);
@@ -122,7 +122,7 @@ suite("MCP - Sampling Log", () => {
 		);
 
 		await storage.flush();
-		const data = (storage.getObject("mcp.sampling.logs", StorageScope.APPLICATION) as any)[0][1];
+		const data = (storage.getObject("mcp.sampling.logs", StorageScope.APPLICATION) as [string, ISamplingStoredData][])[0][1];
 
 		// Verify the bins: day 2 should have 1 request, day 1 should have 1 request
 		assert.strictEqual(data.bins[0], 1); // day 2
@@ -140,7 +140,7 @@ suite("MCP - Sampling Log", () => {
 		);
 
 		await storage.flush();
-		const updatedData = (storage.getObject("mcp.sampling.logs", StorageScope.APPLICATION) as any)[0][1];
+		const updatedData = (storage.getObject("mcp.sampling.logs", StorageScope.APPLICATION) as [string, ISamplingStoredData][])[0][1];
 
 		// Verify the bins have shifted correctly
 		assert.strictEqual(updatedData.bins[0], 1); // day 7
@@ -160,12 +160,12 @@ suite("MCP - Sampling Log", () => {
 		}
 
 		await storage.flush();
-		const data = (storage.getObject("mcp.sampling.logs", StorageScope.APPLICATION) as any)[0][1];
+		const data = (storage.getObject("mcp.sampling.logs", StorageScope.APPLICATION) as [string, ISamplingStoredData][])[0][1];
 
 		// Verify only the last 30 requests are kept
 		assert.strictEqual(data.lastReqs.length, 30);
-		assert.strictEqual(data.lastReqs[0].request[0].content.text, "request 34");
-		assert.strictEqual(data.lastReqs[29].request[0].content.text, "request 5");
+		assert.strictEqual((data.lastReqs[0].request[0].content as { type: "text"; text: string }).text, "request 34");
+		assert.strictEqual((data.lastReqs[29].request[0].content as { type: "text"; text: string }).text, "request 5");
 	});
 
 	test("handles different content types", async () => {
@@ -211,7 +211,7 @@ suite("MCP - Sampling Log", () => {
 		);
 
 		await storage.flush();
-		const data = (storage.getObject("mcp.sampling.logs", StorageScope.APPLICATION) as any)[0][1];
+		const data = (storage.getObject("mcp.sampling.logs", StorageScope.APPLICATION) as [string, ISamplingStoredData][])[0][1];
 
 		// Verify all requests are stored correctly
 		assert.strictEqual(data.lastReqs.length, 3);
@@ -226,7 +226,7 @@ suite("MCP - Sampling Log", () => {
 			readDefinitions: () => ({
 				get: () => ({ collection: { scope: StorageScope.APPLICATION } }),
 			}),
-		} as any;
+		} as IMcpServer;
 
 		log.add(
 			fakeServer,
@@ -243,7 +243,7 @@ suite("MCP - Sampling Log", () => {
 		);
 
 		await storage.flush();
-		const storageData = (storage.getObject("mcp.sampling.logs", StorageScope.APPLICATION) as any);
+		const storageData = (storage.getObject("mcp.sampling.logs", StorageScope.APPLICATION) as [string, ISamplingStoredData][]);
 
 		// Verify both servers have their data stored
 		assert.strictEqual(storageData.length, 2);
