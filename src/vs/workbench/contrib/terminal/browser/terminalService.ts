@@ -1172,6 +1172,8 @@ export class TerminalService extends Disposable implements ITerminalService {
 		}
 		this._backgroundedTerminalDisposables.delete(instance.instanceId);
 		this._terminalGroupService.createGroup(instance);
+		// This is no longer a background terminal
+		instance.shellLaunchConfig.hideFromUser = false;
 
 		// Make active automatically if it's the first instance
 		if (this.instances.length === 1) {
