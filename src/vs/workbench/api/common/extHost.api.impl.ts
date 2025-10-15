@@ -1552,6 +1552,14 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerLanguageModelChatProvider: (vendor, provider) => {
 				return extHostLanguageModels.registerLanguageModelChatProvider(extension, vendor, provider);
 			},
+			getModelProxy: () => {
+				checkProposedApiEnabled(extension, 'languageModelProxy');
+				return extHostLanguageModels.getModelProxy(extension);
+			},
+			registerLanguageModelProxyProvider: (provider) => {
+				checkProposedApiEnabled(extension, 'chatParticipantPrivate');
+				return extHostLanguageModels.registerLanguageModelProxyProvider(extension, provider);
+			},
 			// --- embeddings
 			get embeddingModels() {
 				checkProposedApiEnabled(extension, 'embeddings');
