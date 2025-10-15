@@ -1825,7 +1825,7 @@ export class CommandCenter {
 		const resources = [
 			...repository.workingTreeGroup.resourceStates,
 			...repository.untrackedGroup.resourceStates]
-			.filter(r => r.multiFileDiffEditorModifiedUri?.toString() === uri.toString())
+			.filter(r => r.multiFileDiffEditorModifiedUri?.toString() === uri.toString() || r.multiDiffEditorOriginalUri?.toString() === uri.toString())
 			.map(r => r.resourceUri);
 
 		if (resources.length === 0) {
@@ -2136,7 +2136,7 @@ export class CommandCenter {
 		}
 
 		const resources = repository.indexGroup.resourceStates
-			.filter(r => r.multiFileDiffEditorModifiedUri?.toString() === uri.toString())
+			.filter(r => r.multiFileDiffEditorModifiedUri?.toString() === uri.toString() || r.multiDiffEditorOriginalUri?.toString() === uri.toString())
 			.map(r => r.resourceUri);
 
 		if (resources.length === 0) {
