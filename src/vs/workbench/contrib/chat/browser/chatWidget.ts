@@ -1967,22 +1967,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const selected = e.element;
 
 		// Check if the context menu was opened on a KaTeX element
-		let isKatexElement = false;
 		const target = e.browserEvent.target as HTMLElement;
-		if (target) {
-			let element: HTMLElement | null = target;
-			while (element && element !== e.browserEvent.currentTarget) {
-				if (element.classList?.contains('katex')) {
-					isKatexElement = true;
-					break;
-				}
-				element = element.parentElement;
-			}
-		}
+		const isKatexElement = target.closest('.katex') !== null;
 
 		const scopedContextKeyService = this.contextKeyService.createOverlay([
 			[ChatContextKeys.responseIsFiltered.key, isResponseVM(selected) && !!selected.errorDetails?.responseIsFiltered],
-			[ChatContextKeys.clickTargetIsKatex.key, isKatexElement]
+			[ChatContextKeys.isKatexMathElement.key, isKatexElement]
 		]);
 		this.contextMenuService.showContextMenu({
 			menuId: MenuId.ChatContext,

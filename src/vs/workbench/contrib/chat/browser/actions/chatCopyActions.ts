@@ -88,65 +88,58 @@ export function registerChatCopyActions() {
 		}
 	});
 
-	registerAction2(class CopyMathSourceAction extends Action2 {
+	registerAction2(class CopyKatexMathSourceAction extends Action2 {
 		constructor() {
 			super({
-				id: 'workbench.action.chat.copyMathSource',
-				title: localize2('chat.copyMathSource.label', "Copy Math Source"),
+				id: 'workbench.action.chat.copyKatexMathSource',
+				title: localize2('chat.copyKatexMathSource.label', "Copy Math Source"),
 				f1: false,
 				category: CHAT_CATEGORY,
 				menu: {
 					id: MenuId.ChatContext,
 					group: 'copy',
-					when: ChatContextKeys.clickTargetIsKatex,
+					when: ChatContextKeys.isKatexMathElement,
 				}
 			});
 		}
 
 		async run(accessor: ServicesAccessor, ...args: unknown[]) {
+			const chatWidgetService = accessor.get(IChatWidgetService);
 			const clipboardService = accessor.get(IClipboardService);
 
-			// Get the context menu target element from the browser's active element or event target
-			const activeWindow = dom.getActiveWindow();
-			const activeElement = activeWindow.document.activeElement;
+			const widget = chatWidgetService.lastFocusedWidget;
+			let item = args[0] as ChatTreeItem | undefined;
+			if (!isChatTreeItem(item)) {
+				item = widget?.getFocus();
+				if (!item) {
+					return;
+				}
+			}
 
-			// Try to find a KaTeX element from the active element or selection
-			let katexElement: Element | null = null;
+			// Try to find a KaTeX element from the selection or active element
+			let selectedElement: Node | null = null;
 
-			// Check if we have a selection that might be in a KaTeX element
-			const selection = activeWindow.getSelection();
-			if (selection && selection.rangeCount > 0) {
-				const range = selection.getRangeAt(0);
-				let element = range.commonAncestorContainer as Element;
+			// If there is a selection, and focus is inside the widget, extract the inner katex element.
+			const activeElement = dom.getActiveElement();
+			const nativeSelection = dom.getActiveWindow().getSelection();
+			if (widget && nativeSelection && nativeSelection.rangeCount > 0 && dom.isAncestor(activeElement, widget.domNode)) {
+				const range = nativeSelection.getRangeAt(0);
+				selectedElement = range.commonAncestorContainer;
 
 				// If it's a text node, get its parent element
-				if (element.nodeType === Node.TEXT_NODE) {
-					element = element.parentElement!;
+				if (selectedElement.nodeType === Node.TEXT_NODE) {
+					selectedElement = selectedElement.parentElement;
 				}
-
-				// Walk up the tree to find a .katex element
-				while (element && !element.classList?.contains('katex')) {
-					element = element.parentElement!;
-				}
-
-				katexElement = element;
 			}
 
-			// Fallback: check the active element
-			if (!katexElement && activeElement) {
-				let element = activeElement as Element;
-				while (element && !element.classList?.contains('katex')) {
-					element = element.parentElement!;
-				}
-				katexElement = element;
-			}
-
-			if (!katexElement) {
-				return;
+			// Otherwise, fallback to querying from the active element
+			if (!selectedElement) {
+				selectedElement = activeElement?.querySelector('.katex') ?? null;
 			}
 
 			// Extract the LaTeX source from the annotation element
-			const annotation = katexElement.querySelector('annotation[encoding="application/x-tex"]');
+			const katexElement = dom.isHTMLElement(selectedElement) ? selectedElement.closest('.katex') : null;
+			const annotation = katexElement?.querySelector('annotation[encoding="application/x-tex"]');
 			if (annotation) {
 				const latexSource = annotation.textContent || '';
 				await clipboardService.writeText(latexSource);
