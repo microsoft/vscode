@@ -310,7 +310,7 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 			return {
 				content: [{
 					kind: 'text',
-					value: 'This task is too simple for a todo list. Tasks with fewer than 3 items don\'t need a todo list. Either skip creating todos or add more detailed steps to reach at least 3 items.'
+					value: "This task is too simple for a todo list. Tasks with fewer than 3 items don't need a todo list. Either skip creating todos or add more detailed steps to reach at least 3 items."
 				}]
 			};
 		}
