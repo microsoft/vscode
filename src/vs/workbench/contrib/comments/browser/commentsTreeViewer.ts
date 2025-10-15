@@ -291,7 +291,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		templateData.threadMetadata.icon.classList.remove(...Array.from(templateData.threadMetadata.icon.classList.values())
 			.filter(value => value.startsWith('codicon')));
 		// Check if any comment in the thread has draft state
-		const hasDraft = node.element.thread.comments?.some(comment => (comment as any).state === CommentState.Draft);
+		const hasDraft = node.element.thread.comments?.some(comment => comment.state === CommentState.Draft);
 		templateData.threadMetadata.icon.classList.add(...ThemeIcon.asClassNameArray(this.getIcon(node.element.threadState, hasDraft)));
 		if (node.element.threadState !== undefined) {
 			const color = this.getCommentThreadWidgetStateColor(node.element.threadState, this.themeService.getColorTheme());

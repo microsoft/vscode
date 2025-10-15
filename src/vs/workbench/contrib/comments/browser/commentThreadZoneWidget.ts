@@ -41,7 +41,7 @@ function commentThreadHasDraft(commentThread: languages.CommentThread): boolean 
 	if (!comments) {
 		return false;
 	}
-	return comments.some(comment => (comment as any).state === languages.CommentState.Draft);
+	return comments.some(comment => comment.state === languages.CommentState.Draft);
 }
 
 export enum CommentWidgetFocus {
