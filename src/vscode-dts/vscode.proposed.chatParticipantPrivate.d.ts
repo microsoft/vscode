@@ -285,4 +285,16 @@ declare module 'vscode' {
 	}
 
 	// #endregion
+
+	// #region LanguageModelProxyProvider
+
+	export interface LanguageModelProxyProvider {
+		provideModelProxy(forExtensionId: string, token: CancellationToken): ProviderResult<LanguageModelProxyInfo>;
+	}
+
+	export namespace lm {
+		export function registerLanguageModelProxyProvider(provider: LanguageModelProxyProvider): Disposable;
+	}
+
+	// #endregion
 }
