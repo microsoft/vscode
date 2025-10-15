@@ -1606,6 +1606,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._chatInputTodoListWidget.value.render(chatSessionId);
 	}
 
+	clearTodoListWidget(sessionId: string | undefined, force: boolean): void {
+		this._chatInputTodoListWidget.value?.clear(sessionId, force);
+	}
+
 	async renderChatEditingSessionState(chatEditingSession: IChatEditingSession | null) {
 		dom.setVisibility(Boolean(chatEditingSession), this.chatEditingSessionWidgetContainer);
 
