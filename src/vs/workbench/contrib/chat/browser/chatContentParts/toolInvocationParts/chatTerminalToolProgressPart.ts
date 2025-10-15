@@ -89,19 +89,26 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 						}
 					}
 				);
-				focusAction.tooltip = localize('runInTerminalTool.focusTerminal', "Focus Terminal");
 				actionBar.push([focusAction], { icon: true, label: false });
 
 				if (!terminalInstance && terminalData.terminalToolSessionId) {
-					const listener = onDidRegisterTerminalInstanceForToolSession(e => {
+					const listener = this._register(onDidRegisterTerminalInstanceForToolSession(e => {
 						if (e.terminalToolSessionId === terminalData.terminalToolSessionId) {
 							terminalInstance = getTerminalInstanceByToolSessionId(e.terminalToolSessionId);
 							if (terminalInstance) {
 								focusAction.enabled = true;
+								this._store.delete(listener);
 							}
 						}
-					});
-					this._register(listener);
+					}));
+				}
+				const instanceListener = terminalInstance?.onDisposed(() => {
+					focusAction.enabled = false;
+					actionBar.dispose();
+					instanceListener?.dispose();
+				});
+				if (instanceListener) {
+					this._register(instanceListener);
 				}
 			}
 		}
