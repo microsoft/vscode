@@ -2843,9 +2843,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	override dispose(): void {
+		super.dispose();
 		this.promptDescriptionsCache.clear();
 		this.promptUriCache.clear();
-		super.dispose();
 	}
 
 	delegateScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent): void {

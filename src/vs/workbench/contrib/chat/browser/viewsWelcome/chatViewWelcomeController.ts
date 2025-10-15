@@ -242,7 +242,7 @@ export class ChatViewWelcomePart extends Disposable {
 						}
 					};
 					// Add context menu handler
-					this._register(dom.addDisposableListener(promptElement, dom.EventType.CONTEXT_MENU, async (e: MouseEvent) => {
+					this._register(dom.addDisposableListener(promptElement, dom.EventType.CONTEXT_MENU, (e: MouseEvent) => {
 						e.preventDefault();
 						e.stopImmediatePropagation();
 
@@ -253,10 +253,8 @@ export class ChatViewWelcomePart extends Disposable {
 							getActions: () => actions,
 						});
 					}));
-
 					// Add click handler
 					this._register(dom.addDisposableListener(promptElement, dom.EventType.CLICK, executePrompt));
-
 					// Add keyboard handler
 					this._register(dom.addDisposableListener(promptElement, dom.EventType.KEY_DOWN, (e) => {
 						const event = new StandardKeyboardEvent(e);
@@ -304,6 +302,7 @@ export class ChatViewWelcomePart extends Disposable {
 	private getPromptContextMenuActions(prompt: IChatSuggestedPrompts): IAction[] {
 		const actions: IAction[] = [];
 		if (prompt.uri) {
+			const uri = prompt.uri;
 			actions.push(new Action(
 				'chat.editPromptFile',
 				localize('editPromptFile', "Edit Prompt File"),
@@ -311,7 +310,7 @@ export class ChatViewWelcomePart extends Disposable {
 				true,
 				async () => {
 					try {
-						await this.openerService.open(prompt.uri!);
+						await this.openerService.open(uri);
 					} catch (error) {
 						this.logService.error('Failed to open prompt file:', error);
 					}
