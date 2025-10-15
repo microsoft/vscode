@@ -260,7 +260,6 @@ export class ChatViewWelcomePart extends Disposable {
 					// Add keyboard handler
 					this._register(dom.addDisposableListener(promptElement, dom.EventType.KEY_DOWN, (e) => {
 						const event = new StandardKeyboardEvent(e);
-
 						if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 							e.preventDefault();
 							e.stopPropagation();
@@ -277,7 +276,6 @@ export class ChatViewWelcomePart extends Disposable {
 							});
 							return;
 						}
-
 					}));
 				}
 			}
@@ -306,7 +304,6 @@ export class ChatViewWelcomePart extends Disposable {
 
 	private getPromptContextMenuActions(prompt: IChatSuggestedPrompts): IAction[] {
 		const actions: IAction[] = [];
-
 		if (prompt.uri) {
 			actions.push(new Action(
 				'chat.openPromptFile',
@@ -322,7 +319,6 @@ export class ChatViewWelcomePart extends Disposable {
 				}
 			));
 		}
-
 		return actions;
 	}
 

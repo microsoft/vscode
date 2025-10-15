@@ -1555,7 +1555,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					try {
 						if (promptCommand.promptPath) {
 							this.promptUriCache.set(promptCommand.command, promptCommand.promptPath.uri);
-
 							const parseResult = await this.promptsService.parseNew(
 								promptCommand.promptPath.uri,
 								CancellationToken.None
