@@ -40,6 +40,7 @@ import { HasInstalledMcpServersContext, IMcpConfigPath, IMcpWorkbenchService, IW
 import { McpServerEditorInput } from './mcpServerEditorInput.js';
 import { IMcpGalleryManifestService } from '../../../../platform/mcp/common/mcpGalleryManifest.js';
 import { IPager, singlePagePager } from '../../../../base/common/paging.js';
+import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 
 interface IMcpServerStateProvider<T> {
 	(mcpWorkbenchServer: McpWorkbenchServer): T;
@@ -192,6 +193,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IURLService urlService: IURLService,
 	) {
 		super();
@@ -672,6 +674,10 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 			this.logService.error(e);
 		}
 		return true;
+	}
+
+	async openSearch(searchValue: string, preserveFoucs?: boolean): Promise<void> {
+		await this.extensionsWorkbenchService.openSearch(`@mcp ${searchValue}`, preserveFoucs);
 	}
 
 	async open(extension: IWorkbenchMcpServer, options?: IEditorOptions): Promise<void> {
