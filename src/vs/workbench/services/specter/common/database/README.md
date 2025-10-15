@@ -160,6 +160,98 @@ To add a new migration:
 2. Increment version number
 3. Provide `up` (apply) and `down` (rollback) SQL statements
 
+## DatabaseService API
+
+The `DatabaseService` class provides a complete SQLite wrapper with the following methods:
+
+### Initialization
+```typescript
+await databaseService.initialize();
+```
+- Opens SQLite connection
+- Enables foreign keys
+- Runs pending migrations automatically
+- Creates database file if it doesn't exist
+
+### Basic Operations
+
+**Execute (INSERT, UPDATE, DELETE):**
+```typescript
+const changes = await databaseService.execute(
+    'INSERT INTO config (key, value) VALUES (?, ?)',
+    ['my_key', 'my_value']
+);
+```
+
+**Query (SELECT multiple rows):**
+```typescript
+const rows = await databaseService.query<ConfigRow>(
+    'SELECT * FROM config WHERE key LIKE ?',
+    ['%api%']
+);
+```
+
+**Get (SELECT single row):**
+```typescript
+const row = await databaseService.get<ConfigRow>(
+    'SELECT * FROM config WHERE key = ?',
+    ['deepseek_api_key']
+);
+```
+
+**Transaction (multiple statements):**
+```typescript
+await databaseService.transaction([
+    { sql: 'INSERT INTO conversations (title) VALUES (?)', params: ['New Chat'] },
+    { sql: 'INSERT INTO messages (conversation_id, role, content) VALUES (last_insert_rowid(), ?, ?)', params: ['user', 'Hello'] }
+]);
+```
+
+### Dependency Injection
+
+The service uses VS Code's dependency injection:
+
+```typescript
+import { ISpecterDatabaseService } from './database.js';
+
+class MyService {
+    constructor(
+        @ISpecterDatabaseService private readonly databaseService: IDatabaseService
+    ) {
+        this.databaseService.initialize();
+    }
+}
+```
+
+### Error Handling
+
+All methods throw errors that should be caught:
+
+```typescript
+try {
+    await databaseService.execute('INVALID SQL');
+} catch (error) {
+    console.error('Database error:', error);
+}
+```
+
+### Logging
+
+The service automatically logs all operations using VS Code's `ILogService`:
+- `info` - Initialization, migrations
+- `trace` - Individual queries (for debugging)
+- `error` - Failures
+
+### Examples
+
+See `examples.ts` for complete usage examples including:
+- Basic CRUD operations
+- Transaction usage
+- Working with views
+- Workflow creation
+- Audit logging
+- API key management
+
 ## Security Notes
 
 - API keys are encrypted before storage (encrypted=1)
