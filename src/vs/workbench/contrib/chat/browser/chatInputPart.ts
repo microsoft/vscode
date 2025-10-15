@@ -1295,6 +1295,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const attachmentToolbarContainer = elements.attachmentToolbar;
 		this.chatEditingSessionWidgetContainer = elements.chatEditingSessionWidgetContainer;
 		this.chatInputTodoListWidgetContainer = elements.chatInputTodoListWidgetContainer;
+		dom.setVisibility(false, this.chatInputTodoListWidgetContainer);
+
 		if (this.options.enableImplicitContext) {
 			this._implicitContext = this._register(
 				this.instantiationService.createInstance(ChatImplicitContext),
@@ -1797,7 +1799,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}));
 		}
 
-		// Render the widget with the current session
+		dom.setVisibility(true, this.chatInputTodoListWidgetContainer);
 		this._chatInputTodoListWidget.value.render(chatSessionId);
 	}
 
@@ -1805,7 +1807,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._chatInputTodoListWidget.value?.clear(sessionId, force);
 		this._chatInputTodoListWidget.clear();
 		this._chatEditingTodosDisposables.clear();
-		dom.clearNode(this.chatInputTodoListWidgetContainer);
+		dom.setVisibility(false, this.chatInputTodoListWidgetContainer);
 		this._onDidChangeHeight.fire();
 	}
 
