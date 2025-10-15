@@ -130,7 +130,8 @@ const configurationEntrySchema: IJSONSchema = {
 									enumDescriptions: [
 										nls.localize('accessibility', 'Accessibility settings'),
 										nls.localize('advanced', 'Advanced settings are hidden by default in the Settings editor unless the user chooses to show advanced settings.'),
-										nls.localize('experimental', 'Experimental settings'),
+										nls.localize('experimental', 'Experimental settings are subject to change and may be removed in future releases.'),
+										nls.localize('preview', 'Preview settings can be used to try out new features before they are finalized.'),
 										nls.localize('telemetry', 'Telemetry settings'),
 										nls.localize('usesOnlineServices', 'Settings that use online services')
 									],
