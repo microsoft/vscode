@@ -5,7 +5,7 @@
 
 import './media/scm.css';
 import { $, append, h, reset } from '../../../../base/browser/dom.js';
-import { IHoverOptions } from '../../../../base/browser/ui/hover/hover.js';
+import { IHoverOptions, IManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { IconLabel } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { IIdentityProvider, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
@@ -442,7 +442,10 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemVie
 		const historyItemViewModel = node.element.historyItemViewModel;
 		const historyItem = historyItemViewModel.historyItem;
 
-		const hoverContent = { markdown: historyItem.tooltip ?? historyItem.message, markdownNotSupportedFallback: historyItem.message };
+		const hoverContent = {
+			markdown: historyItem.tooltip ?? historyItem.message,
+			markdownNotSupportedFallback: historyItem.message
+		} satisfies IManagedHoverTooltipMarkdownString;
 		const historyItemHover = this._hoverService.setupManagedHover(this.hoverDelegate, templateData.element, hoverContent);
 		templateData.elementDisposables.add(historyItemHover);
 
