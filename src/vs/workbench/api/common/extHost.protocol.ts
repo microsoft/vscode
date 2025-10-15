@@ -3160,13 +3160,31 @@ export interface ChatSessionOptionUpdateDto {
 	readonly value: string | undefined;
 }
 
+// TODO: Reuse another DTO
+export interface IChatSessionModelInfoDto {
+	id: string;
+	name: string;
+	family: string;
+	tooltip?: string;
+	detail?: string;
+	version: string;
+	maxInputTokens: number;
+	maxOutputTokens: number;
+	capabilities: { imageInput?: boolean; toolCalling?: boolean | number };
+}
+
 export interface ChatSessionDto {
 	id: string;
 	history: Array<IChatSessionHistoryItemDto>;
 	hasActiveResponseCallback: boolean;
 	hasRequestHandler: boolean;
 	supportsInterruption: boolean;
-	options?: { model?: string };
+	options?: { model?: IChatSessionModelInfoDto };
+}
+
+// Options returned when initially registering a chat session content provider
+export interface ChatSessionOptionsDto {
+	models?: IChatSessionModelInfoDto[];
 }
 
 
@@ -3175,7 +3193,7 @@ export interface MainThreadChatSessionsShape extends IDisposable {
 	$unregisterChatSessionItemProvider(handle: number): void;
 	$onDidChangeChatSessionItems(handle: number): void;
 	$onDidCommitChatSessionItem(handle: number, original: string, modified: string): void;
-	$registerChatSessionContentProvider(handle: number, chatSessionType: string, models?: string[]): void;
+	$registerChatSessionContentProvider(handle: number, chatSessionType: string, models?: (string | IChatSessionModelInfoDto)[]): void;
 	$unregisterChatSessionContentProvider(handle: number): void;
 
 	$handleProgressChunk(handle: number, sessionId: string, requestId: string, chunks: (IChatProgressDto | [IChatProgressDto, number])[]): Promise<void>;
@@ -3190,6 +3208,7 @@ export interface ExtHostChatSessionsShape {
 	$provideNewChatSessionItem(providerHandle: number, options: { request: IChatAgentRequest; metadata?: any }, token: CancellationToken): Promise<Dto<IChatSessionItem>>;
 
 	$provideChatSessionContent(providerHandle: number, sessionId: string, token: CancellationToken): Promise<ChatSessionDto>;
+	$provideChatSessionOptions(providerHandle: number, token: CancellationToken): Promise<ChatSessionOptionsDto | undefined>;
 	$provideHandleOptionsChange(providerHandle: number, sessionId: string, updates: ReadonlyArray<ChatSessionOptionUpdateDto>, token: CancellationToken): Promise<void>;
 	$interruptChatSessionActiveResponse(providerHandle: number, sessionId: string, requestId: string): Promise<void>;
 	$disposeChatSessionContent(providerHandle: number, sessionId: string): Promise<void>;

@@ -21,7 +21,7 @@ import { ExtensionsRegistry } from '../../../services/extensions/common/extensio
 import { ChatEditorInput } from '../browser/chatEditorInput.js';
 import { IChatAgentData, IChatAgentRequest, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
-import { ChatSession, ChatSessionStatus, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionsExtensionPoint, IChatSessionsService } from '../common/chatSessionsService.js';
+import { ChatSession, ChatSessionStatus, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionModelInfo, IChatSessionsExtensionPoint, IChatSessionsService } from '../common/chatSessionsService.js';
 import { ChatSessionUri } from '../common/chatUri.js';
 import { ChatAgentLocation, ChatModeKind, VIEWLET_ID } from '../common/constants.js';
 import { CHAT_CATEGORY } from './actions/chatActions.js';
@@ -143,7 +143,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	private readonly _onDidChangeInProgress = this._register(new Emitter<void>());
 	public get onDidChangeInProgress() { return this._onDidChangeInProgress.event; }
 	private readonly inProgressMap: Map<string, number> = new Map();
-	private readonly _sessionTypeModels: Map<string, string[]> = new Map();
+	private readonly _sessionTypeModels: Map<string, import('../common/chatSessionsService.js').IChatSessionModelInfo[]> = new Map();
 	private readonly _sessionTypeHandles: Map<string, number> = new Map();
 
 	constructor(
@@ -595,7 +595,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	/**
 	 * Store models for a session type (called by MainThreadChatSessions)
 	 */
-	public setModelsForSessionType(chatSessionType: string, handle: number, models?: string[]): void {
+	public setModelsForSessionType(chatSessionType: string, handle: number, models?: IChatSessionModelInfo[]): void {
 		if (models) {
 			this._sessionTypeModels.set(chatSessionType, models);
 		} else {
@@ -607,7 +607,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	/**
 	 * Get available models for a session type
 	 */
-	public getModelsForSessionType(chatSessionType: string): string[] | undefined {
+	public getModelsForSessionType(chatSessionType: string): IChatSessionModelInfo[] | undefined {
 		return this._sessionTypeModels.get(chatSessionType);
 	}
 

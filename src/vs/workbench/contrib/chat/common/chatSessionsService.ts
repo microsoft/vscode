@@ -90,6 +90,19 @@ export interface IChatSessionContentProvider {
 	provideChatSessionContent(sessionId: string, token: CancellationToken): Promise<ChatSession>;
 }
 
+// Lightweight copy of LanguageModelChatInformation for chat session option exposure.
+export interface IChatSessionModelInfo {
+	id: string;
+	name: string;
+	family: string;
+	tooltip?: string;
+	detail?: string;
+	version: string;
+	maxInputTokens: number;
+	maxOutputTokens: number;
+	capabilities?: { imageInput?: boolean; toolCalling?: boolean | number };
+}
+
 export interface IChatSessionsService {
 	readonly _serviceBrand: undefined;
 
@@ -115,10 +128,10 @@ export interface IChatSessionsService {
 	provideChatSessionContent(chatSessionType: string, id: string, token: CancellationToken): Promise<ChatSession>;
 
 	// Get available models for a session type
-	getModelsForSessionType(chatSessionType: string): string[] | undefined;
+	getModelsForSessionType(chatSessionType: string): IChatSessionModelInfo[] | undefined;
 
 	// Set available models for a session type (called by MainThreadChatSessions)
-	setModelsForSessionType(chatSessionType: string, handle: number, models?: string[]): void;
+	setModelsForSessionType(chatSessionType: string, handle: number, models?: IChatSessionModelInfo[]): void;
 
 	// Set callback for notifying extensions about option changes
 	setOptionsChangeCallback(callback: (chatSessionType: string, sessionId: string, updates: ReadonlyArray<{ optionId: string; value: string | undefined }>) => Promise<void>): void;

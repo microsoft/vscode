@@ -711,30 +711,34 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// Check if we're in a contributed session
 		const sessionInfo = this.getContributedSessionInfo();
 		if (sessionInfo) {
-			// Get contributed models for this session type
 			const contributedModels = this.chatSessionsService.getModelsForSessionType(sessionInfo.chatSessionType);
 			if (contributedModels !== undefined) {
-				// Extension has registered models (even if empty array)
-				// Map model IDs to ILanguageModelChatMetadataAndIdentifier
-				const models = contributedModels
-					.map(modelId => {
-						// const metadata = this.languageModelsService.lookupLanguageModel(modelId);
-						return {
-							identifier: modelId,
-							metadata: {
-								extension: new ExtensionIdentifier('spcr-test.joshbot'), // TODO: Can grab this from contribution
-								name: modelId,
-								id: modelId,
-								vendor: 'joshbot',
-								version: '1',
-								family: 'joshbotfamily',
-								maxInputTokens: 10_000,
-								maxOutputTokens: 10_000,
-								modelPickerCategory: undefined,
-							}
-						} satisfies ILanguageModelChatMetadataAndIdentifier;
+				const models: ILanguageModelChatMetadataAndIdentifier[] = [];
+				for (const m of contributedModels) {
+					// Try to look up richer metadata via existing language model service first
+					const existing = this.languageModelsService.lookupLanguageModel(m.id);
+					if (existing) {
+						models.push({ identifier: m.id, metadata: existing });
+						continue;
+					}
+					// Fallback synthetic metadata
+					models.push({
+						identifier: m.id,
+						metadata: {
+							id: m.id,
+							name: m.name,
+							family: m.family,
+							vendor: 'contributed',
+							version: m.version,
+							maxInputTokens: m.maxInputTokens,
+							maxOutputTokens: m.maxOutputTokens,
+							modelPickerCategory: undefined,
+							extension: new ExtensionIdentifier('contributed.session'),
+							isDefault: false,
+							isUserSelectable: true
+						}
 					});
-				// .filter((entry): entry is ILanguageModelChatMetadataAndIdentifier => entry !== undefined && entry.metadata.isUserSelectable);
+				}
 				models.sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
 				return models;
 			}
@@ -1157,10 +1161,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	render(container: HTMLElement, initialValue: string, widget: IChatWidget) {
 		this._widget = widget;
-		
+
 		// Update contributed session context when widget is set
 		this.updateContributedSessionContext();
-		
+
 		let elements;
 		if (this.options.renderStyle === 'compact') {
 			elements = dom.h('.interactive-input-part', [

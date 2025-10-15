@@ -27,7 +27,7 @@ import { IExtensionService } from '../../../services/extensions/common/extension
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { mock, TestExtensionService } from '../../../test/common/workbenchTestServices.js';
 import { MainThreadChatSessions, ObservableChatSession } from '../../browser/mainThreadChatSessions.js';
-import { ExtHostChatSessionsShape, IChatProgressDto } from '../../common/extHost.protocol.js';
+import { ExtHostChatSessionsShape, IChatProgressDto, ChatSessionOptionsDto } from '../../common/extHost.protocol.js';
 
 suite('ObservableChatSession', function () {
 	let disposables: DisposableStore;
@@ -47,6 +47,7 @@ suite('ObservableChatSession', function () {
 
 		proxy = {
 			$provideChatSessionContent: sinon.stub(),
+			$provideChatSessionOptions: sinon.stub<[providerHandle: number, token: CancellationToken], Promise<ChatSessionOptionsDto | undefined>>().resolves(undefined),
 			$provideHandleOptionsChange: sinon.stub(),
 			$interruptChatSessionActiveResponse: sinon.stub(),
 			$invokeChatSessionRequestHandler: sinon.stub(),
@@ -342,6 +343,7 @@ suite('MainThreadChatSessions', function () {
 
 		proxy = {
 			$provideChatSessionContent: sinon.stub(),
+			$provideChatSessionOptions: sinon.stub<[providerHandle: number, token: CancellationToken], Promise<ChatSessionOptionsDto | undefined>>().resolves(undefined),
 			$provideHandleOptionsChange: sinon.stub(),
 			$interruptChatSessionActiveResponse: sinon.stub(),
 			$invokeChatSessionRequestHandler: sinon.stub(),

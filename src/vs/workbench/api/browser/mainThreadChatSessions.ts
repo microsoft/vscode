@@ -17,7 +17,7 @@ import { ChatViewId } from '../../contrib/chat/browser/chat.js';
 import { ChatViewPane } from '../../contrib/chat/browser/chatViewPane.js';
 import { IChatAgentRequest } from '../../contrib/chat/common/chatAgents.js';
 import { IChatContentInlineReference, IChatProgress } from '../../contrib/chat/common/chatService.js';
-import { ChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
+import { ChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService, IChatSessionModelInfo } from '../../contrib/chat/common/chatSessionsService.js';
 import { ChatSessionUri } from '../../contrib/chat/common/chatUri.js';
 import { EditorGroupColumn } from '../../services/editor/common/editorGroupColumn.js';
 import { IEditorGroup, IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
@@ -25,7 +25,7 @@ import { IEditorService } from '../../services/editor/common/editorService.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
 import { IViewsService } from '../../services/views/common/viewsService.js';
-import { ExtHostChatSessionsShape, ExtHostContext, IChatProgressDto, IChatSessionHistoryItemDto, MainContext, MainThreadChatSessionsShape } from '../common/extHost.protocol.js';
+import { ExtHostChatSessionsShape, ExtHostContext, IChatProgressDto, IChatSessionHistoryItemDto, IChatSessionModelInfoDto, MainContext, MainThreadChatSessionsShape } from '../common/extHost.protocol.js';
 
 export class ObservableChatSession extends Disposable implements ChatSession {
 	static generateSessionKey(providerHandle: number, sessionId: string) {
@@ -35,9 +35,9 @@ export class ObservableChatSession extends Disposable implements ChatSession {
 	readonly sessionId: string;
 	readonly providerHandle: number;
 	readonly history: Array<IChatSessionHistoryItem>;
-	private _options?: { model?: string };
+	private _options?: { model?: IChatSessionModelInfoDto };
 
-	get options(): { model?: string } | undefined {
+	get options(): { model?: IChatSessionModelInfoDto } | undefined {
 		return this._options;
 	}
 
@@ -111,7 +111,6 @@ export class ObservableChatSession extends Disposable implements ChatSession {
 				token
 			);
 
-			// Store options from the session content
 			if (sessionContent.options) {
 				this._options = sessionContent.options;
 			}
@@ -317,7 +316,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		readonly onDidChangeItems: Emitter<void>;
 	}>());
 	private readonly _contentProvidersRegistrations = this._register(new DisposableMap<number>());
-	private readonly _contentProviderModels = new Map<number, string[] | undefined>();
+	private readonly _contentProviderModels = new Map<number, IChatSessionModelInfoDto[] | undefined>();
 	private readonly _sessionTypeToHandle = new Map<string, number>();
 
 	private readonly _activeSessions = new Map<string, ObservableChatSession>();
@@ -488,17 +487,21 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		this._itemProvidersRegistrations.deleteAndDispose(handle);
 	}
 
-	$registerChatSessionContentProvider(handle: number, chatSessionType: string, models?: string[]): void {
+	$registerChatSessionContentProvider(handle: number, chatSessionType: string, models?: (string | IChatSessionModelInfoDto)[]): void {
 		const provider: IChatSessionContentProvider = {
 			provideChatSessionContent: (id, token) => this._provideChatSessionContent(handle, id, token)
 		};
 
-		this._contentProviderModels.set(handle, models);
 		this._sessionTypeToHandle.set(chatSessionType, handle);
 		this._contentProvidersRegistrations.set(handle, this._chatSessionsService.registerChatSessionContentProvider(chatSessionType, provider));
 
-		// Store models in the service so they can be accessed by the chat widget
-		this._chatSessionsService.setModelsForSessionType(chatSessionType, handle, models);
+		this._proxy.$provideChatSessionOptions(handle, CancellationToken.None).then(options => {
+			if (options?.models && options.models.length) {
+				this._contentProviderModels.set(handle, options.models);
+				const serviceModels: IChatSessionModelInfo[] = options.models.map(m => ({ ...m }));
+				this._chatSessionsService.setModelsForSessionType(chatSessionType, handle, serviceModels);
+			}
+		}).catch(err => this._logService.error('Error fetching chat session options', err));
 	}
 
 	$unregisterChatSessionContentProvider(handle: number): void {
@@ -602,7 +605,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 	/**
 	 * Get the available models for a session provider
 	 */
-	getModelsForProvider(handle: number): string[] | undefined {
+	getModelsForProvider(handle: number): IChatSessionModelInfoDto[] | undefined {
 		return this._contentProviderModels.get(handle);
 	}
 

@@ -15,7 +15,7 @@ import { IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/c
 import { ChatSessionStatus, IChatSessionItem } from '../../contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { Proxied } from '../../services/extensions/common/proxyIdentifier.js';
-import { ChatSessionDto, ExtHostChatSessionsShape, IChatAgentProgressShape, MainContext, MainThreadChatSessionsShape } from './extHost.protocol.js';
+import { ChatSessionDto, ExtHostChatSessionsShape, IChatAgentProgressShape, IChatSessionModelInfoDto, MainContext, MainThreadChatSessionsShape, ChatSessionOptionsDto } from './extHost.protocol.js';
 import { ChatAgentResponseStream } from './extHostChatAgents2.js';
 import { CommandsConverter, ExtHostCommands } from './extHostCommands.js';
 import { ExtHostLanguageModels } from './extHostLanguageModels.js';
@@ -118,12 +118,13 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		};
 	}
 
-	registerChatSessionContentProvider(extension: IExtensionDescription, chatSessionType: string, chatParticipant: vscode.ChatParticipant, provider: vscode.ChatSessionContentProvider, capabilities?: vscode.ChatSessionCapabilities, options?: vscode.ChatSessionOptions): vscode.Disposable {
+	registerChatSessionContentProvider(extension: IExtensionDescription, chatSessionType: string, chatParticipant: vscode.ChatParticipant, provider: vscode.ChatSessionContentProvider, capabilities?: vscode.ChatSessionCapabilities): vscode.Disposable {
 		const handle = this._nextChatSessionContentProviderHandle++;
 		const disposables = new DisposableStore();
 
 		this._chatSessionContentProviders.set(handle, { provider, extension, capabilities, disposable: disposables });
-		this._proxy.$registerChatSessionContentProvider(handle, chatSessionType, options?.models);
+		// TODO: Do I do $provideChatSessionOptions first?
+		this._proxy.$registerChatSessionContentProvider(handle, chatSessionType);
 
 		return new extHostTypes.Disposable(() => {
 			this._chatSessionContentProviders.delete(handle);
@@ -271,12 +272,13 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			});
 		}
 		const { capabilities } = provider;
+
 		return {
 			id: sessionId + '',
 			hasActiveResponseCallback: !!session.activeResponseCallback,
 			hasRequestHandler: !!session.requestHandler,
 			supportsInterruption: !!capabilities?.supportsInterruptions,
-			options: session.options,
+			options: undefined,
 			history: session.history.map(turn => {
 				if (turn instanceof extHostTypes.ChatRequestTurn) {
 					return { type: 'request' as const, prompt: turn.prompt, participant: turn.participant };
@@ -310,6 +312,45 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			await provider.provider.provideHandleOptionsChange(sessionId, updates, token);
 		} catch (error) {
 			this._logService.error(`Error calling provideHandleOptionsChange for handle ${handle}, sessionId ${sessionId}:`, error);
+		}
+	}
+
+	async $provideChatSessionOptions(handle: number, token: CancellationToken): Promise<ChatSessionOptionsDto | undefined> {
+		const entry = this._chatSessionContentProviders.get(handle);
+		if (!entry) {
+			this._logService.warn(`No provider for handle ${handle} when requesting chat session options`);
+			return undefined;
+		}
+
+		const provider = entry.provider;
+		if (!provider.provideChatSessionOptions) {
+			return undefined; // Provider does not implement optional method
+		}
+
+		try {
+			// Support both synchronous and thenable returns per API contract (Thenable<ChatSessionOptions> | ChatSessionOptions)
+			const options = await provider.provideChatSessionOptions(token);
+			if (!options) {
+				return undefined;
+			}
+			if (!options.models || options.models.length === 0) {
+				return {};
+			}
+			const toDto = (model: any): IChatSessionModelInfoDto => ({
+				id: model.id,
+				name: model.name,
+				family: model.family,
+				tooltip: model.tooltip,
+				detail: model.detail,
+				version: model.version,
+				maxInputTokens: model.maxInputTokens,
+				maxOutputTokens: model.maxOutputTokens,
+				capabilities: model.capabilities ?? {}
+			});
+			return { models: options.models.map(m => toDto(m)) };
+		} catch (error) {
+			this._logService.error(`Error calling provideChatSessionOptions for handle ${handle}:`, error);
+			return undefined;
 		}
 	}
 
