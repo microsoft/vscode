@@ -267,7 +267,7 @@ export async function taskProblemPollFn(execution: IExecution, token: Cancellati
 			if (problemList.length === 0) {
 				return {
 					state: OutputMonitorState.Idle,
-					output: 'The task succeeded with no problems.',
+					output: execution.getOutput(),
 				};
 			}
 			return {
