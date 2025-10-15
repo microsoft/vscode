@@ -849,14 +849,15 @@ class PersistentTerminalProcess extends Disposable {
 
 			const result = await this._terminalProcess.start();
 			if (result && 'message' in result) {
-				return result; // launch error
+				// it's a terminal launch error
+				return result;
 			}
 			this._isStarted = true;
 
 			if (this._wasRevived && !isWindows) {
 				// Non-Windows: do normal replay after start
 				this.triggerReplay();
-			} else if (!this._wasRevived) {
+			} else {
 				this._onPersistentProcessReady.fire();
 			}
 			return result;
