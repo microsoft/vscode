@@ -305,8 +305,8 @@ export class ChatViewWelcomePart extends Disposable {
 		const actions: IAction[] = [];
 		if (prompt.uri) {
 			actions.push(new Action(
-				'chat.openPromptFile',
-				localize('openPromptFile', "Open Prompt File"),
+				'chat.editPromptFile',
+				localize('editPromptFile', "Edit Prompt File"),
 				ThemeIcon.asClassName(Codicon.goToFile),
 				true,
 				async () => {
