@@ -8,10 +8,12 @@ import { $ } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
-import { IManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
-import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
+import type { IHoverOptions } from '../../../../base/browser/ui/hover/hover.js';
+import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import * as event from '../../../../base/common/event.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
@@ -56,6 +58,17 @@ import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from 
 import { ILanguageModelToolsService, ToolSet } from '../common/languageModelToolsService.js';
 import { getCleanPromptName } from '../common/promptSyntax/config/promptFileLocations.js';
 
+const commonHoverOptions: Partial<IHoverOptions> = {
+	appearance: {
+		compact: true,
+		showPointer: true,
+	},
+	position: {
+		hoverPosition: HoverPosition.BELOW
+	},
+	trapFocus: true,
+};
+
 abstract class AbstractChatAttachmentWidget extends Disposable {
 	public readonly element: HTMLElement;
 	public readonly label: IResourceLabel;
@@ -75,14 +88,13 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 		private readonly options: { shouldFocusClearButton: boolean; supportsDeletion: boolean },
 		container: HTMLElement,
 		contextResourceLabels: ResourceLabels,
-		protected readonly hoverDelegate: IHoverDelegate,
 		protected readonly currentLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined,
 		@ICommandService protected readonly commandService: ICommandService,
 		@IOpenerService protected readonly openerService: IOpenerService,
 	) {
 		super();
 		this.element = dom.append(container, $('.chat-attached-context-attachment.show-file-icons'));
-		this.label = contextResourceLabels.create(this.element, { supportIcons: true, hoverDelegate, hoverTargetOverride: this.element });
+		this.label = contextResourceLabels.create(this.element, { supportIcons: true, hoverTargetOverride: this.element });
 		this._register(this.label);
 		this.element.tabIndex = 0;
 		this.element.role = 'button';
@@ -111,7 +123,7 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 
 		const clearButton = new Button(this.element, {
 			supportIcons: true,
-			hoverDelegate: this.hoverDelegate,
+			hoverDelegate: createInstantHoverDelegate(),
 			title: localize('chat.attachment.clearButton', "Remove from context")
 		});
 		clearButton.element.tabIndex = -1;
@@ -179,7 +191,6 @@ export class FileAttachmentWidget extends AbstractChatAttachmentWidget {
 		options: { shouldFocusClearButton: boolean; supportsDeletion: boolean },
 		container: HTMLElement,
 		contextResourceLabels: ResourceLabels,
-		hoverDelegate: IHoverDelegate,
 		@ICommandService commandService: ICommandService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService private readonly themeService: IThemeService,
@@ -187,7 +198,7 @@ export class FileAttachmentWidget extends AbstractChatAttachmentWidget {
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
-		super(attachment, options, container, contextResourceLabels, hoverDelegate, currentLanguageModel, commandService, openerService);
+		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService);
 
 		const fileBasename = basename(resource.path);
 		const fileDirname = dirname(resource.path);
@@ -196,7 +207,7 @@ export class FileAttachmentWidget extends AbstractChatAttachmentWidget {
 
 		if (attachment.omittedState === OmittedState.Full) {
 			ariaLabel = localize('chat.omittedFileAttachment', "Omitted this file: {0}", attachment.name);
-			this.renderOmittedWarning(friendlyName, ariaLabel, hoverDelegate);
+			this.renderOmittedWarning(friendlyName, ariaLabel);
 		} else {
 			const fileOptions: IFileLabelOptions = { hidePath: true, title: correspondingContentReference?.options?.status?.description };
 			this.label.setFile(resource, attachment.kind === 'file' ? {
@@ -220,7 +231,7 @@ export class FileAttachmentWidget extends AbstractChatAttachmentWidget {
 		this.attachClearButton();
 	}
 
-	private renderOmittedWarning(friendlyName: string, ariaLabel: string, hoverDelegate: IHoverDelegate) {
+	private renderOmittedWarning(friendlyName: string, ariaLabel: string) {
 		const pillIcon = dom.$('div.chat-attached-context-pill', {}, dom.$('span.codicon.codicon-warning'));
 		const textLabel = dom.$('span.chat-attached-context-custom-text', {}, friendlyName);
 		this.element.appendChild(pillIcon);
@@ -231,7 +242,10 @@ export class FileAttachmentWidget extends AbstractChatAttachmentWidget {
 		this.element.classList.add('warning');
 
 		hoverElement.textContent = localize('chat.fileAttachmentHover', "{0} does not support this file type.", this.currentLanguageModel ? this.languageModelsService.lookupLanguageModel(this.currentLanguageModel.identifier)?.name : this.currentLanguageModel ?? 'This model');
-		this._register(this.hoverService.setupManagedHover(hoverDelegate, this.element, hoverElement, { trapFocus: true }));
+		this._register(this.hoverService.setupDelayedHover(this.element, {
+			...commonHoverOptions,
+			content: hoverElement,
+		}));
 	}
 }
 
@@ -244,7 +258,6 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		options: { shouldFocusClearButton: boolean; supportsDeletion: boolean },
 		container: HTMLElement,
 		contextResourceLabels: ResourceLabels,
-		hoverDelegate: IHoverDelegate,
 		@ICommandService commandService: ICommandService,
 		@IOpenerService openerService: IOpenerService,
 		@IHoverService private readonly hoverService: IHoverService,
@@ -252,7 +265,7 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILabelService private readonly labelService: ILabelService,
 	) {
-		super(attachment, options, container, contextResourceLabels, hoverDelegate, currentLanguageModel, commandService, openerService);
+		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService);
 
 		let ariaLabel: string;
 		if (attachment.omittedState === OmittedState.Full) {
@@ -367,13 +380,12 @@ export class PasteAttachmentWidget extends AbstractChatAttachmentWidget {
 		options: { shouldFocusClearButton: boolean; supportsDeletion: boolean },
 		container: HTMLElement,
 		contextResourceLabels: ResourceLabels,
-		hoverDelegate: IHoverDelegate,
 		@ICommandService commandService: ICommandService,
 		@IOpenerService openerService: IOpenerService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
-		super(attachment, options, container, contextResourceLabels, hoverDelegate, currentLanguageModel, commandService, openerService);
+		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService);
 
 		const ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
 		this.element.ariaLabel = ariaLabel;
@@ -395,13 +407,11 @@ export class PasteAttachmentWidget extends AbstractChatAttachmentWidget {
 		this.element.style.position = 'relative';
 
 		const sourceUri = attachment.copiedFrom?.uri;
-		const hoverContent: IManagedHoverTooltipMarkdownString = {
-			markdown: {
-				value: `${sourceUri ? this.instantiationService.invokeFunction(accessor => accessor.get(ILabelService).getUriLabel(sourceUri, { relative: true })) : attachment.fileName}\n\n---\n\n\`\`\`${attachment.language}\n\n${attachment.code}\n\`\`\``,
-			},
-			markdownNotSupportedFallback: attachment.code,
-		};
-		this._register(this.hoverService.setupManagedHover(hoverDelegate, this.element, hoverContent, { trapFocus: true }));
+		const hoverContent = new MarkdownString(`${sourceUri ? this.instantiationService.invokeFunction(accessor => accessor.get(ILabelService).getUriLabel(sourceUri, { relative: true })) : attachment.fileName}\n\n---\n\n\`\`\`${attachment.language}\n\n${attachment.code}\n\`\`\``);
+		this._register(this.hoverService.setupDelayedHover(this.element, {
+			...commonHoverOptions,
+			content: hoverContent,
+		}));
 
 		const copiedFromResource = attachment.copiedFrom?.uri;
 		if (copiedFromResource) {
@@ -423,13 +433,12 @@ export class DefaultChatAttachmentWidget extends AbstractChatAttachmentWidget {
 		options: { shouldFocusClearButton: boolean; supportsDeletion: boolean },
 		container: HTMLElement,
 		contextResourceLabels: ResourceLabels,
-		hoverDelegate: IHoverDelegate,
 		@ICommandService commandService: ICommandService,
 		@IOpenerService openerService: IOpenerService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
-		super(attachment, options, container, contextResourceLabels, hoverDelegate, currentLanguageModel, commandService, openerService);
+		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService);
 
 		const attachmentLabel = attachment.fullName ?? attachment.name;
 		const withIcon = attachment.icon?.id ? `$(${attachment.icon.id})\u00A0${attachmentLabel}` : attachmentLabel;
@@ -471,13 +480,12 @@ export class PromptFileAttachmentWidget extends AbstractChatAttachmentWidget {
 		options: { shouldFocusClearButton: boolean; supportsDeletion: boolean },
 		container: HTMLElement,
 		contextResourceLabels: ResourceLabels,
-		hoverDelegate: IHoverDelegate,
 		@ICommandService commandService: ICommandService,
 		@IOpenerService openerService: IOpenerService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
-		super(attachment, options, container, contextResourceLabels, hoverDelegate, currentLanguageModel, commandService, openerService);
+		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService);
 
 
 		this.hintElement = dom.append(this.element, dom.$('span.prompt-type'));
@@ -551,13 +559,12 @@ export class PromptTextAttachmentWidget extends AbstractChatAttachmentWidget {
 		options: { shouldFocusClearButton: boolean; supportsDeletion: boolean },
 		container: HTMLElement,
 		contextResourceLabels: ResourceLabels,
-		hoverDelegate: IHoverDelegate,
 		@ICommandService commandService: ICommandService,
 		@IOpenerService openerService: IOpenerService,
 		@IPreferencesService preferencesService: IPreferencesService,
 		@IHoverService hoverService: IHoverService
 	) {
-		super(attachment, options, container, contextResourceLabels, hoverDelegate, currentLanguageModel, commandService, openerService);
+		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService);
 
 		if (attachment.settingId) {
 			const openSettings = () => preferencesService.openSettings({ jsonEditor: false, query: `@id:${attachment.settingId}` });
@@ -578,8 +585,10 @@ export class PromptTextAttachmentWidget extends AbstractChatAttachmentWidget {
 		}
 		this.label.setLabel(localize('instructions.label', 'Additional Instructions'), undefined, undefined);
 
-		this._register(hoverService.setupManagedHover(hoverDelegate, this.element, attachment.value, { trapFocus: true }));
-
+		this._register(hoverService.setupDelayedHover(this.element, {
+			...commonHoverOptions,
+			content: attachment.value,
+		}));
 	}
 }
 
@@ -591,13 +600,12 @@ export class ToolSetOrToolItemAttachmentWidget extends AbstractChatAttachmentWid
 		options: { shouldFocusClearButton: boolean; supportsDeletion: boolean },
 		container: HTMLElement,
 		contextResourceLabels: ResourceLabels,
-		hoverDelegate: IHoverDelegate,
 		@ILanguageModelToolsService toolsService: ILanguageModelToolsService,
 		@ICommandService commandService: ICommandService,
 		@IOpenerService openerService: IOpenerService,
 		@IHoverService hoverService: IHoverService
 	) {
-		super(attachment, options, container, contextResourceLabels, hoverDelegate, currentLanguageModel, commandService, openerService);
+		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService);
 
 
 		const toolOrToolSet = Iterable.find(toolsService.getTools(), tool => tool.id === attachment.id) ?? Iterable.find(toolsService.toolSets.get(), toolSet => toolSet.id === attachment.id);
@@ -625,7 +633,10 @@ export class ToolSetOrToolItemAttachmentWidget extends AbstractChatAttachmentWid
 		}
 
 		if (hoverContent) {
-			this._register(hoverService.setupManagedHover(hoverDelegate, this.element, hoverContent, { trapFocus: true }));
+			this._register(hoverService.setupDelayedHover(this.element, {
+				...commonHoverOptions,
+				content: hoverContent,
+			}));
 		}
 
 		this.attachClearButton();
@@ -642,7 +653,6 @@ export class NotebookCellOutputChatAttachmentWidget extends AbstractChatAttachme
 		options: { shouldFocusClearButton: boolean; supportsDeletion: boolean },
 		container: HTMLElement,
 		contextResourceLabels: ResourceLabels,
-		hoverDelegate: IHoverDelegate,
 		@ICommandService commandService: ICommandService,
 		@IOpenerService openerService: IOpenerService,
 		@IHoverService private readonly hoverService: IHoverService,
@@ -650,7 +660,7 @@ export class NotebookCellOutputChatAttachmentWidget extends AbstractChatAttachme
 		@INotebookService private readonly notebookService: INotebookService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
-		super(attachment, options, container, contextResourceLabels, hoverDelegate, currentLanguageModel, commandService, openerService);
+		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService);
 
 		switch (attachment.mimeType) {
 			case 'application/vnd.code.notebook.error': {
@@ -739,12 +749,11 @@ export class ElementChatAttachmentWidget extends AbstractChatAttachmentWidget {
 		options: { shouldFocusClearButton: boolean; supportsDeletion: boolean },
 		container: HTMLElement,
 		contextResourceLabels: ResourceLabels,
-		hoverDelegate: IHoverDelegate,
 		@ICommandService commandService: ICommandService,
 		@IOpenerService openerService: IOpenerService,
 		@IEditorService editorService: IEditorService,
 	) {
-		super(attachment, options, container, contextResourceLabels, hoverDelegate, currentLanguageModel, commandService, openerService);
+		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService);
 
 		const ariaLabel = localize('chat.elementAttachment', "Attached element, {0}", attachment.name);
 		this.element.ariaLabel = ariaLabel;
@@ -777,13 +786,12 @@ export class SCMHistoryItemAttachmentWidget extends AbstractChatAttachmentWidget
 		options: { shouldFocusClearButton: boolean; supportsDeletion: boolean },
 		container: HTMLElement,
 		contextResourceLabels: ResourceLabels,
-		hoverDelegate: IHoverDelegate,
 		@ICommandService commandService: ICommandService,
 		@IHoverService hoverService: IHoverService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService
 	) {
-		super(attachment, options, container, contextResourceLabels, hoverDelegate, currentLanguageModel, commandService, openerService);
+		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService);
 
 		this.label.setLabel(attachment.name, undefined);
 
@@ -791,11 +799,11 @@ export class SCMHistoryItemAttachmentWidget extends AbstractChatAttachmentWidget
 		this.element.ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
 
 		const historyItem = attachment.historyItem;
-		const hoverContent = {
-			markdown: historyItem.tooltip ?? historyItem.message,
-			markdownNotSupportedFallback: historyItem.message
-		} satisfies IManagedHoverTooltipMarkdownString;
-		this._store.add(hoverService.setupManagedHover(hoverDelegate, this.element, hoverContent, { trapFocus: true }));
+		const hoverContent = historyItem.tooltip ?? historyItem.message;
+		this._store.add(hoverService.setupDelayedHover(this.element, {
+			...commonHoverOptions,
+			content: hoverContent,
+		}));
 
 		this._store.add(dom.addDisposableListener(this.element, dom.EventType.CLICK, (e: MouseEvent) => {
 			dom.EventHelper.stop(e, true);
@@ -827,14 +835,13 @@ export class SCMHistoryItemChangeAttachmentWidget extends AbstractChatAttachment
 		options: { shouldFocusClearButton: boolean; supportsDeletion: boolean },
 		container: HTMLElement,
 		contextResourceLabels: ResourceLabels,
-		hoverDelegate: IHoverDelegate,
 		@ICommandService commandService: ICommandService,
 		@IHoverService hoverService: IHoverService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@IEditorService private readonly editorService: IEditorService,
 	) {
-		super(attachment, options, container, contextResourceLabels, hoverDelegate, currentLanguageModel, commandService, openerService);
+		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService);
 
 		const nameSuffix = `\u00A0$(${Codicon.gitCommit.id})${attachment.historyItem.displayId ?? attachment.historyItem.id}`;
 		this.label.setFile(attachment.value, { fileKind: FileKind.FILE, hidePath: true, nameSuffix });
@@ -842,11 +849,11 @@ export class SCMHistoryItemChangeAttachmentWidget extends AbstractChatAttachment
 		this.element.ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
 
 		const historyItem = attachment.historyItem;
-		const hoverContent = {
-			markdown: historyItem.tooltip ?? historyItem.message,
-			markdownNotSupportedFallback: historyItem.message
-		} satisfies IManagedHoverTooltipMarkdownString;
-		this._store.add(hoverService.setupManagedHover(hoverDelegate, this.element, hoverContent, { trapFocus: true }));
+		const hoverContent = historyItem.tooltip ?? historyItem.message;
+		this._store.add(hoverService.setupDelayedHover(this.element, {
+			...commonHoverOptions,
+			content: hoverContent,
+		}));
 
 		this.addResourceOpenHandlers(attachment.value, undefined);
 		this.attachClearButton();
@@ -873,12 +880,11 @@ export class SCMHistoryItemChangeRangeAttachmentWidget extends AbstractChatAttac
 		options: { shouldFocusClearButton: boolean; supportsDeletion: boolean },
 		container: HTMLElement,
 		contextResourceLabels: ResourceLabels,
-		hoverDelegate: IHoverDelegate,
 		@ICommandService commandService: ICommandService,
 		@IOpenerService openerService: IOpenerService,
 		@IEditorService private readonly editorService: IEditorService,
 	) {
-		super(attachment, options, container, contextResourceLabels, hoverDelegate, currentLanguageModel, commandService, openerService);
+		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService);
 
 		const historyItemStartId = attachment.historyItemChangeStart.historyItem.displayId ?? attachment.historyItemChangeStart.historyItem.id;
 		const historyItemEndId = attachment.historyItemChangeEnd.historyItem.displayId ?? attachment.historyItemChangeEnd.historyItem.id;
