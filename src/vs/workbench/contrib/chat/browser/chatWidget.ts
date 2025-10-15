@@ -1162,9 +1162,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			this.renderHistoryItems(initialHistoryItems);
 
-			// Add "Chat history..." link at the end
+			// Add "More history..." link at the end
 			const previousChatsLink = dom.append(container, $('.chat-welcome-history-more'));
-			previousChatsLink.textContent = localize('chat.history.showMore', 'Chat history...');
+			previousChatsLink.textContent = localize('chat.history.showMore', 'More history...');
 			previousChatsLink.setAttribute('role', 'button');
 			previousChatsLink.setAttribute('tabindex', '0');
 			previousChatsLink.setAttribute('aria-label', localize('chat.history.showMoreAriaLabel', 'Open chat history'));
@@ -1520,7 +1520,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// Build the final result array
 		for (const { promptName } of topPrompts) {
 			const description = this.promptDescriptionsCache.get(promptName);
-			const commandLabel = localize('chatWidget.promptFile.commandLabel', "/{0}", promptName);
+			const commandLabel = localize('chatWidget.promptFile.commandLabel', "{0}", promptName);
 			const descriptionText = description?.trim() ? description : undefined;
 			result.push({
 				icon: Codicon.run,
