@@ -790,7 +790,11 @@ export class SCMHistoryItemAttachmentWidget extends AbstractChatAttachmentWidget
 		this.element.style.cursor = 'pointer';
 		this.element.ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
 
-		const hoverContent = { markdown: attachment.historyItem.tooltip, markdownNotSupportedFallback: attachment.historyItem.message };
+		const historyItem = attachment.historyItem;
+		const hoverContent = {
+			markdown: historyItem.tooltip ?? historyItem.message,
+			markdownNotSupportedFallback: historyItem.message
+		} satisfies IManagedHoverTooltipMarkdownString;
 		this._store.add(hoverService.setupManagedHover(hoverDelegate, this.element, hoverContent, { trapFocus: true }));
 
 		this._store.add(dom.addDisposableListener(this.element, dom.EventType.CLICK, (e: MouseEvent) => {
@@ -837,7 +841,11 @@ export class SCMHistoryItemChangeAttachmentWidget extends AbstractChatAttachment
 
 		this.element.ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
 
-		const hoverContent = { markdown: attachment.historyItem.tooltip, markdownNotSupportedFallback: attachment.historyItem.message };
+		const historyItem = attachment.historyItem;
+		const hoverContent = {
+			markdown: historyItem.tooltip ?? historyItem.message,
+			markdownNotSupportedFallback: historyItem.message
+		} satisfies IManagedHoverTooltipMarkdownString;
 		this._store.add(hoverService.setupManagedHover(hoverDelegate, this.element, hoverContent, { trapFocus: true }));
 
 		this.addResourceOpenHandlers(attachment.value, undefined);
