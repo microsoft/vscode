@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as path from 'path';
-import { ProgressLocation, Uri, commands, env, l10n, window } from 'vscode';
+import { ProgressLocation, Uri, commands, env, l10n, window, workspace } from 'vscode';
 import { Log } from './common/logger';
 import { Config } from './config';
 import { UriEventHandler } from './github';
@@ -612,6 +612,51 @@ const allFlows: IFlow[] = [
 ];
 
 export function getFlows(query: IFlowQuery) {
+	const forceDeviceCodeFlow = workspace.getConfiguration('github-authentication').get<boolean>('forceDeviceCodeFlow', false);
+	
+	// If forceDeviceCodeFlow is enabled, only return DeviceCodeFlow if it's available
+	if (forceDeviceCodeFlow) {
+		const deviceCodeFlow = allFlows.find(flow => flow.label === l10n.t('device code'));
+		if (deviceCodeFlow) {
+			// Check if DeviceCodeFlow supports this configuration
+			let useFlow: boolean = true;
+			switch (query.target) {
+				case GitHubTarget.DotCom:
+					useFlow &&= deviceCodeFlow.options.supportsGitHubDotCom;
+					break;
+				case GitHubTarget.Enterprise:
+					useFlow &&= deviceCodeFlow.options.supportsGitHubEnterpriseServer;
+					break;
+				case GitHubTarget.HostedEnterprise:
+					useFlow &&= deviceCodeFlow.options.supportsHostedGitHubEnterprise;
+					break;
+			}
+
+			switch (query.extensionHost) {
+				case ExtensionHost.Remote:
+					useFlow &&= deviceCodeFlow.options.supportsRemoteExtensionHost;
+					break;
+				case ExtensionHost.WebWorker:
+					useFlow &&= deviceCodeFlow.options.supportsWebWorkerExtensionHost;
+					break;
+			}
+
+			if (!Config.gitHubClientSecret) {
+				useFlow &&= deviceCodeFlow.options.supportsNoClientSecret;
+			}
+
+			if (query.isSupportedClient) {
+				useFlow &&= (deviceCodeFlow.options.supportsSupportedClients || query.target !== GitHubTarget.DotCom);
+			} else {
+				useFlow &&= deviceCodeFlow.options.supportsUnsupportedClients;
+			}
+			
+			if (useFlow) {
+				return [deviceCodeFlow];
+			}
+		}
+	}
+	
 	return allFlows.filter(flow => {
 		let useFlow: boolean = true;
 		switch (query.target) {
