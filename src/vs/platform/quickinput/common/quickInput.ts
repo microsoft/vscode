@@ -360,6 +360,11 @@ export interface IQuickInput extends IDisposable {
 	ignoreFocusOut: boolean;
 
 	/**
+	 * The toggle buttons to be added to the input box.
+	 */
+	toggles: IQuickInputToggle[] | undefined;
+
+	/**
 	 * Shows the quick input.
 	 */
 	show(): void;
@@ -693,11 +698,6 @@ export interface IQuickPick<T extends IQuickPickItem, O extends { useSeparators:
 	 * Whether to hide the "Check All" checkbox.
 	 */
 	hideCheckAll: boolean;
-
-	/**
-	 * The toggle buttons to be added to the input box.
-	 */
-	toggles: IQuickInputToggle[] | undefined;
 
 	/**
 	 * Focus a particular item in the list. Used internally for keyboard navigation.
