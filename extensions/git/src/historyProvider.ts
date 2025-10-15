@@ -626,7 +626,9 @@ export function processHistoryItemRemoteHoverCommands(commands: Command[], hash:
 
 export function getHistoryItemHover(authorAvatar: string | undefined, authorName: string | undefined, authorEmail: string | undefined, authorDate: Date | number | undefined, message: string, shortStats: CommitShortStat | undefined, commands: Command[][] | undefined): MarkdownString {
 	const markdownString = new MarkdownString('', true);
-	markdownString.isTrusted = true;
+	markdownString.isTrusted = {
+		enabledCommands: commands?.flat().map(c => c.command) ?? []
+	};
 
 	if (authorName) {
 		const avatar = authorAvatar ? `![${authorName}](${authorAvatar}|width=${AVATAR_SIZE},height=${AVATAR_SIZE})` : '$(account)';
