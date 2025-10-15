@@ -1675,6 +1675,7 @@ export interface SCMHistoryItemDto {
 		readonly deletions: number;
 	};
 	readonly references?: SCMHistoryItemRefDto[];
+	readonly tooltip?: string | IMarkdownString | undefined;
 }
 
 export interface SCMHistoryItemChangeDto {
