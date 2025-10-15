@@ -441,7 +441,7 @@ function isChatSessionIndex(data: unknown): data is IChatSessionIndexData {
 }
 
 function getSessionMetadata(session: ChatModel | ISerializableChatData): IChatSessionEntryMetadata {
-	const title = session.customTitle || (session as ChatModel)?.title;
+	const title = session.customTitle || (session instanceof ChatModel ? session.title : undefined);
 
 	return {
 		sessionId: session.sessionId,
