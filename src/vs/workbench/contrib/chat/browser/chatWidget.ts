@@ -1521,7 +1521,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// Build the final result array
 		for (const { promptName } of topPrompts) {
 			const description = this.promptDescriptionsCache.get(promptName);
-			const commandLabel = localize('chatWidget.promptFile.commandLabel', "/{0}", promptName);
+			const commandLabel = localize('chatWidget.promptFile.commandLabel', "{0}", promptName);
 			const uri = this.promptUriCache.get(promptName);
 			const descriptionText = description?.trim() ? description : undefined;
 			result.push({
