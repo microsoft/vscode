@@ -219,7 +219,6 @@ export class ChatViewWelcomePart extends Disposable {
 						descriptionElement.textContent = prompt.description;
 						descriptionElement.title = prompt.description;
 					}
-
 					const executePrompt = () => {
 						type SuggestedPromptClickEvent = { suggestedPrompt: string };
 
