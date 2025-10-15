@@ -134,7 +134,7 @@ export function registerChatCopyActions() {
 
 			// Otherwise, fallback to querying from the active element
 			if (!selectedElement) {
-				selectedElement = activeElement?.querySelector('.katex') ?? null;
+				selectedElement = activeElement;
 			}
 
 			// Extract the LaTeX source from the annotation element
