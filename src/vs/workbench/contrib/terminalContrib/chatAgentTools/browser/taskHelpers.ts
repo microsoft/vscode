@@ -280,4 +280,12 @@ export async function taskProblemPollFn(execution: IExecution, token: Cancellati
 	throw new Error('Polling failed');
 }
 
+export async function isTaskBusy(task: Task, tasksService: ITaskService): Promise<boolean> {
+	const busyTasks = await tasksService.getBusyTasks();
+	if (!busyTasks.length) {
+		return false;
+	}
+	return busyTasks.some(t => t._id === task._id);
+}
+
 export interface ILinkLocation { uri: URI; range?: Range }

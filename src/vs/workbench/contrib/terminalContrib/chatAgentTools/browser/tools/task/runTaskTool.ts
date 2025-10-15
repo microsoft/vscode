@@ -11,7 +11,7 @@ import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, ITo
 import { ITaskService, ITaskSummary, Task, TasksAvailableContext } from '../../../../../tasks/common/taskService.js';
 import { TaskRunSource } from '../../../../../tasks/common/tasks.js';
 import { ITerminalService } from '../../../../../terminal/browser/terminal.js';
-import { collectTerminalResults, getTaskDefinition, getTaskForTool, resolveDependencyTasks } from '../../taskHelpers.js';
+import { collectTerminalResults, getTaskDefinition, getTaskForTool, isTaskBusy, resolveDependencyTasks } from '../../taskHelpers.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
@@ -75,7 +75,7 @@ export class RunTaskTool implements IToolImpl {
 			_progress,
 			token,
 			store,
-			(terminalTask) => this._isTaskActive(terminalTask),
+			(terminalTask) => isTaskBusy(terminalTask, this._tasksService),
 			dependencyTasks
 		);
 		store.dispose();
