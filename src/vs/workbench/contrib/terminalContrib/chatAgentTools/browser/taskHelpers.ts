@@ -220,18 +220,27 @@ export async function collectTerminalResults(
 			sessionId: invocationContext.sessionId
 		};
 		if (task.configurationProperties.problemMatchers?.length) {
-			const busyTasks = await tasksService.getBusyTasks();
+			// Wait until either (a) the task (or a dependency) is observed busy OR
+			// (b) a short timeout elapses. This avoids hanging while still capturing
+			// the common case where the busy phase starts slightly after launch.
+			const initialBusyTasks = await tasksService.getBusyTasks();
 			const ids = new Set<string>([task._id, ...(dependencyTasks?.map(t => t._id) ?? [])]);
-			if (!busyTasks.some(t => ids.has(t._id))) {
-				// Poll for busy tasks until the required tasks are busy
+			if (!initialBusyTasks.some(t => ids.has(t._id))) {
+				const maxWaitMs = 1000; // 1s safety timeout
+				const pollIntervalMs = 100;
+				const start = Date.now();
 				await new Promise<void>(resolve => {
 					const interval = mainWindow.setInterval(async () => {
+						if (token.isCancellationRequested) {
+							mainWindow.clearInterval(interval);
+							return resolve();
+						}
 						const updatedBusyTasks = await tasksService.getBusyTasks();
-						if (updatedBusyTasks.some(t => ids.has(t._id))) {
+						if (updatedBusyTasks.some(t => ids.has(t._id)) || Date.now() - start >= maxWaitMs) {
 							mainWindow.clearInterval(interval);
 							resolve();
 						}
-					}, 100);
+					}, pollIntervalMs);
 				});
 			}
 		}
