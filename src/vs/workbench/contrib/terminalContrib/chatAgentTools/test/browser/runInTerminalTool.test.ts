@@ -965,4 +965,65 @@ suite('RunInTerminalTool', () => {
 			strictEqual((result as ITerminalProfile).path, 'pwsh'); // From the mock ITerminalProfileResolverService
 		});
 	});
+
+	suite('terminal disposal detection', () => {
+		test('should detect when background terminal is disposed', () => {
+			// Create a mock terminal instance
+			const mockTerminal: Partial<ITerminalInstance> = {
+				isDisposed: false,
+				instanceId: 1,
+			};
+
+			// Simulate adding a background execution (this would normally happen during tool invocation)
+			const sessionId = 'test-session';
+
+			// Associate the terminal with a session (simulating what happens in _initBackgroundTerminal)
+			runInTerminalTool.sessionTerminalAssociations.set(sessionId, {
+				instance: mockTerminal as ITerminalInstance,
+				shellIntegrationQuality: ShellIntegrationQuality.None
+			});
+
+			// Verify the terminal is associated
+			ok(runInTerminalTool.sessionTerminalAssociations.has(sessionId), 'Terminal should be associated with session');
+
+			// Simulate terminal disposal by firing the onDidDisposeInstance event
+			terminalServiceDisposeEmitter.fire(mockTerminal as ITerminalInstance);
+
+			// Verify the terminal association is removed
+			ok(!runInTerminalTool.sessionTerminalAssociations.has(sessionId), 'Terminal association should be removed after disposal');
+		});
+
+		test('getBackgroundOutput should throw error when terminal is disposed', () => {
+			// Create a mock disposed terminal
+			const mockTerminal: Partial<ITerminalInstance> = {
+				isDisposed: true,
+				instanceId: 2,
+			};
+
+			const termId = 'disposed-terminal-id';
+
+			// Manually add a background execution with disposed terminal
+			// Note: In reality, this would be cleaned up by onDidDisposeInstance, but we're testing the fallback
+			(RunInTerminalTool as any)._backgroundExecutions.set(termId, {
+				instance: mockTerminal,
+				getOutput: () => 'some output',
+				dispose: () => { }
+			});
+
+			// Attempt to get output from disposed terminal
+			let caughtError: Error | undefined;
+			try {
+				RunInTerminalTool.getBackgroundOutput(termId);
+			} catch (error) {
+				caughtError = error as Error;
+			}
+
+			// Verify appropriate error was thrown
+			ok(caughtError, 'Should throw error for disposed terminal');
+			strictEqual(caughtError!.message, 'Terminal has been closed', 'Error message should indicate terminal is closed');
+
+			// Clean up
+			(RunInTerminalTool as any)._backgroundExecutions.delete(termId);
+		});
+	});
 });

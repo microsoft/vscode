@@ -161,6 +161,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		if (!backgroundExecution) {
 			throw new Error('Invalid terminal ID');
 		}
+		if (backgroundExecution.instance.isDisposed) {
+			throw new Error('Terminal has been closed');
+		}
 		return backgroundExecution.getOutput();
 	}
 
@@ -200,6 +203,17 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				if (e === toolTerminal.instance) {
 					this._sessionTerminalAssociations.delete(sessionId);
 				}
+			}
+			// Clean up any background executions associated with the disposed terminal
+			const terminalToRemove: string[] = [];
+			for (const [termId, execution] of RunInTerminalTool._backgroundExecutions.entries()) {
+				if (execution.instance === e) {
+					execution.dispose();
+					terminalToRemove.push(termId);
+				}
+			}
+			for (const termId of terminalToRemove) {
+				RunInTerminalTool._backgroundExecutions.delete(termId);
 			}
 		}));
 
