@@ -19,7 +19,6 @@ const $ = dom.$;
 export class HoverCopyButton extends Disposable {
 
 	private readonly _button: HTMLElement;
-	private _isVisible: boolean = false;
 
 	constructor(
 		private readonly _container: HTMLElement,
@@ -29,23 +28,19 @@ export class HoverCopyButton extends Disposable {
 	) {
 		super();
 
-		// Create button element
 		this._button = dom.append(this._container, $('div.hover-copy-button'));
 		this._button.setAttribute('role', 'button');
 		this._button.setAttribute('tabindex', '0');
 		this._button.setAttribute('aria-label', localize('hover.copy', "Copy"));
 
-		// Add icon
 		dom.append(this._button, $(ThemeIcon.asCSSSelector(Codicon.copy)));
 
-		// Set up click handler
 		this._register(dom.addDisposableListener(this._button, dom.EventType.CLICK, (e) => {
 			e.preventDefault();
 			e.stopPropagation();
 			this._copyContent();
 		}));
 
-		// Set up keyboard handler (Enter/Space)
 		this._register(dom.addDisposableListener(this._button, dom.EventType.KEY_DOWN, (e) => {
 			const event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
@@ -55,16 +50,12 @@ export class HoverCopyButton extends Disposable {
 			}
 		}));
 
-		// Set up hover tooltip
 		const hoverDelegate = getDefaultHoverDelegate('element');
 		this._register(this._hoverService.setupManagedHover(
 			hoverDelegate,
 			this._button,
 			localize('hover.copyTooltip', "Copy to Clipboard")
 		));
-
-		// Initially hidden
-		dom.hide(this._button);
 	}
 
 	private async _copyContent(): Promise<void> {
@@ -72,23 +63,5 @@ export class HoverCopyButton extends Disposable {
 		if (content) {
 			await this._clipboardService.writeText(content);
 		}
-	}
-
-	public show(): void {
-		if (!this._isVisible) {
-			this._isVisible = true;
-			dom.show(this._button);
-		}
-	}
-
-	public hide(): void {
-		if (this._isVisible) {
-			this._isVisible = false;
-			dom.hide(this._button);
-		}
-	}
-
-	public containsTarget(target: EventTarget | null): boolean {
-		return target !== null && this._button.contains(target as Node);
 	}
 }

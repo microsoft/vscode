@@ -336,24 +336,12 @@ class RenderedContentHoverParts extends Disposable {
 			// Add copy button for marker hovers
 			if (renderedPart.type === 'hoverPart' && renderedPart.hoverPart instanceof MarkerHover) {
 				element.classList.add('hover-row-with-copy');
-
-				const copyButton = disposables.add(new HoverCopyButton(
+				disposables.add(new HoverCopyButton(
 					element,
 					() => this._getContentForHoverPart(renderedPart),
 					this._clipboardService,
 					this._hoverService
 				));
-
-				disposables.add(dom.addDisposableListener(element, dom.EventType.MOUSE_ENTER, () => {
-					copyButton.show();
-				}));
-
-				disposables.add(dom.addDisposableListener(element, dom.EventType.MOUSE_LEAVE, (e: MouseEvent) => {
-					// Only hide if not moving to the button itself
-					if (!copyButton.containsTarget(e.relatedTarget)) {
-						copyButton.hide();
-					}
-				}));
 			}
 		});
 		return disposables;

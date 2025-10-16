@@ -97,6 +97,10 @@
 	z-index: 1;
 }
 
+.monaco-editor .monaco-hover .hover-row-with-copy:hover .hover-copy-button {
+	display: flex;
+}
+
 .monaco-editor .monaco-hover .hover-copy-button:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
