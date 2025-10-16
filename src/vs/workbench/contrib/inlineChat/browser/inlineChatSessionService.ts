@@ -11,9 +11,12 @@ import { IActiveCodeEditor, ICodeEditor } from '../../../../editor/browser/edito
 import { Position } from '../../../../editor/common/core/position.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { IValidEditOperation } from '../../../../editor/common/model.js';
-import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { createDecorator, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { showChatView } from '../../chat/browser/chat.js';
 import { IChatEditingSession } from '../../chat/common/chatEditingService.js';
 import { IChatModel } from '../../chat/common/chatModel.js';
+import { IChatService } from '../../chat/common/chatService.js';
 import { Session, StashedSession } from './inlineChatSession.js';
 
 export interface ISessionKeyComputer {
@@ -70,4 +73,19 @@ export interface IInlineChatSessionService {
 	getSession2(uri: URI): IInlineChatSession2 | undefined;
 	getSession2(sessionId: string): IInlineChatSession2 | undefined;
 	readonly onDidChangeSessions: Event<this>;
+}
+
+export async function moveToPanelChat(accessor: ServicesAccessor, model: IChatModel | undefined) {
+
+	const viewsService = accessor.get(IViewsService);
+	const chatService = accessor.get(IChatService);
+
+	const widget = await showChatView(viewsService);
+
+	if (widget && widget.viewModel && model) {
+		for (const request of model.getRequests().slice()) {
+			await chatService.adoptRequest(widget.viewModel.model.sessionId, request);
+		}
+		widget.focusResponseItem();
+	}
 }

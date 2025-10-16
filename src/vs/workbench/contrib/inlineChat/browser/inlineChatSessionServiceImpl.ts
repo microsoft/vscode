@@ -41,7 +41,7 @@ import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { ILanguageModelToolsService, ToolDataSource, IToolData } from '../../chat/common/languageModelToolsService.js';
 import { CTX_INLINE_CHAT_HAS_AGENT, CTX_INLINE_CHAT_HAS_AGENT2, CTX_INLINE_CHAT_HAS_NOTEBOOK_AGENT, CTX_INLINE_CHAT_HAS_NOTEBOOK_INLINE, CTX_INLINE_CHAT_POSSIBLE, InlineChatConfigKeys } from '../common/inlineChat.js';
 import { HunkData, Session, SessionWholeRange, StashedSession, TelemetryData, TelemetryDataClassification } from './inlineChatSession.js';
-import { IInlineChatSession2, IInlineChatSessionEndEvent, IInlineChatSessionEvent, IInlineChatSessionService, ISessionKeyComputer } from './inlineChatSessionService.js';
+import { IInlineChatSession2, IInlineChatSessionEndEvent, IInlineChatSessionEvent, IInlineChatSessionService, ISessionKeyComputer, moveToPanelChat } from './inlineChatSessionService.js';
 
 
 type SessionData = {
@@ -520,6 +520,7 @@ export class InlineChatEscapeToolContribution extends Disposable {
 		@IDialogService dialogService: IDialogService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IChatService chatService: IChatService,
+		@IInstantiationService instaService: IInstantiationService,
 	) {
 
 		super();
@@ -552,8 +553,9 @@ export class InlineChatEscapeToolContribution extends Disposable {
 				const editor = codeEditorService.getFocusedCodeEditor();
 
 				if (result.confirmed || !editor) {
-					// chatService.cancelCurrentRequestForSession(session.chatModel.sessionId);
+					await instaService.invokeFunction(moveToPanelChat, session.chatModel);
 					session.dispose();
+
 				} else {
 					chatService.removeRequest(session.chatModel.sessionId, session.chatModel.getRequests().at(-1)!.id);
 				}
