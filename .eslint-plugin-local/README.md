@@ -112,7 +112,7 @@ In these cases make sure to update the `meta.schema` property on your rule with 
 
 
 ## Adding fixes to custom rules
-Fixes are a useful way to mechanically fix basic linting issues, such as auto inserting semicolons. These fix typically work at the AST level, say they are more reliable way to perform bulk fixes compared to find/replaces
+Fixes are a useful way to mechanically fix basic linting issues, such as auto inserting semicolons. These fixes typically work at the AST level, so they are a more reliable way to perform bulk fixes compared to find/replaces.
 
 To add a fix for a custom rule:
 
