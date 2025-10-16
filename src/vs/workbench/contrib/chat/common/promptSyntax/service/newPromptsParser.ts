@@ -186,7 +186,7 @@ export class PromptHeader {
 			return undefined;
 		}
 		if (handoffsAttribute.value.type === 'array') {
-			// Array format: list of objects with promptId and description
+			// Array format: list of objects: { agent, label, prompt, send? }
 			const handoffs: IHandOff[] = [];
 			for (const item of handoffsAttribute.value.items) {
 				if (item.type === 'object') {
