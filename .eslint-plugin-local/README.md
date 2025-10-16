@@ -1,6 +1,6 @@
 # Custom ESLint rules
 
-We use a set of custom [ESLint](http://eslint.org) to enforce repo specific coding rules and styles. These custom rules are run in addition to many standard ESLine rules we enable in the project. Some example custom rules includes:
+We use a set of custom [ESLint](http://eslint.org) to enforce repo specific coding rules and styles. These custom rules are run in addition to many standard ESLint rules we enable in the project. Some example custom rules includes:
 
 - Enforcing proper code layering
 - Preventing checking in of `test.only(...)`
