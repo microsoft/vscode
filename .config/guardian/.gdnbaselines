@@ -1,4 +1,4 @@
-{
+{trace host environment and map database 
   "properties": {
     "helpUri": "https://eng.ms/docs/microsoft-security/security/azure-security/cloudai-security-fundamentals-engineering/security-integration/guardian-wiki/microsoft-guardian/general/baselines"
   },
