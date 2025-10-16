@@ -69,16 +69,18 @@ function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate, te
 	};
 }
 
-function getModelPickerActionBarActionProvider(commandService: ICommandService, chatEntitlementService: IChatEntitlementService): IActionProvider {
+function getModelPickerActionBarActionProvider(commandService: ICommandService, chatEntitlementService: IChatEntitlementService, contextKeyService: IContextKeyService): IActionProvider {
 
 	const actionProvider: IActionProvider = {
 		getActions: () => {
 			const additionalActions: IAction[] = [];
+			const inContributedSession = contextKeyService.getContextKeyValue<boolean>('chatInContributedSessionWithModels');
 			if (
-				chatEntitlementService.entitlement === ChatEntitlement.Free ||
+				!inContributedSession &&
+				(chatEntitlementService.entitlement === ChatEntitlement.Free ||
 				chatEntitlementService.entitlement === ChatEntitlement.Pro ||
 				chatEntitlementService.entitlement === ChatEntitlement.ProPlus ||
-				chatEntitlementService.isInternal
+				chatEntitlementService.isInternal)
 			) {
 				additionalActions.push({
 					id: 'manageModels',
@@ -139,7 +141,7 @@ export class ModelPickerActionItem extends ActionWidgetDropdownActionViewItem {
 
 		const modelPickerActionWidgetOptions: Omit<IActionWidgetDropdownOptions, 'label' | 'labelRenderer'> = {
 			actionProvider: modelDelegateToWidgetActionsProvider(delegate, telemetryService),
-			actionBarActionProvider: getModelPickerActionBarActionProvider(commandService, chatEntitlementService)
+			actionBarActionProvider: getModelPickerActionBarActionProvider(commandService, chatEntitlementService, contextKeyService)
 		};
 
 		super(actionWithLabel, modelPickerActionWidgetOptions, actionWidgetService, keybindingService, contextKeyService);
