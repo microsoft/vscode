@@ -693,10 +693,6 @@ export class TerminalService extends Disposable implements ITerminalService {
 	}
 
 	private _saveStateNow(): void {
-		// Avoid saving state when shutting down as that would override process state to be revived
-		if (this._isShuttingDown) {
-			return;
-		}
 		if (!this._terminalConfigurationService.config.enablePersistentSessions) {
 			return;
 		}
@@ -707,6 +703,10 @@ export class TerminalService extends Disposable implements ITerminalService {
 
 	@debounce(500)
 	private _saveState(): void {
+		// Avoid saving state when shutting down as that would override process state to be revived
+		if (this._isShuttingDown) {
+			return;
+		}
 		this._saveStateNow();
 	}
 
