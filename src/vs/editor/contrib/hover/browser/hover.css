@@ -85,7 +85,6 @@
 	top: 4px;
 	right: 4px;
 	opacity: 0;
-	transition: opacity 0.15s ease-in-out;
 	cursor: pointer;
 	padding: 2px 4px;
 	border-radius: 3px;
@@ -111,6 +110,6 @@
 }
 
 .monaco-editor .monaco-hover .hover-copy-button .codicon {
-	font-size: 14px;
+	font-size: 16px;
 	color: var(--vscode-foreground);
 }
