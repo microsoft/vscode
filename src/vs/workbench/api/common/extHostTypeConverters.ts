@@ -3733,6 +3733,12 @@ export namespace IconPath {
 		return iconPath;
 	}
 
+	/**
+	 * Converts a {@link vscode.IconPath} to an {@link extHostProtocol.IconPathDto}.
+	 * @note This function will tolerate strings specified instead of URIs in IconPath for historical reasons.
+	 * Such strings are treated as file paths and converted using {@link URI.file} function, not {@link URI.from}.
+	 * See https://github.com/microsoft/vscode/issues/110432#issuecomment-726144556 for context.
+	 */
 	export function from(value: vscode.IconPath | undefined): extHostProtocol.IconPathDto | undefined {
 		if (!value) {
 			return undefined;
@@ -3740,15 +3746,21 @@ export namespace IconPath {
 			return value;
 		} else if (URI.isUri(value)) {
 			return value;
+		} else if (typeof value === 'string') {
+			return URI.file(value);
+		} else if (typeof value === 'object' && value !== null && 'dark' in value) {
+			const dark = typeof value.dark === 'string' ? URI.file(value.dark) : value.dark;
+			const light = typeof value.light === 'string' ? URI.file(value.light) : value.light;
+			return !dark ? undefined : { dark, light: light ?? dark };
 		} else {
-			const icon = value as { light: URI; dark: URI };
-			return {
-				light: icon.light,
-				dark: icon.dark
-			};
+			return undefined;
 		}
 	}
 
+	/**
+	 * Converts a {@link extHostProtocol.IconPathDto} to a {@link vscode.IconPath}.
+	 * @note This is a strict conversion and we assume types are correct in this case.
+	 */
 	export function to(value: extHostProtocol.IconPathDto | undefined): vscode.IconPath | undefined {
 		if (!value) {
 			return undefined;

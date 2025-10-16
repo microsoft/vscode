@@ -561,7 +561,7 @@ export interface TerminalLaunchConfig {
 	shellArgs?: string[] | string;
 	cwd?: string | UriComponents;
 	env?: ITerminalEnvironment;
-	icon?: URI | { light: URI; dark: URI } | ThemeIcon;
+	icon?: IconPathDto;
 	color?: string;
 	initialText?: string;
 	waitOnExit?: boolean;
@@ -1644,7 +1644,7 @@ export interface SCMHistoryItemRefDto {
 	readonly revision?: string;
 	readonly category?: string;
 	readonly description?: string;
-	readonly icon?: UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon;
+	readonly icon?: IconPathDto;
 }
 
 export interface SCMHistoryItemRefsChangeEventDto {
@@ -1661,7 +1661,7 @@ export interface SCMHistoryItemDto {
 	readonly message: string;
 	readonly displayId?: string;
 	readonly author?: string;
-	readonly authorIcon?: UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon;
+	readonly authorIcon?: IconPathDto;
 	readonly authorEmail?: string;
 	readonly timestamp?: number;
 	readonly statistics?: {
@@ -1680,7 +1680,7 @@ export interface SCMHistoryItemChangeDto {
 }
 
 export interface MainThreadSCMShape extends IDisposable {
-	$registerSourceControl(handle: number, parentHandle: number | undefined, id: string, label: string, rootUri: UriComponents | undefined, iconPath: UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon | undefined, inputBoxDocumentUri: UriComponents): Promise<void>;
+	$registerSourceControl(handle: number, parentHandle: number | undefined, id: string, label: string, rootUri: UriComponents | undefined, iconPath: IconPathDto | undefined, inputBoxDocumentUri: UriComponents): Promise<void>;
 	$updateSourceControl(handle: number, features: SCMProviderFeatures): Promise<void>;
 	$unregisterSourceControl(handle: number): Promise<void>;
 
@@ -2207,7 +2207,7 @@ export interface IWorkspaceEditEntryMetadataDto {
 	needsConfirmation: boolean;
 	label: string;
 	description?: string;
-	iconPath?: { id: string } | UriComponents | { light: UriComponents; dark: UriComponents };
+	iconPath?: IconPathDto;
 }
 
 export interface IChatNotebookEditDto {

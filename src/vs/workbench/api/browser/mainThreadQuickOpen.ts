@@ -19,6 +19,7 @@ import { asCssVariable, inputActiveOptionBackground, inputActiveOptionBorder, in
 import { ICustomEditorLabelService } from '../../services/editor/common/customEditorLabelService.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { ExtHostContext, ExtHostQuickOpenShape, IInputBoxOptions, MainContext, MainThreadQuickOpenShape, TransferQuickInput, TransferQuickInputButton, TransferQuickPickItem, TransferQuickPickItemOrSeparator } from '../common/extHost.protocol.js';
+import { FileThemeIcon, FolderThemeIcon } from '../../../platform/theme/common/themeService.js';
 
 interface QuickInputSession {
 	input: IQuickInput;
@@ -252,8 +253,8 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 	}
 
 	/**
-	 * Derives icon, label and description for Quick Pick items that represent a resource URI.
-	 */
+		* Derives icon, label and description for Quick Pick items that represent a resource URI.
+		*/
 	private expandItemProps(item: TransferQuickPickItemOrSeparator) {
 		if (item.type === 'separator') {
 			return;
@@ -264,6 +265,7 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 			return;
 		}
 
+		// Derive missing label and description from resourceUri.
 		const resourceUri = URI.from(item.resourceUri);
 		item.label ??= this.customEditorLabelService.getName(resourceUri) || '';
 		if (item.label) {
@@ -273,8 +275,9 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 			item.description ??= this.labelService.getUriLabel(dirname(resourceUri), { relative: true });
 		}
 
+		// Derive icon props from resourceUri if icon is set to ThemeIcon.File or ThemeIcon.Folder.
 		const icon = item.iconPathDto;
-		if (ThemeIcon.isThemeIcon(icon) && (icon.id === 'file' || icon.id === 'folder')) {
+		if (ThemeIcon.isThemeIcon(icon) && (icon.id === FileThemeIcon.id || icon.id === FolderThemeIcon.id)) {
 			const iconClasses = new Lazy(() => getIconClasses(this.modelService, this.languageService, resourceUri));
 			Object.defineProperty(item, 'iconClasses', { get: () => iconClasses.value });
 		} else {
@@ -283,8 +286,8 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 	}
 
 	/**
-	 * Converts IconPath DTO into iconPath/iconClass properties.
-	 */
+		* Converts IconPath DTO into iconPath/iconClass properties.
+		*/
 	private expandIconPath(target: Pick<TransferQuickPickItem, 'iconPathDto' | 'iconPath' | 'iconClass'>) {
 		const icon = target.iconPathDto;
 		if (!icon) {
@@ -301,9 +304,9 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 	}
 
 	/**
-	 * Updates the toggles for a given quick input session by creating new {@link Toggle}-s
-	 * from buttons, updating existing toggles props and removing old ones.
-	 */
+		* Updates the toggles for a given quick input session by creating new {@link Toggle}-s
+		* from buttons, updating existing toggles props and removing old ones.
+		*/
 	private updateToggles(sessionId: number, session: QuickInputSession, buttons: TransferQuickInputButton[]) {
 		const { input, handlesToToggles, store } = session;
 

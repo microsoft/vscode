@@ -26,6 +26,7 @@ import { ITerminalQuickFixService, ITerminalQuickFix, TerminalQuickFixType } fro
 import { TerminalCapability } from '../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalCompletionService } from '../../contrib/terminalContrib/suggest/browser/terminalCompletionService.js';
 import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
+import { IconPath } from '../common/extHostTypeConverters.js';
 
 @extHostNamedCustomer(MainContext.MainThreadTerminalService)
 export class MainThreadTerminalService implements MainThreadTerminalServiceShape {
@@ -148,7 +149,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			executable: launchConfig.shellPath,
 			args: launchConfig.shellArgs,
 			cwd: typeof launchConfig.cwd === 'string' ? launchConfig.cwd : URI.revive(launchConfig.cwd),
-			icon: launchConfig.icon,
+			icon: IconPath.to(launchConfig.icon),
 			color: launchConfig.color,
 			initialText: launchConfig.initialText,
 			waitOnExit: launchConfig.waitOnExit,
