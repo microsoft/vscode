@@ -118,6 +118,7 @@ export class SettingsEditor2 extends EditorPane {
 	private static EDITOR_MIN_WIDTH: number = 500;
 	// Below NARROW_TOTAL_WIDTH, we only render the editor rather than the ToC.
 	private static NARROW_TOTAL_WIDTH: number = this.TOC_RESET_WIDTH + this.EDITOR_MIN_WIDTH;
+	private static SHOW_ADVANCED_SETTINGS_KEY: string = 'settingsEditor2.showAdvancedSettings';
 
 	private static SUGGESTIONS: string[] = [
 		`@${MODIFIED_SETTING_TAG}`,
@@ -131,6 +132,7 @@ export class SettingsEditor2 extends EditorPane {
 		'@tag:accessibility',
 		'@tag:preview',
 		'@tag:experimental',
+		'@tag:advanced',
 		`@${ID_SETTING_TAG}`,
 		`@${EXTENSION_SETTING_TAG}`,
 		`@${FEATURE_SETTING_TAG}scm`,
@@ -271,7 +273,10 @@ export class SettingsEditor2 extends EditorPane {
 	) {
 		super(SettingsEditor2.ID, group, telemetryService, themeService, storageService);
 		this.searchDelayer = new Delayer(200);
-		this.viewState = { settingsTarget: ConfigurationTarget.USER_LOCAL, showAdvancedSettings: false };
+		
+		// Load the stored advanced settings preference, default to false
+		const storedShowAdvanced = this.storageService.getBoolean(SettingsEditor2.SHOW_ADVANCED_SETTINGS_KEY, StorageScope.PROFILE, false);
+		this.viewState = { settingsTarget: ConfigurationTarget.USER_LOCAL, showAdvancedSettings: storedShowAdvanced };
 
 		this.settingFastUpdateDelayer = new Delayer<void>(SettingsEditor2.SETTING_UPDATE_FAST_DEBOUNCE);
 		this.settingSlowUpdateDelayer = new Delayer<void>(SettingsEditor2.SETTING_UPDATE_SLOW_DEBOUNCE);
@@ -698,6 +703,7 @@ export class SettingsEditor2 extends EditorPane {
 		this.showAdvancedSettingsAction = this._register(new Action(SETTINGS_EDITOR_COMMAND_SHOW_ADVANCED_SETTINGS,
 			localize('showAdvancedSettings', "Show Advanced Settings"), showAdvancedSettingsActionClassNames.join(' '), true
 		));
+		this.showAdvancedSettingsAction.checked = this.viewState.showAdvancedSettings ?? false;
 		this._register(this.showAdvancedSettingsAction.onDidChange(async () => {
 			await this.onDidToggleAdvancedSettings();
 		}));
@@ -819,6 +825,8 @@ export class SettingsEditor2 extends EditorPane {
 	private async onDidToggleAdvancedSettings(): Promise<void> {
 		if (this.showAdvancedSettingsAction) {
 			this.viewState.showAdvancedSettings = this.showAdvancedSettingsAction.checked ?? false;
+			// Store the preference
+			this.storageService.store(SettingsEditor2.SHOW_ADVANCED_SETTINGS_KEY, this.viewState.showAdvancedSettings, StorageScope.PROFILE, StorageTarget.USER);
 			// Rebuild the tree to apply the filter
 			this.onConfigUpdate(undefined, true);
 		}

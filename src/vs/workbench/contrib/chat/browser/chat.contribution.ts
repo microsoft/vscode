@@ -328,6 +328,12 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.checkpoints.showFileChanges', "Controls whether to show chat checkpoint file changes."),
 			default: false
 		},
+		'chat.advanced.debugLogging': {
+			type: 'boolean',
+			description: nls.localize('chat.advanced.debugLogging', "Enables detailed debug logging for chat operations. This is an advanced setting for troubleshooting."),
+			default: false,
+			tags: ['advanced']
+		},
 		[mcpAccessConfig]: {
 			type: 'string',
 			description: nls.localize('chat.mcp.access', "Controls access to installed Model Context Protocol servers."),
