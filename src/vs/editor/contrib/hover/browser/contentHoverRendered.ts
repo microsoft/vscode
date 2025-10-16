@@ -333,10 +333,12 @@ class RenderedContentHoverParts extends Disposable {
 				this._focusedHoverPartIndex = -1;
 			}));
 
-			// Add copy button functionality for hover parts (not status bar)
+			// Add copy button for hover parts
 			if (renderedPart.type === 'hoverPart') {
 				// Make element position relative so copy button can be absolutely positioned
 				element.style.position = 'relative';
+				// Prevent content from overlapping with the copy button
+				element.style.paddingRight = '20px';
 
 				const copyButton = disposables.add(new HoverCopyButton(
 					element,
@@ -371,7 +373,6 @@ class RenderedContentHoverParts extends Disposable {
 	}
 
 	private _getContentForHoverPart(renderedPart: IRenderedContentHoverPart): string {
-		// Use participant's getAccessibleContent to extract text
 		return renderedPart.participant.getAccessibleContent(renderedPart.hoverPart);
 	}
 

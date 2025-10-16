@@ -79,7 +79,6 @@ export class HoverCopyButton extends Disposable {
 		if (!this._isVisible) {
 			this._isVisible = true;
 			this._button.style.display = '';
-			this._button.style.opacity = '1';
 		}
 	}
 
