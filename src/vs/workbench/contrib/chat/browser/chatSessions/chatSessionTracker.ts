@@ -40,9 +40,11 @@ export class ChatSessionTracker extends Disposable {
 		this._register(this.editorGroupsService.onDidAddGroup(group => {
 			this.registerGroupListeners(group);
 		}));
-		this.editorGroupsService.onDidRemoveGroup(group => {
-			this.groupDisposables.deleteAndDispose(group.id);
-		});
+		this._register(
+			this.editorGroupsService.onDidRemoveGroup(group => {
+				this.groupDisposables.deleteAndDispose(group.id);
+			})
+		);
 	}
 
 	private registerGroupListeners(group: IEditorGroup): void {
