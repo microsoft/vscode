@@ -57,8 +57,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		_terminalData = migrateLegacyTerminalToolSpecificData(_terminalData);
 
 		const elements = h('.chat-terminal-content-part@container', [
-			h('.chat-terminal-content-title@title',
-				[h('.chat-terminal-action-bar@actionBar')]),
+			h('.chat-terminal-content-title@title'),
 			h('.chat-terminal-content-message@message')
 		]);
 
@@ -73,7 +72,10 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		this._register(titlePart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 
 		if (configurationService.getValue<string>('chat.tools.terminal.outputLocation') === 'none') {
-			this._createActionBar(elements);
+			// Append the action bar element after the title has been populated so flex order hacks aren't required.
+			const actionBarEl = h('.chat-terminal-action-bar@actionBar');
+			elements.title.append(actionBarEl.root);
+			this._createActionBar({ actionBar: actionBarEl.actionBar });
 		}
 
 		let pastTenseMessage: string | undefined;
