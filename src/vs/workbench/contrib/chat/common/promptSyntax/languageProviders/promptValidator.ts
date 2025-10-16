@@ -337,7 +337,7 @@ export class PromptValidator {
 						break;
 					case 'prompt':
 						if (prop.value.type !== 'string') {
-							report(toMarker(localize('promptValidator.handoffPromptMustBeNonEmptyString', "The 'prompt' property in a handoff must be string."), prop.value.range, MarkerSeverity.Error));
+							report(toMarker(localize('promptValidator.handoffPromptMustBeNonEmptyString', "The 'prompt' property in a handoff must be a string."), prop.value.range, MarkerSeverity.Error));
 						}
 						break;
 					case 'send':
