@@ -3732,6 +3732,38 @@ export namespace IconPath {
 	export function fromThemeIcon(iconPath: vscode.ThemeIcon): languages.IconPath {
 		return iconPath;
 	}
+
+	export function from(value: vscode.IconPath | undefined): extHostProtocol.IconPathDto | undefined {
+		if (!value) {
+			return undefined;
+		} else if (ThemeIcon.isThemeIcon(value)) {
+			return value;
+		} else if (URI.isUri(value)) {
+			return value;
+		} else {
+			const icon = value as { light: URI; dark: URI };
+			return {
+				light: icon.light,
+				dark: icon.dark
+			};
+		}
+	}
+
+	export function to(value: extHostProtocol.IconPathDto | undefined): vscode.IconPath | undefined {
+		if (!value) {
+			return undefined;
+		} else if (ThemeIcon.isThemeIcon(value)) {
+			return value;
+		} else if (isUriComponents(value)) {
+			return URI.revive(value);
+		} else {
+			const icon = value as { light: UriComponents; dark: UriComponents };
+			return {
+				light: URI.revive(icon.light),
+				dark: URI.revive(icon.dark)
+			};
+		}
+	}
 }
 
 export namespace AiSettingsSearch {

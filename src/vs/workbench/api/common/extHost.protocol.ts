@@ -98,6 +98,11 @@ import { IExtHostDocumentSaveDelegate } from './extHostDocumentData.js';
 import { TerminalShellExecutionCommandLineConfidence } from './extHostTypes.js';
 import * as tasks from './shared/tasks.js';
 
+export type IconPathDto =
+	| UriComponents
+	| { light: UriComponents; dark: UriComponents }
+	| ThemeIcon;
+
 export interface IWorkspaceData extends IStaticWorkspaceData {
 	folders: { uri: UriComponents; name: string; index: number }[];
 }
@@ -614,6 +619,7 @@ export interface TransferQuickPickItem {
 	// shared properties from IQuickPickItem
 	type?: 'item';
 	label: string;
+	iconPathDto?: IconPathDto;
 	iconPath?: { light?: URI; dark: URI };
 	iconClass?: string;
 	description?: string;
@@ -626,6 +632,7 @@ export interface TransferQuickPickItem {
 
 export interface TransferQuickInputButton extends quickInput.IQuickInputButton {
 	handle: number;
+	iconPathDto: IconPathDto;
 	checked?: boolean;
 }
 

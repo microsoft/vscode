@@ -10,15 +10,13 @@ import { ExtHostCommands } from './extHostCommands.js';
 import { IExtHostWorkspaceProvider } from './extHostWorkspace.js';
 import { InputBox, InputBoxOptions, InputBoxValidationMessage, QuickInput, QuickInputButton, QuickPick, QuickPickItem, QuickPickItemButtonEvent, QuickPickOptions, WorkspaceFolder, WorkspaceFolderPickOptions } from 'vscode';
 import { ExtHostQuickOpenShape, IMainContext, MainContext, TransferQuickInput, TransferQuickInputButton, TransferQuickPickItemOrSeparator } from './extHost.protocol.js';
-import { URI } from '../../../base/common/uri.js';
-import { ThemeIcon, QuickInputButtons, QuickPickItemKind, InputBoxValidationSeverity } from './extHostTypes.js';
+import { QuickInputButtons, QuickPickItemKind, InputBoxValidationSeverity } from './extHostTypes.js';
 import { isCancellationError } from '../../../base/common/errors.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { coalesce } from '../../../base/common/arrays.js';
 import Severity from '../../../base/common/severity.js';
-import { ThemeIcon as ThemeIconUtils } from '../../../base/common/themables.js';
 import { checkProposedApiEnabled } from '../../services/extensions/common/extensions.js';
-import { MarkdownString } from './extHostTypeConverters.js';
+import { IconPath, MarkdownString } from './extHostTypeConverters.js';
 
 export type Item = string | QuickPickItem;
 
@@ -108,11 +106,9 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 								checkProposedApiEnabled(extension, 'quickPickItemResource');
 							}
 
-							const icon = (item.iconPath) ? getIconPathOrClass(item.iconPath) : undefined;
 							pickItems.push({
 								label: item.label,
-								iconPath: icon?.iconPath,
-								iconClass: icon?.iconClass,
+								iconPathDto: IconPath.from(item.iconPath),
 								description: item.description,
 								detail: item.detail,
 								picked: item.picked,
@@ -415,7 +411,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 			this.update({
 				buttons: buttons.map<TransferQuickInputButton>((button, i) => {
 					return {
-						...getIconPathOrClass(button.iconPath),
+						iconPathDto: IconPath.from(button.iconPath)!,
 						tooltip: button.tooltip,
 						handle: button === QuickInputButtons.Back ? -1 : i,
 						location: button.location,
@@ -519,43 +515,6 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		}
 	}
 
-	function getIconUris(iconPath: QuickInputButton['iconPath']): { dark: URI; light?: URI } | { id: string } {
-		if (iconPath instanceof ThemeIcon) {
-			return { id: iconPath.id };
-		}
-		const dark = getDarkIconUri(iconPath as URI | { light: URI; dark: URI });
-		const light = getLightIconUri(iconPath as URI | { light: URI; dark: URI });
-		// Tolerate strings: https://github.com/microsoft/vscode/issues/110432#issuecomment-726144556
-		return {
-			dark: typeof dark === 'string' ? URI.file(dark) : dark,
-			light: typeof light === 'string' ? URI.file(light) : light
-		};
-	}
-
-	function getLightIconUri(iconPath: URI | { light: URI; dark: URI }) {
-		return typeof iconPath === 'object' && 'light' in iconPath ? iconPath.light : iconPath;
-	}
-
-	function getDarkIconUri(iconPath: URI | { light: URI; dark: URI }) {
-		return typeof iconPath === 'object' && 'dark' in iconPath ? iconPath.dark : iconPath;
-	}
-
-	function getIconPathOrClass(icon: QuickInputButton['iconPath']) {
-		const iconPathOrIconClass = getIconUris(icon);
-		let iconPath: { dark: URI; light?: URI | undefined } | undefined;
-		let iconClass: string | undefined;
-		if ('id' in iconPathOrIconClass) {
-			iconClass = ThemeIconUtils.asClassName(iconPathOrIconClass);
-		} else {
-			iconPath = iconPathOrIconClass;
-		}
-
-		return {
-			iconPath,
-			iconClass
-		};
-	}
-
 	class ExtHostQuickPick<T extends QuickPickItem> extends ExtHostQuickInput implements QuickPick<T> {
 
 		private _items: T[] = [];
@@ -610,12 +569,10 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 						checkProposedApiEnabled(this._extension, 'quickPickItemResource');
 					}
 
-					const icon = (item.iconPath) ? getIconPathOrClass(item.iconPath) : undefined;
 					pickItems.push({
 						handle,
 						label: item.label,
-						iconPath: icon?.iconPath,
-						iconClass: icon?.iconClass,
+						iconPathDto: IconPath.from(item.iconPath),
 						description: item.description,
 						detail: item.detail,
 						picked: item.picked,
@@ -624,7 +581,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 						resourceUri: item.resourceUri,
 						buttons: item.buttons?.map<TransferQuickInputButton>((button, i) => {
 							return {
-								...getIconPathOrClass(button.iconPath),
+								iconPathDto: IconPath.from(button.iconPath)!,
 								tooltip: button.tooltip,
 								handle: i
 							};

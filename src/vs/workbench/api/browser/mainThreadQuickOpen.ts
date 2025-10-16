@@ -3,35 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IPickOptions, IInputOptions, IQuickInputService, IQuickInput, IQuickPick, IQuickPickItem, QuickInputButtonLocation } from '../../../platform/quickinput/common/quickInput.js';
-import { ExtHostContext, MainThreadQuickOpenShape, ExtHostQuickOpenShape, TransferQuickPickItem, MainContext, TransferQuickInput, TransferQuickInputButton, IInputBoxOptions, TransferQuickPickItemOrSeparator } from '../common/extHost.protocol.js';
-import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
-import { URI } from '../../../base/common/uri.js';
-import { CancellationToken } from '../../../base/common/cancellation.js';
-import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { Toggle } from '../../../base/browser/ui/toggle/toggle.js';
-import { asCssVariable, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground } from '../../../platform/theme/common/colorRegistry.js';
-import { ThemeIcon } from '../common/extHostTypes.js';
-import { basenameOrAuthority, dirname } from '../../../base/common/resources.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Lazy } from '../../../base/common/lazy.js';
-import { getIconClasses } from '../../../editor/common/services/getIconClasses.js';
-import { ILabelService } from '../../../platform/label/common/label.js';
+import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { basenameOrAuthority, dirname } from '../../../base/common/resources.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
+import { isUriComponents, URI } from '../../../base/common/uri.js';
 import { ILanguageService } from '../../../editor/common/languages/language.js';
+import { getIconClasses } from '../../../editor/common/services/getIconClasses.js';
 import { IModelService } from '../../../editor/common/services/model.js';
+import { ILabelService } from '../../../platform/label/common/label.js';
+import { IInputOptions, IPickOptions, IQuickInput, IQuickInputService, IQuickPick, IQuickPickItem, QuickInputButtonLocation } from '../../../platform/quickinput/common/quickInput.js';
+import { asCssVariable, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground } from '../../../platform/theme/common/colorRegistry.js';
 import { ICustomEditorLabelService } from '../../services/editor/common/customEditorLabelService.js';
+import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
+import { ExtHostContext, ExtHostQuickOpenShape, IInputBoxOptions, MainContext, MainThreadQuickOpenShape, TransferQuickInput, TransferQuickInputButton, TransferQuickPickItem, TransferQuickPickItemOrSeparator } from '../common/extHost.protocol.js';
 
 interface QuickInputSession {
 	input: IQuickInput;
 	handlesToItems: Map<number, TransferQuickPickItem>;
 	handlesToToggles: Map<number, { toggle: Toggle; listener: IDisposable }>;
 	store: DisposableStore;
-}
-
-function reviveIconPathUris(iconPath: { dark: URI; light?: URI | undefined }) {
-	iconPath.dark = URI.revive(iconPath.dark);
-	if (iconPath.light) {
-		iconPath.light = URI.revive(iconPath.light);
-	}
 }
 
 @extHostNamedCustomer(MainContext.MainThreadQuickOpen)
@@ -95,7 +88,8 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 
 	$setItems(instance: number, items: TransferQuickPickItemOrSeparator[]): Promise<void> {
 		if (this._items[instance]) {
-			this._items[instance].resolve(items.map(item => this.processResourceUri(item)));
+			items.forEach(item => this.expandItemProps(item));
+			this._items[instance].resolve(items);
 			delete this._items[instance];
 		}
 		return Promise.resolve();
@@ -198,25 +192,14 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 
 				case 'items': {
 					handlesToItems.clear();
-					const items = params.items?.map((item: TransferQuickPickItemOrSeparator) => {
-						if (item.type === 'separator') {
-							return item;
+					params.items?.forEach((item: TransferQuickPickItemOrSeparator) => {
+						this.expandItemProps(item);
+						if (item.type !== 'separator') {
+							item.buttons?.forEach(button => this.expandIconPath(button));
+							handlesToItems.set(item.handle, item);
 						}
-
-						if (item.buttons) {
-							item.buttons = item.buttons.map((button: TransferQuickInputButton) => {
-								if (button.iconPath) {
-									reviveIconPathUris(button.iconPath);
-								}
-
-								return button;
-							});
-						}
-
-						handlesToItems.set(item.handle, item);
-						return this.processResourceUri(item);
 					});
-					quickPick.items = items;
+					quickPick.items = params.items;
 					break;
 				}
 
@@ -233,19 +216,16 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 					for (const button of params.buttons!) {
 						if (button.handle === -1) {
 							buttons.push(this._quickInputService.backButton);
-							continue;
-						}
-
-						if (button.iconPath) {
-							reviveIconPathUris(button.iconPath);
-						}
-
-						// Currently buttons are only supported outside of the input box
-						// and toggles only inside. When/if that changes, this will need to be updated.
-						if (button.location === QuickInputButtonLocation.Input) {
-							toggles.push(button);
 						} else {
-							buttons.push(button);
+							this.expandIconPath(button);
+
+							// Currently buttons are only supported outside of the input box
+							// and toggles only inside. When/if that changes, this will need to be updated.
+							if (button.location === QuickInputButtonLocation.Input) {
+								toggles.push(button);
+							} else {
+								buttons.push(button);
+							}
 						}
 					}
 					input.buttons = buttons;
@@ -274,40 +254,50 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 	/**
 	 * Derives icon, label and description for Quick Pick items that represent a resource URI.
 	 */
-	private processResourceUri(item: TransferQuickPickItemOrSeparator): TransferQuickPickItemOrSeparator {
-		if (item.type === 'separator' || !item.resourceUri) {
-			return item;
+	private expandItemProps(item: TransferQuickPickItemOrSeparator) {
+		if (item.type === 'separator') {
+			return;
+		}
+
+		if (!item.resourceUri) {
+			this.expandIconPath(item);
+			return;
 		}
 
 		const resourceUri = URI.from(item.resourceUri);
-		let label = item.label;
-		let hasCustomLabel = true;
-		if (!label) {
-			label = this.customEditorLabelService.getName(resourceUri) || '';
-			if (!label) {
-				label = basenameOrAuthority(resourceUri);
-				hasCustomLabel = false;
-			}
+		item.label ??= this.customEditorLabelService.getName(resourceUri) || '';
+		if (item.label) {
+			item.description ??= this.labelService.getUriLabel(resourceUri, { relative: true });
+		} else {
+			item.label = basenameOrAuthority(resourceUri);
+			item.description ??= this.labelService.getUriLabel(dirname(resourceUri), { relative: true });
 		}
 
-		const description = item.description || this.labelService.getUriLabel(
-			hasCustomLabel ? resourceUri : dirname(resourceUri), { relative: true });
-
-		// Replace iconClass with iconClasses if iconClass is the default file icon and no iconPath is provided.
-		let iconClass = item.iconClass;
-		let iconClasses: Lazy<string[] | undefined> | undefined;
-		if ((iconClass === 'codicon codicon-file' || iconClass === 'codicon codicon-folder') && !item.iconPath) {
-			iconClass = undefined;
-			iconClasses = new Lazy(() => getIconClasses(this.modelService, this.languageService, resourceUri));
+		const icon = item.iconPathDto;
+		if (ThemeIcon.isThemeIcon(icon) && (icon.id === 'file' || icon.id === 'folder')) {
+			const iconClasses = new Lazy(() => getIconClasses(this.modelService, this.languageService, resourceUri));
+			Object.defineProperty(item, 'iconClasses', { get: () => iconClasses.value });
+		} else {
+			this.expandIconPath(item);
 		}
+	}
 
-		return {
-			...item,
-			iconClass,
-			label,
-			description,
-			get iconClasses() { return iconClasses?.value; }
-		};
+	/**
+	 * Converts IconPath DTO into iconPath/iconClass properties.
+	 */
+	private expandIconPath(target: Pick<TransferQuickPickItem, 'iconPathDto' | 'iconPath' | 'iconClass'>) {
+		const icon = target.iconPathDto;
+		if (!icon) {
+			return;
+		} else if (ThemeIcon.isThemeIcon(icon)) {
+			target.iconClass = ThemeIcon.asClassName(icon);
+		} else if (isUriComponents(icon)) {
+			const uri = URI.from(icon);
+			target.iconPath = { dark: uri, light: uri };
+		} else {
+			const { dark, light } = icon;
+			target.iconPath = { dark: URI.from(dark), light: URI.from(light) };
+		}
 	}
 
 	/**
@@ -319,36 +309,40 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 
 		// Add new or update existing toggles.
 		const toggles = [];
-		for (const { handle, tooltip, checked } of buttons) {
-			let { toggle } = handlesToToggles.get(handle) || {};
+		for (const button of buttons) {
+			const title = button.tooltip || '';
+			const isChecked = !!button.checked;
+			const icon = ThemeIcon.isThemeIcon(button.iconPathDto) ? button.iconPathDto : undefined;
+
+			let { toggle } = handlesToToggles.get(button.handle) || {};
 			if (toggle) {
 				// Toggle already exists, update its props.
-				toggle.setTitle(tooltip || '');
-				//toggle.setIcon(iconPath);
-				toggle.checked = !!checked;
+				toggle.setTitle(title);
+				toggle.setIcon(icon);
+				toggle.checked = isChecked;
 			} else {
 				// Create a new toggle from the button.
 				toggle = store.add(new Toggle({
-					title: tooltip || '',
-					icon: ThemeIcon.File, // iconPath,
-					isChecked: !!checked,
+					title,
+					icon,
+					isChecked,
 					inputActiveOptionBorder: asCssVariable(inputActiveOptionBorder),
 					inputActiveOptionForeground: asCssVariable(inputActiveOptionForeground),
 					inputActiveOptionBackground: asCssVariable(inputActiveOptionBackground)
 				}));
 
 				const listener = store.add(toggle.onChange(() => {
-					this._proxy.$onDidTriggerButton(sessionId, handle, toggle!.checked);
+					this._proxy.$onDidTriggerButton(sessionId, button.handle, toggle!.checked);
 				}));
 
-				handlesToToggles.set(handle, { toggle, listener });
+				handlesToToggles.set(button.handle, { toggle, listener });
 			}
 			toggles.push(toggle);
 		}
 
 		// Remove toggles that are no longer present from the session map.
 		for (const [handle, { toggle, listener }] of handlesToToggles) {
-			if (!buttons.some(o => o.handle === handle)) {
+			if (!buttons.some(button => button.handle === handle)) {
 				handlesToToggles.delete(handle);
 				store.delete(toggle);
 				store.delete(listener);
