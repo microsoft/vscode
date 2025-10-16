@@ -8,9 +8,11 @@ import * as DOM from '../../dom.js';
 import { StandardMouseEvent } from '../../mouseEvent.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../common/lifecycle.js';
 import * as platform from '../../../common/platform.js';
-import { Range } from '../../../common/range.js';
 import { OmitOptional } from '../../../common/types.js';
 import './contextview.css';
+import { AnchorAlignment, AnchorAxisAlignment, AnchorPosition, IRect, layout2d } from '../../../common/layout.js';
+
+export { AnchorAlignment, AnchorAxisAlignment, AnchorPosition };
 
 export const enum ContextViewDOMPosition {
 	ABSOLUTE = 1,
@@ -29,18 +31,6 @@ export function isAnchor(obj: unknown): obj is IAnchor | OmitOptional<IAnchor> {
 	const anchor = obj as IAnchor | OmitOptional<IAnchor> | undefined;
 
 	return !!anchor && typeof anchor.x === 'number' && typeof anchor.y === 'number';
-}
-
-export const enum AnchorAlignment {
-	LEFT, RIGHT
-}
-
-export const enum AnchorPosition {
-	BELOW, ABOVE
-}
-
-export const enum AnchorAxisAlignment {
-	VERTICAL, HORIZONTAL
 }
 
 export interface IDelegate {
@@ -71,67 +61,6 @@ export interface IContextViewProvider {
 	showContextView(delegate: IDelegate, container?: HTMLElement): void;
 	hideContextView(): void;
 	layout(): void;
-}
-
-export interface IPosition {
-	top: number;
-	left: number;
-}
-
-export interface ISize {
-	width: number;
-	height: number;
-}
-
-export interface IView extends IPosition, ISize { }
-
-export const enum LayoutAnchorPosition {
-	Before,
-	After
-}
-
-export enum LayoutAnchorMode {
-	AVOID,
-	ALIGN
-}
-
-export interface ILayoutAnchor {
-	offset: number;
-	size: number;
-	mode?: LayoutAnchorMode; // default: AVOID
-	position: LayoutAnchorPosition;
-}
-
-/**
- * Lays out a one dimensional view next to an anchor in a viewport.
- *
- * @returns The view offset within the viewport.
- */
-export function layout(viewportSize: number, viewSize: number, anchor: ILayoutAnchor): number {
-	const layoutAfterAnchorBoundary = anchor.mode === LayoutAnchorMode.ALIGN ? anchor.offset : anchor.offset + anchor.size;
-	const layoutBeforeAnchorBoundary = anchor.mode === LayoutAnchorMode.ALIGN ? anchor.offset + anchor.size : anchor.offset;
-
-	if (anchor.position === LayoutAnchorPosition.Before) {
-		if (viewSize <= viewportSize - layoutAfterAnchorBoundary) {
-			return layoutAfterAnchorBoundary; // happy case, lay it out after the anchor
-		}
-
-		if (viewSize <= layoutBeforeAnchorBoundary) {
-			return layoutBeforeAnchorBoundary - viewSize; // ok case, lay it out before the anchor
-		}
-
-		return Math.max(viewportSize - viewSize, 0); // sad case, lay it over the anchor
-	} else {
-		if (viewSize <= layoutBeforeAnchorBoundary) {
-			return layoutBeforeAnchorBoundary - viewSize; // happy case, lay it out before the anchor
-		}
-
-		if (viewSize <= viewportSize - layoutAfterAnchorBoundary) {
-			return layoutAfterAnchorBoundary; // ok case, lay it out after the anchor
-		}
-
-		return 0; // sad case, lay it over the anchor
-	}
 }
 
 export class ContextView extends Disposable {
@@ -271,7 +200,7 @@ export class ContextView extends Disposable {
 		const anchor = this.delegate!.getAnchor();
 
 		// Compute around
-		let around: IView;
+		let around: IRect;
 
 		// Get the element's position and size (to anchor the view)
 		if (DOM.isHTMLElement(anchor)) {
@@ -308,42 +237,13 @@ export class ContextView extends Disposable {
 			};
 		}
 
-		const viewSizeWidth = DOM.getTotalWidth(this.view);
-		const viewSizeHeight = DOM.getTotalHeight(this.view);
-
-		const anchorPosition = this.delegate!.anchorPosition ?? AnchorPosition.BELOW;
-		const anchorAlignment = this.delegate!.anchorAlignment ?? AnchorAlignment.LEFT;
-		const anchorAxisAlignment = this.delegate!.anchorAxisAlignment ?? AnchorAxisAlignment.VERTICAL;
-
-		let top: number;
-		let left: number;
-
 		const activeWindow = DOM.getActiveWindow();
-		if (anchorAxisAlignment === AnchorAxisAlignment.VERTICAL) {
-			const verticalAnchor: ILayoutAnchor = { offset: around.top - activeWindow.pageYOffset, size: around.height, position: anchorPosition === AnchorPosition.BELOW ? LayoutAnchorPosition.Before : LayoutAnchorPosition.After };
-			const horizontalAnchor: ILayoutAnchor = { offset: around.left, size: around.width, position: anchorAlignment === AnchorAlignment.LEFT ? LayoutAnchorPosition.Before : LayoutAnchorPosition.After, mode: LayoutAnchorMode.ALIGN };
-
-			top = layout(activeWindow.innerHeight, viewSizeHeight, verticalAnchor) + activeWindow.pageYOffset;
-
-			// if view intersects vertically with anchor,  we must avoid the anchor
-			if (Range.intersects({ start: top, end: top + viewSizeHeight }, { start: verticalAnchor.offset, end: verticalAnchor.offset + verticalAnchor.size })) {
-				horizontalAnchor.mode = LayoutAnchorMode.AVOID;
-			}
-
-			left = layout(activeWindow.innerWidth, viewSizeWidth, horizontalAnchor);
-		} else {
-			const horizontalAnchor: ILayoutAnchor = { offset: around.left, size: around.width, position: anchorAlignment === AnchorAlignment.LEFT ? LayoutAnchorPosition.Before : LayoutAnchorPosition.After };
-			const verticalAnchor: ILayoutAnchor = { offset: around.top, size: around.height, position: anchorPosition === AnchorPosition.BELOW ? LayoutAnchorPosition.Before : LayoutAnchorPosition.After, mode: LayoutAnchorMode.ALIGN };
-
-			left = layout(activeWindow.innerWidth, viewSizeWidth, horizontalAnchor);
-
-			// if view intersects horizontally with anchor, we must avoid the anchor
-			if (Range.intersects({ start: left, end: left + viewSizeWidth }, { start: horizontalAnchor.offset, end: horizontalAnchor.offset + horizontalAnchor.size })) {
-				verticalAnchor.mode = LayoutAnchorMode.AVOID;
-			}
-
-			top = layout(activeWindow.innerHeight, viewSizeHeight, verticalAnchor) + activeWindow.pageYOffset;
-		}
+		const viewport = { top: activeWindow.pageYOffset, left: activeWindow.pageXOffset, width: activeWindow.innerWidth, height: activeWindow.innerHeight };
+		const view = { width: DOM.getTotalWidth(this.view), height: DOM.getTotalHeight(this.view) };
+		const anchorPosition = this.delegate!.anchorPosition;
+		const anchorAlignment = this.delegate!.anchorAlignment;
+		const anchorAxisAlignment = this.delegate!.anchorAxisAlignment;
+		const { top, left } = layout2d(viewport, view, around, { anchorAlignment, anchorPosition, anchorAxisAlignment });
 
 		this.view.classList.remove('top', 'bottom', 'left', 'right');
 		this.view.classList.add(anchorPosition === AnchorPosition.BELOW ? 'bottom' : 'top');

@@ -11,7 +11,7 @@ import { StandardKeyboardEvent } from '../../keyboardEvent.js';
 import { StandardMouseEvent } from '../../mouseEvent.js';
 import { ActionBar, ActionsOrientation, IActionViewItemProvider } from '../actionbar/actionbar.js';
 import { ActionViewItem, BaseActionViewItem, IActionViewItemOptions } from '../actionbar/actionViewItems.js';
-import { AnchorAlignment, layout, LayoutAnchorPosition } from '../contextview/contextview.js';
+
 import { DomScrollableElement } from '../scrollbar/scrollableElement.js';
 import { EmptySubmenuAction, IAction, IActionRunner, Separator, SubmenuAction } from '../../../common/actions.js';
 import { RunOnceScheduler } from '../../../common/async.js';
@@ -26,6 +26,7 @@ import { DisposableStore } from '../../../common/lifecycle.js';
 import { isLinux, isMacintosh } from '../../../common/platform.js';
 import { ScrollbarVisibility, ScrollEvent } from '../../../common/scrollable.js';
 import * as strings from '../../../common/strings.js';
+import { AnchorAlignment, layout, LayoutAnchorPosition } from '../../../common/layout.js';
 
 export const MENU_MNEMONIC_REGEX = /\(&([^\s&])\)|(^|[^&])&([^\s&])/;
 export const MENU_ESCAPED_MNEMONIC_REGEX = /(&amp;)?(&amp;)([^\s&])/g;

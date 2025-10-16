@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { layout, LayoutAnchorPosition } from '../../../../browser/ui/contextview/contextview.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
+import { layout, LayoutAnchorPosition } from '../../common/layout.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
-suite('Contextview', function () {
+suite('Layout', function () {
 
 	test('layout', () => {
 		assert.strictEqual(layout(200, 20, { offset: 0, size: 0, position: LayoutAnchorPosition.Before }), 0);
