@@ -574,7 +574,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	private initSelectedModel() {
-		if (this.getContributedSessionInfo()) { // HACK
+		// Don't initialize persisted model selection for contributed sessions
+		// as they manage their own model selection
+		if (this.getContributedSessionInfo()) {
 			return;
 		}
 		const persistedSelection = this.storageService.get(this.getSelectedModelStorageKey(), StorageScope.APPLICATION);
@@ -716,28 +718,27 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private getModels(): ILanguageModelChatMetadataAndIdentifier[] {
 		const sessionInfo = this.getContributedSessionInfo();
-		if (sessionInfo) {
-			const contributedModels = this.chatSessionsService.getModelsForSessionType(sessionInfo.chatSessionType);
-			if (contributedModels !== undefined) {
-				const models: ILanguageModelChatMetadataAndIdentifier[] = [];
-				for (const m of contributedModels) {
-					models.push(m);
-				}
-				models.sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
-				return models;
-			}
+		// Get models filtered by session type - if in a contributed session, get only those models
+		const sessionType = sessionInfo?.chatSessionType;
+		const models = this.languageModelsService.getLanguageModelsForSessionType(sessionType);
+
+		// For contributed sessions, return the models as-is (already filtered and sorted)
+		if (sessionType) {
+			const sortedModels = [...models];
+			sortedModels.sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
+			return sortedModels;
 		}
 
+		// For non-contributed sessions, apply caching and filtering logic
 		const cachedModels = this.storageService.getObject<ILanguageModelChatMetadataAndIdentifier[]>('chat.cachedLanguageModels', StorageScope.APPLICATION, []);
-		let models = this.languageModelsService.getLanguageModelIds()
-			.map(modelId => ({ identifier: modelId, metadata: this.languageModelsService.lookupLanguageModel(modelId)! }));
-		if (models.length === 0 || models.some(m => m.metadata.isDefault) === false) {
-			models = cachedModels;
+		let filteredModels = models;
+		if (filteredModels.length === 0 || filteredModels.some(m => m.metadata.isDefault) === false) {
+			filteredModels = cachedModels;
 		} else {
-			this.storageService.store('chat.cachedLanguageModels', models, StorageScope.APPLICATION, StorageTarget.MACHINE);
+			this.storageService.store('chat.cachedLanguageModels', filteredModels, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		}
-		models.sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
-		return models.filter(entry => entry.metadata?.isUserSelectable && this.modelSupportedForDefaultAgent(entry));
+		filteredModels.sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
+		return filteredModels.filter(entry => entry.metadata?.isUserSelectable && this.modelSupportedForDefaultAgent(entry));
 	}
 
 	/**
@@ -781,7 +782,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	private setCurrentLanguageModelToDefault() {
-		if (this.getContributedSessionInfo()) { // HACK
+		// Don't switch to default model for contributed sessions
+		// as they manage their own model selection
+		if (this.getContributedSessionInfo()) {
 			return;
 		}
 		const defaultModel = this.getModels().find(m => m.metadata.isDefault);

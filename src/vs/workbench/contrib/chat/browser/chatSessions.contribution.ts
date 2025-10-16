@@ -25,7 +25,7 @@ import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { ChatSession, ChatSessionStatus, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionModelInfo, IChatSessionsExtensionPoint, IChatSessionsService } from '../common/chatSessionsService.js';
 import { ChatSessionUri } from '../common/chatUri.js';
 import { ChatAgentLocation, ChatModeKind, VIEWLET_ID } from '../common/constants.js';
-import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
 import { CHAT_CATEGORY } from './actions/chatActions.js';
 import { IChatEditorOptions } from './chatEditor.js';
 import { NEW_CHAT_SESSION_ACTION_ID } from './chatSessions/common.js';
@@ -165,6 +165,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 	) {
 		super();
 		this._register(extensionPoint.setHandler(extensions => {
@@ -649,8 +650,12 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				});
 			}
 			this._sessionTypeModels.set(chatSessionType, mappedModels);
+			// Register the models with the language models service
+			this._languageModelsService.registerContributedModels(chatSessionType, mappedModels);
 		} else {
 			this._sessionTypeModels.delete(chatSessionType);
+			// Clear the models from the language models service
+			this._languageModelsService.registerContributedModels(chatSessionType, undefined);
 		}
 	}
 
