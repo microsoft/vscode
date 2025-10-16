@@ -29,7 +29,7 @@ import { ChatConfiguration } from '../../../common/constants.js';
 import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { localize } from '../../../../../../nls.js';
 import { TerminalCommandId } from '../../../../terminal/common/terminal.js';
-import { getTerminalInstanceByToolSessionId, onDidRegisterTerminalInstanceForToolSession } from '../../../../terminalContrib/browser/terminalChatAgentToolsExports.js';
+import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
 
 export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart {
 	public readonly domNode: HTMLElement;
@@ -51,6 +51,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICommandService commandService: ICommandService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@ITerminalChatService terminalChatService: ITerminalChatService,
 	) {
 		super(toolInvocation);
 
@@ -74,7 +75,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 		// Only show focus action when output location is set to 'none'
 		if (configurationService.getValue<string>('chat.tools.terminal.outputLocation') === 'none') {
-			let terminalInstance = getTerminalInstanceByToolSessionId(terminalData.terminalToolSessionId);
+			let terminalInstance = terminalChatService.getTerminalInstanceByToolSessionId(terminalData.terminalToolSessionId);
 			if (elements.actionBar) {
 				const actionBar = new ActionBar(elements.actionBar, {});
 				this._register(actionBar);
@@ -92,9 +93,9 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 				actionBar.push([focusAction], { icon: true, label: false });
 
 				if (!terminalInstance && terminalData.terminalToolSessionId) {
-					const listener = this._register(onDidRegisterTerminalInstanceForToolSession(e => {
+					const listener = this._register(terminalChatService.onDidRegisterTerminalInstanceForToolSession(e => {
 						if (e.terminalToolSessionId === terminalData.terminalToolSessionId) {
-							terminalInstance = getTerminalInstanceByToolSessionId(e.terminalToolSessionId);
+							terminalInstance = terminalChatService.getTerminalInstanceByToolSessionId(e.terminalToolSessionId);
 							if (terminalInstance) {
 								focusAction.enabled = true;
 								this._store.delete(listener);

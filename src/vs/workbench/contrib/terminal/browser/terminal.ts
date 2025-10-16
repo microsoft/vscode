@@ -41,6 +41,7 @@ export const ITerminalEditorService = createDecorator<ITerminalEditorService>('t
 export const ITerminalEditingService = createDecorator<ITerminalEditingService>('terminalEditingService');
 export const ITerminalGroupService = createDecorator<ITerminalGroupService>('terminalGroupService');
 export const ITerminalInstanceService = createDecorator<ITerminalInstanceService>('terminalInstanceService');
+export const ITerminalChatService = createDecorator<ITerminalChatService>('terminalChatService');
 
 /**
  * A terminal contribution that gets created whenever a terminal is created. A contribution has
@@ -98,6 +99,35 @@ export interface ITerminalInstanceService {
 
 	getRegisteredBackends(): IterableIterator<ITerminalBackend>;
 	didRegisterBackend(backend: ITerminalBackend): void;
+}
+
+/**
+ * Service for bridging terminal chat related tool invocations with terminal instances.
+ * Maintains an in-memory association between a tool session id (generated when a chat tool
+ * prepares/invokes a terminal run) and the actual {@link ITerminalInstance}. Consumers (eg. chat
+ * UI parts) can look up the instance asynchronously or listen for registrations should the
+ * terminal not yet exist.
+ */
+export interface ITerminalChatService {
+	readonly _serviceBrand: undefined;
+
+	/**
+	 * Fired when a terminal instance is registered for a tool session id. This can happen after
+	 * the chat UI first renders, enabling late binding of the focus action.
+	 */
+	readonly onDidRegisterTerminalInstanceForToolSession: Event<{ terminalToolSessionId: string }>;
+
+	/**
+	 * Associate a tool session id with a terminal instance. The association is automatically
+	 * cleared when the instance is disposed.
+	 */
+	registerTerminalInstanceForToolSession(terminalToolSessionId: string, instance: ITerminalInstance): void;
+
+	/**
+	 * Resolve a terminal instance by its tool session id.
+	 * @param terminalToolSessionId The tool session id provided in toolSpecificData.
+	 */
+	getTerminalInstanceByToolSessionId(terminalToolSessionId: string | undefined): ITerminalInstance | undefined;
 }
 
 /**
