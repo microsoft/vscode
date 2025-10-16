@@ -24,7 +24,7 @@ Custom rules are defined in the `.eslint-plugin-local` folder. Each rule is defi
 - `code-RULE-NAME.ts` — General rules that apply to the entire repo.
 - `vscode-dts-RULE-NAME.ts` — Rules that apply just to `vscode.d.ts`.
 
-These rules are then enabled in the `eslint.config.js` file. This is the main eslint configuration for our repo. It defines a set of file scopes which rules should apple to files in those scopes.
+These rules are then enabled in the `eslint.config.js` file. This is the main eslint configuration for our repo. It defines a set of file scopes which rules should apply to files in those scopes.
 
 For example, here's a configuration that enables the no `test.only` rule in all `*.test.ts` files in the VS Code repo:
 
