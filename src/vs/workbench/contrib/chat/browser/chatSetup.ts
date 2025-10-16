@@ -1275,12 +1275,12 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					if (foundMode) {
 						modeToUse = foundMode.id;
 					}
+					// execute the command to change the mode in panel, note that the command only supports mode IDs, not names
+					await this.commandService.executeCommand(CHAT_SETUP_ACTION_ID, modeToUse);
+					return true;
 				}
 
-				// execute the command to change the mode in panel, note that the command only supports mode IDs, not names
-				await this.commandService.executeCommand(CHAT_SETUP_ACTION_ID, modeToUse);
-
-				return true;
+				return false;
 			}
 		}));
 	}
