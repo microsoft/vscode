@@ -341,7 +341,7 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 					this._proxy.$onDidTriggerButton(sessionId, handle, toggle!.checked);
 				}));
 
-				session.handlesToToggles.set(handle, { toggle, listener });
+				handlesToToggles.set(handle, { toggle, listener });
 			}
 			toggles.push(toggle);
 		}
