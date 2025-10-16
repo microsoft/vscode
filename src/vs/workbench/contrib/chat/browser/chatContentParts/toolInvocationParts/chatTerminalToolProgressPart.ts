@@ -73,6 +73,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		));
 		this._register(titlePart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 
+		// Wait for terminal reconnection to ensure the terminal instance is available
 		this._terminalService.whenConnected.then(() => {
 			// Append the action bar element after the title has been populated so flex order hacks aren't required.
 			const actionBarEl = h('.chat-terminal-action-bar@actionBar');
