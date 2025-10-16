@@ -1637,7 +1637,7 @@ Update \`.github/copilot-instructions.md\` for the user, then ask for feedback o
 
 	MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 		submenu: CHAT_CONFIG_MENU_ID,
-		title: localize2('config.label', "Configure Chat..."),
+		title: localize2('config.label', "Configure Chat"),
 		group: 'navigation',
 		when: ContextKeyExpr.equals('view', ChatViewId),
 		icon: Codicon.gear,

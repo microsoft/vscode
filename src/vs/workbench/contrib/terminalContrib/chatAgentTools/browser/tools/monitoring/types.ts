@@ -19,6 +19,7 @@ export interface IExecution {
 	getOutput: (marker?: XtermMarker) => string;
 	isActive?: () => Promise<boolean>;
 	task?: Task | Pick<Task, 'configurationProperties'>;
+	dependencyTasks?: Task[];
 	instance: Pick<ITerminalInstance, 'sendText' | 'instanceId' | 'onDidInputData' | 'onData' | 'focus' | 'registerMarker'>;
 	sessionId: string | undefined;
 }

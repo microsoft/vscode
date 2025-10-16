@@ -16,13 +16,13 @@ suite('NewPromptsParser', () => {
 	test('mode', async () => {
 		const uri = URI.parse('file:///test/chatmode.md');
 		const content = [
-			/* 01 */"---",
+			/* 01 */'---',
 			/* 02 */`description: "Agent mode test"`,
-			/* 03 */"model: GPT 4.1",
-			/* 04 */"tools: ['tool1', 'tool2']",
-			/* 05 */"---",
-			/* 06 */"This is a chat mode test.",
-			/* 07 */"Here is a #tool1 variable and a #file:./reference1.md as well as a [reference](./reference2.md).",
+			/* 03 */'model: GPT 4.1',
+			/* 04 */`tools: ['tool1', 'tool2']`,
+			/* 05 */'---',
+			/* 06 */'This is a chat mode test.',
+			/* 07 */'Here is a #tool1 variable and a #file:./reference1.md as well as a [reference](./reference2.md).',
 		].join('\n');
 		const result = new NewPromptsParser().parse(uri, content);
 		assert.deepEqual(result.uri, uri);
@@ -60,11 +60,11 @@ suite('NewPromptsParser', () => {
 	test('instructions', async () => {
 		const uri = URI.parse('file:///test/prompt1.md');
 		const content = [
-			/* 01 */"---",
+			/* 01 */'---',
 			/* 02 */`description: "Code style instructions for TypeScript"`,
-			/* 03 */"applyTo: *.ts",
-			/* 04 */"---",
-			/* 05 */"Follow my companies coding guidlines at [mycomp-ts-guidelines](https://mycomp/guidelines#typescript.md)",
+			/* 03 */'applyTo: *.ts',
+			/* 04 */'---',
+			/* 05 */'Follow my companies coding guidlines at [mycomp-ts-guidelines](https://mycomp/guidelines#typescript.md)',
 		].join('\n');
 		const result = new NewPromptsParser().parse(uri, content);
 		assert.deepEqual(result.uri, uri);
@@ -90,13 +90,13 @@ suite('NewPromptsParser', () => {
 	test('prompt file', async () => {
 		const uri = URI.parse('file:///test/prompt2.md');
 		const content = [
-			/* 01 */"---",
+			/* 01 */'---',
 			/* 02 */`description: "General purpose coding assistant"`,
-			/* 03 */"mode: agent",
-			/* 04 */"model: GPT 4.1",
-			/* 05 */"tools: ['search', 'terminal']",
-			/* 06 */"---",
-			/* 07 */"This is a prompt file body referencing #search and [docs](https://example.com/docs).",
+			/* 03 */'mode: agent',
+			/* 04 */'model: GPT 4.1',
+			/* 05 */`tools: ['search', 'terminal']`,
+			/* 06 */'---',
+			/* 07 */'This is a prompt file body referencing #search and [docs](https://example.com/docs).',
 		].join('\n');
 		const result = new NewPromptsParser().parse(uri, content);
 		assert.deepEqual(result.uri, uri);
@@ -134,17 +134,17 @@ suite('NewPromptsParser', () => {
 	test('prompt file tools as map', async () => {
 		const uri = URI.parse('file:///test/prompt2.md');
 		const content = [
-			/* 01 */"---",
-			/* 02 */"tools:",
-			/* 03 */"  built-in: true",
-			/* 04 */"  mcp:",
-			/* 05 */"    vscode-playright-mcp:",
-			/* 06 */"      browser-click: true",
-			/* 07 */"  extensions:",
-			/* 08 */"    github.vscode-pull-request-github:",
-			/* 09 */"      openPullRequest: true",
-			/* 10 */"      copilotCodingAgent: false",
-			/* 11 */"---",
+			/* 01 */'---',
+			/* 02 */'tools:',
+			/* 03 */'  built-in: true',
+			/* 04 */'  mcp:',
+			/* 05 */'    vscode-playright-mcp:',
+			/* 06 */'      browser-click: true',
+			/* 07 */'  extensions:',
+			/* 08 */'    github.vscode-pull-request-github:',
+			/* 09 */'      openPullRequest: true',
+			/* 10 */'      copilotCodingAgent: false',
+			/* 11 */'---',
 		].join('\n');
 		const result = new NewPromptsParser().parse(uri, content);
 		assert.deepEqual(result.uri, uri);
@@ -157,17 +157,17 @@ suite('NewPromptsParser', () => {
 					type: 'object',
 					properties: [
 						{
-							"key": { type: 'string', value: 'built-in', range: new Range(3, 3, 3, 11) },
-							"value": { type: 'boolean', value: true, range: new Range(3, 13, 3, 17) }
+							'key': { type: 'string', value: 'built-in', range: new Range(3, 3, 3, 11) },
+							'value': { type: 'boolean', value: true, range: new Range(3, 13, 3, 17) }
 						},
 						{
-							"key": { type: 'string', value: 'mcp', range: new Range(4, 3, 4, 6) },
-							"value": {
+							'key': { type: 'string', value: 'mcp', range: new Range(4, 3, 4, 6) },
+							'value': {
 								type: 'object', range: new Range(5, 5, 6, 26), properties: [
 									{
-										"key": { type: 'string', value: 'vscode-playright-mcp', range: new Range(5, 5, 5, 25) }, "value": {
+										'key': { type: 'string', value: 'vscode-playright-mcp', range: new Range(5, 5, 5, 25) }, 'value': {
 											type: 'object', range: new Range(6, 7, 6, 26), properties: [
-												{ "key": { type: 'string', value: 'browser-click', range: new Range(6, 7, 6, 20) }, "value": { type: 'boolean', value: true, range: new Range(6, 22, 6, 26) } }
+												{ 'key': { type: 'string', value: 'browser-click', range: new Range(6, 7, 6, 20) }, 'value': { type: 'boolean', value: true, range: new Range(6, 22, 6, 26) } }
 											]
 										}
 									}
@@ -175,14 +175,14 @@ suite('NewPromptsParser', () => {
 							}
 						},
 						{
-							"key": { type: 'string', value: 'extensions', range: new Range(7, 3, 7, 13) },
-							"value": {
+							'key': { type: 'string', value: 'extensions', range: new Range(7, 3, 7, 13) },
+							'value': {
 								type: 'object', range: new Range(8, 5, 10, 32), properties: [
 									{
-										"key": { type: 'string', value: 'github.vscode-pull-request-github', range: new Range(8, 5, 8, 38) }, "value": {
+										'key': { type: 'string', value: 'github.vscode-pull-request-github', range: new Range(8, 5, 8, 38) }, 'value': {
 											type: 'object', range: new Range(9, 7, 10, 32), properties: [
-												{ "key": { type: 'string', value: 'openPullRequest', range: new Range(9, 7, 9, 22) }, "value": { type: 'boolean', value: true, range: new Range(9, 24, 9, 28) } },
-												{ "key": { type: 'string', value: 'copilotCodingAgent', range: new Range(10, 7, 10, 25) }, "value": { type: 'boolean', value: false, range: new Range(10, 27, 10, 32) } }
+												{ 'key': { type: 'string', value: 'openPullRequest', range: new Range(9, 7, 9, 22) }, 'value': { type: 'boolean', value: true, range: new Range(9, 24, 9, 28) } },
+												{ 'key': { type: 'string', value: 'copilotCodingAgent', range: new Range(10, 7, 10, 25) }, 'value': { type: 'boolean', value: false, range: new Range(10, 27, 10, 32) } }
 											]
 										}
 									}
