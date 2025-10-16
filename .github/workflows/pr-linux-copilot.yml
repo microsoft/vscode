@@ -176,6 +176,8 @@ jobs:
         run: npm install -g @github/copilot
 
       - name: Test GitHub Copilot CLI
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           PROMPT="Using the vscode_automation tools... Run the MCP: Add Server command and add an http server with a url of https://stytch-as-demo.val.run/mcp and a name of 'stytch'. Then stop the vscode_automation and open the ${{ github.workspace }}/.build/vscode-playwright-mcp/videos folder"
           copilot -p "$PROMPT" --allow-all-tools --additional-mcp-config '{"mcpServers":{"vscode-playwright-mcp":{"type":"local","command":"sh","tools":["*"],"args":["${{ github.workspace }}/test/mcp/scripts/start-stdio.sh"]}}}'
