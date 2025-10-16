@@ -844,7 +844,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._register(this._processManager.onProcessData(e => this._onProcessData(e)));
 		this._register(xterm.raw.onData(async data => {
-			await this._pauseInputEventBarrier?.wait();
 			await this._processManager.write(data);
 			this._onDidInputData.fire(data);
 		}));
