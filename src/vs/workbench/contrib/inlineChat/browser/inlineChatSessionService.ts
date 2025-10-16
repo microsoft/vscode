@@ -15,7 +15,7 @@ import { createDecorator, ServicesAccessor } from '../../../../platform/instanti
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { showChatView } from '../../chat/browser/chat.js';
 import { IChatEditingSession } from '../../chat/common/chatEditingService.js';
-import { IChatModel } from '../../chat/common/chatModel.js';
+import { IChatModel, IChatRequestModel } from '../../chat/common/chatModel.js';
 import { IChatService } from '../../chat/common/chatService.js';
 import { Session, StashedSession } from './inlineChatSession.js';
 
@@ -75,7 +75,7 @@ export interface IInlineChatSessionService {
 	readonly onDidChangeSessions: Event<this>;
 }
 
-export async function moveToPanelChat(accessor: ServicesAccessor, model: IChatModel | undefined) {
+export async function moveToPanelChat(accessor: ServicesAccessor, model: IChatModel | undefined, resend: boolean) {
 
 	const viewsService = accessor.get(IViewsService);
 	const chatService = accessor.get(IChatService);
@@ -83,9 +83,16 @@ export async function moveToPanelChat(accessor: ServicesAccessor, model: IChatMo
 	const widget = await showChatView(viewsService);
 
 	if (widget && widget.viewModel && model) {
+		let lastRequest: IChatRequestModel | undefined;
 		for (const request of model.getRequests().slice()) {
 			await chatService.adoptRequest(widget.viewModel.model.sessionId, request);
+			lastRequest = request;
 		}
+
+		if (lastRequest && resend) {
+			chatService.resendRequest(lastRequest, { location: widget.location });
+		}
+
 		widget.focusResponseItem();
 	}
 }

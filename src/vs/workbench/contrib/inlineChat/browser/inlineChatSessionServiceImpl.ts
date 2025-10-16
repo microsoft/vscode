@@ -553,7 +553,7 @@ export class InlineChatEscapeToolContribution extends Disposable {
 				const editor = codeEditorService.getFocusedCodeEditor();
 
 				if (result.confirmed || !editor) {
-					await instaService.invokeFunction(moveToPanelChat, session.chatModel);
+					await instaService.invokeFunction(moveToPanelChat, session.chatModel, true);
 					session.dispose();
 
 				} else {

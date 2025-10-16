@@ -1130,7 +1130,7 @@ export class InlineChatController1 implements IEditorContribution {
 			lastEdit.edits = [doEdits];
 		}
 
-		await this._instaService.invokeFunction(moveToPanelChat, this._session?.chatModel);
+		await this._instaService.invokeFunction(moveToPanelChat, this._session?.chatModel, false);
 
 		this.cancelSession();
 	}
