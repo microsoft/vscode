@@ -765,7 +765,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		if (renderInputOnTop) {
 			this.createInput(this.container, { renderFollowups, renderStyle });
-			dom.prepend(this.input.element, this.chatSuggestNextWidget.domNode);
 			this.listContainer = dom.append(this.container, $(`.interactive-list`));
 		} else {
 			this.listContainer = dom.append(this.container, $(`.interactive-list`));
