@@ -13,6 +13,16 @@
 		},
 		{
 			"type": "node",
+			"request": "launch",
+			"name": "Debug Hygiene Script",
+			"program": "${workspaceFolder}/build/hygiene.js",
+			"args": ["--fix", "src/vs/workbench/api/browser/mainThreadDebugService.ts"],
+			"cwd": "${workspaceFolder}",
+			"console": "integratedTerminal",
+			"skipFiles": ["<node_internals>/**"]
+		},
+		{
+			"type": "node",
 			"request": "attach",
 			"restart": true,
 			"name": "Attach to Extension Host",
