@@ -173,8 +173,14 @@ export class GlyphHoverWidget extends Disposable implements IOverlayWidget, IHov
 		const nodeHeight = this._hover.containerDomNode.clientHeight;
 		const top = topForLineNumber - editorScrollTop - ((nodeHeight - lineHeight) / 2);
 		const left = editorLayout.glyphMarginLeft + editorLayout.glyphMarginWidth + (laneOrLine === 'lineNo' ? editorLayout.lineNumbersWidth : 0);
+
+		// Constrain the hover widget to stay within the editor bounds
+		const editorHeight = editorLayout.height;
+		const maxTop = editorHeight - nodeHeight;
+		const constrainedTop = Math.max(0, Math.min(Math.round(top), maxTop));
+
 		this._hover.containerDomNode.style.left = `${left}px`;
-		this._hover.containerDomNode.style.top = `${Math.max(Math.round(top), 0)}px`;
+		this._hover.containerDomNode.style.top = `${constrainedTop}px`;
 		this._hover.containerDomNode.style.zIndex = '11'; // 1 more than the zone widget at 10 (#233819)
 	}
 
