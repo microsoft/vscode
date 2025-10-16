@@ -19,7 +19,6 @@ import { asCssVariable, inputActiveOptionBackground, inputActiveOptionBorder, in
 import { ICustomEditorLabelService } from '../../services/editor/common/customEditorLabelService.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { ExtHostContext, ExtHostQuickOpenShape, IInputBoxOptions, MainContext, MainThreadQuickOpenShape, TransferQuickInput, TransferQuickInputButton, TransferQuickPickItem, TransferQuickPickItemOrSeparator } from '../common/extHost.protocol.js';
-import { FileThemeIcon, FolderThemeIcon } from '../../../platform/theme/common/themeService.js';
 
 interface QuickInputSession {
 	input: IQuickInput;
@@ -281,7 +280,7 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 
 		// Derive icon props from resourceUri if icon is set to ThemeIcon.File or ThemeIcon.Folder.
 		const icon = item.iconPathDto;
-		if (ThemeIcon.isThemeIcon(icon) && (icon.id === FileThemeIcon.id || icon.id === FolderThemeIcon.id)) {
+		if (ThemeIcon.isThemeIcon(icon) && (ThemeIcon.isFile(icon) || ThemeIcon.isFolder(icon))) {
 			const iconClasses = new Lazy(() => getIconClasses(this.modelService, this.languageService, resourceUri));
 			Object.defineProperty(item, 'iconClasses', { get: () => iconClasses.value });
 		} else {
