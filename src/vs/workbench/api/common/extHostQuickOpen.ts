@@ -17,7 +17,7 @@ import { IExtensionDescription } from '../../../platform/extensions/common/exten
 import { coalesce } from '../../../base/common/arrays.js';
 import Severity from '../../../base/common/severity.js';
 import { ThemeIcon as ThemeIconUtils } from '../../../base/common/themables.js';
-import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
+import { checkProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { MarkdownString } from './extHostTypeConverters.js';
 
 export type Item = string | QuickPickItem;
@@ -90,8 +90,6 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 					return undefined;
 				}
 
-				const allowedTooltips = isProposedApiEnabled(extension, 'quickPickItemTooltip');
-
 				return itemsPromise.then(items => {
 
 					const pickItems: TransferQuickPickItemOrSeparator[] = [];
@@ -102,8 +100,12 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 						} else if (item.kind === QuickPickItemKind.Separator) {
 							pickItems.push({ type: 'separator', label: item.label });
 						} else {
-							if (item.tooltip && !allowedTooltips) {
-								console.warn(`Extension '${extension.identifier.value}' uses a tooltip which is proposed API that is only available when running out of dev or with the following command line switch: --enable-proposed-api ${extension.identifier.value}`);
+							if (item.tooltip) {
+								checkProposedApiEnabled(extension, 'quickPickItemTooltip');
+							}
+
+							if (item.resourceUri) {
+								checkProposedApiEnabled(extension, 'quickPickItemResource');
 							}
 
 							const icon = (item.iconPath) ? getIconPathOrClass(item.iconPath) : undefined;
@@ -115,7 +117,8 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 								detail: item.detail,
 								picked: item.picked,
 								alwaysShow: item.alwaysShow,
-								tooltip: allowedTooltips ? MarkdownString.fromStrict(item.tooltip) : undefined,
+								tooltip: MarkdownString.fromStrict(item.tooltip),
+								resourceUri: item.resourceUri,
 								handle
 							});
 						}
@@ -590,16 +593,18 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 				this._itemsToHandles.set(item, i);
 			});
 
-			const allowedTooltips = isProposedApiEnabled(this._extension, 'quickPickItemTooltip');
-
 			const pickItems: TransferQuickPickItemOrSeparator[] = [];
 			for (let handle = 0; handle < items.length; handle++) {
 				const item = items[handle];
 				if (item.kind === QuickPickItemKind.Separator) {
 					pickItems.push({ type: 'separator', label: item.label });
 				} else {
-					if (item.tooltip && !allowedTooltips) {
-						console.warn(`Extension '${this._extension.identifier.value}' uses a tooltip which is proposed API that is only available when running out of dev or with the following command line switch: --enable-proposed-api ${this._extension.identifier.value}`);
+					if (item.tooltip) {
+						checkProposedApiEnabled(this._extension, 'quickPickItemTooltip');
+					}
+
+					if (item.resourceUri) {
+						checkProposedApiEnabled(this._extension, 'quickPickItemResource');
 					}
 
 					const icon = (item.iconPath) ? getIconPathOrClass(item.iconPath) : undefined;
@@ -612,7 +617,8 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 						detail: item.detail,
 						picked: item.picked,
 						alwaysShow: item.alwaysShow,
-						tooltip: allowedTooltips ? MarkdownString.fromStrict(item.tooltip) : undefined,
+						tooltip: MarkdownString.fromStrict(item.tooltip),
+						resourceUri: item.resourceUri,
 						buttons: item.buttons?.map<TransferQuickInputButton>((button, i) => {
 							return {
 								...getIconPathOrClass(button.iconPath),

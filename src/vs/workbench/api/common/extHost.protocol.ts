@@ -621,6 +621,7 @@ export interface TransferQuickPickItem {
 	picked?: boolean;
 	alwaysShow?: boolean;
 	buttons?: TransferQuickInputButton[];
+	resourceUri?: UriComponents;
 }
 
 export interface TransferQuickInputButton extends quickInput.IQuickInputButton {

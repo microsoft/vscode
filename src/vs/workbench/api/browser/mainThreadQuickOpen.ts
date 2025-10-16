@@ -39,7 +39,11 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IQuickInputService quickInputService: IQuickInputService
+		@IQuickInputService quickInputService: IQuickInputService,
+		@ILabelService private readonly labelService: ILabelService,
+		@ICustomEditorLabelService private readonly customEditorLabelService: ICustomEditorLabelService,
+		@IModelService private readonly modelService: IModelService,
+		@ILanguageService private readonly languageService: ILanguageService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostQuickOpen);
 		this._quickInputService = quickInputService;
@@ -84,7 +88,7 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 
 	$setItems(instance: number, items: TransferQuickPickItemOrSeparator[]): Promise<void> {
 		if (this._items[instance]) {
-			this._items[instance].resolve(items);
+			this._items[instance].resolve(items.map(item => this.processResourceUri(item)));
 			delete this._items[instance];
 		}
 		return Promise.resolve();
@@ -253,50 +257,5 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 			this.sessions.delete(sessionId);
 		}
 		return Promise.resolve(undefined);
-	}
-
-	/**
-	 * Updates the toggles for a given quick input session by creating new {@link Toggle}-s
-	 * from buttons, updating existing toggles props and removing old ones.
-	 */
-	private updateToggles(sessionId: number, session: QuickInputSession, buttons: TransferQuickInputButton[]) {
-		const { input, handlesToToggles, store } = session;
-
-		// Add new or update existing toggles.
-		const toggles = [];
-		for (const { handle, tooltip, checked } of buttons) {
-			let toggle = handlesToToggles.get(handle);
-			if (toggle) {
-				// Toggle already exists, update its props.
-				toggle.setTitle(tooltip || '');
-				//toggle.setIcon(iconPath);
-				toggle.checked = !!checked;
-			} else {
-				// Create a new toggle from the button.
-				toggle = store.add(new Toggle({
-					title: tooltip || '',
-					icon: ThemeIcon.File, // iconPath,
-					isChecked: !!checked,
-					inputActiveOptionBorder: asCssVariable(inputActiveOptionBorder),
-					inputActiveOptionForeground: asCssVariable(inputActiveOptionForeground),
-					inputActiveOptionBackground: asCssVariable(inputActiveOptionBackground)
-				}));
-				store.add(toggle.onChange(() => {
-					this._proxy.$onDidTriggerButton(sessionId, handle);
-				}));
-				session.handlesToToggles.set(handle, toggle);
-			}
-			toggles.push(toggle);
-		}
-
-		// Remove toggles that are no longer present from the session map.
-		for (const handle of handlesToToggles.keys()) {
-			if (!buttons.some(o => o.handle === handle)) {
-				handlesToToggles.delete(handle);
-			}
-		}
-
-		// Update toggle interfaces on the input widget.
-		input.toggles = toggles;
 	}
 }
