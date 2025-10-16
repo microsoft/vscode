@@ -36,8 +36,7 @@ export class HoverCopyButton extends Disposable {
 		this._button.setAttribute('aria-label', localize('hover.copy', "Copy"));
 
 		// Add icon
-		const icon = dom.append(this._button, $(ThemeIcon.asCSSSelector(Codicon.copy)));
-		icon.classList.add('codicon');
+		dom.append(this._button, $(ThemeIcon.asCSSSelector(Codicon.copy)));
 
 		// Set up click handler
 		this._register(dom.addDisposableListener(this._button, dom.EventType.CLICK, (e) => {
@@ -65,7 +64,7 @@ export class HoverCopyButton extends Disposable {
 		));
 
 		// Initially hidden
-		this._button.style.display = 'none';
+		dom.hide(this._button);
 	}
 
 	private async _copyContent(): Promise<void> {
@@ -78,14 +77,14 @@ export class HoverCopyButton extends Disposable {
 	public show(): void {
 		if (!this._isVisible) {
 			this._isVisible = true;
-			this._button.style.display = '';
+			dom.show(this._button);
 		}
 	}
 
 	public hide(): void {
 		if (this._isVisible) {
 			this._isVisible = false;
-			this._button.style.display = 'none';
+			dom.hide(this._button);
 		}
 	}
 

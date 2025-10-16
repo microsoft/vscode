@@ -37,6 +37,11 @@
 	display: flex;
 }
 
+.monaco-editor .monaco-hover .hover-row.hover-row-with-copy {
+	position: relative;
+	padding-right: 20px;
+}
+
 .monaco-editor .monaco-hover .hover-row .hover-row-contents {
 	min-width: 0;
 	display: flex;
@@ -90,10 +95,6 @@
 	align-items: center;
 	justify-content: center;
 	z-index: 1;
-}
-
-.monaco-editor .monaco-hover .hover-row:hover .hover-copy-button {
-	display: flex;
 }
 
 .monaco-editor .monaco-hover .hover-copy-button:hover {

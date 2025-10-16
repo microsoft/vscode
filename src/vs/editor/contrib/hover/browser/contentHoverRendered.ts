@@ -25,6 +25,7 @@ import { HoverAction } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IOffsetRange } from '../../../common/core/ranges/offsetRange.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import { MarkerHover } from './markerHoverParticipant.js';
 
 export class RenderedContentHover extends Disposable {
 
@@ -332,13 +333,9 @@ class RenderedContentHoverParts extends Disposable {
 				event.stopPropagation();
 				this._focusedHoverPartIndex = -1;
 			}));
-
-			// Add copy button for hover parts
-			if (renderedPart.type === 'hoverPart') {
-				// Make element position relative so copy button can be absolutely positioned
-				element.style.position = 'relative';
-				// Prevent content from overlapping with the copy button
-				element.style.paddingRight = '20px';
+			// Add copy button for marker hovers
+			if (renderedPart.type === 'hoverPart' && renderedPart.hoverPart instanceof MarkerHover) {
+				element.classList.add('hover-row-with-copy');
 
 				const copyButton = disposables.add(new HoverCopyButton(
 					element,
