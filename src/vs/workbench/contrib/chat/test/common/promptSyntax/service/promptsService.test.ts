@@ -731,26 +731,65 @@ suite('PromptsService', () => {
 		});
 
 
+		test('header with handOffs', async () => {
+			const rootFolderName = 'custom-modes-with-handoffs';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			await (instaService.createInstance(MockFilesystem,
+				[{
+					name: rootFolderName,
+					children: [
+						{
+							name: '.github/chatmodes',
+							children: [
+								{
+									name: 'mode1.chatmode.md',
+									contents: [
+										'---',
+										'description: \'Mode file 1.\'',
+										'handoffs: [ { agent: "Edit", label: "Do it", prompt: "Do it now" } ]',
+										'---',
+									],
+								}
+							],
+
+						},
+					],
+				}])).mock();
+
+			const result = (await service.getCustomChatModes(CancellationToken.None)).map(mode => ({ ...mode, uri: URI.from(mode.uri) }));
+			const expected: ICustomChatMode[] = [
+				{
+					name: 'mode1',
+					description: 'Mode file 1.',
+					handOffs: [{ agent: 'Edit', label: 'Do it', prompt: 'Do it now', send: undefined }],
+					modeInstructions: {
+						content: '',
+						toolReferences: [],
+						metadata: undefined
+					},
+					model: undefined,
+					tools: undefined,
+					uri: URI.joinPath(rootFolderUri, '.github/chatmodes/mode1.chatmode.md'),
+				},
+			];
+
+			assert.deepEqual(
+				result,
+				expected,
+				'Must get custom chat modes.',
+			);
+		});
+
 		test('body with tool references', async () => {
 			const rootFolderName = 'custom-modes';
 			const rootFolder = `/${rootFolderName}`;
 			const rootFolderUri = URI.file(rootFolder);
 
-			sinon.stub(service, 'listPromptFiles')
-				.returns(Promise.resolve([
-					// local instructions
-					{
-						uri: URI.joinPath(rootFolderUri, '.github/chatmodes/mode1.instructions.md'),
-						storage: PromptsStorage.local,
-						type: PromptsType.mode,
-					},
-					{
-						uri: URI.joinPath(rootFolderUri, '.github/chatmodes/mode2.instructions.md'),
-						storage: PromptsStorage.local,
-						type: PromptsType.instructions,
-					},
-
-				]));
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
 
 			// mock current workspace file structure
 			await (instaService.createInstance(MockFilesystem,
@@ -761,7 +800,7 @@ suite('PromptsService', () => {
 							name: '.github/chatmodes',
 							children: [
 								{
-									name: 'mode1.instructions.md',
+									name: 'mode1.chatmode.md',
 									contents: [
 										'---',
 										'description: \'Mode file 1.\'',
@@ -771,7 +810,7 @@ suite('PromptsService', () => {
 									],
 								},
 								{
-									name: 'mode2.instructions.md',
+									name: 'mode2.chatmode.md',
 									contents: [
 										'First use #tool2\nThen use #tool1',
 									],
@@ -782,7 +821,7 @@ suite('PromptsService', () => {
 					],
 				}])).mock();
 
-			const result = await service.getCustomChatModes(CancellationToken.None);
+			const result = (await service.getCustomChatModes(CancellationToken.None)).map(mode => ({ ...mode, uri: URI.from(mode.uri) }));
 			const expected: ICustomChatMode[] = [
 				{
 					name: 'mode1',
@@ -793,8 +832,9 @@ suite('PromptsService', () => {
 						toolReferences: [{ name: 'tool1', range: { start: 11, endExclusive: 17 } }],
 						metadata: undefined
 					},
+					handOffs: undefined,
 					model: undefined,
-					uri: URI.joinPath(rootFolderUri, '.github/chatmodes/mode1.instructions.md'),
+					uri: URI.joinPath(rootFolderUri, '.github/chatmodes/mode1.chatmode.md'),
 				},
 				{
 					name: 'mode2',
@@ -806,7 +846,7 @@ suite('PromptsService', () => {
 						],
 						metadata: undefined
 					},
-					uri: URI.joinPath(rootFolderUri, '.github/chatmodes/mode2.instructions.md'),
+					uri: URI.joinPath(rootFolderUri, '.github/chatmodes/mode2.chatmode.md'),
 				}
 			];
 

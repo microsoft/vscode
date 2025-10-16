@@ -192,6 +192,47 @@ suite('PromptValidator', () => {
 			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
 			assert.ok(markers[0].message.startsWith(`Attribute 'applyTo' is not supported in mode files.`));
 		});
+
+		test('tools with invalid handoffs', async () => {
+			{
+				const content = [
+					'---',
+					'description: "Test"',
+					`handoffs: next`,
+					'---',
+				].join('\n');
+				const markers = await validate(content, PromptsType.mode);
+				assert.strictEqual(markers.length, 1);
+				assert.deepStrictEqual(markers.map(m => m.message), [`The 'handoffs' attribute must be an array.`]);
+			}
+			{
+				const content = [
+					'---',
+					'description: "Test"',
+					`handoffs:`,
+					`  - label: '123'`,
+					'---',
+				].join('\n');
+				const markers = await validate(content, PromptsType.mode);
+				assert.strictEqual(markers.length, 1);
+				assert.deepStrictEqual(markers.map(m => m.message), [`Missing required properties 'agent', 'prompt' in handoff object.`]);
+			}
+			{
+				const content = [
+					'---',
+					'description: "Test"',
+					`handoffs:`,
+					`  - label: '123'`,
+					`    agent: ''`,
+					`    prompt: ''`,
+					`    send: true`,
+					'---',
+				].join('\n');
+				const markers = await validate(content, PromptsType.mode);
+				assert.strictEqual(markers.length, 1);
+				assert.deepStrictEqual(markers.map(m => m.message), [`The 'agent' property in a handoff must be a non-empty string.`]);
+			}
+		});
 	});
 
 	suite('instructions', () => {
