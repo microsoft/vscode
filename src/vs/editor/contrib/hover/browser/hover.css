@@ -78,3 +78,39 @@
 .monaco-editor .monaco-hover code {
 	background-color: var(--vscode-textCodeBlock-background);
 }
+
+/* Hover copy button */
+.monaco-editor .monaco-hover .hover-copy-button {
+	position: absolute;
+	top: 4px;
+	right: 4px;
+	opacity: 0;
+	transition: opacity 0.15s ease-in-out;
+	cursor: pointer;
+	padding: 2px 4px;
+	border-radius: 3px;
+	display: none;
+	align-items: center;
+	justify-content: center;
+	z-index: 1;
+}
+
+.monaco-editor .monaco-hover .hover-row:hover .hover-copy-button {
+	display: flex;
+}
+
+.monaco-editor .monaco-hover .hover-copy-button:hover {
+	opacity: 1;
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.monaco-editor .monaco-hover .hover-copy-button:focus {
+	opacity: 1;
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.monaco-editor .monaco-hover .hover-copy-button .codicon {
+	font-size: 14px;
+	color: var(--vscode-foreground);
+}
