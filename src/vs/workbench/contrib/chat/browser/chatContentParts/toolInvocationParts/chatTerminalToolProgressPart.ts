@@ -43,7 +43,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 	constructor(
 		toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
-		private readonly _terminalData: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData,
+		private _terminalData: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData,
 		context: IChatContentPartRenderContext,
 		renderer: IMarkdownRenderer,
 		editorPool: EditorPool,
