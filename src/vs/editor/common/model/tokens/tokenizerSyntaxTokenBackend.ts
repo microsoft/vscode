@@ -10,7 +10,7 @@ import { countEOL } from '../../core/misc/eolCounter.js';
 import { Position } from '../../core/position.js';
 import { LineRange } from '../../core/ranges/lineRange.js';
 import { StandardTokenType } from '../../encodedTokenAttributes.js';
-import { IBackgroundTokenizer, IState, ILanguageIdCodec, TokenizationRegistry, ITokenizationSupport, IBackgroundTokenizationStore } from '../../languages.js';
+import { IBackgroundTokenizer, IState, ILanguageIdCodec, TokenizationRegistry, ITokenizationSupport, IBackgroundTokenizationStore, ILineVariableFontInfo } from '../../languages.js';
 import { IAttachedView } from '../../model.js';
 import { IModelContentChangedEvent } from '../../textModelEvents.js';
 import { BackgroundTokenizationState } from '../../tokenizationTextModelPart.js';
@@ -123,6 +123,9 @@ export class TokenizerSyntaxTokenBackend extends AbstractSyntaxTokenBackend {
 				setTokens: (tokens) => {
 					this.setTokens(tokens);
 				},
+				setFontInfo: (fontInfo: ILineVariableFontInfo[]) => {
+					this.setFontInfo(fontInfo);
+				},
 				backgroundTokenizationFinished: () => {
 					if (this._backgroundTokenizationState === BackgroundTokenizationState.Completed) {
 						// We already did a full tokenization and don't go back to progressing.
@@ -158,6 +161,9 @@ export class TokenizerSyntaxTokenBackend extends AbstractSyntaxTokenBackend {
 				this._debugBackgroundTokenizer.value = tokenizationSupport.createBackgroundTokenizer(this._textModel, {
 					setTokens: (tokens) => {
 						this._debugBackgroundTokens?.setMultilineTokens(tokens, this._textModel);
+					},
+					setFontInfo: (fontInfo: ILineVariableFontInfo[]) => {
+						this.setFontInfo(fontInfo);
 					},
 					backgroundTokenizationFinished() {
 						// NO OP
@@ -208,6 +214,10 @@ export class TokenizerSyntaxTokenBackend extends AbstractSyntaxTokenBackend {
 		}
 
 		return { changes: changes };
+	}
+
+	private setFontInfo(fontInfo: ILineVariableFontInfo[]): void {
+		this._onDidChangeFontInfo.fire(fontInfo);
 	}
 
 	private refreshAllVisibleLineTokens(): void {
