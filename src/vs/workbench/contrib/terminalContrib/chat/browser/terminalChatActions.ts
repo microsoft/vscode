@@ -9,7 +9,7 @@ import { localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { IChatWidgetService } from '../../../chat/browser/chat.js';
+import { ChatViewId, IChatWidgetService } from '../../../chat/browser/chat.js';
 import { ChatContextKeys } from '../../../chat/common/chatContextKeys.js';
 import { IChatService } from '../../../chat/common/chatService.js';
 import { ChatAgentLocation } from '../../../chat/common/constants.js';
@@ -18,7 +18,7 @@ import { isDetachedTerminalInstance, ITerminalChatService, ITerminalEditorServic
 import { registerActiveXtermAction } from '../../../terminal/browser/terminalActions.js';
 import { TerminalContextMenuGroup } from '../../../terminal/browser/terminalMenus.js';
 import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
-import { MENU_TERMINAL_CHAT_WIDGET_STATUS, MENU_TERMINAL_CHAT_WIDGET_TOOLBAR, TerminalChatCommandId, TerminalChatContextKeys } from './terminalChat.js';
+import { MENU_TERMINAL_CHAT_WIDGET_STATUS, TerminalChatCommandId, TerminalChatContextKeys } from './terminalChat.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { getIconId } from '../../../terminal/browser/terminalIcon.js';
@@ -310,10 +310,11 @@ registerAction2(class ShowHiddenOrToolTerminalsAction extends Action2 {
 			category: localize2('terminalCategory2', 'Terminal'),
 			f1: true,
 			menu: [{
-				id: MENU_TERMINAL_CHAT_WIDGET_TOOLBAR,
-				group: 'overflow',
-				order: 50,
-				when: TerminalContextKeys.terminalHasHidden
+				id: MenuId.ViewTitle,
+				when: ContextKeyExpr.and(TerminalContextKeys.terminalHasHidden, ContextKeyExpr.equals('view', ChatViewId)),
+				group: 'navigation',
+				order: -3,
+				isHiddenByDefault: true
 			}]
 		});
 	}
