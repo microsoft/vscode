@@ -115,13 +115,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		const isTerminalHidden = this._terminalChatService.terminalIsHidden(terminalToolSessionId);
 
 		const actionBar = this._register(new ActionBar(elements.actionBar, {}));
-		const focusAction = this._register(this._instantiationService.createInstance(FocusChatInstanceAction,
-			'chat.focusTerminalInstance',
-			isTerminalHidden ? localize('showTerminal', 'Show Terminal') : localize('focusTerminal', 'Focus Terminal'),
-			ThemeIcon.asClassName(Codicon.linkExternal),
-			true,
-			terminalToolSessionId,
-		));
+		const focusAction = this._register(this._instantiationService.createInstance(FocusChatInstanceAction, terminalToolSessionId, isTerminalHidden));
 		this._register(focusAction.onDidChange(e => {
 			if (e.enabled === false) {
 				actionBar.dispose();
@@ -171,21 +165,18 @@ CommandsRegistry.registerCommand(openTerminalSettingsLinkCommandId, async (acces
 export class FocusChatInstanceAction extends Action implements IAction {
 	private readonly _instance?: ITerminalInstance;
 	constructor(
-		id: string,
-		label: string,
-		cssClass: string,
-		enabled: boolean,
 		private readonly _terminalToolSessionId: string,
+		isTerminalHidden: boolean,
 		@ITerminalChatService private readonly _terminalChatService: ITerminalChatService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService
 	) {
 		super(
-			id,
-			label,
-			cssClass,
-			enabled,
+			'chat.focusTerminalInstance',
+			isTerminalHidden ? localize('showTerminal', 'Show Terminal') : localize('focusTerminal', 'Focus Terminal'),
+			ThemeIcon.asClassName(Codicon.linkExternal),
+			true,
 		);
 		const terminalInstance = this._terminalChatService.getTerminalInstanceByToolSessionId(this._terminalToolSessionId);
 		if (terminalInstance) {
