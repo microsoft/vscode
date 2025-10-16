@@ -63,11 +63,11 @@
             "scope": "application",
             "markdownDescription": "%config.github-authentication.useElectronFetch.description%"
           },
-          "github-authentication.forceDeviceCodeFlow": {
+          "github-authentication.preferDeviceCodeFlow": {
             "type": "boolean",
             "default": false,
             "scope": "application",
-            "markdownDescription": "%config.github-authentication.forceDeviceCodeFlow.description%"
+            "markdownDescription": "%config.github-authentication.preferDeviceCodeFlow.description%"
           }
         }
       }
