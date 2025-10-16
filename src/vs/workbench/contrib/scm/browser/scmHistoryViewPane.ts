@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/scm.css';
-import { $, append, h, reset } from '../../../../base/browser/dom.js';
+import { $, append, EventLike, h, reset } from '../../../../base/browser/dom.js';
 import { IHoverOptions, IManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { IconLabel } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
@@ -107,6 +107,10 @@ class SCMRepositoryActionViewItem extends ActionViewItem {
 	protected override getTooltip(): string | undefined {
 		return this._repository.provider.name;
 	}
+
+	override onClick(event: EventLike, preserveFocus?: boolean): void {
+		this.actionRunner?.run(this.action, this.element);
+	}
 }
 
 class SCMHistoryItemRefsActionViewItem extends ActionViewItem {
@@ -176,8 +180,8 @@ registerAction2(class extends ViewAction<SCMHistoryViewPane> {
 		});
 	}
 
-	async runInView(_: ServicesAccessor, view: SCMHistoryViewPane): Promise<void> {
-		view.pickRepository();
+	async runInView(_: ServicesAccessor, view: SCMHistoryViewPane, anchor: HTMLElement): Promise<void> {
+		view.pickRepository(anchor);
 	}
 });
 
@@ -1347,7 +1351,7 @@ class RepositoryPicker {
 		@ISCMViewService private readonly _scmViewService: ISCMViewService
 	) { }
 
-	async pickRepository(): Promise<RepositoryQuickPickItem | undefined> {
+	async pickRepository(anchor: HTMLElement): Promise<RepositoryQuickPickItem | undefined> {
 		const picks: (RepositoryQuickPickItem | IQuickPickSeparator)[] = [
 			this._autoQuickPickItem,
 			{ type: 'separator' }];
@@ -1362,7 +1366,8 @@ class RepositoryPicker {
 		})));
 
 		return this._quickInputService.pick(picks, {
-			placeHolder: localize('scmGraphRepository', "Select the repository to view, type to filter all repositories")
+			placeHolder: localize('scmGraphRepository', "Select the repository to view, type to filter all repositories"),
+			anchor
 		});
 	}
 }
@@ -1758,9 +1763,9 @@ export class SCMHistoryViewPane extends ViewPane {
 		this._tree.scrollTop = 0;
 	}
 
-	async pickRepository(): Promise<void> {
+	async pickRepository(anchor: HTMLElement): Promise<void> {
 		const picker = this._instantiationService.createInstance(RepositoryPicker);
-		const result = await picker.pickRepository();
+		const result = await picker.pickRepository(anchor);
 
 		if (result) {
 			this._treeViewModel.setRepository(result.repository);
