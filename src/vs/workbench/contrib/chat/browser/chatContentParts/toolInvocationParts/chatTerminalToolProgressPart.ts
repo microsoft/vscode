@@ -120,16 +120,11 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			const focusAction = this._register(this._instantiationService.createInstance(FocusChatInstanceAction, terminalInstance, isTerminalHidden));
 			this._actionBar.push([focusAction], { icon: true, label: false });
 		} else {
-			const listener = this._register(this._terminalChatService.onDidRegisterTerminalInstanceForToolSession(e => {
-				if (e.terminalToolSessionId === terminalToolSessionId) {
-					const terminalInstance = this._terminalChatService.getTerminalInstanceByToolSessionId(e.terminalToolSessionId);
-					if (terminalInstance) {
-						this._registerInstanceListener(terminalInstance);
-						const focusAction = this._register(this._instantiationService.createInstance(FocusChatInstanceAction, terminalInstance, isTerminalHidden));
-						this._actionBar?.push([focusAction], { icon: true, label: false });
-						this._store.delete(listener);
-					}
-				}
+			const listener = this._register(this._terminalChatService.onDidRegisterTerminalInstanceWithToolSession(instance => {
+				this._registerInstanceListener(instance);
+				const focusAction = this._register(this._instantiationService.createInstance(FocusChatInstanceAction, instance, isTerminalHidden));
+				this._actionBar?.push([focusAction], { icon: true, label: false });
+				this._store.delete(listener);
 			}));
 		}
 	}

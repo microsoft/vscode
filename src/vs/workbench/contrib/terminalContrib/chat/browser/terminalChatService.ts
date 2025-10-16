@@ -15,8 +15,8 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 	declare _serviceBrand: undefined;
 
 	private readonly _terminalInstancesByToolSessionId = new Map<string, ITerminalInstance>();
-	private readonly _onDidRegisterTerminalInstanceForToolSession = new Emitter<{ terminalToolSessionId: string }>();
-	readonly onDidRegisterTerminalInstanceForToolSession: Event<{ terminalToolSessionId: string }> = this._onDidRegisterTerminalInstanceForToolSession.event;
+	private readonly _onDidRegisterTerminalInstanceForToolSession = new Emitter<ITerminalInstance>();
+	readonly onDidRegisterTerminalInstanceWithToolSession: Event<ITerminalInstance> = this._onDidRegisterTerminalInstanceForToolSession.event;
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
@@ -25,13 +25,13 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		super();
 	}
 
-	registerTerminalInstanceForToolSession(terminalToolSessionId: string | undefined, instance: ITerminalInstance): void {
+	registerTerminalInstanceWithToolSession(terminalToolSessionId: string | undefined, instance: ITerminalInstance): void {
 		if (!terminalToolSessionId) {
 			this._logService.warn('Attempted to register a terminal instance with an undefined tool session ID');
 			return;
 		}
 		this._terminalInstancesByToolSessionId.set(terminalToolSessionId, instance);
-		this._onDidRegisterTerminalInstanceForToolSession.fire({ terminalToolSessionId });
+		this._onDidRegisterTerminalInstanceForToolSession.fire(instance);
 		instance.onDisposed(() => {
 			this._terminalInstancesByToolSessionId.delete(terminalToolSessionId);
 		});
