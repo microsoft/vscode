@@ -58,7 +58,7 @@ export class ChatSessionTracker extends Disposable {
 				// Emit targeted event for this session type
 				this._onDidChangeEditors.fire({ sessionType, kind: e.kind });
 			})
-		)
+		);
 	}
 
 	public getLocalEditorsForSessionType(sessionType: string): ChatEditorInput[] {
