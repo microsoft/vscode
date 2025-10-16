@@ -50,7 +50,7 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProgressService } from '../../../../platform/progress/common/progress.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { ColorScheme } from '../../../../platform/theme/common/theme.js';
+import { isDark } from '../../../../platform/theme/common/theme.js';
 import { FileThemeIcon, FolderThemeIcon, IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { fillEditorsDragData } from '../../dnd.js';
@@ -1345,7 +1345,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 			}
 			return ({ start, end });
 		}) : undefined;
-		const icon = this.themeService.getColorTheme().type === ColorScheme.LIGHT ? node.icon : node.iconDark;
+		const icon = !isDark(this.themeService.getColorTheme().type) ? node.icon : node.iconDark;
 		const iconUrl = icon ? URI.revive(icon) : undefined;
 		const title = this.getHover(label, resource, node);
 
@@ -1584,7 +1584,7 @@ class Aligner extends Disposable {
 	}
 
 	private hasIcon(node: ITreeItem): boolean {
-		const icon = this.themeService.getColorTheme().type === ColorScheme.LIGHT ? node.icon : node.iconDark;
+		const icon = !isDark(this.themeService.getColorTheme().type) ? node.icon : node.iconDark;
 		if (icon) {
 			return true;
 		}
