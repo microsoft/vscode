@@ -318,7 +318,7 @@ registerAction2(class ShowHiddenOrToolTerminalsAction extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
+	run(accessor: ServicesAccessor): Promise<void> | void {
 		const terminalService = accessor.get(ITerminalService);
 		const groupService = accessor.get(ITerminalGroupService);
 		const editorService = accessor.get(ITerminalEditorService);
@@ -369,16 +369,16 @@ registerAction2(class ShowHiddenOrToolTerminalsAction extends Action2 {
 		qp.canSelectMany = false;
 		qp.title = localize2('showHiddenOrToolTerms.title', 'Hidden / Tool Terminals').value;
 		qp.matchOnDescription = true;
-		qp.onDidAccept(() => {
+		qp.onDidAccept(async () => {
 			const sel = qp.selectedItems[0];
 			if (sel) {
 				const target = all.get(Number(sel.id));
 				if (target) {
+					// If hidden, reveal first then focus. Both are async; await to ensure focus happens after reveal.
 					if (target.isBackground) {
-						terminalService.showBackgroundTerminal(target.instance);
-					} else {
-						terminalService.focusInstance(target.instance);
+						await terminalService.showBackgroundTerminal(target.instance);
 					}
+					await terminalService.focusInstance(target.instance);
 				}
 			}
 			qp.hide();
