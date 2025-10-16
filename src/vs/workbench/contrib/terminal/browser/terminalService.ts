@@ -692,8 +692,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 		}
 	}
 
-	@debounce(500)
-	private _saveState(): void {
+	private _saveStateNow(): void {
 		// Avoid saving state when shutting down as that would override process state to be revived
 		if (this._isShuttingDown) {
 			return;
@@ -704,6 +703,11 @@ export class TerminalService extends Disposable implements ITerminalService {
 		const tabs = this._terminalGroupService.groups.map(g => g.getLayoutInfo(g === this._terminalGroupService.activeGroup));
 		const state: ITerminalsLayoutInfoById = { tabs };
 		this._primaryBackend?.setTerminalLayoutInfo(state);
+	}
+
+	@debounce(500)
+	private _saveState(): void {
+		this._saveStateNow();
 	}
 
 	@debounce(500)
@@ -1160,7 +1164,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 		}
 	}
 
-	public showBackgroundTerminal(instance: ITerminalInstance, suppressSetActive?: boolean): void {
+	public async showBackgroundTerminal(instance: ITerminalInstance, suppressSetActive?: boolean, forceSaveState?: boolean): Promise<void> {
 		const index = this._backgroundedTerminalInstances.indexOf(instance);
 		if (index === -1) {
 			return;
@@ -1178,6 +1182,11 @@ export class TerminalService extends Disposable implements ITerminalService {
 			this._terminalGroupService.setActiveInstanceByIndex(0);
 		}
 
+		if (forceSaveState) {
+			// Skips the debounce of _saveState as we are shutting down
+			// and need to save the revealed hideFromUser terminals
+			this._saveStateNow();
+		}
 		this._onDidChangeInstances.fire();
 	}
 

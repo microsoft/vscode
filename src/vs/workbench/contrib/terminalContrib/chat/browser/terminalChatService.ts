@@ -45,12 +45,17 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		super();
 
 		this._restoreFromStorage();
-		this._register(this._lifecycleService.onBeforeShutdown(() => {
+		this._register(this._lifecycleService.onBeforeShutdown(async e => {
+			let veto = false;
 			// Show all hidden terminals before shutdown so they are restored
 			for (const [toolSessionId, instance] of this._terminalInstancesByToolSessionId) {
 				if (this.terminalIsHidden(toolSessionId) && (instance.capabilities.get(TerminalCapability.CommandDetection)?.promptInputModel.state === PromptInputState.Execute || instance.hasChildProcesses)) {
-					this._terminalService.showBackgroundTerminal(instance, true);
+					await this._terminalService.showBackgroundTerminal(instance, true);
+					veto = true;
 				}
+			}
+			if (veto) {
+				e.veto(Promise.resolve(true), 'terminalChatService');
 			}
 		}));
 	}
