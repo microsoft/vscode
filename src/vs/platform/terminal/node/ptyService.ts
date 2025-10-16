@@ -238,14 +238,18 @@ export class PtyService extends Disposable implements IPtyService {
 	private async _reviveTerminalProcess(workspaceId: string, terminal: ISerializedTerminalState): Promise<void> {
 		const restoreMessage = localize('terminal-history-restored', "History restored");
 
-		// For Windows ConPTY, we must NOT pass the replay data as initialText because that enables
-		// conptyInheritCursor which tries to parse cursor positions from the serialized xterm data.
-		// This causes cursor misalignment because the escape sequences were from a different session.
-		// Instead, we let ConPTY start with a completely clean slate and handle everything via replay.
-		let initialText: string | undefined;
-		if (!isWindows) {
-			// Non-Windows: Preserve legacy behavior of passing replay as initialText (safe on pty implementations)
-			initialText = terminal.replayEvent.events[0].data + formatMessageForTerminal(restoreMessage, { loudFormatting: true });
+		// Conpty v1.22+ uses passthrough and doesn't reprint the buffer often, this means that when
+		// the terminal is revived, the cursor would be at the bottom of the buffer then when
+		// PSReadLine requests `GetConsoleCursorInfo` it will be handled by conpty itself by design.
+		// This causes the cursor to move to the top into the replayed terminal contents. To avoid
+		// this, the post restore message will print new lines to get a clear viewport and put the
+		// cursor back at to top left.
+		let postRestoreMessage = '';
+		if (isWindows) {
+			const lastReplayEvent = terminal.replayEvent.events.length > 0 ? terminal.replayEvent.events.at(-1) : undefined;
+			if (lastReplayEvent) {
+				postRestoreMessage += '\r\n'.repeat(lastReplayEvent.rows - 1) + `\x1b[H`;
+			}
 		}
 
 		// TODO: We may at some point want to show date information in a hover via a custom sequence:
@@ -258,7 +262,7 @@ export class PtyService extends Disposable implements IPtyService {
 				color: terminal.processDetails.color,
 				icon: terminal.processDetails.icon,
 				name: terminal.processDetails.titleSource === TitleEventSource.Api ? terminal.processDetails.title : undefined,
-				initialText
+				initialText: terminal.replayEvent.events[0].data + formatMessageForTerminal(restoreMessage, { loudFormatting: true }) + postRestoreMessage
 			},
 			terminal.processDetails.cwd,
 			terminal.replayEvent.events[0].cols,
@@ -310,26 +314,7 @@ export class PtyService extends Disposable implements IPtyService {
 			executableEnv,
 			options
 		};
-		const persistentProcess = new PersistentTerminalProcess(
-			id,
-			process,
-			workspaceId,
-			workspaceName,
-			shouldPersist,
-			cols,
-			rows,
-			processLaunchOptions,
-			unicodeVersion,
-			this._reconnectConstants,
-			this._logService,
-			!!isReviving,
-			isReviving ? rawReviveBuffer : undefined,
-			rawReviveBuffer,
-			shellLaunchConfig.icon,
-			shellLaunchConfig.color,
-			shellLaunchConfig.name,
-			shellLaunchConfig.fixedDimensions
-		);
+		const persistentProcess = new PersistentTerminalProcess(id, process, workspaceId, workspaceName, shouldPersist, cols, rows, processLaunchOptions, unicodeVersion, this._reconnectConstants, this._logService, isReviving && typeof shellLaunchConfig.initialText === 'string' ? shellLaunchConfig.initialText : undefined, rawReviveBuffer, shellLaunchConfig.icon, shellLaunchConfig.color, shellLaunchConfig.name, shellLaunchConfig.fixedDimensions);
 		process.onProcessExit(event => {
 			for (const contrib of this._contributions) {
 				contrib.handleProcessDispose(id);
@@ -752,7 +737,6 @@ class PersistentTerminalProcess extends Disposable {
 		public unicodeVersion: '6' | '11',
 		reconnectConstants: IReconnectConstants,
 		private readonly _logService: ILogService,
-		wasRevived: boolean,
 		reviveBuffer: string | undefined,
 		rawReviveBuffer: string | undefined,
 		private _icon?: TerminalIcon,
@@ -762,7 +746,7 @@ class PersistentTerminalProcess extends Disposable {
 	) {
 		super();
 		this._interactionState = new MutationLogger(`Persistent process "${this._persistentProcessId}" interaction state`, InteractionState.None, this._logService);
-		this._wasRevived = wasRevived;
+		this._wasRevived = reviveBuffer !== undefined;
 		this._serializer = new XtermSerializer(
 			cols,
 			rows,
@@ -839,14 +823,6 @@ class PersistentTerminalProcess extends Disposable {
 
 	async start(): Promise<ITerminalLaunchError | ITerminalLaunchResult | undefined> {
 		if (!this._isStarted) {
-			// On Windows when reviving, perform replay BEFORE starting the actual pty so that
-			// the viewport and scrollback are prepared (blank viewport, history in scrollback)
-			// before the shell prompt is emitted. This avoids the race where the shell prompt
-			// appears in the middle of replay manipulation causing cursor/beep issues.
-			if (this._wasRevived && isWindows) {
-				await this._preStartReplayWindows();
-			}
-
 			const result = await this._terminalProcess.start();
 			if (result && 'message' in result) {
 				// it's a terminal launch error
@@ -854,8 +830,12 @@ class PersistentTerminalProcess extends Disposable {
 			}
 			this._isStarted = true;
 
-			if (this._wasRevived && !isWindows) {
-				// Non-Windows: do normal replay after start
+			// If the process was revived, trigger a replay on first start. An alternative approach
+			// could be to start it on the pty host before attaching but this fails on Windows as
+			// conpty's inherit cursor option which is required, ends up sending DSR CPR which
+			// causes conhost to hang when no response is received from the terminal (which wouldn't
+			// be attached yet). https://github.com/microsoft/terminal/issues/11213
+			if (this._wasRevived) {
 				this.triggerReplay();
 			} else {
 				this._onPersistentProcessReady.fire();
@@ -932,52 +912,9 @@ class PersistentTerminalProcess extends Disposable {
 			dataLength += e.data.length;
 		}
 		this._logService.info(`Persistent process "${this._persistentProcessId}": Replaying ${dataLength} chars and ${ev.events.length} size events`);
-
-		// Windows runtime replay path (only if process already started). For Windows we now
-		// prefer pre-start replay (_preStartReplayWindows). If we still end up here (eg. non-prestart
-		// scenario), fall back to normal replay without viewport tricks to avoid corruption.
-		if (!(isWindows && this._wasRevived)) {
-			this._logService.info(`Persistent process "${this._persistentProcessId}": Standard replay path`);
-		} else {
-			this._logService.info(`Persistent process "${this._persistentProcessId}": Skipping in-start Windows replay (already handled pre-start)`);
-			return; // Avoid double replay on Windows revival
-		}
-
 		this._onProcessReplay.fire(ev);
 		this._terminalProcess.clearUnacknowledgedChars();
 		this._onPersistentProcessReady.fire();
-	}
-
-	private async _preStartReplayWindows(): Promise<void> {
-		// Generate replay event BEFORE starting underlying pty so shell prompt comes after
-		// we prepared the viewport.
-		const ev = await this._serializer.generateReplayEvent();
-		if (!ev.events.length) {
-			return;
-		}
-		const event = ev.events[0];
-		const rows = event.rows;
-		// 1. Remove any trailing partial line (prompt) so shell will re-render it fresh
-		const lastNl = event.data.lastIndexOf('\n');
-		if (lastNl !== -1 && lastNl < event.data.length - 1) {
-			// Keep inclusive of newline so buffer ends at line boundary
-			event.data = event.data.slice(0, lastNl + 1);
-		}
-		// 2. Append History restored banner at the END of the historical scrollback so that
-		//    when the user scrolls up it's the most recent (bottom) scrollback line, not the oldest.
-		const restoreMessage = localize('terminal-history-restored', "History restored");
-		if (!event.data.endsWith('\n')) {
-			event.data += '\r\n';
-		}
-		event.data += formatMessageForTerminal(restoreMessage, { loudFormatting: true }) + '\r\n';
-		// 3. Append push-to-scrollback newlines and move cursor to home so viewport blank
-		//    Newlines push current viewport lines above, cursor ends bottom, then move to top.
-		//    Use rows+1 to ensure full scroll.
-		const push = '\r\n'.repeat(rows + 1) + '\x1b[H';
-		event.data += push;
-		this._logService.info(`Persistent process "${this._persistentProcessId}": Pre-start Windows replay prepared (rows=${rows})`);
-		this._onProcessReplay.fire(ev);
-		this._terminalProcess.clearUnacknowledgedChars();
 	}
 
 	sendCommandResult(reqId: number, isError: boolean, serializedPayload: any): void {
