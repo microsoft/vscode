@@ -857,7 +857,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (processTraits?.windowsPty?.backend === 'conpty') {
 				this._register(xterm.raw.parser.registerCsiHandler({ final: 'c' }, params => {
 					if (params.length === 0 || params.length === 1 && params[0] === 0) {
-						this._processManager.write('\x1b[?61;4c');
+						queueMicrotask(() => {
+							this._processManager.write('\x1b[?61;4c');
+						});
 						return true;
 					}
 					return false;
