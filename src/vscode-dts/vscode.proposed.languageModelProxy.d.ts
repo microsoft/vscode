@@ -11,10 +11,10 @@ declare module 'vscode' {
 
 	export namespace lm {
 		/**
-		 * Throws if
+		 * Returns undefined if
 		 * - The user is not logged in, or isn't the right SKU, with expected model access
 		 * - The server fails to start for some reason
 		 */
-		export function getModelProxy(): Thenable<LanguageModelProxy>;
+		export function getModelProxy(): Thenable<LanguageModelProxy | undefined>;
 	}
 }
