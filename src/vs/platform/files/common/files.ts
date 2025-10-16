@@ -968,6 +968,18 @@ export interface IFileChange {
 	readonly resource: URI;
 
 	/**
+	 * Associated resources for this file change. For performance
+	 * optimization we might drop certain file change events for
+	 * example when a folder is deleted to not report every child
+	 * as well. In such a case, the folder being deleted is the
+	 * main `resource` but the children are provided as associated
+	 * resources.
+	 *
+	 * Note: this is optional and only provided in certain cases.
+	 */
+	readonly associatedResources?: URI[];
+
+	/**
 	 * If provided when starting the file watcher, the correlation
 	 * identifier will match the original file watching request as
 	 * a way to identify the original component that is interested

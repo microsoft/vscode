@@ -335,6 +335,7 @@ export function reviveFileChanges(changes: IFileChange[]): IFileChange[] {
 	return changes.map(change => ({
 		type: change.type,
 		resource: URI.revive(change.resource),
+		associatedResources: change.associatedResources?.map(resource => URI.revive(resource)),
 		cId: change.cId
 	}));
 }
@@ -421,6 +422,9 @@ class EventCoalescer {
 			// Otherwise apply change type
 			else {
 				existingEvent.type = newChangeType;
+				if (newChangeType !== FileChangeType.DELETED && existingEvent.associatedResources) {
+					existingEvent.associatedResources.length = 0; // only track associated resources for DELETE events
+				}
 			}
 		}
 
@@ -437,7 +441,7 @@ class EventCoalescer {
 
 	coalesce(): IFileChange[] {
 		const addOrChangeEvents: IFileChange[] = [];
-		const deletedPaths: string[] = [];
+		const deleteChangeEvents: IFileChange[] = [];
 
 		// This algorithm will remove all DELETE events up to the root folder
 		// that got deleted if any. This ensures that we are not producing
@@ -457,12 +461,25 @@ class EventCoalescer {
 		}).sort((e1, e2) => {
 			return e1.resource.fsPath.length - e2.resource.fsPath.length; // shortest path first
 		}).filter(e => {
-			if (deletedPaths.some(deletedPath => isParent(e.resource.fsPath, deletedPath, !isLinux /* ignorecase */))) {
-				return false; // DELETE is ignored if parent is deleted already
+
+			// check if any of the already known deleted paths is a parent
+			// of this path and if so, ignore this event and remember it
+			// so that it can be set as associated resource to the event
+			for (const deleteChangeEvent of deleteChangeEvents) {
+				if (isParent(e.resource.fsPath, deleteChangeEvent.resource.fsPath, !isLinux /* ignorecase */)) {
+					let associatedResources = deleteChangeEvent.associatedResources;
+					if (!associatedResources) {
+						associatedResources = [];
+						(deleteChangeEvent as IFileChange & { associatedResources?: URI[] }).associatedResources = associatedResources;
+					}
+					associatedResources.push(e.resource);
+
+					return false; // DELETE is ignored if parent is deleted already
+				}
 			}
 
 			// otherwise mark as deleted
-			deletedPaths.push(e.resource.fsPath);
+			deleteChangeEvents.push(e);
 
 			return true;
 		}).concat(addOrChangeEvents);
