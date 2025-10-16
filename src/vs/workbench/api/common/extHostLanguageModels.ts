@@ -606,7 +606,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		return this._proxy.$fileIsIgnored(uri, token);
 	}
 
-	async getModelProxy(extension: IExtensionDescription): Promise<vscode.LanguageModelProxyInfo | undefined> {
+	async getModelProxy(extension: IExtensionDescription): Promise<vscode.LanguageModelProxy | undefined> {
 		checkProposedApiEnabled(extension, 'languageModelProxy');
 
 		if (!this._languageModelProxyProvider) {
