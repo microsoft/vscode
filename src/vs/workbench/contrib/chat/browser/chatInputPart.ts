@@ -389,6 +389,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 */
 	private _widget?: IChatWidget;
 
+	/**
+	 * Models to use for this input part. If not set, uses language models service.
+	 */
+	private _models?: ILanguageModelChatMetadataAndIdentifier[];
+
 	constructor(
 		// private readonly editorOptions: ChatEditorOptions, // TODO this should be used
 		private readonly location: ChatAgentLocation,
@@ -574,9 +579,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	private initSelectedModel() {
-		if (this.getContributedSessionInfo()) { // HACK
-			return;
-		}
 		const persistedSelection = this.storageService.get(this.getSelectedModelStorageKey(), StorageScope.APPLICATION);
 		const persistedAsDefault = this.storageService.getBoolean(this.getSelectedModelIsDefaultStorageKey(), StorageScope.APPLICATION, persistedSelection === 'copilot/gpt-4.1');
 
@@ -715,17 +717,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	private getModels(): ILanguageModelChatMetadataAndIdentifier[] {
-		const sessionInfo = this.getContributedSessionInfo();
-		if (sessionInfo) {
-			const contributedModels = this.chatSessionsService.getModelsForSessionType(sessionInfo.chatSessionType);
-			if (contributedModels !== undefined) {
-				const models: ILanguageModelChatMetadataAndIdentifier[] = [];
-				for (const m of contributedModels) {
-					models.push(m);
-				}
-				models.sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
-				return models;
-			}
+		// Use injected models if available
+		if (this._models) {
+			return this._models;
 		}
 
 		const cachedModels = this.storageService.getObject<ILanguageModelChatMetadataAndIdentifier[]>('chat.cachedLanguageModels', StorageScope.APPLICATION, []);
@@ -755,35 +749,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return sessionInfo;
 	}
 
-	/**
-	 * Update the context key that tracks whether we're in a contributed session with models
-	 */
-	private updateContributedSessionContext(): void {
-		const sessionInfo = this.getContributedSessionInfo();
-		if (sessionInfo) {
-			const contributedModels = this.chatSessionsService.getModelsForSessionType(sessionInfo.chatSessionType);
-			this.inContributedSessionWithModelsKey.set(contributedModels !== undefined && contributedModels.length > 0);
 
-			const cachedSessionModelId = this.chatSessionsService.getSessionOption(sessionInfo.chatSessionType, sessionInfo.chatSessionId, 'model');
-			if (!cachedSessionModelId) {
-				return;
-			}
-			const activeLanguageModel = contributedModels?.find(m => m.identifier === cachedSessionModelId);
-			if (!activeLanguageModel) {
-				this.logService.error('Cached contributed session model \'{0}\' ID does not correspond to an active language model.', cachedSessionModelId);
-				this.inContributedSessionWithModelsKey.set(false);
-				return;
-			}
-			this.setCurrentLanguageModel(activeLanguageModel);
-		} else {
-			this.inContributedSessionWithModelsKey.set(false);
-		}
-	}
 
 	private setCurrentLanguageModelToDefault() {
-		if (this.getContributedSessionInfo()) { // HACK
-			return;
-		}
 		const defaultModel = this.getModels().find(m => m.metadata.isDefault);
 		if (defaultModel) {
 			this.setCurrentLanguageModel(defaultModel);
@@ -837,6 +805,33 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	initForNewChatModel(state: IChatViewState, modelIsEmpty: boolean): void {
+		// Determine models based on the session type
+		const sessionInfo = this.getContributedSessionInfo();
+		if (sessionInfo) {
+			const contributedModels = this.chatSessionsService.getModelsForSessionType(sessionInfo.chatSessionType);
+			if (contributedModels !== undefined) {
+				this._models = [...contributedModels].sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
+				this.inContributedSessionWithModelsKey.set(this._models.length > 0);
+
+				// Set the current language model for contributed sessions
+				const cachedSessionModelId = this.chatSessionsService.getSessionOption(sessionInfo.chatSessionType, sessionInfo.chatSessionId, 'model');
+				if (cachedSessionModelId) {
+					const activeLanguageModel = this._models.find(m => m.identifier === cachedSessionModelId);
+					if (activeLanguageModel) {
+						this.setCurrentLanguageModel(activeLanguageModel);
+					} else {
+						this.logService.error('Cached contributed session model \'{0}\' ID does not correspond to an active language model.', cachedSessionModelId);
+					}
+				}
+			} else {
+				this._models = undefined;
+				this.inContributedSessionWithModelsKey.set(false);
+			}
+		} else {
+			this._models = undefined;
+			this.inContributedSessionWithModelsKey.set(false);
+		}
+
 		this.history = this.loadHistory();
 		this.history.add({
 			text: state.inputValue ?? this.history.current().text,
@@ -846,9 +841,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._attachmentModel.clearAndSetContext(...attachments);
 
 		this.selectedToolsModel.resetSessionEnablementState();
-
-		// Update contributed session context when model changes
-		this.updateContributedSessionContext();
 
 		if (state.inputValue) {
 			this.setValue(state.inputValue, false);
@@ -1151,9 +1143,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	render(container: HTMLElement, initialValue: string, widget: IChatWidget) {
 		this._widget = widget;
 
-		// Update contributed session context when widget is set
-		this.updateContributedSessionContext();
-
 		let elements;
 		if (this.options.renderStyle === 'compact') {
 			elements = dom.h('.interactive-input-part', [
@@ -1348,17 +1337,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 					const itemDelegate: IModelPickerDelegate = {
 						getCurrentModel: () => {
-							const sessionInfo = this.getContributedSessionInfo();
-							if (sessionInfo) {
-								const cachedSessionModelId = this.chatSessionsService.getSessionOption(sessionInfo.chatSessionType, sessionInfo.chatSessionId, 'model');
-								if (cachedSessionModelId) {
-									const contributedModels = this.chatSessionsService.getModelsForSessionType(sessionInfo.chatSessionType);
-									const activeModel = contributedModels?.find(m => m.identifier === cachedSessionModelId);
-									if (activeModel) {
-										return activeModel;
-									}
-								}
-							}
 							return this._currentLanguageModel;
 						},
 						onDidChangeModel: this._onDidChangeCurrentLanguageModel.event,
