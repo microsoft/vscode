@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableMap, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap } from '../../../../../base/common/lifecycle.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { GroupModelChangeKind } from '../../../../common/editor.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
@@ -33,30 +33,32 @@ export class ChatSessionTracker extends Disposable {
 	private setupEditorTracking(): void {
 		// Listen to all editor groups
 		this.editorGroupsService.groups.forEach(group => {
-			this.groupDisposables.set(group.id, this.registerGroupListeners(group));
+			this.registerGroupListeners(group);
 		});
 
 		// Listen for new groups
 		this._register(this.editorGroupsService.onDidAddGroup(group => {
-			this.groupDisposables.set(group.id, this.registerGroupListeners(group));
+			this.registerGroupListeners(group);
 		}));
 		this.editorGroupsService.onDidRemoveGroup(group => {
 			this.groupDisposables.deleteAndDispose(group.id);
 		});
 	}
 
-	private registerGroupListeners(group: IEditorGroup): IDisposable {
-		return group.onDidModelChange(e => {
-			if (!isChatSession(e.editor)) {
-				return;
-			}
+	private registerGroupListeners(group: IEditorGroup): void {
+		this.groupDisposables.set(group.id,
+			group.onDidModelChange(e => {
+				if (!isChatSession(e.editor)) {
+					return;
+				}
 
-			const editor = e.editor as ChatEditorInput;
-			const sessionType = getChatSessionType(editor);
+				const editor = e.editor as ChatEditorInput;
+				const sessionType = getChatSessionType(editor);
 
-			// Emit targeted event for this session type
-			this._onDidChangeEditors.fire({ sessionType, kind: e.kind });
-		});
+				// Emit targeted event for this session type
+				this._onDidChangeEditors.fire({ sessionType, kind: e.kind });
+			})
+		)
 	}
 
 	public getLocalEditorsForSessionType(sessionType: string): ChatEditorInput[] {
