@@ -759,7 +759,7 @@ suite('YAML Parser', () => {
 				},
 				[
 					{
-						message: "Duplicate key 'key'",
+						message: `Duplicate key 'key'`,
 						code: 'duplicateKey',
 						start: pos(1, 0),
 						end: pos(1, 3)
@@ -874,7 +874,7 @@ suite('YAML Parser', () => {
 		test('empty object with only colons', () => {
 			// Test object with empty values
 			assertValidParse(
-				["key1:", "key2:", "key3:"],
+				['key1:', 'key2:', 'key3:'],
 				{
 					type: 'object', start: pos(0, 0), end: pos(2, 5), properties: [
 						{
@@ -943,11 +943,11 @@ suite('YAML Parser', () => {
 			// Test malformed arrays that might cause position advancement issues
 			assertValidParse(
 				[
-					"key: [",
-					"",
-					"",
-					"",
-					""
+					'key: [',
+					'',
+					'',
+					'',
+					''
 				],
 				{
 					type: 'object', start: pos(0, 0), end: pos(5, 0), properties: [
@@ -965,11 +965,11 @@ suite('YAML Parser', () => {
 			// Test structures that might appear self-referential
 			assertValidParse(
 				[
-					"a:",
-					"  b:",
-					"    a:",
-					"      b:",
-					"        value: test"
+					'a:',
+					'  b:',
+					'    a:',
+					'      b:',
+					'        value: test'
 				],
 				{
 					type: 'object', start: pos(0, 0), end: pos(4, 19), properties: [
@@ -1014,7 +1014,7 @@ suite('YAML Parser', () => {
 		test('array with empty lines', () => {
 			// Test arrays spanning multiple lines with empty lines
 			assertValidParse(
-				["arr: [", "", "item1,", "", "item2", "", "]"],
+				['arr: [', '', 'item1,', '', 'item2', '', ']'],
 				{
 					type: 'object', start: pos(0, 0), end: pos(6, 1), properties: [
 						{

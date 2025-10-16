@@ -340,10 +340,10 @@ export class McpServerEditor extends EditorPane {
 		template.mcpServer = mcpServer;
 
 		template.name.textContent = mcpServer.label;
-		template.name.classList.toggle('clickable', !!mcpServer.gallery?.webUrl || !!mcpServer.url);
+		template.name.classList.toggle('clickable', !!mcpServer.gallery?.webUrl);
 		template.description.textContent = mcpServer.description;
-		if (mcpServer.url) {
-			this.transientDisposables.add(onClick(template.name, () => this.openerService.open(URI.parse(mcpServer.gallery?.webUrl ?? mcpServer.url!))));
+		if (mcpServer.gallery?.webUrl) {
+			this.transientDisposables.add(onClick(template.name, () => this.openerService.open(URI.parse(mcpServer.gallery?.webUrl!))));
 		}
 
 		this.renderNavbar(mcpServer, template, preserveFocus);
@@ -903,28 +903,7 @@ class AdditionalDetailsWidget extends Disposable {
 			const supportUri = getMcpGalleryManifestResourceUri(manifest, McpGalleryResourceType.ContactSupportUri);
 			if (supportUri) {
 				try {
-					resources.push([localize('support', "Support"), ThemeIcon.fromId(Codicon.commentDiscussion.id), URI.parse(supportUri)]);
-				} catch (error) {/* Ignore */ }
-			}
-
-			const privacyUri = getMcpGalleryManifestResourceUri(manifest, McpGalleryResourceType.PrivacyPolicyUri);
-			if (privacyUri) {
-				try {
-					resources.push([localize('privacy', "Privacy Policy"), ThemeIcon.fromId(Codicon.law.id), URI.parse(privacyUri)]);
-				} catch (error) {/* Ignore */ }
-			}
-
-			const termsUri = getMcpGalleryManifestResourceUri(manifest, McpGalleryResourceType.TermsOfServiceUri);
-			if (termsUri) {
-				try {
-					resources.push([localize('terms', "Terms of Service"), ThemeIcon.fromId(Codicon.law.id), URI.parse(termsUri)]);
-				} catch (error) {/* Ignore */ }
-			}
-
-			const reportUri = getMcpGalleryManifestResourceUri(manifest, McpGalleryResourceType.ReportUri);
-			if (reportUri) {
-				try {
-					resources.push([localize('report', "Report abuse"), ThemeIcon.fromId(Codicon.report.id), URI.parse(reportUri)]);
+					resources.push([localize('support', "Contact Support"), ThemeIcon.fromId(Codicon.commentDiscussion.id), URI.parse(supportUri)]);
 				} catch (error) {/* Ignore */ }
 			}
 		}

@@ -144,6 +144,7 @@ export class ChatTodoListWidget extends Disposable {
 			return;
 		}
 
+		this.domNode.style.display = 'none';
 		const currentTodos = this.chatTodoListService.getTodos(sessionId);
 		const shouldClear = force || !currentTodos.some(todo => todo.status !== 'completed');
 		if (shouldClear) {
