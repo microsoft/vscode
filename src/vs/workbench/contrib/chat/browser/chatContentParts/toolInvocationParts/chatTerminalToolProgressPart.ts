@@ -52,6 +52,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		codeBlockModelCollection: CodeBlockModelCollection,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalChatService private readonly _terminalChatService: ITerminalChatService,
+		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
 		super(toolInvocation);
 
@@ -72,11 +73,12 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		));
 		this._register(titlePart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 
-		// Append the action bar element after the title has been populated so flex order hacks aren't required.
-		const actionBarEl = h('.chat-terminal-action-bar@actionBar');
-		elements.title.append(actionBarEl.root);
-		this._createActionBar({ actionBar: actionBarEl.actionBar });
-
+		this._terminalService.whenConnected.then(() => {
+			// Append the action bar element after the title has been populated so flex order hacks aren't required.
+			const actionBarEl = h('.chat-terminal-action-bar@actionBar');
+			elements.title.append(actionBarEl.root);
+			this._createActionBar({ actionBar: actionBarEl.actionBar });
+		});
 		let pastTenseMessage: string | undefined;
 		if (toolInvocation.pastTenseMessage) {
 			pastTenseMessage = `${typeof toolInvocation.pastTenseMessage === 'string' ? toolInvocation.pastTenseMessage : toolInvocation.pastTenseMessage.value}`;
