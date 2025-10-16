@@ -7,6 +7,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
@@ -538,7 +539,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return chatSessionItem;
 	}
 
-	public async provideChatSessionContent(chatSessionType: string, id: string, token: CancellationToken): Promise<ChatSession> {
+	public async provideChatSessionContent(chatSessionType: string, id: string, resource: URI, token: CancellationToken): Promise<ChatSession> {
 		if (!(await this.canResolveContentProvider(chatSessionType))) {
 			throw Error(`Can not find provider for ${chatSessionType}`);
 		}
@@ -554,7 +555,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			return existingSessionData.session;
 		}
 
-		const session = await provider.provideChatSessionContent(id, token);
+		const session = await provider.provideChatSessionContent(id, resource, token);
 		const sessionData = new ContributedChatSessionData(session, chatSessionType, id, this._onWillDisposeSession.bind(this));
 
 		this._sessions.set(sessionKey, sessionData);
