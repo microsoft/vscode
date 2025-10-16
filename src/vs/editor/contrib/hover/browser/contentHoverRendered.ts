@@ -23,6 +23,7 @@ import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { HoverAction } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IOffsetRange } from '../../../common/core/ranges/offsetRange.js';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 
 export class RenderedContentHover extends Disposable {
 
@@ -44,7 +45,8 @@ export class RenderedContentHover extends Disposable {
 		participants: IEditorHoverParticipant<IHoverPart>[],
 		context: IEditorHoverContext,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IHoverService hoverService: IHoverService
+		@IHoverService hoverService: IHoverService,
+		@IClipboardService clipboardService: IClipboardService
 	) {
 		super();
 		const parts = hoverResult.hoverParts;
@@ -54,7 +56,8 @@ export class RenderedContentHover extends Disposable {
 			parts,
 			context,
 			keybindingService,
-			hoverService
+			hoverService,
+			clipboardService
 		));
 		const contentHoverComputerOptions = hoverResult.options;
 		const anchor = contentHoverComputerOptions.anchor;
@@ -235,7 +238,8 @@ class RenderedContentHoverParts extends Disposable {
 		hoverParts: IHoverPart[],
 		context: IEditorHoverContext,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IHoverService hoverService: IHoverService
+		@IHoverService hoverService: IHoverService,
+		@IClipboardService private readonly _clipboardService: IClipboardService
 	) {
 		super();
 		this._context = context;
