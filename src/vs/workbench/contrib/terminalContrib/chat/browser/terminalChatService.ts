@@ -88,6 +88,10 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		return this._terminalInstancesByToolSessionId.get(terminalToolSessionId);
 	}
 
+	getToolSessionTerminalInstances(): readonly ITerminalInstance[] {
+		return Array.from(this._terminalInstancesByToolSessionId.values());
+	}
+
 	terminalIsHidden(terminalToolSessionId: string | undefined): boolean {
 		if (!terminalToolSessionId) {
 			return false;

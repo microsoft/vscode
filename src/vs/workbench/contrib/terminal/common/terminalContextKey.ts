@@ -140,6 +140,9 @@ export namespace TerminalContextKeys {
 	/** Whether shell integration is enabled in the active terminal. This only considers full VS Code shell integration. */
 	export const terminalShellIntegrationEnabled = new RawContextKey<boolean>(TerminalContextKeyStrings.TerminalShellIntegrationEnabled, false, localize('terminalShellIntegrationEnabled', "Whether shell integration is enabled in the active terminal"));
 
+	/** Whether there is at least one hidden (background) terminal. */
+	export const terminalHasHidden = new RawContextKey<boolean>('terminalHasHidden', false, localize('terminalHasHiddenContextKey', "Whether there is at least one hidden (background) terminal."));
+
 	/** Whether a speech to text (dictation) session is in progress. */
 	export const terminalDictationInProgress = new RawContextKey<boolean>(TerminalContextKeyStrings.DictationInProgress, false);
 

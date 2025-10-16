@@ -14,11 +14,14 @@ import { ChatContextKeys } from '../../../chat/common/chatContextKeys.js';
 import { IChatService } from '../../../chat/common/chatService.js';
 import { ChatAgentLocation } from '../../../chat/common/constants.js';
 import { AbstractInline1ChatAction } from '../../../inlineChat/browser/inlineChatActions.js';
-import { isDetachedTerminalInstance } from '../../../terminal/browser/terminal.js';
+import { isDetachedTerminalInstance, ITerminalChatService, ITerminalInstance, ITerminalService } from '../../../terminal/browser/terminal.js';
 import { registerActiveXtermAction } from '../../../terminal/browser/terminalActions.js';
 import { TerminalContextMenuGroup } from '../../../terminal/browser/terminalMenus.js';
 import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
-import { MENU_TERMINAL_CHAT_WIDGET_STATUS, TerminalChatCommandId, TerminalChatContextKeys } from './terminalChat.js';
+import { MENU_TERMINAL_CHAT_WIDGET_STATUS, MENU_TERMINAL_CHAT_WIDGET_TOOLBAR, TerminalChatCommandId, TerminalChatContextKeys } from './terminalChat.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { getIconId } from '../../../terminal/browser/terminalIcon.js';
 import { TerminalChatController } from './terminalChatController.js';
 
 registerActiveXtermAction({
@@ -295,5 +298,88 @@ registerActiveXtermAction({
 		}
 		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
 		contr?.viewInChat();
+	}
+});
+
+registerActiveXtermAction({
+	id: TerminalChatCommandId.ShowHiddenOrToolTerminals,
+	title: localize2('showHiddenOrToolTerminals', 'Show Hidden/Tool Terminals'),
+	shortTitle: localize2('showHiddenToolTerms.short', 'Hidden/Tool Terms'),
+	category: AbstractInline1ChatAction.category,
+	f1: true,
+	precondition: TerminalContextKeys.terminalHasHidden,
+	menu: [{
+		id: MENU_TERMINAL_CHAT_WIDGET_TOOLBAR,
+		group: 'overflow',
+		order: 50,
+		when: TerminalContextKeys.terminalHasHidden
+	}],
+	run: (_xterm, accessor) => {
+		const terminalService = accessor.get(ITerminalService);
+		const terminalChatService = accessor.get(ITerminalChatService);
+		const quickInputService = accessor.get(IQuickInputService);
+		const instantiationService = accessor.get(IInstantiationService);
+
+		const backgrounded = terminalService.instances.filter(i => !terminalService.foregroundInstances.includes(i));
+		const toolInstances = new Set(terminalChatService.getToolSessionTerminalInstances());
+
+		// Union of backgrounded + tool instances
+		const all = new Map<number, { instance: ITerminalInstance; isBackground: boolean; isTool: boolean }>();
+		for (const i of backgrounded) {
+			all.set(i.instanceId, { instance: i, isBackground: true, isTool: toolInstances.has(i) });
+		}
+		for (const i of toolInstances) {
+			if (all.has(i.instanceId)) {
+				all.get(i.instanceId)!.isTool = true;
+			} else {
+				all.set(i.instanceId, { instance: i, isBackground: !terminalService.foregroundInstances.includes(i), isTool: true });
+			}
+		}
+
+		if (all.size === 0) {
+			// Nothing to show
+			return;
+		}
+
+		const items: IQuickPickItem[] = [];
+		for (const { instance, isBackground, isTool } of all.values()) {
+			const iconId = instantiationService.invokeFunction(getIconId, instance);
+			const prefix: string[] = [];
+			if (isTool) {
+				prefix.push('wrench');
+			}
+			if (isBackground) {
+				prefix.push('eye-closed');
+			}
+			const labelPrefix = prefix.length ? prefix.map(p => `$(${p})`).join(' ') + ' ' : '';
+			items.push({
+				label: `${labelPrefix}$(${iconId}) ${instance.title}`,
+				description: isTool && isBackground ? localize2('terminalHiddenToolDesc', 'Tool Session • Hidden').value : isTool ? localize2('terminalToolDesc', 'Tool Session').value : localize2('terminalHiddenDesc', 'Hidden').value,
+				id: String(instance.instanceId)
+			});
+		}
+
+		const qp = quickInputService.createQuickPick<IQuickPickItem>();
+		qp.items = items.sort((a, b) => a.label.localeCompare(b.label));
+		qp.canSelectMany = false;
+		qp.title = localize2('showHiddenOrToolTerms.title', 'Hidden / Tool Terminals').value;
+		qp.matchOnDescription = true;
+		qp.onDidAccept(() => {
+			const sel = qp.selectedItems[0];
+			if (sel) {
+				const target = all.get(Number(sel.id));
+				if (target) {
+					// Reveal if hidden, otherwise just focus
+					if (target.isBackground) {
+						terminalService.showBackgroundTerminal(target.instance);
+					} else {
+						terminalService.focusInstance(target.instance);
+					}
+				}
+			}
+			qp.hide();
+		});
+		qp.onDidHide(() => qp.dispose());
+		qp.show();
 	}
 });
