@@ -224,8 +224,6 @@ suite('getFlows', () => {
 			// Other flows should still be available
 			assert.strictEqual(flows[1].label, Flows.LocalServerFlow);
 			assert.strictEqual(flows[2].label, Flows.UrlHandlerFlow);
-
-			await config.update('preferDeviceCodeFlow', false, vscode.ConfigurationTarget.Global);
 		});
 
 		test('returns device code flow first when preferDeviceCodeFlow is true - Remote', async () => {
@@ -242,8 +240,6 @@ suite('getFlows', () => {
 			assert.strictEqual(flows.length, 2, `Expected 2 flows, got ${flows.length}: ${flows.map(f => f.label).join(',')}`);
 			assert.strictEqual(flows[0].label, Flows.DeviceCodeFlow);
 			assert.strictEqual(flows[1].label, Flows.UrlHandlerFlow);
-
-			await config.update('preferDeviceCodeFlow', false, vscode.ConfigurationTarget.Global);
 		});
 
 		test('returns normal flows when preferDeviceCodeFlow is true but device code flow is not supported - WebWorker', async () => {
@@ -260,8 +256,6 @@ suite('getFlows', () => {
 			// Based on the original logic, WebWorker + DotCom should return UrlHandlerFlow
 			assert.strictEqual(flows.length, 1, `Expected 1 flow for WebWorker configuration, got ${flows.length}: ${flows.map(f => f.label).join(',')}`);
 			assert.strictEqual(flows[0].label, Flows.UrlHandlerFlow);
-
-			await config.update('preferDeviceCodeFlow', false, vscode.ConfigurationTarget.Global);
 		});
 	});
 });
