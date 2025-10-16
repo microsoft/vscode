@@ -66,6 +66,8 @@ import { IChatModeService } from '../common/chatModes.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestDynamicVariablePart, ChatRequestSlashPromptPart, ChatRequestToolPart, ChatRequestToolSetPart, chatSubcommandLeader, formatChatQuestion, IParsedChatRequest } from '../common/chatParserTypes.js';
 import { ChatRequestParser } from '../common/chatRequestParser.js';
 import { IChatLocationData, IChatSendRequestOptions, IChatService } from '../common/chatService.js';
+import { ILanguageModelsService } from '../common/languageModels.js';
+import { IChatSessionsService } from '../common/chatSessionsService.js';
 import { IChatSlashCommandService } from '../common/chatSlashCommands.js';
 import { ChatRequestVariableSet, IChatRequestVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../common/chatVariableEntries.js';
 import { ChatViewModel, IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
@@ -478,6 +480,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) {
 		super();
 		this._lockedToCodingAgentContextKey = ChatContextKeys.lockedToCodingAgent.bindTo(this.contextKeyService);
@@ -2187,6 +2191,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this.container.setAttribute('data-session-id', model.sessionId);
 		this.viewModel = this.instantiationService.createInstance(ChatViewModel, model, this._codeBlockModelCollection);
+
+		// Contributed session model handling: register contributed models with unified language model service
+		// TODO: This needs to be 'reset' or if will affect new chat editors. Understand this more.
+		const sessionCtx = this.chatService.getChatSessionFromInternalId(model.sessionId);
+		if (sessionCtx && sessionCtx.chatSessionType !== 'local') {
+			const contributedModels = this.chatSessionsService.getModelsForSessionType(sessionCtx.chatSessionType) ?? [];
+			this.languageModelsService.setContributedSessionModels(sessionCtx.chatSessionType, contributedModels);
+			const cachedModelId = this.chatSessionsService.getSessionOption(sessionCtx.chatSessionType, sessionCtx.chatSessionId, 'model');
+			this.input.setContributedSession(sessionCtx.chatSessionType, sessionCtx.chatSessionId, cachedModelId);
+		}
 
 		if (this._lockedToCodingAgent) {
 			const placeholder = localize('chat.input.placeholder.lockedToAgent', "Chat with {0}", this._lockedToCodingAgent);

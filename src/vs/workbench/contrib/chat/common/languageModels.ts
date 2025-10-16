@@ -252,6 +252,22 @@ export interface ILanguageModelsService {
 	lookupLanguageModel(modelId: string): ILanguageModelChatMetadata | undefined;
 
 	/**
+	 * When a contributed 'sessionType' is provided and Chat Session-contributed
+	 * models have been registered for that type, only those models are returned.
+	 * Otherwise returns the set of user-selectable models.
+	 */
+	getLanguageModels(options?: { sessionType?: string }): ILanguageModelChatMetadataAndIdentifier[];
+
+	/**
+	 * Register (or replace) contributed models for a session type. Passing an empty array or
+	 * undefined clears the contributed models for that type. Fires onDidChangeLanguageModels.
+	 */
+	setContributedSessionModels(sessionType: string, models?: ILanguageModelChatMetadataAndIdentifier[] | undefined): void;
+
+	/** Clear contributed models for the given session type. */
+	clearContributedSessionModels(sessionType: string): void;
+
+	/**
 	 * Given a selector, returns a list of model identifiers
 	 * @param selector The selector to lookup for language models. If the selector is empty, all language models are returned.
 	 * @param allowPromptingUser If true the user may be prompted for things like API keys for us to select the model.
@@ -317,6 +333,10 @@ export class LanguageModelsService implements ILanguageModelsService {
 	private readonly _providers = new Map<string, ILanguageModelChatProvider>();
 	private readonly _modelCache = new Map<string, ILanguageModelChatMetadata>();
 	private readonly _vendors = new Map<string, IUserFriendlyLanguageModel>();
+	/**
+	 * Chat Session specific model definitions. Only shown in that chat session's context
+	 */
+	private readonly _contributedSessionModels = new Map<string /* chatSessionType */, ILanguageModelChatMetadataAndIdentifier[]>();
 	private readonly _resolveLMSequencer = new SequencerByKey<string>();
 	private _modelPickerUserPreferences: Record<string, boolean> = {};
 	private readonly _hasUserSelectableModels: IContextKey<boolean>;
@@ -427,6 +447,46 @@ export class LanguageModelsService implements ILanguageModelsService {
 			return { ...model, isUserSelectable: this._modelPickerUserPreferences[modelIdentifier] };
 		}
 		return model;
+	}
+
+	getLanguageModels(options?: { sessionType?: string }): ILanguageModelChatMetadataAndIdentifier[] {
+		if (options?.sessionType) {
+			const contributed = this._contributedSessionModels.get(options.sessionType);
+			if (contributed && contributed.length) {
+				return [...contributed].sort((a, b) => a.metadata.name.localeCompare(b.metadata.name, undefined, { sensitivity: 'base' }));
+			}
+			return [];
+		}
+
+		let models: ILanguageModelChatMetadataAndIdentifier[] = this.getLanguageModelIds()
+			.map(id => {
+				const metadata = this.lookupLanguageModel(id);
+				return metadata ? { identifier: id, metadata } : undefined;
+			})
+			.filter((m): m is ILanguageModelChatMetadataAndIdentifier => !!m);
+
+		models = models
+			.filter(m => m.metadata.isUserSelectable)
+			.sort((a, b) => a.metadata.name.localeCompare(b.metadata.name, undefined, { sensitivity: 'base' }));
+		return models;
+	}
+
+	setContributedSessionModels(sessionType: string, models?: ILanguageModelChatMetadataAndIdentifier[] | undefined): void {
+		if (!models || models.length === 0) {
+			if (this._contributedSessionModels.delete(sessionType)) {
+				this._onLanguageModelChange.fire();
+			}
+			return;
+		}
+		const sorted = [...models].sort((a, b) => a.metadata.name.localeCompare(b.metadata.name, undefined, { sensitivity: 'base' }));
+		this._contributedSessionModels.set(sessionType, sorted);
+		this._onLanguageModelChange.fire();
+	}
+
+	clearContributedSessionModels(sessionType: string): void {
+		if (this._contributedSessionModels.delete(sessionType)) {
+			this._onLanguageModelChange.fire();
+		}
 	}
 
 	private _clearModelCache(vendor: string): void {
