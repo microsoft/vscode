@@ -19,6 +19,7 @@ const $ = dom.$;
 export class GlyphHoverWidget extends Disposable implements IOverlayWidget, IHoverWidget {
 
 	public static readonly ID = 'editor.contrib.modesGlyphHoverWidget';
+	public readonly allowEditorOverflow = true;
 
 	private readonly _editor: ICodeEditor;
 	private readonly _hover: HoverWidget;
@@ -179,8 +180,22 @@ export class GlyphHoverWidget extends Disposable implements IOverlayWidget, IHov
 		const maxTop = editorHeight - nodeHeight;
 		const constrainedTop = Math.max(0, Math.min(Math.round(top), maxTop));
 
-		this._hover.containerDomNode.style.left = `${left}px`;
-		this._hover.containerDomNode.style.top = `${constrainedTop}px`;
+		const fixedOverflowWidgets = this._editor.getOption(EditorOption.fixedOverflowWidgets);
+		if (fixedOverflowWidgets) {
+			// Use fixed positioning relative to the viewport
+			const editorDomNode = this._editor.getDomNode();
+			if (editorDomNode) {
+				const editorRect = dom.getDomNodePagePosition(editorDomNode);
+				this._hover.containerDomNode.style.position = 'fixed';
+				this._hover.containerDomNode.style.left = `${editorRect.left + left}px`;
+				this._hover.containerDomNode.style.top = `${editorRect.top + constrainedTop}px`;
+			}
+		} else {
+			// Use absolute positioning relative to the editor
+			this._hover.containerDomNode.style.position = 'absolute';
+			this._hover.containerDomNode.style.left = `${left}px`;
+			this._hover.containerDomNode.style.top = `${constrainedTop}px`;
+		}
 		this._hover.containerDomNode.style.zIndex = '11'; // 1 more than the zone widget at 10 (#233819)
 	}
 
