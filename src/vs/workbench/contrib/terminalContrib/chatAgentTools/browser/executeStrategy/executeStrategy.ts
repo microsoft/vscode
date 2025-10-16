@@ -12,6 +12,13 @@ import type { IMarker as IXtermMarker } from '@xterm/xterm';
 
 export interface ITerminalExecuteStrategy {
 	readonly type: 'rich' | 'basic' | 'none';
+
+	readonly startMarker?: IXtermMarker;
+	readonly endMarker?: IXtermMarker;
+
+	readonly onUpdate: Event<void>;
+	readonly onDidFinishCommand: Event<{ exitCode?: number; data?: string }>;
+
 	/**
 	 * Executes a command line and gets a result designed to be passed directly to an LLM. The
 	 * result will include information about the exit code.

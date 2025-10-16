@@ -38,8 +38,11 @@ export function setupRecreatingStartMarker(
 	recreateStartMarker();
 	store.add(toDisposable(() => {
 		markerListener.dispose();
-		startMarker.clear();
-		fire(undefined);
+		// TODO@meganrogge !!! does this cause disposables to be leaked?
+		// Don't clear the start marker on disposal - we want it to persist
+		// so terminal UI parts can still access it
+		console.log('strategy disposed but keeping start marker');
+		// Don't fire undefined marker event - keep the last valid marker
 	}));
-	store.add(startMarker);
+	// We don't register startMarker with the store to prevent it from being auto-disposed
 }

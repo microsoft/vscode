@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { h } from '../../../../../../base/browser/dom.js';
+import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { isMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IPreferencesService, type IOpenSettingsOptions } from '../../../../../services/preferences/common/preferences.js';
+import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../../common/chat.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, type IChatMarkdownContent, type IChatTerminalToolInvocationData, type ILegacyChatTerminalToolInvocationData } from '../../../common/chatService.js';
 import { CodeBlockModelCollection } from '../../../common/codeBlockModelCollection.js';
@@ -16,7 +18,6 @@ import { IChatCodeBlockInfo } from '../../chat.js';
 import { ChatQueryTitlePart } from '../chatConfirmationWidget.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatMarkdownContentPart, EditorPool } from '../chatMarkdownContentPart.js';
-import { ChatCustomProgressPart } from '../chatProgressContentPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 import '../media/chatTerminalToolProgressPart.css';
 import { TerminalContribSettingId } from '../../../../terminal/terminalContribExports.js';
@@ -27,11 +28,10 @@ import { CommandsRegistry } from '../../../../../../platform/commands/common/com
 
 export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart {
 	public readonly domNode: HTMLElement;
-
+	private readonly container: HTMLElement;
 	private markdownPart: ChatMarkdownContentPart | undefined;
-	public get codeblocks(): IChatCodeBlockInfo[] {
-		return this.markdownPart?.codeblocks ?? [];
-	}
+	private readonly externalInstanceId: string;
+	private readonly chatSessionId: string;
 
 	constructor(
 		toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
@@ -43,14 +43,19 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		codeBlockStartIndex: number,
 		codeBlockModelCollection: CodeBlockModelCollection,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@ITerminalChatService private readonly _terminalChatService: ITerminalChatService,
 	) {
 		super(toolInvocation);
 
 		terminalData = migrateLegacyTerminalToolSpecificData(terminalData);
 
+		this.externalInstanceId = terminalData.terminalToolSessionId || generateUuid();
+		this.chatSessionId = context.element.sessionId;
+
 		const elements = h('.chat-terminal-content-part@container', [
 			h('.chat-terminal-content-title@title'),
-			h('.chat-terminal-content-message@message')
+			h('.chat-terminal-content-message@message'),
+			h('div@xtermElement')
 		]);
 
 		const command = terminalData.commandLine.userEdited ?? terminalData.commandLine.toolEdited ?? terminalData.commandLine.original;
@@ -86,10 +91,29 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		};
 		this.markdownPart = this._register(instantiationService.createInstance(ChatMarkdownContentPart, chatMarkdownContent, context, editorPool, false, codeBlockStartIndex, renderer, {}, currentWidthDelegate(), codeBlockModelCollection, { codeBlockRenderOptions }));
 		this._register(this.markdownPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
+		this.container = elements.container;
+		elements.title.append(this.markdownPart.domNode);
 
-		elements.message.append(this.markdownPart.domNode);
-		const progressPart = instantiationService.createInstance(ChatCustomProgressPart, elements.container, this.getIcon());
-		this.domNode = progressPart.domNode;
+		const attachment = this._terminalChatService.registerProgressPart({
+			chatSessionId: this.chatSessionId,
+			toolCallId: this.toolInvocation.toolCallId,
+			terminalSessionId: this.externalInstanceId,
+			onDidChangeHeight: () => this._onDidChangeHeight.fire()
+		});
+		this._register(attachment);
+
+		attachment.attachToElement(elements.xtermElement).then(() => {
+			elements.title.append(elements.xtermElement);
+			queueMicrotask(() => this._onDidChangeHeight.fire());
+		}).catch(error => {
+			console.error(`[chatTerminal] Failed to attach embedded terminal for ${this.externalInstanceId}`, error);
+		});
+
+		this.domNode = this.container;
+	}
+
+	public get codeblocks(): IChatCodeBlockInfo[] {
+		return this.markdownPart?.codeblocks ?? [];
 	}
 }
 
