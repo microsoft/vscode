@@ -118,7 +118,7 @@ export interface ITerminalChatService {
 	 * Associate a tool session id with a terminal instance. The association is automatically
 	 * cleared when the instance is disposed.
 	 */
-	registerTerminalInstanceWithToolSession(terminalToolSessionId: string, instance: ITerminalInstance): void;
+	registerTerminalInstanceWithToolSession(terminalToolSessionId: string | undefined, instance: ITerminalInstance): void;
 
 	/**
 	 * Resolve a terminal instance by its tool session id.
