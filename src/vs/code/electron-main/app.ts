@@ -3,11 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow, protocol, session, Session, systemPreferences, WebFrameMain } from 'electron';
+import { app, protocol, session, Session, systemPreferences, WebFrameMain } from 'electron';
 import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from '../../base/node/unc.js';
 import { validatedIpcMain } from '../../base/parts/ipc/electron-main/ipcMain.js';
 import { hostname, release } from 'os';
-import { writeFileSync } from 'fs';
 import { VSBuffer } from '../../base/common/buffer.js';
 import { toErrorMessage } from '../../base/common/errorMessage.js';
 import { Event } from '../../base/common/event.js';
@@ -138,7 +137,6 @@ export class CodeApplication extends Disposable {
 	private windowsMainService: IWindowsMainService | undefined;
 	private auxiliaryWindowsMainService: IAuxiliaryWindowsMainService | undefined;
 	private nativeHostMainService: INativeHostMainService | undefined;
-	private setupCachePath: string | undefined;
 
 	constructor(
 		private readonly mainProcessNodeIpcServer: NodeIPCServer,
@@ -443,23 +441,6 @@ export class CodeApplication extends Disposable {
 					return { action: 'deny' };
 				}
 			});
-
-			const window = BrowserWindow.fromWebContents(contents);
-			if (window) {
-				window.on('session-end', () => {
-					this.logService.trace(`BrowserWindow#query-session-end: OS is about to end the session ${window.id}`);
-					// Create session-end flag file to prevent inno_updater.exe from running during system shutdown.
-					if (this.setupCachePath) {
-						try {
-							const sessionEndFlagPath = join(this.setupCachePath, 'session-ending.flag');
-							writeFileSync(sessionEndFlagPath, 'flag');
-							this.logService.trace(`BrowserWindow#query-session-end: Created session-end flag at: ${sessionEndFlagPath}`);
-						} catch (error) {
-							this.logService.error('BrowserWindow#query-session-end: Failed to create session-end flag file', error);
-						}
-					}
-				});
-			}
 		});
 
 		//#endregion
@@ -669,8 +650,6 @@ export class CodeApplication extends Disposable {
 
 		const initialProtocolUrls = await this.resolveInitialProtocolUrls(windowsMainService, dialogMainService);
 		this._register(new ElectronURLListener(initialProtocolUrls?.urls, urlService, windowsMainService, this.environmentMainService, this.productService, this.logService));
-
-		this.setupCachePath = await nativeHostMainService.cachePath;
 
 		return initialProtocolUrls;
 	}
