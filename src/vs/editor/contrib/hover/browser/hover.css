@@ -94,10 +94,10 @@
 	display: none;
 	align-items: center;
 	justify-content: center;
-	z-index: 1;
 }
 
-.monaco-editor .monaco-hover .hover-row-with-copy:hover .hover-copy-button {
+.monaco-editor .monaco-hover .hover-row-with-copy:hover .hover-copy-button,
+.monaco-editor .monaco-hover .hover-row-with-copy:focus-within .hover-copy-button {
 	display: flex;
 }
 

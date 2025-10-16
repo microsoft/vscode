@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
-import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
@@ -13,9 +12,13 @@ import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hover
 import { localize } from '../../../../nls.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { ClickAction, KeyDownAction } from '../../../../base/browser/ui/hover/hoverWidget.js';
 
 const $ = dom.$;
 
+/**
+ * A button that appears in hover parts to copy their content to the clipboard.
+ */
 export class HoverCopyButton extends Disposable {
 
 	private readonly _button: HTMLElement;
@@ -28,6 +31,8 @@ export class HoverCopyButton extends Disposable {
 	) {
 		super();
 
+		this._container.classList.add('hover-row-with-copy');
+
 		this._button = dom.append(this._container, $('div.hover-copy-button'));
 		this._button.setAttribute('role', 'button');
 		this._button.setAttribute('tabindex', '0');
@@ -35,26 +40,14 @@ export class HoverCopyButton extends Disposable {
 
 		dom.append(this._button, $(ThemeIcon.asCSSSelector(Codicon.copy)));
 
-		this._register(dom.addDisposableListener(this._button, dom.EventType.CLICK, (e) => {
-			e.preventDefault();
-			e.stopPropagation();
-			this._copyContent();
-		}));
-
-		this._register(dom.addDisposableListener(this._button, dom.EventType.KEY_DOWN, (e) => {
-			const event = new StandardKeyboardEvent(e);
-			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
-				e.preventDefault();
-				e.stopPropagation();
-				this._copyContent();
-			}
-		}));
+		this._register(new ClickAction(this._button, () => this._copyContent()));
+		this._register(new KeyDownAction(this._button, () => this._copyContent(), [KeyCode.Enter, KeyCode.Space]));
 
 		const hoverDelegate = getDefaultHoverDelegate('element');
 		this._register(this._hoverService.setupManagedHover(
 			hoverDelegate,
 			this._button,
-			localize('hover.copyTooltip', "Copy to Clipboard")
+			localize('hover.copyTooltip', "Copy")
 		));
 	}
 

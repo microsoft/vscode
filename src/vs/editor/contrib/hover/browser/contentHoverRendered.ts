@@ -335,10 +335,9 @@ class RenderedContentHoverParts extends Disposable {
 			}));
 			// Add copy button for marker hovers
 			if (renderedPart.type === 'hoverPart' && renderedPart.hoverPart instanceof MarkerHover) {
-				element.classList.add('hover-row-with-copy');
 				disposables.add(new HoverCopyButton(
 					element,
-					() => this._getContentForHoverPart(renderedPart),
+					() => renderedPart.participant.getAccessibleContent(renderedPart.hoverPart),
 					this._clipboardService,
 					this._hoverService
 				));
@@ -355,10 +354,6 @@ class RenderedContentHoverParts extends Disposable {
 			this._markdownHoverParticipant = markdownHoverParticipant as MarkdownHoverParticipant;
 		}
 		this._colorHoverParticipant = participants.find(p => p instanceof HoverColorPickerParticipant);
-	}
-
-	private _getContentForHoverPart(renderedPart: IRenderedContentHoverPart): string {
-		return renderedPart.participant.getAccessibleContent(renderedPart.hoverPart);
 	}
 
 	public focusHoverPartWithIndex(index: number): void {
