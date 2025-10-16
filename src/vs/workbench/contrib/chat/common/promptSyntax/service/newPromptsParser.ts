@@ -205,7 +205,7 @@ export class PromptHeader {
 							send = prop.value.value;
 						}
 					}
-					if (agent && label && prompt) {
+					if (agent && label && prompt !== undefined) {
 						handoffs.push({ agent, label, prompt, send });
 					}
 				}
