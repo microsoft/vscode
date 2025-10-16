@@ -196,10 +196,10 @@ export class FocusChatInstanceAction extends Action implements IAction {
 		}
 		this.label = localize('focusTerminal', 'Focus Terminal');
 		this._terminalService.setActiveInstance(this._instance);
-		if (this._instance.target === TerminalLocation.Panel) {
-			this._terminalGroupService.showPanel(true);
-		} else {
+		if (this._instance.target === TerminalLocation.Editor) {
 			this._terminalEditorService.openEditor(this._instance);
+		} else {
+			this._terminalGroupService.showPanel(true);
 		}
 		await this._instance?.focusWhenReady(true);
 	}
