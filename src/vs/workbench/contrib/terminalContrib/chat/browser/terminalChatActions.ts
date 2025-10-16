@@ -305,8 +305,7 @@ registerAction2(class ShowHiddenOrToolTerminalsAction extends Action2 {
 	constructor() {
 		super({
 			id: TerminalChatCommandId.ShowHiddenOrToolTerminals,
-			title: localize2('showHiddenOrToolTerminals', 'Show Hidden/Tool Terminals'),
-			// TODO: FIXED eslint-disable-next-line local/code-no-unexternalized-strings
+			title: localize2('showHiddenOrToolTerminals', 'Show Tool Terminals'),
 			category: localize2('terminalCategory2', 'Terminal'),
 			f1: true,
 			menu: [{
