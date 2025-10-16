@@ -213,7 +213,7 @@ export class SCMViewService implements ISCMViewService {
 	private readonly _activeRepositoryPinnedObs: ISettableObservable<ISCMRepository | undefined>;
 	private readonly _focusedRepositoryObs: IObservable<ISCMRepository | undefined>;
 
-	private readonly _selectionModeConfig = observableConfigValue<'multiple' | 'single'>('scm.repositories.selectionMode', 'multiple', this.configurationService);
+	private readonly _selectionModeConfig: IObservable<'multiple' | 'single'>;
 
 	private _repositoriesSortKey: ISCMRepositorySortKey;
 	private _sortKeyContextKey: IContextKey<ISCMRepositorySortKey>;
@@ -231,6 +231,8 @@ export class SCMViewService implements ISCMViewService {
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService
 	) {
 		this.menus = instantiationService.createInstance(SCMMenus);
+
+		this._selectionModeConfig = observableConfigValue<'multiple' | 'single'>('scm.repositories.selectionMode', 'multiple', this.configurationService);
 
 		this._focusedRepositoryObs = observableFromEventOpts<ISCMRepository | undefined>(
 			{
