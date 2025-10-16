@@ -190,6 +190,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 		this._register(this.treeDataSource);
 
 		const compressionEnabled = observableConfigValue('scm.compactFolders', true, this.configurationService);
+		const selectionModeConfig = observableConfigValue<'multiple' | 'single'>('scm.repositories.selectionMode', 'multiple', this.configurationService);
 
 		this.tree = this.instantiationService.createInstance(
 			WorkbenchCompressibleAsyncDataTree,
@@ -214,6 +215,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 				},
 				compressionEnabled: compressionEnabled.get(),
 				overrideStyles: this.getLocationBasedColors().listOverrideStyles,
+				multipleSelectionSupport: selectionModeConfig.get() === 'multiple',
 				expandOnDoubleClick: false,
 				expandOnlyOnTwistieClick: true,
 				accessibilityProvider: {
@@ -227,6 +229,11 @@ export class SCMRepositoriesViewPane extends ViewPane {
 			}
 		) as WorkbenchCompressibleAsyncDataTree<ISCMViewService, ISCMRepository, any>;
 		this._register(this.tree);
+
+		this._register(autorun(reader => {
+			const selectionMode = selectionModeConfig.read(reader);
+			this.tree.updateOptions({ multipleSelectionSupport: selectionMode === 'multiple' });
+		}));
 
 		this._register(this.tree.onDidChangeSelection(this.onTreeSelectionChange, this));
 		this._register(this.tree.onDidChangeFocus(this.onTreeDidChangeFocus, this));

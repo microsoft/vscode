@@ -18,7 +18,7 @@ import { binarySearch } from '../../../../base/common/arrays.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
-import { derivedObservableWithCache, derivedOpts, IObservable, ISettableObservable, latestChangedValue, observableFromEventOpts, observableValue } from '../../../../base/common/observable.js';
+import { autorun, derivedObservableWithCache, derivedOpts, IObservable, ISettableObservable, latestChangedValue, observableFromEventOpts, observableValue, runOnChange } from '../../../../base/common/observable.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { EditorResourceAccessor } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
@@ -26,6 +26,7 @@ import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../.
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { localize } from '../../../../nls.js';
+import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 
 function getProviderStorageKey(provider: ISCMProvider): string {
 	return `${provider.providerId}:${provider.label}${provider.rootUri ? `:${provider.rootUri.toString()}` : ''}`;
@@ -204,12 +205,14 @@ export class SCMViewService implements ISCMViewService {
 	private readonly _activeEditorRepositoryObs: IObservable<ISCMRepository | undefined>;
 
 	/**
-	 * The focused repository takes precedence over the active editor repository when the observable
-	 * values are updated in the same transaction (or during the initial read of the observable value).
+	* The focused repository takes precedence over the active editor repository when the observable
+	* values are updated in the same transaction (or during the initial read of the observable value).
 	*/
 	private readonly _activeRepositoryObs: IObservable<ISCMRepository | undefined>;
 	private readonly _activeRepositoryPinnedObs: ISettableObservable<ISCMRepository | undefined>;
 	private readonly _focusedRepositoryObs: IObservable<ISCMRepository | undefined>;
+
+	private readonly _selectionModeConfig = observableConfigValue<'multiple' | 'single'>('scm.repositories.selectionMode', 'multiple', this.configurationService);
 
 	private _repositoriesSortKey: ISCMRepositorySortKey;
 	private _sortKeyContextKey: IContextKey<ISCMRepositorySortKey>;
@@ -253,7 +256,7 @@ export class SCMViewService implements ISCMViewService {
 					return lastValue;
 				}
 
-				return Object.create(repository);
+				return repository;
 			});
 
 		this._activeRepositoryPinnedObs = observableValue<ISCMRepository | undefined>(this, undefined);
@@ -269,8 +272,33 @@ export class SCMViewService implements ISCMViewService {
 			return activeRepositoryPinned ?? activeRepository;
 		});
 
+		this.disposables.add(autorun(reader => {
+			const selectionMode = this._selectionModeConfig.read(undefined);
+			const activeRepository = this.activeRepository.read(reader);
+
+			if (selectionMode === 'single' && activeRepository) {
+				this.visibleRepositories = [activeRepository];
+			}
+		}));
+
+		this.disposables.add(runOnChange(this._selectionModeConfig, selectionMode => {
+			if (selectionMode === 'single' && this.visibleRepositories.length > 1) {
+				const repository = this.visibleRepositories[0];
+				this.visibleRepositories = [repository];
+			}
+		}));
+
 		try {
 			this.previousState = JSON.parse(storageService.get('scm:view:visibleRepositories', StorageScope.WORKSPACE, ''));
+
+			// If previously there were multiple visible repositories but the
+			// view mode is `single`, only restore the first visible repository.
+			if (this.previousState && this.previousState.visible.length > 1 && this._selectionModeConfig.get() === 'single') {
+				this.previousState = {
+					...this.previousState,
+					visible: [this.previousState.visible[0]]
+				};
+			}
 		} catch {
 			// noop
 		}
@@ -314,19 +342,24 @@ export class SCMViewService implements ISCMViewService {
 			if (index === -1) {
 				// This repository is not part of the previous state which means that it
 				// was either manually closed in the previous session, or the repository
-				// was added after the previous session.In this case, we should select all
-				// of the repositories.
+				// was added after the previous session. In this case, we should select
+				// all of the repositories.
 				const added: ISCMRepository[] = [];
 
 				this.insertRepositoryView(this._repositories, repositoryView);
-				this._repositories.forEach((repositoryView, index) => {
-					if (repositoryView.selectionIndex === -1) {
-						added.push(repositoryView.repository);
-					}
-					repositoryView.selectionIndex = index;
-				});
 
-				this._onDidChangeRepositories.fire({ added, removed: Iterable.empty() });
+				if (this._selectionModeConfig.get() === 'multiple' || !this._repositories.find(r => r.selectionIndex !== -1)) {
+					// Multiple selection mode or single selection mode (select first repository)
+					this._repositories.forEach((repositoryView, index) => {
+						if (repositoryView.selectionIndex === -1) {
+							added.push(repositoryView.repository);
+						}
+						repositoryView.selectionIndex = index;
+					});
+
+					this._onDidChangeRepositories.fire({ added, removed: Iterable.empty() });
+				}
+
 				this.didSelectRepository = false;
 				return;
 			}
@@ -352,10 +385,18 @@ export class SCMViewService implements ISCMViewService {
 			}
 		}
 
-		const maxSelectionIndex = this.getMaxSelectionIndex();
-		this.insertRepositoryView(this._repositories, { ...repositoryView, selectionIndex: maxSelectionIndex + 1 });
-		this._onDidChangeRepositories.fire({ added: [repositoryView.repository], removed });
+		if (this._selectionModeConfig.get() === 'multiple' || !this._repositories.find(r => r.selectionIndex !== -1)) {
+			// Multiple selection mode or single selection mode (select first repository)
+			const maxSelectionIndex = this.getMaxSelectionIndex();
+			this.insertRepositoryView(this._repositories, { ...repositoryView, selectionIndex: maxSelectionIndex + 1 });
+			this._onDidChangeRepositories.fire({ added: [repositoryView.repository], removed });
+		} else {
+			// Single selection mode (add subsequent repository)
+			this.insertRepositoryView(this._repositories, repositoryView);
+			this._onDidChangeRepositories.fire({ added: Iterable.empty(), removed });
+		}
 
+		// Focus repository if nothing is focused
 		if (!this._repositories.find(r => r.focused)) {
 			this.focus(repository);
 		}
@@ -410,7 +451,11 @@ export class SCMViewService implements ISCMViewService {
 		}
 
 		if (visible) {
-			this.visibleRepositories = [...this.visibleRepositories, repository];
+			if (this._selectionModeConfig.get() === 'single') {
+				this.visibleRepositories = [repository];
+			} else if (this._selectionModeConfig.get() === 'multiple') {
+				this.visibleRepositories = [...this.visibleRepositories, repository];
+			}
 		} else {
 			const index = this.visibleRepositories.indexOf(repository);
 
