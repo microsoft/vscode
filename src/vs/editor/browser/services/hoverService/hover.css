@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* stylelint-disable layer-checker */
+
 .monaco-workbench .workbench-hover {
 	position: relative;
 	font-size: 13px;

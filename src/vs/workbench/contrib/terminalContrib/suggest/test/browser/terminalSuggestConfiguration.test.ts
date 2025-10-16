@@ -15,7 +15,12 @@ suite('Terminal Suggest Dynamic Configuration', () => {
 		registerTerminalSuggestProvidersConfiguration([]);
 
 		// Test with some providers
-		const providers = ['terminal-suggest', 'builtinPwsh', 'lsp', 'custom-provider'];
+		const providers = [
+			{ id: 'terminal-suggest', description: 'Provides intelligent completions for terminal commands' },
+			{ id: 'builtinPwsh', description: 'PowerShell completion provider' },
+			{ id: 'lsp' },
+			{ id: 'custom-provider' }
+		];
 		registerTerminalSuggestProvidersConfiguration(providers);
 
 		// Test with empty providers

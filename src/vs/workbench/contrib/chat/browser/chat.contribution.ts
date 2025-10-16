@@ -63,7 +63,7 @@ import { IVoiceChatService, VoiceChatService } from '../common/voiceChatService.
 import { registerChatAccessibilityActions } from './actions/chatAccessibilityActions.js';
 import { AgentChatAccessibilityHelp, EditsChatAccessibilityHelp, PanelChatAccessibilityHelp, QuickChatAccessibilityHelp } from './actions/chatAccessibilityHelp.js';
 import { ACTION_ID_NEW_CHAT, CopilotTitleBarMenuRendering, registerChatActions } from './actions/chatActions.js';
-import { registerNewChatActions } from './actions/chatClearActions.js';
+import { registerNewChatActions } from './actions/chatNewActions.js';
 import { CodeBlockActionRendering, registerChatCodeBlockActions, registerChatCodeCompareBlockActions } from './actions/chatCodeblockActions.js';
 import { ChatContextContributions } from './actions/chatContext.js';
 import { registerChatContextActions } from './actions/chatContextActions.js';
@@ -235,7 +235,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.notifyWindowOnConfirmation': {
 			type: 'boolean',
-			description: nls.localize('chat.notifyWindowOnConfirmation', "Controls whether a chat session should notify the user when a confirmation is needed while the window is not in focus. This includes a window badge as well as notification toast."),
+			description: nls.localize('chat.notifyWindowOnConfirmation', "Controls whether a chat session should present the user with an OS notification when a confirmation is needed while the window is not in focus. This includes a window badge as well as notification toast."),
 			default: true,
 		},
 		[ChatConfiguration.GlobalAutoApprove]: {
@@ -315,8 +315,8 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.NotifyWindowOnResponseReceived]: {
 			type: 'boolean',
-			default: false,
-			description: nls.localize('chat.notifyWindowOnResponseReceived', "Controls whether a chat session should notify the user when a response is received while the window is not in focus. This includes a window badge as well as notification toast."),
+			default: true,
+			description: nls.localize('chat.notifyWindowOnResponseReceived', "Controls whether a chat session should present the user with an OS notification when a response is received while the window is not in focus. This includes a window badge as well as notification toast."),
 		},
 		'chat.checkpoints.enabled': {
 			type: 'boolean',
@@ -640,16 +640,25 @@ configurationRegistry.registerConfiguration({
 				mode: 'auto'
 			}
 		},
-		'chat.todoListWidget.position': {
-			type: 'string',
-			default: 'default',
-			enum: ['default', 'off', 'chat-input'],
-			enumDescriptions: [
-				nls.localize('chat.todoListWidget.position.default', "Show todo list widget in the default position at the top of the chat panel."),
-				nls.localize('chat.todoListWidget.position.off', "Hide the todo list widget."),
-				nls.localize('chat.todoListWidget.position.chatInput', "Show todo list widget near the chat input.")
-			],
-			description: nls.localize('chat.todoListWidget.position', "Controls the position of the todo list widget in chat."),
+		[ChatConfiguration.TodoList]: {
+			type: 'object',
+			description: nls.localize('chat.agent.todoList', "Configures the todo list widget in chat."),
+			properties: {
+				position: {
+					type: 'string',
+					default: 'default',
+					enum: ['default', 'off', 'chat-input'],
+					enumDescriptions: [
+						nls.localize('chat.agent.todoList.position.default', "Show todo list in the top of the chat panel."),
+						nls.localize('chat.agent.todoList.position.off', "Hide the todo list (still shows the tool calls for tracking todo progress)."),
+						nls.localize('chat.agent.todoList.position.chatInput', "Show todo list above the chat input.")
+					],
+					description: nls.localize('chat.agent.todoList.position', "Controls the position of the todo list in the chat view, which opens when the agent has created todo items and updates as it makes progress.")
+				}
+			},
+			default: {
+				position: 'default'
+			},
 			tags: ['experimental'],
 			experiment: {
 				mode: 'auto'
@@ -659,6 +668,12 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: false,
 			description: nls.localize('chat.todoListTool.writeOnly', "When enabled, the todo tool operates in write-only mode, requiring the agent to remember todos in context."),
+			tags: ['experimental']
+		},
+		'chat.todoListTool.descriptionField': {
+			type: 'boolean',
+			default: true,
+			description: nls.localize('chat.todoListTool.descriptionField', "When enabled, todo items include detailed descriptions for implementation context. This provides more information but uses additional tokens and may slow down responses."),
 			tags: ['experimental']
 		},
 		[ChatConfiguration.ThinkingStyle]: {
@@ -682,12 +697,17 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			scope: ConfigurationScope.WINDOW
 		},
-		[ChatConfiguration.UseChatSessionsForCloudButton]: {
+		[ChatConfiguration.UseCloudButtonV2]: {
 			type: 'boolean',
-			description: nls.localize('chat.useChatSessionsForCloudButton', "Controls whether the 'Delegate to coding agent' button uses the new chat sessions API."),
+			description: nls.localize('chat.useCloudButtonV2', "Experimental implementation of 'cloud button'"),
 			default: false,
 			tags: ['experimental'],
 
+		},
+		[ChatConfiguration.DelegateToCodingAgentInSecondaryMenu]: {
+			type: 'boolean',
+			description: nls.localize('chat.delegateToCodingAgentInSecondaryMenu', "Controls whether the 'Delegate to Coding Agent' action appears in the secondary send menu instead of the primary toolbar."),
+			default: false,
 		},
 		[ChatConfiguration.ShowAgentSessionsViewDescription]: {
 			type: 'boolean',

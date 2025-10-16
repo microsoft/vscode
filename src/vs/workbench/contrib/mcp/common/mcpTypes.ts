@@ -199,12 +199,15 @@ export namespace McpServerDefinitionVariableReplacement {
 	}
 }
 
+/** An observable of the auto-starting servers. When 'starting' is empty, the operation is complete. */
 export interface IAutostartResult {
-	serversRequiringInteraction: Array<{
-		serverId: string;
-		serverLabel: string;
-		errorMessage?: string;
-	}>;
+	working: boolean;
+	starting: McpDefinitionReference[];
+	serversRequiringInteraction: Array<McpDefinitionReference & { errorMessage?: string }>;
+}
+
+export namespace IAutostartResult {
+	export const Empty: IAutostartResult = { working: false, starting: [], serversRequiringInteraction: [] };
 }
 
 export interface IMcpService {
@@ -221,7 +224,10 @@ export interface IMcpService {
 	readonly lazyCollectionState: IObservable<{ state: LazyCollectionState; collections: McpCollectionDefinition[] }>;
 
 	/** Auto-starts pending servers based on user settings. */
-	autostart(token?: CancellationToken): Promise<IAutostartResult>;
+	autostart(token?: CancellationToken): IObservable<IAutostartResult>;
+
+	/** Cancels any current autostart @internal */
+	cancelAutostart(): void;
 
 	/** Activatese extensions and runs their MCP servers. */
 	activateCollections(): Promise<void>;
@@ -356,6 +362,7 @@ export interface IMcpResourceTemplate {
 	readonly description?: string;
 	readonly mimeType?: string;
 	readonly template: UriTemplate;
+	readonly icons: IMcpIcons;
 
 	/** Gets string completions for the given template part. */
 	complete(templatePart: string, prefix: string, alreadyResolved: Record<string, string | string[]>, token: CancellationToken): Promise<string[]>;
@@ -689,7 +696,6 @@ export interface IWorkbenchMcpServer {
 	readonly publisherDisplayName?: string;
 	readonly starsCount?: number;
 	readonly license?: string;
-	readonly url?: string;
 	readonly repository?: string;
 	readonly config?: IMcpServerConfiguration | undefined;
 	readonly readmeUrl?: URI;
@@ -711,6 +717,7 @@ export interface IMcpWorkbenchService {
 	uninstall(mcpServer: IWorkbenchMcpServer): Promise<void>;
 	getMcpConfigPath(arg: IWorkbenchLocalMcpServer): IMcpConfigPath | undefined;
 	getMcpConfigPath(arg: URI): Promise<IMcpConfigPath | undefined>;
+	openSearch(searchValue: string, preserveFoucs?: boolean): Promise<void>;
 	open(extension: IWorkbenchMcpServer | string, options?: IMcpServerEditorOptions): Promise<void>;
 }
 
@@ -884,5 +891,5 @@ export interface IMcpToolResourceLinkContents {
 
 export interface IMcpIcons {
 	/** Gets the image URI appropriate to the approximate display size */
-	getUrl(size: number): URI | undefined;
+	getUrl(size: number): { dark: URI; light?: URI } | undefined;
 }

@@ -641,7 +641,20 @@ class WindowsPtyHeuristics extends Disposable {
 					// function an embedder could easily do damage with. Additionally, this
 					// can't really be upstreamed since the event relies on shell integration to
 					// verify the shifting is necessary.
-					(this._terminal as any)._core._bufferService.buffer.lines.onDeleteEmitter.fire({
+					interface IXtermWithCore extends Terminal {
+						_core: {
+							_bufferService: {
+								buffer: {
+									lines: {
+										onDeleteEmitter: {
+											fire(data: { index: number; amount: number }): void;
+										};
+									};
+								};
+							};
+						};
+					}
+					(this._terminal as IXtermWithCore)._core._bufferService.buffer.lines.onDeleteEmitter.fire({
 						index: this._terminal.buffer.active.baseY,
 						amount: potentialShiftedLineCount
 					});

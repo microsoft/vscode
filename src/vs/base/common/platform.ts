@@ -279,6 +279,6 @@ export function isBigSurOrNewer(osVersion: string): boolean {
 	return parseFloat(osVersion) >= 20;
 }
 
-export function isTahoe(osVersion: string): boolean {
-	return parseFloat(osVersion) === 25;
+export function isTahoeOrNewer(osVersion: string): boolean {
+	return parseFloat(osVersion) >= 25;
 }
