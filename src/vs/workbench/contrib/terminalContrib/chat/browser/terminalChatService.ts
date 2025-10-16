@@ -49,7 +49,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 			// Show all hidden terminals before shutdown so they are restored
 			for (const [toolSessionId, instance] of this._terminalInstancesByToolSessionId) {
 				if (this.terminalIsHidden(toolSessionId) && (instance.capabilities.get(TerminalCapability.CommandDetection)?.promptInputModel.state === PromptInputState.Execute || instance.hasChildProcesses)) {
-					this._terminalService.setActiveInstance(instance);
+					this._terminalService.showBackgroundTerminal(instance, true);
 				}
 			}
 		}));

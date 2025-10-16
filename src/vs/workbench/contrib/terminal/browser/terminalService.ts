@@ -374,7 +374,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 		// If this was a hideFromUser terminal created by the API this was triggered by show,
 		// in which case we need to create the terminal group
 		if (value.shellLaunchConfig.hideFromUser) {
-			this._showBackgroundTerminal(value);
+			this.showBackgroundTerminal(value);
 		}
 		if (value.target === TerminalLocation.Editor) {
 			this._terminalEditorService.setActiveInstance(value);
@@ -1160,7 +1160,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 		}
 	}
 
-	protected _showBackgroundTerminal(instance: ITerminalInstance): void {
+	public showBackgroundTerminal(instance: ITerminalInstance, suppressSetActive?: boolean): void {
 		const index = this._backgroundedTerminalInstances.indexOf(instance);
 		if (index === -1) {
 			return;
@@ -1174,7 +1174,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 		this._terminalGroupService.createGroup(instance);
 
 		// Make active automatically if it's the first instance
-		if (this.instances.length === 1) {
+		if (this.instances.length === 1 && !suppressSetActive) {
 			this._terminalGroupService.setActiveInstanceByIndex(0);
 		}
 

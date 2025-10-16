@@ -393,6 +393,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 
 	getActiveOrCreateInstance(options?: { acceptsInput?: boolean }): Promise<ITerminalInstance>;
 	revealTerminal(source: ITerminalInstance, preserveFocus?: boolean): Promise<void>;
+	showBackgroundTerminal(instance: ITerminalInstance, suppressSetActive?: boolean): void;
 	revealActiveTerminal(preserveFocus?: boolean): Promise<void>;
 	moveToEditor(source: ITerminalInstance, group?: GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE | AUX_WINDOW_GROUP_TYPE): void;
 	moveIntoNewEditor(source: ITerminalInstance): void;
