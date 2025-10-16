@@ -263,6 +263,20 @@ export interface ILanguageModelsService {
 	sendChatRequest(modelId: string, from: ExtensionIdentifier, messages: IChatMessage[], options: { [name: string]: any }, token: CancellationToken): Promise<ILanguageModelChatResponse>;
 
 	computeTokenLength(modelId: string, message: string | IChatMessage, token: CancellationToken): Promise<number>;
+
+	/**
+	 * Register models for a contributed session type
+	 * @param sessionType The session type identifier
+	 * @param models The models to register for this session type, or undefined to clear
+	 */
+	registerContributedModels(sessionType: string, models: ILanguageModelChatMetadataAndIdentifier[] | undefined): void;
+
+	/**
+	 * Get models filtered by session type. If sessionType is provided, only models for that session are returned.
+	 * If no sessionType is provided, returns non-contributed models (default behavior).
+	 * @param sessionType Optional session type to filter models
+	 */
+	getLanguageModelsForSessionType(sessionType?: string): ILanguageModelChatMetadataAndIdentifier[];
 }
 
 const languageModelChatProviderType: IJSONSchema = {
@@ -322,6 +336,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 	private readonly _hasUserSelectableModels: IContextKey<boolean>;
 	private readonly _onLanguageModelChange = this._store.add(new Emitter<void>());
 	readonly onDidChangeLanguageModels: Event<void> = this._onLanguageModelChange.event;
+	private readonly _contributedModels = new Map<string, ILanguageModelChatMetadataAndIdentifier[]>();
 
 	constructor(
 		@IExtensionService private readonly _extensionService: IExtensionService,
@@ -539,5 +554,32 @@ export class LanguageModelsService implements ILanguageModelsService {
 			throw new Error(`Chat provider for model ${modelId} is not registered.`);
 		}
 		return provider.provideTokenCount(modelId, message, token);
+	}
+
+	registerContributedModels(sessionType: string, models: ILanguageModelChatMetadataAndIdentifier[] | undefined): void {
+		if (models === undefined || models.length === 0) {
+			this._contributedModels.delete(sessionType);
+		} else {
+			this._contributedModels.set(sessionType, models);
+		}
+		this._onLanguageModelChange.fire();
+	}
+
+	getLanguageModelsForSessionType(sessionType?: string): ILanguageModelChatMetadataAndIdentifier[] {
+		// If a session type is provided, return only contributed models for that session
+		if (sessionType) {
+			const contributedModels = this._contributedModels.get(sessionType);
+			if (contributedModels) {
+				return contributedModels;
+			}
+			// If no contributed models found for this session type, return empty array
+			return [];
+		}
+
+		// Otherwise, return the regular models from the model cache
+		const models = this.getLanguageModelIds()
+			.map(modelId => ({ identifier: modelId, metadata: this.lookupLanguageModel(modelId)! }))
+			.filter(entry => entry.metadata); // Filter out any undefined metadata
+		return models;
 	}
 }
