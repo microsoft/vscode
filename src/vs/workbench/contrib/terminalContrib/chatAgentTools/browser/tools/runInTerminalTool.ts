@@ -399,9 +399,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const termId = generateUuid();
 		// The prepared data should always include a terminalToolSessionId; assert and narrow the type.
 		const terminalToolSessionId = (toolSpecificData as IChatTerminalToolInvocationData).terminalToolSessionId;
-		if (!terminalToolSessionId) {
-			throw new Error('terminalToolSessionId missing from toolSpecificData');
-		}
 
 		const store = new DisposableStore();
 
@@ -693,7 +690,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		return false;
 	}
 
-	private async _initBackgroundTerminal(chatSessionId: string, termId: string, terminalToolSessionId: string, token: CancellationToken): Promise<IToolTerminal> {
+	private async _initBackgroundTerminal(chatSessionId: string, termId: string, terminalToolSessionId: string | undefined, token: CancellationToken): Promise<IToolTerminal> {
 		this._logService.debug(`RunInTerminalTool: Creating background terminal with ID=${termId}`);
 		const profile = await this._getCopilotProfile();
 		const toolTerminal = await this._terminalToolCreator.createTerminal(profile, token);
@@ -708,7 +705,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		return toolTerminal;
 	}
 
-	private async _initForegroundTerminal(chatSessionId: string, termId: string, terminalToolSessionId: string, token: CancellationToken): Promise<IToolTerminal> {
+	private async _initForegroundTerminal(chatSessionId: string, termId: string, terminalToolSessionId: string | undefined, token: CancellationToken): Promise<IToolTerminal> {
 		const cachedTerminal = this._sessionTerminalAssociations.get(chatSessionId);
 		if (cachedTerminal) {
 			this._logService.debug(`RunInTerminalTool: Using cached foreground terminal with session ID \`${chatSessionId}\``);
