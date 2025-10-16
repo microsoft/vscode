@@ -555,10 +555,10 @@ export class McpServer extends Disposable implements IMcpServer {
 				}
 
 				this._connection.set(connection, undefined);
-			}
 
-			if (connection.definition.devMode) {
-				this.showOutput();
+				if (connection.definition.devMode) {
+					this.showOutput();
+				}
 			}
 
 			const start = Date.now();
