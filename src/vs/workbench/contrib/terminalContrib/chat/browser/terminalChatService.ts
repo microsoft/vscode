@@ -8,6 +8,9 @@ import { Disposable, DisposableMap, IDisposable } from '../../../../../base/comm
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ITerminalChatService, ITerminalInstance, ITerminalService } from '../../../terminal/browser/terminal.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { TERMINAL_VIEW_ID } from '../../../terminal/common/terminal.js';
+import { TerminalLocation } from '../../../../../platform/terminal/common/terminal.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
 
 /**
  * Used to manage chat tool invocations and the underlying terminal instances they create/use.
@@ -33,6 +36,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		@ILogService private readonly _logService: ILogService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IStorageService private readonly _storageService: IStorageService,
+		@IViewsService private readonly _viewsService: IViewsService
 	) {
 		super();
 
@@ -75,6 +79,12 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		const instance = this._terminalInstancesByToolSessionId.get(terminalToolSessionId);
 		if (!instance) {
 			return false;
+		}
+		if (instance.target === TerminalLocation.Panel) {
+			const panelHidden = !this._viewsService.getViewWithId(TERMINAL_VIEW_ID)?.isVisible;
+			if (panelHidden) {
+				return true;
+			}
 		}
 		return this._terminalService.instances.includes(instance) && !this._terminalService.foregroundInstances.includes(instance);
 	}

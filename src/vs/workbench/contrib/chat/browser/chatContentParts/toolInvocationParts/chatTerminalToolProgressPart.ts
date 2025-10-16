@@ -30,6 +30,7 @@ import { Action, IAction } from '../../../../../../base/common/actions.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
 import { TerminalLocation } from '../../../../../../platform/terminal/common/terminal.js';
+import { IViewsService } from '../../../../../services/views/common/viewsService.js';
 
 export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart {
 	public readonly domNode: HTMLElement;
