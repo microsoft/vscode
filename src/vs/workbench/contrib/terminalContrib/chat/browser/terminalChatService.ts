@@ -11,6 +11,9 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { TERMINAL_VIEW_ID } from '../../../terminal/common/terminal.js';
 import { TerminalLocation } from '../../../../../platform/terminal/common/terminal.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
+import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { PromptInputState } from '../../../../../platform/terminal/common/capabilities/commandDetection/promptInputModel.js';
 
 /**
  * Used to manage chat tool invocations and the underlying terminal instances they create/use.
@@ -36,11 +39,20 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		@ILogService private readonly _logService: ILogService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IStorageService private readonly _storageService: IStorageService,
-		@IViewsService private readonly _viewsService: IViewsService
+		@IViewsService private readonly _viewsService: IViewsService,
+		@ILifecycleService private readonly _lifecycleService: ILifecycleService
 	) {
 		super();
 
 		this._restoreFromStorage();
+		this._register(this._lifecycleService.onBeforeShutdown(() => {
+			// Show all hidden terminals before shutdown so they are restored
+			for (const [toolSessionId, instance] of this._terminalInstancesByToolSessionId) {
+				if (this.terminalIsHidden(toolSessionId) && (instance.capabilities.get(TerminalCapability.CommandDetection)?.promptInputModel.state === PromptInputState.Execute || instance.hasChildProcesses)) {
+					this._terminalService.setActiveInstance(instance);
+				}
+			}
+		}));
 	}
 
 	registerTerminalInstanceWithToolSession(terminalToolSessionId: string | undefined, instance: ITerminalInstance): void {
