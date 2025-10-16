@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 declare module 'vscode' {
-	export interface LanguageModelProxyInfo {
+	export interface LanguageModelProxy extends Disposable {
 		readonly uri: Uri;
 		readonly key: string;
 	}
@@ -15,6 +15,6 @@ declare module 'vscode' {
 		 * - The user is not logged in, or isn't the right SKU, with expected model access
 		 * - The server fails to start for some reason
 		 */
-		export function getModelProxy(): Thenable<LanguageModelProxyInfo | undefined>;
+		export function getModelProxy(): Thenable<LanguageModelProxy | undefined>;
 	}
 }
