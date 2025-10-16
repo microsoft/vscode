@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Memento } from 'vscode';
+import { Memento, workspace } from 'vscode';
+import * as path from 'path';
 import { LRUCache } from './cache';
 
 export class KnownFolders {
@@ -13,7 +14,7 @@ export class KnownFolders {
 	private static readonly MAX_FOLDER_ENTRIES = 10; // Max folders per repository
 	private static readonly EXPIRY_MS = 90 * 24 * 60 * 60 * 1000; // 90 days in ms
 
-	// Outer LRU: repoUrl -> inner LRU (folderPath -> timestamp ms). Only keys matter externally, timestamp tracks last seen.
+	// Outer LRU: repoUrl -> inner LRU (folderPathOrWorkspaceFile -> timestamp ms). Only keys matter externally, timestamp tracks last seen.
 	private readonly lru = new LRUCache<string, LRUCache<string, number>>(KnownFolders.MAX_REPO_ENTRIES);
 
 	constructor(public readonly _globalState: Memento) {
@@ -21,17 +22,43 @@ export class KnownFolders {
 	}
 
 	/**
-	 * Associate a repository remote URL with a local folder.
+	 * Associate a repository remote URL with a local workspace folder or workspace file.
 	 * Re-associating bumps recency and persists the updated LRU state.
 	 * @param repoUrl Remote repository URL (e.g. https://github.com/owner/repo.git)
-	 * @param folderPath Workspace folder URI string using that remote (stringified Uri).
+	 * @param rootPath Root path of the local repo clone.
 	 */
-	set(repoUrl: string, folderPath: string): void {
+	set(repoUrl: string, rootPath: string): void {
 		let foldersLru = this.lru.get(repoUrl);
 		if (!foldersLru) {
 			foldersLru = new LRUCache<string, number>(KnownFolders.MAX_FOLDER_ENTRIES);
 		}
-		foldersLru.set(folderPath, Date.now()); // touch/update timestamp
+		// If the current workspace is a workspace file, use that. Otherwise, find the workspace folder that contains the rootUri
+		let folderPathOrWorkspaceFile: string | undefined;
+		try {
+
+			if (workspace.workspaceFile) {
+				folderPathOrWorkspaceFile = workspace.workspaceFile.fsPath;
+			} else if (workspace.workspaceFolders && workspace.workspaceFolders.length) {
+				const sorted = [...workspace.workspaceFolders].sort((a, b) => b.uri.fsPath.length - a.uri.fsPath.length);
+				for (const folder of sorted) {
+					const folderPath = folder.uri.fsPath;
+					const rel = path.relative(folderPath, rootPath);
+					if (rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel))) {
+						folderPathOrWorkspaceFile = folderPath;
+						break;
+					}
+				}
+			}
+
+			if (!folderPathOrWorkspaceFile) {
+				folderPathOrWorkspaceFile = rootPath;
+			}
+		} catch {
+			return;
+		}
+
+
+		foldersLru.set(folderPathOrWorkspaceFile, Date.now()); // touch/update timestamp
 		this.lru.set(repoUrl, foldersLru);
 		this.save();
 	}
@@ -44,12 +71,12 @@ export class KnownFolders {
 		return inner ? Array.from(inner.keys()) : undefined;
 	}
 
-	delete(repoUrl: string, folderPath: string) {
+	delete(repoUrl: string, folderPathOrWorkspaceFile: string) {
 		const inner = this.lru.get(repoUrl);
 		if (!inner) {
 			return;
 		}
-		const removed = inner.remove(folderPath) !== undefined;
+		const removed = inner.remove(folderPathOrWorkspaceFile) !== undefined;
 		if (!removed) {
 			return;
 		}
@@ -102,7 +129,7 @@ export class KnownFolders {
 	}
 
 	private save(): void {
-		// Serialize as [repoUrl, [folderPath, timestamp][]] preserving outer LRU order.
+		// Serialize as [repoUrl, [folderPathOrWorkspaceFile, timestamp][]] preserving outer LRU order.
 		const serialized: [string, [string, number][]][] = [];
 		for (const [repo, inner] of this.lru) {
 			const folders: [string, number][] = [];
