@@ -498,6 +498,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			if (e.affectsConfiguration('editor.wordSegmenterLocales')) {
 				newOptions.wordSegmenterLocales = this.configurationService.getValue<string | string[]>('editor.wordSegmenterLocales');
 			}
+			if (e.affectsConfiguration('editor.autoClosingBrackets')) {
+				newOptions.autoClosingBrackets = this.configurationService.getValue('editor.autoClosingBrackets');
+			}
+			if (e.affectsConfiguration('editor.autoClosingQuotes')) {
+				newOptions.autoClosingQuotes = this.configurationService.getValue('editor.autoClosingQuotes');
+			}
+			if (e.affectsConfiguration('editor.autoSurround')) {
+				newOptions.autoSurround = this.configurationService.getValue('editor.autoSurround');
+			}
 
 			this.inputEditor.updateOptions(newOptions);
 		}));
@@ -1171,6 +1180,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		options.cursorWidth = 1;
 		options.wrappingStrategy = 'advanced';
 		options.bracketPairColorization = { enabled: false };
+		// Respect user's editor settings for auto-closing and auto-surrounding behavior
+		options.autoClosingBrackets = this.configurationService.getValue('editor.autoClosingBrackets');
+		options.autoClosingQuotes = this.configurationService.getValue('editor.autoClosingQuotes');
+		options.autoSurround = this.configurationService.getValue('editor.autoSurround');
 		options.suggest = {
 			showIcons: true,
 			showSnippets: false,
