@@ -620,20 +620,28 @@ export interface TransferQuickPickItem {
 	type?: 'item';
 	label: string;
 	iconPathDto?: IconPathDto;
-	iconPath?: { light?: URI; dark: URI };
-	iconClass?: string;
 	description?: string;
 	detail?: string;
 	picked?: boolean;
 	alwaysShow?: boolean;
 	buttons?: TransferQuickInputButton[];
 	resourceUri?: UriComponents;
+
+	// TODO: These properties are not used for transfer (iconPathDto is used instead) but they cannot be removed
+	// because this type is used as IQuickPickItem on the main thread. Ideally IQuickPickItem should also use IconPath.
+	iconPath?: { light?: URI; dark: URI };
+	iconClass?: string;
 }
 
 export interface TransferQuickInputButton extends quickInput.IQuickInputButton {
 	handle: number;
 	iconPathDto: IconPathDto;
 	checked?: boolean;
+
+	// TODO: These properties are not used for transfer (iconPathDto is used instead) but they cannot be removed
+	// because this type is used as IQuickInputButton on the main thread. Ideally IQuickInputButton should also use IconPath.
+	iconPath?: { light?: URI; dark: URI };
+	iconClass?: string;
 }
 
 export type TransferQuickInput = TransferQuickPick | TransferInputBox;

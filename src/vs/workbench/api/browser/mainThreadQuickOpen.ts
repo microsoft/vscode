@@ -205,11 +205,15 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 				}
 
 				case 'activeItems':
-					quickPick.activeItems = params.activeItems!.map((handle: number) => handlesToItems.get(handle));
+					quickPick.activeItems = params.activeItems
+						?.map((handle: number) => handlesToItems.get(handle))
+						.filter(Boolean);
 					break;
 
 				case 'selectedItems':
-					quickPick.selectedItems = params.selectedItems!.map((handle: number) => handlesToItems.get(handle));
+					quickPick.selectedItems = params.selectedItems
+						?.map((handle: number) => handlesToItems.get(handle))
+						.filter(Boolean);
 					break;
 
 				case 'buttons': {
@@ -253,8 +257,8 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 	}
 
 	/**
-		* Derives icon, label and description for Quick Pick items that represent a resource URI.
-		*/
+	* Derives icon, label and description for Quick Pick items that represent a resource URI.
+	*/
 	private expandItemProps(item: TransferQuickPickItemOrSeparator) {
 		if (item.type === 'separator') {
 			return;
@@ -286,13 +290,16 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 	}
 
 	/**
-		* Converts IconPath DTO into iconPath/iconClass properties.
-		*/
+	* Converts IconPath DTO into iconPath/iconClass properties.
+	*/
 	private expandIconPath(target: Pick<TransferQuickPickItem, 'iconPathDto' | 'iconPath' | 'iconClass'>) {
 		const icon = target.iconPathDto;
 		if (!icon) {
 			return;
 		} else if (ThemeIcon.isThemeIcon(icon)) {
+			// TODO: Since IQuickPickItem and IQuickInputButton do not support ThemeIcon directly, the color ID is lost here.
+			// We should consider changing changing iconPath/iconClass to IconPath in both interfaces.
+			// Request for color support: https://github.com/microsoft/vscode/issues/185356..
 			target.iconClass = ThemeIcon.asClassName(icon);
 		} else if (isUriComponents(icon)) {
 			const uri = URI.from(icon);
@@ -304,9 +311,9 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 	}
 
 	/**
-		* Updates the toggles for a given quick input session by creating new {@link Toggle}-s
-		* from buttons, updating existing toggles props and removing old ones.
-		*/
+	* Updates the toggles for a given quick input session by creating new {@link Toggle}-s
+	* from buttons, updating existing toggles props and removing old ones.
+	*/
 	private updateToggles(sessionId: number, session: QuickInputSession, buttons: TransferQuickInputButton[]) {
 		const { input, handlesToToggles, store } = session;
 
@@ -315,6 +322,9 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 		for (const button of buttons) {
 			const title = button.tooltip || '';
 			const isChecked = !!button.checked;
+
+			// TODO: Toggle class only supports ThemeIcon at the moment, but not other formats of IconPath.
+			// We should consider adding support for the full IconPath to Toggle, in this code should be updated.
 			const icon = ThemeIcon.isThemeIcon(button.iconPathDto) ? button.iconPathDto : undefined;
 
 			let { toggle } = handlesToToggles.get(button.handle) || {};
