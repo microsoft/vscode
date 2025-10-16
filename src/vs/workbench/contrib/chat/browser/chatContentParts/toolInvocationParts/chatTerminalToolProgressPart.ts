@@ -113,20 +113,23 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		if (!terminalToolSessionId || !elements.actionBar) {
 			return;
 		}
-		const isTerminalHidden = this._terminalChatService.terminalIsHidden(terminalToolSessionId);
 		const terminalInstance = this._terminalChatService.getTerminalInstanceByToolSessionId(terminalToolSessionId);
 		if (terminalInstance) {
 			this._registerInstanceListener(terminalInstance);
-			const focusAction = this._register(this._instantiationService.createInstance(FocusChatInstanceAction, terminalInstance, isTerminalHidden));
-			this._actionBar.push([focusAction], { icon: true, label: false });
+			this._addFocusAction(terminalInstance, terminalToolSessionId);
 		} else {
-			const listener = this._register(this._terminalChatService.onDidRegisterTerminalInstanceWithToolSession(instance => {
-				this._registerInstanceListener(instance);
-				const focusAction = this._register(this._instantiationService.createInstance(FocusChatInstanceAction, instance, isTerminalHidden));
-				this._actionBar?.push([focusAction], { icon: true, label: false });
+			const listener = this._register(this._terminalChatService.onDidRegisterTerminalInstanceWithToolSession(terminalInstance => {
+				this._registerInstanceListener(terminalInstance);
+				this._addFocusAction(terminalInstance, terminalToolSessionId);
 				this._store.delete(listener);
 			}));
 		}
+	}
+
+	private _addFocusAction(terminalInstance: ITerminalInstance, terminalToolSessionId: string) {
+		const isTerminalHidden = this._terminalChatService.terminalIsHidden(terminalToolSessionId);
+		const focusAction = this._register(this._instantiationService.createInstance(FocusChatInstanceAction, terminalInstance, isTerminalHidden));
+		this._actionBar!.push([focusAction], { icon: true, label: false });
 	}
 
 	private _registerInstanceListener(terminalInstance: ITerminalInstance) {
