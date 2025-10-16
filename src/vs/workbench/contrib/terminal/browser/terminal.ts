@@ -118,16 +118,16 @@ export interface ITerminalChatService {
 	 * Associate a tool session id with a terminal instance. The association is automatically
 	 * cleared when the instance is disposed.
 	 */
-	registerTerminalInstanceWithToolSession(terminalToolSessionId: string | undefined, instance: ITerminalInstance): void;
+	registerTerminalInstanceWithToolSession(terminalToolSessionId: string, instance: ITerminalInstance): void;
 
 	/**
 	 * Resolve a terminal instance by its tool session id.
 	 * @param terminalToolSessionId The tool session id provided in toolSpecificData.
 	 * If no tool session ID is provided, we do nothing.
 	 */
-	getTerminalInstanceByToolSessionId(terminalToolSessionId: string | undefined): ITerminalInstance | undefined;
+	getTerminalInstanceByToolSessionId(terminalToolSessionId: string): ITerminalInstance | undefined;
 
-	terminalIsHidden(terminalToolSessionId: string | undefined): boolean;
+	terminalIsHidden(terminalToolSessionId: string): boolean;
 }
 
 /**
