@@ -43,6 +43,7 @@ function getRepositoryName(workspaceContextService: IWorkspaceContextService, re
 
 export const RepositoryContextKeys = {
 	RepositorySortKey: new RawContextKey<ISCMRepositorySortKey>('scmRepositorySortKey', ISCMRepositorySortKey.DiscoveryTime),
+	RepositoryPinned: new RawContextKey<boolean>('scmRepositoryPinned', false)
 };
 
 export type RepositoryQuickPickItem = IQuickPickItem & { repository: 'auto' | ISCMRepository };
@@ -217,6 +218,8 @@ export class SCMViewService implements ISCMViewService {
 	private _repositoriesSortKey: ISCMRepositorySortKey;
 	private _sortKeyContextKey: IContextKey<ISCMRepositorySortKey>;
 
+	private _repositoryPinnedContextKey: IContextKey<boolean>;
+
 	constructor(
 		@ISCMService private readonly scmService: ISCMService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -306,6 +309,9 @@ export class SCMViewService implements ISCMViewService {
 		this._repositoriesSortKey = this.previousState?.sortKey ?? this.getViewSortOrder();
 		this._sortKeyContextKey = RepositoryContextKeys.RepositorySortKey.bindTo(contextKeyService);
 		this._sortKeyContextKey.set(this._repositoriesSortKey);
+
+		this._repositoryPinnedContextKey = RepositoryContextKeys.RepositoryPinned.bindTo(contextKeyService);
+		this._repositoryPinnedContextKey.set(!!this._activeRepositoryPinnedObs.get());
 
 		scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
 		scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.disposables);
@@ -490,6 +496,7 @@ export class SCMViewService implements ISCMViewService {
 
 	pinActiveRepository(repository: ISCMRepository | undefined): void {
 		this._activeRepositoryPinnedObs.set(repository, undefined);
+		this._repositoryPinnedContextKey.set(!!repository);
 	}
 
 	private compareRepositories(op1: ISCMRepositoryView, op2: ISCMRepositoryView): number {

@@ -11,7 +11,7 @@ import { IListVirtualDelegate, IIdentityProvider } from '../../../../base/browse
 import { IAsyncDataSource, ITreeEvent, ITreeContextMenuEvent } from '../../../../base/browser/ui/tree/tree.js';
 import { WorkbenchCompressibleAsyncDataTree } from '../../../../platform/list/browser/listService.js';
 import { ISCMRepository, ISCMService, ISCMViewService } from '../common/scm.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
@@ -24,11 +24,13 @@ import { RepositoryActionRunner, RepositoryRenderer } from './scmRepositoryRende
 import { collectContextMenuActions, getActionViewItemProvider, isSCMRepository } from './util.js';
 import { Orientation } from '../../../../base/browser/ui/sash/sash.js';
 import { Iterable } from '../../../../base/common/iterator.js';
-import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { MenuId, registerAction2, Action2 } from '../../../../platform/actions/common/actions.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { autorun, IObservable, observableFromEvent, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { Sequencer } from '../../../../base/common/async.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { RepositoryContextKeys } from './scmViewService.js';
 
 class ListDelegate implements IListVirtualDelegate<ISCMRepository> {
 
@@ -379,3 +381,53 @@ export class SCMRepositoriesViewPane extends ViewPane {
 		super.dispose();
 	}
 }
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'scm.repositories.pinSelection',
+			title: localize('scmPinSelection', "Pin the Current Selection"),
+			f1: false,
+			icon: Codicon.pin,
+			menu: {
+				id: MenuId.SCMSourceControlTitle,
+				when: RepositoryContextKeys.RepositoryPinned.isEqualTo(false),
+				group: 'navigation',
+				order: 1
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const scmViewService = accessor.get(ISCMViewService);
+		const activeRepository = scmViewService.activeRepository.get();
+		if (!activeRepository) {
+			return;
+		}
+
+		scmViewService.pinActiveRepository(activeRepository);
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'scm.repositories.unpinSelection',
+			title: localize('scmUnpinSelection', "Unpin the Current Selection"),
+			f1: false,
+			icon: Codicon.pinned,
+			menu: {
+				id: MenuId.SCMSourceControlTitle,
+				when: RepositoryContextKeys.RepositoryPinned.isEqualTo(true),
+				group: 'navigation',
+				order: 2
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const scmViewService = accessor.get(ISCMViewService);
+		scmViewService.pinActiveRepository(undefined);
+	}
+});
+
