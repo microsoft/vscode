@@ -128,6 +128,8 @@ export interface ITerminalChatService {
 	 * @param terminalToolSessionId The tool session id provided in toolSpecificData.
 	 */
 	getTerminalInstanceByToolSessionId(terminalToolSessionId: string | undefined): ITerminalInstance | undefined;
+
+	terminalIsHidden(terminalToolSessionId: string | undefined): boolean;
 }
 
 /**
@@ -322,8 +324,12 @@ export const isDetachedTerminalInstance = (t: ITerminalInstance | IDetachedTermi
 export interface ITerminalService extends ITerminalInstanceHost {
 	readonly _serviceBrand: undefined;
 
-	/** Gets all terminal instances, including editor and terminal view (group) instances. */
+	/** Gets all terminal instances, including editor, terminal view (group), and background instances. */
 	readonly instances: readonly ITerminalInstance[];
+
+	/** Gets all foreground terminal instances */
+	readonly foregroundInstances: readonly ITerminalInstance[];
+
 	/** Gets detached terminal instances created via {@link createDetachedXterm}. */
 	readonly detachedInstances: Iterable<IDetachedTerminalInstance>;
 

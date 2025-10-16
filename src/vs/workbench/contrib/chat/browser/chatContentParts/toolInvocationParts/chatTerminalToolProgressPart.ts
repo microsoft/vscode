@@ -5,9 +5,7 @@
 
 import { h } from '../../../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../../../base/browser/ui/actionbar/actionbar.js';
-import { Action } from '../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { isMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -26,10 +24,11 @@ import { TerminalContribSettingId } from '../../../../terminal/terminalContribEx
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import type { ICodeBlockRenderOptions } from '../../codeBlockPart.js';
 import { ChatConfiguration } from '../../../common/constants.js';
-import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
+import { ITerminalChatService, ITerminalInstance, ITerminalService } from '../../../../terminal/browser/terminal.js';
+import { Action, IAction } from '../../../../../../base/common/actions.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
-import { TerminalCommandId } from '../../../../terminal/common/terminal.js';
-import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
 
 export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart {
 	public readonly domNode: HTMLElement;
@@ -41,21 +40,20 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 	constructor(
 		toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
-		terminalData: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData,
+		private readonly _terminalData: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData,
 		context: IChatContentPartRenderContext,
 		renderer: IMarkdownRenderer,
 		editorPool: EditorPool,
 		currentWidthDelegate: () => number,
 		codeBlockStartIndex: number,
 		codeBlockModelCollection: CodeBlockModelCollection,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@ICommandService commandService: ICommandService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@ITerminalChatService terminalChatService: ITerminalChatService,
+		@ITerminalChatService private readonly _terminalChatService: ITerminalChatService,
 	) {
 		super(toolInvocation);
 
-		terminalData = migrateLegacyTerminalToolSpecificData(terminalData);
+		_terminalData = migrateLegacyTerminalToolSpecificData(_terminalData);
 
 		const elements = h('.chat-terminal-content-part@container', [
 			h('.chat-terminal-content-title@title',
@@ -63,55 +61,18 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			h('.chat-terminal-content-message@message')
 		]);
 
-		const command = terminalData.commandLine.userEdited ?? terminalData.commandLine.toolEdited ?? terminalData.commandLine.original;
+		const command = _terminalData.commandLine.userEdited ?? _terminalData.commandLine.toolEdited ?? _terminalData.commandLine.original;
 
-		const titlePart = this._register(instantiationService.createInstance(
+		const titlePart = this._register(_instantiationService.createInstance(
 			ChatQueryTitlePart,
 			elements.title,
-			new MarkdownString(`$(${Codicon.terminal.id})\n\n\`\`\`${terminalData.language}\n${command}\n\`\`\``, { supportThemeIcons: true }),
+			new MarkdownString(`$(${Codicon.terminal.id})\n\n\`\`\`${_terminalData.language}\n${command}\n\`\`\``, { supportThemeIcons: true }),
 			undefined,
 		));
 		this._register(titlePart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 
-		// Only show focus action when output location is set to 'none'
 		if (configurationService.getValue<string>('chat.tools.terminal.outputLocation') === 'none') {
-			let terminalInstance = terminalChatService.getTerminalInstanceByToolSessionId(terminalData.terminalToolSessionId);
-			if (elements.actionBar) {
-				const actionBar = new ActionBar(elements.actionBar, {});
-				this._register(actionBar);
-				const focusAction = new Action(
-					TerminalCommandId.FocusInstance,
-					localize('runInTerminalTool.showTerminalButtonLabel', "Focus Terminal"),
-					ThemeIcon.asClassName(Codicon.linkExternal),
-					!!terminalInstance,
-					async () => {
-						if (terminalInstance) {
-							await commandService.executeCommand(TerminalCommandId.FocusInstance, terminalInstance);
-						}
-					}
-				);
-				actionBar.push([focusAction], { icon: true, label: false });
-
-				if (!terminalInstance && terminalData.terminalToolSessionId) {
-					const listener = this._register(terminalChatService.onDidRegisterTerminalInstanceForToolSession(e => {
-						if (e.terminalToolSessionId === terminalData.terminalToolSessionId) {
-							terminalInstance = terminalChatService.getTerminalInstanceByToolSessionId(e.terminalToolSessionId);
-							if (terminalInstance) {
-								focusAction.enabled = true;
-								this._store.delete(listener);
-							}
-						}
-					}));
-				}
-				const instanceListener = terminalInstance?.onDisposed(() => {
-					focusAction.enabled = false;
-					actionBar.dispose();
-					instanceListener?.dispose();
-				});
-				if (instanceListener) {
-					this._register(instanceListener);
-				}
-			}
+			this._createActionBar(elements);
 		}
 
 		let pastTenseMessage: string | undefined;
@@ -135,12 +96,35 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 				wordWrap: 'on'
 			}
 		};
-		this.markdownPart = this._register(instantiationService.createInstance(ChatMarkdownContentPart, chatMarkdownContent, context, editorPool, false, codeBlockStartIndex, renderer, {}, currentWidthDelegate(), codeBlockModelCollection, { codeBlockRenderOptions }));
+		this.markdownPart = this._register(_instantiationService.createInstance(ChatMarkdownContentPart, chatMarkdownContent, context, editorPool, false, codeBlockStartIndex, renderer, {}, currentWidthDelegate(), codeBlockModelCollection, { codeBlockRenderOptions }));
 		this._register(this.markdownPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 
 		elements.message.append(this.markdownPart.domNode);
-		const progressPart = instantiationService.createInstance(ChatCustomProgressPart, elements.container, this.getIcon());
+		const progressPart = _instantiationService.createInstance(ChatCustomProgressPart, elements.container, this.getIcon());
 		this.domNode = progressPart.domNode;
+	}
+
+	private _createActionBar(elements: { actionBar?: HTMLElement }): void {
+		const terminalToolSessionId = 'terminalToolSessionId' in this._terminalData ? this._terminalData.terminalToolSessionId : undefined;
+		if (!terminalToolSessionId || !elements.actionBar) {
+			return;
+		}
+		const isTerminalHidden = this._terminalChatService.terminalIsHidden(terminalToolSessionId);
+
+		const actionBar = this._register(new ActionBar(elements.actionBar, {}));
+		const focusAction = this._register(this._instantiationService.createInstance(FocusChatInstanceAction,
+			'chat.focusTerminalInstance',
+			isTerminalHidden ? localize('showTerminal', 'Show Terminal') : localize('focusTerminal', 'Focus Terminal'),
+			ThemeIcon.asClassName(Codicon.linkExternal),
+			true,
+			terminalToolSessionId,
+		));
+		this._register(focusAction.onDidChange(e => {
+			if (!e.enabled) {
+				actionBar.dispose();
+			}
+		}));
+		actionBar.push([focusAction], { icon: true, label: false });
 	}
 }
 
@@ -180,3 +164,52 @@ CommandsRegistry.registerCommand(openTerminalSettingsLinkCommandId, async (acces
 		}
 	}
 });
+
+export class FocusChatInstanceAction extends Action implements IAction {
+	private readonly _instance?: ITerminalInstance;
+	constructor(
+		id: string,
+		label: string,
+		cssClass: string,
+		enabled: boolean,
+		private readonly _terminalToolSessionId: string,
+		@ITerminalChatService private readonly _terminalChatService: ITerminalChatService,
+		@ITerminalService private readonly _terminalService: ITerminalService
+	) {
+		super(
+			id,
+			label,
+			cssClass,
+			enabled,
+		);
+		const terminalInstance = this._terminalChatService.getTerminalInstanceByToolSessionId(this._terminalToolSessionId);
+		if (terminalInstance) {
+			this._instance = terminalInstance;
+			this._registerInstanceListener(terminalInstance);
+		} else {
+			const listener = this._register(this._terminalChatService.onDidRegisterTerminalInstanceForToolSession(e => {
+				if (e.terminalToolSessionId === this._terminalToolSessionId) {
+					const terminalInstance = this._terminalChatService.getTerminalInstanceByToolSessionId(e.terminalToolSessionId);
+					if (terminalInstance) {
+						this._registerInstanceListener(terminalInstance);
+						this._store.delete(listener);
+					}
+				}
+			}));
+		}
+	}
+	private _registerInstanceListener(terminalInstance: ITerminalInstance) {
+		const instanceListener = this._register(terminalInstance.onDisposed(() => {
+			this.enabled = false;
+			this._onDidChange.fire({ enabled: false });
+			instanceListener?.dispose();
+		}));
+	}
+	public override async run() {
+		if (!this._instance) {
+			return;
+		}
+		this._terminalService.setActiveInstance(this._instance);
+		this._instance?.focusWhenReady(true);
+	}
+}
