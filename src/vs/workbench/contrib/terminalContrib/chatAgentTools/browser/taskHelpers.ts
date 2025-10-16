@@ -265,7 +265,7 @@ export async function taskProblemPollFn(execution: IExecution, token: Cancellati
 				}
 			}
 			if (problemList.length === 0) {
-				const lastFiveLines = execution.getOutput().split('\n').map(line => line.trim()).filter(line => line !== '').slice(-5).join('\n');
+				const lastFiveLines = execution.getOutput().split('\n').filter(line => line !== '').slice(-5).join('\n');
 				return {
 					state: OutputMonitorState.Idle,
 					output: `Task completed with output:\n${lastFiveLines}`,
