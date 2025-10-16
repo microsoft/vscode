@@ -1599,7 +1599,7 @@ begin
 
     if IsBackgroundUpdate() then
     begin
-      SaveStringToFile(ExpandConstant('{app}\updating_version'), ExpandConstant('{#Version}'), False);
+      SaveStringToFile(ExpandConstant('{app}\updating_version'), {#Commit}, False);
       CreateMutex('{#AppMutex}-ready');
 
       Log('Checking whether application is still running...');
