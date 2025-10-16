@@ -153,3 +153,9 @@ jobs:
     with:
       job_name: Remote
       remote_tests: true
+
+  linux-copilot-video:
+    name: Linux Copilot Video
+    uses: ./.github/workflows/pr-linux-copilot.yml
+    with:
+      job_name: Copilot Video
