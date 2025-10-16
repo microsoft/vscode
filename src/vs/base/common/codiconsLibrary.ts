@@ -626,4 +626,5 @@ export const codiconsLibrary = {
 	runWithDeps: register('run-with-deps', 0xec62),
 	debugConnected: register('debug-connected', 0xec63),
 	strikethrough: register('strikethrough', 0xec64),
+	openInProduct: register('open-in-product', 0xec65),
 } as const;
