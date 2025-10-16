@@ -960,7 +960,7 @@ export interface IFileChange {
 	/**
 	 * The type of change that occurred to the file.
 	 */
-	type: FileChangeType;
+	readonly type: FileChangeType;
 
 	/**
 	 * The unified resource identifier of the file that changed.
@@ -1007,6 +1007,12 @@ export class FileChangesEvent {
 					break;
 				case FileChangeType.DELETED:
 					this.rawDeleted.push(change.resource);
+					if (change.associatedResources?.length) {
+						if (!this.rawAssociatedDeleted) {
+							this.rawAssociatedDeleted = [];
+						}
+						this.rawAssociatedDeleted.push(...change.associatedResources);
+					}
 					break;
 			}
 
@@ -1179,6 +1185,14 @@ export class FileChangesEvent {
 	* - correctly handles `FileChangeType.DELETED` events
 	*/
 	readonly rawDeleted: URI[] = [];
+
+	/**
+	 * @deprecated use the `contains` or `affects` method to efficiently find
+	* out if the event relates to a given resource. these methods ensure:
+	* - that there is no expensive lookup needed (by using a `TernarySearchTree`)
+	* - correctly handles `FileChangeType.DELETED` events
+	 */
+	readonly rawAssociatedDeleted: URI[] | undefined;
 }
 
 export function isParent(path: string, candidate: string, ignoreCase?: boolean): boolean {

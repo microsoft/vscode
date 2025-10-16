@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableMap, DisposableStore } from '../../../base/common/lifecycle.js';
-import { FileOperation, IFileService, IWatchOptions } from '../../../platform/files/common/files.js';
+import { FileChangesEvent, FileOperation, IFileService, IWatchOptions } from '../../../platform/files/common/files.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
-import { ExtHostContext, ExtHostFileSystemEventServiceShape, MainContext, MainThreadFileSystemEventServiceShape } from '../common/extHost.protocol.js';
+import { ExtHostContext, ExtHostFileSystemEventServiceShape, FileSystemEvents, MainContext, MainThreadFileSystemEventServiceShape } from '../common/extHost.protocol.js';
 import { localize } from '../../../nls.js';
 import { IWorkingCopyFileOperationParticipant, IWorkingCopyFileService, SourceTargetPair, IFileOperationUndoRedoInfo } from '../../services/workingCopy/common/workingCopyFileService.js';
 import { IBulkEditService } from '../../../editor/browser/services/bulkEditService.js';
@@ -50,11 +50,7 @@ export class MainThreadFileSystemEventService implements MainThreadFileSystemEve
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostFileSystemEventService);
 
 		this._listener.add(_fileService.onDidFilesChange(event => {
-			this._proxy.$onFileEvent({
-				created: event.rawAdded,
-				changed: event.rawUpdated,
-				deleted: event.rawDeleted
-			});
+			this._proxy.$onFileEvent(this.toFileSystemEvents(event));
 		}));
 
 		const that = this;
@@ -235,12 +231,7 @@ export class MainThreadFileSystemEventService implements MainThreadFileSystemEve
 			const watcherDisposables = new DisposableStore();
 			const subscription = watcherDisposables.add(this._fileService.createWatcher(uri, { ...opts, recursive: false }));
 			watcherDisposables.add(subscription.onDidChange(event => {
-				this._proxy.$onFileEvent({
-					session,
-					created: event.rawAdded,
-					changed: event.rawUpdated,
-					deleted: event.rawDeleted
-				});
+				this._proxy.$onFileEvent(this.toFileSystemEvents(event, session));
 			}));
 
 			this._watches.set(session, watcherDisposables);
@@ -253,6 +244,19 @@ export class MainThreadFileSystemEventService implements MainThreadFileSystemEve
 			const subscription = this._fileService.watch(uri, opts);
 			this._watches.set(session, subscription);
 		}
+	}
+
+	private toFileSystemEvents(event: FileChangesEvent, session?: number): FileSystemEvents {
+		return {
+			session,
+			created: event.rawAdded,
+			changed: event.rawUpdated,
+			// deleted include associated deleted resources which are child resources
+			// that got deleted as part of the parent delete. these are normally not
+			// specially treated in core, but on the extension host where extensions
+			// can subscribe to glob patterns.
+			deleted: event.rawDeleted.concat(event.rawAssociatedDeleted ?? [])
+		};
 	}
 
 	$unwatch(session: number): void {

@@ -8,6 +8,7 @@ import { GLOBSTAR, IRelativePattern, parse, ParsedPattern } from '../../../base/
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { isAbsolute } from '../../../base/common/path.js';
 import { isLinux } from '../../../base/common/platform.js';
+import { Mutable } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { FileChangeFilter, FileChangeType, IFileChange, isParent } from './files.js';
 
@@ -413,7 +414,10 @@ class EventCoalescer {
 
 			// Flatten DELETE followed by CREATE into CHANGE
 			else if (currentChangeType === FileChangeType.DELETED && newChangeType === FileChangeType.ADDED) {
-				existingEvent.type = FileChangeType.UPDATED;
+				(existingEvent as Mutable<IFileChange>).type = FileChangeType.UPDATED;
+				if (existingEvent.associatedResources) {
+					existingEvent.associatedResources.length = 0; // clear associated resources as a result of a type change to ensure it only applies to this event
+				}
 			}
 
 			// Do nothing. Keep the created event
@@ -421,9 +425,9 @@ class EventCoalescer {
 
 			// Otherwise apply change type
 			else {
-				existingEvent.type = newChangeType;
-				if (newChangeType !== FileChangeType.DELETED && existingEvent.associatedResources) {
-					existingEvent.associatedResources.length = 0; // only track associated resources for DELETE events
+				(existingEvent as Mutable<IFileChange>).type = newChangeType;
+				if (existingEvent.associatedResources) {
+					existingEvent.associatedResources.length = 0; // clear associated resources as a result of a type change to ensure it only applies to this event
 				}
 			}
 		}
@@ -470,7 +474,7 @@ class EventCoalescer {
 					let associatedResources = deleteChangeEvent.associatedResources;
 					if (!associatedResources) {
 						associatedResources = [];
-						(deleteChangeEvent as IFileChange & { associatedResources?: URI[] }).associatedResources = associatedResources;
+						(deleteChangeEvent as Mutable<IFileChange>).associatedResources = associatedResources;
 					}
 					associatedResources.push(e.resource);
 
