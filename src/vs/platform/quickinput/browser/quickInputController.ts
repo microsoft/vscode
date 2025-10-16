@@ -37,6 +37,8 @@ import { TriStateCheckbox } from '../../../base/browser/ui/toggle/toggle.js';
 import { defaultCheckboxStyles } from '../../theme/browser/defaultStyles.js';
 import { QuickInputTreeController } from './tree/quickInputTreeController.js';
 import { QuickTree } from './tree/quickTree.js';
+import { layout2d } from '../../../base/common/layout.js';
+import { getAnchorRect } from '../../../base/browser/ui/contextview/contextview.js';
 
 const $ = dom.$;
 
@@ -518,6 +520,7 @@ export class QuickInputController extends Disposable {
 			input.quickNavigate = options.quickNavigate;
 			input.hideInput = !!options.hideInput;
 			input.contextKey = options.contextKey;
+			input.anchor = options.anchor;
 			input.busy = true;
 			Promise.all([picks, options.activeItem])
 				.then(([items, _activeItem]) => {
@@ -825,16 +828,33 @@ export class QuickInputController extends Disposable {
 	private updateLayout() {
 		if (this.ui && this.isVisible()) {
 			const style = this.ui.container.style;
-			const width = Math.min(this.dimension!.width * 0.62 /* golden cut */, QuickInputController.MAX_WIDTH);
+			let width = Math.min(this.dimension!.width * 0.62 /* golden cut */, QuickInputController.MAX_WIDTH);
 			style.width = width + 'px';
 
+			let listHeight = this.dimension && this.dimension.height * 0.4;
+
 			// Position
-			style.top = `${this.viewState?.top ? Math.round(this.dimension!.height * this.viewState.top) : this.titleBarOffset}px`;
-			style.left = `${Math.round((this.dimension!.width * (this.viewState?.left ?? 0.5 /* center */)) - (width / 2))}px`;
+			if (this.controller?.anchor) {
+				const container = this.layoutService.getContainer(dom.getActiveWindow()).getBoundingClientRect();
+				const anchor = getAnchorRect(this.controller.anchor);
+				width = 380;
+				listHeight = (this.dimension && this.dimension?.height * 0.1) ?? 200;
+				const containerHeight = Math.floor(listHeight / 44) * 44 + 6 + 26 + 16;
+
+				const { top, left } = layout2d(container, { width, height: containerHeight }, anchor);
+				style.top = `${top}px`;
+				style.left = `${left}px`;
+				style.width = `${width}px`;
+				style.height = `${containerHeight}px`; // wtf
+			} else {
+				style.top = `${this.viewState?.top ? Math.round(this.dimension!.height * this.viewState.top) : this.titleBarOffset}px`;
+				style.left = `${Math.round((this.dimension!.width * (this.viewState?.left ?? 0.5 /* center */)) - (width / 2))}px`;
+				style.height = '';
+			}
 
 			this.ui.inputBox.layout();
-			this.ui.list.layout(this.dimension && this.dimension.height * 0.4);
-			this.ui.tree.layout(this.dimension && this.dimension.height * 0.4);
+			this.ui.list.layout(listHeight);
+			this.ui.tree.layout(listHeight);
 		}
 	}
 
