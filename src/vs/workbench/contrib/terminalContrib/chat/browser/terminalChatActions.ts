@@ -6,7 +6,7 @@
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { localize2 } from '../../../../../nls.js';
-import { MenuId } from '../../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IChatWidgetService } from '../../../chat/browser/chat.js';
@@ -14,13 +14,13 @@ import { ChatContextKeys } from '../../../chat/common/chatContextKeys.js';
 import { IChatService } from '../../../chat/common/chatService.js';
 import { ChatAgentLocation } from '../../../chat/common/constants.js';
 import { AbstractInline1ChatAction } from '../../../inlineChat/browser/inlineChatActions.js';
-import { isDetachedTerminalInstance, ITerminalChatService, ITerminalInstance, ITerminalService } from '../../../terminal/browser/terminal.js';
+import { isDetachedTerminalInstance, ITerminalChatService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../../terminal/browser/terminal.js';
 import { registerActiveXtermAction } from '../../../terminal/browser/terminalActions.js';
 import { TerminalContextMenuGroup } from '../../../terminal/browser/terminalMenus.js';
 import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
 import { MENU_TERMINAL_CHAT_WIDGET_STATUS, MENU_TERMINAL_CHAT_WIDGET_TOOLBAR, TerminalChatCommandId, TerminalChatContextKeys } from './terminalChat.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { getIconId } from '../../../terminal/browser/terminalIcon.js';
 import { TerminalChatController } from './terminalChatController.js';
 
@@ -301,29 +301,35 @@ registerActiveXtermAction({
 	}
 });
 
-registerActiveXtermAction({
-	id: TerminalChatCommandId.ShowHiddenOrToolTerminals,
-	title: localize2('showHiddenOrToolTerminals', 'Show Hidden/Tool Terminals'),
-	shortTitle: localize2('showHiddenToolTerms.short', 'Hidden/Tool Terms'),
-	category: AbstractInline1ChatAction.category,
-	f1: true,
-	precondition: TerminalContextKeys.terminalHasHidden,
-	menu: [{
-		id: MENU_TERMINAL_CHAT_WIDGET_TOOLBAR,
-		group: 'overflow',
-		order: 50,
-		when: TerminalContextKeys.terminalHasHidden
-	}],
-	run: (_xterm, accessor) => {
+registerAction2(class ShowHiddenOrToolTerminalsAction extends Action2 {
+	constructor() {
+		super({
+			id: TerminalChatCommandId.ShowHiddenOrToolTerminals,
+			title: localize2('showHiddenOrToolTerminals', 'Show Hidden/Tool Terminals'),
+			// TODO: FIXED eslint-disable-next-line local/code-no-unexternalized-strings
+			category: localize2('terminalCategory2', 'Terminal'),
+			f1: true,
+			menu: [{
+				id: MENU_TERMINAL_CHAT_WIDGET_TOOLBAR,
+				group: 'overflow',
+				order: 50,
+				when: TerminalContextKeys.terminalHasHidden
+			}]
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
 		const terminalService = accessor.get(ITerminalService);
+		const groupService = accessor.get(ITerminalGroupService);
+		const editorService = accessor.get(ITerminalEditorService);
 		const terminalChatService = accessor.get(ITerminalChatService);
 		const quickInputService = accessor.get(IQuickInputService);
 		const instantiationService = accessor.get(IInstantiationService);
 
-		const backgrounded = terminalService.instances.filter(i => !terminalService.foregroundInstances.includes(i));
+		const visible = new Set<ITerminalInstance>([...groupService.instances, ...editorService.instances]);
+		const backgrounded = terminalService.instances.filter(i => !visible.has(i));
 		const toolInstances = new Set(terminalChatService.getToolSessionTerminalInstances());
 
-		// Union of backgrounded + tool instances
 		const all = new Map<number, { instance: ITerminalInstance; isBackground: boolean; isTool: boolean }>();
 		for (const i of backgrounded) {
 			all.set(i.instanceId, { instance: i, isBackground: true, isTool: toolInstances.has(i) });
@@ -332,12 +338,11 @@ registerActiveXtermAction({
 			if (all.has(i.instanceId)) {
 				all.get(i.instanceId)!.isTool = true;
 			} else {
-				all.set(i.instanceId, { instance: i, isBackground: !terminalService.foregroundInstances.includes(i), isTool: true });
+				all.set(i.instanceId, { instance: i, isBackground: !visible.has(i), isTool: true });
 			}
 		}
 
 		if (all.size === 0) {
-			// Nothing to show
 			return;
 		}
 
@@ -369,7 +374,6 @@ registerActiveXtermAction({
 			if (sel) {
 				const target = all.get(Number(sel.id));
 				if (target) {
-					// Reveal if hidden, otherwise just focus
 					if (target.isBackground) {
 						terminalService.showBackgroundTerminal(target.instance);
 					} else {

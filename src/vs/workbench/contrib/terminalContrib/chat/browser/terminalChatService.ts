@@ -7,6 +7,8 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableMap, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ITerminalChatService, ITerminalInstance, ITerminalService } from '../../../terminal/browser/terminal.js';
+import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
@@ -32,15 +34,23 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 	 */
 	private readonly _pendingRestoredMappings = new Map<string, number>();
 
+	private readonly _terminalHasHiddenContext: IContextKey<boolean>;
+
 	constructor(
 		@ILogService private readonly _logService: ILogService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IStorageService private readonly _storageService: IStorageService,
-		@ILifecycleService private readonly _lifecycleService: ILifecycleService
+		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
 		super();
 
+		this._terminalHasHiddenContext = TerminalContextKeys.terminalHasHidden.bindTo(this._contextKeyService);
+
 		this._restoreFromStorage();
+
+		this._register(this._terminalService.onDidChangeInstances(() => this._updateHiddenContextKey()));
+		this._updateHiddenContextKey();
 		this._register(this._lifecycleService.onBeforeShutdown(async e => {
 			let veto = false;
 			// Show all hidden terminals before shutdown so they are restored
@@ -67,11 +77,14 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 			this._terminalInstancesByToolSessionId.delete(terminalToolSessionId);
 			this._terminalInstanceListenersByToolSessionId.deleteAndDispose(terminalToolSessionId);
 			this._persistToStorage();
+			this._updateHiddenContextKey();
 		}));
 
 		if (typeof instance.persistentProcessId === 'number') {
 			this._persistToStorage();
 		}
+
+		this._updateHiddenContextKey();
 	}
 
 	getTerminalInstanceByToolSessionId(terminalToolSessionId: string | undefined): ITerminalInstance | undefined {
@@ -159,5 +172,12 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		} catch (err) {
 			this._logService.warn('Failed to persist terminal chat tool session mappings', err);
 		}
+	}
+
+	private _updateHiddenContextKey(): void {
+		const foreground = new Set(this._terminalService.foregroundInstances);
+		const hiddenCount = this._terminalService.instances.filter(i => !foreground.has(i)).length;
+		const toolCount = this._terminalInstancesByToolSessionId.size;
+		this._terminalHasHiddenContext.set(hiddenCount > 0 || toolCount > 0);
 	}
 }
