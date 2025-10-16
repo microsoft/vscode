@@ -259,9 +259,9 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 			}
 		}
 
-		$onDidTriggerButton(sessionId: number, handle: number): void {
+		$onDidTriggerButton(sessionId: number, handle: number, checked?: boolean): void {
 			const session = this._sessions.get(sessionId);
-			session?._fireDidTriggerButton(handle);
+			session?._fireDidTriggerButton(handle, checked);
 		}
 
 		$onDidTriggerItemButton(sessionId: number, itemHandle: number, buttonHandle: number): void {
@@ -307,7 +307,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 			this._onDidTriggerButtonEmitter,
 			this._onDidHideEmitter,
 			this._onDidAcceptEmitter,
-			this._onDidChangeValueEmitter,
+			this._onDidChangeValueEmitter
 		];
 
 		constructor(protected _extension: IExtensionDescription, private _onDidDispose: () => void) {
@@ -449,9 +449,12 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 			this._onDidChangeValueEmitter.fire(value);
 		}
 
-		_fireDidTriggerButton(handle: number) {
+		_fireDidTriggerButton(handle: number, checked?: boolean) {
 			const button = this._handlesToButtons.get(handle);
 			if (button) {
+				if (checked !== undefined) {
+					button.checked = checked;
+				}
 				this._onDidTriggerButtonEmitter.fire(button);
 			}
 		}

@@ -8,7 +8,7 @@ import { ExtHostContext, MainThreadQuickOpenShape, ExtHostQuickOpenShape, Transf
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { URI } from '../../../base/common/uri.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
-import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { Toggle } from '../../../base/browser/ui/toggle/toggle.js';
 import { asCssVariable, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground } from '../../../platform/theme/common/colorRegistry.js';
 import { ThemeIcon } from '../common/extHostTypes.js';
@@ -23,7 +23,7 @@ import { ICustomEditorLabelService } from '../../services/editor/common/customEd
 interface QuickInputSession {
 	input: IQuickInput;
 	handlesToItems: Map<number, TransferQuickPickItem>;
-	handlesToToggles: Map<number, Toggle>;
+	handlesToToggles: Map<number, { toggle: Toggle; listener: IDisposable }>;
 	store: DisposableStore;
 }
 
@@ -320,7 +320,7 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 		// Add new or update existing toggles.
 		const toggles = [];
 		for (const { handle, tooltip, checked } of buttons) {
-			let toggle = handlesToToggles.get(handle);
+			let { toggle } = handlesToToggles.get(handle) || {};
 			if (toggle) {
 				// Toggle already exists, update its props.
 				toggle.setTitle(tooltip || '');
@@ -336,18 +336,22 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 					inputActiveOptionForeground: asCssVariable(inputActiveOptionForeground),
 					inputActiveOptionBackground: asCssVariable(inputActiveOptionBackground)
 				}));
-				store.add(toggle.onChange(() => {
-					this._proxy.$onDidTriggerButton(sessionId, handle);
+
+				const listener = store.add(toggle.onChange(() => {
+					this._proxy.$onDidTriggerButton(sessionId, handle, toggle!.checked);
 				}));
-				session.handlesToToggles.set(handle, toggle);
+
+				session.handlesToToggles.set(handle, { toggle, listener });
 			}
 			toggles.push(toggle);
 		}
 
 		// Remove toggles that are no longer present from the session map.
-		for (const handle of handlesToToggles.keys()) {
+		for (const [handle, { toggle, listener }] of handlesToToggles) {
 			if (!buttons.some(o => o.handle === handle)) {
 				handlesToToggles.delete(handle);
+				store.delete(toggle);
+				store.delete(listener);
 			}
 		}
 
