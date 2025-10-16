@@ -61,16 +61,16 @@ import { nullRange, Settings2EditorModel } from '../../../services/preferences/c
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { IUserDataSyncWorkbenchService } from '../../../services/userDataSync/common/userDataSync.js';
 import { SuggestEnabledInput } from '../../codeEditor/browser/suggestEnabledInput/suggestEnabledInput.js';
-import { CONTEXT_AI_SETTING_RESULTS_AVAILABLE, CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, EMBEDDINGS_SEARCH_PROVIDER_NAME, ENABLE_LANGUAGE_FILTER, EXTENSION_FETCH_TIMEOUT_MS, EXTENSION_SETTING_TAG, FEATURE_SETTING_TAG, FILTER_MODEL_SEARCH_PROVIDER_NAME, getExperimentalExtensionToggleData, ID_SETTING_TAG, IPreferencesSearchService, ISearchProvider, LANGUAGE_SETTING_TAG, LLM_RANKED_SEARCH_PROVIDER_NAME, MODIFIED_SETTING_TAG, POLICY_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_SHOW_AI_RESULTS, SETTINGS_EDITOR_COMMAND_SUGGEST_FILTERS, SETTINGS_EDITOR_COMMAND_TOGGLE_AI_SEARCH, STRING_MATCH_SEARCH_PROVIDER_NAME, TF_IDF_SEARCH_PROVIDER_NAME, WorkbenchSettingsEditorSettings, WORKSPACE_TRUST_SETTING_TAG } from '../common/preferences.js';
+import { CONTEXT_AI_SETTING_RESULTS_AVAILABLE, CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, EMBEDDINGS_SEARCH_PROVIDER_NAME, ENABLE_LANGUAGE_FILTER, EXTENSION_FETCH_TIMEOUT_MS, EXTENSION_SETTING_TAG, FEATURE_SETTING_TAG, FILTER_MODEL_SEARCH_PROVIDER_NAME, getExperimentalExtensionToggleData, ID_SETTING_TAG, IPreferencesSearchService, ISearchProvider, LANGUAGE_SETTING_TAG, LLM_RANKED_SEARCH_PROVIDER_NAME, MODIFIED_SETTING_TAG, POLICY_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_SHOW_ADVANCED_SETTINGS, SETTINGS_EDITOR_COMMAND_SHOW_AI_RESULTS, SETTINGS_EDITOR_COMMAND_SUGGEST_FILTERS, SETTINGS_EDITOR_COMMAND_TOGGLE_AI_SEARCH, STRING_MATCH_SEARCH_PROVIDER_NAME, TF_IDF_SEARCH_PROVIDER_NAME, WorkbenchSettingsEditorSettings, WORKSPACE_TRUST_SETTING_TAG } from '../common/preferences.js';
 import { settingsHeaderBorder, settingsSashBorder, settingsTextInputBorder } from '../common/settingsEditorColorRegistry.js';
 import './media/settingsEditor2.css';
-import { preferencesAiResultsIcon, preferencesClearInputIcon, preferencesFilterIcon } from './preferencesIcons.js';
+import { preferencesAdvancedIcon, preferencesAiResultsIcon, preferencesClearInputIcon, preferencesFilterIcon } from './preferencesIcons.js';
 import { SettingsTarget, SettingsTargetsWidget } from './preferencesWidgets.js';
 import { ISettingOverrideClickEvent } from './settingsEditorSettingIndicators.js';
 import { getCommonlyUsedData, ITOCEntry, tocData } from './settingsLayout.js';
 import { SettingsSearchFilterDropdownMenuActionViewItem } from './settingsSearchMenu.js';
 import { AbstractSettingRenderer, createTocTreeForExtensionSettings, HeightChangeParams, ISettingLinkClickEvent, resolveConfiguredUntrustedSettings, resolveSettingsTree, SettingsTree, SettingTreeRenderers } from './settingsTree.js';
-import { ISettingsEditorViewState, parseQuery, SearchResultIdx, SearchResultModel, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from './settingsTreeModels.js';
+import { ADVANCED_SETTING_TAG, ISettingsEditorViewState, parseQuery, SearchResultIdx, SearchResultModel, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from './settingsTreeModels.js';
 import { createTOCIterator, TOCTree, TOCTreeModel } from './tocTree.js';
 
 export const enum SettingsFocusContext {
@@ -197,6 +197,7 @@ export class SettingsEditor2 extends EditorPane {
 	private stopWatch: StopWatch;
 
 	private showAiResultsAction: Action | null = null;
+	private showAdvancedSettingsAction: Action | null = null;
 
 	private searchInputDelayer: Delayer<void>;
 	private updatedConfigSchemaDelayer: Delayer<void>;
@@ -270,7 +271,7 @@ export class SettingsEditor2 extends EditorPane {
 	) {
 		super(SettingsEditor2.ID, group, telemetryService, themeService, storageService);
 		this.searchDelayer = new Delayer(200);
-		this.viewState = { settingsTarget: ConfigurationTarget.USER_LOCAL };
+		this.viewState = { settingsTarget: ConfigurationTarget.USER_LOCAL, showAdvancedSettings: false };
 
 		this.settingFastUpdateDelayer = new Delayer<void>(SettingsEditor2.SETTING_UPDATE_FAST_DEBOUNCE);
 		this.settingSlowUpdateDelayer = new Delayer<void>(SettingsEditor2.SETTING_UPDATE_SLOW_DEBOUNCE);
@@ -693,6 +694,14 @@ export class SettingsEditor2 extends EditorPane {
 			await this.onDidToggleAiSearch();
 		}));
 
+		const showAdvancedSettingsActionClassNames = ['action-label', ThemeIcon.asClassName(preferencesAdvancedIcon)];
+		this.showAdvancedSettingsAction = this._register(new Action(SETTINGS_EDITOR_COMMAND_SHOW_ADVANCED_SETTINGS,
+			localize('showAdvancedSettings', "Show Advanced Settings"), showAdvancedSettingsActionClassNames.join(' '), true
+		));
+		this._register(this.showAdvancedSettingsAction.onDidChange(async () => {
+			await this.onDidToggleAdvancedSettings();
+		}));
+
 		const filterAction = this._register(new Action(SETTINGS_EDITOR_COMMAND_SUGGEST_FILTERS,
 			localize('filterInput', "Filter Settings"), ThemeIcon.asClassName(preferencesFilterIcon)
 		));
@@ -773,11 +782,17 @@ export class SettingsEditor2 extends EditorPane {
 					const keybindingLabel = this.keybindingService.lookupKeybinding(SETTINGS_EDITOR_COMMAND_TOGGLE_AI_SEARCH)?.getLabel();
 					return new ToggleActionViewItem(null, action, { ...options, keybinding: keybindingLabel, toggleStyles: defaultToggleStyles });
 				}
+				if (this.showAdvancedSettingsAction && action.id === this.showAdvancedSettingsAction.id) {
+					return new ToggleActionViewItem(null, action, { ...options, toggleStyles: defaultToggleStyles });
+				}
 				return undefined;
 			}
 		}));
 
 		const actionsToPush = [clearInputAction, filterAction];
+		if (this.showAdvancedSettingsAction) {
+			actionsToPush.push(this.showAdvancedSettingsAction);
+		}
 		this.searchInputActionBar.push(actionsToPush, { label: false, icon: true });
 
 		this.disableAiSearchToggle();
@@ -798,6 +813,14 @@ export class SettingsEditor2 extends EditorPane {
 			this.searchResultModel.showAiResults = this.showAiResultsAction.checked ?? false;
 			this.renderResultCountMessages(false);
 			this.onDidFinishSearch(true, undefined);
+		}
+	}
+
+	private async onDidToggleAdvancedSettings(): Promise<void> {
+		if (this.showAdvancedSettingsAction) {
+			this.viewState.showAdvancedSettings = this.showAdvancedSettingsAction.checked ?? false;
+			// Rebuild the tree to apply the filter
+			this.onConfigUpdate(undefined, true);
 		}
 	}
 

@@ -25,6 +25,7 @@ import { SettingsTarget } from './preferencesWidgets.js';
 import { ITOCEntry, tocData } from './settingsLayout.js';
 
 export const ONLINE_SERVICES_SETTING_TAG = 'usesOnlineServices';
+export const ADVANCED_SETTING_TAG = 'advanced';
 
 export interface ISettingsEditorViewState {
 	settingsTarget: SettingsTarget;
@@ -35,6 +36,7 @@ export interface ISettingsEditorViewState {
 	idFilters?: Set<string>;
 	languageFilter?: string;
 	filterToCategory?: SettingsTreeGroupElement;
+	showAdvancedSettings?: boolean;
 }
 
 export abstract class SettingsTreeElement extends Disposable {
@@ -501,6 +503,24 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 
 		return false;
 	}
+
+	matchesAdvancedFilter(showAdvancedSettings?: boolean): boolean {
+		// If showAdvancedSettings is not explicitly set, default to false
+		// meaning advanced settings are hidden by default
+		if (showAdvancedSettings === true) {
+			// Show all settings when advanced settings are enabled
+			return true;
+		}
+
+		// If not showing advanced settings, check if this setting has the advanced tag
+		if (!this.tags) {
+			// The setting must inspect itself to get tag information
+			this.inspectSelf();
+		}
+
+		// Hide the setting if it has the advanced tag and advanced settings are not enabled
+		return !this.tags?.has(ADVANCED_SETTING_TAG);
+	}
 }
 
 
@@ -598,7 +618,12 @@ export class SettingsTreeModel implements IDisposable {
 			const settingChildren = tocEntry.settings.map(s => this.createSettingsTreeSettingElement(s, element));
 			for (const child of settingChildren) {
 				if (!child.setting.deprecationMessage) {
-					children.push(child);
+					// Check if this setting should be shown based on advanced filter
+					if (child.matchesAdvancedFilter(this._viewState.showAdvancedSettings)) {
+						children.push(child);
+					} else {
+						child.dispose();
+					}
 				} else {
 					child.inspectSelf();
 					if (child.isConfigured) {
@@ -1070,7 +1095,8 @@ export class SearchResultModel extends SettingsTreeModel {
 				&& child.matchesAnyExtension(this._viewState.extensionFilters)
 				&& child.matchesAnyId(this._viewState.idFilters)
 				&& child.matchesAnyFeature(this._viewState.featureFilters)
-				&& child.matchesAllLanguages(this._viewState.languageFilter)) {
+				&& child.matchesAllLanguages(this._viewState.languageFilter)
+				&& child.matchesAdvancedFilter(this._viewState.showAdvancedSettings)) {
 				newChildren.push(child);
 			} else {
 				child.dispose();
