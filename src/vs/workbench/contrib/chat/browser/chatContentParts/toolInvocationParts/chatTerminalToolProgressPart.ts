@@ -43,7 +43,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 	constructor(
 		toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
-		private _terminalData: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData,
+		terminalData: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData,
 		context: IChatContentPartRenderContext,
 		renderer: IMarkdownRenderer,
 		editorPool: EditorPool,
@@ -56,19 +56,19 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	) {
 		super(toolInvocation);
 
-		_terminalData = migrateLegacyTerminalToolSpecificData(_terminalData);
+		terminalData = migrateLegacyTerminalToolSpecificData(terminalData);
 
 		const elements = h('.chat-terminal-content-part@container', [
 			h('.chat-terminal-content-title@title'),
 			h('.chat-terminal-content-message@message')
 		]);
 
-		const command = _terminalData.commandLine.userEdited ?? _terminalData.commandLine.toolEdited ?? _terminalData.commandLine.original;
+		const command = terminalData.commandLine.userEdited ?? terminalData.commandLine.toolEdited ?? terminalData.commandLine.original;
 
 		const titlePart = this._register(_instantiationService.createInstance(
 			ChatQueryTitlePart,
 			elements.title,
-			new MarkdownString(`$(${Codicon.terminal.id})\n\n\`\`\`${_terminalData.language}\n${command}\n\`\`\``, { supportThemeIcons: true }),
+			new MarkdownString(`$(${Codicon.terminal.id})\n\n\`\`\`${terminalData.language}\n${command}\n\`\`\``, { supportThemeIcons: true }),
 			undefined,
 		));
 		this._register(titlePart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
@@ -77,7 +77,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			// Append the action bar element after the title has been populated so flex order hacks aren't required.
 			const actionBarEl = h('.chat-terminal-action-bar@actionBar');
 			elements.title.append(actionBarEl.root);
-			this._createActionBar({ actionBar: actionBarEl.actionBar });
+			this._createActionBar({ actionBar: actionBarEl.actionBar }, terminalData);
 		});
 		let pastTenseMessage: string | undefined;
 		if (toolInvocation.pastTenseMessage) {
@@ -108,10 +108,10 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		this.domNode = progressPart.domNode;
 	}
 
-	private _createActionBar(elements: { actionBar: HTMLElement }): void {
+	private _createActionBar(elements: { actionBar: HTMLElement }, terminalData: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData): void {
 		this._actionBar = this._register(new ActionBar(elements.actionBar, {}));
 
-		const terminalToolSessionId = 'terminalToolSessionId' in this._terminalData ? this._terminalData.terminalToolSessionId : undefined;
+		const terminalToolSessionId = 'terminalToolSessionId' in terminalData ? terminalData.terminalToolSessionId : undefined;
 		if (!terminalToolSessionId || !elements.actionBar) {
 			return;
 		}
