@@ -63,6 +63,43 @@ export interface IContextViewProvider {
 	layout(): void;
 }
 
+export function getAnchorRect(anchor: HTMLElement | StandardMouseEvent | IAnchor): IRect {
+	// Get the element's position and size (to anchor the view)
+	if (DOM.isHTMLElement(anchor)) {
+		const elementPosition = DOM.getDomNodePagePosition(anchor);
+
+		// In areas where zoom is applied to the element or its ancestors, we need to adjust the size of the element
+		// e.g. The title bar has counter zoom behavior meaning it applies the inverse of zoom level.
+		// Window Zoom Level: 1.5, Title Bar Zoom: 1/1.5, Size Multiplier: 1.5
+		const zoom = DOM.getDomNodeZoomLevel(anchor);
+
+		return {
+			top: elementPosition.top * zoom,
+			left: elementPosition.left * zoom,
+			width: elementPosition.width * zoom,
+			height: elementPosition.height * zoom
+		};
+	} else if (isAnchor(anchor)) {
+		return {
+			top: anchor.y,
+			left: anchor.x,
+			width: anchor.width || 1,
+			height: anchor.height || 2
+		};
+	} else {
+		return {
+			top: anchor.posy,
+			left: anchor.posx,
+			// We are about to position the context view where the mouse
+			// cursor is. To prevent the view being exactly under the mouse
+			// when showing and thus potentially triggering an action within,
+			// we treat the mouse location like a small sized block element.
+			width: 2,
+			height: 2
+		};
+	}
+}
+
 export class ContextView extends Disposable {
 
 	private static readonly BUBBLE_UP_EVENTS = ['click', 'keydown', 'focus', 'blur'];
@@ -197,53 +234,14 @@ export class ContextView extends Disposable {
 		}
 
 		// Get anchor
-		const anchor = this.delegate!.getAnchor();
-
-		// Compute around
-		let around: IRect;
-
-		// Get the element's position and size (to anchor the view)
-		if (DOM.isHTMLElement(anchor)) {
-			const elementPosition = DOM.getDomNodePagePosition(anchor);
-
-			// In areas where zoom is applied to the element or its ancestors, we need to adjust the size of the element
-			// e.g. The title bar has counter zoom behavior meaning it applies the inverse of zoom level.
-			// Window Zoom Level: 1.5, Title Bar Zoom: 1/1.5, Size Multiplier: 1.5
-			const zoom = DOM.getDomNodeZoomLevel(anchor);
-
-			around = {
-				top: elementPosition.top * zoom,
-				left: elementPosition.left * zoom,
-				width: elementPosition.width * zoom,
-				height: elementPosition.height * zoom
-			};
-		} else if (isAnchor(anchor)) {
-			around = {
-				top: anchor.y,
-				left: anchor.x,
-				width: anchor.width || 1,
-				height: anchor.height || 2
-			};
-		} else {
-			around = {
-				top: anchor.posy,
-				left: anchor.posx,
-				// We are about to position the context view where the mouse
-				// cursor is. To prevent the view being exactly under the mouse
-				// when showing and thus potentially triggering an action within,
-				// we treat the mouse location like a small sized block element.
-				width: 2,
-				height: 2
-			};
-		}
-
+		const anchor = getAnchorRect(this.delegate!.getAnchor());
 		const activeWindow = DOM.getActiveWindow();
 		const viewport = { top: activeWindow.pageYOffset, left: activeWindow.pageXOffset, width: activeWindow.innerWidth, height: activeWindow.innerHeight };
 		const view = { width: DOM.getTotalWidth(this.view), height: DOM.getTotalHeight(this.view) };
 		const anchorPosition = this.delegate!.anchorPosition;
 		const anchorAlignment = this.delegate!.anchorAlignment;
 		const anchorAxisAlignment = this.delegate!.anchorAxisAlignment;
-		const { top, left } = layout2d(viewport, view, around, { anchorAlignment, anchorPosition, anchorAxisAlignment });
+		const { top, left } = layout2d(viewport, view, anchor, { anchorAlignment, anchorPosition, anchorAxisAlignment });
 
 		this.view.classList.remove('top', 'bottom', 'left', 'right');
 		this.view.classList.add(anchorPosition === AnchorPosition.BELOW ? 'bottom' : 'top');
