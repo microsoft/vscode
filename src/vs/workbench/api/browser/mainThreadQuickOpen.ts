@@ -12,6 +12,13 @@ import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { Toggle } from '../../../base/browser/ui/toggle/toggle.js';
 import { asCssVariable, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground } from '../../../platform/theme/common/colorRegistry.js';
 import { ThemeIcon } from '../common/extHostTypes.js';
+import { basenameOrAuthority, dirname } from '../../../base/common/resources.js';
+import { Lazy } from '../../../base/common/lazy.js';
+import { getIconClasses } from '../../../editor/common/services/getIconClasses.js';
+import { ILabelService } from '../../../platform/label/common/label.js';
+import { ILanguageService } from '../../../editor/common/languages/language.js';
+import { IModelService } from '../../../editor/common/services/model.js';
+import { ICustomEditorLabelService } from '../../services/editor/common/customEditorLabelService.js';
 
 interface QuickInputSession {
 	input: IQuickInput;
@@ -233,6 +240,8 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 							reviveIconPathUris(button.iconPath);
 						}
 
+						// Currently buttons are only supported outside of the input box
+						// and toggles only inside. When/if that changes, this will need to be updated.
 						if (button.location === QuickInputButtonLocation.Input) {
 							toggles.push(button);
 						} else {
@@ -260,5 +269,89 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 			this.sessions.delete(sessionId);
 		}
 		return Promise.resolve(undefined);
+	}
+
+	/**
+	 * Derives icon, label and description for Quick Pick items that represent a resource URI.
+	 */
+	private processResourceUri(item: TransferQuickPickItemOrSeparator): TransferQuickPickItemOrSeparator {
+		if (item.type === 'separator' || !item.resourceUri) {
+			return item;
+		}
+
+		const resourceUri = URI.from(item.resourceUri);
+		let label = item.label;
+		let hasCustomLabel = true;
+		if (!label) {
+			label = this.customEditorLabelService.getName(resourceUri) || '';
+			if (!label) {
+				label = basenameOrAuthority(resourceUri);
+				hasCustomLabel = false;
+			}
+		}
+
+		const description = item.description || this.labelService.getUriLabel(
+			hasCustomLabel ? resourceUri : dirname(resourceUri), { relative: true });
+
+		// Replace iconClass with iconClasses if iconClass is the default file icon and no iconPath is provided.
+		let iconClass = item.iconClass;
+		let iconClasses: Lazy<string[] | undefined> | undefined;
+		if ((iconClass === 'codicon codicon-file' || iconClass === 'codicon codicon-folder') && !item.iconPath) {
+			iconClass = undefined;
+			iconClasses = new Lazy(() => getIconClasses(this.modelService, this.languageService, resourceUri));
+		}
+
+		return {
+			...item,
+			iconClass,
+			label,
+			description,
+			get iconClasses() { return iconClasses?.value; }
+		};
+	}
+
+	/**
+	 * Updates the toggles for a given quick input session by creating new {@link Toggle}-s
+	 * from buttons, updating existing toggles props and removing old ones.
+	 */
+	private updateToggles(sessionId: number, session: QuickInputSession, buttons: TransferQuickInputButton[]) {
+		const { input, handlesToToggles, store } = session;
+
+		// Add new or update existing toggles.
+		const toggles = [];
+		for (const { handle, tooltip, checked } of buttons) {
+			let toggle = handlesToToggles.get(handle);
+			if (toggle) {
+				// Toggle already exists, update its props.
+				toggle.setTitle(tooltip || '');
+				//toggle.setIcon(iconPath);
+				toggle.checked = !!checked;
+			} else {
+				// Create a new toggle from the button.
+				toggle = store.add(new Toggle({
+					title: tooltip || '',
+					icon: ThemeIcon.File, // iconPath,
+					isChecked: !!checked,
+					inputActiveOptionBorder: asCssVariable(inputActiveOptionBorder),
+					inputActiveOptionForeground: asCssVariable(inputActiveOptionForeground),
+					inputActiveOptionBackground: asCssVariable(inputActiveOptionBackground)
+				}));
+				store.add(toggle.onChange(() => {
+					this._proxy.$onDidTriggerButton(sessionId, handle);
+				}));
+				session.handlesToToggles.set(handle, toggle);
+			}
+			toggles.push(toggle);
+		}
+
+		// Remove toggles that are no longer present from the session map.
+		for (const handle of handlesToToggles.keys()) {
+			if (!buttons.some(o => o.handle === handle)) {
+				handlesToToggles.delete(handle);
+			}
+		}
+
+		// Update toggle interfaces on the input widget.
+		input.toggles = toggles;
 	}
 }

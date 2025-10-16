@@ -32,9 +32,9 @@ declare module 'vscode' {
 		location?: QuickInputButtonLocation;
 
 		/**
-		 * Indicates whether the button is toggled (checked).
-		 * This property is currently only applicable to buttons with location {@link QuickInputButtonLocation.Input} and
-		 * the property MUST be set for such buttons.
+		 * Indicates whether the button is checked.
+		 * @note This property is currently only applicable to buttons with location {@link QuickInputButtonLocation.Input}.
+		 * It must be set for such buttons and will be updated when the button is toggled.
 		 */
 		checked?: boolean;
 	}
