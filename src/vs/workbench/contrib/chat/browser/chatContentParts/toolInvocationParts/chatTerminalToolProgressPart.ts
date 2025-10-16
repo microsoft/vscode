@@ -71,12 +71,10 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		));
 		this._register(titlePart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 
-		if (configurationService.getValue<string>('chat.tools.terminal.outputLocation') === 'none') {
-			// Append the action bar element after the title has been populated so flex order hacks aren't required.
-			const actionBarEl = h('.chat-terminal-action-bar@actionBar');
-			elements.title.append(actionBarEl.root);
-			this._createActionBar({ actionBar: actionBarEl.actionBar });
-		}
+		// Append the action bar element after the title has been populated so flex order hacks aren't required.
+		const actionBarEl = h('.chat-terminal-action-bar@actionBar');
+		elements.title.append(actionBarEl.root);
+		this._createActionBar({ actionBar: actionBarEl.actionBar });
 
 		let pastTenseMessage: string | undefined;
 		if (toolInvocation.pastTenseMessage) {
