@@ -25,7 +25,7 @@ import { ConfigurationTarget, IConfigurationService } from '../../../../../../pl
 import type { ICodeBlockRenderOptions } from '../../codeBlockPart.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
-import { ITerminalChatService, ITerminalInstance, ITerminalService } from '../../../../terminal/browser/terminal.js';
+import { ITerminalChatService, ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../../../terminal/browser/terminal.js';
 import { Action, IAction } from '../../../../../../base/common/actions.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
@@ -120,7 +120,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			terminalToolSessionId,
 		));
 		this._register(focusAction.onDidChange(e => {
-			if (!e.enabled) {
+			if (e.enabled === false) {
 				actionBar.dispose();
 			}
 		}));
@@ -174,7 +174,8 @@ export class FocusChatInstanceAction extends Action implements IAction {
 		enabled: boolean,
 		private readonly _terminalToolSessionId: string,
 		@ITerminalChatService private readonly _terminalChatService: ITerminalChatService,
-		@ITerminalService private readonly _terminalService: ITerminalService
+		@ITerminalService private readonly _terminalService: ITerminalService,
+		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService
 	) {
 		super(
 			id,
@@ -209,7 +210,9 @@ export class FocusChatInstanceAction extends Action implements IAction {
 		if (!this._instance) {
 			return;
 		}
+		this.label = localize('focusTerminal', 'Focus Terminal');
 		this._terminalService.setActiveInstance(this._instance);
-		this._instance?.focusWhenReady(true);
+		this._terminalGroupService.showPanel(true);
+		await this._instance?.focusWhenReady(true);
 	}
 }
