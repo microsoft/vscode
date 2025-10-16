@@ -762,7 +762,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private updateContributedSessionContext(): void {
 		const sessionInfo = this.getContributedSessionInfo();
 		if (sessionInfo) {
-			const contributedModels = this.chatSessionsService.getModelsForSessionType(sessionInfo.chatSessionType);
+			const contributedModels = this.languageModelsService.getLanguageModelsForSessionType(sessionInfo.chatSessionType);
 			this.inContributedSessionWithModelsKey.set(contributedModels !== undefined && contributedModels.length > 0);
 
 			const cachedSessionModelId = this.chatSessionsService.getSessionOption(sessionInfo.chatSessionType, sessionInfo.chatSessionId, 'model');
@@ -1355,7 +1355,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 							if (sessionInfo) {
 								const cachedSessionModelId = this.chatSessionsService.getSessionOption(sessionInfo.chatSessionType, sessionInfo.chatSessionId, 'model');
 								if (cachedSessionModelId) {
-									const contributedModels = this.chatSessionsService.getModelsForSessionType(sessionInfo.chatSessionType);
+									const contributedModels = this.languageModelsService.getLanguageModelsForSessionType(sessionInfo.chatSessionType);
 									const activeModel = contributedModels?.find(m => m.identifier === cachedSessionModelId);
 									if (activeModel) {
 										return activeModel;

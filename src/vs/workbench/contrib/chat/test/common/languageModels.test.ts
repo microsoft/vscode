@@ -198,4 +198,59 @@ suite('LanguageModels', function () {
 
 		await request.result;
 	});
+
+	test('registerContributedModels and getLanguageModelsForSessionType', async function () {
+		// Register some contributed models for a session type
+		const contributedModels = [
+			{
+				identifier: 'contrib-model-1',
+				metadata: {
+					extension: nullExtensionDescription.identifier,
+					name: 'Contributed Model 1',
+					vendor: 'contributed',
+					family: 'contrib-family',
+					version: 'contrib-version',
+					id: 'contrib-model-1',
+					maxInputTokens: 100,
+					maxOutputTokens: 100,
+					modelPickerCategory: undefined,
+					isDefault: false,
+					isUserSelectable: true
+				}
+			},
+			{
+				identifier: 'contrib-model-2',
+				metadata: {
+					extension: nullExtensionDescription.identifier,
+					name: 'Contributed Model 2',
+					vendor: 'contributed',
+					family: 'contrib-family',
+					version: 'contrib-version',
+					id: 'contrib-model-2',
+					maxInputTokens: 200,
+					maxOutputTokens: 200,
+					modelPickerCategory: undefined,
+					isDefault: false,
+					isUserSelectable: true
+				}
+			}
+		];
+
+		languageModels.registerContributedModels('test-session-type', contributedModels);
+
+		// Get models for the contributed session type
+		const modelsForSession = languageModels.getLanguageModelsForSessionType('test-session-type');
+		assert.strictEqual(modelsForSession.length, 2);
+		assert.strictEqual(modelsForSession[0].identifier, 'contrib-model-1');
+		assert.strictEqual(modelsForSession[1].identifier, 'contrib-model-2');
+
+		// Get models without session type (should return regular models)
+		const regularModels = languageModels.getLanguageModelsForSessionType();
+		assert.ok(regularModels.length >= 0); // May have models from other tests
+
+		// Clear contributed models
+		languageModels.registerContributedModels('test-session-type', undefined);
+		const clearedModels = languageModels.getLanguageModelsForSessionType('test-session-type');
+		assert.strictEqual(clearedModels.length, 0);
+	});
 });
