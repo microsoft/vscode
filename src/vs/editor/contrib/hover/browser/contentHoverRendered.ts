@@ -7,6 +7,7 @@ import { IEditorHoverContext, IEditorHoverParticipant, IEditorHoverRenderContext
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { EditorHoverStatusBar } from './contentHoverStatusBar.js';
 import { HoverStartSource } from './hoverOperation.js';
+import { HoverCopyButton } from './hoverCopyButton.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ModelDecorationOptions } from '../../../common/model/textModel.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
@@ -238,13 +239,13 @@ class RenderedContentHoverParts extends Disposable {
 		hoverParts: IHoverPart[],
 		context: IEditorHoverContext,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IHoverService hoverService: IHoverService,
+		@IHoverService private readonly _hoverService: IHoverService,
 		@IClipboardService private readonly _clipboardService: IClipboardService
 	) {
 		super();
 		this._context = context;
 		this._fragment = document.createDocumentFragment();
-		this._register(this._renderParts(participants, hoverParts, context, keybindingService, hoverService));
+		this._register(this._renderParts(participants, hoverParts, context, keybindingService, this._hoverService));
 		this._register(this._registerListenersOnRenderedParts());
 		this._register(this._createEditorDecorations(editor, hoverParts));
 		this._updateMarkdownAndColorParticipantInfo(participants);
@@ -331,6 +332,30 @@ class RenderedContentHoverParts extends Disposable {
 				event.stopPropagation();
 				this._focusedHoverPartIndex = -1;
 			}));
+
+			// Add copy button functionality for hover parts (not status bar)
+			if (renderedPart.type === 'hoverPart') {
+				// Make element position relative so copy button can be absolutely positioned
+				element.style.position = 'relative';
+
+				const copyButton = disposables.add(new HoverCopyButton(
+					element,
+					() => this._getContentForHoverPart(renderedPart),
+					this._clipboardService,
+					this._hoverService
+				));
+
+				disposables.add(dom.addDisposableListener(element, dom.EventType.MOUSE_ENTER, () => {
+					copyButton.show();
+				}));
+
+				disposables.add(dom.addDisposableListener(element, dom.EventType.MOUSE_LEAVE, (e: MouseEvent) => {
+					// Only hide if not moving to the button itself
+					if (!copyButton.containsTarget(e.relatedTarget)) {
+						copyButton.hide();
+					}
+				}));
+			}
 		});
 		return disposables;
 	}
@@ -343,6 +368,11 @@ class RenderedContentHoverParts extends Disposable {
 			this._markdownHoverParticipant = markdownHoverParticipant as MarkdownHoverParticipant;
 		}
 		this._colorHoverParticipant = participants.find(p => p instanceof HoverColorPickerParticipant);
+	}
+
+	private _getContentForHoverPart(renderedPart: IRenderedContentHoverPart): string {
+		// Use participant's getAccessibleContent to extract text
+		return renderedPart.participant.getAccessibleContent(renderedPart.hoverPart);
 	}
 
 	public focusHoverPartWithIndex(index: number): void {
