@@ -1,0 +1,77 @@
+parameters:
+  - name: VSCODE_ARCH
+    type: string
+  - name: VSCODE_CHECK_ONLY
+    type: boolean
+    default: false
+  - name: VSCODE_QUALITY
+    type: string
+
+jobs:
+  - job: WindowsCLI_${{ upper(parameters.VSCODE_ARCH) }}
+    displayName: Windows (${{ upper(parameters.VSCODE_ARCH) }})
+    pool:
+      name: 1es-windows-2022-x64
+      os: windows
+    timeoutInMinutes: 30
+    variables:
+      VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
+    templateContext:
+      outputs:
+        - ${{ if not(parameters.VSCODE_CHECK_ONLY) }}:
+          - output: pipelineArtifact
+            targetPath: $(Build.ArtifactStagingDirectory)/unsigned_vscode_cli_win32_$(VSCODE_ARCH)_cli.zip
+            artifactName: unsigned_vscode_cli_win32_$(VSCODE_ARCH)_cli
+            displayName: Publish unsigned_vscode_cli_win32_$(VSCODE_ARCH)_cli artifact
+            sbomEnabled: false
+            isProduction: false
+
+    steps:
+      - template: ../common/checkout.yml@self
+
+      - task: NodeTool@0
+        inputs:
+          versionSource: fromFile
+          versionFilePath: .nvmrc
+
+      - template: ../cli/cli-apply-patches.yml@self
+
+      - task: Npm@1
+        displayName: Download openssl prebuilt
+        inputs:
+          command: custom
+          customCommand: pack @vscode-internal/openssl-prebuilt@0.0.11
+          customRegistry: useFeed
+          customFeed: "Monaco/openssl-prebuilt"
+          workingDir: $(Build.ArtifactStagingDirectory)
+
+      - powershell: |
+          mkdir $(Build.ArtifactStagingDirectory)/openssl
+          tar -xvzf $(Build.ArtifactStagingDirectory)/vscode-internal-openssl-prebuilt-0.0.11.tgz --strip-components=1 --directory=$(Build.ArtifactStagingDirectory)/openssl
+        displayName: Extract openssl prebuilt
+
+      - template: ./steps/product-build-win32-install-rust.yml@self
+        parameters:
+          targets:
+            - ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
+              - x86_64-pc-windows-msvc
+            - ${{ if eq(parameters.VSCODE_ARCH, 'arm64') }}:
+              - aarch64-pc-windows-msvc
+
+      - template: ../cli/cli-compile.yml@self
+        parameters:
+          VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
+          ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
+            VSCODE_CLI_TARGET: x86_64-pc-windows-msvc
+          ${{ if eq(parameters.VSCODE_ARCH, 'arm64') }}:
+            VSCODE_CLI_TARGET: aarch64-pc-windows-msvc
+          VSCODE_CLI_ARTIFACT: unsigned_vscode_cli_win32_$(VSCODE_ARCH)_cli
+          VSCODE_CHECK_ONLY: ${{ parameters.VSCODE_CHECK_ONLY }}
+          VSCODE_CLI_ENV:
+            OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/$(VSCODE_ARCH)-windows-static/lib
+            OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/$(VSCODE_ARCH)-windows-static/include
+            ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
+              RUSTFLAGS: "-Ctarget-feature=+crt-static -Clink-args=/guard:cf -Clink-args=/CETCOMPAT"
+            ${{ if eq(parameters.VSCODE_ARCH, 'arm64') }}:
+              RUSTFLAGS: "-Ctarget-feature=+crt-static -Clink-args=/guard:cf -Clink-args=/CETCOMPAT:NO"
+            CFLAGS: "/guard:cf /Qspectre"

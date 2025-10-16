@@ -7,7 +7,7 @@ import { Separator } from '../../../../../base/common/actions.js';
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { posix as pathPosix, win32 as pathWin32 } from '../../../../../base/common/path.js';
 import { OperatingSystem } from '../../../../../base/common/platform.js';
-import { removeAnsiEscapeCodes } from '../../../../../base/common/strings.js';
+import { escapeRegExpCharacters, removeAnsiEscapeCodes } from '../../../../../base/common/strings.js';
 import { localize } from '../../../../../nls.js';
 import type { TerminalNewAutoApproveButtonData } from '../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
 import type { ToolConfirmationAction } from '../../../chat/common/languageModelToolsService.js';
@@ -57,14 +57,40 @@ export function generateAutoApproveActions(commandLine: string, subCommands: str
 			return autoApproveResult.subCommandResults[index].result !== 'approved';
 		});
 
-		// For each unapproved sub-command (within the overall command line), decide whether to
-		// suggest just the commnad or sub-command (with that sub-command line) to always allow.
+		// Some commands should not be recommended as they are too permissive generally. This only
+		// applies to sub-commands, we still want to offer approving of the exact the command line
+		// however as it's very specific.
+		const neverAutoApproveCommands = new Set([
+			// Shell interpreters
+			'bash', 'sh', 'zsh', 'fish', 'ksh', 'csh', 'tcsh', 'dash',
+			'pwsh', 'powershell', 'powershell.exe', 'cmd', 'cmd.exe',
+			// Script interpreters
+			'python', 'python3', 'node', 'ruby', 'perl', 'php', 'lua',
+			// Direct execution commands
+			'eval', 'exec', 'source', 'sudo', 'su', 'doas',
+			// Network tools that can download and execute code
+			'curl', 'wget', 'invoke-restmethod', 'invoke-webrequest', 'irm', 'iwr',
+		]);
+
+		// Commands where we want to suggest the sub-command (eg. `foo bar` instead of `foo`)
 		const commandsWithSubcommands = new Set(['git', 'npm', 'yarn', 'docker', 'kubectl', 'cargo', 'dotnet', 'mvn', 'gradle']);
+
+		// Commands where we want to suggest the sub-command of a sub-command (eg. `foo bar baz`
+		// instead of `foo`)
 		const commandsWithSubSubCommands = new Set(['npm run', 'yarn run']);
+
+		// For each unapproved sub-command (within the overall command line), decide whether to
+		// suggest new rules for the command, a sub-command, a sub-command of a sub-command or to
+		// not suggest at all.
 		const subCommandsToSuggest = Array.from(new Set(coalesce(unapprovedSubCommands.map(command => {
 			const parts = command.trim().split(/\s+/);
 			const baseCommand = parts[0].toLowerCase();
 			const baseSubCommand = parts.length > 1 ? `${parts[0]} ${parts[1]}`.toLowerCase() : '';
+
+			// Security check: Never suggest auto-approval for dangerous interpreter commands
+			if (neverAutoApproveCommands.has(baseCommand)) {
+				return undefined;
+			}
 
 			if (commandsWithSubSubCommands.has(baseSubCommand)) {
 				if (parts.length >= 3 && !parts[2].startsWith('-')) {
@@ -115,7 +141,7 @@ export function generateAutoApproveActions(commandLine: string, subCommands: str
 				data: {
 					type: 'newRule',
 					rule: {
-						key: commandLine,
+						key: `/^${escapeRegExpCharacters(commandLine)}$/`,
 						value: {
 							approve: true,
 							matchCommandLine: true
@@ -139,4 +165,10 @@ export function generateAutoApproveActions(commandLine: string, subCommands: str
 	});
 
 	return actions;
+}
+
+export function dedupeRules(rules: ICommandApprovalResultWithReason[]): ICommandApprovalResultWithReason[] {
+	return rules.filter((result, index, array) => {
+		return result.rule && array.findIndex(r => r.rule && r.rule.sourceText === result.rule!.sourceText) === index;
+	});
 }

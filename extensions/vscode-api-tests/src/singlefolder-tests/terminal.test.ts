@@ -15,6 +15,7 @@ import { assertNoRpc, poll } from '../utils';
 	suiteSetup(async () => {
 		// Trigger extension activation and grab the context as some tests depend on it
 		await extensions.getExtension('vscode.vscode-api-tests')?.activate();
+		// eslint-disable-next-line local/code-no-any-casts
 		extensionContext = (global as any).testExtensionContext;
 
 		const config = workspace.getConfiguration('terminal.integrated');
@@ -27,7 +28,7 @@ import { assertNoRpc, poll } from '../utils';
 		// Disable env var relaunch for tests to prevent terminals relaunching themselves
 		await config.update('environmentChangesRelaunch', false, ConfigurationTarget.Global);
 		// Disable local echo in case it causes any problems in remote tests
-		await config.update('localEchoEnabled', "off", ConfigurationTarget.Global);
+		await config.update('localEchoEnabled', 'off', ConfigurationTarget.Global);
 		await config.update('shellIntegration.enabled', false);
 	});
 

@@ -70,9 +70,9 @@ fi
 
 # Register Python shell activate hooks
 # Prevent multiple activation with guard
-if [ -z "$VSCODE_PYTHON_AUTOACTIVATE_GUARD" ]; then
+if [ -z "${VSCODE_PYTHON_AUTOACTIVATE_GUARD:-}" ]; then
 	export VSCODE_PYTHON_AUTOACTIVATE_GUARD=1
-	if [ -n "$VSCODE_PYTHON_ZSH_ACTIVATE" ] && [ "$TERM_PROGRAM" = "vscode" ]; then
+	if [ -n "${VSCODE_PYTHON_ZSH_ACTIVATE:-}" ] && [ "$TERM_PROGRAM" = "vscode" ]; then
 		# Prevent crashing by negating exit code
 		if ! builtin eval "$VSCODE_PYTHON_ZSH_ACTIVATE"; then
 			__vsc_activation_status=$?
@@ -82,11 +82,11 @@ if [ -z "$VSCODE_PYTHON_AUTOACTIVATE_GUARD" ]; then
 fi
 
 # Report prompt type
-if [ -n "$P9K_SSH" ] || [ -n "$P9K_TTY" ]; then
+if [ -n "${P9K_SSH:-}" ] || [ -n "${P9K_TTY:-}" ]; then
 	builtin printf '\e]633;P;PromptType=p10k\a'
-elif [ -n "$ZSH" ] && [ -n "$ZSH_VERSION" ] && (( ${+functions[omz]} )); then
+elif [ -n "${ZSH:-}" ] && [ -n "$ZSH_VERSION" ] && (( ${+functions[omz]} )); then
 	builtin printf '\e]633;P;PromptType=oh-my-zsh\a'
-elif [ -n "$STARSHIP_SESSION_KEY" ]; then
+elif [ -n "${STARSHIP_SESSION_KEY:-}" ]; then
 	builtin printf '\e]633;P;PromptType=starship\a'
 fi
 
@@ -132,7 +132,7 @@ __vsc_current_command=""
 __vsc_nonce="$VSCODE_NONCE"
 unset VSCODE_NONCE
 
-__vscode_shell_env_reporting="$VSCODE_SHELL_ENV_REPORTING"
+__vscode_shell_env_reporting="${VSCODE_SHELL_ENV_REPORTING:-}"
 unset VSCODE_SHELL_ENV_REPORTING
 
 envVarsToReport=()

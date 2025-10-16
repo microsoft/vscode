@@ -52,7 +52,7 @@ const GHOST_TEXT_CLASS_NAME = 'ghost-text';
 export class GhostTextView extends Disposable {
 	private readonly _isDisposed;
 	private readonly _editorObs;
-	public static hot = createHotClass(GhostTextView);
+	public static hot = createHotClass(this);
 
 	private _warningState;
 
@@ -271,6 +271,7 @@ export class GhostTextView extends Disposable {
 						color: 'orange',
 					},
 					ref: (dom) => {
+						// eslint-disable-next-line local/code-no-any-casts
 						(dom as any as WidgetDomElement).ghostTextViewWarningWidgetData = { range: Range.fromPositions(state.position) };
 					}
 				}, [
@@ -292,6 +293,7 @@ export class GhostTextView extends Disposable {
 	}
 
 	public static getWarningWidgetContext(domNode: HTMLElement): { range: Range } | undefined {
+		// eslint-disable-next-line local/code-no-any-casts
 		const data = (domNode as any as WidgetDomElement).ghostTextViewWarningWidgetData;
 		if (data) {
 			return data;

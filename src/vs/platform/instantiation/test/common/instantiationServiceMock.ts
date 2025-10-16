@@ -58,7 +58,7 @@ export class TestInstantiationService extends InstantiationService implements ID
 		const property = typeof arg2 === 'string' ? arg2 : arg3;
 		const value = typeof arg2 === 'string' ? arg3 : arg4;
 
-		const stubObject = <any>this._create(serviceMock, { stub: true }, service && !property);
+		const stubObject = this._create(serviceMock, { stub: true }, service && !property);
 		if (property) {
 			if (stubObject[property]) {
 				if (stubObject[property].hasOwnProperty('restore')) {
@@ -160,7 +160,7 @@ export function createServices(disposables: DisposableStore, services: ServiceId
 	const define = <T>(id: ServiceIdentifier<T>, ctorOrInstance: T | (new (...args: any[]) => T)) => {
 		if (!serviceCollection.has(id)) {
 			if (typeof ctorOrInstance === 'function') {
-				serviceCollection.set(id, new SyncDescriptor(ctorOrInstance as any));
+				serviceCollection.set(id, new SyncDescriptor(ctorOrInstance as new (...args: any[]) => T));
 			} else {
 				serviceCollection.set(id, ctorOrInstance);
 			}

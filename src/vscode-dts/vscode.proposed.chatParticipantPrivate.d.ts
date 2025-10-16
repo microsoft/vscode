@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 10
+// version: 11
 
 declare module 'vscode' {
 
@@ -54,6 +54,11 @@ declare module 'vscode' {
 		 * The attempt number of the request. The first request has attempt number 0.
 		 */
 		readonly attempt: number;
+
+		/**
+		 * The session identifier for this chat request
+		 */
+		readonly sessionId: string;
 
 		/**
 		 * If automatic command detection is enabled.
@@ -182,6 +187,8 @@ declare module 'vscode' {
 
 		isQuotaExceeded?: boolean;
 
+		isRateLimited?: boolean;
+
 		level?: ChatErrorLevel;
 
 		code?: string;
@@ -214,6 +221,10 @@ declare module 'vscode' {
 		chatSessionId?: string;
 		chatInteractionId?: string;
 		terminalCommand?: string;
+		/**
+		 * Lets us add some nicer UI to toolcalls that came from a sub-agent, but in the long run, this should probably just be rendered in a similar way to thinking text + tool call groups
+		 */
+		fromSubAgent?: boolean;
 	}
 
 	export interface LanguageModelToolInvocationPrepareOptions<T> {
@@ -228,12 +239,13 @@ declare module 'vscode' {
 
 	export interface PreparedToolInvocation {
 		pastTenseMessage?: string | MarkdownString;
-		presentation?: 'hidden' | undefined;
+		presentation?: 'hidden' | 'hiddenAfterComplete' | undefined;
 	}
 
 	export class ExtendedLanguageModelToolResult extends LanguageModelToolResult {
 		toolResultMessage?: string | MarkdownString;
 		toolResultDetails?: Array<Uri | Location>;
+		toolMetadata?: unknown;
 	}
 
 	// #region Chat participant detection
@@ -270,6 +282,26 @@ declare module 'vscode' {
 	export interface ChatErrorDetailsConfirmationButton {
 		data: any;
 		label: string;
+	}
+
+	// #endregion
+
+	// #region LanguageModelProxyProvider
+
+	/**
+	 * Duplicated so that this proposal and languageModelProxy can be independent.
+	 */
+	export interface LanguageModelProxyInfo {
+		readonly uri: Uri;
+		readonly key: string;
+	}
+
+	export interface LanguageModelProxyProvider {
+		provideModelProxy(forExtensionId: string, token: CancellationToken): ProviderResult<LanguageModelProxyInfo>;
+	}
+
+	export namespace lm {
+		export function registerLanguageModelProxyProvider(provider: LanguageModelProxyProvider): Disposable;
 	}
 
 	// #endregion

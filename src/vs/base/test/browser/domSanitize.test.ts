@@ -99,9 +99,8 @@ suite('DomSanitize', () => {
 	test('allows safe protocols for href', () => {
 		const html = '<a href="https://example.com">safe link</a>';
 		const result = sanitizeHtml(html);
-		const str = result.toString();
 
-		assert.ok(str.includes('href="https://example.com"'));
+		assert.ok(result.toString().includes('href="https://example.com"'));
 	});
 
 	test('allows fragment links', () => {
@@ -126,9 +125,22 @@ suite('DomSanitize', () => {
 		const result = sanitizeHtml(html, {
 			allowedMediaProtocols: { override: [Schemas.data] }
 		});
-		const str = result.toString();
 
-		assert.ok(str.includes('src="data:image/png;base64,'));
+		assert.ok(result.toString().includes('src="data:image/png;base64,'));
+	});
+
+	test('Removes relative paths for img src by default', () => {
+		const html = '<img src="path/img.png">';
+		const result = sanitizeHtml(html);
+		assert.strictEqual(result.toString(), '<img>');
+	});
+
+	test('Can allow relative paths for image', () => {
+		const html = '<img src="path/img.png">';
+		const result = sanitizeHtml(html, {
+			allowRelativeMediaPaths: true,
+		});
+		assert.strictEqual(result.toString(), '<img src="path/img.png">');
 	});
 
 	test('Supports dynamic attribute sanitization', () => {
@@ -145,8 +157,7 @@ suite('DomSanitize', () => {
 				]
 			}
 		});
-		const str = result.toString();
-		assert.strictEqual(str, '<div>text1</div><div title="b">text2</div>');
+		assert.strictEqual(result.toString(), '<div>text1</div><div title="b">text2</div>');
 	});
 
 	test('Supports changing attributes in dynamic sanitization', () => {

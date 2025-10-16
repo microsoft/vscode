@@ -9,6 +9,7 @@ import { localize } from '../../../../../../../nls.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../../chat/common/languageModelToolsService.js';
 import { ITaskService, ITaskSummary, Task, TasksAvailableContext } from '../../../../../tasks/common/taskService.js';
+import { TaskRunSource } from '../../../../../tasks/common/tasks.js';
 import { ITerminalService } from '../../../../../terminal/browser/terminal.js';
 import { collectTerminalResults, getTaskDefinition, getTaskForTool, resolveDependencyTasks } from '../../taskHelpers.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
@@ -17,25 +18,7 @@ import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { toolResultDetailsFromResponse, toolResultMessageFromResponse } from './taskHelpers.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
-
-type RunTaskToolClassification = {
-	taskId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the task.' };
-	bufferLength: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The length of the terminal buffer as a string.' };
-	pollDurationMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How long polling for output took (ms).' };
-	inputToolManualAcceptCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of times the user manually accepted a detected suggestion' };
-	inputToolManualRejectCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of times the user manually rejected a detected suggestion' };
-	inputToolManualChars: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of characters input by manual acceptance of suggestions' };
-	owner: 'meganrogge';
-	comment: 'Understanding the usage of the runTask tool';
-};
-type RunTaskToolEvent = {
-	taskId: string;
-	bufferLength: number;
-	pollDurationMs: number | undefined;
-	inputToolManualAcceptCount: number;
-	inputToolManualRejectCount: number;
-	inputToolManualChars: number;
-};
+import { TaskToolClassification, TaskToolEvent } from './taskToolsTelemetry.js';
 
 interface IRunTaskToolInput extends IToolInvocation {
 	id: string;
@@ -70,7 +53,7 @@ export class RunTaskTool implements IToolImpl {
 			return { content: [{ kind: 'text', value: `The task ${taskLabel} is already running.` }], toolResultMessage: new MarkdownString(localize('copilotChat.taskAlreadyRunning', 'The task `{0}` is already running.', taskLabel)) };
 		}
 
-		const raceResult = await Promise.race([this._tasksService.run(task), timeout(3000)]);
+		const raceResult = await Promise.race([this._tasksService.run(task, undefined, TaskRunSource.ChatAgent), timeout(3000)]);
 		const result: ITaskSummary | undefined = raceResult && typeof raceResult === 'object' ? raceResult as ITaskSummary : undefined;
 
 		const dependencyTasks = await resolveDependencyTasks(task, args.workspaceFolder, this._configurationService, this._tasksService);
@@ -92,18 +75,21 @@ export class RunTaskTool implements IToolImpl {
 			_progress,
 			token,
 			store,
-			() => this._isTaskActive(task),
+			(terminalTask) => this._isTaskActive(terminalTask),
 			dependencyTasks
 		);
 		store.dispose();
 		for (const r of terminalResults) {
-			this._telemetryService.publicLog2?.<RunTaskToolEvent, RunTaskToolClassification>('copilotChat.runTaskTool.run', {
+			this._telemetryService.publicLog2?.<TaskToolEvent, TaskToolClassification>('copilotChat.runTaskTool.run', {
 				taskId: args.id,
 				bufferLength: r.output.length ?? 0,
 				pollDurationMs: r.pollDurationMs ?? 0,
 				inputToolManualAcceptCount: r.inputToolManualAcceptCount ?? 0,
 				inputToolManualRejectCount: r.inputToolManualRejectCount ?? 0,
 				inputToolManualChars: r.inputToolManualChars ?? 0,
+				inputToolManualShownCount: r.inputToolManualShownCount ?? 0,
+				inputToolFreeFormInputShownCount: r.inputToolFreeFormInputShownCount ?? 0,
+				inputToolFreeFormInputCount: r.inputToolFreeFormInputCount ?? 0
 			});
 		}
 
@@ -121,7 +107,7 @@ export class RunTaskTool implements IToolImpl {
 
 	private async _isTaskActive(task: Task): Promise<boolean> {
 		const activeTasks = await this._tasksService.getActiveTasks();
-		return Promise.resolve(activeTasks?.includes(task));
+		return Promise.resolve(activeTasks?.some((t) => t._id === task._id));
 	}
 
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {

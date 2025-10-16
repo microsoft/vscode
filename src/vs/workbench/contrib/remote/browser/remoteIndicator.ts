@@ -562,7 +562,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 		const properties: IStatusbarEntry = {
 			name: nls.localize('remoteHost', "Remote Host"),
-			kind: this.networkState === 'offline' ? 'offline' : 'remote',
+			kind: this.networkState === 'offline' ? 'offline' : this.remoteAuthority ? 'remote' : undefined,
 			ariaLabel,
 			text,
 			showProgress,

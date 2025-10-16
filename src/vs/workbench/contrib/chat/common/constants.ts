@@ -6,7 +6,6 @@
 import { Schemas } from '../../../../base/common/network.js';
 
 export enum ChatConfiguration {
-	UseFileStorage = 'chat.useFileStorage',
 	AgentEnabled = 'chat.agent.enabled',
 	Edits2Enabled = 'chat.edits2.enabled',
 	ExtensionToolsEnabled = 'chat.extensionTools.enabled',
@@ -17,9 +16,12 @@ export enum ChatConfiguration {
 	CheckpointsEnabled = 'chat.checkpoints.enabled',
 	AgentSessionsViewLocation = 'chat.agentSessionsViewLocation',
 	ThinkingStyle = 'chat.agent.thinkingStyle',
-	UseChatSessionsForCloudButton = 'chat.useChatSessionsForCloudButton',
+	TodoList = 'chat.agent.todoList',
+	UseCloudButtonV2 = 'chat.useCloudButtonV2',
 	ShowAgentSessionsViewDescription = 'chat.showAgentSessionsViewDescription',
-	EmptyStateHistoryEnabled = 'chat.emptyState.history.enabled'
+	EmptyStateHistoryEnabled = 'chat.emptyState.history.enabled',
+	NotifyWindowOnResponseReceived = 'chat.notifyWindowOnResponseReceived',
+	DelegateToCodingAgentInSecondaryMenu = 'chat.delegateToCodingAgentInSecondaryMenu',
 }
 
 /**
@@ -51,7 +53,8 @@ export enum ThinkingDisplayMode {
 	Collapsed = 'collapsed',
 	CollapsedPreview = 'collapsedPreview',
 	Expanded = 'expanded',
-	None = 'none'
+	None = 'none',
+	CollapsedPerItem = 'collapsedPerItem'
 }
 
 export type RawChatParticipantLocation = 'panel' | 'terminal' | 'notebook' | 'editing-session';
@@ -83,3 +86,7 @@ export namespace ChatAgentLocation {
 }
 
 export const ChatUnsupportedFileSchemes = new Set([Schemas.vscodeChatEditor, Schemas.walkThrough, Schemas.vscodeChatSession, 'ccreq']);
+
+export const VIEWLET_ID = 'workbench.view.chat.sessions';
+
+export const ChatEditorTitleMaxLength = 30;

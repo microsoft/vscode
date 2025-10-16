@@ -15,7 +15,7 @@ import { TerminalChatWidget } from './terminalChatWidget.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import type { ITerminalContributionContext } from '../../../terminal/browser/terminalExtensions.js';
 import type { IChatModel } from '../../../chat/common/chatModel.js';
-import { IChatEntitlementService } from '../../../chat/common/chatEntitlementService.js';
+import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 
 export class TerminalChatController extends Disposable implements ITerminalContribution {
 	static readonly ID = 'terminal.chat';
@@ -163,6 +163,6 @@ async function moveToPanelChat(accessor: ServicesAccessor, model: IChatModel | u
 		for (const request of model.getRequests().slice()) {
 			await chatService.adoptRequest(widget.viewModel.model.sessionId, request);
 		}
-		widget.focusLastMessage();
+		widget.focusResponseItem();
 	}
 }

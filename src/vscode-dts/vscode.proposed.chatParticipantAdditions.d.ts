@@ -6,7 +6,7 @@
 declare module 'vscode' {
 
 	export interface ChatParticipant {
-		onDidPerformAction: Event<ChatUserActionEvent>;
+		readonly onDidPerformAction: Event<ChatUserActionEvent>;
 	}
 
 	/**
@@ -103,6 +103,7 @@ declare module 'vscode' {
 		isConfirmed?: boolean;
 		isComplete?: boolean;
 		toolSpecificData?: ChatTerminalToolInvocationData;
+		fromSubAgent?: boolean;
 
 		constructor(toolName: string, toolCallId: string, isError?: boolean);
 	}
@@ -441,7 +442,7 @@ declare module 'vscode' {
 		 * Event that fires when a request is paused or unpaused.
 		 * Chat requests are initially unpaused in the {@link requestHandler}.
 		 */
-		onDidChangePauseState: Event<ChatParticipantPauseStateEvent>;
+		readonly onDidChangePauseState: Event<ChatParticipantPauseStateEvent>;
 	}
 
 	export interface ChatParticipantPauseStateEvent {
@@ -646,7 +647,13 @@ declare module 'vscode' {
 	}
 
 	export interface ChatRequest {
-		modeInstructions?: string;
-		modeInstructionsToolReferences?: readonly ChatLanguageModelToolReference[];
+		readonly modeInstructions?: string;
+		readonly modeInstructions2?: ChatRequestModeInstructions;
+	}
+
+	export interface ChatRequestModeInstructions {
+		readonly content: string;
+		readonly toolReferences?: readonly ChatLanguageModelToolReference[];
+		readonly metadata?: Record<string, boolean | string | number>;
 	}
 }
