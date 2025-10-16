@@ -189,11 +189,11 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 					}
 					break;
 
-				case 'items':
+				case 'items': {
 					handlesToItems.clear();
-					params.items?.forEach((item: TransferQuickPickItemOrSeparator) => {
+					const items = params.items?.map((item: TransferQuickPickItemOrSeparator) => {
 						if (item.type === 'separator') {
-							return;
+							return item;
 						}
 
 						if (item.buttons) {
@@ -205,10 +205,13 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 								return button;
 							});
 						}
+
 						handlesToItems.set(item.handle, item);
+						return this.processResourceUri(item);
 					});
-					quickPick.items = params.items!;
+					quickPick.items = items;
 					break;
+				}
 
 				case 'activeItems':
 					quickPick.activeItems = params.activeItems!.map((handle: number) => handlesToItems.get(handle));
