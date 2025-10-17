@@ -245,10 +245,14 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	public resolvePromptSlashCommandFromCache(data: IChatPromptSlashCommand): ParsedPromptFile | undefined {
-		// kick off a async process to refresh the cache while we returns the current cached value
-		void this.resolvePromptSlashCommand(data, CancellationToken.None).catch((error) => { });
+		const cache = this.promptFileByCommandCache.get(data.command);
+		const value = cache?.value;
+		if (value === undefined) {
+			// kick off a async process to refresh the cache while we returns the current cached value
+			void this.resolvePromptSlashCommand(data, CancellationToken.None).catch((error) => { });
+		}
 
-		return this.promptFileByCommandCache.get(data.command)?.value;
+		return value;
 	}
 
 	private async getPromptPath(data: IChatPromptSlashCommand): Promise<URI | undefined> {
