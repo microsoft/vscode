@@ -90,14 +90,15 @@
 	right: 4px;
 	padding: 2px 4px;
 	border-radius: 3px;
-	display: none;
+	display: flex;
 	align-items: center;
 	justify-content: center;
+	opacity: 0;
 }
 
 .monaco-editor .monaco-hover .hover-row-with-copy:hover .hover-copy-button,
 .monaco-editor .monaco-hover .hover-row-with-copy:focus-within .hover-copy-button {
-	display: flex;
+	opacity: 1;
 }
 
 .monaco-editor .monaco-hover .hover-copy-button:hover {
