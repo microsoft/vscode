@@ -191,7 +191,7 @@ export class FocusChatInstanceAction extends Action implements IAction {
 		super(
 			'chat.focusTerminalInstance',
 			isTerminalHidden ? localize('showTerminal', 'Show Terminal') : localize('focusTerminal', 'Focus Terminal'),
-			ThemeIcon.asClassName(Codicon.linkExternal),
+			ThemeIcon.asClassName(Codicon.openInProduct),
 			true,
 		);
 	}
