@@ -57,6 +57,14 @@ export class PromptHoverProvider implements HoverProvider {
 	}
 
 	private async provideBodyHover(position: Position, body: PromptBody): Promise<Hover | undefined> {
+		// Check for slash command references
+		for (const ref of body.slashCommandReferences) {
+			if (ref.range.containsPosition(position)) {
+				const command = ref.command;
+				return this.getSlashCommandHover(command, ref.range);
+			}
+		}
+		// Check for variable references
 		for (const ref of body.variableReferences) {
 			if (ref.range.containsPosition(position)) {
 				const toolName = ref.name;
@@ -197,6 +205,25 @@ export class PromptHoverProvider implements HoverProvider {
 			}
 		}
 		return this.createHover(lines.join('\n'), mode.range);
+	}
+
+	private async getSlashCommandHover(command: string, range: Range): Promise<Hover | undefined> {
+		const slashCommands = await this.promptsService.findPromptSlashCommands();
+		const slashCommand = slashCommands.find(cmd => cmd.command === command);
+		if (slashCommand) {
+			const lines: string[] = [];
+			lines.push(`**/${slashCommand.command}**`);
+			lines.push('');
+			if (slashCommand.detail) {
+				lines.push(slashCommand.detail);
+			}
+			if (slashCommand.promptPath) {
+				lines.push('');
+				lines.push(localize('slashCommand.file', 'File: `{0}`', slashCommand.promptPath.uri.fsPath));
+			}
+			return this.createHover(lines.join('\n'), range);
+		}
+		return undefined;
 	}
 
 }
