@@ -569,7 +569,8 @@ export class PtyService extends Disposable implements IPtyService {
 	}
 
 	private async _expandTerminalInstance(workspaceId: string, t: ITerminalInstanceLayoutInfoById | number, doneSet: Set<number>): Promise<IRawTerminalInstanceLayoutInfo<IProcessDetails | null>> {
-		const ptyId = typeof t === 'number' ? t : t.terminal;
+		const hasLayout = typeof t !== 'number';
+		const ptyId = hasLayout ? t.terminal : t;
 		try {
 			const oldId = this._getRevivingProcessId(workspaceId, ptyId);
 			const revivedPtyId = this._revivedPtyIdMap.get(oldId)?.newId;
@@ -584,7 +585,7 @@ export class PtyService extends Disposable implements IPtyService {
 			const processDetails = persistentProcess && await this._buildProcessDetails(ptyId, persistentProcess, revivedPtyId !== undefined);
 			return {
 				terminal: { ...processDetails, id: persistentProcessId },
-				relativeSize: typeof t === 'number' ? 0 : t.relativeSize
+				relativeSize: hasLayout ? t.relativeSize : 0
 			};
 		} catch (e) {
 			this._logService.warn(`Couldn't get layout info, a terminal was probably disconnected`, e.message);
@@ -594,7 +595,7 @@ export class PtyService extends Disposable implements IPtyService {
 			// this will be filtered out and not reconnected
 			return {
 				terminal: null,
-				relativeSize: typeof t === 'number' ? 0 : t.relativeSize
+				relativeSize: hasLayout ? t.relativeSize : 0
 			};
 		}
 	}
