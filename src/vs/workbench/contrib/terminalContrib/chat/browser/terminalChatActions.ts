@@ -343,14 +343,14 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 		const items: IQuickPickItem[] = [];
 		for (const { instance, isBackground } of all.values()) {
 			const iconId = instantiationService.invokeFunction(getIconId, instance);
-			const lastCommand = instance.capabilities.get(TerminalCapability.CommandDetection)?.commands.at(-1)?.command;
 			let label = `$(${iconId}) ${instance.title}`;
-			if (lastCommand) {
-				label += ` - ${lastCommand}`;
+			if (isBackground) {
+				label += ` • Hidden`;
 			}
+			const lastCommand = instance.capabilities.get(TerminalCapability.CommandDetection)?.commands.at(-1)?.command;
 			items.push({
 				label,
-				description: isBackground ? localize2('terminalHiddenChatDesc', 'Chat Session • Hidden').value : localize2('terminalChatDesc', 'Chat Session').value,
+				description: lastCommand ? lastCommand : '',
 				id: String(instance.instanceId)
 			});
 		}
