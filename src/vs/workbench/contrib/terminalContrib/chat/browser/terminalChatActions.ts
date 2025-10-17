@@ -341,26 +341,54 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 		}
 
 		const items: IQuickPickItem[] = [];
+		interface IItemMeta {
+			label: string;
+			description: string | undefined;
+			detail: string | undefined;
+			id: string;
+			isBackground: boolean;
+		}
+		const hiddenLocalized = localize2('chatTerminal.hidden', 'Hidden').value;
+		const lastCommandLocalized = (command: string) => localize2('chatTerminal.lastCommand', 'Last: {0}', command).value;
+
+		const metas: IItemMeta[] = [];
 		for (const { instance, isBackground } of all.values()) {
 			const iconId = instantiationService.invokeFunction(getIconId, instance);
-			let label = `$(${iconId}) ${instance.title}`;
-			if (isBackground) {
-				label += ` • Hidden`;
-			}
+			const label = `$(${iconId}) ${instance.title}`;
 			const lastCommand = instance.capabilities.get(TerminalCapability.CommandDetection)?.commands.at(-1)?.command;
-			items.push({
+			metas.push({
 				label,
-				description: lastCommand ? lastCommand : '',
-				id: String(instance.instanceId)
+				description: isBackground ? hiddenLocalized : undefined,
+				detail: lastCommand ? lastCommandLocalized(lastCommand) : undefined,
+				id: String(instance.instanceId),
+				isBackground
+			});
+		}
+
+		// Sort: visible first (stable by label inside each group)
+		metas.sort((a, b) => {
+			if (a.isBackground !== b.isBackground) {
+				return a.isBackground ? 1 : -1;
+			}
+			return a.label.localeCompare(b.label);
+		});
+
+		for (const m of metas) {
+			items.push({
+				label: m.label,
+				description: m.description,
+				detail: m.detail,
+				id: m.id
 			});
 		}
 
 		const qp = quickInputService.createQuickPick<IQuickPickItem>();
 		qp.placeholder = localize2('selectChatTerminal', 'Select a chat terminal to focus').value;
-		qp.items = items.sort((a, b) => a.label.localeCompare(b.label));
+		qp.items = items;
 		qp.canSelectMany = false;
 		qp.title = localize2('showChatTerminals.title', 'Chat Terminals').value;
 		qp.matchOnDescription = true;
+		qp.matchOnDetail = true;
 		qp.onDidAccept(async () => {
 			const sel = qp.selectedItems[0];
 			if (sel) {
