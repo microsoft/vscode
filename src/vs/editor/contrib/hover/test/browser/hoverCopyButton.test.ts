@@ -88,9 +88,6 @@ suite('Hover Copy Button', () => {
 
 		buttonElement.click();
 
-		// Wait for async clipboard operation
-		await new Promise(resolve => setTimeout(resolve, 10));
-
 		const copiedText = await clipboardService.readText();
 		assert.strictEqual(copiedText, testContent, 'Content should be copied to clipboard');
 	});
@@ -116,9 +113,6 @@ suite('Hover Copy Button', () => {
 		Object.defineProperty(keyEvent, 'keyCode', { get: () => 13 }); // Enter keyCode
 		buttonElement.dispatchEvent(keyEvent);
 
-		// Wait for async clipboard operation
-		await new Promise(resolve => setTimeout(resolve, 10));
-
 		const copiedText = await clipboardService.readText();
 		assert.strictEqual(copiedText, testContent, 'Content should be copied on Enter key');
 	});
@@ -143,9 +137,6 @@ suite('Hover Copy Button', () => {
 		});
 		Object.defineProperty(keyEvent, 'keyCode', { get: () => 32 }); // Space keyCode
 		buttonElement.dispatchEvent(keyEvent);
-
-		// Wait for async clipboard operation
-		await new Promise(resolve => setTimeout(resolve, 10));
 
 		const copiedText = await clipboardService.readText();
 		assert.strictEqual(copiedText, testContent, 'Content should be copied on Space key');
