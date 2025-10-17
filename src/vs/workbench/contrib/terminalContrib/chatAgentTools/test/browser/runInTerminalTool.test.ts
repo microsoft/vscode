@@ -73,9 +73,14 @@ suite('RunInTerminalTool', () => {
 		instantiationService.stub(ITerminalProfileResolverService, {
 			getDefaultProfile: async () => ({ path: 'pwsh' } as ITerminalProfile)
 		});
+		const terminalChatServiceEmitter = new Emitter<{ toolSessionId: string; instance: ITerminalInstance }>();
+		store.add(terminalChatServiceEmitter);
 		instantiationService.stub(ITerminalChatService, {
 			getToolSessionTerminalInstances: () => [],
-			onDidRegisterTerminalInstanceWithToolSession: new Emitter<any>().event
+			onDidRegisterTerminalInstanceWithToolSession: terminalChatServiceEmitter.event,
+			registerTerminalInstanceWithToolSession: () => { },
+			getTerminalInstanceByToolSessionId: () => undefined,
+			isBackgroundTerminal: () => false
 		});
 
 		storageService = instantiationService.get(IStorageService);
