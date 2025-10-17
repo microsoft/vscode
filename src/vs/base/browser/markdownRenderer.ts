@@ -22,7 +22,7 @@ import * as domSanitize from './domSanitize.js';
 import { convertTagToPlaintext } from './domSanitize.js';
 import { StandardKeyboardEvent } from './keyboardEvent.js';
 import { StandardMouseEvent } from './mouseEvent.js';
-import { renderLabelWithIcons } from './ui/iconLabel/iconLabels.js';
+import { renderIcon, renderLabelWithIcons } from './ui/iconLabel/iconLabels.js';
 
 export type MarkdownActionHandler = (linkContent: string, mdStr: IMarkdownString) => void;
 
@@ -115,6 +115,32 @@ const defaultMarkedRenderers = Object.freeze({
 	},
 });
 
+/**
+ * Process markdown alerts in rendered HTML
+ * Transforms blockquotes with alert syntax like "[!NOTE]" into structured alert markup
+ */
+function processAlertsHtml(html: string): string {
+	// Map alert types to their codicons
+	const alertIcons: Record<string, string> = {
+		'NOTE': 'info',
+		'TIP': 'light-bulb',
+		'IMPORTANT': 'comment',
+		'WARNING': 'alert',
+		'CAUTION': 'stop'
+	};
+
+	// Match blockquotes that start with [!TYPE]
+	const alertRegex = /<blockquote>\s*<p>\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\](\s*(?:<br\/?>|[\r\n]))/gi;
+
+	return html.replace(alertRegex, (_, alertType: string, separator: string) => {
+		// Create the alert structure with a heading, keeping the rest of the content intact
+		const alertTypeCapitalized = alertType.charAt(0).toUpperCase() + alertType.slice(1).toLowerCase();
+		const iconHtml = renderIcon({ id: alertIcons[alertType] }).outerHTML;
+		const severity = alertType.toLowerCase();
+		return `<blockquote data-severity="${severity}"><p><span title="">${iconHtml}${alertTypeCapitalized}</span>${separator}`;
+	});
+}
+
 export interface IRenderedMarkdown extends IDisposable {
 	readonly element: HTMLElement;
 }
@@ -152,6 +178,10 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	if (markdown.supportThemeIcons) {
 		const elements = renderLabelWithIcons(renderedMarkdown);
 		renderedMarkdown = elements.map(e => typeof e === 'string' ? e : e.outerHTML).join('');
+	}
+
+	if (markdown.supportAlerts) {
+		renderedMarkdown = processAlertsHtml(renderedMarkdown);
 	}
 
 	const renderedContent = document.createElement('div');
@@ -493,6 +523,7 @@ export const allowedMarkdownHtmlAttributes = Object.freeze<Array<string | domSan
 	// Custom markdown attributes
 	'data-code',
 	'data-href',
+	'data-severity',
 
 	// Only allow very specific styles
 	{

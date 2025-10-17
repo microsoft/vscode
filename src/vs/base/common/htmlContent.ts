@@ -19,6 +19,7 @@ export interface IMarkdownString {
 	readonly isTrusted?: boolean | MarkdownStringTrustedOptions;
 	readonly supportThemeIcons?: boolean;
 	readonly supportHtml?: boolean;
+	readonly supportAlerts?: boolean;
 	readonly baseUri?: UriComponents;
 	uris?: { [href: string]: UriComponents };
 }
@@ -34,6 +35,7 @@ export class MarkdownString implements IMarkdownString {
 	public isTrusted?: boolean | MarkdownStringTrustedOptions;
 	public supportThemeIcons?: boolean;
 	public supportHtml?: boolean;
+	public supportAlerts?: boolean;
 	public baseUri?: URI;
 	public uris?: { [href: string]: UriComponents } | undefined;
 
@@ -46,7 +48,7 @@ export class MarkdownString implements IMarkdownString {
 
 	constructor(
 		value: string = '',
-		isTrustedOrOptions: boolean | { isTrusted?: boolean | MarkdownStringTrustedOptions; supportThemeIcons?: boolean; supportHtml?: boolean } = false,
+		isTrustedOrOptions: boolean | { isTrusted?: boolean | MarkdownStringTrustedOptions; supportThemeIcons?: boolean; supportHtml?: boolean; supportAlerts?: boolean } = false,
 	) {
 		this.value = value;
 		if (typeof this.value !== 'string') {
@@ -57,11 +59,13 @@ export class MarkdownString implements IMarkdownString {
 			this.isTrusted = isTrustedOrOptions;
 			this.supportThemeIcons = false;
 			this.supportHtml = false;
+			this.supportAlerts = false;
 		}
 		else {
 			this.isTrusted = isTrustedOrOptions.isTrusted ?? undefined;
 			this.supportThemeIcons = isTrustedOrOptions.supportThemeIcons ?? false;
 			this.supportHtml = isTrustedOrOptions.supportHtml ?? false;
+			this.supportAlerts = isTrustedOrOptions.supportAlerts ?? false;
 		}
 	}
 
@@ -124,7 +128,8 @@ export function isMarkdownString(thing: unknown): thing is IMarkdownString {
 	} else if (thing && typeof thing === 'object') {
 		return typeof (<IMarkdownString>thing).value === 'string'
 			&& (typeof (<IMarkdownString>thing).isTrusted === 'boolean' || typeof (<IMarkdownString>thing).isTrusted === 'object' || (<IMarkdownString>thing).isTrusted === undefined)
-			&& (typeof (<IMarkdownString>thing).supportThemeIcons === 'boolean' || (<IMarkdownString>thing).supportThemeIcons === undefined);
+			&& (typeof (<IMarkdownString>thing).supportThemeIcons === 'boolean' || (<IMarkdownString>thing).supportThemeIcons === undefined)
+			&& (typeof (<IMarkdownString>thing).supportAlerts === 'boolean' || (<IMarkdownString>thing).supportAlerts === undefined);
 	}
 	return false;
 }
@@ -139,6 +144,7 @@ export function markdownStringEqual(a: IMarkdownString, b: IMarkdownString): boo
 			&& a.isTrusted === b.isTrusted
 			&& a.supportThemeIcons === b.supportThemeIcons
 			&& a.supportHtml === b.supportHtml
+			&& a.supportAlerts === b.supportAlerts
 			&& (a.baseUri === b.baseUri || !!a.baseUri && !!b.baseUri && isEqual(URI.from(a.baseUri), URI.from(b.baseUri)));
 	}
 }

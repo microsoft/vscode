@@ -56,6 +56,14 @@ export class MarkdownString implements vscode.MarkdownString {
 		this.#delegate.supportHtml = value;
 	}
 
+	get supportAlerts(): boolean | undefined {
+		return this.#delegate.supportAlerts;
+	}
+
+	set supportAlerts(value: boolean | undefined) {
+		this.#delegate.supportAlerts = value;
+	}
+
 	get baseUri(): vscode.Uri | undefined {
 		return this.#delegate.baseUri;
 	}
