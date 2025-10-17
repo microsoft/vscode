@@ -15,6 +15,15 @@ function isDoubleQuoted(node: TSESTree.StringLiteral): boolean {
 	return node.raw[0] === '"' && node.raw[node.raw.length - 1] === '"';
 }
 
+/**
+ * Enable bulk fixing double-quoted strings to single-quoted strings with the --fix eslint flag
+ *
+ * Disabled by default as this is often not the desired fix. Instead the string should be localized. However it is
+ * useful for bulk conversations of existing code.
+ */
+const enableDoubleToSingleQuoteFixes = false;
+
+
 export = new class NoUnexternalizedStrings implements eslint.Rule.RuleModule {
 
 	private static _rNlsKeys = /^[_a-zA-Z0-9][ .\-_a-zA-Z0-9]*$/;
@@ -27,6 +36,7 @@ export = new class NoUnexternalizedStrings implements eslint.Rule.RuleModule {
 			badMessage: 'Message argument to \'{{message}}\' must be a string literal.'
 		},
 		schema: false,
+		fixable: enableDoubleToSingleQuoteFixes ? 'code' : undefined,
 	};
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
@@ -112,7 +122,30 @@ export = new class NoUnexternalizedStrings implements eslint.Rule.RuleModule {
 			// (1)
 			// report all strings that are in double quotes
 			for (const node of doubleQuotedStringLiterals) {
-				context.report({ loc: node.loc, messageId: 'doubleQuoted' });
+				context.report({
+					loc: node.loc,
+					messageId: 'doubleQuoted',
+					fix: enableDoubleToSingleQuoteFixes ? (fixer) => {
+						// Get the raw string content, unescaping any escaped quotes
+						const content = (node as ESTree.SimpleLiteral).raw!
+							.slice(1, -1)
+							.replace(/(?<!\\)\\'/g, `'`)
+							.replace(/(?<!\\)\\"/g, `"`);
+
+						// If the escaped content contains a single quote, use template string instead
+						if (content.includes(`'`)
+							&& !content.includes('${') // Unless the content has a template expressions
+							&& !content.includes('`') // Or backticks which would need escaping
+						) {
+							const templateStr = `\`${content}\``;
+							return fixer.replaceText(node, templateStr);
+						}
+
+						// Otherwise prefer using a single-quoted string
+						const singleStr = `'${content.replace(/'/g, `\\'`)}'`;
+						return fixer.replaceText(node, singleStr);
+					} : undefined
+				});
 			}
 
 			for (const [key, values] of externalizedStringLiterals) {

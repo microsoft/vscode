@@ -1229,17 +1229,17 @@ suite('WorkspaceConfigurationService - Folder', () => {
 		assert.strictEqual(actual.application, undefined);
 		assert.deepStrictEqual(actual.userValue, {});
 		assert.deepStrictEqual(actual.workspaceValue, {
-			"configurationService": {
-				"tasks": {
-					"testSetting": "tasksValue"
+			'configurationService': {
+				'tasks': {
+					'testSetting': 'tasksValue'
 				}
 			}
 		});
 		assert.strictEqual(actual.workspaceFolderValue, undefined);
 		assert.deepStrictEqual(actual.value, {
-			"configurationService": {
-				"tasks": {
-					"testSetting": "tasksValue"
+			'configurationService': {
+				'tasks': {
+					'testSetting': 'tasksValue'
 				}
 			}
 		});
@@ -1285,17 +1285,17 @@ suite('WorkspaceConfigurationService - Folder', () => {
 		assert.strictEqual(actual.application, undefined);
 		assert.deepStrictEqual(actual.userValue, {});
 		assert.deepStrictEqual(actual.workspaceValue, {
-			"configurationService": {
-				"tasks": {
-					"testSetting": "tasksValue"
+			'configurationService': {
+				'tasks': {
+					'testSetting': 'tasksValue'
 				}
 			}
 		});
 		assert.strictEqual(actual.workspaceFolderValue, undefined);
 		assert.deepStrictEqual(actual.value, {
-			"configurationService": {
-				"tasks": {
-					"testSetting": "tasksValue"
+			'configurationService': {
+				'tasks': {
+					'testSetting': 'tasksValue'
 				}
 			}
 		});
@@ -1317,17 +1317,17 @@ suite('WorkspaceConfigurationService - Folder', () => {
 		assert.strictEqual(actual.application, undefined);
 		assert.deepStrictEqual(actual.userValue, {});
 		assert.deepStrictEqual(actual.workspaceValue, {
-			"configurationService": {
-				"tasks": {
-					"testSetting": "tasksValue"
+			'configurationService': {
+				'tasks': {
+					'testSetting': 'tasksValue'
 				}
 			}
 		});
 		assert.strictEqual(actual.workspaceFolderValue, undefined);
 		assert.deepStrictEqual(actual.value, {
-			"configurationService": {
-				"tasks": {
-					"testSetting": "tasksValue"
+			'configurationService': {
+				'tasks': {
+					'testSetting': 'tasksValue'
 				}
 			}
 		});
