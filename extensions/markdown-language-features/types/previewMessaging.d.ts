@@ -27,6 +27,9 @@ export namespace FromWebviewMessage {
 	export interface ClickLink extends BaseMessage {
 		readonly type: 'openLink';
 		readonly href: string;
+		readonly ctrlKey?: boolean;
+		readonly metaKey?: boolean;
+		readonly middleButton?: boolean;
 	}
 
 	export interface ShowPreviewSecuritySelector extends BaseMessage {
