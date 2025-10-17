@@ -2729,7 +2729,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			welcomeOffset = Math.max(welcomeOffset - this.input.editSessionWidgetHeight, 0);
 		}
 		welcomeOffset = Math.max(welcomeOffset - this.input.attachmentsHeight, 0);
-		welcomeOffset = Math.max(welcomeOffset - chatSuggestNextWidgetHeight, 0);
 		this.welcomeMessageContainer.style.height = `${contentHeight - welcomeOffset}px`;
 		this.welcomeMessageContainer.style.paddingBottom = `${welcomeOffset}px`;
 
