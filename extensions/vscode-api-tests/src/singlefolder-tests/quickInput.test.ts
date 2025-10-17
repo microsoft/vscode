@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { commands, Disposable, QuickPick, QuickPickItem, window } from 'vscode';
+import { commands, Disposable, QuickPick, QuickPickItem, window, workspace } from 'vscode';
 import { assertNoRpc, closeAllEditors } from '../utils';
 
 interface QuickPickExpected {
@@ -247,6 +247,38 @@ suite('vscode API - quick input', function () {
 		await promise;
 		quickPick.hide();
 		await waitForHide(quickPick);
+	});
+
+	test('createQuickPick, select item with resourceUri by value', function (_done) {
+		let done = (err?: any) => {
+			done = () => { };
+			_done(err);
+		};
+
+		const quickPick = createQuickPick({
+			events: ['active', 'selection', 'accept', 'hide'],
+			activeItems: [['a2']],
+			selectionItems: [['a2']],
+			acceptedItems: {
+				active: [['a2']],
+				selection: [['a2']],
+				dispose: [true]
+			},
+		}, (err?: any) => done(err));
+
+		const baseUri = workspace!.workspaceFolders![0].uri;
+		quickPick.items = [
+			{ label: 'a1', resourceUri: baseUri.with({ path: baseUri.path + '/test1.txt' }) },
+			{ label: 'a2', resourceUri: baseUri.with({ path: baseUri.path + '/test2.txt' }) },
+			{ label: 'a3', resourceUri: baseUri.with({ path: baseUri.path + '/test3.txt' }) }
+		];
+		quickPick.show();
+
+		(async () => {
+			quickPick.value = 'test2.txt';
+			await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+		})()
+			.catch(err => done(err));
 	});
 });
 
