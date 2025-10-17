@@ -1352,27 +1352,67 @@ export namespace CoreNavigationCommands {
 			runEditorScroll(viewModel, args.source, parsed);
 		}
 
-		_runVerticalEditorScroll(viewModel: IViewModel, source: string | null | undefined, args: EditorScroll_.ParsedArguments): void {
+	_runVerticalEditorScroll(viewModel: IViewModel, source: string | null | undefined, args: EditorScroll_.ParsedArguments): void {
 
-			const desiredScrollTop = this._computeDesiredScrollTop(viewModel, args);
+		const desiredScrollTop = this._computeDesiredScrollTop(viewModel, args);
 
-			if (args.revealCursor) {
-				// must ensure cursor is in new visible range
-				const desiredVisibleViewRange = viewModel.getCompletelyVisibleViewRangeAtScrollTop(desiredScrollTop);
-				viewModel.setCursorStates(
-					source,
-					CursorChangeReason.Explicit,
-					[
-						CursorMoveCommands.findPositionInViewportIfOutside(viewModel, viewModel.getPrimaryCursorState(), desiredVisibleViewRange, args.select)
-					]
-				);
-			}
-
-			viewModel.viewLayout.setScrollPosition({ scrollTop: desiredScrollTop }, ScrollType.Smooth);
+		if (args.revealCursor) {
+			// must ensure cursor is in new visible range
+			let desiredVisibleViewRange = viewModel.getCompletelyVisibleViewRangeAtScrollTop(desiredScrollTop);
+			
+			// Adjust the visible range to respect cursorSurroundingLines setting
+			desiredVisibleViewRange = this._adjustVisibleRangeForCursorSurroundingLines(viewModel, desiredVisibleViewRange);
+			
+			viewModel.setCursorStates(
+				source,
+				CursorChangeReason.Explicit,
+				[
+					CursorMoveCommands.findPositionInViewportIfOutside(viewModel, viewModel.getPrimaryCursorState(), desiredVisibleViewRange, args.select)
+				]
+			);
 		}
 
-		private _computeDesiredScrollTop(viewModel: IViewModel, args: EditorScroll_.ParsedArguments): number {
+		viewModel.viewLayout.setScrollPosition({ scrollTop: desiredScrollTop }, ScrollType.Smooth);
+	}
 
+	private _adjustVisibleRangeForCursorSurroundingLines(viewModel: IViewModel, visibleRange: Range): Range {
+		// Access cursorSurroundingLines from the configuration in a type-safe way
+		if (typeof (viewModel as any).getOption !== 'function') {
+			// Fallback: cannot access options, return original range
+			return visibleRange;
+		}
+		
+		const cursorSurroundingLines: number = (viewModel as any).getOption(EditorOption.cursorSurroundingLines);
+		const cursorSurroundingLinesStyle: 'default' | 'all' = (viewModel as any).getOption(EditorOption.cursorSurroundingLinesStyle);
+		
+		// For editorScroll with revealCursor, we should respect cursorSurroundingLines
+		// regardless of cursorSurroundingLinesStyle (unlike mouse-initiated scrolls)
+		if (cursorSurroundingLines === 0) {
+			return visibleRange;
+		}
+		
+		// Shrink the visible range by the surrounding lines amount
+		const startLineNumber = Math.min(
+			visibleRange.endLineNumber - 1, 
+			visibleRange.startLineNumber + cursorSurroundingLines
+		);
+		const endLineNumber = Math.max(
+			visibleRange.startLineNumber + 1,
+			visibleRange.endLineNumber - cursorSurroundingLines
+		);
+		
+		// Ensure we have a valid range
+		if (startLineNumber > endLineNumber) {
+			return visibleRange;
+		}
+		
+		return new Range(
+			startLineNumber, viewModel.getLineMinColumn(startLineNumber),
+			endLineNumber, viewModel.getLineMaxColumn(endLineNumber)
+		);
+	}
+
+	private _computeDesiredScrollTop(viewModel: IViewModel, args: EditorScroll_.ParsedArguments): number {
 			if (args.unit === EditorScroll_.Unit.Line) {
 				// scrolling by model lines
 				const futureViewport = viewModel.viewLayout.getFutureViewport();
