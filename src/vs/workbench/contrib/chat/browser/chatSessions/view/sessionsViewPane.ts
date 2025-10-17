@@ -305,7 +305,7 @@ export class SessionsViewPane extends ViewPane {
 				return null;
 			}
 
-			return ChatSessionUri.forSession(element.provider.chatSessionType, element.id);
+			return element.resource;
 		};
 
 		this.tree = this.instantiationService.createInstance(
@@ -453,6 +453,11 @@ export class SessionsViewPane extends ViewPane {
 
 	private async openChatSession(session: ChatSessionItemWithProvider) {
 		if (!session || !session.id) {
+			return;
+		}
+
+		if (session.resource.scheme !== ChatSessionUri.scheme) {
+			await this.openerService.open(session.resource);
 			return;
 		}
 

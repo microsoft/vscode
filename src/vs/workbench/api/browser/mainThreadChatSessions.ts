@@ -20,6 +20,7 @@ import { IChatAgentRequest } from '../../contrib/chat/common/chatAgents.js';
 import { IChatContentInlineReference, IChatProgress } from '../../contrib/chat/common/chatService.js';
 import { ChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
 import { ChatSessionUri } from '../../contrib/chat/common/chatUri.js';
+import { ILanguageModelChatMetadata } from '../../contrib/chat/common/languageModels.js';
 import { EditorGroupColumn } from '../../services/editor/common/editorGroupColumn.js';
 import { IEditorGroup, IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../services/editor/common/editorService.js';
@@ -37,7 +38,10 @@ export class ObservableChatSession extends Disposable implements ChatSession {
 	readonly sessionResource: URI;
 	readonly providerHandle: number;
 	readonly history: Array<IChatSessionHistoryItem>;
-
+	private _options?: { model?: ILanguageModelChatMetadata } | undefined;
+	public get options(): { model?: ILanguageModelChatMetadata } | undefined {
+		return this._options;
+	}
 	private readonly _progressObservable = observableValue<IChatProgress[]>(this, []);
 	private readonly _isCompleteObservable = observableValue<boolean>(this, false);
 
@@ -110,6 +114,7 @@ export class ObservableChatSession extends Disposable implements ChatSession {
 				token
 			);
 
+			this._options = sessionContent.options;
 			this.history.length = 0;
 			this.history.push(...sessionContent.history.map((turn: IChatSessionHistoryItemDto) => {
 				if (turn.type === 'request') {
@@ -311,6 +316,8 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		readonly onDidChangeItems: Emitter<void>;
 	}>());
 	private readonly _contentProvidersRegistrations = this._register(new DisposableMap<number>());
+	private readonly _contentProviderModels = new Map<number, ILanguageModelChatMetadata[] | undefined>();
+	private readonly _sessionTypeToHandle = new Map<string, number>();
 
 	private readonly _activeSessions = new Map<string, ObservableChatSession>();
 	private readonly _sessionDisposables = new Map<string, IDisposable>();
@@ -329,6 +336,17 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		super();
 
 		this._proxy = this._extHostContext.getProxy(ExtHostContext.ExtHostChatSessions);
+
+		this._chatSessionsService.setOptionsChangeCallback(async (chatSessionType: string, sessionId: string, updates: ReadonlyArray<{ optionId: string; value: string }>) => {
+			const handle = this._getHandleForSessionType(chatSessionType);
+			if (handle !== undefined) {
+				await this.notifyOptionsChange(handle, sessionId, updates);
+			}
+		});
+	}
+
+	private _getHandleForSessionType(chatSessionType: string): number | undefined {
+		return this._sessionTypeToHandle.get(chatSessionType);
 	}
 
 	$registerChatSessionItemProvider(handle: number, chatSessionType: string): void {
@@ -477,11 +495,29 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 			provideChatSessionContent: (id, resource, token) => this._provideChatSessionContent(handle, id, resource, token)
 		};
 
+		this._sessionTypeToHandle.set(chatSessionType, handle);
 		this._contentProvidersRegistrations.set(handle, this._chatSessionsService.registerChatSessionContentProvider(chatSessionType, provider));
+		this._proxy.$provideChatSessionProviderOptions(handle, CancellationToken.None).then(options => {
+			if (options?.models && options.models.length) {
+				this._contentProviderModels.set(handle, options.models);
+				const serviceModels: ILanguageModelChatMetadata[] = options.models.map(m => ({ ...m }));
+				this._chatSessionsService.setModelsForSessionType(chatSessionType, handle, serviceModels);
+			}
+		}).catch(err => this._logService.error('Error fetching chat session options', err));
 	}
 
 	$unregisterChatSessionContentProvider(handle: number): void {
 		this._contentProvidersRegistrations.deleteAndDispose(handle);
+		this._contentProviderModels.delete(handle);
+
+		// Remove session type mapping
+		for (const [sessionType, h] of this._sessionTypeToHandle) {
+			if (h === handle) {
+				this._sessionTypeToHandle.delete(sessionType);
+				break;
+			}
+		}
+
 		// dispose all sessions from this provider and clean up its disposables
 		for (const [key, session] of this._activeSessions) {
 			if (session.providerHandle === handle) {
@@ -565,6 +601,24 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 				resource: sessionUri,
 				options: { pinned: true },
 			}, position);
+		}
+	}
+
+	/**
+	 * Get the available models for a session provider
+	 */
+	getModelsForProvider(handle: number): ILanguageModelChatMetadata[] | undefined {
+		return this._contentProviderModels.get(handle);
+	}
+
+	/**
+	 * Notify the extension about option changes for a session
+	 */
+	async notifyOptionsChange(handle: number, sessionId: string, updates: ReadonlyArray<{ optionId: string; value: string | undefined }>): Promise<void> {
+		try {
+			await this._proxy.$provideHandleOptionsChange(handle, sessionId, updates, CancellationToken.None);
+		} catch (error) {
+			this._logService.error(`Error notifying extension about options change for handle ${handle}, sessionId ${sessionId}:`, error);
 		}
 	}
 }
