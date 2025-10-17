@@ -111,7 +111,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 								label: item.label,
 								iconPath: icon?.iconPath,
 								iconClass: icon?.iconClass,
-								description: item.description,
+								description: (item.description ? `<span class="qo-path">${item.description}</span>` : item.description),
 								detail: item.detail,
 								picked: item.picked,
 								alwaysShow: item.alwaysShow,
