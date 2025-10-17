@@ -291,7 +291,7 @@ export class SCMViewService implements ISCMViewService {
 					return lastValue;
 				}
 
-				return repository;
+				return Object.create(repository);
 			});
 
 		this._activeRepositoryPinnedObs = observableValue<ISCMRepository | undefined>(this, undefined);
@@ -315,7 +315,14 @@ export class SCMViewService implements ISCMViewService {
 			const activeRepository = this.activeRepository.read(reader);
 
 			if (selectionMode === 'single' && activeRepository) {
-				this.visibleRepositories = [activeRepository.repository];
+				// `this._activeEditorRepositoryObs` uses `Object.create` to
+				// ensure that the observable updates even if the repository
+				// instance is the same.
+				const repository = this.repositories
+					.find(r => r.id === activeRepository.repository.id);
+				if (repository) {
+					this.visibleRepositories = [repository];
+				}
 			}
 		}));
 
