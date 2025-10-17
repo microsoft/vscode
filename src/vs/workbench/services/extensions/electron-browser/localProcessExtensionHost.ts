@@ -38,6 +38,7 @@ import { ExtensionHostExtensions, ExtensionHostStartup, IExtensionHost, IExtensi
 import { IHostService } from '../../host/browser/host.js';
 import { ILifecycleService, WillShutdownEvent } from '../../lifecycle/common/lifecycle.js';
 import { parseExtensionDevOptions } from '../common/extensionDevOptions.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
 export interface ILocalProcessExtensionHostInitData {
 	readonly extensions: ExtensionHostExtensions;
@@ -132,6 +133,7 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 		@IProductService private readonly _productService: IProductService,
 		@IShellEnvironmentService private readonly _shellEnvironmentService: IShellEnvironmentService,
 		@IExtensionHostStarter private readonly _extensionHostStarter: IExtensionHostStarter,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		const devOpts = parseExtensionDevOptions(this._environmentService);
 		this._isExtensionDevHost = devOpts.isExtensionDevHost;
@@ -245,6 +247,13 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 		// inspector agent is always setup hence add this flag
 		// unconditionally.
 		opts.execArgv.unshift('--dns-result-order=ipv4first', '--experimental-network-inspection');
+
+		// TODO
+		// const values: ConfigurationInspect<T> | undefined = configProvider.getConfiguration().inspect<T>(key);
+		// return values?.globalLocalValue ?? values?.defaultValue ?? fallback;
+		if (this._configurationService.getValue('http.systemCertificates')) {
+			opts.execArgv.unshift('--use-system-ca');
+		}
 
 		// Catch all output coming from the extension host process
 		type Output = { data: string; format: string[] };
