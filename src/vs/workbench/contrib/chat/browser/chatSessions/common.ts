@@ -14,6 +14,7 @@ import { IChatSessionItem, IChatSessionItemProvider } from '../../common/chatSes
 import { ChatSessionUri } from '../../common/chatUri.js';
 import { IChatWidgetService } from '../chat.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
+import { localize } from '../../../../../nls.js';
 
 
 export const NEW_CHAT_SESSION_ACTION_ID = 'workbench.action.chat.openNewSessionEditor';
@@ -93,10 +94,67 @@ export function isLocalChatSessionItem(item: ChatSessionItemWithProvider): boole
 	return item.provider.chatSessionType === 'local';
 }
 
+/**
+ * Create a compact relative time format for chat history (e.g., "1m", "1d", "1mo").
+ * This is more compact than the standard fromNow format.
+ */
+function fromNowCompact(date: number | Date): string {
+	if (typeof date !== 'number') {
+		date = date.getTime();
+	}
+
+	const minute = 60;
+	const hour = minute * 60;
+	const day = hour * 24;
+	const week = day * 7;
+	const month = day * 30;
+	const year = day * 365;
+
+	const seconds = Math.round((new Date().getTime() - date) / 1000);
+	
+	if (seconds < 30) {
+		return localize('date.fromNow.now', 'now');
+	}
+
+	let value: number;
+	if (seconds < minute) {
+		value = seconds;
+		return localize('date.fromNow.seconds.compact', '{0}s', value);
+	}
+
+	if (seconds < hour) {
+		value = Math.floor(seconds / minute);
+		return localize('date.fromNow.minutes.compact', '{0}m', value);
+	}
+
+	if (seconds < day) {
+		value = Math.floor(seconds / hour);
+		return localize('date.fromNow.hours.compact', '{0}h', value);
+	}
+
+	if (seconds < week) {
+		value = Math.floor(seconds / day);
+		return localize('date.fromNow.days.compact', '{0}d', value);
+	}
+
+	if (seconds < month) {
+		value = Math.floor(seconds / week);
+		return localize('date.fromNow.weeks.compact', '{0}w', value);
+	}
+
+	if (seconds < year) {
+		value = Math.floor(seconds / month);
+		return localize('date.fromNow.months.compact', '{0}mo', value);
+	}
+
+	value = Math.floor(seconds / year);
+	return localize('date.fromNow.years.compact', '{0}y', value);
+}
+
 // Helper function to update relative time for chat sessions (similar to timeline)
 function updateRelativeTime(item: ChatSessionItemWithProvider, lastRelativeTime: string | undefined): string | undefined {
 	if (item.timing?.startTime) {
-		item.relativeTime = fromNow(item.timing.startTime);
+		item.relativeTime = fromNowCompact(item.timing.startTime);
 		item.relativeTimeFullWord = fromNow(item.timing.startTime, false, true);
 		if (lastRelativeTime === undefined || item.relativeTime !== lastRelativeTime) {
 			lastRelativeTime = item.relativeTime;
