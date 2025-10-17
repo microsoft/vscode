@@ -127,7 +127,7 @@ export interface ITerminalChatService {
 	 */
 	getTerminalInstanceByToolSessionId(terminalToolSessionId: string): ITerminalInstance | undefined;
 
-	terminalIsHidden(terminalToolSessionId: string): boolean;
+	terminalIsHidden(terminalToolSessionId?: string): boolean;
 
 	/**
 	 * Returns the list of terminal instances that have been registered with a tool session id.
