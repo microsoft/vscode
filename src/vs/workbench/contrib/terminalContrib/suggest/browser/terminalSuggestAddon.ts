@@ -926,7 +926,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		// The replacement text is any text after the replacement index for the completions, this
 		// includes any text that was there before the completions were requested and any text added
 		// since to refine the completion.
-		const startIndex = suggestion.item.completion.valueSelection ? suggestion.item.completion.valueSelection[0] : currentPromptInputState.cursorIndex;
+		const startIndex = suggestion.item.completion.valueSelection?.[0] ?? currentPromptInputState.cursorIndex;
 		const replacementText = currentPromptInputState.value.substring(startIndex, currentPromptInputState.cursorIndex);
 
 		// Right side of replacement text in the same word
