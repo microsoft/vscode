@@ -219,6 +219,12 @@ declare module 'vscode' {
 		 * Whether sessions can be interrupted and resumed without side-effects.
 		 */
 		supportsInterruptions?: boolean;
+
+		/**
+		 * Whether the session is in read-only mode.
+		 * Defaults to false.
+		 */
+		isReadOnly?: boolean;
 	}
 
 	/**
