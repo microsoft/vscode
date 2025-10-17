@@ -18,7 +18,7 @@ export const enum TerminalChatCommandId {
 	InsertFirstCommand = 'workbench.action.terminal.chat.insertFirstCommand',
 	ViewInChat = 'workbench.action.terminal.chat.viewInChat',
 	RerunRequest = 'workbench.action.terminal.chat.rerunRequest',
-	ShowToolTerminals = 'workbench.action.terminal.chat.showToolTerminals',
+	ShowChatTerminals = 'workbench.action.terminal.chat.showChatTerminals',
 }
 
 export const MENU_TERMINAL_CHAT_WIDGET_INPUT_SIDE_TOOLBAR = MenuId.for('terminalChatWidget');

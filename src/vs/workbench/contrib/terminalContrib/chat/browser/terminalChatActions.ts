@@ -302,11 +302,11 @@ registerActiveXtermAction({
 	}
 });
 
-registerAction2(class ShowToolTerminalsAction extends Action2 {
+registerAction2(class ShowChatTerminalsAction extends Action2 {
 	constructor() {
 		super({
-			id: TerminalChatCommandId.ShowToolTerminals,
-			title: localize2('showToolTerminals', 'Show Tool Terminals'),
+			id: TerminalChatCommandId.ShowChatTerminals,
+			title: localize2('showChatTerminals', 'Show Chat Terminals'),
 			category: localize2('terminalCategory2', 'Terminal'),
 			f1: true,
 			menu: [{
@@ -363,16 +363,16 @@ registerAction2(class ShowToolTerminalsAction extends Action2 {
 			}
 			items.push({
 				label,
-				description: isTool && isBackground ? localize2('terminalHiddenToolDesc', 'Tool Session • Hidden').value : localize2('terminalToolDesc', 'Tool Session').value,
+				description: isTool && isBackground ? localize2('terminalHiddenChatDesc', 'Chat Session • Hidden').value : localize2('terminalChatDesc', 'Chat Session').value,
 				id: String(instance.instanceId)
 			});
 		}
 
 		const qp = quickInputService.createQuickPick<IQuickPickItem>();
-		qp.placeholder = localize2('selectToolTerminal', 'Select a tool terminal to focus').value;
+		qp.placeholder = localize2('selectChatTerminal', 'Select a chat terminal to focus').value;
 		qp.items = items.sort((a, b) => a.label.localeCompare(b.label));
 		qp.canSelectMany = false;
-		qp.title = localize2('showToolTerminals.title', 'Tool Terminals').value;
+		qp.title = localize2('showChatTerminals.title', 'Chat Terminals').value;
 		qp.matchOnDescription = true;
 		qp.onDidAccept(async () => {
 			const sel = qp.selectedItems[0];
