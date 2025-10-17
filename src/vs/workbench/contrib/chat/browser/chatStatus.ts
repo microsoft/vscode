@@ -441,10 +441,10 @@ class ChatStatusDashboard extends Disposable {
 				const inProgress = this.chatSessionsService.getInProgress();
 				if (inProgress.some(item => item.count > 0)) {
 
-					addSeparator(localize('chatSessionsTitle', "Chat Sessions"), toAction({
+					addSeparator(localize('chatAgentSessionsTitle', "Agent Sessions"), toAction({
 						id: 'workbench.view.chat.status.sessions',
-						label: localize('viewChatSessionsLabel', "View Chat Sessions"),
-						tooltip: localize('viewChatSessionsTooltip', "View Chat Sessions"),
+						label: localize('viewChatSessionsLabel', "View Agent Sessions"),
+						tooltip: localize('viewChatSessionsTooltip', "View Agent Sessions"),
 						class: ThemeIcon.asClassName(Codicon.eye),
 						run: () => this.runCommandAndClose('workbench.view.chat.sessions'),
 					}));
