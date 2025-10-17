@@ -7,6 +7,21 @@ import { Memento, workspace } from 'vscode';
 import * as path from 'path';
 import { LRUCache } from './cache';
 
+export interface KnownFolderInfo {
+	timestamp: number; // last seen timestamp (ms)
+	repoRootPath: string; // root path of the local repo clone associated with this workspace folder/workspace file
+	workspacePath: string; // path of the workspace folder or workspace file
+	isWorkspace: boolean; // whether the user opened this as a workspace/folder, or as a file, with no workspace open
+}
+
+function isKnownFolderInfo(obj: unknown): obj is KnownFolderInfo {
+	if (!obj || typeof obj !== 'object') {
+		return false;
+	}
+	const rec = obj as Record<string, unknown>;
+	return typeof rec.timestamp === 'number' && typeof rec.repoRootPath === 'string' && typeof rec.workspacePath === 'string';
+}
+
 export class KnownFolders {
 
 	private static readonly STORAGE_KEY = 'git.knownFolders';
@@ -14,8 +29,8 @@ export class KnownFolders {
 	private static readonly MAX_FOLDER_ENTRIES = 10; // Max folders per repository
 	private static readonly EXPIRY_MS = 90 * 24 * 60 * 60 * 1000; // 90 days in ms
 
-	// Outer LRU: repoUrl -> inner LRU (folderPathOrWorkspaceFile -> timestamp ms). Only keys matter externally, timestamp tracks last seen.
-	private readonly lru = new LRUCache<string, LRUCache<string, number>>(KnownFolders.MAX_REPO_ENTRIES);
+	// Outer LRU: repoUrl -> inner LRU (folderPathOrWorkspaceFile -> KnownFolderInfo). Only keys matter externally.
+	private readonly lru = new LRUCache<string, LRUCache<string, KnownFolderInfo>>(KnownFolders.MAX_REPO_ENTRIES);
 
 	constructor(public readonly _globalState: Memento) {
 		this.load();
@@ -30,10 +45,11 @@ export class KnownFolders {
 	set(repoUrl: string, rootPath: string): void {
 		let foldersLru = this.lru.get(repoUrl);
 		if (!foldersLru) {
-			foldersLru = new LRUCache<string, number>(KnownFolders.MAX_FOLDER_ENTRIES);
+			foldersLru = new LRUCache<string, KnownFolderInfo>(KnownFolders.MAX_FOLDER_ENTRIES);
 		}
 		// If the current workspace is a workspace file, use that. Otherwise, find the workspace folder that contains the rootUri
 		let folderPathOrWorkspaceFile: string | undefined;
+		let isWorkspace = true;
 		try {
 
 			if (workspace.workspaceFile) {
@@ -42,8 +58,13 @@ export class KnownFolders {
 				const sorted = [...workspace.workspaceFolders].sort((a, b) => b.uri.fsPath.length - a.uri.fsPath.length);
 				for (const folder of sorted) {
 					const folderPath = folder.uri.fsPath;
-					const rel = path.relative(folderPath, rootPath);
-					if (rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel))) {
+					const relToFolder = path.relative(folderPath, rootPath);
+					if (relToFolder === '' || (!relToFolder.startsWith('..') && !path.isAbsolute(relToFolder))) {
+						folderPathOrWorkspaceFile = folderPath;
+						break;
+					}
+					const relFromFolder = path.relative(rootPath, folderPath);
+					if (relFromFolder === '' || (!relFromFolder.startsWith('..') && !path.isAbsolute(relFromFolder))) {
 						folderPathOrWorkspaceFile = folderPath;
 						break;
 					}
@@ -52,13 +73,13 @@ export class KnownFolders {
 
 			if (!folderPathOrWorkspaceFile) {
 				folderPathOrWorkspaceFile = rootPath;
+				isWorkspace = false;
 			}
 		} catch {
 			return;
 		}
 
-
-		foldersLru.set(folderPathOrWorkspaceFile, Date.now()); // touch/update timestamp
+		foldersLru.set(folderPathOrWorkspaceFile, { timestamp: Date.now(), repoRootPath: rootPath, workspacePath: folderPathOrWorkspaceFile, isWorkspace }); // touch/update timestamp
 		this.lru.set(repoUrl, foldersLru);
 		this.save();
 	}
@@ -66,9 +87,9 @@ export class KnownFolders {
 	/**
 	 * We should possibly support converting between ssh remotes and http remotes.
 	 */
-	get(repoUrl: string): string[] | undefined {
+	get(repoUrl: string): KnownFolderInfo[] | undefined {
 		const inner = this.lru.get(repoUrl);
-		return inner ? Array.from(inner.keys()) : undefined;
+		return inner ? Array.from(inner.values()) : undefined;
 	}
 
 	delete(repoUrl: string, folderPathOrWorkspaceFile: string) {
@@ -92,35 +113,30 @@ export class KnownFolders {
 	private load(): void {
 		const now = Date.now();
 		try {
-			const raw = this._globalState.get<[string, [string, number][]][]>(KnownFolders.STORAGE_KEY);
-			if (Array.isArray(raw)) {
-				for (const [repo, storedFolders] of raw) {
-					if (typeof repo !== 'string' || !Array.isArray(storedFolders)) {
+			const raw = this._globalState.get<[string, [string, KnownFolderInfo][]][]>(KnownFolders.STORAGE_KEY);
+			if (!Array.isArray(raw)) {
+				return;
+			}
+			for (const [repo, storedFolders] of raw) {
+				if (typeof repo !== 'string' || !Array.isArray(storedFolders)) {
+					continue;
+				}
+				const inner = new LRUCache<string, KnownFolderInfo>(KnownFolders.MAX_FOLDER_ENTRIES);
+				for (const entry of storedFolders) {
+					if (!Array.isArray(entry) || entry.length !== 2) {
 						continue;
 					}
-					const inner = new LRUCache<string, number>(KnownFolders.MAX_FOLDER_ENTRIES);
-					for (const entry of storedFolders) {
-						let folderPath: string | undefined;
-						let ts: number | undefined;
-						if (Array.isArray(entry) && entry.length === 2) {
-							const [p, t] = entry;
-							if (typeof p === 'string' && typeof t === 'number') {
-								folderPath = p;
-								ts = t;
-							}
-						}
-						if (!folderPath || ts === undefined) {
-							continue;
-						}
-						if (now - ts > KnownFolders.EXPIRY_MS) {
-							// Expired (> 90 days old) skip
-							continue;
-						}
-						inner.set(folderPath, ts);
+					const [folderPath, info] = entry;
+					if (typeof folderPath !== 'string' || !isKnownFolderInfo(info)) {
+						continue;
 					}
-					if (inner.size) {
-						this.lru.set(repo, inner);
+					if (now - info.timestamp > KnownFolders.EXPIRY_MS) {
+						continue; // Expired (> 90 days old)
 					}
+					inner.set(folderPath, info);
+				}
+				if (inner.size) {
+					this.lru.set(repo, inner);
 				}
 			}
 		} catch {
@@ -129,12 +145,12 @@ export class KnownFolders {
 	}
 
 	private save(): void {
-		// Serialize as [repoUrl, [folderPathOrWorkspaceFile, timestamp][]] preserving outer LRU order.
-		const serialized: [string, [string, number][]][] = [];
+		// Serialize as [repoUrl, [folderPathOrWorkspaceFile, { timestamp, repoRootPath }][]] preserving outer LRU order.
+		const serialized: [string, [string, KnownFolderInfo][]][] = [];
 		for (const [repo, inner] of this.lru) {
-			const folders: [string, number][] = [];
-			for (const [folder, ts] of inner) {
-				folders.push([folder, ts]);
+			const folders: [string, KnownFolderInfo][] = [];
+			for (const [folder, info] of inner) {
+				folders.push([folder, info]);
 			}
 			serialized.push([repo, folders]);
 		}

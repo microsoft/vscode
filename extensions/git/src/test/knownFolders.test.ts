@@ -5,7 +5,7 @@
 
 import 'mocha';
 import * as assert from 'assert';
-import { KnownFolders } from '../knownFolders';
+import { KnownFolderInfo, KnownFolders } from '../knownFolders';
 import { Memento } from 'vscode';
 
 class InMemoryMemento implements Memento {
@@ -46,7 +46,7 @@ suite('KnownFolders', () => {
 		kf.set('https://example.com/repo.git', '/workspace/repo');
 		const folders = kf.get('https://example.com/repo.git');
 		assert.ok(folders, 'folders should be defined');
-		assert.deepStrictEqual(folders, ['/workspace/repo']);
+		assert.deepStrictEqual(folders.map(f => f.workspacePath), ['/workspace/repo']);
 	});
 
 	test('inner LRU capped at 10 entries', () => {
@@ -58,9 +58,9 @@ suite('KnownFolders', () => {
 		}
 		const folders = kf.get(repo)!;
 		assert.strictEqual(folders.length, 10, 'should only retain 10 most recent folders');
-		assert.ok(!folders.includes('/ws/folder-01'), 'oldest folder-01 should be evicted');
-		assert.ok(!folders.includes('/ws/folder-02'), 'second oldest folder-02 should be evicted');
-		assert.ok(folders.includes('/ws/folder-12'), 'latest folder should be present');
+		assert.ok(!folders.find(f => f.workspacePath === '/ws/folder-01'), 'oldest folder-01 should be evicted');
+		assert.ok(!folders.find(f => f.workspacePath === '/ws/folder-02'), 'second oldest folder-02 should be evicted');
+		assert.ok(folders.find(f => f.workspacePath === '/ws/folder-12'), 'latest folder should be present');
 	});
 
 	test('outer LRU capped at 30 repos', () => {
@@ -80,9 +80,9 @@ suite('KnownFolders', () => {
 		const repo = 'https://example.com/repo.git';
 		kf.set(repo, '/ws/a');
 		kf.set(repo, '/ws/b');
-		assert.deepStrictEqual(new Set(kf.get(repo)), new Set(['/ws/a', '/ws/b']));
+		assert.deepStrictEqual(new Set(kf.get(repo)?.map(f => f.workspacePath)), new Set(['/ws/a', '/ws/b']));
 		kf.delete(repo, '/ws/a');
-		assert.deepStrictEqual(kf.get(repo), ['/ws/b']);
+		assert.deepStrictEqual(kf.get(repo)?.map(f => f.workspacePath), ['/ws/b']);
 		kf.delete(repo, '/ws/b');
 		assert.strictEqual(kf.get(repo), undefined, 'repo should be pruned when last folder removed');
 	});
@@ -91,15 +91,33 @@ suite('KnownFolders', () => {
 		const now = Date.now();
 		const oldTs = now - (91 * 24 * 60 * 60 * 1000);
 		const recentTs = now - (5 * 24 * 60 * 60 * 1000);
-		const raw: [string, [string, number][]][] = [
+		const raw: [string, [string, KnownFolderInfo][]][] = [
 			['https://example.com/repo.git', [
-				['/ws/old', oldTs],
-				['/ws/new', recentTs]
+				['/ws/old', { timestamp: oldTs, repoRootPath: '/ws/old', workspacePath: '/ws/old', isWorkspace: true }],
+				['/ws/new', { timestamp: recentTs, repoRootPath: '/ws/new', workspacePath: '/ws/new', isWorkspace: true }]
 			]]
 		];
 		const memento = new InMemoryMemento({ 'git.knownFolders': raw });
 		const kf = new KnownFolders(memento);
 		const folders = kf.get('https://example.com/repo.git');
-		assert.deepStrictEqual(folders, ['/ws/new']);
+		assert.deepStrictEqual(folders?.map(f => f.workspacePath), ['/ws/new']);
+	});
+
+	test('serialization stores object with timestamp and repoRootPath', () => {
+		const memento = new InMemoryMemento();
+		const kf = new KnownFolders(memento);
+		const repo = 'https://example.com/repo.git';
+		const repoRoot = '/workspace/repo';
+		kf.set(repo, repoRoot);
+		const stored = memento.get<[string, [string, KnownFolderInfo][]][]>('git.knownFolders');
+		assert.ok(Array.isArray(stored), 'stored structure should be an array');
+		const entry = stored!.find(e => e[0] === repo);
+		assert.ok(entry, 'repo entry should exist');
+		const foldersArr = entry![1];
+		assert.strictEqual(foldersArr.length, 1, 'one folder stored');
+		const [folderPath, info] = foldersArr[0];
+		assert.strictEqual(typeof info.timestamp, 'number', 'timestamp should be number');
+		assert.strictEqual(info.repoRootPath, repoRoot, 'repoRootPath should match provided root');
+		assert.strictEqual(folderPath, repoRoot, 'folder key should be the root path in this test context');
 	});
 });
