@@ -74,10 +74,7 @@ export class ChatSuggestNextWidget extends Disposable {
 		}));
 		header.appendChild(titleContainer);
 
-		// Create subtitle
-		const subtitleContainer = dom.$('.suggest-next-subtitle');
-		subtitleContainer.textContent = localize('chat.suggestNext.subtitle', "Keep iterating or proceed:");
-		header.appendChild(subtitleContainer);		// Create action button container (shown when collapsed)
+		// Create action button container (shown when collapsed)
 		this.actionContainer = dom.$('.suggest-next-header-actions');
 		header.appendChild(this.actionContainer);
 

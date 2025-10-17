@@ -353,6 +353,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	// Welcome view rendering scheduler to prevent reentrant calls
 	private _welcomeRenderScheduler: RunOnceScheduler;
 
+	// Suggest next widget rendering scheduler to prevent excessive renders during mode changes
+	private _chatSuggestNextScheduler: RunOnceScheduler;
+
 	// Coding agent locking state
 	private _lockedToCodingAgent: string | undefined;
 	private _lockedToCodingAgentContextKey!: IContextKey<boolean>;
@@ -503,6 +506,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// Context key for when empty state history is enabled and in empty state
 		this.inEmptyStateWithHistoryEnabledKey = ChatContextKeys.inEmptyStateWithHistoryEnabled.bindTo(contextKeyService);
 		this._welcomeRenderScheduler = this._register(new RunOnceScheduler(() => this.renderWelcomeViewContentIfNeeded(), 10));
+		this._chatSuggestNextScheduler = this._register(new RunOnceScheduler(() => this.renderChatSuggestNextWidget(), 10));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ChatConfiguration.EmptyStateHistoryEnabled)) {
 				this.updateEmptyStateWithHistoryContext();
@@ -1007,7 +1011,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 
 			this.renderFollowups();
-			this.renderChatSuggestNextWidget();
+			if (!isQuickChat(this)) {
+				this._chatSuggestNextScheduler.schedule();
+			}
 		}
 	}
 
@@ -2195,8 +2201,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			// Show widget if switching to mode with handoffs AND chat has existing responses
 			const currentMode = this.input.currentModeObs.get();
 			const hasExistingContent = this.viewModel && this.viewModel.getItems().length > 0;
-			if (currentMode?.handoffs?.get() && hasExistingContent) {
-				this.renderChatSuggestNextWidget();
+			if (currentMode?.handoffs?.get() && hasExistingContent && !isQuickChat(this)) {
+				this._chatSuggestNextScheduler.schedule();
 			}
 		}));
 
@@ -2305,9 +2311,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 			if (e.kind === 'addRequest' || e.kind === 'removeRequest') {
 				this.clearTodoListWidget(model.sessionId, e.kind === 'removeRequest' /*force*/);
-				// Show next steps widget when response starts
-				if (e.kind === 'addRequest') {
-					this.renderChatSuggestNextWidget();
+				// Show next steps widget when response starts (but not in quick chat)
+				if (e.kind === 'addRequest' && !isQuickChat(this)) {
+					this._chatSuggestNextScheduler.schedule();
 				}
 			}
 		}));
@@ -2319,7 +2325,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this.renderer.updateViewModel(this.viewModel);
 		this.updateChatInputContext();
-		this.renderChatSuggestNextWidget();
+		// Only show widget if chat has existing content (not in empty chat) and not quick chat
+		if (this.viewModel && this.viewModel.getItems().length > 0 && !isQuickChat(this)) {
+			this._chatSuggestNextScheduler.schedule();
+		}
 	}
 
 	getFocus(): ChatTreeItem | undefined {
