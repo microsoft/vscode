@@ -506,10 +506,10 @@ export class TerminalService extends Disposable implements ITerminalService {
 		return Promise.all(groupPromises).then(result => result.filter(e => !!e) as ITerminalGroup[]);
 	}
 
-	private async _reviveBackgroundTerminalInstances(backgroundLayouts: (IPtyHostAttachTarget | null)[]): Promise<ITerminalInstance[]> {
+	private async _reviveBackgroundTerminalInstances(bgTerminals: (IPtyHostAttachTarget | null)[]): Promise<ITerminalInstance[]> {
 		const instances: ITerminalInstance[] = [];
-		for (const i of backgroundLayouts) {
-			const attachPersistentProcess = backgroundLayouts[i];
+		for (const bg of bgTerminals) {
+			const attachPersistentProcess = bg;
 			if (!attachPersistentProcess) {
 				continue;
 			}
