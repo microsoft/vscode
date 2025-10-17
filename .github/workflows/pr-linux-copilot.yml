@@ -12,7 +12,6 @@ jobs:
     permissions:
       contents: read
       id-token: write
-      copilot_messages: read
       pull-requests: write
     env:
       NPM_ARCH: x64
