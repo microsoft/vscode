@@ -118,6 +118,8 @@ export class McpService extends Disposable implements IMcpService {
 			serversRequiringInteraction: requiringInteraction,
 		}, undefined);
 
+		update();
+
 		await Promise.all([...todo].map(async (server, i) => {
 			try {
 				await startServerAndWaitForLiveTools(server, { interaction, errorOnUserInteraction: true }, token);
@@ -125,11 +127,11 @@ export class McpService extends Disposable implements IMcpService {
 				if (error instanceof UserInteractionRequiredError) {
 					requiringInteraction.push({ id: server.definition.id, label: server.definition.label, errorMessage: error.message });
 				}
-			}
-
-			if (!token.isCancellationRequested) {
+			} finally {
 				todo.delete(server);
-				update();
+				if (!token.isCancellationRequested) {
+					update();
+				}
 			}
 		}));
 	}
