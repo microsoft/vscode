@@ -95,7 +95,7 @@ export function isLocalChatSessionItem(item: ChatSessionItemWithProvider): boole
 }
 
 /**
- * Create a compact relative time format for chat history (e.g., "1m", "1d", "1mo").
+ * Create a compact relative time format for chat history (e.g., "1m", "1d", "1 wk", "1mo").
  * This is more compact than the standard fromNow format.
  */
 function fromNowCompact(date: number | Date): string {
@@ -129,7 +129,7 @@ function fromNowCompact(date: number | Date): string {
 
 	if (seconds < day) {
 		value = Math.floor(seconds / hour);
-		return localize('date.fromNow.hours.compact', '{0}h', value);
+		return localize('date.fromNow.hours.compact', '{0}hr', value);
 	}
 
 	if (seconds < week) {
@@ -139,7 +139,7 @@ function fromNowCompact(date: number | Date): string {
 
 	if (seconds < month) {
 		value = Math.floor(seconds / week);
-		return localize('date.fromNow.weeks.compact', '{0}w', value);
+		return localize('date.fromNow.weeks.compact', '{0} wk', value);
 	}
 
 	if (seconds < year) {
