@@ -93,10 +93,10 @@ export class ChatSessionsView extends Disposable implements IWorkbenchContributi
 		this.viewContainer = Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer(
 			{
 				id: VIEWLET_ID,
-				title: nls.localize2('chat.sessions', "Chat Sessions"),
+				title: nls.localize2('chat.agent.sessions', "Agent Sessions"),
 				ctorDescriptor: new SyncDescriptor(ChatSessionsViewPaneContainer, [this.sessionTracker]),
 				hideIfEmpty: false,
-				icon: registerIcon('chat-sessions-icon', Codicon.commentDiscussionSparkle, 'Icon for Chat Sessions View'),
+				icon: registerIcon('chat-sessions-icon', Codicon.commentDiscussionSparkle, 'Icon for Agent Sessions View'),
 				order: 6
 			}, ViewContainerLocation.Sidebar);
 		this.isViewContainerRegistered = true;
@@ -173,7 +173,7 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 	}
 
 	override getTitle(): string {
-		const title = nls.localize('chat.sessions.title', "Chat Sessions");
+		const title = nls.localize('chat.agent.sessions.title', "Agent Sessions");
 		return title;
 	}
 

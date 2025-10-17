@@ -71,8 +71,17 @@ declare module 'vscode' {
 	export interface ChatSessionItem {
 		/**
 		 * Unique identifier for the chat session.
+		 *
+		 * @deprecated Will be replaced by `resource`
 		 */
 		id: string;
+
+		/**
+		 * The resource associated with the chat session.
+		 *
+		 * This is uniquely identifies the chat session and is used to open the chat session.
+		 */
+		resource: Uri | undefined;
 
 		/**
 		 * Human readable name of the session shown in the UI
@@ -140,6 +149,11 @@ declare module 'vscode' {
 		readonly history: ReadonlyArray<ChatRequestTurn | ChatResponseTurn2>;
 
 		/**
+		 * Options configured for this session.
+		 */
+		readonly options?: { model?: LanguageModelChatInformation };
+
+		/**
 		 * Callback invoked by the editor for a currently running response. This allows the session to push items for the
 		 * current response and stream these in as them come in. The current response will be considered complete once the
 		 * callback resolved.
@@ -166,6 +180,32 @@ declare module 'vscode' {
 		 * @param token A cancellation token that can be used to cancel the operation.
 		 */
 		provideChatSessionContent(sessionId: string, token: CancellationToken): Thenable<ChatSession> | ChatSession;
+
+		/**
+		 *
+		 * @param sessionId Identifier of the chat session being updated.
+		 * @param updates Collection of option identifiers and their new values. Only the options that changed are included.
+		 * @param token A cancellation token that can be used to cancel the notification if the session is disposed.
+		 */
+		provideHandleOptionsChange?(sessionId: string, updates: ReadonlyArray<ChatSessionOptionUpdate>, token: CancellationToken): void;
+
+		/**
+		 * Called as soon as you register (call me once)
+		 * @param token
+		 */
+		provideChatSessionProviderOptions?(token: CancellationToken): Thenable<ChatSessionProviderOptions> | ChatSessionProviderOptions;
+	}
+
+	export interface ChatSessionOptionUpdate {
+		/**
+		 * Identifier of the option that changed (for example `model`).
+		 */
+		readonly optionId: string;
+
+		/**
+		 * The new value assigned to the option. When `undefined`, the option is cleared.
+		 */
+		readonly value: string | undefined;
 	}
 
 	export namespace chat {
@@ -212,6 +252,16 @@ declare module 'vscode' {
 		supportsInterruptions?: boolean;
 	}
 
+	export interface ChatSessionProviderOptions {
+		/**
+		 * Set of available models.
+		 */
+		models?: LanguageModelChatInformation[];
+	}
+
+	/**
+	 * @deprecated
+	 */
 	export interface ChatSessionShowOptions {
 		/**
 		 * The editor view column to show the chat session in.
@@ -224,6 +274,8 @@ declare module 'vscode' {
 	export namespace window {
 		/**
 		 * Shows a chat session in the panel or editor.
+		 *
+		 * @deprecated
 		 */
 		export function showChatSession(chatSessionType: string, sessionId: string, options: ChatSessionShowOptions): Thenable<void>;
 	}

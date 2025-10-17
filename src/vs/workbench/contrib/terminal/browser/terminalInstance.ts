@@ -2581,7 +2581,7 @@ export class TerminalLabelComputer extends Disposable {
 		const type = instance.shellLaunchConfig.attachPersistentProcess?.type || instance.shellLaunchConfig.type;
 		const commandDetection = instance.capabilities.get(TerminalCapability.CommandDetection);
 		const promptInputModel = commandDetection?.promptInputModel;
-		const nonTaskSpinner = type === 'Task' ? '' : ' $(loading~spin)';
+		const nonTaskSpinner = type === 'Task' ? '' : ' $(sync~spin)';
 		const templateProperties: ITerminalLabelTemplateProperties = {
 			cwd: instance.cwd || instance.initialCwd || '',
 			cwdFolder: '',
@@ -2651,7 +2651,7 @@ export class TerminalLabelComputer extends Disposable {
 			case 0: return '';
 			case 1: return `${Math.round(progressState.value)}%`;
 			case 2: return '$(error)';
-			case 3: return '$(loading~spin)';
+			case 3: return '$(sync~spin)';
 			case 4: return '$(alert)';
 		}
 	}

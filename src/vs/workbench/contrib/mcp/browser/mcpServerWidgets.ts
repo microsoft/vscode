@@ -18,7 +18,7 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { verifiedPublisherIcon } from '../../../services/extensionManagement/common/extensionsIcons.js';
 import { IMcpServerContainer, IWorkbenchMcpServer, McpServerInstallState } from '../common/mcpTypes.js';
 import { IThemeService, registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
-import { ColorScheme } from '../../../../platform/theme/common/theme.js';
+import { isDark } from '../../../../platform/theme/common/theme.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { McpServerStatusAction } from './mcpServerActions.js';
 import { reset } from '../../../../base/browser/dom.js';
@@ -100,7 +100,7 @@ export class McpServerIconWidget extends McpServerWidget {
 			this.iconElement.style.display = 'inherit';
 			this.codiconIconElement.style.display = 'none';
 			const type = this.themeService.getColorTheme().type;
-			const iconUrl = type === ColorScheme.DARK || ColorScheme.HIGH_CONTRAST_DARK ? this.mcpServer.icon.dark : this.mcpServer.icon.light;
+			const iconUrl = isDark(type) ? this.mcpServer.icon.dark : this.mcpServer.icon.light;
 			if (this.iconUrl !== iconUrl) {
 				this.iconUrl = iconUrl;
 				this.disposables.add(dom.addDisposableListener(this.iconElement, 'error', () => {

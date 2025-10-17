@@ -13,7 +13,7 @@ import { constObservable, IObservable } from '../../../../../base/common/observa
 import { assertType } from '../../../../../base/common/types.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
-import { IActiveCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
+import { IActiveCodeEditor, ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { IDiffProviderFactoryService } from '../../../../../editor/browser/widget/diffEditor/diffProviderFactoryService.js';
 import { EditOperation } from '../../../../../editor/common/core/editOperation.js';
 import { Range } from '../../../../../editor/common/core/range.js';
@@ -207,6 +207,9 @@ suite('InlineChatController', function () {
 			}],
 			[INotebookEditorService, new class extends mock<INotebookEditorService>() {
 				override listNotebookEditors() { return []; }
+				override getNotebookForPossibleCell(editor: ICodeEditor) {
+					return undefined;
+				}
 			}],
 			[IWorkbenchAssignmentService, new NullWorkbenchAssignmentService()],
 			[ILanguageModelsService, new SyncDescriptor(LanguageModelsService)],

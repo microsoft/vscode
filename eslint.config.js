@@ -326,7 +326,6 @@ export default tseslint.config(
 			'local/code-must-use-super-dispose': 'off',
 			'local/code-no-test-only': 'error',
 			'local/code-no-test-async-suite': 'warn',
-			'local/code-no-unexternalized-strings': 'off',
 			'local/code-must-use-result': [
 				'warn',
 				[

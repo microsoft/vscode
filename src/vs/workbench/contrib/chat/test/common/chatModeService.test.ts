@@ -130,6 +130,7 @@ suite('ChatModeService', () => {
 		assert.strictEqual(testMode.kind, ChatModeKind.Agent);
 		assert.deepStrictEqual(testMode.customTools?.get(), customMode.tools);
 		assert.deepStrictEqual(testMode.modeInstructions?.get(), customMode.modeInstructions);
+		assert.deepStrictEqual(testMode.handOffs?.get(), customMode.handOffs);
 		assert.strictEqual(testMode.uri?.get().toString(), customMode.uri.toString());
 	});
 

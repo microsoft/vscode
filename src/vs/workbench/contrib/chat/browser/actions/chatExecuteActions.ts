@@ -162,6 +162,10 @@ export class ChatSubmitAction extends SubmitAction {
 
 	constructor() {
 		const menuCondition = ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Ask);
+		const precondition = ContextKeyExpr.and(
+			ChatContextKeys.inputHasText,
+			whenNotInProgress,
+		);
 
 		super({
 			id: ChatSubmitAction.ID,
@@ -169,9 +173,10 @@ export class ChatSubmitAction extends SubmitAction {
 			f1: false,
 			category: CHAT_CATEGORY,
 			icon: Codicon.send,
+			precondition,
 			toggled: {
 				condition: ChatContextKeys.lockedToCodingAgent,
-				icon: Codicon.sendToRemoteAgent,
+				icon: Codicon.send,
 				tooltip: localize('sendToRemoteAgent', "Send to coding agent"),
 			},
 			keybinding: {
@@ -413,7 +418,6 @@ class OpenModelPickerAction extends Action2 {
 				when:
 					ContextKeyExpr.and(
 						ChatContextKeys.lockedToCodingAgent.negate(),
-						ChatContextKeys.languageModelsAreUserSelectable,
 						ContextKeyExpr.or(
 							ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Chat),
 							ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.EditorInline),
@@ -432,7 +436,6 @@ class OpenModelPickerAction extends Action2 {
 		}
 	}
 }
-
 export class OpenModePickerAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.openModePicker';
 
@@ -476,6 +479,37 @@ export class OpenModePickerAction extends Action2 {
 	}
 }
 
+export class ChatSessionOpenModelPickerAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.chatSessionOpenModelPicker';
+	constructor() {
+		super({
+			id: ChatSessionOpenModelPickerAction.ID,
+			title: localize2('interactive.openModelPicker.label', "Open Model Picker"),
+			category: CHAT_CATEGORY,
+			f1: false,
+			precondition: ChatContextKeys.enabled,
+			menu: {
+				id: MenuId.ChatInput,
+				order: 4,
+				group: 'navigation',
+				when:
+					ContextKeyExpr.and(
+						ChatContextKeys.lockedToCodingAgent,
+						ChatContextKeys.chatSessionHasModels
+					)
+			}
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+		const widgetService = accessor.get(IChatWidgetService);
+		const widget = widgetService.lastFocusedWidget;
+		if (widget) {
+			widget.input.openChatSessionModelPicker();
+		}
+	}
+}
+
 export const ChangeChatModelActionId = 'workbench.action.chat.changeModel';
 class ChangeChatModelAction extends Action2 {
 	static readonly ID = ChangeChatModelActionId;
@@ -507,6 +541,10 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 
 	constructor() {
 		const menuCondition = ChatContextKeys.chatModeKind.notEqualsTo(ChatModeKind.Ask);
+		const precondition = ContextKeyExpr.and(
+			ChatContextKeys.inputHasText,
+			whenNotInProgress
+		);
 
 		super({
 			id: ChatEditingSessionSubmitAction.ID,
@@ -514,6 +552,7 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 			f1: false,
 			category: CHAT_CATEGORY,
 			icon: Codicon.send,
+			precondition,
 			menu: [
 				{
 					id: MenuId.ChatExecuteSecondary,
@@ -586,6 +625,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 
 	constructor() {
 		const precondition = ContextKeyExpr.and(
+			ChatContextKeys.inputHasText,
 			whenNotInProgress,
 			ChatContextKeys.remoteJobCreating.negate(),
 		);
@@ -1151,6 +1191,7 @@ export function registerChatExecuteActions() {
 	registerAction2(SwitchToNextModelAction);
 	registerAction2(OpenModelPickerAction);
 	registerAction2(OpenModePickerAction);
+	registerAction2(ChatSessionOpenModelPickerAction);
 	registerAction2(ChangeChatModelAction);
 	registerAction2(CancelEdit);
 }
