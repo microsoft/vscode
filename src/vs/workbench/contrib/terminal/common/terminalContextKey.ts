@@ -141,7 +141,7 @@ export namespace TerminalContextKeys {
 	export const terminalShellIntegrationEnabled = new RawContextKey<boolean>(TerminalContextKeyStrings.TerminalShellIntegrationEnabled, false, localize('terminalShellIntegrationEnabled', "Whether shell integration is enabled in the active terminal"));
 
 	/** Whether there is at least one tool terminal (created via run_in_terminal). */
-	export const hasToolTerminal = new RawContextKey<boolean>('hasToolTerminal', false, localize('hasToolTerminalContextKey', "Whether there is at least one tool terminal (created via a tool session)."));
+	export const hasToolTerminal = new RawContextKey<boolean>('hasToolTerminal', false, localize('hasToolTerminalContextKey', "Whether there is at least one tool terminal (created via run_in_terminal)."));
 
 	/** Whether a speech to text (dictation) session is in progress. */
 	export const terminalDictationInProgress = new RawContextKey<boolean>(TerminalContextKeyStrings.DictationInProgress, false);
