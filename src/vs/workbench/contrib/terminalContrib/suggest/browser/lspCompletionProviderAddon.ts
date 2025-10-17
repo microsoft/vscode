@@ -65,8 +65,7 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 					detail: item.detail,
 					documentation: item.documentation,
 					kind: convertedKind,
-					replacementIndex: completionItemTemp.replacementIndex,
-					replacementLength: completionItemTemp.replacementLength,
+					valueSelection: completionItemTemp.valueSelection,
 				};
 
 				// Store unresolved item and provider for lazy resolution if needed
@@ -95,8 +94,7 @@ export function createCompletionItemPython(
 	return {
 		label,
 		detail: detail ?? '',
-		replacementIndex: cursorPosition - lastWord.length,
-		replacementLength: lastWord.length,
+		valueSelection: [cursorPosition - lastWord.length, cursorPosition],
 		kind: kind ?? TerminalCompletionItemKind.Method
 	};
 }
@@ -133,14 +131,9 @@ export interface TerminalCompletionItem {
 	label: string | CompletionItemLabel;
 
 	/**
-	 * The index of the start of the range to replace.
+	 * Selection range (inclusive start, exclusive end) to replace when this completion is applied.
 	 */
-	replacementIndex: number;
-
-	/**
-	 * The length of the range to replace.
-	 */
-	replacementLength: number;
+	valueSelection: readonly [number, number] | undefined;
 
 	/**
 	 * The completion's detail which appears on the right of the list.

@@ -33,8 +33,7 @@ interface IAssertionTerminalCompletion {
 }
 
 interface IAssertionCommandLineConfig {
-	replacementIndex: number;
-	replacementLength: number;
+	valueSelection: [number, number];
 }
 
 /**
@@ -47,14 +46,12 @@ function assertCompletions(actual: ITerminalCompletion[] | undefined, expected: 
 			label: e.label,
 			detail: e.detail ?? '',
 			kind: e.kind ?? TerminalCompletionItemKind.Folder,
-			replacementIndex: e.replacementIndex,
-			replacementLength: e.replacementLength,
+			valueSelection: e.valueSelection,
 		})), expected.map(e => ({
 			label: e.label.replaceAll('/', sep),
 			detail: e.detail ? e.detail.replaceAll('/', sep) : '',
 			kind: e.kind ?? TerminalCompletionItemKind.Folder,
-			replacementIndex: expectedConfig.replacementIndex,
-			replacementLength: expectedConfig.replacementLength,
+			valueSelection: expectedConfig.valueSelection,
 		}))
 	);
 }
@@ -70,16 +67,14 @@ function assertPartialCompletionsExist(actual: ITerminalCompletion[] | undefined
 		label: e.label.replaceAll('/', pathSeparator),
 		detail: e.detail ? e.detail.replaceAll('/', pathSeparator) : '',
 		kind: e.kind ?? TerminalCompletionItemKind.Folder,
-		replacementIndex: expectedConfig.replacementIndex,
-		replacementLength: expectedConfig.replacementLength,
+		valueSelection: expectedConfig.valueSelection,
 	}));
 	for (const expectedItem of expectedMapped) {
 		assert.deepStrictEqual(actual.map(e => ({
 			label: e.label,
 			detail: e.detail ?? '',
 			kind: e.kind ?? TerminalCompletionItemKind.Folder,
-			replacementIndex: e.replacementIndex,
-			replacementLength: e.replacementLength,
+			valueSelection: e.valueSelection,
 		})).find(e => e.detail === expectedItem.detail), expectedItem);
 	}
 }
@@ -180,7 +175,7 @@ suite('TerminalCompletionService', () => {
 				{ label: './folder1/', detail: '/test/folder1/' },
 				{ label: '../', detail: '/' },
 				standardTidleItem,
-			], { replacementIndex: 1, replacementLength: 0 });
+			], { valueSelection: [1, 1] });
 		});
 
 		test('./| should return folder completions', async () => {
@@ -195,7 +190,7 @@ suite('TerminalCompletionService', () => {
 				{ label: './', detail: '/test/' },
 				{ label: './folder1/', detail: '/test/folder1/' },
 				{ label: './../', detail: '/' },
-			], { replacementIndex: 1, replacementLength: 2 });
+			], { valueSelection: [1, 3] });
 		});
 
 		test('cd ./| should return folder completions', async () => {
@@ -210,7 +205,7 @@ suite('TerminalCompletionService', () => {
 				{ label: './', detail: '/test/' },
 				{ label: './folder1/', detail: '/test/folder1/' },
 				{ label: './../', detail: '/' },
-			], { replacementIndex: 3, replacementLength: 2 });
+			], { valueSelection: [3, 5] });
 		});
 		test('cd ./f| should return folder completions', async () => {
 			const resourceOptions: TerminalCompletionResourceOptions = {
@@ -224,7 +219,7 @@ suite('TerminalCompletionService', () => {
 				{ label: './', detail: '/test/' },
 				{ label: './folder1/', detail: '/test/folder1/' },
 				{ label: './../', detail: '/' },
-			], { replacementIndex: 3, replacementLength: 3 });
+			], { valueSelection: [3, 6] });
 		});
 	});
 
@@ -255,7 +250,7 @@ suite('TerminalCompletionService', () => {
 				{ label: './folder1/', detail: '/test/folder1/' },
 				{ label: './file1.txt', detail: '/test/file1.txt', kind: TerminalCompletionItemKind.File },
 				{ label: './../', detail: '/' },
-			], { replacementIndex: 0, replacementLength: 2 });
+			], { valueSelection: [0, 2] });
 		});
 
 		test('./h| should handle hidden files and folders', async () => {
@@ -274,7 +269,7 @@ suite('TerminalCompletionService', () => {
 				{ label: './folder1/', detail: '/test/folder1/' },
 				{ label: './file1.txt', detail: '/test/file1.txt', kind: TerminalCompletionItemKind.File },
 				{ label: './../', detail: '/' },
-			], { replacementIndex: 0, replacementLength: 3 });
+			], { valueSelection: [0, 3] });
 		});
 	});
 
@@ -314,14 +309,14 @@ suite('TerminalCompletionService', () => {
 		test('~| should return completion for ~', async () => {
 			assertPartialCompletionsExist(await terminalCompletionService.resolveResources(resourceOptions, '~', 1, provider, capabilities), [
 				{ label: '~', detail: '/home/' },
-			], { replacementIndex: 0, replacementLength: 1 });
+			], { valueSelection: [0, 1] });
 		});
 
 		test('~/| should return folder completions relative to $HOME', async () => {
 			assertCompletions(await terminalCompletionService.resolveResources(resourceOptions, '~/', 2, provider, capabilities), [
 				{ label: '~/', detail: '/home/' },
 				{ label: '~/vscode/', detail: '/home/vscode/' },
-			], { replacementIndex: 0, replacementLength: 2 });
+			], { valueSelection: [0, 2] });
 		});
 
 		test('~/vscode/| should return folder completions relative to $HOME/vscode', async () => {
@@ -329,7 +324,7 @@ suite('TerminalCompletionService', () => {
 				{ label: '~/vscode/', detail: '/home/vscode/' },
 				{ label: '~/vscode/foo/', detail: '/home/vscode/foo/' },
 				{ label: '~/vscode/bar.txt', detail: '/home/vscode/bar.txt', kind: TerminalCompletionItemKind.File },
-			], { replacementIndex: 0, replacementLength: 9 });
+			], { valueSelection: [0, 9] });
 		});
 	});
 
@@ -356,7 +351,7 @@ suite('TerminalCompletionService', () => {
 				assertCompletions(result, [
 					{ label: 'C:/Foo/', detail: 'C:/Foo/' },
 					{ label: 'C:/Foo/Bar/', detail: 'C:/Foo/Bar/' },
-				], { replacementIndex: 0, replacementLength: 7 });
+				], { valueSelection: [0, 7] });
 			});
 			test('c:/foo/| case insensitivity on Windows', async () => {
 				const resourceOptions: TerminalCompletionResourceOptions = {
@@ -374,7 +369,7 @@ suite('TerminalCompletionService', () => {
 					// Note that the detail is normalizes drive letters to capital case intentionally
 					{ label: 'c:/foo/', detail: 'C:/foo/' },
 					{ label: 'c:/foo/Bar/', detail: 'C:/foo/Bar/' },
-				], { replacementIndex: 0, replacementLength: 7 });
+				], { valueSelection: [0, 7] });
 			});
 		} else {
 			test('/foo/| absolute paths NOT on Windows', async () => {
@@ -393,7 +388,7 @@ suite('TerminalCompletionService', () => {
 				assertCompletions(result, [
 					{ label: '/foo/', detail: '/foo/' },
 					{ label: '/foo/Bar/', detail: '/foo/Bar/' },
-				], { replacementIndex: 0, replacementLength: 5 });
+				], { valueSelection: [0, 5] });
 			});
 		}
 
@@ -418,7 +413,7 @@ suite('TerminalCompletionService', () => {
 					{ label: '.\\FolderA\\', detail: 'C:\\test\\FolderA\\' },
 					{ label: '.\\anotherFolder\\', detail: 'C:\\test\\anotherFolder\\' },
 					{ label: '.\\..\\', detail: 'C:\\' },
-				], { replacementIndex: 0, replacementLength: 8 });
+				], { valueSelection: [0, 8] });
 			});
 		} else {
 			test('./folder | Case sensitivity should resolve correctly on Mac/Unix', async () => {
@@ -440,7 +435,7 @@ suite('TerminalCompletionService', () => {
 					{ label: './FolderA/', detail: '/test/FolderA/' },
 					{ label: './foldera/', detail: '/test/foldera/' },
 					{ label: './../', detail: '/' }
-				], { replacementIndex: 0, replacementLength: 8 });
+				], { valueSelection: [0, 8] });
 			});
 
 		}
@@ -463,7 +458,7 @@ suite('TerminalCompletionService', () => {
 				{ label: './folder2/', detail: '/test/folder2/' },
 				{ label: '../', detail: '/' },
 				standardTidleItem,
-			], { replacementIndex: 0, replacementLength: 0 });
+			], { valueSelection: [0, 0] });
 		});
 
 		test('./| should handle large directories with many results gracefully', async () => {
@@ -504,20 +499,18 @@ suite('TerminalCompletionService', () => {
 				{ label: './folder1/', detail: '/test/folder1/' },
 				{ label: './folder2/', detail: '/test/folder2/' },
 				{ label: './../', detail: '/' }
-			], { replacementIndex: 1, replacementLength: 9 });
+			], { valueSelection: [1, 10] });
 		});
-
-		test('folder/| should normalize current and parent folders', async () => {
+		test('test/| should normalize current and parent folders', async () => {
 			const resourceOptions: TerminalCompletionResourceOptions = {
 				cwd: URI.parse('file:///test'),
 				showFolders: true,
 				pathSeparator
 			};
 			validResources = [
-				URI.parse('file:///'),
 				URI.parse('file:///test'),
 				URI.parse('file:///test/folder1'),
-				URI.parse('file:///test/folder2'),
+				URI.parse('file:///test/folder2')
 			];
 			childResources = [
 				{ resource: URI.parse('file:///test/folder1/'), isDirectory: true },
@@ -530,7 +523,7 @@ suite('TerminalCompletionService', () => {
 				{ label: './test/folder1/', detail: '/test/folder1/' },
 				{ label: './test/folder2/', detail: '/test/folder2/' },
 				{ label: './test/../', detail: '/' }
-			], { replacementIndex: 0, replacementLength: 5 });
+			], { valueSelection: [0, 5] });
 		});
 	});
 
@@ -561,7 +554,7 @@ suite('TerminalCompletionService', () => {
 
 			assertPartialCompletionsExist(result, [
 				{ label: 'folder1', detail: 'CDPATH /cdpath_value/folder1/' },
-			], { replacementIndex: 3, replacementLength: 0 });
+			], { valueSelection: [3, 3] });
 		});
 
 		test('cd | should show paths from $CDPATH (absolute)', async () => {
@@ -576,7 +569,7 @@ suite('TerminalCompletionService', () => {
 
 			assertPartialCompletionsExist(result, [
 				{ label: '/cdpath_value/folder1/', detail: 'CDPATH' },
-			], { replacementIndex: 3, replacementLength: 0 });
+			], { valueSelection: [3, 3] });
 		});
 
 		test('cd | should support pulling from multiple paths in $CDPATH', async () => {
@@ -616,7 +609,7 @@ suite('TerminalCompletionService', () => {
 				{ label: 'folder2', detail: `CDPATH ${finalPrefix}cdpath1_value/folder2/` },
 				{ label: 'folder1', detail: `CDPATH ${finalPrefix}cdpath2_value/inner_dir/folder1/` },
 				{ label: 'folder2', detail: `CDPATH ${finalPrefix}cdpath2_value/inner_dir/folder2/` },
-			], { replacementIndex: 3, replacementLength: 0 });
+			], { valueSelection: [3, 3] });
 		});
 	});
 
@@ -657,7 +650,7 @@ suite('TerminalCompletionService', () => {
 					{ label: 'C:/Users/foo/', detail: 'C:\\Users\\foo\\' },
 					{ label: 'C:/Users/foo/bar/', detail: 'C:\\Users\\foo\\bar\\' },
 					{ label: 'C:/Users/foo/baz.txt', detail: 'C:\\Users\\foo\\baz.txt', kind: TerminalCompletionItemKind.File },
-				], { replacementIndex: 0, replacementLength: 13 }, '/');
+				], { valueSelection: [0, 13] }, '/');
 			});
 			test('resolveResources with cwd as Windows path (relative)', async () => {
 				const resourceOptions: TerminalCompletionResourceOptions = {
@@ -681,7 +674,7 @@ suite('TerminalCompletionService', () => {
 					{ label: './bar/', detail: 'C:\\Users\\foo\\bar\\' },
 					{ label: './baz.txt', detail: 'C:\\Users\\foo\\baz.txt', kind: TerminalCompletionItemKind.File },
 					{ label: './../', detail: 'C:\\Users\\' }
-				], { replacementIndex: 0, replacementLength: 2 }, '/');
+				], { valueSelection: [0, 2] }, '/');
 			});
 
 			test('resolveResources with cwd as Windows path (absolute)', async () => {
@@ -705,7 +698,7 @@ suite('TerminalCompletionService', () => {
 					{ label: '/c/Users/foo/', detail: 'C:\\Users\\foo\\' },
 					{ label: '/c/Users/foo/bar/', detail: 'C:\\Users\\foo\\bar\\' },
 					{ label: '/c/Users/foo/baz.txt', detail: 'C:\\Users\\foo\\baz.txt', kind: TerminalCompletionItemKind.File },
-				], { replacementIndex: 0, replacementLength: 13 }, '/');
+				], { valueSelection: [0, 13] }, '/');
 			});
 		});
 	}
@@ -764,7 +757,7 @@ suite('TerminalCompletionService', () => {
 				{ label: './\!special\$chars2\&', detail: '/test/\!special\$chars2\&', kind: TerminalCompletionItemKind.File },
 				{ label: '../', detail: '/' },
 				standardTidleItem,
-			], { replacementIndex: 0, replacementLength: 0 });
+			], { valueSelection: [0, 0] });
 		});
 
 	});
@@ -790,8 +783,7 @@ suite('TerminalCompletionService', () => {
 				provideCompletions: async () => [{
 					label: `completion-from-${id}`,
 					kind: TerminalCompletionItemKind.Method,
-					replacementIndex: 0,
-					replacementLength: 0,
+					valueSelection: [0, 0],
 					provider: id
 				}]
 			};

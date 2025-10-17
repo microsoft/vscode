@@ -15,8 +15,7 @@ function createItem(options: Partial<ITerminalCompletion>): TerminalCompletionIt
 		kind: options.kind ?? TerminalCompletionItemKind.Method,
 		label: options.label || 'defaultLabel',
 		provider: options.provider || 'defaultProvider',
-		replacementIndex: options.replacementIndex || 0,
-		replacementLength: options.replacementLength || 1,
+		valueSelection: options.valueSelection || [0, 1],
 	});
 }
 
@@ -254,8 +253,7 @@ suite('TerminalCompletionModel', function () {
 				new TerminalCompletionItem({
 					label: 'ab',
 					provider: 'core',
-					replacementIndex: 0,
-					replacementLength: 0,
+					valueSelection: [0, 0],
 					kind
 				})
 			];

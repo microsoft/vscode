@@ -8201,7 +8201,7 @@ declare module 'vscode' {
 	 * @example <caption>Simple provider returning a single completion</caption>
 	 * window.registerTerminalCompletionProvider('extension-provider-id', {
 	 * 	provideTerminalCompletions(terminal, context) {
-	 * 		return [{ label: '--help', replacementIndex: Math.max(0, context.cursorPosition - 2), replacementLength: 2 }];
+	 * 		return [{ label: '--help', valueSelection: [Math.max(0, context.cursorPosition - 2), context.cursorPosition] }];
 	 * 	}
 	 * });
 	 */
@@ -8223,8 +8223,7 @@ declare module 'vscode' {
 	 * @example <caption>Completion item for `ls -|`</caption>
 	 * const item = {
 	 * 	label: '-A',
-	 * 	replacementIndex: 3,
-	 * 	replacementLength: 1,
+	 * 	valueSelection: [3, 4], // replace the single character at index 3
 	 * 	detail: 'List all entries except for . and .. (always set for the super-user)',
 	 * 	kind: TerminalCompletionItemKind.Flag
 	 * };
@@ -8239,14 +8238,14 @@ declare module 'vscode' {
 		label: string | CompletionItemLabel;
 
 		/**
-		 * The index of the start of the range to replace.
+		 * Selection range in the command line to replace when the completion is accepted. Defined
+		 * as a tuple where the first entry is the inclusive start index and the second entry is the
+		 * exclusive end index. When `undefined` the completion will be inserted at the cursor
+		 * position. When the two numbers are equal only the cursor position changes (insertion).
+		 *
+		 * This mirrors {@link QuickPick.valueSelection} semantics for consistency.
 		 */
-		replacementIndex: number;
-
-		/**
-		 * The length of the range to replace.
-		 */
-		replacementLength: number;
+		valueSelection: readonly [number, number] | undefined;
 
 		/**
 		 * The completion's detail which appears on the right of the list.
@@ -8267,14 +8266,12 @@ declare module 'vscode' {
 		 * Creates a new terminal completion item.
 		 *
 		 * @param label The label of the completion.
-		 * @param replacementIndex The index of the start of the range to replace.
-		 * @param replacementLength The length of the range to replace.
+		 * @param valueSelection The inclusive start and exclusive end index of the text to replace.
 		 * @param kind The completion's kind.
 		 */
 		constructor(
 			label: string | CompletionItemLabel,
-			replacementIndex: number,
-			replacementLength: number,
+			valueSelection: readonly [number, number] | undefined,
 			kind?: TerminalCompletionItemKind
 		);
 	}
@@ -8397,7 +8394,7 @@ declare module 'vscode' {
 	 *
 	 * @example <caption>Create a completion list that requests files for the terminal cwd</caption>
 	 * const list = new TerminalCompletionList([
-	 * 	{ label: 'ls', replacementIndex: 0, replacementLength: 0, kind: TerminalCompletionItemKind.Method }
+	 * 	{ label: 'ls', valueSelection: [0, 0], kind: TerminalCompletionItemKind.Method }
 	 * ], { showFiles: true, cwd: Uri.file('/home/user') });
 	 */
 	export class TerminalCompletionList<T extends TerminalCompletionItem = TerminalCompletionItem> {
@@ -12032,7 +12029,7 @@ declare module 'vscode' {
 		 * window.registerTerminalCompletionProvider('extension-provider-id', {
 		 * 	provideTerminalCompletions(terminal, context) {
 		 * 		return new TerminalCompletionList([
-		 * 			{ label: '--version', replacementIndex: Math.max(0, context.cursorPosition - 2), replacementLength: 2 }
+		 * 			{ label: '--version', valueSelection: [Math.max(0, context.cursorPosition - 2), 2] }
 		 * 		]);
 		 * 	}
 		 * });

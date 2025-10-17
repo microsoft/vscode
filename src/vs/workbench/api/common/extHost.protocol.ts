@@ -2491,8 +2491,7 @@ export interface ITerminalCompletionItemDto {
 	isFile?: boolean | undefined;
 	isDirectory?: boolean | undefined;
 	isKeyword?: boolean | undefined;
-	replacementIndex: number;
-	replacementLength: number;
+	valueSelection: readonly [number, number] | undefined;
 }
 
 export interface ITerminalCompletionProvider {

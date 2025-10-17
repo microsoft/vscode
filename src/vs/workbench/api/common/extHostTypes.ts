@@ -946,10 +946,9 @@ export class TerminalCompletionItem implements vscode.TerminalCompletionItem {
 	isFile?: boolean | undefined;
 	isDirectory?: boolean | undefined;
 	isKeyword?: boolean | undefined;
-	replacementIndex: number;
-	replacementLength: number;
+	valueSelection: readonly [number, number] | undefined;
 
-	constructor(label: string | CompletionItemLabel, icon?: ThemeIcon, detail?: string, documentation?: string | vscode.MarkdownString, isFile?: boolean, isDirectory?: boolean, isKeyword?: boolean, replacementIndex?: number, replacementLength?: number) {
+	constructor(label: string | CompletionItemLabel, icon?: ThemeIcon, detail?: string, documentation?: string | vscode.MarkdownString, isFile?: boolean, isDirectory?: boolean, isKeyword?: boolean, valueSelection?: readonly [number, number]) {
 		this.label = label;
 		this.icon = icon;
 		this.detail = detail;
@@ -957,8 +956,7 @@ export class TerminalCompletionItem implements vscode.TerminalCompletionItem {
 		this.isFile = isFile;
 		this.isDirectory = isDirectory;
 		this.isKeyword = isKeyword;
-		this.replacementIndex = replacementIndex ?? 0;
-		this.replacementLength = replacementLength ?? 0;
+		this.valueSelection = valueSelection;
 	}
 }
 

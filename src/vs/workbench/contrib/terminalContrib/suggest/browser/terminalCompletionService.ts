@@ -211,7 +211,8 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			this._logService.trace(`TerminalCompletionService#_collectCompletions amend ${completionItems.length} completion items`);
 			if (shellType === GeneralShellType.PowerShell) {
 				for (const completion of completionItems) {
-					completion.isFileOverride ??= completion.kind === TerminalCompletionItemKind.Method && completion.replacementIndex === 0;
+					const start = completion.valueSelection ? completion.valueSelection[0] : 0;
+					completion.isFileOverride ??= completion.kind === TerminalCompletionItemKind.Method && start === 0;
 				}
 			}
 			if (provider.isBuiltin) {
@@ -350,8 +351,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				provider,
 				kind: TerminalCompletionItemKind.Folder,
 				detail: lastWordFolderResource,
-				replacementIndex: cursorPosition - lastWord.length,
-				replacementLength: lastWord.length
+				valueSelection: [cursorPosition - lastWord.length, cursorPosition]
 			});
 			return resourceCompletions;
 		}
@@ -398,8 +398,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				provider,
 				kind: TerminalCompletionItemKind.Folder,
 				detail: getFriendlyPath(this._labelService, lastWordFolderResource, resourceOptions.pathSeparator, TerminalCompletionItemKind.Folder, shellType),
-				replacementIndex: cursorPosition - lastWord.length,
-				replacementLength: lastWord.length
+				valueSelection: [cursorPosition - lastWord.length, cursorPosition]
 			});
 		}
 
@@ -468,8 +467,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				provider,
 				kind,
 				detail: detail ?? getFriendlyPath(this._labelService, child.resource, resourceOptions.pathSeparator, kind, shellType),
-				replacementIndex: cursorPosition - lastWord.length,
-				replacementLength: lastWord.length
+				valueSelection: [cursorPosition - lastWord.length, cursorPosition]
 			});
 		})()));
 
@@ -507,8 +505,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 											provider,
 											kind,
 											detail,
-											replacementIndex: cursorPosition - lastWord.length,
-											replacementLength: lastWord.length
+											valueSelection: [cursorPosition - lastWord.length, cursorPosition]
 										});
 									}
 								}
@@ -535,8 +532,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				provider,
 				kind: TerminalCompletionItemKind.Folder,
 				detail: getFriendlyPath(this._labelService, parentDir, resourceOptions.pathSeparator, TerminalCompletionItemKind.Folder, shellType),
-				replacementIndex: cursorPosition - lastWord.length,
-				replacementLength: lastWord.length
+				valueSelection: [cursorPosition - lastWord.length, cursorPosition]
 			});
 		}
 
@@ -561,8 +557,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				provider,
 				kind: TerminalCompletionItemKind.Folder,
 				detail: typeof homeResource === 'string' ? homeResource : getFriendlyPath(this._labelService, homeResource, resourceOptions.pathSeparator, TerminalCompletionItemKind.Folder, shellType),
-				replacementIndex: cursorPosition - lastWord.length,
-				replacementLength: lastWord.length
+				valueSelection: [cursorPosition - lastWord.length, cursorPosition]
 			});
 		}
 
