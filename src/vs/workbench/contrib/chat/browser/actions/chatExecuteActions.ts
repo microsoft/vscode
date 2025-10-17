@@ -197,6 +197,11 @@ export class ChatSubmitAction extends SubmitAction {
 						ChatContextKeys.withinEditSessionDiff.negate(),
 					),
 					group: 'navigation',
+					alt: {
+						id: 'workbench.action.chat.sendToNewChat',
+						title: localize2('chat.newChat.label', "Send to New Chat"),
+						icon: Codicon.plus
+					}
 				}]
 		});
 	}
@@ -543,6 +548,11 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 						ChatContextKeys.requestInProgress.negate(),
 						menuCondition),
 					group: 'navigation',
+					alt: {
+						id: 'workbench.action.chat.sendToNewChat',
+						title: localize2('chat.newChat.label', "Send to New Chat"),
+						icon: Codicon.plus
+					}
 				}]
 		});
 	}
