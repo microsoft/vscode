@@ -86,7 +86,6 @@ export class InlineChatZoneWidget extends ZoneWidget {
 					telemetrySource: 'interactiveEditorWidget-toolbar',
 					inputSideToolbar: MENU_INLINE_CHAT_SIDE
 				},
-				enableImplicitContext: true,
 				...options,
 				rendererOptions: {
 					renderTextEditsAsSummary: (uri) => {
