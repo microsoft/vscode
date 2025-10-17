@@ -167,7 +167,7 @@ export class OpenChatSessionInNewWindowAction extends Action2 {
 	constructor() {
 		super({
 			id: OpenChatSessionInNewWindowAction.id,
-			title: localize('chat.openSessionInNewWindow.label', "Open Chat in New Window"),
+			title: localize('chat.openSessionInNewWindow.label', "Move Chat into New Window"),
 			category: CHAT_CATEGORY,
 			f1: false,
 		});
@@ -224,7 +224,7 @@ export class OpenChatSessionInNewEditorGroupAction extends Action2 {
 	constructor() {
 		super({
 			id: OpenChatSessionInNewEditorGroupAction.id,
-			title: localize('chat.openSessionInNewEditorGroup.label', "Open Chat to the Side"),
+			title: localize('chat.openSessionInNewEditorGroup.label', "Move Chat to the Side"),
 			category: CHAT_CATEGORY,
 			f1: false,
 		});
@@ -281,7 +281,7 @@ export class OpenChatSessionInSidebarAction extends Action2 {
 	constructor() {
 		super({
 			id: OpenChatSessionInSidebarAction.id,
-			title: localize('chat.openSessionInSidebar.label', "Open Chat in Sidebar"),
+			title: localize('chat.openSessionInSidebar.label', "Move Chat into Side Bar"),
 			category: CHAT_CATEGORY,
 			f1: false,
 		});
