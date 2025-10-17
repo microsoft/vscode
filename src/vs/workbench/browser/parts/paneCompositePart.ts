@@ -368,6 +368,16 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 			}
 		));
 
+		this._register(this.globalToolBar.onDidRerenderItem(() => {
+			this.layoutCompositeBar();
+		}));
+
+		if (this.toolBar) {
+			this._register(this.toolBar.onDidRerenderItem(() => {
+				this.layoutCompositeBar();
+			}));
+		}
+
 		return titleArea;
 	}
 
