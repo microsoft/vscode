@@ -10,7 +10,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-permissions: {}
+permissions:
+  contents: read
+  id-token: write
+  pull-requests: write
 
 env:
   VSCODE_QUALITY: 'oss'
