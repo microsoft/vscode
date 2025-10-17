@@ -382,13 +382,6 @@ export class SessionsViewPane extends ViewPane {
 			}
 		}));
 
-		// Handle visibility changes to load data
-		this._register(this.onDidChangeBodyVisibility(async visible => {
-			if (visible && this.tree) {
-				await this.loadDataWithProgress();
-			}
-		}));
-
 		// Initially load data if visible
 		if (this.isBodyVisible() && this.tree) {
 			this.loadDataWithProgress();
