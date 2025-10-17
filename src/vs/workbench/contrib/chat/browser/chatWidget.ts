@@ -2463,11 +2463,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			const isUserQuery = !query;
 
-			if (!this.viewModel.editing) {
-				// process the prompt command
-				await this._applyPromptFileIfSet(requestInputs);
-				await this._autoAttachInstructions(requestInputs);
-			}
+			// process the prompt command
+			await this._applyPromptFileIfSet(requestInputs);
+			await this._autoAttachInstructions(requestInputs);
 
 			if (this.viewOptions.enableWorkingSet !== undefined && this.input.currentModeKind === ChatModeKind.Edit && !this.chatService.edits2Enabled) {
 				const uniqueWorkingSetEntries = new ResourceSet(); // NOTE: this is used for bookkeeping so the UI can avoid rendering references in the UI that are already shown in the working set
