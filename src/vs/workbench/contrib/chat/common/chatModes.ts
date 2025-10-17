@@ -99,7 +99,6 @@ export class ChatModeService extends Disposable implements IChatModeService {
 						description: cachedMode.description,
 						tools: cachedMode.customTools,
 						model: cachedMode.model,
-						handoffs: cachedMode.handoffs,
 						modeInstructions: cachedMode.modeInstructions ?? { content: cachedMode.body ?? '', toolReferences: [] },
 						handOffs: cachedMode.handOffs
 					};
@@ -202,10 +201,10 @@ export interface IChatModeData {
 	readonly description?: string;
 	readonly kind: ChatModeKind;
 	readonly customTools?: readonly string[];
-		readonly model?: string;
-		readonly modeInstructions?: IChatModeInstructions;
-		readonly body?: string; /* deprecated */
-		readonly handOffs?: readonly IHandOff[];
+	readonly model?: string;
+	readonly modeInstructions?: IChatModeInstructions;
+	readonly body?: string; /* deprecated */
+	readonly handOffs?: readonly IHandOff[];
 	readonly uri?: URI;
 }
 
