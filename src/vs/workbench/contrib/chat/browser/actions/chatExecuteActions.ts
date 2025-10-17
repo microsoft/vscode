@@ -618,7 +618,6 @@ export class CreateRemoteAgentJobAction extends Action2 {
 					when: ContextKeyExpr.and(
 						ChatContextKeys.hasRemoteCodingAgent,
 						ChatContextKeys.lockedToCodingAgent.negate(),
-						ContextKeyExpr.equals(`config.${ChatConfiguration.DelegateToCodingAgentInSecondaryMenu}`, false)
 					),
 				}
 			]
