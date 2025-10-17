@@ -315,7 +315,7 @@ export class PromptFilePickers {
 				const shouldShowFolderPath = folderName?.toLowerCase() !== '.github';
 				return {
 					uri,
-					description: shouldShowFolderPath ? this._labelService.getUriLabel(dirname(uri), { relative: true }) : undefined,
+					description: shouldShowFolderPath ? folderName : undefined,
 					storage: PromptsStorage.local,
 					type: options.type
 				} satisfies IPromptPath;
