@@ -1,0 +1,27 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.agent-sessions-viewer .monaco-list-row > .monaco-tl-row > .monaco-tl-twistie.force-no-twistie {
+	display: none !important;
+}
+
+.agent-sessions-viewer .agent-session-title-row,
+.agent-sessions-viewer .agent-session-details-row {
+	display: flex;
+	line-height: 22px;
+	gap: 6px;
+	align-items: center;
+}
+
+.agent-sessions-viewer .agent-session-item .agent-session-icon {
+	flex-shrink: 0;
+	width: 16px;
+	height: 16px;
+	font-size: 16px;
+}
+
+.agent-sessions-viewer .agent-session-item .agent-session-description {
+	color: var(--vscode-descriptionForeground);
+}

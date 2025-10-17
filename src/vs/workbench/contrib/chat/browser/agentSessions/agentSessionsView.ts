@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/agentsessionsview.css';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { localize2 } from '../../../../../nls.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -25,7 +24,7 @@ import { IThemeService } from '../../../../../platform/theme/common/themeService
 import { WorkbenchCompressibleAsyncDataTree } from '../../../../../platform/list/browser/listService.js';
 import { $, append } from '../../../../../base/browser/dom.js';
 import { AgentSessionsViewModel, IAgentSessionViewModel, IAgentSessionsViewModel } from './agentSessionViewModel.js';
-import { AgentSessionRenderer, AgentSessionsAccessibilityProvider, AgentSessionsCompressionDelegate, AgentSessionsDataSource, AgentSessionsIdentityProvider, AgentSessionsListDelegate } from './agentSessionsList.js';
+import { AgentSessionRenderer, AgentSessionsAccessibilityProvider, AgentSessionsCompressionDelegate, AgentSessionsDataSource, AgentSessionsIdentityProvider, AgentSessionsListDelegate } from './agentSessionsViewer.js';
 
 export class AgentSessionsView extends ViewPane {
 
@@ -55,10 +54,10 @@ export class AgentSessionsView extends ViewPane {
 
 		container.classList.add('agent-sessions-view');
 
-		this.listContainer = append(container, $('.agent-sessions-list-container'));
+		this.listContainer = append(container, $('.agent-sessions-viewer'));
 		this.createList(this.listContainer);
 
-		this._register(this.onDidChangeBodyVisibility(async visible => {
+		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (!visible || this.sessionsViewModel) {
 				return;
 			}

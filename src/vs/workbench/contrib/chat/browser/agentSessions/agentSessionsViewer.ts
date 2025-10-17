@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './media/agentsessionsviewer.css';
 import { $, append } from '../../../../../base/browser/dom.js';
 import { localize } from '../../../../../nls.js';
 import { IIdentityProvider, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
@@ -13,11 +14,14 @@ import { ICompressibleTreeRenderer } from '../../../../../base/browser/ui/tree/o
 import { ITreeNode, ITreeElementRenderDetails, IAsyncDataSource } from '../../../../../base/browser/ui/tree/tree.js';
 import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { IAgentSessionViewModel, IAgentSessionsViewModel, isAgentSession, isAgentSessionsViewModel } from './agentSessionViewModel.js';
+import { IconLabel } from '../../../../../base/browser/ui/iconLabel/iconLabel.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 
 export class AgentSessionsListDelegate implements IListVirtualDelegate<IAgentSessionViewModel> {
 
 	getHeight(element: IAgentSessionViewModel): number {
-		return 22;
+		return 44;
 	}
 
 	getTemplateId(element: IAgentSessionViewModel): string {
@@ -35,6 +39,12 @@ export class AgentSessionsCompressionDelegate implements ITreeCompressionDelegat
 interface IAgentSessionItemTemplate {
 	readonly element: HTMLElement;
 
+	readonly title: IconLabel;
+	readonly icon: HTMLElement;
+	readonly timestamp: HTMLElement;
+
+	readonly description: HTMLElement;
+
 	readonly elementDisposables: DisposableStore;
 	readonly disposables: IDisposable;
 }
@@ -45,28 +55,42 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 	get templateId(): string { return AgentSessionRenderer.TEMPLATE_ID; }
 
 	renderTemplate(container: HTMLElement): IAgentSessionItemTemplate {
-
-		// hack: force disable twistie
-		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-no-twistie');
+		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-no-twistie'); // hack, but no API for hiding twistie on tree
 
 		const disposables = new DisposableStore();
 		const elementDisposables = disposables.add(new DisposableStore());
-		const element = append(container, $('.history-item'));
 
-		return { element, elementDisposables, disposables };
+		const element = append(container, $('.agent-session-item'));
+
+		// Title
+		const titleRow = append(element, $('.agent-session-title-row'));
+		const icon = append(titleRow, $('.agent-session-icon'));
+
+		const title = disposables.add(new IconLabel(titleRow, { supportHighlights: true, supportIcons: true }));
+
+		const timestampContainer = append(titleRow, $('.agent-session-timestamp-container'));
+		const timestamp = append(timestampContainer, $('.agent-session-timestamp'));
+
+		// Details
+		const detailsRow = append(element, $('.agent-session-details-row'));
+		const description = append(detailsRow, $('.agent-session-description'));
+
+		return { element, title, icon, timestamp, description, elementDisposables, disposables };
 	}
 
 	renderElement(session: ITreeNode<IAgentSessionViewModel, void>, index: number, template: IAgentSessionItemTemplate, details?: ITreeElementRenderDetails): void {
 		template.elementDisposables.clear();
-		template.element.textContent = session.element.title;
+
+		template.title.setLabel(session.element.title);
+
+		template.icon.className = `agent-session-icon ${ThemeIcon.asClassName(Codicon.circle)}`;
+
+		template.timestamp.textContent = new Date(session.element.timestamp).toLocaleString();
+		template.description.textContent = session.element.description;
 	}
 
 	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<IAgentSessionViewModel>, void>, index: number, templateData: IAgentSessionItemTemplate, details?: ITreeElementRenderDetails): void {
 		throw new Error('Should never happen since session is incompressible');
-	}
-
-	renderTwistie?(element: IAgentSessionViewModel, twistieElement: HTMLElement): boolean {
-		return false;
 	}
 
 	disposeElement(element: ITreeNode<IAgentSessionViewModel, void>, index: number, template: IAgentSessionItemTemplate, details?: ITreeElementRenderDetails): void {
@@ -81,7 +105,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 export class AgentSessionsAccessibilityProvider implements IListAccessibilityProvider<IAgentSessionViewModel> {
 
 	getWidgetAriaLabel(): string {
-		return localize('scm history', "Agent Sessions");
+		return localize('agentSessions', "Agent Sessions");
 	}
 
 	getAriaLabel(element: IAgentSessionViewModel): string | null {
