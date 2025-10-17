@@ -411,7 +411,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 			this.update({
 				buttons: buttons.map<TransferQuickInputButton>((button, i) => {
 					return {
-						iconPathDto: IconPath.from(button.iconPath)!,
+						iconPathDto: IconPath.from(button.iconPath),
 						tooltip: button.tooltip,
 						handle: button === QuickInputButtons.Back ? -1 : i,
 						location: button.location,
@@ -581,7 +581,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 						resourceUri: item.resourceUri,
 						buttons: item.buttons?.map<TransferQuickInputButton>((button, i) => {
 							return {
-								iconPathDto: IconPath.from(button.iconPath)!,
+								iconPathDto: IconPath.from(button.iconPath),
 								tooltip: button.tooltip,
 								handle: i
 							};

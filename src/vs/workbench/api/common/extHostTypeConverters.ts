@@ -3739,6 +3739,9 @@ export namespace IconPath {
 	 * Such strings are treated as file paths and converted using {@link URI.file} function, not {@link URI.from}.
 	 * See https://github.com/microsoft/vscode/issues/110432#issuecomment-726144556 for context.
 	 */
+	export function from(value: undefined): undefined;
+	export function from(value: vscode.IconPath): extHostProtocol.IconPathDto;
+	export function from(value: vscode.IconPath | undefined): extHostProtocol.IconPathDto | undefined;
 	export function from(value: vscode.IconPath | undefined): extHostProtocol.IconPathDto | undefined {
 		if (!value) {
 			return undefined;
@@ -3761,6 +3764,9 @@ export namespace IconPath {
 	 * Converts a {@link extHostProtocol.IconPathDto} to a {@link vscode.IconPath}.
 	 * @note This is a strict conversion and we assume types are correct in this case.
 	 */
+	export function to(value: undefined): undefined;
+	export function to(value: extHostProtocol.IconPathDto): vscode.IconPath;
+	export function to(value: extHostProtocol.IconPathDto | undefined): vscode.IconPath | undefined;
 	export function to(value: extHostProtocol.IconPathDto | undefined): vscode.IconPath | undefined {
 		if (!value) {
 			return undefined;
