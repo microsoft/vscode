@@ -51,7 +51,6 @@ export const enum TerminalCapability {
 	 * The terminal can detect the prompt type being used (e.g., p10k, posh-git).
 	 */
 	PromptTypeDetection,
-
 }
 
 /**
@@ -134,7 +133,9 @@ export interface ITerminalCapabilityImplMap {
 	[TerminalCapability.BufferMarkDetection]: IBufferMarkCapability;
 	[TerminalCapability.ShellEnvDetection]: IShellEnvDetectionCapability;
 	[TerminalCapability.PromptTypeDetection]: IPromptTypeDetectionCapability;
-}export interface ICwdDetectionCapability {
+}
+
+export interface ICwdDetectionCapability {
 	readonly type: TerminalCapability.CwdDetection;
 	readonly onDidChangeCwd: Event<string>;
 	readonly cwds: string[];
