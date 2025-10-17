@@ -11,9 +11,9 @@ import { IListVirtualDelegate, IIdentityProvider } from '../../../../base/browse
 import { IAsyncDataSource, ITreeEvent, ITreeContextMenuEvent } from '../../../../base/browser/ui/tree/tree.js';
 import { WorkbenchCompressibleAsyncDataTree } from '../../../../platform/list/browser/listService.js';
 import { ISCMRepository, ISCMService, ISCMViewService } from '../common/scm.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -24,11 +24,13 @@ import { RepositoryActionRunner, RepositoryRenderer } from './scmRepositoryRende
 import { collectContextMenuActions, getActionViewItemProvider, isSCMRepository } from './util.js';
 import { Orientation } from '../../../../base/browser/ui/sash/sash.js';
 import { Iterable } from '../../../../base/common/iterator.js';
-import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { MenuId, registerAction2, Action2 } from '../../../../platform/actions/common/actions.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { autorun, IObservable, observableFromEvent, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { Sequencer } from '../../../../base/common/async.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { RepositoryContextKeys } from './scmViewService.js';
 
 class ListDelegate implements IListVirtualDelegate<ISCMRepository> {
 
@@ -190,6 +192,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 		this._register(this.treeDataSource);
 
 		const compressionEnabled = observableConfigValue('scm.compactFolders', true, this.configurationService);
+		const selectionModeConfig = observableConfigValue<'multiple' | 'single'>('scm.repositories.selectionMode', 'multiple', this.configurationService);
 
 		this.tree = this.instantiationService.createInstance(
 			WorkbenchCompressibleAsyncDataTree,
@@ -214,6 +217,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 				},
 				compressionEnabled: compressionEnabled.get(),
 				overrideStyles: this.getLocationBasedColors().listOverrideStyles,
+				multipleSelectionSupport: selectionModeConfig.get() === 'multiple',
 				expandOnDoubleClick: false,
 				expandOnlyOnTwistieClick: true,
 				accessibilityProvider: {
@@ -227,6 +231,11 @@ export class SCMRepositoriesViewPane extends ViewPane {
 			}
 		) as WorkbenchCompressibleAsyncDataTree<ISCMViewService, ISCMRepository, any>;
 		this._register(this.tree);
+
+		this._register(autorun(reader => {
+			const selectionMode = selectionModeConfig.read(reader);
+			this.tree.updateOptions({ multipleSelectionSupport: selectionMode === 'multiple' });
+		}));
 
 		this._register(this.tree.onDidChangeSelection(this.onTreeSelectionChange, this));
 		this._register(this.tree.onDidChangeFocus(this.onTreeDidChangeFocus, this));
@@ -372,3 +381,59 @@ export class SCMRepositoriesViewPane extends ViewPane {
 		super.dispose();
 	}
 }
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'scm.repositories.pinSelection',
+			title: localize('scmPinSelection', "Pin the Current Selection"),
+			f1: false,
+			icon: Codicon.pin,
+			menu: {
+				id: MenuId.SCMSourceControlTitle,
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.has('scm.providerCount'),
+					ContextKeyExpr.greater('scm.providerCount', 1),
+					RepositoryContextKeys.RepositoryPinned.isEqualTo(false)),
+				group: 'navigation',
+				order: 1
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const scmViewService = accessor.get(ISCMViewService);
+		const activeRepository = scmViewService.activeRepository.get();
+		if (!activeRepository) {
+			return;
+		}
+
+		scmViewService.pinActiveRepository(activeRepository.repository);
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'scm.repositories.unpinSelection',
+			title: localize('scmUnpinSelection', "Unpin the Current Selection"),
+			f1: false,
+			icon: Codicon.pinned,
+			menu: {
+				id: MenuId.SCMSourceControlTitle,
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.has('scm.providerCount'),
+					ContextKeyExpr.greater('scm.providerCount', 1),
+					RepositoryContextKeys.RepositoryPinned.isEqualTo(true)),
+				group: 'navigation',
+				order: 2
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const scmViewService = accessor.get(ISCMViewService);
+		scmViewService.pinActiveRepository(undefined);
+	}
+});
+

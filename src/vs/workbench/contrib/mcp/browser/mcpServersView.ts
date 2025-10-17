@@ -26,12 +26,12 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { getLocationBasedViewColors } from '../../../browser/parts/views/viewPane.js';
 import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.js';
 import { IViewDescriptorService, IViewsRegistry, ViewContainerLocation, Extensions as ViewExtensions } from '../../../common/views.js';
-import { HasInstalledMcpServersContext, IMcpWorkbenchService, InstalledMcpServersViewId, IWorkbenchMcpServer, McpServerContainers, McpServerEnablementState, McpServerInstallState, McpServersGalleryStatusContext } from '../common/mcpTypes.js';
+import { HasInstalledMcpServersContext, IMcpWorkbenchService, InstalledMcpServersViewId, IWorkbenchMcpServer, McpServerContainers, McpServersGalleryStatusContext } from '../common/mcpTypes.js';
 import { DropDownAction, getContextMenuActions, InstallAction, InstallingLabelAction, ManageMcpServerAction, McpServerStatusAction } from './mcpServerActions.js';
 import { PublisherWidget, StarredWidget, McpServerIconWidget, McpServerHoverWidget, McpServerScopeBadgeWidget } from './mcpServerWidgets.js';
 import { ActionRunner, IAction, Separator } from '../../../../base/common/actions.js';
 import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { IAllowedMcpServersService, mcpGalleryServiceEnablementConfig, mcpGalleryServiceUrlConfig } from '../../../../platform/mcp/common/mcpManagement.js';
+import { mcpGalleryServiceEnablementConfig, mcpGalleryServiceUrlConfig } from '../../../../platform/mcp/common/mcpManagement.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { alert } from '../../../../base/browser/ui/aria/aria.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -328,8 +328,8 @@ export class McpServersListView extends AbstractExtensionsListView<IWorkbenchMcp
 
 		const onDidChangeModel = disposables.add(new Emitter<IPagedModel<IWorkbenchMcpServer>>());
 		let servers = await this.mcpWorkbenchService.queryLocal();
-		disposables.add(Event.debounce(Event.filter(this.mcpWorkbenchService.onChange, e => e?.installState === McpServerInstallState.Installed), () => undefined)(() => {
-			const mergedMcpServers = this.mergeAddedMcpServers(servers, [...this.mcpWorkbenchService.local]);
+		disposables.add(Event.debounce(this.mcpWorkbenchService.onChange, () => undefined)(() => {
+			const mergedMcpServers = this.mergeChangedMcpServers(servers, [...this.mcpWorkbenchService.local]);
 			if (mergedMcpServers) {
 				servers = mergedMcpServers;
 				onDidChangeModel.fire(new PagedModel(servers));
@@ -339,7 +339,7 @@ export class McpServersListView extends AbstractExtensionsListView<IWorkbenchMcp
 		return { model: new PagedModel(servers), onDidChangeModel: onDidChangeModel.event, disposables };
 	}
 
-	private mergeAddedMcpServers(mcpServers: IWorkbenchMcpServer[], newMcpServers: IWorkbenchMcpServer[]): IWorkbenchMcpServer[] | undefined {
+	private mergeChangedMcpServers(mcpServers: IWorkbenchMcpServer[], newMcpServers: IWorkbenchMcpServer[]): IWorkbenchMcpServer[] | undefined {
 		const oldMcpServers = [...mcpServers];
 		const findPreviousMcpServerIndex = (from: number): number => {
 			let index = -1;
@@ -355,16 +355,35 @@ export class McpServersListView extends AbstractExtensionsListView<IWorkbenchMcp
 
 		let hasChanged: boolean = false;
 		for (let index = 0; index < newMcpServers.length; index++) {
-			const mcpServer = newMcpServers[index];
-			if (mcpServers.every(r => r.id !== mcpServer.id)) {
+			const newMcpServer = newMcpServers[index];
+			if (mcpServers.every(r => r.id !== newMcpServer.id)) {
 				hasChanged = true;
-				mcpServers.splice(findPreviousMcpServerIndex(index - 1) + 1, 0, mcpServer);
+				mcpServers.splice(findPreviousMcpServerIndex(index - 1) + 1, 0, newMcpServer);
+			}
+		}
+
+		for (let index = mcpServers.length - 1; index >= 0; index--) {
+			const oldMcpServer = mcpServers[index];
+			if (newMcpServers.every(r => r.id !== oldMcpServer.id) && newMcpServers.some(r => r.name === oldMcpServer.name)) {
+				hasChanged = true;
+				mcpServers.splice(index, 1);
+			}
+		}
+
+		if (!hasChanged) {
+			if (mcpServers.length === newMcpServers.length) {
+				for (let index = 0; index < newMcpServers.length; index++) {
+					if (mcpServers[index]?.id !== newMcpServers[index]?.id) {
+						hasChanged = true;
+						mcpServers = newMcpServers;
+						break;
+					}
+				}
 			}
 		}
 
 		return hasChanged ? mcpServers : undefined;
 	}
-
 }
 
 interface IMcpServerTemplateData {
@@ -386,8 +405,8 @@ class McpServerRenderer implements IPagedRenderer<IWorkbenchMcpServer, IMcpServe
 
 	constructor(
 		private readonly options: ExtensionListRendererOptions,
-		@IAllowedMcpServersService private readonly allowedMcpServersService: IAllowedMcpServersService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IMcpWorkbenchService private readonly mcpWorkbenchService: IMcpWorkbenchService,
 		@INotificationService private readonly notificationService: INotificationService,
 	) { }
 
@@ -418,7 +437,7 @@ class McpServerRenderer implements IPagedRenderer<IWorkbenchMcpServer, IMcpServe
 		const mcpServerStatusAction = this.instantiationService.createInstance(McpServerStatusAction);
 
 		const actions = [
-			this.instantiationService.createInstance(InstallAction, false),
+			this.instantiationService.createInstance(InstallAction, true),
 			this.instantiationService.createInstance(InstallingLabelAction),
 			this.instantiationService.createInstance(ManageMcpServerAction, false),
 			mcpServerStatusAction
@@ -465,15 +484,13 @@ class McpServerRenderer implements IPagedRenderer<IWorkbenchMcpServer, IMcpServe
 		data.starred.style.display = '';
 		data.mcpServer = mcpServer;
 
-		const updateEnablement = () => {
-			const disabled = !!mcpServer.local &&
-				(mcpServer.installState === McpServerInstallState.Installed
-					? mcpServer.enablementState === McpServerEnablementState.DisabledByAccess
-					: mcpServer.installState === McpServerInstallState.Uninstalled);
-			data.root.classList.toggle('disabled', disabled);
-		};
+		const updateEnablement = () => data.root.classList.toggle('disabled', !!mcpServer.runtimeState?.disabled);
 		updateEnablement();
-		this.allowedMcpServersService.onDidChangeAllowedMcpServers(() => updateEnablement(), this, data.mcpServerDisposables);
+		data.mcpServerDisposables.push(this.mcpWorkbenchService.onChange(e => {
+			if (!e || e.id === mcpServer.id) {
+				updateEnablement();
+			}
+		}));
 	}
 
 	disposeElement(mcpServer: IWorkbenchMcpServer, index: number, data: IMcpServerTemplateData): void {

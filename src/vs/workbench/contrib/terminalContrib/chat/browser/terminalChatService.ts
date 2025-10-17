@@ -51,6 +51,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 
 		this._register(this._terminalService.onDidChangeInstances(() => this._updateHiddenContextKey()));
 		this._updateHiddenContextKey();
+
 		this._register(this._lifecycleService.onBeforeShutdown(async e => {
 			let veto = false;
 			// Show all hidden terminals before shutdown so they are restored

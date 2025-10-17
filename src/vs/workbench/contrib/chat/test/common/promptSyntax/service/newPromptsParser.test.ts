@@ -57,6 +57,66 @@ suite('NewPromptsParser', () => {
 		assert.deepEqual(result.header.tools, ['tool1', 'tool2']);
 	});
 
+	test('mode with handoff', async () => {
+		const uri = URI.parse('file:///test/chatmode.md');
+		const content = [
+			/* 01 */'---',
+			/* 02 */`description: "Agent test"`,
+			/* 03 */'model: GPT 4.1',
+			/* 04 */'handoffs:',
+			/* 05 */'  - label: "Implement"',
+			/* 06 */'    agent: Default',
+			/* 07 */'    prompt: "Implement the plan"',
+			/* 08 */'    send: false',
+			/* 09 */'  - label: "Save"',
+			/* 10 */'    agent: Default',
+			/* 11 */'    prompt: "Save the plan to a file"',
+			/* 12 */'    send: true',
+			/* 13 */'---',
+		].join('\n');
+		const result = new NewPromptsParser().parse(uri, content);
+		assert.deepEqual(result.uri, uri);
+		assert.ok(result.header);
+		assert.deepEqual(result.header.range, { startLineNumber: 2, startColumn: 1, endLineNumber: 13, endColumn: 1 });
+		assert.deepEqual(result.header.attributes, [
+			{ key: 'description', range: new Range(2, 1, 2, 26), value: { type: 'string', value: 'Agent test', range: new Range(2, 14, 2, 26) } },
+			{ key: 'model', range: new Range(3, 1, 3, 15), value: { type: 'string', value: 'GPT 4.1', range: new Range(3, 8, 3, 15) } },
+			{
+				key: 'handoffs', range: new Range(4, 1, 12, 15), value: {
+					type: 'array',
+					range: new Range(5, 3, 12, 15),
+					items: [
+						{
+							type: 'object', range: new Range(5, 5, 8, 16),
+							properties: [
+								{ key: { type: 'string', value: 'label', range: new Range(5, 5, 5, 10) }, value: { type: 'string', value: 'Implement', range: new Range(5, 12, 5, 23) } },
+								{ key: { type: 'string', value: 'agent', range: new Range(6, 5, 6, 10) }, value: { type: 'string', value: 'Default', range: new Range(6, 12, 6, 19) } },
+								{ key: { type: 'string', value: 'prompt', range: new Range(7, 5, 7, 11) }, value: { type: 'string', value: 'Implement the plan', range: new Range(7, 13, 7, 33) } },
+								{ key: { type: 'string', value: 'send', range: new Range(8, 5, 8, 9) }, value: { type: 'boolean', value: false, range: new Range(8, 11, 8, 16) } },
+							]
+						},
+						{
+							type: 'object', range: new Range(9, 5, 12, 15),
+							properties: [
+								{ key: { type: 'string', value: 'label', range: new Range(9, 5, 9, 10) }, value: { type: 'string', value: 'Save', range: new Range(9, 12, 9, 18) } },
+								{ key: { type: 'string', value: 'agent', range: new Range(10, 5, 10, 10) }, value: { type: 'string', value: 'Default', range: new Range(10, 12, 10, 19) } },
+								{ key: { type: 'string', value: 'prompt', range: new Range(11, 5, 11, 11) }, value: { type: 'string', value: 'Save the plan to a file', range: new Range(11, 13, 11, 38) } },
+								{ key: { type: 'string', value: 'send', range: new Range(12, 5, 12, 9) }, value: { type: 'boolean', value: true, range: new Range(12, 11, 12, 15) } },
+							]
+						},
+					]
+				}
+			},
+		]);
+		assert.deepEqual(result.header.description, 'Agent test');
+		assert.deepEqual(result.header.model, 'GPT 4.1');
+		assert.ok(result.header.handOffs);
+		assert.deepEqual(result.header.handOffs, [
+			{ label: 'Implement', agent: 'Default', prompt: 'Implement the plan', send: false },
+			{ label: 'Save', agent: 'Default', prompt: 'Save the plan to a file', send: true }
+		]);
+	});
+
 	test('instructions', async () => {
 		const uri = URI.parse('file:///test/prompt1.md');
 		const content = [
