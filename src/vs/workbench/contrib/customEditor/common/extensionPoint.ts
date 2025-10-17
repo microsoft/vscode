@@ -20,6 +20,7 @@ const Fields = Object.freeze({
 	displayName: 'displayName',
 	selector: 'selector',
 	priority: 'priority',
+	when: 'when'
 });
 
 export interface ICustomEditorsExtensionPoint {
@@ -27,6 +28,7 @@ export interface ICustomEditorsExtensionPoint {
 	readonly [Fields.displayName]: string;
 	readonly [Fields.selector]?: readonly CustomEditorSelector[];
 	readonly [Fields.priority]?: string;
+	readonly [Fields.when]?: string;
 }
 
 const CustomEditorsContribution: IJSONSchema = {
@@ -87,6 +89,10 @@ const CustomEditorsContribution: IJSONSchema = {
 					nls.localize('contributes.priority.option', 'The editor is not automatically used when the user opens a resource, but a user can switch to the editor using the `Reopen With` command.'),
 				],
 				default: 'default'
+			},
+			[Fields.when]: {
+				type: 'string',
+				description: nls.localize('contributes.customEditors.when', "Condition which must be true to show this custom editor.")
 			}
 		}
 	}
