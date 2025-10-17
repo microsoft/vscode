@@ -36,6 +36,14 @@ declare module 'vscode' {
 		readonly onDidChangeChatSessionItems: Event<void>;
 
 		/**
+		 * Provides a list of chat sessions.
+		 */
+		// TODO: Do we need a flag to try auth if needed?
+		provideChatSessionItems(token: CancellationToken): ProviderResult<ChatSessionItem[]>;
+
+		// #region Unstable parts of API
+
+		/**
 		 * Event that the provider can fire to signal that the current (original) chat session should be replaced with a new (modified) chat session.
 		 * The UI can use this information to gracefully migrate the user to the new session.
 		 */
@@ -61,27 +69,16 @@ declare module 'vscode' {
 			metadata?: any;
 		}, token: CancellationToken): ProviderResult<ChatSessionItem>;
 
-		/**
-		 * Provides a list of chat sessions.
-		 */
-		// TODO: Do we need a flag to try auth if needed?
-		provideChatSessionItems(token: CancellationToken): ProviderResult<ChatSessionItem[]>;
+		// #endregion
 	}
 
 	export interface ChatSessionItem {
-		/**
-		 * Unique identifier for the chat session.
-		 *
-		 * @deprecated Will be replaced by `resource`
-		 */
-		id: string;
-
 		/**
 		 * The resource associated with the chat session.
 		 *
 		 * This is uniquely identifies the chat session and is used to open the chat session.
 		 */
-		resource: Uri | undefined;
+		resource: Uri;
 
 		/**
 		 * Human readable name of the session shown in the UI
@@ -179,15 +176,14 @@ declare module 'vscode' {
 		 * @param sessionId The id of the chat session to open.
 		 * @param token A cancellation token that can be used to cancel the operation.
 		 */
-		provideChatSessionContent(sessionId: string, token: CancellationToken): Thenable<ChatSession> | ChatSession;
+		provideChatSessionContent(sessionResource: Uri, token: CancellationToken): Thenable<ChatSession> | ChatSession;
 
 		/**
-		 *
 		 * @param sessionId Identifier of the chat session being updated.
 		 * @param updates Collection of option identifiers and their new values. Only the options that changed are included.
 		 * @param token A cancellation token that can be used to cancel the notification if the session is disposed.
 		 */
-		provideHandleOptionsChange?(sessionId: string, updates: ReadonlyArray<ChatSessionOptionUpdate>, token: CancellationToken): void;
+		provideHandleOptionsChange?(sessionResource: Uri, updates: ReadonlyArray<ChatSessionOptionUpdate>, token: CancellationToken): void;
 
 		/**
 		 * Called as soon as you register (call me once)
@@ -224,12 +220,12 @@ declare module 'vscode' {
 		/**
 		 * Registers a new {@link ChatSessionContentProvider chat session content provider}.
 		 *
-		 * @param chatSessionType A unique identifier for the chat session type. This is used to differentiate between different chat session providers.
+		 * @param scheme The uri-scheme to register for. This must be unique.
 		 * @param provider The provider to register.
 		 *
 		 * @returns A disposable that unregisters the provider when disposed.
 		 */
-		export function registerChatSessionContentProvider(chatSessionType: string, provider: ChatSessionContentProvider, chatParticipant: ChatParticipant, capabilities?: ChatSessionCapabilities): Disposable;
+		export function registerChatSessionContentProvider(scheme: string, provider: ChatSessionContentProvider, chatParticipant: ChatParticipant, capabilities?: ChatSessionCapabilities): Disposable;
 	}
 
 	export interface ChatContext {
@@ -257,26 +253,5 @@ declare module 'vscode' {
 		 * Set of available models.
 		 */
 		models?: LanguageModelChatInformation[];
-	}
-
-	/**
-	 * @deprecated
-	 */
-	export interface ChatSessionShowOptions {
-		/**
-		 * The editor view column to show the chat session in.
-		 *
-		 * If not provided, the chat session will be shown in the chat panel instead.
-		 */
-		readonly viewColumn?: ViewColumn;
-	}
-
-	export namespace window {
-		/**
-		 * Shows a chat session in the panel or editor.
-		 *
-		 * @deprecated
-		 */
-		export function showChatSession(chatSessionType: string, sessionId: string, options: ChatSessionShowOptions): Thenable<void>;
 	}
 }

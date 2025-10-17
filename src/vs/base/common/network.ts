@@ -87,7 +87,11 @@ export namespace Schemas {
 	/** Scheme used for the chat input part */
 	export const vscodeChatInput = 'chatSessionInput';
 
-	/** Scheme for chat session content */
+	/**
+	 * Scheme for chat session content
+	 *
+	 * @deprecated
+	 * */
 	export const vscodeChatSession = 'vscode-chat-session';
 
 	/**

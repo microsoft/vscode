@@ -195,7 +195,7 @@ export class ChatEditor extends EditorPane {
 			this.showLoadingInChatWidget(loadingMessage);
 
 			try {
-				await raceCancellationError(this.chatSessionsService.canResolveContentProvider(chatSessionType), token);
+				await raceCancellationError(this.chatSessionsService.canResolveChatSession(input.resource), token);
 				const contributions = this.chatSessionsService.getAllChatSessionContributions();
 				const contribution = contributions.find(c => c.type === chatSessionType);
 				if (contribution) {

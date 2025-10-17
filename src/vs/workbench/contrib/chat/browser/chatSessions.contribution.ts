@@ -7,6 +7,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../base/common/map.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize, localize2 } from '../../../../nls.js';
@@ -23,7 +24,6 @@ import { ChatEditorInput } from '../browser/chatEditorInput.js';
 import { IChatAgentData, IChatAgentRequest, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { ChatSession, ChatSessionStatus, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionModelInfo, IChatSessionsExtensionPoint, IChatSessionsService } from '../common/chatSessionsService.js';
-import { ChatSessionUri } from '../common/chatUri.js';
 import { ChatAgentLocation, ChatModeKind, VIEWLET_ID } from '../common/constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../common/languageModels.js';
 import { CHAT_CATEGORY } from './actions/chatActions.js';
@@ -121,9 +121,9 @@ class ContributedChatSessionData implements IDisposable {
 	constructor(
 		readonly session: ChatSession,
 		readonly chatSessionType: string,
-		readonly id: string,
+		readonly resource: URI,
 		readonly options: { model?: ILanguageModelChatMetadata } | undefined,
-		private readonly onWillDispose: (session: ChatSession, chatSessionType: string, id: string) => void
+		private readonly onWillDispose: (sessionResource: URI) => void
 	) {
 		this._optionsCache = new Map<string, string>();
 		if (options?.model) {
@@ -131,7 +131,7 @@ class ContributedChatSessionData implements IDisposable {
 		}
 		this._disposableStore = new DisposableStore();
 		this._disposableStore.add(this.session.onWillDispose(() => {
-			this.onWillDispose(this.session, this.chatSessionType, this.id);
+			this.onWillDispose(this.resource);
 		}));
 	}
 
@@ -147,18 +147,27 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	private readonly _onDidChangeItemsProviders = this._register(new Emitter<IChatSessionItemProvider>());
 	readonly onDidChangeItemsProviders: Event<IChatSessionItemProvider> = this._onDidChangeItemsProviders.event;
-	private readonly _contentProviders: Map<string, IChatSessionContentProvider> = new Map();
-	private readonly _contributions: Map<string, IChatSessionsExtensionPoint> = new Map();
+	private readonly _contentProviders: Map</* scheme */ string, IChatSessionContentProvider> = new Map();
+	private readonly _contributions: Map</* scheme */ string, IChatSessionsExtensionPoint> = new Map();
 	private readonly _disposableStores: Map<string, DisposableStore> = new Map();
 	private readonly _contextKeys = new Set<string>();
+
 	private readonly _onDidChangeSessionItems = this._register(new Emitter<string>());
 	readonly onDidChangeSessionItems: Event<string> = this._onDidChangeSessionItems.event;
+
 	private readonly _onDidChangeAvailability = this._register(new Emitter<void>());
 	readonly onDidChangeAvailability: Event<void> = this._onDidChangeAvailability.event;
+
 	private readonly _onDidChangeInProgress = this._register(new Emitter<void>());
 	public get onDidChangeInProgress() { return this._onDidChangeInProgress.event; }
+
 	private readonly inProgressMap: Map<string, number> = new Map();
 	private readonly _sessionTypeModels: Map<string, ILanguageModelChatMetadataAndIdentifier[]> = new Map();
+
+	private readonly _sessions = new ResourceMap<ContributedChatSessionData>();
+
+	// Editable session support
+	private readonly _editableSessions = new ResourceMap<IEditableData>();
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
@@ -317,11 +326,11 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 							fallback: localize('chatEditorContributionName', "{0} chat", contribution.displayName),
 						}
 					};
-					const untitledId = `untitled-${generateUuid()}`;
-					await editorService.openEditor({
-						resource: ChatSessionUri.forSession(type, untitledId),
-						options,
+					const resource = URI.from({
+						scheme: type,
+						path: `/untitled-${generateUuid()}`,
 					});
+					await editorService.openEditor({ resource, options });
 				} catch (e) {
 					logService.error(`Failed to open new '${type}' chat session editor`, e);
 				}
@@ -372,10 +381,10 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	private _disposeSessionsForContribution(contributionId: string): void {
 		// Find and dispose all sessions that belong to this contribution
-		const sessionsToDispose: string[] = [];
-		for (const [sessionKey, sessionData] of this._sessions) {
+		const sessionsToDispose: URI[] = [];
+		for (const [sessionResource, sessionData] of this._sessions) {
 			if (sessionData.chatSessionType === contributionId) {
-				sessionsToDispose.push(sessionKey);
+				sessionsToDispose.push(sessionResource);
 			}
 		}
 
@@ -450,20 +459,19 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return this._itemsProviders.has(chatViewType);
 	}
 
-	async canResolveContentProvider(chatViewType: string) {
+	async canResolveChatSession(chatSessionResource: URI) {
 		await this._extensionService.whenInstalledExtensionsRegistered();
-		const contribution = this._contributions.get(chatViewType);
+		const contribution = this._contributions.get(chatSessionResource.scheme);
 		if (contribution && !this._isContributionAvailable(contribution)) {
 			return false;
 		}
 
-		if (this._contentProviders.has(chatViewType)) {
+		if (this._contentProviders.has(chatSessionResource.scheme)) {
 			return true;
 		}
 
-		await this._extensionService.activateByEvent(`onChatSession:${chatViewType}`);
-
-		return this._contentProviders.has(chatViewType);
+		await this._extensionService.activateByEvent(`onChatSession:${chatSessionResource.scheme}`);
+		return this._contentProviders.has(chatSessionResource.scheme);
 	}
 
 	public async provideChatSessionItems(chatSessionType: string, token: CancellationToken): Promise<IChatSessionItem[]> {
@@ -525,11 +533,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		};
 	}
 
-	private readonly _sessions = new Map<string, ContributedChatSessionData>();
-
-	// Editable session support
-	private readonly _editableSessions = new Map<string, IEditableData>();
-
 	/**
 	 * Creates a new chat session by delegating to the appropriate provider
 	 * @param chatSessionType The type of chat session provider to use
@@ -554,64 +557,60 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return chatSessionItem;
 	}
 
-	public async provideChatSessionContent(chatSessionType: string, id: string, resource: URI, token: CancellationToken): Promise<ChatSession> {
-		if (!(await this.canResolveContentProvider(chatSessionType))) {
-			throw Error(`Can not find provider for ${chatSessionType}`);
+	public async provideChatSessionContent(sessionResource: URI, token: CancellationToken): Promise<ChatSession> {
+		if (!(await this.canResolveChatSession(sessionResource))) {
+			throw Error(`Can not find provider for ${sessionResource}`);
 		}
 
-		const provider = this._contentProviders.get(chatSessionType);
+		const provider = this._contentProviders.get(sessionResource.scheme);
 		if (!provider) {
-			throw Error(`Can not find provider for ${chatSessionType}`);
+			throw Error(`Can not find provider for ${sessionResource}`);
 		}
 
-		const sessionKey = `${chatSessionType}_${id}`;
-		const existingSessionData = this._sessions.get(sessionKey);
+		const existingSessionData = this._sessions.get(sessionResource);
 		if (existingSessionData) {
 			return existingSessionData.session;
 		}
 
-		const session = await provider.provideChatSessionContent(id, resource, token);
-		const sessionData = new ContributedChatSessionData(session, chatSessionType, id, session.options, this._onWillDisposeSession.bind(this));
+		const session = await provider.provideChatSessionContent(sessionResource, token);
+		const sessionData = new ContributedChatSessionData(session, sessionResource.scheme, sessionResource, session.options, this._onWillDisposeSession.bind(this));
 
-		this._sessions.set(sessionKey, sessionData);
+		this._sessions.set(sessionResource, sessionData);
 
 		return session;
 	}
 
-	private _onWillDisposeSession(session: ChatSession, chatSessionType: string, id: string): void {
-		const sessionKey = `${chatSessionType}_${id}`;
-		this._sessions.delete(sessionKey);
+	private _onWillDisposeSession(sessionResource: URI): void {
+		this._sessions.delete(sessionResource);
 	}
 
-	public getSessionOption(chatSessionType: string, id: string, optionId: string): string | undefined {
-		const sessionKey = `${chatSessionType}_${id}`;
-		const session = this._sessions.get(sessionKey);
+	public getSessionOption(chatSessionType: string, resource: URI, optionId: string): string | undefined {
+		const session = this._sessions.get(resource);
 		return session?.getOption(optionId);
 	}
 
-	public setSessionOption(chatSessionType: string, id: string, optionId: string, value: string): boolean {
-		const sessionKey = `${chatSessionType}_${id}`;
-		const session = this._sessions.get(sessionKey);
+	public setSessionOption(chatSessionType: string, resource: URI, optionId: string, value: string): boolean {
+		const session = this._sessions.get(resource);
 		return !!session?.setOption(optionId, value);
 	}
 
 	// Implementation of editable session methods
-	public async setEditableSession(sessionId: string, data: IEditableData | null): Promise<void> {
+	public async setEditableSession(sessionResource: URI, data: IEditableData | null): Promise<void> {
 		if (!data) {
-			this._editableSessions.delete(sessionId);
+			this._editableSessions.delete(sessionResource);
 		} else {
-			this._editableSessions.set(sessionId, data);
+			this._editableSessions.set(sessionResource, data);
 		}
 		// Trigger refresh of the session views that might need to update their rendering
 		this._onDidChangeSessionItems.fire('local');
 	}
 
-	public getEditableData(sessionId: string): IEditableData | undefined {
-		return this._editableSessions.get(sessionId);
+	public getEditableData(sessionResource: URI): IEditableData | undefined {
+		return this._editableSessions.get(sessionResource);
 	}
 
-	public isEditable(sessionId: string): boolean {
-		return this._editableSessions.has(sessionId);
+	public isEditable(sessionResource: URI): boolean {
+		return this._editableSessions.has(sessionResource);
 	}
 
 	public notifySessionItemsChanged(chatSessionType: string): void {
@@ -661,27 +660,27 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return this._sessionTypeModels.get(chatSessionType);
 	}
 
-	private _optionsChangeCallback?: (chatSessionType: string, sessionId: string, updates: ReadonlyArray<{ optionId: string; value: string }>) => Promise<void>;
+	private _optionsChangeCallback?: (chatSessionType: string, sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: string }>) => Promise<void>;
 
 	/**
 	 * Set the callback for notifying extensions about option changes
 	 */
-	public setOptionsChangeCallback(callback: (chatSessionType: string, sessionId: string, updates: ReadonlyArray<{ optionId: string; value: string }>) => Promise<void>): void {
+	public setOptionsChangeCallback(callback: (chatSessionType: string, sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: string }>) => Promise<void>): void {
 		this._optionsChangeCallback = callback;
 	}
 
 	/**
 	 * Notify extension about option changes for a session
 	 */
-	public async notifySessionOptionsChange(chatSessionType: string, sessionId: string, updates: ReadonlyArray<{ optionId: string; value: string }>): Promise<void> {
+	public async notifySessionOptionsChange(chatSessionType: string, sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: string }>): Promise<void> {
 		if (!updates.length) {
 			return;
 		}
 		if (this._optionsChangeCallback) {
-			await this._optionsChangeCallback(chatSessionType, sessionId, updates);
+			await this._optionsChangeCallback(chatSessionType, sessionResource, updates);
 		}
 		for (const u of updates) {
-			this.setSessionOption(chatSessionType, sessionId, u.optionId, u.value);
+			this.setSessionOption(chatSessionType, sessionResource, u.optionId, u.value);
 		}
 	}
 }
