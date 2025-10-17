@@ -297,9 +297,35 @@ export class PromptFilePickers {
 		}
 		const locals = await this._promptsService.listPromptFilesForStorage(options.type, PromptsStorage.local, CancellationToken.None);
 		if (locals.length) {
-			result.push({ type: 'separator', label: localize('separator.workspace', "Workspace") });
+			result.push({ type: 'separator', label: localize('separator.workspace-github-instructions', ".github/instructions") });
 			result.push(...locals.map(l => this._createPromptPickItem(l, buttons)));
 		}
+
+		// Agent instruction files (copilot-instructions.md and AGENTS.md) are added here and not included in the output of
+		// listPromptFilesForStorage() because that function only handles *.instructions.md files (under `.github/instructions/`, etc.)
+		let agentInstructionFiles: IPromptPath[] = [];
+		if (options.type === PromptsType.instructions) {
+			const agentInstructionUris = [
+				...await this._promptsService.listCopilotInstructionsMDs(CancellationToken.None),
+				...await this._promptsService.listAgentMDs(CancellationToken.None)
+			];
+			agentInstructionFiles = agentInstructionUris.map(uri => {
+				const folderName = this._labelService.getUriLabel(dirname(uri), { relative: true });
+				// Don't show the folder path for files under .github folder (namely, copilot-instructions.md) since that is only defined once per repo.
+				const shouldShowFolderPath = folderName?.toLowerCase() !== '.github';
+				return {
+					uri,
+					description: shouldShowFolderPath ? this._labelService.getUriLabel(dirname(uri), { relative: true }) : undefined,
+					storage: PromptsStorage.local,
+					type: options.type
+				} satisfies IPromptPath;
+			});
+		}
+		if (agentInstructionFiles.length) {
+			result.push({ type: 'separator', label: localize('separator.workspace-agent-instructions', "Agent Instructions") });
+			result.push(...agentInstructionFiles.map(l => this._createPromptPickItem(l, buttons)));
+		}
+
 		const exts = await this._promptsService.listPromptFilesForStorage(options.type, PromptsStorage.extension, CancellationToken.None);
 		if (exts.length) {
 			result.push({ type: 'separator', label: localize('separator.extensions', "Extensions") });
