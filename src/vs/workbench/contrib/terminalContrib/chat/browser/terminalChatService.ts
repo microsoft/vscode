@@ -34,7 +34,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 	 */
 	private readonly _pendingRestoredMappings = new Map<string, number>();
 
-	private readonly _terminalHasHiddenContext: IContextKey<boolean>;
+	private readonly _hasToolTerminalContext: IContextKey<boolean>;
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
@@ -45,16 +45,15 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 	) {
 		super();
 
-		this._terminalHasHiddenContext = TerminalContextKeys.terminalHasHidden.bindTo(this._contextKeyService);
+		this._hasToolTerminalContext = TerminalContextKeys.hasToolTerminal.bindTo(this._contextKeyService);
 
 		this._restoreFromStorage();
 
-		this._register(this._terminalService.onDidChangeInstances(() => this._updateHiddenContextKey()));
-		this._updateHiddenContextKey();
-
+		this._register(this._terminalService.onDidChangeInstances(() => this._updateHasToolTerminalContextKey()));
+		this._updateHasToolTerminalContextKey();
 		this._register(this._lifecycleService.onBeforeShutdown(async e => {
 			let veto = false;
-			// Show all hidden terminals before shutdown so they are restored
+			// Show all hidden tool terminals before shutdown so they are restored if they are mid execution
 			for (const [toolSessionId, instance] of this._terminalInstancesByToolSessionId) {
 				if (this.terminalIsHidden(toolSessionId) && (instance.capabilities.get(TerminalCapability.CommandDetection)?.promptInputModel.state === PromptInputState.Execute || instance.hasChildProcesses)) {
 					await this._terminalService.showBackgroundTerminal(instance, true, true);
@@ -78,14 +77,14 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 			this._terminalInstancesByToolSessionId.delete(terminalToolSessionId);
 			this._terminalInstanceListenersByToolSessionId.deleteAndDispose(terminalToolSessionId);
 			this._persistToStorage();
-			this._updateHiddenContextKey();
+			this._updateHasToolTerminalContextKey();
 		}));
 
 		if (typeof instance.persistentProcessId === 'number') {
 			this._persistToStorage();
 		}
 
-		this._updateHiddenContextKey();
+		this._updateHasToolTerminalContextKey();
 	}
 
 	getTerminalInstanceByToolSessionId(terminalToolSessionId: string | undefined): ITerminalInstance | undefined {
@@ -175,10 +174,8 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		}
 	}
 
-	private _updateHiddenContextKey(): void {
-		const foreground = new Set(this._terminalService.foregroundInstances);
-		const hiddenCount = this._terminalService.instances.filter(i => !foreground.has(i)).length;
+	private _updateHasToolTerminalContextKey(): void {
 		const toolCount = this._terminalInstancesByToolSessionId.size;
-		this._terminalHasHiddenContext.set(hiddenCount > 0 || toolCount > 0);
+		this._hasToolTerminalContext.set(toolCount > 0);
 	}
 }

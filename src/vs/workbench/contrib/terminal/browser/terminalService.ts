@@ -74,7 +74,6 @@ export class TerminalService extends Disposable implements ITerminalService {
 
 	private _primaryBackend?: ITerminalBackend;
 	private _terminalHasBeenCreated: IContextKey<boolean>;
-	private _terminalHasHidden: IContextKey<boolean>;
 	private _terminalCountContextKey: IContextKey<number>;
 	private _nativeDelegate?: ITerminalServiceNativeDelegate;
 	private _shutdownWindowCount?: number;
@@ -217,7 +216,6 @@ export class TerminalService extends Disposable implements ITerminalService {
 		this._processSupportContextKey = TerminalContextKeys.processSupported.bindTo(this._contextKeyService);
 		this._processSupportContextKey.set(!isWeb || this._remoteAgentService.getConnection() !== null);
 		this._terminalHasBeenCreated = TerminalContextKeys.terminalHasBeenCreated.bindTo(this._contextKeyService);
-		this._terminalHasHidden = TerminalContextKeys.terminalHasHidden.bindTo(this._contextKeyService);
 		this._terminalCountContextKey = TerminalContextKeys.count.bindTo(this._contextKeyService);
 		this._terminalEditorActive = TerminalContextKeys.terminalEditorActive.bindTo(this._contextKeyService);
 
@@ -1002,12 +1000,11 @@ export class TerminalService extends Disposable implements ITerminalService {
 					const idx = this._backgroundedTerminalInstances.indexOf(instance);
 					if (idx !== -1) {
 						this._backgroundedTerminalInstances.splice(idx, 1);
-						this._terminalHasHidden.set(this._backgroundedTerminalInstances.length > 0);
+						// hasToolTerminal context key moved to TerminalChatService; no longer updating hidden terminal context here
 					}
 					this._onDidDisposeInstance.fire(instance);
 				})
 			]);
-			this._terminalHasHidden.set(this._backgroundedTerminalInstances.length > 0);
 			this._terminalHasBeenCreated.set(true);
 			return instance;
 		}
@@ -1181,7 +1178,6 @@ export class TerminalService extends Disposable implements ITerminalService {
 			return;
 		}
 		this._backgroundedTerminalInstances.splice(this._backgroundedTerminalInstances.indexOf(instance), 1);
-		this._terminalHasHidden.set(this._backgroundedTerminalInstances.length > 0);
 		const disposables = this._backgroundedTerminalDisposables.get(instance.instanceId);
 		if (disposables) {
 			dispose(disposables);

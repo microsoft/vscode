@@ -301,7 +301,7 @@ registerActiveXtermAction({
 	}
 });
 
-registerAction2(class ShowHiddenOrToolTerminalsAction extends Action2 {
+registerAction2(class ShowToolTerminalsAction extends Action2 {
 	constructor() {
 		super({
 			id: TerminalChatCommandId.ShowHiddenOrToolTerminals,
@@ -310,9 +310,9 @@ registerAction2(class ShowHiddenOrToolTerminalsAction extends Action2 {
 			f1: true,
 			menu: [{
 				id: MenuId.ViewTitle,
-				when: ContextKeyExpr.and(TerminalContextKeys.terminalHasHidden, ContextKeyExpr.equals('view', ChatViewId)),
+				when: ContextKeyExpr.and(TerminalContextKeys.hasToolTerminal, ContextKeyExpr.equals('view', ChatViewId)),
 				group: 'navigation',
-				order: -3,
+				order: 3,
 				isHiddenByDefault: true
 			}]
 		});
