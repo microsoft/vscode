@@ -238,9 +238,13 @@ suite('PromptValidator', () => {
 			const content = [
 				'---',
 				'description: \"Test mode with handoffs\"',
-				'handoffs:',
-				'  test-prompt: Add tests for this code',
-				'  optimize-performance: Optimize for performance',
+				`handoffs:`,
+				'  - label: Test Prompt',
+				'    agent: Default',
+				'    prompt: Add tests for this code',
+				'  - label: Optimize Performance',
+				'    agent: Default',
+				'    prompt: Optimize for performance',
 				'---',
 				'Body',
 			].join('\n');
