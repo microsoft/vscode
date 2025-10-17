@@ -234,12 +234,12 @@ export interface IPromptsService extends IDisposable {
 	getPromptLocationLabel(promptPath: IPromptPath): string;
 
 	/**
-	 * Gets list of all AGENT.md files in the workspace.
+	 * Gets list of all AGENTS.md files in the workspace.
 	 */
 	findAgentMDsInWorkspace(token: CancellationToken): Promise<URI[]>;
 
 	/**
-	 * Gets list of AGENT.md files, either at the root or the entire workspace depending on the feature flag.
+	 * Gets list of AGENTS.md files, either at the root or the entire workspace depending on the feature flag.
 	 */
 	listAgentMDs(token: CancellationToken): Promise<URI[]>;
 
