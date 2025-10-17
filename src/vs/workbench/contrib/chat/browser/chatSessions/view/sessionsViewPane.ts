@@ -204,9 +204,9 @@ export class SessionsViewPane extends ViewPane {
 	}
 
 	/**
-		* Updates the empty state message based on current tree data.
-		* Uses the tree's existing data to avoid redundant provider calls.
-		*/
+	 * Updates the empty state message based on current tree data.
+	 * Uses the tree's existing data to avoid redundant provider calls.
+	 */
 	private updateEmptyState(): void {
 		try {
 			const newEmptyState = this.isEmpty();
@@ -220,9 +220,9 @@ export class SessionsViewPane extends ViewPane {
 	}
 
 	/**
-		* Refreshes the tree data with progress indication.
-		* Shows a progress indicator while the tree updates its children from the provider.
-		*/
+	 * Refreshes the tree data with progress indication.
+	 * Shows a progress indicator while the tree updates its children from the provider.
+	 */
 	private async refreshTreeWithProgress(): Promise<void> {
 		if (!this.tree) {
 			return;
@@ -248,9 +248,9 @@ export class SessionsViewPane extends ViewPane {
 	}
 
 	/**
-		* Loads initial tree data with progress indication.
-		* Shows a progress indicator while the tree loads data from the provider.
-		*/
+	 * Loads initial tree data with progress indication.
+	 * Shows a progress indicator while the tree loads data from the provider.
+	 */
 	private async loadDataWithProgress(): Promise<void> {
 		if (!this.tree) {
 			return;
