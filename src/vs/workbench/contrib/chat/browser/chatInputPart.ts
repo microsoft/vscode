@@ -530,7 +530,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._register(this.languageModelsService.onDidChangeLanguageModels(() => {
 			// We've changed models and the current one is no longer available. Select a new one
 			const selectedModel = this._currentLanguageModel ? this.getModels().find(m => m.identifier === this._currentLanguageModel?.identifier) : undefined;
-			if (this._currentLanguageModel && (!selectedModel || !selectedModel.metadata.isUserSelectable)) {
+			const selectedModelNotAvailabe = this._currentLanguageModel && (!selectedModel || !selectedModel.metadata.isUserSelectable);
+			if (!this.currentLanguageModel || selectedModelNotAvailabe) {
 				this.setCurrentLanguageModelToDefault();
 			}
 		}));
