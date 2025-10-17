@@ -15,7 +15,7 @@ import { IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/c
 import { ChatSessionStatus, IChatSessionItem } from '../../contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { Proxied } from '../../services/extensions/common/proxyIdentifier.js';
-import { ChatSessionDto, ExtHostChatSessionsShape, IChatAgentProgressShape, MainContext, MainThreadChatSessionsShape } from './extHost.protocol.js';
+import { ChatSessionDto, ExtHostChatSessionsShape, IChatAgentProgressShape, IChatSessionProviderOptions, MainContext, MainThreadChatSessionsShape } from './extHost.protocol.js';
 import { ChatAgentResponseStream } from './extHostChatAgents2.js';
 import { CommandsConverter, ExtHostCommands } from './extHostCommands.js';
 import { ExtHostLanguageModels } from './extHostLanguageModels.js';
@@ -276,13 +276,24 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 				this._proxy.$handleProgressComplete(handle, id, 'ongoing');
 			});
 		}
-		const { capabilities } = provider;
+		const { capabilities, extension } = provider;
 		return {
 			id: sessionId + '',
 			resource: URI.revive(resource),
 			hasActiveResponseCallback: !!session.activeResponseCallback,
 			hasRequestHandler: !!session.requestHandler,
 			supportsInterruption: !!capabilities?.supportsInterruptions,
+			options: {
+				...(session.options?.model && {
+					model: {
+						...session.options.model,
+						extension: extension.identifier,
+						vendor: 'contributed',
+						modelPickerCategory: undefined,
+						capabilities: {},
+					}
+				})
+			},
 			history: session.history.map(turn => {
 				if (turn instanceof extHostTypes.ChatRequestTurn) {
 					return { type: 'request' as const, prompt: turn.prompt, participant: turn.participant };
@@ -298,6 +309,63 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 				}
 			})
 		};
+	}
+
+	async $provideHandleOptionsChange(handle: number, sessionId: string, updates: ReadonlyArray<{ optionId: string; value: string | undefined }>, token: CancellationToken): Promise<void> {
+		const provider = this._chatSessionContentProviders.get(handle);
+		if (!provider) {
+			this._logService.warn(`No provider for handle ${handle}`);
+			return;
+		}
+
+		if (!provider.provider.provideHandleOptionsChange) {
+			this._logService.debug(`Provider for handle ${handle} does not implement provideHandleOptionsChange`);
+			return;
+		}
+
+		try {
+			await provider.provider.provideHandleOptionsChange(sessionId, updates, token);
+		} catch (error) {
+			this._logService.error(`Error calling provideHandleOptionsChange for handle ${handle}, sessionId ${sessionId}:`, error);
+		}
+	}
+
+	async $provideChatSessionProviderOptions(handle: number, token: CancellationToken): Promise<IChatSessionProviderOptions | undefined> {
+		const entry = this._chatSessionContentProviders.get(handle);
+		if (!entry) {
+			this._logService.warn(`No provider for handle ${handle} when requesting chat session options`);
+			return;
+		}
+
+		const provider = entry.provider;
+		if (!provider.provideChatSessionProviderOptions) {
+			return;
+		}
+
+		try {
+			const extOptions = await provider.provideChatSessionProviderOptions(token);
+			if (!extOptions) {
+				return;
+			}
+
+			const { models } = extOptions;
+			if (!models || models.length === 0) {
+				return {};
+			}
+			return {
+				models: models.map(m => ({
+					...m,
+					extension: entry.extension.identifier,
+					vendor: 'contributed',
+					modelPickerCategory: undefined,
+					capabilities: {},
+
+				}))
+			};
+		} catch (error) {
+			this._logService.error(`Error calling provideChatSessionProviderOptions for handle ${handle}:`, error);
+			return;
+		}
 	}
 
 	async $interruptChatSessionActiveResponse(providerHandle: number, sessionId: string, requestId: string): Promise<void> {

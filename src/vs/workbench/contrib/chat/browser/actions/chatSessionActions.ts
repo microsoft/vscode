@@ -37,15 +37,6 @@ import { ChatViewPane } from '../chatViewPane.js';
 import { ACTION_ID_OPEN_CHAT, CHAT_CATEGORY } from './chatActions.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 
-export interface IChatSessionContext {
-	sessionId: string;
-	sessionType: 'editor' | 'widget';
-	currentTitle: string;
-	editorInput?: any;
-	editorGroup?: any;
-	widget?: any;
-}
-
 interface IMarshalledChatSessionContext {
 	$mid: MarshalledId.ChatSessionContext;
 	session: ChatSessionItemWithProvider;
