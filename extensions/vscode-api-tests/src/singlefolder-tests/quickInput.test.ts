@@ -249,7 +249,39 @@ suite('vscode API - quick input', function () {
 		await waitForHide(quickPick);
 	});
 
-	test('createQuickPick, select item with resourceUri by value', function (_done) {
+	test('createQuickPick, match item by label derived from resourceUri', function (_done) {
+		let done = (err?: any) => {
+			done = () => { };
+			_done(err);
+		};
+
+		const quickPick = createQuickPick({
+			events: ['active', 'selection', 'accept', 'hide'],
+			activeItems: [['']],
+			selectionItems: [['']],
+			acceptedItems: {
+				active: [['']],
+				selection: [['']],
+				dispose: [true]
+			},
+		}, (err?: any) => done(err));
+
+		const baseUri = workspace!.workspaceFolders![0].uri;
+		quickPick.items = [
+			{ label: 'a1', resourceUri: baseUri.with({ path: baseUri.path + '/test1.txt' }) },
+			{ label: '', resourceUri: baseUri.with({ path: baseUri.path + '/test2.txt' }) },
+			{ label: 'a3', resourceUri: baseUri.with({ path: baseUri.path + '/test3.txt' }) }
+		];
+		quickPick.value = 'test2.txt';
+		quickPick.show();
+
+		(async () => {
+			await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+		})()
+			.catch(err => done(err));
+	});
+
+	test('createQuickPick, match item by description derived from resourceUri', function (_done) {
 		let done = (err?: any) => {
 			done = () => { };
 			_done(err);
@@ -272,10 +304,11 @@ suite('vscode API - quick input', function () {
 			{ label: 'a2', resourceUri: baseUri.with({ path: baseUri.path + '/test2.txt' }) },
 			{ label: 'a3', resourceUri: baseUri.with({ path: baseUri.path + '/test3.txt' }) }
 		];
+		quickPick.matchOnDescription = true;
+		quickPick.value = 'test2.txt';
 		quickPick.show();
 
 		(async () => {
-			quickPick.value = 'test2.txt';
 			await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
 		})()
 			.catch(err => done(err));
