@@ -74,7 +74,8 @@ suite('RunInTerminalTool', () => {
 			getDefaultProfile: async () => ({ path: 'pwsh' } as ITerminalProfile)
 		});
 		instantiationService.stub(ITerminalChatService, {
-			getToolSessionTerminalInstances: () => []
+			getToolSessionTerminalInstances: () => [],
+			onDidRegisterTerminalInstanceWithToolSession: new Emitter<any>().event
 		});
 
 		storageService = instantiationService.get(IStorageService);
