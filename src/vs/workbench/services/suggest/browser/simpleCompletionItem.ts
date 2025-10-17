@@ -45,10 +45,10 @@ export interface ISimpleCompletion {
 	documentation?: string | IMarkdownString;
 
 	/**
-	 * Selection range (inclusive start, exclusive end) of text in the line to be replaced when
-	 * this completion is applied. Mirrors QuickPick.valueSelection semantics.
+	 * Replacement range (inclusive start, exclusive end) of text in the line to be replaced when
+	 * this completion is applied.
 	 */
-	valueSelection: readonly [number, number] | undefined;
+	replacementRange: readonly [number, number] | undefined;
 }
 
 export class SimpleCompletionItem {

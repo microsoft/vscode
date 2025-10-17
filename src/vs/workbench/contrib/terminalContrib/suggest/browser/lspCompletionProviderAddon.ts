@@ -65,7 +65,7 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 					detail: item.detail,
 					documentation: item.documentation,
 					kind: convertedKind,
-					valueSelection: completionItemTemp.valueSelection,
+					replacementRange: completionItemTemp.valueSelection,
 				};
 
 				// Store unresolved item and provider for lazy resolution if needed

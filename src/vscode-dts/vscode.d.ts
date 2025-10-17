@@ -8238,14 +8238,13 @@ declare module 'vscode' {
 		label: string | CompletionItemLabel;
 
 		/**
-		 * Selection range in the command line to replace when the completion is accepted. Defined
+		 * The range in the command line to replace when the completion is accepted. Defined
 		 * as a tuple where the first entry is the inclusive start index and the second entry is the
 		 * exclusive end index. When `undefined` the completion will be inserted at the cursor
 		 * position. When the two numbers are equal only the cursor position changes (insertion).
 		 *
-		 * This mirrors {@link QuickPick.valueSelection} semantics for consistency.
 		 */
-		valueSelection: readonly [number, number] | undefined;
+		replacementRange: readonly [number, number];
 
 		/**
 		 * The completion's detail which appears on the right of the list.
@@ -8271,7 +8270,7 @@ declare module 'vscode' {
 		 */
 		constructor(
 			label: string | CompletionItemLabel,
-			valueSelection: readonly [number, number] | undefined,
+			valueSelection: readonly [number, number],
 			kind?: TerminalCompletionItemKind
 		);
 	}
