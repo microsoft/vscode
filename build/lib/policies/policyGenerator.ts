@@ -7,6 +7,8 @@ import minimist from 'minimist';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { CategoryDto, ExportedPolicyDataDto, PolicyDto } from '../../../src/vs/base/common/policyDto.js';
+import * as JSONC from 'jsonc-parser';
+
 const product = require('../../../product.json');
 const packageJson = require('../../../package.json');
 
@@ -754,10 +756,10 @@ const PolicyTypes = [
 ];
 
 async function parsePolicies(policyDataFile: string): Promise<Policy[]> {
-	const contents = JSON.parse(await fs.readFile(policyDataFile, { encoding: 'utf8' })) as ExportedPolicyDataDto;
+	const contents = JSONC.parse(await fs.readFile(policyDataFile, { encoding: 'utf8' })) as ExportedPolicyDataDto;
 	const categories = new Map<string, CategoryDto>();
 	for (const category of contents.categories) {
-		categories.set(category.name.key, category);
+		categories.set(category.key, category);
 	}
 
 	const policies: Policy[] = [];
