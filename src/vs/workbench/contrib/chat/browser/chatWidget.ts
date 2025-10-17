@@ -1359,11 +1359,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 		// Unlock coding agent when clearing
 		this.unlockFromCodingAgent();
-		this._onDidClear.fire();
 		this.clearTodoListWidget(this.viewModel?.sessionId);
-		// Cancel any pending widget render and hide the widget
+		// Cancel any pending widget render and hide the widget BEFORE firing onDidClear
+		// This prevents the widget from being re-shown by any handlers triggered by the clear event
 		this._chatSuggestNextScheduler.cancel();
 		this.chatSuggestNextWidget.hide();
+		this._onDidClear.fire();
 	}
 
 	public toggleHistoryVisibility(): void {
@@ -1459,9 +1460,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 
 			this.renderFollowups();
-			if (!isQuickChat(this)) {
-				this._chatSuggestNextScheduler.schedule();
-			}
 		}
 	}
 
@@ -2335,13 +2333,18 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const currentMode = this.input.currentModeObs.get();
 		const handoffs = currentMode?.handOffs?.get();
 
-		// Only show if: mode has handoffs AND chat has content AND not quick chat
-		const hasContent = this.viewModel && this.viewModel.getItems().length > 0;
+		// Only show if: mode has handoffs AND chat has content AND not quick chat AND last response is complete
+		const items = this.viewModel?.getItems() ?? [];
+		const hasContent = items.length > 0;
+		const lastItem = items[items.length - 1];
+		const lastResponseComplete = lastItem && isResponseVM(lastItem) && lastItem.isComplete;
+
 		const shouldShow =
 			currentMode &&
 			handoffs &&
 			handoffs.length > 0 &&
 			hasContent &&
+			lastResponseComplete &&
 			!isQuickChat(this);
 
 		if (shouldShow) {
@@ -2357,12 +2360,19 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private handleNextPromptSelection(handoff: IHandOff): void {
+		// Switch to the specified agent/mode if provided
+		if (handoff.agent) {
+			this.input.setChatMode(handoff.agent);
+		}
+
 		// Insert the handoff prompt into the input
 		this.input.setValue(handoff.prompt, false);
 		this.input.focus();
 
-		// Hide the widget after selection
+		// Hide the widget after selection and cancel any scheduled shows
+		// This prevents the widget from reappearing if the mode change triggered a scheduler
 		this.chatSuggestNextWidget.hide();
+		this._chatSuggestNextScheduler.cancel();
 
 		// Auto-submit if send flag is true
 		if (handoff.send) {
