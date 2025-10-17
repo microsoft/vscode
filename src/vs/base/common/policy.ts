@@ -3,9 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from '../../nls.js';
 import { IDefaultAccount } from './defaultAccount.js';
 
 export type PolicyName = string;
+export type LocalizedValue = {
+	key: string;
+	value: string;
+};
+
+// IMPORTANT: Make sure that the enum values here match the corresponding localization keys below!
+
+export enum PolicyCategory {
+	Extensions = 'extensionsConfigurationTitle',
+	IntegratedTerminal = 'terminalIntegratedConfigurationTitle',
+	InteractiveSession = 'interactiveSessionConfigurationTitle',
+	Telemetry = 'telemetryConfigurationTitle',
+	Update = 'updateConfigurationTitle',
+}
+
+export const PolicyCategoryTitle: {
+	[key in PolicyCategory]: string
+} = {
+	[PolicyCategory.Extensions]: localize('extensionsConfigurationTitle', "Extensions"),
+	[PolicyCategory.IntegratedTerminal]: localize('terminalIntegratedConfigurationTitle', "Integrated Terminal"),
+	[PolicyCategory.InteractiveSession]: localize('interactiveSessionConfigurationTitle', "Chat"),
+	[PolicyCategory.Telemetry]: localize('telemetryConfigurationTitle', "Telemetry"),
+	[PolicyCategory.Update]: localize('updateConfigurationTitle', "Update"),
+};
 
 export interface IPolicy {
 
@@ -15,14 +40,26 @@ export interface IPolicy {
 	readonly name: PolicyName;
 
 	/**
+	 * The policy category.
+	 */
+	readonly category: PolicyCategory;
+
+	/**
 	 * The Code version in which this policy was introduced.
 	*/
 	readonly minimumVersion: `${number}.${number}`;
 
 	/**
-	 * The policy description (optional).
+	 * Localization info for the policy.
+	 *
+	 * IMPORTANT: the key values for these must be unique to avoid collisions, as during the export time the module information is not available.
 	 */
-	readonly description?: string;
+	readonly localization: {
+		/** The localization key or key value pair. If only a key is provided, the default value will fallback to the parent configuration's description property. */
+		description: LocalizedValue;
+		/** List of localization key or key value pair. If only a key is provided, the default value will fallback to the parent configuration's enumDescriptions property. */
+		enumDescriptions?: LocalizedValue[];
+	};
 
 	/**
 	 * The value that an ACCOUNT-based feature will use when its corresponding policy is active.
