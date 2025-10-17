@@ -1314,7 +1314,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				// Only re-render if the current view still doesn't have items and we're showing the welcome message
 				const hasViewModelItems = this.viewModel?.getItems().length ?? 0;
 				if (hasViewModelItems === 0) {
-					this.renderWelcomeViewContentIfNeeded();
+					this._welcomeRenderScheduler.schedule();
 				}
 			}));
 		}
