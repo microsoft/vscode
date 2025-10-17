@@ -236,13 +236,13 @@ suite('PromptValidator', () => {
 
 		test('mode with handoffs attribute', async () => {
 			const content = [
-				"---",
-				"description: \"Test mode with handoffs\"",
-				"handoffs:",
-				"  test-prompt: Add tests for this code",
-				"  optimize-performance: Optimize for performance",
-				"---",
-				"Body",
+				'---',
+				'description: \"Test mode with handoffs\"',
+				'handoffs:',
+				'  test-prompt: Add tests for this code',
+				'  optimize-performance: Optimize for performance',
+				'---',
+				'Body',
 			].join('\n');
 			const markers = await validate(content, PromptsType.mode);
 			assert.deepStrictEqual(markers, [], 'Expected no validation issues for handoffs attribute');
