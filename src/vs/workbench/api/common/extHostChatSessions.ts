@@ -15,7 +15,7 @@ import { IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/c
 import { ChatSessionStatus, IChatSessionItem } from '../../contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { Proxied } from '../../services/extensions/common/proxyIdentifier.js';
-import { ChatSessionDto, ExtHostChatSessionsShape, IChatAgentProgressShape, IChatSessionOptions, MainContext, MainThreadChatSessionsShape } from './extHost.protocol.js';
+import { ChatSessionDto, ExtHostChatSessionsShape, IChatAgentProgressShape, IChatSessionProviderOptions, MainContext, MainThreadChatSessionsShape } from './extHost.protocol.js';
 import { ChatAgentResponseStream } from './extHostChatAgents2.js';
 import { CommandsConverter, ExtHostCommands } from './extHostCommands.js';
 import { ExtHostLanguageModels } from './extHostLanguageModels.js';
@@ -330,7 +330,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		}
 	}
 
-	async $provideChatSessionOptions(handle: number, token: CancellationToken): Promise<IChatSessionOptions | undefined> {
+	async $provideChatSessionOptions(handle: number, token: CancellationToken): Promise<IChatSessionProviderOptions | undefined> {
 		const entry = this._chatSessionContentProviders.get(handle);
 		if (!entry) {
 			this._logService.warn(`No provider for handle ${handle} when requesting chat session options`);

@@ -193,7 +193,7 @@ declare module 'vscode' {
 		 * Called as soon as you register (call me once)
 		 * @param token
 		 */
-		provideChatSessionOptions?(token: CancellationToken): Thenable<ChatSessionOptions> | ChatSessionOptions;
+		provideChatSessionOptions?(token: CancellationToken): Thenable<ChatSessionProviderOptions> | ChatSessionProviderOptions;
 	}
 
 	export interface ChatSessionOptionUpdate {
@@ -252,7 +252,7 @@ declare module 'vscode' {
 		supportsInterruptions?: boolean;
 	}
 
-	export interface ChatSessionOptions {
+	export interface ChatSessionProviderOptions {
 		/**
 		 * Set of available models.
 		 */
