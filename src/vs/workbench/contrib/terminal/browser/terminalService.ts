@@ -996,11 +996,9 @@ export class TerminalService extends Disposable implements ITerminalService {
 			this._backgroundedTerminalInstances.push(instance);
 			this._backgroundedTerminalDisposables.set(instance.instanceId, [
 				instance.onDisposed(instance => {
-					// Remove if still hidden
 					const idx = this._backgroundedTerminalInstances.indexOf(instance);
 					if (idx !== -1) {
 						this._backgroundedTerminalInstances.splice(idx, 1);
-						// hasToolTerminal context key moved to TerminalChatService; no longer updating hidden terminal context here
 					}
 					this._onDidDisposeInstance.fire(instance);
 				})
