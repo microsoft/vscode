@@ -420,7 +420,12 @@ export class HoverService extends Disposable implements IHoverService {
 		}, true));
 		store.add(addDisposableListener(targetElement, EventType.MOUSE_LEAVE, (e: MouseEvent) => {
 			isMouseDown = false;
-			hideHover(false, (<any>e).fromElement === targetElement);
+			// HACK: `fromElement` is a non-standard property. Not sure what to replace it with,
+			// `relatedTarget` is NOT equivalent.
+			interface MouseEventWithFrom extends MouseEvent {
+				fromElement: Element | null;
+			}
+			hideHover(false, (e as MouseEventWithFrom).fromElement === targetElement);
 		}, true));
 		store.add(addDisposableListener(targetElement, EventType.MOUSE_OVER, (e: MouseEvent) => {
 			if (hoverPreparation) {

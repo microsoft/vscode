@@ -67,12 +67,12 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { AnchorAlignment } from '../../../../base/browser/ui/contextview/contextview.js';
 import { RepositoryActionRunner, RepositoryRenderer } from './scmRepositoryRenderer.js';
-import { ColorScheme } from '../../../../platform/theme/common/theme.js';
+import { isDark } from '../../../../platform/theme/common/theme.js';
 import { LabelFuzzyScore } from '../../../../base/browser/ui/tree/abstractTree.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
 import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from '../../../browser/parts/editor/editorCommands.js';
 import { createActionViewItem, getFlatActionBarActions, getFlatContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { MarkdownRenderer, openLinkFromMarkdown } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRendererService, openLinkFromMarkdown } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { Button, ButtonWithDescription, ButtonWithDropdown } from '../../../../base/browser/ui/button/button.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { RepositoryContextKeys } from './scmViewService.js';
@@ -678,7 +678,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 
 	private renderIcon(template: ResourceTemplate, data: RenderedResourceData): void {
 		const theme = this.themeService.getColorTheme();
-		const icon = theme.type === ColorScheme.LIGHT ? data.iconResource?.decorations.icon : data.iconResource?.decorations.iconDark;
+		const icon = isDark(theme.type) ? data.iconResource?.decorations.iconDark : data.iconResource?.decorations.icon;
 
 		template.fileLabel.setFile(data.uri, {
 			...data.fileLabelOptions,
@@ -1351,7 +1351,7 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 		const commandService = accessor.get(ICommandService);
 
 		const result = await commandService.executeCommand(CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID);
@@ -1845,14 +1845,15 @@ class SCMInputWidget {
 		container: HTMLElement,
 		overflowWidgetsDomNode: HTMLElement,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IModelService private modelService: IModelService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ISCMViewService private readonly scmViewService: ISCMViewService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IOpenerService private readonly openerService: IOpenerService,
-		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 	) {
 		this.element = append(container, $('.scm-editor'));
 		this.editorContainer = append(this.element, $('.scm-editor-container'));
@@ -2052,8 +2053,7 @@ class SCMInputWidget {
 						this.contextViewService.hideContextView();
 					}));
 
-					const renderer = this.instantiationService.createInstance(MarkdownRenderer, {});
-					const renderedMarkdown = renderer.render(message, {
+					const renderedMarkdown = this.markdownRendererService.render(message, {
 						actionHandler: (link, mdStr) => {
 							openLinkFromMarkdown(this.openerService, link, mdStr.isTrusted);
 							this.element.style.borderBottomLeftRadius = '2px';
@@ -3138,7 +3138,7 @@ export class SCMActionButton implements IDisposable {
 		clearNode(this.container);
 	}
 
-	private async executeCommand(commandId: string, ...args: any[]): Promise<void> {
+	private async executeCommand(commandId: string, ...args: unknown[]): Promise<void> {
 		try {
 			await this.commandService.executeCommand(commandId, ...args);
 		} catch (ex) {

@@ -50,7 +50,12 @@ const enum StatsConstants {
  */
 const PREDICTION_OMIT_RE = /^(\x1b\[(\??25[hl]|\??[0-9;]+n))+/;
 
-const core = (terminal: Terminal): IXtermCore => (terminal as any)._core;
+const core = (terminal: Terminal): IXtermCore => {
+	interface XtermWithCore extends Terminal {
+		_core: IXtermCore;
+	}
+	return (terminal as XtermWithCore)._core;
+};
 const flushOutput = (terminal: Terminal) => {
 	// TODO: Flushing output is not possible anymore without async
 };

@@ -8,6 +8,7 @@ import type { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
 import { localize } from '../../../../../nls.js';
 import { type IConfigurationPropertySchema } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
+import product from '../../../../../platform/product/common/product.js';
 import { terminalProfileBaseProperties } from '../../../../../platform/terminal/common/terminalPlatformConfiguration.js';
 
 export const enum TerminalChatAgentToolsSettingId {
@@ -15,6 +16,7 @@ export const enum TerminalChatAgentToolsSettingId {
 	AutoApprove = 'chat.tools.terminal.autoApprove',
 	ShellIntegrationTimeout = 'chat.tools.terminal.shellIntegrationTimeout',
 	AutoReplyToPrompts = 'chat.tools.terminal.autoReplyToPrompts',
+	OutputLocation = 'chat.tools.terminal.outputLocation',
 
 	TerminalProfileLinux = 'chat.tools.terminal.terminalProfile.linux',
 	TerminalProfileMacOs = 'chat.tools.terminal.terminalProfile.osx',
@@ -385,6 +387,17 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		default: false,
 		tags: ['experimental'],
 		markdownDescription: localize('autoReplyToPrompts.key', "Whether to automatically respond to prompts in the terminal such as `Confirm? y/n`. This is an experimental feature and may not work in all scenarios."),
+	}
+	,
+	[TerminalChatAgentToolsSettingId.OutputLocation]: {
+		markdownDescription: localize('outputLocation.description', "Where to show the output from the run in terminal tool session."),
+		type: 'string',
+		enum: ['terminal', 'none'],
+		enumDescriptions: [
+			localize('outputLocation.terminal', "Reveal the terminal when running the command."),
+			localize('outputLocation.none', "Do not reveal the terminal automatically."),
+		],
+		default: product.quality !== 'stable' ? 'none' : 'terminal'
 	}
 };
 

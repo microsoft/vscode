@@ -35,8 +35,6 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	private _handleCommandStartOptions?: IHandleCommandOptions;
 	private _hasRichCommandDetection: boolean = false;
 	get hasRichCommandDetection() { return this._hasRichCommandDetection; }
-	private _promptType: string | undefined;
-	get promptType(): string | undefined { return this._promptType; }
 
 	private _ptyHeuristicsHooks: ICommandDetectionHeuristicsHooks;
 	private readonly _ptyHeuristics: MandatoryMutableDisposable<IPtyHeuristics>;
@@ -75,8 +73,6 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	readonly onCommandInvalidated = this._onCommandInvalidated.event;
 	private readonly _onCurrentCommandInvalidated = this._register(new Emitter<ICommandInvalidationRequest>());
 	readonly onCurrentCommandInvalidated = this._onCurrentCommandInvalidated.event;
-	private readonly _onPromptTypeChanged = this._register(new Emitter<string | undefined>());
-	readonly onPromptTypeChanged = this._onPromptTypeChanged.event;
 	private readonly _onSetRichCommandDetection = this._register(new Emitter<boolean>());
 	readonly onSetRichCommandDetection = this._onSetRichCommandDetection.event;
 
@@ -234,11 +230,6 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	setHasRichCommandDetection(value: boolean): void {
 		this._hasRichCommandDetection = value;
 		this._onSetRichCommandDetection.fire(value);
-	}
-
-	setPromptType(value: string): void {
-		this._promptType = value;
-		this._onPromptTypeChanged.fire(value);
 	}
 
 	setIsCommandStorageDisabled(): void {
@@ -641,7 +632,20 @@ class WindowsPtyHeuristics extends Disposable {
 					// function an embedder could easily do damage with. Additionally, this
 					// can't really be upstreamed since the event relies on shell integration to
 					// verify the shifting is necessary.
-					(this._terminal as any)._core._bufferService.buffer.lines.onDeleteEmitter.fire({
+					interface IXtermWithCore extends Terminal {
+						_core: {
+							_bufferService: {
+								buffer: {
+									lines: {
+										onDeleteEmitter: {
+											fire(data: { index: number; amount: number }): void;
+										};
+									};
+								};
+							};
+						};
+					}
+					(this._terminal as IXtermWithCore)._core._bufferService.buffer.lines.onDeleteEmitter.fire({
 						index: this._terminal.buffer.active.baseY,
 						amount: potentialShiftedLineCount
 					});

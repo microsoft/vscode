@@ -6,7 +6,7 @@
 declare module 'vscode' {
 
 	export interface ChatParticipant {
-		onDidPerformAction: Event<ChatUserActionEvent>;
+		readonly onDidPerformAction: Event<ChatUserActionEvent>;
 	}
 
 	/**
@@ -442,7 +442,7 @@ declare module 'vscode' {
 		 * Event that fires when a request is paused or unpaused.
 		 * Chat requests are initially unpaused in the {@link requestHandler}.
 		 */
-		onDidChangePauseState: Event<ChatParticipantPauseStateEvent>;
+		readonly onDidChangePauseState: Event<ChatParticipantPauseStateEvent>;
 	}
 
 	export interface ChatParticipantPauseStateEvent {

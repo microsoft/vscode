@@ -93,10 +93,10 @@ export class ChatSessionsView extends Disposable implements IWorkbenchContributi
 		this.viewContainer = Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer(
 			{
 				id: VIEWLET_ID,
-				title: nls.localize2('chat.sessions', "Chat Sessions"),
+				title: nls.localize2('chat.agent.sessions', "Agent Sessions"),
 				ctorDescriptor: new SyncDescriptor(ChatSessionsViewPaneContainer, [this.sessionTracker]),
 				hideIfEmpty: false,
-				icon: registerIcon('chat-sessions-icon', Codicon.commentDiscussionSparkle, 'Icon for Chat Sessions View'),
+				icon: registerIcon('chat-sessions-icon', Codicon.commentDiscussionSparkle, 'Icon for Agent Sessions View'),
 				order: 6
 			}, ViewContainerLocation.Sidebar);
 		this.isViewContainerRegistered = true;
@@ -173,7 +173,7 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 	}
 
 	override getTitle(): string {
-		const title = nls.localize('chat.sessions.title', "Chat Sessions");
+		const title = nls.localize('chat.agent.sessions.title', "Agent Sessions");
 		return title;
 	}
 
@@ -266,13 +266,14 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 			orderedProviders.forEach(({ provider, displayName, baseOrder, when }) => {
 				// Only register if not already registered
 				if (!this.registeredViewDescriptors.has(provider.chatSessionType)) {
+					const viewId = `${VIEWLET_ID}.${provider.chatSessionType}`;
 					const viewDescriptor: IViewDescriptor = {
-						id: `${VIEWLET_ID}.${provider.chatSessionType}`,
+						id: viewId,
 						name: {
 							value: displayName,
 							original: displayName,
 						},
-						ctorDescriptor: new SyncDescriptor(SessionsViewPane, [provider, this.sessionTracker]),
+						ctorDescriptor: new SyncDescriptor(SessionsViewPane, [provider, this.sessionTracker, viewId]),
 						canToggleVisibility: true,
 						canMoveView: true,
 						order: baseOrder, // Use computed order based on priority and alphabetical sorting
@@ -301,7 +302,7 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 						value: nls.localize('chat.sessions.gettingStarted', "Getting Started"),
 						original: 'Getting Started',
 					},
-					ctorDescriptor: new SyncDescriptor(SessionsViewPane, [null, this.sessionTracker]),
+					ctorDescriptor: new SyncDescriptor(SessionsViewPane, [null, this.sessionTracker, gettingStartedViewId]),
 					canToggleVisibility: true,
 					canMoveView: true,
 					order: 1000,

@@ -177,7 +177,7 @@ export class FilterWidget extends Widget {
 			inputBox.value = this.options.text;
 		}
 		this._register(inputBox.onDidChange(filter => this.delayedFilterUpdate.trigger(() => this.onDidInputChange(inputBox))));
-		this._register(DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: any) => this.onInputKeyDown(e, inputBox)));
+		this._register(DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: StandardKeyboardEvent) => this.onInputKeyDown(e)));
 		this._register(DOM.addStandardDisposableListener(container, DOM.EventType.KEY_DOWN, this.handleKeyboardEvent));
 		this._register(DOM.addStandardDisposableListener(container, DOM.EventType.KEY_UP, this.handleKeyboardEvent));
 		this._register(DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.CLICK, (e) => {
@@ -238,7 +238,7 @@ export class FilterWidget extends Widget {
 		}
 	}
 
-	private onInputKeyDown(event: StandardKeyboardEvent, filterInputBox: HistoryInputBox) {
+	private onInputKeyDown(event: StandardKeyboardEvent) {
 		let handled = false;
 		if (event.equals(KeyCode.Tab) && !this.toolbar.isEmpty()) {
 			this.toolbar.focus();

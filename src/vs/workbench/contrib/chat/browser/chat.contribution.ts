@@ -63,7 +63,7 @@ import { IVoiceChatService, VoiceChatService } from '../common/voiceChatService.
 import { registerChatAccessibilityActions } from './actions/chatAccessibilityActions.js';
 import { AgentChatAccessibilityHelp, EditsChatAccessibilityHelp, PanelChatAccessibilityHelp, QuickChatAccessibilityHelp } from './actions/chatAccessibilityHelp.js';
 import { ACTION_ID_NEW_CHAT, CopilotTitleBarMenuRendering, registerChatActions } from './actions/chatActions.js';
-import { registerNewChatActions } from './actions/chatClearActions.js';
+import { registerNewChatActions } from './actions/chatNewActions.js';
 import { CodeBlockActionRendering, registerChatCodeBlockActions, registerChatCodeCompareBlockActions } from './actions/chatCodeblockActions.js';
 import { ChatContextContributions } from './actions/chatContext.js';
 import { registerChatContextActions } from './actions/chatContextActions.js';
@@ -703,6 +703,11 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			tags: ['experimental'],
 
+		},
+		[ChatConfiguration.DelegateToCodingAgentInSecondaryMenu]: {
+			type: 'boolean',
+			description: nls.localize('chat.delegateToCodingAgentInSecondaryMenu', "Controls whether the 'Delegate to Coding Agent' action appears in the secondary send menu instead of the primary toolbar."),
+			default: false,
 		},
 		[ChatConfiguration.ShowAgentSessionsViewDescription]: {
 			type: 'boolean',

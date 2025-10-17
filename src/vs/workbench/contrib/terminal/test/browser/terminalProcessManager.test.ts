@@ -26,9 +26,9 @@ class TestTerminalChildProcess implements ITerminalChildProcess {
 		throw new Error('Method not implemented.');
 	}
 
-	onProcessOverrideDimensions?: Event<any> | undefined;
-	onProcessResolvedShellLaunchConfig?: Event<any> | undefined;
-	onDidChangeHasChildProcesses?: Event<any> | undefined;
+	readonly onProcessOverrideDimensions?: Event<any> | undefined;
+	readonly onProcessResolvedShellLaunchConfig?: Event<any> | undefined;
+	readonly onDidChangeHasChildProcesses?: Event<any> | undefined;
 
 	onDidChangeProperty = Event.None;
 	onProcessData = Event.None;
@@ -52,6 +52,7 @@ class TestTerminalChildProcess implements ITerminalChildProcess {
 
 class TestTerminalInstanceService implements Partial<ITerminalInstanceService> {
 	getBackend() {
+		// eslint-disable-next-line local/code-no-any-casts
 		return {
 			onPtyHostExit: Event.None,
 			onPtyHostUnresponsive: Event.None,
@@ -92,6 +93,7 @@ suite('Workbench - TerminalProcessManager', () => {
 				}
 			}
 		});
+		// eslint-disable-next-line local/code-no-any-casts
 		configurationService.onDidChangeConfigurationEmitter.fire({
 			affectsConfiguration: () => true,
 		} as any);

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { AccountInfo, AuthenticationResult, ClientAuthError, ClientAuthErrorCodes, ServerError, SilentFlowRequest } from '@azure/msal-node';
-import { AuthenticationChallenge, AuthenticationConstraint, AuthenticationGetSessionOptions, AuthenticationProvider, AuthenticationProviderAuthenticationSessionsChangeEvent, AuthenticationProviderSessionOptions, AuthenticationSession, AuthenticationSessionAccountInformation, CancellationError, EventEmitter, ExtensionContext, ExtensionKind, l10n, LogOutputChannel, Uri, window } from 'vscode';
+import { AuthenticationChallenge, AuthenticationConstraint, AuthenticationGetSessionOptions, AuthenticationProvider, AuthenticationProviderAuthenticationSessionsChangeEvent, AuthenticationProviderSessionOptions, AuthenticationSession, AuthenticationSessionAccountInformation, CancellationError, env, EventEmitter, ExtensionContext, ExtensionKind, l10n, LogOutputChannel, Uri, window } from 'vscode';
 import { Environment } from '@azure/ms-rest-azure-env';
 import { CachedPublicClientApplicationManager } from './publicClientCache';
 import { UriEventHandler } from '../UriEventHandler';
@@ -16,7 +16,7 @@ import { IStoredSession } from '../AADHelper';
 import { ExtensionHost, getMsalFlows } from './flows';
 import { base64Decode } from './buffer';
 import { Config } from '../common/config';
-import { DEFAULT_REDIRECT_URI } from '../common/env';
+import { isSupportedClient } from '../common/env';
 
 const MSA_TID = '9188040d-6c67-4c5b-b112-36a304b66dad';
 const MSA_PASSTHRU_TID = 'f8cdef31-a31e-4b4a-93e4-5f571e91255a';
@@ -210,10 +210,12 @@ export class MsalAuthProvider implements AuthenticationProvider {
 		};
 
 		const isNodeEnvironment = typeof process !== 'undefined' && typeof process?.versions?.node === 'string';
+		const callbackUri = await env.asExternalUri(Uri.parse(`${env.uriScheme}://vscode.microsoft-authentication`));
 		const flows = getMsalFlows({
 			extensionHost: isNodeEnvironment
 				? this._context.extension.extensionKind === ExtensionKind.UI ? ExtensionHost.Local : ExtensionHost.Remote
 				: ExtensionHost.WebWorker,
+			supportedClient: isSupportedClient(callbackUri),
 			isBrokerSupported: cachedPca.isBrokerAvailable
 		});
 
@@ -235,7 +237,8 @@ export class MsalAuthProvider implements AuthenticationProvider {
 					loginHint: options.account?.label,
 					windowHandle: window.nativeHandle ? Buffer.from(window.nativeHandle) : undefined,
 					logger: this._logger,
-					uriHandler: this._uriHandler
+					uriHandler: this._uriHandler,
+					callbackUri
 				});
 
 				const session = this.sessionFromAuthenticationResult(result, scopeData.originalScopes);
@@ -346,11 +349,13 @@ export class MsalAuthProvider implements AuthenticationProvider {
 		};
 
 		const isNodeEnvironment = typeof process !== 'undefined' && typeof process?.versions?.node === 'string';
+		const callbackUri = await env.asExternalUri(Uri.parse(`${env.uriScheme}://vscode.microsoft-authentication`));
 		const flows = getMsalFlows({
 			extensionHost: isNodeEnvironment
 				? this._context.extension.extensionKind === ExtensionKind.UI ? ExtensionHost.Local : ExtensionHost.Remote
 				: ExtensionHost.WebWorker,
-			isBrokerSupported: cachedPca.isBrokerAvailable
+			isBrokerSupported: cachedPca.isBrokerAvailable,
+			supportedClient: isSupportedClient(callbackUri)
 		});
 
 		const authority = new URL(scopeData.tenant, this._env.activeDirectoryEndpointUrl).toString();
@@ -373,7 +378,8 @@ export class MsalAuthProvider implements AuthenticationProvider {
 					windowHandle: window.nativeHandle ? Buffer.from(window.nativeHandle) : undefined,
 					logger: this._logger,
 					uriHandler: this._uriHandler,
-					claims: scopeData.claims
+					claims: scopeData.claims,
+					callbackUri
 				};
 
 				const result = await flow.trigger(authRequest);

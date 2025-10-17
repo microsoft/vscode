@@ -3,6 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.VinylStat = void 0;
 exports.incremental = incremental;
 exports.debounce = debounce;
 exports.fixWin32DirectoryPermissions = fixWin32DirectoryPermissions;
@@ -116,7 +117,8 @@ function fixWin32DirectoryPermissions() {
 function setExecutableBit(pattern) {
     const setBit = event_stream_1.default.mapSync(f => {
         if (!f.stat) {
-            f.stat = { isFile() { return true; } };
+            const stat = { isFile() { return true; }, mode: 0 };
+            f.stat = stat;
         }
         f.stat.mode = /* 100755 */ 33261;
         return f;
@@ -311,4 +313,52 @@ function getElectronVersion() {
     const msBuildId = /^ms_build_id="(.*)"$/m.exec(npmrc)[1];
     return { electronVersion, msBuildId };
 }
+class VinylStat {
+    dev;
+    ino;
+    mode;
+    nlink;
+    uid;
+    gid;
+    rdev;
+    size;
+    blksize;
+    blocks;
+    atimeMs;
+    mtimeMs;
+    ctimeMs;
+    birthtimeMs;
+    atime;
+    mtime;
+    ctime;
+    birthtime;
+    constructor(stat) {
+        this.dev = stat.dev ?? 0;
+        this.ino = stat.ino ?? 0;
+        this.mode = stat.mode ?? 0;
+        this.nlink = stat.nlink ?? 0;
+        this.uid = stat.uid ?? 0;
+        this.gid = stat.gid ?? 0;
+        this.rdev = stat.rdev ?? 0;
+        this.size = stat.size ?? 0;
+        this.blksize = stat.blksize ?? 0;
+        this.blocks = stat.blocks ?? 0;
+        this.atimeMs = stat.atimeMs ?? 0;
+        this.mtimeMs = stat.mtimeMs ?? 0;
+        this.ctimeMs = stat.ctimeMs ?? 0;
+        this.birthtimeMs = stat.birthtimeMs ?? 0;
+        this.atime = stat.atime ?? new Date(0);
+        this.mtime = stat.mtime ?? new Date(0);
+        this.ctime = stat.ctime ?? new Date(0);
+        this.birthtime = stat.birthtime ?? new Date(0);
+    }
+    isFile() { return true; }
+    isDirectory() { return false; }
+    isBlockDevice() { return false; }
+    isCharacterDevice() { return false; }
+    isSymbolicLink() { return false; }
+    isFIFO() { return false; }
+    isSocket() { return false; }
+}
+exports.VinylStat = VinylStat;
 //# sourceMappingURL=util.js.map

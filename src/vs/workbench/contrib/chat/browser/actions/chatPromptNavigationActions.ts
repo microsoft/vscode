@@ -30,7 +30,7 @@ export function registerChatPromptNavigationActions() {
 			});
 		}
 
-		run(accessor: ServicesAccessor, ...args: any[]) {
+		run(accessor: ServicesAccessor, ...args: unknown[]) {
 			navigateUserPrompts(accessor, false);
 		}
 	});
@@ -51,7 +51,7 @@ export function registerChatPromptNavigationActions() {
 			});
 		}
 
-		run(accessor: ServicesAccessor, ...args: any[]) {
+		run(accessor: ServicesAccessor, ...args: unknown[]) {
 			navigateUserPrompts(accessor, true);
 		}
 	});

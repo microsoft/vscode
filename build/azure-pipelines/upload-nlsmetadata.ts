@@ -134,7 +134,7 @@ function main(): Promise<void> {
 				}
 			}))
 			.on('end', () => c())
-			.on('error', (err: any) => e(err));
+			.on('error', (err: unknown) => e(err));
 	});
 }
 
