@@ -2726,146 +2726,22 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 /* Chat Suggest Next Widget */
+/* Suggested Actions widget - reuses chat-welcome-view-suggested-prompts styling */
 .chat-suggest-next-widget {
-	border: 1px solid var(--vscode-chat-requestBorder);
-	border-radius: 4px;
-	margin-bottom: 6px;
-	background-color: transparent;
-}
-
-.chat-suggest-next-widget:focus {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: -1px;
-}
-
-.chat-suggest-next-widget .suggest-next-header {
-	display: flex;
-	flex-direction: row;
-	justify-content: space-between;
-	align-items: center;
-	gap: 4px;
-	padding-right: 4px;
-	border-bottom: 1px solid var(--vscode-chat-requestBorder);
-	cursor: pointer;
-}
-
-.chat-suggest-next-widget .suggest-next-header-title {
-	flex-shrink: 0;
-	overflow: hidden;
-}
-
-.chat-suggest-next-widget .suggest-next-subtitle {
-	flex: 1;
-	min-width: 0;
-	padding: 0 6px 4px 6px;
-	font-size: 11px;
-	opacity: 0.6;
-	color: var(--vscode-descriptionForeground);
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-.chat-suggest-next-widget .suggest-next-header-actions {
-	display: none;
-	flex-shrink: 0;
-}
-
-	.chat-suggest-next-widget .suggest-next-header .monaco-button {
-		display: flex;
-		align-items: center;
-		gap: 4px;
-		width: 100%;
-		padding: 4px 6px 4px 0px;
-		font-size: 11px;
-		color: var(--vscode-foreground);
-		user-select: none;
-		border: none;
-		border-radius: 2px;
-		background-color: transparent;
-		text-align: left;
-		justify-content: initial;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-	}.chat-suggest-next-widget .suggest-next-header .monaco-button:focus-visible {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: -1px !important;
-}
-
-.chat-suggest-next-widget .suggest-next-header-actions .monaco-button {
-	height: 17px;
-	width: fit-content;
-	padding: 2px 6px;
-	font-size: 11px;
-	background-color: var(--vscode-button-background);
-	border: 1px solid var(--vscode-button-border);
-	color: var(--vscode-button-foreground);
-}
-
-.chat-suggest-next-widget .suggest-next-header-actions .monaco-button:hover {
-	background-color: var(--vscode-button-hoverBackground);
-}
-
-.chat-suggest-next-widget.chat-suggest-next-collapsed .suggest-next-content,
-.chat-suggest-next-widget .suggest-next-content.hidden {
-	display: none;
-}
-
-.chat-suggest-next-widget.chat-suggest-next-collapsed .suggest-next-header {
-	border-bottom: none;
-}
-
-.chat-suggest-next-widget .suggest-next-content {
-	padding: 0;
-}
-
-.chat-suggest-next-widget .suggest-next-list {
-	display: flex;
-	flex-direction: column;
-	gap: 0;
-	list-style: none;
-	padding: 0;
-	margin: 0;
-}
-
-.chat-suggest-next-widget .suggest-next-item {
-	display: flex;
-	align-items: center;
-	width: 100%;
-	padding: 6px 10px;
-	background-color: transparent;
-	color: var(--vscode-foreground);
-	border: none;
-	border-bottom: 1px solid var(--vscode-chat-requestBorder);
-	border-radius: 0;
-	cursor: pointer;
-	outline: none;
-	box-sizing: border-box;
-}
-
-.chat-suggest-next-widget .suggest-next-item:last-child {
-	border-bottom: none;
-}
-
-.chat-suggest-next-widget .suggest-next-item:hover {
-	background-color: var(--vscode-list-hoverBackground);
-}
-
-.chat-suggest-next-widget .suggest-next-item:focus {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: -1px;
-	background-color: var(--vscode-list-focusBackground);
-}
-
-.chat-suggest-next-widget .suggest-next-item:active {
-	background-color: var(--vscode-list-activeSelectionBackground);
-}
-
-.chat-suggest-next-widget .suggest-next-prompt-description {
-	font-size: var(--vscode-chat-font-size-body-s);
-	overflow: hidden;
-	text-overflow: ellipsis;
+	/* Override positioning from welcome view styles (relative instead of absolute) */
+	position: relative !important;
+	bottom: auto !important;
+	left: auto !important;
+	right: auto !important;
+	margin: 0 0 0 0;
+	/* Keep standard padding with space for title */
+	padding: 32px 16px 8px 16px !important;
+	/* Left align buttons to match standard welcome view */
+	justify-content: flex-start !important;
+	/* Ensure flex layout is properly applied */
+	display: flex !important;
+	flex-wrap: wrap !important;
+	gap: 8px !important;
 }
 
 .interactive-session .interactive-response .chat-used-context-list.chat-thinking-items {

@@ -4,11 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
-import { Button, ButtonWithIcon } from '../../../../../base/browser/ui/button/button.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { observableValue, autorun } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
 import { IChatMode } from '../../common/chatModes.js';
 import { IHandOff } from '../../common/promptSyntax/service/newPromptsParser.js';
@@ -26,14 +23,9 @@ export class ChatSuggestNextWidget extends Disposable {
 	private readonly _onDidSelectPrompt = this._register(new Emitter<INextPromptSelection>());
 	public readonly onDidSelectPrompt: Event<INextPromptSelection> = this._onDidSelectPrompt.event;
 
-	private readonly _isExpanded = observableValue<boolean>(this, true);
-	private headerButton!: ButtonWithIcon;
-	private actionButton: Button | undefined;
-	private actionContainer!: HTMLElement;
-	private contentContainer!: HTMLElement;
-	private promptListContainer!: HTMLElement;
+	private promptsContainer!: HTMLElement;
+	private titleElement!: HTMLElement;
 	private _currentMode: IChatMode | undefined;
-	private _firstHandoff: IHandOff | undefined;
 
 	constructor() {
 		super();
@@ -48,88 +40,16 @@ export class ChatSuggestNextWidget extends Disposable {
 		return this._currentMode;
 	}
 
-	/**
-	 * Updates the ARIA label for the widget to announce expanded/collapsed state
-	 */
-	private updateAriaLabel(element: HTMLElement, modeLabel: string, expanded: boolean): void {
-		const label = localize('chat.suggestNext.title', "Continue with {0}?", modeLabel);
-		element.ariaLabel = expanded
-			? localize('suggestNextExpanded', "{0}, expanded", label)
-			: localize('suggestNextCollapsed', "{0}, collapsed", label);
-	}
-
 	private createSuggestNextWidget(): HTMLElement {
-		const container = dom.$('.chat-suggest-next-widget');
+		// Reuse welcome view classes for consistent styling
+		const container = dom.$('.chat-suggest-next-widget.chat-welcome-view-suggested-prompts');
 		container.style.display = 'none';
-		container.setAttribute('tabindex', '0');
 
-		const header = dom.$('.suggest-next-header');
+		// Title element using welcome view class
+		this.titleElement = dom.append(container, dom.$('.chat-welcome-view-suggested-prompts-title'));
 
-		// Create title container for collapsible header button
-		const titleContainer = dom.$('.suggest-next-header-title');
-		this.headerButton = this._register(new ButtonWithIcon(titleContainer, {
-			secondary: true,
-			title: '',
-			supportIcons: true
-		}));
-		header.appendChild(titleContainer);
-
-		// Create action button container (shown when collapsed)
-		this.actionContainer = dom.$('.suggest-next-header-actions');
-		header.appendChild(this.actionContainer);
-
-		container.appendChild(header);
-
-		// Create collapsible content wrapper
-		this.contentContainer = dom.$('.suggest-next-content');
-		this.promptListContainer = dom.$('.suggest-next-list');
-		this.promptListContainer.setAttribute('role', 'list');
-		this.contentContainer.appendChild(this.promptListContainer);
-		container.appendChild(this.contentContainer);
-
-		// Set up collapse/expand behavior with observable
-		this._register(autorun(reader => {
-			const expanded = this._isExpanded.read(reader);
-
-			// Update icon
-			this.headerButton.icon = expanded ? Codicon.chevronDown : Codicon.chevronRight;
-
-			// Toggle content visibility
-			this.contentContainer.classList.toggle('hidden', !expanded);
-			container.classList.toggle('chat-suggest-next-collapsed', !expanded);
-
-			// Show/hide action button based on collapsed state
-			if (!expanded && this._firstHandoff) {
-				if (!this.actionButton) {
-					this.actionButton = this._register(new Button(this.actionContainer, {
-						secondary: false,
-						title: this._firstHandoff.label
-					}));
-					this.actionButton.label = this._firstHandoff.label;
-					this._register(this.actionButton.onDidClick(() => {
-						if (this._firstHandoff) {
-							this._onDidSelectPrompt.fire({ handoff: this._firstHandoff });
-						}
-					}));
-				}
-				this.actionContainer.style.display = 'flex';
-			} else {
-				this.actionContainer.style.display = 'none';
-			}
-
-			// Update ARIA label
-			if (this._currentMode) {
-				this.updateAriaLabel(container, this._currentMode.label, expanded);
-			}
-
-			// Fire height change immediately after DOM updates
-			this._onDidChangeHeight.fire();
-		}));
-
-		// Header button click handler
-		this._register(this.headerButton.onDidClick(() => {
-			this._isExpanded.set(!this._isExpanded.get(), undefined, undefined);
-		}));
+		// Container for prompt buttons
+		this.promptsContainer = container;
 
 		return container;
 	}
@@ -144,63 +64,59 @@ export class ChatSuggestNextWidget extends Disposable {
 
 		this._currentMode = mode;
 
-		// Update header button label
-		this.headerButton.label = localize('chat.suggestNext.title', "Continue with {0}?", mode.label);
+		// Update title with mode name: "Proceed from {Mode}"
+		const modeName = mode.name || mode.label || localize('chat.currentMode', 'current mode');
+		this.titleElement.textContent = localize('chat.proceedFrom', 'Proceed from {0}', modeName);
 
-		// Track first handoff for collapsed state action button
-		if (handoffs.length > 0) {
-			this._firstHandoff = handoffs[0];
-			// Update action button if it exists
-			if (this.actionButton) {
-				this.actionButton.label = this._firstHandoff.label;
-				this.actionButton.setTitle(this._firstHandoff.label);
-			}
+		// Clear existing prompt buttons (keep title which is first child)
+		const childrenToRemove: HTMLElement[] = [];
+		for (let i = 1; i < this.promptsContainer.children.length; i++) {
+			childrenToRemove.push(this.promptsContainer.children[i] as HTMLElement);
+		}
+		for (const child of childrenToRemove) {
+			this.promptsContainer.removeChild(child);
 		}
 
-		// Clear and rebuild prompt list
-		this.promptListContainer.textContent = '';
-
+		// Create prompt buttons using welcome view classes
 		for (const handoff of handoffs) {
-			const promptItem = this.createPromptItem(handoff);
-			this.promptListContainer.appendChild(promptItem);
+			const promptButton = this.createPromptButton(handoff);
+			this.promptsContainer.appendChild(promptButton);
 		}
 
 		this.domNode.style.display = 'block';
 		this._onDidChangeHeight.fire();
 	}
 
-	private createPromptItem(handoff: IHandOff): HTMLElement {
-		const item = dom.$('.suggest-next-item');
-		item.setAttribute('role', 'listitem');
-		item.setAttribute('tabindex', '0');
-		item.setAttribute('aria-label', localize('chat.suggestNext.item', '{0}', handoff.label));
+	private createPromptButton(handoff: IHandOff): HTMLElement {
+		// Reuse welcome view prompt button class
+		const button = dom.$('.chat-welcome-view-suggested-prompt');
+		button.setAttribute('tabindex', '0');
+		button.setAttribute('role', 'button');
+		button.setAttribute('aria-label', localize('chat.suggestNext.item', '{0}', handoff.label));
 
-		const descriptionElement = dom.$('.suggest-next-prompt-description');
-		descriptionElement.textContent = handoff.label;
-		item.appendChild(descriptionElement);
+		// Title element using welcome view class
+		const titleElement = dom.append(button, dom.$('.chat-welcome-view-suggested-prompt-title'));
+		titleElement.textContent = handoff.label;
 
 		// Click handler
-		this._register(dom.addDisposableListener(item, 'click', () => {
+		this._register(dom.addDisposableListener(button, 'click', () => {
 			this._onDidSelectPrompt.fire({ handoff });
 		}));
 
 		// Keyboard handler
-		this._register(dom.addDisposableListener(item, 'keydown', (e) => {
+		this._register(dom.addDisposableListener(button, 'keydown', (e) => {
 			if (e.key === 'Enter' || e.key === ' ') {
 				e.preventDefault();
 				this._onDidSelectPrompt.fire({ handoff });
 			}
 		}));
 
-		return item;
+		return button;
 	}
 
 	public hide(): void {
 		if (this.domNode.style.display !== 'none') {
 			this._currentMode = undefined;
-			this._firstHandoff = undefined;
-			// Reset to expanded state for next show
-			this._isExpanded.set(true, undefined, undefined);
 			this.domNode.style.display = 'none';
 			this._onDidChangeHeight.fire();
 		}
