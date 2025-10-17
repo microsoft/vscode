@@ -204,9 +204,9 @@ export class SessionsViewPane extends ViewPane {
 	}
 
 	/**
-	 * Updates the empty state message based on current tree data.
-	 * Uses the tree's existing data to avoid redundant provider calls.
-	 */
+		* Updates the empty state message based on current tree data.
+		* Uses the tree's existing data to avoid redundant provider calls.
+		*/
 	private updateEmptyState(): void {
 		try {
 			const newEmptyState = this.isEmpty();
@@ -220,9 +220,9 @@ export class SessionsViewPane extends ViewPane {
 	}
 
 	/**
-	 * Refreshes the tree data with progress indication.
-	 * Shows a progress indicator while the tree updates its children from the provider.
-	 */
+		* Refreshes the tree data with progress indication.
+		* Shows a progress indicator while the tree updates its children from the provider.
+		*/
 	private async refreshTreeWithProgress(): Promise<void> {
 		if (!this.tree) {
 			return;
@@ -248,9 +248,9 @@ export class SessionsViewPane extends ViewPane {
 	}
 
 	/**
-	 * Loads initial tree data with progress indication.
-	 * Shows a progress indicator while the tree loads data from the provider.
-	 */
+		* Loads initial tree data with progress indication.
+		* Shows a progress indicator while the tree loads data from the provider.
+		*/
 	private async loadDataWithProgress(): Promise<void> {
 		if (!this.tree) {
 			return;
@@ -305,7 +305,7 @@ export class SessionsViewPane extends ViewPane {
 				return null;
 			}
 
-			return ChatSessionUri.forSession(element.provider.chatSessionType, element.id);
+			return element.resource;
 		};
 
 		this.tree = this.instantiationService.createInstance(
@@ -453,6 +453,11 @@ export class SessionsViewPane extends ViewPane {
 
 	private async openChatSession(session: ChatSessionItemWithProvider) {
 		if (!session || !session.id) {
+			return;
+		}
+
+		if (session.resource.scheme !== ChatSessionUri.scheme) {
+			await this.openerService.open(session.resource);
 			return;
 		}
 
