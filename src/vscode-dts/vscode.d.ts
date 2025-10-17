@@ -8232,7 +8232,7 @@ declare module 'vscode' {
 	 * The fields on a completion item describe what text should be shown to the user
 	 * and which portion of the command line should be replaced when the item is accepted.
 	 */
-	export interface TerminalCompletionItem {
+	export class TerminalCompletionItem {
 		/**
 		 * The label of the completion.
 		 */
@@ -8262,8 +8262,22 @@ declare module 'vscode' {
 		 * The completion's kind. Note that this will map to an icon.
 		 */
 		kind?: TerminalCompletionItemKind;
-	}
 
+		/**
+		 * Creates a new terminal completion item.
+		 *
+		 * @param label The label of the completion.
+		 * @param replacementIndex The index of the start of the range to replace.
+		 * @param replacementLength The length of the range to replace.
+		 * @param kind The completion's kind.
+		 */
+		constructor(
+			label: string | CompletionItemLabel,
+			replacementIndex: number,
+			replacementLength: number,
+			kind?: TerminalCompletionItemKind
+		);
+	}
 
 	/**
 	 * The kind of an individual terminal completion item.
