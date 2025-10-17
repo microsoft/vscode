@@ -24,7 +24,7 @@ import { ICreateContributedTerminalProfileOptions, IExtensionTerminalProfile, IP
 import { formatMessageForTerminal } from '../../../../platform/terminal/common/terminalStrings.js';
 import { iconForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { getIconRegistry } from '../../../../platform/theme/common/iconRegistry.js';
-import { ColorScheme } from '../../../../platform/theme/common/theme.js';
+import { isDark } from '../../../../platform/theme/common/theme.js';
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
@@ -374,7 +374,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 		// If this was a hideFromUser terminal created by the API this was triggered by show,
 		// in which case we need to create the terminal group
 		if (value.shellLaunchConfig.hideFromUser) {
-			this._showBackgroundTerminal(value);
+			this.showBackgroundTerminal(value);
 		}
 		if (value.target === TerminalLocation.Editor) {
 			this._terminalEditorService.setActiveInstance(value);
@@ -692,6 +692,12 @@ export class TerminalService extends Disposable implements ITerminalService {
 		}
 	}
 
+	private async _saveStateNow(): Promise<void> {
+		const tabs = this._terminalGroupService.groups.map(g => g.getLayoutInfo(g === this._terminalGroupService.activeGroup));
+		const state: ITerminalsLayoutInfoById = { tabs };
+		await this._primaryBackend?.setTerminalLayoutInfo(state);
+	}
+
 	@debounce(500)
 	private _saveState(): void {
 		// Avoid saving state when shutting down as that would override process state to be revived
@@ -701,9 +707,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 		if (!this._terminalConfigurationService.config.enablePersistentSessions) {
 			return;
 		}
-		const tabs = this._terminalGroupService.groups.map(g => g.getLayoutInfo(g === this._terminalGroupService.activeGroup));
-		const state: ITerminalsLayoutInfoById = { tabs };
-		this._primaryBackend?.setTerminalLayoutInfo(state);
+		this._saveStateNow();
 	}
 
 	@debounce(500)
@@ -1160,7 +1164,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 		}
 	}
 
-	protected _showBackgroundTerminal(instance: ITerminalInstance): void {
+	public async showBackgroundTerminal(instance: ITerminalInstance, suppressSetActive?: boolean, forceSaveState?: boolean): Promise<void> {
 		const index = this._backgroundedTerminalInstances.indexOf(instance);
 		if (index === -1) {
 			return;
@@ -1174,10 +1178,14 @@ export class TerminalService extends Disposable implements ITerminalService {
 		this._terminalGroupService.createGroup(instance);
 
 		// Make active automatically if it's the first instance
-		if (this.instances.length === 1) {
+		if (this.instances.length === 1 && !suppressSetActive) {
 			this._terminalGroupService.setActiveInstanceByIndex(0);
 		}
 
+		if (forceSaveState) {
+			// Skips the debounce of _saveState in case it's shutting down
+			await this._saveStateNow();
+		}
 		this._onDidChangeInstances.fire();
 	}
 
@@ -1249,7 +1257,7 @@ class TerminalEditorStyle extends Themable {
 			if (icon instanceof URI) {
 				uri = icon;
 			} else if (icon instanceof Object && 'light' in icon && 'dark' in icon) {
-				uri = colorTheme.type === ColorScheme.LIGHT ? icon.light : icon.dark;
+				uri = isDark(colorTheme.type) ? icon.dark : icon.light;
 			}
 			const iconClasses = getUriClasses(instance, colorTheme.type);
 			if (uri instanceof URI && iconClasses && iconClasses.length > 1) {

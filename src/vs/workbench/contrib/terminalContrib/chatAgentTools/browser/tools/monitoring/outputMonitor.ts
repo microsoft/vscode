@@ -286,8 +286,9 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		let waited = 0;
 		let consecutiveIdleEvents = 0;
 		let hasReceivedData = false;
-		let currentOutput: string | undefined;
-		let onDataDisposable = Disposable.None;
+		const onDataDisposable = execution.instance.onData((_data) => {
+			hasReceivedData = true;
+		});
 
 		try {
 			while (!token.isCancellationRequested && waited < maxWaitMs) {
@@ -295,13 +296,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				await timeout(waitTime, token);
 				waited += waitTime;
 				currentInterval = Math.min(currentInterval * 2, maxInterval);
-				if (currentOutput === undefined) {
-					currentOutput = execution.getOutput();
-					onDataDisposable = execution.instance.onData((data) => {
-						hasReceivedData = true;
-						currentOutput += data;
-					});
-				}
+				const currentOutput = execution.getOutput();
 				const promptResult = detectsInputRequiredPattern(currentOutput);
 				if (promptResult) {
 					this._state = OutputMonitorState.Idle;
@@ -318,14 +313,10 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				const recentlyIdle = consecutiveIdleEvents >= PollingConsts.MinIdleEvents;
 				const isActive = execution.isActive ? await execution.isActive() : undefined;
 				this._logService.trace(`OutputMonitor: waitForIdle check: waited=${waited}ms, recentlyIdle=${recentlyIdle}, isActive=${isActive}`);
-				// Keep polling if still active with no recent data
-				if (recentlyIdle && isActive === true) {
-					consecutiveIdleEvents = 0;
-					continue;
-				}
 
 				if (recentlyIdle || isActive === false) {
-					return OutputMonitorState.Idle;
+					this._state = OutputMonitorState.Idle;
+					return this._state;
 				}
 			}
 		} finally {
