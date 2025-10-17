@@ -912,7 +912,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// Unlock coding agent when clearing
 		this.unlockFromCodingAgent();
 		this._onDidClear.fire();
-		this.clearTodoListWidget(this.viewModel?.sessionId);
+		this.clearTodoListWidget(this.viewModel?.sessionId, /*force=*/ true);
 	}
 
 	public toggleHistoryVisibility(): void {
@@ -1253,7 +1253,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private renderChatTodoListWidget(): void {
 		const sessionId = this.viewModel?.sessionId;
-		if (!sessionId || !this._isReady) {
+		if (!sessionId) {
 			return;
 		}
 
@@ -1281,6 +1281,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private clearTodoListWidget(sessionId: string | undefined, force: boolean = false): void {
 		this.chatTodoListWidget.clear(sessionId, force);
 		this.inputPart.clearTodoListWidget(sessionId, force);
+		this._onDidChangeContentHeight.fire();
 	}
 
 	private _getGenerateInstructionsMessage(): IMarkdownString {
