@@ -1361,6 +1361,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.unlockFromCodingAgent();
 		this._onDidClear.fire();
 		this.clearTodoListWidget(this.viewModel?.sessionId);
+		// Cancel any pending widget render and hide the widget
+		this._chatSuggestNextScheduler.cancel();
 		this.chatSuggestNextWidget.hide();
 	}
 
@@ -2333,7 +2335,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const currentMode = this.input.currentModeObs.get();
 		const handoffs = currentMode?.handOffs?.get();
 
-		if (currentMode && handoffs && handoffs.length > 0) {
+		// Only show if: mode has handoffs AND chat has content AND not quick chat
+		const hasContent = this.viewModel && this.viewModel.getItems().length > 0;
+		const shouldShow =
+			currentMode &&
+			handoffs &&
+			handoffs.length > 0 &&
+			hasContent &&
+			!isQuickChat(this);
+
+		if (shouldShow) {
 			this.chatSuggestNextWidget.render(currentMode);
 		} else {
 			this.chatSuggestNextWidget.hide();
@@ -3065,6 +3076,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this._welcomeRenderScheduler.schedule();
 				this.refreshParsedInput();
 				this.renderFollowups();
+				// Hide the widget immediately when mode changes
+				// This ensures the widget doesn't remain visible when switching away from a mode with handoffs
+				this.chatSuggestNextWidget.hide();
 				// Show widget if switching to mode with handoffs AND chat has existing responses
 				const currentMode = this.input.currentModeObs.get();
 				const hasExistingContent =
