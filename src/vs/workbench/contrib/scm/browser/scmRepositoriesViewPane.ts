@@ -13,7 +13,7 @@ import { WorkbenchCompressibleAsyncDataTree } from '../../../../platform/list/br
 import { ISCMRepository, ISCMService, ISCMViewService } from '../common/scm.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -391,7 +391,10 @@ registerAction2(class extends Action2 {
 			icon: Codicon.pin,
 			menu: {
 				id: MenuId.SCMSourceControlTitle,
-				when: RepositoryContextKeys.RepositoryPinned.isEqualTo(false),
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.has('scm.providerCount'),
+					ContextKeyExpr.greater('scm.providerCount', 1),
+					RepositoryContextKeys.RepositoryPinned.isEqualTo(false)),
 				group: 'navigation',
 				order: 1
 			},
@@ -418,7 +421,10 @@ registerAction2(class extends Action2 {
 			icon: Codicon.pinned,
 			menu: {
 				id: MenuId.SCMSourceControlTitle,
-				when: RepositoryContextKeys.RepositoryPinned.isEqualTo(true),
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.has('scm.providerCount'),
+					ContextKeyExpr.greater('scm.providerCount', 1),
+					RepositoryContextKeys.RepositoryPinned.isEqualTo(true)),
 				group: 'navigation',
 				order: 2
 			},
