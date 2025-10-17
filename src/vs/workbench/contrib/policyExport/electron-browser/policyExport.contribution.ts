@@ -16,7 +16,7 @@ import { IProgressService, ProgressLocation } from '../../../../platform/progres
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { URI } from '../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { PolicyCategory, PolicyCategoryTitle } from '../../../../base/common/policy.js';
+import { PolicyCategory, PolicyCategoryData } from '../../../../base/common/policy.js';
 import { ExportedPolicyDataDto } from '../../../../base/common/policyDto.js';
 import { join } from '../../../../base/common/path.js';
 
@@ -71,10 +71,7 @@ export class PolicyExportContribution extends Disposable implements IWorkbenchCo
 				const policyData: ExportedPolicyDataDto = {
 					categories: Object.values(PolicyCategory).map(category => ({
 						key: category,
-						name: {
-							key: category,
-							value: PolicyCategoryTitle[category],
-						}
+						name: PolicyCategoryData[category].name
 					})),
 					policies: []
 				};

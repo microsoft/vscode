@@ -12,24 +12,42 @@ export type LocalizedValue = {
 	value: string;
 };
 
-// IMPORTANT: Make sure that the enum values here match the corresponding localization keys below!
-
 export enum PolicyCategory {
-	Extensions = 'extensionsConfigurationTitle',
-	IntegratedTerminal = 'terminalIntegratedConfigurationTitle',
-	InteractiveSession = 'interactiveSessionConfigurationTitle',
-	Telemetry = 'telemetryConfigurationTitle',
-	Update = 'updateConfigurationTitle',
+	Extensions = 'Extensions',
+	IntegratedTerminal = 'IntegratedTerminal',
+	InteractiveSession = 'InteractiveSession',
+	Telemetry = 'Telemetry',
+	Update = 'Update',
 }
 
-export const PolicyCategoryTitle: {
-	[key in PolicyCategory]: string
+export const PolicyCategoryData: {
+	[key in PolicyCategory]: { name: LocalizedValue }
 } = {
-	[PolicyCategory.Extensions]: localize('extensionsConfigurationTitle', "Extensions"),
-	[PolicyCategory.IntegratedTerminal]: localize('terminalIntegratedConfigurationTitle', "Integrated Terminal"),
-	[PolicyCategory.InteractiveSession]: localize('interactiveSessionConfigurationTitle', "Chat"),
-	[PolicyCategory.Telemetry]: localize('telemetryConfigurationTitle', "Telemetry"),
-	[PolicyCategory.Update]: localize('updateConfigurationTitle', "Update"),
+	[PolicyCategory.Extensions]: {
+		name: {
+			key: 'extensionsConfigurationTitle', value: localize('extensionsConfigurationTitle', "Extensions"),
+		}
+	},
+	[PolicyCategory.IntegratedTerminal]: {
+		name: {
+			key: 'terminalIntegratedConfigurationTitle', value: localize('terminalIntegratedConfigurationTitle', "Integrated Terminal"),
+		}
+	},
+	[PolicyCategory.InteractiveSession]: {
+		name: {
+			key: 'interactiveSessionConfigurationTitle', value: localize('interactiveSessionConfigurationTitle', "Chat"),
+		}
+	},
+	[PolicyCategory.Telemetry]: {
+		name: {
+			key: 'telemetryConfigurationTitle', value: localize('telemetryConfigurationTitle', "Telemetry"),
+		}
+	},
+	[PolicyCategory.Update]: {
+		name: {
+			key: 'updateConfigurationTitle', value: localize('updateConfigurationTitle', "Update"),
+		}
+	}
 };
 
 export interface IPolicy {
