@@ -9,7 +9,7 @@ function removeAllTSBoilerplate(source) {
 const BOILERPLATE = [
     { start: /^var __extends/, end: /^}\)\(\);$/ },
     { start: /^var __assign/, end: /^};$/ },
-    { start: /^var __decorate/, end: /^};$/ },
+    { start: /^var __decorate\b/, end: /^};$/ },
     { start: /^var __metadata/, end: /^};$/ },
     { start: /^var __param/, end: /^};$/ },
     { start: /^var __awaiter/, end: /^};$/ },
