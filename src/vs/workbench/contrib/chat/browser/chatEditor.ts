@@ -79,7 +79,7 @@ export class ChatEditor extends EditorPane {
 	protected override createEditor(parent: HTMLElement): void {
 		this._editorContainer = parent;
 		// Ensure the container has position relative for the loading overlay
-		parent.style.position = 'relative';
+		parent.classList.add('chat-editor-relative');
 		this._scopedContextKeyService = this._register(this.contextKeyService.createScoped(parent));
 		const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
 		ChatContextKeys.inChatEditor.bindTo(this._scopedContextKeyService).set(true);
