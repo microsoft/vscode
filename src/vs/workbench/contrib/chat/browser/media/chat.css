@@ -757,7 +757,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 /* When suggest-next widget is present above input, remove top border-radius for connected appearance */
-.interactive-session .interactive-input-part .chat-suggest-next-widget ~ .chat-input-container {
+.interactive-session .chat-suggest-next-widget ~ .interactive-input-part .chat-input-container {
 	border-top-left-radius: 0;
 	border-top-right-radius: 0;
 }
@@ -2727,10 +2727,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 /* Chat Suggest Next Widget */
 /* Suggested Actions widget - reuses chat-welcome-view-suggested-prompts styling */
-.chat-suggest-next-widget {
+
+.interactive-session > .chat-suggest-next-widget {
 	/* Override positioning from welcome view styles (relative instead of absolute) */
 	position: relative;
-	bottom: auto ;
+	bottom: auto;
 	left: auto;
 	right: auto;
 	margin: 0 0 0 0;

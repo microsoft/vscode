@@ -83,7 +83,7 @@ export class ChatSuggestNextWidget extends Disposable {
 			this.promptsContainer.appendChild(promptButton);
 		}
 
-		this.domNode.style.display = 'block';
+		this.domNode.style.display = 'flex';
 		this._onDidChangeHeight.fire();
 	}
 
