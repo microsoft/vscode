@@ -648,7 +648,10 @@ export class CreateRemoteAgentJobAction extends Action2 {
 					group: 'navigation',
 					order: 3.4,
 					when: ContextKeyExpr.and(
-						ChatContextKeys.hasRemoteCodingAgent,
+						ContextKeyExpr.or(
+							ChatContextKeys.hasRemoteCodingAgent,
+							ChatContextKeys.hasCloudButtonV2
+						),
 						ChatContextKeys.lockedToCodingAgent.negate(),
 						ContextKeyExpr.equals(`config.${ChatConfiguration.DelegateToCodingAgentInSecondaryMenu}`, false)
 					),
@@ -658,7 +661,10 @@ export class CreateRemoteAgentJobAction extends Action2 {
 					group: 'group_3',
 					order: 1,
 					when: ContextKeyExpr.and(
-						ChatContextKeys.hasRemoteCodingAgent,
+						ContextKeyExpr.or(
+							ChatContextKeys.hasRemoteCodingAgent,
+							ChatContextKeys.hasCloudButtonV2
+						),
 						ChatContextKeys.lockedToCodingAgent.negate(),
 						ContextKeyExpr.equals(`config.${ChatConfiguration.DelegateToCodingAgentInSecondaryMenu}`, true)
 					),
