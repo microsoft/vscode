@@ -476,11 +476,17 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				case TerminalCapability.CommandDetection: {
 					e.capability.promptInputModel.setShellType(this.shellType);
 					capabilityListeners.set(e.id, Event.any(
-						e.capability.onPromptTypeChanged,
 						e.capability.promptInputModel.onDidStartInput,
 						e.capability.promptInputModel.onDidChangeInput,
 						e.capability.promptInputModel.onDidFinishInput
 					)(() => {
+						this._labelComputer?.refreshLabel(this);
+						refreshShellIntegrationInfoStatus(this);
+					}));
+					break;
+				}
+				case TerminalCapability.PromptTypeDetection: {
+					capabilityListeners.set(e.id, e.capability.onPromptTypeChanged(() => {
 						this._labelComputer?.refreshLabel(this);
 						refreshShellIntegrationInfoStatus(this);
 					}));
