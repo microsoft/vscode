@@ -365,10 +365,10 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 			});
 		}
 
-		// Sort: visible first (stable by label inside each group)
+		// Sort: hidden first (stable by label inside each group)
 		metas.sort((a, b) => {
 			if (a.isBackground !== b.isBackground) {
-				return a.isBackground ? 1 : -1;
+				return a.isBackground ? -1 : 1;
 			}
 			return a.label.localeCompare(b.label);
 		});
