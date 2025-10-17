@@ -23,7 +23,6 @@ import { chatSlashCommandBackground, chatSlashCommandForeground } from '../../co
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader } from '../../common/chatParserTypes.js';
 import { ChatRequestParser } from '../../common/chatRequestParser.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { IChatWidget } from '../chat.js';
 import { ChatWidget } from '../chatWidget.js';
 import { dynamicVariableDecorationType } from './chatDynamicVariables.js';
@@ -76,9 +75,7 @@ class InputEditorDecorations extends Disposable {
 			this.previouslyUsedAgents.add(agentAndCommandToKey(e.agent, e.slashCommand?.name));
 		}));
 		this._register(this.chatAgentService.onDidChangeAgents(() => this.updateInputEditorDecorations()));
-		this._register(this.promptsService.onDidChangeCustomChatModes(() => {
-			this.updateInputEditorDecorations();
-		}));
+		this._register(this.promptsService.onDidChangeParsedPromptFilesCache(() => this.updateInputEditorDecorations()));
 		this._register(autorun(reader => {
 			// Watch for changes to the current mode and its properties
 			const currentMode = this.widget.input.currentModeObs.read(reader);
@@ -251,25 +248,20 @@ class InputEditorDecorations extends Disposable {
 		if (onlyPromptCommandAndWhitespace && exactlyOneSpaceAfterPart(slashPromptPart)) {
 			// Prompt slash command with no other text - show the placeholder
 			// Resolve the prompt file (this will use cache if available)
-			this.promptsService.resolvePromptSlashCommand(slashPromptPart.slashPromptCommand, CancellationToken.None).then(promptFile => {
-				const description = promptFile?.header?.description;
-				if (description) {
-					// Create placeholder decoration
-					const decoration: IDecorationOptions[] = [{
-						range: getRangeForPlaceholder(slashPromptPart),
-						renderOptions: {
-							after: {
-								contentText: description,
-								color: this.getPlaceholderColor(),
-							}
+			const promptFile = this.promptsService.resolvePromptSlashCommandFromCache(slashPromptPart.slashPromptCommand);
+
+			const description = promptFile?.header?.description;
+			if (description) {
+				placeholderDecoration = [{
+					range: getRangeForPlaceholder(slashPromptPart),
+					renderOptions: {
+						after: {
+							contentText: description,
+							color: this.getPlaceholderColor(),
 						}
-					}];
-					// Update the specific placeholder decoration
-					this.widget.inputEditor.setDecorationsByType(decorationDescription, placeholderDecorationType, decoration);
-				}
-			}).catch(() => {
-				// Ignore errors, just don't show description
-			});
+					}
+				}];
+			}
 		}
 
 		this.widget.inputEditor.setDecorationsByType(decorationDescription, placeholderDecorationType, placeholderDecoration ?? []);

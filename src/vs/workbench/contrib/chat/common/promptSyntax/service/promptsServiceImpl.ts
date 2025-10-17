@@ -55,12 +55,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 	/**
 	 * Cache for parsed prompt files keyed by command name.
 	 */
-	private promptFileByCommandCache = new Map<string, ParsedPromptFile | undefined>();
+	private promptFileByCommandCache = new Map<string, { value: ParsedPromptFile | undefined; pendingPromise: Promise<ParsedPromptFile | undefined> | undefined }>();
 
-	/**
-	 * Set to track pending prompt file resolutions to avoid duplicates.
-	 */
-	private pendingPromptFileResolutions = new Set<string>();
+	private onDidChangeParsedPromptFilesCacheEmitter = new Emitter<void>();
 
 	/**
 	 * Contributed files from extensions keyed by prompt type then name.
@@ -89,19 +86,14 @@ export class PromptsService extends Disposable implements IPromptsService {
 	) {
 		super();
 
+		this.onDidChangeParsedPromptFilesCacheEmitter = this._register(new Emitter<void>());
+
 		this.fileLocator = this._register(this.instantiationService.createInstance(PromptFilesLocator));
 
 		this._register(this.modelService.onModelRemoved((model) => {
 			this.parsedPromptFileCache.delete(model.uri);
-			// Clear prompt file cache when prompt files are removed
-			if (this.getPromptFileType(model.uri) === PromptsType.prompt) {
-				this.promptFileByCommandCache.clear();
-			}
-		}));
 
-		// Track prompt file updates (adds / removes / content changes) to invalidate command-based cache
-		const promptFileTracker = this._register(new PromptFileUpdateTracker(this.fileLocator, this.modelService));
-		this._register(promptFileTracker.onDidChangeContent(() => {
+			// clear prompt file command cache
 			this.promptFileByCommandCache.clear();
 		}));
 	}
@@ -118,7 +110,12 @@ export class PromptsService extends Disposable implements IPromptsService {
 				emitter.fire();
 			}));
 		}
+
 		return this.onDidChangeCustomChatModesEmitter.event;
+	}
+
+	public get onDidChangeParsedPromptFilesCache(): Event<void> {
+		return this.onDidChangeParsedPromptFilesCacheEmitter.event;
 	}
 
 	public getPromptFileType(uri: URI): PromptsType | undefined {
@@ -126,7 +123,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const languageId = model ? model.getLanguageId() : this.languageService.guessLanguageIdByFilepathOrFirstLine(uri);
 		return languageId ? getPromptsTypeForLanguageId(languageId) : undefined;
 	}
-
 
 	public getParsedPromptFile(textModel: ITextModel): ParsedPromptFile {
 		const cached = this.parsedPromptFileCache.get(textModel.uri);
@@ -198,43 +194,62 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return undefined;
 	}
 
-	public async resolvePromptSlashCommand(data: IChatPromptSlashCommand, token: CancellationToken): Promise<ParsedPromptFile | undefined> {
+	private async resolvePromptSlashCommandInternal(data: IChatPromptSlashCommand, token: CancellationToken) {
 		const command = data.command;
-
-		// Check cache first
-		if (this.promptFileByCommandCache.has(command)) {
-			return this.promptFileByCommandCache.get(command);
-		}
-
-		// Avoid duplicate resolutions
-		if (this.pendingPromptFileResolutions.has(command)) {
-			return undefined;
-		}
-
-		const promptUri = await this.getPromptPath(data);
-		if (!promptUri) {
-			return undefined;
-		}
-
+		let promptUri: URI | undefined;
 		try {
-			this.pendingPromptFileResolutions.add(command);
+			promptUri = await this.getPromptPath(data);
+			if (!promptUri) {
+				return undefined;
+			}
+
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+
 			const parsedFile = await this.parseNew(promptUri, token);
-
-			// Cache the result (even if undefined)
-			this.promptFileByCommandCache.set(command, parsedFile);
-
 			return parsedFile;
 		} catch (error) {
-			this.logger.error(`[resolvePromptSlashCommand] Failed to parse prompt file: ${promptUri}`, error);
-			// Cache the failure
-			this.promptFileByCommandCache.set(command, undefined);
+			if (error instanceof CancellationError) {
+				throw error;
+			}
+			this.logger.error(`[resolvePromptSlashCommand] Failed to parse prompt file: ${promptUri ?? command}`, error);
 			return undefined;
-		} finally {
-			this.pendingPromptFileResolutions.delete(command);
 		}
 	}
 
+	public async resolvePromptSlashCommand(data: IChatPromptSlashCommand, token: CancellationToken): Promise<ParsedPromptFile | undefined> {
+		const command = data.command;
 
+		let cache = this.promptFileByCommandCache.get(command);
+		if (cache && cache.pendingPromise) {
+			return cache.pendingPromise;
+		}
+
+		const newPromise = this.resolvePromptSlashCommandInternal(data, token);
+		if (cache) {
+			cache.pendingPromise = newPromise;
+		}
+		else {
+			cache = { value: undefined, pendingPromise: newPromise };
+			this.promptFileByCommandCache.set(command, cache);
+		}
+
+		const newValue = await newPromise.finally(() => cache.pendingPromise = undefined);
+
+		// TODO: consider comparing the newValue and the old and only emit change event when there are value changes
+		cache.value = newValue;
+		this.onDidChangeParsedPromptFilesCacheEmitter.fire();
+
+		return newValue;
+	}
+
+	public resolvePromptSlashCommandFromCache(data: IChatPromptSlashCommand): ParsedPromptFile | undefined {
+		// kick off a async process to refresh the cache while we returns the current cached value
+		void this.resolvePromptSlashCommand(data, CancellationToken.None).catch((error) => { });
+
+		return this.promptFileByCommandCache.get(data.command)?.value;
+	}
 
 	private async getPromptPath(data: IChatPromptSlashCommand): Promise<URI | undefined> {
 		if (data.promptPath) {
@@ -432,58 +447,6 @@ export class ChatModeUpdateTracker extends Disposable {
 		};
 		const onRemove = (languageId: string, uri: URI) => {
 			if (languageId === MODE_LANGUAGE_ID) {
-				this.listeners.get(uri)?.dispose();
-				this.listeners.delete(uri);
-				trigger();
-			}
-		};
-		this._register(modelService.onModelAdded(model => onAdd(model)));
-		this._register(modelService.onModelLanguageChanged(e => {
-			onRemove(e.oldLanguageId, e.model.uri);
-			onAdd(e.model);
-		}));
-		this._register(modelService.onModelRemoved(model => onRemove(model.getLanguageId(), model.uri)));
-	}
-
-	public override dispose(): void {
-		super.dispose();
-		this.listeners.forEach(listener => listener.dispose());
-		this.listeners.clear();
-	}
-
-}
-
-export class PromptFileUpdateTracker extends Disposable {
-
-	private static readonly PROMPT_FILE_UPDATE_DELAY_MS = 200;
-
-	private readonly listeners = new ResourceMap<IDisposable>();
-	private readonly onDidPromptFileChange: Emitter<void>;
-
-	public get onDidChangeContent(): Event<void> {
-		return this.onDidPromptFileChange.event;
-	}
-
-	constructor(
-		fileLocator: PromptFilesLocator,
-		@IModelService modelService: IModelService,
-	) {
-		super();
-		this.onDidPromptFileChange = this._register(new Emitter<void>());
-		const delayer = this._register(new Delayer<void>(PromptFileUpdateTracker.PROMPT_FILE_UPDATE_DELAY_MS));
-		const trigger = () => delayer.trigger(() => this.onDidPromptFileChange.fire());
-
-		// File add/remove/rename events for prompt files
-		const filesUpdatedEventRegistration = this._register(fileLocator.createFilesUpdatedEvent(PromptsType.prompt));
-		this._register(filesUpdatedEventRegistration.event(() => trigger()));
-
-		const onAdd = (model: ITextModel) => {
-			if (model.getLanguageId() === PROMPT_LANGUAGE_ID) {
-				this.listeners.set(model.uri, model.onDidChangeContent(() => trigger()));
-			}
-		};
-		const onRemove = (languageId: string, uri: URI) => {
-			if (languageId === PROMPT_LANGUAGE_ID) {
 				this.listeners.get(uri)?.dispose();
 				this.listeners.delete(uri);
 				trigger();
