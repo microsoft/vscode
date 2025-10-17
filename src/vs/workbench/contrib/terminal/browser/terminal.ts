@@ -127,7 +127,13 @@ export interface ITerminalChatService {
 	 */
 	getTerminalInstanceByToolSessionId(terminalToolSessionId: string): ITerminalInstance | undefined;
 
-	isBackgroundTerminal(terminalToolSessionId: string): boolean;
+	/**
+	 * Returns the list of terminal instances that have been registered with a tool session id.
+	 * This is used for surfacing tool-driven/background terminals in UI (eg. quick picks).
+	 */
+	getToolSessionTerminalInstances(): readonly ITerminalInstance[];
+
+	isBackgroundTerminal(terminalToolSessionId?: string): boolean;
 }
 
 /**
