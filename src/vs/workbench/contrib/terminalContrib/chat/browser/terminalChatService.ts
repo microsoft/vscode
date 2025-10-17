@@ -8,9 +8,6 @@ import { Disposable, DisposableMap, IDisposable } from '../../../../../base/comm
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ITerminalChatService, ITerminalInstance, ITerminalService } from '../../../terminal/browser/terminal.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
-import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
-import { PromptInputState } from '../../../../../platform/terminal/common/capabilities/commandDetection/promptInputModel.js';
 
 /**
  * Used to manage chat tool invocations and the underlying terminal instances they create/use.
@@ -36,19 +33,10 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		@ILogService private readonly _logService: ILogService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IStorageService private readonly _storageService: IStorageService,
-		@ILifecycleService private readonly _lifecycleService: ILifecycleService
 	) {
 		super();
 
 		this._restoreFromStorage();
-		this._register(this._lifecycleService.onBeforeShutdown(async e => {
-			// Show all hidden terminals before shutdown so they are restored
-			for (const [toolSessionId, instance] of this._terminalInstancesByToolSessionId) {
-				if (this.isBackgroundTerminal(toolSessionId) && (instance.capabilities.get(TerminalCapability.CommandDetection)?.promptInputModel.state === PromptInputState.Execute || instance.hasChildProcesses)) {
-					await this._terminalService.showBackgroundTerminal(instance, true, true);
-				}
-			}
-		}));
 	}
 
 	registerTerminalInstanceWithToolSession(terminalToolSessionId: string | undefined, instance: ITerminalInstance): void {
