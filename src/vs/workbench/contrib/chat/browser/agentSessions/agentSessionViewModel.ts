@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { IChatSessionsService } from '../../common/chatSessionsService.js';
 
 //#region Interfaces, Types
 

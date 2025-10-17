@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, append } from '../../../../../../base/browser/dom.js';
-import { localize } from '../../../../../../nls.js';
-import { IIdentityProvider, IListVirtualDelegate } from '../../../../../../base/browser/ui/list/list.js';
-import { IListAccessibilityProvider } from '../../../../../../base/browser/ui/list/listWidget.js';
-import { ITreeCompressionDelegate } from '../../../../../../base/browser/ui/tree/asyncDataTree.js';
-import { ICompressedTreeNode } from '../../../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
-import { ICompressibleTreeRenderer } from '../../../../../../base/browser/ui/tree/objectTree.js';
-import { ITreeNode, ITreeElementRenderDetails, IAsyncDataSource } from '../../../../../../base/browser/ui/tree/tree.js';
-import { DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { $, append } from '../../../../../base/browser/dom.js';
+import { localize } from '../../../../../nls.js';
+import { IIdentityProvider, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
+import { IListAccessibilityProvider } from '../../../../../base/browser/ui/list/listWidget.js';
+import { ITreeCompressionDelegate } from '../../../../../base/browser/ui/tree/asyncDataTree.js';
+import { ICompressedTreeNode } from '../../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
+import { ICompressibleTreeRenderer } from '../../../../../base/browser/ui/tree/objectTree.js';
+import { ITreeNode, ITreeElementRenderDetails, IAsyncDataSource } from '../../../../../base/browser/ui/tree/tree.js';
+import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { IAgentSessionViewModel, IAgentSessionsViewModel, isAgentSession, isAgentSessionsViewModel } from './agentSessionViewModel.js';
 
 export class AgentSessionsListDelegate implements IListVirtualDelegate<IAgentSessionViewModel> {

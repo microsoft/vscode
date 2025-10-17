@@ -4,26 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/agentsessionsview.css';
-import { Codicon } from '../../../../../../base/common/codicons.js';
-import { localize2 } from '../../../../../../nls.js';
-import { ContextKeyExpr, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
-import { SyncDescriptor } from '../../../../../../platform/instantiation/common/descriptors.js';
-import { Registry } from '../../../../../../platform/registry/common/platform.js';
-import { registerIcon } from '../../../../../../platform/theme/common/iconRegistry.js';
-import { IViewPaneOptions, ViewPane } from '../../../../../browser/parts/views/viewPane.js';
-import { ViewPaneContainer } from '../../../../../browser/parts/views/viewPaneContainer.js';
-import { IViewContainersRegistry, Extensions as ViewExtensions, ViewContainerLocation, IViewsRegistry, IViewDescriptor, IViewDescriptorService } from '../../../../../common/views.js';
-import { ChatContextKeys } from '../../../common/chatContextKeys.js';
-import { ChatConfiguration } from '../../../common/constants.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
-import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
-import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
-import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
-import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
-import { WorkbenchCompressibleAsyncDataTree } from '../../../../../../platform/list/browser/listService.js';
-import { $, append } from '../../../../../../base/browser/dom.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { localize2 } from '../../../../../nls.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { registerIcon } from '../../../../../platform/theme/common/iconRegistry.js';
+import { IViewPaneOptions, ViewPane } from '../../../../browser/parts/views/viewPane.js';
+import { ViewPaneContainer } from '../../../../browser/parts/views/viewPaneContainer.js';
+import { IViewContainersRegistry, Extensions as ViewExtensions, ViewContainerLocation, IViewsRegistry, IViewDescriptor, IViewDescriptorService } from '../../../../common/views.js';
+import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { ChatConfiguration } from '../../common/constants.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { WorkbenchCompressibleAsyncDataTree } from '../../../../../platform/list/browser/listService.js';
+import { $, append } from '../../../../../base/browser/dom.js';
 import { AgentSessionsViewModel, IAgentSessionViewModel, IAgentSessionsViewModel } from './agentSessionViewModel.js';
 import { AgentSessionRenderer, AgentSessionsAccessibilityProvider, AgentSessionsCompressionDelegate, AgentSessionsDataSource, AgentSessionsIdentityProvider, AgentSessionsListDelegate } from './agentSessionsList.js';
 
