@@ -88,7 +88,6 @@
 	position: absolute;
 	top: 4px;
 	right: 4px;
-	cursor: pointer;
 	padding: 2px 4px;
 	border-radius: 3px;
 	display: none;
@@ -106,7 +105,6 @@
 }
 
 .monaco-editor .monaco-hover .hover-copy-button:focus {
-	opacity: 1;
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: -1px;
 }
