@@ -10,9 +10,6 @@ import { ITerminalChatService, ITerminalInstance, ITerminalService } from '../..
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
-import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
-import { PromptInputState } from '../../../../../platform/terminal/common/capabilities/commandDetection/promptInputModel.js';
 
 /**
  * Used to manage chat tool invocations and the underlying terminal instances they create/use.
@@ -40,7 +37,6 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		@ILogService private readonly _logService: ILogService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IStorageService private readonly _storageService: IStorageService,
-		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
 		super();
@@ -48,17 +44,6 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		this._hasToolTerminalContext = TerminalContextKeys.hasToolTerminal.bindTo(this._contextKeyService);
 
 		this._restoreFromStorage();
-
-		this._register(this._terminalService.onDidChangeInstances(() => this._updateHasToolTerminalContextKey()));
-		this._updateHasToolTerminalContextKey();
-		this._register(this._lifecycleService.onBeforeShutdown(async e => {
-			// Show all hidden tool terminals before shutdown so they are restored if they are mid execution
-			for (const [toolSessionId, instance] of this._terminalInstancesByToolSessionId) {
-				if (this.isBackgroundTerminal(toolSessionId) && (instance.capabilities.get(TerminalCapability.CommandDetection)?.promptInputModel.state === PromptInputState.Execute || instance.hasChildProcesses)) {
-					await this._terminalService.showBackgroundTerminal(instance, true, true);
-				}
-			}
-		}));
 	}
 
 	registerTerminalInstanceWithToolSession(terminalToolSessionId: string | undefined, instance: ITerminalInstance): void {
