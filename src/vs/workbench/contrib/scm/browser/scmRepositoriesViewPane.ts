@@ -408,7 +408,7 @@ registerAction2(class extends Action2 {
 			return;
 		}
 
-		scmViewService.pinActiveRepository(activeRepository);
+		scmViewService.pinActiveRepository(activeRepository.repository);
 	}
 });
 

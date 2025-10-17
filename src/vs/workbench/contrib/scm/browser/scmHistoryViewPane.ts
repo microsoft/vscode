@@ -1069,7 +1069,7 @@ class SCMHistoryViewModel extends Disposable {
 				return selectedRepository;
 			}
 
-			return this._scmViewService.activeRepository.read(reader);
+			return this._scmViewService.activeRepository.read(reader)?.repository;
 		});
 
 		this.repository = latestChangedValue(this, [firstRepository, graphRepository]);
