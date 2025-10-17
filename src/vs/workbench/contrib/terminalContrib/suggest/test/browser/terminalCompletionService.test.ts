@@ -165,7 +165,7 @@ suite('TerminalCompletionService', () => {
 		test('| should return root-level completions', async () => {
 			const resourceOptions: TerminalCompletionResourceOptions = {
 				cwd: URI.parse('file:///test'),
-				showFolders: true,
+				showDirectories: true,
 				pathSeparator
 			};
 			const result = await terminalCompletionService.resolveResources(resourceOptions, '', 1, provider, capabilities);
@@ -181,7 +181,7 @@ suite('TerminalCompletionService', () => {
 		test('./| should return folder completions', async () => {
 			const resourceOptions: TerminalCompletionResourceOptions = {
 				cwd: URI.parse('file:///test'),
-				showFolders: true,
+				showDirectories: true,
 				pathSeparator
 			};
 			const result = await terminalCompletionService.resolveResources(resourceOptions, './', 3, provider, capabilities);
@@ -196,7 +196,7 @@ suite('TerminalCompletionService', () => {
 		test('cd ./| should return folder completions', async () => {
 			const resourceOptions: TerminalCompletionResourceOptions = {
 				cwd: URI.parse('file:///test'),
-				showFolders: true,
+				showDirectories: true,
 				pathSeparator
 			};
 			const result = await terminalCompletionService.resolveResources(resourceOptions, 'cd ./', 5, provider, capabilities);
@@ -210,7 +210,7 @@ suite('TerminalCompletionService', () => {
 		test('cd ./f| should return folder completions', async () => {
 			const resourceOptions: TerminalCompletionResourceOptions = {
 				cwd: URI.parse('file:///test'),
-				showFolders: true,
+				showDirectories: true,
 				pathSeparator
 			};
 			const result = await terminalCompletionService.resolveResources(resourceOptions, 'cd ./f', 6, provider, capabilities);
@@ -237,7 +237,7 @@ suite('TerminalCompletionService', () => {
 		test('./| should handle hidden files and folders', async () => {
 			const resourceOptions: TerminalCompletionResourceOptions = {
 				cwd: URI.parse('file:///test'),
-				showFolders: true,
+				showDirectories: true,
 				showFiles: true,
 				pathSeparator
 			};
@@ -256,7 +256,7 @@ suite('TerminalCompletionService', () => {
 		test('./h| should handle hidden files and folders', async () => {
 			const resourceOptions: TerminalCompletionResourceOptions = {
 				cwd: URI.parse('file:///test'),
-				showFolders: true,
+				showDirectories: true,
 				showFiles: true,
 				pathSeparator
 			};
@@ -288,7 +288,7 @@ suite('TerminalCompletionService', () => {
 			resourceOptions = {
 				cwd: URI.parse('file:///test/folder1'),// Updated to reflect home directory
 				showFiles: true,
-				showFolders: true,
+				showDirectories: true,
 				pathSeparator
 			};
 			validResources = [
@@ -338,7 +338,7 @@ suite('TerminalCompletionService', () => {
 			test('C:/Foo/| absolute paths on Windows', async () => {
 				const resourceOptions: TerminalCompletionResourceOptions = {
 					cwd: URI.parse('file:///C:'),
-					showFolders: true,
+					showDirectories: true,
 					pathSeparator
 				};
 				validResources = [URI.parse('file:///C:/Foo')];
@@ -356,7 +356,7 @@ suite('TerminalCompletionService', () => {
 			test('c:/foo/| case insensitivity on Windows', async () => {
 				const resourceOptions: TerminalCompletionResourceOptions = {
 					cwd: URI.parse('file:///c:'),
-					showFolders: true,
+					showDirectories: true,
 					pathSeparator
 				};
 				validResources = [URI.parse('file:///c:/foo')];
@@ -375,7 +375,7 @@ suite('TerminalCompletionService', () => {
 			test('/foo/| absolute paths NOT on Windows', async () => {
 				const resourceOptions: TerminalCompletionResourceOptions = {
 					cwd: URI.parse('file:///'),
-					showFolders: true,
+					showDirectories: true,
 					pathSeparator
 				};
 				validResources = [URI.parse('file:///foo')];
@@ -396,7 +396,7 @@ suite('TerminalCompletionService', () => {
 			test('.\\folder | Case insensitivity should resolve correctly on Windows', async () => {
 				const resourceOptions: TerminalCompletionResourceOptions = {
 					cwd: URI.parse('file:///C:/test'),
-					showFolders: true,
+					showDirectories: true,
 					pathSeparator: '\\'
 				};
 
@@ -419,7 +419,7 @@ suite('TerminalCompletionService', () => {
 			test('./folder | Case sensitivity should resolve correctly on Mac/Unix', async () => {
 				const resourceOptions: TerminalCompletionResourceOptions = {
 					cwd: URI.parse('file:///test'),
-					showFolders: true,
+					showDirectories: true,
 					pathSeparator: '/'
 				};
 				validResources = [URI.parse('file:///test')];
@@ -442,7 +442,7 @@ suite('TerminalCompletionService', () => {
 		test('| Empty input should resolve to current directory', async () => {
 			const resourceOptions: TerminalCompletionResourceOptions = {
 				cwd: URI.parse('file:///test'),
-				showFolders: true,
+				showDirectories: true,
 				pathSeparator
 			};
 			validResources = [URI.parse('file:///test')];
@@ -464,7 +464,7 @@ suite('TerminalCompletionService', () => {
 		test('./| should handle large directories with many results gracefully', async () => {
 			const resourceOptions: TerminalCompletionResourceOptions = {
 				cwd: URI.parse('file:///test'),
-				showFolders: true,
+				showDirectories: true,
 				pathSeparator
 			};
 			validResources = [URI.parse('file:///test')];
@@ -484,7 +484,7 @@ suite('TerminalCompletionService', () => {
 		test('./folder| should include current folder with trailing / is missing', async () => {
 			const resourceOptions: TerminalCompletionResourceOptions = {
 				cwd: URI.parse('file:///test'),
-				showFolders: true,
+				showDirectories: true,
 				pathSeparator
 			};
 			validResources = [URI.parse('file:///test')];
@@ -504,7 +504,7 @@ suite('TerminalCompletionService', () => {
 		test('test/| should normalize current and parent folders', async () => {
 			const resourceOptions: TerminalCompletionResourceOptions = {
 				cwd: URI.parse('file:///test'),
-				showFolders: true,
+				showDirectories: true,
 				pathSeparator
 			};
 			validResources = [
@@ -546,7 +546,7 @@ suite('TerminalCompletionService', () => {
 			configurationService.setUserConfiguration('terminal.integrated.suggest.cdPath', 'relative');
 			const resourceOptions: TerminalCompletionResourceOptions = {
 				cwd: URI.parse('file:///test'),
-				showFolders: true,
+				showDirectories: true,
 				showFiles: true,
 				pathSeparator
 			};
@@ -561,7 +561,7 @@ suite('TerminalCompletionService', () => {
 			configurationService.setUserConfiguration('terminal.integrated.suggest.cdPath', 'absolute');
 			const resourceOptions: TerminalCompletionResourceOptions = {
 				cwd: URI.parse('file:///test'),
-				showFolders: true,
+				showDirectories: true,
 				showFiles: true,
 				pathSeparator
 			};
@@ -597,7 +597,7 @@ suite('TerminalCompletionService', () => {
 
 			const resourceOptions: TerminalCompletionResourceOptions = {
 				cwd: URI.parse(`${uriPathPrefix}test`),
-				showFolders: true,
+				showDirectories: true,
 				showFiles: true,
 				pathSeparator
 			};
@@ -632,7 +632,7 @@ suite('TerminalCompletionService', () => {
 			test('resolveResources with c:/ style absolute path for Git Bash', async () => {
 				const resourceOptions: TerminalCompletionResourceOptions = {
 					cwd: URI.file('C:\\Users\\foo'),
-					showFolders: true,
+					showDirectories: true,
 					showFiles: true,
 					pathSeparator: '/'
 				};
@@ -655,7 +655,7 @@ suite('TerminalCompletionService', () => {
 			test('resolveResources with cwd as Windows path (relative)', async () => {
 				const resourceOptions: TerminalCompletionResourceOptions = {
 					cwd: URI.file('C:\\Users\\foo'),
-					showFolders: true,
+					showDirectories: true,
 					showFiles: true,
 					pathSeparator: '/'
 				};
@@ -680,7 +680,7 @@ suite('TerminalCompletionService', () => {
 			test('resolveResources with cwd as Windows path (absolute)', async () => {
 				const resourceOptions: TerminalCompletionResourceOptions = {
 					cwd: URI.file('C:\\Users\\foo'),
-					showFolders: true,
+					showDirectories: true,
 					showFiles: true,
 					pathSeparator: '/'
 				};
@@ -709,7 +709,7 @@ suite('TerminalCompletionService', () => {
 					cwd: URI.parse('file:///test'),
 					pathSeparator,
 					showFiles: true,
-					showFolders: true
+					showDirectories: true
 				};
 
 				validResources = [URI.parse('file:///test')];
@@ -736,7 +736,7 @@ suite('TerminalCompletionService', () => {
 		test('| should escape special characters in file/folder names for POSIX shells', async () => {
 			const resourceOptions: TerminalCompletionResourceOptions = {
 				cwd: URI.parse('file:///test'),
-				showFolders: true,
+				showDirectories: true,
 				showFiles: true,
 				pathSeparator
 			};

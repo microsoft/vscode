@@ -55,7 +55,7 @@ export class TerminalCompletionList<ITerminalCompletion> {
 
 export interface TerminalCompletionResourceOptions {
 	showFiles?: boolean;
-	showFolders?: boolean;
+	showDirectories?: boolean;
 	globPattern?: string | IRelativePattern;
 	cwd: UriComponents;
 	pathSeparator: string;
@@ -257,11 +257,11 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 
 		// Files requested implies folders requested since the file could be in any folder. We could
 		// provide diagnostics when a folder is provided where a file is expected.
-		const showFolders = (resourceOptions.showFolders || resourceOptions.showFiles) ?? false;
+		const showDirectories = (resourceOptions.showDirectories || resourceOptions.showFiles) ?? false;
 		const showFiles = resourceOptions.showFiles ?? false;
 		const globPattern = resourceOptions.globPattern ?? undefined;
 
-		if (!showFolders && !showFiles) {
+		if (!showDirectories && !showFiles) {
 			return;
 		}
 
@@ -374,7 +374,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		// - (tilde)    `~/|`     -> `~/`
 		// - (tilde)    `~/src/|` -> `~/src/`
 		this._logService.trace(`TerminalCompletionService#resolveResources cwd`);
-		if (showFolders) {
+		if (showDirectories) {
 			let label: string;
 			switch (type) {
 				case 'tilde': {
@@ -411,7 +411,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		await Promise.all(stat.children.map(child => (async () => {
 			let kind: TerminalCompletionItemKind | undefined;
 			let detail: string | undefined = undefined;
-			if (showFolders && child.isDirectory) {
+			if (showDirectories && child.isDirectory) {
 				if (child.isSymbolicLink) {
 					kind = TerminalCompletionItemKind.SymbolicLinkFolder;
 				} else {
@@ -475,7 +475,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		//
 		// - (relative) `|` -> `/foo/vscode` (CDPATH has /foo which contains vscode folder)
 		this._logService.trace(`TerminalCompletionService#resolveResources CDPATH`);
-		if (type === 'relative' && showFolders) {
+		if (type === 'relative' && showDirectories) {
 			if (promptValue.startsWith('cd ')) {
 				const config = this._configurationService.getValue(TerminalSuggestSettingId.CdPath);
 				if (config === 'absolute' || config === 'relative') {
@@ -521,7 +521,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		// - (relative) `|` -> `../`
 		// - (relative) `./src/|` -> `./src/../`
 		this._logService.trace(`TerminalCompletionService#resolveResources parent dir`);
-		if (type === 'relative' && showFolders) {
+		if (type === 'relative' && showDirectories) {
 			let label = `..${resourceOptions.pathSeparator}`;
 			if (lastWordFolder.length > 0) {
 				label = addPathRelativePrefix(lastWordFolder + label, resourceOptions, lastWordFolderHasDotPrefix);
