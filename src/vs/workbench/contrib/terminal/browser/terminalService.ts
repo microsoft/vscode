@@ -1183,8 +1183,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 		}
 
 		if (forceSaveState) {
-			// Skips the debounce of _saveState as we are shutting down
-			// and need to save the revealed hideFromUser terminals
+			// Skips the debounce of _saveState in case it's shutting down
 			await this._saveStateNow();
 		}
 		this._onDidChangeInstances.fire();

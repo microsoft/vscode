@@ -45,7 +45,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 			let veto = false;
 			// Show all hidden terminals before shutdown so they are restored
 			for (const [toolSessionId, instance] of this._terminalInstancesByToolSessionId) {
-				if (this.terminalIsHidden(toolSessionId) && (instance.capabilities.get(TerminalCapability.CommandDetection)?.promptInputModel.state === PromptInputState.Execute || instance.hasChildProcesses)) {
+				if (this.isBackgroundTerminal(toolSessionId) && (instance.capabilities.get(TerminalCapability.CommandDetection)?.promptInputModel.state === PromptInputState.Execute || instance.hasChildProcesses)) {
 					await this._terminalService.showBackgroundTerminal(instance, true, true);
 					veto = true;
 				}
@@ -88,7 +88,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		return this._terminalInstancesByToolSessionId.get(terminalToolSessionId);
 	}
 
-	terminalIsHidden(terminalToolSessionId: string | undefined): boolean {
+	isBackgroundTerminal(terminalToolSessionId: string | undefined): boolean {
 		if (!terminalToolSessionId) {
 			return false;
 		}

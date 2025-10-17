@@ -27,6 +27,7 @@ import { ChatConfiguration } from '../../../common/constants.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { ITerminalChatService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../../../terminal/browser/terminal.js';
 import { Action, IAction } from '../../../../../../base/common/actions.js';
+import { MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
 import { TerminalLocation } from '../../../../../../platform/terminal/common/terminal.js';
@@ -34,7 +35,7 @@ import { TerminalLocation } from '../../../../../../platform/terminal/common/ter
 export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart {
 	public readonly domNode: HTMLElement;
 
-	private _actionBar: ActionBar | undefined;
+	private readonly _actionBar = this._register(new MutableDisposable<ActionBar>());
 
 	private markdownPart: ChatMarkdownContentPart | undefined;
 	public get codeblocks(): IChatCodeBlockInfo[] {
@@ -110,7 +111,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	}
 
 	private _createActionBar(elements: { actionBar: HTMLElement }, terminalData: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData): void {
-		this._actionBar = this._register(new ActionBar(elements.actionBar, {}));
+		this._actionBar.value = new ActionBar(elements.actionBar, {});
 
 		const terminalToolSessionId = 'terminalToolSessionId' in terminalData ? terminalData.terminalToolSessionId : undefined;
 		if (!terminalToolSessionId || !elements.actionBar) {
@@ -130,14 +131,14 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	}
 
 	private _addFocusAction(terminalInstance: ITerminalInstance, terminalToolSessionId: string) {
-		const isTerminalHidden = this._terminalChatService.terminalIsHidden(terminalToolSessionId);
+		const isTerminalHidden = this._terminalChatService.isBackgroundTerminal(terminalToolSessionId);
 		const focusAction = this._register(this._instantiationService.createInstance(FocusChatInstanceAction, terminalInstance, isTerminalHidden));
-		this._actionBar!.push([focusAction], { icon: true, label: false });
+		this._actionBar.value?.push([focusAction], { icon: true, label: false });
 	}
 
 	private _registerInstanceListener(terminalInstance: ITerminalInstance) {
 		const instanceListener = this._register(terminalInstance.onDisposed(() => {
-			this._actionBar?.dispose();
+			this._actionBar.clear();
 			instanceListener?.dispose();
 		}));
 	}
