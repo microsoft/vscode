@@ -2729,19 +2729,19 @@ have to be updated for changes to the rules above, or to support more deeply nes
 /* Suggested Actions widget - reuses chat-welcome-view-suggested-prompts styling */
 .chat-suggest-next-widget {
 	/* Override positioning from welcome view styles (relative instead of absolute) */
-	position: relative !important;
-	bottom: auto !important;
-	left: auto !important;
-	right: auto !important;
+	position: relative;
+	bottom: auto ;
+	left: auto;
+	right: auto;
 	margin: 0 0 0 0;
 	/* Keep standard padding with space for title */
-	padding: 32px 16px 8px 16px !important;
+	padding: 32px 16px 8px 16px;
 	/* Left align buttons to match standard welcome view */
-	justify-content: flex-start !important;
+	justify-content: flex-start;
 	/* Ensure flex layout is properly applied */
-	display: flex !important;
-	flex-wrap: wrap !important;
-	gap: 8px !important;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
 }
 
 .interactive-session .interactive-response .chat-used-context-list.chat-thinking-items {
