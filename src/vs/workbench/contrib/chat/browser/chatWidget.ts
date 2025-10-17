@@ -2215,7 +2215,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this._welcomeRenderScheduler.schedule();
 			this.refreshParsedInput();
 			this.renderFollowups();
-			this.chatSuggestNextWidget.hide();
 			this._chatSuggestNextScheduler.schedule();
 		}));
 
