@@ -19,12 +19,10 @@ import { Iterable } from '../../../../base/common/iterator.js';
 import { ITitleService } from '../../../services/title/browser/titleService.js';
 import { IEditorGroupContextKeyProvider, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
-import { getRepositoryResourceCount } from './util.js';
+import { getRepositoryResourceCount, getSCMRepositoryIcon } from './util.js';
 import { autorun, autorunWithStore, derived, IObservable, observableFromEvent } from '../../../../base/common/observable.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { Command } from '../../../../editor/common/languages.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
-import { Codicon } from '../../../../base/common/codicons.js';
 
 const ActiveRepositoryContextKeys = {
 	ActiveRepositoryName: new RawContextKey<string>('scmActiveRepositoryName', ''),
@@ -178,15 +176,10 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 
 		// Source control provider status bar entry
 		if (this.scmService.repositoryCount > 1) {
-			const icon = ThemeIcon.isThemeIcon(activeRepository.repository.provider.iconPath)
-				? activeRepository.repository.provider.iconPath.id === Codicon.repo.id && activeRepository.pinned === true
-					? `$(${Codicon.repoPinned.id})`
-					: `$(${activeRepository.repository.provider.iconPath.id})`
-				: '$(repo)';
-
+			const icon = getSCMRepositoryIcon(activeRepository, activeRepository.repository);
 			const repositoryStatusbarEntry: IStatusbarEntry = {
 				name: localize('status.scm.provider', "Source Control Provider"),
-				text: `${icon} ${activeRepository.repository.provider.name}`,
+				text: `$(${icon.id}) ${activeRepository.repository.provider.name}`,
 				ariaLabel: label,
 				tooltip: label,
 				command: 'scm.setActiveProvider'

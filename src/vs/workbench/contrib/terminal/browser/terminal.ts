@@ -127,13 +127,13 @@ export interface ITerminalChatService {
 	 */
 	getTerminalInstanceByToolSessionId(terminalToolSessionId: string): ITerminalInstance | undefined;
 
-	terminalIsHidden(terminalToolSessionId?: string): boolean;
-
 	/**
 	 * Returns the list of terminal instances that have been registered with a tool session id.
 	 * This is used for surfacing tool-driven/background terminals in UI (eg. quick picks).
 	 */
 	getToolSessionTerminalInstances(): readonly ITerminalInstance[];
+
+	isBackgroundTerminal(terminalToolSessionId?: string): boolean;
 }
 
 /**
@@ -331,7 +331,6 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	/** Gets all terminal instances, including editor, terminal view (group), and background instances. */
 	readonly instances: readonly ITerminalInstance[];
 
-	/** Gets all foreground terminal instances */
 	readonly foregroundInstances: readonly ITerminalInstance[];
 
 	/** Gets detached terminal instances created via {@link createDetachedXterm}. */

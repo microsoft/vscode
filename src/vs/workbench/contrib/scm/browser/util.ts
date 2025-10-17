@@ -18,6 +18,8 @@ import { Command } from '../../../../editor/common/languages.js';
 import { reset } from '../../../../base/browser/dom.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IResourceNode, ResourceTree } from '../../../../base/common/resourceTree.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 
 export function isSCMViewService(element: any): element is ISCMViewService {
 	return Array.isArray((element as ISCMViewService).repositories) && Array.isArray((element as ISCMViewService).visibleRepositories);
@@ -145,4 +147,23 @@ export function getRepositoryResourceCount(provider: ISCMProvider): number {
 
 export function getHistoryItemEditorTitle(historyItem: ISCMHistoryItem): string {
 	return `${historyItem.displayId ?? historyItem.id} - ${historyItem.subject}`;
+}
+
+export function getSCMRepositoryIcon(
+	activeRepository: { repository: ISCMRepository; pinned: boolean } | undefined,
+	repository: ISCMRepository
+): ThemeIcon {
+	if (!ThemeIcon.isThemeIcon(repository.provider.iconPath)) {
+		return Codicon.repo;
+	}
+
+	if (
+		activeRepository?.pinned === true &&
+		activeRepository?.repository.id === repository.id &&
+		repository.provider.iconPath.id === Codicon.repo.id
+	) {
+		return Codicon.repoPinned;
+	}
+
+	return repository.provider.iconPath;
 }

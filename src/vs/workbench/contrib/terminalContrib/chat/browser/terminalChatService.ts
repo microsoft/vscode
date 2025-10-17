@@ -52,16 +52,11 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		this._register(this._terminalService.onDidChangeInstances(() => this._updateHasToolTerminalContextKey()));
 		this._updateHasToolTerminalContextKey();
 		this._register(this._lifecycleService.onBeforeShutdown(async e => {
-			let veto = false;
 			// Show all hidden tool terminals before shutdown so they are restored if they are mid execution
 			for (const [toolSessionId, instance] of this._terminalInstancesByToolSessionId) {
-				if (this.terminalIsHidden(toolSessionId) && (instance.capabilities.get(TerminalCapability.CommandDetection)?.promptInputModel.state === PromptInputState.Execute || instance.hasChildProcesses)) {
+				if (this.isBackgroundTerminal(toolSessionId) && (instance.capabilities.get(TerminalCapability.CommandDetection)?.promptInputModel.state === PromptInputState.Execute || instance.hasChildProcesses)) {
 					await this._terminalService.showBackgroundTerminal(instance, true, true);
-					veto = true;
 				}
-			}
-			if (veto) {
-				e.veto(Promise.resolve(true), 'terminalChatService');
 			}
 		}));
 	}
@@ -105,7 +100,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		return Array.from(this._terminalInstancesByToolSessionId.values());
 	}
 
-	terminalIsHidden(terminalToolSessionId?: string): boolean {
+	isBackgroundTerminal(terminalToolSessionId?: string): boolean {
 		if (!terminalToolSessionId) {
 			return false;
 		}
