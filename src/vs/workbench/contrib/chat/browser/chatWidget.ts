@@ -2704,10 +2704,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		const inputHeight = this.inputPart.inputPartHeight;
 		const chatTodoListWidgetHeight = this.chatTodoListWidget.height;
+		const chatSuggestNextWidgetHeight = this.chatSuggestNextWidget.height;
 		const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight >= this.tree.scrollHeight - 2;
 		const lastItem = this.viewModel?.getItems().at(-1);
 
-		const contentHeight = Math.max(0, height - inputHeight - chatTodoListWidgetHeight);
+		const contentHeight = Math.max(0, height - inputHeight - chatTodoListWidgetHeight - chatSuggestNextWidgetHeight);
 		if (this.viewOptions.renderStyle === 'compact' || this.viewOptions.renderStyle === 'minimal') {
 			this.listContainer.style.removeProperty('--chat-current-response-min-height');
 		} else {
@@ -2719,7 +2720,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.tree.layout(contentHeight, width);
 
 		// Push the welcome message down so it doesn't change position
-		// when followups, attachments or working set appear
+		// when followups, attachments, working set, or suggest next widget appear
 		let welcomeOffset = 100;
 		if (this.viewOptions.renderFollowups) {
 			welcomeOffset = Math.max(welcomeOffset - this.input.followupsHeight, 0);
@@ -2728,6 +2729,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			welcomeOffset = Math.max(welcomeOffset - this.input.editSessionWidgetHeight, 0);
 		}
 		welcomeOffset = Math.max(welcomeOffset - this.input.attachmentsHeight, 0);
+		welcomeOffset = Math.max(welcomeOffset - chatSuggestNextWidgetHeight, 0);
 		this.welcomeMessageContainer.style.height = `${contentHeight - welcomeOffset}px`;
 		this.welcomeMessageContainer.style.paddingBottom = `${welcomeOffset}px`;
 
@@ -2774,8 +2776,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.input.layout(possibleMaxHeight, width);
 				const inputPartHeight = this.input.inputPartHeight;
 				const chatTodoListWidgetHeight = this.chatTodoListWidget.height;
-				const newHeight = Math.min(renderHeight + diff, possibleMaxHeight - inputPartHeight - chatTodoListWidgetHeight);
-				this.layout(newHeight + inputPartHeight + chatTodoListWidgetHeight, width);
+				const chatSuggestNextWidgetHeight = this.chatSuggestNextWidget.height;
+				const newHeight = Math.min(renderHeight + diff, possibleMaxHeight - inputPartHeight - chatTodoListWidgetHeight - chatSuggestNextWidgetHeight);
+				this.layout(newHeight + inputPartHeight + chatTodoListWidgetHeight + chatSuggestNextWidgetHeight, width);
 			});
 		}));
 	}
@@ -2819,6 +2822,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.input.layout(this._dynamicMessageLayoutData.maxHeight, width);
 		const inputHeight = this.input.inputPartHeight;
 		const chatTodoListWidgetHeight = this.chatTodoListWidget.height;
+		const chatSuggestNextWidgetHeight = this.chatSuggestNextWidget.height;
 
 		const totalMessages = this.viewModel.getItems();
 		// grab the last N messages
@@ -2832,7 +2836,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.layout(
 			Math.min(
 				// we add an additional 18px in order to show that there is scrollable content
-				inputHeight + chatTodoListWidgetHeight + listHeight + (totalMessages.length > 2 ? 18 : 0),
+				inputHeight + chatTodoListWidgetHeight + chatSuggestNextWidgetHeight + listHeight + (totalMessages.length > 2 ? 18 : 0),
 				this._dynamicMessageLayoutData.maxHeight
 			),
 			width
