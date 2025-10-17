@@ -71,8 +71,17 @@ declare module 'vscode' {
 	export interface ChatSessionItem {
 		/**
 		 * Unique identifier for the chat session.
+		 *
+		 * @deprecated Will be replaced by `resource`
 		 */
 		id: string;
+
+		/**
+		 * The resource associated with the chat session.
+		 *
+		 * This is uniquely identifies the chat session and is used to open the chat session.
+		 */
+		resource: Uri | undefined;
 
 		/**
 		 * Human readable name of the session shown in the UI
@@ -212,6 +221,9 @@ declare module 'vscode' {
 		supportsInterruptions?: boolean;
 	}
 
+	/**
+	 * @deprecated
+	 */
 	export interface ChatSessionShowOptions {
 		/**
 		 * The editor view column to show the chat session in.
@@ -224,6 +236,8 @@ declare module 'vscode' {
 	export namespace window {
 		/**
 		 * Shows a chat session in the panel or editor.
+		 *
+		 * @deprecated
 		 */
 		export function showChatSession(chatSessionType: string, sessionId: string, options: ChatSessionShowOptions): Thenable<void>;
 	}

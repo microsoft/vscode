@@ -7,7 +7,7 @@ import * as dom from '../../../../base/browser/dom.js';
 import { addDisposableListener } from '../../../../base/browser/dom.js';
 import { DEFAULT_FONT_FAMILY } from '../../../../base/browser/fonts.js';
 import { IHistoryNavigationWidget } from '../../../../base/browser/history.js';
-import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { hasModifierKeys, StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { ActionViewItem, IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
 import { Button, ButtonWithIcon } from '../../../../base/browser/ui/button/button.js';
@@ -497,6 +497,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 			if (e.affectsConfiguration('editor.wordSegmenterLocales')) {
 				newOptions.wordSegmenterLocales = this.configurationService.getValue<string | string[]>('editor.wordSegmenterLocales');
+			}
+			if (e.affectsConfiguration('editor.autoClosingBrackets')) {
+				newOptions.autoClosingBrackets = this.configurationService.getValue('editor.autoClosingBrackets');
+			}
+			if (e.affectsConfiguration('editor.autoClosingQuotes')) {
+				newOptions.autoClosingQuotes = this.configurationService.getValue('editor.autoClosingQuotes');
+			}
+			if (e.affectsConfiguration('editor.autoSurround')) {
+				newOptions.autoSurround = this.configurationService.getValue('editor.autoSurround');
 			}
 
 			this.inputEditor.updateOptions(newOptions);
@@ -1171,6 +1180,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		options.cursorWidth = 1;
 		options.wrappingStrategy = 'advanced';
 		options.bracketPairColorization = { enabled: false };
+		// Respect user's editor settings for auto-closing and auto-surrounding behavior
+		options.autoClosingBrackets = this.configurationService.getValue('editor.autoClosingBrackets');
+		options.autoClosingQuotes = this.configurationService.getValue('editor.autoClosingQuotes');
+		options.autoSurround = this.configurationService.getValue('editor.autoSurround');
 		options.suggest = {
 			showIcons: true,
 			showSnippets: false,
@@ -1189,6 +1202,24 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		SuggestController.get(this._inputEditor)?.forceRenderingAbove();
 		options.overflowWidgetsDomNode?.classList.add('hideSuggestTextIcons');
 		this._inputEditorElement.classList.add('hideSuggestTextIcons');
+
+		// Prevent Enter key from creating new lines - but respect user's custom keybindings
+		// Only prevent default behavior if ChatSubmitAction is bound to Enter AND its precondition is met
+		this._register(this._inputEditor.onKeyDown((e) => {
+			if (e.keyCode === KeyCode.Enter && !hasModifierKeys(e)) {
+				// Check if ChatSubmitAction has a keybinding for plain Enter in the current context
+				// This respects user's custom keybindings that disable the submit action
+				for (const keybinding of this.keybindingService.lookupKeybindings(ChatSubmitAction.ID)) {
+					const chords = keybinding.getDispatchChords();
+					const isPlainEnter = chords.length === 1 && chords[0] === '[Enter]';
+					if (isPlainEnter) {
+						// Do NOT call stopPropagation() so the keybinding service can still process this event
+						e.preventDefault();
+						break;
+					}
+				}
+			}
+		}));
 
 		this._register(this._inputEditor.onDidChangeModelContent(() => {
 			const currentHeight = Math.min(this._inputEditor.getContentHeight(), this.inputEditorMaxHeight);
