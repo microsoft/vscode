@@ -157,6 +157,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 	}
 
 	private _persistToStorage(): void {
+		this._updateHasToolTerminalContextKey();
 		try {
 			const entries: [string, number][] = [];
 			for (const [toolSessionId, instance] of this._terminalInstancesByToolSessionId.entries()) {
