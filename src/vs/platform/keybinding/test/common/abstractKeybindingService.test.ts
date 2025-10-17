@@ -235,7 +235,7 @@ suite('AbstractKeybindingService', () => {
 			currentContextValue = createContext({});
 			const shouldPreventDefault = kbService.testDispatch(key);
 			assert.deepStrictEqual(shouldPreventDefault, true);
-			assert.deepStrictEqual(executeCommandCalls, ([{ commandId: "myCommand", args: [null] }]));
+			assert.deepStrictEqual(executeCommandCalls, ([{ commandId: 'myCommand', args: [null] }]));
 			assert.deepStrictEqual(showMessageCalls, []);
 			assert.deepStrictEqual(statusMessageCalls, []);
 			assert.deepStrictEqual(statusMessageCallsDisposed, []);
@@ -263,7 +263,7 @@ suite('AbstractKeybindingService', () => {
 
 			shouldPreventDefault = kbService.testDispatch(chord1);
 			assert.deepStrictEqual(shouldPreventDefault, true);
-			assert.deepStrictEqual(executeCommandCalls, ([{ commandId: "myCommand", args: [null] }]));
+			assert.deepStrictEqual(executeCommandCalls, ([{ commandId: 'myCommand', args: [null] }]));
 			assert.deepStrictEqual(showMessageCalls, []);
 			assert.deepStrictEqual(statusMessageCalls, ([`(${toUsLabel(chord0)}) was pressed. Waiting for second key of chord...`]));
 			assert.deepStrictEqual(statusMessageCallsDisposed, ([`(${toUsLabel(chord0)}) was pressed. Waiting for second key of chord...`]));

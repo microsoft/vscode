@@ -85,7 +85,8 @@ export class McpService extends Disposable implements IMcpService {
 	}
 
 	private async _autostart(autoStartConfig: McpAutoStartValue, state: ISettableObservable<IAutostartResult>, token: CancellationToken) {
-		await this.activateCollections();
+		await this._activateCollections();
+
 		if (token.isCancellationRequested) {
 			return;
 		}
@@ -143,10 +144,7 @@ export class McpService extends Disposable implements IMcpService {
 	}
 
 	public async activateCollections(): Promise<void> {
-		const collections = await this._mcpRegistry.discoverCollections();
-		const collectionIds = new Set(collections.map(c => c.id));
-
-		this.updateCollectedServers();
+		const collectionIds = await this._activateCollections();
 
 		// Discover any newly-collected servers with unknown tools
 		const todo: Promise<unknown>[] = [];
@@ -160,6 +158,12 @@ export class McpService extends Disposable implements IMcpService {
 		}
 
 		await Promise.all(todo);
+	}
+
+	private async _activateCollections() {
+		const collections = await this._mcpRegistry.discoverCollections();
+		this.updateCollectedServers();
+		return new Set(collections.map(c => c.id));
 	}
 
 	public updateCollectedServers() {
