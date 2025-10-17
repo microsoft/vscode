@@ -8375,10 +8375,6 @@ declare module 'vscode' {
 		 * The index of the cursor in the command line.
 		 */
 		readonly cursorIndex: number;
-		/**
-		 * Whether completions were explicitly invoked.
-		 */
-		readonly wasExplicitlyInvoked: boolean;
 	}
 
 	/**

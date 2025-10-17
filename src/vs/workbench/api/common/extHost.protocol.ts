@@ -2481,7 +2481,6 @@ export interface ITerminalCommandDto {
 export interface ITerminalCompletionContextDto {
 	commandLine: string;
 	cursorIndex: number;
-	wasExplicitlyInvoked: boolean;
 }
 
 export interface ITerminalCompletionItemDto {

@@ -493,7 +493,7 @@ export async function getCompletionItemsFromSpecs(
 		}
 		showFiles = true;
 		showFolders = true;
-	} else if (terminalContext.wasExplicitlyInvoked && !items.length && !showFiles && !showFolders && !hasCurrentArg) {
+	} else if (!items.length && !showFiles && !showFolders && !hasCurrentArg) {
 		showFiles = true;
 		showFolders = true;
 	}
