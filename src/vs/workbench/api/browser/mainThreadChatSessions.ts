@@ -497,7 +497,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 
 		this._sessionTypeToHandle.set(chatSessionType, handle);
 		this._contentProvidersRegistrations.set(handle, this._chatSessionsService.registerChatSessionContentProvider(chatSessionType, provider));
-		this._proxy.$provideChatSessionOptions(handle, CancellationToken.None).then(options => {
+		this._proxy.$provideChatSessionProviderOptions(handle, CancellationToken.None).then(options => {
 			if (options?.models && options.models.length) {
 				this._contentProviderModels.set(handle, options.models);
 				const serviceModels: ILanguageModelChatMetadata[] = options.models.map(m => ({ ...m }));

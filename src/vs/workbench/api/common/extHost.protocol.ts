@@ -3192,7 +3192,7 @@ export interface ExtHostChatSessionsShape {
 	$provideChatSessionItems(providerHandle: number, token: CancellationToken): Promise<Dto<IChatSessionItem>[]>;
 	$provideNewChatSessionItem(providerHandle: number, options: { request: IChatAgentRequest; metadata?: any }, token: CancellationToken): Promise<Dto<IChatSessionItem>>;
 	$provideChatSessionContent(providerHandle: number, sessionId: string, sessionResource: UriComponents, token: CancellationToken): Promise<ChatSessionDto>;
-	$provideChatSessionOptions(providerHandle: number, token: CancellationToken): Promise<IChatSessionProviderOptions | undefined>;
+	$provideChatSessionProviderOptions(providerHandle: number, token: CancellationToken): Promise<IChatSessionProviderOptions | undefined>;
 	$provideHandleOptionsChange(providerHandle: number, sessionId: string, updates: ReadonlyArray<ChatSessionOptionUpdateDto>, token: CancellationToken): Promise<void>;
 	$interruptChatSessionActiveResponse(providerHandle: number, sessionId: string, requestId: string): Promise<void>;
 	$disposeChatSessionContent(providerHandle: number, sessionId: string): Promise<void>;

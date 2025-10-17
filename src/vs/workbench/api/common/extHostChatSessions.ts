@@ -330,7 +330,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		}
 	}
 
-	async $provideChatSessionOptions(handle: number, token: CancellationToken): Promise<IChatSessionProviderOptions | undefined> {
+	async $provideChatSessionProviderOptions(handle: number, token: CancellationToken): Promise<IChatSessionProviderOptions | undefined> {
 		const entry = this._chatSessionContentProviders.get(handle);
 		if (!entry) {
 			this._logService.warn(`No provider for handle ${handle} when requesting chat session options`);
@@ -338,12 +338,12 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		}
 
 		const provider = entry.provider;
-		if (!provider.provideChatSessionOptions) {
+		if (!provider.provideChatSessionProviderOptions) {
 			return;
 		}
 
 		try {
-			const extOptions = await provider.provideChatSessionOptions(token);
+			const extOptions = await provider.provideChatSessionProviderOptions(token);
 			if (!extOptions) {
 				return;
 			}
@@ -363,7 +363,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 				}))
 			};
 		} catch (error) {
-			this._logService.error(`Error calling provideChatSessionOptions for handle ${handle}:`, error);
+			this._logService.error(`Error calling provideChatSessionProviderOptions for handle ${handle}:`, error);
 			return;
 		}
 	}

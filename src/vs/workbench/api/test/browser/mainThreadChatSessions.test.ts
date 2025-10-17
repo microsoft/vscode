@@ -49,7 +49,7 @@ suite('ObservableChatSession', function () {
 
 		proxy = {
 			$provideChatSessionContent: sinon.stub(),
-			$provideChatSessionOptions: sinon.stub<[providerHandle: number, token: CancellationToken], Promise<IChatSessionProviderOptions | undefined>>().resolves(undefined),
+			$provideChatSessionProviderOptions: sinon.stub<[providerHandle: number, token: CancellationToken], Promise<IChatSessionProviderOptions | undefined>>().resolves(undefined),
 			$provideHandleOptionsChange: sinon.stub(),
 			$interruptChatSessionActiveResponse: sinon.stub(),
 			$invokeChatSessionRequestHandler: sinon.stub(),
@@ -357,7 +357,7 @@ suite('MainThreadChatSessions', function () {
 
 		proxy = {
 			$provideChatSessionContent: sinon.stub(),
-			$provideChatSessionOptions: sinon.stub<[providerHandle: number, token: CancellationToken], Promise<IChatSessionProviderOptions | undefined>>().resolves(undefined),
+			$provideChatSessionProviderOptions: sinon.stub<[providerHandle: number, token: CancellationToken], Promise<IChatSessionProviderOptions | undefined>>().resolves(undefined),
 			$provideHandleOptionsChange: sinon.stub(),
 			$interruptChatSessionActiveResponse: sinon.stub(),
 			$invokeChatSessionRequestHandler: sinon.stub(),
