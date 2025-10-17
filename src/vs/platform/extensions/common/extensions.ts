@@ -283,6 +283,15 @@ export const EXTENSION_CATEGORIES = [
 	'Other',
 ];
 
+export interface ManifestL10nConfiguration {
+
+	/** The relative path to folder for l10n bundle files */
+	location: string;
+
+	/** Optional tag for default language of un-translated strings. */
+	defaultLocale?: string;
+}
+
 export interface IRelaxedExtensionManifest {
 	name: string;
 	displayName?: string;
@@ -296,7 +305,7 @@ export interface IRelaxedExtensionManifest {
 	preview?: boolean;
 	// For now this only supports pointing to l10n bundle files
 	// but it will be used for package.l10n.json files in the future
-	l10n?: string;
+	l10n?: string | ManifestL10nConfiguration;
 	icon?: string;
 	categories?: string[];
 	keywords?: string[];
