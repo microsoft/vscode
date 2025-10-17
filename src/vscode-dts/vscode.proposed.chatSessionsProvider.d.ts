@@ -149,6 +149,11 @@ declare module 'vscode' {
 		readonly history: ReadonlyArray<ChatRequestTurn | ChatResponseTurn2>;
 
 		/**
+		 * Options configured for this session.
+		 */
+		readonly options?: { model?: LanguageModelChatInformation };
+
+		/**
 		 * Callback invoked by the editor for a currently running response. This allows the session to push items for the
 		 * current response and stream these in as them come in. The current response will be considered complete once the
 		 * callback resolved.
@@ -175,6 +180,32 @@ declare module 'vscode' {
 		 * @param token A cancellation token that can be used to cancel the operation.
 		 */
 		provideChatSessionContent(sessionId: string, token: CancellationToken): Thenable<ChatSession> | ChatSession;
+
+		/**
+		 *
+		 * @param sessionId Identifier of the chat session being updated.
+		 * @param updates Collection of option identifiers and their new values. Only the options that changed are included.
+		 * @param token A cancellation token that can be used to cancel the notification if the session is disposed.
+		 */
+		provideHandleOptionsChange?(sessionId: string, updates: ReadonlyArray<ChatSessionOptionUpdate>, token: CancellationToken): void;
+
+		/**
+		 * Called as soon as you register (call me once)
+		 * @param token
+		 */
+		provideChatSessionProviderOptions?(token: CancellationToken): Thenable<ChatSessionProviderOptions> | ChatSessionProviderOptions;
+	}
+
+	export interface ChatSessionOptionUpdate {
+		/**
+		 * Identifier of the option that changed (for example `model`).
+		 */
+		readonly optionId: string;
+
+		/**
+		 * The new value assigned to the option. When `undefined`, the option is cleared.
+		 */
+		readonly value: string | undefined;
 	}
 
 	export namespace chat {
@@ -219,6 +250,13 @@ declare module 'vscode' {
 		 * Whether sessions can be interrupted and resumed without side-effects.
 		 */
 		supportsInterruptions?: boolean;
+	}
+
+	export interface ChatSessionProviderOptions {
+		/**
+		 * Set of available models.
+		 */
+		models?: LanguageModelChatInformation[];
 	}
 
 	/**

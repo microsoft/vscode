@@ -8,7 +8,7 @@ import { assertNever } from '../../../../base/common/assert.js';
 import { decodeHex, encodeHex, VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
-import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { equals as objectsEqual } from '../../../../base/common/objects.js';
 import { IObservable, ObservableMap } from '../../../../base/common/observable.js';
@@ -677,12 +677,14 @@ export const enum McpServerEditorTab {
 	Configuration = 'configuration',
 }
 
+export type McpServerRuntimeState = { readonly disabled: boolean; readonly reason?: MarkdownString };
+
 export interface IWorkbenchMcpServer {
 	readonly gallery: IGalleryMcpServer | undefined;
 	readonly local: IWorkbenchLocalMcpServer | undefined;
 	readonly installable: IInstallableMcpServer | undefined;
 	readonly installState: McpServerInstallState;
-	readonly enablementState: McpServerEnablementState;
+	readonly runtimeState: McpServerRuntimeState | undefined;
 	readonly id: string;
 	readonly name: string;
 	readonly label: string;

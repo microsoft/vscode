@@ -28,7 +28,7 @@ import { migrateLegacyTerminalToolSpecificData } from './chat.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, reviveSerializedAgent } from './chatAgents.js';
 import { IChatEditingService, IChatEditingSession } from './chatEditingService.js';
 import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from './chatParserTypes.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatResponseClearToPreviousToolInvocationReason, IChatAgentMarkdownContentWithVulnerability, IChatClearToPreviousToolInvocation, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatEditingSessionAction, IChatElicitationRequest, IChatExtensionsContent, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatMcpServersStarting, IChatMultiDiffData, IChatNotebookEdit, IChatPrepareToolInvocationPart, IChatProgress, IChatProgressMessage, IChatPullRequestContent, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsedContext, IChatWarningMessage, isIUsedContext } from './chatService.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatResponseClearToPreviousToolInvocationReason, IChatAgentMarkdownContentWithVulnerability, IChatClearToPreviousToolInvocation, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatEditingSessionAction, IChatElicitationRequest, IChatExtensionsContent, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatMcpServersStarting, IChatMultiDiffData, IChatNotebookEdit, IChatPrepareToolInvocationPart, IChatProgress, IChatProgressMessage, IChatPullRequestContent, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatSessionContext, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsedContext, IChatWarningMessage, isIUsedContext } from './chatService.js';
 import { ChatRequestToolReferenceEntry, IChatRequestVariableEntry } from './chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind } from './constants.js';
 
@@ -1078,6 +1078,8 @@ export interface IChatModel extends IDisposable {
 	setCustomTitle(title: string): void;
 	toExport(): IExportableChatData;
 	toJSON(): ISerializableChatData;
+	readonly contributedChatSession: IChatSessionContext | undefined;
+	setContributedChatSession(session: IChatSessionContext | undefined): void;
 }
 
 export interface ISerializableChatsData {
@@ -1343,6 +1345,14 @@ export class ChatModel extends Disposable implements IChatModel {
 	readonly onDidChange = this._onDidChange.event;
 
 	private _requests: ChatRequestModel[];
+
+	private _contributedChatSession: IChatSessionContext | undefined;
+	public get contributedChatSession(): IChatSessionContext | undefined {
+		return this._contributedChatSession;
+	}
+	public setContributedChatSession(session: IChatSessionContext | undefined) {
+		this._contributedChatSession = session;
+	}
 
 	// TODO to be clear, this is not the same as the id from the session object, which belongs to the provider.
 	// It's easier to be able to identify this model before its async initialization is complete
