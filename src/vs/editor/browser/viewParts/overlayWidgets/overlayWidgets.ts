@@ -174,19 +174,23 @@ export class ViewOverlayWidgets extends ViewPart {
 		}
 
 		const maxRight = (2 * this._verticalScrollbarWidth) + this._minimapWidth;
-		if (widgetData.preference === OverlayWidgetPositionPreference.TOP_RIGHT_CORNER || widgetData.preference === OverlayWidgetPositionPreference.BOTTOM_RIGHT_CORNER) {
-			if (widgetData.preference === OverlayWidgetPositionPreference.BOTTOM_RIGHT_CORNER) {
-				const widgetHeight = domNode.domNode.clientHeight;
-				domNode.setTop((this._editorHeight - widgetHeight - 2 * this._horizontalScrollbarHeight));
+		if (widgetData.preference === OverlayWidgetPositionPreference.TOP_RIGHT_CORNER) {
+			domNode.setRight(maxRight);
+			if (widgetData.stack !== undefined) {
+				domNode.setTop(stackCoordinates[OverlayWidgetPositionPreference.TOP_RIGHT_CORNER]);
+				stackCoordinates[OverlayWidgetPositionPreference.TOP_RIGHT_CORNER] += domNode.domNode.clientHeight + 4 /* gap */;
 			} else {
 				domNode.setTop(0);
 			}
+		} else if (widgetData.preference === OverlayWidgetPositionPreference.BOTTOM_RIGHT_CORNER) {
+			const widgetHeight = domNode.domNode.clientHeight;
 
+			domNode.setRight(maxRight);
 			if (widgetData.stack !== undefined) {
-				domNode.setTop(stackCoordinates[widgetData.preference]);
-				stackCoordinates[widgetData.preference] += domNode.domNode.clientWidth;
+				domNode.setTop(this._editorHeight - stackCoordinates[OverlayWidgetPositionPreference.BOTTOM_RIGHT_CORNER] - widgetHeight - 2 * this._horizontalScrollbarHeight);
+				stackCoordinates[OverlayWidgetPositionPreference.BOTTOM_RIGHT_CORNER] += widgetHeight + 4 /* gap */;
 			} else {
-				domNode.setRight(maxRight);
+				domNode.setTop((this._editorHeight - widgetHeight - 2 * this._horizontalScrollbarHeight));
 			}
 		} else if (widgetData.preference === OverlayWidgetPositionPreference.TOP_CENTER) {
 			domNode.domNode.style.right = '50%';
