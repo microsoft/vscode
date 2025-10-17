@@ -576,7 +576,7 @@ export class PtyService extends Disposable implements IPtyService {
 			const revivedPtyId = this._revivedPtyIdMap.get(oldId)?.newId;
 			this._logService.info(`Expanding terminal instance, old id ${oldId} -> new id ${revivedPtyId}`);
 			this._revivedPtyIdMap.delete(oldId);
-			const persistentProcessId = revivedPtyId ?? (ptyId);
+			const persistentProcessId = revivedPtyId ?? ptyId;
 			if (doneSet.has(persistentProcessId)) {
 				throw new Error(`Terminal ${persistentProcessId} has already been expanded`);
 			}
