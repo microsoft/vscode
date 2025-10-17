@@ -51,7 +51,8 @@
     "tunnels",
     "workspaceTrust",
     "inlineCompletionsAdditions",
-    "devDeviceId"
+    "devDeviceId",
+    "languageModelProxy"
   ],
   "private": true,
   "activationEvents": [],
