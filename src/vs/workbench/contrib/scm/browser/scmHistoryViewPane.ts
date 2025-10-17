@@ -169,7 +169,10 @@ registerAction2(class extends ViewAction<SCMHistoryViewPane> {
 			f1: false,
 			menu: {
 				id: MenuId.SCMHistoryTitle,
-				when: ContextKeyExpr.and(ContextKeyExpr.has('scm.providerCount'), ContextKeyExpr.greater('scm.providerCount', 1)),
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.has('scm.providerCount'),
+					ContextKeyExpr.greater('scm.providerCount', 1),
+					ContextKeyExpr.equals('config.scm.repositories.selectionMode', 'multiple')),
 				group: 'navigation',
 				order: 0
 			}
@@ -1066,7 +1069,7 @@ class SCMHistoryViewModel extends Disposable {
 				return selectedRepository;
 			}
 
-			return this._scmViewService.activeRepository.read(reader);
+			return this._scmViewService.activeRepository.read(reader)?.repository;
 		});
 
 		this.repository = latestChangedValue(this, [firstRepository, graphRepository]);

@@ -176,7 +176,7 @@ export class ChatSubmitAction extends SubmitAction {
 			precondition,
 			toggled: {
 				condition: ChatContextKeys.lockedToCodingAgent,
-				icon: Codicon.sendToRemoteAgent,
+				icon: Codicon.send,
 				tooltip: localize('sendToRemoteAgent', "Send to coding agent"),
 			},
 			keybinding: {
@@ -436,7 +436,6 @@ class OpenModelPickerAction extends Action2 {
 		}
 	}
 }
-
 export class OpenModePickerAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.openModePicker';
 
@@ -476,6 +475,37 @@ export class OpenModePickerAction extends Action2 {
 		const widget = widgetService.lastFocusedWidget;
 		if (widget) {
 			widget.input.openModePicker();
+		}
+	}
+}
+
+export class ChatSessionOpenModelPickerAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.chatSessionOpenModelPicker';
+	constructor() {
+		super({
+			id: ChatSessionOpenModelPickerAction.ID,
+			title: localize2('interactive.openModelPicker.label', "Open Model Picker"),
+			category: CHAT_CATEGORY,
+			f1: false,
+			precondition: ChatContextKeys.enabled,
+			menu: {
+				id: MenuId.ChatInput,
+				order: 4,
+				group: 'navigation',
+				when:
+					ContextKeyExpr.and(
+						ChatContextKeys.lockedToCodingAgent,
+						ChatContextKeys.chatSessionHasModels
+					)
+			}
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+		const widgetService = accessor.get(IChatWidgetService);
+		const widget = widgetService.lastFocusedWidget;
+		if (widget) {
+			widget.input.openChatSessionModelPicker();
 		}
 	}
 }
@@ -1161,6 +1191,7 @@ export function registerChatExecuteActions() {
 	registerAction2(SwitchToNextModelAction);
 	registerAction2(OpenModelPickerAction);
 	registerAction2(OpenModePickerAction);
+	registerAction2(ChatSessionOpenModelPickerAction);
 	registerAction2(ChangeChatModelAction);
 	registerAction2(CancelEdit);
 }
