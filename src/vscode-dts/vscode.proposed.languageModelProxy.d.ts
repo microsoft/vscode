@@ -11,10 +11,21 @@ declare module 'vscode' {
 
 	export namespace lm {
 		/**
-		 * Returns undefined if
+		 * Returns false if
+		 * - Copilot Chat extension is not installed
+		 * - Copilot Chat has not finished activating or finished auth
 		 * - The user is not logged in, or isn't the right SKU, with expected model access
-		 * - The server fails to start for some reason
 		 */
-		export function getModelProxy(): Thenable<LanguageModelProxy | undefined>;
+		export const isModelProxyAvailable: boolean;
+
+		/**
+		 * Fired when isModelProxyAvailable changes.
+		 */
+		export const onDidChangeModelProxyAvailability: Event<void>;
+
+		/**
+		 * Throws if the server fails to start for some reason, or something else goes wrong.
+		 */
+		export function getModelProxy(): Thenable<LanguageModelProxy>;
 	}
 }

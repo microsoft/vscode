@@ -465,6 +465,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const capabilityListeners = this._register(new DisposableMap<TerminalCapability, IDisposable>());
 		this._register(this.capabilities.onDidAddCapability(e => {
 			capabilityListeners.get(e.id)?.dispose();
+			const refreshInfo = () => {
+				this._labelComputer?.refreshLabel(this);
+				refreshShellIntegrationInfoStatus(this);
+			};
 			switch (e.id) {
 				case TerminalCapability.CwdDetection: {
 					capabilityListeners.set(e.id, e.capability.onDidChangeCwd(e => {
@@ -476,14 +480,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				case TerminalCapability.CommandDetection: {
 					e.capability.promptInputModel.setShellType(this.shellType);
 					capabilityListeners.set(e.id, Event.any(
-						e.capability.onPromptTypeChanged,
 						e.capability.promptInputModel.onDidStartInput,
 						e.capability.promptInputModel.onDidChangeInput,
 						e.capability.promptInputModel.onDidFinishInput
-					)(() => {
-						this._labelComputer?.refreshLabel(this);
-						refreshShellIntegrationInfoStatus(this);
-					}));
+					)(refreshInfo));
+					break;
+				}
+				case TerminalCapability.PromptTypeDetection: {
+					capabilityListeners.set(e.id, e.capability.onPromptTypeChanged(refreshInfo));
 					break;
 				}
 			}
