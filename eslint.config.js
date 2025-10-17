@@ -293,6 +293,7 @@ export default tseslint.config(
 			'src/vs/workbench/contrib/files/**',
 			'src/vs/workbench/contrib/chat/browser/chatSetup.ts',
 			'src/vs/workbench/contrib/chat/browser/chatStatus.ts',
+			'src/vs/workbench/contrib/chat/browser/agentSessions/**',
 			'src/vs/workbench/contrib/mcp/**',
 		],
 		ignores: ['**/*.test.ts', '**/*.integrationTest.ts'],
