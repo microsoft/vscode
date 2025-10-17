@@ -11,33 +11,18 @@ import { INativeEnvironmentService } from '../../../../platform/environment/comm
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { Extensions, IConfigurationRegistry, IRegisteredConfigurationPropertySchema } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { URI } from '../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { IPolicy, LocalizedValue, PolicyCategory, PolicyCategoryTitle } from '../../../../base/common/policy.js';
-
-interface CategoryDto {
-	key: string;
-	name: LocalizedValue;
-}
-
-type PolicyDto = Omit<IPolicy, 'value'> & {
-	key: string;
-	type: IRegisteredConfigurationPropertySchema['type'];
-	default: IRegisteredConfigurationPropertySchema['default'];
-	enum: IRegisteredConfigurationPropertySchema['enum'];
-};
-
-interface ExportedPolicyData {
-	categories: CategoryDto[];
-	policies: PolicyDto[];
-}
+import { PolicyCategory, PolicyCategoryTitle } from '../../../../base/common/policy.js';
+import { ExportedPolicyDataDto } from '../../../../base/common/policyDto.js';
+import { join } from '../../../../base/common/path.js';
 
 export class PolicyExportContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.policyExport';
-	static readonly DEFAULT_POLICY_EXPORT_PATH = 'build/lib/policyData.json';
+	static readonly DEFAULT_POLICY_EXPORT_PATH = 'build/lib/policies/policyData.json';
 
 	constructor(
 		@INativeEnvironmentService private readonly nativeEnvironmentService: INativeEnvironmentService,
@@ -49,9 +34,16 @@ export class PolicyExportContribution extends Disposable implements IWorkbenchCo
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
+
+		// Skip for non-development flows
+		if (this.nativeEnvironmentService.isBuilt) {
+			return;
+		}
+
 		const policyDataPath = this.nativeEnvironmentService.exportPolicyData;
 		if (policyDataPath !== undefined) {
-			void this.exportPolicyDataAndQuit(policyDataPath ? policyDataPath : PolicyExportContribution.DEFAULT_POLICY_EXPORT_PATH);
+			const defaultPath = join(this.nativeEnvironmentService.appRoot, PolicyExportContribution.DEFAULT_POLICY_EXPORT_PATH);
+			void this.exportPolicyDataAndQuit(policyDataPath ? policyDataPath : defaultPath);
 		}
 	}
 
@@ -76,7 +68,7 @@ export class PolicyExportContribution extends Disposable implements IWorkbenchCo
 					...configurationRegistry.getConfigurationProperties(),
 				};
 
-				const policyData: ExportedPolicyData = {
+				const policyData: ExportedPolicyDataDto = {
 					categories: Object.values(PolicyCategory).map(category => ({
 						key: category,
 						name: {
@@ -109,7 +101,7 @@ export class PolicyExportContribution extends Disposable implements IWorkbenchCo
 
 				const policyDataFileContent = JSON.stringify(policyData, null, 4);
 				await this.fileService.writeFile(URI.file(policyDataPath), VSBuffer.fromString(policyDataFileContent));
-				this.log(`Successfully exported ${policyData.policies.length} policies.`);
+				this.log(`Successfully exported ${policyData.policies.length} policies to ${policyDataPath}.`);
 			});
 
 			await this.nativeHostService.exit(0);

@@ -6,7 +6,7 @@
 import minimist from 'minimist';
 import { promises as fs } from 'fs';
 import path from 'path';
-import { CategoryDto, ExportedPolicyData, PolicyDto } from './types';
+import { CategoryDto, ExportedPolicyDataDto, PolicyDto } from '../../../src/vs/base/common/policyDto.js';
 const product = require('../../../product.json');
 const packageJson = require('../../../package.json');
 
@@ -184,7 +184,7 @@ class BooleanPolicy extends BasePolicy {
 class NumberPolicy extends BasePolicy {
 
 	static from(category: CategoryDto, policy: PolicyDto): NumberPolicy | undefined {
-		const { type, defaultValue, name, minimumVersion, localization } = policy;
+		const { type, default: defaultValue, name, minimumVersion, localization } = policy;
 
 		if (type !== 'number') {
 			return undefined;
@@ -337,7 +337,7 @@ class ObjectPolicy extends BasePolicy {
 class StringEnumPolicy extends BasePolicy {
 
 	static from(category: CategoryDto, policy: PolicyDto): StringEnumPolicy | undefined {
-		const { type, name, minimumVersion, enumValue, localization } = policy;
+		const { type, name, minimumVersion, enum: enumValue, localization } = policy;
 
 		if (type !== 'string') {
 			return undefined;
@@ -754,7 +754,7 @@ const PolicyTypes = [
 ];
 
 async function parsePolicies(policyDataFile: string): Promise<Policy[]> {
-	const contents = JSON.parse(await fs.readFile(policyDataFile, { encoding: 'utf8' })) as ExportedPolicyData;
+	const contents = JSON.parse(await fs.readFile(policyDataFile, { encoding: 'utf8' })) as ExportedPolicyDataDto;
 	const categories = new Map<string, CategoryDto>();
 	for (const category of contents.categories) {
 		categories.set(category.name.key, category);
