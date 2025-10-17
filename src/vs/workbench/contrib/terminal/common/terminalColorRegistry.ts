@@ -97,7 +97,7 @@ export const TERMINAL_INITIAL_HINT_FOREGROUND = registerColor('terminal.initialH
 	light: '#0007',
 	hcDark: null,
 	hcLight: null
-}, nls.localize('terminalInitialHintForeground', 'Foreground color of the terminal initial hint.'));
+}, nls.localize('terminal.initialHintForeground', 'Foreground color of the terminal initial hint.'));
 
 export const ansiColorMap: { [key: string]: { index: number; defaults: ColorDefaults } } = {
 	'terminal.ansiBlack': {
