@@ -305,8 +305,8 @@ registerActiveXtermAction({
 registerAction2(class ShowChatTerminalsAction extends Action2 {
 	constructor() {
 		super({
-			id: TerminalChatCommandId.ShowChatTerminals,
-			title: localize2('showChatTerminals', 'Show Chat Terminals'),
+			id: TerminalChatCommandId.ViewChatTerminals,
+			title: localize2('viewChatTerminals', 'View Chat Terminals'),
 			category: localize2('terminalCategory2', 'Terminal'),
 			f1: true,
 			menu: [{
