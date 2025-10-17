@@ -5,6 +5,8 @@
 
 declare module 'vscode' {
 
+	// https://github.com/microsoft/vscode/issues/272000 @connor4312
+
 	/**
 	 * Defines when a {@link McpServerLanguageModelToolDefinition} is available
 	 * for calling.
@@ -16,7 +18,7 @@ declare module 'vscode' {
 		Initial = 0,
 
 		/**
-		 * The MCP tool may be available only when certain preconditions are met.
+		 * The MCP tool is conditionally available when certain preconditions are met.
 		 */
 		Dynamic = 1,
 	}
@@ -40,11 +42,38 @@ declare module 'vscode' {
 		availability: McpToolAvailability;
 	}
 
+	/**
+	 * Metadata which the editor can use to hydrate information about the server
+	 * prior to starting it. The extension can provide tools and basic server
+	 * instructions as they would be expected to appear on MCP itself.
+	 *
+	 * Once a server is started, the observed values will be cached and take
+	 * precedence over those statically declared here unless and until the
+	 * server's {@link McpStdioServerDefinition.version version} is updated. If
+	 * you can ensure the metadata is always accurate and do not otherwise have
+	 * a server `version` to use, it is reasonable to set the server `version`
+	 * to a hash of this object to ensure the cache tracks the {@link McpServerMetadata}.
+	 */
 	export interface McpServerMetadata {
 		/**
 		 * Tools the MCP server exposes.
 		 */
 		tools?: McpServerLanguageModelToolDefinition[];
+
+		/**
+		 * MCP server instructions as it would appear on the `initialize` result in the protocol.
+		 */
+		instructions?: string;
+
+		/**
+		 * MCP server capabilities as they would appear on the `initialize` result in the protocol.
+		 */
+		capabilities?: unknown;
+
+		/**
+		 * MCP server info as it would appear on the `initialize` result in the protocol.
+		 */
+		serverInfo?: unknown;
 	}
 
 
