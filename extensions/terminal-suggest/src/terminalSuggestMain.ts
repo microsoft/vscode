@@ -503,7 +503,7 @@ export async function getCompletionItemsFromSpecs(
 		cwd = await resolveCwdFromCurrentCommandString(currentCommandString, shellIntegrationCwd);
 	}
 
-	return { items, showFiles: showFiles, showFolders: showFolders, fileExtensions, cwd };
+	return { items, showFiles, showFolders, fileExtensions, cwd };
 }
 
 function getEnvAsRecord(shellIntegrationEnv: ITerminalEnvironment): Record<string, string> {

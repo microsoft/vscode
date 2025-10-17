@@ -8428,11 +8428,11 @@ declare module 'vscode' {
 		/**
 		 * Show files as completion items.
 		 */
-		showFiles?: boolean;
+		showFiles: boolean;
 		/**
 		 * Show folders as completion items.
 		 */
-		showDirectories?: boolean;
+		showDirectories: boolean;
 		/**
 		 * A glob pattern string that controls which files suggest should surface. Note that this will only apply if {@param showFiles} or {@param showDirectories} is set to true.
 		 */
