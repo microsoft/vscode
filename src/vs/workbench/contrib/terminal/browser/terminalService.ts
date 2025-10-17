@@ -508,7 +508,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 
 	private async _reviveBackgroundTerminalInstances(backgroundLayouts: (IPtyHostAttachTarget | null)[]): Promise<ITerminalInstance[]> {
 		const instances: ITerminalInstance[] = [];
-		for (const i in backgroundLayouts) {
+		for (const i of backgroundLayouts) {
 			const attachPersistentProcess = backgroundLayouts[i];
 			if (!attachPersistentProcess) {
 				continue;
