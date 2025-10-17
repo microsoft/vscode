@@ -328,42 +328,29 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 		const instantiationService = accessor.get(IInstantiationService);
 
 		const visible = new Set<ITerminalInstance>([...groupService.instances, ...editorService.instances]);
-		const backgrounded = terminalService.instances.filter(i => !visible.has(i));
 		const toolInstances = new Set(terminalChatService.getToolSessionTerminalInstances());
 
-		const all = new Map<number, { instance: ITerminalInstance; isBackground: boolean; isTool: boolean }>();
-		for (const i of backgrounded) {
-			all.set(i.instanceId, { instance: i, isBackground: true, isTool: toolInstances.has(i) });
-		}
-		for (const i of toolInstances) {
-			if (all.has(i.instanceId)) {
-				all.get(i.instanceId)!.isTool = true;
-			} else {
-				all.set(i.instanceId, { instance: i, isBackground: !visible.has(i), isTool: true });
-			}
-		}
-
-		if (all.size === 0) {
+		if (toolInstances.size === 0) {
 			return;
 		}
 
-		const items: IQuickPickItem[] = [];
-		for (const { instance, isBackground, isTool } of all.values()) {
-			const iconId = instantiationService.invokeFunction(getIconId, instance);
-			const prefix: string[] = [];
+		const all = new Map<number, { instance: ITerminalInstance; isBackground: boolean }>();
 
-			if (isBackground) {
-				prefix.push('eye-closed');
-			}
+		for (const i of toolInstances) {
+			all.set(i.instanceId, { instance: i, isBackground: !visible.has(i) });
+		}
+
+		const items: IQuickPickItem[] = [];
+		for (const { instance, isBackground } of all.values()) {
+			const iconId = instantiationService.invokeFunction(getIconId, instance);
 			const lastCommand = instance.capabilities.get(TerminalCapability.CommandDetection)?.commands.at(-1)?.command;
-			const labelPrefix = prefix.length ? prefix.map(p => `$(${p})`).join(' ') + ' ' : '';
-			let label = `${labelPrefix}$(${iconId}) ${instance.title}`;
+			let label = `$(${iconId}) ${instance.title}`;
 			if (lastCommand) {
 				label += ` - ${lastCommand}`;
 			}
 			items.push({
 				label,
-				description: isTool && isBackground ? localize2('terminalHiddenChatDesc', 'Chat Session • Hidden').value : localize2('terminalChatDesc', 'Chat Session').value,
+				description: isBackground ? localize2('terminalHiddenChatDesc', 'Chat Session • Hidden').value : localize2('terminalChatDesc', 'Chat Session').value,
 				id: String(instance.instanceId)
 			});
 		}
