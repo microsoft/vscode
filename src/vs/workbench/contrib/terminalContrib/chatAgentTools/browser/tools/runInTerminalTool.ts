@@ -196,6 +196,18 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		// Restore terminal associations from storage
 		this._restoreTerminalAssociations();
+
+		// Re-associate any tool session terminals already registered (eg. restored background terminals)
+		for (const instance of this._terminalChatService.getToolSessionTerminalInstances()) {
+			this._restoreAssociationForInstance(instance);
+		}
+
+		// Listen for future registrations (including restored mappings) so we can rebuild
+		// session associations if they weren't present when _restoreTerminalAssociations ran.
+		// This ensures when a session is cleared, the terminal is disposed of
+		this._register(this._terminalChatService.onDidRegisterTerminalInstanceWithToolSession(e => {
+			this._restoreAssociationForInstance(e.instance);
+		}));
 		this._register(this._terminalService.onDidDisposeInstance(e => {
 			for (const [sessionId, toolTerminal] of this._sessionTerminalAssociations.entries()) {
 				if (e === toolTerminal.instance) {
@@ -747,25 +759,40 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 			// Find existing terminals and associate them with sessions
 			for (const instance of this._terminalService.instances) {
-				if (instance.processId) {
-					const association = associations[instance.processId];
-					if (association) {
-						this._logService.debug(`RunInTerminalTool: Restored terminal association for PID ${instance.processId}, session ${association.sessionId}`);
-						const toolTerminal: IToolTerminal = {
-							instance,
-							shellIntegrationQuality: association.shellIntegrationQuality
-						};
-						this._sessionTerminalAssociations.set(association.sessionId, toolTerminal);
-
-						// Listen for terminal disposal to clean up storage
-						this._register(instance.onDisposed(() => {
-							this._removeProcessIdAssociation(instance.processId!);
-						}));
-					}
-				}
+				this._restoreAssociationForInstance(instance, associations);
 			}
 		} catch (error) {
 			this._logService.debug(`RunInTerminalTool: Failed to restore terminal associations: ${error}`);
+		}
+	}
+
+	private _restoreAssociationForInstance(instance: ITerminalInstance, associations?: Record<number, IStoredTerminalAssociation>): void {
+		try {
+			if (!instance.processId) {
+				return;
+			}
+			if (!associations) {
+				const storedAssociations = this._storageService.get(TerminalToolStorageKeysInternal.TerminalSession, StorageScope.WORKSPACE, '{}');
+				associations = JSON.parse(storedAssociations);
+			}
+			if (!associations) {
+				return;
+			}
+			const association = associations[instance.processId];
+			if (!association) {
+				return;
+			}
+			if (this._sessionTerminalAssociations.has(association.sessionId)) {
+				return;
+			}
+			this._logService.debug(`RunInTerminalTool: (Re)associated restored terminal PID ${instance.processId} with session ${association.sessionId}`);
+			const toolTerminal: IToolTerminal = { instance, shellIntegrationQuality: association.shellIntegrationQuality };
+			this._sessionTerminalAssociations.set(association.sessionId, toolTerminal);
+			this._register(instance.onDisposed(() => {
+				this._removeProcessIdAssociation(instance.processId!);
+			}));
+		} catch (error) {
+			this._logService.debug(`RunInTerminalTool: Failed to (re)associate restored terminal: ${error}`);
 		}
 	}
 

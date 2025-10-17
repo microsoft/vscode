@@ -122,9 +122,12 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			this._registerInstanceListener(terminalInstance);
 			this._addFocusAction(terminalInstance, terminalToolSessionId);
 		} else {
-			const listener = this._register(this._terminalChatService.onDidRegisterTerminalInstanceWithToolSession(terminalInstance => {
-				this._registerInstanceListener(terminalInstance);
-				this._addFocusAction(terminalInstance, terminalToolSessionId);
+			const listener = this._register(this._terminalChatService.onDidRegisterTerminalInstanceWithToolSession(e => {
+				if (e.toolSessionId !== terminalToolSessionId) {
+					return;
+				}
+				this._registerInstanceListener(e.instance);
+				this._addFocusAction(e.instance, terminalToolSessionId);
 				this._store.delete(listener);
 			}));
 		}

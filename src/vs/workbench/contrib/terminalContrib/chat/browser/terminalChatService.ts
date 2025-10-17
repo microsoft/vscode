@@ -22,8 +22,8 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 
 	private readonly _terminalInstancesByToolSessionId = new Map<string, ITerminalInstance>();
 	private readonly _terminalInstanceListenersByToolSessionId = this._register(new DisposableMap<string, IDisposable>());
-	private readonly _onDidRegisterTerminalInstanceForToolSession = new Emitter<ITerminalInstance>();
-	readonly onDidRegisterTerminalInstanceWithToolSession: Event<ITerminalInstance> = this._onDidRegisterTerminalInstanceForToolSession.event;
+	private readonly _onDidRegisterTerminalInstanceForToolSession = new Emitter<{ toolSessionId: string; instance: ITerminalInstance }>();
+	readonly onDidRegisterTerminalInstanceWithToolSession: Event<{ toolSessionId: string; instance: ITerminalInstance }> = this._onDidRegisterTerminalInstanceForToolSession.event;
 
 	/**
 	 * Pending mappings restored from storage that have not yet been matched to a live terminal
@@ -57,7 +57,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 			return;
 		}
 		this._terminalInstancesByToolSessionId.set(terminalToolSessionId, instance);
-		this._onDidRegisterTerminalInstanceForToolSession.fire(instance);
+		this._onDidRegisterTerminalInstanceForToolSession.fire({ toolSessionId: terminalToolSessionId, instance });
 		this._terminalInstanceListenersByToolSessionId.set(terminalToolSessionId, instance.onDisposed(() => {
 			this._terminalInstancesByToolSessionId.delete(terminalToolSessionId);
 			this._terminalInstanceListenersByToolSessionId.deleteAndDispose(terminalToolSessionId);
@@ -67,6 +67,10 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		if (typeof instance.persistentProcessId === 'number') {
 			this._persistToStorage();
 		}
+	}
+
+	getToolSessionTerminalInstances(): readonly ITerminalInstance[] {
+		return Array.from(this._terminalInstancesByToolSessionId.values());
 	}
 
 	getTerminalInstanceByToolSessionId(terminalToolSessionId: string | undefined): ITerminalInstance | undefined {
@@ -121,7 +125,9 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		for (const [toolSessionId, persistentProcessId] of this._pendingRestoredMappings) {
 			if (persistentProcessId === instance.persistentProcessId) {
 				this._terminalInstancesByToolSessionId.set(toolSessionId, instance);
-				this._onDidRegisterTerminalInstanceForToolSession.fire(instance);
+				// Fire event with toolSessionId so consumers (eg. RunInTerminalTool) can
+				// re-associate session state after restoration.
+				this._onDidRegisterTerminalInstanceForToolSession.fire({ toolSessionId, instance });
 				this._terminalInstanceListenersByToolSessionId.set(toolSessionId, instance.onDisposed(() => {
 					this._terminalInstancesByToolSessionId.delete(toolSessionId);
 					this._terminalInstanceListenersByToolSessionId.deleteAndDispose(toolSessionId);
