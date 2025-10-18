@@ -1418,6 +1418,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const providerIcon = this._lockedAgentId ? this.chatSessionsService.getIconForSessionType(this._lockedAgentId) : undefined;
 		const providerTitle = this._lockedAgentId ? this.chatSessionsService.getWelcomeTitleForSessionType(this._lockedAgentId) : undefined;
 		const providerMessage = this._lockedAgentId ? this.chatSessionsService.getWelcomeMessageForSessionType(this._lockedAgentId) : undefined;
+		const suggestedPrompts = this._lockedAgentId ? undefined : this.getNewSuggestedPrompts();
 
 		const welcomeContent: IChatViewWelcomeContent = {
 			title: providerTitle ?? localize('expChatTitle', 'Build with agent mode'),
@@ -1426,7 +1427,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			inputPart: this.inputPart.element,
 			additionalMessage,
 			isNew: true,
-			suggestedPrompts: this.getNewSuggestedPrompts(),
+			suggestedPrompts
 		};
 		return welcomeContent;
 	}
