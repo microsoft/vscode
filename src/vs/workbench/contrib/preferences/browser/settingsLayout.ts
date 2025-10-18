@@ -7,6 +7,17 @@ import { isWeb, isWindows } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
 import { ExtensionToggleData } from '../common/preferences.js';
 
+export interface ITOCFilter {
+	include?: {
+		keyPatterns?: string[];
+		tags?: string[];
+	};
+	exclude?: {
+		keyPatterns?: string[];
+		tags?: string[];
+	};
+}
+
 export interface ITOCEntry<T> {
 	id: string;
 	label: string;

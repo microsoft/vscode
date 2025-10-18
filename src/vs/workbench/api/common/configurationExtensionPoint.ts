@@ -119,9 +119,25 @@ const configurationEntrySchema: IJSONSchema = {
 							tags: {
 								type: 'array',
 								items: {
-									type: 'string'
+									type: 'string',
+									enum: [
+										'accessibility',
+										'advanced',
+										'experimental',
+										'telemetry',
+										'usesOnlineServices',
+									],
+									enumDescriptions: [
+										nls.localize('accessibility', 'Accessibility settings'),
+										nls.localize('advanced', 'Advanced settings are hidden by default in the Settings editor unless the user chooses to show advanced settings.'),
+										nls.localize('experimental', 'Experimental settings are subject to change and may be removed in future releases.'),
+										nls.localize('preview', 'Preview settings can be used to try out new features before they are finalized.'),
+										nls.localize('telemetry', 'Telemetry settings'),
+										nls.localize('usesOnlineServices', 'Settings that use online services')
+									],
 								},
-								markdownDescription: nls.localize('scope.tags', 'A list of categories under which to place the setting. The category can then be searched up in the Settings editor. For example, specifying the `experimental` tag allows one to find the setting by searching `@tag:experimental`.'),
+								additionalItems: true,
+								markdownDescription: nls.localize('scope.tags', 'A list of tags under which to place the setting. The tag can then be searched up in the Settings editor. For example, specifying the `experimental` tag allows one to find the setting by searching `@tag:experimental`.'),
 							}
 						}
 					}
