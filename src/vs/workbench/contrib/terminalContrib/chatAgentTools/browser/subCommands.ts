@@ -58,18 +58,50 @@ export function splitCommandLineIntoSubCommands(commandLine: string, envShell: s
 			default: shellType = 'sh'; break;
 		}
 	}
-	const subCommands = [commandLine];
-	const resetChars = shellTypeResetChars.get(shellType);
-	if (resetChars) {
-		for (const chars of resetChars) {
-			for (let i = 0; i < subCommands.length; i++) {
-				const subCommand = subCommands[i];
-				if (subCommand.includes(chars)) {
-					subCommands.splice(i, 1, ...subCommand.split(chars).map(e => e.trim()));
-					i--;
+	const resetChars = shellTypeResetChars.get(shellType) ?? [];
+	let subCommands = [], buffer = '';
+	let isBackslashed = false, isSingleQuoted = false, isDoubleQuoted = false;
+
+	for (let i = 0; i < commandLine.length; i++) {
+		const char = commandLine[i];
+
+		if (isBackslashed) {
+			isBackslashed = false;
+		} else if (!isSingleQuoted && char === '\\') {
+			isBackslashed = true;
+		} else if (!isDoubleQuoted && char === '\'') {
+			isSingleQuoted = !isSingleQuoted;
+		} else if (!isSingleQuoted && char === '"') {
+			isDoubleQuoted = !isDoubleQuoted;
+		} else if (!isSingleQuoted && !isDoubleQuoted && resetChars.length > 0) {
+			let matchedToken: string | undefined;
+			for (const token of resetChars) {
+				if (commandLine.startsWith(token, i)) {
+					matchedToken = token;
+					break;
 				}
 			}
+			if (matchedToken) {
+				subCommands.push(buffer.trim());
+				buffer = '';
+				i += matchedToken.length - 1;
+				continue;
+			}
 		}
+
+		buffer += char;
 	}
-	return subCommands.filter(e => e.length > 0);
+
+	if (buffer.trim().length) {
+		subCommands.push(buffer.trim());
+	}
+
+	const subshellsRegex = /\$\((.+)\)|`(.+)`/gm;
+	for (const sub of commandLine.matchAll(subshellsRegex)) {
+		subCommands.push(...splitCommandLineIntoSubCommands(sub[1] || sub[2], envShell, envOS));
+	}
+
+	subCommands = subCommands.filter(cmd => cmd !== '');
+
+	return subCommands;
 }
