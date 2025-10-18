@@ -14,6 +14,7 @@ import { isFalsyOrWhitespace } from '../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -206,7 +207,7 @@ export interface ILanguageModelChatResponse {
 }
 
 export interface ILanguageModelChatProvider {
-	onDidChange: Event<void>;
+	readonly onDidChange: Event<void>;
 	provideLanguageModelChatInfo(options: { silent: boolean }, token: CancellationToken): Promise<ILanguageModelChatMetadataAndIdentifier[]>;
 	sendChatRequest(modelId: string, messages: IChatMessage[], from: ExtensionIdentifier, options: { [name: string]: any }, token: CancellationToken): Promise<ILanguageModelChatResponse>;
 	provideTokenCount(modelId: string, message: string | IChatMessage, token: CancellationToken): Promise<number>;
@@ -240,7 +241,7 @@ export interface ILanguageModelsService {
 	readonly _serviceBrand: undefined;
 
 	// TODO @lramos15 - Make this a richer event in the future. Right now it just indicates some change happened, but not what
-	onDidChangeLanguageModels: Event<void>;
+	readonly onDidChangeLanguageModels: Event<void>;
 
 	updateModelPickerPreference(modelIdentifier: string, showInModelPicker: boolean): void;
 
@@ -327,6 +328,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 		@ILogService private readonly _logService: ILogService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IContextKeyService _contextKeyService: IContextKeyService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
 	) {
 		this._hasUserSelectableModels = ChatContextKeys.languageModelsAreUserSelectable.bindTo(_contextKeyService);
@@ -418,6 +420,9 @@ export class LanguageModelsService implements ILanguageModelsService {
 
 	lookupLanguageModel(modelIdentifier: string): ILanguageModelChatMetadata | undefined {
 		const model = this._modelCache.get(modelIdentifier);
+		if (model && this._configurationService.getValue('chat.experimentalShowAllModels')) {
+			return { ...model, isUserSelectable: true };
+		}
 		if (model && this._modelPickerUserPreferences[modelIdentifier] !== undefined) {
 			return { ...model, isUserSelectable: this._modelPickerUserPreferences[modelIdentifier] };
 		}
@@ -500,8 +505,9 @@ export class LanguageModelsService implements ILanguageModelsService {
 
 		this._providers.set(vendor, provider);
 
-		// TODO @lramos15 - Smarter restore logic. Don't resolve models for all providers, but only those which were known to need restoring
-		this._resolveLanguageModels(vendor, true);
+		if (this._hasStoredModelForVendor(vendor)) {
+			this._resolveLanguageModels(vendor, true);
+		}
 
 		const modelChangeListener = provider.onDidChange(async () => {
 			await this._resolveLanguageModels(vendor, true);

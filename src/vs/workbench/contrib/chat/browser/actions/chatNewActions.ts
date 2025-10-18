@@ -8,7 +8,7 @@ import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize2 } from '../../../../../nls.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
-import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -20,10 +20,11 @@ import { ChatModeKind } from '../../common/constants.js';
 import { ChatViewId, IChatWidgetService } from '../chat.js';
 import { EditingSessionAction, getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
-import { ACTION_ID_NEW_CHAT, ACTION_ID_NEW_EDIT_SESSION, ACTION_ID_OPEN_CHAT, CHAT_CATEGORY, handleCurrentEditingSession } from './chatActions.js';
+import { ACTION_ID_NEW_CHAT, ACTION_ID_NEW_EDIT_SESSION, CHAT_CATEGORY, handleCurrentEditingSession } from './chatActions.js';
 import { clearChatEditor } from './chatClear.js';
 
 export interface INewEditSessionActionContext {
+
 	/**
 	 * An initial prompt to write to the chat.
 	 */
@@ -36,13 +37,25 @@ export interface INewEditSessionActionContext {
 	agentMode?: boolean;
 
 	/**
-	 * Whether the inputValue is partial and should wait for further user input. If false or not set, the prompt is sent immediately.
+	 * Whether the inputValue is partial and should wait for further user input.
+	 * If false or not set, the prompt is sent immediately.
 	 */
 	isPartialQuery?: boolean;
 }
 
 export function registerNewChatActions() {
-	// This action was previously used for the editor gutter toolbar, but now ACTION_ID_NEW_CHAT is also used for that scenario
+
+	// Add "New Chat" submenu to Chat view menu
+	MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
+		submenu: MenuId.ChatNewMenu,
+		title: localize2('chat.newEdits.label', "New Chat"),
+		icon: Codicon.plus,
+		when: ContextKeyExpr.equals('view', ChatViewId),
+		group: 'navigation',
+		order: -1,
+		isSplitButton: true
+	});
+
 	registerAction2(class NewChatEditorAction extends Action2 {
 		constructor() {
 			super({
@@ -54,7 +67,10 @@ export function registerNewChatActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor, ...args: unknown[]) {
-			announceChatCleared(accessor.get(IAccessibilitySignalService));
+			const accessibilitySignalService = accessor.get(IAccessibilitySignalService);
+
+			accessibilitySignalService.playSignal(AccessibilitySignal.clear);
+
 			await clearChatEditor(accessor);
 		}
 	});
@@ -74,16 +90,9 @@ export function registerNewChatActions() {
 						group: 'z_clear'
 					},
 					{
-						id: MenuId.ViewTitle,
-						when: ContextKeyExpr.equals('view', ChatViewId),
-						group: 'navigation',
-						order: -1,
-						alt: {
-							id: ACTION_ID_OPEN_CHAT,
-							title: localize2('interactiveSession.open', "New Chat Editor"),
-							icon: Codicon.newFile,
-							precondition: ChatContextKeys.enabled
-						}
+						id: MenuId.ChatNewMenu,
+						group: '1_open',
+						order: 1,
 					},
 					...[MenuId.EditorTitle, MenuId.CompactWindowEditorTitle].map(id => ({
 						id,
@@ -105,7 +114,6 @@ export function registerNewChatActions() {
 			});
 		}
 
-
 		async run(accessor: ServicesAccessor, ...args: unknown[]) {
 			const executeCommandContext = args[0] as INewEditSessionActionContext | undefined;
 
@@ -123,7 +131,7 @@ export function registerNewChatActions() {
 				return;
 			}
 
-			announceChatCleared(accessibilitySignalService);
+			accessibilitySignalService.playSignal(AccessibilitySignal.clear);
 
 			await editingSession?.stop();
 			widget.clear();
@@ -150,7 +158,6 @@ export function registerNewChatActions() {
 		}
 	});
 	CommandsRegistry.registerCommandAlias(ACTION_ID_NEW_EDIT_SESSION, ACTION_ID_NEW_CHAT);
-
 
 	registerAction2(class UndoChatEditInteractionAction extends EditingSessionAction {
 		constructor() {
@@ -241,8 +248,4 @@ export function registerNewChatActions() {
 			currentWidget?.focusInput();
 		}
 	});
-}
-
-function announceChatCleared(accessibilitySignalService: IAccessibilitySignalService): void {
-	accessibilitySignalService.playSignal(AccessibilitySignal.clear);
 }

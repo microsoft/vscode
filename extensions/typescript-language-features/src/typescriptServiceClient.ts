@@ -235,7 +235,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			return this.apiVersion.fullVersionString;
 		});
 
-		this.diagnosticsManager = new DiagnosticsManager('typescript', this._configuration, this.telemetryReporter, onCaseInsensitiveFileSystem);
+		this.diagnosticsManager = this._register(new DiagnosticsManager('typescript', this._configuration, this.telemetryReporter, onCaseInsensitiveFileSystem));
 		this.typescriptServerSpawner = new TypeScriptServerSpawner(this.versionProvider, this._versionManager, this._nodeVersionManager, this.logDirectoryProvider, this.pluginPathsProvider, this.logger, this.telemetryReporter, this.tracer, this.processFactory);
 
 		this._register(this.pluginManager.onDidUpdateConfig(update => {

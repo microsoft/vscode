@@ -126,14 +126,13 @@ export const enum GalleryMcpServerStatus {
 }
 
 export interface IGalleryMcpServer {
-	readonly id: string;
 	readonly name: string;
 	readonly displayName: string;
 	readonly description: string;
 	readonly version: string;
 	readonly isLatest: boolean;
 	readonly status: GalleryMcpServerStatus;
-	readonly url?: string;
+	readonly galleryUrl?: string;
 	readonly webUrl?: string;
 	readonly codicon?: string;
 	readonly icon?: {
@@ -143,7 +142,7 @@ export interface IGalleryMcpServer {
 	readonly lastUpdated?: number;
 	readonly publishDate?: number;
 	readonly repositoryUrl?: string;
-	readonly configuration?: IGalleryMcpServerConfiguration;
+	readonly configuration: IGalleryMcpServerConfiguration;
 	readonly readmeUrl?: string;
 	readonly readme?: string;
 	readonly publisher: string;
@@ -169,8 +168,6 @@ export interface IMcpGalleryService {
 	query(options?: IQueryOptions, token?: CancellationToken): Promise<IPager<IGalleryMcpServer>>;
 	getMcpServersFromGallery(urls: string[]): Promise<IGalleryMcpServer[]>;
 	getMcpServer(url: string): Promise<IGalleryMcpServer | undefined>;
-	getMcpServerByName(name: string): Promise<IGalleryMcpServer | undefined>;
-	getMcpServerConfiguration(extension: IGalleryMcpServer, token: CancellationToken): Promise<IGalleryMcpServerConfiguration>;
 	getReadme(extension: IGalleryMcpServer, token: CancellationToken): Promise<string>;
 }
 

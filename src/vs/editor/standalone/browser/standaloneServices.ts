@@ -1009,7 +1009,7 @@ class StandaloneWorkspaceTrustManagementService implements IWorkspaceTrustManage
 
 	private _neverEmitter = new Emitter<never>();
 	public readonly onDidChangeTrust: Event<boolean> = this._neverEmitter.event;
-	onDidChangeTrustedFolders: Event<void> = this._neverEmitter.event;
+	readonly onDidChangeTrustedFolders: Event<void> = this._neverEmitter.event;
 	public readonly workspaceResolved = Promise.resolve();
 	public readonly workspaceTrustInitialized = Promise.resolve();
 	public readonly acceptsOutOfWorkspaceFiles = true;

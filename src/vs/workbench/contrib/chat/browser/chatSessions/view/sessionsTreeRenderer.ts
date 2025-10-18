@@ -19,7 +19,7 @@ import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../..
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
 import Severity from '../../../../../../base/common/severity.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
-import { IMarkdownRendererService } from '../../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRendererService } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import * as nls from '../../../../../../nls.js';
 import { getActionBarActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId } from '../../../../../../platform/actions/common/actions.js';
@@ -47,6 +47,7 @@ import { IListRenderer, IListVirtualDelegate } from '../../../../../../base/brow
 import { ChatSessionTracker } from '../chatSessionTracker.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { getLocalHistoryDateFormatter } from '../../../../localHistory/browser/localHistory.js';
+import { ChatSessionUri } from '../../../common/chatUri.js';
 
 interface ISessionTemplateData {
 	readonly container: HTMLElement;
@@ -575,8 +576,9 @@ export class SessionsDataSource implements IAsyncDataSource<IChatSessionItemProv
 			const allHistory = await this.chatService.getHistory();
 
 			// Create history items with provider reference and timestamps
-			const historyItems = allHistory.map((historyDetail: any): ChatSessionItemWithProvider => ({
+			const historyItems = allHistory.map((historyDetail): ChatSessionItemWithProvider => ({
 				id: historyDetail.sessionId,
+				resource: ChatSessionUri.forSession(this.provider.chatSessionType, historyDetail.sessionId),
 				label: historyDetail.title,
 				iconPath: Codicon.chatSparkle,
 				provider: this.provider,

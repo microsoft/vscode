@@ -36,9 +36,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { EditorsOrder, IEditorIdentifier, isDiffEditorInput } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { minimapGutterAddedBackground, minimapGutterDeletedBackground, minimapGutterModifiedBackground, overviewRulerAddedForeground, overviewRulerDeletedForeground, overviewRulerModifiedForeground } from '../../../scm/common/quickDiff.js';
-import { IChatAgentService } from '../../common/chatAgents.js';
 import { IModifiedFileEntry, IModifiedFileEntryChangeHunk, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState } from '../../common/chatEditingService.js';
-import { ChatAgentLocation } from '../../common/constants.js';
 import { isTextDiffEditorForEntry } from './chatEditing.js';
 import { ActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { AcceptHunkAction, RejectHunkAction } from './chatEditingEditorActions.js';
@@ -73,7 +71,6 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		private readonly _editor: ICodeEditor,
 		documentDiffInfo: IObservable<IDocumentDiff2>,
 		renderDiffImmediately: boolean,
-		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IAccessibilitySignalService private readonly _accessibilitySignalsService: IAccessibilitySignalService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -619,14 +616,11 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		// Use the 'show' argument to control the diff state if provided
 		if (show !== undefined ? show : !isDiffEditor) {
 			// Open DIFF editor
-			const defaultAgentName = this._chatAgentService.getDefaultAgent(ChatAgentLocation.Chat)?.fullName;
 			const diffEditor = await this._editorService.openEditor({
 				original: { resource: this._entry.originalURI },
 				modified: { resource: this._entry.modifiedURI },
 				options: { selection },
-				label: defaultAgentName
-					? localize('diff.agent', '{0} (changes from {1})', basename(this._entry.modifiedURI), defaultAgentName)
-					: localize('diff.generic', '{0} (changes from chat)', basename(this._entry.modifiedURI))
+				label: localize('diff.generic', '{0} (changes from chat)', basename(this._entry.modifiedURI))
 			});
 
 			if (diffEditor && diffEditor.input) {

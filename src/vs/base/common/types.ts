@@ -16,7 +16,14 @@ export function isString(str: unknown): str is string {
  * @returns whether the provided parameter is a JavaScript Array and each element in the array is a string.
  */
 export function isStringArray(value: unknown): value is string[] {
-	return Array.isArray(value) && (<unknown[]>value).every(elem => isString(elem));
+	return isArrayOf(value, isString);
+}
+
+/**
+ * @returns whether the provided parameter is a JavaScript Array and each element in the array satisfies the provided type guard.
+ */
+export function isArrayOf<T>(value: unknown, check: (item: unknown) => item is T): value is T[] {
+	return Array.isArray(value) && value.every(check);
 }
 
 /**

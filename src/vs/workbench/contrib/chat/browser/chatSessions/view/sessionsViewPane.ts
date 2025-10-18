@@ -141,7 +141,7 @@ export class SessionsViewPane extends ViewPane {
 			icon: Codicon.plus,
 		}, undefined, undefined, undefined, undefined);
 
-		const menu = this.menuService.createMenu(MenuId.ChatSessionsMenu, this.contextKeyService);
+		const menu = this.menuService.createMenu(MenuId.ChatSessionsMenu, this.scopedContextKeyService);
 
 		const actions = menu.getActions({ shouldForwardArgs: true });
 		const primaryActions = getActionBarActions(
@@ -305,7 +305,7 @@ export class SessionsViewPane extends ViewPane {
 				return null;
 			}
 
-			return ChatSessionUri.forSession(element.provider.chatSessionType, element.id);
+			return element.resource;
 		};
 
 		this.tree = this.instantiationService.createInstance(
@@ -453,6 +453,11 @@ export class SessionsViewPane extends ViewPane {
 
 	private async openChatSession(session: ChatSessionItemWithProvider) {
 		if (!session || !session.id) {
+			return;
+		}
+
+		if (session.resource.scheme !== ChatSessionUri.scheme) {
+			await this.openerService.open(session.resource);
 			return;
 		}
 

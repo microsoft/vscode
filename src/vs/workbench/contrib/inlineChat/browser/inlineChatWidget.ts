@@ -14,7 +14,7 @@ import { DisposableStore, MutableDisposable, toDisposable } from '../../../../ba
 import { autorun, constObservable, derived, IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { AccessibleDiffViewer, IAccessibleDiffViewerModel } from '../../../../editor/browser/widget/diffEditor/components/accessibleDiffViewer.js';
-import { IMarkdownRendererService } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { EditorOption, IComputedEditorOptions } from '../../../../editor/common/config/editorOptions.js';
 import { LineRange } from '../../../../editor/common/core/ranges/lineRange.js';
 import { Position } from '../../../../editor/common/core/position.js';
@@ -56,6 +56,7 @@ import { isResponseVM } from '../../chat/common/chatViewModel.js';
 import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_RESPONSE_FOCUSED, inlineChatBackground, inlineChatForeground } from '../common/inlineChat.js';
 import { HunkInformation, Session } from './inlineChatSession.js';
 import './media/inlineChat.css';
+import { ChatMode } from '../../chat/common/chatModes.js';
 
 export interface InlineChatWidgetViewState {
 	editorViewState: ICodeEditorViewState;
@@ -164,6 +165,7 @@ export class InlineChatWidget {
 					return true;
 				},
 				dndContainer: this._elements.root,
+				defaultMode: ChatMode.Ask,
 				..._options.chatWidgetViewOptions
 			},
 			{

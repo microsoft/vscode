@@ -7,6 +7,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
@@ -21,9 +22,10 @@ import { ExtensionsRegistry } from '../../../services/extensions/common/extensio
 import { ChatEditorInput } from '../browser/chatEditorInput.js';
 import { IChatAgentData, IChatAgentRequest, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
-import { ChatSession, ChatSessionStatus, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionsExtensionPoint, IChatSessionsService } from '../common/chatSessionsService.js';
+import { ChatSession, ChatSessionStatus, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionModelInfo, IChatSessionsExtensionPoint, IChatSessionsService } from '../common/chatSessionsService.js';
 import { ChatSessionUri } from '../common/chatUri.js';
 import { ChatAgentLocation, ChatModeKind, VIEWLET_ID } from '../common/constants.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../common/languageModels.js';
 import { CHAT_CATEGORY } from './actions/chatActions.js';
 import { IChatEditorOptions } from './chatEditor.js';
 import { NEW_CHAT_SESSION_ACTION_ID } from './chatSessions/common.js';
@@ -108,12 +110,25 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 class ContributedChatSessionData implements IDisposable {
 	private readonly _disposableStore: DisposableStore;
 
+	private readonly _optionsCache: Map<string /* 'model' */, string>;
+	public getOption(optionId: string): string | undefined {
+		return this._optionsCache.get(optionId);
+	}
+	public setOption(optionId: string, value: string): void {
+		this._optionsCache.set(optionId, value);
+	}
+
 	constructor(
 		readonly session: ChatSession,
 		readonly chatSessionType: string,
 		readonly id: string,
+		readonly options: { model?: ILanguageModelChatMetadata } | undefined,
 		private readonly onWillDispose: (session: ChatSession, chatSessionType: string, id: string) => void
 	) {
+		this._optionsCache = new Map<string, string>();
+		if (options?.model) {
+			this._optionsCache.set('model', options.model.id);
+		}
 		this._disposableStore = new DisposableStore();
 		this._disposableStore.add(this.session.onWillDispose(() => {
 			this.onWillDispose(this.session, this.chatSessionType, this.id);
@@ -143,6 +158,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	private readonly _onDidChangeInProgress = this._register(new Emitter<void>());
 	public get onDidChangeInProgress() { return this._onDidChangeInProgress.event; }
 	private readonly inProgressMap: Map<string, number> = new Map();
+	private readonly _sessionTypeModels: Map<string, ILanguageModelChatMetadataAndIdentifier[]> = new Map();
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
@@ -538,7 +554,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return chatSessionItem;
 	}
 
-	public async provideChatSessionContent(chatSessionType: string, id: string, token: CancellationToken): Promise<ChatSession> {
+	public async provideChatSessionContent(chatSessionType: string, id: string, resource: URI, token: CancellationToken): Promise<ChatSession> {
 		if (!(await this.canResolveContentProvider(chatSessionType))) {
 			throw Error(`Can not find provider for ${chatSessionType}`);
 		}
@@ -554,8 +570,8 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			return existingSessionData.session;
 		}
 
-		const session = await provider.provideChatSessionContent(id, token);
-		const sessionData = new ContributedChatSessionData(session, chatSessionType, id, this._onWillDisposeSession.bind(this));
+		const session = await provider.provideChatSessionContent(id, resource, token);
+		const sessionData = new ContributedChatSessionData(session, chatSessionType, id, session.options, this._onWillDisposeSession.bind(this));
 
 		this._sessions.set(sessionKey, sessionData);
 
@@ -565,6 +581,18 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	private _onWillDisposeSession(session: ChatSession, chatSessionType: string, id: string): void {
 		const sessionKey = `${chatSessionType}_${id}`;
 		this._sessions.delete(sessionKey);
+	}
+
+	public getSessionOption(chatSessionType: string, id: string, optionId: string): string | undefined {
+		const sessionKey = `${chatSessionType}_${id}`;
+		const session = this._sessions.get(sessionKey);
+		return session?.getOption(optionId);
+	}
+
+	public setSessionOption(chatSessionType: string, id: string, optionId: string, value: string): boolean {
+		const sessionKey = `${chatSessionType}_${id}`;
+		const session = this._sessions.get(sessionKey);
+		return !!session?.setOption(optionId, value);
 	}
 
 	// Implementation of editable session methods
@@ -588,6 +616,73 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	public notifySessionItemsChanged(chatSessionType: string): void {
 		this._onDidChangeSessionItems.fire(chatSessionType);
+	}
+
+	/**
+	 * Store models for a session type
+	 */
+	public setModelsForSessionType(chatSessionType: string, handle: number, models: IChatSessionModelInfo[]): void {
+		if (models) {
+			const mappedModels: ILanguageModelChatMetadataAndIdentifier[] = [];
+			const contribution = this._contributions.get(chatSessionType);
+			const extensionIdentifier = contribution?.extensionDescription.identifier;
+			if (!extensionIdentifier) {
+				this._logService.error('Extension identifier not found for chat session type:', chatSessionType);
+				return;
+			}
+			for (const m of models) {
+				mappedModels.push({
+					identifier: m.id,
+					metadata: {
+						id: m.id,
+						name: m.name,
+						family: m.family,
+						vendor: 'contributed',
+						version: m.version,
+						maxInputTokens: m.maxInputTokens,
+						maxOutputTokens: m.maxOutputTokens,
+						modelPickerCategory: undefined,
+						extension: extensionIdentifier,
+						isDefault: false,
+						isUserSelectable: true
+					}
+				});
+			}
+			this._sessionTypeModels.set(chatSessionType, mappedModels);
+		} else {
+			this._sessionTypeModels.delete(chatSessionType);
+		}
+	}
+
+	/**
+	 * Get available models for a session type
+	 */
+	public getModelsForSessionType(chatSessionType: string): ILanguageModelChatMetadataAndIdentifier[] | undefined {
+		return this._sessionTypeModels.get(chatSessionType);
+	}
+
+	private _optionsChangeCallback?: (chatSessionType: string, sessionId: string, updates: ReadonlyArray<{ optionId: string; value: string }>) => Promise<void>;
+
+	/**
+	 * Set the callback for notifying extensions about option changes
+	 */
+	public setOptionsChangeCallback(callback: (chatSessionType: string, sessionId: string, updates: ReadonlyArray<{ optionId: string; value: string }>) => Promise<void>): void {
+		this._optionsChangeCallback = callback;
+	}
+
+	/**
+	 * Notify extension about option changes for a session
+	 */
+	public async notifySessionOptionsChange(chatSessionType: string, sessionId: string, updates: ReadonlyArray<{ optionId: string; value: string }>): Promise<void> {
+		if (!updates.length) {
+			return;
+		}
+		if (this._optionsChangeCallback) {
+			await this._optionsChangeCallback(chatSessionType, sessionId, updates);
+		}
+		for (const u of updates) {
+			this.setSessionOption(chatSessionType, sessionId, u.optionId, u.value);
+		}
 	}
 }
 

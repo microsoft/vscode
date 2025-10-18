@@ -12,7 +12,7 @@ import { Lazy } from '../../../../../base/common/lazy.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { IMarkdownRendererService, openLinkFromMarkdown } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRendererService, openLinkFromMarkdown } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IRenderedMarkdown } from '../../../../../base/browser/markdownRenderer.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -68,16 +68,15 @@ export class ChatMcpServersInteractionContentPart extends Disposable implements 
 	}
 
 	private updateForState(state: IAutostartResult): void {
-		// Handle working progress state
-		if (state.working && !this.workingProgressPart) {
+		if (!state.working) {
+			this.workingProgressPart?.domNode.remove();
+			this.workingProgressPart = undefined;
+			this.showSpecificServersScheduler.cancel();
+		} else if (!this.workingProgressPart) {
 			if (!this.showSpecificServersScheduler.isScheduled()) {
 				this.showSpecificServersScheduler.schedule();
 			}
-		} else if (!state.working && this.workingProgressPart) {
-			this.workingProgressPart.domNode.remove();
-			this.workingProgressPart = undefined;
-			this.showSpecificServersScheduler.cancel();
-		} else if (state.working && this.workingProgressPart) {
+		} else if (this.workingProgressPart) {
 			this.updateDetailedProgress(state);
 		}
 

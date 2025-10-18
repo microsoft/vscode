@@ -6,20 +6,24 @@
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { localize2 } from '../../../../../nls.js';
-import { MenuId } from '../../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { IChatWidgetService } from '../../../chat/browser/chat.js';
+import { ChatViewId, IChatWidgetService } from '../../../chat/browser/chat.js';
 import { ChatContextKeys } from '../../../chat/common/chatContextKeys.js';
 import { IChatService } from '../../../chat/common/chatService.js';
 import { ChatAgentLocation } from '../../../chat/common/constants.js';
 import { AbstractInline1ChatAction } from '../../../inlineChat/browser/inlineChatActions.js';
-import { isDetachedTerminalInstance } from '../../../terminal/browser/terminal.js';
+import { isDetachedTerminalInstance, ITerminalChatService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../../terminal/browser/terminal.js';
 import { registerActiveXtermAction } from '../../../terminal/browser/terminalActions.js';
 import { TerminalContextMenuGroup } from '../../../terminal/browser/terminalMenus.js';
 import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
 import { MENU_TERMINAL_CHAT_WIDGET_STATUS, TerminalChatCommandId, TerminalChatContextKeys } from './terminalChat.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { getIconId } from '../../../terminal/browser/terminalIcon.js';
 import { TerminalChatController } from './terminalChatController.js';
+import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 
 registerActiveXtermAction({
 	id: TerminalChatCommandId.Start,
@@ -295,5 +299,110 @@ registerActiveXtermAction({
 		}
 		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
 		contr?.viewInChat();
+	}
+});
+
+registerAction2(class ShowChatTerminalsAction extends Action2 {
+	constructor() {
+		super({
+			id: TerminalChatCommandId.ViewChatTerminals,
+			title: localize2('viewChatTerminals', 'View Chat Terminals'),
+			category: localize2('terminalCategory2', 'Terminal'),
+			f1: true,
+			menu: [{
+				id: MenuId.ViewTitle,
+				when: ContextKeyExpr.and(TerminalContextKeys.hasToolTerminal, ContextKeyExpr.equals('view', ChatViewId)),
+				group: 'terminal',
+				order: 0,
+				isHiddenByDefault: true
+			}]
+		});
+	}
+
+	run(accessor: ServicesAccessor): Promise<void> | void {
+		const terminalService = accessor.get(ITerminalService);
+		const groupService = accessor.get(ITerminalGroupService);
+		const editorService = accessor.get(ITerminalEditorService);
+		const terminalChatService = accessor.get(ITerminalChatService);
+		const quickInputService = accessor.get(IQuickInputService);
+		const instantiationService = accessor.get(IInstantiationService);
+
+		const visible = new Set<ITerminalInstance>([...groupService.instances, ...editorService.instances]);
+		const toolInstances = new Set(terminalChatService.getToolSessionTerminalInstances());
+
+		if (toolInstances.size === 0) {
+			return;
+		}
+
+		const all = new Map<number, { instance: ITerminalInstance; isBackground: boolean }>();
+
+		for (const i of toolInstances) {
+			all.set(i.instanceId, { instance: i, isBackground: !visible.has(i) });
+		}
+
+		const items: IQuickPickItem[] = [];
+		interface IItemMeta {
+			label: string;
+			description: string | undefined;
+			detail: string | undefined;
+			id: string;
+			isBackground: boolean;
+		}
+		const hiddenLocalized = localize2('chatTerminal.hidden', 'Hidden').value;
+		const lastCommandLocalized = (command: string) => localize2('chatTerminal.lastCommand', 'Last: {0}', command).value;
+
+		const metas: IItemMeta[] = [];
+		for (const { instance, isBackground } of all.values()) {
+			const iconId = instantiationService.invokeFunction(getIconId, instance);
+			const label = `$(${iconId}) ${instance.title}`;
+			const lastCommand = instance.capabilities.get(TerminalCapability.CommandDetection)?.commands.at(-1)?.command;
+			metas.push({
+				label,
+				description: isBackground ? hiddenLocalized : undefined,
+				detail: lastCommand ? lastCommandLocalized(lastCommand) : undefined,
+				id: String(instance.instanceId),
+				isBackground
+			});
+		}
+
+		// Sort: hidden first (stable by label inside each group)
+		metas.sort((a, b) => {
+			if (a.isBackground !== b.isBackground) {
+				return a.isBackground ? -1 : 1;
+			}
+			return a.label.localeCompare(b.label);
+		});
+
+		for (const m of metas) {
+			items.push({
+				label: m.label,
+				description: m.description,
+				detail: m.detail,
+				id: m.id
+			});
+		}
+
+		const qp = quickInputService.createQuickPick<IQuickPickItem>();
+		qp.placeholder = localize2('selectChatTerminal', 'Select a chat terminal to focus').value;
+		qp.items = items;
+		qp.canSelectMany = false;
+		qp.title = localize2('showChatTerminals.title', 'Chat Terminals').value;
+		qp.matchOnDescription = true;
+		qp.matchOnDetail = true;
+		qp.onDidAccept(async () => {
+			const sel = qp.selectedItems[0];
+			if (sel) {
+				const target = all.get(Number(sel.id));
+				const instance = target?.instance;
+				if (instance) {
+					terminalService.setActiveInstance(instance);
+					await terminalService.revealTerminal(instance);
+					terminalService.focusInstance(instance);
+				}
+			}
+			qp.hide();
+		});
+		qp.onDidHide(() => qp.dispose());
+		qp.show();
 	}
 });

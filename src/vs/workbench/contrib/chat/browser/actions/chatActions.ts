@@ -1062,15 +1062,19 @@ export function registerChatActions() {
 				category: CHAT_CATEGORY,
 				precondition: ChatContextKeys.enabled,
 				keybinding: {
-					weight: KeybindingWeight.WorkbenchContrib + 1,
+					weight: KeybindingWeight.WorkbenchContrib,
 					primary: KeyMod.CtrlCmd | KeyCode.KeyN,
 					when: ContextKeyExpr.and(ChatContextKeys.inChatSession, ChatContextKeys.inChatEditor)
 				},
-				menu: {
+				menu: [{
 					id: MenuId.ChatTitleBarMenu,
 					group: 'b_new',
 					order: 0
-				}
+				}, {
+					id: MenuId.ChatNewMenu,
+					group: '2_new',
+					order: 2
+				}],
 			});
 		}
 
@@ -1088,11 +1092,15 @@ export function registerChatActions() {
 				f1: true,
 				category: CHAT_CATEGORY,
 				precondition: ChatContextKeys.enabled,
-				menu: {
+				menu: [{
 					id: MenuId.ChatTitleBarMenu,
 					group: 'b_new',
 					order: 1
-				}
+				}, {
+					id: MenuId.ChatNewMenu,
+					group: '2_new',
+					order: 3
+				}]
 			});
 		}
 
@@ -1558,7 +1566,7 @@ export function registerChatActions() {
 			super({
 				id: 'workbench.action.chat.generateInstructions',
 				title: localize2('generateInstructions', "Generate Workspace Instructions File"),
-				shortTitle: localize2('generateInstructions.short', "Generate Agent Instructions"),
+				shortTitle: localize2('generateInstructions.short', "Generate Chat Instructions"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.sparkle,
 				f1: true,
@@ -1566,7 +1574,7 @@ export function registerChatActions() {
 				menu: {
 					id: CHAT_CONFIG_MENU_ID,
 					when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
-					order: 13,
+					order: 11,
 					group: '1_level'
 				}
 			});
@@ -1616,7 +1624,7 @@ Update \`.github/copilot-instructions.md\` for the user, then ask for feedback o
 					id: CHAT_CONFIG_MENU_ID,
 					when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
 					order: 15,
-					group: '2_configure'
+					group: '3_configure'
 				}
 			});
 		}
@@ -1629,10 +1637,10 @@ Update \`.github/copilot-instructions.md\` for the user, then ask for feedback o
 
 	MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 		submenu: CHAT_CONFIG_MENU_ID,
-		title: localize2('config.label', "Configure Chat..."),
+		title: localize2('config.label', "Configure Chat"),
 		group: 'navigation',
 		when: ContextKeyExpr.equals('view', ChatViewId),
-		icon: Codicon.settingsGear,
+		icon: Codicon.gear,
 		order: 6
 	});
 }

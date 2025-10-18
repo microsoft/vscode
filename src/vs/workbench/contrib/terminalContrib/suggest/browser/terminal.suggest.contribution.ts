@@ -21,8 +21,9 @@ import { registerActiveInstanceAction, registerTerminalAction } from '../../../t
 import { registerTerminalContribution, type ITerminalContributionContext } from '../../../terminal/browser/terminalExtensions.js';
 import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
 import { TerminalSuggestCommandId } from '../common/terminal.suggest.js';
-import { terminalSuggestConfigSection, TerminalSuggestSettingId, type ITerminalSuggestConfiguration, registerTerminalSuggestProvidersConfiguration } from '../common/terminalSuggestConfiguration.js';
+import { terminalSuggestConfigSection, TerminalSuggestSettingId, type ITerminalSuggestConfiguration, registerTerminalSuggestProvidersConfiguration, type ITerminalSuggestProviderInfo } from '../common/terminalSuggestConfiguration.js';
 import { ITerminalCompletionService, TerminalCompletionService } from './terminalCompletionService.js';
+import { ITerminalContributionService } from '../../../terminal/common/terminalExtensionPoints.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { SuggestAddon } from './terminalSuggestAddon.js';
 import { TerminalClipboardContribution } from '../../clipboard/browser/terminal.clipboard.contribution.js';
@@ -468,10 +469,14 @@ class TerminalSuggestProvidersConfigurationManager extends Disposable {
 	}
 
 	constructor(
-		@ITerminalCompletionService private readonly _terminalCompletionService: ITerminalCompletionService
+		@ITerminalCompletionService private readonly _terminalCompletionService: ITerminalCompletionService,
+		@ITerminalContributionService private readonly _terminalContributionService: ITerminalContributionService
 	) {
 		super();
 		this._register(this._terminalCompletionService.onDidChangeProviders(() => {
+			this._updateConfiguration();
+		}));
+		this._register(this._terminalContributionService.onDidChangeTerminalCompletionProviders(() => {
 			this._updateConfiguration();
 		}));
 		// Initial configuration
@@ -479,9 +484,29 @@ class TerminalSuggestProvidersConfigurationManager extends Disposable {
 	}
 
 	private _updateConfiguration(): void {
-		const providers = Array.from(this._terminalCompletionService.providers);
-		const providerIds = providers.map(p => p.id).filter((id): id is string => typeof id === 'string');
-		registerTerminalSuggestProvidersConfiguration(providerIds);
+		const providerInfos: ITerminalSuggestProviderInfo[] = [];
+
+		// Add statically declared providers from package.json contributions
+		for (const contributedProvider of this._terminalContributionService.terminalCompletionProviders) {
+			providerInfos.push({
+				id: contributedProvider.id,
+				description: contributedProvider.description
+			});
+		}
+
+		// Add dynamically registered providers (that aren't already declared statically)
+		const staticProviderIds = new Set(providerInfos.map(p => p.id));
+		const dynamicProviders = Array.from(this._terminalCompletionService.providers);
+		for (const provider of dynamicProviders) {
+			if (provider.id && !staticProviderIds.has(provider.id)) {
+				providerInfos.push({
+					id: provider.id,
+					description: undefined
+				});
+			}
+		}
+
+		registerTerminalSuggestProvidersConfiguration(providerInfos);
 	}
 }
 

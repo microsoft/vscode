@@ -11,7 +11,7 @@ exports.shake = shake;
  *--------------------------------------------------------------------------------------------*/
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
-const TYPESCRIPT_LIB_FOLDER = path_1.default.dirname(require.resolve('typescript/lib/lib.d.ts'));
+const typeScriptLanguageServiceHost_1 = require("./typeScriptLanguageServiceHost");
 var ShakeLevel;
 (function (ShakeLevel) {
     ShakeLevel[ShakeLevel["Files"] = 0] = "Files";
@@ -67,160 +67,25 @@ function shake(options) {
 //#region Discovery, LanguageService & Setup
 function createTypeScriptLanguageService(ts, options) {
     // Discover referenced files
-    const FILES = discoverAndReadFiles(ts, options);
+    const FILES = new Map();
+    // Add entrypoints
+    options.entryPoints.forEach(entryPoint => {
+        const filePath = path_1.default.join(options.sourcesRoot, entryPoint);
+        FILES.set(filePath, fs_1.default.readFileSync(filePath).toString());
+    });
     // Add fake usage files
     options.inlineEntryPoints.forEach((inlineEntryPoint, index) => {
-        FILES.set(`inlineEntryPoint.${index}.ts`, inlineEntryPoint);
+        FILES.set(path_1.default.join(options.sourcesRoot, `inlineEntryPoint.${index}.ts`), inlineEntryPoint);
     });
     // Add additional typings
     options.typings.forEach((typing) => {
         const filePath = path_1.default.join(options.sourcesRoot, typing);
-        FILES.set(typing, fs_1.default.readFileSync(filePath).toString());
+        FILES.set(filePath, fs_1.default.readFileSync(filePath).toString());
     });
-    // Resolve libs
-    const RESOLVED_LIBS = processLibFiles(ts, options);
-    const compilerOptions = ts.convertCompilerOptionsFromJson(options.compilerOptions, options.sourcesRoot).options;
-    const host = new TypeScriptLanguageServiceHost(ts, RESOLVED_LIBS, FILES, compilerOptions);
+    const basePath = path_1.default.join(options.sourcesRoot, '..');
+    const compilerOptions = ts.convertCompilerOptionsFromJson(options.compilerOptions, basePath).options;
+    const host = new typeScriptLanguageServiceHost_1.TypeScriptLanguageServiceHost(ts, FILES, compilerOptions);
     return ts.createLanguageService(host);
-}
-/**
- * Read imports and follow them until all files have been handled
- */
-function discoverAndReadFiles(ts, options) {
-    const FILES = new Map();
-    const in_queue = Object.create(null);
-    const queue = [];
-    const enqueue = (moduleId) => {
-        // To make the treeshaker work on windows...
-        moduleId = moduleId.replace(/\\/g, '/');
-        if (in_queue[moduleId]) {
-            return;
-        }
-        in_queue[moduleId] = true;
-        queue.push(moduleId);
-    };
-    options.entryPoints.forEach((entryPoint) => enqueue(entryPoint));
-    while (queue.length > 0) {
-        const moduleId = queue.shift();
-        let redirectedModuleId = moduleId;
-        if (options.redirects[moduleId]) {
-            redirectedModuleId = options.redirects[moduleId];
-        }
-        const dts_filename = path_1.default.join(options.sourcesRoot, redirectedModuleId + '.d.ts');
-        if (fs_1.default.existsSync(dts_filename)) {
-            const dts_filecontents = fs_1.default.readFileSync(dts_filename).toString();
-            FILES.set(`${moduleId}.d.ts`, dts_filecontents);
-            continue;
-        }
-        const js_filename = path_1.default.join(options.sourcesRoot, redirectedModuleId + '.js');
-        if (fs_1.default.existsSync(js_filename)) {
-            // This is an import for a .js file, so ignore it...
-            continue;
-        }
-        const ts_filename = path_1.default.join(options.sourcesRoot, redirectedModuleId + '.ts');
-        const ts_filecontents = fs_1.default.readFileSync(ts_filename).toString();
-        const info = ts.preProcessFile(ts_filecontents);
-        for (let i = info.importedFiles.length - 1; i >= 0; i--) {
-            const importedFileName = info.importedFiles[i].fileName;
-            if (options.importIgnorePattern.test(importedFileName)) {
-                // Ignore *.css imports
-                continue;
-            }
-            let importedModuleId = importedFileName;
-            if (/(^\.\/)|(^\.\.\/)/.test(importedModuleId)) {
-                importedModuleId = path_1.default.join(path_1.default.dirname(moduleId), importedModuleId);
-                if (importedModuleId.endsWith('.js')) { // ESM: code imports require to be relative and have a '.js' file extension
-                    importedModuleId = importedModuleId.substr(0, importedModuleId.length - 3);
-                }
-            }
-            enqueue(importedModuleId);
-        }
-        FILES.set(`${moduleId}.ts`, ts_filecontents);
-    }
-    return FILES;
-}
-/**
- * Read lib files and follow lib references
- */
-function processLibFiles(ts, options) {
-    const stack = [...options.compilerOptions.lib];
-    const result = new Map();
-    while (stack.length > 0) {
-        const filename = `lib.${stack.shift().toLowerCase()}.d.ts`;
-        const key = `defaultLib:${filename}`;
-        if (!result.has(key)) {
-            // add this file
-            const filepath = path_1.default.join(TYPESCRIPT_LIB_FOLDER, filename);
-            const sourceText = fs_1.default.readFileSync(filepath).toString();
-            result.set(key, sourceText);
-            // precess dependencies and "recurse"
-            const info = ts.preProcessFile(sourceText);
-            for (const ref of info.libReferenceDirectives) {
-                stack.push(ref.fileName);
-            }
-        }
-    }
-    return result;
-}
-/**
- * A TypeScript language service host
- */
-class TypeScriptLanguageServiceHost {
-    _ts;
-    _libs;
-    _files;
-    _compilerOptions;
-    constructor(ts, libs, files, compilerOptions) {
-        this._ts = ts;
-        this._libs = libs;
-        this._files = files;
-        this._compilerOptions = compilerOptions;
-    }
-    // --- language service host ---------------
-    getCompilationSettings() {
-        return this._compilerOptions;
-    }
-    getScriptFileNames() {
-        return [
-            ...this._libs.keys(),
-            ...this._files.keys(),
-        ];
-    }
-    getScriptVersion(_fileName) {
-        return '1';
-    }
-    getProjectVersion() {
-        return '1';
-    }
-    getScriptSnapshot(fileName) {
-        if (this._files.has(fileName)) {
-            return this._ts.ScriptSnapshot.fromString(this._files.get(fileName));
-        }
-        else if (this._libs.has(fileName)) {
-            return this._ts.ScriptSnapshot.fromString(this._libs.get(fileName));
-        }
-        else {
-            return this._ts.ScriptSnapshot.fromString('');
-        }
-    }
-    getScriptKind(_fileName) {
-        return this._ts.ScriptKind.TS;
-    }
-    getCurrentDirectory() {
-        return '';
-    }
-    getDefaultLibFileName(_options) {
-        return 'defaultLib:lib.d.ts';
-    }
-    isDefaultLibFileName(fileName) {
-        return fileName === this.getDefaultLibFileName(this._compilerOptions);
-    }
-    readFile(path, _encoding) {
-        return this._files.get(path) || this._libs.get(path);
-    }
-    fileExists(path) {
-        return this._files.has(path) || this._libs.has(path);
-    }
 }
 //#endregion
 //#region Tree Shaking
@@ -462,16 +327,22 @@ function markNodes(ts, languageService, options) {
             if (importText.endsWith('.js')) { // ESM: code imports require to be relative and to have a '.js' file extension
                 importText = importText.substr(0, importText.length - 3);
             }
-            fullPath = path_1.default.join(path_1.default.dirname(nodeSourceFile.fileName), importText) + '.ts';
+            fullPath = path_1.default.join(path_1.default.dirname(nodeSourceFile.fileName), importText);
         }
         else {
-            fullPath = importText + '.ts';
+            fullPath = importText;
+        }
+        if (fs_1.default.existsSync(fullPath + '.ts')) {
+            fullPath = fullPath + '.ts';
+        }
+        else {
+            fullPath = fullPath + '.js';
         }
         enqueueFile(fullPath);
     }
-    options.entryPoints.forEach(moduleId => enqueueFile(moduleId + '.ts'));
+    options.entryPoints.forEach(moduleId => enqueueFile(path_1.default.join(options.sourcesRoot, moduleId)));
     // Add fake usage files
-    options.inlineEntryPoints.forEach((_, index) => enqueueFile(`inlineEntryPoint.${index}.ts`));
+    options.inlineEntryPoints.forEach((_, index) => enqueueFile(path_1.default.join(options.sourcesRoot, `inlineEntryPoint.${index}.ts`)));
     let step = 0;
     const checker = program.getTypeChecker();
     while (black_queue.length > 0 || gray_queue.length > 0) {

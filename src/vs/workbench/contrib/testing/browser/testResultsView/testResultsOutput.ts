@@ -16,7 +16,7 @@ import { CodeEditorWidget } from '../../../../../editor/browser/widget/codeEdito
 import { EmbeddedCodeEditorWidget } from '../../../../../editor/browser/widget/codeEditor/embeddedCodeEditorWidget.js';
 import { DiffEditorWidget } from '../../../../../editor/browser/widget/diffEditor/diffEditorWidget.js';
 import { EmbeddedDiffEditorWidget } from '../../../../../editor/browser/widget/diffEditor/embeddedDiffEditorWidget.js';
-import { IMarkdownRendererService } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IDiffEditorOptions, IEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
@@ -67,7 +67,7 @@ class SimpleDiffEditorModel extends EditorModel {
 
 
 export interface IPeekOutputRenderer extends IDisposable {
-	onDidContentSizeChange?: Event<void>;
+	readonly onDidContentSizeChange?: Event<void>;
 	onScrolled?(evt: ScrollEvent): void;
 	/** Updates the displayed test. Should clear if it cannot display the test. */
 	update(subject: InspectSubject): Promise<boolean>;
@@ -119,10 +119,8 @@ function applyEditorMirrorOptions<T extends IEditorOptions>(base: T, cfg: IConfi
 		let changed = false;
 		const patch: Partial<IEditorOptions> = {};
 		for (const [key, value] of Object.entries(configuration)) {
-			// eslint-disable-next-line local/code-no-any-casts
-			if (!immutable.has(key) && (base as any)[key] !== value) {
-				// eslint-disable-next-line local/code-no-any-casts
-				(patch as any)[key] = value;
+			if (!immutable.has(key) && (base as Record<string, unknown>)[key] !== value) {
+				(patch as Record<string, unknown>)[key] = value;
 				changed = true;
 			}
 		}

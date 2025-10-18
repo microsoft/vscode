@@ -5,7 +5,7 @@
 
 import * as dom from '../../../../base/browser/dom.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { IMarkdownRendererService } from '../../../browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { ICodeEditor, IEditorMouseEvent, IOverlayWidget, IOverlayWidgetPosition, MouseTargetType } from '../../../browser/editorBrowser.js';
 import { ConfigurationChangedEvent, EditorOption } from '../../../common/config/editorOptions.js';
 import { HoverOperation, HoverResult, HoverStartMode } from './hoverOperation.js';
@@ -145,7 +145,7 @@ export class GlyphHoverWidget extends Disposable implements IOverlayWidget, IHov
 		for (const msg of messages) {
 			const markdownHoverElement = $('div.hover-row.markdown-hover');
 			const hoverContentsElement = dom.append(markdownHoverElement, $('div.hover-contents'));
-			const renderedContents = this._renderDisposeables.add(this._markdownRendererService.render(msg.value, { editor: this._editor }));
+			const renderedContents = this._renderDisposeables.add(this._markdownRendererService.render(msg.value, { context: this._editor }));
 			hoverContentsElement.appendChild(renderedContents.element);
 			fragment.appendChild(markdownHoverElement);
 		}
