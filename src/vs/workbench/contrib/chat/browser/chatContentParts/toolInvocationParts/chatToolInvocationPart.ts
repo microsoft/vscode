@@ -5,12 +5,10 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { Emitter } from '../../../../../../base/common/event.js';
-import { markdownCommandLink, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
-import { localize } from '../../../../../../nls.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService.js';
+import { IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService.js';
 import { IChatRendererContent } from '../../../common/chatViewModel.js';
 import { CodeBlockModelCollection } from '../../../common/codeBlockModelCollection.js';
 import { isToolResultInputOutputDetails, isToolResultOutputDetails, ToolInvocationPresentation } from '../../../common/languageModelToolsService.js';
@@ -85,60 +83,8 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 				render();
 				this._onDidChangeHeight.fire();
 			}));
-
-			// todo@connor4312/tyriar: standardize how these are displayed
-			if (!(this.subPart instanceof ChatTerminalToolProgressPart)) {
-				const approval = this.createApprovalMessage();
-				if (approval) {
-					this.domNode.appendChild(approval);
-				}
-			}
 		};
 		render();
-	}
-
-	private get autoApproveMessageContent() {
-		const reason = this.toolInvocation.isConfirmed;
-		if (!reason || typeof reason === 'boolean') {
-			return;
-		}
-
-		let md: string;
-		switch (reason.type) {
-			case ToolConfirmKind.Setting:
-				md = localize('chat.autoapprove.setting', 'Auto approved by {0}', markdownCommandLink({ title: '`' + reason.id + '`', id: 'workbench.action.openSettings', arguments: [reason.id] }, false));
-				break;
-			case ToolConfirmKind.LmServicePerTool:
-				md = reason.scope === 'session'
-					? localize('chat.autoapprove.lmServicePerTool.session', 'Auto approved for this session')
-					: reason.scope === 'workspace'
-						? localize('chat.autoapprove.lmServicePerTool.workspace', 'Auto approved for this workspace')
-						: localize('chat.autoapprove.lmServicePerTool.profile', 'Auto approved for this profile');
-				md += ' (' + markdownCommandLink({ title: localize('edit', 'Edit'), id: 'workbench.action.chat.editToolApproval', arguments: [this.toolInvocation.toolId] }) + ')';
-				break;
-			case ToolConfirmKind.UserAction:
-			case ToolConfirmKind.Denied:
-			case ToolConfirmKind.ConfirmationNotNeeded:
-			default:
-				return;
-		}
-
-
-		return md;
-	}
-
-	private createApprovalMessage(): HTMLElement | undefined {
-		const md = this.autoApproveMessageContent;
-		if (!md) {
-			return undefined;
-		}
-
-		const markdownString = new MarkdownString('_' + md + '_', { isTrusted: true });
-		const result = this.renderer.render(markdownString);
-		this._register(result);
-		result.element.classList.add('chat-tool-approval-message');
-
-		return result.element;
 	}
 
 	private createToolInvocationSubPart(): BaseChatToolInvocationSubPart {
