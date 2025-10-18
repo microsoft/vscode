@@ -207,7 +207,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		let displayName: string | undefined;
 
 		if (chatSessionType === 'local') {
-			displayName = 'Local Chat Sessions';
+			displayName = 'Local Chat Agent';
 		} else {
 			displayName = this._contributions.get(chatSessionType)?.displayName;
 		}
@@ -275,7 +275,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 			command: {
 				id: `${NEW_CHAT_SESSION_ACTION_ID}.${contribution.type}`,
-				title: localize('interactiveSession.openNewSessionEditor', "New {0} Chat Editor", contribution.displayName),
+				title: localize('interactiveSession.openNewSessionEditor', "New {0}", contribution.displayName),
 				icon: Codicon.plus,
 				source: {
 					id: contribution.extensionDescription.identifier.value,
@@ -295,7 +295,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			constructor() {
 				super({
 					id: `workbench.action.chat.openNewSessionEditor.${contribution.type}`,
-					title: localize2('interactiveSession.openNewSessionEditor', "New {0} Chat Editor", contribution.displayName),
+					title: localize2('interactiveSession.openNewSessionEditor', "New {0}", contribution.displayName),
 					category: CHAT_CATEGORY,
 					icon: Codicon.plus,
 					f1: true, // Show in command palette
@@ -314,7 +314,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 						override: ChatEditorInput.EditorID,
 						pinned: true,
 						title: {
-							fallback: localize('chatEditorContributionName', "{0} chat", contribution.displayName),
+							fallback: localize('chatEditorContributionName', "{0}", contribution.displayName),
 						}
 					};
 					const untitledId = `untitled-${generateUuid()}`;
