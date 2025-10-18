@@ -13,7 +13,7 @@ import { localize } from '../../../nls.js';
 import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { asJson, asText, IRequestService } from '../../request/common/request.js';
-import { GalleryMcpServerStatus, IGalleryMcpServer, IMcpGalleryService, IMcpServerArgument, IMcpServerInput, IMcpServerKeyValueInput, IMcpServerPackage, IQueryOptions, RegistryType, SseTransport, StreamableHttpTransport, Transport, TransportType } from './mcpManagement.js';
+import { GalleryMcpServerStatus, IGalleryMcpServer, IGalleryMcpServerConfiguration, IMcpGalleryService, IMcpServerArgument, IMcpServerInput, IMcpServerKeyValueInput, IMcpServerPackage, IQueryOptions, RegistryType, SseTransport, StreamableHttpTransport, Transport, TransportType } from './mcpManagement.js';
 import { IMcpGalleryManifestService, McpGalleryManifestStatus, getMcpGalleryManifestResourceUri, McpGalleryResourceType, IMcpGalleryManifest } from './mcpGalleryManifest.js';
 import { IPageIterator, IPager, PageIteratorPager, singlePagePager } from '../../../base/common/paging.js';
 import { CancellationError } from '../../../base/common/errors.js';
@@ -839,6 +839,46 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 	private getSerializer(mcpGalleryManifest: IMcpGalleryManifest | null): IGalleryMcpServerDataSerializer | undefined {
 		const version = mcpGalleryManifest?.version ?? 'v0';
 		return this.galleryMcpServerDataSerializers.get(version);
+	}
+
+	mapServerJsonToServerConfiguration(input: unknown): IGalleryMcpServerConfiguration | undefined {
+		// operate on any to easily manipulate server.json of varying schema versions
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		let data: any = input;
+
+		if (!data || typeof data !== 'object' || typeof data.$schema !== 'string') {
+			return undefined;
+		}
+
+		// provide empty publisher provided metadata to enable VS Code data mapping
+		if (!data._meta) {
+			data._meta = {};
+		}
+
+		// starting from 2025-09-29, the server.json is wrapped in a "server" property
+		let manifest: IMcpGalleryManifest;
+		if (data.$schema === McpServerSchemaVersion_v0.SCHEMA) {
+			manifest = { version: McpServerSchemaVersion_v0.VERSION, url: '', resources: [] };
+		} else {
+			manifest = { version: McpServerSchemaVersion_v0_1.VERSION, url: '', resources: [] };
+			data = { server: data };
+		}
+
+		// provide empty registry metadata to enable VS Code data mapping
+		if (!data._meta) {
+			data._meta = {};
+		}
+
+		if (!data._meta['io.modelcontextprotocol.registry/official']) {
+			data._meta['io.modelcontextprotocol.registry/official'] = {};
+		}
+
+		const rawServer = this.serializeMcpServer(data, manifest);
+		if (!rawServer) {
+			return undefined;
+		}
+
+		return { packages: rawServer.packages, remotes: rawServer.remotes };
 	}
 
 	private getNamedServerUrl(name: string, mcpGalleryManifest: IMcpGalleryManifest): string | undefined {

@@ -169,6 +169,7 @@ export interface IMcpGalleryService {
 	getMcpServersFromGallery(urls: string[]): Promise<IGalleryMcpServer[]>;
 	getMcpServer(url: string): Promise<IGalleryMcpServer | undefined>;
 	getReadme(extension: IGalleryMcpServer, token: CancellationToken): Promise<string>;
+	mapServerJsonToServerConfiguration(data: unknown): IGalleryMcpServerConfiguration | undefined;
 }
 
 export interface InstallMcpServerEvent {
