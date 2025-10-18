@@ -4,7 +4,7 @@
 
     ./scripts/test.[sh|bat]
 
-All unit tests are run inside a Electron renderer environment which access to DOM and Nodejs api. This is the closest to the environment in which VS Code itself ships. Notes:
+All unit tests are run inside an Electron renderer environment which access to DOM and Nodejs api. This is the closest to the environment in which VS Code itself ships. Notes:
 
 - use the `--debug` to see an electron window with dev tools which allows for debugging
 - to run only a subset of tests use the `--run` or `--glob` options
@@ -16,7 +16,7 @@ For instance, `./scripts/test.sh --debug --glob **/extHost*.test.js` runs all te
 
     npm run test-browser -- --browser webkit --browser chromium
 
-Unit tests from layers `common` and `browser` are run inside `chromium`, `webkit`, and (soon'ish) `firefox` (using playwright). This complements our electron-based unit test runner and adds more coverage of supported platforms. Notes:
+Unit tests from layers `common` and `browser` are run inside `chromium`, `webkit`, and (in the future) `firefox` (using playwright). This complements our electron-based unit test runner and adds more coverage of supported platforms. Notes:
 
 - these tests are part of the continuous build, that means you might have test failures that only happen with webkit on _windows_ or _chromium_ on linux
 - you can run these tests locally via `npm run test-browser -- --browser chromium --browser webkit`
