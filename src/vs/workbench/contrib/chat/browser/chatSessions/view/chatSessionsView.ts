@@ -254,7 +254,7 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 
 			// Register views in priority order: local, history, then alphabetically sorted others
 			const orderedProviders = [
-				...(localProvider ? [{ provider: localProvider, displayName: 'Local Chat Sessions', baseOrder: 0 }] : []),
+				...(localProvider ? [{ provider: localProvider, displayName: 'Local Chat Agent', baseOrder: 0 }] : []),
 				...(historyProvider ? [{ provider: historyProvider, displayName: 'History', baseOrder: 1, when: undefined }] : []),
 				...providersWithDisplayNames.map((item, index) => ({
 					...item,
@@ -286,7 +286,7 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 					if (provider.chatSessionType === 'local') {
 						const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 						this._register(viewsRegistry.registerViewWelcomeContent(viewDescriptor.id, {
-							content: nls.localize('chatSessions.noResults', "No local chat sessions\n[Start a Chat](command:{0})", ACTION_ID_OPEN_CHAT),
+							content: nls.localize('chatSessions.noResults', "No local chat agent sessions\n[Start an Agent Session](command:{0})", ACTION_ID_OPEN_CHAT),
 						}));
 					}
 				}

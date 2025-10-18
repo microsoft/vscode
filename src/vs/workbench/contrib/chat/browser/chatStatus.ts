@@ -215,9 +215,9 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			else if (chatSessionsInProgressCount > 0) {
 				text = '$(copilot-in-progress)';
 				if (chatSessionsInProgressCount > 1) {
-					ariaLabel = localize('chatSessionsInProgressStatus', "{0} chat sessions in progress", chatSessionsInProgressCount);
+					ariaLabel = localize('chatSessionsInProgressStatus', "{0} agent sessions in progress", chatSessionsInProgressCount);
 				} else {
-					ariaLabel = localize('chatSessionInProgressStatus', "1 chat session in progress");
+					ariaLabel = localize('chatSessionInProgressStatus', "1 agent session in progress");
 				}
 			}
 
