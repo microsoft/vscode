@@ -73,13 +73,13 @@ class ManageAccountsActionImpl {
 		const accounts: AccountQuickPickItem[] = [];
 		for (const providerId of this.authenticationService.getProviderIds()) {
 			const provider = this.authenticationService.getProvider(providerId);
-			for (const { label } of await this.authenticationService.getAccounts(providerId)) {
+			for (const { label, id } of await this.authenticationService.getAccounts(providerId)) {
 				accounts.push({
 					label,
 					description: provider.label,
 					providerId,
 					canUseMcp: !!provider.authorizationServers?.length,
-					canSignOut: () => this.canSignOut(provider, label)
+					canSignOut: () => this.canSignOut(provider, id)
 				});
 			}
 		}
