@@ -45,6 +45,8 @@ interface IAgentSessionItemTemplate {
 
 	readonly description: HTMLElement;
 	readonly timestamp: HTMLElement;
+	readonly diffAdded: HTMLElement;
+	readonly diffRemoved: HTMLElement;
 
 	readonly elementDisposables: DisposableStore;
 	readonly disposables: IDisposable;
@@ -57,7 +59,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 	readonly templateId = AgentSessionRenderer.TEMPLATE_ID;
 
 	renderTemplate(container: HTMLElement): IAgentSessionItemTemplate {
-		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-no-twistie'); // hack, but no API for hiding twistie on tree
+		container.parentElement?.parentElement?.querySelector('.monaco-tl-twistie')?.classList.add('force-no-twistie'); // hack, but no API for hiding twistie on tree
 
 		const disposables = new DisposableStore();
 		const elementDisposables = disposables.add(new DisposableStore());
@@ -75,12 +77,16 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 		const titleRow = append(mainCol, $('.agent-session-title-row'));
 		const title = disposables.add(new IconLabel(titleRow, { supportHighlights: true, supportIcons: true }));
 
+		const diff = append(titleRow, $('.agent-session-diff'));
+		const diffAdded = append(diff, $('span.agent-session-diff-added'));
+		const diffRemoved = append(diff, $('span.agent-session-diff-removed'));
+
 		// Details
 		const detailsRow = append(mainCol, $('.agent-session-details-row'));
 		const description = append(detailsRow, $('.agent-session-description'));
 		const timestamp = append(detailsRow, $('.agent-session-timestamp'));
 
-		return { element: item, title, icon, description, timestamp, elementDisposables, disposables };
+		return { element: item, title, icon, description, timestamp, diffAdded, diffRemoved, elementDisposables, disposables };
 	}
 
 	renderElement(session: ITreeNode<IAgentSessionViewModel, void>, index: number, template: IAgentSessionItemTemplate, details?: ITreeElementRenderDetails): void {
@@ -89,6 +95,14 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 		template.icon.className = `agent-session-icon ${ThemeIcon.asClassName(Codicon.circleFilled)}`;
 
 		template.title.setLabel(session.element.title);
+
+		if (session.element.diff) {
+			template.diffAdded.textContent = `+${session.element.diff.added}`;
+			template.diffRemoved.textContent = `-${session.element.diff.removed}`;
+		} else {
+			template.diffAdded.textContent = '';
+			template.diffRemoved.textContent = '';
+		}
 
 		template.description.textContent = session.element.description;
 		template.timestamp.textContent = fromNow(session.element.timing.start, true, false, true);

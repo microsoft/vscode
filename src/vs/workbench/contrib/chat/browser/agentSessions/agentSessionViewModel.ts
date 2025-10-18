@@ -51,10 +51,10 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 		super();
 
 		this.sessions = [
-			{ id: '1', title: 'React Component Help', description: 'Assistance with building React components.', timing: { start: Date.now() - 1000 * 60 * 2, end: Date.now() - 1000 * 60 * 1 } },
-			{ id: '2', title: 'TypeScript Types', description: 'Explain TypeScript generics.', timing: { start: Date.now() - 1000 * 60 * 60, end: Date.now() - 1000 * 60 * 30 } },
-			{ id: '3', title: 'API Integration', description: 'How to fetch data in next.js?', timing: { start: Date.now() - 1000 * 60 * 60 * 24, end: Date.now() - 1000 * 60 * 60 * 12 } },
-			{ id: '4', title: 'Database Schema', description: 'Help me design a database schema.', timing: { start: Date.now() - 1000 * 60 * 60 * 48, end: Date.now() - 1000 * 60 * 60 * 24 } },
+			{ id: '1', title: 'React Component Help', description: 'Assistance with building React components.', timing: { start: Date.now() - 1000 * 60 * 2, end: Date.now() - 1000 * 60 * 1 }, diff: { added: 10, removed: 2 } },
+			{ id: '2', title: 'TypeScript Types', description: 'Explain TypeScript generics.', timing: { start: Date.now() - 1000 * 60 * 60, end: Date.now() - 1000 * 60 * 30 }, diff: { added: 5, removed: 1 } },
+			{ id: '3', title: 'API Integration', description: 'How to fetch data in next.js?', timing: { start: Date.now() - 1000 * 60 * 60 * 24, end: Date.now() - 1000 * 60 * 60 * 12 }, diff: { added: 8, removed: 3 } },
+			{ id: '4', title: 'Database Schema', description: 'Help me design a database schema.', timing: { start: Date.now() - 1000 * 60 * 60 * 48, end: Date.now() - 1000 * 60 * 60 * 24 }, diff: { added: 7, removed: 2 } },
 		];
 	}
 }
