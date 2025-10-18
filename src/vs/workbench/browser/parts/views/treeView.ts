@@ -1475,16 +1475,8 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		return !(hasResource && this.isFileKindThemeIcon(icon));
 	}
 
-	private isFolderThemeIcon(icon: ThemeIcon | undefined): boolean {
-		return icon?.id === FolderThemeIcon.id;
-	}
-
 	private isFileKindThemeIcon(icon: ThemeIcon | undefined): boolean {
-		if (icon) {
-			return icon.id === FileThemeIcon.id || this.isFolderThemeIcon(icon);
-		} else {
-			return false;
-		}
+		return ThemeIcon.isFile(icon) || ThemeIcon.isFolder(icon);
 	}
 
 	private getFileKind(node: ITreeItem): FileKind {

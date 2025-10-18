@@ -16,7 +16,12 @@ declare module 'vscode' {
 		/**
 		 * To the right of the input box.
 		 */
-		Inline = 2
+		Inline = 2,
+
+		/**
+		 * At the far end inside the input box.
+		 */
+		Input = 3
 	}
 
 	export interface QuickInputButton {
@@ -25,5 +30,12 @@ declare module 'vscode' {
 		 * @note This property is ignored if the button was added to a QuickPickItem.
 		 */
 		location?: QuickInputButtonLocation;
+
+		/**
+		 * Indicates whether the button is checked.
+		 * @note This property is currently only applicable to buttons with location {@link QuickInputButtonLocation.Input}.
+		 * It must be set for such buttons and will be updated when the button is toggled.
+		 */
+		checked?: boolean;
 	}
 }
