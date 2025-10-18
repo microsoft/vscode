@@ -66,6 +66,20 @@
             "default": true,
             "description": "%css.validate.desc%"
           },
+          "css.importAliases": {
+            "type": "object",
+            "additionalProperties": false,
+            "patternProperties": {
+              "^[^/]+(/)?$": {
+                "type": "string",
+                "pattern": "((\\.css)|/)$",
+                "patternErrorMessage": "Path must end with stylesheet filetype or forward slash"
+              }
+            },
+            "scope": "resource",
+            "default": null,
+            "description": "%css.importAliases%"
+          },
           "css.hover.documentation": {
             "type": "boolean",
             "scope": "resource",
@@ -381,6 +395,20 @@
             "scope": "resource",
             "default": true,
             "description": "%scss.validate.desc%"
+          },
+          "scss.importAliases": {
+            "type": "object",
+            "additionalProperties": false,
+            "patternProperties": {
+              "^[^/]+(/)?$": {
+                "type": "string",
+                "pattern": "((\\.s?css)|/)$",
+                "patternErrorMessage": "Path must end with stylesheet filetype or forward slash"
+              }
+            },
+            "scope": "resource",
+            "default": null,
+            "description": "%scss.importAliases%"
           },
           "scss.hover.documentation": {
             "type": "boolean",
