@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/agentsessionsviewer.css';
-import { $, append } from '../../../../../base/browser/dom.js';
+import { h } from '../../../../../base/browser/dom.js';
 import { localize } from '../../../../../nls.js';
 import { IIdentityProvider, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
 import { IListAccessibilityProvider } from '../../../../../base/browser/ui/list/listWidget.js';
@@ -64,29 +64,41 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 		const disposables = new DisposableStore();
 		const elementDisposables = disposables.add(new DisposableStore());
 
-		const item = append(container, $('.agent-session-item'));
+		const elements = h(
+			'div.agent-session-item@item',
+			[
+				h('div.agent-session-icon-col', [
+					h('div.agent-session-icon@icon')
+				]),
+				h('div.agent-session-main-col', [
+					h('div.agent-session-title-row', [
+						h('div.agent-session-title@titleContainer'),
+						h('div.agent-session-diff', [
+							h('span.agent-session-diff-added@diffAdded'),
+							h('span.agent-session-diff-removed@diffRemoved')
+						])
+					]),
+					h('div.agent-session-details-row', [
+						h('div.agent-session-description@description'),
+						h('div.agent-session-timestamp@timestamp')
+					])
+				])
+			]
+		);
 
-		// Icon Column
-		const iconCol = append(item, $('.agent-session-icon-col'));
-		const icon = append(iconCol, $('.agent-session-icon'));
+		container.appendChild(elements.item);
 
-		// Main Column
-		const mainCol = append(item, $('.agent-session-main-col'));
-
-		// Title
-		const titleRow = append(mainCol, $('.agent-session-title-row'));
-		const title = disposables.add(new IconLabel(titleRow, { supportHighlights: true, supportIcons: true }));
-
-		const diff = append(titleRow, $('.agent-session-diff'));
-		const diffAdded = append(diff, $('span.agent-session-diff-added'));
-		const diffRemoved = append(diff, $('span.agent-session-diff-removed'));
-
-		// Details
-		const detailsRow = append(mainCol, $('.agent-session-details-row'));
-		const description = append(detailsRow, $('.agent-session-description'));
-		const timestamp = append(detailsRow, $('.agent-session-timestamp'));
-
-		return { element: item, title, icon, description, timestamp, diffAdded, diffRemoved, elementDisposables, disposables };
+		return {
+			element: elements.item,
+			icon: elements.icon,
+			title: disposables.add(new IconLabel(elements.titleContainer, { supportHighlights: true, supportIcons: true })),
+			description: elements.description,
+			timestamp: elements.timestamp,
+			diffAdded: elements.diffAdded,
+			diffRemoved: elements.diffRemoved,
+			elementDisposables,
+			disposables
+		};
 	}
 
 	renderElement(session: ITreeNode<IAgentSessionViewModel, void>, index: number, template: IAgentSessionItemTemplate, details?: ITreeElementRenderDetails): void {
