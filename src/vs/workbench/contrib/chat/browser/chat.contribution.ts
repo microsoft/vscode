@@ -704,11 +704,6 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 
 		},
-		[ChatConfiguration.DelegateToCodingAgentInSecondaryMenu]: {
-			type: 'boolean',
-			description: nls.localize('chat.delegateToCodingAgentInSecondaryMenu', "Controls whether the 'Delegate to Coding Agent' action appears in the secondary send menu instead of the primary toolbar."),
-			default: false,
-		},
 		[ChatConfiguration.ShowAgentSessionsViewDescription]: {
 			type: 'boolean',
 			description: nls.localize('chat.showAgentSessionsViewDescription', "Controls whether session descriptions are displayed on a second row in the Chat Sessions view."),
