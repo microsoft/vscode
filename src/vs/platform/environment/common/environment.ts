@@ -145,6 +145,7 @@ export interface INativeEnvironmentService extends IEnvironmentService {
 	useInMemorySecretStorage?: boolean;
 
 	crossOriginIsolated?: boolean;
+	exportPolicyData?: string;
 
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	//
