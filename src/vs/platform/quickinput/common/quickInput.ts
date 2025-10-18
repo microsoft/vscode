@@ -43,8 +43,16 @@ export interface IQuickItem {
 	 * Whether the item is displayed with a strikethrough.
 	 */
 	strikethrough?: boolean;
+	/**
+	 * Icon classes to be passed on as `IIconLabelValueOptions`
+	 * to the underlying `IconLabel` widget.
+	 */
 	iconClasses?: readonly string[];
 	iconPath?: { dark: URI; light?: URI };
+	/**
+	 * Icon class to be assigned to the quick item container
+	 * directly.
+	 */
 	iconClass?: string;
 	highlights?: IQuickItemHighlights;
 	buttons?: readonly IQuickInputButton[];

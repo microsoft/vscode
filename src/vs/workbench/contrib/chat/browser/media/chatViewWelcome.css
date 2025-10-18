@@ -15,18 +15,30 @@
 
 /* Container for chat widget welcome message and interactive session variants */
 .interactive-session {
-	position: relative; /* Enable absolute positioning for child elements */
+	position: relative;
+	/* Enable absolute positioning for child elements */
 	display: flex;
 	flex-direction: column;
 	height: 100%;
 
 	&.new-welcome-view {
 		.interactive-input-part {
-			.dropdown-action-container { display: none; }
-			.chat-attachments-container { display: none; }
+			.dropdown-action-container {
+				display: none;
+			}
+
+			.chat-attachments-container {
+				display: none;
+			}
 		}
-		.chat-input-toolbars > .chat-input-toolbar > div { display: none; }
-		.chat-input-toolbars .action-item:not(:has(.monaco-dropdown-with-primary)) { display: none; }
+
+		.chat-input-toolbars > .chat-input-toolbar > div {
+			display: none;
+		}
+
+		.chat-input-toolbars .action-item:not(:has(.monaco-dropdown-with-primary)) {
+			display: none;
+		}
 	}
 
 	/* chat welcome container */
@@ -37,20 +49,27 @@
 		justify-content: center;
 		overflow: hidden;
 		flex: 1;
-		position: relative; /* Allow absolute positioning of prompts */
+		position: relative;
+		/* Allow absolute positioning of prompts */
 
 		&.has-chat-history {
 			/* Reintroduce minimal layout so welcome block centers vertically when history is shown */
 			flex-direction: column;
 			height: 100%;
+
 			/* Keep default align-items/justify-content from base (center) so history list sits above, then auto margins center welcome */
-			div.chat-welcome-view { align-self: center; margin-top: auto; margin-bottom: auto; }
+			div.chat-welcome-view {
+				align-self: center;
+				margin-top: auto;
+				margin-bottom: auto;
+			}
 		}
 	}
 
 	.new-welcome-view & > .chat-welcome-view-input-part {
 		max-width: 650px;
-		margin-bottom: 8px; /* Reduced margin to make room for prompts below */
+		margin-bottom: 8px;
+		/* Reduced margin to make room for prompts below */
 	}
 }
 
@@ -80,7 +99,6 @@ div.chat-welcome-view {
 	& > .chat-welcome-view-title {
 		font-size: 24px;
 		margin-top: 5px;
-		font-weight: 500;
 		text-align: center;
 		line-height: normal;
 		padding: 0 8px;
@@ -115,7 +133,8 @@ div.chat-welcome-view {
 		a {
 			color: var(--vscode-textLink-foreground);
 		}
-		p{
+
+		p {
 			margin-top: 8px;
 			margin-bottom: 8px;
 		}
@@ -167,6 +186,7 @@ div.chat-welcome-view {
 		margin-top: 8px;
 		padding: 0 12px;
 		font-size: 12px;
+
 		a {
 			color: var(--vscode-textLink-foreground);
 		}
@@ -178,7 +198,10 @@ div.chat-welcome-view {
 		margin: -16px auto;
 		max-width: 400px;
 		padding: 0 12px;
-		a { color: var(--vscode-textLink-foreground); }
+
+		a {
+			color: var(--vscode-textLink-foreground);
+		}
 	}
 }
 
@@ -191,15 +214,15 @@ div.chat-welcome-view {
 	display: flex;
 	flex-wrap: wrap;
 	justify-content: flex-start;
-	row-gap: 8px;
-	padding: 32px 12px 12px 12px; /* Extra top padding for title */
+	gap: 8px;
+	padding: 32px 16px 8px 16px;
+	/* Extra top padding for title */
 
 	.chat-welcome-view-suggested-prompts-title {
 		position: absolute;
 		top: 8px;
 		left: 16px;
 		font-size: 11px;
-		font-weight: normal;
 		text-transform: uppercase;
 		letter-spacing: 0.5px;
 		color: var(--vscode-descriptionForeground);
@@ -217,13 +240,14 @@ div.chat-welcome-view {
 		background-color: var(--vscode-editorWidget-background);
 		cursor: pointer;
 		border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
-		max-width: 260px;
+		max-width: 100%;
 		width: fit-content;
-		margin: 0 4px;
+		margin: 0;
+		box-sizing: border-box;
+		flex: 0 0 auto;
 
 		& > .chat-welcome-view-suggested-prompt-title {
-			font-size: 14px;
-			font-weight: 600;
+			font-size: 13px;
 			color: var(--vscode-editorWidget-foreground);
 			white-space: nowrap;
 		}
@@ -234,14 +258,13 @@ div.chat-welcome-view {
 			overflow: hidden;
 			text-overflow: ellipsis;
 			white-space: nowrap;
-			flex: 1;
+			flex: 0 1 auto;
 			min-width: 0;
 		}
 	}
 
 	> .chat-welcome-view-suggested-prompt:hover {
 		background-color: var(--vscode-list-hoverBackground);
-		border-color: var(--vscode-focusBorder);
 	}
 }
 
@@ -288,7 +311,6 @@ div.chat-welcome-view {
 	}
 
 	.chat-welcome-history-header-title {
-		font-weight: 600;
 		font-size: 11px;
 		padding-left: 8px;
 	}

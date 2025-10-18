@@ -5,7 +5,7 @@
 
 /* stylelint-disable layer-checker */
 
-.monaco-workbench .workbench-hover {
+.monaco-hover.workbench-hover {
 	position: relative;
 	font-size: 13px;
 	line-height: 19px;
@@ -20,45 +20,45 @@
 	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
 }
 
-.monaco-workbench .workbench-hover .monaco-action-bar .action-item .codicon {
+.monaco-hover.workbench-hover .monaco-action-bar .action-item .codicon {
 	/* Given our font-size, adjust action icons accordingly */
 	width: 13px;
 	height: 13px;
 }
 
-.monaco-workbench .workbench-hover hr {
+.monaco-hover.workbench-hover hr {
 	border-bottom: none;
 }
 
-.monaco-workbench .workbench-hover.compact {
+.monaco-hover.workbench-hover.compact {
 	font-size: 12px;
 }
 
-.monaco-workbench .workbench-hover.compact .monaco-action-bar .action-item .codicon {
+.monaco-hover.workbench-hover.compact .monaco-action-bar .action-item .codicon {
 	/* Given our font-size, adjust action icons accordingly */
 	width: 12px;
 	height: 12px;
 }
 
-.monaco-workbench .workbench-hover.compact .hover-contents {
+.monaco-hover.workbench-hover.compact .hover-contents {
 	padding: 2px 8px;
 }
 
-.monaco-workbench .workbench-hover-container.locked .workbench-hover {
+.workbench-hover-container.locked .monaco-hover.workbench-hover {
 	outline: 1px solid var(--vscode-editorHoverWidget-border);
 }
-.monaco-workbench .workbench-hover-container:focus-within.locked .workbench-hover {
+.workbench-hover-container:focus-within.locked .monaco-hover.workbench-hover {
 	outline-color: var(--vscode-focusBorder);
 }
 
-.monaco-workbench .workbench-hover-pointer {
+.workbench-hover-pointer {
 	position: absolute;
 	/* Must be higher than workbench hover z-index */
 	z-index: 41;
 	pointer-events: none;
 }
 
-.monaco-workbench .workbench-hover-pointer:after {
+.workbench-hover-pointer:after {
 	content: '';
 	position: absolute;
 	width: 5px;
@@ -67,77 +67,77 @@
 	border-right: 1px solid var(--vscode-editorHoverWidget-border);
 	border-bottom: 1px solid var(--vscode-editorHoverWidget-border);
 }
-.monaco-workbench .workbench-hover-container:not(:focus-within).locked .workbench-hover-pointer:after {
+.workbench-hover-container:not(:focus-within).locked .workbench-hover-pointer:after {
 	width: 4px;
 	height: 4px;
 	border-right-width: 2px;
 	border-bottom-width: 2px;
 }
-.monaco-workbench .workbench-hover-container:focus-within .workbench-hover-pointer:after {
+.workbench-hover-container:focus-within .workbench-hover-pointer:after {
 	border-right: 1px solid var(--vscode-focusBorder);
 	border-bottom: 1px solid var(--vscode-focusBorder);
 }
 
-.monaco-workbench .workbench-hover-pointer.left   { left: -3px; }
-.monaco-workbench .workbench-hover-pointer.right  { right: 3px; }
-.monaco-workbench .workbench-hover-pointer.top    { top: -3px; }
-.monaco-workbench .workbench-hover-pointer.bottom { bottom: 3px; }
+.workbench-hover-pointer.left   { left: -3px; }
+.workbench-hover-pointer.right  { right: 3px; }
+.workbench-hover-pointer.top    { top: -3px; }
+.workbench-hover-pointer.bottom { bottom: 3px; }
 
-.monaco-workbench .workbench-hover-pointer.left:after {
+.workbench-hover-pointer.left:after {
 	transform: rotate(135deg);
 }
 
-.monaco-workbench .workbench-hover-pointer.right:after {
+.workbench-hover-pointer.right:after {
 	transform: rotate(315deg);
 }
 
-.monaco-workbench .workbench-hover-pointer.top:after {
+.workbench-hover-pointer.top:after {
 	transform: rotate(225deg);
 }
 
-.monaco-workbench .workbench-hover-pointer.bottom:after {
+.workbench-hover-pointer.bottom:after {
 	transform: rotate(45deg);
 }
 
-.monaco-workbench .workbench-hover a {
+.monaco-hover.workbench-hover a {
 	color: var(--vscode-textLink-foreground);
 }
 
-.monaco-workbench .workbench-hover a:focus {
+.monaco-hover.workbench-hover a:focus {
 	outline: 1px solid;
 	outline-offset: -1px;
 	text-decoration: underline;
 	outline-color: var(--vscode-focusBorder);
 }
 
-.monaco-workbench .workbench-hover a.codicon:focus,
-.monaco-workbench .workbench-hover a.monaco-button:focus {
+.monaco-hover.workbench-hover a.codicon:focus,
+.monaco-hover.workbench-hover a.monaco-button:focus {
 	text-decoration: none;
 }
 
-.monaco-workbench .workbench-hover a:hover,
-.monaco-workbench .workbench-hover a:active {
+.monaco-hover.workbench-hover a:hover,
+.monaco-hover.workbench-hover a:active {
 	color: var(--vscode-textLink-activeForeground);
 }
 
-.monaco-workbench .workbench-hover code {
+.monaco-hover.workbench-hover code {
 	background: var(--vscode-textCodeBlock-background);
 }
 
-.monaco-workbench .workbench-hover .hover-row .actions {
+.monaco-hover.workbench-hover .hover-row .actions {
 	background: var(--vscode-editorHoverWidget-statusBarBackground);
 }
 
-.monaco-workbench .workbench-hover.right-aligned {
+.monaco-hover.workbench-hover.right-aligned {
 	/* The context view service wraps strangely when it's right up against the edge without this */
 	left: 1px;
 }
 
-.monaco-workbench .workbench-hover.right-aligned .hover-row.status-bar .actions {
+.monaco-hover.workbench-hover.right-aligned .hover-row.status-bar .actions {
 	flex-direction: row-reverse;
 }
 
-.monaco-workbench .workbench-hover.right-aligned .hover-row.status-bar .actions .action-container {
+.monaco-hover.workbench-hover.right-aligned .hover-row.status-bar .actions .action-container {
 	margin-right: 0;
 	margin-left: 16px;
 }

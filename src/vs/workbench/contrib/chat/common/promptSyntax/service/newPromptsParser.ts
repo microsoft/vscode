@@ -180,7 +180,43 @@ export class PromptHeader {
 		return undefined;
 	}
 
+	public get handOffs(): IHandOff[] | undefined {
+		const handoffsAttribute = this._parsedHeader.attributes.find(attr => attr.key === 'handoffs');
+		if (!handoffsAttribute) {
+			return undefined;
+		}
+		if (handoffsAttribute.value.type === 'array') {
+			// Array format: list of objects: { agent, label, prompt, send? }
+			const handoffs: IHandOff[] = [];
+			for (const item of handoffsAttribute.value.items) {
+				if (item.type === 'object') {
+					let agent: string | undefined;
+					let label: string | undefined;
+					let prompt: string | undefined;
+					let send: boolean | undefined;
+					for (const prop of item.properties) {
+						if (prop.key.value === 'agent' && prop.value.type === 'string') {
+							agent = prop.value.value;
+						} else if (prop.key.value === 'label' && prop.value.type === 'string') {
+							label = prop.value.value;
+						} else if (prop.key.value === 'prompt' && prop.value.type === 'string') {
+							prompt = prop.value.value;
+						} else if (prop.key.value === 'send' && prop.value.type === 'boolean') {
+							send = prop.value.value;
+						}
+					}
+					if (agent && label && prompt !== undefined) {
+						handoffs.push({ agent, label, prompt, send });
+					}
+				}
+			}
+			return handoffs;
+		}
+		return undefined;
+	}
 }
+
+export interface IHandOff { readonly agent: string; readonly label: string; readonly prompt: string; readonly send?: boolean }
 
 export interface IHeaderAttribute {
 	readonly range: Range;

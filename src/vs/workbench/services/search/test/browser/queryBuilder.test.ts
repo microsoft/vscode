@@ -1094,10 +1094,10 @@ suite('QueryBuilder', () => {
 				}
 			);
 			assert.deepEqual(query.includePattern, {
-				"**/*.js/**": true,
-				"**/*.js": true,
-				"**/*.ts/**": true,
-				"**/*.ts": true,
+				'**/*.js/**': true,
+				'**/*.js': true,
+				'**/*.ts/**': true,
+				'**/*.ts': true,
 			});
 			assert.strictEqual(query.folderQueries.length, 0);
 		});
@@ -1111,10 +1111,10 @@ suite('QueryBuilder', () => {
 				}
 			);
 			assert.deepEqual(query.includePattern, {
-				"**/*.js/**": true,
-				"**/*.js": true,
-				"**/*.ts/**": true,
-				"**/*.ts": true,
+				'**/*.js/**': true,
+				'**/*.js': true,
+				'**/*.ts/**': true,
+				'**/*.ts': true,
 			});
 			assert.strictEqual(query.folderQueries.length, 1);
 		});
@@ -1128,10 +1128,10 @@ suite('QueryBuilder', () => {
 				}
 			);
 			assert.deepEqual(query.excludePattern, {
-				"**/*.js/**": true,
-				"**/*.js": true,
-				"**/*.ts/**": true,
-				"**/*.ts": true,
+				'**/*.js/**': true,
+				'**/*.js': true,
+				'**/*.ts/**': true,
+				'**/*.ts': true,
 			});
 			assert.strictEqual(query.folderQueries.length, 0);
 		});
@@ -1145,10 +1145,10 @@ suite('QueryBuilder', () => {
 				}
 			);
 			assert.deepEqual(query.excludePattern, {
-				"**/*.js/**": true,
-				"**/*.js": true,
-				"**/*.ts/**": true,
-				"**/*.ts": true,
+				'**/*.js/**': true,
+				'**/*.js': true,
+				'**/*.ts/**': true,
+				'**/*.ts': true,
 			});
 			assert.strictEqual(query.folderQueries.length, 1);
 		});
@@ -1165,16 +1165,16 @@ suite('QueryBuilder', () => {
 			assert.deepEqual(query.excludePattern, [
 				{
 
-					"**/*.js/**": true,
-					"**/*.js": true,
-					"**/*.ts/**": true,
-					"**/*.ts": true,
+					'**/*.js/**': true,
+					'**/*.js': true,
+					'**/*.ts/**': true,
+					'**/*.ts': true,
 				},
 				{
-					"**/foo/*/**": true,
-					"**/foo/*": true,
-					"**/bar/*/**": true,
-					"**/bar/*": true,
+					'**/foo/*/**': true,
+					'**/foo/*': true,
+					'**/bar/*/**': true,
+					'**/bar/*': true,
 				}
 			]);
 			assert.strictEqual(query.folderQueries.length, 1);
@@ -1193,10 +1193,10 @@ suite('QueryBuilder', () => {
 			assert.deepEqual(query.excludePattern, {
 				uri: ROOT_1_URI,
 				pattern: {
-					"**/*.js/**": true,
-					"**/*.js": true,
-					"**/*.ts/**": true,
-					"**/*.ts": true,
+					'**/*.js/**': true,
+					'**/*.js': true,
+					'**/*.ts/**': true,
+					'**/*.ts': true,
 				}
 			});
 			assert.strictEqual(query.folderQueries.length, 1);
