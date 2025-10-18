@@ -246,7 +246,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const modeFiles = await this.listPromptFiles(PromptsType.mode, token);
 
 		const customChatModes = await Promise.all(
-			modeFiles.map(async ({ uri, name: modeName }): Promise<ICustomChatMode> => {
+			modeFiles.map(async (promptPath): Promise<ICustomChatMode> => {
+				const { uri, name: modeName } = promptPath;
 				const ast = await this.parseNew(uri, token);
 
 				let metadata: any | undefined;
@@ -279,11 +280,12 @@ export class PromptsService extends Disposable implements IPromptsService {
 				} satisfies IChatModeInstructions;
 
 				const name = modeName ?? getCleanPromptName(uri);
+				const extension = promptPath.storage === PromptsStorage.extension ? (promptPath as IExtensionPromptPath).extension : undefined;
 				if (!ast.header) {
-					return { uri, name, modeInstructions };
+					return { uri, name, modeInstructions, extension };
 				}
 				const { description, model, tools, handOffs } = ast.header;
-				return { uri, name, description, model, tools, handOffs, modeInstructions };
+				return { uri, name, description, model, tools, handOffs, modeInstructions, extension };
 
 			})
 		);

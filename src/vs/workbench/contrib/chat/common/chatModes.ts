@@ -206,6 +206,7 @@ export interface IChatModeData {
 	readonly body?: string; /* deprecated */
 	readonly handOffs?: readonly IHandOff[];
 	readonly uri?: URI;
+	readonly extensionId?: string;
 }
 
 export interface IChatMode {
@@ -220,6 +221,7 @@ export interface IChatMode {
 	readonly model?: IObservable<string | undefined>;
 	readonly modeInstructions?: IObservable<IChatModeInstructions>;
 	readonly uri?: IObservable<URI>;
+	readonly extensionId?: string;
 }
 
 export interface IVariableReference {
@@ -260,6 +262,7 @@ export class CustomChatMode implements IChatMode {
 
 	public readonly id: string;
 	public readonly name: string;
+	public readonly extensionId?: string;
 
 	get description(): IObservable<string | undefined> {
 		return this._descriptionObservable;
@@ -300,6 +303,7 @@ export class CustomChatMode implements IChatMode {
 	) {
 		this.id = customChatMode.uri.toString();
 		this.name = customChatMode.name;
+		this.extensionId = customChatMode.extension?.identifier.value;
 		this._descriptionObservable = observableValue('description', customChatMode.description);
 		this._customToolsObservable = observableValue('customTools', customChatMode.tools);
 		this._modelObservable = observableValue('model', customChatMode.model);
@@ -333,7 +337,8 @@ export class CustomChatMode implements IChatMode {
 			model: this.model.get(),
 			modeInstructions: this.modeInstructions.get(),
 			uri: this.uri.get(),
-			handOffs: this.handOffs.get()
+			handOffs: this.handOffs.get(),
+			extensionId: this.extensionId
 		};
 	}
 }
