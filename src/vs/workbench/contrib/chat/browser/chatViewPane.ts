@@ -43,7 +43,6 @@ interface IViewPaneState extends IChatViewState {
 	hasMigratedCurrentSession?: boolean;
 }
 
-export const CHAT_SIDEBAR_OLD_VIEW_PANEL_ID = 'workbench.panel.chatSidebar';
 export const CHAT_SIDEBAR_PANEL_ID = 'workbench.panel.chat';
 export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private _widget!: ChatWidget;
