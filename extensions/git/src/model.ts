@@ -23,7 +23,12 @@ import { ISourceControlHistoryItemDetailsProviderRegistry } from './historyItemD
 
 class RepositoryPick implements QuickPickItem {
 	@memoize get label(): string {
-		return path.basename(this.repository.root);
+		const defaultLabel = path.basename(this.repository.root);
+		const suppliedLabel = this.repository.repoLabel;
+		if (!suppliedLabel || path.basename(suppliedLabel) === defaultLabel) {
+			return defaultLabel;
+		}
+		return suppliedLabel;
 	}
 
 	@memoize get description(): string {
@@ -199,7 +204,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 	private openRepositories: OpenRepository[] = [];
 	get repositories(): Repository[] { return this.openRepositories.map(r => r.repository); }
 
-	private possibleGitRepositoryPaths = new Set<string>();
+	private possibleGitRepositoryPaths = new Map<string, string | undefined>(); // a set with optional labels
 
 	private _onDidChangeState = new EventEmitter<State>();
 	readonly onDidChangeState = this._onDidChangeState.event;
@@ -442,15 +447,15 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		this.eventuallyScanPossibleGitRepository(uri.fsPath.replace(/\.git.*$/, ''));
 	}
 
-	private eventuallyScanPossibleGitRepository(path: string) {
-		this.possibleGitRepositoryPaths.add(path);
+	private eventuallyScanPossibleGitRepository(path: string, label?: string) {
+		this.possibleGitRepositoryPaths.set(path, label);
 		this.eventuallyScanPossibleGitRepositories();
 	}
 
 	@debounce(500)
 	private eventuallyScanPossibleGitRepositories(): void {
-		for (const path of this.possibleGitRepositoryPaths) {
-			this.openRepository(path, false, true);
+		for (const [path, label] of this.possibleGitRepositoryPaths) {
+			this.openRepository(path, false, true, label);
 		}
 
 		this.possibleGitRepositoryPaths.clear();
@@ -565,7 +570,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 	}
 
 	@sequentialize
-	async openRepository(repoPath: string, openIfClosed = false, openIfParent = false): Promise<void> {
+	async openRepository(repoPath: string, openIfClosed = false, openIfParent = false, repositoryLabel: string | undefined = undefined): Promise<void> {
 		this.logger.trace(`[Model][openRepository] Repository: ${repoPath}`);
 		const existingRepository = await this.getRepositoryExact(repoPath);
 		if (existingRepository) {
@@ -652,7 +657,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 
 			// Open repository
 			const [dotGit, repositoryRootRealPath] = await Promise.all([this.git.getRepositoryDotGit(repositoryRoot), this.getRepositoryRootRealPath(repositoryRoot)]);
-			const gitRepository = this.git.open(repositoryRoot, repositoryRootRealPath, dotGit, this.logger);
+			const gitRepository = this.git.open(repositoryRoot, repositoryLabel, repositoryRootRealPath, dotGit, this.logger);
 			const repository = new Repository(gitRepository, this, this, this, this, this, this, this.globalState, this.logger, this.telemetryReporter);
 
 			this.open(repository);
@@ -763,10 +768,10 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 
 			repository.submodules
 				.slice(0, submodulesLimit)
-				.map(r => path.join(repository.root, r.path))
-				.forEach(p => {
-					this.logger.trace(`[Model][open] Opening submodule: '${p}'`);
-					this.eventuallyScanPossibleGitRepository(p);
+				.map(r => ({ path: path.join(repository.root, r.path), name: r.name }))
+				.forEach(({ path: p, name: n }) => {
+					this.logger.trace(`[Model][open] Opening submodule: '${n}' at '${p}'`);
+					this.eventuallyScanPossibleGitRepository(p, n);
 				});
 		};
 
