@@ -9,6 +9,12 @@
 		display: none !important;
 	}
 
+	.monaco-list-row.selected .agent-session-details-row,
+	.monaco-list-row.selected span.agent-session-diff-added,
+	.monaco-list-row.selected span.agent-session-diff-removed {
+		color: unset;
+	}
+
 	.agent-session-item {
 		display: flex;
 		flex-direction: row;
