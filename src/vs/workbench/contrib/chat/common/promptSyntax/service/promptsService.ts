@@ -111,6 +111,11 @@ export interface ICustomChatMode {
 	 * Hand-offs defined in the custom chat mode file.
 	 */
 	readonly handOffs?: readonly IHandOff[];
+
+	/**
+	 * Extension that contributed this mode (if from an extension).
+	 */
+	readonly extension?: IExtensionDescription;
 }
 
 /**

@@ -19,7 +19,7 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IChatAgentService } from '../../common/chatAgents.js';
 import { IChatMode, IChatModeService } from '../../common/chatModes.js';
-import { ChatAgentLocation } from '../../common/constants.js';
+import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { getOpenChatActionIdForMode } from '../actions/chatActions.js';
 import { IToggleChatModeArgs, ToggleAgentModeActionId } from '../actions/chatExecuteActions.js';
 
@@ -39,6 +39,10 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 		@IMenuService private readonly menuService: IMenuService,
 		@ICommandService commandService: ICommandService
 	) {
+		const isBuiltinExtensionMode = (mode: IChatMode): boolean => {
+			return mode.extensionId === 'GitHub.copilot-chat';
+		};
+
 		const makeAction = (mode: IChatMode, currentMode: IChatMode): IActionWidgetDropdownAction => ({
 			...action,
 			id: getOpenChatActionIdForMode(mode),
@@ -55,7 +59,7 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 			category: { label: localize('built-in', "Built-In"), order: 0 }
 		});
 
-		const makeActionFromCustomMode = (mode: IChatMode, currentMode: IChatMode): IActionWidgetDropdownAction => ({
+		const makeActionFromCustomMode = (mode: IChatMode, currentMode: IChatMode, isBuiltinExtension: boolean): IActionWidgetDropdownAction => ({
 			...action,
 			id: getOpenChatActionIdForMode(mode),
 			label: mode.label,
@@ -68,17 +72,42 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 				this.renderLabel(this.element!);
 				return result;
 			},
-			category: { label: localize('custom', "Custom"), order: 1 }
+			category: isBuiltinExtension 
+				? { label: localize('built-in', "Built-In"), order: 0 }
+				: { label: localize('custom', "Custom"), order: 1 }
 		});
 
 		const actionProvider: IActionWidgetDropdownActionProvider = {
 			getActions: () => {
 				const modes = chatModeService.getModes();
 				const currentMode = delegate.currentMode.get();
-				const agentStateActions: IActionWidgetDropdownAction[] = modes.builtin.map(mode => makeAction(mode, currentMode));
+				const agentStateActions: IActionWidgetDropdownAction[] = [];
+				
+				// Separate custom modes into extension-contributed built-in and truly custom
+				const extensionBuiltinModes: IChatMode[] = [];
+				const trulyCustomModes: IChatMode[] = [];
+				
 				if (modes.custom) {
-					agentStateActions.push(...modes.custom.map(mode => makeActionFromCustomMode(mode, currentMode)));
+					for (const mode of modes.custom) {
+						if (isBuiltinExtensionMode(mode)) {
+							extensionBuiltinModes.push(mode);
+						} else {
+							trulyCustomModes.push(mode);
+						}
+					}
 				}
+
+				// Add builtin modes in the desired order
+				for (const mode of modes.builtin) {
+					agentStateActions.push(makeAction(mode, currentMode));
+					// After Agent mode, insert extension-contributed built-in modes
+					if (mode.id === ChatModeKind.Agent) {
+						agentStateActions.push(...extensionBuiltinModes.map(m => makeActionFromCustomMode(m, currentMode, true)));
+					}
+				}
+				
+				// Add truly custom modes at the end
+				agentStateActions.push(...trulyCustomModes.map(mode => makeActionFromCustomMode(mode, currentMode, false)));
 
 				return agentStateActions;
 			}
