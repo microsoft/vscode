@@ -46,6 +46,8 @@ export class MockPromptsService implements IPromptsService {
 	registerContributedFile(type: PromptsType, name: string, description: string, uri: URI, extension: IExtensionDescription): IDisposable { throw new Error('Not implemented'); }
 	getPromptLocationLabel(promptPath: IPromptPath): string { throw new Error('Not implemented'); }
 	findAgentMDsInWorkspace(token: CancellationToken): Promise<URI[]> { throw new Error('Not implemented'); }
+	listAgentMDs(token: CancellationToken): Promise<URI[]> { throw new Error('Not implemented'); }
+	listCopilotInstructionsMDs(token: CancellationToken): Promise<URI[]> { throw new Error('Not implemented'); }
 
 	dispose(): void { }
 }
