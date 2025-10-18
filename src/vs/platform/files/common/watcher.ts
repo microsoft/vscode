@@ -8,6 +8,7 @@ import { GLOBSTAR, IRelativePattern, parse, ParsedPattern } from '../../../base/
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { isAbsolute } from '../../../base/common/path.js';
 import { isLinux } from '../../../base/common/platform.js';
+import { Mutable } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { FileChangeFilter, FileChangeType, IFileChange, isParent } from './files.js';
 
@@ -335,6 +336,7 @@ export function reviveFileChanges(changes: IFileChange[]): IFileChange[] {
 	return changes.map(change => ({
 		type: change.type,
 		resource: URI.revive(change.resource),
+		associatedResources: change.associatedResources?.map(resource => URI.revive(resource)),
 		cId: change.cId
 	}));
 }
@@ -412,7 +414,10 @@ class EventCoalescer {
 
 			// Flatten DELETE followed by CREATE into CHANGE
 			else if (currentChangeType === FileChangeType.DELETED && newChangeType === FileChangeType.ADDED) {
-				existingEvent.type = FileChangeType.UPDATED;
+				(existingEvent as Mutable<IFileChange>).type = FileChangeType.UPDATED;
+				if (existingEvent.associatedResources) {
+					existingEvent.associatedResources.length = 0; // clear associated resources as a result of a type change to ensure it only applies to this event
+				}
 			}
 
 			// Do nothing. Keep the created event
@@ -420,7 +425,10 @@ class EventCoalescer {
 
 			// Otherwise apply change type
 			else {
-				existingEvent.type = newChangeType;
+				(existingEvent as Mutable<IFileChange>).type = newChangeType;
+				if (existingEvent.associatedResources) {
+					existingEvent.associatedResources.length = 0; // clear associated resources as a result of a type change to ensure it only applies to this event
+				}
 			}
 		}
 
@@ -437,7 +445,7 @@ class EventCoalescer {
 
 	coalesce(): IFileChange[] {
 		const addOrChangeEvents: IFileChange[] = [];
-		const deletedPaths: string[] = [];
+		const deleteChangeEvents: IFileChange[] = [];
 
 		// This algorithm will remove all DELETE events up to the root folder
 		// that got deleted if any. This ensures that we are not producing
@@ -457,12 +465,25 @@ class EventCoalescer {
 		}).sort((e1, e2) => {
 			return e1.resource.fsPath.length - e2.resource.fsPath.length; // shortest path first
 		}).filter(e => {
-			if (deletedPaths.some(deletedPath => isParent(e.resource.fsPath, deletedPath, !isLinux /* ignorecase */))) {
-				return false; // DELETE is ignored if parent is deleted already
+
+			// check if any of the already known deleted paths is a parent
+			// of this path and if so, ignore this event and remember it
+			// so that it can be set as associated resource to the event
+			for (const deleteChangeEvent of deleteChangeEvents) {
+				if (isParent(e.resource.fsPath, deleteChangeEvent.resource.fsPath, !isLinux /* ignorecase */)) {
+					let associatedResources = deleteChangeEvent.associatedResources;
+					if (!associatedResources) {
+						associatedResources = [];
+						(deleteChangeEvent as Mutable<IFileChange>).associatedResources = associatedResources;
+					}
+					associatedResources.push(e.resource);
+
+					return false; // DELETE is ignored if parent is deleted already
+				}
 			}
 
 			// otherwise mark as deleted
-			deletedPaths.push(e.resource.fsPath);
+			deleteChangeEvents.push(e);
 
 			return true;
 		}).concat(addOrChangeEvents);
