@@ -252,4 +252,34 @@ suite('ChatModeService', () => {
 		assert.strictEqual(modes.custom.length, 1);
 		assert.strictEqual(modes.custom[0].id, mode1.uri.toString());
 	});
+
+	test('should preserve extension information for extension-contributed modes', async () => {
+		const extensionMode: ICustomChatMode = {
+			uri: URI.parse('file:///test/extension-mode.md'),
+			name: 'Extension Mode',
+			description: 'A mode from an extension',
+			tools: [],
+			modeInstructions: { content: 'Extension mode body', toolReferences: [] },
+			extension: {
+				identifier: { value: 'GitHub.copilot-chat', id: 'GitHub.copilot-chat' },
+				name: 'GitHub Copilot Chat',
+				publisher: 'GitHub',
+				version: '1.0.0',
+				engines: { vscode: '^1.0.0' },
+				extensionLocation: URI.parse('file:///extensions/github.copilot-chat'),
+				isBuiltin: false,
+				isUnderDevelopment: false,
+				isUserBuiltin: false,
+			} as any,
+		};
+
+		promptsService.setCustomModes([extensionMode]);
+		await timeout(0);
+
+		const modes = chatModeService.getModes();
+		assert.strictEqual(modes.custom.length, 1);
+
+		const testMode = modes.custom[0];
+		assert.strictEqual(testMode.extensionId, 'GitHub.copilot-chat');
+	});
 });
