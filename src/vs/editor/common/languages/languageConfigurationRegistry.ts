@@ -6,7 +6,7 @@
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, IDisposable, markAsSingleton, toDisposable } from '../../../base/common/lifecycle.js';
 import * as strings from '../../../base/common/strings.js';
-import { ITextModel } from '../model.js';
+import { ITextModel, TextDirection } from '../model.js';
 import { DEFAULT_WORD_REGEXP, ensureValidWordDefinition } from '../core/wordHelper.js';
 import { EnterAction, FoldingRules, IAutoClosingPair, IndentationRule, LanguageConfiguration, AutoClosingPairs, CharacterPair, ExplicitLanguageConfiguration } from './languageConfiguration.js';
 import { CharacterPairSupport } from './supports/characterPair.js';
@@ -249,6 +249,7 @@ function combineLanguageConfigurations(configs: LanguageConfiguration[]): Langua
 		folding: undefined,
 		colorizedBracketPairs: undefined,
 		__electricCharacterSupport: undefined,
+		textDirection: undefined,
 	};
 	for (const entry of configs) {
 		result = {
@@ -263,6 +264,7 @@ function combineLanguageConfigurations(configs: LanguageConfiguration[]): Langua
 			folding: entry.folding || result.folding,
 			colorizedBracketPairs: entry.colorizedBracketPairs || result.colorizedBracketPairs,
 			__electricCharacterSupport: entry.__electricCharacterSupport || result.__electricCharacterSupport,
+			textDirection: entry.textDirection || result.textDirection,
 		};
 	}
 
@@ -351,6 +353,7 @@ export class LanguageConfigurationRegistry extends Disposable {
 export class ResolvedLanguageConfiguration {
 	private _brackets: RichEditBrackets | null;
 	private _electricCharacter: BracketElectricCharacterSupport | null;
+	public _textDirection: TextDirection | null;
 	private readonly _onEnterSupport: OnEnterSupport | null;
 
 	public readonly comments: ICommentsConfiguration | null;
@@ -391,6 +394,8 @@ export class ResolvedLanguageConfiguration {
 			languageId,
 			this.underlyingConfig
 		);
+
+		this._textDirection = null;
 	}
 
 	public getWordDefinition(): RegExp {
@@ -414,6 +419,20 @@ export class ResolvedLanguageConfiguration {
 			);
 		}
 		return this._electricCharacter;
+	}
+
+	public get textDirection(): TextDirection | null {
+		if (!this._textDirection) {
+			switch (this.underlyingConfig.textDirection) {
+				case 'rtl':
+					this._textDirection = TextDirection.RTL;
+					break;
+				case 'ltr':
+					this._textDirection = TextDirection.LTR;
+					break;
+			}
+		}
+		return this._textDirection;
 	}
 
 	public onEnter(
