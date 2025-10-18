@@ -78,10 +78,13 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 	}
 
 	$stopMcp(id: number): void {
-		if (this._sseEventSources.has(id)) {
-			this._sseEventSources.deleteAndDispose(id);
-			this._proxy.$onDidChangeState(id, { state: McpConnectionState.Kind.Stopped });
-		}
+		this._sseEventSources.get(id)
+			?.close()
+			.then(() => this._didClose(id));
+	}
+
+	private _didClose(id: number) {
+		this._sseEventSources.deleteAndDispose(id);
 	}
 
 	$sendMessage(id: number, message: string): void {
@@ -234,6 +237,7 @@ export class McpHTTPHandle extends Disposable {
 		resourceMetadata?: IAuthorizationProtectedResourceMetadata;
 		scopes?: string[];
 	};
+	private _didSendClose = false;
 
 	constructor(
 		private readonly _id: number,
@@ -264,7 +268,38 @@ export class McpHTTPHandle extends Disposable {
 		}
 	}
 
-	_send(message: string) {
+	async close() {
+		if (this._mode.value === HttpMode.Http && this._mode.sessionId && !this._didSendClose) {
+			this._didSendClose = true;
+			try {
+				await this._closeSession(this._mode.sessionId);
+			} catch {
+				// ignored -- already logged
+			}
+		}
+
+		this._proxy.$onDidChangeState(this._id, { state: McpConnectionState.Kind.Stopped });
+	}
+
+	private async _closeSession(sessionId: string) {
+		const headers: Record<string, string> = {
+			...Object.fromEntries(this._launch.headers),
+			'Mcp-Session-Id': sessionId,
+		};
+
+		await this._addAuthHeader(headers);
+
+		// no fetch with retry here -- don't try to auth if we get an auth failure
+		await this._fetch(
+			this._launch.uri.toString(true),
+			{
+				method: 'DELETE',
+				headers,
+			},
+		);
+	}
+
+	private _send(message: string) {
 		if (this._mode.value === HttpMode.SSE) {
 			return this._sendLegacySSE(this._mode.endpoint, message);
 		} else {
