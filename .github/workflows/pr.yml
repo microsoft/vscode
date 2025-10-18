@@ -10,7 +10,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-permissions: {}
+permissions:
+  contents: read
+  id-token: write
+  pull-requests: write
 
 env:
   VSCODE_QUALITY: 'oss'
@@ -153,3 +156,9 @@ jobs:
     with:
       job_name: Remote
       remote_tests: true
+
+  linux-copilot-video:
+    name: Linux Copilot Video
+    uses: ./.github/workflows/pr-linux-copilot.yml
+    with:
+      job_name: Copilot Video
