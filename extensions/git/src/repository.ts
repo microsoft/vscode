@@ -25,6 +25,7 @@ import { toGitUri } from './uri';
 import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, getCommitShortHash, IDisposable, isDescendant, isLinuxSnap, isRemote, isWindows, Limiter, onceEvent, pathEquals, relativePath } from './util';
 import { IFileWatcher, watch } from './watch';
 import { ISourceControlHistoryItemDetailsProviderRegistry } from './historyItemDetailsProvider';
+import { KnownFolders } from './knownFolders';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
@@ -895,7 +896,8 @@ export class Repository implements Disposable {
 		historyItemDetailProviderRegistry: ISourceControlHistoryItemDetailsProviderRegistry,
 		globalState: Memento,
 		private readonly logger: LogOutputChannel,
-		private telemetryReporter: TelemetryReporter
+		private telemetryReporter: TelemetryReporter,
+		private readonly knownFolders: KnownFolders
 	) {
 		this._operations = new OperationManager(this.logger);
 
@@ -1848,10 +1850,16 @@ export class Repository implements Disposable {
 
 	async addRemote(name: string, url: string): Promise<void> {
 		await this.run(Operation.Remote, () => this.repository.addRemote(name, url));
+		this.knownFolders.set(url, this.root);
 	}
 
 	async removeRemote(name: string): Promise<void> {
 		await this.run(Operation.Remote, () => this.repository.removeRemote(name));
+		const remote = this.remotes.find(remote => remote.name === name);
+		const remoteUrl = remote?.fetchUrl ?? remote?.pushUrl;
+		if (remoteUrl) {
+			this.knownFolders.delete(remoteUrl, this.root);
+		}
 	}
 
 	async renameRemote(name: string, newName: string): Promise<void> {
