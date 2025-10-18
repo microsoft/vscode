@@ -30,7 +30,6 @@ import { ACTIVE_GROUP_TYPE, AUX_WINDOW_GROUP_TYPE, SIDE_GROUP_TYPE } from '../..
 import type { ICurrentPartialCommand } from '../../../../platform/terminal/common/capabilities/commandDetection/terminalCommand.js';
 import type { IXtermCore } from './xterm-private.js';
 import type { IMenu } from '../../../../platform/actions/common/actions.js';
-import type { Barrier } from '../../../../base/common/async.js';
 import type { IProgressState } from '@xterm/addon-progress';
 import type { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import type { TerminalEditorInput } from './terminalEditorInput.js';
@@ -1156,12 +1155,6 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	 * @returns Whether the context menu should be suppressed.
 	 */
 	handleMouseEvent(event: MouseEvent, contextMenu: IMenu): Promise<{ cancelContextMenu: boolean } | void>;
-
-	/**
-	 * Pause input events until the provided barrier is resolved.
-	 * @param barrier The barrier to wait for until input events can continue.
-	 */
-	pauseInputEvents(barrier: Barrier): void;
 }
 
 export const enum XtermTerminalConstants {
