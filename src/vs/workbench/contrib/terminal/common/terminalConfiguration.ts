@@ -11,7 +11,7 @@ import { localize } from '../../../../nls.js';
 import { ConfigurationScope, Extensions, IConfigurationRegistry, type IConfigurationPropertySchema } from '../../../../platform/configuration/common/configurationRegistry.js';
 import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { TerminalLocationString, TerminalSettingId } from '../../../../platform/terminal/common/terminal.js';
+import { TerminalLocationConfigValue, TerminalSettingId } from '../../../../platform/terminal/common/terminal.js';
 import { terminalColorSchema, terminalIconSchema } from '../../../../platform/terminal/common/terminalPlatformConfiguration.js';
 import { ConfigurationKeyValuePairs, IConfigurationMigrationRegistry, Extensions as WorkbenchExtensions } from '../../../common/configuration.js';
 import { terminalContribConfiguration, TerminalContribSettingId } from '../terminalContribExports.js';
@@ -115,7 +115,7 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	},
 	[TerminalSettingId.DefaultLocation]: {
 		type: 'string',
-		enum: [TerminalLocationString.Editor, TerminalLocationString.TerminalView],
+		enum: [TerminalLocationConfigValue.Editor, TerminalLocationConfigValue.TerminalView],
 		enumDescriptions: [
 			localize('terminal.integrated.defaultLocation.editor', "Create terminals in the editor"),
 			localize('terminal.integrated.defaultLocation.view', "Create terminals in the terminal view")
@@ -457,17 +457,6 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 			type: ['string', 'null']
 		},
 		default: {}
-	},
-	[TerminalSettingId.EnvironmentChangesIndicator]: {
-		markdownDescription: localize('terminal.integrated.environmentChangesIndicator', "Whether to display the environment changes indicator on each terminal which explains whether extensions have made, or want to make changes to the terminal's environment."),
-		type: 'string',
-		enum: ['off', 'on', 'warnonly'],
-		enumDescriptions: [
-			localize('terminal.integrated.environmentChangesIndicator.off', "Disable the indicator."),
-			localize('terminal.integrated.environmentChangesIndicator.on', "Enable the indicator."),
-			localize('terminal.integrated.environmentChangesIndicator.warnonly', "Only show the warning indicator when a terminal's environment is 'stale', not the information indicator that shows a terminal has had its environment modified by an extension."),
-		],
-		default: 'warnonly'
 	},
 	[TerminalSettingId.EnvironmentChangesRelaunch]: {
 		markdownDescription: localize('terminal.integrated.environmentChangesRelaunch', "Whether to relaunch terminals automatically if extensions want to contribute to their environment and have not been interacted with yet."),

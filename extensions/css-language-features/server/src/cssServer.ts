@@ -68,14 +68,15 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	// in the passed params the rootPath of the workspace plus the client capabilities.
 	connection.onInitialize((params: InitializeParams): InitializeResult => {
 
-		const initializationOptions = params.initializationOptions as any || {};
+		const initializationOptions = params.initializationOptions || {};
 
-		workspaceFolders = (<any>params).workspaceFolders;
-		if (!Array.isArray(workspaceFolders)) {
+		if (!Array.isArray(params.workspaceFolders)) {
 			workspaceFolders = [];
 			if (params.rootPath) {
 				workspaceFolders.push({ name: '', uri: URI.file(params.rootPath).toString(true) });
 			}
+		} else {
+			workspaceFolders = params.workspaceFolders;
 		}
 
 		requestService = getRequestService(initializationOptions?.handledSchemas || ['file'], connection, runtime);
@@ -166,10 +167,10 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 
 	// The settings have changed. Is send on server activation as well.
 	connection.onDidChangeConfiguration(change => {
-		updateConfiguration(change.settings as any);
+		updateConfiguration(change.settings as { [languageId: string]: LanguageSettings });
 	});
 
-	function updateConfiguration(settings: any) {
+	function updateConfiguration(settings: { [languageId: string]: LanguageSettings }) {
 		for (const languageId in languageServices) {
 			languageServices[languageId].configure(settings[languageId]);
 		}

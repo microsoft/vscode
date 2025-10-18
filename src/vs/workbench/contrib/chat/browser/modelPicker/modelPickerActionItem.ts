@@ -20,6 +20,7 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { DEFAULT_MODEL_PICKER_CATEGORY } from '../../common/modelPicker/modelPickerWidget.js';
 import { ManageModelsAction } from '../actions/manageModelsActions.js';
 import { IActionProvider } from '../../../../../base/browser/ui/dropdown/dropdown.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 
 export interface IModelPickerDelegate {
 	readonly onDidChangeModel: Event<ILanguageModelChatMetadataAndIdentifier>;
@@ -28,7 +29,20 @@ export interface IModelPickerDelegate {
 	getModels(): ILanguageModelChatMetadataAndIdentifier[];
 }
 
-function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate): IActionWidgetDropdownActionProvider {
+type ChatModelChangeClassification = {
+	owner: 'lramos15';
+	comment: 'Reporting when the model picker is switched';
+	fromModel?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The previous chat model' };
+	toModel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The new chat model' };
+};
+
+type ChatModelChangeEvent = {
+	fromModel: string | undefined;
+	toModel: string;
+};
+
+
+function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate, telemetryService: ITelemetryService): IActionWidgetDropdownActionProvider {
 	return {
 		getActions: () => {
 			return delegate.getModels().map(model => {
@@ -43,6 +57,10 @@ function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate): I
 					tooltip: model.metadata.tooltip ?? model.metadata.name,
 					label: model.metadata.name,
 					run: () => {
+						telemetryService.publicLog2<ChatModelChangeEvent, ChatModelChangeClassification>('chat.modelChange', {
+							fromModel: delegate.getCurrentModel()?.identifier,
+							toModel: model.identifier
+						});
 						delegate.setModel(model);
 					}
 				} satisfies IActionWidgetDropdownAction;
@@ -75,8 +93,8 @@ function getModelPickerActionBarActionProvider(commandService: ICommandService, 
 				});
 			}
 
-			// Add upgrade option if entitlement is free
-			if (chatEntitlementService.entitlement === ChatEntitlement.Free) {
+			// Add sign-in / upgrade option if entitlement is anonymous / free
+			if (chatEntitlementService.anonymous || chatEntitlementService.entitlement === ChatEntitlement.Free) {
 				additionalActions.push({
 					id: 'moreModels',
 					label: localize('chat.moreModels', "Add Premium Models"),
@@ -84,7 +102,7 @@ function getModelPickerActionBarActionProvider(commandService: ICommandService, 
 					tooltip: localize('chat.moreModels.tooltip', "Add premium models"),
 					class: undefined,
 					run: () => {
-						const commandId = 'workbench.action.chat.upgradePlan';
+						const commandId = chatEntitlementService.anonymous ? 'workbench.action.chat.triggerSetup' : 'workbench.action.chat.upgradePlan';
 						commandService.executeCommand(commandId);
 					}
 				});
@@ -102,13 +120,15 @@ function getModelPickerActionBarActionProvider(commandService: ICommandService, 
 export class ModelPickerActionItem extends ActionWidgetDropdownActionViewItem {
 	constructor(
 		action: IAction,
-		private currentModel: ILanguageModelChatMetadataAndIdentifier | undefined,
+		protected currentModel: ILanguageModelChatMetadataAndIdentifier | undefined,
+		widgetOptions: Omit<IActionWidgetDropdownOptions, 'label' | 'labelRenderer'> | undefined,
 		delegate: IModelPickerDelegate,
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService commandService: ICommandService,
 		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
 		@IKeybindingService keybindingService: IKeybindingService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		// Modify the original action with a different label and make it show the current model
 		const actionWithLabel: IAction = {
@@ -119,11 +139,11 @@ export class ModelPickerActionItem extends ActionWidgetDropdownActionViewItem {
 		};
 
 		const modelPickerActionWidgetOptions: Omit<IActionWidgetDropdownOptions, 'label' | 'labelRenderer'> = {
-			actionProvider: modelDelegateToWidgetActionsProvider(delegate),
+			actionProvider: modelDelegateToWidgetActionsProvider(delegate, telemetryService),
 			actionBarActionProvider: getModelPickerActionBarActionProvider(commandService, chatEntitlementService)
 		};
 
-		super(actionWithLabel, modelPickerActionWidgetOptions, actionWidgetService, keybindingService, contextKeyService);
+		super(actionWithLabel, widgetOptions ?? modelPickerActionWidgetOptions, actionWidgetService, keybindingService, contextKeyService);
 
 		// Listen for model changes from the delegate
 		this._register(delegate.onDidChangeModel(model => {

@@ -178,6 +178,7 @@ suite('chat', () => {
 
 		await commands.executeCommand('workbench.action.chat.newChat');
 		const result = await commands.executeCommand('workbench.action.chat.open', { query: 'hello', blockOnResponse: true });
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.strictEqual((result as any).errorDetails.code, 'rate_limited');
 	});
 

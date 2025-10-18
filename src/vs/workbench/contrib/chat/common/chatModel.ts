@@ -28,7 +28,7 @@ import { migrateLegacyTerminalToolSpecificData } from './chat.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, reviveSerializedAgent } from './chatAgents.js';
 import { IChatEditingService, IChatEditingSession } from './chatEditingService.js';
 import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from './chatParserTypes.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatResponseClearToPreviousToolInvocationReason, IChatAgentMarkdownContentWithVulnerability, IChatClearToPreviousToolInvocation, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatEditingSessionAction, IChatElicitationRequest, IChatExtensionsContent, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatMcpServersInteractionRequired, IChatMultiDiffData, IChatNotebookEdit, IChatPrepareToolInvocationPart, IChatProgress, IChatProgressMessage, IChatPullRequestContent, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsedContext, IChatWarningMessage, isIUsedContext } from './chatService.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatResponseClearToPreviousToolInvocationReason, IChatAgentMarkdownContentWithVulnerability, IChatClearToPreviousToolInvocation, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatEditingSessionAction, IChatElicitationRequest, IChatExtensionsContent, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatMcpServersStarting, IChatMultiDiffData, IChatNotebookEdit, IChatPrepareToolInvocationPart, IChatProgress, IChatProgressMessage, IChatPullRequestContent, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatSessionContext, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsedContext, IChatWarningMessage, isIUsedContext } from './chatService.js';
 import { ChatRequestToolReferenceEntry, IChatRequestVariableEntry } from './chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind } from './constants.js';
 
@@ -139,7 +139,7 @@ export type IChatProgressResponseContent =
 	| IChatPrepareToolInvocationPart
 	| IChatElicitationRequest
 	| IChatClearToPreviousToolInvocation
-	| IChatMcpServersInteractionRequired;
+	| IChatMcpServersStarting;
 
 const nonHistoryKinds = new Set(['toolInvocation', 'toolInvocationSerialized', 'undoStop', 'prepareToolInvocation']);
 function isChatProgressHistoryResponseContent(content: IChatProgressResponseContent): content is IChatProgressHistoryResponseContent {
@@ -395,7 +395,7 @@ class AbstractResponse implements IResponse {
 				case 'elicitation':
 				case 'thinking':
 				case 'multiDiffData':
-				case 'mcpServersInteractionRequired':
+				case 'mcpServersStarting':
 					// Ignore
 					continue;
 				case 'toolInvocation':
@@ -1056,6 +1056,7 @@ export interface IChatModel extends IDisposable {
 	readonly sessionId: string;
 	readonly initialLocation: ChatAgentLocation;
 	readonly title: string;
+	readonly hasCustomTitle: boolean;
 	readonly requestInProgress: boolean;
 	readonly requestInProgressObs: IObservable<boolean>;
 	readonly inputPlaceholder?: string;
@@ -1077,6 +1078,8 @@ export interface IChatModel extends IDisposable {
 	setCustomTitle(title: string): void;
 	toExport(): IExportableChatData;
 	toJSON(): ISerializableChatData;
+	readonly contributedChatSession: IChatSessionContext | undefined;
+	setContributedChatSession(session: IChatSessionContext | undefined): void;
 }
 
 export interface ISerializableChatsData {
@@ -1210,6 +1213,7 @@ function normalizeOldFields(raw: ISerializableChatDataIn): void {
 		}
 	}
 
+	// eslint-disable-next-line local/code-no-any-casts
 	if ((raw.initialLocation as any) === 'editing-session') {
 		raw.initialLocation = ChatAgentLocation.Chat;
 	}
@@ -1342,6 +1346,14 @@ export class ChatModel extends Disposable implements IChatModel {
 
 	private _requests: ChatRequestModel[];
 
+	private _contributedChatSession: IChatSessionContext | undefined;
+	public get contributedChatSession(): IChatSessionContext | undefined {
+		return this._contributedChatSession;
+	}
+	public setContributedChatSession(session: IChatSessionContext | undefined) {
+		this._contributedChatSession = session;
+	}
+
 	// TODO to be clear, this is not the same as the id from the session object, which belongs to the provider.
 	// It's easier to be able to identify this model before its async initialization is complete
 	private _sessionId: string;
@@ -1416,6 +1428,10 @@ export class ChatModel extends Disposable implements IChatModel {
 		return this._customTitle || ChatModel.getDefaultTitle(this._requests);
 	}
 
+	get hasCustomTitle(): boolean {
+		return this._customTitle !== undefined;
+	}
+
 	private _editingSession: ObservablePromise<IChatEditingSession> | undefined;
 	get editingSessionObs(): ObservablePromise<IChatEditingSession> | undefined {
 		return this._editingSession;
@@ -1435,9 +1451,14 @@ export class ChatModel extends Disposable implements IChatModel {
 		return this._initialLocation;
 	}
 
+	private readonly _canUseTools: boolean = true;
+	get canUseTools(): boolean {
+		return this._canUseTools;
+	}
+
 	constructor(
 		initialData: ISerializableChatData | IExportableChatData | undefined,
-		initialModelProps: { initialLocation: ChatAgentLocation; inputType?: string },
+		initialModelProps: { initialLocation: ChatAgentLocation; canUseTools: boolean; inputType?: string },
 		@ILogService private readonly logService: ILogService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IChatEditingService private readonly chatEditingService: IChatEditingService,
@@ -1463,6 +1484,7 @@ export class ChatModel extends Disposable implements IChatModel {
 
 		this._inputType = initialData?.inputType ?? initialModelProps.inputType;
 		this._initialLocation = initialData?.initialLocation ?? initialModelProps.initialLocation;
+		this._canUseTools = initialModelProps.canUseTools;
 
 		const lastResponse = observableFromEvent(this, this.onDidChange, () => this._requests.at(-1)?.response);
 
@@ -1522,6 +1544,7 @@ export class ChatModel extends Disposable implements IChatModel {
 					modelId: raw.modelId,
 				});
 				request.shouldBeRemovedOnSend = raw.isHidden ? { requestId: raw.requestId } : raw.shouldBeRemovedOnSend;
+				// eslint-disable-next-line local/code-no-any-casts
 				if (raw.response || raw.result || (raw as any).responseErrorDetails) {
 					const agent = (raw.agent && 'metadata' in raw.agent) ? // Check for the new format, ignore entries in the old format
 						reviveSerializedAgent(raw.agent) : undefined;
@@ -1850,7 +1873,10 @@ export class ChatModel extends Disposable implements IChatModel {
 									id: item.id,
 									metadata: item.metadata
 								};
+							} else if (item.kind === 'confirmation') {
+								return { ...item, isLive: false };
 							} else {
+								// eslint-disable-next-line local/code-no-any-casts
 								return item as any; // TODO
 							}
 						})
@@ -1966,15 +1992,15 @@ export interface IChatAgentEditedFileEvent {
 export namespace ChatResponseResource {
 	export const scheme = 'vscode-chat-response-resource';
 
-	export function createUri(sessionId: string, requestId: string, toolCallId: string, index: number, basename?: string): URI {
+	export function createUri(sessionId: string, toolCallId: string, index: number, basename?: string): URI {
 		return URI.from({
 			scheme: ChatResponseResource.scheme,
 			authority: sessionId,
-			path: `/tool/${requestId}/${toolCallId}/${index}` + (basename ? `/${basename}` : ''),
+			path: `/tool/${toolCallId}/${index}` + (basename ? `/${basename}` : ''),
 		});
 	}
 
-	export function parseUri(uri: URI): undefined | { sessionId: string; requestId: string; toolCallId: string; index: number } {
+	export function parseUri(uri: URI): undefined | { sessionId: string; toolCallId: string; index: number } {
 		if (uri.scheme !== ChatResponseResource.scheme) {
 			return undefined;
 		}
@@ -1984,14 +2010,13 @@ export namespace ChatResponseResource {
 			return undefined;
 		}
 
-		const [, kind, requestId, toolCallId, index] = parts;
+		const [, kind, toolCallId, index] = parts;
 		if (kind !== 'tool') {
 			return undefined;
 		}
 
 		return {
 			sessionId: uri.authority,
-			requestId: requestId,
 			toolCallId: toolCallId,
 			index: Number(index),
 		};

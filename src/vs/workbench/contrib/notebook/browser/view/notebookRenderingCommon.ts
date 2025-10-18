@@ -32,11 +32,11 @@ export interface INotebookCellList extends ICoordinatesConverter {
 	element(index: number): ICellViewModel | undefined;
 	elementAt(position: number): ICellViewModel | undefined;
 	elementHeight(element: ICellViewModel): number;
-	onWillScroll: Event<ScrollEvent>;
-	onDidScroll: Event<ScrollEvent>;
-	onDidChangeFocus: Event<IListEvent<ICellViewModel>>;
-	onDidChangeContentHeight: Event<number>;
-	onDidChangeVisibleRanges: Event<void>;
+	readonly onWillScroll: Event<ScrollEvent>;
+	readonly onDidScroll: Event<ScrollEvent>;
+	readonly onDidChangeFocus: Event<IListEvent<ICellViewModel>>;
+	readonly onDidChangeContentHeight: Event<number>;
+	readonly onDidChangeVisibleRanges: Event<void>;
 	visibleRanges: ICellRange[];
 	scrollTop: number;
 	scrollHeight: number;

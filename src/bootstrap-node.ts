@@ -83,7 +83,7 @@ export function removeGlobalNodeJsModuleLookupPaths(): void {
 
 	const originalResolveLookupPaths = Module._resolveLookupPaths;
 
-	Module._resolveLookupPaths = function (moduleName: string, parent: any): string[] {
+	Module._resolveLookupPaths = function (moduleName: string, parent: unknown): string[] {
 		const paths = originalResolveLookupPaths(moduleName, parent);
 		if (Array.isArray(paths)) {
 			let commonSuffixLength = 0;

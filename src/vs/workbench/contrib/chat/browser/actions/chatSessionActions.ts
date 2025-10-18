@@ -28,24 +28,14 @@ import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatService } from '../../common/chatService.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ChatSessionUri } from '../../common/chatUri.js';
-import { ChatConfiguration } from '../../common/constants.js';
+import { ChatConfiguration, VIEWLET_ID } from '../../common/constants.js';
 import { ChatViewId, IChatWidgetService } from '../chat.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { ChatSessionItemWithProvider, findExistingChatEditorByUri, isLocalChatSessionItem } from '../chatSessions/common.js';
 import { ChatViewPane } from '../chatViewPane.js';
-import { CHAT_CATEGORY } from './chatActions.js';
+import { ACTION_ID_OPEN_CHAT, CHAT_CATEGORY } from './chatActions.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { VIEWLET_ID } from '../chatSessions/view/chatSessionsView.js';
-
-export interface IChatSessionContext {
-	sessionId: string;
-	sessionType: 'editor' | 'widget';
-	currentTitle: string;
-	editorInput?: any;
-	editorGroup?: any;
-	widget?: any;
-}
 
 interface IMarshalledChatSessionContext {
 	$mid: MarshalledId.ChatSessionContext;
@@ -177,7 +167,7 @@ export class OpenChatSessionInNewWindowAction extends Action2 {
 	constructor() {
 		super({
 			id: OpenChatSessionInNewWindowAction.id,
-			title: localize('chat.openSessionInNewWindow.label', "Open Chat in New Window"),
+			title: localize('chat.openSessionInNewWindow.label', "Move Chat into New Window"),
 			category: CHAT_CATEGORY,
 			f1: false,
 		});
@@ -234,7 +224,7 @@ export class OpenChatSessionInNewEditorGroupAction extends Action2 {
 	constructor() {
 		super({
 			id: OpenChatSessionInNewEditorGroupAction.id,
-			title: localize('chat.openSessionInNewEditorGroup.label', "Open Chat to the Side"),
+			title: localize('chat.openSessionInNewEditorGroup.label', "Move Chat to the Side"),
 			category: CHAT_CATEGORY,
 			f1: false,
 		});
@@ -291,7 +281,7 @@ export class OpenChatSessionInSidebarAction extends Action2 {
 	constructor() {
 		super({
 			id: OpenChatSessionInSidebarAction.id,
-			title: localize('chat.openSessionInSidebar.label', "Open Chat in Sidebar"),
+			title: localize('chat.openSessionInSidebar.label', "Move Chat into Side Bar"),
 			category: CHAT_CATEGORY,
 			f1: false,
 		});
@@ -492,7 +482,7 @@ MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, {
 
 MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 	command: {
-		id: 'workbench.action.openChat',
+		id: ACTION_ID_OPEN_CHAT,
 		title: nls.localize2('interactiveSession.open', "New Chat Editor"),
 		icon: Codicon.plus
 	},

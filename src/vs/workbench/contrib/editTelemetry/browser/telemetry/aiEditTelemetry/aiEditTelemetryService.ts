@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ProviderId } from '../../../../../../editor/common/languages.js';
 import { EditDeltaInfo, EditSuggestionId } from '../../../../../../editor/common/textModelEditSource.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 
@@ -19,8 +20,9 @@ export interface IAiEditTelemetryService {
 export interface IEditTelemetryBaseData {
 	suggestionId: EditSuggestionId | undefined;
 
-	presentation: 'codeBlock' | 'highlightedEdit' | 'inlineSuggestion';
+	presentation: 'codeBlock' | 'highlightedEdit' | 'inlineCompletion' | 'nextEditSuggestion';
 	feature: 'sideBarChat' | 'inlineChat' | 'inlineSuggestion' | string | undefined;
+	source: ProviderId | undefined;
 
 	languageId: string | undefined;
 

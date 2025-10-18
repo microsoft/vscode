@@ -9,14 +9,15 @@ import { compare } from '../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { isObject } from '../../../../base/common/types.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
+import { IQuickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { IChatRequestVariableEntry } from '../common/chatVariableEntries.js';
 import { IChatWidget } from './chat.js';
 
 
-export interface IChatContextPickerPickItem {
+export interface IChatContextPickerPickItem extends Partial<IQuickItem> {
 	label: string;
 	iconClass?: string;
+	iconClasses?: readonly string[];
 	description?: string;
 	detail?: string;
 	disabled?: boolean;

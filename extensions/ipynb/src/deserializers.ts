@@ -20,6 +20,7 @@ const jupyterLanguageToMonacoLanguageMapping = new Map([
 export function getPreferredLanguage(metadata?: nbformat.INotebookMetadata) {
 	const jupyterLanguage =
 		metadata?.language_info?.name ||
+		// eslint-disable-next-line local/code-no-any-casts
 		(metadata?.kernelspec as any)?.language;
 
 	// Default to python language only if the Python extension is installed.
@@ -290,6 +291,7 @@ export function jupyterCellOutputToCellOutput(output: nbformat.IOutput): Noteboo
 	if (fn) {
 		result = fn(output);
 	} else {
+		// eslint-disable-next-line local/code-no-any-casts
 		result = translateDisplayDataOutput(output as any);
 	}
 	return result;

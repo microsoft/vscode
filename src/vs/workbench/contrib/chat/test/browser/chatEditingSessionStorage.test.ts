@@ -38,6 +38,7 @@ suite('ChatEditingSessionStorage', () => {
 			fs,
 			TestEnvironmentService,
 			new NullLogService(),
+			// eslint-disable-next-line local/code-no-any-casts
 			{ getWorkspace: () => ({ id: 'workspaceId' }) } as any,
 		);
 	});

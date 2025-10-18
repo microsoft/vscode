@@ -82,6 +82,7 @@ if (-not $env:VSCODE_PYTHON_AUTOACTIVATE_GUARD) {
 
 		try {
 			Invoke-Expression $activateScript
+			$Global:__VSCodeState.OriginalPrompt = $function:Prompt
 		}
 		catch {
 			$activationError = $_
@@ -254,4 +255,8 @@ function Set-MappedKeyHandlers {
 	Set-MappedKeyHandler -Chord Alt+Spacebar -Sequence 'F12,b'
 	Set-MappedKeyHandler -Chord Shift+Enter -Sequence 'F12,c'
 	Set-MappedKeyHandler -Chord Shift+End -Sequence 'F12,d'
+}
+
+if ($Global:__VSCodeState.HasPSReadLine) {
+	Set-MappedKeyHandlers
 }
