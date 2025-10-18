@@ -6,6 +6,7 @@
 import { createCancelablePromise, CancelablePromise, RunOnceScheduler } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { isUNC } from '../../../../base/common/extpath.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -248,7 +249,7 @@ export class LinkDetector extends Disposable implements IEditorContribution {
 						}
 						else {
 							// Handle Windows UNC paths
-							if (uri.startsWith('file:///\\\\') && platform.isWindows) {
+							if (isUNC(uri.replace('file:///', ''))) {
 								uri = uri.replace('file:///\\\\', 'file://').replaceAll('\\', '/');
 							}
 						}
