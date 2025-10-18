@@ -19,7 +19,7 @@ import { localize } from '../../../../nls.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
-import type { IHoverOptions, IHoverTarget, IHoverWidget } from '../../../../base/browser/ui/hover/hover.js';
+import { HoverStyle, type IHoverOptions, type IHoverTarget, type IHoverWidget } from '../../../../base/browser/ui/hover/hover.js';
 import { TimeoutTimer } from '../../../../base/common/async.js';
 import { isNumber } from '../../../../base/common/types.js';
 
@@ -105,6 +105,24 @@ export class HoverWidget extends Widget implements IHoverWidget {
 		this._linkHandler = options.linkHandler;
 
 		this._target = 'targetElements' in options.target ? options.target : new ElementHoverTarget(options.target);
+
+		if (options.style) {
+			switch (options.style) {
+				case HoverStyle.Pointer: {
+					options.appearance ??= {};
+					options.appearance.compact ??= true;
+					options.appearance.showPointer ??= true;
+					options.position ??= {};
+					options.position.hoverPosition ??= HoverPosition.BELOW;
+					break;
+				}
+				case HoverStyle.Mouse: {
+					options.appearance ??= {};
+					options.appearance.compact ??= true;
+					break;
+				}
+			}
+		}
 
 		this._hoverPointer = options.appearance?.showPointer ? $('div.workbench-hover-pointer') : undefined;
 		this._hover = this._register(new BaseHoverWidget(!options.appearance?.skipFadeInAnimation));
