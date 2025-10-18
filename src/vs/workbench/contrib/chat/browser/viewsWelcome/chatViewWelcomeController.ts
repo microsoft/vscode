@@ -7,7 +7,10 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { Action, IAction } from '../../../../../base/common/actions.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
@@ -17,6 +20,7 @@ import { IRenderedMarkdown } from '../../../../../base/browser/markdownRenderer.
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
@@ -121,6 +125,7 @@ export interface IChatSuggestedPrompts {
 	readonly label: string;
 	readonly description?: string;
 	readonly prompt: string;
+	readonly uri?: URI;
 }
 
 export interface IChatViewWelcomeRenderOptions {
@@ -141,6 +146,7 @@ export class ChatViewWelcomePart extends Disposable {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) {
 		super();
 
@@ -235,15 +241,36 @@ export class ChatViewWelcomePart extends Disposable {
 							this.chatWidgetService.lastFocusedWidget.setInput(prompt.prompt);
 						}
 					};
+					// Add context menu handler
+					this._register(dom.addDisposableListener(promptElement, dom.EventType.CONTEXT_MENU, (e: MouseEvent) => {
+						e.preventDefault();
+						e.stopImmediatePropagation();
+
+						const actions = this.getPromptContextMenuActions(prompt);
+
+						this.contextMenuService.showContextMenu({
+							getAnchor: () => ({ x: e.clientX, y: e.clientY }),
+							getActions: () => actions,
+						});
+					}));
 					// Add click handler
 					this._register(dom.addDisposableListener(promptElement, dom.EventType.CLICK, executePrompt));
-					// Add keyboard handler for Enter and Space keys
+					// Add keyboard handler
 					this._register(dom.addDisposableListener(promptElement, dom.EventType.KEY_DOWN, (e) => {
 						const event = new StandardKeyboardEvent(e);
 						if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 							e.preventDefault();
 							e.stopPropagation();
 							executePrompt();
+						}
+						else if (event.equals(KeyCode.F10) && event.shiftKey) {
+							e.preventDefault();
+							e.stopPropagation();
+							const actions = this.getPromptContextMenuActions(prompt);
+							this.contextMenuService.showContextMenu({
+								getAnchor: () => promptElement,
+								getActions: () => actions,
+							});
 						}
 					}));
 				}
@@ -269,6 +296,27 @@ export class ChatViewWelcomePart extends Disposable {
 		} catch (err) {
 			this.logService.error('Failed to render chat view welcome content', err);
 		}
+	}
+
+	private getPromptContextMenuActions(prompt: IChatSuggestedPrompts): IAction[] {
+		const actions: IAction[] = [];
+		if (prompt.uri) {
+			const uri = prompt.uri;
+			actions.push(new Action(
+				'chat.editPromptFile',
+				localize('editPromptFile', "Edit Prompt File"),
+				ThemeIcon.asClassName(Codicon.goToFile),
+				true,
+				async () => {
+					try {
+						await this.openerService.open(uri);
+					} catch (error) {
+						this.logService.error('Failed to open prompt file:', error);
+					}
+				}
+			));
+		}
+		return actions;
 	}
 
 	public needsRerender(content: IChatViewWelcomeContent): boolean {
