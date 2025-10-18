@@ -192,6 +192,10 @@ export class HoverService extends Disposable implements IHoverService {
 	private _createHover(options: IHoverOptions, skipLastFocusedUpdate?: boolean): HoverWidget | undefined {
 		this._currentDelayedHover = undefined;
 
+		if (options.content === '') {
+			return undefined;
+		}
+
 		if (this._currentHover?.isLocked) {
 			return undefined;
 		}
