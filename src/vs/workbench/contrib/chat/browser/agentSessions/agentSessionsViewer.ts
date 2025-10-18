@@ -17,6 +17,7 @@ import { IAgentSessionViewModel, IAgentSessionsViewModel, isAgentSession, isAgen
 import { IconLabel } from '../../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { fromNow } from '../../../../../base/common/date.js';
 
 export class AgentSessionsListDelegate implements IListVirtualDelegate<IAgentSessionViewModel> {
 
@@ -41,9 +42,9 @@ interface IAgentSessionItemTemplate {
 
 	readonly title: IconLabel;
 	readonly icon: HTMLElement;
-	readonly timestamp: HTMLElement;
 
 	readonly description: HTMLElement;
+	readonly timestamp: HTMLElement;
 
 	readonly elementDisposables: DisposableStore;
 	readonly disposables: IDisposable;
@@ -62,31 +63,34 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 
 		const element = append(container, $('.agent-session-item'));
 
-		// Title
-		const titleRow = append(element, $('.agent-session-title-row'));
-		const icon = append(titleRow, $('.agent-session-icon'));
+		// Status Column
+		const statusCol = append(element, $('.agent-session-status-col'));
+		const icon = append(statusCol, $('.agent-session-icon'));
 
+		// Main Column
+		const mainCol = append(element, $('.agent-session-main-col'));
+
+		// Title
+		const titleRow = append(mainCol, $('.agent-session-title-row'));
 		const title = disposables.add(new IconLabel(titleRow, { supportHighlights: true, supportIcons: true }));
 
-		const timestampContainer = append(titleRow, $('.agent-session-timestamp-container'));
-		const timestamp = append(timestampContainer, $('.agent-session-timestamp'));
-
 		// Details
-		const detailsRow = append(element, $('.agent-session-details-row'));
+		const detailsRow = append(mainCol, $('.agent-session-details-row'));
 		const description = append(detailsRow, $('.agent-session-description'));
+		const timestamp = append(detailsRow, $('.agent-session-timestamp'));
 
-		return { element, title, icon, timestamp, description, elementDisposables, disposables };
+		return { element, title, icon, description, timestamp, elementDisposables, disposables };
 	}
 
 	renderElement(session: ITreeNode<IAgentSessionViewModel, void>, index: number, template: IAgentSessionItemTemplate, details?: ITreeElementRenderDetails): void {
 		template.elementDisposables.clear();
 
+		template.icon.className = `agent-session-icon ${ThemeIcon.asClassName(Codicon.circleFilled)}`;
+
 		template.title.setLabel(session.element.title);
 
-		template.icon.className = `agent-session-icon ${ThemeIcon.asClassName(Codicon.circle)}`;
-
-		template.timestamp.textContent = new Date(session.element.timestamp).toLocaleString();
 		template.description.textContent = session.element.description;
+		template.timestamp.textContent = fromNow(session.element.timing.start, true, false, true);
 	}
 
 	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<IAgentSessionViewModel>, void>, index: number, templateData: IAgentSessionItemTemplate, details?: ITreeElementRenderDetails): void {
