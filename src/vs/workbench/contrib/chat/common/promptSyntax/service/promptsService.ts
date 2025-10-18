@@ -12,7 +12,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { PromptsType } from '../promptTypes.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IChatModeInstructions } from '../../chatModes.js';
-import { ParsedPromptFile } from './newPromptsParser.js';
+import { IHandOff, ParsedPromptFile } from './newPromptsParser.js';
 import { IExtensionDescription } from '../../../../../../platform/extensions/common/extensions.js';
 
 /**
@@ -106,6 +106,11 @@ export interface ICustomChatMode {
 	 * Contents of the custom chat mode file body and other mode instructions.
 	 */
 	readonly modeInstructions: IChatModeInstructions;
+
+	/**
+	 * Hand-offs defined in the custom chat mode file.
+	 */
+	readonly handOffs?: readonly IHandOff[];
 }
 
 /**

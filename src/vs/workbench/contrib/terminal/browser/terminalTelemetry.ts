@@ -109,7 +109,7 @@ export class TerminalTelemetryContribution extends Disposable implements IWorkbe
 					: 'unknown'),
 
 			shellType: new TelemetryTrustedValue(getSanitizedShellType(slc)),
-			promptType: new TelemetryTrustedValue(commandDetection?.promptType),
+			promptType: new TelemetryTrustedValue(instance.capabilities.get(TerminalCapability.PromptTypeDetection)?.promptType),
 
 			isCustomPtyImplementation: !!slc.customPtyImplementation,
 			isExtensionOwnedTerminal: !!slc.isExtensionOwnedTerminal,

@@ -82,7 +82,7 @@
     "@types/node": "^22.18.10"
   },
   "dependencies": {
-    "dompurify": "^3.2.6",
+    "dompurify": "^3.2.7",
     "mermaid": "^11.11.0"
   }
 }
