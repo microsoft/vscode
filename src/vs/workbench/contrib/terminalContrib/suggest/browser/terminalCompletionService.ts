@@ -55,7 +55,7 @@ export class TerminalCompletionList<ITerminalCompletion> {
 
 export interface TerminalCompletionResourceOptions {
 	showFiles?: boolean;
-	showFolders?: boolean;
+	showDirectories?: boolean;
 	globPattern?: string | IRelativePattern;
 	cwd: UriComponents;
 	pathSeparator: string;
@@ -65,7 +65,7 @@ export interface TerminalCompletionResourceOptions {
 export interface ITerminalCompletionProvider {
 	id: string;
 	shellTypes?: TerminalShellType[];
-	provideCompletions(value: string, cursorPosition: number, allowFallbackCompletions: boolean, token: CancellationToken): Promise<ITerminalCompletion[] | TerminalCompletionList<ITerminalCompletion> | undefined>;
+	provideCompletions(value: string, cursorPosition: number, token: CancellationToken): Promise<ITerminalCompletion[] | TerminalCompletionList<ITerminalCompletion> | undefined>;
 	triggerCharacters?: string[];
 	isBuiltin?: boolean;
 }
@@ -190,7 +190,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			let completions;
 			try {
 				completions = await Promise.race([
-					provider.provideCompletions(promptValue, cursorPosition, allowFallbackCompletions, token).then(result => {
+					provider.provideCompletions(promptValue, cursorPosition, token).then(result => {
 						this._logService.trace(`TerminalCompletionService#_collectCompletions provider ${provider.id} finished`);
 						return result;
 					}),
@@ -211,7 +211,8 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			this._logService.trace(`TerminalCompletionService#_collectCompletions amend ${completionItems.length} completion items`);
 			if (shellType === GeneralShellType.PowerShell) {
 				for (const completion of completionItems) {
-					completion.isFileOverride ??= completion.kind === TerminalCompletionItemKind.Method && completion.replacementIndex === 0;
+					const start = completion.replacementRange ? completion.replacementRange[0] : 0;
+					completion.isFileOverride ??= completion.kind === TerminalCompletionItemKind.Method && start === 0;
 				}
 			}
 			if (provider.isBuiltin) {
@@ -256,11 +257,11 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 
 		// Files requested implies folders requested since the file could be in any folder. We could
 		// provide diagnostics when a folder is provided where a file is expected.
-		const showFolders = (resourceOptions.showFolders || resourceOptions.showFiles) ?? false;
+		const showDirectories = (resourceOptions.showDirectories || resourceOptions.showFiles) ?? false;
 		const showFiles = resourceOptions.showFiles ?? false;
 		const globPattern = resourceOptions.globPattern ?? undefined;
 
-		if (!showFolders && !showFiles) {
+		if (!showDirectories && !showFiles) {
 			return;
 		}
 
@@ -350,8 +351,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				provider,
 				kind: TerminalCompletionItemKind.Folder,
 				detail: lastWordFolderResource,
-				replacementIndex: cursorPosition - lastWord.length,
-				replacementLength: lastWord.length
+				replacementRange: [cursorPosition - lastWord.length, cursorPosition]
 			});
 			return resourceCompletions;
 		}
@@ -374,7 +374,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		// - (tilde)    `~/|`     -> `~/`
 		// - (tilde)    `~/src/|` -> `~/src/`
 		this._logService.trace(`TerminalCompletionService#resolveResources cwd`);
-		if (showFolders) {
+		if (showDirectories) {
 			let label: string;
 			switch (type) {
 				case 'tilde': {
@@ -398,8 +398,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				provider,
 				kind: TerminalCompletionItemKind.Folder,
 				detail: getFriendlyPath(this._labelService, lastWordFolderResource, resourceOptions.pathSeparator, TerminalCompletionItemKind.Folder, shellType),
-				replacementIndex: cursorPosition - lastWord.length,
-				replacementLength: lastWord.length
+				replacementRange: [cursorPosition - lastWord.length, cursorPosition]
 			});
 		}
 
@@ -412,7 +411,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		await Promise.all(stat.children.map(child => (async () => {
 			let kind: TerminalCompletionItemKind | undefined;
 			let detail: string | undefined = undefined;
-			if (showFolders && child.isDirectory) {
+			if (showDirectories && child.isDirectory) {
 				if (child.isSymbolicLink) {
 					kind = TerminalCompletionItemKind.SymbolicLinkFolder;
 				} else {
@@ -468,8 +467,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				provider,
 				kind,
 				detail: detail ?? getFriendlyPath(this._labelService, child.resource, resourceOptions.pathSeparator, kind, shellType),
-				replacementIndex: cursorPosition - lastWord.length,
-				replacementLength: lastWord.length
+				replacementRange: [cursorPosition - lastWord.length, cursorPosition]
 			});
 		})()));
 
@@ -477,7 +475,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		//
 		// - (relative) `|` -> `/foo/vscode` (CDPATH has /foo which contains vscode folder)
 		this._logService.trace(`TerminalCompletionService#resolveResources CDPATH`);
-		if (type === 'relative' && showFolders) {
+		if (type === 'relative' && showDirectories) {
 			if (promptValue.startsWith('cd ')) {
 				const config = this._configurationService.getValue(TerminalSuggestSettingId.CdPath);
 				if (config === 'absolute' || config === 'relative') {
@@ -507,8 +505,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 											provider,
 											kind,
 											detail,
-											replacementIndex: cursorPosition - lastWord.length,
-											replacementLength: lastWord.length
+											replacementRange: [cursorPosition - lastWord.length, cursorPosition]
 										});
 									}
 								}
@@ -524,7 +521,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		// - (relative) `|` -> `../`
 		// - (relative) `./src/|` -> `./src/../`
 		this._logService.trace(`TerminalCompletionService#resolveResources parent dir`);
-		if (type === 'relative' && showFolders) {
+		if (type === 'relative' && showDirectories) {
 			let label = `..${resourceOptions.pathSeparator}`;
 			if (lastWordFolder.length > 0) {
 				label = addPathRelativePrefix(lastWordFolder + label, resourceOptions, lastWordFolderHasDotPrefix);
@@ -535,8 +532,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				provider,
 				kind: TerminalCompletionItemKind.Folder,
 				detail: getFriendlyPath(this._labelService, parentDir, resourceOptions.pathSeparator, TerminalCompletionItemKind.Folder, shellType),
-				replacementIndex: cursorPosition - lastWord.length,
-				replacementLength: lastWord.length
+				replacementRange: [cursorPosition - lastWord.length, cursorPosition]
 			});
 		}
 
@@ -561,8 +557,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				provider,
 				kind: TerminalCompletionItemKind.Folder,
 				detail: typeof homeResource === 'string' ? homeResource : getFriendlyPath(this._labelService, homeResource, resourceOptions.pathSeparator, TerminalCompletionItemKind.Folder, shellType),
-				replacementIndex: cursorPosition - lastWord.length,
-				replacementLength: lastWord.length
+				replacementRange: [cursorPosition - lastWord.length, cursorPosition]
 			});
 		}
 
