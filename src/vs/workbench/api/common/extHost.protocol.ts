@@ -98,6 +98,11 @@ import { IExtHostDocumentSaveDelegate } from './extHostDocumentData.js';
 import { TerminalShellExecutionCommandLineConfidence } from './extHostTypes.js';
 import * as tasks from './shared/tasks.js';
 
+export type IconPathDto =
+	| UriComponents
+	| { light: UriComponents; dark: UriComponents }
+	| ThemeIcon;
+
 export interface IWorkspaceData extends IStaticWorkspaceData {
 	folders: { uri: UriComponents; name: string; index: number }[];
 }
@@ -614,17 +619,29 @@ export interface TransferQuickPickItem {
 	// shared properties from IQuickPickItem
 	type?: 'item';
 	label: string;
-	iconPath?: { light?: URI; dark: URI };
-	iconClass?: string;
+	iconPathDto?: IconPathDto;
 	description?: string;
 	detail?: string;
 	picked?: boolean;
 	alwaysShow?: boolean;
 	buttons?: TransferQuickInputButton[];
+	resourceUri?: UriComponents;
+
+	// TODO: These properties are not used for transfer (iconPathDto is used instead) but they cannot be removed
+	// because this type is used as IQuickPickItem on the main thread. Ideally IQuickPickItem should also use IconPath.
+	iconPath?: { light?: URI; dark: URI };
+	iconClass?: string;
 }
 
 export interface TransferQuickInputButton extends quickInput.IQuickInputButton {
 	handle: number;
+	iconPathDto: IconPathDto;
+	checked?: boolean;
+
+	// TODO: These properties are not used for transfer (iconPathDto is used instead) but they cannot be removed
+	// because this type is used as IQuickInputButton on the main thread. Ideally IQuickInputButton should also use IconPath.
+	iconPath?: { light?: URI; dark: URI };
+	iconClass?: string;
 }
 
 export type TransferQuickInput = TransferQuickPick | TransferInputBox;
@@ -1635,7 +1652,7 @@ export interface SCMHistoryItemRefDto {
 	readonly revision?: string;
 	readonly category?: string;
 	readonly description?: string;
-	readonly icon?: UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon;
+	readonly icon?: IconPathDto;
 }
 
 export interface SCMHistoryItemRefsChangeEventDto {
@@ -1652,7 +1669,7 @@ export interface SCMHistoryItemDto {
 	readonly message: string;
 	readonly displayId?: string;
 	readonly author?: string;
-	readonly authorIcon?: UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon;
+	readonly authorIcon?: IconPathDto;
 	readonly authorEmail?: string;
 	readonly timestamp?: number;
 	readonly statistics?: {
@@ -1671,7 +1688,7 @@ export interface SCMHistoryItemChangeDto {
 }
 
 export interface MainThreadSCMShape extends IDisposable {
-	$registerSourceControl(handle: number, parentHandle: number | undefined, id: string, label: string, rootUri: UriComponents | undefined, iconPath: UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon | undefined, inputBoxDocumentUri: UriComponents): Promise<void>;
+	$registerSourceControl(handle: number, parentHandle: number | undefined, id: string, label: string, rootUri: UriComponents | undefined, iconPath: IconPathDto | undefined, inputBoxDocumentUri: UriComponents): Promise<void>;
 	$updateSourceControl(handle: number, features: SCMProviderFeatures): Promise<void>;
 	$unregisterSourceControl(handle: number): Promise<void>;
 
@@ -2198,7 +2215,7 @@ export interface IWorkspaceEditEntryMetadataDto {
 	needsConfirmation: boolean;
 	label: string;
 	description?: string;
-	iconPath?: { id: string } | UriComponents | { light: UriComponents; dark: UriComponents };
+	iconPath?: IconPathDto;
 }
 
 export interface IChatNotebookEditDto {
@@ -2423,7 +2440,7 @@ export interface ExtHostQuickOpenShape {
 	$onDidChangeSelection(sessionId: number, handles: number[]): void;
 	$onDidAccept(sessionId: number): void;
 	$onDidChangeValue(sessionId: number, value: string): void;
-	$onDidTriggerButton(sessionId: number, handle: number): void;
+	$onDidTriggerButton(sessionId: number, handle: number, checked?: boolean): void;
 	$onDidTriggerItemButton(sessionId: number, itemHandle: number, buttonHandle: number): void;
 	$onDidHide(sessionId: number): void;
 }
