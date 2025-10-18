@@ -104,20 +104,24 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 	renderElement(session: ITreeNode<IAgentSessionViewModel, void>, index: number, template: IAgentSessionItemTemplate, details?: ITreeElementRenderDetails): void {
 		template.elementDisposables.clear();
 
-		template.icon.className = `agent-session-icon ${ThemeIcon.asClassName(Codicon.circleFilled)}`;
+		template.icon.className = `agent-session-icon ${this.getIconClassName(session.element)}`;
 
 		template.title.setLabel(session.element.title);
 
-		if (session.element.diff) {
-			template.diffAdded.textContent = `+${session.element.diff.added}`;
-			template.diffRemoved.textContent = `-${session.element.diff.removed}`;
-		} else {
-			template.diffAdded.textContent = '';
-			template.diffRemoved.textContent = '';
-		}
+		const { diff } = session.element;
+		template.diffAdded.textContent = diff ? `+${diff.added}` : '';
+		template.diffRemoved.textContent = diff ? `-${diff.removed}` : '';
 
 		template.description.textContent = session.element.description;
 		template.timestamp.textContent = fromNow(session.element.timing.start, true, false, true);
+	}
+
+	private getIconClassName(session: IAgentSessionViewModel): string {
+		if (session.timing.end === undefined) {
+			return `${ThemeIcon.asClassName(Codicon.loading)} codicon-modifier-spin`;
+		} else {
+			return ThemeIcon.asClassName(Codicon.check);
+		}
 	}
 
 	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<IAgentSessionViewModel>, void>, index: number, templateData: IAgentSessionItemTemplate, details?: ITreeElementRenderDetails): void {
