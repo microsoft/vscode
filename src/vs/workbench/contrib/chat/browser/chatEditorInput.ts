@@ -19,10 +19,10 @@ import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js'
 import { EditorInputCapabilities, IEditorIdentifier, IEditorSerializer, IUntypedEditorInput } from '../../../common/editor.js';
 import { EditorInput, IEditorCloseHandler } from '../../../common/editor/editorInput.js';
 import { IChatEditingSession, ModifiedFileEntryState } from '../common/chatEditingService.js';
-import { IChatSessionsService } from '../common/chatSessionsService.js';
 import { IChatModel } from '../common/chatModel.js';
-import { ChatSessionUri } from '../common/chatUri.js';
 import { IChatService } from '../common/chatService.js';
+import { IChatSessionsService } from '../common/chatSessionsService.js';
+import { ChatSessionUri } from '../common/chatUri.js';
 import { ChatAgentLocation, ChatEditorTitleMaxLength } from '../common/constants.js';
 import { IClearEditingSessionConfirmationOptions } from './actions/chatActions.js';
 import type { IChatEditorOptions } from './chatEditor.js';
