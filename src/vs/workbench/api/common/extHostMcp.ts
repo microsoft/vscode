@@ -16,7 +16,7 @@ import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/ex
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { canLog, ILogService, LogLevel } from '../../../platform/log/common/log.js';
 import { StorageScope } from '../../../platform/storage/common/storage.js';
-import { extensionPrefixedIdentifier, McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerTransportHTTP, McpServerTransportType, UserInteractionRequiredError } from '../../contrib/mcp/common/mcpTypes.js';
+import { extensionPrefixedIdentifier, McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerStaticMetadata, McpServerStaticToolAvailability, McpServerTransportHTTP, McpServerTransportType, UserInteractionRequiredError } from '../../contrib/mcp/common/mcpTypes.js';
 import { MCP } from '../../contrib/mcp/common/modelContextProtocol.js';
 import { ExtHostMcpShape, IMcpAuthenticationDetails, IStartMcpOptions, MainContext, MainThreadMcpShape } from './extHost.protocol.js';
 import { IExtHostInitDataService } from './extHostInitDataService.js';
@@ -24,6 +24,8 @@ import { IExtHostRpcService } from './extHostRpcService.js';
 import * as Convert from './extHostTypeConverters.js';
 import { IExtHostVariableResolverProvider } from './extHostVariableResolverService.js';
 import { IExtHostWorkspace } from './extHostWorkspace.js';
+import { isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
+import { McpHttpServerDefinition, McpStdioServerDefinition, McpToolAvailability } from './extHostTypes.js';
 
 export const IExtHostMpcService = createDecorator<IExtHostMpcService>('IExtHostMpcService');
 
@@ -140,10 +142,25 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 					id = id + i;
 				}
 
+				let staticMetadata: McpServerStaticMetadata | undefined;
+				const castAs2 = item as McpStdioServerDefinition | McpHttpServerDefinition;
+				if (isProposedApiEnabled(extension, 'mcpToolDefinitions') && castAs2.metadata) {
+					staticMetadata = {
+						capabilities: castAs2.metadata.capabilities as MCP.ServerCapabilities,
+						instructions: castAs2.metadata.instructions,
+						serverInfo: castAs2.metadata.serverInfo as MCP.Implementation,
+						tools: castAs2.metadata.tools?.map(t => ({
+							availability: t.availability === McpToolAvailability.Dynamic ? McpServerStaticToolAvailability.Dynamic : McpServerStaticToolAvailability.Initial,
+							definition: t.definition as MCP.Tool,
+						})),
+					};
+				}
+
 				servers.push({
 					id,
 					label: item.label,
 					cacheNonce: item.version || '$$NONE',
+					staticMetadata,
 					launch: Convert.McpServerDefinition.from(item),
 				});
 			}

@@ -12,7 +12,7 @@ import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge.js
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ActionRunner, IAction } from '../../../../base/common/actions.js';
-import { connectPrimaryMenu, getRepositoryResourceCount, isSCMRepository, StatusBarAction } from './util.js';
+import { connectPrimaryMenu, getRepositoryResourceCount, getSCMRepositoryIcon, isSCMRepository, StatusBarAction } from './util.js';
 import { ITreeNode, ITreeRenderer } from '../../../../base/browser/ui/tree/tree.js';
 import { ICompressibleTreeRenderer } from '../../../../base/browser/ui/tree/objectTree.js';
 import { FuzzyScore } from '../../../../base/common/filters.js';
@@ -25,8 +25,6 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IconLabel } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
-import { Codicon } from '../../../../base/common/codicons.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 
@@ -110,11 +108,19 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 			const selectionMode = this._selectionModeConfig.read(undefined);
 			const activeRepository = this.scmViewService.activeRepository.read(reader);
 
-			const pinned = selectionMode === 'single'
-				? activeRepository?.pinned === true && repository === activeRepository?.repository
-				: false;
+			const icon = selectionMode === 'single'
+				? getSCMRepositoryIcon(activeRepository, repository)
+				: getSCMRepositoryIcon(activeRepository ? { repository: activeRepository.repository, pinned: false } : undefined, repository);
 
-			this._renderLabel(repository, pinned, templateData);
+			const label = icon
+				? `$(${icon.id}) ${repository.provider.name}`
+				: repository.provider.name;
+
+			if (repository.provider.rootUri) {
+				templateData.label.setLabel(label, repository.provider.label, { title: `${repository.provider.label}: ${repository.provider.rootUri.fsPath}` });
+			} else {
+				templateData.label.setLabel(label, undefined, { title: repository.provider.label });
+			}
 		}));
 
 		let statusPrimaryActions: IAction[] = [];
@@ -156,24 +162,6 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 
 	renderCompressedElements(): void {
 		throw new Error('Should never happen since node is incompressible');
-	}
-
-	private _renderLabel(repository: ISCMRepository, pinned: boolean, templateData: RepositoryTemplate): void {
-		const icon = ThemeIcon.isThemeIcon(repository.provider.iconPath)
-			? repository.provider.iconPath.id === Codicon.repo.id && pinned
-				? Codicon.repoPinned.id
-				: repository.provider.iconPath.id
-			: undefined;
-
-		const label = icon
-			? `$(${icon}) ${repository.provider.name}`
-			: repository.provider.name;
-
-		if (repository.provider.rootUri) {
-			templateData.label.setLabel(label, repository.provider.label, { title: `${repository.provider.label}: ${repository.provider.rootUri.fsPath}` });
-		} else {
-			templateData.label.setLabel(label, undefined, { title: repository.provider.label });
-		}
 	}
 
 	disposeElement(group: ISCMRepository | ITreeNode<ISCMRepository, FuzzyScore>, index: number, template: RepositoryTemplate): void {
