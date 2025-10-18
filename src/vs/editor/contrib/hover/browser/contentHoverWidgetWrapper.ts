@@ -22,6 +22,7 @@ import { Emitter } from '../../../../base/common/event.js';
 import { RenderedContentHover } from './contentHoverRendered.js';
 import { isMousePositionWithinElement } from './hoverUtils.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { Position } from '../../../common/core/position.js';
 
 export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidget {
 
@@ -101,38 +102,23 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 		focus: boolean,
 		mouseEvent: IEditorMouseEvent | null
 	): boolean {
-		const contentHoverIsVisible = this._contentHoverWidget.position && this._currentResult;
-		if (!contentHoverIsVisible) {
-			if (anchor) {
-				this._startHoverOperationIfNecessary(anchor, mode, source, focus, false);
-				return true;
-			}
-			return false;
+		if (!this._isContentHoverVisible()) {
+			return this._handleHoverWhenNotVisible(anchor, mode, source, focus);
 		}
-		const isHoverSticky = this._editor.getOption(EditorOption.hover).sticky;
-		const isMouseGettingCloser = mouseEvent && this._contentHoverWidget.isMouseGettingCloser(mouseEvent.event.posx, mouseEvent.event.posy);
-		const isHoverStickyAndIsMouseGettingCloser = isHoverSticky && isMouseGettingCloser;
-		// The mouse is getting closer to the hover, so we will keep the hover untouched
-		// But we will kick off a hover update at the new anchor, insisting on keeping the hover visible.
-		if (isHoverStickyAndIsMouseGettingCloser) {
+		if (this._shouldKeepHoverForStickyMouse(mouseEvent)) {
 			if (anchor) {
 				this._startHoverOperationIfNecessary(anchor, mode, source, focus, true);
 			}
 			return true;
 		}
-		// If mouse is not getting closer and anchor not defined, hide the hover
 		if (!anchor) {
 			this._setCurrentResult(null);
 			return false;
 		}
-		// If mouse if not getting closer and anchor is defined, and the new anchor is the same as the previous anchor
-		const currentAnchorEqualsPreviousAnchor = this._currentResult && this._currentResult.options.anchor.equals(anchor);
-		if (currentAnchorEqualsPreviousAnchor) {
+		if (this._isCurrentAnchorEqualToPrevious(anchor)) {
 			return true;
 		}
-		// If mouse if not getting closer and anchor is defined, and the new anchor is not compatible with the previous anchor
-		const currentAnchorCompatibleWithPreviousAnchor = this._currentResult && anchor.canAdoptVisibleHover(this._currentResult.options.anchor, this._contentHoverWidget.position);
-		if (!currentAnchorCompatibleWithPreviousAnchor) {
+		if (!this._isCurrentAnchorCompatibleWithPrevious(anchor, this._contentHoverWidget.position!)) {
 			this._setCurrentResult(null);
 			this._startHoverOperationIfNecessary(anchor, mode, source, focus, false);
 			return true;
@@ -146,9 +132,59 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 		return true;
 	}
 
+	/**
+	 * Checks if the content hover widget is currently visible.
+	 * Extracted for improved readability and reusability.
+	 */
+	private _isContentHoverVisible(): boolean {
+		return !!(this._contentHoverWidget.position && this._currentResult);
+	}
+
+	/**
+	 * Handles hover behavior when the content hover is not currently visible.
+	 * Extracted from _startShowingOrUpdateHover to improve code clarity.
+	 */
+	private _handleHoverWhenNotVisible(
+		anchor: HoverAnchor | null,
+		mode: HoverStartMode,
+		source: HoverStartSource,
+		focus: boolean
+	): boolean {
+		if (anchor) {
+			this._startHoverOperationIfNecessary(anchor, mode, source, focus, false);
+			return true;
+		}
+		return false;
+	}
+
+	/**
+	 * Determines if the hover should be kept visible due to sticky mouse behavior.
+	 * Extracted to simplify complex boolean logic in _startShowingOrUpdateHover.
+	 */
+	private _shouldKeepHoverForStickyMouse(mouseEvent: IEditorMouseEvent | null): boolean {
+		const isHoverSticky = this._editor.getOption(EditorOption.hover).sticky;
+		const isMouseGettingCloser = (mouseEvent && this._contentHoverWidget.isMouseGettingCloser(mouseEvent.event.posx, mouseEvent.event.posy)) ?? false;
+		return isHoverSticky && isMouseGettingCloser;
+	}
+
+	/**
+	 * Checks if the current anchor is equal to the previous anchor.
+	 * Extracted to improve readability of anchor comparison logic.
+	 */
+	private _isCurrentAnchorEqualToPrevious(anchor: HoverAnchor): boolean {
+		return !!(this._currentResult && this._currentResult.options.anchor.equals(anchor));
+	}
+
+	/**
+	 * Checks if the current anchor is compatible with the previous anchor.
+	 * Extracted to simplify complex anchor compatibility logic.
+	 */
+	private _isCurrentAnchorCompatibleWithPrevious(anchor: HoverAnchor, position: Position): boolean {
+		return !!(this._currentResult && anchor.canAdoptVisibleHover(this._currentResult.options.anchor, position));
+	}
+
 	private _startHoverOperationIfNecessary(anchor: HoverAnchor, mode: HoverStartMode, source: HoverStartSource, shouldFocus: boolean, insistOnKeepingHoverVisible: boolean): void {
-		const currentAnchorEqualToPreviousHover = this._hoverOperation.options && this._hoverOperation.options.anchor.equals(anchor);
-		if (currentAnchorEqualToPreviousHover) {
+		if (this._isHoverOperationForSameAnchor(anchor)) {
 			return;
 		}
 		this._hoverOperation.cancel();
@@ -161,22 +197,37 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 		this._hoverOperation.start(mode, contentHoverComputerOptions);
 	}
 
+	/**
+	 * Checks if the current hover operation is for the same anchor.
+	 * Extracted to improve code clarity and reusability.
+	 */
+	private _isHoverOperationForSameAnchor(anchor: HoverAnchor): boolean {
+		return !!(this._hoverOperation.options && this._hoverOperation.options.anchor.equals(anchor));
+	}
+
 	private _setCurrentResult(hoverResult: ContentHoverResult | null): void {
-		let currentHoverResult = hoverResult;
-		const currentResultEqualToPreviousResult = this._currentResult === currentHoverResult;
-		if (currentResultEqualToPreviousResult) {
+		const normalizedResult = this._normalizeHoverResult(hoverResult);
+		if (this._currentResult === normalizedResult) {
 			return;
 		}
-		const currentHoverResultIsEmpty = currentHoverResult && currentHoverResult.hoverParts.length === 0;
-		if (currentHoverResultIsEmpty) {
-			currentHoverResult = null;
-		}
-		this._currentResult = currentHoverResult;
+		this._currentResult = normalizedResult;
 		if (this._currentResult) {
 			this._showHover(this._currentResult);
 		} else {
 			this._hideHover();
 		}
+	}
+
+	/**
+	 * Normalizes hover results by returning null for empty results.
+	 * Extracted to centralize hover result validation logic.
+	 */
+	private _normalizeHoverResult(hoverResult: ContentHoverResult | null): ContentHoverResult | null {
+		if (!hoverResult) {
+			return null;
+		}
+		const hasHoverParts = hoverResult.hoverParts.length > 0;
+		return hasHoverParts ? hoverResult : null;
 	}
 
 	private _addLoadingMessage(hoverResult: HoverResult<ContentHoverComputerOptions, IHoverPart>): IHoverPart[] {
@@ -194,24 +245,32 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 	}
 
 	private _withResult(hoverResult: ContentHoverResult): void {
-		const previousHoverIsVisibleWithCompleteResult = this._contentHoverWidget.position && this._currentResult && this._currentResult.isComplete;
-		if (!previousHoverIsVisibleWithCompleteResult) {
+		if (!this._shouldWaitForCompleteResult(hoverResult)) {
 			this._setCurrentResult(hoverResult);
 		}
-		// The hover is visible with a previous complete result.
-		const isCurrentHoverResultComplete = hoverResult.isComplete;
-		if (!isCurrentHoverResultComplete) {
+		if (!hoverResult.isComplete) {
 			// Instead of rendering the new partial result, we wait for the result to be complete.
 			return;
 		}
-		const currentHoverResultIsEmpty = hoverResult.hoverParts.length === 0;
-		const insistOnKeepingPreviousHoverVisible = hoverResult.options.insistOnKeepingHoverVisible;
-		const shouldKeepPreviousHoverVisible = currentHoverResultIsEmpty && insistOnKeepingPreviousHoverVisible;
-		if (shouldKeepPreviousHoverVisible) {
+		if (this._shouldKeepPreviousHoverVisible(hoverResult)) {
 			// The hover would now hide normally, so we'll keep the previous messages
 			return;
 		}
 		this._setCurrentResult(hoverResult);
+	}
+
+	/**
+	 * Determines if we should wait for a complete hover result before updating.
+	 * Extracted to simplify complex conditional logic in _withResult.
+	 */
+	private _shouldWaitForCompleteResult(hoverResult: ContentHoverResult): boolean {
+		return !!(this._contentHoverWidget.position && this._currentResult && this._currentResult.isComplete);
+	}
+
+	private _shouldKeepPreviousHoverVisible(hoverResult: ContentHoverResult): boolean {
+		const hasNoHoverParts = hoverResult.hoverParts.length === 0;
+		const insistOnKeepingVisible = hoverResult.options.insistOnKeepingHoverVisible;
+		return hasNoHoverParts && insistOnKeepingVisible;
 	}
 
 	private _showHover(hoverResult: ContentHoverResult): void {
@@ -245,60 +304,90 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 
 
 	public showsOrWillShow(mouseEvent: IEditorMouseEvent): boolean {
-		const isContentWidgetResizing = this._contentHoverWidget.isResizing;
-		if (isContentWidgetResizing) {
+		if (this._contentHoverWidget.isResizing) {
 			return true;
 		}
-		const anchorCandidates: HoverAnchor[] = this._findHoverAnchorCandidates(mouseEvent);
-		const anchorCandidatesExist = anchorCandidates.length > 0;
-		if (!anchorCandidatesExist) {
-			return this._startShowingOrUpdateHover(null, HoverStartMode.Delayed, HoverStartSource.Mouse, false, mouseEvent);
-		}
-		const anchor = anchorCandidates[0];
+		const anchorCandidates = this._findHoverAnchorCandidates(mouseEvent);
+		const anchor = this._selectBestAnchor(anchorCandidates);
 		return this._startShowingOrUpdateHover(anchor, HoverStartMode.Delayed, HoverStartSource.Mouse, false, mouseEvent);
+	}
+
+	/**
+	 * Selects the best anchor from a list of anchor candidates.
+	 * Extracted to improve readability and enable easier anchor selection logic changes.
+	 */
+	private _selectBestAnchor(anchorCandidates: HoverAnchor[]): HoverAnchor | null {
+		return anchorCandidates.length > 0 ? anchorCandidates[0] : null;
 	}
 
 	private _findHoverAnchorCandidates(mouseEvent: IEditorMouseEvent): HoverAnchor[] {
 		const anchorCandidates: HoverAnchor[] = [];
+		this._addParticipantAnchors(mouseEvent, anchorCandidates);
+		this._addTargetBasedAnchors(mouseEvent, anchorCandidates);
+		anchorCandidates.sort((a, b) => b.priority - a.priority);
+		return anchorCandidates;
+	}
+
+	/**
+	 * Adds hover anchors suggested by hover participants to the candidates list.
+	 * Extracted to separate participant-specific anchor logic.
+	 */
+	private _addParticipantAnchors(mouseEvent: IEditorMouseEvent, anchorCandidates: HoverAnchor[]): void {
 		for (const participant of this._participants) {
 			if (!participant.suggestHoverAnchor) {
 				continue;
 			}
 			const anchor = participant.suggestHoverAnchor(mouseEvent);
-			if (!anchor) {
-				continue;
+			if (anchor) {
+				anchorCandidates.push(anchor);
 			}
-			anchorCandidates.push(anchor);
 		}
+	}
+
+	/**
+	 * Adds hover anchors based on mouse target type to the candidates list.
+	 * Extracted to separate target-based anchor logic from participant logic.
+	 */
+	private _addTargetBasedAnchors(mouseEvent: IEditorMouseEvent, anchorCandidates: HoverAnchor[]): void {
 		const target = mouseEvent.target;
 		switch (target.type) {
-			case MouseTargetType.CONTENT_TEXT: {
+			case MouseTargetType.CONTENT_TEXT:
 				anchorCandidates.push(new HoverRangeAnchor(0, target.range, mouseEvent.event.posx, mouseEvent.event.posy));
 				break;
-			}
-			case MouseTargetType.CONTENT_EMPTY: {
-				const epsilon = this._editor.getOption(EditorOption.fontInfo).typicalHalfwidthCharacterWidth / 2;
-				// Let hover kick in even when the mouse is technically in the empty area after a line, given the distance is small enough
-				const mouseIsWithinLinesAndCloseToHover = !target.detail.isAfterLines
-					&& typeof target.detail.horizontalDistanceToText === 'number'
-					&& target.detail.horizontalDistanceToText < epsilon;
-				if (!mouseIsWithinLinesAndCloseToHover) {
-					break;
+			case MouseTargetType.CONTENT_EMPTY:
+				if (this._shouldAddAnchorForEmptyContent(target, mouseEvent)) {
+					anchorCandidates.push(new HoverRangeAnchor(0, target.range, mouseEvent.event.posx, mouseEvent.event.posy));
 				}
-				anchorCandidates.push(new HoverRangeAnchor(0, target.range, mouseEvent.event.posx, mouseEvent.event.posy));
 				break;
-			}
 		}
-		anchorCandidates.sort((a, b) => b.priority - a.priority);
-		return anchorCandidates;
+	}
+
+	/**
+	 * Determines if an anchor should be added for empty content based on mouse proximity.
+	 * Extracted to isolate complex empty content hover logic.
+	 */
+	private _shouldAddAnchorForEmptyContent(target: any, mouseEvent: IEditorMouseEvent): boolean {
+		const epsilon = this._editor.getOption(EditorOption.fontInfo).typicalHalfwidthCharacterWidth / 2;
+		// Let hover kick in even when the mouse is technically in the empty area after a line, given the distance is small enough
+		const mouseIsWithinLinesAndCloseToHover = !target.detail.isAfterLines
+			&& typeof target.detail.horizontalDistanceToText === 'number'
+			&& target.detail.horizontalDistanceToText < epsilon;
+		return mouseIsWithinLinesAndCloseToHover;
 	}
 
 	private _onMouseLeave(e: MouseEvent): void {
-		const editorDomNode = this._editor.getDomNode();
-		const isMousePositionOutsideOfEditor = !editorDomNode || !isMousePositionWithinElement(editorDomNode, e.x, e.y);
-		if (isMousePositionOutsideOfEditor) {
+		if (this._isMouseOutsideEditor(e)) {
 			this.hide();
 		}
+	}
+
+	/**
+	 * Checks if the mouse position is outside the editor bounds.
+	 * Extracted to improve readability of mouse leave logic.
+	 */
+	private _isMouseOutsideEditor(e: MouseEvent): boolean {
+		const editorDomNode = this._editor.getDomNode();
+		return !editorDomNode || !isMousePositionWithinElement(editorDomNode, e.x, e.y);
 	}
 
 	public startShowingAtRange(range: Range, mode: HoverStartMode, source: HoverStartSource, focus: boolean): void {
@@ -306,11 +395,8 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 	}
 
 	public getWidgetContent(): string | undefined {
-		const node = this._contentHoverWidget.getDomNode();
-		if (!node.textContent) {
-			return undefined;
-		}
-		return node.textContent;
+		const domNode = this._contentHoverWidget.getDomNode();
+		return domNode.textContent || undefined;
 	}
 
 	public async updateHoverVerbosityLevel(action: HoverVerbosityAction, index: number, focus?: boolean): Promise<void> {
@@ -334,7 +420,7 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 	}
 
 	public containsNode(node: Node | null | undefined): boolean {
-		return (node ? this._contentHoverWidget.getDomNode().contains(node) : false);
+		return !!node && this._contentHoverWidget.getDomNode().contains(node);
 	}
 
 	public focus(): void {
