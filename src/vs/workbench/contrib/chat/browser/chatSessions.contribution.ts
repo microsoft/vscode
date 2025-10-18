@@ -7,6 +7,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize, localize2 } from '../../../../nls.js';
@@ -56,6 +57,10 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 				},
 				when: {
 					description: localize('chatSessionsExtPoint.when', 'Condition which must be true to show this item.'),
+					type: 'string'
+				},
+				icon: {
+					description: localize('chatSessionsExtPoint.icon', 'Icon identifier (codicon ID) for the chat session editor tab. For example, "$(github)" or "$(cloud)".'),
 					type: 'string'
 				},
 				capabilities: {
@@ -159,6 +164,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	public get onDidChangeInProgress() { return this._onDidChangeInProgress.event; }
 	private readonly inProgressMap: Map<string, number> = new Map();
 	private readonly _sessionTypeModels: Map<string, ILanguageModelChatMetadataAndIdentifier[]> = new Map();
+	private readonly _sessionTypeIcons: Map<string, ThemeIcon> = new Map();
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
@@ -182,6 +188,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 						displayName: contribution.displayName,
 						description: contribution.description,
 						when: contribution.when,
+						icon: contribution.icon,
 						capabilities: contribution.capabilities,
 						extensionDescription: ext.description,
 						commands: contribution.commands
@@ -249,11 +256,22 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		}
 
 		this._contributions.set(contribution.type, contribution);
+
+		// Store icon mapping if provided
+		if (contribution.icon) {
+			// Parse icon string - support both "$(iconId)" and "iconId" formats
+			const iconId = contribution.icon.startsWith('$(') && contribution.icon.endsWith(')')
+				? contribution.icon.slice(2, -1)
+				: contribution.icon;
+			this._sessionTypeIcons.set(contribution.type, ThemeIcon.fromId(iconId));
+		}
+
 		this._evaluateAvailability();
 
 		return {
 			dispose: () => {
 				this._contributions.delete(contribution.type);
+				this._sessionTypeIcons.delete(contribution.type);
 				const store = this._disposableStores.get(contribution.type);
 				if (store) {
 					store.dispose();
@@ -683,6 +701,13 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		for (const u of updates) {
 			this.setSessionOption(chatSessionType, sessionId, u.optionId, u.value);
 		}
+	}
+
+	/**
+	 * Get the icon for a specific session type
+	 */
+	public getIconForSessionType(chatSessionType: string): ThemeIcon | undefined {
+		return this._sessionTypeIcons.get(chatSessionType);
 	}
 }
 

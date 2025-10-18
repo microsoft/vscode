@@ -19,7 +19,9 @@ import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js'
 import { EditorInputCapabilities, IEditorIdentifier, IEditorSerializer, IUntypedEditorInput } from '../../../common/editor.js';
 import { EditorInput, IEditorCloseHandler } from '../../../common/editor/editorInput.js';
 import { IChatEditingSession, ModifiedFileEntryState } from '../common/chatEditingService.js';
+import { IChatSessionsService } from '../common/chatSessionsService.js';
 import { IChatModel } from '../common/chatModel.js';
+import { ChatSessionUri } from '../common/chatUri.js';
 import { IChatService } from '../common/chatService.js';
 import { ChatAgentLocation, ChatEditorTitleMaxLength } from '../common/constants.js';
 import { IClearEditingSessionConfirmationOptions } from './actions/chatActions.js';
@@ -39,6 +41,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 
 	public sessionId: string | undefined;
 	private hasCustomTitle: boolean = false;
+	private cachedIcon: ThemeIcon | URI | undefined;
 
 	private model: IChatModel | undefined;
 
@@ -61,6 +64,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		readonly options: IChatEditorOptions,
 		@IChatService private readonly chatService: IChatService,
 		@IDialogService private readonly dialogService: IDialogService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) {
 		super();
 
@@ -182,8 +186,73 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		return defaultName + inputCountSuffix;
 	}
 
-	override getIcon(): ThemeIcon {
+	override getIcon(): ThemeIcon | undefined {
+		// Return cached icon if available
+		if (this.cachedIcon) {
+			return ThemeIcon.isThemeIcon(this.cachedIcon) ? this.cachedIcon : undefined;
+		}
+
+		// Try to resolve icon and cache it
+		const resolvedIcon = this.resolveIcon();
+		if (resolvedIcon) {
+			this.cachedIcon = resolvedIcon;
+			return ThemeIcon.isThemeIcon(resolvedIcon) ? resolvedIcon : undefined;
+		}
+
+		// Fall back to default icon
 		return ChatEditorIcon;
+	}
+
+	private resolveIcon(): ThemeIcon | URI | undefined {
+		// 1. Try to get session-specific icon from IChatSessionItem.iconPath (supports both ThemeIcon and URI)
+		if (this.sessionId) {
+			const sessionType = this.getSessionType();
+			if (sessionType !== 'local') {
+				// For non-local sessions, try to find the session item
+				// Note: This is a best-effort synchronous lookup. Session items may not be loaded yet.
+				const providers = this.chatSessionsService.getAllChatSessionItemProviders();
+				const provider = providers.find(p => p.chatSessionType === sessionType);
+				if (provider) {
+					// We can't await here, so we'll check for icon updates during resolve()
+					// For now, fall through to session type icon
+				}
+			}
+		}
+
+		// 2. Fall back to session type icon from extension point
+		const sessionType = this.getSessionType();
+		if (sessionType !== 'local') {
+			const typeIcon = this.chatSessionsService.getIconForSessionType(sessionType);
+			if (typeIcon) {
+				return typeIcon;
+			}
+		}
+
+		// 3. No custom icon found
+		return undefined;
+	}
+
+	private getSessionType(): string {
+		if (!this.resource) {
+			return 'local';
+		}
+
+		const { scheme, query } = this.resource;
+
+		if (scheme === Schemas.vscodeChatSession) {
+			const parsed = ChatSessionUri.parse(this.resource);
+			if (parsed) {
+				return parsed.chatSessionType;
+			}
+		}
+
+		const sessionTypeFromQuery = new URLSearchParams(query).get('chatSessionType');
+		if (sessionTypeFromQuery) {
+			return sessionTypeFromQuery;
+		}
+
+		// Default to 'local' for vscode-chat-editor scheme or when type cannot be determined
+		return 'local';
 	}
 
 	override async resolve(): Promise<ChatEditorModel | null> {
@@ -215,10 +284,29 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 					ChatEditorInput.countsInUseMap.delete(this.inputName);
 				}
 			}
+			// Invalidate icon cache when label changes
+			this.cachedIcon = undefined;
 			this._onDidChangeLabel.fire();
 		}));
 
+		// Check if icon has changed after model resolution
+		const newIcon = this.resolveIcon();
+		if (newIcon && (!this.cachedIcon || !this.iconsEqual(this.cachedIcon, newIcon))) {
+			this.cachedIcon = newIcon;
+			this._onDidChangeLabel.fire();
+		}
+
 		return this._register(new ChatEditorModel(this.model));
+	}
+
+	private iconsEqual(a: ThemeIcon | URI, b: ThemeIcon | URI): boolean {
+		if (ThemeIcon.isThemeIcon(a) && ThemeIcon.isThemeIcon(b)) {
+			return a.id === b.id;
+		}
+		if (a instanceof URI && b instanceof URI) {
+			return a.toString() === b.toString();
+		}
+		return false;
 	}
 
 	override dispose(): void {
