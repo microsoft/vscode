@@ -53,7 +53,8 @@ interface IAgentSessionItemTemplate {
 export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSessionViewModel, void, IAgentSessionItemTemplate> {
 
 	static readonly TEMPLATE_ID = 'agent-session';
-	get templateId(): string { return AgentSessionRenderer.TEMPLATE_ID; }
+
+	readonly templateId = AgentSessionRenderer.TEMPLATE_ID;
 
 	renderTemplate(container: HTMLElement): IAgentSessionItemTemplate {
 		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-no-twistie'); // hack, but no API for hiding twistie on tree
@@ -61,14 +62,14 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 		const disposables = new DisposableStore();
 		const elementDisposables = disposables.add(new DisposableStore());
 
-		const element = append(container, $('.agent-session-item'));
+		const item = append(container, $('.agent-session-item'));
 
-		// Status Column
-		const statusCol = append(element, $('.agent-session-status-col'));
-		const icon = append(statusCol, $('.agent-session-icon'));
+		// Icon Column
+		const iconCol = append(item, $('.agent-session-icon-col'));
+		const icon = append(iconCol, $('.agent-session-icon'));
 
 		// Main Column
-		const mainCol = append(element, $('.agent-session-main-col'));
+		const mainCol = append(item, $('.agent-session-main-col'));
 
 		// Title
 		const titleRow = append(mainCol, $('.agent-session-title-row'));
@@ -79,7 +80,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 		const description = append(detailsRow, $('.agent-session-description'));
 		const timestamp = append(detailsRow, $('.agent-session-timestamp'));
 
-		return { element, title, icon, description, timestamp, elementDisposables, disposables };
+		return { element: item, title, icon, description, timestamp, elementDisposables, disposables };
 	}
 
 	renderElement(session: ITreeNode<IAgentSessionViewModel, void>, index: number, template: IAgentSessionItemTemplate, details?: ITreeElementRenderDetails): void {

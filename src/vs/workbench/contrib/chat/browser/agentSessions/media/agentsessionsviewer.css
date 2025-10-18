@@ -13,11 +13,22 @@
 	padding: 0 6px;
 }
 
-.agent-sessions-viewer .agent-session-status-col {
+/* #region Icon Column */
+
+.agent-sessions-viewer .agent-session-icon-col {
 	display: flex;
 	align-items: flex-start;
 	padding-top: 3px; /* TODO@bpasero maybe a grid layout would be better? */
 }
+
+.agent-sessions-viewer .agent-session-item .agent-session-icon {
+	flex-shrink: 0;
+	width: 16px;
+	height: 16px;
+	font-size: 16px;
+}
+
+/* #endregion */
 
 .agent-sessions-viewer .agent-session-title-row,
 .agent-sessions-viewer .agent-session-details-row,
@@ -36,13 +47,6 @@
 
 .agent-sessions-viewer .agent-session-details-row {
 	color: var(--vscode-descriptionForeground);
-}
-
-.agent-sessions-viewer .agent-session-item .agent-session-icon {
-	flex-shrink: 0;
-	width: 16px;
-	height: 16px;
-	font-size: 16px;
 }
 
 .agent-sessions-viewer .agent-session-item .agent-session-description {
