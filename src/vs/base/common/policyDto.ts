@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IJSONSchema } from './jsonSchema.js';
-
 export type LocalizedValueDto = {
 	key: string;
 	value: string;
@@ -24,9 +22,9 @@ export interface PolicyDto {
 		description: LocalizedValueDto;
 		enumDescriptions?: LocalizedValueDto[];
 	};
-	type: IJSONSchema['type'];
-	default?: IJSONSchema['default'];
-	enum?: IJSONSchema['enum'];
+	type?: string | string[];
+	default?: unknown;
+	enum?: string[];
 }
 
 export interface ExportedPolicyDataDto {

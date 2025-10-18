@@ -6,7 +6,7 @@
 import minimist from 'minimist';
 import { promises as fs } from 'fs';
 import path from 'path';
-import { CategoryDto, ExportedPolicyDataDto, PolicyDto } from '../../../src/vs/base/common/policyDto.js';
+import { CategoryDto, ExportedPolicyDataDto, PolicyDto } from './policyDto';
 import * as JSONC from 'jsonc-parser';
 
 const product = require('../../../product.json');
@@ -192,7 +192,7 @@ class NumberPolicy extends BasePolicy {
 			return undefined;
 		}
 
-		if (typeof defaultValue === 'undefined') {
+		if (typeof defaultValue !== 'number') {
 			throw new Error(`Missing required 'default' property.`);
 		}
 
