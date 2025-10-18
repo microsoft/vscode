@@ -678,9 +678,10 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.ThinkingStyle]: {
 			type: 'string',
-			default: product.quality === 'insider' ? 'fixedScrolling' : 'collapsed',
-			enum: ['collapsed', 'collapsedPreview', 'expanded', 'none', 'collapsedPerItem', 'fixedScrolling'],
+			default: 'default',
+			enum: ['default', 'collapsed', 'collapsedPreview', 'expanded', 'none', 'collapsedPerItem', 'fixedScrolling'],
 			enumDescriptions: [
+				nls.localize('chat.agent.thinkingMode.default', "Let VS Code choose a thinking style for each model."),
 				nls.localize('chat.agent.thinkingMode.collapsed', "Thinking parts will be collapsed by default."),
 				nls.localize('chat.agent.thinkingMode.collapsedPreview', "Thinking parts will be expanded first, then collapse once we reach a part that is not thinking."),
 				nls.localize('chat.agent.thinkingMode.expanded', "Thinking parts will be expanded by default."),
