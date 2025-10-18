@@ -760,13 +760,17 @@ class ChatResolverContribution extends Disposable {
 	static readonly ID = 'workbench.contrib.chatResolver';
 
 	constructor(
-		@IEditorResolverService editorResolverService: IEditorResolverService,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 
-		this._register(editorResolverService.registerEditor(
-			`{${Schemas.vscodeChatEditor},${Schemas.vscodeChatSession}}:**/**`,
+		this._registerEditor(Schemas.vscodeChatEditor);
+		this._registerEditor(Schemas.vscodeChatSession);
+	}
+
+	private _registerEditor(scheme: string): void {
+		this._register(this.editorResolverService.registerEditor(`${scheme}:**/**`,
 			{
 				id: ChatEditorInput.EditorID,
 				label: nls.localize('chat', "Chat"),
@@ -774,11 +778,11 @@ class ChatResolverContribution extends Disposable {
 			},
 			{
 				singlePerResource: true,
-				canSupportResource: resource => resource.scheme === Schemas.vscodeChatEditor || resource.scheme === Schemas.vscodeChatSession,
+				canSupportResource: resource => resource.scheme === scheme,
 			},
 			{
 				createEditorInput: ({ resource, options }) => {
-					return { editor: instantiationService.createInstance(ChatEditorInput, resource, options as IChatEditorOptions), options };
+					return { editor: this.instantiationService.createInstance(ChatEditorInput, resource, options as IChatEditorOptions), options };
 				}
 			}
 		));

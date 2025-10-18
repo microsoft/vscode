@@ -1108,7 +1108,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this.chatSessionHasModels.set(true);
 
-		const currentModelId = this.chatSessionsService.getSessionOption(ctx.chatSessionType, ctx.chatSessionId, 'model');
+		const currentModelId = this.chatSessionsService.getSessionOption(ctx.chatSessionType, ctx.chatSessionResource, 'model');
 		if (!currentModelId) {
 			return;
 		}
@@ -1356,7 +1356,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 							this._onDidChangeChatSessionLanguageModel.fire(model);
 							this.chatSessionsService.notifySessionOptionsChange(
 								ctx.chatSessionType,
-								ctx.chatSessionId,
+								ctx.chatSessionResource,
 								[{ optionId: 'model', value: model.identifier }]
 							).catch(err => this.logService.error('Failed to notify extension of model change:', err));
 						},

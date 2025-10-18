@@ -10,7 +10,7 @@ import { Event } from '../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { autorunSelfDisposable, IObservable } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { URI, UriComponents } from '../../../../base/common/uri.js';
+import { URI } from '../../../../base/common/uri.js';
 import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { ISelection } from '../../../../editor/common/core/selection.js';
 import { Command, Location, TextEdit } from '../../../../editor/common/languages.js';
@@ -773,7 +773,7 @@ export interface IChatService {
 export interface IChatSessionContext {
 	chatSessionType: string;
 	chatSessionId: string;
-	chatSessionResource: UriComponents;
+	chatSessionResource: URI;
 	isUntitled: boolean;
 }
 

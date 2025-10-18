@@ -75,7 +75,7 @@ export class RenameChatSessionAction extends Action2 {
 		try {
 			// Find the chat sessions view and trigger inline rename mode
 			// This is similar to how file renaming works in the explorer
-			await chatSessionsService.setEditableSession(sessionId, {
+			await chatSessionsService.setEditableSession(context.session.resource, {
 				validationMessage: (value: string) => {
 					if (!value || value.trim().length === 0) {
 						return { content: localize('renameSession.emptyName', "Name cannot be empty"), severity: Severity.Error };
@@ -101,7 +101,7 @@ export class RenameChatSessionAction extends Action2 {
 							);
 						}
 					}
-					await chatSessionsService.setEditableSession(sessionId, null);
+					await chatSessionsService.setEditableSession(context.session.resource, null);
 				}
 			});
 		} catch (error) {
