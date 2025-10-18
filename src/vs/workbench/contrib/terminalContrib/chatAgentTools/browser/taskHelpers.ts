@@ -265,9 +265,10 @@ export async function taskProblemPollFn(execution: IExecution, token: Cancellati
 				}
 			}
 			if (problemList.length === 0) {
+				const lastTenLines = execution.getOutput().split('\n').filter(line => line !== '').slice(-10).join('\n');
 				return {
 					state: OutputMonitorState.Idle,
-					output: 'The task succeeded with no problems.',
+					output: `Task completed with output:\n${lastTenLines}`,
 				};
 			}
 			return {

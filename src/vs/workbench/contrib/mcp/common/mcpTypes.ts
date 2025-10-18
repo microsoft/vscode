@@ -129,6 +129,9 @@ export interface McpServerDefinition {
 	readonly cacheNonce: string;
 	/** Dev mode configuration for the server */
 	readonly devMode?: IMcpDevModeConfig;
+	/** Static description of server tools/data, used to hydrate the cache. */
+	readonly staticMetadata?: McpServerStaticMetadata;
+
 
 	readonly presentation?: {
 		/** Sort order of the definition. */
@@ -138,6 +141,20 @@ export interface McpServerDefinition {
 	};
 }
 
+export const enum McpServerStaticToolAvailability {
+	/** Tool is expected to be present as soon as the server is started. */
+	Initial,
+	/** Tool may be present later. */
+	Dynamic,
+}
+
+export interface McpServerStaticMetadata {
+	tools?: { availability: McpServerStaticToolAvailability; definition: MCP.Tool }[];
+	instructions?: string;
+	capabilities?: MCP.ServerCapabilities;
+	serverInfo?: MCP.Implementation;
+}
+
 export namespace McpServerDefinition {
 	export interface Serialized {
 		readonly id: string;
@@ -145,6 +162,7 @@ export namespace McpServerDefinition {
 		readonly cacheNonce: string;
 		readonly launch: McpServerLaunch.Serialized;
 		readonly variableReplacement?: McpServerDefinitionVariableReplacement.Serialized;
+		readonly staticMetadata?: McpServerStaticMetadata;
 	}
 
 	export function toSerialized(def: McpServerDefinition): McpServerDefinition.Serialized {
@@ -156,6 +174,7 @@ export namespace McpServerDefinition {
 			id: def.id,
 			label: def.label,
 			cacheNonce: def.cacheNonce,
+			staticMetadata: def.staticMetadata,
 			launch: McpServerLaunch.fromSerialized(def.launch),
 			variableReplacement: def.variableReplacement ? McpServerDefinitionVariableReplacement.fromSerialized(def.variableReplacement) : undefined,
 		};
@@ -229,7 +248,7 @@ export interface IMcpService {
 	/** Cancels any current autostart @internal */
 	cancelAutostart(): void;
 
-	/** Activatese extensions and runs their MCP servers. */
+	/** Activates extension-providing MCP servers that have not yet been discovered. */
 	activateCollections(): Promise<void>;
 }
 

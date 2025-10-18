@@ -24,9 +24,9 @@ import { EditorResourceAccessor } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { Codicon } from '../../../../base/common/codicons.js';
 import { localize } from '../../../../nls.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { getSCMRepositoryIcon } from './util.js';
 
 function getProviderStorageKey(provider: ISCMProvider): string {
 	return `${provider.providerId}:${provider.label}${provider.rootUri ? `:${provider.rootUri.toString()}` : ''}`;
@@ -75,17 +75,13 @@ export class RepositoryPicker {
 		const pinned = activeRepository?.pinned === true;
 
 		picks.push(...this._scmViewService.repositories.map(r => {
-			let iconClass = ThemeIcon.isThemeIcon(r.provider.iconPath)
-				? ThemeIcon.asClassName(r.provider.iconPath)
-				: ThemeIcon.asClassName(Codicon.repo);
-
-			// Pinned repository icon
-			if (r === repository && pinned && ThemeIcon.isThemeIcon(r.provider.iconPath) && r.provider.iconPath.id === Codicon.repo.id) {
-				iconClass = ThemeIcon.asClassName(Codicon.repoPinned);
-			}
+			const icon = getSCMRepositoryIcon(activeRepository, r);
 
 			return {
-				label: r.provider.name, description: r.provider.rootUri?.fsPath, iconClass, repository: r
+				label: r.provider.name,
+				description: r.provider.rootUri?.fsPath,
+				iconClass: ThemeIcon.asClassName(icon),
+				repository: r
 			};
 		}));
 
@@ -291,7 +287,7 @@ export class SCMViewService implements ISCMViewService {
 					return lastValue;
 				}
 
-				return repository;
+				return Object.create(repository);
 			});
 
 		this._activeRepositoryPinnedObs = observableValue<ISCMRepository | undefined>(this, undefined);
@@ -315,7 +311,14 @@ export class SCMViewService implements ISCMViewService {
 			const activeRepository = this.activeRepository.read(reader);
 
 			if (selectionMode === 'single' && activeRepository) {
-				this.visibleRepositories = [activeRepository.repository];
+				// `this._activeEditorRepositoryObs` uses `Object.create` to
+				// ensure that the observable updates even if the repository
+				// instance is the same.
+				const repository = this.repositories
+					.find(r => r.id === activeRepository.repository.id);
+				if (repository) {
+					this.visibleRepositories = [repository];
+				}
 			}
 		}));
 

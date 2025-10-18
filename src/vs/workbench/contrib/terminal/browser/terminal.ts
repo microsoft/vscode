@@ -127,7 +127,13 @@ export interface ITerminalChatService {
 	 */
 	getTerminalInstanceByToolSessionId(terminalToolSessionId: string): ITerminalInstance | undefined;
 
-	terminalIsHidden(terminalToolSessionId: string): boolean;
+	/**
+	 * Returns the list of terminal instances that have been registered with a tool session id.
+	 * This is used for surfacing tool-driven/background terminals in UI (eg. quick picks).
+	 */
+	getToolSessionTerminalInstances(): readonly ITerminalInstance[];
+
+	isBackgroundTerminal(terminalToolSessionId?: string): boolean;
 }
 
 /**
@@ -325,7 +331,6 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	/** Gets all terminal instances, including editor, terminal view (group), and background instances. */
 	readonly instances: readonly ITerminalInstance[];
 
-	/** Gets all foreground terminal instances */
 	readonly foregroundInstances: readonly ITerminalInstance[];
 
 	/** Gets detached terminal instances created via {@link createDetachedXterm}. */
@@ -398,7 +403,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	 * @param suppressSetActive Do not set the active instance when there is only one terminal
 	 * @param forceSaveState Used when the window is shutting down and we need to reveal and save hideFromUser terminals
 	 */
-	showBackgroundTerminal(instance: ITerminalInstance, suppressSetActive?: boolean, forceSaveState?: boolean): Promise<void>;
+	showBackgroundTerminal(instance: ITerminalInstance, suppressSetActive?: boolean): Promise<void>;
 	revealActiveTerminal(preserveFocus?: boolean): Promise<void>;
 	moveToEditor(source: ITerminalInstance, group?: GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE | AUX_WINDOW_GROUP_TYPE): void;
 	moveIntoNewEditor(source: ITerminalInstance): void;
