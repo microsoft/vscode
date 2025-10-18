@@ -53,6 +53,13 @@ export class PromptsService extends Disposable implements IPromptsService {
 	private parsedPromptFileCache = new ResourceMap<[number, ParsedPromptFile]>();
 
 	/**
+	 * Cache for parsed prompt files keyed by command name.
+	 */
+	private promptFileByCommandCache = new Map<string, { value: ParsedPromptFile | undefined; pendingPromise: Promise<ParsedPromptFile | undefined> | undefined }>();
+
+	private onDidChangeParsedPromptFilesCacheEmitter = new Emitter<void>();
+
+	/**
 	 * Contributed files from extensions keyed by prompt type then name.
 	 */
 	private readonly contributedFiles = {
@@ -79,10 +86,15 @@ export class PromptsService extends Disposable implements IPromptsService {
 	) {
 		super();
 
+		this.onDidChangeParsedPromptFilesCacheEmitter = this._register(new Emitter<void>());
+
 		this.fileLocator = this._register(this.instantiationService.createInstance(PromptFilesLocator));
 
 		this._register(this.modelService.onModelRemoved((model) => {
 			this.parsedPromptFileCache.delete(model.uri);
+
+			// clear prompt file command cache
+			this.promptFileByCommandCache.clear();
 		}));
 	}
 
@@ -98,7 +110,12 @@ export class PromptsService extends Disposable implements IPromptsService {
 				emitter.fire();
 			}));
 		}
+
 		return this.onDidChangeCustomChatModesEmitter.event;
+	}
+
+	public get onDidChangeParsedPromptFilesCache(): Event<void> {
+		return this.onDidChangeParsedPromptFilesCacheEmitter.event;
 	}
 
 	public getPromptFileType(uri: URI): PromptsType | undefined {
@@ -106,7 +123,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const languageId = model ? model.getLanguageId() : this.languageService.guessLanguageIdByFilepathOrFirstLine(uri);
 		return languageId ? getPromptsTypeForLanguageId(languageId) : undefined;
 	}
-
 
 	public getParsedPromptFile(textModel: ITextModel): ParsedPromptFile {
 		const cached = this.parsedPromptFileCache.get(textModel.uri);
@@ -178,18 +194,65 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return undefined;
 	}
 
-	public async resolvePromptSlashCommand(data: IChatPromptSlashCommand, token: CancellationToken): Promise<ParsedPromptFile | undefined> {
-		const promptUri = await this.getPromptPath(data);
-		if (!promptUri) {
+	private async resolvePromptSlashCommandInternal(data: IChatPromptSlashCommand, token: CancellationToken) {
+		const command = data.command;
+		let promptUri: URI | undefined;
+		try {
+			promptUri = await this.getPromptPath(data);
+			if (!promptUri) {
+				return undefined;
+			}
+
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+
+			const parsedFile = await this.parseNew(promptUri, token);
+			return parsedFile;
+		} catch (error) {
+			if (error instanceof CancellationError) {
+				throw error;
+			}
+			this.logger.error(`[resolvePromptSlashCommand] Failed to parse prompt file: ${promptUri ?? command}`, error);
 			return undefined;
 		}
-		try {
-			return await this.parseNew(promptUri, token);
-		} catch (error) {
-			this.logger.error(`[resolvePromptSlashCommand] Failed to parse prompt file: ${promptUri}`, error);
-			return undefined;
+	}
+
+	public async resolvePromptSlashCommand(data: IChatPromptSlashCommand, token: CancellationToken): Promise<ParsedPromptFile | undefined> {
+		const command = data.command;
+
+		let cache = this.promptFileByCommandCache.get(command);
+		if (cache && cache.pendingPromise) {
+			return cache.pendingPromise;
 		}
 
+		const newPromise = this.resolvePromptSlashCommandInternal(data, token);
+		if (cache) {
+			cache.pendingPromise = newPromise;
+		}
+		else {
+			cache = { value: undefined, pendingPromise: newPromise };
+			this.promptFileByCommandCache.set(command, cache);
+		}
+
+		const newValue = await newPromise.finally(() => cache.pendingPromise = undefined);
+
+		// TODO: consider comparing the newValue and the old and only emit change event when there are value changes
+		cache.value = newValue;
+		this.onDidChangeParsedPromptFilesCacheEmitter.fire();
+
+		return newValue;
+	}
+
+	public resolvePromptSlashCommandFromCache(data: IChatPromptSlashCommand): ParsedPromptFile | undefined {
+		const cache = this.promptFileByCommandCache.get(data.command);
+		const value = cache?.value;
+		if (value === undefined) {
+			// kick off a async process to refresh the cache while we returns the current cached value
+			void this.resolvePromptSlashCommand(data, CancellationToken.None).catch((error) => { });
+		}
+
+		return value;
 	}
 
 	private async getPromptPath(data: IChatPromptSlashCommand): Promise<URI | undefined> {
@@ -406,5 +469,4 @@ export class ChatModeUpdateTracker extends Disposable {
 		this.listeners.forEach(listener => listener.dispose());
 		this.listeners.clear();
 	}
-
 }
