@@ -246,6 +246,12 @@ export class LinkDetector extends Disposable implements IEditorContribution {
 						if (relativePath) {
 							uri = resources.joinPath(modelUri, relativePath);
 						}
+						else {
+							// Handle Windows UNC paths
+							if (uri.startsWith('file:///\\\\') && platform.isWindows) {
+								uri = uri.replace('file:///\\\\', 'file://').replaceAll('\\', '/');
+							}
+						}
 					}
 				}
 			}
