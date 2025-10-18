@@ -24,8 +24,10 @@ const copyrightHeaderLines = [
 /**
  * @param {string[] | NodeJS.ReadWriteStream} some
  * @param {boolean} runEslint
+ * @param {boolean} fix
+ * @returns {import('stream').Stream}
  */
-function hygiene(some, runEslint = true) {
+function hygiene(some, runEslint = true, fix = false) {
 	const eslint = require('./gulp-eslint');
 	const gulpstylelint = require('./stylelint');
 	const formatter = require('./lib/formatter');
@@ -83,23 +85,42 @@ function hygiene(some, runEslint = true) {
 
 	const indentation = es.through(function (file) {
 		/** @type {string[]} */
-		const lines = file.__lines || file.contents.toString('utf8').split(/\r\n|\r|\n/);
+		let lines = file.__lines || file.contents.toString('utf8').split(/\r\n|\r|\n/);
+		let fixed = false;
 		file.__lines = lines;
 
-		lines.forEach((line, i) => {
+		lines = lines.map((line, i) => {
 			if (/^\s*$/.test(line)) {
 				// empty or whitespace lines are OK
+				return line;
 			} else if (/^[\t]*[^\s]/.test(line)) {
 				// good indent
+				return line;
 			} else if (/^[\t]* \*/.test(line)) {
 				// block comment using an extra space
+				return line;
 			} else {
 				console.error(
-					file.relative + '(' + (i + 1) + ',1): Bad whitespace indentation'
+					file.relative + '(' + (i + 1) + ',1): Bad whitespace indentation', fix ? '(fixed)' : ''
 				);
+				if (fix) {
+					fixed = true;
+					// Replace any leading mixture of tabs and spaces with tabs only
+					const leadingWhitespace = (line.match(/^\s*/) || [''])[0];
+					let width = 0;
+					for (const ch of leadingWhitespace) {
+						width = ch === '\t' ? (width + 4) & ~3 : width + 1;
+					}
+					return '\t'.repeat(width / 4) + line.substring(leadingWhitespace.length);
+				}
 				errorCount++;
+				return line;
 			}
 		});
+
+		if (fix && fixed) {
+			file.contents = Buffer.from(lines.join('\n'), 'utf8');
+		}
 
 		this.emit('data', file);
 	});
@@ -126,11 +147,15 @@ function hygiene(some, runEslint = true) {
 			const original = rawInput.replace(/\r\n/gm, '\n');
 			const formatted = rawOutput.replace(/\r\n/gm, '\n');
 			if (original !== formatted) {
-				console.error(
-					`File not formatted. Run the 'Format Document' command to fix it:`,
-					file.relative
-				);
-				errorCount++;
+				if (fix) {
+					file.contents = Buffer.from(rawOutput, 'utf8');
+				} else {
+					console.error(
+						`File not formatted. Run the 'Format Document' command to fix it:`,
+						file.relative
+					);
+					errorCount++;
+				}
 			}
 			cb(undefined, file);
 		} catch (err) {
@@ -281,11 +306,21 @@ if (require.main === module) {
 		process.exit(1);
 	});
 
-	if (process.argv.length > 2) {
-		hygiene(process.argv.slice(2)).on('error', (err) => {
+	let argv = process.argv.slice(2);
+	const fix = !!argv.find((f) => f === '--fix');
+	argv = argv.filter((f) => f !== '--fix');
+
+	if (argv.length > 0) {
+		let mergedStream = hygiene(argv, true, fix);
+		if (fix) {
+			mergedStream = mergedStream.pipe(vfs.dest('.'));
+		}
+		mergedStream.on('error', (err) => {
 			console.error();
 			console.error(err);
-			process.exit(1);
+			if (!fix) {
+				process.exit(1);
+			}
 		});
 	} else {
 		cp.exec(

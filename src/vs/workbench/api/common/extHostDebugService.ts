@@ -48,6 +48,8 @@ export interface IExtHostDebugService extends ExtHostDebugServiceShape {
 	breakpoints: vscode.Breakpoint[];
 	readonly onDidChangeActiveStackItem: Event<vscode.DebugThread | vscode.DebugStackFrame | undefined>;
 	activeStackItem: vscode.DebugThread | vscode.DebugStackFrame | undefined;
+	readonly onDidChangeConfiguration: Event<{ workspace: vscode.WorkspaceFolder | undefined; configuration: vscode.DebugConfiguration }>;
+	configuration: IConfig | undefined;
 
 	addBreakpoints(breakpoints0: readonly vscode.Breakpoint[]): Promise<void>;
 	removeBreakpoints(breakpoints0: readonly vscode.Breakpoint[]): Promise<void>;
@@ -59,6 +61,7 @@ export interface IExtHostDebugService extends ExtHostDebugServiceShape {
 	registerDebugVisualizationProvider<T extends vscode.DebugVisualization>(extension: IExtensionDescription, id: string, provider: vscode.DebugVisualizationProvider<T>): vscode.Disposable;
 	registerDebugVisualizationTree<T extends vscode.DebugTreeItem>(extension: IExtensionDescription, id: string, provider: vscode.DebugVisualizationTree<T>): vscode.Disposable;
 	asDebugSourceUri(source: vscode.DebugProtocolSource, session?: vscode.DebugSession): vscode.Uri;
+	setConfiguration(folder: vscode.WorkspaceFolder | undefined, nameOrConfiguration: string | vscode.DebugConfiguration): Promise<void>;
 }
 
 export abstract class ExtHostDebugServiceBase extends DisposableCls implements IExtHostDebugService, ExtHostDebugServiceShape {
@@ -101,6 +104,14 @@ export abstract class ExtHostDebugServiceBase extends DisposableCls implements I
 
 	private _activeStackItem: vscode.DebugThread | vscode.DebugStackFrame | undefined;
 	private readonly _onDidChangeActiveStackItem: Emitter<vscode.DebugThread | vscode.DebugStackFrame | undefined>;
+
+	private readonly _onDidChangeConfiguration: Emitter<{ workspace: vscode.WorkspaceFolder | undefined; configuration: vscode.DebugConfiguration }>;
+	get onDidChangeConfiguration(): Event<{ workspace: vscode.WorkspaceFolder | undefined; configuration: vscode.DebugConfiguration }> { return this._onDidChangeConfiguration.event; }
+
+	private _configuration: vscode.DebugConfiguration | undefined;
+	get configuration() {
+		return this._configuration;
+	}
 
 	private _debugAdapters: Map<number, IDebugAdapter>;
 	private _debugAdaptersTrackers: Map<number, vscode.DebugAdapterTracker>;
@@ -153,6 +164,8 @@ export abstract class ExtHostDebugServiceBase extends DisposableCls implements I
 
 		this._onDidChangeActiveStackItem = this._register(new Emitter<vscode.DebugThread | vscode.DebugStackFrame | undefined>());
 
+		this._onDidChangeConfiguration = this._register(new Emitter<{ workspace: vscode.WorkspaceFolder | undefined; configuration: vscode.DebugConfiguration }>());
+
 		this._activeDebugConsole = new ExtHostDebugConsole(this._debugServiceProxy);
 
 		this._breakpoints = new Map<string, vscode.Breakpoint>();
@@ -165,6 +178,9 @@ export abstract class ExtHostDebugServiceBase extends DisposableCls implements I
 		});
 
 		this._telemetryProxy = extHostRpcService.getProxy(MainContext.MainThreadTelemetry);
+	}
+	public setConfiguration(folder: vscode.WorkspaceFolder | undefined, nameOrConfiguration: string | vscode.DebugConfiguration): Promise<void> {
+		return this._debugServiceProxy.$setDebugConfiguration(folder?.uri, nameOrConfiguration);
 	}
 
 	public async $getVisualizerTreeItem(treeId: string, element: IDebugVisualizationContext): Promise<IDebugVisualizationTreeItem | undefined> {
@@ -1125,6 +1141,11 @@ export abstract class ExtHostDebugServiceBase extends DisposableCls implements I
 			dark: (typeof dark === 'string' ? URI.file(dark) : dark) as URI,
 			light: (typeof light === 'string' ? URI.file(light) : light) as URI,
 		};
+	}
+
+	async $acceptConfigurationChanged(workspace: UriComponents | undefined, configuration: vscode.DebugConfiguration): Promise<void> {
+		this._configuration = configuration;
+		this._onDidChangeConfiguration.fire({ workspace: workspace ? await this._workspaceService.resolveWorkspaceFolder(URI.revive(workspace)) : undefined, configuration });
 	}
 }
 
