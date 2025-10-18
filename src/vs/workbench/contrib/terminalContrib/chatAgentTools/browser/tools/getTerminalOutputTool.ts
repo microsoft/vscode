@@ -45,11 +45,22 @@ export class GetTerminalOutputTool extends Disposable implements IToolImpl {
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
 		const args = invocation.parameters as IGetTerminalOutputInputParams;
-		return {
-			content: [{
-				kind: 'text',
-				value: `Output of terminal ${args.id}:\n${RunInTerminalTool.getBackgroundOutput(args.id)}`
-			}]
-		};
+		try {
+			const output = RunInTerminalTool.getBackgroundOutput(args.id);
+			return {
+				content: [{
+					kind: 'text',
+					value: `Output of terminal ${args.id}:\n${output}`
+				}]
+			};
+		} catch (e) {
+			const errorMessage = e instanceof Error ? e.message : String(e);
+			return {
+				content: [{
+					kind: 'text',
+					value: `Error: ${errorMessage}. The terminal may have been closed by the user.`
+				}]
+			};
+		}
 	}
 }

@@ -37,6 +37,17 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 	setBackendOs(os: OperatingSystem) {
 		this._osBackend = Promise.resolve(os);
 	}
+
+	// Test helpers for accessing static private members
+	static setBackgroundExecution(id: string, execution: any) {
+		(RunInTerminalTool as any)._backgroundExecutions.set(id, execution);
+	}
+	static deleteBackgroundExecution(id: string) {
+		(RunInTerminalTool as any)._backgroundExecutions.delete(id);
+	}
+	static hasBackgroundExecution(id: string): boolean {
+		return (RunInTerminalTool as any)._backgroundExecutions.has(id);
+	}
 }
 
 suite('RunInTerminalTool', () => {
@@ -963,6 +974,85 @@ suite('RunInTerminalTool', () => {
 			const result = await runInTerminalTool.getCopilotProfile();
 			strictEqual(typeof result, 'object');
 			strictEqual((result as ITerminalProfile).path, 'pwsh'); // From the mock ITerminalProfileResolverService
+		});
+	});
+
+	suite('terminal disposal detection', () => {
+		test('should throw error when getting output from closed terminal', () => {
+			const mockTerminal: ITerminalInstance = {
+				isDisposed: true
+			} as ITerminalInstance;
+
+			// Simulate creating a background execution and then disposing the terminal
+			const termId = 'test-term-id';
+			const execution = {
+				instance: mockTerminal,
+				getOutput: () => 'some output',
+				dispose: () => { }
+			};
+
+			// Manually add to background executions to simulate the scenario
+			TestRunInTerminalTool.setBackgroundExecution(termId, execution);
+
+			try {
+				RunInTerminalTool.getBackgroundOutput(termId);
+				ok(false, 'Expected error to be thrown for closed terminal');
+			} catch (e: any) {
+				strictEqual(e.message, 'Terminal is closed', 'Expected "Terminal is closed" error message');
+			} finally {
+				// Clean up
+				TestRunInTerminalTool.deleteBackgroundExecution(termId);
+			}
+		});
+
+		test('should clean up background executions when terminal is disposed', () => {
+			const mockTerminal: ITerminalInstance = {
+				isDisposed: false
+			} as ITerminalInstance;
+
+			const termId = 'test-term-id';
+			const execution = {
+				instance: mockTerminal,
+				getOutput: () => 'some output',
+				dispose: () => { }
+			};
+
+			// Manually add to background executions
+			TestRunInTerminalTool.setBackgroundExecution(termId, execution);
+
+			// Verify it exists
+			strictEqual(TestRunInTerminalTool.hasBackgroundExecution(termId), true);
+
+			// Fire the terminal disposal event
+			terminalServiceDisposeEmitter.fire(mockTerminal);
+
+			// Verify the background execution was cleaned up
+			strictEqual(TestRunInTerminalTool.hasBackgroundExecution(termId), false);
+		});
+
+		test('should return output successfully for active terminal', () => {
+			const mockTerminal: ITerminalInstance = {
+				isDisposed: false
+			} as ITerminalInstance;
+
+			const termId = 'test-term-id';
+			const expectedOutput = 'test output from active terminal';
+			const execution = {
+				instance: mockTerminal,
+				getOutput: () => expectedOutput,
+				dispose: () => { }
+			};
+
+			// Manually add to background executions
+			TestRunInTerminalTool.setBackgroundExecution(termId, execution);
+
+			try {
+				const output = RunInTerminalTool.getBackgroundOutput(termId);
+				strictEqual(output, expectedOutput, 'Expected to get output from active terminal');
+			} finally {
+				// Clean up
+				TestRunInTerminalTool.deleteBackgroundExecution(termId);
+			}
 		});
 	});
 });
