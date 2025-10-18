@@ -81,6 +81,13 @@ call "%INTEGRATION_TEST_ELECTRON_PATH%" %GITWORKSPACE% --extensionDevelopmentPat
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 echo.
+echo ### Git Base tests
+set GITBASEWORKSPACE=%TEMPDIR%\git-base-%RANDOM%
+mkdir %GITBASEWORKSPACE%
+call "%INTEGRATION_TEST_ELECTRON_PATH%" %GITBASEWORKSPACE% --extensionDevelopmentPath=%~dp0\..\extensions\git-base --extensionTestsPath=%~dp0\..\extensions\git-base\out\test %API_TESTS_EXTRA_ARGS%
+if %errorlevel% neq 0 exit /b %errorlevel%
+
+echo.
 echo ### Ipynb tests
 call npm run test-extension -- -l ipynb
 if %errorlevel% neq 0 exit /b %errorlevel%
