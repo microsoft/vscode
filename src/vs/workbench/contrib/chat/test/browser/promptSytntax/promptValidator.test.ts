@@ -233,6 +233,24 @@ suite('PromptValidator', () => {
 				assert.deepStrictEqual(markers.map(m => m.message), [`The 'agent' property in a handoff must be a non-empty string.`]);
 			}
 		});
+
+		test('mode with handoffs attribute', async () => {
+			const content = [
+				'---',
+				'description: \"Test mode with handoffs\"',
+				`handoffs:`,
+				'  - label: Test Prompt',
+				'    agent: Default',
+				'    prompt: Add tests for this code',
+				'  - label: Optimize Performance',
+				'    agent: Default',
+				'    prompt: Optimize for performance',
+				'---',
+				'Body',
+			].join('\n');
+			const markers = await validate(content, PromptsType.mode);
+			assert.deepStrictEqual(markers, [], 'Expected no validation issues for handoffs attribute');
+		});
 	});
 
 	suite('instructions', () => {
