@@ -453,16 +453,14 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					resultText += `\n\ The command is still running, with output:\n${pollingResult.output}`;
 				}
 
-				const toolResultMessage = toolSpecificData.autoApproveInfo;
 				return {
-					toolResultMessage: toolResultMessage,
 					toolMetadata: {
 						exitCode: undefined // Background processes don't have immediate exit codes
 					},
 					content: [{
 						kind: 'text',
 						value: resultText,
-					}]
+					}],
 				};
 			} catch (e) {
 				if (termId) {
@@ -594,17 +592,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}
 			resultText.push(terminalResult);
 
-			let resolvedToolResultMessage: IMarkdownString | undefined;
-			if (toolSpecificData.autoApproveInfo) {
-				if (toolResultMessage) {
-					resolvedToolResultMessage = new MarkdownString(`${toolSpecificData.autoApproveInfo.value}\n\n${toolResultMessage}`, toolSpecificData.autoApproveInfo);
-				} else {
-					resolvedToolResultMessage = toolSpecificData.autoApproveInfo;
-				}
-			}
-
 			return {
-				toolResultMessage: resolvedToolResultMessage,
+				toolResultMessage,
 				toolMetadata: {
 					exitCode: exitCode
 				},
