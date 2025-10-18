@@ -45,6 +45,10 @@
 	justify-content: left;
 }
 
+.runtime-extensions-editor .monaco-action-bar > .actions-container .action-label:not(.icon) {
+	border-radius: 2px;
+}
+
 .runtime-extensions-editor .extension > .icon-container {
 	position: relative;
 }
