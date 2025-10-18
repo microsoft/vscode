@@ -63,6 +63,18 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 					description: localize('chatSessionsExtPoint.icon', 'Icon identifier (codicon ID) for the chat session editor tab. For example, "$(github)" or "$(cloud)".'),
 					type: 'string'
 				},
+				welcomeTitle: {
+					description: localize('chatSessionsExtPoint.welcomeTitle', 'Title text to display in the chat welcome view for this session type.'),
+					type: 'string'
+				},
+				welcomeMessage: {
+					description: localize('chatSessionsExtPoint.welcomeMessage', 'Message text (supports markdown) to display in the chat welcome view for this session type.'),
+					type: 'string'
+				},
+				inputPlaceholder: {
+					description: localize('chatSessionsExtPoint.inputPlaceholder', 'Placeholder text to display in the chat input box for this session type.'),
+					type: 'string'
+				},
 				capabilities: {
 					description: localize('chatSessionsExtPoint.capabilities', 'Optional capabilities for this chat session.'),
 					type: 'object',
@@ -165,6 +177,9 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	private readonly inProgressMap: Map<string, number> = new Map();
 	private readonly _sessionTypeModels: Map<string, ILanguageModelChatMetadataAndIdentifier[]> = new Map();
 	private readonly _sessionTypeIcons: Map<string, ThemeIcon> = new Map();
+	private readonly _sessionTypeWelcomeTitles: Map<string, string> = new Map();
+	private readonly _sessionTypeWelcomeMessages: Map<string, string> = new Map();
+	private readonly _sessionTypeInputPlaceholders: Map<string, string> = new Map();
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
@@ -189,6 +204,9 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 						description: contribution.description,
 						when: contribution.when,
 						icon: contribution.icon,
+						welcomeTitle: contribution.welcomeTitle,
+						welcomeMessage: contribution.welcomeMessage,
+						inputPlaceholder: contribution.inputPlaceholder,
 						capabilities: contribution.capabilities,
 						extensionDescription: ext.description,
 						commands: contribution.commands
@@ -266,12 +284,26 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			this._sessionTypeIcons.set(contribution.type, ThemeIcon.fromId(iconId));
 		}
 
+		// Store welcome title, message, and input placeholder if provided
+		if (contribution.welcomeTitle) {
+			this._sessionTypeWelcomeTitles.set(contribution.type, contribution.welcomeTitle);
+		}
+		if (contribution.welcomeMessage) {
+			this._sessionTypeWelcomeMessages.set(contribution.type, contribution.welcomeMessage);
+		}
+		if (contribution.inputPlaceholder) {
+			this._sessionTypeInputPlaceholders.set(contribution.type, contribution.inputPlaceholder);
+		}
+
 		this._evaluateAvailability();
 
 		return {
 			dispose: () => {
 				this._contributions.delete(contribution.type);
 				this._sessionTypeIcons.delete(contribution.type);
+				this._sessionTypeWelcomeTitles.delete(contribution.type);
+				this._sessionTypeWelcomeMessages.delete(contribution.type);
+				this._sessionTypeInputPlaceholders.delete(contribution.type);
 				const store = this._disposableStores.get(contribution.type);
 				if (store) {
 					store.dispose();
@@ -708,6 +740,27 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	 */
 	public getIconForSessionType(chatSessionType: string): ThemeIcon | undefined {
 		return this._sessionTypeIcons.get(chatSessionType);
+	}
+
+	/**
+	 * Get the welcome title for a specific session type
+	 */
+	public getWelcomeTitleForSessionType(chatSessionType: string): string | undefined {
+		return this._sessionTypeWelcomeTitles.get(chatSessionType);
+	}
+
+	/**
+	 * Get the welcome message for a specific session type
+	 */
+	public getWelcomeMessageForSessionType(chatSessionType: string): string | undefined {
+		return this._sessionTypeWelcomeMessages.get(chatSessionType);
+	}
+
+	/**
+	 * Get the input placeholder for a specific session type
+	 */
+	public getInputPlaceholderForSessionType(chatSessionType: string): string | undefined {
+		return this._sessionTypeInputPlaceholders.get(chatSessionType);
 	}
 }
 
