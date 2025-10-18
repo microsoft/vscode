@@ -91,6 +91,7 @@ import './services/auxiliaryWindow/electron-browser/auxiliaryWindowService.js';
 import '../platform/extensionManagement/electron-browser/extensionsProfileScannerService.js';
 import '../platform/webContentExtractor/electron-browser/webContentExtractorService.js';
 import './services/process/electron-browser/processService.js';
+import '../platform/policy/electron-browser/policyWriterService.js';
 
 import { registerSingleton } from '../platform/instantiation/common/extensions.js';
 import { IUserDataInitializationService, UserDataInitializationService } from './services/userData/browser/userDataInit.js';
@@ -181,6 +182,9 @@ import './contrib/emergencyAlert/electron-browser/emergencyAlert.contribution.js
 
 // MCP
 import './contrib/mcp/electron-browser/mcp.contribution.js';
+
+// Policy Export
+import './contrib/policyExport/electron-browser/policyExport.contribution.js';
 
 //#endregion
 

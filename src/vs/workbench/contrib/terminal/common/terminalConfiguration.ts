@@ -7,6 +7,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import type { IStringDictionary } from '../../../../base/common/collections.js';
 import { IJSONSchemaSnippet } from '../../../../base/common/jsonSchema.js';
 import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
+import { PolicyCategory } from '../../../../base/common/policy.js';
 import { localize } from '../../../../nls.js';
 import { ConfigurationScope, Extensions, IConfigurationRegistry, type IConfigurationPropertySchema } from '../../../../platform/configuration/common/configurationRegistry.js';
 import product from '../../../../platform/product/common/product.js';
@@ -625,6 +626,17 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 			localize('terminal.integrated.focusAfterRun.none', "Do nothing."),
 		]
 	},
+	[TerminalContribSettingId.EnableAutoApprove]: {
+		description: localize('autoApproveMode.description', "Controls whether to allow auto approval in the run in terminal tool."),
+		type: 'boolean',
+		default: true,
+		policy: {
+			name: 'ChatToolsTerminalEnableAutoApprove',
+			category: PolicyCategory.IntegratedTerminal,
+			minimumVersion: '1.104',
+			localization: { description: 'autoApproveMode.description' },
+		}
+	},
 	...terminalContribConfiguration,
 };
 
@@ -637,17 +649,6 @@ export async function registerTerminalConfiguration(getFontSnippets: () => Promi
 		type: 'object',
 		properties: {
 			...terminalConfiguration,
-			// HACK: This is included here in order instead of in the contrib to support policy
-			// extraction as it doesn't compute runtime values.
-			[TerminalContribSettingId.EnableAutoApprove]: {
-				description: localize('autoApproveMode.description', "Controls whether to allow auto approval in the run in terminal tool."),
-				type: 'boolean',
-				default: true,
-				policy: {
-					name: 'ChatToolsTerminalEnableAutoApprove',
-					minimumVersion: '1.104',
-				}
-			}
 		}
 	});
 	terminalConfiguration[TerminalSettingId.FontFamily].defaultSnippets = await getFontSnippets();

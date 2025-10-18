@@ -123,6 +123,7 @@ import { SAVE_TO_PROMPT_ACTION_ID, SAVE_TO_PROMPT_SLASH_COMMAND_NAME } from './p
 import { ConfigureToolSets, UserToolSetsContributions } from './tools/toolSetsContribution.js';
 import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeHandler.js';
 import { ChatSessionsView } from './chatSessions/view/chatSessionsView.js';
+import { PolicyCategory } from '../../../../base/common/policy.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -240,18 +241,21 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.GlobalAutoApprove]: {
 			default: false,
-			// HACK: Description duplicated for policy parser. See https://github.com/microsoft/vscode/issues/254526
-			description: nls.localize('autoApprove2.description',
-				'Global auto approve also known as "YOLO mode" disables manual approval completely for all tools in all workspaces, allowing the agent to act fully autonomously. This is extremely dangerous and is *never* recommended, even containerized environments like Codespaces and Dev Containers have user keys forwarded into the container that could be compromised.\n\nThis feature disables critical security protections and makes it much easier for an attacker to compromise the machine.'
-			),
 			markdownDescription: globalAutoApproveDescription.value,
 			type: 'boolean',
 			scope: ConfigurationScope.APPLICATION_MACHINE,
 			tags: ['experimental'],
 			policy: {
 				name: 'ChatToolsAutoApprove',
+				category: PolicyCategory.InteractiveSession,
 				minimumVersion: '1.99',
 				value: (account) => account.chat_preview_features_enabled === false ? false : undefined,
+				localization: {
+					description: {
+						key: 'autoApprove2.description',
+						value: nls.localize('autoApprove2.description', 'Global auto approve also known as "YOLO mode" disables manual approval completely for all tools in all workspaces, allowing the agent to act fully autonomously. This is extremely dangerous and is *never* recommended, even containerized environments like Codespaces and Dev Containers have user keys forwarded into the container that could be compromised.\n\nThis feature disables critical security protections and makes it much easier for an attacker to compromise the machine.')
+					}
+				},
 			}
 		},
 		[ChatConfiguration.AutoApproveEdits]: {
@@ -344,6 +348,7 @@ configurationRegistry.registerConfiguration({
 			default: McpAccessValue.All,
 			policy: {
 				name: 'ChatMCP',
+				category: PolicyCategory.InteractiveSession,
 				minimumVersion: '1.99',
 				value: (account) => {
 					if (account.mcp === false) {
@@ -353,6 +358,14 @@ configurationRegistry.registerConfiguration({
 						return McpAccessValue.Registry;
 					}
 					return undefined;
+				},
+				localization: {
+					description: 'chat.mcp.access',
+					enumDescriptions: [
+						'chat.mcp.access.none',
+						'chat.mcp.access.registry',
+						'chat.mcp.access.any'
+					]
 				},
 			}
 		},
@@ -419,8 +432,11 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			policy: {
 				name: 'ChatAgentExtensionTools',
+				category: PolicyCategory.InteractiveSession,
 				minimumVersion: '1.99',
-				description: nls.localize('chat.extensionToolsPolicy', "Enable using tools contributed by third-party extensions."),
+				localization: {
+					description: 'chat.extensionToolsEnabled'
+				},
 			}
 		},
 		[ChatConfiguration.AgentEnabled]: {
@@ -429,8 +445,10 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			policy: {
 				name: 'ChatAgentMode',
+				category: PolicyCategory.InteractiveSession,
 				minimumVersion: '1.99',
 				value: (account) => account.chat_agent_enabled === false ? false : undefined,
+				localization: { description: 'chat.agent.enabled.description' }
 			}
 		},
 		[ChatConfiguration.EnableMath]: {
@@ -472,8 +490,10 @@ configurationRegistry.registerConfiguration({
 			included: false,
 			policy: {
 				name: 'McpGalleryServiceUrl',
+				category: PolicyCategory.InteractiveSession,
 				minimumVersion: '1.101',
-				value: (account) => account.mcpRegistryUrl
+				value: (account) => account.mcpRegistryUrl,
+				localization: { description: 'mcp.gallery.serviceUrl' }
 			},
 		},
 		[PromptsConfig.KEY]: {
@@ -495,8 +515,14 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental', 'prompts', 'reusable prompts', 'prompt snippets', 'instructions'],
 			policy: {
 				name: 'ChatPromptFiles',
+				category: PolicyCategory.InteractiveSession,
 				minimumVersion: '1.99',
-				description: nls.localize('chat.promptFiles.policy', "Enables reusable prompt and instruction files in Chat sessions.")
+				localization: {
+					description: {
+						key: 'chat.promptFiles.policy',
+						value: nls.localize('chat.promptFiles.policy', "Enables reusable prompt and instruction files in Chat sessions.")
+					}
+				}
 			}
 		},
 		[PromptsConfig.INSTRUCTIONS_LOCATION_KEY]: {

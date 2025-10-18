@@ -12,6 +12,7 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { Extensions, IConfigurationNode, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { DefaultConfiguration, PolicyConfiguration } from '../../../../../platform/configuration/common/configurations.js';
 import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
+import { PolicyCategory } from '../../../../../base/common/policy.js';
 
 const BASE_DEFAULT_ACCOUNT: IDefaultAccount = {
 	enterprise: false,
@@ -38,7 +39,9 @@ suite('AccountPolicyService', () => {
 				'default': 'defaultValueA',
 				policy: {
 					name: 'PolicySettingA',
+					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
+					localization: { description: '' }
 				}
 			},
 			'setting.B': {
@@ -46,8 +49,10 @@ suite('AccountPolicyService', () => {
 				'default': 'defaultValueB',
 				policy: {
 					name: 'PolicySettingB',
+					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
 					value: account => account.chat_preview_features_enabled === false ? 'policyValueB' : undefined,
+					localization: { description: '' }
 				}
 			},
 			'setting.C': {
@@ -55,8 +60,10 @@ suite('AccountPolicyService', () => {
 				'default': ['defaultValueC1', 'defaultValueC2'],
 				policy: {
 					name: 'PolicySettingC',
+					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
 					value: account => account.chat_preview_features_enabled === false ? JSON.stringify(['policyValueC1', 'policyValueC2']) : undefined,
+					localization: { description: '' }
 				}
 			},
 			'setting.D': {
@@ -64,8 +71,10 @@ suite('AccountPolicyService', () => {
 				'default': true,
 				policy: {
 					name: 'PolicySettingD',
+					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
 					value: account => account.chat_preview_features_enabled === false ? false : undefined,
+					localization: { description: '' }
 				}
 			},
 			'setting.E': {
