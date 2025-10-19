@@ -277,12 +277,17 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		this._contributions.set(contribution.type, contribution);
 
 		// Store icon mapping if provided
+		let icon: ThemeIcon | undefined;
+
 		if (contribution.icon) {
 			// Parse icon string - support both "$(iconId)" and "iconId" formats
-			const iconId = contribution.icon.startsWith('$(') && contribution.icon.endsWith(')')
-				? contribution.icon.slice(2, -1)
-				: contribution.icon;
-			this._sessionTypeIcons.set(contribution.type, ThemeIcon.fromId(iconId));
+			icon = contribution.icon.startsWith('$(') && contribution.icon.endsWith(')')
+				? ThemeIcon.fromString(contribution.icon)
+				: ThemeIcon.fromId(contribution.icon);
+		}
+
+		if (icon) {
+			this._sessionTypeIcons.set(contribution.type, icon);
 		}
 
 		// Store welcome title, message, and input placeholder if provided
