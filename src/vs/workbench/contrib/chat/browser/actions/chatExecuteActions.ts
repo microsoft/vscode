@@ -171,7 +171,7 @@ export class ChatSubmitAction extends SubmitAction {
 
 		super({
 			id: ChatSubmitAction.ID,
-			title: localize2('interactive.submit.label', "Send and Dispatch"),
+			title: localize2('interactive.submit.label', "Send"),
 			f1: false,
 			category: CHAT_CATEGORY,
 			icon: Codicon.send,
@@ -179,7 +179,7 @@ export class ChatSubmitAction extends SubmitAction {
 			toggled: {
 				condition: ChatContextKeys.lockedToCodingAgent,
 				icon: Codicon.send,
-				tooltip: localize('sendToRemoteAgent', "Send to coding agent"),
+				tooltip: localize('sendToRemoteAgent', "Send to Coding Agent"),
 			},
 			keybinding: {
 				when: ContextKeyExpr.and(
@@ -191,15 +191,6 @@ export class ChatSubmitAction extends SubmitAction {
 			},
 			menu: [
 				{
-					id: MenuId.ChatExecuteSecondary,
-					group: 'group_1',
-					order: 1,
-					when: ContextKeyExpr.or(
-						ChatContextKeys.withinEditSessionDiff,
-						ContextKeyExpr.and(menuCondition, ChatContextKeys.lockedToCodingAgent.negate())
-					),
-				},
-				{
 					id: MenuId.ChatExecute,
 					order: 4,
 					when: ContextKeyExpr.and(
@@ -208,6 +199,11 @@ export class ChatSubmitAction extends SubmitAction {
 						ChatContextKeys.withinEditSessionDiff.negate(),
 					),
 					group: 'navigation',
+					alt: {
+						id: 'workbench.action.chat.sendToNewChat',
+						title: localize2('chat.newChat.label', "Send to New Chat"),
+						icon: Codicon.plus
+					}
 				}]
 		});
 	}
@@ -240,15 +236,6 @@ export class ChatDelegateToEditSessionAction extends Action2 {
 						ChatContextKeys.withinEditSessionDiff,
 					),
 					group: 'navigation',
-				},
-				{
-					id: MenuId.ChatExecuteSecondary,
-					group: 'group_1',
-					order: 1,
-					when: ContextKeyExpr.and(
-						whenNotInProgress,
-						ChatContextKeys.filePartOfEditSession,
-					),
 				}
 			]
 		});
@@ -557,18 +544,17 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 			precondition,
 			menu: [
 				{
-					id: MenuId.ChatExecuteSecondary,
-					group: 'group_1',
-					when: ContextKeyExpr.and(whenNotInProgress, menuCondition),
-					order: 1
-				},
-				{
 					id: MenuId.ChatExecute,
 					order: 4,
 					when: ContextKeyExpr.and(
 						ChatContextKeys.requestInProgress.negate(),
 						menuCondition),
 					group: 'navigation',
+					alt: {
+						id: 'workbench.action.chat.sendToNewChat',
+						title: localize2('chat.newChat.label', "Send to New Chat"),
+						icon: Codicon.plus
+					}
 				}]
 		});
 	}
@@ -596,15 +582,7 @@ class SubmitWithoutDispatchingAction extends Action2 {
 				when: ChatContextKeys.inChatInput,
 				primary: KeyMod.Alt | KeyMod.Shift | KeyCode.Enter,
 				weight: KeybindingWeight.EditorContrib
-			},
-			menu: [
-				{
-					id: MenuId.ChatExecuteSecondary,
-					group: 'group_1',
-					order: 2,
-					when: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Ask),
-				}
-			]
+			}
 		});
 	}
 
@@ -655,20 +633,6 @@ export class CreateRemoteAgentJobAction extends Action2 {
 							ChatContextKeys.hasCloudButtonV2
 						),
 						ChatContextKeys.lockedToCodingAgent.negate(),
-						ContextKeyExpr.equals(`config.${ChatConfiguration.DelegateToCodingAgentInSecondaryMenu}`, false)
-					),
-				},
-				{
-					id: MenuId.ChatExecuteSecondary,
-					group: 'group_3',
-					order: 1,
-					when: ContextKeyExpr.and(
-						ContextKeyExpr.or(
-							ChatContextKeys.hasRemoteCodingAgent,
-							ChatContextKeys.hasCloudButtonV2
-						),
-						ChatContextKeys.lockedToCodingAgent.negate(),
-						ContextKeyExpr.equals(`config.${ChatConfiguration.DelegateToCodingAgentInSecondaryMenu}`, true)
 					),
 				}
 			]
@@ -1049,15 +1013,6 @@ export class ChatSubmitWithCodebaseAction extends Action2 {
 			id: ChatSubmitWithCodebaseAction.ID,
 			title: localize2('actions.chat.submitWithCodebase', "Send with {0}", `${chatVariableLeader}codebase`),
 			precondition,
-			menu: {
-				id: MenuId.ChatExecuteSecondary,
-				group: 'group_1',
-				order: 3,
-				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Chat),
-					ChatContextKeys.lockedToCodingAgent.negate()
-				),
-			},
 			keybinding: {
 				when: ChatContextKeys.inChatInput,
 				primary: KeyMod.CtrlCmd | KeyCode.Enter,
@@ -1108,14 +1063,6 @@ class SendToNewChatAction extends Action2 {
 			precondition,
 			category: CHAT_CATEGORY,
 			f1: false,
-			menu: {
-				id: MenuId.ChatExecuteSecondary,
-				group: 'group_2',
-				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Chat),
-					ChatContextKeys.lockedToCodingAgent.negate()
-				)
-			},
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter,
