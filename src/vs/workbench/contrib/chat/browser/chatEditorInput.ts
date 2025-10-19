@@ -204,22 +204,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	}
 
 	private resolveIcon(): ThemeIcon | URI | undefined {
-		// 1. Try to get session-specific icon from IChatSessionItem.iconPath (supports both ThemeIcon and URI)
-		if (this.sessionId) {
-			const sessionType = this.getSessionType();
-			if (sessionType !== 'local') {
-				// For non-local sessions, try to find the session item
-				// Note: This is a best-effort synchronous lookup. Session items may not be loaded yet.
-				const providers = this.chatSessionsService.getAllChatSessionItemProviders();
-				const provider = providers.find(p => p.chatSessionType === sessionType);
-				if (provider) {
-					// We can't await here, so we'll check for icon updates during resolve()
-					// For now, fall through to session type icon
-				}
-			}
-		}
-
-		// 2. Fall back to session type icon from extension point
+		// TODO@osortega,@rebornix double check: Chat Session Item icon is reserved for chat session list and deprecated for chat session status. thus here we use session type icon. We may want to show status for the Editor Title.
 		const sessionType = this.getSessionType();
 		if (sessionType !== 'local') {
 			const typeIcon = this.chatSessionsService.getIconForSessionType(sessionType);
@@ -228,7 +213,6 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 			}
 		}
 
-		// 3. No custom icon found
 		return undefined;
 	}
 
