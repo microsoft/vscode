@@ -341,14 +341,42 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		}
 	}
 
-	async getOrActivateProviderIdForServer(authorizationServer: URI): Promise<string | undefined> {
+	async getOrActivateProviderIdForServer(authorizationServer: URI, resource?: URI): Promise<string | undefined> {
+		const authServerStr = authorizationServer.toString(true);
+		const resourceStr = resource?.toString(true);
+
+		// Helper function to check if a provider ID matches the auth server and resource
+		const matchesProviderCriteria = (providerId: string): boolean => {
+			// If no resource is provided, match providers that are just the auth server
+			if (!resourceStr) {
+				return providerId === authServerStr;
+			}
+			// If resource is provided, match providers in format "authServer resource"
+			return providerId === `${authServerStr} ${resourceStr}`;
+		};
+
+		// First, check registered providers for exact match with resource
 		for (const provider of this._authenticationProviders.values()) {
-			if (provider.authorizationServers?.some(i => i.toString(true) === authorizationServer.toString(true) || match(i.toString(true), authorizationServer.toString(true)))) {
+			if (matchesProviderCriteria(provider.id)) {
 				return provider.id;
 			}
 		}
 
-		const authServerStr = authorizationServer.toString(true);
+		// If no exact match found and we have a resource, also check by auth server only
+		// This allows fallback to auth-server-only providers
+		if (resourceStr) {
+			for (const provider of this._authenticationProviders.values()) {
+				if (provider.authorizationServers?.some(i => i.toString(true) === authServerStr || match(i.toString(true), authServerStr))) {
+					// Only return if the provider ID doesn't contain a resource specification
+					// to avoid returning a provider meant for a different resource
+					if (!provider.id.includes(' ')) {
+						return provider.id;
+					}
+				}
+			}
+		}
+
+		// Check declared but not yet activated providers
 		const providers = this._declaredProviders
 			// Only consider providers that are not already registered since we already checked them
 			.filter(p => !this._authenticationProviders.has(p.id))
@@ -358,6 +386,10 @@ export class AuthenticationService extends Disposable implements IAuthentication
 			const activeProvider = await this.tryActivateProvider(provider.id, true);
 			// Check the resolved authorization servers
 			if (activeProvider.authorizationServers?.some(i => match(i.toString(true), authServerStr))) {
+				// If we have a resource requirement, ensure the provider ID matches
+				if (resourceStr && !matchesProviderCriteria(activeProvider.id)) {
+					continue;
+				}
 				return activeProvider.id;
 			}
 		}
