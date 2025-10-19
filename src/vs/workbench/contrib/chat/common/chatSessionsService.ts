@@ -15,7 +15,6 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { IEditableData } from '../../../common/views.js';
 import { IChatAgentRequest } from './chatAgents.js';
 import { IChatProgress } from './chatService.js';
-import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from './languageModels.js';
 
 export const enum ChatSessionStatus {
 	Failed = 0,
@@ -27,6 +26,19 @@ export interface IChatSessionCommandContribution {
 	name: string;
 	description: string;
 	when?: string;
+}
+
+export interface IChatSessionProviderOptionItem {
+	id: string;
+	name: string;
+	// [key: string]: any;
+}
+
+export interface IChatSessionProviderOptionGroup {
+	id: string;
+	name: string;
+	description?: string;
+	items: IChatSessionProviderOptionItem[];
 }
 
 export interface IChatSessionsExtensionPoint {
@@ -68,7 +80,11 @@ export interface ChatSession extends IDisposable {
 	readonly sessionResource: URI;
 	readonly onWillDispose: Event<void>;
 	history: Array<IChatSessionHistoryItem>;
-	options: { model?: ILanguageModelChatMetadata } | undefined;
+	/**
+	 * Session options as key-value pairs. Keys correspond to option group IDs (e.g., 'models', 'subagents')
+	 * and values are the selected option item IDs.
+	 */
+	options?: Record<string, string>;
 
 	readonly progressObs?: IObservable<IChatProgress[]>;
 	readonly isCompleteObs?: IObservable<boolean>;
@@ -96,19 +112,6 @@ export interface IChatSessionContentProvider {
 	provideChatSessionContent(sessionId: string, sessionResource: URI, token: CancellationToken): Promise<ChatSession>;
 }
 
-// TODO: Copy of LanguageModelChatInformation with various omissions
-export interface IChatSessionModelInfo {
-	id: string;
-	name: string;
-	family: string;
-	tooltip?: string;
-	detail?: string;
-	version: string;
-	maxInputTokens: number;
-	maxOutputTokens: number;
-	capabilities?: { imageInput?: boolean; toolCalling?: boolean | number };
-}
-
 export interface IChatSessionsService {
 	readonly _serviceBrand: undefined;
 
@@ -133,11 +136,11 @@ export interface IChatSessionsService {
 	canResolveContentProvider(chatSessionType: string): Promise<boolean>;
 	provideChatSessionContent(chatSessionType: string, id: string, sessionResource: URI, token: CancellationToken): Promise<ChatSession>;
 
-	// Get available models for a session type
-	getModelsForSessionType(chatSessionType: string): ILanguageModelChatMetadataAndIdentifier[] | undefined;
+	// Get available option groups for a session type
+	getOptionGroupsForSessionType(chatSessionType: string): IChatSessionProviderOptionGroup[] | undefined;
 
-	// Set available models for a session type (called by MainThreadChatSessions)
-	setModelsForSessionType(chatSessionType: string, handle: number, models?: IChatSessionModelInfo[]): void;
+	// Set available option groups for a session type (called by MainThreadChatSessions)
+	setOptionGroupsForSessionType(chatSessionType: string, handle: number, optionGroups?: IChatSessionProviderOptionGroup[]): void;
 
 	// Set callback for notifying extensions about option changes
 	setOptionsChangeCallback(callback: (chatSessionType: string, sessionId: string, updates: ReadonlyArray<{ optionId: string; value: string }>) => Promise<void>): void;

@@ -494,7 +494,7 @@ export class ChatSessionOpenModelPickerAction extends Action2 {
 		const widgetService = accessor.get(IChatWidgetService);
 		const widget = widgetService.lastFocusedWidget;
 		if (widget) {
-			widget.input.openChatSessionModelPicker();
+			widget.input.openChatSessionPicker();
 		}
 	}
 }

@@ -276,24 +276,14 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 				this._proxy.$handleProgressComplete(handle, id, 'ongoing');
 			});
 		}
-		const { capabilities, extension } = provider;
+		const { capabilities } = provider;
 		return {
 			id: sessionId + '',
 			resource: URI.revive(resource),
 			hasActiveResponseCallback: !!session.activeResponseCallback,
 			hasRequestHandler: !!session.requestHandler,
 			supportsInterruption: !!capabilities?.supportsInterruptions,
-			options: {
-				...(session.options?.model && {
-					model: {
-						...session.options.model,
-						extension: extension.identifier,
-						vendor: 'contributed',
-						modelPickerCategory: undefined,
-						capabilities: {},
-					}
-				})
-			},
+			options: session.options,
 			history: session.history.map(turn => {
 				if (turn instanceof extHostTypes.ChatRequestTurn) {
 					return { type: 'request' as const, prompt: turn.prompt, participant: turn.participant };
@@ -343,24 +333,12 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		}
 
 		try {
-			const extOptions = await provider.provideChatSessionProviderOptions(token);
-			if (!extOptions) {
+			const { optionGroups } = await provider.provideChatSessionProviderOptions(token);
+			if (!optionGroups) {
 				return;
 			}
-
-			const { models } = extOptions;
-			if (!models || models.length === 0) {
-				return {};
-			}
 			return {
-				models: models.map(m => ({
-					...m,
-					extension: entry.extension.identifier,
-					vendor: 'contributed',
-					modelPickerCategory: undefined,
-					capabilities: {},
-
-				}))
+				optionGroups,
 			};
 		} catch (error) {
 			this._logService.error(`Error calling provideChatSessionProviderOptions for handle ${handle}:`, error);
