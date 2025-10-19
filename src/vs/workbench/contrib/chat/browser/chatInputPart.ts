@@ -658,15 +658,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.modeWidget?.show();
 	}
 
-	public openChatSessionPicker(optionGroupId?: string): void {
-		// Open the first registered picker, or a specific one if group ID provided
-		if (optionGroupId) {
-			this.chatSessionPickerWidgets.get(optionGroupId)?.show();
-		} else {
-			// Open the first widget in the map
-			const firstWidget = this.chatSessionPickerWidgets.values().next().value;
-			firstWidget?.show();
-		}
+	public openChatSessionPicker(): void {
+		const firstWidget = this.chatSessionPickerWidgets?.values()?.next().value;
+		firstWidget?.show();
 	}
 
 	/**
@@ -1455,18 +1449,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}));
 		this.inputActionsToolbar.getElement().classList.add('chat-input-toolbar');
 		this.inputActionsToolbar.context = { widget } satisfies IChatExecuteActionContext;
-
-		// Manually render additional session picker widgets (if more than one option group)
-		// The actionViewItemProvider can only return one widget per action, so we need to
-		// manually append additional pickers to the toolbar
 		this._register(this.inputActionsToolbar.onDidChangeMenuItems(() => {
 			// Clean up any previously rendered additional pickers
 			for (const container of this.additionalSessionPickerContainers) {
 				container.remove();
 			}
 			this.additionalSessionPickerContainers = [];
-
-			// Render additional session pickers if we have more than one
 			if (this.chatSessionPickerWidgets.size > 1) {
 				const toolbarElement = this.inputActionsToolbar.getElement();
 				// Find where the first session picker is rendered
