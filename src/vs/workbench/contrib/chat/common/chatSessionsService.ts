@@ -41,11 +41,18 @@ export interface IChatSessionProviderOptionGroup {
 	items: IChatSessionProviderOptionItem[];
 	/**
 	 * If true, this option group will not be shown in the UI at all.
+	 * 
+	 * Example use case: An untitled session may have a 'custom agent' option group that is
+	 * configurable before the session is created, but once created, it should be hidden
+	 * from the UI so users cannot see or change it.
 	 */
 	hidden?: boolean;
 	/**
 	 * If true, the picker will be shown but in a locked/read-only state,
 	 * displaying the current value without allowing changes.
+	 * 
+	 * Example use case: A session that was created with a specific model selection should
+	 * show which model is being used, but prevent the user from changing it after creation.
 	 */
 	locked?: boolean;
 }
