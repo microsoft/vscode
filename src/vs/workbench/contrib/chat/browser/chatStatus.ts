@@ -720,7 +720,7 @@ class ChatStatusDashboard extends Disposable {
 	}
 
 	private createSetting(container: HTMLElement, settingIdsToReEvaluate: string[], label: string, accessor: ISettingsAccessor, disposables: DisposableStore): Checkbox {
-		const checkbox = disposables.add(new Checkbox(label, Boolean(accessor.readSetting()), { ...defaultCheckboxStyles, hoverDelegate: nativeHoverDelegate }));
+		const checkbox = disposables.add(new Checkbox(label, Boolean(accessor.readSetting()), { ...defaultCheckboxStyles }));
 		container.appendChild(checkbox.domNode);
 
 		const settingLabel = append(container, $('span.setting-label', undefined, label));

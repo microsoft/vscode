@@ -3732,6 +3732,56 @@ export namespace IconPath {
 	export function fromThemeIcon(iconPath: vscode.ThemeIcon): languages.IconPath {
 		return iconPath;
 	}
+
+	/**
+	 * Converts a {@link vscode.IconPath} to an {@link extHostProtocol.IconPathDto}.
+	 * @note This function will tolerate strings specified instead of URIs in IconPath for historical reasons.
+	 * Such strings are treated as file paths and converted using {@link URI.file} function, not {@link URI.from}.
+	 * See https://github.com/microsoft/vscode/issues/110432#issuecomment-726144556 for context.
+	 */
+	export function from(value: undefined): undefined;
+	export function from(value: vscode.IconPath): extHostProtocol.IconPathDto;
+	export function from(value: vscode.IconPath | undefined): extHostProtocol.IconPathDto | undefined;
+	export function from(value: vscode.IconPath | undefined): extHostProtocol.IconPathDto | undefined {
+		if (!value) {
+			return undefined;
+		} else if (ThemeIcon.isThemeIcon(value)) {
+			return value;
+		} else if (URI.isUri(value)) {
+			return value;
+		} else if (typeof value === 'string') {
+			return URI.file(value);
+		} else if (typeof value === 'object' && value !== null && 'dark' in value) {
+			const dark = typeof value.dark === 'string' ? URI.file(value.dark) : value.dark;
+			const light = typeof value.light === 'string' ? URI.file(value.light) : value.light;
+			return !dark ? undefined : { dark, light: light ?? dark };
+		} else {
+			return undefined;
+		}
+	}
+
+	/**
+	 * Converts a {@link extHostProtocol.IconPathDto} to a {@link vscode.IconPath}.
+	 * @note This is a strict conversion and we assume types are correct in this case.
+	 */
+	export function to(value: undefined): undefined;
+	export function to(value: extHostProtocol.IconPathDto): vscode.IconPath;
+	export function to(value: extHostProtocol.IconPathDto | undefined): vscode.IconPath | undefined;
+	export function to(value: extHostProtocol.IconPathDto | undefined): vscode.IconPath | undefined {
+		if (!value) {
+			return undefined;
+		} else if (ThemeIcon.isThemeIcon(value)) {
+			return value;
+		} else if (isUriComponents(value)) {
+			return URI.revive(value);
+		} else {
+			const icon = value as { light: UriComponents; dark: UriComponents };
+			return {
+				light: URI.revive(icon.light),
+				dark: URI.revive(icon.dark)
+			};
+		}
+	}
 }
 
 export namespace AiSettingsSearch {

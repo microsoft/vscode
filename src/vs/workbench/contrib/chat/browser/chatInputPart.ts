@@ -49,13 +49,10 @@ import { SuggestController } from '../../../../editor/contrib/suggest/browser/su
 import { localize } from '../../../../nls.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { MenuWorkbenchButtonBar } from '../../../../platform/actions/browser/buttonbar.js';
-import { DropdownWithPrimaryActionViewItem, IDropdownWithPrimaryActionViewItemOptions } from '../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
-import { getFlatActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
-import { IMenuService, MenuId, MenuItemAction } from '../../../../platform/actions/common/actions.js';
+import { MenuId, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { registerAndCreateHistoryNavigationContext } from '../../../../platform/history/browser/contextScopedHistoryWidget.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -64,7 +61,6 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { WorkbenchList } from '../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ISharedWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
@@ -81,7 +77,7 @@ import { IChatEditingSession, ModifiedFileEntryState } from '../common/chatEditi
 import { IChatRequestModeInfo } from '../common/chatModel.js';
 import { ChatMode, IChatMode, IChatModeService } from '../common/chatModes.js';
 import { IChatFollowup, IChatService } from '../common/chatService.js';
-import { IChatSessionsService } from '../common/chatSessionsService.js';
+import { IChatSessionProviderOptionItem, IChatSessionsService } from '../common/chatSessionsService.js';
 import { ChatRequestVariableSet, IChatRequestVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemChangeRangeVariableEntry, isSCMHistoryItemChangeVariableEntry, isSCMHistoryItemVariableEntry } from '../common/chatVariableEntries.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
 import { ChatInputHistoryMaxEntries, IChatHistoryEntry, IChatInputState, IChatWidgetHistoryService } from '../common/chatWidgetHistoryService.js';
@@ -90,7 +86,7 @@ import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, IL
 import { ILanguageModelToolsService } from '../common/languageModelToolsService.js';
 import { PromptsType } from '../common/promptSyntax/promptTypes.js';
 import { IPromptsService } from '../common/promptSyntax/service/promptsService.js';
-import { CancelAction, ChatDelegateToEditSessionAction, ChatEditingSessionSubmitAction, ChatOpenModelPickerActionId, ChatSessionOpenModelPickerAction, ChatSubmitAction, IChatExecuteActionContext, OpenModePickerAction } from './actions/chatExecuteActions.js';
+import { ChatOpenModelPickerActionId, ChatSessionOpenModelPickerAction, ChatSubmitAction, IChatExecuteActionContext, OpenModePickerAction } from './actions/chatExecuteActions.js';
 import { ImplicitContextAttachmentWidget } from './attachments/implicitContextAttachment.js';
 import { IChatWidget } from './chat.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
@@ -102,7 +98,7 @@ import { ChatDragAndDrop } from './chatDragAndDrop.js';
 import { ChatEditingShowChangesAction, ViewPreviousEditsAction } from './chatEditing/chatEditingActions.js';
 import { ChatFollowups } from './chatFollowups.js';
 import { ChatSelectedTools } from './chatSelectedTools.js';
-import { ChatSessionModelPickerActionItem } from './chatSessions/sessionModelPickerActionItem.js';
+import { ChatSessionPickerActionItem, IChatSessionPickerDelegate } from './chatSessions/chatSessionPickerActionItem.js';
 import { IChatViewState } from './chatWidget.js';
 import { ChatImplicitContext } from './contrib/chatImplicitContext.js';
 import { ChatRelatedFiles } from './contrib/chatInputRelatedFilesContrib.js';
@@ -295,13 +291,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private chatModeKindKey: IContextKey<ChatModeKind>;
 	private withinEditSessionKey: IContextKey<boolean>;
 	private filePartOfEditSessionKey: IContextKey<boolean>;
-	private chatSessionHasModels: IContextKey<boolean>;
+	private chatSessionHasOptions: IContextKey<boolean>;
 	private modelWidget: ModelPickerActionItem | undefined;
 	private modeWidget: ModePickerActionItem | undefined;
-	private chatSessionModelWidget: ChatSessionModelPickerActionItem | undefined;
+	private chatSessionPickerWidgets: Map<string, ChatSessionPickerActionItem>;
+	private additionalSessionPickerContainers: HTMLElement[];
 	private readonly _waitForPersistedLanguageModel: MutableDisposable<IDisposable>;
 	private _onDidChangeCurrentLanguageModel: Emitter<ILanguageModelChatMetadataAndIdentifier>;
-	private _onDidChangeChatSessionLanguageModel: Emitter<ILanguageModelChatMetadataAndIdentifier>;
+	private readonly _chatSessionOptionEmitters: Map<string, Emitter<IChatSessionProviderOptionItem>>;
 
 	private _currentLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined;
 
@@ -449,16 +446,18 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._onDidChangeCurrentLanguageModel = this._register(new Emitter<ILanguageModelChatMetadataAndIdentifier>());
 		this._onDidChangeCurrentChatMode = this._register(new Emitter<void>());
 		this.onDidChangeCurrentChatMode = this._onDidChangeCurrentChatMode.event;
-		this._onDidChangeChatSessionLanguageModel = this._register(new Emitter<ILanguageModelChatMetadataAndIdentifier>());
+		this._chatSessionOptionEmitters = new Map();
 		this.inputUri = URI.parse(`${Schemas.vscodeChatInput}:input-${ChatInputPart._counter++}`);
 		this._chatEditsActionsDisposables = this._register(new DisposableStore());
 		this._chatEditsDisposables = this._register(new DisposableStore());
 		this._attemptedWorkingSetEntriesCount = 0;
 		this._currentModeObservable = observableValue<IChatMode>('currentMode', this.options.defaultMode ?? ChatMode.Agent);
+		this.chatSessionPickerWidgets = new Map();
+		this.additionalSessionPickerContainers = [];
 
 		this._register(this.editorService.onDidActiveEditorChange(() => {
 			this._indexOfLastOpenedContext = -1;
-			this.refreshChatSessionPicker();
+			this.refreshChatSessionPickers();
 		}));
 
 		this._attachmentModel = this._register(this.instantiationService.createInstance(ChatAttachmentModel));
@@ -481,7 +480,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.chatModeKindKey = ChatContextKeys.chatModeKind.bindTo(contextKeyService);
 		this.withinEditSessionKey = ChatContextKeys.withinEditSessionDiff.bindTo(contextKeyService);
 		this.filePartOfEditSessionKey = ChatContextKeys.filePartOfEditSession.bindTo(contextKeyService);
-		this.chatSessionHasModels = ChatContextKeys.chatSessionHasModels.bindTo(contextKeyService);
+		this.chatSessionHasOptions = ChatContextKeys.chatSessionHasModels.bindTo(contextKeyService);
 
 		const chatToolCount = ChatContextKeys.chatToolCount.bindTo(contextKeyService);
 
@@ -655,11 +654,75 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.modeWidget?.show();
 	}
 
-	public openChatSessionModelPicker(): void {
-		this.chatSessionModelWidget?.show();
+	public openChatSessionPicker(): void {
+		const firstWidget = this.chatSessionPickerWidgets?.values()?.next().value;
+		firstWidget?.show();
 	}
 
-	public setCurrentLanguageModel(model: ILanguageModelChatMetadataAndIdentifier) {
+	/**
+	 * Create picker widgets for all registered option groups for the current session type.
+	 * Returns an array of all created widgets.
+	 */
+	private createChatSessionPickerWidgets(action: MenuItemAction): ChatSessionPickerActionItem[] {
+		// Helper to resolve chat session context
+		const resolveChatSessionContext = () => {
+			const sessionId = this._widget?.viewModel?.model.sessionId;
+			if (!sessionId) {
+				return undefined;
+			}
+			return this.chatService.getChatSessionFromInternalId(sessionId);
+		};
+
+		// Get all option groups for the current session type
+		const ctx = resolveChatSessionContext();
+		const optionGroups = ctx ? this.chatSessionsService.getOptionGroupsForSessionType(ctx.chatSessionType) : undefined;
+		if (!optionGroups || optionGroups.length === 0) {
+			return [];
+		}
+
+		// Clear existing widgets
+		this.chatSessionPickerWidgets.clear();
+
+		// Create a widget for each option group
+		const widgets: ChatSessionPickerActionItem[] = [];
+		for (const optionGroup of optionGroups) {
+			const initialItem = this.getCurrentOptionForGroup(optionGroup.id);
+			const initialState = { group: optionGroup, item: initialItem };
+
+			// Create delegate for this option group
+			const itemDelegate: IChatSessionPickerDelegate = {
+				getCurrentOption: () => this.getCurrentOptionForGroup(optionGroup.id),
+				onDidChangeOption: this.getOrCreateOptionEmitter(optionGroup.id).event,
+				setOption: (option: IChatSessionProviderOptionItem) => {
+					const ctx = resolveChatSessionContext();
+					if (!ctx) {
+						return;
+					}
+					this.getOrCreateOptionEmitter(optionGroup.id).fire(option);
+					this.chatSessionsService.notifySessionOptionsChange(
+						ctx.chatSessionType,
+						ctx.chatSessionId,
+						[{ optionId: optionGroup.id, value: option.id }]
+					).catch(err => this.logService.error(`Failed to notify extension of ${optionGroup.id} change:`, err));
+				},
+				getAllOptions: () => {
+					const ctx = resolveChatSessionContext();
+					if (!ctx) {
+						return [];
+					}
+					const groups = this.chatSessionsService.getOptionGroupsForSessionType(ctx.chatSessionType);
+					const group = groups?.find(g => g.id === optionGroup.id);
+					return group?.items ?? [];
+				}
+			};
+
+			const widget = this.instantiationService.createInstance(ChatSessionPickerActionItem, action, initialState, itemDelegate);
+			this.chatSessionPickerWidgets.set(optionGroup.id, widget);
+			widgets.push(widget);
+		}
+
+		return widgets;
+	} public setCurrentLanguageModel(model: ILanguageModelChatMetadataAndIdentifier) {
 		this._currentLanguageModel = model;
 
 		if (this.cachedDimensions) {
@@ -1091,8 +1154,55 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.renderAttachedContext();
 	}
 
-	private refreshChatSessionPicker(): ILanguageModelChatMetadataAndIdentifier | undefined {
-		this.chatSessionHasModels.set(false);
+	private getOrCreateOptionEmitter(optionGroupId: string): Emitter<IChatSessionProviderOptionItem> {
+		let emitter = this._chatSessionOptionEmitters.get(optionGroupId);
+		if (!emitter) {
+			emitter = this._register(new Emitter<IChatSessionProviderOptionItem>());
+			this._chatSessionOptionEmitters.set(optionGroupId, emitter);
+		}
+		return emitter;
+	}
+
+	/**
+	 * Refresh all registered option groups for the current chat session.
+	 * Fires events for each option group with their current selection.
+	 */
+	private refreshChatSessionPickers(): void {
+		const sessionId = this._widget?.viewModel?.model.sessionId;
+		if (!sessionId) {
+			this.chatSessionHasOptions.set(false);
+			return;
+		}
+		const ctx = this.chatService.getChatSessionFromInternalId(sessionId);
+		if (!ctx) {
+			this.chatSessionHasOptions.set(false);
+			return;
+		}
+		const optionGroups = this.chatSessionsService.getOptionGroupsForSessionType(ctx.chatSessionType);
+		if (!optionGroups || optionGroups.length === 0) {
+			this.chatSessionHasOptions.set(false);
+			return;
+		}
+
+		this.chatSessionHasOptions.set(true);
+
+		// Refresh each registered option group
+		for (const optionGroup of optionGroups) {
+			const currentOptionId = this.chatSessionsService.getSessionOption(ctx.chatSessionType, ctx.chatSessionId, optionGroup.id);
+			if (currentOptionId) {
+				const item = optionGroup.items.find(m => m.id === currentOptionId);
+				if (item) {
+					this.getOrCreateOptionEmitter(optionGroup.id).fire(item);
+				}
+			}
+		}
+	}
+
+	/**
+	 * Get the current option for a specific option group.
+	 * If no option is currently set, initializes with the first item as default.
+	 */
+	private getCurrentOptionForGroup(optionGroupId: string): IChatSessionProviderOptionItem | undefined {
 		const sessionId = this._widget?.viewModel?.model.sessionId;
 		if (!sessionId) {
 			return;
@@ -1101,22 +1211,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (!ctx) {
 			return;
 		}
-		const models = this.chatSessionsService.getModelsForSessionType(ctx.chatSessionType);
-		if (!models) {
+		const optionGroups = this.chatSessionsService.getOptionGroupsForSessionType(ctx.chatSessionType);
+		const optionGroup = optionGroups?.find(g => g.id === optionGroupId);
+		if (!optionGroup || optionGroup.items.length === 0) {
 			return;
 		}
 
-		this.chatSessionHasModels.set(true);
-
-		const currentModelId = this.chatSessionsService.getSessionOption(ctx.chatSessionType, ctx.chatSessionId, 'model');
-		if (!currentModelId) {
-			return;
-		}
-		const model = models.find(m => m.identifier === currentModelId);
-		if (model) {
-			this._onDidChangeChatSessionLanguageModel.fire(model);
-		}
-		return model;
+		const currentOptionId = this.chatSessionsService.getSessionOption(ctx.chatSessionType, ctx.chatSessionId, optionGroupId);
+		return optionGroup.items.find(m => m.id === currentOptionId);
 	}
 
 	render(container: HTMLElement, initialValue: string, widget: IChatWidget) {
@@ -1331,44 +1433,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					};
 					return this.modeWidget = this.instantiationService.createInstance(ModePickerActionItem, action, delegate);
 				} else if (action.id === ChatSessionOpenModelPickerAction.ID && action instanceof MenuItemAction) {
-					const resolveChatSessionContext = () => {
-						const sessionId = this._widget?.viewModel?.model.sessionId;
-						if (!sessionId) {
-							return;
-						}
-						const chatSessionContext = this.chatService.getChatSessionFromInternalId(sessionId);
-						if (!chatSessionContext) {
-							return;
-						}
-						return chatSessionContext;
-					};
-
-					const itemDelegate: IModelPickerDelegate = {
-						getCurrentModel: () => {
-							return this.refreshChatSessionPicker();
-						},
-						onDidChangeModel: this._onDidChangeChatSessionLanguageModel.event,
-						setModel: (model: ILanguageModelChatMetadataAndIdentifier) => {
-							const ctx = resolveChatSessionContext();
-							if (!ctx) {
-								return;
-							}
-							this._onDidChangeChatSessionLanguageModel.fire(model);
-							this.chatSessionsService.notifySessionOptionsChange(
-								ctx.chatSessionType,
-								ctx.chatSessionId,
-								[{ optionId: 'model', value: model.identifier }]
-							).catch(err => this.logService.error('Failed to notify extension of model change:', err));
-						},
-						getModels: () => {
-							const ctx = resolveChatSessionContext();
-							if (!ctx) {
-								return [];
-							}
-							return this.chatSessionsService.getModelsForSessionType(ctx.chatSessionType) || [];
-						}
-					};
-					return this.chatSessionModelWidget = this.instantiationService.createInstance(ChatSessionModelPickerActionItem, action, this.refreshChatSessionPicker(), itemDelegate);
+					// Dynamically create pickers for all registered option groups
+					const widgets = this.createChatSessionPickerWidgets(action);
+					// Return the first widget, but note: we need a different approach to show all
+					// The toolbar's actionViewItemProvider can only return one item per action
+					// We'll need to render additional widgets separately
+					return widgets[0];
 				}
 				return undefined;
 			}
@@ -1376,6 +1446,35 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.inputActionsToolbar.getElement().classList.add('chat-input-toolbar');
 		this.inputActionsToolbar.context = { widget } satisfies IChatExecuteActionContext;
 		this._register(this.inputActionsToolbar.onDidChangeMenuItems(() => {
+			// Clean up any previously rendered additional pickers
+			for (const container of this.additionalSessionPickerContainers) {
+				container.remove();
+			}
+			this.additionalSessionPickerContainers = [];
+			if (this.chatSessionPickerWidgets.size > 1) {
+				const toolbarElement = this.inputActionsToolbar.getElement();
+				// Find where the first session picker is rendered
+				const firstPickerElement = toolbarElement.querySelector('.chat-sessionPicker-item');
+				if (firstPickerElement && firstPickerElement.parentElement) {
+					// Get all widgets except the first one (which is already rendered by the toolbar)
+					const additionalWidgets = Array.from(this.chatSessionPickerWidgets.values()).slice(1);
+					let insertAfter = firstPickerElement;
+					for (const widget of additionalWidgets) {
+						// Create a container for this widget
+						const container = dom.$('.action-item');
+						widget.render(container);
+						// Insert after the previous picker
+						if (insertAfter.nextSibling) {
+							insertAfter.parentElement!.insertBefore(container, insertAfter.nextSibling);
+						} else {
+							insertAfter.parentElement!.appendChild(container);
+						}
+						this.additionalSessionPickerContainers.push(container);
+						insertAfter = container;
+					}
+				}
+			}
+
 			if (this.cachedDimensions && typeof this.cachedInputToolbarWidth === 'number' && this.cachedInputToolbarWidth !== this.inputActionsToolbar.getItemsWidth()) {
 				this.layout(this.cachedDimensions.height, this.cachedDimensions.width);
 			}
@@ -1387,16 +1486,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			},
 			hoverDelegate,
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
-			actionViewItemProvider: (action, options) => {
-				if (this.location === ChatAgentLocation.Chat || this.location === ChatAgentLocation.EditorInline) {
-					if ((action.id === ChatSubmitAction.ID || action.id === CancelAction.ID || action.id === ChatEditingSessionSubmitAction.ID || action.id === ChatDelegateToEditSessionAction.ID) && action instanceof MenuItemAction) {
-						const dropdownAction = this.instantiationService.createInstance(MenuItemAction, { id: 'chat.moreExecuteActions', title: localize('notebook.moreExecuteActionsLabel', "More..."), icon: Codicon.chevronDown }, undefined, undefined, undefined, undefined);
-						return this.instantiationService.createInstance(ChatSubmitDropdownActionItem, action, dropdownAction, { ...options, menuAsChild: false });
-					}
-				}
-
-				return undefined;
-			}
 		}));
 		this.executeToolbar.getElement().classList.add('chat-execute-toolbar');
 		this.executeToolbar.context = { widget } satisfies IChatExecuteActionContext;
@@ -2058,46 +2147,6 @@ const historyKeyFn = (entry: IChatHistoryEntry) => JSON.stringify({ ...entry, st
 
 function getLastPosition(model: ITextModel): IPosition {
 	return { lineNumber: model.getLineCount(), column: model.getLineLength(model.getLineCount()) + 1 };
-}
-
-// This does seems like a lot just to customize an item with dropdown. This whole class exists just because we need an
-// onDidChange listener on the submenu, which is apparently not needed in other cases.
-class ChatSubmitDropdownActionItem extends DropdownWithPrimaryActionViewItem {
-	constructor(
-		action: MenuItemAction,
-		dropdownAction: IAction,
-		options: IDropdownWithPrimaryActionViewItemOptions,
-		@IMenuService menuService: IMenuService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@INotificationService notificationService: INotificationService,
-		@IThemeService themeService: IThemeService,
-		@IAccessibilityService accessibilityService: IAccessibilityService
-	) {
-		super(
-			action,
-			dropdownAction,
-			[],
-			'',
-			{
-				...options,
-				getKeyBinding: (action: IAction) => keybindingService.lookupKeybinding(action.id, contextKeyService)
-			},
-			contextMenuService,
-			keybindingService,
-			notificationService,
-			contextKeyService,
-			themeService,
-			accessibilityService);
-		const menu = menuService.createMenu(MenuId.ChatExecuteSecondary, contextKeyService);
-		const setActions = () => {
-			const secondary = getFlatActionBarActions(menu.getActions({ shouldForwardArgs: true }));
-			this.update(dropdownAction, secondary);
-		};
-		setActions();
-		this._register(menu.onDidChange(() => setActions()));
-	}
 }
 
 const chatInputEditorContainerSelector = '.interactive-input-editor';
