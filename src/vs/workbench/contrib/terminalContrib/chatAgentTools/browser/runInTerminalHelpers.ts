@@ -21,6 +21,10 @@ export function isPowerShell(envShell: string, os: OperatingSystem): boolean {
 	return /^(?:powershell|pwsh)(?:-preview)?$/.test(pathPosix.basename(envShell));
 }
 
+export function isWindowsPowerShell(envShell: string): boolean {
+	return envShell.endsWith('System32\\WindowsPowerShell\\v1.0\\powershell.exe');
+}
+
 // Maximum output length to prevent context overflow
 const MAX_OUTPUT_LENGTH = 60000; // ~60KB limit to keep context manageable
 const TRUNCATION_MESSAGE = '\n\n[... MIDDLE OF OUTPUT TRUNCATED ...]\n\n';
