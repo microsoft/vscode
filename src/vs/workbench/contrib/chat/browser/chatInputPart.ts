@@ -1191,9 +1191,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return;
 		}
 
+		// Check if there are any visible (non-hidden) option groups
+		const visibleOptionGroups = optionGroups.filter(g => !g.hidden);
+		if (visibleOptionGroups.length === 0) {
+			this.chatSessionHasOptions.set(false);
+			return;
+		}
+
 		this.chatSessionHasOptions.set(true);
 
-		// Refresh each registered option group
+		// Refresh each registered option group (including hidden ones, as they may still have values)
 		for (const optionGroup of optionGroups) {
 			const currentOptionId = this.chatSessionsService.getSessionOption(ctx.chatSessionType, ctx.chatSessionId, optionGroup.id);
 			if (currentOptionId) {
