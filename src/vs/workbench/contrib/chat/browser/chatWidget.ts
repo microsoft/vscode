@@ -1358,15 +1358,22 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 
 		if (this.isLockedToCodingAgent) {
-			// TODO(jospicer): Let extensions contribute this welcome message/docs
-			const message = this._codingAgentPrefix === '@copilot '
-				? new MarkdownString(localize('copilotCodingAgentMessage', "This chat session will be forwarded to the {0} [coding agent]({1}) where work is completed in the background. ", this._codingAgentPrefix, 'https://aka.ms/coding-agent-docs') + this.chatDisclaimer, { isTrusted: true })
-				: new MarkdownString(localize('genericCodingAgentMessage', "This chat session will be forwarded to the {0} coding agent where work is completed in the background. ", this._codingAgentPrefix) + this.chatDisclaimer);
+			// Check for provider-specific customizations from chat sessions service
+			const providerIcon = this._lockedAgentId ? this.chatSessionsService.getIconForSessionType(this._lockedAgentId) : undefined;
+			const providerTitle = this._lockedAgentId ? this.chatSessionsService.getWelcomeTitleForSessionType(this._lockedAgentId) : undefined;
+			const providerMessage = this._lockedAgentId ? this.chatSessionsService.getWelcomeMessageForSessionType(this._lockedAgentId) : undefined;
+
+			// Fallback to default messages if provider doesn't specify
+			const message = providerMessage
+				? new MarkdownString(providerMessage)
+				: (this._codingAgentPrefix === '@copilot '
+					? new MarkdownString(localize('copilotCodingAgentMessage', "This chat session will be forwarded to the {0} [coding agent]({1}) where work is completed in the background. ", this._codingAgentPrefix, 'https://aka.ms/coding-agent-docs') + this.chatDisclaimer, { isTrusted: true })
+					: new MarkdownString(localize('genericCodingAgentMessage', "This chat session will be forwarded to the {0} coding agent where work is completed in the background. ", this._codingAgentPrefix) + this.chatDisclaimer));
 
 			return {
-				title: localize('codingAgentTitle', "Delegate to {0}", this._codingAgentPrefix),
+				title: providerTitle ?? localize('codingAgentTitle', "Delegate to {0}", this._codingAgentPrefix),
 				message,
-				icon: Codicon.sendToRemoteAgent,
+				icon: providerIcon ?? Codicon.sendToRemoteAgent,
 				additionalMessage,
 			};
 		}
