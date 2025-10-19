@@ -18,7 +18,7 @@ import { ChatViewId } from '../../contrib/chat/browser/chat.js';
 import { ChatViewPane } from '../../contrib/chat/browser/chatViewPane.js';
 import { IChatAgentRequest } from '../../contrib/chat/common/chatAgents.js';
 import { IChatContentInlineReference, IChatProgress } from '../../contrib/chat/common/chatService.js';
-import { ChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemProvider, IChatSessionProviderOptionGroup, IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
+import { ChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
 import { ChatSessionUri } from '../../contrib/chat/common/chatUri.js';
 import { EditorGroupColumn } from '../../services/editor/common/editorGroupColumn.js';
 import { IEditorGroup, IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
@@ -315,7 +315,6 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		readonly onDidChangeItems: Emitter<void>;
 	}>());
 	private readonly _contentProvidersRegistrations = this._register(new DisposableMap<number>());
-	private readonly _optionGroups = new Map<number, IChatSessionProviderOptionGroup[] | undefined>();
 	private readonly _sessionTypeToHandle = new Map<string, number>();
 
 	private readonly _activeSessions = new Map<string, ObservableChatSession>();
@@ -509,7 +508,6 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		this._contentProvidersRegistrations.set(handle, this._chatSessionsService.registerChatSessionContentProvider(chatSessionType, provider));
 		this._proxy.$provideChatSessionProviderOptions(handle, CancellationToken.None).then(options => {
 			if (options?.optionGroups && options.optionGroups.length) {
-				this._optionGroups.set(handle, options.optionGroups);
 				this._chatSessionsService.setOptionGroupsForSessionType(chatSessionType, handle, options.optionGroups);
 			}
 		}).catch(err => this._logService.error('Error fetching chat session options', err));
@@ -517,7 +515,6 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 
 	$unregisterChatSessionContentProvider(handle: number): void {
 		this._contentProvidersRegistrations.deleteAndDispose(handle);
-		this._optionGroups.delete(handle);
 		for (const [sessionType, h] of this._sessionTypeToHandle) {
 			if (h === handle) {
 				this._sessionTypeToHandle.delete(sessionType);
@@ -609,13 +606,6 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 				options: { pinned: true },
 			}, position);
 		}
-	}
-
-	/**
-	 * Get the available option groups for a session provider
-	 */
-	getOptionGroupsForProvider(handle: number): IChatSessionProviderOptionGroup[] | undefined {
-		return this._optionGroups.get(handle);
 	}
 
 	/**

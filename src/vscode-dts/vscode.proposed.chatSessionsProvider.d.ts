@@ -152,6 +152,7 @@ declare module 'vscode' {
 		 * Options configured for this session as key-value pairs.
 		 * Keys correspond to option group IDs (e.g., 'models', 'subagents')
 		 * and values are the selected option item IDs.
+		 * TODO: Strongly type the keys
 		 */
 		readonly options?: Record<string, string>;
 
@@ -267,11 +268,6 @@ declare module 'vscode' {
 		 * Human-readable name displayed in the UI.
 		 */
 		readonly name: string;
-
-		/**
-		 * Additional properties specific to this option type.
-		 */
-		[key: string]: any;
 	}
 
 	/**
