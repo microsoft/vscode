@@ -855,9 +855,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// a long delay in conpty 1.22+ where it waits for the response.
 			// Reference: https://github.com/microsoft/terminal/blob/3760caed97fa9140a40777a8fbc1c95785e6d2ab/src/terminal/adapter/adaptDispatch.cpp#L1471-L1495
 			if (processTraits?.windowsPty?.backend === 'conpty') {
-				this._register(xterm.raw.parser.registerCsiHandler({ final: 'c' }, async params => {
+				this._register(xterm.raw.parser.registerCsiHandler({ final: 'c' }, params => {
 					if (params.length === 0 || params.length === 1 && params[0] === 0) {
-						await this._sendDataToProcess('\x1b[?61;4c');
+						this._sendDataToProcess('\x1b[?61;4c');
 						return true;
 					}
 					return false;
