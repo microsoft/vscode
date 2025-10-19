@@ -93,6 +93,7 @@ class ReplaceAllAction extends Action {
 	}
 }
 
+const hoverLifecycleOptions = { groupId: 'search-widget' };
 const ctrlKeyMod = (isMacintosh ? KeyMod.WinCtrl : KeyMod.CtrlCmd);
 
 function stopPropagationForMultiLineUpwards(event: IKeyboardEvent, value: string, textarea: HTMLTextAreaElement | null) {
@@ -396,7 +397,6 @@ export class SearchWidget extends Widget {
 
 	private renderSearchInput(parent: HTMLElement, options: ISearchWidgetOptions): void {
 		const history = options.searchHistory || [];
-		const hoverLifecycleOptions = { groupId: 'search-widget' };
 		const inputOptions: IFindInputOptions = {
 			label: nls.localize('label.Search', 'Search: Type Search Term and press Enter to search'),
 			validation: (value: string) => this.validateSearchInput(value),
@@ -521,7 +521,8 @@ export class SearchWidget extends Widget {
 			flexibleHeight: true,
 			flexibleMaxHeight: SearchWidget.INPUT_MAX_HEIGHT,
 			inputBoxStyles: options.inputBoxStyles,
-			toggleStyles: options.toggleStyles
+			toggleStyles: options.toggleStyles,
+			hoverLifecycleOptions
 		}, this.contextKeyService, true));
 
 		this._register(this.replaceInput.onDidOptionChange(viaKeyboard => {

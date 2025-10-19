@@ -588,7 +588,8 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 			placeholder: NLS_REPLACE_INPUT_PLACEHOLDER,
 			history: replaceHistoryConfig === 'workspace' ? this._replaceWidgetHistory : new Set([]),
 			inputBoxStyles: defaultInputBoxStyles,
-			toggleStyles: defaultToggleStyles
+			toggleStyles: defaultToggleStyles,
+			hoverLifecycleOptions,
 		}, contextKeyService, false));
 		this._innerReplaceDomNode.appendChild(this._replaceInput.domNode);
 		this._replaceInputFocusTracker = this._register(dom.trackFocus(this._replaceInput.domNode));
