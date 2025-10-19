@@ -169,6 +169,7 @@ export type ITerminalTabLayoutInfoById = IRawTerminalTabLayoutInfo<number>;
 
 export interface IRawTerminalsLayoutInfo<T> {
 	tabs: IRawTerminalTabLayoutInfo<T>[];
+	background: T[] | null;
 }
 
 export interface IPtyHostAttachTarget {
@@ -593,6 +594,12 @@ export interface IShellLaunchConfig {
 	hideFromUser?: boolean;
 
 	/**
+	 * Whether to force the terminal to persist across sessions regardless of the other
+	 * launch config, like `hideFromUser`.
+	 */
+	forcePersist?: boolean;
+
+	/**
 	 * Whether this terminal is not a terminal that the user directly created and uses, but rather
 	 * a terminal used to drive some VS Code feature.
 	 */
@@ -760,12 +767,12 @@ export interface ITerminalChildProcess {
 	 */
 	shouldPersist: boolean;
 
-	onProcessData: Event<IProcessDataEvent | string>;
-	onProcessReady: Event<IProcessReadyEvent>;
-	onProcessReplayComplete?: Event<void>;
-	onDidChangeProperty: Event<IProcessProperty<any>>;
-	onProcessExit: Event<number | undefined>;
-	onRestoreCommands?: Event<ISerializedCommandDetectionCapability>;
+	readonly onProcessData: Event<IProcessDataEvent | string>;
+	readonly onProcessReady: Event<IProcessReadyEvent>;
+	readonly onProcessReplayComplete?: Event<void>;
+	readonly onDidChangeProperty: Event<IProcessProperty<any>>;
+	readonly onProcessExit: Event<number | undefined>;
+	readonly onRestoreCommands?: Event<ISerializedCommandDetectionCapability>;
 
 	/**
 	 * Starts the process.
@@ -973,8 +980,14 @@ export interface IDecorationAddon {
 	registerMenuItems(command: ITerminalCommand, items: IAction[]): IDisposable;
 }
 
+export interface ITerminalCompletionProviderContribution {
+	id: string;
+	description?: string;
+}
+
 export interface ITerminalContributions {
 	profiles?: ITerminalProfileContribution[];
+	completionProviders?: ITerminalCompletionProviderContribution[];
 }
 
 export const enum ShellIntegrationStatus {
@@ -1103,19 +1116,19 @@ export interface ITerminalBackend extends ITerminalBackendPtyServiceContribution
 	 * Fired when the ptyHost process becomes non-responsive, this should disable stdin for all
 	 * terminals using this pty host connection and mark them as disconnected.
 	 */
-	onPtyHostUnresponsive: Event<void>;
+	readonly onPtyHostUnresponsive: Event<void>;
 	/**
 	 * Fired when the ptyHost process becomes responsive after being non-responsive. Allowing
 	 * previously disconnected terminals to reconnect.
 	 */
-	onPtyHostResponsive: Event<void>;
+	readonly onPtyHostResponsive: Event<void>;
 	/**
 	 * Fired when the ptyHost has been restarted, this is used as a signal for listening terminals
 	 * that its pty has been lost and will remain disconnected.
 	 */
-	onPtyHostRestart: Event<void>;
+	readonly onPtyHostRestart: Event<void>;
 
-	onDidRequestDetach: Event<{ requestId: number; workspaceId: string; instanceId: number }>;
+	readonly onDidRequestDetach: Event<{ requestId: number; workspaceId: string; instanceId: number }>;
 
 	attachToProcess(id: number): Promise<ITerminalChildProcess | undefined>;
 	attachToRevivedProcess(id: number): Promise<ITerminalChildProcess | undefined>;

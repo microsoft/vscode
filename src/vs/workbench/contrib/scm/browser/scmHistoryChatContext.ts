@@ -100,7 +100,7 @@ class SCMHistoryItemContext implements IChatContextPickerItem {
 
 	isEnabled(_widget: IChatWidget): Promise<boolean> | boolean {
 		const activeRepository = this._scmViewService.activeRepository.get();
-		return activeRepository?.provider.historyProvider.get() !== undefined;
+		return activeRepository?.repository.provider.historyProvider.get() !== undefined;
 	}
 
 	asPicker(_widget: IChatWidget) {
@@ -109,7 +109,7 @@ class SCMHistoryItemContext implements IChatContextPickerItem {
 			picks: picksWithPromiseFn((query: string, token: CancellationToken) => {
 				const filterText = query.trim() !== '' ? query.trim() : undefined;
 				const activeRepository = this._scmViewService.activeRepository.get();
-				const historyProvider = activeRepository?.provider.historyProvider.get();
+				const historyProvider = activeRepository?.repository.provider.historyProvider.get();
 				if (!activeRepository || !historyProvider) {
 					return Promise.resolve([]);
 				}
@@ -143,7 +143,7 @@ class SCMHistoryItemContext implements IChatContextPickerItem {
 									iconClass: ThemeIcon.asClassName(Codicon.gitCommit),
 									label: historyItem.subject,
 									detail: details.join(`$(${Codicon.circleSmallFilled.id})`),
-									asAttachment: () => SCMHistoryItemContext.asAttachment(activeRepository.provider, historyItem)
+									asAttachment: () => SCMHistoryItemContext.asAttachment(activeRepository.repository.provider, historyItem)
 								} satisfies IChatContextPickerPickItem;
 							});
 						});

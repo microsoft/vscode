@@ -44,7 +44,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IInlineCompletionsService } from '../../../../editor/browser/services/inlineCompletionsService.js';
 import { IChatSessionsService } from '../common/chatSessionsService.js';
-import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 
 const gaugeForeground = registerColor('gauge.foreground', {
@@ -286,13 +286,19 @@ function isNewUser(chatEntitlementService: IChatEntitlementService): boolean {
 }
 
 function canUseCopilot(chatEntitlementService: IChatEntitlementService): boolean {
-	const newUser = isNewUser(chatEntitlementService);
-	const disabled = chatEntitlementService.sentiment.disabled || chatEntitlementService.sentiment.untrusted;
-	const signedOut = chatEntitlementService.entitlement === ChatEntitlement.Unknown;
-	const free = chatEntitlementService.entitlement === ChatEntitlement.Free;
-	const allFreeQuotaReached = free && chatEntitlementService.quotas.chat?.percentRemaining === 0 && chatEntitlementService.quotas.completions?.percentRemaining === 0;
+	if (!chatEntitlementService.sentiment.installed || chatEntitlementService.sentiment.disabled || chatEntitlementService.sentiment.untrusted) {
+		return false; // copilot not installed or not enabled
+	}
 
-	return !newUser && !signedOut && !allFreeQuotaReached && !disabled;
+	if (chatEntitlementService.entitlement === ChatEntitlement.Unknown || chatEntitlementService.entitlement === ChatEntitlement.Available) {
+		return chatEntitlementService.anonymous; // signed out or not-yet-signed-up users can only use Copilot if anonymous access is allowed
+	}
+
+	if (chatEntitlementService.entitlement === ChatEntitlement.Free && chatEntitlementService.quotas.chat?.percentRemaining === 0 && chatEntitlementService.quotas.completions?.percentRemaining === 0) {
+		return false; // free user with no quota left
+	}
+
+	return true;
 }
 
 function isCompletionsEnabled(configurationService: IConfigurationService, modeId: string = '*'): boolean {
@@ -350,7 +356,7 @@ class ChatStatusDashboard extends Disposable {
 		@ITextResourceConfigurationService private readonly textResourceConfigurationService: ITextResourceConfigurationService,
 		@IInlineCompletionsService private readonly inlineCompletionsService: IInlineCompletionsService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 	) {
 		super();
 	}
@@ -423,7 +429,7 @@ class ChatStatusDashboard extends Disposable {
 		else if (this.chatEntitlementService.anonymous && this.chatEntitlementService.sentiment.installed) {
 			addSeparator(localize('anonymousTitle', "Copilot Usage"));
 
-			this.createQuotaIndicator(this.element, disposables, localize('quotaDisabled', "Disabled"), localize('completionsLabel', "Code completions"), false); // TODO@bpasero revisit this in the future when Completions are supported
+			this.createQuotaIndicator(this.element, disposables, localize('quotaLimited', "Limited"), localize('completionsLabel', "Code completions"), false);
 			this.createQuotaIndicator(this.element, disposables, localize('quotaLimited', "Limited"), localize('chatsLabel', "Chat messages"), false);
 		}
 
@@ -435,10 +441,10 @@ class ChatStatusDashboard extends Disposable {
 				const inProgress = this.chatSessionsService.getInProgress();
 				if (inProgress.some(item => item.count > 0)) {
 
-					addSeparator(localize('chatSessionsTitle', "Chat Sessions"), toAction({
+					addSeparator(localize('chatAgentSessionsTitle', "Agent Sessions"), toAction({
 						id: 'workbench.view.chat.status.sessions',
-						label: localize('viewChatSessionsLabel', "View Chat Sessions"),
-						tooltip: localize('viewChatSessionsTooltip', "View Chat Sessions"),
+						label: localize('viewChatSessionsLabel', "View Agent Sessions"),
+						tooltip: localize('viewChatSessionsTooltip', "View Agent Sessions"),
 						class: ThemeIcon.asClassName(Codicon.eye),
 						run: () => this.runCommandAndClose('workbench.view.chat.sessions'),
 					}));
@@ -549,8 +555,7 @@ class ChatStatusDashboard extends Disposable {
 				if (typeof descriptionText === 'string') {
 					this.element.appendChild($(`div${descriptionClass}`, undefined, descriptionText));
 				} else {
-					const markdown = this.instantiationService.createInstance(MarkdownRenderer, {});
-					this.element.appendChild($(`div${descriptionClass}`, undefined, disposables.add(markdown.render(descriptionText)).element));
+					this.element.appendChild($(`div${descriptionClass}`, undefined, disposables.add(this.markdownRendererService.render(descriptionText)).element));
 				}
 
 				const button = disposables.add(new Button(this.element, { ...defaultButtonStyles, hoverDelegate: nativeHoverDelegate }));

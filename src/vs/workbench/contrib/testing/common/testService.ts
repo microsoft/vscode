@@ -47,7 +47,7 @@ export interface IMainThreadTestHostProxy {
 }
 
 export interface IMainThreadTestCollection extends AbstractIncrementalTestCollection<IncrementalTestCollectionItem> {
-	onBusyProvidersChange: Event<number>;
+	readonly onBusyProvidersChange: Event<number>;
 
 	/**
 	 * Number of providers working to discover tests.

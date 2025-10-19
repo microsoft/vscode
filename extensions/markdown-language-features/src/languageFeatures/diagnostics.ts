@@ -5,6 +5,7 @@
 
 import * as vscode from 'vscode';
 import { CommandManager } from '../commandManager';
+import { isMarkdownFile } from '../util/file';
 
 
 // Copied from markdown language service
@@ -88,7 +89,7 @@ function registerMarkdownStatusItem(selector: vscode.DocumentSelector, commandMa
 
 	const update = () => {
 		const activeDoc = vscode.window.activeTextEditor?.document;
-		const markdownDoc = activeDoc?.languageId === 'markdown' ? activeDoc : undefined;
+		const markdownDoc = activeDoc && isMarkdownFile(activeDoc) ? activeDoc : undefined;
 
 		const enabled = vscode.workspace.getConfiguration('markdown', markdownDoc).get(enabledSettingId);
 		if (enabled) {

@@ -270,6 +270,9 @@ export class DisassemblyView extends EditorPane {
 		}
 
 		this._register(this._disassembledInstructions.onDidScroll(e => {
+			if (this._disassembledInstructions?.row(0) === disassemblyNotAvailable) {
+				return;
+			}
 			if (this._loadingLock) {
 				return;
 			}
@@ -281,11 +284,10 @@ export class DisassemblyView extends EditorPane {
 					if (loaded > 0) {
 						this._disassembledInstructions!.reveal(prevTop + loaded, 0);
 					}
-					this._loadingLock = false;
-				});
+				}).finally(() => { this._loadingLock = false; });
 			} else if (e.oldScrollTop < e.scrollTop && e.scrollTop + e.height > e.scrollHeight - e.height) {
 				this._loadingLock = true;
-				this.scrollDown_LoadDisassembledInstructions(DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD).then(() => { this._loadingLock = false; });
+				this.scrollDown_LoadDisassembledInstructions(DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD).finally(() => { this._loadingLock = false; });
 			}
 		}));
 

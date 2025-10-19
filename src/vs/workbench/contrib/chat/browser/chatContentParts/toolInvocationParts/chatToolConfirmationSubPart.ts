@@ -12,7 +12,7 @@ import { count } from '../../../../../../base/common/strings.js';
 import { isEmptyObject } from '../../../../../../base/common/types.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { ElementSizeObserver } from '../../../../../../editor/browser/config/elementSizeObserver.js';
-import { MarkdownRenderer } from '../../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../../nls.js';
@@ -48,7 +48,7 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 	constructor(
 		toolInvocation: IChatToolInvocation,
 		private readonly context: IChatContentPartRenderContext,
-		private readonly renderer: MarkdownRenderer,
+		private readonly renderer: IMarkdownRenderer,
 		private readonly editorPool: EditorPool,
 		private readonly currentWidthDelegate: () => number,
 		private readonly codeBlockModelCollection: CodeBlockModelCollection,

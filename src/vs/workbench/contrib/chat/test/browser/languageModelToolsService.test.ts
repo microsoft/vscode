@@ -172,7 +172,7 @@ suite('LanguageModelToolsService', () => {
 		/** User Tool Set with tool1 */
 
 		const userToolSet = store.add(service.createToolSet(
-			{ type: 'user', label: "User", file: URI.file('/test/userToolSet.json') },
+			{ type: 'user', label: 'User', file: URI.file('/test/userToolSet.json') },
 			'userToolSet',
 			'userToolSetRefName',
 			{ description: 'Test Set' }
@@ -181,7 +181,7 @@ suite('LanguageModelToolsService', () => {
 
 		/** MCP tool in a MCP tool set */
 
-		const mcpDataSource: ToolDataSource = { type: 'mcp', label: 'My MCP Server', serverLabel: "MCP Server", instructions: undefined, collectionId: 'testMCPCollection', definitionId: 'testMCPDefId' };
+		const mcpDataSource: ToolDataSource = { type: 'mcp', label: 'My MCP Server', serverLabel: 'MCP Server', instructions: undefined, collectionId: 'testMCPCollection', definitionId: 'testMCPDefId' };
 		const mcpTool1: IToolData = {
 			id: 'mcpTool1',
 			toolReferenceName: 'mcpTool1RefName',
@@ -640,7 +640,7 @@ suite('LanguageModelToolsService', () => {
 			toolReferenceName: 'refTool1',
 			modelDescription: 'Test Tool 1',
 			displayName: 'Test Tool 1',
-			source: { type: 'extension', label: "My Extension", extensionId: new ExtensionIdentifier('My.extension') },
+			source: { type: 'extension', label: 'My Extension', extensionId: new ExtensionIdentifier('My.extension') },
 			canBeReferencedInPrompt: true,
 		};
 

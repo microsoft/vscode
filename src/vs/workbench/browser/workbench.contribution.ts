@@ -490,6 +490,12 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					localize('askChatLocation.quickChat', "Ask chat questions in Quick Chat.")
 				]
 			},
+			'workbench.commandPalette.showAskInChat': {
+				'type': 'boolean',
+				tags: ['experimental'],
+				'description': localize('showAskInChat', "Controls whether the command palette shows 'Ask in Chat' option at the bottom."),
+				'default': true
+			},
 			'workbench.commandPalette.experimental.enableNaturalLanguageSearch': {
 				'type': 'boolean',
 				tags: ['experimental'],
@@ -504,6 +510,12 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			'workbench.quickOpen.preserveInput': {
 				'type': 'boolean',
 				'description': localize('workbench.quickOpen.preserveInput', "Controls whether the last typed input to Quick Open should be restored when opening it the next time."),
+				'default': false
+			},
+			'workbench.quickOpen.useZeroBasedOffset': {
+				'type': 'boolean',
+				tags: ['experimental'],
+				'description': localize('workbench.quickOpen.useZeroBasedOffset', "Controls whether 'Go To' character offset in Quick Open will use zero-based offset (default is one-based)."),
 				'default': false
 			},
 			'workbench.settings.openDefaultSettings': {

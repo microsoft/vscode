@@ -8,7 +8,7 @@ import { Disposable, dispose, IDisposable, toDisposable } from '../../../../base
 import { TerminalCapabilityStore } from '../capabilities/terminalCapabilityStore.js';
 import { CommandDetectionCapability } from '../capabilities/commandDetectionCapability.js';
 import { CwdDetectionCapability } from '../capabilities/cwdDetectionCapability.js';
-import { IBufferMarkCapability, ICommandDetectionCapability, ICwdDetectionCapability, ISerializedCommandDetectionCapability, IShellEnvDetectionCapability, TerminalCapability } from '../capabilities/capabilities.js';
+import { IBufferMarkCapability, ICommandDetectionCapability, ICwdDetectionCapability, IPromptTypeDetectionCapability, ISerializedCommandDetectionCapability, IShellEnvDetectionCapability, TerminalCapability } from '../capabilities/capabilities.js';
 import { PartialCommandDetectionCapability } from '../capabilities/partialCommandDetectionCapability.js';
 import { ILogService } from '../../../log/common/log.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
@@ -19,6 +19,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { sanitizeCwd } from '../terminalEnvironment.js';
 import { removeAnsiEscapeCodesFromPrompt } from '../../../../base/common/strings.js';
 import { ShellEnvDetectionCapability } from '../capabilities/shellEnvDetectionCapability.js';
+import { PromptTypeDetectionCapability } from '../capabilities/promptTypeDetectionCapability.js';
 
 
 /**
@@ -585,7 +586,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 						return true;
 					}
 					case 'PromptType': {
-						this._createOrGetCommandDetection(this._terminal).setPromptType(value);
+						this._createOrGetPromptTypeDetection().setPromptType(value);
 						return true;
 					}
 					case 'Task': {
@@ -767,6 +768,15 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 			this.capabilities.add(TerminalCapability.ShellEnvDetection, shellEnvDetection);
 		}
 		return shellEnvDetection;
+	}
+
+	protected _createOrGetPromptTypeDetection(): IPromptTypeDetectionCapability {
+		let promptTypeDetection = this.capabilities.get(TerminalCapability.PromptTypeDetection);
+		if (!promptTypeDetection) {
+			promptTypeDetection = this._register(new PromptTypeDetectionCapability());
+			this.capabilities.add(TerminalCapability.PromptTypeDetection, promptTypeDetection);
+		}
+		return promptTypeDetection;
 	}
 }
 

@@ -11,7 +11,7 @@ import sm from 'source-map';
 import path from 'path';
 import sort from 'gulp-sort';
 
-type FileSourceMap = File & { sourceMap: sm.RawSourceMap };
+type FileWithSourcemap = File & { sourceMap: sm.RawSourceMap };
 
 enum CollectStepResult {
 	Yes,
@@ -40,12 +40,11 @@ function collect(ts: typeof import('typescript'), node: ts.Node, fn: (node: ts.N
 }
 
 function clone<T extends object>(object: T): T {
-	// eslint-disable-next-line local/code-no-any-casts
-	const result = {} as any as T;
+	const result: Record<string, unknown> = {};
 	for (const id in object) {
 		result[id] = object[id];
 	}
-	return result;
+	return result as T;
 }
 
 /**
@@ -56,7 +55,7 @@ export function nls(options: { preserveEnglish: boolean }): NodeJS.ReadWriteStre
 	const input = through();
 	const output = input
 		.pipe(sort()) // IMPORTANT: to ensure stable NLS metadata generation, we must sort the files because NLS messages are globally extracted and indexed across all files
-		.pipe(through(function (f: FileSourceMap) {
+		.pipe(through(function (f: FileWithSourcemap) {
 			if (!f.sourceMap) {
 				return this.emit('error', new Error(`File ${f.relative} does not have sourcemaps.`));
 			}
@@ -504,14 +503,12 @@ module _nls {
 			ts,
 			typescript,
 			javascriptFile.contents!.toString(),
-			// eslint-disable-next-line local/code-no-any-casts
-			(<any>javascriptFile).sourceMap,
+			javascriptFile.sourceMap,
 			options
 		);
 
 		const result = fileFrom(javascriptFile, javascript);
-		// eslint-disable-next-line local/code-no-any-casts
-		(<any>result).sourceMap = sourcemap;
+		result.sourceMap = sourcemap;
 
 		if (nlsKeys) {
 			moduleToNLSKeys[moduleId] = nlsKeys;

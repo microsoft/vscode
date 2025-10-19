@@ -42,10 +42,10 @@ export interface IInlineChatSession2 {
 export interface IInlineChatSessionService {
 	_serviceBrand: undefined;
 
-	onWillStartSession: Event<IActiveCodeEditor>;
-	onDidMoveSession: Event<IInlineChatSessionEvent>;
-	onDidStashSession: Event<IInlineChatSessionEvent>;
-	onDidEndSession: Event<IInlineChatSessionEndEvent>;
+	readonly onWillStartSession: Event<IActiveCodeEditor>;
+	readonly onDidMoveSession: Event<IInlineChatSessionEvent>;
+	readonly onDidStashSession: Event<IInlineChatSessionEvent>;
+	readonly onDidEndSession: Event<IInlineChatSessionEndEvent>;
 
 	createSession(editor: IActiveCodeEditor, options: { wholeRange?: IRange; session?: Session; headless?: boolean }, token: CancellationToken): Promise<Session | undefined>;
 
@@ -68,5 +68,5 @@ export interface IInlineChatSessionService {
 
 	createSession2(editor: ICodeEditor, uri: URI, token: CancellationToken): Promise<IInlineChatSession2>;
 	getSession2(uri: URI): IInlineChatSession2 | undefined;
-	onDidChangeSessions: Event<this>;
+	readonly onDidChangeSessions: Event<this>;
 }

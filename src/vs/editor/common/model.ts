@@ -1503,7 +1503,7 @@ export class ValidAnnotatedEditOperation implements IIdentifiedSingleEditOperati
  * `lineNumber` is 1 based.
  */
 export interface IReadonlyTextBuffer {
-	onDidChangeContent: Event<void>;
+	readonly onDidChangeContent: Event<void>;
 	equals(other: ITextBuffer): boolean;
 	mightContainRTL(): boolean;
 	mightContainUnusualLineTerminators(): boolean;

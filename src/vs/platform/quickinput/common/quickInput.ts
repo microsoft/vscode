@@ -43,8 +43,16 @@ export interface IQuickItem {
 	 * Whether the item is displayed with a strikethrough.
 	 */
 	strikethrough?: boolean;
+	/**
+	 * Icon classes to be passed on as `IIconLabelValueOptions`
+	 * to the underlying `IconLabel` widget.
+	 */
 	iconClasses?: readonly string[];
 	iconPath?: { dark: URI; light?: URI };
+	/**
+	 * Icon class to be assigned to the quick item container
+	 * directly.
+	 */
 	iconClass?: string;
 	highlights?: IQuickItemHighlights;
 	buttons?: readonly IQuickInputButton[];
@@ -131,6 +139,11 @@ export interface IPickOptions<T extends IQuickPickItem> {
 	 * an optional string to show as placeholder in the input box to guide the user what she picks on
 	 */
 	placeHolder?: string;
+
+	/**
+	 * the text to display underneath the input box
+	 */
+	prompt?: string;
 
 	/**
 	 * an optional flag to include the description when filtering the picks
@@ -347,6 +360,11 @@ export interface IQuickInput extends IDisposable {
 	ignoreFocusOut: boolean;
 
 	/**
+	 * The toggle buttons to be added to the input box.
+	 */
+	toggles: IQuickInputToggle[] | undefined;
+
+	/**
 	 * Shows the quick input.
 	 */
 	show(): void;
@@ -498,6 +516,11 @@ export interface IQuickPick<T extends IQuickPickItem, O extends { useSeparators:
 	 * The placeholder text for the quick pick input.
 	 */
 	placeholder: string | undefined;
+
+	/**
+	 * Text shown below the quick pick input.
+	 */
+	prompt: string | undefined;
 
 	/**
 	 * An event that is fired when the value of the quick pick input changes.
@@ -677,11 +700,6 @@ export interface IQuickPick<T extends IQuickPickItem, O extends { useSeparators:
 	hideCheckAll: boolean;
 
 	/**
-	 * The toggle buttons to be added to the input box.
-	 */
-	toggles: IQuickInputToggle[] | undefined;
-
-	/**
 	 * Focus a particular item in the list. Used internally for keyboard navigation.
 	 * @param focus The focus behavior.
 	 */
@@ -702,7 +720,7 @@ export interface IQuickInputToggle {
 	 * Event that is fired when the toggle value changes.
 	 * The boolean value indicates whether the change was triggered via keyboard.
 	 */
-	onChange: Event<boolean>;
+	readonly onChange: Event<boolean>;
 }
 
 /**
@@ -776,7 +794,13 @@ export enum QuickInputButtonLocation {
 	/**
 	 * To the right of the input box.
 	 */
-	Inline = 2
+	Inline = 2,
+
+	/**
+	 * At the far end inside the input box.
+	 * Used by the public API to create toggles.
+	 */
+	Input = 3,
 }
 
 /**

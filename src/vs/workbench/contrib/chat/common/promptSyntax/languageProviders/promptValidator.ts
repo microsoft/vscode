@@ -26,6 +26,7 @@ import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IPromptsService } from '../service/promptsService.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 
+
 const MARKERS_OWNER_ID = 'prompts-diagnostics-provider';
 
 export class PromptValidator {
@@ -34,7 +35,7 @@ export class PromptValidator {
 		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
 		@IChatModeService private readonly chatModeService: IChatModeService,
 		@IFileService private readonly fileService: IFileService,
-		@ILabelService private readonly labelService: ILabelService
+		@ILabelService private readonly labelService: ILabelService,
 	) { }
 
 	public async validate(promptAST: ParsedPromptFile, promptType: PromptsType, report: (markers: IMarkerData) => void): Promise<void> {
@@ -57,17 +58,20 @@ export class PromptValidator {
 				report(toMarker(localize('promptValidator.invalidFileReference', "Invalid file reference '{0}'.", ref.content), ref.range, MarkerSeverity.Warning));
 				continue;
 			}
-			fileReferenceChecks.push((async () => {
-				try {
-					const exists = await this.fileService.exists(resolved);
-					if (exists) {
-						return;
+			if (promptAST.uri.scheme === resolved.scheme) {
+				// only validate if the link is in the file system of the prompt file
+				fileReferenceChecks.push((async () => {
+					try {
+						const exists = await this.fileService.exists(resolved);
+						if (exists) {
+							return;
+						}
+					} catch {
 					}
-				} catch {
-				}
-				const loc = this.labelService.getUriLabel(resolved);
-				report(toMarker(localize('promptValidator.fileNotFound', "File '{0}' not found at '{1}'.", ref.content, loc), ref.range, MarkerSeverity.Warning));
-			})());
+					const loc = this.labelService.getUriLabel(resolved);
+					report(toMarker(localize('promptValidator.fileNotFound', "File '{0}' not found at '{1}'.", ref.content, loc), ref.range, MarkerSeverity.Warning));
+				})());
+			}
 		}
 
 		// Validate variable references (tool or toolset names)
@@ -136,6 +140,7 @@ export class PromptValidator {
 			case PromptsType.mode:
 				this.validateTools(attributes, ChatModeKind.Agent, report);
 				this.validateModel(attributes, ChatModeKind.Agent, report);
+				this.validateHandoffs(attributes, report);
 				break;
 
 		}
@@ -302,12 +307,60 @@ export class PromptValidator {
 			return;
 		}
 	}
+
+	private validateHandoffs(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): undefined {
+		const attribute = attributes.find(attr => attr.key === 'handoffs');
+		if (!attribute) {
+			return;
+		}
+		if (attribute.value.type !== 'array') {
+			report(toMarker(localize('promptValidator.handoffsMustBeArray', "The 'handoffs' attribute must be an array."), attribute.value.range, MarkerSeverity.Error));
+			return;
+		}
+		for (const item of attribute.value.items) {
+			if (item.type !== 'object') {
+				report(toMarker(localize('promptValidator.eachHandoffMustBeObject', "Each handoff in the 'handoffs' attribute must be an object with 'label', 'agent', 'prompt' and optional 'send'."), item.range, MarkerSeverity.Error));
+				continue;
+			}
+			const required = new Set(['label', 'agent', 'prompt']);
+			for (const prop of item.properties) {
+				switch (prop.key.value) {
+					case 'label':
+						if (prop.value.type !== 'string' || prop.value.value.trim().length === 0) {
+							report(toMarker(localize('promptValidator.handoffLabelMustBeNonEmptyString', "The 'label' property in a handoff must be a non-empty string."), prop.value.range, MarkerSeverity.Error));
+						}
+						break;
+					case 'agent':
+						if (prop.value.type !== 'string' || prop.value.value.trim().length === 0) {
+							report(toMarker(localize('promptValidator.handoffAgentMustBeNonEmptyString', "The 'agent' property in a handoff must be a non-empty string."), prop.value.range, MarkerSeverity.Error));
+						}
+						break;
+					case 'prompt':
+						if (prop.value.type !== 'string') {
+							report(toMarker(localize('promptValidator.handoffPromptMustBeString', "The 'prompt' property in a handoff must be a string."), prop.value.range, MarkerSeverity.Error));
+						}
+						break;
+					case 'send':
+						if (prop.value.type !== 'boolean') {
+							report(toMarker(localize('promptValidator.handoffSendMustBeBoolean', "The 'send' property in a handoff must be a boolean."), prop.value.range, MarkerSeverity.Error));
+						}
+						break;
+					default:
+						report(toMarker(localize('promptValidator.unknownHandoffProperty', "Unknown property '{0}' in handoff object. Supported properties are 'label', 'agent', 'prompt' and optional 'send'.", prop.key.value), prop.value.range, MarkerSeverity.Warning));
+				}
+				required.delete(prop.key.value);
+			}
+			if (required.size > 0) {
+				report(toMarker(localize('promptValidator.missingHandoffProperties', "Missing required properties {0} in handoff object.", Array.from(required).map(s => `'${s}'`).join(', ')), item.range, MarkerSeverity.Error));
+			}
+		}
+	}
 }
 
 const validAttributeNames = {
 	[PromptsType.prompt]: ['description', 'model', 'tools', 'mode'],
 	[PromptsType.instructions]: ['description', 'applyTo', 'excludeAgent'],
-	[PromptsType.mode]: ['description', 'model', 'tools', 'advancedOptions']
+	[PromptsType.mode]: ['description', 'model', 'tools', 'advancedOptions', 'handoffs']
 };
 const validAttributeNamesNoExperimental = {
 	[PromptsType.prompt]: validAttributeNames[PromptsType.prompt].filter(name => !isExperimentalAttribute(name)),

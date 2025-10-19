@@ -87,7 +87,7 @@ suite('NotebookEditorWidgetService', () => {
 			override groups = [editorGroup1, editorGroup2];
 			override getPart(group: IEditorGroup | GroupIdentifier): IEditorPart;
 			override getPart(container: unknown): IEditorPart;
-			override getPart(container: unknown): import("../../../../services/editor/common/editorGroupsService.js").IEditorPart {
+			override getPart(container: unknown): import('../../../../services/editor/common/editorGroupsService.js').IEditorPart {
 				// eslint-disable-next-line local/code-no-any-casts
 				return { windowId: 0 } as any;
 			}

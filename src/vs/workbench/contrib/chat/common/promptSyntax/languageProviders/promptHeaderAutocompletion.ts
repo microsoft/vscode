@@ -17,6 +17,7 @@ import { IPromptsService } from '../service/promptsService.js';
 import { Iterable } from '../../../../../../base/common/iterator.js';
 import { PromptHeader } from '../service/newPromptsParser.js';
 import { getValidAttributeNames } from './promptValidator.js';
+import { localize } from '../../../../../../nls.js';
 
 export class PromptHeaderAutocompletion implements CompletionItemProvider {
 	/**
@@ -140,7 +141,6 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 			}
 		}
 
-
 		const bracketIndex = lineContent.indexOf('[');
 		if (bracketIndex !== -1 && bracketIndex <= position.column - 1) {
 			// if the property is already inside a bracket, we don't provide value completions
@@ -152,6 +152,22 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 		for (const value of values) {
 			const item: CompletionItem = {
 				label: value,
+				kind: CompletionItemKind.Value,
+				insertText: whilespaceAfterColon === 0 ? ` ${value}` : value,
+				range: new Range(position.lineNumber, colonPosition.column + whilespaceAfterColon + 1, position.lineNumber, model.getLineMaxColumn(position.lineNumber)),
+			};
+			suggestions.push(item);
+		}
+		if (property === 'handoffs' && (promptType === PromptsType.mode)) {
+			const value = [
+				'',
+				'  - label: Start Implementation',
+				'    agent: agent',
+				'    prompt: Implement the plan',
+				'    send: true'
+			].join('\n');
+			const item: CompletionItem = {
+				label: localize('promptHeaderAutocompletion.handoffsExample', "Handoff Example"),
 				kind: CompletionItemKind.Value,
 				insertText: whilespaceAfterColon === 0 ? ` ${value}` : value,
 				range: new Range(position.lineNumber, colonPosition.column + whilespaceAfterColon + 1, position.lineNumber, model.getLineMaxColumn(position.lineNumber)),
@@ -193,6 +209,7 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 		if (property === 'model' && (promptType === PromptsType.prompt || promptType === PromptsType.mode)) {
 			return this.getModelNames(promptType === PromptsType.mode);
 		}
+
 		return [];
 	}
 

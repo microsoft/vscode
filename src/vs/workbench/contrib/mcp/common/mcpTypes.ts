@@ -8,7 +8,7 @@ import { assertNever } from '../../../../base/common/assert.js';
 import { decodeHex, encodeHex, VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
-import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { equals as objectsEqual } from '../../../../base/common/objects.js';
 import { IObservable, ObservableMap } from '../../../../base/common/observable.js';
@@ -129,6 +129,9 @@ export interface McpServerDefinition {
 	readonly cacheNonce: string;
 	/** Dev mode configuration for the server */
 	readonly devMode?: IMcpDevModeConfig;
+	/** Static description of server tools/data, used to hydrate the cache. */
+	readonly staticMetadata?: McpServerStaticMetadata;
+
 
 	readonly presentation?: {
 		/** Sort order of the definition. */
@@ -138,6 +141,20 @@ export interface McpServerDefinition {
 	};
 }
 
+export const enum McpServerStaticToolAvailability {
+	/** Tool is expected to be present as soon as the server is started. */
+	Initial,
+	/** Tool may be present later. */
+	Dynamic,
+}
+
+export interface McpServerStaticMetadata {
+	tools?: { availability: McpServerStaticToolAvailability; definition: MCP.Tool }[];
+	instructions?: string;
+	capabilities?: MCP.ServerCapabilities;
+	serverInfo?: MCP.Implementation;
+}
+
 export namespace McpServerDefinition {
 	export interface Serialized {
 		readonly id: string;
@@ -145,6 +162,7 @@ export namespace McpServerDefinition {
 		readonly cacheNonce: string;
 		readonly launch: McpServerLaunch.Serialized;
 		readonly variableReplacement?: McpServerDefinitionVariableReplacement.Serialized;
+		readonly staticMetadata?: McpServerStaticMetadata;
 	}
 
 	export function toSerialized(def: McpServerDefinition): McpServerDefinition.Serialized {
@@ -156,6 +174,7 @@ export namespace McpServerDefinition {
 			id: def.id,
 			label: def.label,
 			cacheNonce: def.cacheNonce,
+			staticMetadata: def.staticMetadata,
 			launch: McpServerLaunch.fromSerialized(def.launch),
 			variableReplacement: def.variableReplacement ? McpServerDefinitionVariableReplacement.fromSerialized(def.variableReplacement) : undefined,
 		};
@@ -199,12 +218,15 @@ export namespace McpServerDefinitionVariableReplacement {
 	}
 }
 
+/** An observable of the auto-starting servers. When 'starting' is empty, the operation is complete. */
 export interface IAutostartResult {
-	serversRequiringInteraction: Array<{
-		serverId: string;
-		serverLabel: string;
-		errorMessage?: string;
-	}>;
+	working: boolean;
+	starting: McpDefinitionReference[];
+	serversRequiringInteraction: Array<McpDefinitionReference & { errorMessage?: string }>;
+}
+
+export namespace IAutostartResult {
+	export const Empty: IAutostartResult = { working: false, starting: [], serversRequiringInteraction: [] };
 }
 
 export interface IMcpService {
@@ -221,9 +243,12 @@ export interface IMcpService {
 	readonly lazyCollectionState: IObservable<{ state: LazyCollectionState; collections: McpCollectionDefinition[] }>;
 
 	/** Auto-starts pending servers based on user settings. */
-	autostart(token?: CancellationToken): Promise<IAutostartResult>;
+	autostart(token?: CancellationToken): IObservable<IAutostartResult>;
 
-	/** Activatese extensions and runs their MCP servers. */
+	/** Cancels any current autostart @internal */
+	cancelAutostart(): void;
+
+	/** Activates extension-providing MCP servers that have not yet been discovered. */
 	activateCollections(): Promise<void>;
 }
 
@@ -671,12 +696,14 @@ export const enum McpServerEditorTab {
 	Configuration = 'configuration',
 }
 
+export type McpServerRuntimeState = { readonly disabled: boolean; readonly reason?: MarkdownString };
+
 export interface IWorkbenchMcpServer {
 	readonly gallery: IGalleryMcpServer | undefined;
 	readonly local: IWorkbenchLocalMcpServer | undefined;
 	readonly installable: IInstallableMcpServer | undefined;
 	readonly installState: McpServerInstallState;
-	readonly enablementState: McpServerEnablementState;
+	readonly runtimeState: McpServerRuntimeState | undefined;
 	readonly id: string;
 	readonly name: string;
 	readonly label: string;
@@ -690,7 +717,6 @@ export interface IWorkbenchMcpServer {
 	readonly publisherDisplayName?: string;
 	readonly starsCount?: number;
 	readonly license?: string;
-	readonly url?: string;
 	readonly repository?: string;
 	readonly config?: IMcpServerConfiguration | undefined;
 	readonly readmeUrl?: URI;
@@ -712,6 +738,7 @@ export interface IMcpWorkbenchService {
 	uninstall(mcpServer: IWorkbenchMcpServer): Promise<void>;
 	getMcpConfigPath(arg: IWorkbenchLocalMcpServer): IMcpConfigPath | undefined;
 	getMcpConfigPath(arg: URI): Promise<IMcpConfigPath | undefined>;
+	openSearch(searchValue: string, preserveFoucs?: boolean): Promise<void>;
 	open(extension: IWorkbenchMcpServer | string, options?: IMcpServerEditorOptions): Promise<void>;
 }
 
