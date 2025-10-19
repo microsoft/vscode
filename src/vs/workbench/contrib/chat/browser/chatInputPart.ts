@@ -1227,26 +1227,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return;
 		}
 
-		let currentOptionId = this.chatSessionsService.getSessionOption(ctx.chatSessionType, ctx.chatSessionId, optionGroupId);
-
-		// If no option is set, initialize with the first item as default
-		if (!currentOptionId && optionGroup.items.length > 0) {
-			const firstItem = optionGroup.items[0];
-			currentOptionId = firstItem.id;
-			// Set the default value so it gets persisted
-			this.chatSessionsService.setSessionOption(ctx.chatSessionType, ctx.chatSessionId, optionGroupId, currentOptionId);
-			// Notify the extension about the default selection
-			this.chatSessionsService.notifySessionOptionsChange(
-				ctx.chatSessionType,
-				ctx.chatSessionId,
-				[{ optionId: optionGroupId, value: currentOptionId }]
-			).catch(err => this.logService.error(`Failed to notify extension of default ${optionGroupId} selection:`, err));
-			return firstItem;
-		}
-
-		if (!currentOptionId) {
-			return;
-		}
+		const currentOptionId = this.chatSessionsService.getSessionOption(ctx.chatSessionType, ctx.chatSessionId, optionGroupId);
 		return optionGroup.items.find(m => m.id === currentOptionId);
 	}
 
