@@ -646,7 +646,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return this._contributions.get(id) as T | null;
 	}
 
-	private async _sendDataToProcess(data: string): Promise<void> {
+	private async _handleOnData(data: string): Promise<void> {
 		await this._processManager.write(data);
 		this._onDidInputData.fire(data);
 	}
@@ -845,7 +845,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._register(this._processManager.onProcessData(e => this._onProcessData(e)));
 		this._register(xterm.raw.onData(async data => {
-			await this._sendDataToProcess(data);
+			await this._handleOnData(data);
 		}));
 		this._register(xterm.raw.onBinary(data => this._processManager.processBinary(data)));
 		// Init winpty compat and link handler after process creation as they rely on the
@@ -857,7 +857,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (processTraits?.windowsPty?.backend === 'conpty') {
 				this._register(xterm.raw.parser.registerCsiHandler({ final: 'c' }, params => {
 					if (params.length === 0 || params.length === 1 && params[0] === 0) {
-						this._sendDataToProcess('\x1b[?61;4c');
+						this._handleOnData('\x1b[?61;4c');
 						return true;
 					}
 					return false;
