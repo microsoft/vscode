@@ -114,6 +114,8 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 	private readonly _onDidChangeModelAccess = new Emitter<{ from: ExtensionIdentifier; to: ExtensionIdentifier }>();
 	private readonly _onDidChangeProviders = new Emitter<void>();
 	readonly onDidChangeProviders = this._onDidChangeProviders.event;
+	private readonly _onDidChangeModelProxyAvailability = new Emitter<void>();
+	readonly onDidChangeModelProxyAvailability = this._onDidChangeModelProxyAvailability.event;
 
 	private readonly _languageModelProviders = new Map<string, LanguageModelProviderData>();
 	// TODO @lramos15 - Remove the need for both info and metadata as it's a lot of redundancy. Should just need one
@@ -134,6 +136,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 	dispose(): void {
 		this._onDidChangeModelAccess.dispose();
 		this._onDidChangeProviders.dispose();
+		this._onDidChangeModelProxyAvailability.dispose();
 	}
 
 	registerLanguageModelChatProvider(extension: IExtensionDescription, vendor: string, provider: vscode.LanguageModelChatProvider): IDisposable {
@@ -171,9 +174,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			return [];
 		}
 		this._clearModelCache(vendor);
-		// TODO @lramos15 - Remove this old prepare method support in debt week
-		// eslint-disable-next-line local/code-no-any-casts
-		const modelInformation: vscode.LanguageModelChatInformation[] = (data.provider.provideLanguageModelChatInformation ? await data.provider.provideLanguageModelChatInformation(options, token) : await (data.provider as any).prepareLanguageModelChatInformation(options, token)) ?? [];
+		const modelInformation: vscode.LanguageModelChatInformation[] = await data.provider.provideLanguageModelChatInformation(options, token) ?? [];
 		const modelMetadataAndIdentifier: ILanguageModelChatMetadataAndIdentifier[] = modelInformation.map((m): ILanguageModelChatMetadataAndIdentifier => {
 			let auth;
 			if (m.requiresAuthorization && isProposedApiEnabled(data.extension, 'chatProvider')) {
@@ -608,25 +609,30 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		return this._proxy.$fileIsIgnored(uri, token);
 	}
 
-	async getModelProxy(extension: IExtensionDescription): Promise<vscode.LanguageModelProxyInfo | undefined> {
+	get isModelProxyAvailable(): boolean {
+		return !!this._languageModelProxyProvider;
+	}
+
+	async getModelProxy(extension: IExtensionDescription): Promise<vscode.LanguageModelProxy> {
 		checkProposedApiEnabled(extension, 'languageModelProxy');
 
 		if (!this._languageModelProxyProvider) {
-			this._logService.warn('[LanguageModelProxy] No LanguageModelProxyProvider registered');
-			return undefined;
+			this._logService.trace('[LanguageModelProxy] No LanguageModelProxyProvider registered');
+			throw new Error('No language model proxy provider is registered.');
 		}
 
 		const requestingExtensionId = ExtensionIdentifier.toKey(extension.identifier);
 		try {
 			const result = await Promise.resolve(this._languageModelProxyProvider.provideModelProxy(requestingExtensionId, CancellationToken.None));
-			if (result) {
-				return result;
+			if (!result) {
+				this._logService.warn(`[LanguageModelProxy] Provider returned no proxy for ${requestingExtensionId}`);
+				throw new Error('Language model proxy is not available.');
 			}
+			return result;
 		} catch (err) {
-			this._logService.error(`[LanguageModelProxy] Provider ${ExtensionIdentifier.toKey(extension.identifier)} failed`, err);
+			this._logService.error(`[LanguageModelProxy] Provider failed to return proxy for ${requestingExtensionId}`, err);
+			throw err;
 		}
-
-		return undefined;
 	}
 
 	async $isFileIgnored(handle: number, uri: UriComponents, token: CancellationToken): Promise<boolean> {
@@ -654,9 +660,11 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		checkProposedApiEnabled(extension, 'chatParticipantPrivate');
 
 		this._languageModelProxyProvider = provider;
+		this._onDidChangeModelProxyAvailability.fire();
 		return toDisposable(() => {
 			if (this._languageModelProxyProvider === provider) {
 				this._languageModelProxyProvider = undefined;
+				this._onDidChangeModelProxyAvailability.fire();
 			}
 		});
 	}

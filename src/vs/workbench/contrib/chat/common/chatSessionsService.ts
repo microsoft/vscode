@@ -9,11 +9,13 @@ import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { URI } from '../../../../base/common/uri.js';
 import { IRelaxedExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IEditableData } from '../../../common/views.js';
 import { IChatAgentRequest } from './chatAgents.js';
 import { IChatProgress } from './chatService.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from './languageModels.js';
 
 export const enum ChatSessionStatus {
 	Failed = 0,
@@ -41,7 +43,8 @@ export interface IChatSessionsExtensionPoint {
 	readonly commands?: IChatSessionCommandContribution[];
 }
 export interface IChatSessionItem {
-	id: string;
+	id: string; // TODO: remove
+	resource: URI;
 	label: string;
 	iconPath?: ThemeIcon;
 	description?: string | IMarkdownString;
@@ -62,8 +65,11 @@ export type IChatSessionHistoryItem = { type: 'request'; prompt: string; partici
 
 export interface ChatSession extends IDisposable {
 	readonly sessionId: string;
+	readonly sessionResource: URI;
 	readonly onWillDispose: Event<void>;
 	history: Array<IChatSessionHistoryItem>;
+	options: { model?: ILanguageModelChatMetadata } | undefined;
+
 	readonly progressObs?: IObservable<IChatProgress[]>;
 	readonly isCompleteObs?: IObservable<boolean>;
 	readonly interruptActiveResponseCallback?: () => Promise<boolean>;
@@ -87,7 +93,20 @@ export interface IChatSessionItemProvider {
 }
 
 export interface IChatSessionContentProvider {
-	provideChatSessionContent(sessionId: string, token: CancellationToken): Promise<ChatSession>;
+	provideChatSessionContent(sessionId: string, sessionResource: URI, token: CancellationToken): Promise<ChatSession>;
+}
+
+// TODO: Copy of LanguageModelChatInformation with various omissions
+export interface IChatSessionModelInfo {
+	id: string;
+	name: string;
+	family: string;
+	tooltip?: string;
+	detail?: string;
+	version: string;
+	maxInputTokens: number;
+	maxOutputTokens: number;
+	capabilities?: { imageInput?: boolean; toolCalling?: boolean | number };
 }
 
 export interface IChatSessionsService {
@@ -112,7 +131,19 @@ export interface IChatSessionsService {
 
 	registerChatSessionContentProvider(chatSessionType: string, provider: IChatSessionContentProvider): IDisposable;
 	canResolveContentProvider(chatSessionType: string): Promise<boolean>;
-	provideChatSessionContent(chatSessionType: string, id: string, token: CancellationToken): Promise<ChatSession>;
+	provideChatSessionContent(chatSessionType: string, id: string, sessionResource: URI, token: CancellationToken): Promise<ChatSession>;
+
+	// Get available models for a session type
+	getModelsForSessionType(chatSessionType: string): ILanguageModelChatMetadataAndIdentifier[] | undefined;
+
+	// Set available models for a session type (called by MainThreadChatSessions)
+	setModelsForSessionType(chatSessionType: string, handle: number, models?: IChatSessionModelInfo[]): void;
+
+	// Set callback for notifying extensions about option changes
+	setOptionsChangeCallback(callback: (chatSessionType: string, sessionId: string, updates: ReadonlyArray<{ optionId: string; value: string }>) => Promise<void>): void;
+
+	// Notify extension about option changes
+	notifySessionOptionsChange(chatSessionType: string, sessionId: string, updates: ReadonlyArray<{ optionId: string; value: string }>): Promise<void>;
 
 	// Editable session support
 	setEditableSession(sessionId: string, data: IEditableData | null): Promise<void>;
@@ -121,6 +152,9 @@ export interface IChatSessionsService {
 
 	// Notify providers about session items changes
 	notifySessionItemsChanged(chatSessionType: string): void;
+
+	getSessionOption(chatSessionType: string, sessionId: string, optionId: string): string | undefined;
+	setSessionOption(chatSessionType: string, sessionId: string, optionId: string, value: string): boolean;
 }
 
 export const IChatSessionsService = createDecorator<IChatSessionsService>('chatSessionsService');

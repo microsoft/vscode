@@ -43,8 +43,16 @@ export interface IQuickItem {
 	 * Whether the item is displayed with a strikethrough.
 	 */
 	strikethrough?: boolean;
+	/**
+	 * Icon classes to be passed on as `IIconLabelValueOptions`
+	 * to the underlying `IconLabel` widget.
+	 */
 	iconClasses?: readonly string[];
 	iconPath?: { dark: URI; light?: URI };
+	/**
+	 * Icon class to be assigned to the quick item container
+	 * directly.
+	 */
 	iconClass?: string;
 	highlights?: IQuickItemHighlights;
 	buttons?: readonly IQuickInputButton[];
@@ -350,6 +358,11 @@ export interface IQuickInput extends IDisposable {
 	 * Indicates whether the quick input should be hidden when it loses focus.
 	 */
 	ignoreFocusOut: boolean;
+
+	/**
+	 * The toggle buttons to be added to the input box.
+	 */
+	toggles: IQuickInputToggle[] | undefined;
 
 	/**
 	 * Shows the quick input.
@@ -687,11 +700,6 @@ export interface IQuickPick<T extends IQuickPickItem, O extends { useSeparators:
 	hideCheckAll: boolean;
 
 	/**
-	 * The toggle buttons to be added to the input box.
-	 */
-	toggles: IQuickInputToggle[] | undefined;
-
-	/**
 	 * Focus a particular item in the list. Used internally for keyboard navigation.
 	 * @param focus The focus behavior.
 	 */
@@ -786,7 +794,13 @@ export enum QuickInputButtonLocation {
 	/**
 	 * To the right of the input box.
 	 */
-	Inline = 2
+	Inline = 2,
+
+	/**
+	 * At the far end inside the input box.
+	 * Used by the public API to create toggles.
+	 */
+	Input = 3,
 }
 
 /**

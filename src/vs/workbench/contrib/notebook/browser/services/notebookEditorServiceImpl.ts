@@ -22,6 +22,7 @@ import { InteractiveWindowOpen, MOST_RECENT_REPL_EDITOR } from '../../common/not
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { IEditorProgressService } from '../../../../../platform/progress/common/progress.js';
 import { NotebookDiffEditorInput } from '../../common/notebookDiffEditorInput.js';
+import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 
 export class NotebookEditorWidgetService implements INotebookEditorService {
 
@@ -286,6 +287,17 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 
 	listNotebookEditors(): readonly INotebookEditor[] {
 		return [...this._notebookEditors].map(e => e[1]);
+	}
+
+	getNotebookForPossibleCell(candidate: ICodeEditor): INotebookEditor | undefined {
+		for (const editor of this._notebookEditors.values()) {
+			for (const [, codeEditor] of editor.codeEditors) {
+				if (codeEditor === candidate) {
+					return editor;
+				}
+			}
+		}
+		return undefined;
 	}
 
 	updateReplContextKey(uri: string): void {

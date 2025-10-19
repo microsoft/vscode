@@ -251,7 +251,7 @@ suite('SearchResult', () => {
 
 		sinon.stub(CellMatch.prototype, 'addContext');
 
-		const addFileMatch = sinon.spy(FolderMatchImpl.prototype, "addFileMatch");
+		const addFileMatch = sinon.spy(FolderMatchImpl.prototype, 'addFileMatch');
 		const fileMatch1 = aRawFileMatchWithCells('/1',
 			{
 				cell: cell1,
