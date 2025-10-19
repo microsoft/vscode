@@ -39,6 +39,15 @@ export interface IChatSessionProviderOptionGroup {
 	name: string;
 	description?: string;
 	items: IChatSessionProviderOptionItem[];
+	/**
+	 * If true, this option group will not be shown in the UI at all.
+	 */
+	hidden?: boolean;
+	/**
+	 * If true, the picker will be shown but in a locked/read-only state,
+	 * displaying the current value without allowing changes.
+	 */
+	locked?: boolean;
 }
 
 export interface IChatSessionsExtensionPoint {

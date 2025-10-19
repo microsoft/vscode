@@ -55,6 +55,7 @@ function delegateToWidgetActionsProvider(delegate: IChatSessionPickerDelegate): 
  */
 export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewItem {
 	currentOption: IChatSessionProviderOptionItem | undefined;
+	private readonly isLocked: boolean;
 	constructor(
 		action: IAction,
 		initialState: { group: IChatSessionProviderOptionGroup; item: IChatSessionProviderOptionItem | undefined },
@@ -67,10 +68,12 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		const { group, item } = initialState;
+		const isLocked = group.locked ?? false;
 		const actionWithLabel: IAction = {
 			...action,
 			label: item?.name || group.name,
 			tooltip: group.description || group.name,
+			enabled: !isLocked,
 			run: () => { }
 		};
 
@@ -80,6 +83,7 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 		};
 
 		super(actionWithLabel, sessionPickerActionWidgetOptions, actionWidgetService, keybindingService, contextKeyService);
+		this.isLocked = isLocked;
 		this.currentOption = item;
 		this._register(delegate.onDidChangeOption(newOption => {
 			this.currentOption = newOption;
@@ -91,7 +95,10 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
 		const domChildren = [];
 		domChildren.push(dom.$('span.chat-session-option-label', undefined, this.currentOption?.name ?? localize('chat.sessionPicker.label', "Pick Option")));
-		domChildren.push(...renderLabelWithIcons(`$(chevron-down)`));
+		// Only show the dropdown chevron if the picker is not locked
+		if (!this.isLocked) {
+			domChildren.push(...renderLabelWithIcons(`$(chevron-down)`));
+		}
 		dom.reset(element, ...domChildren);
 		this.setAriaLabelAttributes(element);
 		return null;
@@ -100,6 +107,10 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 	override render(container: HTMLElement): void {
 		super.render(container);
 		container.classList.add('chat-sessionPicker-item');
+		// Add a visual indicator for locked state
+		if (this.isLocked) {
+			container.classList.add('locked');
+		}
 	}
 
 }

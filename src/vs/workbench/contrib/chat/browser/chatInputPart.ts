@@ -683,9 +683,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// Clear existing widgets
 		this.chatSessionPickerWidgets.clear();
 
-		// Create a widget for each option group
+		// Create a widget for each option group (excluding hidden ones)
 		const widgets: ChatSessionPickerActionItem[] = [];
 		for (const optionGroup of optionGroups) {
+			// Skip hidden option groups
+			if (optionGroup.hidden) {
+				continue;
+			}
+
 			const initialItem = this.getCurrentOptionForGroup(optionGroup.id);
 			const initialState = { group: optionGroup, item: initialItem };
 
@@ -722,7 +727,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		return widgets;
-	} public setCurrentLanguageModel(model: ILanguageModelChatMetadataAndIdentifier) {
+	}
+
+	public setCurrentLanguageModel(model: ILanguageModelChatMetadataAndIdentifier) {
 		this._currentLanguageModel = model;
 
 		if (this.cachedDimensions) {
