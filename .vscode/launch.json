@@ -1,6 +1,7 @@
 {
 	"version": "0.1.0",
 	"configurations": [
+		auto
 		{
 			"type": "node",
 			"request": "launch",
