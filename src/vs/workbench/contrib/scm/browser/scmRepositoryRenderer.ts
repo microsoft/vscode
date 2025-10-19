@@ -78,7 +78,7 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 		@ISCMViewService private scmViewService: ISCMViewService,
 		@ITelemetryService private telemetryService: ITelemetryService
 	) {
-		this._selectionModeConfig = observableConfigValue('scm.repositories.selectionMode', 'multiple', this.configurationService);
+		this._selectionModeConfig = observableConfigValue('scm.repositories.selectionMode', 'single', this.configurationService);
 	}
 
 	renderTemplate(container: HTMLElement): RepositoryTemplate {
