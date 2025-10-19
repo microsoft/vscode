@@ -48,6 +48,10 @@ export interface IChatSessionsExtensionPoint {
 	readonly description: string;
 	readonly extensionDescription: IRelaxedExtensionDescription;
 	readonly when?: string;
+	readonly icon?: string;
+	readonly welcomeTitle?: string;
+	readonly welcomeMessage?: string;
+	readonly inputPlaceholder?: string;
 	readonly capabilities?: {
 		supportsFileAttachments?: boolean;
 		supportsToolAttachments?: boolean;
@@ -124,6 +128,10 @@ export interface IChatSessionsService {
 	getAllChatSessionContributions(): IChatSessionsExtensionPoint[];
 	canResolveItemProvider(chatSessionType: string): Promise<boolean>;
 	getAllChatSessionItemProviders(): IChatSessionItemProvider[];
+	getIconForSessionType(chatSessionType: string): ThemeIcon | undefined;
+	getWelcomeTitleForSessionType(chatSessionType: string): string | undefined;
+	getWelcomeMessageForSessionType(chatSessionType: string): string | undefined;
+	getInputPlaceholderForSessionType(chatSessionType: string): string | undefined;
 	provideNewChatSessionItem(chatSessionType: string, options: {
 		request: IChatAgentRequest;
 		metadata?: any;

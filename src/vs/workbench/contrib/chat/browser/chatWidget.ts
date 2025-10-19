@@ -66,6 +66,7 @@ import { IChatModeService } from '../common/chatModes.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestDynamicVariablePart, ChatRequestSlashPromptPart, ChatRequestToolPart, ChatRequestToolSetPart, chatSubcommandLeader, formatChatQuestion, IParsedChatRequest } from '../common/chatParserTypes.js';
 import { ChatRequestParser } from '../common/chatRequestParser.js';
 import { IChatLocationData, IChatSendRequestOptions, IChatService } from '../common/chatService.js';
+import { IChatSessionsService } from '../common/chatSessionsService.js';
 import { IChatSlashCommandService } from '../common/chatSlashCommands.js';
 import { ChatRequestVariableSet, IChatRequestVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../common/chatVariableEntries.js';
 import { ChatViewModel, IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
@@ -482,6 +483,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) {
 		super();
 		this._lockedToCodingAgentContextKey = ChatContextKeys.lockedToCodingAgent.bindTo(this.contextKeyService);
@@ -1356,15 +1358,22 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 
 		if (this.isLockedToCodingAgent) {
-			// TODO(jospicer): Let extensions contribute this welcome message/docs
-			const message = this._codingAgentPrefix === '@copilot '
-				? new MarkdownString(localize('copilotCodingAgentMessage', "This chat session will be forwarded to the {0} [coding agent]({1}) where work is completed in the background. ", this._codingAgentPrefix, 'https://aka.ms/coding-agent-docs') + this.chatDisclaimer, { isTrusted: true })
-				: new MarkdownString(localize('genericCodingAgentMessage', "This chat session will be forwarded to the {0} coding agent where work is completed in the background. ", this._codingAgentPrefix) + this.chatDisclaimer);
+			// Check for provider-specific customizations from chat sessions service
+			const providerIcon = this._lockedAgentId ? this.chatSessionsService.getIconForSessionType(this._lockedAgentId) : undefined;
+			const providerTitle = this._lockedAgentId ? this.chatSessionsService.getWelcomeTitleForSessionType(this._lockedAgentId) : undefined;
+			const providerMessage = this._lockedAgentId ? this.chatSessionsService.getWelcomeMessageForSessionType(this._lockedAgentId) : undefined;
+
+			// Fallback to default messages if provider doesn't specify
+			const message = providerMessage
+				? new MarkdownString(providerMessage)
+				: (this._codingAgentPrefix === '@copilot '
+					? new MarkdownString(localize('copilotCodingAgentMessage', "This chat session will be forwarded to the {0} [coding agent]({1}) where work is completed in the background. ", this._codingAgentPrefix, 'https://aka.ms/coding-agent-docs') + this.chatDisclaimer, { isTrusted: true })
+					: new MarkdownString(localize('genericCodingAgentMessage', "This chat session will be forwarded to the {0} coding agent where work is completed in the background. ", this._codingAgentPrefix) + this.chatDisclaimer));
 
 			return {
-				title: localize('codingAgentTitle', "Delegate to {0}", this._codingAgentPrefix),
+				title: providerTitle ?? localize('codingAgentTitle', "Delegate to {0}", this._codingAgentPrefix),
 				message,
-				icon: Codicon.sendToRemoteAgent,
+				icon: providerIcon ?? Codicon.sendToRemoteAgent,
 				additionalMessage,
 			};
 		}
@@ -1412,14 +1421,20 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			additionalMessage = localize('expChatAdditionalMessage', "AI responses may be inaccurate.");
 		}
 
+		// Check for provider-specific customizations
+		const providerIcon = this._lockedAgentId ? this.chatSessionsService.getIconForSessionType(this._lockedAgentId) : undefined;
+		const providerTitle = this._lockedAgentId ? this.chatSessionsService.getWelcomeTitleForSessionType(this._lockedAgentId) : undefined;
+		const providerMessage = this._lockedAgentId ? this.chatSessionsService.getWelcomeMessageForSessionType(this._lockedAgentId) : undefined;
+		const suggestedPrompts = this._lockedAgentId ? undefined : this.getNewSuggestedPrompts();
+
 		const welcomeContent: IChatViewWelcomeContent = {
-			title: localize('expChatTitle', 'Build with agent mode'),
-			message: new MarkdownString(localize('expchatMessage', "Let's get started")),
-			icon: Codicon.chatSparkle,
+			title: providerTitle ?? localize('expChatTitle', 'Build with agent mode'),
+			message: providerMessage ? new MarkdownString(providerMessage) : new MarkdownString(localize('expchatMessage', "Let's get started")),
+			icon: providerIcon ?? Codicon.chatSparkle,
 			inputPart: this.inputPart.element,
 			additionalMessage,
 			isNew: true,
-			suggestedPrompts: this.getNewSuggestedPrompts(),
+			suggestedPrompts
 		};
 		return welcomeContent;
 	}
@@ -2268,8 +2283,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.container.setAttribute('data-session-id', model.sessionId);
 		this.viewModel = this.instantiationService.createInstance(ChatViewModel, model, this._codeBlockModelCollection);
 
-		if (this._lockedToCodingAgent) {
-			const placeholder = localize('chat.input.placeholder.lockedToAgent', "Chat with {0}", this._lockedToCodingAgent);
+		if (this._lockedAgentId) {
+			let placeholder = this._lockedAgentId ? this.chatSessionsService.getInputPlaceholderForSessionType(this._lockedAgentId) : undefined;
+			if (!placeholder) {
+				placeholder = localize('chat.input.placeholder.lockedToAgent', "Chat with {0}", this._lockedAgentId);
+			}
 			this.viewModel.setInputPlaceholder(placeholder);
 			this.inputEditor.updateOptions({ placeholder });
 		} else if (this.viewModel.inputPlaceholder) {

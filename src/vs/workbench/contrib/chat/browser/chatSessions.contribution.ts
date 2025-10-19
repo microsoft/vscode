@@ -7,6 +7,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize, localize2 } from '../../../../nls.js';
@@ -55,6 +56,22 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 				},
 				when: {
 					description: localize('chatSessionsExtPoint.when', 'Condition which must be true to show this item.'),
+					type: 'string'
+				},
+				icon: {
+					description: localize('chatSessionsExtPoint.icon', 'Icon identifier (codicon ID) for the chat session editor tab. For example, "$(github)" or "$(cloud)".'),
+					type: 'string'
+				},
+				welcomeTitle: {
+					description: localize('chatSessionsExtPoint.welcomeTitle', 'Title text to display in the chat welcome view for this session type.'),
+					type: 'string'
+				},
+				welcomeMessage: {
+					description: localize('chatSessionsExtPoint.welcomeMessage', 'Message text (supports markdown) to display in the chat welcome view for this session type.'),
+					type: 'string'
+				},
+				inputPlaceholder: {
+					description: localize('chatSessionsExtPoint.inputPlaceholder', 'Placeholder text to display in the chat input box for this session type.'),
 					type: 'string'
 				},
 				capabilities: {
@@ -160,6 +177,10 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	public get onDidChangeInProgress() { return this._onDidChangeInProgress.event; }
 	private readonly inProgressMap: Map<string, number> = new Map();
 	private readonly _sessionTypeOptions: Map<string, IChatSessionProviderOptionGroup[]> = new Map();
+	private readonly _sessionTypeIcons: Map<string, ThemeIcon> = new Map();
+	private readonly _sessionTypeWelcomeTitles: Map<string, string> = new Map();
+	private readonly _sessionTypeWelcomeMessages: Map<string, string> = new Map();
+	private readonly _sessionTypeInputPlaceholders: Map<string, string> = new Map();
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
@@ -183,6 +204,10 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 						displayName: contribution.displayName,
 						description: contribution.description,
 						when: contribution.when,
+						icon: contribution.icon,
+						welcomeTitle: contribution.welcomeTitle,
+						welcomeMessage: contribution.welcomeMessage,
+						inputPlaceholder: contribution.inputPlaceholder,
 						capabilities: contribution.capabilities,
 						extensionDescription: ext.description,
 						commands: contribution.commands
@@ -208,7 +233,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		let displayName: string | undefined;
 
 		if (chatSessionType === 'local') {
-			displayName = 'Local Chat Sessions';
+			displayName = 'Local Chat Agent';
 		} else {
 			displayName = this._contributions.get(chatSessionType)?.displayName;
 		}
@@ -250,11 +275,41 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		}
 
 		this._contributions.set(contribution.type, contribution);
+
+		// Store icon mapping if provided
+		let icon: ThemeIcon | undefined;
+
+		if (contribution.icon) {
+			// Parse icon string - support both "$(iconId)" and "iconId" formats
+			icon = contribution.icon.startsWith('$(') && contribution.icon.endsWith(')')
+				? ThemeIcon.fromString(contribution.icon)
+				: ThemeIcon.fromId(contribution.icon);
+		}
+
+		if (icon) {
+			this._sessionTypeIcons.set(contribution.type, icon);
+		}
+
+		// Store welcome title, message, and input placeholder if provided
+		if (contribution.welcomeTitle) {
+			this._sessionTypeWelcomeTitles.set(contribution.type, contribution.welcomeTitle);
+		}
+		if (contribution.welcomeMessage) {
+			this._sessionTypeWelcomeMessages.set(contribution.type, contribution.welcomeMessage);
+		}
+		if (contribution.inputPlaceholder) {
+			this._sessionTypeInputPlaceholders.set(contribution.type, contribution.inputPlaceholder);
+		}
+
 		this._evaluateAvailability();
 
 		return {
 			dispose: () => {
 				this._contributions.delete(contribution.type);
+				this._sessionTypeIcons.delete(contribution.type);
+				this._sessionTypeWelcomeTitles.delete(contribution.type);
+				this._sessionTypeWelcomeMessages.delete(contribution.type);
+				this._sessionTypeInputPlaceholders.delete(contribution.type);
 				const store = this._disposableStores.get(contribution.type);
 				if (store) {
 					store.dispose();
@@ -276,7 +331,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 			command: {
 				id: `${NEW_CHAT_SESSION_ACTION_ID}.${contribution.type}`,
-				title: localize('interactiveSession.openNewSessionEditor', "New {0} Chat Editor", contribution.displayName),
+				title: localize('interactiveSession.openNewSessionEditor', "New {0}", contribution.displayName),
 				icon: Codicon.plus,
 				source: {
 					id: contribution.extensionDescription.identifier.value,
@@ -296,7 +351,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			constructor() {
 				super({
 					id: `workbench.action.chat.openNewSessionEditor.${contribution.type}`,
-					title: localize2('interactiveSession.openNewSessionEditor', "New {0} Chat Editor", contribution.displayName),
+					title: localize2('interactiveSession.openNewSessionEditor', "New {0}", contribution.displayName),
 					category: CHAT_CATEGORY,
 					icon: Codicon.plus,
 					f1: true, // Show in command palette
@@ -315,7 +370,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 						override: ChatEditorInput.EditorID,
 						pinned: true,
 						title: {
-							fallback: localize('chatEditorContributionName', "{0} chat", contribution.displayName),
+							fallback: localize('chatEditorContributionName', "{0}", contribution.displayName),
 						}
 					};
 					const untitledId = `untitled-${generateUuid()}`;
@@ -659,6 +714,34 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		for (const u of updates) {
 			this.setSessionOption(chatSessionType, sessionId, u.optionId, u.value);
 		}
+	}
+
+	/**
+	 * Get the icon for a specific session type
+	 */
+	public getIconForSessionType(chatSessionType: string): ThemeIcon | undefined {
+		return this._sessionTypeIcons.get(chatSessionType);
+	}
+
+	/**
+	 * Get the welcome title for a specific session type
+	 */
+	public getWelcomeTitleForSessionType(chatSessionType: string): string | undefined {
+		return this._sessionTypeWelcomeTitles.get(chatSessionType);
+	}
+
+	/**
+	 * Get the welcome message for a specific session type
+	 */
+	public getWelcomeMessageForSessionType(chatSessionType: string): string | undefined {
+		return this._sessionTypeWelcomeMessages.get(chatSessionType);
+	}
+
+	/**
+	 * Get the input placeholder for a specific session type
+	 */
+	public getInputPlaceholderForSessionType(chatSessionType: string): string | undefined {
+		return this._sessionTypeInputPlaceholders.get(chatSessionType);
 	}
 }
 
