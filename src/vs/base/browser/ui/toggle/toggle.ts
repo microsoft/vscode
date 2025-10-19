@@ -12,7 +12,6 @@ import { $, addDisposableListener, EventType, isActiveElement } from '../../dom.
 import { IKeyboardEvent } from '../../keyboardEvent.js';
 import { BaseActionViewItem, IActionViewItemOptions } from '../actionbar/actionViewItems.js';
 import { HoverStyle, IHoverLifecycleOptions } from '../hover/hover.js';
-import { IHoverDelegate } from '../hover/hoverDelegate.js';
 import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2.js';
 import { Widget } from '../widget.js';
 import './toggle.css';
@@ -23,9 +22,6 @@ export interface IToggleOpts extends IToggleStyles {
 	readonly title: string;
 	readonly isChecked: boolean;
 	readonly notFocusable?: boolean;
-	// TODO: Remove this, the previous default was mouse, so anything not mouse needs to be explicit
-	/** @deprecated Prefer hoverStyle and hoverLifecycleOptions instead */
-	readonly hoverDelegate?: IHoverDelegate;
 	readonly hoverStyle?: HoverStyle;
 	readonly hoverLifecycleOptions?: IHoverLifecycleOptions;
 }
@@ -69,7 +65,7 @@ export class ToggleActionViewItem extends BaseActionViewItem {
 			inputActiveOptionBackground: options.toggleStyles?.inputActiveOptionBackground,
 			inputActiveOptionBorder: options.toggleStyles?.inputActiveOptionBorder,
 			inputActiveOptionForeground: options.toggleStyles?.inputActiveOptionForeground,
-			hoverDelegate: options.hoverDelegate,
+			hoverStyle: HoverStyle.Pointer,
 		}));
 		this._register(this.toggle.onChange(() => {
 			this._action.checked = !!this.toggle && this.toggle.checked;
