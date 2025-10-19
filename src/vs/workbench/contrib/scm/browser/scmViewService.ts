@@ -243,7 +243,7 @@ export class SCMViewService implements ISCMViewService {
 	) {
 		this.menus = instantiationService.createInstance(SCMMenus);
 
-		this._selectionModeConfig = observableConfigValue<'multiple' | 'single'>('scm.repositories.selectionMode', 'multiple', this.configurationService);
+		this._selectionModeConfig = observableConfigValue<'multiple' | 'single'>('scm.repositories.selectionMode', 'single', this.configurationService);
 
 		try {
 			this.previousState = JSON.parse(storageService.get('scm:view:visibleRepositories', StorageScope.WORKSPACE, ''));
