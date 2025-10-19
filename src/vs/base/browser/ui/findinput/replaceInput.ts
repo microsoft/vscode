@@ -17,7 +17,7 @@ import { KeyCode } from '../../../common/keyCodes.js';
 import './findInput.css';
 import * as nls from '../../../../nls.js';
 import { IHistory } from '../../../common/history.js';
-import { HoverStyle, type IHoverLifecycleOptions } from '../hover/hover.js';
+import { type IHoverLifecycleOptions } from '../hover/hover.js';
 
 
 export interface IReplaceInputOptions {
@@ -47,7 +47,6 @@ class PreserveCaseToggle extends Toggle {
 			icon: Codicon.preserveCase,
 			title: NLS_PRESERVE_CASE_LABEL + opts.appendTitle,
 			isChecked: opts.isChecked,
-			hoverStyle: HoverStyle.Pointer,
 			hoverLifecycleOptions: opts.hoverLifecycleOptions,
 			inputActiveOptionBorder: opts.inputActiveOptionBorder,
 			inputActiveOptionForeground: opts.inputActiveOptionForeground,
@@ -122,7 +121,6 @@ export class ReplaceInput extends Widget {
 		this.preserveCase = this._register(new PreserveCaseToggle({
 			appendTitle: appendPreserveCaseLabel,
 			isChecked: false,
-			hoverStyle: options.hoverStyle,
 			hoverLifecycleOptions: options.hoverLifecycleOptions,
 			...options.toggleStyles
 		}));

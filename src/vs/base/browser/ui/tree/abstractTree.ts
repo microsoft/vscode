@@ -36,7 +36,7 @@ import { localize } from '../../../../nls.js';
 import { autorun, constObservable } from '../../../common/observable.js';
 import { alert } from '../aria/aria.js';
 import { IMouseWheelEvent } from '../../mouseEvent.js';
-import { HoverStyle, type IHoverLifecycleOptions } from '../hover/hover.js';
+import { type IHoverLifecycleOptions } from '../hover/hover.js';
 
 class TreeElementsDragAndDropData<T, TFilterData, TContext> extends ElementsDragAndDropData<T, TContext> {
 
@@ -715,7 +715,6 @@ class TreeFindToggle extends Toggle {
 			inputActiveOptionBorder: opts.inputActiveOptionBorder,
 			inputActiveOptionForeground: opts.inputActiveOptionForeground,
 			inputActiveOptionBackground: opts.inputActiveOptionBackground,
-			hoverStyle: HoverStyle.Pointer,
 			hoverLifecycleOptions,
 		});
 

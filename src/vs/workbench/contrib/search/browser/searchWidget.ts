@@ -45,7 +45,6 @@ import { SearchFindInput } from './searchFindInput.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { NotebookFindScopeType } from '../../notebook/common/notebookCommon.js';
-import { HoverStyle } from '../../../../base/browser/ui/hover/hover.js';
 
 /** Specified in searchview.css */
 const SingleLineInputHeight = 26;
@@ -468,7 +467,6 @@ export class SearchWidget extends Widget {
 			isChecked: false,
 			title: appendKeyBindingLabel(nls.localize('showContext', "Toggle Context Lines"), this.keybindingService.lookupKeybinding(ToggleSearchEditorContextLinesCommandId)),
 			icon: searchShowContextIcon,
-			hoverStyle: HoverStyle.Pointer,
 			hoverLifecycleOptions,
 			...defaultToggleStyles
 		});

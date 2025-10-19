@@ -22,7 +22,6 @@ export interface IToggleOpts extends IToggleStyles {
 	readonly title: string;
 	readonly isChecked: boolean;
 	readonly notFocusable?: boolean;
-	readonly hoverStyle?: HoverStyle;
 	readonly hoverLifecycleOptions?: IHoverLifecycleOptions;
 }
 
@@ -65,7 +64,6 @@ export class ToggleActionViewItem extends BaseActionViewItem {
 			inputActiveOptionBackground: options.toggleStyles?.inputActiveOptionBackground,
 			inputActiveOptionBorder: options.toggleStyles?.inputActiveOptionBorder,
 			inputActiveOptionForeground: options.toggleStyles?.inputActiveOptionForeground,
-			hoverStyle: HoverStyle.Pointer,
 		}));
 		this._register(this.toggle.onChange(() => {
 			this._action.checked = !!this.toggle && this.toggle.checked;
@@ -155,7 +153,7 @@ export class Toggle extends Widget {
 		this.domNode = document.createElement('div');
 		this._register(getBaseLayerHoverDelegate().setupDelayedHover(this.domNode, () => ({
 			content: this._title,
-			style: this._opts.hoverStyle ?? HoverStyle.Mouse,
+			style: HoverStyle.Pointer,
 		}), this._opts.hoverLifecycleOptions));
 		this.domNode.classList.add(...classes);
 		if (!this._opts.notFocusable) {

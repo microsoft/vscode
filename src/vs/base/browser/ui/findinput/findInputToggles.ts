@@ -6,7 +6,7 @@
 import { Toggle } from '../toggle/toggle.js';
 import { Codicon } from '../../../common/codicons.js';
 import * as nls from '../../../../nls.js';
-import { HoverStyle, type IHoverLifecycleOptions } from '../hover/hover.js';
+import { type IHoverLifecycleOptions } from '../hover/hover.js';
 
 export interface IFindInputToggleOpts {
 	readonly appendTitle: string;
@@ -27,7 +27,6 @@ export class CaseSensitiveToggle extends Toggle {
 			icon: Codicon.caseSensitive,
 			title: NLS_CASE_SENSITIVE_TOGGLE_LABEL + opts.appendTitle,
 			isChecked: opts.isChecked,
-			hoverStyle: HoverStyle.Pointer,
 			hoverLifecycleOptions: opts.hoverLifecycleOptions,
 			inputActiveOptionBorder: opts.inputActiveOptionBorder,
 			inputActiveOptionForeground: opts.inputActiveOptionForeground,
@@ -42,7 +41,6 @@ export class WholeWordsToggle extends Toggle {
 			icon: Codicon.wholeWord,
 			title: NLS_WHOLE_WORD_TOGGLE_LABEL + opts.appendTitle,
 			isChecked: opts.isChecked,
-			hoverStyle: HoverStyle.Pointer,
 			hoverLifecycleOptions: opts.hoverLifecycleOptions,
 			inputActiveOptionBorder: opts.inputActiveOptionBorder,
 			inputActiveOptionForeground: opts.inputActiveOptionForeground,
@@ -57,7 +55,6 @@ export class RegexToggle extends Toggle {
 			icon: Codicon.regex,
 			title: NLS_REGEX_TOGGLE_LABEL + opts.appendTitle,
 			isChecked: opts.isChecked,
-			hoverStyle: HoverStyle.Pointer,
 			hoverLifecycleOptions: opts.hoverLifecycleOptions,
 			inputActiveOptionBorder: opts.inputActiveOptionBorder,
 			inputActiveOptionForeground: opts.inputActiveOptionForeground,

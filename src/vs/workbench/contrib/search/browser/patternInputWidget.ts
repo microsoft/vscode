@@ -19,7 +19,6 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { defaultToggleStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { HoverStyle } from '../../../../base/browser/ui/hover/hover.js';
 
 export interface IOptions {
 	placeholder?: string;
@@ -221,7 +220,6 @@ export class IncludePatternInputWidget extends PatternInputWidget {
 			icon: Codicon.book,
 			title: nls.localize('onlySearchInOpenEditors', "Search only in Open Editors"),
 			isChecked: false,
-			hoverStyle: HoverStyle.Pointer,
 			...defaultToggleStyles
 		}));
 		this._register(this.useSearchInEditorsBox.onChange(viaKeyboard => {
@@ -274,7 +272,6 @@ export class ExcludePatternInputWidget extends PatternInputWidget {
 			actionClassName: 'useExcludesAndIgnoreFiles',
 			title: nls.localize('useExcludesAndIgnoreFilesDescription', "Use Exclude Settings and Ignore Files"),
 			isChecked: true,
-			hoverStyle: HoverStyle.Pointer,
 			...defaultToggleStyles
 		}));
 		this._register(this.useExcludesAndIgnoreFilesBox.onChange(viaKeyboard => {
