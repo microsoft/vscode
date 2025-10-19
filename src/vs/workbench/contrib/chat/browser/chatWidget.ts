@@ -359,6 +359,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	// Coding agent locking state
 	private _lockedToCodingAgent: string | undefined;
 	private _lockedToCodingAgentContextKey!: IContextKey<boolean>;
+	private _agentSupportsFileAttachmentsContextKey!: IContextKey<boolean>;
 	private _codingAgentPrefix: string | undefined;
 	private _lockedAgentId: string | undefined;
 
@@ -485,8 +486,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IHoverService private readonly hoverService: IHoverService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) {
+
 		super();
 		this._lockedToCodingAgentContextKey = ChatContextKeys.lockedToCodingAgent.bindTo(this.contextKeyService);
+		this._agentSupportsFileAttachmentsContextKey = ChatContextKeys.agentSupportsFileAttachments.bindTo(this.contextKeyService);
 
 		this.viewContext = _viewContext ?? {};
 
@@ -701,11 +704,29 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	set lastSelectedAgent(agent: IChatAgentData | undefined) {
 		this.parsedChatRequest = undefined;
 		this._lastSelectedAgent = agent;
+		this._updateAgentCapabilitiesContextKeys(agent);
 		this._onDidChangeParsedInput.fire();
 	}
 
 	get lastSelectedAgent(): IChatAgentData | undefined {
 		return this._lastSelectedAgent;
+	}
+
+	private _updateAgentCapabilitiesContextKeys(agent: IChatAgentData | undefined): void {
+		let supportsFileAttachments = true;
+
+		// Check if the agent has capabilities defined directly
+		if (agent?.capabilities?.supportsFileAttachments !== undefined) {
+			supportsFileAttachments = agent.capabilities.supportsFileAttachments;
+		} else if (this._lockedAgentId) {
+			// Check if the agent is a chat session type with capabilities
+			const sessionCapabilities = this.chatSessionsService.getCapabilitiesForSessionType(this._lockedAgentId);
+			if (sessionCapabilities?.supportsFileAttachments !== undefined) {
+				supportsFileAttachments = sessionCapabilities.supportsFileAttachments;
+			}
+		}
+
+		this._agentSupportsFileAttachmentsContextKey.set(supportsFileAttachments);
 	}
 
 	get supportsFileReferences(): boolean {
@@ -2348,6 +2369,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.viewModelDisposables.add(model.onDidChange((e) => {
 			if (e.kind === 'setAgent') {
 				this._onDidChangeAgent.fire({ agent: e.agent, slashCommand: e.command });
+				// Update capabilities context keys when agent changes
+				this._updateAgentCapabilitiesContextKeys(e.agent);
 			}
 			if (e.kind === 'addRequest') {
 				this.clearTodoListWidget(model.sessionId, false);
@@ -2421,6 +2444,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._lockedAgentId = agentId;
 		this._lockedToCodingAgentContextKey.set(true);
 		this._welcomeRenderScheduler.schedule();
+		// Update capabilities for the locked agent
+		const agent = this.chatAgentService.getAgent(agentId);
+		this._updateAgentCapabilitiesContextKeys(agent);
 		this.renderer.updateOptions({ restorable: false, editable: false, noFooter: true, progressMessageAtBottomOfResponse: true });
 		this.tree.rerender();
 	}
@@ -2431,6 +2457,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._codingAgentPrefix = undefined;
 		this._lockedAgentId = undefined;
 		this._lockedToCodingAgentContextKey.set(false);
+		this._updateAgentCapabilitiesContextKeys(undefined);
 
 		// Explicitly update the DOM to reflect unlocked state
 		this._welcomeRenderScheduler.schedule();

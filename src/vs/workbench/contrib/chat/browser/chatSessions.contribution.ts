@@ -755,6 +755,14 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 	/**
+	 * Get the capabilities for a specific session type
+	 */
+	public getCapabilitiesForSessionType(chatSessionType: string): { supportsFileAttachments?: boolean; supportsToolAttachments?: boolean } | undefined {
+		const contribution = this._contributions.get(chatSessionType);
+		return contribution?.capabilities;
+	}
+
+	/**
 	 * Get the welcome tips for a specific session type
 	 */
 	public getWelcomeTipsForSessionType(chatSessionType: string): string | undefined {
