@@ -360,6 +360,11 @@ export interface IQuickInput extends IDisposable {
 	ignoreFocusOut: boolean;
 
 	/**
+	 * The toggle buttons to be added to the input box.
+	 */
+	toggles: IQuickInputToggle[] | undefined;
+
+	/**
 	 * Shows the quick input.
 	 */
 	show(): void;
@@ -695,11 +700,6 @@ export interface IQuickPick<T extends IQuickPickItem, O extends { useSeparators:
 	hideCheckAll: boolean;
 
 	/**
-	 * The toggle buttons to be added to the input box.
-	 */
-	toggles: IQuickInputToggle[] | undefined;
-
-	/**
 	 * Focus a particular item in the list. Used internally for keyboard navigation.
 	 * @param focus The focus behavior.
 	 */
@@ -794,7 +794,13 @@ export enum QuickInputButtonLocation {
 	/**
 	 * To the right of the input box.
 	 */
-	Inline = 2
+	Inline = 2,
+
+	/**
+	 * At the far end inside the input box.
+	 * Used by the public API to create toggles.
+	 */
+	Input = 3,
 }
 
 /**
