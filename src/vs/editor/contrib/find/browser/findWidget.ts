@@ -43,8 +43,7 @@ import { defaultInputBoxStyles, defaultToggleStyles } from '../../../../platform
 import { Selection } from '../../../common/core/selection.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IHistory } from '../../../../base/common/history.js';
-import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
-import { type IHoverLifecycleOptions } from '../../../../base/browser/ui/hover/hover.js';
+import { HoverStyle, type IHoverLifecycleOptions } from '../../../../base/browser/ui/hover/hover.js';
 
 const findCollapsedIcon = registerIcon('find-collapsed', Codicon.chevronRight, nls.localize('findCollapsedIcon', 'Icon to indicate that the editor find widget is collapsed.'));
 const findExpandedIcon = registerIcon('find-expanded', Codicon.chevronDown, nls.localize('findExpandedIcon', 'Icon to indicate that the editor find widget is expanded.'));
@@ -1329,15 +1328,8 @@ export class SimpleButton extends Widget {
 		this._domNode.setAttribute('aria-label', this._opts.label);
 		this._register(hoverService.setupDelayedHover(this._domNode, {
 			content: this._opts.label,
-			appearance: {
-				compact: true,
-				showPointer: true,
-			},
-			position: {
-				hoverPosition: HoverPosition.BELOW
-			},
+			style: HoverStyle.Pointer,
 		}, opts.hoverLifecycleOptions));
-		// this._register(hoverService.setupManagedHover(opts.hoverDelegate ?? getDefaultHoverDelegate('element'), this._domNode, this._opts.label));
 
 		this.onclick(this._domNode, (e) => {
 			this._opts.onTrigger();
