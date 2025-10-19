@@ -41,7 +41,7 @@ import type { ITerminalExecuteStrategy } from '../executeStrategy/executeStrateg
 import { NoneExecuteStrategy } from '../executeStrategy/noneExecuteStrategy.js';
 import { RichExecuteStrategy } from '../executeStrategy/richExecuteStrategy.js';
 import { getOutput } from '../outputHelpers.js';
-import { dedupeRules, generateAutoApproveActions, isPowerShell, isWindowsPowerShell } from '../runInTerminalHelpers.js';
+import { dedupeRules, generateAutoApproveActions, isFish, isPowerShell, isWindowsPowerShell, isZsh } from '../runInTerminalHelpers.js';
 import { RunInTerminalToolTelemetry } from '../runInTerminalToolTelemetry.js';
 import { splitCommandLineIntoSubCommands } from '../subCommands.js';
 import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from '../toolTerminalCreator.js';
@@ -50,46 +50,6 @@ import { IPollingResult, OutputMonitorState } from './monitoring/types.js';
 
 // #region Tool data
 
-function createBashModelDescription(): string {
-	return [
-		'This tool allows you to execute shell commands in a persistent bash terminal session, preserving environment variables, working directory, and other context across multiple commands.',
-		'',
-		'Command Execution:',
-		'- Does NOT support multi-line commands',
-		'- Use && to chain simple commands on one line',
-		'- Prefer pipelines (|) over temporary files for data flow',
-		'',
-		'Directory Management:',
-		'- Must use absolute paths to avoid navigation issues',
-		'- Use $PWD for current directory references',
-		'- Consider using pushd/popd for directory stack management',
-		'',
-		'Program Execution:',
-		'- Supports Python, Node.js, and other executables',
-		'- Install dependencies via pip, npm, apt, etc.',
-		'- Use which or command -v to verify command availability',
-		'',
-		'Background Processes:',
-		'- For long-running tasks (e.g., servers), set isBackground=true',
-		'- Returns a terminal ID for checking status and runtime later',
-		'- Use nohup for processes that should survive terminal closure',
-		'',
-		'Output Management:',
-		'- Output is automatically truncated if longer than 60KB to prevent context overflow',
-		'- Use head, tail, grep, awk to filter and limit output size',
-		'- For pager commands, disable paging: git --no-pager or add | cat',
-		'- Use wc -l to count lines before displaying large outputs',
-		'',
-		'Best Practices:',
-		'- Quote variables: "$var" instead of $var to handle spaces',
-		'- Use [[ ]] for conditional tests instead of [ ]',
-		'- Prefer $() over backticks for command substitution',
-		'- Use set -e at start of complex commands to exit on errors',
-		'- Use find with -exec or xargs for file operations',
-		'- Be specific with commands to avoid excessive output'
-	].join('\n');
-}
-
 function createPowerShellModelDescription(shell: string): string {
 	return [
 		'This tool allows you to execute PowerShell commands in a persistent terminal session, preserving environment variables, working directory, and other context across multiple commands.',
@@ -97,9 +57,9 @@ function createPowerShellModelDescription(shell: string): string {
 		'Command Execution:',
 		'- Does NOT support multi-line commands',
 		`- ${isWindowsPowerShell(shell)
-			? 'Use semicolons `;` to chain commands on one line, NEVER use `&&` even when asked explicitly'
+			? 'Use semicolons ; to chain commands on one line, NEVER use && even when asked explicitly'
 			: 'Use && to chain simple commands on one line'}`,
-		'- Prefer pipelines `|` for object-based data flow',
+		'- Prefer pipelines | for object-based data flow',
 		'',
 		'Directory Management:',
 		'- Must use absolute paths to avoid navigation issues',
@@ -125,11 +85,79 @@ function createPowerShellModelDescription(shell: string): string {
 		'Best Practices:',
 		'- Use proper cmdlet names instead of aliases in scripts',
 		'- Quote paths with spaces: "C:\\Path With Spaces"',
-		'- Use $ErrorActionPreference = "Stop" for strict error handling',
 		'- Prefer PowerShell cmdlets over external commands when available',
-		'- Use Get-ChildItem instead of dir/ls for file listings',
+		'- Prefer idiomatic PowerShell like Get-ChildItem instead of dir or ls for file listings',
 		'- Use Test-Path to check file/directory existence',
 		'- Be specific with Select-Object properties to avoid excessive output'
+	].join('\n');
+}
+
+const genericDescription = `
+Command Execution:
+- Does NOT support multi-line commands
+- Use && to chain simple commands on one line
+- Prefer pipelines | over temporary files for data flow
+
+Directory Management:
+- Must use absolute paths to avoid navigation issues
+- Use $PWD for current directory references
+- Consider using pushd/popd for directory stack management
+- Supports directory shortcuts like ~ and -
+
+Program Execution:
+- Supports Python, Node.js, and other executables
+- Install packages via package managers (brew, apt, etc.)
+- Use which or command -v to verify command availability
+
+Background Processes:
+- For long-running tasks (e.g., servers), set isBackground=true
+- Returns a terminal ID for checking status and runtime later
+
+Output Management:
+- Output is automatically truncated if longer than 60KB to prevent context overflow
+- Use head, tail, grep, awk to filter and limit output size
+- For pager commands, disable paging: git --no-pager or add | cat
+- Use wc -l to count lines before displaying large outputs
+
+Best Practices:
+- Quote variables: "$var" instead of $var to handle spaces
+- Use find with -exec or xargs for file operations
+- Be specific with commands to avoid excessive output`;
+
+function createBashModelDescription(): string {
+	return [
+		'This tool allows you to execute shell commands in a persistent bash terminal session, preserving environment variables, working directory, and other context across multiple commands.',
+		genericDescription,
+		'- Use [[ ]] for conditional tests instead of [ ]',
+		'- Prefer $() over backticks for command substitution',
+		'- Use set -e at start of complex commands to exit on errors'
+	].join('\n');
+}
+
+function createZshModelDescription(): string {
+	return [
+		'This tool allows you to execute shell commands in a persistent zsh terminal session, preserving environment variables, working directory, and other context across multiple commands.',
+		genericDescription,
+		'- Use type to check command type (builtin, function, alias)',
+		'- Use jobs, fg, bg for job control',
+		'- Use [[ ]] for conditional tests instead of [ ]',
+		'- Prefer $() over backticks for command substitution',
+		'- Use setopt errexit for strict error handling',
+		'- Take advantage of zsh globbing features (**, extended globs)'
+	].join('\n');
+}
+
+function createFishModelDescription(): string {
+	return [
+		'This tool allows you to execute shell commands in a persistent fish terminal session, preserving environment variables, working directory, and other context across multiple commands.',
+		genericDescription,
+		'- Use type to check command type (builtin, function, alias)',
+		'- Use jobs, fg, bg for job control',
+		'- Use test expressions for conditionals (no [[ ]] syntax)',
+		'- Prefer command substitution with () syntax',
+		'- Variables are arrays by default, use $var[1] for first element',
+		'- Use set -e for strict error handling',
+		'- Take advantage of fish\'s autosuggestions and completions'
 	].join('\n');
 }
 
@@ -145,6 +173,10 @@ export async function createRunInTerminalToolData(
 	let modelDescription: string;
 	if (shell && os && isPowerShell(shell, os)) {
 		modelDescription = createPowerShellModelDescription(shell);
+	} else if (shell && os && isZsh(shell, os)) {
+		modelDescription = createZshModelDescription();
+	} else if (shell && os && isFish(shell, os)) {
+		modelDescription = createFishModelDescription();
 	} else {
 		modelDescription = createBashModelDescription();
 	}
@@ -226,7 +258,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 	private readonly _terminalToolCreator: ToolTerminalCreator;
 	private readonly _commandSimplifier: CommandSimplifier;
-	private readonly _profileFetcher: TerminalProfileFetcher;
+	protected readonly _profileFetcher: TerminalProfileFetcher;
 	private readonly _telemetry: RunInTerminalToolTelemetry;
 	protected readonly _commandLineAutoApprover: CommandLineAutoApprover;
 	protected readonly _sessionTerminalAssociations: Map<string, IToolTerminal> = new Map();
