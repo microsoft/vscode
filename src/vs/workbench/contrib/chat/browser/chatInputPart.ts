@@ -81,7 +81,7 @@ import { IChatEditingSession, ModifiedFileEntryState } from '../common/chatEditi
 import { IChatRequestModeInfo } from '../common/chatModel.js';
 import { ChatMode, IChatMode, IChatModeService } from '../common/chatModes.js';
 import { IChatFollowup, IChatService } from '../common/chatService.js';
-import { IChatSessionsService } from '../common/chatSessionsService.js';
+import { IChatSessionProviderOptionItem, IChatSessionsService } from '../common/chatSessionsService.js';
 import { ChatRequestVariableSet, IChatRequestVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemChangeRangeVariableEntry, isSCMHistoryItemChangeVariableEntry, isSCMHistoryItemVariableEntry } from '../common/chatVariableEntries.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
 import { ChatInputHistoryMaxEntries, IChatHistoryEntry, IChatInputState, IChatWidgetHistoryService } from '../common/chatWidgetHistoryService.js';
@@ -102,7 +102,7 @@ import { ChatDragAndDrop } from './chatDragAndDrop.js';
 import { ChatEditingShowChangesAction, ViewPreviousEditsAction } from './chatEditing/chatEditingActions.js';
 import { ChatFollowups } from './chatFollowups.js';
 import { ChatSelectedTools } from './chatSelectedTools.js';
-import { ChatSessionModelPickerActionItem } from './chatSessions/sessionModelPickerActionItem.js';
+import { ChatSessionPickerActionItem, IChatSessionPickerDelegate } from './chatSessions/chatSessionPickerActionItem.js';
 import { IChatViewState } from './chatWidget.js';
 import { ChatImplicitContext } from './contrib/chatImplicitContext.js';
 import { ChatRelatedFiles } from './contrib/chatInputRelatedFilesContrib.js';
@@ -113,6 +113,9 @@ import { IModePickerDelegate, ModePickerActionItem } from './modelPicker/modePic
 const $ = dom.$;
 
 const INPUT_EDITOR_MAX_HEIGHT = 250;
+
+// TODO: We can detect programatically
+const CHAT_SESSIONS_MODELS_OPTION_GROUP_ID = 'models';
 
 export interface IChatInputStyles {
 	overlayBackground: string;
@@ -298,10 +301,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private chatSessionHasModels: IContextKey<boolean>;
 	private modelWidget: ModelPickerActionItem | undefined;
 	private modeWidget: ModePickerActionItem | undefined;
-	private chatSessionModelWidget: ChatSessionModelPickerActionItem | undefined;
+	private chatSessionModelWidget: ChatSessionPickerActionItem | undefined;
 	private readonly _waitForPersistedLanguageModel: MutableDisposable<IDisposable>;
 	private _onDidChangeCurrentLanguageModel: Emitter<ILanguageModelChatMetadataAndIdentifier>;
-	private _onDidChangeChatSessionLanguageModel: Emitter<ILanguageModelChatMetadataAndIdentifier>;
+	private readonly _chatSessionOptionEmitters: Map<string, Emitter<IChatSessionProviderOptionItem>>;
 
 	private _currentLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined;
 
@@ -449,7 +452,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._onDidChangeCurrentLanguageModel = this._register(new Emitter<ILanguageModelChatMetadataAndIdentifier>());
 		this._onDidChangeCurrentChatMode = this._register(new Emitter<void>());
 		this.onDidChangeCurrentChatMode = this._onDidChangeCurrentChatMode.event;
-		this._onDidChangeChatSessionLanguageModel = this._register(new Emitter<ILanguageModelChatMetadataAndIdentifier>());
+		this._chatSessionOptionEmitters = new Map();
 		this.inputUri = URI.parse(`${Schemas.vscodeChatInput}:input-${ChatInputPart._counter++}`);
 		this._chatEditsActionsDisposables = this._register(new DisposableStore());
 		this._chatEditsDisposables = this._register(new DisposableStore());
@@ -1091,7 +1094,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.renderAttachedContext();
 	}
 
-	private refreshChatSessionPicker(): ILanguageModelChatMetadataAndIdentifier | undefined {
+	private getOrCreateOptionEmitter(optionGroupId: string): Emitter<IChatSessionProviderOptionItem> {
+		let emitter = this._chatSessionOptionEmitters.get(optionGroupId);
+		if (!emitter) {
+			emitter = this._register(new Emitter<IChatSessionProviderOptionItem>());
+			this._chatSessionOptionEmitters.set(optionGroupId, emitter);
+		}
+		return emitter;
+	}
+
+	private refreshChatSessionPicker(): IChatSessionProviderOptionItem | undefined {
 		this.chatSessionHasModels.set(false);
 		const sessionId = this._widget?.viewModel?.model.sessionId;
 		if (!sessionId) {
@@ -1101,20 +1113,19 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (!ctx) {
 			return;
 		}
-		const models = this.chatSessionsService.getModelsForSessionType(ctx.chatSessionType);
-		if (!models) {
+		const modelGroup = this.chatSessionsService.getOptionGroupsForSessionType(ctx.chatSessionType)?.find(g => g.id === CHAT_SESSIONS_MODELS_OPTION_GROUP_ID);
+		if (!modelGroup) {
 			return;
 		}
 
 		this.chatSessionHasModels.set(true);
-
-		const currentModelId = this.chatSessionsService.getSessionOption(ctx.chatSessionType, ctx.chatSessionId, 'model');
+		const currentModelId = this.chatSessionsService.getSessionOption(ctx.chatSessionType, ctx.chatSessionId, CHAT_SESSIONS_MODELS_OPTION_GROUP_ID);
 		if (!currentModelId) {
 			return;
 		}
-		const model = models.find(m => m.identifier === currentModelId);
+		const model = modelGroup.items.find(m => m.id === currentModelId);
 		if (model) {
-			this._onDidChangeChatSessionLanguageModel.fire(model);
+			this.getOrCreateOptionEmitter(CHAT_SESSIONS_MODELS_OPTION_GROUP_ID).fire(model);
 		}
 		return model;
 	}
@@ -1343,32 +1354,47 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						return chatSessionContext;
 					};
 
-					const itemDelegate: IModelPickerDelegate = {
-						getCurrentModel: () => {
-							return this.refreshChatSessionPicker();
-						},
-						onDidChangeModel: this._onDidChangeChatSessionLanguageModel.event,
-						setModel: (model: ILanguageModelChatMetadataAndIdentifier) => {
+					const ctx = resolveChatSessionContext();
+					if (!ctx) {
+						return this.chatSessionModelWidget = undefined;
+					}
+
+					const optionGroups = this.chatSessionsService.getOptionGroupsForSessionType(ctx.chatSessionType);
+					const modelGroup = optionGroups?.find(g => g.id === CHAT_SESSIONS_MODELS_OPTION_GROUP_ID);
+					if (!modelGroup) {
+						return this.chatSessionModelWidget = undefined;
+					}
+
+					const initialItem = this.refreshChatSessionPicker();
+					const initialState = { group: modelGroup, item: initialItem };
+
+					// Create delegate
+					const itemDelegate: IChatSessionPickerDelegate = {
+						getCurrentOption: () => this.refreshChatSessionPicker(),
+						onDidChangeOption: this.getOrCreateOptionEmitter(CHAT_SESSIONS_MODELS_OPTION_GROUP_ID).event,
+						setOption: (option: IChatSessionProviderOptionItem) => {
 							const ctx = resolveChatSessionContext();
 							if (!ctx) {
 								return;
 							}
-							this._onDidChangeChatSessionLanguageModel.fire(model);
+							this.getOrCreateOptionEmitter(CHAT_SESSIONS_MODELS_OPTION_GROUP_ID).fire(option);
 							this.chatSessionsService.notifySessionOptionsChange(
 								ctx.chatSessionType,
 								ctx.chatSessionId,
-								[{ optionId: 'model', value: model.identifier }]
+								[{ optionId: CHAT_SESSIONS_MODELS_OPTION_GROUP_ID, value: option.id }]
 							).catch(err => this.logService.error('Failed to notify extension of model change:', err));
 						},
-						getModels: () => {
+						getAllOptions: () => {
 							const ctx = resolveChatSessionContext();
 							if (!ctx) {
 								return [];
 							}
-							return this.chatSessionsService.getModelsForSessionType(ctx.chatSessionType) || [];
+							const optionGroups = this.chatSessionsService.getOptionGroupsForSessionType(ctx.chatSessionType);
+							const modelGroup = optionGroups?.find(g => g.id === CHAT_SESSIONS_MODELS_OPTION_GROUP_ID);
+							return modelGroup?.items ?? [];
 						}
 					};
-					return this.chatSessionModelWidget = this.instantiationService.createInstance(ChatSessionModelPickerActionItem, action, this.refreshChatSessionPicker(), itemDelegate);
+					return this.chatSessionModelWidget = this.instantiationService.createInstance(ChatSessionPickerActionItem, action, initialState, itemDelegate);
 				}
 				return undefined;
 			}
