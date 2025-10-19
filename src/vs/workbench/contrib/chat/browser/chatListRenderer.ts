@@ -760,6 +760,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this.renderChatContentDiff(diff, content, element, index, templateData);
 
 		this.updateItemHeightOnRender(element, templateData);
+		this.updateItemHeightOnRowContainerResize(templateData);
 	}
 
 	private shouldShowWorkingProgress(element: IChatResponseViewModel, partsToRender: IChatRendererContent[]): boolean {
@@ -899,6 +900,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		this.updateItemHeightOnRender(element, templateData);
+		this.updateItemHeightOnRowContainerResize(templateData);
 	}
 
 	updateItemHeightOnRender(element: ChatTreeItem, templateData: IChatListItemTemplate) {
@@ -914,6 +916,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				this._onDidChangeItemHeight.fire({ element, height: element.currentRenderedHeight });
 			}));
 		}
+	}
+
+	private updateItemHeightOnRowContainerResize(templateData: IChatListItemTemplate): void {
+		const ro = new ResizeObserver(() => {
+			this.updateItemHeight(templateData);
+		});
+		ro.observe(templateData.rowContainer);
+		templateData.elementDisposables.add(toDisposable(() => ro.disconnect()));
 	}
 
 	private updateItemHeight(templateData: IChatListItemTemplate): void {
