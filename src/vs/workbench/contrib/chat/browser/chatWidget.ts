@@ -1092,7 +1092,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			let welcomeContent: IChatViewWelcomeContent;
 			const defaultAgent = this.chatAgentService.getDefaultAgent(this.location, this.input.currentModeKind);
 			let additionalMessage = defaultAgent?.metadata.additionalWelcomeMessage;
-			if (!additionalMessage) {
+			if (!additionalMessage && !this._lockedAgent) {
 				additionalMessage = this._getGenerateInstructionsMessage();
 			}
 			if (this.shouldShowChatSetup()) {
