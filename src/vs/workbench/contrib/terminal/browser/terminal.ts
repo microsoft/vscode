@@ -30,7 +30,6 @@ import { ACTIVE_GROUP_TYPE, AUX_WINDOW_GROUP_TYPE, SIDE_GROUP_TYPE } from '../..
 import type { ICurrentPartialCommand } from '../../../../platform/terminal/common/capabilities/commandDetection/terminalCommand.js';
 import type { IXtermCore } from './xterm-private.js';
 import type { IMenu } from '../../../../platform/actions/common/actions.js';
-import type { Barrier } from '../../../../base/common/async.js';
 import type { IProgressState } from '@xterm/addon-progress';
 import type { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import type { TerminalEditorInput } from './terminalEditorInput.js';
@@ -41,6 +40,7 @@ export const ITerminalEditorService = createDecorator<ITerminalEditorService>('t
 export const ITerminalEditingService = createDecorator<ITerminalEditingService>('terminalEditingService');
 export const ITerminalGroupService = createDecorator<ITerminalGroupService>('terminalGroupService');
 export const ITerminalInstanceService = createDecorator<ITerminalInstanceService>('terminalInstanceService');
+export const ITerminalChatService = createDecorator<ITerminalChatService>('terminalChatService');
 
 /**
  * A terminal contribution that gets created whenever a terminal is created. A contribution has
@@ -98,6 +98,41 @@ export interface ITerminalInstanceService {
 
 	getRegisteredBackends(): IterableIterator<ITerminalBackend>;
 	didRegisterBackend(backend: ITerminalBackend): void;
+}
+
+/**
+ * Service enabling communication between the chat tool implementation in terminal contrib and workbench contribs.
+ * Acts as a communication mechanism for chat-related terminal features.
+ */
+export interface ITerminalChatService {
+	readonly _serviceBrand: undefined;
+
+	/**
+	 * Fired when a terminal instance is registered for a tool session id. This can happen after
+	 * the chat UI first renders, enabling late binding of the focus action.
+	 */
+	readonly onDidRegisterTerminalInstanceWithToolSession: Event<ITerminalInstance>;
+
+	/**
+	 * Associate a tool session id with a terminal instance. The association is automatically
+	 * cleared when the instance is disposed.
+	 */
+	registerTerminalInstanceWithToolSession(terminalToolSessionId: string | undefined, instance: ITerminalInstance): void;
+
+	/**
+	 * Resolve a terminal instance by its tool session id.
+	 * @param terminalToolSessionId The tool session id provided in toolSpecificData.
+	 * If no tool session ID is provided, we do nothing.
+	 */
+	getTerminalInstanceByToolSessionId(terminalToolSessionId: string): ITerminalInstance | undefined;
+
+	/**
+	 * Returns the list of terminal instances that have been registered with a tool session id.
+	 * This is used for surfacing tool-driven/background terminals in UI (eg. quick picks).
+	 */
+	getToolSessionTerminalInstances(): readonly ITerminalInstance[];
+
+	isBackgroundTerminal(terminalToolSessionId?: string): boolean;
 }
 
 /**
@@ -292,8 +327,11 @@ export const isDetachedTerminalInstance = (t: ITerminalInstance | IDetachedTermi
 export interface ITerminalService extends ITerminalInstanceHost {
 	readonly _serviceBrand: undefined;
 
-	/** Gets all terminal instances, including editor and terminal view (group) instances. */
+	/** Gets all terminal instances, including editor, terminal view (group), and background instances. */
 	readonly instances: readonly ITerminalInstance[];
+
+	readonly foregroundInstances: readonly ITerminalInstance[];
+
 	/** Gets detached terminal instances created via {@link createDetachedXterm}. */
 	readonly detachedInstances: Iterable<IDetachedTerminalInstance>;
 
@@ -359,6 +397,12 @@ export interface ITerminalService extends ITerminalInstanceHost {
 
 	getActiveOrCreateInstance(options?: { acceptsInput?: boolean }): Promise<ITerminalInstance>;
 	revealTerminal(source: ITerminalInstance, preserveFocus?: boolean): Promise<void>;
+	/**
+	 * @param instance
+	 * @param suppressSetActive Do not set the active instance when there is only one terminal
+	 * @param forceSaveState Used when the window is shutting down and we need to reveal and save hideFromUser terminals
+	 */
+	showBackgroundTerminal(instance: ITerminalInstance, suppressSetActive?: boolean): Promise<void>;
 	revealActiveTerminal(preserveFocus?: boolean): Promise<void>;
 	moveToEditor(source: ITerminalInstance, group?: GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE | AUX_WINDOW_GROUP_TYPE): void;
 	moveIntoNewEditor(source: ITerminalInstance): void;
@@ -1111,12 +1155,6 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	 * @returns Whether the context menu should be suppressed.
 	 */
 	handleMouseEvent(event: MouseEvent, contextMenu: IMenu): Promise<{ cancelContextMenu: boolean } | void>;
-
-	/**
-	 * Pause input events until the provided barrier is resolved.
-	 * @param barrier The barrier to wait for until input events can continue.
-	 */
-	pauseInputEvents(barrier: Barrier): void;
 }
 
 export const enum XtermTerminalConstants {

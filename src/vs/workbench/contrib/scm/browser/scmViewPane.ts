@@ -67,7 +67,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { AnchorAlignment } from '../../../../base/browser/ui/contextview/contextview.js';
 import { RepositoryActionRunner, RepositoryRenderer } from './scmRepositoryRenderer.js';
-import { ColorScheme } from '../../../../platform/theme/common/theme.js';
+import { isDark } from '../../../../platform/theme/common/theme.js';
 import { LabelFuzzyScore } from '../../../../base/browser/ui/tree/abstractTree.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
 import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from '../../../browser/parts/editor/editorCommands.js';
@@ -515,7 +515,7 @@ class RepositoryPaneActionRunner extends ActionRunner {
 		super();
 	}
 
-	protected override async runAction(action: IAction, context: ISCMResourceGroup | ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>): Promise<any> {
+	protected override async runAction(action: IAction, context: ISCMResourceGroup | ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>): Promise<void> {
 		if (!(action instanceof MenuItemAction)) {
 			return super.runAction(action, context);
 		}
@@ -678,7 +678,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 
 	private renderIcon(template: ResourceTemplate, data: RenderedResourceData): void {
 		const theme = this.themeService.getColorTheme();
-		const icon = theme.type === ColorScheme.LIGHT ? data.iconResource?.decorations.icon : data.iconResource?.decorations.iconDark;
+		const icon = isDark(theme.type) ? data.iconResource?.decorations.iconDark : data.iconResource?.decorations.icon;
 
 		template.fileLabel.setFile(data.uri, {
 			...data.fileLabelOptions,
@@ -1694,7 +1694,7 @@ class SCMInputWidget {
 		}
 
 		// Validation
-		const validationDelayer = new ThrottledDelayer<any>(200);
+		const validationDelayer = new ThrottledDelayer<void>(200);
 		const validate = async () => {
 			const position = this.inputEditor.getSelection()?.getStartPosition();
 			const offset = position && textModel.getOffsetAt(position);
@@ -2612,7 +2612,7 @@ export class SCMViewPane extends ViewPane {
 		}
 
 		const element = e.element;
-		let context: any = element;
+		let context: unknown = element;
 		let actions: IAction[] = [];
 
 		const disposables = new DisposableStore();

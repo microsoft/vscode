@@ -140,6 +140,7 @@ export class PromptValidator {
 			case PromptsType.mode:
 				this.validateTools(attributes, ChatModeKind.Agent, report);
 				this.validateModel(attributes, ChatModeKind.Agent, report);
+				this.validateHandoffs(attributes, report);
 				break;
 
 		}
@@ -306,12 +307,60 @@ export class PromptValidator {
 			return;
 		}
 	}
+
+	private validateHandoffs(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): undefined {
+		const attribute = attributes.find(attr => attr.key === 'handoffs');
+		if (!attribute) {
+			return;
+		}
+		if (attribute.value.type !== 'array') {
+			report(toMarker(localize('promptValidator.handoffsMustBeArray', "The 'handoffs' attribute must be an array."), attribute.value.range, MarkerSeverity.Error));
+			return;
+		}
+		for (const item of attribute.value.items) {
+			if (item.type !== 'object') {
+				report(toMarker(localize('promptValidator.eachHandoffMustBeObject', "Each handoff in the 'handoffs' attribute must be an object with 'label', 'agent', 'prompt' and optional 'send'."), item.range, MarkerSeverity.Error));
+				continue;
+			}
+			const required = new Set(['label', 'agent', 'prompt']);
+			for (const prop of item.properties) {
+				switch (prop.key.value) {
+					case 'label':
+						if (prop.value.type !== 'string' || prop.value.value.trim().length === 0) {
+							report(toMarker(localize('promptValidator.handoffLabelMustBeNonEmptyString', "The 'label' property in a handoff must be a non-empty string."), prop.value.range, MarkerSeverity.Error));
+						}
+						break;
+					case 'agent':
+						if (prop.value.type !== 'string' || prop.value.value.trim().length === 0) {
+							report(toMarker(localize('promptValidator.handoffAgentMustBeNonEmptyString', "The 'agent' property in a handoff must be a non-empty string."), prop.value.range, MarkerSeverity.Error));
+						}
+						break;
+					case 'prompt':
+						if (prop.value.type !== 'string') {
+							report(toMarker(localize('promptValidator.handoffPromptMustBeString', "The 'prompt' property in a handoff must be a string."), prop.value.range, MarkerSeverity.Error));
+						}
+						break;
+					case 'send':
+						if (prop.value.type !== 'boolean') {
+							report(toMarker(localize('promptValidator.handoffSendMustBeBoolean', "The 'send' property in a handoff must be a boolean."), prop.value.range, MarkerSeverity.Error));
+						}
+						break;
+					default:
+						report(toMarker(localize('promptValidator.unknownHandoffProperty', "Unknown property '{0}' in handoff object. Supported properties are 'label', 'agent', 'prompt' and optional 'send'.", prop.key.value), prop.value.range, MarkerSeverity.Warning));
+				}
+				required.delete(prop.key.value);
+			}
+			if (required.size > 0) {
+				report(toMarker(localize('promptValidator.missingHandoffProperties', "Missing required properties {0} in handoff object.", Array.from(required).map(s => `'${s}'`).join(', ')), item.range, MarkerSeverity.Error));
+			}
+		}
+	}
 }
 
 const validAttributeNames = {
 	[PromptsType.prompt]: ['description', 'model', 'tools', 'mode'],
 	[PromptsType.instructions]: ['description', 'applyTo', 'excludeAgent'],
-	[PromptsType.mode]: ['description', 'model', 'tools', 'advancedOptions']
+	[PromptsType.mode]: ['description', 'model', 'tools', 'advancedOptions', 'handoffs']
 };
 const validAttributeNamesNoExperimental = {
 	[PromptsType.prompt]: validAttributeNames[PromptsType.prompt].filter(name => !isExperimentalAttribute(name)),
@@ -365,33 +414,26 @@ export class PromptValidatorContribution extends Disposable {
 		const trackers = new ResourceMap<ModelTracker>();
 		this.localDisposables.add(toDisposable(() => {
 			trackers.forEach(tracker => tracker.dispose());
+			trackers.clear();
 		}));
-
-		const validateAllDelayer = this._register(new Delayer<void>(200));
-		const validateAll = (): void => {
-			validateAllDelayer.trigger(async () => {
-				this.modelService.getModels().forEach(model => {
-					const promptType = getPromptsTypeForLanguageId(model.getLanguageId());
-					if (promptType) {
-						trackers.set(model.uri, new ModelTracker(model, promptType, this.validator, this.promptsService, this.markerService));
-					}
-				});
-			});
-		};
-		this.localDisposables.add(this.modelService.onModelAdded((model) => {
+		this.modelService.getModels().forEach(model => {
 			const promptType = getPromptsTypeForLanguageId(model.getLanguageId());
 			if (promptType) {
 				trackers.set(model.uri, new ModelTracker(model, promptType, this.validator, this.promptsService, this.markerService));
 			}
+		});
+
+		this.localDisposables.add(this.modelService.onModelAdded((model) => {
+			const promptType = getPromptsTypeForLanguageId(model.getLanguageId());
+			if (promptType && !trackers.has(model.uri)) {
+				trackers.set(model.uri, new ModelTracker(model, promptType, this.validator, this.promptsService, this.markerService));
+			}
 		}));
 		this.localDisposables.add(this.modelService.onModelRemoved((model) => {
-			const promptType = getPromptsTypeForLanguageId(model.getLanguageId());
-			if (promptType) {
-				const tracker = trackers.get(model.uri);
-				if (tracker) {
-					tracker.dispose();
-					trackers.delete(model.uri);
-				}
+			const tracker = trackers.get(model.uri);
+			if (tracker) {
+				tracker.dispose();
+				trackers.delete(model.uri);
 			}
 		}));
 		this.localDisposables.add(this.modelService.onModelLanguageChanged((event) => {
@@ -406,10 +448,11 @@ export class PromptValidatorContribution extends Disposable {
 				trackers.set(model.uri, new ModelTracker(model, promptType, this.validator, this.promptsService, this.markerService));
 			}
 		}));
+
+		const validateAll = (): void => trackers.forEach(tracker => tracker.validate());
 		this.localDisposables.add(this.languageModelToolsService.onDidChangeTools(() => validateAll()));
 		this.localDisposables.add(this.chatModeService.onDidChangeChatModes(() => validateAll()));
 		this.localDisposables.add(this.languageModelsService.onDidChangeLanguageModels(() => validateAll()));
-		validateAll();
 	}
 }
 
@@ -430,7 +473,7 @@ class ModelTracker extends Disposable {
 		this.validate();
 	}
 
-	private validate(): void {
+	public validate(): void {
 		this.delayer.trigger(async () => {
 			const markers: IMarkerData[] = [];
 			const ast = this.promptsService.getParsedPromptFile(this.textModel);

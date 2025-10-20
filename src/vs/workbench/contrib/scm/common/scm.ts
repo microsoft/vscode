@@ -221,6 +221,7 @@ export interface ISCMViewService {
 	readonly _serviceBrand: undefined;
 
 	readonly menus: ISCMMenus;
+	readonly selectionModeConfig: IObservable<'multiple' | 'single'>;
 
 	repositories: ISCMRepository[];
 	readonly onDidChangeRepositories: Event<ISCMViewVisibleRepositoryChangeEvent>;
@@ -240,6 +241,6 @@ export interface ISCMViewService {
 	/**
 	 * Focused repository or the repository for the active editor
 	 */
-	readonly activeRepository: IObservable<ISCMRepository | undefined>;
+	readonly activeRepository: IObservable<{ repository: ISCMRepository; pinned: boolean } | undefined>;
 	pinActiveRepository(repository: ISCMRepository | undefined): void;
 }
