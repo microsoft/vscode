@@ -214,7 +214,7 @@ export function registerTerminalSuggestProvidersConfiguration(providers?: Map<st
 			default: enableByDefault,
 			description:
 				providers.get(id)?.description ??
-				localize('suggest.provider.title', "Show suggestions from {0}", id)
+				localize('suggest.provider.title', "Show suggestions from {0}.", id)
 		};
 	}
 
