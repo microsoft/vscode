@@ -10,6 +10,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { Dimension } from '../../../../../base/browser/dom.js';
 import { NotebookEditorWidget } from '../notebookEditorWidget.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 
 export const INotebookEditorService = createDecorator<INotebookEditorService>('INotebookEditorWidgetService');
 
@@ -30,5 +31,6 @@ export interface INotebookEditorService {
 	removeNotebookEditor(editor: INotebookEditor): void;
 	getNotebookEditor(editorId: string): INotebookEditor | undefined;
 	listNotebookEditors(): readonly INotebookEditor[];
+	getNotebookForPossibleCell(editor: ICodeEditor): INotebookEditor | undefined;
 	updateReplContextKey(uri: string): void;
 }

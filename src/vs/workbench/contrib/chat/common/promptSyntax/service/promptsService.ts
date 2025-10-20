@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ChatModeKind } from '../../constants.js';
-import { URI } from '../../../../../../base/common/uri.js';
-import { Event } from '../../../../../../base/common/event.js';
-import { ITextModel } from '../../../../../../editor/common/model.js';
-import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { PromptsType } from '../promptTypes.js';
+import { Event } from '../../../../../../base/common/event.js';
+import { IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { ITextModel } from '../../../../../../editor/common/model.js';
+import { ExtensionIdentifier, IExtensionDescription } from '../../../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IChatModeInstructions } from '../../chatModes.js';
-import { ParsedPromptFile } from './newPromptsParser.js';
-import { IExtensionDescription } from '../../../../../../platform/extensions/common/extensions.js';
+import { ChatModeKind } from '../../constants.js';
+import { PromptsType } from '../promptTypes.js';
+import { IHandOff, ParsedPromptFile } from './newPromptsParser.js';
 
 /**
  * Provides prompt services.
@@ -75,6 +75,25 @@ export interface IUserPromptPath extends IPromptPathBase {
 	readonly storage: PromptsStorage.user;
 }
 
+export type IChatModeSource = {
+	readonly storage: PromptsStorage.extension;
+	readonly extensionId: ExtensionIdentifier;
+} | {
+	readonly storage: PromptsStorage.local | PromptsStorage.user;
+};
+
+export function promptPathToChatModeSource(promptPath: IPromptPath): IChatModeSource {
+	if (promptPath.storage === PromptsStorage.extension) {
+		return {
+			storage: PromptsStorage.extension,
+			extensionId: promptPath.extension.identifier
+		};
+	} else {
+		return {
+			storage: promptPath.storage
+		};
+	}
+}
 
 export interface ICustomChatMode {
 	/**
@@ -106,6 +125,16 @@ export interface ICustomChatMode {
 	 * Contents of the custom chat mode file body and other mode instructions.
 	 */
 	readonly modeInstructions: IChatModeInstructions;
+
+	/**
+	 * Hand-offs defined in the custom chat mode file.
+	 */
+	readonly handOffs?: readonly IHandOff[];
+
+	/**
+	 * Where the mode was loaded from.
+	 */
+	readonly source: IChatModeSource;
 }
 
 /**

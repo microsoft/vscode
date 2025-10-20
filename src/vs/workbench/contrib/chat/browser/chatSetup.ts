@@ -249,7 +249,16 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 	}
 
 	private async doInvoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatWidgetService: IChatWidgetService, chatAgentService: IChatAgentService, languageModelToolsService: ILanguageModelToolsService): Promise<IChatAgentResult> {
-		if (!this.context.state.installed || this.context.state.disabled || this.context.state.untrusted || this.context.state.entitlement === ChatEntitlement.Available || this.context.state.entitlement === ChatEntitlement.Unknown) {
+		if (
+			!this.context.state.installed ||									// Extension not installed: run setup to install
+			this.context.state.disabled ||										// Extension disabled: run setup to enable
+			this.context.state.untrusted ||										// Workspace untrusted: run setup to ask for trust
+			this.context.state.entitlement === ChatEntitlement.Available ||		// Entitlement available: run setup to sign up
+			(
+				this.context.state.entitlement === ChatEntitlement.Unknown &&	// Entitlement unknown: run setup to sign in / sign up
+				!this.chatEntitlementService.anonymous							// unless anonymous access is enabled
+			)
+		) {
 			return this.doInvokeWithSetup(request, progress, chatService, languageModelsService, chatWidgetService, chatAgentService, languageModelToolsService);
 		}
 
@@ -312,7 +321,7 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 		let toolsModelReady = false;
 
 		const whenAgentReady = this.whenAgentReady(chatAgentService, modeInfo?.kind)?.then(() => agentReady = true);
-		const whenLanguageModelReady = this.whenLanguageModelReady(languageModelsService)?.then(() => languageModelReady = true);
+		const whenLanguageModelReady = this.whenLanguageModelReady(languageModelsService, requestModel.modelId)?.then(() => languageModelReady = true);
 		const whenToolsModelReady = this.whenToolsModelReady(languageModelToolsService, requestModel)?.then(() => toolsModelReady = true);
 
 		if (whenLanguageModelReady instanceof Promise || whenAgentReady instanceof Promise || whenToolsModelReady instanceof Promise) {
@@ -369,25 +378,32 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 
 		await chatService.resendRequest(requestModel, {
 			...widget?.getModeRequestOptions(),
-			modeInfo
+			modeInfo,
+			userSelectedModelId: widget?.input.currentLanguageModel
 		});
 	}
 
-	private whenLanguageModelReady(languageModelsService: ILanguageModelsService): Promise<unknown> | void {
-		const hasDefaultModel = () => {
+	private whenLanguageModelReady(languageModelsService: ILanguageModelsService, modelId: string | undefined): Promise<unknown> | void {
+		const hasModelForRequest = () => {
+			if (modelId) {
+				return !!languageModelsService.lookupLanguageModel(modelId);
+			}
+
 			for (const id of languageModelsService.getLanguageModelIds()) {
 				const model = languageModelsService.lookupLanguageModel(id);
 				if (model && model.isDefault) {
-					return true; // we have language models!
+					return true;
 				}
 			}
+
 			return false;
 		};
-		if (hasDefaultModel()) {
-			return; // we have language models!
+
+		if (hasModelForRequest()) {
+			return;
 		}
 
-		return Event.toPromise(Event.filter(languageModelsService.onDidChangeLanguageModels, () => hasDefaultModel() ?? false));
+		return Event.toPromise(Event.filter(languageModelsService.onDidChangeLanguageModels, () => hasModelForRequest()));
 	}
 
 	private whenToolsModelReady(languageModelToolsService: ILanguageModelToolsService, requestModel: IChatRequestModel): Promise<unknown> | void {
@@ -585,7 +601,7 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 }
 
 
-class SetupTool extends Disposable implements IToolImpl {
+class SetupTool implements IToolImpl {
 
 	static registerTool(instantiationService: IInstantiationService, toolData: IToolData): IDisposable {
 		return instantiationService.invokeFunction(accessor => {
@@ -618,7 +634,7 @@ class SetupTool extends Disposable implements IToolImpl {
 	}
 }
 
-class DefaultNewSymbolNamesProvider extends Disposable {
+class DefaultNewSymbolNamesProvider {
 
 	static registerProvider(instantiationService: IInstantiationService, context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): IDisposable {
 		return instantiationService.invokeFunction(accessor => {
@@ -626,7 +642,7 @@ class DefaultNewSymbolNamesProvider extends Disposable {
 
 			const disposables = new DisposableStore();
 
-			const provider = disposables.add(instantiationService.createInstance(DefaultNewSymbolNamesProvider, context, controller));
+			const provider = instantiationService.createInstance(DefaultNewSymbolNamesProvider, context, controller);
 			disposables.add(languageFeaturesService.newSymbolNamesProvider.register('*', provider));
 
 			return disposables;
@@ -639,7 +655,6 @@ class DefaultNewSymbolNamesProvider extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 	) {
-		super();
 	}
 
 	async provideNewSymbolNames(model: ITextModel, range: IRange, triggerKind: NewSymbolNameTriggerKind, token: CancellationToken): Promise<NewSymbolName[] | undefined> {
@@ -925,12 +940,15 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			return; // TODO@bpasero eventually remove this when we figured out extension activation issues
 		}
 
+		const defaultAgentDisposables = markAsSingleton(new MutableDisposable()); // prevents flicker on window reload
+		const vscodeAgentDisposables = markAsSingleton(new MutableDisposable());
+
+		const renameProviderDisposables = markAsSingleton(new MutableDisposable());
+
 		const updateRegistration = () => {
 
 			// Agent + Tools
 			{
-				const defaultAgentDisposables = markAsSingleton(new MutableDisposable()); // prevents flicker on window reload
-				const vscodeAgentDisposables = markAsSingleton(new MutableDisposable());
 				if (!context.state.hidden && !context.state.disabled) {
 
 					// Default Agents (always, even if installed to allow for speedy requests right on startup)
@@ -979,8 +997,6 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 			// Rename Provider
 			{
-				const renameProviderDisposables = markAsSingleton(new MutableDisposable());
-
 				if (!context.state.installed && !context.state.hidden && !context.state.disabled) {
 					if (!renameProviderDisposables.value) {
 						renameProviderDisposables.value = DefaultNewSymbolNamesProvider.registerProvider(this.instantiationService, context, controller);
@@ -1265,12 +1281,12 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					if (foundMode) {
 						modeToUse = foundMode.id;
 					}
+					// execute the command to change the mode in panel, note that the command only supports mode IDs, not names
+					await this.commandService.executeCommand(CHAT_SETUP_ACTION_ID, modeToUse);
+					return true;
 				}
 
-				// execute the command to change the mode in panel, note that the command only supports mode IDs, not names
-				await this.commandService.executeCommand(CHAT_SETUP_ACTION_ID, modeToUse);
-
-				return true;
+				return false;
 			}
 		}));
 	}
