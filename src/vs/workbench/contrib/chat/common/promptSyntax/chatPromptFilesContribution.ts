@@ -66,7 +66,7 @@ function pointToType(contributionPoint: ChatContributionPoint): PromptsType {
 	switch (contributionPoint) {
 		case 'chatPromptFiles': return PromptsType.prompt;
 		case 'chatInstructions': return PromptsType.instructions;
-		case 'chatModes': return PromptsType.mode;
+		case 'chatModes': return PromptsType.agent;
 	}
 }
 

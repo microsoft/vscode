@@ -11,22 +11,22 @@ import { ITextModel } from '../../../../../editor/common/model.js';
 import { IExtensionDescription } from '../../../../../platform/extensions/common/extensions.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { ParsedPromptFile } from '../../common/promptSyntax/service/newPromptsParser.js';
-import { ICustomChatMode, IPromptPath, IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
+import { ICustomAgent, IPromptPath, IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 
 export class MockPromptsService implements IPromptsService {
 	_serviceBrand: undefined;
 
 	private readonly _onDidChangeCustomChatModes = new Emitter<void>();
-	readonly onDidChangeCustomChatModes = this._onDidChangeCustomChatModes.event;
+	readonly onDidChangeCustomAgents = this._onDidChangeCustomChatModes.event;
 
-	private _customModes: ICustomChatMode[] = [];
+	private _customModes: ICustomAgent[] = [];
 
-	setCustomModes(modes: ICustomChatMode[]): void {
+	setCustomModes(modes: ICustomAgent[]): void {
 		this._customModes = modes;
 		this._onDidChangeCustomChatModes.fire();
 	}
 
-	async getCustomChatModes(token: CancellationToken): Promise<readonly ICustomChatMode[]> {
+	async getCustomAgents(token: CancellationToken): Promise<readonly ICustomAgent[]> {
 		return this._customModes;
 	}
 

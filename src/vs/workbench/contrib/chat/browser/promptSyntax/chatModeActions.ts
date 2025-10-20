@@ -17,7 +17,7 @@ import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ChatViewId } from '../chat.js';
 
-abstract class ConfigModeActionImpl extends Action2 {
+abstract class ConfigAgentActionImpl extends Action2 {
 	public override async run(accessor: ServicesAccessor): Promise<void> {
 		const openerService = accessor.get(IOpenerService);
 		const instaService = accessor.get(IInstantiationService);
@@ -26,25 +26,25 @@ abstract class ConfigModeActionImpl extends Action2 {
 
 		const placeholder = localize(
 			'commands.mode.select-dialog.placeholder',
-			'Select the chat mode file to open'
+			'Select the agent file to open'
 		);
 
-		const result = await pickers.selectPromptFile({ placeholder, type: PromptsType.mode, optionEdit: false });
+		const result = await pickers.selectPromptFile({ placeholder, type: PromptsType.agent, optionEdit: false });
 		if (result !== undefined) {
 			await openerService.open(result.promptFile);
 		}
 	}
 }
 
-// Separate action `Configure Mode` link in the mode picker.
+// Separate action `Configure Agent` link in the agent picker.
 
-const PICKER_CONFIGURE_MODES_ACTION_ID = 'workbench.action.chat.picker.configmode';
+const PICKER_CONFIGURE_AGENTS_ACTION_ID = 'workbench.action.chat.picker.configagents';
 
-class PickerConfigModeAction extends ConfigModeActionImpl {
+class PickerConfigAgentAction extends ConfigAgentActionImpl {
 	constructor() {
 		super({
-			id: PICKER_CONFIGURE_MODES_ACTION_ID,
-			title: localize2('select-mode', "Configure Modes..."),
+			id: PICKER_CONFIGURE_AGENTS_ACTION_ID,
+			title: localize2('select-agent', "Configure Agents..."),
 			category: CHAT_CATEGORY,
 			f1: false,
 			menu: {
@@ -55,16 +55,16 @@ class PickerConfigModeAction extends ConfigModeActionImpl {
 }
 
 /**
- * Action ID for the `Configure Custom Chat Mode` action.
+ * Action ID for the `Configure Agent` action.
  */
-const CONFIGURE_MODES_ACTION_ID = 'workbench.action.chat.manage.mode';
+const CONFIGURE_AGENTS_ACTION_ID = 'workbench.action.chat.manage.mode';
 
-class ManageModeAction extends ConfigModeActionImpl {
+class ManageAgentsAction extends ConfigAgentActionImpl {
 	constructor() {
 		super({
-			id: CONFIGURE_MODES_ACTION_ID,
-			title: localize2('configure-modes', "Configure Chat Modes..."),
-			shortTitle: localize('configure-modes.short', "Chat Modes"),
+			id: CONFIGURE_AGENTS_ACTION_ID,
+			title: localize2('configure-modes', "Configure Agents..."),
+			shortTitle: localize('configure-modes.short', "Agents"),
 			icon: Codicon.bookmark,
 			f1: true,
 			precondition: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
@@ -86,6 +86,6 @@ class ManageModeAction extends ConfigModeActionImpl {
  * Helper to register all the `Run Current Prompt` actions.
  */
 export function registerChatModeActions(): void {
-	registerAction2(ManageModeAction);
-	registerAction2(PickerConfigModeAction);
+	registerAction2(ManageAgentsAction);
+	registerAction2(PickerConfigAgentAction);
 }

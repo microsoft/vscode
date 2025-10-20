@@ -1788,7 +1788,7 @@ export async function handleCurrentEditingSession(currentEditingSession: IChatEd
 }
 
 /**
- * Returns whether we can switch the chat mode, based on whether the user had to agree to clear the session, false to cancel.
+ * Returns whether we can switch the agent, based on whether the user had to agree to clear the session, false to cancel.
  */
 export async function handleModeSwitch(
 	accessor: ServicesAccessor,
@@ -1806,7 +1806,7 @@ export async function handleModeSwitch(
 	const needToClearEdits = (!configurationService.getValue(ChatConfiguration.Edits2Enabled) && (fromMode === ChatModeKind.Edit || toMode === ChatModeKind.Edit)) && requestCount > 0;
 	if (needToClearEdits) {
 		// If not using edits2 and switching into or out of edit mode, ask to discard the session
-		const phrase = localize('switchMode.confirmPhrase', "Switching chat modes will end your current edit session.");
+		const phrase = localize('switchMode.confirmPhrase', "Switching agents will end your current edit session.");
 
 		const currentEdits = editingSession.entries.get();
 		const undecidedEdits = currentEdits.filter((edit) => edit.state.get() === ModifiedFileEntryState.Modified);
@@ -1819,7 +1819,7 @@ export async function handleModeSwitch(
 		} else {
 			const confirmation = await dialogService.confirm({
 				title: localize('agent.newSession', "Start new session?"),
-				message: localize('agent.newSessionMessage', "Changing the chat mode will end your current edit session. Would you like to change the chat mode?"),
+				message: localize('agent.newSessionMessage', "Changing the agent will end your current edit session. Would you like to change the agent?"),
 				primaryButton: localize('agent.newSession.confirm', "Yes"),
 				type: 'info'
 			});

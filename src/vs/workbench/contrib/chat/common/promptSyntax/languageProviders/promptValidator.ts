@@ -115,8 +115,8 @@ export class PromptValidator {
 					case PromptsType.prompt:
 						report(toMarker(localize('promptValidator.unknownAttribute.prompt', "Attribute '{0}' is not supported in prompt files. Supported: {1}.", attribute.key, supportedNames), attribute.range, MarkerSeverity.Warning));
 						break;
-					case PromptsType.mode:
-						report(toMarker(localize('promptValidator.unknownAttribute.mode', "Attribute '{0}' is not supported in mode files. Supported: {1}.", attribute.key, supportedNames), attribute.range, MarkerSeverity.Warning));
+					case PromptsType.agent:
+						report(toMarker(localize('promptValidator.unknownAttribute.agent', "Attribute '{0}' is not supported in agent files. Supported: {1}.", attribute.key, supportedNames), attribute.range, MarkerSeverity.Warning));
 						break;
 					case PromptsType.instructions:
 						report(toMarker(localize('promptValidator.unknownAttribute.instructions', "Attribute '{0}' is not supported in instructions files. Supported: {1}.", attribute.key, supportedNames), attribute.range, MarkerSeverity.Warning));
@@ -127,7 +127,7 @@ export class PromptValidator {
 		this.validateDescription(attributes, report);
 		switch (promptType) {
 			case PromptsType.prompt: {
-				const mode = this.validateMode(attributes, report);
+				const mode = this.validateAgent(attributes, report);
 				this.validateTools(attributes, mode?.kind ?? ChatModeKind.Agent, report);
 				this.validateModel(attributes, mode?.kind ?? ChatModeKind.Agent, report);
 				break;
@@ -137,7 +137,7 @@ export class PromptValidator {
 				this.validateExcludeAgent(attributes, report);
 				break;
 
-			case PromptsType.mode:
+			case PromptsType.agent:
 				this.validateTools(attributes, ChatModeKind.Agent, report);
 				this.validateModel(attributes, ChatModeKind.Agent, report);
 				this.validateHandoffs(attributes, report);
@@ -201,7 +201,7 @@ export class PromptValidator {
 		return undefined;
 	}
 
-	private validateMode(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): IChatMode | undefined {
+	private validateAgent(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): IChatMode | undefined {
 		const attribute = attributes.find(attr => attr.key === 'mode');
 		if (!attribute) {
 			return undefined; // default mode for prompts is Agent
@@ -357,23 +357,23 @@ export class PromptValidator {
 	}
 }
 
-const validAttributeNames = {
-	[PromptsType.prompt]: ['description', 'model', 'tools', 'mode'],
+const allAttributeNames = {
+	[PromptsType.prompt]: ['description', 'model', 'tools', 'mode', 'agent'],
 	[PromptsType.instructions]: ['description', 'applyTo', 'excludeAgent'],
-	[PromptsType.mode]: ['description', 'model', 'tools', 'advancedOptions', 'handoffs']
+	[PromptsType.agent]: ['description', 'model', 'tools', 'advancedOptions', 'handoffs']
 };
-const validAttributeNamesNoExperimental = {
-	[PromptsType.prompt]: validAttributeNames[PromptsType.prompt].filter(name => !isExperimentalAttribute(name)),
-	[PromptsType.instructions]: validAttributeNames[PromptsType.instructions].filter(name => !isExperimentalAttribute(name)),
-	[PromptsType.mode]: validAttributeNames[PromptsType.mode].filter(name => !isExperimentalAttribute(name))
+const recommendedAttributeNames = {
+	[PromptsType.prompt]: allAttributeNames[PromptsType.prompt].filter(name => !isNonRecommendedAttribute(name)),
+	[PromptsType.instructions]: allAttributeNames[PromptsType.instructions].filter(name => !isNonRecommendedAttribute(name)),
+	[PromptsType.agent]: allAttributeNames[PromptsType.agent].filter(name => !isNonRecommendedAttribute(name))
 };
 
-export function getValidAttributeNames(promptType: PromptsType, includeExperimental: boolean): string[] {
-	return includeExperimental ? validAttributeNames[promptType] : validAttributeNamesNoExperimental[promptType];
+export function getValidAttributeNames(promptType: PromptsType, includeNonRecommended: boolean): string[] {
+	return includeNonRecommended ? allAttributeNames[promptType] : recommendedAttributeNames[promptType];
 }
 
-export function isExperimentalAttribute(attributeName: string): boolean {
-	return attributeName === 'advancedOptions' || attributeName === 'excludeAgent';
+export function isNonRecommendedAttribute(attributeName: string): boolean {
+	return attributeName === 'advancedOptions' || attributeName === 'excludeAgent' || attributeName === 'mode';
 }
 
 function toMarker(message: string, range: Range, severity = MarkerSeverity.Error): IMarkerData {

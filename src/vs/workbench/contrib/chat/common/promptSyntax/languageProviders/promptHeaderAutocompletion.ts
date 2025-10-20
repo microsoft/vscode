@@ -133,7 +133,7 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 			return undefined;
 		}
 
-		if (promptType === PromptsType.prompt || promptType === PromptsType.mode) {
+		if (promptType === PromptsType.prompt || promptType === PromptsType.agent) {
 			// if the position is inside the tools metadata, we provide tool name completions
 			const result = this.provideToolCompletions(model, position, header);
 			if (result) {
@@ -158,7 +158,7 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 			};
 			suggestions.push(item);
 		}
-		if (property === 'handoffs' && (promptType === PromptsType.mode)) {
+		if (property === 'handoffs' && (promptType === PromptsType.agent)) {
 			const value = [
 				'',
 				'  - label: Start Implementation',
@@ -194,7 +194,7 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 		if (promptType === PromptsType.instructions && property === 'applyTo') {
 			return [`'**'`, `'**/*.ts, **/*.js'`, `'**/*.php'`, `'**/*.py'`];
 		}
-		if (promptType === PromptsType.prompt && property === 'mode') {
+		if (promptType === PromptsType.prompt && (property === 'mode' || property === 'agent')) {
 			// Get all available modes (builtin + custom)
 			const modes = this.chatModeService.getModes();
 			const suggestions: string[] = [];
@@ -203,11 +203,11 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 			}
 			return suggestions;
 		}
-		if (property === 'tools' && (promptType === PromptsType.prompt || promptType === PromptsType.mode)) {
+		if (property === 'tools' && (promptType === PromptsType.prompt || promptType === PromptsType.agent)) {
 			return ['[]', `['search', 'edit', 'fetch']`];
 		}
-		if (property === 'model' && (promptType === PromptsType.prompt || promptType === PromptsType.mode)) {
-			return this.getModelNames(promptType === PromptsType.mode);
+		if (property === 'model' && (promptType === PromptsType.prompt || promptType === PromptsType.agent)) {
+			return this.getModelNames(promptType === PromptsType.agent);
 		}
 
 		return [];
