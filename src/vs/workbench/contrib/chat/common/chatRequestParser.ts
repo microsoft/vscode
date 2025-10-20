@@ -206,8 +206,9 @@ export class ChatRequestParser {
 		const slashRange = new OffsetRange(offset, offset + full.length);
 		const slashEditorRange = new Range(position.lineNumber, position.column, position.lineNumber, position.column + full.length);
 
-		const usedAgent = parts.find((p): p is ChatRequestAgentPart => p instanceof ChatRequestAgentPart)?.agent ??
-			(context?.forcedAgent ? context.forcedAgent : undefined);
+		const usedAgent = parts.find((p): p is ChatRequestAgentPart => p instanceof
+			ChatRequestAgentPart)?.agent ??
+			context?.forcedAgent ?? context?.selectedAgent ?? undefined;
 		if (usedAgent) {
 			const subCommand = usedAgent.slashCommands.find(c => c.name === command);
 			if (subCommand) {

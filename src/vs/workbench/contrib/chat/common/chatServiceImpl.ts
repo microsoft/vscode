@@ -674,6 +674,12 @@ export class ChatService extends Disposable implements IChatService {
 			parserContext = { selectedAgent: agent, mode: options.modeInfo?.kind };
 			const commandPart = options.slashCommand ? ` ${chatSubcommandLeader}${options.slashCommand}` : '';
 			request = `${chatAgentLeader}${agent.name}${commandPart} ${request}`;
+		} else if (options?.agentIdSilent) {
+			const agent = this.chatAgentService.getAgent(options.agentIdSilent);
+			if (!agent) {
+				throw new Error(`Unknown agent: ${options.agentIdSilent}`);
+			}
+			parserContext = { selectedAgent: agent, mode: options.modeInfo?.kind };
 		}
 
 		const parsedRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(sessionId, request, location, parserContext);
