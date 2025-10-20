@@ -88,13 +88,13 @@ const postProcessBranches =
 									return null;
 								}
 								return {
-									name: branch.replace("*", "").trim(),
+									name: branch.replaceAll("*", "").trim(),
 									description: "Current branch",
 									priority: 100,
 									icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.ScmBranch}`
 								};
 							} else if (oldParts[0] === "+") {
-								name = branch.replace("+", "").trim();
+								name = branch.replaceAll("+", "").trim();
 							}
 						}
 
@@ -123,8 +123,8 @@ const postProcessBranches =
 					const subject = parts[3].trim();
 					const timeAgo = parts[4].trim();
 
-					let description = `${timeAgo} • ${author} • ${hash} • ${subject}`;
-					let priority = 75;
+					const description = `${timeAgo} • ${author} • ${hash} • ${subject}`;
+					const priority = 75;
 
 					if (insertWithoutRemotes && name.startsWith("remotes/")) {
 						name = name.slice(name.indexOf("/", 8) + 1);
