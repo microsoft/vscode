@@ -30,6 +30,8 @@ import { Range } from '../../../../common/core/range.js';
 import { CursorChangeReason } from '../../../../common/cursorEvents.js';
 import { ILanguageFeatureDebounceService } from '../../../../common/services/languageFeatureDebounce.js';
 import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures.js';
+import { FIND_IDS } from '../../../find/browser/findModel.js';
+import { InsertLineAfterAction, InsertLineBeforeAction } from '../../../linesOperations/browser/linesOperations.js';
 import { InlineSuggestionHintsContentWidget } from '../hintsWidget/inlineCompletionsHintsWidget.js';
 import { TextModelChangeRecorder } from '../model/changeRecorder.js';
 import { InlineCompletionsModel } from '../model/inlineCompletionsModel.js';
@@ -214,16 +216,19 @@ export class InlineCompletionsController extends Disposable {
 			}
 		}));
 
+		// These commands don't trigger onDidType.
+		const triggerCommands = new Set([
+			CoreEditingCommands.Tab.id,
+			CoreEditingCommands.DeleteLeft.id,
+			CoreEditingCommands.DeleteRight.id,
+			inlineSuggestCommitId,
+			'acceptSelectedSuggestion',
+			InsertLineAfterAction.ID,
+			InsertLineBeforeAction.ID,
+			FIND_IDS.NextMatchFindAction,
+		]);
 		this._register(this._commandService.onDidExecuteCommand((e) => {
-			// These commands don't trigger onDidType.
-			const commands = new Set([
-				CoreEditingCommands.Tab.id,
-				CoreEditingCommands.DeleteLeft.id,
-				CoreEditingCommands.DeleteRight.id,
-				inlineSuggestCommitId,
-				'acceptSelectedSuggestion',
-			]);
-			if (commands.has(e.commandId) && editor.hasTextFocus() && this._enabled.get()) {
+			if (triggerCommands.has(e.commandId) && editor.hasTextFocus() && this._enabled.get()) {
 				let noDelay = false;
 				if (e.commandId === inlineSuggestCommitId) {
 					noDelay = true;

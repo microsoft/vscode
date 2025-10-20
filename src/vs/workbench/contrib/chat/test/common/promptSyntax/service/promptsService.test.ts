@@ -5,6 +5,9 @@
 
 import assert from 'assert';
 import * as sinon from 'sinon';
+import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
+import { Event } from '../../../../../../../base/common/event.js';
+import { ResourceSet } from '../../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
@@ -13,32 +16,29 @@ import { ILanguageService } from '../../../../../../../editor/common/languages/l
 import { IModelService } from '../../../../../../../editor/common/services/model.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IExtensionDescription } from '../../../../../../../platform/extensions/common/extensions.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
 import { FileService } from '../../../../../../../platform/files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
-import { INSTRUCTION_FILE_EXTENSION, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, MODE_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../../common/promptSyntax/config/promptFileLocations.js';
-import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
-import { PromptsService } from '../../../../common/promptSyntax/service/promptsServiceImpl.js';
-import { ICustomChatMode, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
-import { MockFilesystem } from '../testUtils/mockFilesystem.js';
 import { ILabelService } from '../../../../../../../platform/label/common/label.js';
-import { ComputeAutomaticInstructions, newInstructionsCollectionEvent } from '../../../../common/promptSyntax/computeAutomaticInstructions.js';
-import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
-import { ResourceSet } from '../../../../../../../base/common/map.js';
-import { IWorkbenchEnvironmentService } from '../../../../../../services/environment/common/environmentService.js';
-import { ChatRequestVariableSet, isPromptFileVariableEntry, toFileVariableEntry } from '../../../../common/chatVariableEntries.js';
-import { PromptsConfig } from '../../../../common/promptSyntax/config/config.js';
-import { IWorkspaceContextService } from '../../../../../../../platform/workspace/common/workspace.js';
-import { TestContextService, TestUserDataProfileService } from '../../../../../../test/common/workbenchTestServices.js';
-import { testWorkspace } from '../../../../../../../platform/workspace/test/common/testWorkspace.js';
-import { IUserDataProfileService } from '../../../../../../services/userDataProfile/common/userDataProfile.js';
+import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
-import { Event } from '../../../../../../../base/common/event.js';
+import { IWorkspaceContextService } from '../../../../../../../platform/workspace/common/workspace.js';
+import { testWorkspace } from '../../../../../../../platform/workspace/test/common/testWorkspace.js';
+import { IWorkbenchEnvironmentService } from '../../../../../../services/environment/common/environmentService.js';
 import { IFilesConfigurationService } from '../../../../../../services/filesConfiguration/common/filesConfigurationService.js';
-import { IExtensionDescription } from '../../../../../../../platform/extensions/common/extensions.js';
+import { IUserDataProfileService } from '../../../../../../services/userDataProfile/common/userDataProfile.js';
+import { TestContextService, TestUserDataProfileService } from '../../../../../../test/common/workbenchTestServices.js';
+import { ChatRequestVariableSet, isPromptFileVariableEntry, toFileVariableEntry } from '../../../../common/chatVariableEntries.js';
+import { ComputeAutomaticInstructions, newInstructionsCollectionEvent } from '../../../../common/promptSyntax/computeAutomaticInstructions.js';
+import { PromptsConfig } from '../../../../common/promptSyntax/config/config.js';
+import { INSTRUCTION_FILE_EXTENSION, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, MODE_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../../common/promptSyntax/config/promptFileLocations.js';
+import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
+import { ICustomChatMode, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
+import { PromptsService } from '../../../../common/promptSyntax/service/promptsServiceImpl.js';
+import { MockFilesystem } from '../testUtils/mockFilesystem.js';
 
 suite('PromptsService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -230,8 +230,8 @@ suite('PromptsService', () => {
 			assert.deepEqual(
 				result1.body.variableReferences,
 				[
-					{ name: "my-tool", range: new Range(10, 5, 10, 12), offset: 239 },
-					{ name: "my-other-tool", range: new Range(11, 5, 11, 18), offset: 251 },
+					{ name: 'my-tool', range: new Range(10, 5, 10, 12), offset: 239 },
+					{ name: 'my-other-tool', range: new Range(11, 5, 11, 18), offset: 251 },
 				]
 			);
 
@@ -731,26 +731,66 @@ suite('PromptsService', () => {
 		});
 
 
+		test('header with handOffs', async () => {
+			const rootFolderName = 'custom-modes-with-handoffs';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			await (instaService.createInstance(MockFilesystem,
+				[{
+					name: rootFolderName,
+					children: [
+						{
+							name: '.github/chatmodes',
+							children: [
+								{
+									name: 'mode1.chatmode.md',
+									contents: [
+										'---',
+										'description: \'Mode file 1.\'',
+										'handoffs: [ { agent: "Edit", label: "Do it", prompt: "Do it now" } ]',
+										'---',
+									],
+								}
+							],
+
+						},
+					],
+				}])).mock();
+
+			const result = (await service.getCustomChatModes(CancellationToken.None)).map(mode => ({ ...mode, uri: URI.from(mode.uri) }));
+			const expected: ICustomChatMode[] = [
+				{
+					name: 'mode1',
+					description: 'Mode file 1.',
+					handOffs: [{ agent: 'Edit', label: 'Do it', prompt: 'Do it now', send: undefined }],
+					modeInstructions: {
+						content: '',
+						toolReferences: [],
+						metadata: undefined
+					},
+					model: undefined,
+					tools: undefined,
+					uri: URI.joinPath(rootFolderUri, '.github/chatmodes/mode1.chatmode.md'),
+					source: { storage: PromptsStorage.local }
+				},
+			];
+
+			assert.deepEqual(
+				result,
+				expected,
+				'Must get custom chat modes.',
+			);
+		});
+
 		test('body with tool references', async () => {
 			const rootFolderName = 'custom-modes';
 			const rootFolder = `/${rootFolderName}`;
 			const rootFolderUri = URI.file(rootFolder);
 
-			sinon.stub(service, 'listPromptFiles')
-				.returns(Promise.resolve([
-					// local instructions
-					{
-						uri: URI.joinPath(rootFolderUri, '.github/chatmodes/mode1.instructions.md'),
-						storage: PromptsStorage.local,
-						type: PromptsType.mode,
-					},
-					{
-						uri: URI.joinPath(rootFolderUri, '.github/chatmodes/mode2.instructions.md'),
-						storage: PromptsStorage.local,
-						type: PromptsType.instructions,
-					},
-
-				]));
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
 
 			// mock current workspace file structure
 			await (instaService.createInstance(MockFilesystem,
@@ -761,7 +801,7 @@ suite('PromptsService', () => {
 							name: '.github/chatmodes',
 							children: [
 								{
-									name: 'mode1.instructions.md',
+									name: 'mode1.chatmode.md',
 									contents: [
 										'---',
 										'description: \'Mode file 1.\'',
@@ -771,7 +811,7 @@ suite('PromptsService', () => {
 									],
 								},
 								{
-									name: 'mode2.instructions.md',
+									name: 'mode2.chatmode.md',
 									contents: [
 										'First use #tool2\nThen use #tool1',
 									],
@@ -782,7 +822,7 @@ suite('PromptsService', () => {
 					],
 				}])).mock();
 
-			const result = await service.getCustomChatModes(CancellationToken.None);
+			const result = (await service.getCustomChatModes(CancellationToken.None)).map(mode => ({ ...mode, uri: URI.from(mode.uri) }));
 			const expected: ICustomChatMode[] = [
 				{
 					name: 'mode1',
@@ -793,8 +833,10 @@ suite('PromptsService', () => {
 						toolReferences: [{ name: 'tool1', range: { start: 11, endExclusive: 17 } }],
 						metadata: undefined
 					},
+					handOffs: undefined,
 					model: undefined,
-					uri: URI.joinPath(rootFolderUri, '.github/chatmodes/mode1.instructions.md'),
+					uri: URI.joinPath(rootFolderUri, '.github/chatmodes/mode1.chatmode.md'),
+					source: { storage: PromptsStorage.local },
 				},
 				{
 					name: 'mode2',
@@ -806,7 +848,8 @@ suite('PromptsService', () => {
 						],
 						metadata: undefined
 					},
-					uri: URI.joinPath(rootFolderUri, '.github/chatmodes/mode2.instructions.md'),
+					uri: URI.joinPath(rootFolderUri, '.github/chatmodes/mode2.chatmode.md'),
+					source: { storage: PromptsStorage.local },
 				}
 			];
 
@@ -821,8 +864,8 @@ suite('PromptsService', () => {
 			const uri = URI.parse('file://extensions/my-extension/textMate.instructions.md');
 			const extension = {} as IExtensionDescription;
 			const registered = service.registerContributedFile(PromptsType.instructions,
-				"TextMate Instructions",
-				"Instructions to follow when authoring TextMate grammars",
+				'TextMate Instructions',
+				'Instructions to follow when authoring TextMate grammars',
 				uri,
 				extension
 			);
@@ -830,7 +873,7 @@ suite('PromptsService', () => {
 			const actual = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
 			assert.strictEqual(actual.length, 1);
 			assert.strictEqual(actual[0].uri.toString(), uri.toString());
-			assert.strictEqual(actual[0].name, "TextMate Instructions");
+			assert.strictEqual(actual[0].name, 'TextMate Instructions');
 			assert.strictEqual(actual[0].storage, PromptsStorage.extension);
 			assert.strictEqual(actual[0].type, PromptsType.instructions);
 			registered.dispose();

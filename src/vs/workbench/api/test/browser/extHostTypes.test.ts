@@ -587,26 +587,26 @@ suite('ExtHostTypes', function () {
 	test('Snippet choices are incorrectly escaped/applied #180132', function () {
 		{
 			const s = new types.SnippetString();
-			s.appendChoice(["aaa$aaa"]);
-			s.appendText("bbb$bbb");
+			s.appendChoice(['aaa$aaa']);
+			s.appendText('bbb$bbb');
 			assert.strictEqual(s.value, '${1|aaa$aaa|}bbb\\$bbb');
 		}
 		{
 			const s = new types.SnippetString();
-			s.appendChoice(["aaa,aaa"]);
-			s.appendText("bbb$bbb");
+			s.appendChoice(['aaa,aaa']);
+			s.appendText('bbb$bbb');
 			assert.strictEqual(s.value, '${1|aaa\\,aaa|}bbb\\$bbb');
 		}
 		{
 			const s = new types.SnippetString();
-			s.appendChoice(["aaa|aaa"]);
-			s.appendText("bbb$bbb");
+			s.appendChoice(['aaa|aaa']);
+			s.appendText('bbb$bbb');
 			assert.strictEqual(s.value, '${1|aaa\\|aaa|}bbb\\$bbb');
 		}
 		{
 			const s = new types.SnippetString();
-			s.appendChoice(["aaa\\aaa"]);
-			s.appendText("bbb$bbb");
+			s.appendChoice(['aaa\\aaa']);
+			s.appendText('bbb$bbb');
 			assert.strictEqual(s.value, '${1|aaa\\\\aaa|}bbb\\$bbb');
 		}
 	});

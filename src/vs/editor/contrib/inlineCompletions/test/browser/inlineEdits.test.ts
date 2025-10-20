@@ -45,7 +45,7 @@ class Point {
 			await timeout(10000);
 			assert.deepStrictEqual(view.getAndClearViewStates(), ([
 				undefined,
-				"\n\tget❰Length2↦Length3❱D(): numbe...\n...y * this.y❰ + th...his.z❱);\n"
+				'\n\tget❰Length2↦Length3❱D(): numbe...\n...y * this.y❰ + th...his.z❱);\n'
 			]));
 
 			model.accept();
@@ -73,19 +73,19 @@ class Point {
 			await timeout(10000);
 			assert.deepStrictEqual(view.getAndClearViewStates(), ([
 				undefined,
-				"\n\tget❰Length2↦Length3❱D(): numbe...\n...y * this.y❰ + th...his.z❱);\n"
+				'\n\tget❰Length2↦Length3❱D(): numbe...\n...y * this.y❰ + th...his.z❱);\n'
 			]));
 
 			editor.setPosition(val.getMarkerPosition(1));
 			editorViewModel.type(' + t');
 
 			assert.deepStrictEqual(view.getAndClearViewStates(), ([
-				"\n\tget❰Length2↦Length3❱D(): numbe...\n...this.y + t❰his.z...his.z❱);\n"
+				'\n\tget❰Length2↦Length3❱D(): numbe...\n...this.y + t❰his.z...his.z❱);\n'
 			]));
 
 			editorViewModel.type('his.z * this.z');
 			assert.deepStrictEqual(view.getAndClearViewStates(), ([
-				"\n\tget❰Length2↦Length3❱D(): numbe..."
+				'\n\tget❰Length2↦Length3❱D(): numbe...'
 			]));
 		});
 	});
@@ -101,14 +101,14 @@ class Point {
 			await timeout(10000);
 			assert.deepStrictEqual(view.getAndClearViewStates(), ([
 				undefined,
-				"\n\tget❰Length2↦Length3❱D(): numbe...\n...y * this.y❰ + th...his.z❱);\n"
+				'\n\tget❰Length2↦Length3❱D(): numbe...\n...y * this.y❰ + th...his.z❱);\n'
 			]));
 
 			editor.setPosition(val.getMarkerPosition(0));
 			editorViewModel.type('/* */');
 
 			assert.deepStrictEqual(view.getAndClearViewStates(), ([
-				"\n\tget❰Length2↦Length3❱D(): numbe...\n...y * this.y❰ + th...his.z❱);\n"
+				'\n\tget❰Length2↦Length3❱D(): numbe...\n...y * this.y❰ + th...his.z❱);\n'
 			]));
 
 			await timeout(10000);

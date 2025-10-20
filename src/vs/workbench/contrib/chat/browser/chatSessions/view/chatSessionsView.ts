@@ -93,10 +93,10 @@ export class ChatSessionsView extends Disposable implements IWorkbenchContributi
 		this.viewContainer = Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer(
 			{
 				id: VIEWLET_ID,
-				title: nls.localize2('chat.sessions', "Chat Sessions"),
+				title: nls.localize2('chat.agent.sessions', "Agent Sessions"),
 				ctorDescriptor: new SyncDescriptor(ChatSessionsViewPaneContainer, [this.sessionTracker]),
 				hideIfEmpty: false,
-				icon: registerIcon('chat-sessions-icon', Codicon.commentDiscussionSparkle, 'Icon for Chat Sessions View'),
+				icon: registerIcon('chat-sessions-icon', Codicon.commentDiscussionSparkle, 'Icon for Agent Sessions View'),
 				order: 6
 			}, ViewContainerLocation.Sidebar);
 		this.isViewContainerRegistered = true;
@@ -173,7 +173,7 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 	}
 
 	override getTitle(): string {
-		const title = nls.localize('chat.sessions.title', "Chat Sessions");
+		const title = nls.localize('chat.agent.sessions.title', "Agent Sessions");
 		return title;
 	}
 
@@ -254,7 +254,7 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 
 			// Register views in priority order: local, history, then alphabetically sorted others
 			const orderedProviders = [
-				...(localProvider ? [{ provider: localProvider, displayName: 'Local Chat Sessions', baseOrder: 0 }] : []),
+				...(localProvider ? [{ provider: localProvider, displayName: 'Local Chat Agent', baseOrder: 0 }] : []),
 				...(historyProvider ? [{ provider: historyProvider, displayName: 'History', baseOrder: 1, when: undefined }] : []),
 				...providersWithDisplayNames.map((item, index) => ({
 					...item,
@@ -286,7 +286,7 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 					if (provider.chatSessionType === 'local') {
 						const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 						this._register(viewsRegistry.registerViewWelcomeContent(viewDescriptor.id, {
-							content: nls.localize('chatSessions.noResults', "No local chat sessions\n[Start a Chat](command:{0})", ACTION_ID_OPEN_CHAT),
+							content: nls.localize('chatSessions.noResults', "No local chat agent sessions\n[Start an Agent Session](command:{0})", ACTION_ID_OPEN_CHAT),
 						}));
 					}
 				}
