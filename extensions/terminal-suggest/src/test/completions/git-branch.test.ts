@@ -5,6 +5,7 @@
 
 import * as assert from 'assert';
 import 'mocha';
+import * as vscode from 'vscode';
 import { gitGenerators } from '../../completions/git';
 
 suite('Git Branch Completions', () => {
@@ -19,12 +20,12 @@ feature/test|Jane Smith|def5678|Add new feature|1 week ago`;
 		assert.ok(result[0]);
 		assert.strictEqual(result[0].name, 'main');
 		assert.strictEqual(result[0].description, '2 days ago • John Doe • abc1234 • Fix response codeblock in debug view');
-		assert.strictEqual(result[0].icon, 'vscode://icon?type=11');
+		assert.strictEqual(result[0].icon, `vscode://icon?type=${vscode.TerminalCompletionItemKind.ScmBranch}`);
 
 		assert.ok(result[1]);
 		assert.strictEqual(result[1].name, 'feature/test');
 		assert.strictEqual(result[1].description, '1 week ago • Jane Smith • def5678 • Add new feature');
-		assert.strictEqual(result[1].icon, 'vscode://icon?type=11');
+		assert.strictEqual(result[1].icon, `vscode://icon?type=${vscode.TerminalCompletionItemKind.ScmBranch}`);
 	});
 
 	test('postProcessBranches should handle remote branches', () => {
