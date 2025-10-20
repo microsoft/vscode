@@ -248,7 +248,7 @@ class InputEditorDecorations extends Disposable {
 		if (onlyPromptCommandAndWhitespace && exactlyOneSpaceAfterPart(slashPromptPart)) {
 			// Prompt slash command with no other text - show the placeholder
 			// Resolve the prompt file (this will use cache if available)
-			const promptFile = this.promptsService.resolvePromptSlashCommandFromCache(slashPromptPart.slashPromptCommand);
+			const promptFile = this.promptsService.resolvePromptSlashCommandFromCache(slashPromptPart.slashPromptCommand.command);
 
 			const description = promptFile?.header?.description;
 			if (description) {
