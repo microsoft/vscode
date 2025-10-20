@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equalsIgnoreCase } from '../../../../base/common/strings.js';
-import { IDebuggerContribution, IDebugSession, IConfigPresentation } from './debug.js';
+import { IDebuggerContribution, IDebugSession, IConfigPresentation, State } from './debug.js';
 import { URI as uri } from '../../../../base/common/uri.js';
 import { isAbsolute } from '../../../../base/common/path.js';
 import { deepClone } from '../../../../base/common/objects.js';
@@ -391,3 +391,25 @@ export async function saveAllBeforeDebugStart(configurationService: IConfigurati
 
 export const sourcesEqual = (a: DebugProtocol.Source | undefined, b: DebugProtocol.Source | undefined): boolean =>
 	!a || !b ? a === b : a.name === b.name && a.path === b.path && a.sourceReference === b.sourceReference;
+
+/**
+ * Resolves the best child session to focus when a parent session is selected.
+ * Always prefer child sessions over parent wrapper sessions to ensure console responsiveness.
+ * Fixes issue #152407: Using debug console picker when not paused leaves console unresponsive.
+ */
+export function resolveChildSession(session: IDebugSession, allSessions: readonly IDebugSession[]): IDebugSession {
+	// Always focus child session instead of parent wrapper session #152407
+	const childSessions = allSessions.filter(s => s.parentSession === session);
+	if (childSessions.length > 0) {
+		// Prefer stopped child session if available #112595
+		const stoppedChildSession = childSessions.find(s => s.state === State.Stopped);
+		if (stoppedChildSession) {
+			return stoppedChildSession;
+		} else {
+			// If no stopped child, focus the first available child session
+			return childSessions[0];
+		}
+	}
+	// Return the original session if it has no children
+	return session;
+}

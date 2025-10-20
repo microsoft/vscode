@@ -99,7 +99,6 @@ div.chat-welcome-view {
 	& > .chat-welcome-view-title {
 		font-size: 24px;
 		margin-top: 5px;
-		font-weight: 500;
 		text-align: center;
 		line-height: normal;
 		padding: 0 8px;
@@ -216,14 +215,14 @@ div.chat-welcome-view {
 	flex-wrap: wrap;
 	justify-content: flex-start;
 	gap: 8px;
-	padding: 32px 18px 8px 18px;
+	padding: 32px 16px 8px 16px;
+	/* Extra top padding for title */
 
 	.chat-welcome-view-suggested-prompts-title {
 		position: absolute;
 		top: 8px;
 		left: 16px;
 		font-size: 11px;
-		font-weight: normal;
 		text-transform: uppercase;
 		letter-spacing: 0.5px;
 		color: var(--vscode-descriptionForeground);
@@ -249,7 +248,6 @@ div.chat-welcome-view {
 
 		& > .chat-welcome-view-suggested-prompt-title {
 			font-size: 13px;
-			font-weight: 500;
 			color: var(--vscode-editorWidget-foreground);
 			white-space: nowrap;
 		}
@@ -313,7 +311,6 @@ div.chat-welcome-view {
 	}
 
 	.chat-welcome-history-header-title {
-		font-weight: 600;
 		font-size: 11px;
 		padding-left: 8px;
 	}

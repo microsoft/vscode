@@ -30,7 +30,6 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
-import { nativeHoverDelegate } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { mcpAutoStartConfig, McpAutoStartValue } from '../../../../platform/mcp/common/mcpManagement.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
@@ -108,6 +107,8 @@ export class ListMcpServerCommand extends Action2 {
 		const store = new DisposableStore();
 		const pick = quickInput.createQuickPick<ItemType>({ useSeparators: true });
 		pick.placeholder = localize('mcp.selectServer', 'Select an MCP Server');
+
+		mcpService.activateCollections();
 
 		store.add(pick);
 
@@ -605,7 +606,7 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 							const checkbox = store.add(new Checkbox(
 								settingLabelStr,
 								config.get() !== McpAutoStartValue.Never,
-								{ ...defaultCheckboxStyles, hoverDelegate: nativeHoverDelegate }
+								{ ...defaultCheckboxStyles }
 							));
 
 							checkboxContainer.appendChild(checkbox.domNode);
@@ -900,8 +901,8 @@ MenuRegistry.appendMenuItem(CHAT_CONFIG_MENU_ID, {
 		title: localize2('mcp.servers', "MCP Servers")
 	},
 	when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
-	order: 14,
-	group: '0_level'
+	order: 10,
+	group: '2_level'
 });
 
 abstract class OpenMcpResourceCommand extends Action2 {

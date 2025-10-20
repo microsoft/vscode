@@ -10,12 +10,11 @@ import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { equals } from '../../../../base/common/objects.js';
-import { autorun, autorunSelfDisposable } from '../../../../base/common/observable.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { basename } from '../../../../base/common/resources.js';
 import { isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IImageResizeService } from '../../../../platform/imageResize/common/imageResizeService.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -26,7 +25,7 @@ import { ChatResponseResource, getAttachableImageExtension } from '../../chat/co
 import { LanguageModelPartAudience } from '../../chat/common/languageModels.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, IToolResultInputOutputDetails, ToolDataSource, ToolProgress, ToolSet } from '../../chat/common/languageModelToolsService.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
-import { IMcpServer, IMcpService, IMcpTool, IMcpToolResourceLinkContents, McpResourceURI, McpServerCacheState, McpToolResourceLinkMimeType } from './mcpTypes.js';
+import { IMcpServer, IMcpService, IMcpTool, IMcpToolResourceLinkContents, McpResourceURI, McpToolResourceLinkMimeType } from './mcpTypes.js';
 import { mcpServerToSourceData } from './mcpTypesUtils.js';
 
 interface ISyncedToolData {
@@ -88,25 +87,6 @@ export class McpLanguageModelToolContribution extends Disposable implements IWor
 
 		const collectionObservable = this._mcpRegistry.collections.map(collections =>
 			collections.find(c => c.id === server.collection.id));
-
-		// If the server is extension-provided and was marked outdated automatically start it
-		store.add(autorunSelfDisposable(reader => {
-			const collection = collectionObservable.read(reader);
-			if (!collection) {
-				return;
-			}
-
-			if (!(collection.source instanceof ExtensionIdentifier)) {
-				reader.dispose();
-				return;
-			}
-
-			const cacheState = server.cacheState.read(reader);
-			if (cacheState === McpServerCacheState.Unknown || cacheState === McpServerCacheState.Outdated) {
-				reader.dispose();
-				server.start();
-			}
-		}));
 
 		store.add(autorun(reader => {
 			const toDelete = new Set(tools.keys());
