@@ -374,6 +374,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	// Cache for prompt file descriptions to avoid async calls during rendering
 	private readonly promptDescriptionsCache = new Map<string, string>();
+	private readonly promptUriCache = new Map<string, URI>();
 	private _isLoadingPromptDescriptions = false;
 
 	// UI state for temporarily hiding chat history
@@ -1629,12 +1630,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		for (const { promptName } of topPrompts) {
 			const description = this.promptDescriptionsCache.get(promptName);
 			const commandLabel = localize('chatWidget.promptFile.commandLabel', "{0}", promptName);
+			const uri = this.promptUriCache.get(promptName);
 			const descriptionText = description?.trim() ? description : undefined;
 			result.push({
 				icon: Codicon.run,
 				label: commandLabel,
 				description: descriptionText,
-				prompt: `/${promptName} `
+				prompt: `/${promptName} `,
+				uri: uri
 			});
 		}
 
@@ -1659,6 +1662,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				if (promptNames.includes(promptCommand.command)) {
 					try {
 						if (promptCommand.promptPath) {
+							this.promptUriCache.set(promptCommand.command, promptCommand.promptPath.uri);
 							const parseResult = await this.promptsService.parseNew(
 								promptCommand.promptPath.uri,
 								CancellationToken.None
