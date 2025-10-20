@@ -23,6 +23,15 @@ export class GitCommitFoldingProvider implements vscode.FoldingRangeProvider {
 
 			// Check for comment lines (lines starting with #)
 			if (lineText.startsWith('#')) {
+				// Close any active diff block when we encounter a comment
+				if (currentDiffStart !== undefined) {
+					// Only create fold if there are at least 2 lines
+					if (i - currentDiffStart > 1) {
+						ranges.push(new vscode.FoldingRange(currentDiffStart, i - 1));
+					}
+					currentDiffStart = undefined;
+				}
+
 				if (commentBlockStart === undefined) {
 					commentBlockStart = i;
 				}
