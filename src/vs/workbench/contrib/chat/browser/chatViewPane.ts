@@ -36,7 +36,7 @@ import { IChatSessionsExtensionPoint, IChatSessionsService } from '../common/cha
 import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { ChatWidget, IChatViewState } from './chatWidget.js';
 import { ChatViewWelcomeController, IViewWelcomeDelegate } from './viewsWelcome/chatViewWelcomeController.js';
-import { ChatSessionUri } from "../common/chatUri.js";
+import { ChatSessionUri } from '../common/chatUri.js';
 
 interface IViewPaneState extends IChatViewState {
 	sessionId?: string;
