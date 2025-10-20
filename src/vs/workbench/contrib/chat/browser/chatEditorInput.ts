@@ -180,7 +180,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 			}
 		}
 
-		// If a preferred title was provided in options, use it (even while loading)
+		// If a preferred title was provided in options, use it
 		if (this.options.title?.preferred) {
 			return this.options.title.preferred;
 		}
