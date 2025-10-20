@@ -284,7 +284,11 @@ class StringEnumPolicy extends BasePolicy {
         if (!enum_) {
             return undefined;
         }
-        return new StringEnumPolicy(name, { moduleName: '', name: { nlsKey: category.name.key, value: category.name.value } }, minimumVersion, { nlsKey: localization.description.key, value: localization.description.value }, '', enum_, localization.enumDescriptions?.map((e) => ({ nlsKey: e.key, value: e.value })) ?? []);
+        if (!localization.enumDescriptions || !Array.isArray(localization.enumDescriptions) || localization.enumDescriptions.length !== enum_.length) {
+            throw new Error(`Invalid policy data: enumDescriptions must exist and have the same length as enum_ for policy "${name}".`);
+        }
+        const enumDescriptions = localization.enumDescriptions.map((e) => ({ nlsKey: e.key, value: e.value }));
+        return new StringEnumPolicy(name, { moduleName: '', name: { nlsKey: category.name.key, value: category.name.value } }, minimumVersion, { nlsKey: localization.description.key, value: localization.description.value }, '', enum_, enumDescriptions);
     }
     constructor(name, category, minimumVersion, description, moduleName, enum_, enumDescriptions) {
         super(PolicyType.StringEnum, name, category, minimumVersion, description, moduleName);
