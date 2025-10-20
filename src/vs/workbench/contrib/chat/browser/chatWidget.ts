@@ -374,6 +374,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	// Cache for prompt file descriptions to avoid async calls during rendering
 	private readonly promptDescriptionsCache = new Map<string, string>();
+	private readonly promptUriCache = new Map<string, URI>();
 	private _isLoadingPromptDescriptions = false;
 
 	// UI state for temporarily hiding chat history
@@ -1361,7 +1362,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private _getGenerateInstructionsMessage(): IMarkdownString {
 		// Start checking for instruction files immediately if not already done
 		if (!this._instructionFilesCheckPromise) {
-			this._instructionFilesCheckPromise = this._checkForInstructionFiles();
+			this._instructionFilesCheckPromise = this._checkForAgentInstructionFiles();
 			// Use VS Code's idiomatic pattern for disposal-safe promise callbacks
 			this._register(thenIfNotDisposed(this._instructionFilesCheckPromise, hasFiles => {
 				this._instructionFilesExist = hasFiles;
@@ -1391,10 +1392,25 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return new MarkdownString('');
 	}
 
-	private async _checkForInstructionFiles(): Promise<boolean> {
+	/**
+	 * Checks if any agent instruction files (.github/copilot-instructions.md or AGENTS.md) exist in the workspace.
+	 * Used to determine whether to show the "Generate Agent Instructions" hint.
+	 *
+	 * @returns true if instruction files exist OR if instruction features are disabled (to hide the hint)
+	 */
+	private async _checkForAgentInstructionFiles(): Promise<boolean> {
 		try {
-			const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, undefined);
-			return await computer.hasAgentInstructions(CancellationToken.None);
+			const useCopilotInstructionsFiles = this.configurationService.getValue(PromptsConfig.USE_COPILOT_INSTRUCTION_FILES);
+			const useAgentMd = this.configurationService.getValue(PromptsConfig.USE_AGENT_MD);
+			if (!useCopilotInstructionsFiles && !useAgentMd) {
+				// If both settings are disabled, return true to hide the hint (since the features aren't enabled)
+				return true;
+			}
+			return (
+				(await this.promptsService.listCopilotInstructionsMDs(CancellationToken.None)).length > 0 ||
+				// Note: only checking for AGENTS.md files at the root folder, not ones in subfolders.
+				(await this.promptsService.listAgentMDs(CancellationToken.None, false)).length > 0
+			);
 		} catch (error) {
 			// On error, assume no instruction files exist to be safe
 			this.logService.warn('[ChatWidget] Error checking for instruction files:', error);
@@ -1614,12 +1630,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		for (const { promptName } of topPrompts) {
 			const description = this.promptDescriptionsCache.get(promptName);
 			const commandLabel = localize('chatWidget.promptFile.commandLabel', "{0}", promptName);
+			const uri = this.promptUriCache.get(promptName);
 			const descriptionText = description?.trim() ? description : undefined;
 			result.push({
 				icon: Codicon.run,
 				label: commandLabel,
 				description: descriptionText,
-				prompt: `/${promptName} `
+				prompt: `/${promptName} `,
+				uri: uri
 			});
 		}
 
@@ -1644,6 +1662,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				if (promptNames.includes(promptCommand.command)) {
 					try {
 						if (promptCommand.promptPath) {
+							this.promptUriCache.set(promptCommand.command, promptCommand.promptPath.uri);
 							const parseResult = await this.promptsService.parseNew(
 								promptCommand.promptPath.uri,
 								CancellationToken.None
