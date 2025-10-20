@@ -548,8 +548,6 @@ export class SessionsViewPane extends ViewPane {
 				identityProvider,
 				keyboardNavigationLabelProvider: {
 					getKeyboardNavigationLabel: (session: ChatSessionItemWithProvider) => {
-						// Provide label for the find widget display
-						//return session.label || session.id || '';
 						const parts = [
 							session.label || '',
 							session.id || '',
