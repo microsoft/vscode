@@ -96,9 +96,7 @@ class ChatSessionsFindProvider implements IAsyncFindProvider<ChatSessionItemWith
 		const parts = [
 			session.label || '',
 			session.id || '',
-			typeof session.description === 'string' ? session.description : (session.description?.value || ''),
-			typeof session.tooltip === 'string' ? session.tooltip : (session.tooltip?.value || ''),
-			session.timing?.startTime ? new Date(session.timing.startTime).toLocaleDateString() : ''
+			typeof session.description === 'string' ? session.description : (session.description?.value || '')
 		];
 		return parts.filter(text => text.length > 0).join(' ');
 	}
@@ -192,7 +190,6 @@ class ChatSessionsFindProvider implements IAsyncFindProvider<ChatSessionItemWith
 			}
 		}
 
-		// Refresh the tree filter to re-evaluate visibility for all nodes
 		if (this.tree) {
 			this.tree.refilter();
 		}
@@ -556,9 +553,7 @@ export class SessionsViewPane extends ViewPane {
 						const parts = [
 							session.label || '',
 							session.id || '',
-							typeof session.description === 'string' ? session.description : (session.description?.value || ''),
-							typeof session.tooltip === 'string' ? session.tooltip : (session.tooltip?.value || ''),
-							session.timing?.startTime ? new Date(session.timing.startTime).toLocaleDateString() : ''
+							typeof session.description === 'string' ? session.description : (session.description?.value || '')
 						];
 						return parts.filter(text => text.length > 0).join(' ');
 					}
