@@ -26,6 +26,8 @@ import { UILabelProvider } from '../../../../../../base/common/keybindingLabels.
 import { OS } from '../../../../../../base/common/platform.js';
 import { askForPromptSourceFolder } from './askForPromptSourceFolder.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { PromptsConfig } from '../../../common/promptSyntax/config/config.js';
 
 /**
  * Options for the {@link askToSelectInstructions} function.
@@ -194,6 +196,7 @@ export class PromptFilePickers {
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@IPromptsService private readonly _promptsService: IPromptsService,
 		@ILabelService private readonly _labelService: ILabelService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 	}
 
@@ -297,9 +300,37 @@ export class PromptFilePickers {
 		}
 		const locals = await this._promptsService.listPromptFilesForStorage(options.type, PromptsStorage.local, CancellationToken.None);
 		if (locals.length) {
-			result.push({ type: 'separator', label: localize('separator.workspace', "Workspace") });
+			// Note: No need to localize the label ".github/instructions', since it's the same in all languages.
+			result.push({ type: 'separator', label: '.github/instructions' });
 			result.push(...locals.map(l => this._createPromptPickItem(l, buttons)));
 		}
+
+		// Agent instruction files (copilot-instructions.md and AGENTS.md) are added here and not included in the output of
+		// listPromptFilesForStorage() because that function only handles *.instructions.md files (under `.github/instructions/`, etc.)
+		let agentInstructionFiles: IPromptPath[] = [];
+		if (options.type === PromptsType.instructions) {
+			const useNestedAgentMD = this._configurationService.getValue(PromptsConfig.USE_NESTED_AGENT_MD);
+			const agentInstructionUris = [
+				...await this._promptsService.listCopilotInstructionsMDs(CancellationToken.None),
+				...await this._promptsService.listAgentMDs(CancellationToken.None, !!useNestedAgentMD)
+			];
+			agentInstructionFiles = agentInstructionUris.map(uri => {
+				const folderName = this._labelService.getUriLabel(dirname(uri), { relative: true });
+				// Don't show the folder path for files under .github folder (namely, copilot-instructions.md) since that is only defined once per repo.
+				const shouldShowFolderPath = folderName?.toLowerCase() !== '.github';
+				return {
+					uri,
+					description: shouldShowFolderPath ? folderName : undefined,
+					storage: PromptsStorage.local,
+					type: options.type
+				} satisfies IPromptPath;
+			});
+		}
+		if (agentInstructionFiles.length) {
+			result.push({ type: 'separator', label: localize('separator.workspace-agent-instructions', "Agent Instructions") });
+			result.push(...agentInstructionFiles.map(l => this._createPromptPickItem(l, buttons)));
+		}
+
 		const exts = await this._promptsService.listPromptFilesForStorage(options.type, PromptsStorage.extension, CancellationToken.None);
 		if (exts.length) {
 			result.push({ type: 'separator', label: localize('separator.extensions', "Extensions") });

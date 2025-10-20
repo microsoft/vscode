@@ -42,6 +42,7 @@ import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatMarkdownContentPart, EditorPool } from '../chatMarkdownContentPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 import { openTerminalSettingsLinkCommandId } from './chatTerminalToolProgressPart.js';
+import { HoverStyle } from '../../../../../../base/browser/ui/hover/hover.js';
 
 export const enum TerminalToolConfirmationStorageKeys {
 	TerminalAutoApproveWarningAccepted = 'chat.tools.terminal.autoApprove.warningAccepted'
@@ -184,8 +185,8 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		append(elements.editor, editor.object.element);
 		this._register(hoverService.setupDelayedHover(elements.editor, {
 			content: message,
+			style: HoverStyle.Pointer,
 			position: { hoverPosition: HoverPosition.LEFT },
-			appearance: { showPointer: true },
 		}));
 		const confirmWidget = this._register(this.instantiationService.createInstance(
 			ChatCustomConfirmationWidget<TerminalNewAutoApproveButtonData | boolean>,

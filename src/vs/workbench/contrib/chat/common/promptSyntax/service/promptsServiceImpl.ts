@@ -359,6 +359,26 @@ export class PromptsService extends Disposable implements IPromptsService {
 	findAgentMDsInWorkspace(token: CancellationToken): Promise<URI[]> {
 		return this.fileLocator.findAgentMDsInWorkspace(token);
 	}
+
+	public async listAgentMDs(token: CancellationToken, includeNested: boolean): Promise<URI[]> {
+		const useAgentMD = this.configurationService.getValue(PromptsConfig.USE_AGENT_MD);
+		if (!useAgentMD) {
+			return [];
+		}
+		if (includeNested) {
+			return await this.fileLocator.findAgentMDsInWorkspace(token);
+		} else {
+			return await this.fileLocator.findAgentMDsInWorkspaceRoots(token);
+		}
+	}
+
+	public async listCopilotInstructionsMDs(token: CancellationToken): Promise<URI[]> {
+		const useCopilotInstructionsFiles = this.configurationService.getValue(PromptsConfig.USE_COPILOT_INSTRUCTION_FILES);
+		if (!useCopilotInstructionsFiles) {
+			return [];
+		}
+		return await this.fileLocator.findCopilotInstructionsMDsInWorkspace(token);
+	}
 }
 
 function getCommandNameFromPromptPath(promptPath: IPromptPath): string {
