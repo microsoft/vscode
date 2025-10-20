@@ -5,7 +5,7 @@
 
 import './media/scm.css';
 import { IDisposable, DisposableStore, combinedDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, autorunWithStore, IObservable } from '../../../../base/common/observable.js';
+import { autorun, autorunWithStore } from '../../../../base/common/observable.js';
 import { append, $ } from '../../../../base/browser/dom.js';
 import { ISCMProvider, ISCMRepository, ISCMViewService } from '../common/scm.js';
 import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge.js';
@@ -25,8 +25,6 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IconLabel } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 
 export class RepositoryActionRunner extends ActionRunner {
 	constructor(private readonly getSelectedRepositories: () => ISCMRepository[]) {
@@ -65,21 +63,17 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 	static readonly TEMPLATE_ID = 'repository';
 	get templateId(): string { return RepositoryRenderer.TEMPLATE_ID; }
 
-	private readonly _selectionModeConfig: IObservable<'multiple' | 'single'>;
 	constructor(
 		private readonly toolbarMenuId: MenuId,
 		private readonly actionViewItemProvider: IActionViewItemProvider,
 		@ICommandService private commandService: ICommandService,
-		@IConfigurationService private configurationService: IConfigurationService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IMenuService private menuService: IMenuService,
 		@ISCMViewService private scmViewService: ISCMViewService,
 		@ITelemetryService private telemetryService: ITelemetryService
-	) {
-		this._selectionModeConfig = observableConfigValue('scm.repositories.selectionMode', 'single', this.configurationService);
-	}
+	) { }
 
 	renderTemplate(container: HTMLElement): RepositoryTemplate {
 		// hack
@@ -105,7 +99,7 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 		const repository = isSCMRepository(arg) ? arg : arg.element;
 
 		templateData.elementDisposables.add(autorun(reader => {
-			const selectionMode = this._selectionModeConfig.read(undefined);
+			const selectionMode = this.scmViewService.selectionModeConfig.read(undefined);
 			const activeRepository = this.scmViewService.activeRepository.read(reader);
 
 			const icon = selectionMode === 'single'
