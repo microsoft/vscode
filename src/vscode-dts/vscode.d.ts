@@ -8201,7 +8201,7 @@ declare module 'vscode' {
 	 * @example <caption>Simple provider returning a single completion</caption>
 	 * window.registerTerminalCompletionProvider('extension-provider-id', {
 	 * 	provideTerminalCompletions(terminal, context) {
-	 * 		return [{ label: '--help', valueSelection: [Math.max(0, context.cursorPosition - 2), context.cursorPosition] }];
+	 * 		return [{ label: '--help', replacementRange: [Math.max(0, context.cursorPosition - 2), context.cursorPosition] }];
 	 * 	}
 	 * });
 	 */
@@ -8223,7 +8223,7 @@ declare module 'vscode' {
 	 * @example <caption>Completion item for `ls -|`</caption>
 	 * const item = {
 	 * 	label: '-A',
-	 * 	valueSelection: [3, 4], // replace the single character at index 3
+	 * 	replacementRange: [3, 4], // replace the single character at index 3
 	 * 	detail: 'List all entries except for . and .. (always set for the super-user)',
 	 * 	kind: TerminalCompletionItemKind.Flag
 	 * };
@@ -8392,7 +8392,7 @@ declare module 'vscode' {
 	 *
 	 * @example <caption>Create a completion list that requests files for the terminal cwd</caption>
 	 * const list = new TerminalCompletionList([
-	 * 	{ label: 'ls', valueSelection: [0, 0], kind: TerminalCompletionItemKind.Method }
+	 * 	{ label: 'ls', replacementRange: [0, 0], kind: TerminalCompletionItemKind.Method }
 	 * ], { showFiles: true, cwd: Uri.file('/home/user') });
 	 */
 	export class TerminalCompletionList<T extends TerminalCompletionItem = TerminalCompletionItem> {
@@ -12027,7 +12027,7 @@ declare module 'vscode' {
 		 * window.registerTerminalCompletionProvider('extension-provider-id', {
 		 * 	provideTerminalCompletions(terminal, context) {
 		 * 		return new TerminalCompletionList([
-		 * 			{ label: '--version', valueSelection: [Math.max(0, context.cursorPosition - 2), 2] }
+		 * 			{ label: '--version', replacementRange: [Math.max(0, context.cursorPosition - 2), 2] }
 		 * 		]);
 		 * 	}
 		 * });
