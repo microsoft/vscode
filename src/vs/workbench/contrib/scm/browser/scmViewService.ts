@@ -18,7 +18,7 @@ import { binarySearch } from '../../../../base/common/arrays.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
-import { autorun, derivedObservableWithCache, derivedOpts, IObservable, ISettableObservable, latestChangedValue, observableFromEventOpts, observableValue, runOnChange } from '../../../../base/common/observable.js';
+import { autorun, derivedObservableWithCache, derivedOpts, IObservable, ISettableObservable, latestChangedValue, observableFromEventOpts, observableValue, observableValueOpts, runOnChange, transaction } from '../../../../base/common/observable.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { EditorResourceAccessor } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
@@ -223,7 +223,7 @@ export class SCMViewService implements ISCMViewService {
 	*/
 	private readonly _activeRepositoryObs: IObservable<ISCMRepository | undefined>;
 	private readonly _activeRepositoryPinnedObs: ISettableObservable<ISCMRepository | undefined>;
-	private readonly _focusedRepositoryObs: IObservable<ISCMRepository | undefined>;
+	private readonly _focusedRepositoryObs: ISettableObservable<ISCMRepository | undefined>;
 
 	private _repositoriesSortKey: ISCMRepositorySortKey;
 	private _sortKeyContextKey: IContextKey<ISCMRepositorySortKey>;
@@ -259,19 +259,15 @@ export class SCMViewService implements ISCMViewService {
 			// noop
 		}
 
-		this._focusedRepositoryObs = observableFromEventOpts<ISCMRepository | undefined>(
-			{
-				owner: this,
-				equalsFn: () => false
-			}, this.onDidFocusRepository,
-			() => this.focusedRepository);
+		this._focusedRepositoryObs = observableValueOpts<ISCMRepository | undefined>({
+			owner: this,
+			equalsFn: () => false
+		}, undefined);
 
-		this._activeEditorObs = observableFromEventOpts(
-			{
-				owner: this,
-				equalsFn: () => false
-			}, this.editorService.onDidActiveEditorChange,
-			() => this.editorService.activeEditor);
+		this._activeEditorObs = observableFromEventOpts({
+			owner: this,
+			equalsFn: () => false
+		}, this.editorService.onDidActiveEditorChange, () => this.editorService.activeEditor);
 
 		this._activeEditorRepositoryObs = derivedObservableWithCache<ISCMRepository | undefined>(this,
 			(reader, lastValue) => {
@@ -464,6 +460,7 @@ export class SCMViewService implements ISCMViewService {
 		// Check if the last repository was removed
 		if (removed.length === 1 && this._repositories.length === 0) {
 			this._onDidFocusRepository.fire(undefined);
+			this._focusedRepositoryObs.set(undefined, undefined);
 		}
 
 		// Check if the pinned repository was removed
@@ -515,9 +512,19 @@ export class SCMViewService implements ISCMViewService {
 		}
 
 		this._repositories.forEach(r => r.focused = r.repository === repository);
+		const focusedRepository = this._repositories.find(r => r.focused);
 
-		if (this._repositories.find(r => r.focused)) {
+		if (focusedRepository) {
 			this._onDidFocusRepository.fire(repository);
+
+			transaction(tx => {
+				this._focusedRepositoryObs.set(focusedRepository.repository, tx);
+
+				// Pin the focused repository if needed
+				if (this._activeRepositoryPinnedObs.get() !== undefined) {
+					this._activeRepositoryPinnedObs.set(focusedRepository.repository, tx);
+				}
+			});
 		}
 	}
 
