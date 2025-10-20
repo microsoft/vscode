@@ -722,18 +722,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._supportsImageAttachments = true;
 
 		// Check if the agent has capabilities defined directly
-		if (agent?.capabilities) {
-			this._supportsFileAttachments = agent.capabilities.supportsFileAttachments ?? false;
-			this._supportsToolAttachments = agent.capabilities.supportsToolAttachments ?? false;
-			this._supportsMCPAttachments = agent.capabilities.supportsMCPAttachments ?? false;
-			this._supportsImageAttachments = agent.capabilities.supportsImageAttachments ?? false;
-		} else if (this._lockedAgentId) {
-			// Check if the agent is a chat session type with capabilities
-			const sessionCapabilities = this.chatSessionsService.getCapabilitiesForSessionType(this._lockedAgentId);
-			this._supportsFileAttachments = sessionCapabilities?.supportsFileAttachments ?? false;
-			this._supportsToolAttachments = sessionCapabilities?.supportsToolAttachments ?? false;
-			this._supportsMCPAttachments = sessionCapabilities?.supportsMCPAttachments ?? false;
-			this._supportsImageAttachments = sessionCapabilities?.supportsImageAttachments ?? false;
+		const capabilities = agent?.capabilities ?? (this._lockedAgentId ? this.chatSessionsService.getCapabilitiesForSessionType(this._lockedAgentId) : undefined);
+		if (capabilities) {
+			this._supportsFileAttachments = capabilities.supportsFileAttachments ?? false;
+			this._supportsToolAttachments = capabilities.supportsToolAttachments ?? false;
+			this._supportsMCPAttachments = capabilities.supportsMCPAttachments ?? false;
+			this._supportsImageAttachments = capabilities.supportsImageAttachments ?? false;
 		}
 
 		this._agentSupportsAttachmentsContextKey.set(this._supportsFileAttachments || this._supportsImageAttachments || this._supportsToolAttachments || this._supportsMCPAttachments);
