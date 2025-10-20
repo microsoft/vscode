@@ -79,7 +79,7 @@ class RepositoryTreeIdentityProvider implements IIdentityProvider<ISCMRepository
 
 export class SCMRepositoriesViewPane extends ViewPane {
 
-	private tree!: WorkbenchCompressibleAsyncDataTree<ISCMViewService, ISCMRepository, any>;
+	private tree!: WorkbenchCompressibleAsyncDataTree<ISCMViewService, ISCMRepository>;
 	private treeDataSource!: RepositoryTreeDataSource;
 	private treeIdentityProvider!: RepositoryTreeIdentityProvider;
 	private readonly treeOperationSequencer = new Sequencer();
@@ -229,7 +229,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 					}
 				}
 			}
-		) as WorkbenchCompressibleAsyncDataTree<ISCMViewService, ISCMRepository, any>;
+		) as WorkbenchCompressibleAsyncDataTree<ISCMViewService, ISCMRepository>;
 		this._register(this.tree);
 
 		this._register(autorun(reader => {
