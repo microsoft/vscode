@@ -40,7 +40,6 @@ import { ILanguageFeaturesService } from '../../../../../editor/common/services/
 import { getTerminalLspSupportedLanguageObj } from './lspTerminalUtil.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IStringDictionary } from '../../../../../base/common/collections.js';
-import { IConfigurationPropertySchema } from '../../../../../platform/configuration/common/configurationRegistry.js';
 
 registerSingleton(ITerminalCompletionService, TerminalCompletionService, InstantiationType.Delayed);
 
@@ -499,7 +498,7 @@ class TerminalSuggestProvidersConfigurationManager extends Disposable {
 		}
 
 		// Add providers present in the user's config.
-		const configuredProviders = this._configurationService.getValue<IStringDictionary<IConfigurationPropertySchema>>(TerminalSuggestSettingId.Providers)?.properties ?? {};
+		const configuredProviders = this._configurationService.getValue<IStringDictionary<boolean>>(TerminalSuggestSettingId.Providers)?.properties ?? {};
 		Object.keys(configuredProviders).forEach(o => providers.add(o));
 
 		registerTerminalSuggestProvidersConfiguration(Array.from(providers));

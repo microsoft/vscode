@@ -205,7 +205,7 @@ export function registerTerminalSuggestProvidersConfiguration(providerIds?: stri
 		providersProperties[id] = {
 			type: 'boolean',
 			default: enableByDefault,
-			description: localize('suggest.provider.title', 'Show suggestions from {0}', id)
+			description: localize('suggest.provider.title', "Show suggestions from {0}", id)
 		};
 	}
 
@@ -225,10 +225,10 @@ export function registerTerminalSuggestProvidersConfiguration(providerIds?: stri
 				markdownDescription: enableByDefault ?
 					localize(
 						'suggest.providersEnabledByDefault',
-						'Controls which suggestions automatically show up while typing. Suggestion providers are enabled by default.') :
+						"Controls which suggestions automatically show up while typing. Suggestion providers are enabled by default.") :
 					localize(
 						'suggest.providersDisabledByDefault',
-						'Controls which suggestions automatically show up while typing. Suggestion providers are disabled by default.'),
+						"Controls which suggestions automatically show up while typing. Suggestion providers are disabled by default."),
 				type: 'object',
 				properties: providersProperties,
 				default: defaultValue,
