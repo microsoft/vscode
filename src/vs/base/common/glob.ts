@@ -508,7 +508,7 @@ function toRegExp(pattern: string): ParsedStringPattern {
 
 			return typeof path === 'string' && regExp.test(path) ? pattern : null;
 		};
-	} catch (error) {
+	} catch {
 		return NULL;
 	}
 }

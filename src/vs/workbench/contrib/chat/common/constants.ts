@@ -16,9 +16,11 @@ export enum ChatConfiguration {
 	CheckpointsEnabled = 'chat.checkpoints.enabled',
 	AgentSessionsViewLocation = 'chat.agentSessionsViewLocation',
 	ThinkingStyle = 'chat.agent.thinkingStyle',
-	UseChatSessionsForCloudButton = 'chat.useChatSessionsForCloudButton',
+	TodoList = 'chat.agent.todoList',
+	UseCloudButtonV2 = 'chat.useCloudButtonV2',
 	ShowAgentSessionsViewDescription = 'chat.showAgentSessionsViewDescription',
-	EmptyStateHistoryEnabled = 'chat.emptyState.history.enabled'
+	EmptyStateHistoryEnabled = 'chat.emptyState.history.enabled',
+	NotifyWindowOnResponseReceived = 'chat.notifyWindowOnResponseReceived',
 }
 
 /**
@@ -84,4 +86,6 @@ export namespace ChatAgentLocation {
 
 export const ChatUnsupportedFileSchemes = new Set([Schemas.vscodeChatEditor, Schemas.walkThrough, Schemas.vscodeChatSession, 'ccreq']);
 
-export const TodoListWidgetPositionSettingId = 'chat.todoListWidget.position';
+export const VIEWLET_ID = 'workbench.view.chat.sessions';
+
+export const ChatEditorTitleMaxLength = 30;

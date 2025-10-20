@@ -44,6 +44,7 @@ export class NativePolicyService extends AbstractPolicyService implements IPolic
 		this.logService.trace(`NativePolicyService#_onDidPolicyChange - Updated policy values: ${JSON.stringify(update)}`);
 
 		for (const key in update) {
+			// eslint-disable-next-line local/code-no-any-casts
 			const value = update[key] as any;
 
 			if (value === undefined) {

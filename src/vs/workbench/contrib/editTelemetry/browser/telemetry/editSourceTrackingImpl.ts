@@ -6,7 +6,7 @@
 import { reverseOrder, compareBy, numberComparator, sumBy } from '../../../../../base/common/arrays.js';
 import { IntervalTimer, TimeoutTimer } from '../../../../../base/common/async.js';
 import { toDisposable, Disposable } from '../../../../../base/common/lifecycle.js';
-import { mapObservableArrayCached, derived, IObservable, observableSignal, runOnChange } from '../../../../../base/common/observable.js';
+import { mapObservableArrayCached, derived, IObservable, observableSignal, runOnChange, IReader, autorun, observableSignalFromEvent } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -17,6 +17,8 @@ import { AiEditTelemetryAdapter, ChatArcTelemetrySender, InlineEditArcTelemetryS
 import { createDocWithJustReason, EditSource } from '../helpers/documentWithAnnotatedEdits.js';
 import { DocumentEditSourceTracker, TrackedEdit } from './editTracker.js';
 import { sumByCategory } from '../helpers/utils.js';
+import { WeakCachedFunction } from '../../../../../base/common/cache.js';
+import { Event } from '../../../../../base/common/event.js';
 
 export class EditSourceTrackingImpl extends Disposable {
 	public readonly docsState;
@@ -42,7 +44,7 @@ class TrackedDocumentInfo extends Disposable {
 	public readonly longtermTracker: IObservable<DocumentEditSourceTracker<undefined> | undefined>;
 	public readonly windowedTracker: IObservable<DocumentEditSourceTracker<undefined> | undefined>;
 
-	private readonly _repo: Promise<ScmRepoBridge | undefined>;
+	private readonly _repo: IObservable<ScmRepoBridge | undefined>;
 
 	constructor(
 		private readonly _doc: AnnotatedDocument,
@@ -52,6 +54,8 @@ class TrackedDocumentInfo extends Disposable {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService
 	) {
 		super();
+
+		this._repo = derived(this, reader => this._scm.getRepo(_doc.document.uri, reader));
 
 		const docWithJustReason = createDocWithJustReason(_doc.documentWithAnnotations, this._store);
 
@@ -80,29 +84,26 @@ class TrackedDocumentInfo extends Disposable {
 			longtermReason = 'closed';
 		}, 10 * 60 * 60 * 1000);
 
-		(async () => {
-			const repo = await this._scm.getRepo(_doc.document.uri);
-			if (this._store.isDisposed) {
-				return;
-			}
-			// Reset on branch change or commit
+		// Reset on branch change or commit
+		this._store.add(autorun(reader => {
+			const repo = this._repo.read(reader);
 			if (repo) {
-				this._store.add(runOnChange(repo.headCommitHashObs, () => {
+				reader.store.add(runOnChange(repo.headCommitHashObs, () => {
 					longtermReason = 'hashChange';
 					longtermResetSignal.trigger(undefined);
 					longtermReason = 'closed';
 				}));
-				this._store.add(runOnChange(repo.headBranchNameObs, () => {
+				reader.store.add(runOnChange(repo.headBranchNameObs, () => {
 					longtermReason = 'branchChange';
 					longtermResetSignal.trigger(undefined);
 					longtermReason = 'closed';
 				}));
 			}
+		}));
 
-			this._store.add(this._instantiationService.createInstance(InlineEditArcTelemetrySender, _doc.documentWithAnnotations, repo));
-			this._store.add(this._instantiationService.createInstance(ChatArcTelemetrySender, _doc.documentWithAnnotations, repo));
-			this._store.add(this._instantiationService.createInstance(AiEditTelemetryAdapter, _doc.documentWithAnnotations));
-		})();
+		this._store.add(this._instantiationService.createInstance(InlineEditArcTelemetrySender, _doc.documentWithAnnotations, this._repo));
+		this._store.add(this._instantiationService.createInstance(ChatArcTelemetrySender, _doc.documentWithAnnotations, this._repo));
+		this._store.add(this._instantiationService.createInstance(AiEditTelemetryAdapter, _doc.documentWithAnnotations));
 
 		const resetSignal = observableSignal('resetSignal');
 
@@ -129,7 +130,6 @@ class TrackedDocumentInfo extends Disposable {
 			return t;
 		}).recomputeInitiallyAndOnChange(this._store);
 
-		this._repo = this._scm.getRepo(_doc.document.uri);
 	}
 
 	async sendTelemetry(mode: 'longterm' | '5minWindow', trigger: string, t: DocumentEditSourceTracker) {
@@ -299,22 +299,29 @@ class TrackedDocumentInfo extends Disposable {
 			externalModifiedCount: sums.external ?? 0,
 			totalModifiedCharactersInFinalState,
 			languageId: this._doc.document.languageId.get(),
-			isTrackedByGit: this._repo.then(async (repo) => !!repo && !await repo.isIgnored(this._doc.document.uri)),
+			isTrackedByGit: this._repo.get()?.isIgnored(this._doc.document.uri),
 		};
 	}
 }
 
 class ScmBridge {
-	constructor(
-		@ISCMService private readonly _scmService: ISCMService
-	) { }
+	private readonly _repos = new WeakCachedFunction((repo: ISCMRepository) => new ScmRepoBridge(repo));
 
-	public async getRepo(uri: URI): Promise<ScmRepoBridge | undefined> {
+	private readonly _reposChangedSignal;
+
+	constructor(
+		@ISCMService private readonly _scmService: ISCMService,
+	) {
+		this._reposChangedSignal = observableSignalFromEvent(this, Event.any(this._scmService.onDidAddRepository, this._scmService.onDidRemoveRepository));
+	}
+
+	public getRepo(uri: URI, reader: IReader | undefined): ScmRepoBridge | undefined {
+		this._reposChangedSignal.read(reader);
 		const repo = this._scmService.getRepository(uri);
 		if (!repo) {
 			return undefined;
 		}
-		return new ScmRepoBridge(repo);
+		return this._repos.get(repo);
 	}
 }
 

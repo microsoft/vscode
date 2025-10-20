@@ -8,24 +8,24 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { assert } from '../../../../../../base/common/assert.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
-import { IPromptPath, IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
+import { IPromptPath, IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { dirname, extUri, joinPath } from '../../../../../../base/common/resources.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
-import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { getCleanPromptName } from '../../../common/promptSyntax/config/promptFileLocations.js';
 import { PromptsType, INSTRUCTIONS_DOCUMENTATION_URL, MODE_DOCUMENTATION_URL, PROMPT_DOCUMENTATION_URL } from '../../../common/promptSyntax/promptTypes.js';
 import { NEW_PROMPT_COMMAND_ID, NEW_INSTRUCTIONS_COMMAND_ID, NEW_MODE_COMMAND_ID } from '../newPromptFileActions.js';
-import { IKeyMods, IQuickInputButton, IQuickInputService, IQuickPick, IQuickPickItem, IQuickPickItemButtonEvent } from '../../../../../../platform/quickinput/common/quickInput.js';
+import { IKeyMods, IQuickInputButton, IQuickInputService, IQuickPick, IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { askForPromptFileName } from './askForPromptName.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { UILabelProvider } from '../../../../../../base/common/keybindingLabels.js';
 import { OS } from '../../../../../../base/common/platform.js';
 import { askForPromptSourceFolder } from './askForPromptSourceFolder.js';
+import { ILabelService } from '../../../../../../platform/label/common/label.js';
 
 /**
  * Options for the {@link askToSelectInstructions} function.
@@ -85,6 +85,8 @@ interface IPromptPickerQuickPickItem extends IQuickPickItem {
 	value: URI;
 }
 
+type IPromptQuickPick = IQuickPick<IPromptPickerQuickPickItem, { useSeparators: true }>;
+
 /**
  * A quick pick item that starts the 'New Prompt File' command.
  */
@@ -124,7 +126,7 @@ const UPDATE_INSTRUCTIONS_OPTION: IPromptPickerQuickPickItem = Object.freeze({
 	type: 'item',
 	label: `$(refresh) ${localize(
 		'commands.update-instructions.select-dialog.label',
-		'Generate instructions...',
+		'Generate agent instructions...',
 	)}`,
 	value: URI.parse(INSTRUCTIONS_DOCUMENTATION_URL),
 	pickable: false,
@@ -184,7 +186,6 @@ const COPY_BUTTON: IQuickInputButton = Object.freeze({
 
 export class PromptFilePickers {
 	constructor(
-		@ILabelService private readonly _labelService: ILabelService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IFileService private readonly _fileService: IFileService,
@@ -192,6 +193,7 @@ export class PromptFilePickers {
 		@ICommandService private readonly _commandService: ICommandService,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@IPromptsService private readonly _promptsService: IPromptsService,
+		@ILabelService private readonly _labelService: ILabelService,
 	) {
 	}
 
@@ -202,13 +204,15 @@ export class PromptFilePickers {
 	 * the resource pre-selected in the prompts list.
 	 */
 	async selectPromptFile(options: ISelectOptions): Promise<ISelectPromptResult | undefined> {
-		const quickPick = this._quickInputService.createQuickPick<IPromptPickerQuickPickItem>();
+		const quickPick: IPromptQuickPick = this._quickInputService.createQuickPick<IPromptPickerQuickPickItem>({ useSeparators: true });
 		quickPick.busy = true;
 		quickPick.placeholder = localize('searching', 'Searching file system...');
 		try {
 			const fileOptions = await this._createPromptPickItems(options);
-			const activeItem = options.resource && fileOptions.find(f => extUri.isEqual(f.value, options.resource));
-			quickPick.activeItems = [activeItem ?? fileOptions[0]];
+			const activeItem = options.resource && fileOptions.find(f => f.type === 'item' && extUri.isEqual(f.value, options.resource)) as IPromptPickerQuickPickItem | undefined;
+			if (activeItem) {
+				quickPick.activeItems = [activeItem];
+			}
 			quickPick.placeholder = options.placeholder;
 			quickPick.canAcceptInBackground = true;
 			quickPick.matchOnDescription = true;
@@ -272,8 +276,7 @@ export class PromptFilePickers {
 	}
 
 
-	private async _createPromptPickItems(options: ISelectOptions): Promise<IPromptPickerQuickPickItem[]> {
-		const { resource } = options;
+	private async _createPromptPickItems(options: ISelectOptions): Promise<(IPromptPickerQuickPickItem | IQuickPickSeparator)[]> {
 		const buttons: IQuickInputButton[] = [];
 		if (options.optionEdit !== false) {
 			buttons.push(EDIT_BUTTON);
@@ -287,53 +290,27 @@ export class PromptFilePickers {
 		if (options.optionDelete !== false) {
 			buttons.push(DELETE_BUTTON);
 		}
-		const promptFiles = await this._promptsService.listPromptFiles(options.type, CancellationToken.None);
-
-		const fileOptions = promptFiles.map((promptFile) => {
-			return this._createPromptPickItem(promptFile, buttons);
-		});
-
-		// if a resource is provided, create an `activeItem` for it to pre-select
-		// it in the UI, and sort the list so the active item appears at the top
-		let activeItem: IPromptPickerQuickPickItem | undefined;
-		if (options.resource) {
-			activeItem = fileOptions.find((file) => {
-				return extUri.isEqual(file.value, options.resource);
-			});
-
-			// if no item for the `resource` was found, it means that the resource is not
-			// in the list of prompt files, so add a new item for it; this ensures that
-			// the currently active prompt file is always available in the selection dialog,
-			// even if it is not included in the prompts list otherwise(from location setting)
-			if (!activeItem) {
-				activeItem = this._createPromptPickItem({
-					uri: options.resource,
-					// "user" prompts are always registered in the prompts list, hence it
-					// should be safe to assume that `resource` is not "user" prompt here
-					storage: 'local',
-					type: options.type,
-				}, buttons);
-				fileOptions.push(activeItem);
-			}
-
-			fileOptions.sort((file1, file2) => {
-				if (extUri.isEqual(file1.value, resource)) {
-					return -1;
-				}
-
-				if (extUri.isEqual(file2.value, resource)) {
-					return 1;
-				}
-
-				return 0;
-			});
-		}
-
+		const result: (IPromptPickerQuickPickItem | IQuickPickSeparator)[] = [];
 		const newItems = options.optionNew !== false ? this._getNewItems(options.type) : [];
 		if (newItems.length > 0) {
-			fileOptions.splice(0, 0, ...newItems);
+			result.push(...newItems);
 		}
-		return fileOptions;
+		const locals = await this._promptsService.listPromptFilesForStorage(options.type, PromptsStorage.local, CancellationToken.None);
+		if (locals.length) {
+			result.push({ type: 'separator', label: localize('separator.workspace', "Workspace") });
+			result.push(...locals.map(l => this._createPromptPickItem(l, buttons)));
+		}
+		const exts = await this._promptsService.listPromptFilesForStorage(options.type, PromptsStorage.extension, CancellationToken.None);
+		if (exts.length) {
+			result.push({ type: 'separator', label: localize('separator.extensions', "Extensions") });
+			result.push(...exts.map(e => this._createPromptPickItem(e, undefined)));
+		}
+		const users = await this._promptsService.listPromptFilesForStorage(options.type, PromptsStorage.user, CancellationToken.None);
+		if (users.length) {
+			result.push({ type: 'separator', label: localize('separator.user', "User Data") });
+			result.push(...users.map(u => this._createPromptPickItem(u, buttons)));
+		}
+		return result;
 	}
 
 	private _getNewItems(type: PromptsType): IPromptPickerQuickPickItem[] {
@@ -349,32 +326,34 @@ export class PromptFilePickers {
 		}
 	}
 
-	private _createPromptPickItem(promptFile: IPromptPath, buttons: IQuickInputButton[]): IPromptPickerQuickPickItem {
-		const { uri, storage } = promptFile;
-		const fileWithoutExtension = getCleanPromptName(uri);
+	private _createPromptPickItem(promptFile: IPromptPath, buttons: IQuickInputButton[] | undefined): IPromptPickerQuickPickItem {
+		const promptName = promptFile.name ?? getCleanPromptName(promptFile.uri);
 
-		// if a "user" prompt, don't show its filesystem path in
-		// the user interface, but do that for all the "local" ones
-		const description = (storage === 'user')
-			? localize('user-data-dir.capitalized', 'User data folder')
-			: this._labelService.getUriLabel(dirname(uri), { relative: true });
+		let tooltip: string | undefined;
 
-		const tooltip = (storage === 'user')
-			? description
-			: uri.fsPath;
-
+		switch (promptFile.storage) {
+			case PromptsStorage.extension:
+				tooltip = promptFile.extension.displayName ?? promptFile.extension.id;
+				break;
+			case PromptsStorage.local:
+				tooltip = this._labelService.getUriLabel(dirname(promptFile.uri), { relative: true });
+				break;
+			case PromptsStorage.user:
+				tooltip = undefined;
+				break;
+		}
 		return {
-			id: uri.toString(),
+			id: promptFile.uri.toString(),
 			type: 'item',
-			label: fileWithoutExtension,
-			description,
+			label: promptName,
+			description: promptFile.description,
 			tooltip,
-			value: uri,
-			buttons
+			value: promptFile.uri,
+			buttons: buttons
 		};
 	}
 
-	private async keepQuickPickOpen(quickPick: IQuickPick<IPromptPickerQuickPickItem>, work: () => Promise<void>): Promise<void> {
+	private async keepQuickPickOpen(quickPick: IPromptQuickPick, work: () => Promise<void>): Promise<void> {
 		const previousIgnoreFocusOut = quickPick.ignoreFocusOut;
 		quickPick.ignoreFocusOut = true;
 		try {
@@ -385,7 +364,7 @@ export class PromptFilePickers {
 
 	}
 
-	private async _handleButtonClick(quickPick: IQuickPick<IPromptPickerQuickPickItem>, context: IQuickPickItemButtonEvent<IPromptPickerQuickPickItem>, options: ISelectOptions): Promise<void> {
+	private async _handleButtonClick(quickPick: IPromptQuickPick, context: IQuickPickItemButtonEvent<IPromptPickerQuickPickItem>, options: ISelectOptions): Promise<void> {
 		const { item, button } = context;
 		const { value, } = item;
 
@@ -439,8 +418,6 @@ export class PromptFilePickers {
 				`Expected maximum one active item, got '${quickPick.activeItems.length}'.`,
 			);
 
-			const activeItem: IPromptPickerQuickPickItem | undefined = quickPick.activeItems[0];
-
 			// sanity checks - prompt file exists and is not a folder
 			const info = await this._fileService.stat(value);
 			assert(
@@ -468,32 +445,9 @@ export class PromptFilePickers {
 				// prompt deletion was confirmed so delete the prompt file
 				await this._fileService.del(value);
 
-				// remove the deleted prompt from the selection dialog list
-				let removedIndex = -1;
-				quickPick.items = quickPick.items.filter((option, index) => {
-					if (option === item) {
-						removedIndex = index;
+				const newEntries = this._createPromptPickItems(options);
+				quickPick.items = await newEntries;
 
-						return false;
-					}
-
-					return true;
-				});
-
-				// if the deleted item was active item, find a new item to set as active
-				if (activeItem && (activeItem === item)) {
-					assert(
-						removedIndex >= 0,
-						'Removed item index must be a valid index.',
-					);
-
-					// we set the previous item as new active, or the next item
-					// if removed prompt item was in the beginning of the list
-					const newActiveItemIndex = Math.max(removedIndex - 1, 0);
-					const newActiveItem: IPromptPickerQuickPickItem | undefined = quickPick.items[newActiveItemIndex];
-
-					quickPick.activeItems = newActiveItem ? [newActiveItem] : [];
-				}
 			});
 			return;
 		}

@@ -29,6 +29,7 @@ import { ITerminalInstance, type IXtermTerminal } from '../../../terminal/browse
 import { TerminalStickyScrollContribution } from '../../stickyScroll/browser/terminalStickyScrollContribution.js';
 import './media/terminalChatWidget.css';
 import { MENU_TERMINAL_CHAT_WIDGET_INPUT_SIDE_TOOLBAR, MENU_TERMINAL_CHAT_WIDGET_STATUS, TerminalChatCommandId, TerminalChatContextKeys } from './terminalChat.js';
+import { ChatMode } from '../../../chat/common/chatModes.js';
 
 const enum Constants {
 	HorizontalMargin = 10,
@@ -141,7 +142,8 @@ export class TerminalChatWidget extends Disposable {
 						telemetrySource: 'terminal-inline-chat',
 						executeToolbar: MenuId.ChatExecute,
 						inputSideToolbar: MENU_TERMINAL_CHAT_WIDGET_INPUT_SIDE_TOOLBAR,
-					}
+					},
+					defaultMode: ChatMode.Ask
 				}
 			},
 		);
@@ -474,7 +476,7 @@ export class TerminalChatWidget extends Disposable {
 				result: currentRequest.response!.result,
 				followups: currentRequest.response!.followups
 			});
-		widget.focusLastMessage();
+		widget.focusResponseItem();
 		this.hide();
 	}
 }

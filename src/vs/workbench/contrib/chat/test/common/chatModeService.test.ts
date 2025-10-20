@@ -17,7 +17,7 @@ import { TestStorageService } from '../../../../test/common/workbenchTestService
 import { IChatAgentService } from '../../common/chatAgents.js';
 import { ChatMode, ChatModeService } from '../../common/chatModes.js';
 import { ChatModeKind } from '../../common/constants.js';
-import { ICustomChatMode, IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
+import { IChatModeSource, ICustomChatMode, IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { MockPromptsService } from './mockPromptsService.js';
 
 class TestChatAgentService implements Partial<IChatAgentService> {
@@ -40,6 +40,8 @@ class TestChatAgentService implements Partial<IChatAgentService> {
 
 suite('ChatModeService', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	const workspaceSource: IChatModeSource = { storage: PromptsStorage.local };
 
 	let instantiationService: TestInstantiationService;
 	let promptsService: MockPromptsService;
@@ -110,8 +112,8 @@ suite('ChatModeService', () => {
 			name: 'Test Mode',
 			description: 'A test custom mode',
 			tools: ['tool1', 'tool2'],
-			body: 'Custom mode body',
-			variableReferences: []
+			modeInstructions: { content: 'Custom mode body', toolReferences: [] },
+			source: workspaceSource
 		};
 
 		promptsService.setCustomModes([customMode]);
@@ -129,8 +131,10 @@ suite('ChatModeService', () => {
 		assert.strictEqual(testMode.description.get(), customMode.description);
 		assert.strictEqual(testMode.kind, ChatModeKind.Agent);
 		assert.deepStrictEqual(testMode.customTools?.get(), customMode.tools);
-		assert.strictEqual(testMode.body?.get(), customMode.body);
+		assert.deepStrictEqual(testMode.modeInstructions?.get(), customMode.modeInstructions);
+		assert.deepStrictEqual(testMode.handOffs?.get(), customMode.handOffs);
 		assert.strictEqual(testMode.uri?.get().toString(), customMode.uri.toString());
+		assert.deepStrictEqual(testMode.source, workspaceSource);
 	});
 
 	test('should fire change event when custom modes are updated', async () => {
@@ -144,8 +148,8 @@ suite('ChatModeService', () => {
 			name: 'Test Mode',
 			description: 'A test custom mode',
 			tools: [],
-			body: 'Custom mode body',
-			variableReferences: []
+			modeInstructions: { content: 'Custom mode body', toolReferences: [] },
+			source: workspaceSource,
 		};
 
 		promptsService.setCustomModes([customMode]);
@@ -162,8 +166,8 @@ suite('ChatModeService', () => {
 			name: 'Findable Mode',
 			description: 'A findable custom mode',
 			tools: [],
-			body: 'Findable mode body',
-			variableReferences: []
+			modeInstructions: { content: 'Findable mode body', toolReferences: [] },
+			source: workspaceSource,
 		};
 
 		promptsService.setCustomModes([customMode]);
@@ -185,9 +189,9 @@ suite('ChatModeService', () => {
 			name: 'Initial Mode',
 			description: 'Initial description',
 			tools: ['tool1'],
-			body: 'Initial body',
+			modeInstructions: { content: 'Initial body', toolReferences: [] },
 			model: 'gpt-4',
-			variableReferences: []
+			source: workspaceSource,
 		};
 
 		promptsService.setCustomModes([initialMode]);
@@ -202,7 +206,7 @@ suite('ChatModeService', () => {
 			...initialMode,
 			description: 'Updated description',
 			tools: ['tool1', 'tool2'],
-			body: 'Updated body',
+			modeInstructions: { content: 'Updated body', toolReferences: [] },
 			model: 'Updated model'
 		};
 
@@ -218,8 +222,9 @@ suite('ChatModeService', () => {
 		// But the observable properties should be updated
 		assert.strictEqual(updatedCustomMode.description.get(), 'Updated description');
 		assert.deepStrictEqual(updatedCustomMode.customTools?.get(), ['tool1', 'tool2']);
-		assert.strictEqual(updatedCustomMode.body?.get(), 'Updated body');
+		assert.deepStrictEqual(updatedCustomMode.modeInstructions?.get(), { content: 'Updated body', toolReferences: [] });
 		assert.strictEqual(updatedCustomMode.model?.get(), 'Updated model');
+		assert.deepStrictEqual(updatedCustomMode.source, workspaceSource);
 	});
 
 	test('should remove custom modes that no longer exist', async () => {
@@ -228,8 +233,8 @@ suite('ChatModeService', () => {
 			name: 'Mode 1',
 			description: 'First mode',
 			tools: [],
-			body: 'Mode 1 body',
-			variableReferences: []
+			modeInstructions: { content: 'Mode 1 body', toolReferences: [] },
+			source: workspaceSource,
 		};
 
 		const mode2: ICustomChatMode = {
@@ -237,8 +242,8 @@ suite('ChatModeService', () => {
 			name: 'Mode 2',
 			description: 'Second mode',
 			tools: [],
-			body: 'Mode 2 body',
-			variableReferences: []
+			modeInstructions: { content: 'Mode 2 body', toolReferences: [] },
+			source: workspaceSource,
 		};
 
 		// Add both modes

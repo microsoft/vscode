@@ -15,26 +15,24 @@ import { createDecorator, ServicesAccessor } from '../../instantiation/common/in
 export const ICommandService = createDecorator<ICommandService>('commandService');
 
 export interface ICommandEvent {
-	commandId: string;
-	args: any[];
+	readonly commandId: string;
+	readonly args: unknown[];
 }
 
 export interface ICommandService {
 	readonly _serviceBrand: undefined;
-	onWillExecuteCommand: Event<ICommandEvent>;
-	onDidExecuteCommand: Event<ICommandEvent>;
-	executeCommand<T = any>(commandId: string, ...args: any[]): Promise<T | undefined>;
+	readonly onWillExecuteCommand: Event<ICommandEvent>;
+	readonly onDidExecuteCommand: Event<ICommandEvent>;
+	executeCommand<T = any>(commandId: string, ...args: unknown[]): Promise<T | undefined>;
 }
 
 export type ICommandsMap = Map<string, ICommand>;
 
-export interface ICommandHandler {
-	(accessor: ServicesAccessor, ...args: any[]): void;
-}
+export type ICommandHandler<Args extends unknown[] = unknown[]> = (accessor: ServicesAccessor, ...args: Args) => void;
 
-export interface ICommand {
+export interface ICommand<Args extends unknown[] = unknown[]> {
 	id: string;
-	handler: ICommandHandler;
+	handler: ICommandHandler<Args>;
 	metadata?: ICommandMetadata | null;
 }
 
@@ -58,9 +56,9 @@ export interface ICommandMetadata {
 }
 
 export interface ICommandRegistry {
-	onDidRegisterCommand: Event<string>;
-	registerCommand(id: string, command: ICommandHandler): IDisposable;
-	registerCommand(command: ICommand): IDisposable;
+	readonly onDidRegisterCommand: Event<string>;
+	registerCommand<Args extends unknown[]>(id: string, command: ICommandHandler<Args>): IDisposable;
+	registerCommand<Args extends unknown[]>(command: ICommand<Args>): IDisposable;
 	registerCommandAlias(oldId: string, newId: string): IDisposable;
 	getCommand(id: string): ICommand | undefined;
 	getCommands(): ICommandsMap;
@@ -93,7 +91,7 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 				constraints.push(arg.constraint);
 			}
 			const actualHandler = idOrCommand.handler;
-			idOrCommand.handler = function (accessor, ...args: any[]) {
+			idOrCommand.handler = function (accessor, ...args: unknown[]) {
 				validateConstraints(args, constraints);
 				return actualHandler(accessor, ...args);
 			};

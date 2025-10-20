@@ -43,7 +43,11 @@ interface IEditorWorkingSetState extends IEditorWorkingSet {
 	readonly auxiliary: IEditorPartsUIState;
 }
 
-export class EditorParts extends MultiWindowParts<EditorPart> implements IEditorGroupsService, IEditorPartsView {
+interface IEditorPartsMemento {
+	'editorparts.state'?: IEditorPartsUIState;
+}
+
+export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMemento> implements IEditorGroupsService, IEditorPartsView {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -534,7 +538,7 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 					break;
 			}
 
-			return parts.map(part => part.getGroups(order)).flat();
+			return parts.flatMap(part => part.getGroups(order));
 		}
 
 		return this.mainPart.getGroups(order);
