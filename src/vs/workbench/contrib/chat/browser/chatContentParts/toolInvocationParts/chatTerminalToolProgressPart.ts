@@ -25,12 +25,11 @@ import { ConfigurationTarget } from '../../../../../../platform/configuration/co
 import type { ICodeBlockRenderOptions } from '../../codeBlockPart.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
-import { ITerminalChatService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../../../terminal/browser/terminal.js';
+import { ITerminalChatService, ITerminalInstance, ITerminalService } from '../../../../terminal/browser/terminal.js';
 import { Action, IAction } from '../../../../../../base/common/actions.js';
 import { MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
-import { TerminalLocation } from '../../../../../../platform/terminal/common/terminal.js';
 
 export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart {
 	public readonly domNode: HTMLElement;
@@ -186,8 +185,6 @@ export class FocusChatInstanceAction extends Action implements IAction {
 		private readonly _instance: ITerminalInstance,
 		isTerminalHidden: boolean,
 		@ITerminalService private readonly _terminalService: ITerminalService,
-		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
-		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService
 	) {
 		super(
 			'chat.focusTerminalInstance',
@@ -200,11 +197,7 @@ export class FocusChatInstanceAction extends Action implements IAction {
 	public override async run() {
 		this.label = localize('focusTerminal', 'Focus Terminal');
 		this._terminalService.setActiveInstance(this._instance);
-		if (this._instance.target === TerminalLocation.Editor) {
-			this._terminalEditorService.openEditor(this._instance);
-		} else {
-			this._terminalGroupService.showPanel(true);
-		}
+		this._terminalService.revealActiveTerminal();
 		await this._instance?.focusWhenReady(true);
 	}
 }

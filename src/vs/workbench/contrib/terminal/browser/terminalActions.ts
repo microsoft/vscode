@@ -500,13 +500,13 @@ export function registerTerminalActions() {
 			weight: KeybindingWeight.WorkbenchContrib
 		},
 		precondition: sharedWhenClause.terminalAvailable,
-		run: async (c) => {
-			const instance = c.service.activeInstance || await c.service.createTerminal({ location: TerminalLocation.Panel });
+		run: async (c, accessor, terminal: unknown) => {
+			const instance = terminal || c.service.activeInstance || await c.service.createTerminal({ location: TerminalLocation.Panel });
 			if (!instance) {
 				return;
 			}
-			c.service.setActiveInstance(instance);
-			focusActiveTerminal(instance, c);
+			c.service.setActiveInstance(instance as ITerminalInstance);
+			focusActiveTerminal(instance as ITerminalInstance, c);
 		}
 	});
 

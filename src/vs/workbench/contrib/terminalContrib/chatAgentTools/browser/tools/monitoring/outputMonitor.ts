@@ -28,6 +28,8 @@ import { getTextResponseFromStream } from './utils.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TerminalChatAgentToolsSettingId } from '../../../common/terminalChatAgentToolsConfiguration.js';
 import { ILogService } from '../../../../../../../platform/log/common/log.js';
+import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
+import { TerminalCommandId } from '../../../../../terminal/common/terminal.js';
 
 export interface IOutputMonitor extends Disposable {
 	readonly pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
@@ -87,6 +89,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILogService private readonly _logService: ILogService,
+		@ICommandService private readonly _commandService: ICommandService,
 	) {
 		super();
 
@@ -526,7 +529,10 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			'',
 			localize('poll.terminal.enterInput', 'Focus terminal'),
 			undefined,
-			async () => { execution.instance.focus(true); return true; },
+			async () => {
+				await this._commandService.executeCommand(TerminalCommandId.Focus, execution.instance);
+				return true;
+			}
 		);
 
 		const inputPromise = new Promise<boolean>(resolve => {
@@ -567,6 +573,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				return option;
 			},
 			async () => {
+				await this._commandService.executeCommand(TerminalCommandId.Focus, execution.instance);
 				this._state = OutputMonitorState.Cancelled;
 				this._outputMonitorTelemetryCounters.inputToolManualRejectCount++;
 				inputDataDisposable.dispose();
