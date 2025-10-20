@@ -2,7 +2,7 @@
 mode: Plan
 description: Clarify before planning in more detail
 ---
-Before doing your research workflow, gather preliminary context using #executePrompt (instructed to use max 5 tool calls) to get a high-level overview.
+Before doing your research workflow, gather preliminary context using #runSubagent (instructed to use max 5 tool calls) to get a high-level overview.
 
 Then ask 3 clarifying questions and PAUSE for the user to answer them.
 
