@@ -90,7 +90,7 @@
 			]
 		},
 		"ifnextchar": {
-			"match": "\\\\@ifnextchar[(\\{\\[]",
+			"match": "\\\\@ifnextchar[({\\[]",
 			"name": "keyword.control.ifnextchar.tex"
 		},
 		"macro-control": {
