@@ -11,7 +11,7 @@ import { getPromptFileLocationsConfigKey, PromptsConfig } from '../config/config
 import { basename, dirname, joinPath } from '../../../../../../base/common/resources.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, getPromptFileExtension, getPromptFileType } from '../config/promptFileLocations.js';
+import { COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, AGENTS_SOURCE_FOLDER, getPromptFileExtension, getPromptFileType } from '../config/promptFileLocations.js';
 import { PromptsType } from '../promptTypes.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { Schemas } from '../../../../../../base/common/network.js';
@@ -103,6 +103,10 @@ export class PromptFilesLocator extends Disposable {
 		return { event: eventEmitter.event, dispose: () => disposables.dispose() };
 	}
 
+	public getAgentSourceFolder(): readonly URI[] {
+		return this.toAbsoluteLocations([AGENTS_SOURCE_FOLDER]);
+	}
+
 	/**
 	 * Get all possible unambiguous prompt file source folders based on
 	 * the current workspace folder structure.
@@ -183,6 +187,9 @@ export class PromptFilesLocator extends Disposable {
 
 	private getLocalParentFolders(type: PromptsType): readonly { parent: URI; filePattern?: string }[] {
 		const configuredLocations = PromptsConfig.promptSourceFolders(this.configService, type);
+		if (type === PromptsType.agent) {
+			configuredLocations.push(AGENTS_SOURCE_FOLDER);
+		}
 		const absoluteLocations = this.toAbsoluteLocations(configuredLocations);
 		return absoluteLocations.map(firstNonGlobParentAndPattern);
 	}

@@ -280,9 +280,9 @@ export interface IToggleChatModeArgs {
 
 type ChatModeChangeClassification = {
 	owner: 'digitarald';
-	comment: 'Reporting when Chat mode is switched between different modes';
-	fromMode?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The previous chat mode' };
-	toMode?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The new chat mode' };
+	comment: 'Reporting when agent is switched between different modes';
+	fromMode?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The previous agent' };
+	toMode?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The new agent' };
 	requestCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of requests in the current chat session'; 'isMeasurement': true };
 };
 
@@ -299,7 +299,7 @@ class ToggleChatModeAction extends Action2 {
 	constructor() {
 		super({
 			id: ToggleChatModeAction.ID,
-			title: localize2('interactive.toggleAgent.label', "Switch to Next Chat Mode"),
+			title: localize2('interactive.toggleAgent.label', "Switch to Next Agent"),
 			f1: true,
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(

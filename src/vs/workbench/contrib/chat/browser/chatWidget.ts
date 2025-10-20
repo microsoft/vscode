@@ -2957,7 +2957,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.agentInInput.set(!!currentAgent);
 	}
 
-	private async _applyPromptMetadata({ mode, tools, model }: PromptHeader, requestInput: IChatRequestInputOptions): Promise<void> {
+	private async _applyPromptMetadata({ agent: mode, tools, model }: PromptHeader, requestInput: IChatRequestInputOptions): Promise<void> {
 
 		const currentMode = this.input.currentModeObs.get();
 
@@ -2965,7 +2965,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			mode = ChatModeKind.Agent;
 		}
 
-		// switch to appropriate chat mode if needed
+		// switch to appropriate agent if needed
 		if (mode && mode !== currentMode.name) {
 			// Find the mode object to get its kind
 			const chatMode = this.chatModeService.findModeByName(mode);
