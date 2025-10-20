@@ -188,24 +188,33 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 
 };
 
+export interface ITerminalSuggestProviderInfo {
+	id: string;
+	description?: string;
+}
+
 let terminalSuggestProvidersConfiguration: IConfigurationNode | undefined;
 
-export function registerTerminalSuggestProvidersConfiguration(providerIds?: string[]) {
+export function registerTerminalSuggestProvidersConfiguration(providers?: Map<string, ITerminalSuggestProviderInfo>) {
 	const oldProvidersConfiguration = terminalSuggestProvidersConfiguration;
 	const enableByDefault = product.quality !== 'stable';
 
-	providerIds ??= [];
-	if (!providerIds.includes('lsp')) {
-		providerIds.push('lsp');
+	providers ??= new Map();
+	if (!providers.has('lsp')) {
+		providers.set('lsp', {
+			id: 'lsp',
+			description: localize('suggest.provider.lsp.description', 'Show suggestions from language servers.')
+		});
 	}
-	providerIds.sort();
 
 	const providersProperties: IStringDictionary<IConfigurationPropertySchema> = {};
-	for (const id of providerIds) {
+	for (const id of Array.from(providers.keys()).sort()) {
 		providersProperties[id] = {
 			type: 'boolean',
 			default: enableByDefault,
-			description: localize('suggest.provider.title', "Show suggestions from {0}", id)
+			description:
+				providers.get(id)?.description ??
+				localize('suggest.provider.title', "Show suggestions from {0}", id)
 		};
 	}
 
