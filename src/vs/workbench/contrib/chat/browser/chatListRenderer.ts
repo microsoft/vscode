@@ -202,7 +202,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	 * by screen readers
 	 */
 	private readonly _announcedToolProgressKeys = new Set<string>();
-	private readonly _rowContainerTemplateMap = new Map<HTMLElement, IChatListItemTemplate>();
+	private readonly _rowContainerTemplateMap = new WeakMap<HTMLElement, IChatListItemTemplate>();
 	private readonly _rowResizeObserver: ResizeObserver;
 
 	constructor(
