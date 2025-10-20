@@ -110,7 +110,7 @@ function getPlaceholderStringforNew(type: PromptsType): string {
 		case PromptsType.prompt:
 			return localize('workbench.command.prompt.create.location.placeholder', "Select a location to create the prompt file in...");
 		case PromptsType.agent:
-			return localize('workbench.command.mode.create.location.placeholder', "Select a location to create the mode file in...");
+			return localize('workbench.command.agent.create.location.placeholder', "Select a location to create the mode file in...");
 		default:
 			throw new Error('Unknown prompt type');
 	}
@@ -124,7 +124,7 @@ function getPlaceholderStringforMove(type: PromptsType, isMove: boolean): string
 			case PromptsType.prompt:
 				return localize('prompt.move.location.placeholder', "Select a location to move the prompt file to...");
 			case PromptsType.agent:
-				return localize('mode.move.location.placeholder', "Select a location to move the mode file to...");
+				return localize('agent.move.location.placeholder', "Select a location to move the agent file to...");
 			default:
 				throw new Error('Unknown prompt type');
 		}
@@ -135,7 +135,7 @@ function getPlaceholderStringforMove(type: PromptsType, isMove: boolean): string
 		case PromptsType.prompt:
 			return localize('prompt.copy.location.placeholder', "Select a location to copy the prompt file to...");
 		case PromptsType.agent:
-			return localize('mode.copy.location.placeholder', "Select a location to copy the mode file to...");
+			return localize('agent.copy.location.placeholder', "Select a location to copy the agent file to...");
 		default:
 			throw new Error('Unknown prompt type');
 	}
@@ -178,7 +178,7 @@ function getLearnLabel(type: PromptsType): string {
 		case PromptsType.instructions:
 			return localize('commands.instructions.create.ask-folder.empty.docs-label', 'Learn how to configure reusable instructions');
 		case PromptsType.agent:
-			return localize('commands.mode.create.ask-folder.empty.docs-label', 'Learn how to configure custom agents');
+			return localize('commands.agent.create.ask-folder.empty.docs-label', 'Learn how to configure custom agents');
 		default:
 			throw new Error('Unknown prompt type');
 	}
