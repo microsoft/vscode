@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { NlsString, LanguageTranslations, Category, Policy, Translations } from './types';
+import { NlsString, LanguageTranslations, Category, Policy, Translations, ProductJson } from './types';
 
 export function renderADMLString(prefix: string, moduleName: string, nlsString: NlsString, translations?: LanguageTranslations): string {
 	let value: string | undefined;
@@ -215,7 +215,7 @@ export function renderProfileManifest(appName: string, bundleIdentifier: string,
 </plist>`;
 }
 
-export function renderMacOSPolicy(product: any, policies: Policy[], translations: Translations) {
+export function renderMacOSPolicy(product: ProductJson, policies: Policy[], translations: Translations) {
 	const appName = product.nameLong;
 	const bundleIdentifier = product.darwinBundleIdentifier;
 	const payloadUUID = product.darwinProfilePayloadUUID;
@@ -277,7 +277,7 @@ ${policyEntries}
 	};
 }
 
-export function renderGP(product: any, policies: Policy[], translations: Translations) {
+export function renderGP(product: ProductJson, policies: Policy[], translations: Translations) {
 	const appName = product.nameLong;
 	const regKey = product.win32RegValueName;
 

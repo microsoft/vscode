@@ -371,7 +371,8 @@ suite('Render Functions', () => {
                 nameLong: 'VS Code',
                 darwinBundleIdentifier: 'com.microsoft.vscode',
                 darwinProfilePayloadUUID: 'payload-uuid',
-                darwinProfileUUID: 'uuid'
+                darwinProfileUUID: 'uuid',
+                win32RegValueName: 'VSCode'
             };
             const result = (0, render_js_1.renderMacOSPolicy)(product, [mockPolicy], []);
             const expected = `<?xml version="1.0" encoding="UTF-8"?>
@@ -420,7 +421,8 @@ suite('Render Functions', () => {
                 nameLong: 'VS Code',
                 darwinBundleIdentifier: 'com.microsoft.vscode',
                 darwinProfilePayloadUUID: 'payload-uuid',
-                darwinProfileUUID: 'uuid'
+                darwinProfileUUID: 'uuid',
+                win32RegValueName: 'VSCode'
             };
             const result = (0, render_js_1.renderMacOSPolicy)(product, [mockPolicy], []);
             assert_1.default.strictEqual(result.manifests.length, 1);
@@ -432,7 +434,8 @@ suite('Render Functions', () => {
                 nameLong: 'VS Code',
                 darwinBundleIdentifier: 'com.microsoft.vscode',
                 darwinProfilePayloadUUID: 'payload-uuid',
-                darwinProfileUUID: 'uuid'
+                darwinProfileUUID: 'uuid',
+                win32RegValueName: 'VSCode'
             };
             const translations = [
                 { languageId: 'fr-fr', languageTranslations: { 'testModule': { 'test.desc': 'Description Française' } } },
@@ -456,7 +459,8 @@ suite('Render Functions', () => {
                 nameLong: 'VS Code',
                 darwinBundleIdentifier: 'com.microsoft.vscode',
                 darwinProfilePayloadUUID: 'payload-uuid',
-                darwinProfileUUID: 'uuid'
+                darwinProfileUUID: 'uuid',
+                win32RegValueName: 'VSCode'
             };
             const result = (0, render_js_1.renderMacOSPolicy)(product, [mockPolicy, policy2], []);
             assert_1.default.ok(result.profile.includes('<key>TestPolicy</key>'));
@@ -469,7 +473,8 @@ suite('Render Functions', () => {
                 nameLong: 'My App',
                 darwinBundleIdentifier: 'com.example.app',
                 darwinProfilePayloadUUID: 'custom-payload-uuid',
-                darwinProfileUUID: 'custom-uuid'
+                darwinProfileUUID: 'custom-uuid',
+                win32RegValueName: 'VSCode'
             };
             const result = (0, render_js_1.renderMacOSPolicy)(product, [mockPolicy], []);
             assert_1.default.ok(result.profile.includes('<string>custom-payload-uuid</string>'));
@@ -481,7 +486,8 @@ suite('Render Functions', () => {
                 nameLong: 'VS Code',
                 darwinBundleIdentifier: 'com.microsoft.vscode',
                 darwinProfilePayloadUUID: 'payload-uuid',
-                darwinProfileUUID: 'uuid'
+                darwinProfileUUID: 'uuid',
+                win32RegValueName: 'VSCode'
             };
             const result = (0, render_js_1.renderMacOSPolicy)(product, [mockPolicy], []);
             assert_1.default.ok(result.profile.includes('https://code.visualstudio.com/docs/setup/enterprise'));
@@ -491,7 +497,8 @@ suite('Render Functions', () => {
                 nameLong: 'VS Code',
                 darwinBundleIdentifier: 'com.microsoft.vscode',
                 darwinProfilePayloadUUID: 'payload-uuid',
-                darwinProfileUUID: 'uuid'
+                darwinProfileUUID: 'uuid',
+                win32RegValueName: 'VSCode'
             };
             const result = (0, render_js_1.renderMacOSPolicy)(product, [mockPolicy], []);
             assert_1.default.ok(result.profile.includes('<key>TargetDeviceType</key>'));
@@ -523,6 +530,9 @@ suite('Render Functions', () => {
         test('should render complete GP with ADMX and ADML', () => {
             const product = {
                 nameLong: 'VS Code',
+                darwinBundleIdentifier: 'com.microsoft.vscode',
+                darwinProfilePayloadUUID: 'payload-uuid',
+                darwinProfileUUID: 'uuid',
                 win32RegValueName: 'VSCode'
             };
             const result = (0, render_js_1.renderGP)(product, [mockPolicy], []);
@@ -533,6 +543,9 @@ suite('Render Functions', () => {
         test('should include regKey in ADMX', () => {
             const product = {
                 nameLong: 'VS Code',
+                darwinBundleIdentifier: 'com.microsoft.vscode',
+                darwinProfilePayloadUUID: 'payload-uuid',
+                darwinProfileUUID: 'uuid',
                 win32RegValueName: 'CustomRegKey'
             };
             const result = (0, render_js_1.renderGP)(product, [mockPolicy], []);
@@ -542,6 +555,9 @@ suite('Render Functions', () => {
         test('should include en-us ADML by default', () => {
             const product = {
                 nameLong: 'VS Code',
+                darwinBundleIdentifier: 'com.microsoft.vscode',
+                darwinProfilePayloadUUID: 'payload-uuid',
+                darwinProfileUUID: 'uuid',
                 win32RegValueName: 'VSCode'
             };
             const result = (0, render_js_1.renderGP)(product, [mockPolicy], []);
@@ -552,6 +568,9 @@ suite('Render Functions', () => {
         test('should include translations in ADML', () => {
             const product = {
                 nameLong: 'VS Code',
+                darwinBundleIdentifier: 'com.microsoft.vscode',
+                darwinProfilePayloadUUID: 'payload-uuid',
+                darwinProfileUUID: 'uuid',
                 win32RegValueName: 'VSCode'
             };
             const translations = [
@@ -569,6 +588,9 @@ suite('Render Functions', () => {
         test('should pass versions to ADMX', () => {
             const product = {
                 nameLong: 'VS Code',
+                darwinBundleIdentifier: 'com.microsoft.vscode',
+                darwinProfilePayloadUUID: 'payload-uuid',
+                darwinProfileUUID: 'uuid',
                 win32RegValueName: 'VSCode'
             };
             const result = (0, render_js_1.renderGP)(product, [mockPolicy], []);
@@ -577,6 +599,9 @@ suite('Render Functions', () => {
         test('should pass versions to ADML', () => {
             const product = {
                 nameLong: 'VS Code',
+                darwinBundleIdentifier: 'com.microsoft.vscode',
+                darwinProfilePayloadUUID: 'payload-uuid',
+                darwinProfileUUID: 'uuid',
                 win32RegValueName: 'VSCode'
             };
             const result = (0, render_js_1.renderGP)(product, [mockPolicy], []);
@@ -585,6 +610,9 @@ suite('Render Functions', () => {
         test('should pass categories to ADMX', () => {
             const product = {
                 nameLong: 'VS Code',
+                darwinBundleIdentifier: 'com.microsoft.vscode',
+                darwinProfilePayloadUUID: 'payload-uuid',
+                darwinProfileUUID: 'uuid',
                 win32RegValueName: 'VSCode'
             };
             const result = (0, render_js_1.renderGP)(product, [mockPolicy], []);
@@ -593,6 +621,9 @@ suite('Render Functions', () => {
         test('should pass categories to ADML', () => {
             const product = {
                 nameLong: 'VS Code',
+                darwinBundleIdentifier: 'com.microsoft.vscode',
+                darwinProfilePayloadUUID: 'payload-uuid',
+                darwinProfileUUID: 'uuid',
                 win32RegValueName: 'VSCode'
             };
             const result = (0, render_js_1.renderGP)(product, [mockPolicy], []);
@@ -611,6 +642,9 @@ suite('Render Functions', () => {
             };
             const product = {
                 nameLong: 'VS Code',
+                darwinBundleIdentifier: 'com.microsoft.vscode',
+                darwinProfilePayloadUUID: 'payload-uuid',
+                darwinProfileUUID: 'uuid',
                 win32RegValueName: 'VSCode'
             };
             const result = (0, render_js_1.renderGP)(product, [mockPolicy, policy2], []);
@@ -622,6 +656,9 @@ suite('Render Functions', () => {
         test('should include app name in ADML', () => {
             const product = {
                 nameLong: 'My Custom App',
+                darwinBundleIdentifier: 'com.microsoft.vscode',
+                darwinProfilePayloadUUID: 'payload-uuid',
+                darwinProfileUUID: 'uuid',
                 win32RegValueName: 'VSCode'
             };
             const result = (0, render_js_1.renderGP)(product, [mockPolicy], []);
@@ -630,6 +667,9 @@ suite('Render Functions', () => {
         test('should return structured result with admx and adml properties', () => {
             const product = {
                 nameLong: 'VS Code',
+                darwinBundleIdentifier: 'com.microsoft.vscode',
+                darwinProfilePayloadUUID: 'payload-uuid',
+                darwinProfileUUID: 'uuid',
                 win32RegValueName: 'VSCode'
             };
             const result = (0, render_js_1.renderGP)(product, [mockPolicy], []);

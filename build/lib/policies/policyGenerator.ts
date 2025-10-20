@@ -13,10 +13,10 @@ import { NumberPolicy } from './numberPolicy';
 import { ObjectPolicy } from './objectPolicy';
 import { StringEnumPolicy } from './stringEnumPolicy';
 import { StringPolicy } from './stringPolicy';
-import { Version, LanguageTranslations, Policy, Translations, Languages } from './types';
+import { Version, LanguageTranslations, Policy, Translations, Languages, ProductJson } from './types';
 import { renderGP, renderMacOSPolicy } from './render';
 
-const product = require('../../../product.json');
+const product = require('../../../product.json') as ProductJson;
 const packageJson = require('../../../package.json');
 
 async function getSpecificNLS(resourceUrlTemplate: string, languageId: string, version: Version): Promise<LanguageTranslations> {

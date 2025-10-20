@@ -3,6 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+export interface ProductJson {
+	readonly nameLong: string;
+	readonly darwinBundleIdentifier: string;
+	readonly darwinProfilePayloadUUID: string;
+	readonly darwinProfileUUID: string;
+	readonly win32RegValueName: string;
+	readonly extensionsGallery?: {
+		readonly serviceUrl: string;
+		readonly resourceUrlTemplate: string;
+	}
+}
+
 export interface Policy {
 	readonly name: string;
 	readonly type: PolicyType;
