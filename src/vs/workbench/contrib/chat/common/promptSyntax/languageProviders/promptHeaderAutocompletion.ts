@@ -194,12 +194,12 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 		if (promptType === PromptsType.instructions && property === 'applyTo') {
 			return [`'**'`, `'**/*.ts, **/*.js'`, `'**/*.php'`, `'**/*.py'`];
 		}
-		if (promptType === PromptsType.prompt && (property === 'mode' || property === 'agent')) {
-			// Get all available modes (builtin + custom)
-			const modes = this.chatModeService.getModes();
+		if (promptType === PromptsType.prompt && (property === 'agent' || property === 'mode')) {
+			// Get all available agents (builtin + custom)
+			const agents = this.chatModeService.getModes();
 			const suggestions: string[] = [];
-			for (const mode of Iterable.concat(modes.builtin, modes.custom)) {
-				suggestions.push(mode.name);
+			for (const agent of Iterable.concat(agents.builtin, agents.custom)) {
+				suggestions.push(agent.name);
 			}
 			return suggestions;
 		}

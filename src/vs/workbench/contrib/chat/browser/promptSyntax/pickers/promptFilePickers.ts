@@ -138,7 +138,7 @@ const UPDATE_INSTRUCTIONS_OPTION: IPromptPickerQuickPickItem = Object.freeze({
 /**
  * A quick pick item that starts the 'New Instructions File' command.
  */
-const NEW_MODE_FILE_OPTION: IPromptPickerQuickPickItem = Object.freeze({
+const NEW_AGENT_FILE_OPTION: IPromptPickerQuickPickItem = Object.freeze({
 	type: 'item',
 	label: `$(plus) ${localize(
 		'commands.new-agentfile.select-dialog.label',
@@ -320,7 +320,7 @@ export class PromptFilePickers {
 			case PromptsType.instructions:
 				return [NEW_INSTRUCTIONS_FILE_OPTION, UPDATE_INSTRUCTIONS_OPTION];
 			case PromptsType.agent:
-				return [NEW_MODE_FILE_OPTION];
+				return [NEW_AGENT_FILE_OPTION];
 			default:
 				throw new Error(`Unknown prompt type '${type}'.`);
 		}

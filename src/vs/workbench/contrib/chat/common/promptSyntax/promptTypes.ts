@@ -23,7 +23,7 @@ export const PROMPT_LANGUAGE_ID = 'prompt';
 export const INSTRUCTIONS_LANGUAGE_ID = 'instructions';
 
 /**
- * Language ID for modes syntax.
+ * Language ID for agent syntax.
  */
 export const AGENT_LANGUAGE_ID = 'agent';
 
