@@ -54,9 +54,12 @@ abstract class ToolConfirmationAction extends Action2 {
 			return;
 		}
 
-		const unconfirmedToolInvocation = lastItem.model.response.value.find((item): item is IChatToolInvocation => item.kind === 'toolInvocation' && item.isConfirmed === undefined);
-		if (unconfirmedToolInvocation) {
-			unconfirmedToolInvocation.confirmed.complete(this.getReason());
+		for (const item of lastItem.model.response.value) {
+			const state = item.kind === 'toolInvocation' ? item.state.get() : undefined;
+			if (state?.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
+				state.confirm(this.getReason());
+				break;
+			}
 		}
 
 		// Return focus to the chat input, in case it was in the tool confirmation editor
