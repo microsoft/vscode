@@ -731,10 +731,6 @@ export default tseslint.config(
 			'src/vs/workbench/contrib/preferences/browser/settingsTree.ts',
 			'src/vs/workbench/contrib/preferences/browser/settingsTreeModels.ts',
 			'src/vs/workbench/contrib/remote/browser/tunnelView.ts',
-			'src/vs/workbench/contrib/scm/browser/quickDiffWidget.ts',
-			'src/vs/workbench/contrib/scm/browser/scmRepositoriesViewPane.ts',
-			'src/vs/workbench/contrib/scm/browser/scmViewPane.ts',
-			'src/vs/workbench/contrib/scm/browser/util.ts',
 			'src/vs/workbench/contrib/search/browser/AISearch/aiSearchModel.ts',
 			'src/vs/workbench/contrib/search/browser/AISearch/aiSearchModelBase.ts',
 			'src/vs/workbench/contrib/search/browser/notebookSearch/notebookSearchModel.ts',
@@ -914,7 +910,7 @@ export default tseslint.config(
 			'@typescript-eslint/no-explicit-any': [
 				'warn',
 				{
-					'ignoreRestArgs': false
+					'fixToUnknown': true
 				}
 			]
 		}

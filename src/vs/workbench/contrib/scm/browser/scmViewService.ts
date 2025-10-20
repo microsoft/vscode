@@ -112,6 +112,7 @@ export class SCMViewService implements ISCMViewService {
 	declare readonly _serviceBrand: undefined;
 
 	readonly menus: ISCMMenus;
+	readonly selectionModeConfig: IObservable<'multiple' | 'single'>;
 
 	private didFinishLoading: boolean = false;
 	private didSelectRepository: boolean = false;
@@ -224,8 +225,6 @@ export class SCMViewService implements ISCMViewService {
 	private readonly _activeRepositoryPinnedObs: ISettableObservable<ISCMRepository | undefined>;
 	private readonly _focusedRepositoryObs: IObservable<ISCMRepository | undefined>;
 
-	private readonly _selectionModeConfig: IObservable<'multiple' | 'single'>;
-
 	private _repositoriesSortKey: ISCMRepositorySortKey;
 	private _sortKeyContextKey: IContextKey<ISCMRepositorySortKey>;
 
@@ -243,14 +242,14 @@ export class SCMViewService implements ISCMViewService {
 	) {
 		this.menus = instantiationService.createInstance(SCMMenus);
 
-		this._selectionModeConfig = observableConfigValue<'multiple' | 'single'>('scm.repositories.selectionMode', 'multiple', this.configurationService);
+		this.selectionModeConfig = observableConfigValue<'multiple' | 'single'>('scm.repositories.selectionMode', 'single', this.configurationService);
 
 		try {
 			this.previousState = JSON.parse(storageService.get('scm:view:visibleRepositories', StorageScope.WORKSPACE, ''));
 
 			// If previously there were multiple visible repositories but the
 			// view mode is `single`, only restore the first visible repository.
-			if (this.previousState && this.previousState.visible.length > 1 && this._selectionModeConfig.get() === 'single') {
+			if (this.previousState && this.previousState.visible.length > 1 && this.selectionModeConfig.get() === 'single') {
 				this.previousState = {
 					...this.previousState,
 					visible: [this.previousState.visible[0]]
@@ -307,7 +306,7 @@ export class SCMViewService implements ISCMViewService {
 		});
 
 		this.disposables.add(autorun(reader => {
-			const selectionMode = this._selectionModeConfig.read(undefined);
+			const selectionMode = this.selectionModeConfig.read(undefined);
 			const activeRepository = this.activeRepository.read(reader);
 
 			if (selectionMode === 'single' && activeRepository) {
@@ -322,7 +321,7 @@ export class SCMViewService implements ISCMViewService {
 			}
 		}));
 
-		this.disposables.add(runOnChange(this._selectionModeConfig, selectionMode => {
+		this.disposables.add(runOnChange(this.selectionModeConfig, selectionMode => {
 			if (selectionMode === 'single' && this.visibleRepositories.length > 1) {
 				const repository = this.visibleRepositories[0];
 				this.visibleRepositories = [repository];
@@ -377,7 +376,7 @@ export class SCMViewService implements ISCMViewService {
 
 				this.insertRepositoryView(this._repositories, repositoryView);
 
-				if (this._selectionModeConfig.get() === 'multiple' || !this._repositories.find(r => r.selectionIndex !== -1)) {
+				if (this.selectionModeConfig.get() === 'multiple' || !this._repositories.find(r => r.selectionIndex !== -1)) {
 					// Multiple selection mode or single selection mode (select first repository)
 					this._repositories.forEach((repositoryView, index) => {
 						if (repositoryView.selectionIndex === -1) {
@@ -414,14 +413,14 @@ export class SCMViewService implements ISCMViewService {
 			}
 		}
 
-		if (this._selectionModeConfig.get() === 'multiple' || !this._repositories.find(r => r.selectionIndex !== -1)) {
+		if (this.selectionModeConfig.get() === 'multiple' || !this._repositories.find(r => r.selectionIndex !== -1)) {
 			// Multiple selection mode or single selection mode (select first repository)
 			const maxSelectionIndex = this.getMaxSelectionIndex();
 			this.insertRepositoryView(this._repositories, { ...repositoryView, selectionIndex: maxSelectionIndex + 1 });
 			this._onDidChangeRepositories.fire({ added: [repositoryView.repository], removed });
 
 			// Pin repository if needed
-			if (this._selectionModeConfig.get() === 'single' && this.previousState?.pinned && this.didSelectRepository) {
+			if (this.selectionModeConfig.get() === 'single' && this.previousState?.pinned && this.didSelectRepository) {
 				this.pinActiveRepository(repository);
 			}
 		} else {
@@ -485,9 +484,9 @@ export class SCMViewService implements ISCMViewService {
 		}
 
 		if (visible) {
-			if (this._selectionModeConfig.get() === 'single') {
+			if (this.selectionModeConfig.get() === 'single') {
 				this.visibleRepositories = [repository];
-			} else if (this._selectionModeConfig.get() === 'multiple') {
+			} else if (this.selectionModeConfig.get() === 'multiple') {
 				this.visibleRepositories = [...this.visibleRepositories, repository];
 			}
 		} else {
