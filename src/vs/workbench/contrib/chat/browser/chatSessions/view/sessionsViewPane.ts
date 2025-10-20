@@ -90,7 +90,7 @@ class ChatSessionsFindProvider implements IAsyncFindProvider<ChatSessionItemWith
 	}
 
 	/**
-	 * Converts a session to searchable text combining label, id, description, and tooltip
+	 * Converts a session to searchable text combining label, id and description
 	 */
 	private getSearchableText(session: ChatSessionItemWithProvider): string {
 		const parts = [
