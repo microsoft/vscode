@@ -5,7 +5,7 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import { Command, commands, Disposable, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage, Tab, TabInputNotebook, QuickInputButtonLocation, languages } from 'vscode';
+import { Command, commands, Disposable, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage, Tab, TabInputNotebook, QuickInputButtonLocation, languages, } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
 import { ForcePushMode, GitErrorCodes, RefType, Status, CommitOptions, RemoteSourcePublisher, Remote, Branch, Ref } from './api/git';
@@ -19,6 +19,8 @@ import { GitTimelineItem } from './timelineProvider';
 import { ApiRepository } from './api/api1';
 import { getRemoteSourceActions, pickRemoteSource } from './remoteSource';
 import { RemoteSourceAction } from './typings/git-base';
+import { RepositoryCacheInfo, RepositoryCache } from './repositoryCache';
+import { existsSync } from 'fs';
 
 abstract class CheckoutCommandItem implements QuickPickItem {
 	abstract get label(): string;
@@ -645,6 +647,12 @@ function sanitizeRemoteName(name: string) {
 	return name && name.replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$|\[|\]$/g, '-');
 }
 
+enum OpenExistingCloneResult {
+	Opened,
+	NotOpened,
+	Canceled
+}
+
 enum PushType {
 	Push,
 	PushTo,
@@ -774,7 +782,8 @@ export class CommandCenter {
 		private model: Model,
 		private globalState: Memento,
 		private logger: LogOutputChannel,
-		private telemetryReporter: TelemetryReporter
+		private telemetryReporter: TelemetryReporter,
+		private repositoryCache: RepositoryCache
 	) {
 		this.disposables = Commands.map(({ commandId, key, method, options }) => {
 			const command = this.createCommand(commandId, key, method, options);
@@ -1152,8 +1161,92 @@ export class CommandCenter {
 		}
 	}
 
+	private async tryCheckoutRefBeforeOpen(repoRootPath: string, ref: string) {
+		try {
+			if (!existsSync(path.join(repoRootPath, '.git'))) {
+				return;
+			}
+			await this.model.openRepository(repoRootPath, true, true);
+			const repo = this.model.getRepository(repoRootPath);
+			if (!repo) {
+				return;
+			}
+			await repo.checkout(ref);
+		} catch {
+			/* ignore errors */
+		}
+	}
+
+	private async offerOpenExistingRepository(url: string, options?: { ref?: string; openExisting?: boolean }): Promise<OpenExistingCloneResult> {
+		const knownFolders = this.repositoryCache.get(url);
+		if (!knownFolders || knownFolders.length === 0) {
+			return OpenExistingCloneResult.NotOpened;
+		}
+
+		// Gather existing folders/workspace files (ignore ones that no longer exist)
+		const existingCachedRepositories: RepositoryCacheInfo[] = [];
+		for (const folder of knownFolders) {
+			let exists = false;
+			try {
+				exists = existsSync(folder.workspacePath);
+			} catch { }
+			if (exists) {
+				existingCachedRepositories.push(folder);
+			}
+		}
+
+		if (!existingCachedRepositories.length) {
+			return OpenExistingCloneResult.NotOpened;
+		}
+
+		const openTarget = async (target: string, repoRootPath: string) => {
+			window.showInformationMessage(l10n.t('Opening repository clone'), { modal: true, detail: l10n.t('This will take a moment...') });
+			if (options?.ref) {
+				await this.tryCheckoutRefBeforeOpen(repoRootPath, options.ref);
+			}
+			const forceReuseWindow = ((workspace.workspaceFile === undefined) && (workspace.workspaceFolders === undefined));
+			await commands.executeCommand('vscode.openFolder', Uri.file(target), { forceReuseWindow });
+		};
+
+		const oneBestOption = (existingCachedRepositories.length === 1 ? existingCachedRepositories[0] : undefined);
+		if (options?.openExisting || oneBestOption) {
+			const toOpen = oneBestOption ?? existingCachedRepositories[0];
+			await openTarget(toOpen.workspacePath, toOpen.repoRootPath);
+			return OpenExistingCloneResult.Opened;
+		}
+
+		try {
+			const items: { label: string; description?: string; item?: RepositoryCacheInfo }[] = existingCachedRepositories.map(knownFolder => {
+				const isWorkspace = knownFolder.workspacePath.endsWith('.code-workspace');
+				const label = isWorkspace ? l10n.t('Workspace: {0}', path.basename(knownFolder.workspacePath, '.code-workspace')) : path.basename(knownFolder.workspacePath);
+				return { label, description: knownFolder.workspacePath, item: knownFolder };
+			});
+			const cloneAgain = { label: l10n.t('Clone again') };
+			items.push(cloneAgain);
+			const placeHolder = l10n.t('Open Existing Repository Clone');
+			const pick = await window.showQuickPick(items, { placeHolder, canPickMany: false });
+			if (!pick) {
+				return OpenExistingCloneResult.Canceled;
+			}
+			if (pick === cloneAgain) {
+				return OpenExistingCloneResult.NotOpened;
+			}
+			await openTarget(pick.item!.workspacePath, pick.item!.repoRootPath);
+			return OpenExistingCloneResult.Opened;
+		} catch {
+			return OpenExistingCloneResult.Canceled;
+		}
+
+	}
+
 	@command('git.clone')
-	async clone(url?: string, parentPath?: string, options?: { ref?: string }): Promise<void> {
+	async clone(url?: string, parentPath?: string, options?: { ref?: string; openExisting?: boolean }): Promise<void> {
+		if (typeof url === 'string') {
+			const openResult = await this.offerOpenExistingRepository(url, options);
+			if ((openResult === OpenExistingCloneResult.Opened) || (openResult === OpenExistingCloneResult.Canceled)) {
+				return;
+			}
+		}
 		await this.cloneRepository(url, parentPath, options);
 	}
 

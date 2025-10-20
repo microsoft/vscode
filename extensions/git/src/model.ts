@@ -276,11 +276,10 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 	 */
 	private _workspaceFolders = new Map<string, string>();
 
-	private repositoryCache: RepositoryCache;
 
 	private disposables: Disposable[] = [];
 
-	constructor(readonly git: Git, private readonly askpass: Askpass, private globalState: Memento, readonly workspaceState: Memento, private logger: LogOutputChannel, private telemetryReporter: TelemetryReporter) {
+	constructor(readonly git: Git, private readonly askpass: Askpass, private globalState: Memento, readonly workspaceState: Memento, private logger: LogOutputChannel, private telemetryReporter: TelemetryReporter, private readonly repositoryCache: RepositoryCache) {
 		// Repositories managers
 		this._closedRepositoriesManager = new ClosedRepositoriesManager(workspaceState);
 		this._parentRepositoriesManager = new ParentRepositoriesManager(globalState);
@@ -301,7 +300,6 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 
 		this.setState('uninitialized');
 		this.doInitialScan().finally(() => this.setState('initialized'));
-		this.repositoryCache = new RepositoryCache(globalState, logger);
 	}
 
 	private async doInitialScan(): Promise<void> {

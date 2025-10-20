@@ -56,7 +56,7 @@ class MockLogOutputChannel implements LogOutputChannel {
 	dispose(): void { }
 }
 
-class RepoCache extends RepositoryCache {
+class TestRepositoryCache extends RepositoryCache {
 	constructor(memento: Memento, logger: LogOutputChannel, private readonly _workspaceFileProp: Uri | undefined, private readonly _workspaceFoldersProp: readonly WorkspaceFolder[] | undefined) {
 		super(memento, logger);
 	}
@@ -74,9 +74,9 @@ suite('RepositoryCache', () => {
 
 	test('set & get basic', () => {
 		const memento = new InMemoryMemento();
-		const cache = new RepoCache(memento, new MockLogOutputChannel(), undefined, [{ uri: Uri.file('/workspace/repo'), name: 'workspace', index: 0 }]);
+		const cache = new TestRepositoryCache(memento, new MockLogOutputChannel(), undefined, [{ uri: Uri.file('/workspace/repo'), name: 'workspace', index: 0 }]);
 		cache.set('https://example.com/repo.git', '/workspace/repo');
-		const folders = cache.get('https://example.com/repo.git')!.map(folder => folder.replace(/\\/g, '/'));
+		const folders = cache.get('https://example.com/repo.git')!.map(folder => folder.workspacePath.replace(/\\/g, '/'));
 		assert.ok(folders, 'folders should be defined');
 		assert.deepStrictEqual(folders, ['/workspace/repo']);
 	});
@@ -87,12 +87,12 @@ suite('RepositoryCache', () => {
 		for (let i = 1; i <= 12; i++) {
 			workspaceFolders.push({ uri: Uri.file(`/ws/folder-${i.toString().padStart(2, '0')}`), name: `folder-${i.toString().padStart(2, '0')}`, index: i - 1 });
 		}
-		const cache = new RepoCache(memento, new MockLogOutputChannel(), undefined, workspaceFolders);
+		const cache = new TestRepositoryCache(memento, new MockLogOutputChannel(), undefined, workspaceFolders);
 		const repo = 'https://example.com/repo.git';
 		for (let i = 1; i <= 12; i++) {
 			cache.set(repo, `/ws/folder-${i.toString().padStart(2, '0')}`);
 		}
-		const folders = cache.get(repo)!.map(folder => folder.replace(/\\/g, '/'));
+		const folders = cache.get(repo)!.map(folder => folder.workspacePath.replace(/\\/g, '/'));
 		assert.strictEqual(folders.length, 10, 'should only retain 10 most recent folders');
 		assert.ok(!folders.includes('/ws/folder-01'), 'oldest folder-01 should be evicted');
 		assert.ok(!folders.includes('/ws/folder-02'), 'second oldest folder-02 should be evicted');
@@ -105,7 +105,7 @@ suite('RepositoryCache', () => {
 		for (let i = 1; i <= 35; i++) {
 			workspaceFolders.push({ uri: Uri.file(`/ws/r${i}`), name: `r${i}`, index: i - 1 });
 		}
-		const cache = new RepoCache(memento, new MockLogOutputChannel(), undefined, workspaceFolders);
+		const cache = new TestRepositoryCache(memento, new MockLogOutputChannel(), undefined, workspaceFolders);
 		for (let i = 1; i <= 35; i++) {
 			const repo = `https://example.com/r${i}.git`;
 			cache.set(repo, `/ws/r${i}`);
@@ -120,7 +120,7 @@ suite('RepositoryCache', () => {
 		workspaceFolders.push({ uri: Uri.file(`/ws/a`), name: `a`, index: 0 });
 		workspaceFolders.push({ uri: Uri.file(`/ws/b`), name: `b`, index: 1 });
 
-		const cache = new RepoCache(memento, new MockLogOutputChannel(), undefined, workspaceFolders);
+		const cache = new TestRepositoryCache(memento, new MockLogOutputChannel(), undefined, workspaceFolders);
 		const repo = 'https://example.com/repo.git';
 		const a = Uri.file('/ws/a').fsPath;
 		const b = Uri.file('/ws/b').fsPath;
