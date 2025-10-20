@@ -423,7 +423,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 				return true; // No when clause means always visible
 			}
 			const whenClause = ContextKeyExpr.deserialize(vendor.when);
-			return whenClause ? whenClause.evaluate(this._contextKeyService.getContext(null)) : true;
+			return whenClause ? this._contextKeyService.contextMatchesRules(whenClause) : true;
 		});
 	}
 
