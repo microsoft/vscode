@@ -414,33 +414,26 @@ export class PromptValidatorContribution extends Disposable {
 		const trackers = new ResourceMap<ModelTracker>();
 		this.localDisposables.add(toDisposable(() => {
 			trackers.forEach(tracker => tracker.dispose());
+			trackers.clear();
 		}));
-
-		const validateAllDelayer = this._register(new Delayer<void>(200));
-		const validateAll = (): void => {
-			validateAllDelayer.trigger(async () => {
-				this.modelService.getModels().forEach(model => {
-					const promptType = getPromptsTypeForLanguageId(model.getLanguageId());
-					if (promptType) {
-						trackers.set(model.uri, new ModelTracker(model, promptType, this.validator, this.promptsService, this.markerService));
-					}
-				});
-			});
-		};
-		this.localDisposables.add(this.modelService.onModelAdded((model) => {
+		this.modelService.getModels().forEach(model => {
 			const promptType = getPromptsTypeForLanguageId(model.getLanguageId());
 			if (promptType) {
 				trackers.set(model.uri, new ModelTracker(model, promptType, this.validator, this.promptsService, this.markerService));
 			}
+		});
+
+		this.localDisposables.add(this.modelService.onModelAdded((model) => {
+			const promptType = getPromptsTypeForLanguageId(model.getLanguageId());
+			if (promptType && !trackers.has(model.uri)) {
+				trackers.set(model.uri, new ModelTracker(model, promptType, this.validator, this.promptsService, this.markerService));
+			}
 		}));
 		this.localDisposables.add(this.modelService.onModelRemoved((model) => {
-			const promptType = getPromptsTypeForLanguageId(model.getLanguageId());
-			if (promptType) {
-				const tracker = trackers.get(model.uri);
-				if (tracker) {
-					tracker.dispose();
-					trackers.delete(model.uri);
-				}
+			const tracker = trackers.get(model.uri);
+			if (tracker) {
+				tracker.dispose();
+				trackers.delete(model.uri);
 			}
 		}));
 		this.localDisposables.add(this.modelService.onModelLanguageChanged((event) => {
@@ -455,10 +448,11 @@ export class PromptValidatorContribution extends Disposable {
 				trackers.set(model.uri, new ModelTracker(model, promptType, this.validator, this.promptsService, this.markerService));
 			}
 		}));
+
+		const validateAll = (): void => trackers.forEach(tracker => tracker.validate());
 		this.localDisposables.add(this.languageModelToolsService.onDidChangeTools(() => validateAll()));
 		this.localDisposables.add(this.chatModeService.onDidChangeChatModes(() => validateAll()));
 		this.localDisposables.add(this.languageModelsService.onDidChangeLanguageModels(() => validateAll()));
-		validateAll();
 	}
 }
 
@@ -479,7 +473,7 @@ class ModelTracker extends Disposable {
 		this.validate();
 	}
 
-	private validate(): void {
+	public validate(): void {
 		this.delayer.trigger(async () => {
 			const markers: IMarkerData[] = [];
 			const ast = this.promptsService.getParsedPromptFile(this.textModel);
