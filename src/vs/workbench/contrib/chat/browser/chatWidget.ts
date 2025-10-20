@@ -1060,9 +1060,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			} else if (expEmptyState) {
 				welcomeContent = this.getWelcomeViewContent(additionalMessage, expEmptyState);
 			} else {
-				const tips = this.input.currentModeKind === ChatModeKind.Ask
+				const defaultTips = this.input.currentModeKind === ChatModeKind.Ask
 					? new MarkdownString(localize('chatWidget.tips', "{0} or type {1} to attach context\n\n{2} to chat with extensions\n\nType {3} to use commands", '$(attach)', '#', '$(mention)', '/'), { supportThemeIcons: true })
 					: new MarkdownString(localize('chatWidget.tips.withoutParticipants', "{0} or type {1} to attach context", '$(attach)', '#'), { supportThemeIcons: true });
+				const contributedTips = this._lockedAgentId ? this.chatSessionsService.getWelcomeTipsForSessionType(this._lockedAgentId) : undefined;
+				const tips = contributedTips
+					? new MarkdownString(contributedTips, { supportThemeIcons: true })
+					: (!this._lockedAgentId ? defaultTips : undefined);
 				welcomeContent = this.getWelcomeViewContent(additionalMessage);
 				welcomeContent.tips = tips;
 			}
@@ -1425,6 +1429,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const providerIcon = this._lockedAgentId ? this.chatSessionsService.getIconForSessionType(this._lockedAgentId) : undefined;
 		const providerTitle = this._lockedAgentId ? this.chatSessionsService.getWelcomeTitleForSessionType(this._lockedAgentId) : undefined;
 		const providerMessage = this._lockedAgentId ? this.chatSessionsService.getWelcomeMessageForSessionType(this._lockedAgentId) : undefined;
+		const providerTips = this._lockedAgentId ? this.chatSessionsService.getWelcomeTipsForSessionType(this._lockedAgentId) : undefined;
 		const suggestedPrompts = this._lockedAgentId ? undefined : this.getNewSuggestedPrompts();
 
 		const welcomeContent: IChatViewWelcomeContent = {
@@ -1436,6 +1441,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			isNew: true,
 			suggestedPrompts
 		};
+
+		// Add contributed tips if available
+		if (providerTips) {
+			welcomeContent.tips = new MarkdownString(providerTips, { supportThemeIcons: true });
+		}
 		return welcomeContent;
 	}
 
