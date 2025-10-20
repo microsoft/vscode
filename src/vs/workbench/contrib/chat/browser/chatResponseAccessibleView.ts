@@ -110,7 +110,7 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 				} else {
 					const resultDetails = IChatToolInvocation.resultDetails(toolInvocation);
 					if (resultDetails && 'input' in resultDetails) {
-						responseContent += '\n' + resultDetails.isError ? 'Errored ' : 'Completed ';
+						responseContent += '\n' + (resultDetails.isError ? 'Errored ' : 'Completed ');
 						responseContent += `${`${typeof toolInvocation.invocationMessage === 'string' ? toolInvocation.invocationMessage : stripIcons(renderAsPlaintext(toolInvocation.invocationMessage))} with input: ${resultDetails.input}`}\n`;
 					}
 				}
