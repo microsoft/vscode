@@ -10,6 +10,7 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { ITerminalLinkDetector, ITerminalLinkResolver, ITerminalSimpleLink, TerminalBuiltinLinkType } from './links.js';
 import { convertLinkRangeToBuffer, getXtermLineContent } from './terminalLinkHelpers.js';
+import { getTerminalLinkType } from './terminalLocalLinkDetector.js';
 import { ITerminalProcessManager } from '../../../terminal/common/terminal.js';
 import type { IBufferLine, Terminal } from '@xterm/xterm';
 import { ITerminalBackend, ITerminalLogService } from '../../../../../platform/terminal/common/terminal.js';
@@ -96,16 +97,7 @@ export class TerminalUriLinkDetector implements ITerminalLinkDetector {
 
 				// Create the link if validated
 				if (linkStat) {
-					let type: TerminalBuiltinLinkType;
-					if (linkStat.isDirectory) {
-						if (this._isDirectoryInsideWorkspace(uriCandidate)) {
-							type = TerminalBuiltinLinkType.LocalFolderInWorkspace;
-						} else {
-							type = TerminalBuiltinLinkType.LocalFolderOutsideWorkspace;
-						}
-					} else {
-						type = TerminalBuiltinLinkType.LocalFile;
-					}
+					const type = getTerminalLinkType(uriCandidate, linkStat.isDirectory, this._uriIdentityService, this._workspaceContextService);
 					const simpleLink: ITerminalSimpleLink = {
 						// Use computedLink.url if it's a string to retain the line/col suffix
 						text: typeof computedLink.url === 'string' ? computedLink.url : linkStat.link,
@@ -127,16 +119,6 @@ export class TerminalUriLinkDetector implements ITerminalLinkDetector {
 		}
 
 		return links;
-	}
-
-	private _isDirectoryInsideWorkspace(uri: URI) {
-		const folders = this._workspaceContextService.getWorkspace().folders;
-		for (let i = 0; i < folders.length; i++) {
-			if (this._uriIdentityService.extUri.isEqualOrParent(uri, folders[i].uri)) {
-				return true;
-			}
-		}
-		return false;
 	}
 
 	private _excludeLineAndColSuffix(path: string): string {

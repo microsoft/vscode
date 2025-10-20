@@ -11,6 +11,7 @@ import { Iterable } from '../../../base/common/iterator.js';
 import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../base/common/map.js';
 import { Schemas } from '../../../base/common/network.js';
+import { observableValue } from '../../../base/common/observable.js';
 import { join } from '../../../base/common/path.js';
 import { isLinux, isMacintosh } from '../../../base/common/platform.js';
 import { basename, isEqual, isEqualOrParent } from '../../../base/common/resources.js';
@@ -31,6 +32,7 @@ import { TestWorkspace } from '../../../platform/workspace/test/common/testWorks
 import { GroupIdentifier, IRevertOptions, ISaveOptions, SaveReason } from '../../common/editor.js';
 import { EditorInput } from '../../common/editor/editorInput.js';
 import { IActivity, IActivityService } from '../../services/activity/common/activity.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../services/chat/common/chatEntitlementService.js';
 import { NullExtensionService } from '../../services/extensions/common/extensions.js';
 import { IAutoSaveConfiguration, IAutoSaveMode, IFilesConfigurationService } from '../../services/filesConfiguration/common/filesConfigurationService.js';
 import { IHistoryService } from '../../services/history/common/history.js';
@@ -263,9 +265,9 @@ export class TestWorkingCopyFileService implements IWorkingCopyFileService {
 
 	declare readonly _serviceBrand: undefined;
 
-	onWillRunWorkingCopyFileOperation: Event<WorkingCopyFileEvent> = Event.None;
-	onDidFailWorkingCopyFileOperation: Event<WorkingCopyFileEvent> = Event.None;
-	onDidRunWorkingCopyFileOperation: Event<WorkingCopyFileEvent> = Event.None;
+	readonly onWillRunWorkingCopyFileOperation: Event<WorkingCopyFileEvent> = Event.None;
+	readonly onDidFailWorkingCopyFileOperation: Event<WorkingCopyFileEvent> = Event.None;
+	readonly onDidRunWorkingCopyFileOperation: Event<WorkingCopyFileEvent> = Event.None;
 
 	addFileOperationParticipant(participant: IWorkingCopyFileOperationParticipant): IDisposable { return Disposable.None; }
 
@@ -288,6 +290,7 @@ export class TestWorkingCopyFileService implements IWorkingCopyFileService {
 }
 
 export function mock<T>(): Ctor<T> {
+	// eslint-disable-next-line local/code-no-any-casts
 	return function () { } as any;
 }
 
@@ -746,3 +749,33 @@ export class InMemoryTestFileService extends TestFileService {
 		return createFileStat(resource, this.readonly);
 	}
 }
+
+export class TestChatEntitlementService implements IChatEntitlementService {
+
+	_serviceBrand: undefined;
+
+	readonly organisations: undefined;
+	readonly isInternal = false;
+	readonly sku = undefined;
+
+	readonly onDidChangeQuotaExceeded = Event.None;
+	readonly onDidChangeQuotaRemaining = Event.None;
+	readonly quotas = {};
+
+	update(token: CancellationToken): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+
+	readonly onDidChangeSentiment = Event.None;
+	readonly sentimentObs = observableValue({}, {});
+	readonly sentiment = {};
+
+	readonly onDidChangeEntitlement = Event.None;
+	entitlement: ChatEntitlement = ChatEntitlement.Unknown;
+	readonly entitlementObs = observableValue({}, ChatEntitlement.Unknown);
+
+	readonly anonymous = false;
+	onDidChangeAnonymous = Event.None;
+	readonly anonymousObs = observableValue({}, false);
+}
+

@@ -47,9 +47,7 @@ import { SCMAccessibilityHelp } from './scmAccessibilityHelp.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { SCMHistoryItemContextContribution } from './scmHistoryChatContext.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../base/common/actions.js';
-import { CHAT_SETUP_ACTION_ID } from '../../chat/browser/actions/chatActions.js';
+import { CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID } from '../../chat/browser/actions/chatActions.js';
 import product from '../../../../platform/product/common/product.js';
 
 ModesRegistry.registerLanguage({
@@ -350,6 +348,16 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			description: localize('providersVisible', "Controls how many repositories are visible in the Source Control Repositories section. Set to 0, to be able to manually resize the view."),
 			default: 10
 		},
+		'scm.repositories.selectionMode': {
+			type: 'string',
+			enum: ['multiple', 'single'],
+			enumDescriptions: [
+				localize('scm.repositories.selectionMode.multiple', "Multiple repositories can be selected at the same time."),
+				localize('scm.repositories.selectionMode.single', "Only one repository can be selected at a time.")
+			],
+			description: localize('scm.repositories.selectionMode', "Controls the selection mode of the repositories in the Source Control Repositories view."),
+			default: 'single'
+		},
 		'scm.showActionButton': {
 			type: 'boolean',
 			markdownDescription: localize('showActionButton', "Controls whether an action button can be shown in the Source Control view."),
@@ -551,7 +559,7 @@ CommandsRegistry.registerCommand('scm.setActiveProvider', async (accessor) => {
 	const scmViewService = accessor.get(ISCMViewService);
 
 	const placeHolder = localize('scmActiveRepositoryPlaceHolder', "Select the active repository, type to filter all repositories");
-	const autoQuickItemDescription = localize('scmActiveRepositoryAutoDescription', "The active repository is updated based on focused repository/active editor");
+	const autoQuickItemDescription = localize('scmActiveRepositoryAutoDescription', "The active repository is updated based on active editor");
 	const repositoryPicker = instantiationService.createInstance(RepositoryPicker, placeHolder, autoQuickItemDescription);
 
 	const result = await repositoryPicker.pickRepository();
@@ -666,13 +674,10 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 		const commandService = accessor.get(ICommandService);
-		const telemetryService = accessor.get(ITelemetryService);
 
-		telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: CHAT_SETUP_ACTION_ID, from: 'scmResolveConflicts' });
-
-		const result = await commandService.executeCommand(CHAT_SETUP_ACTION_ID);
+		const result = await commandService.executeCommand(CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID);
 		if (!result) {
 			return;
 		}

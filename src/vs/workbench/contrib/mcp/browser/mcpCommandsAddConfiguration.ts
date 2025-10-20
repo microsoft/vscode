@@ -410,14 +410,14 @@ export class McpAddConfigurationCommand {
 			if (!packageType) {
 				throw new Error(`Unsupported assisted package type ${type}`);
 			}
-			const server = this._mcpManagementService.getMcpServerConfigurationFromManifest(config.server, packageType);
-			if (server.config.type !== McpServerType.LOCAL) {
-				throw new Error(`Unexpected server type ${server.config.type} for assisted configuration from server.json.`);
+			const { mcpServerConfiguration } = this._mcpManagementService.getMcpServerConfigurationFromManifest(config.server, packageType);
+			if (mcpServerConfiguration.config.type !== McpServerType.LOCAL) {
+				throw new Error(`Unexpected server type ${mcpServerConfiguration.config.type} for assisted configuration from server.json.`);
 			}
 			return {
 				name: config.name,
-				server: server.config,
-				inputs: server.inputs,
+				server: mcpServerConfiguration.config,
+				inputs: mcpServerConfiguration.inputs,
 			};
 		} else if (config?.type === 'vscode' || !config?.type) {
 			return config;

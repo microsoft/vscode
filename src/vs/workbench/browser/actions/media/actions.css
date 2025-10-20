@@ -35,7 +35,7 @@
 	text-overflow: ellipsis;
 }
 
-.monaco-workbench:not(.reduce-motion) .screencast-keyboard {
+.monaco-workbench.monaco-enable-motion .screencast-keyboard {
 	transition: opacity 0.3s ease-out;
 }
 

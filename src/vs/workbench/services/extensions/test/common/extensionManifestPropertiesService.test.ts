@@ -46,10 +46,12 @@ suite('ExtensionManifestPropertiesService - ExtensionKind', () => {
 	});
 
 	test('declarative with unknown contribution point => workspace, web in web and => workspace in desktop', () => {
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.deepStrictEqual(testObject.getExtensionKind(<IExtensionManifest>{ contributes: <any>{ 'unknownPoint': { something: true } } }), isWeb ? ['workspace', 'web'] : ['workspace']);
 	});
 
 	test('declarative extension pack with unknown contribution point', () => {
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.deepStrictEqual(testObject.getExtensionKind(<IExtensionManifest>{ extensionPack: ['ext1', 'ext2'], contributes: <any>{ 'unknownPoint': { something: true } } }), isWeb ? ['workspace', 'web'] : ['workspace']);
 	});
 
@@ -92,14 +94,17 @@ suite('ExtensionManifestPropertiesService - ExtensionKind', () => {
 	});
 
 	test('extension cannot opt out from web', () => {
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.deepStrictEqual(testObject.getExtensionKind(<any>{ browser: 'main.browser.js', extensionKind: ['-web'] }), ['web']);
 	});
 
 	test('extension cannot opt into web', () => {
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.deepStrictEqual(testObject.getExtensionKind(<any>{ main: 'main.js', extensionKind: ['web', 'workspace', 'ui'] }), ['workspace', 'ui']);
 	});
 
 	test('extension cannot opt into web only', () => {
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.deepStrictEqual(testObject.getExtensionKind(<any>{ main: 'main.js', extensionKind: ['web'] }), ['workspace']);
 	});
 });

@@ -34,7 +34,7 @@ import { isIOS } from '../../../../base/common/platform.js';
 import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
 import { isDefined, isUndefinedOrNull } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
-import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { localize } from '../../../../nls.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
@@ -824,8 +824,6 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 	protected readonly _onApplyFilter = this._register(new Emitter<string>());
 	readonly onApplyFilter: Event<string> = this._onApplyFilter.event;
 
-	private readonly markdownRenderer: MarkdownRenderer;
-
 	constructor(
 		private readonly settingActions: IAction[],
 		private readonly disposableActionFactory: (setting: ISetting, settingTarget: SettingsTarget) => IAction[],
@@ -842,10 +840,9 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		@IProductService protected readonly _productService: IProductService,
 		@ITelemetryService protected readonly _telemetryService: ITelemetryService,
 		@IHoverService protected readonly _hoverService: IHoverService,
+		@IMarkdownRendererService private readonly _markdownRendererService: IMarkdownRendererService,
 	) {
 		super();
-
-		this.markdownRenderer = _instantiationService.createInstance(MarkdownRenderer, {});
 
 		this.ignoredSettings = getIgnoredSettings(getDefaultIgnoredSettings(), this._configService);
 		this._register(this._configService.onDidChangeConfiguration(e => {
@@ -1029,7 +1026,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		// Rewrite `#editor.fontSize#` to link format
 		text = fixSettingLinks(text);
 
-		const renderedMarkdown = disposables.add(this.markdownRenderer.render({ value: text, isTrusted: true }, {
+		const renderedMarkdown = disposables.add(this._markdownRendererService.render({ value: text, isTrusted: true }, {
 			actionHandler: (content: string) => {
 				if (content.startsWith('#')) {
 					const e: ISettingLinkClickEvent = {
@@ -2619,7 +2616,7 @@ export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
 		}));
 	}
 
-	protected override createModel(user: string, options: IObjectTreeOptions<SettingsTreeGroupChild>): ITreeModel<SettingsTreeGroupChild | null, void, SettingsTreeGroupChild | null> {
+	protected override createModel(user: string, options: IObjectTreeOptions<SettingsTreeElement | null, void>): ITreeModel<SettingsTreeGroupChild | null, void, SettingsTreeGroupChild | null> {
 		return new NonCollapsibleObjectTreeModel<SettingsTreeGroupChild>(user, options);
 	}
 }

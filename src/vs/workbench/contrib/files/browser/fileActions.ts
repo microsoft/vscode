@@ -78,14 +78,6 @@ export const UPLOAD_LABEL = nls.localize('upload', "Upload...");
 const CONFIRM_DELETE_SETTING_KEY = 'explorer.confirmDelete';
 const MAX_UNDO_FILE_SIZE = 5000000; // 5mb
 
-function onError(notificationService: INotificationService, error: any): void {
-	if (error.message === 'string') {
-		error = error.message;
-	}
-
-	notificationService.error(toErrorMessage(error, false));
-}
-
 async function refreshIfSeparator(value: string, explorerService: IExplorerService): Promise<void> {
 	if (value && ((value.indexOf('/') >= 0) || (value.indexOf('\\') >= 0))) {
 		// New input contains separator, multiple resources will get created workaround for #68204
@@ -600,7 +592,7 @@ abstract class BaseSaveAllAction extends Action {
 		try {
 			await this.doRun(context);
 		} catch (error) {
-			onError(this.notificationService, error);
+			this.notificationService.error(toErrorMessage(error, false));
 		}
 	}
 }
@@ -1281,7 +1273,7 @@ export const pasteFileHandler = async (accessor: ServicesAccessor, fileList?: Fi
 			}
 		}
 	} catch (e) {
-		onError(notificationService, new Error(nls.localize('fileDeleted', "The file(s) to paste have been deleted or moved since you copied them. {0}", getErrorMessage(e))));
+		notificationService.error(toErrorMessage(new Error(nls.localize('fileDeleted', "The file(s) to paste have been deleted or moved since you copied them. {0}", getErrorMessage(e))), false));
 	} finally {
 		if (pasteShouldMove) {
 			// Cut is done. Make sure to clear cut state.
