@@ -771,7 +771,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-editing-session .chat-editing-session-container {
 	margin-bottom: -13px;
-	padding: 6px 8px 18px 8px;
+	padding: 6px 8px 6px 8px;
 	box-sizing: border-box;
 	background-color: var(--vscode-editor-background);
 	border: 1px solid var(--vscode-input-border, transparent);
@@ -1085,21 +1085,19 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container {
 	width: 100%;
 	position: relative;
-	margin-bottom: -13px;
-	padding: 6px 8px 18px 12px;
+	margin-bottom: -4px;
+}
+
+.interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget {
+	padding: 6px 8px 6px 12px;
 	box-sizing: border-box;
 	border: 1px solid var(--vscode-input-border, transparent);
 	background-color: var(--vscode-editor-background);
 	border-bottom: none;
 	border-radius: 4px;
-	display: flex;
 	flex-direction: column;
 	gap: 2px;
 	overflow: hidden;
-}
-
-.interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget {
-	padding-right: 12px;
 }
 
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-list-expand {
@@ -1136,13 +1134,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-clear-button-container {
 	display: flex;
 	align-items: center;
-	opacity: 0;
-	transition: opacity 0.2s ease;
-}
-
-.interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-list-expand:hover .todo-clear-button-container,
-.interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-list-expand:focus-within .todo-clear-button-container,
-.interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-clear-button-container:focus-within {
 	opacity: 1;
 }
 
@@ -1162,9 +1153,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	cursor: pointer;
 }
 
-.interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-clear-button-container .monaco-button:hover {
-	background-color: var(--vscode-toolbar-hoverBackground) !important;
-}
 
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-clear-button-container .monaco-button:focus {
 	outline: 1px solid var(--vscode-focusBorder);
@@ -1176,9 +1164,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	color: var(--vscode-foreground);
 }
 
-.interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-list-expand:hover {
-	background-color: var(--vscode-toolbar-hoverBackground);
-}
 
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .expand-icon {
 	flex-shrink: 0;
@@ -3266,10 +3251,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .editor-instance .interactive-session .interactive-response .value .chat-thinking-box .chat-thinking-item ::before {
 	background: var(--vscode-editor-background);
-}
-
-.editor-instance .chat-todo-list-widget {
-	background-color: var(--vscode-editor-background);
 }
 
 /* Show more attachments button styling */
