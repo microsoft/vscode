@@ -8265,12 +8265,12 @@ declare module 'vscode' {
 		 * Creates a new terminal completion item.
 		 *
 		 * @param label The label of the completion.
-		 * @param valueSelection The inclusive start and exclusive end index of the text to replace.
+		 * @param replacementRange The inclusive start and exclusive end index of the text to replace.
 		 * @param kind The completion's kind.
 		 */
 		constructor(
 			label: string | CompletionItemLabel,
-			valueSelection: readonly [number, number],
+			replacementRange: readonly [number, number],
 			kind?: TerminalCompletionItemKind
 		);
 	}
