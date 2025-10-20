@@ -41,6 +41,10 @@ interface IGitHubInfo {
 	readonly uses_custom_opengraph_image?: boolean;
 }
 
+interface IAzureAPICenterInfo {
+	readonly 'x-ms-icon'?: string;
+}
+
 interface IRawGalleryMcpServersMetadata {
 	readonly count: number;
 	readonly total?: number;
@@ -68,6 +72,7 @@ interface IRawGalleryMcpServer {
 		readonly id?: string;
 		readonly readme?: string;
 	};
+	readonly icons?: readonly IRawGalleryMcpServerIcon[];
 	readonly status?: GalleryMcpServerStatus;
 	readonly websiteUrl?: string;
 	readonly createdAt?: string;
@@ -76,6 +81,7 @@ interface IRawGalleryMcpServer {
 	readonly remotes?: ReadonlyArray<SseTransport | StreamableHttpTransport>;
 	readonly registryInfo?: IMcpRegistryInfo;
 	readonly githubInfo?: IGitHubInfo;
+	readonly apicInfo?: IAzureAPICenterInfo;
 }
 
 interface IGalleryMcpServerDataSerializer {
@@ -83,6 +89,25 @@ interface IGalleryMcpServerDataSerializer {
 	toRawGalleryMcpServer(input: unknown): IRawGalleryMcpServer | undefined;
 }
 
+interface IRawGalleryMcpServerIcon {
+	readonly src: string;
+	readonly theme?: IconTheme;
+	readonly sizes?: string[];
+	readonly mimeType?: IconMimeType;
+}
+
+const enum IconMimeType {
+	PNG = 'image/png',
+	JPEG = 'image/jpeg',
+	JPG = 'image/jpg',
+	SVG = 'image/svg+xml',
+	WEBP = 'image/webp',
+}
+
+const enum IconTheme {
+	LIGHT = 'light',
+	DARK = 'dark',
+}
 
 namespace McpServerSchemaVersion_v2025_07_09 {
 
@@ -457,6 +482,7 @@ namespace McpServerSchemaVersion_v0_1 {
 		readonly version: string;
 		readonly $schema?: string;
 		readonly title?: string;
+		readonly icons?: IRawGalleryMcpServerIcon[];
 		readonly repository?: {
 			readonly source: string;
 			readonly url: string;
@@ -468,7 +494,7 @@ namespace McpServerSchemaVersion_v0_1 {
 		readonly remotes?: RawGalleryMcpServerRemotes;
 		readonly _meta?: {
 			readonly 'io.modelcontextprotocol.registry/publisher-provided'?: Record<string, unknown>;
-		};
+		} & IAzureAPICenterInfo;
 	}
 
 	interface RawGalleryMcpServerInfo {
@@ -505,7 +531,11 @@ namespace McpServerSchemaVersion_v0_1 {
 			for (const server of from.servers) {
 				const rawServer = this.toRawGalleryMcpServer(server);
 				if (!rawServer) {
-					return undefined;
+					if (servers.length === 0) {
+						return undefined;
+					} else {
+						continue;
+					}
 				}
 				servers.push(rawServer);
 			}
@@ -536,6 +566,8 @@ namespace McpServerSchemaVersion_v0_1 {
 				return undefined;
 			}
 
+			const { 'io.modelcontextprotocol.registry/official': registryInfo, ...apicInfo } = from._meta ?? {};
+
 			return {
 				name: from.server.name,
 				description: from.server.description,
@@ -547,12 +579,14 @@ namespace McpServerSchemaVersion_v0_1 {
 					id: from.server.repository.id,
 					readme: from.server.repository.readme
 				} : undefined,
+				icons: from.server.icons,
 				websiteUrl: from.server.websiteUrl,
 				packages: from.server.packages,
 				remotes: from.server.remotes,
-				status: from._meta?.['io.modelcontextprotocol.registry/official']?.status,
-				registryInfo: from._meta?.['io.modelcontextprotocol.registry/official'],
+				status: registryInfo?.status,
+				registryInfo,
 				githubInfo: from.server._meta?.['io.modelcontextprotocol.registry/publisher-provided']?.github as IGitHubInfo | undefined,
+				apicInfo
 			};
 		}
 	}
@@ -777,10 +811,30 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 			displayName = server.githubInfo.display_name;
 		}
 
-		const icon: { light: string; dark: string } | undefined = server.githubInfo?.owner_avatar_url ? {
-			light: server.githubInfo.owner_avatar_url,
-			dark: server.githubInfo.owner_avatar_url
-		} : undefined;
+		let icon: { light: string; dark: string } | undefined;
+
+		if (server.githubInfo?.owner_avatar_url) {
+			icon = {
+				light: server.githubInfo.owner_avatar_url,
+				dark: server.githubInfo.owner_avatar_url
+			};
+		}
+
+		else if (server.apicInfo?.['x-ms-icon']) {
+			icon = {
+				light: server.apicInfo['x-ms-icon'],
+				dark: server.apicInfo['x-ms-icon']
+			};
+		}
+
+		else if (server.icons && server.icons.length > 0) {
+			const lightIcon = server.icons.find(icon => icon.theme === 'light') ?? server.icons[0];
+			const darkIcon = server.icons.find(icon => icon.theme === 'dark') ?? lightIcon;
+			icon = {
+				light: lightIcon.src,
+				dark: darkIcon.src
+			};
+		}
 
 		const webUrl = manifest ? this.getWebUrl(server.name, manifest) : undefined;
 		const publisherUrl = manifest ? this.getPublisherUrl(publisher, manifest) : undefined;
