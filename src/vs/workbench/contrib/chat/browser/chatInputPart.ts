@@ -194,8 +194,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	/**
-  	* Check if the chat input part has any prompt file attachments.
-  	*/
+	 * Check if the chat input part has any prompt file attachments.
+	 */
 	get hasPromptFileAttachments(): boolean {
 		return this._attachmentModel.attachments.some(entry => {
 			return isPromptFileVariableEntry(entry) && entry.isRoot && this.promptsService.getPromptFileType(entry.value) === PromptsType.prompt;
@@ -285,8 +285,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private inputEditorHasFocus: IContextKey<boolean>;
 	private currentlyEditingInputKey!: IContextKey<boolean>;
 	/**
-  	* Context key is set when prompt instructions are attached.
-  	*/
+	 * Context key is set when prompt instructions are attached.
+	 */
 	private promptFileAttached: IContextKey<boolean>;
 	private chatModeKindKey: IContextKey<ChatModeKind>;
 	private withinEditSessionKey: IContextKey<boolean>;
@@ -371,9 +371,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private _attemptedWorkingSetEntriesCount: number = 0;
 	/**
-  	* The number of working set entries that the user actually wanted to attach.
-  	* This is less than or equal to {@link ChatInputPart.chatEditWorkingSetFiles}.
-  	*/
+	 * The number of working set entries that the user actually wanted to attach.
+	 * This is less than or equal to {@link ChatInputPart.chatEditWorkingSetFiles}.
+	 */
 	public get attemptedWorkingSetEntriesCount() {
 		return this._attemptedWorkingSetEntriesCount;
 	}
@@ -381,8 +381,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private readonly getInputState: () => IChatInputState;
 
 	/**
-  	* Number consumers holding the 'generating' lock.
-  	*/
+	 * Number consumers holding the 'generating' lock.
+	 */
 	private _generating?: { rc: number; defer: DeferredPromise<void> };
 
 	constructor(
@@ -626,9 +626,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	/**
-  	* Create picker widgets for all registered option groups for the current session type.
-  	* Returns an array of all created widgets.
-  	*/
+	 * Create picker widgets for all registered option groups for the current session type.
+	 * Returns an array of all created widgets.
+	 */
 	private createChatSessionPickerWidgets(action: MenuItemAction): ChatSessionPickerActionItem[] {
 		// Helper to resolve chat session context
 		const resolveChatSessionContext = () => {
@@ -711,8 +711,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	/**
-  	* By ID- prefer this method
-  	*/
+	 * By ID- prefer this method
+	 */
 	setChatMode(mode: ChatModeKind | string, storeSelection = true): void {
 		if (!this.options.supportsChangingModes) {
 			return;
@@ -1055,9 +1055,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	/**
-  	* Reset the input and update history.
-  	* @param userQuery If provided, this will be added to the history. Followups and programmatic queries should not be passed.
-  	*/
+	 * Reset the input and update history.
+	 * @param userQuery If provided, this will be added to the history. Followups and programmatic queries should not be passed.
+	 */
 	async acceptInput(isUserQuery?: boolean): Promise<void> {
 		if (isUserQuery) {
 			const userQuery = this._inputEditor.getValue();
@@ -1132,9 +1132,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	/**
-  	* Refresh all registered option groups for the current chat session.
-  	* Fires events for each option group with their current selection.
-  	*/
+	 * Refresh all registered option groups for the current chat session.
+	 * Fires events for each option group with their current selection.
+	 */
 	private refreshChatSessionPickers(): void {
 		const sessionId = this._widget?.viewModel?.model.sessionId;
 		if (!sessionId) {
@@ -1167,9 +1167,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	/**
-  	* Get the current option for a specific option group.
-  	* If no option is currently set, initializes with the first item as default.
-  	*/
+	 * Get the current option for a specific option group.
+	 * If no option is currently set, initializes with the first item as default.
+	 */
 	private getCurrentOptionForGroup(optionGroupId: string): IChatSessionProviderOptionItem | undefined {
 		const sessionId = this._widget?.viewModel?.model.sessionId;
 		if (!sessionId) {
