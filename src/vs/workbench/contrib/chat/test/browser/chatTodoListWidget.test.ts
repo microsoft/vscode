@@ -8,12 +8,14 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { ChatTodoListWidget } from '../../browser/chatContentParts/chatTodoListWidget.js';
 import { IChatTodo, IChatTodoListService } from '../../common/chatTodoListService.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 
 suite('ChatTodoListWidget Accessibility', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let widget: ChatTodoListWidget;
 	let mockTodoListService: IChatTodoListService;
+	let mockConfigurationService: IConfigurationService;
 
 	const sampleTodos: IChatTodo[] = [
 		{ id: 1, title: 'First task', status: 'not-started' },
@@ -29,7 +31,14 @@ suite('ChatTodoListWidget Accessibility', () => {
 			setTodos: (sessionId: string, todos: IChatTodo[]) => { }
 		};
 
-		widget = store.add(new ChatTodoListWidget(mockTodoListService));
+		// Mock the configuration service
+		// eslint-disable-next-line local/code-no-any-casts
+		mockConfigurationService = {
+			_serviceBrand: undefined,
+			getValue: (key: string) => key === 'chat.todoListTool.descriptionField' ? true : undefined
+		} as any;
+
+		widget = store.add(new ChatTodoListWidget(mockTodoListService, mockConfigurationService));
 		mainWindow.document.body.appendChild(widget.domNode);
 	});
 
@@ -132,7 +141,13 @@ suite('ChatTodoListWidget Accessibility', () => {
 			setTodos: (sessionId: string, todos: IChatTodo[]) => { }
 		};
 
-		const emptyWidget = store.add(new ChatTodoListWidget(emptyTodoListService));
+		// eslint-disable-next-line local/code-no-any-casts
+		const emptyConfigurationService: IConfigurationService = {
+			_serviceBrand: undefined,
+			getValue: (key: string) => key === 'chat.todoListTool.descriptionField' ? true : undefined
+		} as any;
+
+		const emptyWidget = store.add(new ChatTodoListWidget(emptyTodoListService, emptyConfigurationService));
 		mainWindow.document.body.appendChild(emptyWidget.domNode);
 
 		emptyWidget.render('test-session');

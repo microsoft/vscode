@@ -16,7 +16,14 @@ export function isString(str: unknown): str is string {
  * @returns whether the provided parameter is a JavaScript Array and each element in the array is a string.
  */
 export function isStringArray(value: unknown): value is string[] {
-	return Array.isArray(value) && (<unknown[]>value).every(elem => isString(elem));
+	return isArrayOf(value, isString);
+}
+
+/**
+ * @returns whether the provided parameter is a JavaScript Array and each element in the array satisfies the provided type guard.
+ */
+export function isArrayOf<T>(value: unknown, check: (item: unknown) => item is T): value is T[] {
+	return Array.isArray(value) && value.every(check);
 }
 
 /**
@@ -55,6 +62,7 @@ export function isNumber(obj: unknown): obj is number {
  * @returns whether the provided parameter is an Iterable, casting to the given generic
  */
 export function isIterable<T>(obj: unknown): obj is Iterable<T> {
+	// eslint-disable-next-line local/code-no-any-casts
 	return !!obj && typeof (obj as any)[Symbol.iterator] === 'function';
 }
 
@@ -62,6 +70,7 @@ export function isIterable<T>(obj: unknown): obj is Iterable<T> {
  * @returns whether the provided parameter is an Iterable, casting to the given generic
  */
 export function isAsyncIterable<T>(obj: unknown): obj is AsyncIterable<T> {
+	// eslint-disable-next-line local/code-no-any-casts
 	return !!obj && typeof (obj as any)[Symbol.asyncIterator] === 'function';
 }
 
@@ -263,6 +272,7 @@ export function validateConstraint(arg: unknown, constraint: TypeConstraint | un
 		} catch {
 			// ignore
 		}
+		// eslint-disable-next-line local/code-no-any-casts
 		if (!isUndefinedOrNull(arg) && (arg as any).constructor === constraint) {
 			return;
 		}

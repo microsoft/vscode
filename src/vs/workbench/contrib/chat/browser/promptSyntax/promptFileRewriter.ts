@@ -9,13 +9,14 @@ import { ICodeEditorService } from '../../../../../editor/browser/services/codeE
 import { EditOperation } from '../../../../../editor/common/core/editOperation.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
-import { IToolAndToolSetEnablementMap, IToolData, ToolSet } from '../../common/languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolAndToolSetEnablementMap } from '../../common/languageModelToolsService.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 
 export class PromptFileRewriter {
 	constructor(
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
-		@IPromptsService private readonly _promptsService: IPromptsService
+		@IPromptsService private readonly _promptsService: IPromptsService,
+		@ILanguageModelToolsService private readonly _languageModelToolsService: ILanguageModelToolsService
 	) {
 	}
 
@@ -48,24 +49,7 @@ export class PromptFileRewriter {
 	}
 
 	public getNewValueString(tools: IToolAndToolSetEnablementMap): string {
-		const newToolNames: string[] = [];
-		const toolsCoveredBySets = new Set<IToolData>();
-		for (const [item, picked] of tools) {
-			if (picked && item instanceof ToolSet) {
-				for (const tool of item.getTools()) {
-					toolsCoveredBySets.add(tool);
-				}
-			}
-		}
-		for (const [item, picked] of tools) {
-			if (picked) {
-				if (item instanceof ToolSet) {
-					newToolNames.push(item.referenceName);
-				} else if (!toolsCoveredBySets.has(item)) {
-					newToolNames.push(item.toolReferenceName ?? item.displayName);
-				}
-			}
-		}
+		const newToolNames = this._languageModelToolsService.toQualifiedToolNames(tools);
 		return `[${newToolNames.map(s => `'${s}'`).join(', ')}]`;
 	}
 }

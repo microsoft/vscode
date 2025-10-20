@@ -6,6 +6,7 @@
 import { IAction } from '../../../../base/common/actions.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { IChatElicitationRequest } from '../common/chatService.js';
 import { ToolDataSource } from '../common/languageModelToolsService.js';
 
@@ -14,7 +15,9 @@ export class ChatElicitationRequestPart extends Disposable implements IChatElici
 	public state: 'pending' | 'accepted' | 'rejected' = 'pending';
 	public acceptedResult?: Record<string, unknown>;
 
-	private _hideOrDisposeCalled = false;
+	private readonly _isHiddenValue = observableValue<boolean>('isHidden', false);
+	public readonly isHidden: IObservable<boolean> = this._isHiddenValue;
+
 	constructor(
 		public readonly title: string | IMarkdownString,
 		public readonly message: string | IMarkdownString,
@@ -26,24 +29,18 @@ export class ChatElicitationRequestPart extends Disposable implements IChatElici
 		public readonly reject?: () => Promise<void>,
 		public readonly source?: ToolDataSource,
 		public readonly moreActions?: IAction[],
-		public readonly onHideOrDispose?: () => void,
+		public readonly onHide?: () => void,
 	) {
 		super();
 	}
 
 	hide(): void {
-		if (!this._hideOrDisposeCalled && this.onHideOrDispose) {
-			this.onHideOrDispose();
-			this._hideOrDisposeCalled = true;
+		if (this._isHiddenValue.get()) {
+			return;
 		}
-	}
-
-	override dispose(): void {
-		if (!this._hideOrDisposeCalled && this.onHideOrDispose) {
-			this.onHideOrDispose();
-			this._hideOrDisposeCalled = true;
-		}
-		super.dispose();
+		this._isHiddenValue.set(true, undefined, undefined);
+		this.onHide?.();
+		this.dispose();
 	}
 
 	public toJSON() {

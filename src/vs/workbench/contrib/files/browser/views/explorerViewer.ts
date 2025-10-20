@@ -170,16 +170,7 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 }
 
 export class PhantomExplorerItem extends ExplorerItem {
-	constructor(
-		resource: URI,
-		fileService: IFileService,
-		configService: IConfigurationService,
-		filesConfigService: IFilesConfigurationService,
-		_parent: ExplorerItem | undefined,
-		_isDirectory?: boolean,
-	) {
-		super(resource, fileService, configService, filesConfigService, _parent, _isDirectory);
-	}
+
 }
 
 interface FindHighlightLayer {
@@ -1292,7 +1283,7 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 				}
 
 				const stat = this.explorerService.findClosest(e.resource);
-				if (stat && stat.isExcluded) {
+				if (stat?.isExcluded) {
 					// A filtered resource suddenly became visible since user opened an editor
 					shouldFire = true;
 					break;
@@ -1419,9 +1410,9 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 
 		// Hide those that match Hidden Patterns
 		const cached = this.hiddenExpressionPerRoot.get(stat.root.resource.toString());
-		const globMatch = cached?.parsed(path.relative(stat.root.resource.path, stat.resource.path), stat.name, name => !!(stat.parent && stat.parent.getChild(name)));
+		const globMatch = cached?.parsed(path.relative(stat.root.resource.path, stat.resource.path), stat.name, name => !!(stat.parent?.getChild(name)));
 		// Small optimization to only run isHiddenResource (traverse gitIgnore) if the globMatch from fileExclude returned nothing
-		const isHiddenResource = !!globMatch ? true : this.isIgnored(stat.resource, stat.root.resource, stat.isDirectory);
+		const isHiddenResource = globMatch ? true : this.isIgnored(stat.resource, stat.root.resource, stat.isDirectory);
 		if (isHiddenResource || stat.parent?.isExcluded) {
 			stat.isExcluded = true;
 			const editors = this.editorService.visibleEditors;
@@ -1781,7 +1772,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
 		const items = FileDragAndDrop.getStatsFromDragAndDropData(data as ElementsDragAndDropData<ExplorerItem, ExplorerItem[]>, originalEvent);
-		if (items && items.length && originalEvent.dataTransfer) {
+		if (items.length && originalEvent.dataTransfer) {
 			// Apply some datatransfer types to allow for dragging the element outside of the application
 			this.instantiationService.invokeFunction(accessor => fillEditorsDragData(accessor, items, originalEvent));
 

@@ -27,6 +27,11 @@ export interface RemoteTunnel {
 	dispose(silent?: boolean): Promise<void>;
 }
 
+export function isRemoteTunnel(something: unknown): something is RemoteTunnel {
+	const asTunnel: Partial<RemoteTunnel> = something as Partial<RemoteTunnel>;
+	return !!(asTunnel.tunnelRemotePort && asTunnel.tunnelRemoteHost && asTunnel.localAddress && asTunnel.privacy && asTunnel.dispose);
+}
+
 export interface TunnelOptions {
 	remoteAddress: { port: number; host: string };
 	localAddressPort?: number;
@@ -107,7 +112,7 @@ export interface ITunnel {
 	/**
 	 * Implementers of Tunnel should fire onDidDispose when dispose is called.
 	 */
-	onDidDispose: Event<void>;
+	readonly onDidDispose: Event<void>;
 
 	dispose(): Promise<void> | void;
 }
@@ -202,7 +207,7 @@ export function isPortPrivileged(port: number, host: string, os: OperatingSystem
 
 export class DisposableTunnel {
 	private _onDispose: Emitter<void> = new Emitter();
-	onDidDispose: Event<void> = this._onDispose.event;
+	readonly onDidDispose: Event<void> = this._onDispose.event;
 
 	constructor(
 		public readonly remoteAddress: { port: number; host: string },

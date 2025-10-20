@@ -105,7 +105,6 @@ export interface IProductConfiguration {
 	readonly extensionsGallery?: {
 		readonly serviceUrl: string;
 		readonly controlUrl: string;
-		readonly mcpUrl: string;
 		readonly extensionUrlTemplate: string;
 		readonly resourceUrlTemplate: string;
 		readonly nlsBaseUrl: string;
@@ -219,6 +218,7 @@ export interface IProductConfiguration {
 		readonly chatEntitlementUrl: string;
 		readonly mcpRegistryDataUrl: string;
 	};
+	readonly authClientIdMetadataUrl?: string;
 
 	readonly 'configurationSync.store'?: ConfigurationSyncStore;
 

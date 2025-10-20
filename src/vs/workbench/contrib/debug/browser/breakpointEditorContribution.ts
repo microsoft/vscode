@@ -680,6 +680,7 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 
 	dispose(): void {
 		this.breakpointWidget?.dispose();
+		this.setDecorationsScheduler.dispose();
 		this.editor.removeDecorations(this.breakpointDecorations.map(bpd => bpd.decorationId));
 		dispose(this.toDispose);
 	}
