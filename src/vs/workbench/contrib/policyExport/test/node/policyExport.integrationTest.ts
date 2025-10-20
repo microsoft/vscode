@@ -11,6 +11,9 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { isWindows } from '../../../../../base/common/platform.js';
 import { join } from '../../../../../base/common/path.js';
 import { FileAccess } from '../../../../../base/common/network.js';
+import * as util from 'util';
+
+const exec = util.promisify(cp.exec);
 
 suite('PolicyExport Integration Tests', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -29,35 +32,8 @@ suite('PolicyExport Integration Tests', () => {
 				? join(rootPath, 'scripts', 'code.bat')
 				: join(rootPath, 'scripts', 'code.sh');
 
-			await new Promise<void>((resolve, reject) => {
-				const proc = cp.spawn(scriptPath, [`--export-policy-data=${tempFile}`], {
-					cwd: rootPath,
-					stdio: 'pipe',
-					shell: true
-				});
-
-				let stdout = '';
-				let stderr = '';
-
-				proc.stdout?.on('data', (data: Buffer) => {
-					stdout += data.toString();
-				});
-
-				proc.stderr?.on('data', (data: Buffer) => {
-					stderr += data.toString();
-				});
-
-				proc.on('close', (code: number | null) => {
-					if (code === 0) {
-						resolve();
-					} else {
-						reject(new Error(`VS Code exited with code ${code}\nStdout: ${stdout}\nStderr: ${stderr}`));
-					}
-				});
-
-				proc.on('error', (err: Error) => {
-					reject(new Error(`Failed to spawn VS Code: ${err.message}`));
-				});
+			await exec(`"${scriptPath}" --export-policy-data="${tempFile}"`, {
+				cwd: rootPath
 			});
 
 			// Read both files
