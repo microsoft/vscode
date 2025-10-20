@@ -19,7 +19,7 @@ export type INumberDictionary<V> = Record<number, V>;
  * Groups the collection into a dictionary based on the provided
  * group function.
  */
-export function groupBy<K extends string | number | symbol, V>(data: V[], groupFn: (element: V) => K): Record<K, V[]> {
+export function groupBy<K extends string | number | symbol, V>(data: readonly V[], groupFn: (element: V) => K): Record<K, V[]> {
 	const result: Record<K, V[]> = Object.create(null);
 	for (const element of data) {
 		const key = groupFn(element);

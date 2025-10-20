@@ -11,6 +11,7 @@ import { basename, relativePath } from '../../../../../base/common/resources.js'
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { assertType } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { isLocation } from '../../../../../editor/common/languages.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
@@ -25,6 +26,7 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IRemoteCodingAgent, IRemoteCodingAgentsService } from '../../../remoteCodingAgents/common/remoteCodingAgentsService.js';
 import { IChatAgent, IChatAgentHistoryEntry, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys, ChatContextKeyExprs } from '../../common/chatContextKeys.js';
@@ -169,15 +171,15 @@ export class ChatSubmitAction extends SubmitAction {
 
 		super({
 			id: ChatSubmitAction.ID,
-			title: localize2('interactive.submit.label', "Send and Dispatch"),
+			title: localize2('interactive.submit.label', "Send"),
 			f1: false,
 			category: CHAT_CATEGORY,
 			icon: Codicon.send,
 			precondition,
 			toggled: {
 				condition: ChatContextKeys.lockedToCodingAgent,
-				icon: Codicon.sendToRemoteAgent,
-				tooltip: localize('sendToRemoteAgent', "Send to coding agent"),
+				icon: Codicon.send,
+				tooltip: localize('sendToRemoteAgent', "Send to Coding Agent"),
 			},
 			keybinding: {
 				when: ContextKeyExpr.and(
@@ -189,15 +191,6 @@ export class ChatSubmitAction extends SubmitAction {
 			},
 			menu: [
 				{
-					id: MenuId.ChatExecuteSecondary,
-					group: 'group_1',
-					order: 1,
-					when: ContextKeyExpr.or(
-						ChatContextKeys.withinEditSessionDiff,
-						ContextKeyExpr.and(menuCondition, ChatContextKeys.lockedToCodingAgent.negate())
-					),
-				},
-				{
 					id: MenuId.ChatExecute,
 					order: 4,
 					when: ContextKeyExpr.and(
@@ -206,6 +199,11 @@ export class ChatSubmitAction extends SubmitAction {
 						ChatContextKeys.withinEditSessionDiff.negate(),
 					),
 					group: 'navigation',
+					alt: {
+						id: 'workbench.action.chat.sendToNewChat',
+						title: localize2('chat.newChat.label', "Send to New Chat"),
+						icon: Codicon.plus
+					}
 				}]
 		});
 	}
@@ -238,15 +236,6 @@ export class ChatDelegateToEditSessionAction extends Action2 {
 						ChatContextKeys.withinEditSessionDiff,
 					),
 					group: 'navigation',
-				},
-				{
-					id: MenuId.ChatExecuteSecondary,
-					group: 'group_1',
-					order: 1,
-					when: ContextKeyExpr.and(
-						whenNotInProgress,
-						ChatContextKeys.filePartOfEditSession,
-					),
 				}
 			]
 		});
@@ -291,9 +280,9 @@ export interface IToggleChatModeArgs {
 
 type ChatModeChangeClassification = {
 	owner: 'digitarald';
-	comment: 'Reporting when Chat mode is switched between different modes';
-	fromMode?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The previous chat mode' };
-	toMode?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The new chat mode' };
+	comment: 'Reporting when agent is switched between different modes';
+	fromMode?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The previous agent' };
+	toMode?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The new agent' };
 	requestCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of requests in the current chat session'; 'isMeasurement': true };
 };
 
@@ -310,7 +299,7 @@ class ToggleChatModeAction extends Action2 {
 	constructor() {
 		super({
 			id: ToggleChatModeAction.ID,
-			title: localize2('interactive.toggleAgent.label', "Switch to Next Chat Mode"),
+			title: localize2('interactive.toggleAgent.label', "Switch to Next Agent"),
 			f1: true,
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(
@@ -436,7 +425,6 @@ class OpenModelPickerAction extends Action2 {
 		}
 	}
 }
-
 export class OpenModePickerAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.openModePicker';
 
@@ -476,6 +464,37 @@ export class OpenModePickerAction extends Action2 {
 		const widget = widgetService.lastFocusedWidget;
 		if (widget) {
 			widget.input.openModePicker();
+		}
+	}
+}
+
+export class ChatSessionOpenModelPickerAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.chatSessionOpenModelPicker';
+	constructor() {
+		super({
+			id: ChatSessionOpenModelPickerAction.ID,
+			title: localize2('interactive.openModelPicker.label', "Open Model Picker"),
+			category: CHAT_CATEGORY,
+			f1: false,
+			precondition: ChatContextKeys.enabled,
+			menu: {
+				id: MenuId.ChatInput,
+				order: 4,
+				group: 'navigation',
+				when:
+					ContextKeyExpr.and(
+						ChatContextKeys.lockedToCodingAgent,
+						ChatContextKeys.chatSessionHasModels
+					)
+			}
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+		const widgetService = accessor.get(IChatWidgetService);
+		const widget = widgetService.lastFocusedWidget;
+		if (widget) {
+			widget.input.openChatSessionPicker();
 		}
 	}
 }
@@ -525,18 +544,17 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 			precondition,
 			menu: [
 				{
-					id: MenuId.ChatExecuteSecondary,
-					group: 'group_1',
-					when: ContextKeyExpr.and(whenNotInProgress, menuCondition),
-					order: 1
-				},
-				{
 					id: MenuId.ChatExecute,
 					order: 4,
 					when: ContextKeyExpr.and(
 						ChatContextKeys.requestInProgress.negate(),
 						menuCondition),
 					group: 'navigation',
+					alt: {
+						id: 'workbench.action.chat.sendToNewChat',
+						title: localize2('chat.newChat.label', "Send to New Chat"),
+						icon: Codicon.plus
+					}
 				}]
 		});
 	}
@@ -564,15 +582,7 @@ class SubmitWithoutDispatchingAction extends Action2 {
 				when: ChatContextKeys.inChatInput,
 				primary: KeyMod.Alt | KeyMod.Shift | KeyCode.Enter,
 				weight: KeybindingWeight.EditorContrib
-			},
-			menu: [
-				{
-					id: MenuId.ChatExecuteSecondary,
-					group: 'group_1',
-					order: 2,
-					when: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Ask),
-				}
-			]
+			}
 		});
 	}
 
@@ -603,14 +613,13 @@ export class CreateRemoteAgentJobAction extends Action2 {
 		super({
 			id: CreateRemoteAgentJobAction.ID,
 			// TODO(joshspicer): Generalize title/tooltip - pull from contribution
-			title: localize2('actions.chat.createRemoteJob', "Delegate to Coding Agent"),
+			title: localize2('actions.chat.createRemoteJob', "Delegate to Agent"),
 			icon: Codicon.sendToRemoteAgent,
-			tooltip: localize('delegateToCodingAgentToolTip', "Delegate this task to the GitHub Copilot coding agent. The agent will continue work asynchronously and create a pull request with the proposed changes. Iterate further via chat or from the associated pull request."),
 			precondition,
 			toggled: {
 				condition: ChatContextKeys.remoteJobCreating,
 				icon: Codicon.sync,
-				tooltip: localize('remoteJobCreating', "Delegating to Coding Agent"),
+				tooltip: localize('remoteJobCreating', "Delegating to Agent"),
 			},
 			menu: [
 				{
@@ -618,19 +627,11 @@ export class CreateRemoteAgentJobAction extends Action2 {
 					group: 'navigation',
 					order: 3.4,
 					when: ContextKeyExpr.and(
-						ChatContextKeys.hasRemoteCodingAgent,
+						ContextKeyExpr.or(
+							ChatContextKeys.hasRemoteCodingAgent,
+							ChatContextKeys.hasCloudButtonV2
+						),
 						ChatContextKeys.lockedToCodingAgent.negate(),
-						ContextKeyExpr.equals(`config.${ChatConfiguration.DelegateToCodingAgentInSecondaryMenu}`, false)
-					),
-				},
-				{
-					id: MenuId.ChatExecuteSecondary,
-					group: 'group_3',
-					order: 1,
-					when: ContextKeyExpr.and(
-						ChatContextKeys.hasRemoteCodingAgent,
-						ChatContextKeys.lockedToCodingAgent.negate(),
-						ContextKeyExpr.equals(`config.${ChatConfiguration.DelegateToCodingAgentInSecondaryMenu}`, true)
 					),
 				}
 			]
@@ -747,10 +748,6 @@ export class CreateRemoteAgentJobAction extends Action2 {
 	 * Converts full URIs from the user's systems into workspace-relative paths for coding agent.
 	 */
 	private extractRelativeFromAttachedContext(attachedContext: ChatRequestVariableSet, workspaceContextService: IWorkspaceContextService): string[] {
-		const workspaceFolder = workspaceContextService.getWorkspace().folders[0];
-		if (!workspaceFolder) {
-			return [];
-		}
 		if (!attachedContext) {
 			return [];
 		}
@@ -760,8 +757,9 @@ export class CreateRemoteAgentJobAction extends Action2 {
 				if (!(contextEntry.value instanceof URI)) {
 					continue;
 				}
+				const workspaceFolder = workspaceContextService.getWorkspaceFolder(contextEntry.value);
 				const fileUri = contextEntry.value;
-				const relativePathResult = relativePath(workspaceFolder.uri, fileUri);
+				const relativePathResult = workspaceFolder ? relativePath(workspaceFolder.uri, fileUri) : undefined;
 				if (relativePathResult) {
 					relativePaths.push(relativePathResult);
 				}
@@ -786,6 +784,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			const remoteCodingAgentService = accessor.get(IRemoteCodingAgentsService);
 			const chatSessionsService = accessor.get(IChatSessionsService);
 			const workspaceContextService = accessor.get(IWorkspaceContextService);
+			const editorService = accessor.get(IEditorService);
 
 			const widget = widgetService.lastFocusedWidget;
 			if (!widget) {
@@ -812,6 +811,30 @@ export class CreateRemoteAgentJobAction extends Action2 {
 
 			const attachedContext = widget.input.getAttachedAndImplicitContext(sessionId);
 			widget.input.acceptInput(true);
+
+			// For inline editor mode, add selection or cursor information
+			if (widget.location === ChatAgentLocation.EditorInline) {
+				const activeEditor = editorService.activeTextEditorControl;
+				if (activeEditor) {
+					const model = activeEditor.getModel();
+					let activeEditorUri: URI | undefined = undefined;
+					if (model && 'uri' in model) {
+						activeEditorUri = model.uri as URI;
+					}
+					const selection = activeEditor.getSelection();
+					if (activeEditorUri && selection) {
+						attachedContext.add({
+							kind: 'file',
+							id: 'vscode.implicit.selection',
+							name: basename(activeEditorUri),
+							value: {
+								uri: activeEditorUri,
+								range: selection
+							},
+						});
+					}
+				}
+			}
 
 			const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Chat);
 			const instantiationService = accessor.get(IInstantiationService);
@@ -848,6 +871,31 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			if (relativeAttachedContext.length) {
 				summary += `\n\n${localize('attachedFiles', "The user has attached the following files from their workspace:")}\n${relativeAttachedContext.map(file => `- ${file}`).join('\n')}\n\n`;
 			}
+
+			// Add selection or cursor information to the summary
+			attachedContext.asArray().forEach(ctx => {
+				if (isChatRequestFileEntry(ctx) && ctx.value && isLocation(ctx.value)) {
+					const range = ctx.value.range;
+					const isSelection = range.startLineNumber !== range.endLineNumber || range.startColumn !== range.endColumn;
+
+					// Get relative path for the file
+					let filePath = ctx.name;
+					const workspaceFolder = workspaceContextService.getWorkspaceFolder(ctx.value.uri);
+
+					if (workspaceFolder && ctx.value.uri) {
+						const relativePathResult = relativePath(workspaceFolder.uri, ctx.value.uri);
+						if (relativePathResult) {
+							filePath = relativePathResult;
+						}
+					}
+
+					if (isSelection) {
+						summary += `User has selected text in file ${filePath} from ${range.startLineNumber}:${range.startColumn} to ${range.endLineNumber}:${range.endColumn}\n`;
+					} else {
+						summary += `User is on file ${filePath} at position ${range.startLineNumber}:${range.startColumn}\n`;
+					}
+				}
+			});
 
 			// -- summarize context if necessary
 			if (defaultAgent && chatRequests.length > 1) {
@@ -964,15 +1012,6 @@ export class ChatSubmitWithCodebaseAction extends Action2 {
 			id: ChatSubmitWithCodebaseAction.ID,
 			title: localize2('actions.chat.submitWithCodebase', "Send with {0}", `${chatVariableLeader}codebase`),
 			precondition,
-			menu: {
-				id: MenuId.ChatExecuteSecondary,
-				group: 'group_1',
-				order: 3,
-				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Chat),
-					ChatContextKeys.lockedToCodingAgent.negate()
-				),
-			},
 			keybinding: {
 				when: ChatContextKeys.inChatInput,
 				primary: KeyMod.CtrlCmd | KeyCode.Enter,
@@ -1023,14 +1062,6 @@ class SendToNewChatAction extends Action2 {
 			precondition,
 			category: CHAT_CATEGORY,
 			f1: false,
-			menu: {
-				id: MenuId.ChatExecuteSecondary,
-				group: 'group_2',
-				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Chat),
-					ChatContextKeys.lockedToCodingAgent.negate()
-				)
-			},
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter,
@@ -1161,6 +1192,7 @@ export function registerChatExecuteActions() {
 	registerAction2(SwitchToNextModelAction);
 	registerAction2(OpenModelPickerAction);
 	registerAction2(OpenModePickerAction);
+	registerAction2(ChatSessionOpenModelPickerAction);
 	registerAction2(ChangeChatModelAction);
 	registerAction2(CancelEdit);
 }

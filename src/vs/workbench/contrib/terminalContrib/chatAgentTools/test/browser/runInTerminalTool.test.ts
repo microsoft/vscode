@@ -826,6 +826,22 @@ suite('RunInTerminalTool', () => {
 				'configure',
 			]);
 		});
+
+		test('should not show command line option when it\'s rejected', async () => {
+			setAutoApprove({
+				echo: true,
+				'/\\(.+\\)/s': { approve: false, matchCommandLine: true }
+			});
+
+			const result = await executeToolTest({
+				command: 'echo (abc)'
+			});
+
+			assertConfirmationRequired(result);
+			assertDropdownActions(result, [
+				'configure',
+			]);
+		});
 	});
 
 	suite('chat session disposal cleanup', () => {
