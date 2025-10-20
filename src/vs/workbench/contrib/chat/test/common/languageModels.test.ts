@@ -199,11 +199,25 @@ suite('LanguageModels', function () {
 		await request.result;
 	});
 
-	test('when clause filters vendors correctly', async function () {
-		const contextKeyService = new MockContextKeyService();
+	test('when clause defaults to true when omitted', async function () {
+		const vendors = languageModels.getVendors();
+		// Both test-vendor and actual-vendor have no when clause, so they should be visible
+		assert.ok(vendors.length >= 2);
+		assert.ok(vendors.some(v => v.vendor === 'test-vendor'));
+		assert.ok(vendors.some(v => v.vendor === 'actual-vendor'));
+	});
+});
+
+suite('LanguageModels - When Clause', function () {
+
+	let languageModelsWithWhen: LanguageModelsService;
+	let contextKeyService: MockContextKeyService;
+
+	setup(function () {
+		contextKeyService = new MockContextKeyService();
 		contextKeyService.createKey('testKey', true);
 
-		const languageModelsWithContext = new LanguageModelsService(
+		languageModelsWithWhen = new LanguageModelsService(
 			new class extends mock<IExtensionService>() {
 				override activateByEvent(name: string) {
 					return Promise.resolve();
@@ -231,44 +245,29 @@ suite('LanguageModels', function () {
 			value: { vendor: 'hidden-vendor', displayName: 'Hidden Vendor', when: 'falseKey' },
 			collector: null!
 		}]);
+	});
 
-		const vendors = languageModelsWithContext.getVendors();
+	teardown(function () {
+		languageModelsWithWhen.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('when clause filters vendors correctly', async function () {
+		const vendors = languageModelsWithWhen.getVendors();
 		assert.strictEqual(vendors.length, 2);
 		assert.ok(vendors.some(v => v.vendor === 'visible-vendor'));
 		assert.ok(vendors.some(v => v.vendor === 'conditional-vendor'));
 		assert.ok(!vendors.some(v => v.vendor === 'hidden-vendor'));
-
-		languageModelsWithContext.dispose();
 	});
 
-	test('when clause defaults to true when omitted', async function () {
-		const contextKeyService = new MockContextKeyService();
+	test('when clause evaluates to true when context key is true', async function () {
+		const vendors = languageModelsWithWhen.getVendors();
+		assert.ok(vendors.some(v => v.vendor === 'conditional-vendor'), 'conditional-vendor should be visible when testKey is true');
+	});
 
-		const languageModelsWithContext = new LanguageModelsService(
-			new class extends mock<IExtensionService>() {
-				override activateByEvent(name: string) {
-					return Promise.resolve();
-				}
-			},
-			new NullLogService(),
-			new TestStorageService(),
-			contextKeyService,
-			new TestConfigurationService(),
-			new TestChatEntitlementService()
-		);
-
-		const ext = ExtensionsRegistry.getExtensionPoints().find(e => e.name === languageModelChatProviderExtensionPoint.name)!;
-
-		ext.acceptUsers([{
-			description: { ...nullExtensionDescription },
-			value: { vendor: 'no-when-vendor', displayName: 'No When Vendor' },
-			collector: null!
-		}]);
-
-		const vendors = languageModelsWithContext.getVendors();
-		assert.strictEqual(vendors.length, 1);
-		assert.strictEqual(vendors[0].vendor, 'no-when-vendor');
-
-		languageModelsWithContext.dispose();
+	test('when clause evaluates to false when context key is false', async function () {
+		const vendors = languageModelsWithWhen.getVendors();
+		assert.ok(!vendors.some(v => v.vendor === 'hidden-vendor'), 'hidden-vendor should be hidden when falseKey is false');
 	});
 });
