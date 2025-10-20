@@ -80,7 +80,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	backend: ITerminalBackend | undefined;
 	readonly capabilities = this._register(new TerminalCapabilityStore());
 	readonly shellIntegrationNonce: string;
-	readonly processReadyTime: number | undefined;
+	processReadyTime: number | undefined;
 
 	private _isDisposed: boolean = false;
 	private _process: ITerminalChildProcess | null = null;

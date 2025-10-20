@@ -916,7 +916,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	async runCommand(commandLine: string, shouldExecute: boolean): Promise<void> {
-		const commandDetection = this.capabilities.get(TerminalCapability.CommandDetection);
+		let commandDetection = this.capabilities.get(TerminalCapability.CommandDetection);
 
 		// Resolve configured timeout
 		const rawConfigured = this._configurationService.getValue(TerminalSettingId.ShellIntegrationTimeout) as number | undefined;
@@ -935,27 +935,22 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._logService.debug(`***runCommand***: Timeout Ms is: ${timeoutMs}`);
 
-		// // *** I dont think command detection is "enough" to avoid dup command UI. Maybe we should just wait instead of racing between timeout.
-		// this._logService.debug(`*** state of commandDetection is: ${commandDetection}`);
-		// if (!commandDetection) {
-		// 	this._logService.debug(`***runCommand***: racing command detection vs timeout (${timeoutMs}ms), processState=${this._processManager.processState}`);
-		// 	const store = new DisposableStore();
-		// 	await Promise.race([
-		// 		new Promise<void>(r => {
-		// 			store.add(this.capabilities.onDidAddCommandDetectionCapability(e => {
-		// 				commandDetection = e;
-		// 				this._logService.debug(`***runCommand***: command detection capability acquired`);
-		// 				r();
-		// 			}));
-		// 		}),
-		// 		timeout(timeoutMs).then(() => {
-		// 			this._logService.debug(`***runCommand***: timeout (${timeoutMs}ms) reached without capability`);
-		// 		}),
-		// 	]);
-		// 	store.dispose();
-		// 	this._logService.debug(`***runCommand***: after race, commandDetection=${!!commandDetection}`);
-		// }
-		await timeout(timeoutMs);
+		// Question: I dont think command detection is "enough" to avoid dup command UI. Maybe we should just wait instead of racing between timeout.
+		this._logService.debug(`*** state of commandDetection is: ${commandDetection}`);
+		if (!commandDetection) {
+			const store = new DisposableStore();
+			await Promise.race([
+				new Promise<void>(r => {
+					store.add(this.capabilities.onDidAddCommandDetectionCapability(e => {
+						commandDetection = e;
+						this._logService.debug(`***runCommand*** got the command detection capability`);
+						r();
+					}));
+				}),
+				await timeout(timeoutMs),
+			]);
+			store.dispose();
+		}
 
 		// Determine whether to send ETX (ctrl+c) before running the command. This should always
 		// happen unless command detection can reliably say that a command is being entered and
