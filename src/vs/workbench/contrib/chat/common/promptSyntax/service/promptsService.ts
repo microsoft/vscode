@@ -194,6 +194,7 @@ export interface IPromptsService extends IDisposable {
 
 	/**
 	 * Gets the prompt file for a slash command from cache if available.
+	 * @param command - name of the prompt command without slash
 	 */
 	resolvePromptSlashCommandFromCache(command: string): ParsedPromptFile | undefined;
 
