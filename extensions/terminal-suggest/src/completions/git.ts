@@ -74,46 +74,70 @@ const postProcessBranches =
 			const seen = new Set<string>();
 			return output
 				.split("\n")
-				.filter((line) => !line.trim().startsWith("HEAD"))
+				.filter((line) => line.trim() && !line.trim().startsWith("HEAD"))
 				.map((branch) => {
-					let name = branch.trim();
-					const parts = branch.match(/\S+/g);
-					if (parts && parts.length > 1) {
-						if (parts[0] === "*") {
-							// We are in a detached HEAD state
-							if (branch.includes("HEAD detached")) {
-								return null;
+					// Parse the format: branchName|author|hash|subject|timeAgo
+					const parts = branch.split("|");
+					if (parts.length < 5) {
+						// Fallback to old parsing if format doesn't match
+						let name = branch.trim();
+						const oldParts = branch.match(/\S+/g);
+						if (oldParts && oldParts.length > 1) {
+							if (oldParts[0] === "*") {
+								if (branch.includes("HEAD detached")) {
+									return null;
+								}
+								return {
+									name: branch.replace("*", "").trim(),
+									description: "Current branch",
+									priority: 100,
+									icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.ScmBranch}`
+								};
+							} else if (oldParts[0] === "+") {
+								name = branch.replace("+", "").trim();
 							}
-							// Current branch
-							return {
-								name: branch.replace("*", "").trim(),
-								description: "Current branch",
-								priority: 100,
-								icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.ScmBranch}`
-							};
-						} else if (parts[0] === "+") {
-							// Branch checked out in another worktree.
-							name = branch.replace("+", "").trim();
 						}
+
+						let description = "Branch";
+						if (insertWithoutRemotes && name.startsWith("remotes/")) {
+							name = name.slice(name.indexOf("/", 8) + 1);
+							description = "Remote branch";
+						}
+
+						const space = name.indexOf(" ");
+						if (space !== -1) {
+							name = name.slice(0, space);
+						}
+
+						return {
+							name,
+							description,
+							icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.ScmBranch}`,
+							priority: 75,
+						};
 					}
 
-					let description = "Branch";
+					let name = parts[0].trim();
+					const author = parts[1].trim();
+					const hash = parts[2].trim();
+					const subject = parts[3].trim();
+					const timeAgo = parts[4].trim();
+
+					let description = timeAgo;
+					let detail = `${author} • ${hash} • ${subject}`;
+					let priority = 75;
 
 					if (insertWithoutRemotes && name.startsWith("remotes/")) {
 						name = name.slice(name.indexOf("/", 8) + 1);
-						description = "Remote branch";
-					}
-
-					const space = name.indexOf(" ");
-					if (space !== -1) {
-						name = name.slice(0, space);
+						description = `Remote branch • ${timeAgo}`;
 					}
 
 					return {
 						name,
 						description,
+						detail,
 						icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.ScmBranch}`,
-						priority: 75,
+						priority,
 					};
 				})
 				.filter((suggestion) => {
@@ -254,10 +278,11 @@ export const gitGenerators = {
 		script: [
 			"git",
 			"--no-optional-locks",
-			"branch",
-			"-a",
-			"--no-color",
+			"for-each-ref",
 			"--sort=-committerdate",
+			"--format=%(refname:short)|%(authorname)|%(objectname:short)|%(subject)|%(committerdate:relative)",
+			"refs/heads/",
+			"refs/remotes/",
 		],
 		postProcess: postProcessBranches({ insertWithoutRemotes: true }),
 	} satisfies Fig.Generator,
@@ -266,9 +291,10 @@ export const gitGenerators = {
 		script: [
 			"git",
 			"--no-optional-locks",
-			"branch",
-			"--no-color",
+			"for-each-ref",
 			"--sort=-committerdate",
+			"--format=%(refname:short)|%(authorname)|%(objectname:short)|%(subject)|%(committerdate:relative)",
+			"refs/heads/",
 		],
 		postProcess: postProcessBranches({ insertWithoutRemotes: true }),
 	} satisfies Fig.Generator,
@@ -285,9 +311,10 @@ export const gitGenerators = {
 							command: "git",
 							args: [
 								"--no-optional-locks",
-								"-r",
-								"--no-color",
+								"for-each-ref",
 								"--sort=-committerdate",
+								"--format=%(refname:short)|%(authorname)|%(objectname:short)|%(subject)|%(committerdate:relative)",
+								"refs/remotes/",
 							],
 						})
 					).stdout,
@@ -300,9 +327,10 @@ export const gitGenerators = {
 							command: "git",
 							args: [
 								"--no-optional-locks",
-								"branch",
-								"--no-color",
+								"for-each-ref",
 								"--sort=-committerdate",
+								"--format=%(refname:short)|%(authorname)|%(objectname:short)|%(subject)|%(committerdate:relative)",
+								"refs/heads/",
 							],
 						})
 					).stdout,
