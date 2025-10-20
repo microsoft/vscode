@@ -344,7 +344,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private _isReady = false;
 
-	private _supportsToolAttachments: boolean = true;
 	private _instructionFilesCheckPromise: Promise<boolean> | undefined;
 	private _instructionFilesExist: boolean | undefined;
 	private _onDidBecomeReady = this._register(new Emitter<void>());
@@ -361,6 +360,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private _lockedToCodingAgent: string | undefined;
 	private _lockedToCodingAgentContextKey!: IContextKey<boolean>;
 	private _agentSupportsFileAttachmentsContextKey!: IContextKey<boolean>;
+	private _supportsToolAttachments: boolean = true;
+	private _supportsMCPAttachments: boolean = true;
 	private _codingAgentPrefix: string | undefined;
 	private _lockedAgentId: string | undefined;
 
@@ -716,11 +717,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private _updateAgentCapabilitiesContextKeys(agent: IChatAgentData | undefined): void {
 		let supportsFileAttachments = true;
 		this._supportsToolAttachments = true;
+		this._supportsMCPAttachments = true;
 
 		// Check if the agent has capabilities defined directly
 		if (agent?.capabilities?.supportsFileAttachments !== undefined) {
 			supportsFileAttachments = agent.capabilities.supportsFileAttachments;
 			this._supportsToolAttachments = agent.capabilities.supportsToolAttachments ?? true;
+			this._supportsMCPAttachments = agent.capabilities.supportsMCPAttachments ?? true;
 		} else if (this._lockedAgentId) {
 			// Check if the agent is a chat session type with capabilities
 			const sessionCapabilities = this.chatSessionsService.getCapabilitiesForSessionType(this._lockedAgentId);
@@ -729,6 +732,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 			if (sessionCapabilities?.supportsToolAttachments !== undefined) {
 				this._supportsToolAttachments = sessionCapabilities.supportsToolAttachments;
+			}
+			if (sessionCapabilities?.supportsMCPAttachments !== undefined) {
+				this._supportsMCPAttachments = sessionCapabilities.supportsMCPAttachments;
 			}
 		}
 
@@ -741,6 +747,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	get supportsToolAttachments(): boolean {
 		return this._supportsToolAttachments;
+	}
+
+	get supportsMCPAttachments(): boolean {
+		return this._supportsMCPAttachments;
 	}
 
 	get input(): ChatInputPart {

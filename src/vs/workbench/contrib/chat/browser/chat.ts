@@ -215,6 +215,7 @@ export interface IChatWidget {
 	readonly inputEditor: ICodeEditor;
 	readonly supportsFileReferences: boolean;
 	readonly supportsToolAttachments: boolean;
+	readonly supportsMCPAttachments: boolean;
 	readonly parsedInput: IParsedChatRequest;
 	readonly lockedAgentId: string | undefined;
 	lastSelectedAgent: IChatAgentData | undefined;

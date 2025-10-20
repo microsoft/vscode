@@ -89,6 +89,10 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 						supportsToolAttachments: {
 							description: localize('chatSessionsExtPoint.supportsToolAttachments', 'Whether this chat session supports attaching tools or tool references.'),
 							type: 'boolean'
+						},
+						supportsMCPAttachments: {
+							description: localize('chatSessionsExtPoint.supportsMCPAttachments', 'Whether this chat session supports attaching MCP resources.'),
+							type: 'boolean'
 						}
 					}
 				},
