@@ -112,6 +112,13 @@ export interface INotebookOutputVariableEntry extends IBaseChatRequestVariableEn
 	readonly mimeType?: string;
 }
 
+export interface ITerminalCommandVariableEntry extends IBaseChatRequestVariableEntry {
+	readonly kind: 'terminalCommand';
+	readonly value: URI;
+	readonly commandId?: string;
+	readonly commandLine?: string;
+}
+
 export interface IDiagnosticVariableEntryFilterData {
 	readonly owner?: string;
 	readonly problemMessage?: string;
@@ -232,6 +239,7 @@ export type IChatRequestVariableEntry = IGenericChatRequestVariableEntry | IChat
 	| ISymbolVariableEntry | ICommandResultVariableEntry | IDiagnosticVariableEntry | IImageVariableEntry
 	| IChatRequestToolEntry | IChatRequestToolSetEntry
 	| IChatRequestDirectoryEntry | IChatRequestFileEntry | INotebookOutputVariableEntry | IElementVariableEntry
+	| ITerminalCommandVariableEntry
 	| IPromptFileVariableEntry | IPromptTextVariableEntry
 	| ISCMHistoryItemVariableEntry | ISCMHistoryItemChangeVariableEntry | ISCMHistoryItemChangeRangeVariableEntry;
 
@@ -247,6 +255,29 @@ export namespace IChatRequestVariableEntry {
 				? entry.value.uri
 				: undefined;
 	}
+}
+
+export function isTerminalCommandVariableEntry(entry: IChatRequestVariableEntry): entry is ITerminalCommandVariableEntry {
+	return entry.kind === 'terminalCommand';
+}
+
+export function toTerminalCommandVariableEntry(uri: URI): ITerminalCommandVariableEntry {
+	const query = uri.query ?? '';
+	const params = new URLSearchParams(query);
+	const commandId = params.get('command') ?? undefined;
+	const commandLine = params.get('commandLine') ?? undefined;
+	const fragment = uri.fragment ?? undefined;
+	const label = commandLine?.split('\n')[0] || fragment || localize('chat.terminalCommandAttachment.defaultName', "Terminal Command");
+	return {
+		id: uri.toString(true),
+		name: label,
+		kind: 'terminalCommand',
+		value: uri,
+		commandId,
+		commandLine,
+		fullName: commandLine,
+		icon: Codicon.terminal
+	};
 }
 
 

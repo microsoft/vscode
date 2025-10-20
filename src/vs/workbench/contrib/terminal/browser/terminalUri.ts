@@ -7,6 +7,12 @@ import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ITerminalInstance, TerminalDataTransfers } from './terminal.js';
 
+export interface ITerminalUriMetadata {
+	title?: string;
+	commandId?: string;
+	commandLine?: string;
+}
+
 export function parseTerminalUri(resource: URI): ITerminalIdentifier {
 	const [, workspaceId, instanceId] = resource.path.split('/');
 	if (!workspaceId || !Number.parseInt(instanceId)) {
@@ -15,11 +21,35 @@ export function parseTerminalUri(resource: URI): ITerminalIdentifier {
 	return { workspaceId, instanceId: Number.parseInt(instanceId) };
 }
 
-export function getTerminalUri(workspaceId: string, instanceId: number, title?: string): URI {
+export function getTerminalUri(workspaceId: string, instanceId: number, title?: string, commandId?: string): URI;
+export function getTerminalUri(workspaceId: string, instanceId: number, metadata?: ITerminalUriMetadata): URI;
+export function getTerminalUri(workspaceId: string, instanceId: number, arg?: string | ITerminalUriMetadata, commandIdLegacy?: string): URI {
+	let metadata: ITerminalUriMetadata | undefined;
+	if (typeof arg === 'string') {
+		metadata = { title: arg, commandId: commandIdLegacy };
+	} else {
+		metadata = arg;
+		if (commandIdLegacy) {
+			metadata = {
+				...metadata,
+				commandId: metadata?.commandId ?? commandIdLegacy
+			};
+		}
+	}
+
+	const title = metadata?.title;
+	const params = new URLSearchParams();
+	if (metadata?.commandId) {
+		params.set('command', metadata.commandId);
+	}
+	if (metadata?.commandLine) {
+		params.set('commandLine', metadata.commandLine);
+	}
 	return URI.from({
 		scheme: Schemas.vscodeTerminal,
 		path: `/${workspaceId}/${instanceId}`,
 		fragment: title || undefined,
+		query: params.toString() || undefined
 	});
 }
 
