@@ -28,7 +28,7 @@ import { AgentSessionsViewModel, IAgentSessionViewModel, IAgentSessionsViewModel
 import { AgentSessionRenderer, AgentSessionsAccessibilityProvider, AgentSessionsCompressionDelegate, AgentSessionsDataSource, AgentSessionsFilter, AgentSessionsIdentityProvider, AgentSessionsListDelegate } from './agentSessionsViewer.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ButtonWithDropdown } from '../../../../../base/browser/ui/button/button.js';
-import { IAction, toAction } from '../../../../../base/common/actions.js';
+import { IAction, Separator, toAction } from '../../../../../base/common/actions.js';
 import { FuzzyScore } from '../../../../../base/common/filters.js';
 import { registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
@@ -147,6 +147,8 @@ export class AgentSessionsView extends FilterViewPane {
 		const dropdownActions: IAction[] = [
 			toAction({ id: 'action1', label: localize('agentSessions.action1', "Local Chat"), run: () => { /* TODO */ } }),
 			toAction({ id: 'action2', label: localize('agentSessions.action2', "Remote Chat"), run: () => { /* TODO */ } }),
+			new Separator(),
+			toAction({ id: 'installMore', label: localize('agentSessions.installMore', "Install More..."), run: () => { /* TODO */ } })
 		];
 
 		const newSessionButton = this._register(new ButtonWithDropdown(this.newSessionContainer, {
