@@ -21,7 +21,7 @@ import { registerActiveInstanceAction, registerTerminalAction } from '../../../t
 import { registerTerminalContribution, type ITerminalContributionContext } from '../../../terminal/browser/terminalExtensions.js';
 import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
 import { TerminalSuggestCommandId } from '../common/terminal.suggest.js';
-import { terminalSuggestConfigSection, TerminalSuggestSettingId, type ITerminalSuggestConfiguration, registerTerminalSuggestProvidersConfiguration, ITerminalSuggestProviderInfo } from '../common/terminalSuggestConfiguration.js';
+import { terminalSuggestConfigSection, TerminalSuggestSettingId, type ITerminalSuggestConfiguration, registerTerminalSuggestProvidersConfiguration, type ITerminalSuggestProviderInfo } from '../common/terminalSuggestConfiguration.js';
 import { ITerminalCompletionService, TerminalCompletionService } from './terminalCompletionService.js';
 import { ITerminalContributionService } from '../../../terminal/common/terminalExtensionPoints.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
@@ -470,7 +470,7 @@ class TerminalSuggestProvidersConfigurationManager extends Disposable {
 
 	constructor(
 		@ITerminalCompletionService private readonly _terminalCompletionService: ITerminalCompletionService,
-		@ITerminalContributionService private readonly _terminalContributionService: ITerminalContributionService,
+		@ITerminalContributionService private readonly _terminalContributionService: ITerminalContributionService
 	) {
 		super();
 		this._register(this._terminalCompletionService.onDidChangeProviders(() => {
