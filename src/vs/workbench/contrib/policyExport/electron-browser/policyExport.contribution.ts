@@ -17,7 +17,7 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { URI } from '../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { PolicyCategory, PolicyCategoryData } from '../../../../base/common/policy.js';
-import { ExportedPolicyDataDto } from '../../../../base/common/policyDto.js';
+import { ExportedPolicyDataDto } from '../common/policyDto.js';
 import { join } from '../../../../base/common/path.js';
 
 export class PolicyExportContribution extends Disposable implements IWorkbenchContribution {
