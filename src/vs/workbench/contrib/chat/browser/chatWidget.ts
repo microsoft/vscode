@@ -23,7 +23,7 @@ import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { combinedDisposable, Disposable, DisposableStore, IDisposable, MutableDisposable, thenIfNotDisposed, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { filter, mapValues } from '../../../../base/common/objects.js';
+import { filter } from '../../../../base/common/objects.js';
 import { autorun, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { basename, extUri, isEqual } from '../../../../base/common/resources.js';
 import { MicrotaskDelay } from '../../../../base/common/symbols.js';
@@ -731,12 +731,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private _updateAgentCapabilitiesContextKeys(agent: IChatAgentData | undefined): void {
 		// Check if the agent has capabilities defined directly
 		const capabilities = agent?.capabilities ?? (this._lockedAgent ? this.chatSessionsService.getCapabilitiesForSessionType(this._lockedAgent.id) : undefined);
-		if (capabilities) {
-			const disabledCapabilities = mapValues(supportsAllAttachments, () => false);
-			this._attachmentCapabilities = Object.assign(disabledCapabilities, filter(capabilities, (key, value) => typeof value === 'boolean'));
-		} else {
-			this._attachmentCapabilities = supportsAllAttachments;
-		}
+		this._attachmentCapabilities = capabilities ?? supportsAllAttachments;
 
 		const supportsAttachments = Object.keys(filter(this._attachmentCapabilities, (key, value) => value === true)).length > 0;
 		this._agentSupportsAttachmentsContextKey.set(supportsAttachments);
