@@ -3328,6 +3328,11 @@ declare namespace monaco.editor {
 		 */
 		readOnlyMessage?: IMarkdownString;
 		/**
+		 * Controls whether the Paste action should be removed from the editor context menu.
+		 * Defaults to false.
+		 */
+		removePasteFromEditorContextMenu?: boolean;
+		/**
 		 * Should the textarea used for input use the DOM `readonly` attribute.
 		 * Defaults to false.
 		 */
@@ -5233,7 +5238,8 @@ declare namespace monaco.editor {
 		inlineCompletionsAccessibilityVerbose = 169,
 		effectiveEditContext = 170,
 		scrollOnMiddleClick = 171,
-		effectiveAllowVariableFonts = 172
+		effectiveAllowVariableFonts = 172,
+		removePasteFromEditorContextMenu = 173
 	}
 
 	export const EditorOptions: {
@@ -5410,6 +5416,7 @@ declare namespace monaco.editor {
 		wrappingStrategy: IEditorOption<EditorOption.wrappingStrategy, 'simple' | 'advanced'>;
 		effectiveEditContextEnabled: IEditorOption<EditorOption.effectiveEditContext, boolean>;
 		effectiveAllowVariableFonts: IEditorOption<EditorOption.effectiveAllowVariableFonts, boolean>;
+		removePasteFromEditorContextMenu: IEditorOption<EditorOption.removePasteFromEditorContextMenu, boolean>;
 	};
 
 	type EditorOptionsType = typeof EditorOptions;
@@ -5434,11 +5441,6 @@ declare namespace monaco.editor {
 		 * Defaults to an internal DOM node.
 		 */
 		overflowWidgetsDomNode?: HTMLElement;
-		/**
-		 * When true, removes the "Paste" action from the editor's context menus (EditorContext & SimpleEditorContext).
-		 * Does not affect paste via keybindings or commands. Defaults to false.
-		 */
-		removePasteFromEditorContextMenu?: boolean;
 	}
 
 	/**

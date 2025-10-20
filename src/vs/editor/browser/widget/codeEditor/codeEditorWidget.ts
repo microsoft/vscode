@@ -2207,10 +2207,7 @@ class EditorContextKeysManager extends Disposable {
 		this._editorReadonly.set(options.get(EditorOption.readOnly));
 		this._inDiffEditor.set(options.get(EditorOption.inDiffEditor));
 		this._editorColumnSelection.set(options.get(EditorOption.columnSelection));
-		// Custom option not part of standard EditorOption enum; read from construction options if present
-		// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
-		const rawOpts = (this._editor as any)._configuration?._rawOptions as { removePasteFromEditorContextMenu?: boolean } | undefined;
-		this._removePasteFromEditorContextMenu.set(!!rawOpts?.removePasteFromEditorContextMenu);
+		this._removePasteFromEditorContextMenu.set(options.get(EditorOption.removePasteFromEditorContextMenu));
 	}
 
 	private _updateFromSelection(): void {
