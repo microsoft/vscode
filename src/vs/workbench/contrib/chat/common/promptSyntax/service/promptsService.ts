@@ -257,7 +257,21 @@ export interface IPromptsService extends IDisposable {
 
 	getPromptLocationLabel(promptPath: IPromptPath): string;
 
+	/**
+	 * Gets list of all AGENTS.md files in the workspace.
+	 */
 	findAgentMDsInWorkspace(token: CancellationToken): Promise<URI[]>;
+
+	/**
+	 * Gets list of AGENTS.md files.
+	 * @param includeNested Whether to include AGENTS.md files from subfolders, or only from the root.
+	 */
+	listAgentMDs(token: CancellationToken, includeNested: boolean): Promise<URI[]>;
+
+	/**
+	 * Gets list of .github/copilot-instructions.md files.
+	 */
+	listCopilotInstructionsMDs(token: CancellationToken): Promise<URI[]>;
 }
 
 export interface IChatPromptSlashCommand {

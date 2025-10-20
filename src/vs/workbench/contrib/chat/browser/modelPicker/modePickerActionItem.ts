@@ -89,7 +89,7 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 					agentMode && makeAction(agentMode, currentMode),
 					...customBuiltinModeActions,
 					...otherBuiltinModes.map(mode => mode && makeAction(mode, currentMode)),
-					...customModes.custom.map(mode => makeActionFromCustomMode(mode, currentMode))
+					...customModes.custom?.map(mode => makeActionFromCustomMode(mode, currentMode)) ?? []
 				]);
 
 				return orderedModes;
