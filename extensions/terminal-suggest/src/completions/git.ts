@@ -123,19 +123,16 @@ const postProcessBranches =
 					const subject = parts[3].trim();
 					const timeAgo = parts[4].trim();
 
-					let description = timeAgo;
-					let detail = `${author} • ${hash} • ${subject}`;
+					let description = `${timeAgo} • ${author} • ${hash} • ${subject}`;
 					let priority = 75;
 
 					if (insertWithoutRemotes && name.startsWith("remotes/")) {
 						name = name.slice(name.indexOf("/", 8) + 1);
-						description = `Remote branch • ${timeAgo}`;
 					}
 
 					return {
 						name,
 						description,
-						detail,
 						icon: `vscode://icon?type=${vscode.TerminalCompletionItemKind.ScmBranch}`,
 						priority,
 					};
