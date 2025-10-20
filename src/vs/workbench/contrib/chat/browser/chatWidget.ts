@@ -965,8 +965,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (this._dynamicMessageLayoutData) {
 			this._dynamicMessageLayoutData.enabled = true;
 		}
-		// Unlock coding agent when clearing
-		this.unlockFromCodingAgent();
+
+		if (this.viewModel) {
+			this.viewModel.resetInputPlaceholder();
+		}
+		if (this._lockedAgentId && this._codingAgentPrefix && this._lockedToCodingAgent) {
+			this.lockToCodingAgent(this._codingAgentPrefix.substring(1), this._lockedToCodingAgent, this._lockedAgentId);
+		} else {
+			this.unlockFromCodingAgent();
+		}
+
 		this.clearTodoListWidget(this.viewModel?.sessionId);
 		// Cancel any pending widget render and hide the widget BEFORE firing onDidClear
 		// This prevents the widget from being re-shown by any handlers triggered by the clear event
