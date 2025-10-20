@@ -25,7 +25,7 @@ abstract class ConfigAgentActionImpl extends Action2 {
 		const pickers = instaService.createInstance(PromptFilePickers);
 
 		const placeholder = localize(
-			'commands.mode.select-dialog.placeholder',
+			'commands.agent.select-dialog.placeholder',
 			'Select the agent file to open'
 		);
 
@@ -85,7 +85,7 @@ class ManageAgentsAction extends ConfigAgentActionImpl {
 /**
  * Helper to register all the `Run Current Prompt` actions.
  */
-export function registerChatModeActions(): void {
+export function registerAgentActions(): void {
 	registerAction2(ManageAgentsAction);
 	registerAction2(PickerConfigAgentAction);
 }
