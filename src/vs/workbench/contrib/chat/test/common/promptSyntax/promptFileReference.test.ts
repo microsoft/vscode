@@ -119,7 +119,7 @@ class TestPromptFileReference extends Disposable {
 		const result: any = {};
 		result.promptType = getPromptFileType(this.rootFileUri);
 		if (ast.header) {
-			for (const key of ['tools', 'model', 'mode', 'applyTo', 'description'] as const) {
+			for (const key of ['tools', 'model', 'agent', 'applyTo', 'description'] as const) {
 				if (ast.header[key]) {
 					result[key] = ast.header[key];
 				}
