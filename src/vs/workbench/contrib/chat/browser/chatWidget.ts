@@ -339,7 +339,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	/**
 	 * Whether the list is scroll-locked to the bottom. Initialize to true so that we can scroll to the bottom on first render.
 	 * The initial render leads to a lot of `onDidChangeTreeContentHeight` as the renderer works out the real heights of rows.
-	 */
+	*/
 	private scrollLock = true;
 
 	private _isReady = false;
@@ -359,6 +359,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	// Coding agent locking state
 	private _lockedToCodingAgent: string | undefined;
 	private _lockedToCodingAgentContextKey!: IContextKey<boolean>;
+	private _agentSupportsAttachmentsContextKey!: IContextKey<boolean>;
+	private _supportsToolAttachments: boolean = true;
+	private _supportsMCPAttachments: boolean = true;
+	private _supportsFileAttachments: boolean = true;
+	private _supportsImageAttachments: boolean = true;
 	private _codingAgentPrefix: string | undefined;
 	private _lockedAgentId: string | undefined;
 
@@ -487,6 +492,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	) {
 		super();
 		this._lockedToCodingAgentContextKey = ChatContextKeys.lockedToCodingAgent.bindTo(this.contextKeyService);
+		this._agentSupportsAttachmentsContextKey = ChatContextKeys.agentSupportsAttachments.bindTo(this.contextKeyService);
 
 		this.viewContext = _viewContext ?? {};
 
@@ -701,6 +707,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	set lastSelectedAgent(agent: IChatAgentData | undefined) {
 		this.parsedChatRequest = undefined;
 		this._lastSelectedAgent = agent;
+		this._updateAgentCapabilitiesContextKeys(agent);
 		this._onDidChangeParsedInput.fire();
 	}
 
@@ -708,8 +715,38 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return this._lastSelectedAgent;
 	}
 
+	private _updateAgentCapabilitiesContextKeys(agent: IChatAgentData | undefined): void {
+		this._supportsFileAttachments = true;
+		this._supportsToolAttachments = true;
+		this._supportsMCPAttachments = true;
+		this._supportsImageAttachments = true;
+
+		// Check if the agent has capabilities defined directly
+		const capabilities = agent?.capabilities ?? (this._lockedAgentId ? this.chatSessionsService.getCapabilitiesForSessionType(this._lockedAgentId) : undefined);
+		if (capabilities) {
+			this._supportsFileAttachments = capabilities.supportsFileAttachments ?? false;
+			this._supportsToolAttachments = capabilities.supportsToolAttachments ?? false;
+			this._supportsMCPAttachments = capabilities.supportsMCPAttachments ?? false;
+			this._supportsImageAttachments = capabilities.supportsImageAttachments ?? false;
+		}
+
+		this._agentSupportsAttachmentsContextKey.set(this._supportsFileAttachments || this._supportsImageAttachments || this._supportsToolAttachments || this._supportsMCPAttachments);
+	}
+
 	get supportsFileReferences(): boolean {
 		return !!this.viewOptions.supportsFileReferences;
+	}
+
+	get supportsToolAttachments(): boolean {
+		return this._supportsToolAttachments;
+	}
+
+	get supportsMCPAttachments(): boolean {
+		return this._supportsMCPAttachments;
+	}
+
+	get supportsImageAttachments(): boolean {
+		return this._supportsImageAttachments;
 	}
 
 	get input(): ChatInputPart {
@@ -2348,6 +2385,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.viewModelDisposables.add(model.onDidChange((e) => {
 			if (e.kind === 'setAgent') {
 				this._onDidChangeAgent.fire({ agent: e.agent, slashCommand: e.command });
+				// Update capabilities context keys when agent changes
+				this._updateAgentCapabilitiesContextKeys(e.agent);
 			}
 			if (e.kind === 'addRequest') {
 				this.clearTodoListWidget(model.sessionId, false);
@@ -2421,6 +2460,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._lockedAgentId = agentId;
 		this._lockedToCodingAgentContextKey.set(true);
 		this._welcomeRenderScheduler.schedule();
+		// Update capabilities for the locked agent
+		const agent = this.chatAgentService.getAgent(agentId);
+		this._updateAgentCapabilitiesContextKeys(agent);
 		this.renderer.updateOptions({ restorable: false, editable: false, noFooter: true, progressMessageAtBottomOfResponse: true });
 		this.tree.rerender();
 	}
@@ -2431,6 +2473,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._codingAgentPrefix = undefined;
 		this._lockedAgentId = undefined;
 		this._lockedToCodingAgentContextKey.set(false);
+		this._updateAgentCapabilitiesContextKeys(undefined);
 
 		// Explicitly update the DOM to reflect unlocked state
 		this._welcomeRenderScheduler.schedule();

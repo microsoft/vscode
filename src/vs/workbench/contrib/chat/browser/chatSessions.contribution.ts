@@ -89,6 +89,14 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 						supportsToolAttachments: {
 							description: localize('chatSessionsExtPoint.supportsToolAttachments', 'Whether this chat session supports attaching tools or tool references.'),
 							type: 'boolean'
+						},
+						supportsMCPAttachments: {
+							description: localize('chatSessionsExtPoint.supportsMCPAttachments', 'Whether this chat session supports attaching MCP resources.'),
+							type: 'boolean'
+						},
+						supportsImageAttachments: {
+							description: localize('chatSessionsExtPoint.supportsImageAttachments', 'Whether this chat session supports attaching images.'),
+							type: 'boolean'
 						}
 					}
 				},
@@ -752,6 +760,14 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	 */
 	public getInputPlaceholderForSessionType(chatSessionType: string): string | undefined {
 		return this._sessionTypeInputPlaceholders.get(chatSessionType);
+	}
+
+	/**
+	 * Get the capabilities for a specific session type
+	 */
+	public getCapabilitiesForSessionType(chatSessionType: string): { supportsFileAttachments?: boolean; supportsToolAttachments?: boolean } | undefined {
+		const contribution = this._contributions.get(chatSessionType);
+		return contribution?.capabilities;
 	}
 
 	/**
