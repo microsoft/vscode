@@ -57,6 +57,7 @@ export interface IChatSessionsExtensionPoint {
 		supportsFileAttachments?: boolean;
 		supportsToolAttachments?: boolean;
 		supportsMCPAttachments?: boolean;
+		supportsImageAttachments?: boolean;
 	};
 	readonly commands?: IChatSessionCommandContribution[];
 }
@@ -180,7 +181,12 @@ export interface IChatSessionsService {
 	/**
 	 * Get the capabilities for a specific session type
 	 */
-	getCapabilitiesForSessionType(chatSessionType: string): { supportsFileAttachments?: boolean; supportsToolAttachments?: boolean; supportsMCPAttachments?: boolean } | undefined;
+	getCapabilitiesForSessionType(chatSessionType: string): {
+		supportsFileAttachments?: boolean;
+		supportsToolAttachments?: boolean;
+		supportsMCPAttachments?: boolean;
+		supportsImageAttachments?: boolean;
+	} | undefined;
 }
 
 export const IChatSessionsService = createDecorator<IChatSessionsService>('chatSessionsService');

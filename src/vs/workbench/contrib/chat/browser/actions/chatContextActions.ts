@@ -410,7 +410,7 @@ export class AttachContextAction extends Action2 {
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 					ContextKeyExpr.or(
 						ChatContextKeys.lockedToCodingAgent.negate(),
-						ChatContextKeys.agentSupportsFileAttachments
+						ChatContextKeys.agentSupportsAttachments
 					)
 				),
 				id: MenuId.ChatInputAttachmentToolbar,

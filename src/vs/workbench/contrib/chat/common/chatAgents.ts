@@ -67,6 +67,7 @@ export interface IChatAgentData {
 		supportsToolAttachments?: boolean;
 		supportsFileAttachments?: boolean;
 		supportsMCPAttachments?: boolean;
+		supportsImageAttachments?: boolean;
 	};
 }
 

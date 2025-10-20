@@ -359,9 +359,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	// Coding agent locking state
 	private _lockedToCodingAgent: string | undefined;
 	private _lockedToCodingAgentContextKey!: IContextKey<boolean>;
-	private _agentSupportsFileAttachmentsContextKey!: IContextKey<boolean>;
+	private _agentSupportsAttachmentsContextKey!: IContextKey<boolean>;
 	private _supportsToolAttachments: boolean = true;
 	private _supportsMCPAttachments: boolean = true;
+	private _supportsFileAttachments: boolean = true;
+	private _supportsImageAttachments: boolean = true;
 	private _codingAgentPrefix: string | undefined;
 	private _lockedAgentId: string | undefined;
 
@@ -491,7 +493,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		super();
 		this._lockedToCodingAgentContextKey = ChatContextKeys.lockedToCodingAgent.bindTo(this.contextKeyService);
-		this._agentSupportsFileAttachmentsContextKey = ChatContextKeys.agentSupportsFileAttachments.bindTo(this.contextKeyService);
+		this._agentSupportsAttachmentsContextKey = ChatContextKeys.agentSupportsAttachments.bindTo(this.contextKeyService);
 
 		this.viewContext = _viewContext ?? {};
 
@@ -715,30 +717,27 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private _updateAgentCapabilitiesContextKeys(agent: IChatAgentData | undefined): void {
-		let supportsFileAttachments = true;
+		this._supportsFileAttachments = true;
 		this._supportsToolAttachments = true;
 		this._supportsMCPAttachments = true;
+		this._supportsImageAttachments = true;
 
 		// Check if the agent has capabilities defined directly
-		if (agent?.capabilities?.supportsFileAttachments !== undefined) {
-			supportsFileAttachments = agent.capabilities.supportsFileAttachments;
-			this._supportsToolAttachments = agent.capabilities.supportsToolAttachments ?? true;
-			this._supportsMCPAttachments = agent.capabilities.supportsMCPAttachments ?? true;
+		if (agent?.capabilities !== undefined) {
+			this._supportsFileAttachments = agent.capabilities.supportsFileAttachments ?? false;
+			this._supportsToolAttachments = agent.capabilities.supportsToolAttachments ?? false;
+			this._supportsMCPAttachments = agent.capabilities.supportsMCPAttachments ?? false;
+			this._supportsImageAttachments = agent.capabilities.supportsImageAttachments ?? false;
 		} else if (this._lockedAgentId) {
 			// Check if the agent is a chat session type with capabilities
 			const sessionCapabilities = this.chatSessionsService.getCapabilitiesForSessionType(this._lockedAgentId);
-			if (sessionCapabilities?.supportsFileAttachments !== undefined) {
-				supportsFileAttachments = sessionCapabilities.supportsFileAttachments;
-			}
-			if (sessionCapabilities?.supportsToolAttachments !== undefined) {
-				this._supportsToolAttachments = sessionCapabilities.supportsToolAttachments;
-			}
-			if (sessionCapabilities?.supportsMCPAttachments !== undefined) {
-				this._supportsMCPAttachments = sessionCapabilities.supportsMCPAttachments;
-			}
+			this._supportsFileAttachments = sessionCapabilities?.supportsFileAttachments ?? false;
+			this._supportsToolAttachments = sessionCapabilities?.supportsToolAttachments ?? false;
+			this._supportsMCPAttachments = sessionCapabilities?.supportsMCPAttachments ?? false;
+			this._supportsImageAttachments = sessionCapabilities?.supportsImageAttachments ?? false;
 		}
 
-		this._agentSupportsFileAttachmentsContextKey.set(supportsFileAttachments);
+		this._agentSupportsAttachmentsContextKey.set(this._supportsFileAttachments || this._supportsImageAttachments || this._supportsToolAttachments || this._supportsMCPAttachments);
 	}
 
 	get supportsFileReferences(): boolean {
@@ -751,6 +750,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	get supportsMCPAttachments(): boolean {
 		return this._supportsMCPAttachments;
+	}
+
+	get supportsImageAttachments(): boolean {
+		return this._supportsImageAttachments;
 	}
 
 	get input(): ChatInputPart {
