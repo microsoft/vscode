@@ -11,6 +11,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IOffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
 import { localize } from '../../../../nls.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -18,7 +19,7 @@ import { IChatAgentService } from './chatAgents.js';
 import { ChatContextKeys } from './chatContextKeys.js';
 import { ChatModeKind } from './constants.js';
 import { IHandOff } from './promptSyntax/service/newPromptsParser.js';
-import { ICustomChatMode, IPromptsService } from './promptSyntax/service/promptsService.js';
+import { IChatModeSource, ICustomChatMode, IPromptsService, PromptsStorage } from './promptSyntax/service/promptsService.js';
 
 export const IChatModeService = createDecorator<IChatModeService>('chatModeService');
 export interface IChatModeService {
@@ -100,12 +101,13 @@ export class ChatModeService extends Disposable implements IChatModeService {
 						tools: cachedMode.customTools,
 						model: cachedMode.model,
 						modeInstructions: cachedMode.modeInstructions ?? { content: cachedMode.body ?? '', toolReferences: [] },
-						handOffs: cachedMode.handOffs
+						handOffs: cachedMode.handOffs,
+						source: reviveChatModeSource(cachedMode.source) ?? { storage: PromptsStorage.local }
 					};
 					const instance = new CustomChatMode(customChatMode);
 					this._customModeInstances.set(uri.toString(), instance);
 				} catch (error) {
-					this.logService.error(error, 'Failed to create custom chat mode instance from cached data');
+					this.logService.error(error, 'Failed to revive cached custom chat mode');
 				}
 			}
 		}
@@ -170,7 +172,7 @@ export class ChatModeService extends Disposable implements IChatModeService {
 	}
 
 	findModeById(id: string | ChatModeKind): IChatMode | undefined {
-		return this.getBuiltinModes().find(mode => mode.id === id) ?? this.getCustomModes().find(mode => mode.id === id);
+		return this.getBuiltinModes().find(mode => mode.id === id) ?? this._customModeInstances.get(id);
 	}
 
 	findModeByName(name: string): IChatMode | undefined {
@@ -206,6 +208,7 @@ export interface IChatModeData {
 	readonly body?: string; /* deprecated */
 	readonly handOffs?: readonly IHandOff[];
 	readonly uri?: URI;
+	readonly source?: IChatModeSourceData;
 }
 
 export interface IChatMode {
@@ -220,6 +223,7 @@ export interface IChatMode {
 	readonly model?: IObservable<string | undefined>;
 	readonly modeInstructions?: IObservable<IChatModeInstructions>;
 	readonly uri?: IObservable<URI>;
+	readonly source?: IChatModeSource;
 }
 
 export interface IVariableReference {
@@ -247,7 +251,8 @@ function isCachedChatModeData(data: unknown): data is IChatModeData {
 		(mode.modeInstructions === undefined || (typeof mode.modeInstructions === 'object' && mode.modeInstructions !== null)) &&
 		(mode.model === undefined || typeof mode.model === 'string') &&
 		(mode.handOffs === undefined || Array.isArray(mode.handOffs)) &&
-		(mode.uri === undefined || (typeof mode.uri === 'object' && mode.uri !== null));
+		(mode.uri === undefined || (typeof mode.uri === 'object' && mode.uri !== null)) &&
+		(mode.source === undefined || isChatModeSourceData(mode.source));
 }
 
 export class CustomChatMode implements IChatMode {
@@ -257,6 +262,7 @@ export class CustomChatMode implements IChatMode {
 	private readonly _uriObservable: ISettableObservable<URI>;
 	private readonly _modelObservable: ISettableObservable<string | undefined>;
 	private readonly _handoffsObservable: ISettableObservable<readonly IHandOff[] | undefined>;
+	private _source: IChatModeSource;
 
 	public readonly id: string;
 	public readonly name: string;
@@ -293,6 +299,10 @@ export class CustomChatMode implements IChatMode {
 		return this._handoffsObservable;
 	}
 
+	get source(): IChatModeSource {
+		return this._source;
+	}
+
 	public readonly kind = ChatModeKind.Agent;
 
 	constructor(
@@ -306,6 +316,7 @@ export class CustomChatMode implements IChatMode {
 		this._handoffsObservable = observableValue('handOffs', customChatMode.handOffs);
 		this._modeInstructions = observableValue('_modeInstructions', customChatMode.modeInstructions);
 		this._uriObservable = observableValue('uri', customChatMode.uri);
+		this._source = customChatMode.source;
 	}
 
 	/**
@@ -320,6 +331,7 @@ export class CustomChatMode implements IChatMode {
 			this._handoffsObservable.set(newData.handOffs, tx);
 			this._modeInstructions.set(newData.modeInstructions, tx);
 			this._uriObservable.set(newData.uri, tx);
+			this._source = newData.source;
 		});
 	}
 
@@ -333,9 +345,45 @@ export class CustomChatMode implements IChatMode {
 			model: this.model.get(),
 			modeInstructions: this.modeInstructions.get(),
 			uri: this.uri.get(),
-			handOffs: this.handOffs.get()
+			handOffs: this.handOffs.get(),
+			source: serializeChatModeSource(this._source)
 		};
 	}
+}
+
+type IChatModeSourceData =
+	| { readonly storage: PromptsStorage.extension; readonly extensionId: string }
+	| { readonly storage: PromptsStorage.local | PromptsStorage.user };
+
+function isChatModeSourceData(value: unknown): value is IChatModeSourceData {
+	if (typeof value !== 'object' || value === null) {
+		return false;
+	}
+	const data = value as { storage?: unknown; extensionId?: unknown };
+	if (data.storage === PromptsStorage.extension) {
+		return typeof data.extensionId === 'string';
+	}
+	return data.storage === PromptsStorage.local || data.storage === PromptsStorage.user;
+}
+
+function serializeChatModeSource(source: IChatModeSource | undefined): IChatModeSourceData | undefined {
+	if (!source) {
+		return undefined;
+	}
+	if (source.storage === PromptsStorage.extension) {
+		return { storage: PromptsStorage.extension, extensionId: source.extensionId.value };
+	}
+	return { storage: source.storage };
+}
+
+function reviveChatModeSource(data: IChatModeSourceData | undefined): IChatModeSource | undefined {
+	if (!data) {
+		return undefined;
+	}
+	if (data.storage === PromptsStorage.extension) {
+		return { storage: PromptsStorage.extension, extensionId: new ExtensionIdentifier(data.extensionId) };
+	}
+	return { storage: data.storage };
 }
 
 export class BuiltinChatMode implements IChatMode {

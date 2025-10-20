@@ -336,7 +336,7 @@ export class SessionsViewPane extends ViewPane {
 						if (elements.length === 1) {
 							return elements[0].label;
 						}
-						return nls.localize('chatSessions.dragLabel', "{0} chat sessions", elements.length);
+						return nls.localize('chatSessions.dragLabel', "{0} agent sessions", elements.length);
 					},
 					drop: () => { },
 					onDragOver: () => false,

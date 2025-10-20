@@ -149,9 +149,12 @@ declare module 'vscode' {
 		readonly history: ReadonlyArray<ChatRequestTurn | ChatResponseTurn2>;
 
 		/**
-		 * Options configured for this session.
+		 * Options configured for this session as key-value pairs.
+		 * Keys correspond to option group IDs (e.g., 'models', 'subagents')
+		 * and values are the selected option item IDs.
+		 * TODO: Strongly type the keys
 		 */
-		readonly options?: { model?: LanguageModelChatInformation };
+		readonly options?: Record<string, string>;
 
 		/**
 		 * Callback invoked by the editor for a currently running response. This allows the session to push items for the
@@ -252,11 +255,52 @@ declare module 'vscode' {
 		supportsInterruptions?: boolean;
 	}
 
+	/**
+	 * Represents a single selectable item within a provider option group.
+	 */
+	export interface ChatSessionProviderOptionItem {
+		/**
+		 * Unique identifier for the option item.
+		 */
+		readonly id: string;
+
+		/**
+		 * Human-readable name displayed in the UI.
+		 */
+		readonly name: string;
+	}
+
+	/**
+	 * Represents a group of related provider options (e.g., models, sub-agents).
+	 */
+	export interface ChatSessionProviderOptionGroup {
+		/**
+		 * Unique identifier for the option group (e.g., "models", "subagents").
+		 */
+		readonly id: string;
+
+		/**
+		 * Human-readable name for the option group.
+		 */
+		readonly name: string;
+
+		/**
+		 * Optional description providing context about this option group.
+		 */
+		readonly description?: string;
+
+		/**
+		 * The selectable items within this option group.
+		 */
+		readonly items: ChatSessionProviderOptionItem[];
+	}
+
 	export interface ChatSessionProviderOptions {
 		/**
-		 * Set of available models.
+		 * Provider-defined option groups (0-2 groups supported).
+		 * Examples: models picker, sub-agents picker, etc.
 		 */
-		models?: LanguageModelChatInformation[];
+		optionGroups?: ChatSessionProviderOptionGroup[];
 	}
 
 	/**

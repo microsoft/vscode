@@ -515,7 +515,7 @@ class RepositoryPaneActionRunner extends ActionRunner {
 		super();
 	}
 
-	protected override async runAction(action: IAction, context: ISCMResourceGroup | ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>): Promise<any> {
+	protected override async runAction(action: IAction, context: ISCMResourceGroup | ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>): Promise<void> {
 		if (!(action instanceof MenuItemAction)) {
 			return super.runAction(action, context);
 		}
@@ -1694,7 +1694,7 @@ class SCMInputWidget {
 		}
 
 		// Validation
-		const validationDelayer = new ThrottledDelayer<any>(200);
+		const validationDelayer = new ThrottledDelayer<void>(200);
 		const validate = async () => {
 			const position = this.inputEditor.getSelection()?.getStartPosition();
 			const offset = position && textModel.getOffsetAt(position);
@@ -2612,7 +2612,7 @@ export class SCMViewPane extends ViewPane {
 		}
 
 		const element = e.element;
-		let context: any = element;
+		let context: unknown = element;
 		let actions: IAction[] = [];
 
 		const disposables = new DisposableStore();

@@ -66,6 +66,7 @@ import { IChatModeService } from '../common/chatModes.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestDynamicVariablePart, ChatRequestSlashPromptPart, ChatRequestToolPart, ChatRequestToolSetPart, chatSubcommandLeader, formatChatQuestion, IParsedChatRequest } from '../common/chatParserTypes.js';
 import { ChatRequestParser } from '../common/chatRequestParser.js';
 import { IChatLocationData, IChatSendRequestOptions, IChatService } from '../common/chatService.js';
+import { IChatSessionsService } from '../common/chatSessionsService.js';
 import { IChatSlashCommandService } from '../common/chatSlashCommands.js';
 import { ChatRequestVariableSet, IChatRequestVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../common/chatVariableEntries.js';
 import { ChatViewModel, IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
@@ -338,7 +339,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	/**
 	 * Whether the list is scroll-locked to the bottom. Initialize to true so that we can scroll to the bottom on first render.
 	 * The initial render leads to a lot of `onDidChangeTreeContentHeight` as the renderer works out the real heights of rows.
-	 */
+	*/
 	private scrollLock = true;
 
 	private _isReady = false;
@@ -358,6 +359,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	// Coding agent locking state
 	private _lockedToCodingAgent: string | undefined;
 	private _lockedToCodingAgentContextKey!: IContextKey<boolean>;
+	private _agentSupportsAttachmentsContextKey!: IContextKey<boolean>;
+	private _supportsToolAttachments: boolean = true;
+	private _supportsMCPAttachments: boolean = true;
+	private _supportsFileAttachments: boolean = true;
+	private _supportsImageAttachments: boolean = true;
 	private _codingAgentPrefix: string | undefined;
 	private _lockedAgentId: string | undefined;
 
@@ -482,9 +488,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) {
 		super();
 		this._lockedToCodingAgentContextKey = ChatContextKeys.lockedToCodingAgent.bindTo(this.contextKeyService);
+		this._agentSupportsAttachmentsContextKey = ChatContextKeys.agentSupportsAttachments.bindTo(this.contextKeyService);
 
 		this.viewContext = _viewContext ?? {};
 
@@ -699,6 +707,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	set lastSelectedAgent(agent: IChatAgentData | undefined) {
 		this.parsedChatRequest = undefined;
 		this._lastSelectedAgent = agent;
+		this._updateAgentCapabilitiesContextKeys(agent);
 		this._onDidChangeParsedInput.fire();
 	}
 
@@ -706,8 +715,38 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return this._lastSelectedAgent;
 	}
 
+	private _updateAgentCapabilitiesContextKeys(agent: IChatAgentData | undefined): void {
+		this._supportsFileAttachments = true;
+		this._supportsToolAttachments = true;
+		this._supportsMCPAttachments = true;
+		this._supportsImageAttachments = true;
+
+		// Check if the agent has capabilities defined directly
+		const capabilities = agent?.capabilities ?? (this._lockedAgentId ? this.chatSessionsService.getCapabilitiesForSessionType(this._lockedAgentId) : undefined);
+		if (capabilities) {
+			this._supportsFileAttachments = capabilities.supportsFileAttachments ?? false;
+			this._supportsToolAttachments = capabilities.supportsToolAttachments ?? false;
+			this._supportsMCPAttachments = capabilities.supportsMCPAttachments ?? false;
+			this._supportsImageAttachments = capabilities.supportsImageAttachments ?? false;
+		}
+
+		this._agentSupportsAttachmentsContextKey.set(this._supportsFileAttachments || this._supportsImageAttachments || this._supportsToolAttachments || this._supportsMCPAttachments);
+	}
+
 	get supportsFileReferences(): boolean {
 		return !!this.viewOptions.supportsFileReferences;
+	}
+
+	get supportsToolAttachments(): boolean {
+		return this._supportsToolAttachments;
+	}
+
+	get supportsMCPAttachments(): boolean {
+		return this._supportsMCPAttachments;
+	}
+
+	get supportsImageAttachments(): boolean {
+		return this._supportsImageAttachments;
 	}
 
 	get input(): ChatInputPart {
@@ -1058,9 +1097,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			} else if (expEmptyState) {
 				welcomeContent = this.getWelcomeViewContent(additionalMessage, expEmptyState);
 			} else {
-				const tips = this.input.currentModeKind === ChatModeKind.Ask
+				const defaultTips = this.input.currentModeKind === ChatModeKind.Ask
 					? new MarkdownString(localize('chatWidget.tips', "{0} or type {1} to attach context\n\n{2} to chat with extensions\n\nType {3} to use commands", '$(attach)', '#', '$(mention)', '/'), { supportThemeIcons: true })
 					: new MarkdownString(localize('chatWidget.tips.withoutParticipants', "{0} or type {1} to attach context", '$(attach)', '#'), { supportThemeIcons: true });
+				const contributedTips = this._lockedAgentId ? this.chatSessionsService.getWelcomeTipsForSessionType(this._lockedAgentId) : undefined;
+				const tips = contributedTips
+					? new MarkdownString(contributedTips, { supportThemeIcons: true })
+					: (!this._lockedAgentId ? defaultTips : undefined);
 				welcomeContent = this.getWelcomeViewContent(additionalMessage);
 				welcomeContent.tips = tips;
 			}
@@ -1356,15 +1399,22 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 
 		if (this.isLockedToCodingAgent) {
-			// TODO(jospicer): Let extensions contribute this welcome message/docs
-			const message = this._codingAgentPrefix === '@copilot '
-				? new MarkdownString(localize('copilotCodingAgentMessage', "This chat session will be forwarded to the {0} [coding agent]({1}) where work is completed in the background. ", this._codingAgentPrefix, 'https://aka.ms/coding-agent-docs') + this.chatDisclaimer, { isTrusted: true })
-				: new MarkdownString(localize('genericCodingAgentMessage', "This chat session will be forwarded to the {0} coding agent where work is completed in the background. ", this._codingAgentPrefix) + this.chatDisclaimer);
+			// Check for provider-specific customizations from chat sessions service
+			const providerIcon = this._lockedAgentId ? this.chatSessionsService.getIconForSessionType(this._lockedAgentId) : undefined;
+			const providerTitle = this._lockedAgentId ? this.chatSessionsService.getWelcomeTitleForSessionType(this._lockedAgentId) : undefined;
+			const providerMessage = this._lockedAgentId ? this.chatSessionsService.getWelcomeMessageForSessionType(this._lockedAgentId) : undefined;
+
+			// Fallback to default messages if provider doesn't specify
+			const message = providerMessage
+				? new MarkdownString(providerMessage)
+				: (this._codingAgentPrefix === '@copilot '
+					? new MarkdownString(localize('copilotCodingAgentMessage', "This chat session will be forwarded to the {0} [coding agent]({1}) where work is completed in the background. ", this._codingAgentPrefix, 'https://aka.ms/coding-agent-docs') + this.chatDisclaimer, { isTrusted: true })
+					: new MarkdownString(localize('genericCodingAgentMessage', "This chat session will be forwarded to the {0} coding agent where work is completed in the background. ", this._codingAgentPrefix) + this.chatDisclaimer));
 
 			return {
-				title: localize('codingAgentTitle', "Delegate to {0}", this._codingAgentPrefix),
+				title: providerTitle ?? localize('codingAgentTitle', "Delegate to {0}", this._codingAgentPrefix),
 				message,
-				icon: Codicon.sendToRemoteAgent,
+				icon: providerIcon ?? Codicon.sendToRemoteAgent,
 				additionalMessage,
 			};
 		}
@@ -1412,15 +1462,27 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			additionalMessage = localize('expChatAdditionalMessage', "AI responses may be inaccurate.");
 		}
 
+		// Check for provider-specific customizations
+		const providerIcon = this._lockedAgentId ? this.chatSessionsService.getIconForSessionType(this._lockedAgentId) : undefined;
+		const providerTitle = this._lockedAgentId ? this.chatSessionsService.getWelcomeTitleForSessionType(this._lockedAgentId) : undefined;
+		const providerMessage = this._lockedAgentId ? this.chatSessionsService.getWelcomeMessageForSessionType(this._lockedAgentId) : undefined;
+		const providerTips = this._lockedAgentId ? this.chatSessionsService.getWelcomeTipsForSessionType(this._lockedAgentId) : undefined;
+		const suggestedPrompts = this._lockedAgentId ? undefined : this.getNewSuggestedPrompts();
+
 		const welcomeContent: IChatViewWelcomeContent = {
-			title: localize('expChatTitle', 'Build with agent mode'),
-			message: new MarkdownString(localize('expchatMessage', "Let's get started")),
-			icon: Codicon.chatSparkle,
+			title: providerTitle ?? localize('expChatTitle', 'Build with agent mode'),
+			message: providerMessage ? new MarkdownString(providerMessage) : new MarkdownString(localize('expchatMessage', "Let's get started")),
+			icon: providerIcon ?? Codicon.chatSparkle,
 			inputPart: this.inputPart.element,
 			additionalMessage,
 			isNew: true,
-			suggestedPrompts: this.getNewSuggestedPrompts(),
+			suggestedPrompts
 		};
+
+		// Add contributed tips if available
+		if (providerTips) {
+			welcomeContent.tips = new MarkdownString(providerTips, { supportThemeIcons: true });
+		}
 		return welcomeContent;
 	}
 
@@ -2268,8 +2330,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.container.setAttribute('data-session-id', model.sessionId);
 		this.viewModel = this.instantiationService.createInstance(ChatViewModel, model, this._codeBlockModelCollection);
 
-		if (this._lockedToCodingAgent) {
-			const placeholder = localize('chat.input.placeholder.lockedToAgent', "Chat with {0}", this._lockedToCodingAgent);
+		if (this._lockedAgentId) {
+			let placeholder = this._lockedAgentId ? this.chatSessionsService.getInputPlaceholderForSessionType(this._lockedAgentId) : undefined;
+			if (!placeholder) {
+				placeholder = localize('chat.input.placeholder.lockedToAgent', "Chat with {0}", this._lockedAgentId);
+			}
 			this.viewModel.setInputPlaceholder(placeholder);
 			this.inputEditor.updateOptions({ placeholder });
 		} else if (this.viewModel.inputPlaceholder) {
@@ -2320,6 +2385,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.viewModelDisposables.add(model.onDidChange((e) => {
 			if (e.kind === 'setAgent') {
 				this._onDidChangeAgent.fire({ agent: e.agent, slashCommand: e.command });
+				// Update capabilities context keys when agent changes
+				this._updateAgentCapabilitiesContextKeys(e.agent);
 			}
 			if (e.kind === 'addRequest') {
 				this.clearTodoListWidget(model.sessionId, false);
@@ -2393,6 +2460,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._lockedAgentId = agentId;
 		this._lockedToCodingAgentContextKey.set(true);
 		this._welcomeRenderScheduler.schedule();
+		// Update capabilities for the locked agent
+		const agent = this.chatAgentService.getAgent(agentId);
+		this._updateAgentCapabilitiesContextKeys(agent);
 		this.renderer.updateOptions({ restorable: false, editable: false, noFooter: true, progressMessageAtBottomOfResponse: true });
 		this.tree.rerender();
 	}
@@ -2403,6 +2473,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._codingAgentPrefix = undefined;
 		this._lockedAgentId = undefined;
 		this._lockedToCodingAgentContextKey.set(false);
+		this._updateAgentCapabilitiesContextKeys(undefined);
 
 		// Explicitly update the DOM to reflect unlocked state
 		this._welcomeRenderScheduler.schedule();
