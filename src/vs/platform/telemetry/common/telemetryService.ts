@@ -6,7 +6,6 @@
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { mixin } from '../../../base/common/objects.js';
 import { isWeb } from '../../../base/common/platform.js';
-import { PolicyCategory } from '../../../base/common/policy.js';
 import { escapeRegExpCharacters } from '../../../base/common/strings.js';
 import { localize } from '../../../nls.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
@@ -224,32 +223,8 @@ configurationRegistry.registerConfiguration({
 			'tags': ['usesOnlineServices', 'telemetry'],
 			'policy': {
 				name: 'TelemetryLevel',
-				category: PolicyCategory.Telemetry,
 				minimumVersion: '1.99',
-				localization: {
-					description: {
-						key: 'telemetry.telemetryLevel.policyDescription',
-						value: localize('telemetry.telemetryLevel.policyDescription', "Controls the level of telemetry."),
-					},
-					enumDescriptions: [
-						{
-							key: 'telemetry.telemetryLevel.default',
-							value: localize('telemetry.telemetryLevel.default', "Sends usage data, errors, and crash reports."),
-						},
-						{
-							key: 'telemetry.telemetryLevel.error',
-							value: localize('telemetry.telemetryLevel.error', "Sends general error telemetry and crash reports."),
-						},
-						{
-							key: 'telemetry.telemetryLevel.crash',
-							value: localize('telemetry.telemetryLevel.crash', "Sends OS level crash reports."),
-						},
-						{
-							key: 'telemetry.telemetryLevel.off',
-							value: localize('telemetry.telemetryLevel.off', "Disables all product telemetry."),
-						}
-					]
-				}
+				description: localize('telemetry.telemetryLevel.policyDescription', "Controls the level of telemetry."),
 			}
 		},
 		'telemetry.feedback.enabled': {
@@ -258,9 +233,7 @@ configurationRegistry.registerConfiguration({
 			description: localize('telemetry.feedback.enabled', "Enable feedback mechanisms such as the issue reporter, surveys, and other feedback options."),
 			policy: {
 				name: 'EnableFeedback',
-				category: PolicyCategory.Telemetry,
 				minimumVersion: '1.99',
-				localization: { description: { key: 'telemetry.feedback.enabled', value: localize('telemetry.feedback.enabled', "Enable feedback mechanisms such as the issue reporter, surveys, and other feedback options.") } },
 			}
 		},
 		// Deprecated telemetry setting

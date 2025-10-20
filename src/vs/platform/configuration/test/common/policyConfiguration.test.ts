@@ -19,7 +19,6 @@ import { IPolicyService } from '../../../policy/common/policy.js';
 import { FilePolicyService } from '../../../policy/common/filePolicyService.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { PolicyCategory } from '../../../../base/common/policy.js';
 
 suite('PolicyConfiguration', () => {
 
@@ -40,9 +39,7 @@ suite('PolicyConfiguration', () => {
 				'default': 'defaultValueA',
 				policy: {
 					name: 'PolicySettingA',
-					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
-					localization: { description: { key: '', value: '' }, }
 				}
 			},
 			'policy.settingB': {
@@ -50,9 +47,7 @@ suite('PolicyConfiguration', () => {
 				'default': 'defaultValueB',
 				policy: {
 					name: 'PolicySettingB',
-					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
-					localization: { description: { key: '', value: '' }, }
 				}
 			},
 			'policy.objectSetting': {
@@ -60,9 +55,7 @@ suite('PolicyConfiguration', () => {
 				'default': {},
 				policy: {
 					name: 'PolicyObjectSetting',
-					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
-					localization: { description: { key: '', value: '' }, }
 				}
 			},
 			'policy.arraySetting': {
@@ -70,9 +63,7 @@ suite('PolicyConfiguration', () => {
 				'default': [],
 				policy: {
 					name: 'PolicyArraySetting',
-					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
-					localization: { description: { key: '', value: '' }, }
 				}
 			},
 			'policy.booleanSetting': {
@@ -80,9 +71,7 @@ suite('PolicyConfiguration', () => {
 				'default': true,
 				policy: {
 					name: 'PolicyBooleanSetting',
-					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
-					localization: { description: { key: '', value: '' }, }
 				}
 			},
 			'policy.internalSetting': {
@@ -91,9 +80,7 @@ suite('PolicyConfiguration', () => {
 				included: false,
 				policy: {
 					name: 'PolicyInternalSetting',
-					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
-					localization: { description: { key: '', value: '' }, }
 				}
 			},
 			'nonPolicy.setting': {
@@ -280,9 +267,7 @@ suite('PolicyConfiguration', () => {
 			'default': 'defaultValueC',
 			policy: {
 				name: 'PolicySettingC',
-				category: PolicyCategory.Extensions,
 				minimumVersion: '1.0.0',
-				localization: { description: { key: '', value: '' }, },
 			}
 		};
 		Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration(deepClone(policyConfigurationNode));
