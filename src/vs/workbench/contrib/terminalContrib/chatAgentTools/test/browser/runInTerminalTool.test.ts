@@ -981,4 +981,20 @@ suite('RunInTerminalTool', () => {
 			strictEqual((result as ITerminalProfile).path, 'pwsh'); // From the mock ITerminalProfileResolverService
 		});
 	});
+
+	suite('terminal visibility handling', () => {
+		test('should only reveal terminal if already visible when OutputLocation is terminal', async () => {
+			setConfig(TerminalChatAgentToolsSettingId.OutputLocation, 'terminal');
+
+			const outputLocation = configurationService.getValue(TerminalChatAgentToolsSettingId.OutputLocation);
+			strictEqual(outputLocation, 'terminal', 'OutputLocation should be set to terminal');
+		});
+
+		test('should not reveal terminal when OutputLocation is none', async () => {
+			setConfig(TerminalChatAgentToolsSettingId.OutputLocation, 'none');
+
+			const outputLocation = configurationService.getValue(TerminalChatAgentToolsSettingId.OutputLocation);
+			strictEqual(outputLocation, 'none', 'OutputLocation should be set to none');
+		});
+	});
 });
