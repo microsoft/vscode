@@ -75,6 +75,7 @@ import { IDragAndDropData } from '../../../../base/browser/dnd.js';
 import { ElementsDragAndDropData, ListViewTargetSector } from '../../../../base/browser/ui/list/listView.js';
 import { CodeDataTransfers } from '../../../../platform/dnd/browser/dnd.js';
 import { SCMHistoryItemTransferData } from './scmHistoryChatContext.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 
 const PICK_REPOSITORY_ACTION_ID = 'workbench.scm.action.graph.pickRepository';
 const PICK_HISTORY_ITEM_REFS_ACTION_ID = 'workbench.scm.action.graph.pickHistoryItemRefs';
@@ -1521,6 +1522,7 @@ export class SCMHistoryViewPane extends ViewPane {
 
 	private readonly _treeOperationSequencer = new Sequencer();
 	private readonly _treeLoadMoreSequencer = new Sequencer();
+	private readonly _refreshThrottler = new Throttler();
 	private readonly _updateChildrenThrottler = new Throttler();
 
 	private readonly _scmProviderCtx: IContextKey<string | undefined>;
@@ -1558,6 +1560,7 @@ export class SCMHistoryViewPane extends ViewPane {
 		this._actionRunner = this.instantiationService.createInstance(SCMHistoryViewPaneActionRunner);
 		this._register(this._actionRunner);
 
+		this._register(this._refreshThrottler);
 		this._register(this._updateChildrenThrottler);
 	}
 
@@ -1753,8 +1756,20 @@ export class SCMHistoryViewPane extends ViewPane {
 	}
 
 	async refresh(): Promise<void> {
+		return this._refreshThrottler.queue(token => this._refresh(token));
+	}
+
+	private async _refresh(token: CancellationToken): Promise<void> {
+		if (token.isCancellationRequested) {
+			return;
+		}
+
 		this._treeViewModel.clearRepositoryState();
 		await this._updateChildren();
+
+		if (token.isCancellationRequested) {
+			return;
+		}
 
 		this.updateActions();
 		this._repositoryOutdated.set(false, undefined);
