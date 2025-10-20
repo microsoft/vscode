@@ -65,6 +65,10 @@ class ToolsContextPickerPick implements IChatContextPickerItem {
 	readonly icon: ThemeIcon = Codicon.tools;
 	readonly ordinal = -500;
 
+	isEnabled(widget: IChatWidget): boolean {
+		return widget.supportsToolAttachments;
+	}
+
 	asPicker(widget: IChatWidget): IChatContextPicker {
 
 		type Pick = IChatContextPickerPickItem & { toolInfo: { ordinal: number; label: string } };

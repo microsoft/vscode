@@ -339,11 +339,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	/**
 	 * Whether the list is scroll-locked to the bottom. Initialize to true so that we can scroll to the bottom on first render.
 	 * The initial render leads to a lot of `onDidChangeTreeContentHeight` as the renderer works out the real heights of rows.
-	 */
+	*/
 	private scrollLock = true;
 
 	private _isReady = false;
 
+	private _supportsToolAttachments: boolean = true;
 	private _instructionFilesCheckPromise: Promise<boolean> | undefined;
 	private _instructionFilesExist: boolean | undefined;
 	private _onDidBecomeReady = this._register(new Emitter<void>());
@@ -714,15 +715,20 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private _updateAgentCapabilitiesContextKeys(agent: IChatAgentData | undefined): void {
 		let supportsFileAttachments = true;
+		this._supportsToolAttachments = true;
 
 		// Check if the agent has capabilities defined directly
 		if (agent?.capabilities?.supportsFileAttachments !== undefined) {
 			supportsFileAttachments = agent.capabilities.supportsFileAttachments;
+			this._supportsToolAttachments = agent.capabilities.supportsToolAttachments ?? true;
 		} else if (this._lockedAgentId) {
 			// Check if the agent is a chat session type with capabilities
 			const sessionCapabilities = this.chatSessionsService.getCapabilitiesForSessionType(this._lockedAgentId);
 			if (sessionCapabilities?.supportsFileAttachments !== undefined) {
 				supportsFileAttachments = sessionCapabilities.supportsFileAttachments;
+			}
+			if (sessionCapabilities?.supportsToolAttachments !== undefined) {
+				this._supportsToolAttachments = sessionCapabilities.supportsToolAttachments;
 			}
 		}
 
@@ -731,6 +737,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	get supportsFileReferences(): boolean {
 		return !!this.viewOptions.supportsFileReferences;
+	}
+
+	get supportsToolAttachments(): boolean {
+		return this._supportsToolAttachments;
 	}
 
 	get input(): ChatInputPart {
