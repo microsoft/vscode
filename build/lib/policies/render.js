@@ -7,6 +7,7 @@ exports.renderADML = renderADML;
 exports.renderProfileManifest = renderProfileManifest;
 exports.renderMacOSPolicy = renderMacOSPolicy;
 exports.renderGP = renderGP;
+exports.renderJsonPolicies = renderJsonPolicies;
 function renderADMLString(prefix, moduleName, nlsString, translations) {
     let value;
     if (translations) {
@@ -267,5 +268,12 @@ function renderGP(product, policies, translations) {
             ...translations.map(({ languageId, languageTranslations }) => ({ languageId, contents: renderADML(appName, versions, categories, policies, languageTranslations) }))
         ]
     };
+}
+function renderJsonPolicies(policies) {
+    const policyObject = {};
+    for (const policy of policies) {
+        policyObject[policy.name] = policy.renderJsonValue();
+    }
+    return policyObject;
 }
 //# sourceMappingURL=render.js.map

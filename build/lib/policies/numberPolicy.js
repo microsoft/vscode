@@ -33,6 +33,9 @@ class NumberPolicy extends basePolicy_1.BasePolicy {
     renderADMLPresentationContents() {
         return `<decimalTextBox refId="${this.name}" defaultValue="${this.defaultValue}">${this.name}</decimalTextBox>`;
     }
+    renderJsonValue() {
+        return this.defaultValue;
+    }
     renderProfileValue() {
         return `<integer>${this.defaultValue}</integer>`;
     }

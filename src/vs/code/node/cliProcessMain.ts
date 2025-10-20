@@ -12,7 +12,7 @@ import { isSigPipeError, onUnexpectedError, setUnexpectedErrorHandler } from '..
 import { Disposable } from '../../base/common/lifecycle.js';
 import { Schemas } from '../../base/common/network.js';
 import { isAbsolute, join } from '../../base/common/path.js';
-import { isWindows, isMacintosh } from '../../base/common/platform.js';
+import { isWindows, isMacintosh, isLinux } from '../../base/common/platform.js';
 import { cwd } from '../../base/common/process.js';
 import { URI } from '../../base/common/uri.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
@@ -76,6 +76,7 @@ import { McpGalleryService } from '../../platform/mcp/common/mcpGalleryService.j
 import { AllowedMcpServersService } from '../../platform/mcp/common/allowedMcpServersService.js';
 import { IMcpGalleryManifestService } from '../../platform/mcp/common/mcpGalleryManifest.js';
 import { McpGalleryManifestService } from '../../platform/mcp/common/mcpGalleryManifestService.js';
+import { LINUX_SYSTEM_POLICY_FILE_PATH } from '../../base/common/policy.js';
 
 class CliMain extends Disposable {
 
@@ -178,7 +179,9 @@ class CliMain extends Disposable {
 
 		// Policy
 		let policyService: IPolicyService | undefined;
-		if (isWindows && productService.win32RegValueName) {
+		if (isLinux) {
+			policyService = this._register(new FilePolicyService(URI.file(LINUX_SYSTEM_POLICY_FILE_PATH), fileService, logService));
+		} else if (isWindows && productService.win32RegValueName) {
 			policyService = this._register(new NativePolicyService(logService, productService.win32RegValueName));
 		} else if (isMacintosh && productService.darwinBundleIdentifier) {
 			policyService = this._register(new NativePolicyService(logService, productService.darwinBundleIdentifier));

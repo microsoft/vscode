@@ -38,6 +38,10 @@ export class StringPolicy extends BasePolicy {
 		return `<textBox refId="${this.name}"><label>${this.name}:</label></textBox>`;
 	}
 
+	renderJsonValue() {
+		return '';
+	}
+
 	renderProfileValue(): string {
 		return `<string></string>`;
 	}

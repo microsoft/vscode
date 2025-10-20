@@ -25,6 +25,9 @@ class StringPolicy extends basePolicy_1.BasePolicy {
     renderADMLPresentationContents() {
         return `<textBox refId="${this.name}"><label>${this.name}:</label></textBox>`;
     }
+    renderJsonValue() {
+        return '';
+    }
     renderProfileValue() {
         return `<string></string>`;
     }

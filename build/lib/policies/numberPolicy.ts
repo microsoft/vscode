@@ -46,6 +46,10 @@ export class NumberPolicy extends BasePolicy {
 		return `<decimalTextBox refId="${this.name}" defaultValue="${this.defaultValue}">${this.name}</decimalTextBox>`;
 	}
 
+	renderJsonValue() {
+		return this.defaultValue;
+	}
+
 	renderProfileValue() {
 		return `<integer>${this.defaultValue}</integer>`;
 	}

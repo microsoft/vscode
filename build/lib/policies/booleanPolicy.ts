@@ -42,6 +42,10 @@ export class BooleanPolicy extends BasePolicy {
 		return `<checkBox refId="${this.name}">${this.name}</checkBox>`;
 	}
 
+	renderJsonValue() {
+		return false;
+	}
+
 	renderProfileValue(): string {
 		return `<false/>`;
 	}
