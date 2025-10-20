@@ -28,4 +28,6 @@ export interface ITreeSitterLibraryService {
 	 * @param reader
 	 */
 	getHighlightingQueries(languageId: string, reader: IReader | undefined): Query | null | undefined;
+
+	createQuery(languageId: string, reader: IReader | undefined, querySource: string): Promise<Query | null | undefined>;
 }

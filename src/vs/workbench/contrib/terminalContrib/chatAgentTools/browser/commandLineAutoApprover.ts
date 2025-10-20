@@ -11,6 +11,8 @@ import { structuralEquals } from '../../../../../base/common/equals.js';
 import { ConfigurationTarget, IConfigurationService, type IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
 import { TerminalChatAgentToolsSettingId } from '../common/terminalChatAgentToolsConfiguration.js';
 import { isPowerShell } from './runInTerminalHelpers.js';
+import { ITreeSitterLibraryService } from '../../../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
+import { timeout } from '../../../../../base/common/async.js';
 
 export interface IAutoApproveRule {
 	regex: RegExp;
@@ -39,6 +41,7 @@ export class CommandLineAutoApprover extends Disposable {
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ITreeSitterLibraryService private readonly _treeSitterLibraryService: ITreeSitterLibraryService
 	) {
 		super();
 		this.updateConfiguration();
@@ -50,6 +53,28 @@ export class CommandLineAutoApprover extends Disposable {
 				this.updateConfiguration();
 			}
 		}));
+
+		const parserClass = this._treeSitterLibraryService.getParserClass();
+		parserClass.then(async parserCtor => {
+			// HACK: Trigger async load
+			_treeSitterLibraryService.getLanguage('bash', undefined);
+			await timeout(1000);
+			const lang = _treeSitterLibraryService.getLanguage('bash', undefined);
+
+			const parser = new parserCtor();
+			if (lang) {
+				parser.setLanguage(lang);
+				const tree = parser.parse('echo "$(evil) a|b|c" | ls');
+
+				const q = await _treeSitterLibraryService.createQuery('bash', undefined, '(command) @command');
+				if (tree && q) {
+					const captures = q.captures(tree.rootNode);
+					const subCommands = captures.map(e => e.node.text);
+					console.log('done', subCommands);
+				}
+			}
+		});
+
 	}
 
 	updateConfiguration() {

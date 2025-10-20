@@ -144,6 +144,21 @@ export class TreeSitterLibraryService extends Disposable implements ITreeSitterL
 		const query = this._injectionQueries.get({ languageId, kind: 'highlights' }).read(reader);
 		return query;
 	}
+
+	async createQuery(languageId: string, reader: IReader | undefined, querySource: string): Promise<Query | null | undefined> {
+		if (!this.supportsLanguage(languageId, reader)) {
+			return undefined;
+		}
+		const [
+			language,
+			treeSitter
+		] = await Promise.all([
+			this._languagesCache.get(languageId).promise,
+			this._treeSitterImport.value,
+		]);
+
+		return new treeSitter.Query(language, querySource);
+	}
 }
 
 async function tryReadFile(fileService: IFileService, uri: URI): Promise<IFileContent | undefined> {
