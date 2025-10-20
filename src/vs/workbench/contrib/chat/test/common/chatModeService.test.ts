@@ -81,17 +81,17 @@ suite('ChatModeService', () => {
 	test('should adjust builtin modes based on tools agent availability', () => {
 		// With tools agent
 		chatAgentService.setHasToolsAgent(true);
-		let modes = chatModeService.getModes();
-		assert.ok(modes.builtin.find(mode => mode.id === ChatModeKind.Agent));
+		let agents = chatModeService.getModes();
+		assert.ok(agents.builtin.find(agent => agent.id === ChatModeKind.Agent));
 
 		// Without tools agent - Agent mode should not be present
 		chatAgentService.setHasToolsAgent(false);
-		modes = chatModeService.getModes();
-		assert.strictEqual(modes.builtin.find(mode => mode.id === ChatModeKind.Agent), undefined);
+		agents = chatModeService.getModes();
+		assert.strictEqual(agents.builtin.find(agent => agent.id === ChatModeKind.Agent), undefined);
 
 		// But Ask and Edit modes should always be present
-		assert.ok(modes.builtin.find(mode => mode.id === ChatModeKind.Ask));
-		assert.ok(modes.builtin.find(mode => mode.id === ChatModeKind.Edit));
+		assert.ok(agents.builtin.find(agent => agent.id === ChatModeKind.Ask));
+		assert.ok(agents.builtin.find(agent => agent.id === ChatModeKind.Edit));
 	});
 
 	test('should find builtin modes by id', () => {

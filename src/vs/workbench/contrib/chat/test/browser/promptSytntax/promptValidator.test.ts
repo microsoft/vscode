@@ -337,7 +337,7 @@ suite('PromptValidator', () => {
 			const markers = await validate(content, PromptsType.prompt);
 			assert.strictEqual(markers.length, 1, 'Expected one warning about unsuitable model');
 			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
-			assert.strictEqual(markers[0].message, `Model 'MAE 3.5 Turbo' is not suited for agentic mode.`);
+			assert.strictEqual(markers[0].message, `Model 'MAE 3.5 Turbo' is not suited for agent mode.`);
 		});
 
 		test('prompt with custom agent BeastMode and tools', async () => {
@@ -366,7 +366,7 @@ suite('PromptValidator', () => {
 			].join('\n');
 			const markers = await validate(content, PromptsType.prompt);
 			assert.strictEqual(markers.length, 1);
-			assert.deepStrictEqual(markers.map(m => m.message), [`The 'mode' property is deprecated. Use 'agent' instead.`]);
+			assert.deepStrictEqual(markers.map(m => m.message), [`The 'mode' attribute has been renamed to 'agent'. Please use 'agent' instead.`]);
 
 		});
 

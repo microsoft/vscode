@@ -230,8 +230,8 @@ suite('PromptsService', () => {
 			assert.deepEqual(
 				result1.body.variableReferences,
 				[
-					{ name: 'my-tool', range: new Range(10, 5, 10, 12), offset: 239 },
-					{ name: 'my-other-tool', range: new Range(11, 5, 11, 18), offset: 251 },
+					{ name: 'my-tool', range: new Range(10, 5, 10, 12), offset: 240 },
+					{ name: 'my-other-tool', range: new Range(11, 5, 11, 18), offset: 252 },
 				]
 			);
 

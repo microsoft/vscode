@@ -30,7 +30,7 @@ suite('NewPromptsParser', () => {
 		assert.ok(result.body);
 		assert.deepEqual(result.header.range, { startLineNumber: 2, startColumn: 1, endLineNumber: 5, endColumn: 1 });
 		assert.deepEqual(result.header.attributes, [
-			{ key: 'description', range: new Range(2, 1, 2, 31), value: { type: 'string', value: 'Agent mode test', range: new Range(2, 14, 2, 31) } },
+			{ key: 'description', range: new Range(2, 1, 2, 26), value: { type: 'string', value: 'Agent test', range: new Range(2, 14, 2, 26) } },
 			{ key: 'model', range: new Range(3, 1, 3, 15), value: { type: 'string', value: 'GPT 4.1', range: new Range(3, 8, 3, 15) } },
 			{
 				key: 'tools', range: new Range(4, 1, 4, 26), value: {
@@ -41,7 +41,7 @@ suite('NewPromptsParser', () => {
 			},
 		]);
 		assert.deepEqual(result.body.range, { startLineNumber: 6, startColumn: 1, endLineNumber: 8, endColumn: 1 });
-		assert.equal(result.body.offset, 80);
+		assert.equal(result.body.offset, 75);
 		assert.equal(result.body.getContent(), 'This is an agent test.\nHere is a #tool1 variable and a #file:./reference1.md as well as a [reference](./reference2.md).');
 
 		assert.deepEqual(result.body.fileReferences, [
@@ -49,7 +49,7 @@ suite('NewPromptsParser', () => {
 			{ range: new Range(7, 80, 7, 95), content: './reference2.md', isMarkdownLink: true }
 		]);
 		assert.deepEqual(result.body.variableReferences, [
-			{ range: new Range(7, 12, 7, 17), name: 'tool1', offset: 116 }
+			{ range: new Range(7, 12, 7, 17), name: 'tool1', offset: 108 }
 		]);
 		assert.deepEqual(result.header.description, 'Agent test');
 		assert.deepEqual(result.header.model, 'GPT 4.1');
@@ -165,7 +165,7 @@ suite('NewPromptsParser', () => {
 		assert.deepEqual(result.header.range, { startLineNumber: 2, startColumn: 1, endLineNumber: 6, endColumn: 1 });
 		assert.deepEqual(result.header.attributes, [
 			{ key: 'description', range: new Range(2, 1, 2, 48), value: { type: 'string', value: 'General purpose coding assistant', range: new Range(2, 14, 2, 48) } },
-			{ key: 'agent', range: new Range(3, 1, 3, 13), value: { type: 'string', value: 'agent', range: new Range(3, 7, 3, 13) } },
+			{ key: 'agent', range: new Range(3, 1, 3, 13), value: { type: 'string', value: 'agent', range: new Range(3, 8, 3, 13) } },
 			{ key: 'model', range: new Range(4, 1, 4, 15), value: { type: 'string', value: 'GPT 4.1', range: new Range(4, 8, 4, 15) } },
 			{
 				key: 'tools', range: new Range(5, 1, 5, 30), value: {
@@ -176,13 +176,13 @@ suite('NewPromptsParser', () => {
 			},
 		]);
 		assert.deepEqual(result.body.range, { startLineNumber: 7, startColumn: 1, endLineNumber: 8, endColumn: 1 });
-		assert.equal(result.body.offset, 113);
+		assert.equal(result.body.offset, 114);
 		assert.equal(result.body.getContent(), 'This is a prompt file body referencing #search and [docs](https://example.com/docs).');
 		assert.deepEqual(result.body.fileReferences, [
 			{ range: new Range(7, 59, 7, 83), content: 'https://example.com/docs', isMarkdownLink: true },
 		]);
 		assert.deepEqual(result.body.variableReferences, [
-			{ range: new Range(7, 41, 7, 47), name: 'search', offset: 152 }
+			{ range: new Range(7, 41, 7, 47), name: 'search', offset: 153 }
 		]);
 		assert.deepEqual(result.header.description, 'General purpose coding assistant');
 		assert.deepEqual(result.header.agent, 'agent');

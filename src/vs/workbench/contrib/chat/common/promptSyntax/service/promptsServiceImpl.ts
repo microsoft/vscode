@@ -162,9 +162,17 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 		const result: IPromptPath[] = [];
 
-		for (const uri of this.fileLocator.getConfigBasedSourceFolders(type)) {
-			result.push({ uri, storage: PromptsStorage.local, type });
+		if (type === PromptsType.agent) {
+			const folders = this.fileLocator.getAgentSourceFolder();
+			for (const uri of folders) {
+				result.push({ uri, storage: PromptsStorage.local, type });
+			}
+		} else {
+			for (const uri of this.fileLocator.getConfigBasedSourceFolders(type)) {
+				result.push({ uri, storage: PromptsStorage.local, type });
+			}
 		}
+
 		const userHome = this.userDataService.currentProfile.promptsHome;
 		result.push({ uri: userHome, storage: PromptsStorage.user, type });
 

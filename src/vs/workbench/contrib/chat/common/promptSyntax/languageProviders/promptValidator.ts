@@ -237,12 +237,12 @@ export class PromptValidator {
 		return undefined;
 	}
 
-	private validateTools(attributes: IHeaderAttribute[], modeKind: ChatModeKind, report: (markers: IMarkerData) => void): undefined {
+	private validateTools(attributes: IHeaderAttribute[], agentKind: ChatModeKind, report: (markers: IMarkerData) => void): undefined {
 		const attribute = attributes.find(attr => attr.key === 'tools');
 		if (!attribute) {
 			return;
 		}
-		if (modeKind !== ChatModeKind.Agent) {
+		if (agentKind !== ChatModeKind.Agent) {
 			report(toMarker(localize('promptValidator.toolsOnlyInAgent', "The 'tools' attribute is only supported in agent mode. Attribute will be ignored."), attribute.range, MarkerSeverity.Warning));
 		}
 
