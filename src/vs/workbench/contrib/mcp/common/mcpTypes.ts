@@ -8,11 +8,12 @@ import { assertNever } from '../../../../base/common/assert.js';
 import { decodeHex, encodeHex, VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
-import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { equals as objectsEqual } from '../../../../base/common/objects.js';
 import { IObservable, ObservableMap } from '../../../../base/common/observable.js';
 import { IPager } from '../../../../base/common/paging.js';
+import Severity from '../../../../base/common/severity.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { Location } from '../../../../editor/common/languages.js';
 import { localize } from '../../../../nls.js';
@@ -679,6 +680,7 @@ export interface IMcpServerEditorOptions extends IEditorOptions {
 }
 
 export const enum McpServerEnablementState {
+	Disabled,
 	DisabledByAccess,
 	Enabled,
 }
@@ -696,14 +698,20 @@ export const enum McpServerEditorTab {
 	Configuration = 'configuration',
 }
 
-export type McpServerRuntimeState = { readonly disabled: boolean; readonly reason?: MarkdownString };
+export type McpServerEnablementStatus = {
+	readonly state: McpServerEnablementState;
+	readonly message?: {
+		readonly severity: Severity;
+		readonly text: IMarkdownString;
+	};
+};
 
 export interface IWorkbenchMcpServer {
 	readonly gallery: IGalleryMcpServer | undefined;
 	readonly local: IWorkbenchLocalMcpServer | undefined;
 	readonly installable: IInstallableMcpServer | undefined;
 	readonly installState: McpServerInstallState;
-	readonly runtimeState: McpServerRuntimeState | undefined;
+	readonly runtimeStatus: McpServerEnablementStatus | undefined;
 	readonly id: string;
 	readonly name: string;
 	readonly label: string;
