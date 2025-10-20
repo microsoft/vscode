@@ -169,21 +169,28 @@ declare module 'vscode' {
 		readonly requestHandler: ChatRequestHandler | undefined;
 	}
 
+	/**
+	 * Provides the content for a chat session rendered using the native chat UI.
+	 */
 	export interface ChatSessionContentProvider {
 		/**
-		 * Resolves a chat session into a full `ChatSession` object.
+		 * Provides the chat session content for a given uri.
 		 *
-		 * @param sessionId The id of the chat session to open.
+		 * The returned {@linkcode ChatSession} is used to populate the history of the chat UI.
+		 *
+		 * @param resource The URI of the chat session to resolve.
 		 * @param token A cancellation token that can be used to cancel the operation.
+		 *
+		 * @return The {@link ChatSession chat session} associated with the given URI.
 		 */
-		provideChatSessionContent(sessionResource: Uri, token: CancellationToken): Thenable<ChatSession> | ChatSession;
+		provideChatSessionContent(resource: Uri, token: CancellationToken): Thenable<ChatSession> | ChatSession;
 
 		/**
-		 * @param sessionId Identifier of the chat session being updated.
+		 * @param resource Identifier of the chat session being updated.
 		 * @param updates Collection of option identifiers and their new values. Only the options that changed are included.
 		 * @param token A cancellation token that can be used to cancel the notification if the session is disposed.
 		 */
-		provideHandleOptionsChange?(sessionResource: Uri, updates: ReadonlyArray<ChatSessionOptionUpdate>, token: CancellationToken): void;
+		provideHandleOptionsChange?(resource: Uri, updates: ReadonlyArray<ChatSessionOptionUpdate>, token: CancellationToken): void;
 
 		/**
 		 * Called as soon as you register (call me once)
