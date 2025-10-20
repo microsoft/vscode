@@ -20,6 +20,7 @@ import { IRemoteSourcePublisherRegistry } from './remotePublisher';
 import { IPostCommitCommandsProviderRegistry } from './postCommitCommands';
 import { IBranchProtectionProviderRegistry } from './branchProtection';
 import { ISourceControlHistoryItemDetailsProviderRegistry } from './historyItemDetailsProvider';
+import { RepositoryCache } from './repositoryCache';
 
 class RepositoryPick implements QuickPickItem {
 	@memoize get label(): string {
@@ -275,6 +276,8 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 	 */
 	private _workspaceFolders = new Map<string, string>();
 
+	private repositoryCache: RepositoryCache;
+
 	private disposables: Disposable[] = [];
 
 	constructor(readonly git: Git, private readonly askpass: Askpass, private globalState: Memento, readonly workspaceState: Memento, private logger: LogOutputChannel, private telemetryReporter: TelemetryReporter) {
@@ -298,6 +301,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 
 		this.setState('uninitialized');
 		this.doInitialScan().finally(() => this.setState('initialized'));
+		this.repositoryCache = new RepositoryCache(globalState, logger);
 	}
 
 	private async doInitialScan(): Promise<void> {
@@ -653,7 +657,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			// Open repository
 			const [dotGit, repositoryRootRealPath] = await Promise.all([this.git.getRepositoryDotGit(repositoryRoot), this.getRepositoryRootRealPath(repositoryRoot)]);
 			const gitRepository = this.git.open(repositoryRoot, repositoryRootRealPath, dotGit, this.logger);
-			const repository = new Repository(gitRepository, this, this, this, this, this, this, this.globalState, this.logger, this.telemetryReporter);
+			const repository = new Repository(gitRepository, this, this, this, this, this, this, this.globalState, this.logger, this.telemetryReporter, this.repositoryCache);
 
 			this.open(repository);
 			this._closedRepositoriesManager.deleteRepository(repository.root);
@@ -664,7 +668,9 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 
 			// Do not await this, we want SCM
 			// to know about the repo asap
-			repository.status();
+			repository.status().then(() => {
+				this.repositoryCache.update(repository.remotes, [], repository.root);
+			});
 		} catch (err) {
 			// noop
 			this.logger.trace(`[Model][openRepository] Opening repository for path='${repoPath}' failed. Error:${err}`);
@@ -858,7 +864,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 
 		this.logger.info(`[Model][close] Repository: ${repository.root}`);
 		this._closedRepositoriesManager.addRepository(openRepository.repository.root);
-
+		this.repositoryCache.update(repository.remotes, [], repository.root);
 		openRepository.dispose();
 	}
 

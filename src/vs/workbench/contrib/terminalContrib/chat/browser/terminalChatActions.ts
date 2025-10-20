@@ -393,12 +393,11 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 			const sel = qp.selectedItems[0];
 			if (sel) {
 				const target = all.get(Number(sel.id));
-				if (target) {
-					// If hidden, reveal first then focus. Both are async; await to ensure focus happens after reveal.
-					if (target.isBackground) {
-						await terminalService.showBackgroundTerminal(target.instance);
-					}
-					await terminalService.focusInstance(target.instance);
+				const instance = target?.instance;
+				if (instance) {
+					terminalService.setActiveInstance(instance);
+					await terminalService.revealTerminal(instance);
+					terminalService.focusInstance(instance);
 				}
 			}
 			qp.hide();

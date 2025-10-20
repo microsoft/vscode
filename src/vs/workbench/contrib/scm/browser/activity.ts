@@ -20,7 +20,7 @@ import { ITitleService } from '../../../services/title/browser/titleService.js';
 import { IEditorGroupContextKeyProvider, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { getRepositoryResourceCount, getSCMRepositoryIcon } from './util.js';
-import { autorun, autorunWithStore, derived, IObservable, observableFromEvent } from '../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableFromEvent } from '../../../../base/common/observable.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { Command } from '../../../../editor/common/languages.js';
 
@@ -102,16 +102,16 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 			return total;
 		});
 
-		this._register(autorunWithStore((reader, store) => {
+		this._register(autorun(reader => {
 			const countBadge = this._countBadge.read(reader);
-			this._updateActivityCountBadge(countBadge, store);
+			this._updateActivityCountBadge(countBadge, reader.store);
 		}));
 
-		this._register(autorunWithStore((reader, store) => {
+		this._register(autorun(reader => {
 			const activeRepository = this.scmViewService.activeRepository.read(reader);
 			const commands = activeRepository?.repository.provider.statusBarCommands.read(reader);
 
-			this._updateStatusBar(activeRepository, commands ?? [], store);
+			this._updateStatusBar(activeRepository, commands ?? [], reader.store);
 		}));
 
 		this._register(autorun(reader => {
@@ -214,9 +214,9 @@ export class SCMActiveResourceContextKeyController extends Disposable implements
 			Event.any(this.scmService.onDidAddRepository, this.scmService.onDidRemoveRepository),
 			() => this.scmService.repositories);
 
-		this._store.add(autorunWithStore((reader, store) => {
+		this._register(autorun((reader) => {
 			for (const repository of this._repositories.read(reader)) {
-				store.add(Event.runAndSubscribe(repository.provider.onDidChangeResources, () => {
+				reader.store.add(Event.runAndSubscribe(repository.provider.onDidChangeResources, () => {
 					this._onDidRepositoryChange.fire();
 				}));
 			}

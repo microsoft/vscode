@@ -3,35 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from '../../../../../../nls.js';
-import { getPromptsTypeForLanguageId, MODE_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptsType } from '../promptTypes.js';
-import { type URI } from '../../../../../../base/common/uri.js';
-import { basename } from '../../../../../../base/common/path.js';
-import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
-import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
-import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { type ITextModel } from '../../../../../../editor/common/model.js';
-import { ILogService } from '../../../../../../platform/log/common/log.js';
-import { ILabelService } from '../../../../../../platform/label/common/label.js';
-import { IModelService } from '../../../../../../editor/common/services/model.js';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
-import { IChatPromptSlashCommand, ICustomChatMode, IExtensionPromptPath, ILocalPromptPath, IPromptPath, IPromptsService, IUserPromptPath, PromptsStorage } from './promptsService.js';
-import { getCleanPromptName, PROMPT_FILE_EXTENSION } from '../config/promptFileLocations.js';
-import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
-import { PromptsConfig } from '../config/config.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { NewPromptsParser, ParsedPromptFile } from './newPromptsParser.js';
-import { IFileService } from '../../../../../../platform/files/common/files.js';
-import { ResourceMap } from '../../../../../../base/common/map.js';
-import { CancellationError } from '../../../../../../base/common/errors.js';
-import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
-import { IChatModeInstructions, IVariableReference } from '../../chatModes.js';
-import { dirname, isEqual } from '../../../../../../base/common/resources.js';
-import { IExtensionDescription } from '../../../../../../platform/extensions/common/extensions.js';
 import { Delayer } from '../../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../../../base/common/errors.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../../../base/common/map.js';
+import { basename } from '../../../../../../base/common/path.js';
+import { dirname, isEqual } from '../../../../../../base/common/resources.js';
+import { type URI } from '../../../../../../base/common/uri.js';
+import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
+import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
+import { type ITextModel } from '../../../../../../editor/common/model.js';
+import { IModelService } from '../../../../../../editor/common/services/model.js';
+import { localize } from '../../../../../../nls.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IExtensionDescription } from '../../../../../../platform/extensions/common/extensions.js';
+import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { ILabelService } from '../../../../../../platform/label/common/label.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IFilesConfigurationService } from '../../../../../services/filesConfiguration/common/filesConfigurationService.js';
+import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
+import { IChatModeInstructions, IVariableReference } from '../../chatModes.js';
+import { PromptsConfig } from '../config/config.js';
+import { getCleanPromptName, PROMPT_FILE_EXTENSION } from '../config/promptFileLocations.js';
+import { getPromptsTypeForLanguageId, MODE_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptsType } from '../promptTypes.js';
+import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
+import { NewPromptsParser, ParsedPromptFile } from './newPromptsParser.js';
+import { IChatModeSource, IChatPromptSlashCommand, ICustomChatMode, IExtensionPromptPath, ILocalPromptPath, IPromptPath, IPromptsService, IUserPromptPath, promptPathToChatModeSource, PromptsStorage } from './promptsService.js';
 
 /**
  * Provides prompt services.
@@ -246,7 +246,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const modeFiles = await this.listPromptFiles(PromptsType.mode, token);
 
 		const customChatModes = await Promise.all(
-			modeFiles.map(async ({ uri, name: modeName }): Promise<ICustomChatMode> => {
+			modeFiles.map(async (promptPath): Promise<ICustomChatMode> => {
+				const { uri, name: modeName } = promptPath;
 				const ast = await this.parseNew(uri, token);
 
 				let metadata: any | undefined;
@@ -279,11 +280,13 @@ export class PromptsService extends Disposable implements IPromptsService {
 				} satisfies IChatModeInstructions;
 
 				const name = modeName ?? getCleanPromptName(uri);
+
+				const source: IChatModeSource = promptPathToChatModeSource(promptPath);
 				if (!ast.header) {
-					return { uri, name, modeInstructions };
+					return { uri, name, modeInstructions, source };
 				}
 				const { description, model, tools, handOffs } = ast.header;
-				return { uri, name, description, model, tools, handOffs, modeInstructions };
+				return { uri, name, description, model, tools, handOffs, modeInstructions, source };
 
 			})
 		);
@@ -347,6 +350,26 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 	findAgentMDsInWorkspace(token: CancellationToken): Promise<URI[]> {
 		return this.fileLocator.findAgentMDsInWorkspace(token);
+	}
+
+	public async listAgentMDs(token: CancellationToken, includeNested: boolean): Promise<URI[]> {
+		const useAgentMD = this.configurationService.getValue(PromptsConfig.USE_AGENT_MD);
+		if (!useAgentMD) {
+			return [];
+		}
+		if (includeNested) {
+			return await this.fileLocator.findAgentMDsInWorkspace(token);
+		} else {
+			return await this.fileLocator.findAgentMDsInWorkspaceRoots(token);
+		}
+	}
+
+	public async listCopilotInstructionsMDs(token: CancellationToken): Promise<URI[]> {
+		const useCopilotInstructionsFiles = this.configurationService.getValue(PromptsConfig.USE_COPILOT_INSTRUCTION_FILES);
+		if (!useCopilotInstructionsFiles) {
+			return [];
+		}
+		return await this.fileLocator.findCopilotInstructionsMDsInWorkspace(token);
 	}
 }
 

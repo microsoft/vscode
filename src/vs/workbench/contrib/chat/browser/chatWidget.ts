@@ -23,6 +23,7 @@ import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { combinedDisposable, Disposable, DisposableStore, IDisposable, MutableDisposable, thenIfNotDisposed, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { filter } from '../../../../base/common/objects.js';
 import { autorun, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { basename, extUri, isEqual } from '../../../../base/common/resources.js';
 import { MicrotaskDelay } from '../../../../base/common/symbols.js';
@@ -57,7 +58,7 @@ import { ChatEntitlement, IChatEntitlementService } from '../../../services/chat
 import { IWorkbenchLayoutService, Position } from '../../../services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { checkModeOption } from '../common/chat.js';
-import { IChatAgentCommand, IChatAgentData, IChatAgentService } from '../common/chatAgents.js';
+import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, inChatEditingSessionContextKey, ModifiedFileEntryState } from '../common/chatEditingService.js';
 import { IChatLayoutService } from '../common/chatLayoutService.js';
@@ -66,6 +67,7 @@ import { IChatModeService } from '../common/chatModes.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestDynamicVariablePart, ChatRequestSlashPromptPart, ChatRequestToolPart, ChatRequestToolSetPart, chatSubcommandLeader, formatChatQuestion, IParsedChatRequest } from '../common/chatParserTypes.js';
 import { ChatRequestParser } from '../common/chatRequestParser.js';
 import { IChatLocationData, IChatSendRequestOptions, IChatService } from '../common/chatService.js';
+import { IChatSessionsService } from '../common/chatSessionsService.js';
 import { IChatSlashCommandService } from '../common/chatSlashCommands.js';
 import { ChatRequestVariableSet, IChatRequestVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../common/chatVariableEntries.js';
 import { ChatViewModel, IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
@@ -245,6 +247,18 @@ class ChatHistoryListRenderer implements IListRenderer<IChatHistoryListItem, ICh
 	}
 }
 
+const supportsAllAttachments: Required<IChatAgentAttachmentCapabilities> = {
+	supportsFileAttachments: true,
+	supportsToolAttachments: true,
+	supportsMCPAttachments: true,
+	supportsImageAttachments: true,
+	supportsSearchResultAttachments: true,
+	supportsInstructionAttachments: true,
+	supportsSourceControlAttachments: true,
+	supportsProblemAttachments: true,
+	supportsSymbolAttachments: true,
+};
+
 export class ChatWidget extends Disposable implements IChatWidget {
 	public static readonly CONTRIBS: { new(...args: [IChatWidget, ...any]): IChatWidgetContrib }[] = [];
 
@@ -338,7 +352,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	/**
 	 * Whether the list is scroll-locked to the bottom. Initialize to true so that we can scroll to the bottom on first render.
 	 * The initial render leads to a lot of `onDidChangeTreeContentHeight` as the renderer works out the real heights of rows.
-	 */
+	*/
 	private scrollLock = true;
 
 	private _isReady = false;
@@ -356,15 +370,20 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private _chatSuggestNextScheduler: RunOnceScheduler;
 
 	// Coding agent locking state
-	private _lockedToCodingAgent: string | undefined;
-	private _lockedToCodingAgentContextKey!: IContextKey<boolean>;
-	private _codingAgentPrefix: string | undefined;
-	private _lockedAgentId: string | undefined;
-
+	private _lockedAgent?: {
+		id: string;
+		name: string;
+		prefix: string;
+		displayName: string;
+	};
+	private readonly _lockedToCodingAgentContextKey: IContextKey<boolean>;
+	private readonly _agentSupportsAttachmentsContextKey: IContextKey<boolean>;
+	private _attachmentCapabilities: IChatAgentAttachmentCapabilities = supportsAllAttachments;
 	private lastWelcomeViewChatMode: ChatModeKind | undefined;
 
 	// Cache for prompt file descriptions to avoid async calls during rendering
 	private readonly promptDescriptionsCache = new Map<string, string>();
+	private readonly promptUriCache = new Map<string, URI>();
 	private _isLoadingPromptDescriptions = false;
 
 	// UI state for temporarily hiding chat history
@@ -417,7 +436,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				.parseChatRequest(this.viewModel!.sessionId, this.getInput(), this.location, {
 					selectedAgent: this._lastSelectedAgent,
 					mode: this.input.currentModeKind,
-					forcedAgent: this._lockedAgentId ? this.chatAgentService.getAgent(this._lockedAgentId) : undefined
+					forcedAgent: this._lockedAgent?.id ? this.chatAgentService.getAgent(this._lockedAgent.id) : undefined
 				});
 			this._onDidChangeParsedInput.fire();
 		}
@@ -482,9 +501,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) {
 		super();
 		this._lockedToCodingAgentContextKey = ChatContextKeys.lockedToCodingAgent.bindTo(this.contextKeyService);
+		this._agentSupportsAttachmentsContextKey = ChatContextKeys.agentSupportsAttachments.bindTo(this.contextKeyService);
 
 		this.viewContext = _viewContext ?? {};
 
@@ -699,6 +720,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	set lastSelectedAgent(agent: IChatAgentData | undefined) {
 		this.parsedChatRequest = undefined;
 		this._lastSelectedAgent = agent;
+		this._updateAgentCapabilitiesContextKeys(agent);
 		this._onDidChangeParsedInput.fire();
 	}
 
@@ -706,8 +728,21 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return this._lastSelectedAgent;
 	}
 
+	private _updateAgentCapabilitiesContextKeys(agent: IChatAgentData | undefined): void {
+		// Check if the agent has capabilities defined directly
+		const capabilities = agent?.capabilities ?? (this._lockedAgent ? this.chatSessionsService.getCapabilitiesForSessionType(this._lockedAgent.id) : undefined);
+		this._attachmentCapabilities = capabilities ?? supportsAllAttachments;
+
+		const supportsAttachments = Object.keys(filter(this._attachmentCapabilities, (key, value) => value === true)).length > 0;
+		this._agentSupportsAttachmentsContextKey.set(supportsAttachments);
+	}
+
 	get supportsFileReferences(): boolean {
 		return !!this.viewOptions.supportsFileReferences;
+	}
+
+	get attachmentCapabilities(): IChatAgentAttachmentCapabilities {
+		return this._attachmentCapabilities;
 	}
 
 	get input(): ChatInputPart {
@@ -926,8 +961,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (this._dynamicMessageLayoutData) {
 			this._dynamicMessageLayoutData.enabled = true;
 		}
-		// Unlock coding agent when clearing
-		this.unlockFromCodingAgent();
+
+		if (this.viewModel) {
+			this.viewModel.resetInputPlaceholder();
+		}
+		if (this._lockedAgent) {
+			this.lockToCodingAgent(this._lockedAgent.name, this._lockedAgent.displayName, this._lockedAgent.id);
+		} else {
+			this.unlockFromCodingAgent();
+		}
+
 		this.clearTodoListWidget(this.viewModel?.sessionId);
 		// Cancel any pending widget render and hide the widget BEFORE firing onDidClear
 		// This prevents the widget from being re-shown by any handlers triggered by the clear event
@@ -1058,9 +1101,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			} else if (expEmptyState) {
 				welcomeContent = this.getWelcomeViewContent(additionalMessage, expEmptyState);
 			} else {
-				const tips = this.input.currentModeKind === ChatModeKind.Ask
+				const defaultTips = this.input.currentModeKind === ChatModeKind.Ask
 					? new MarkdownString(localize('chatWidget.tips', "{0} or type {1} to attach context\n\n{2} to chat with extensions\n\nType {3} to use commands", '$(attach)', '#', '$(mention)', '/'), { supportThemeIcons: true })
 					: new MarkdownString(localize('chatWidget.tips.withoutParticipants', "{0} or type {1} to attach context", '$(attach)', '#'), { supportThemeIcons: true });
+				const contributedTips = this._lockedAgent?.id ? this.chatSessionsService.getWelcomeTipsForSessionType(this._lockedAgent.id) : undefined;
+				const tips = contributedTips
+					? new MarkdownString(contributedTips, { supportThemeIcons: true })
+					: (!this._lockedAgent ? defaultTips : undefined);
 				welcomeContent = this.getWelcomeViewContent(additionalMessage);
 				welcomeContent.tips = tips;
 			}
@@ -1073,7 +1120,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 				// Optional: recent chat history above welcome content when enabled
 				const showHistory = this.configurationService.getValue<boolean>(ChatConfiguration.EmptyStateHistoryEnabled);
-				if (showHistory && !this._lockedToCodingAgent && this._historyVisible) {
+				if (showHistory && !this._lockedAgent && this._historyVisible) {
 					this.renderWelcomeHistorySection();
 				}
 				this.welcomePart.value = this.instantiationService.createInstance(
@@ -1307,7 +1354,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private _getGenerateInstructionsMessage(): IMarkdownString {
 		// Start checking for instruction files immediately if not already done
 		if (!this._instructionFilesCheckPromise) {
-			this._instructionFilesCheckPromise = this._checkForInstructionFiles();
+			this._instructionFilesCheckPromise = this._checkForAgentInstructionFiles();
 			// Use VS Code's idiomatic pattern for disposal-safe promise callbacks
 			this._register(thenIfNotDisposed(this._instructionFilesCheckPromise, hasFiles => {
 				this._instructionFilesExist = hasFiles;
@@ -1337,10 +1384,25 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return new MarkdownString('');
 	}
 
-	private async _checkForInstructionFiles(): Promise<boolean> {
+	/**
+	 * Checks if any agent instruction files (.github/copilot-instructions.md or AGENTS.md) exist in the workspace.
+	 * Used to determine whether to show the "Generate Agent Instructions" hint.
+	 *
+	 * @returns true if instruction files exist OR if instruction features are disabled (to hide the hint)
+	 */
+	private async _checkForAgentInstructionFiles(): Promise<boolean> {
 		try {
-			const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, undefined);
-			return await computer.hasAgentInstructions(CancellationToken.None);
+			const useCopilotInstructionsFiles = this.configurationService.getValue(PromptsConfig.USE_COPILOT_INSTRUCTION_FILES);
+			const useAgentMd = this.configurationService.getValue(PromptsConfig.USE_AGENT_MD);
+			if (!useCopilotInstructionsFiles && !useAgentMd) {
+				// If both settings are disabled, return true to hide the hint (since the features aren't enabled)
+				return true;
+			}
+			return (
+				(await this.promptsService.listCopilotInstructionsMDs(CancellationToken.None)).length > 0 ||
+				// Note: only checking for AGENTS.md files at the root folder, not ones in subfolders.
+				(await this.promptsService.listAgentMDs(CancellationToken.None, false)).length > 0
+			);
 		} catch (error) {
 			// On error, assume no instruction files exist to be safe
 			this.logService.warn('[ChatWidget] Error checking for instruction files:', error);
@@ -1356,15 +1418,22 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 
 		if (this.isLockedToCodingAgent) {
-			// TODO(jospicer): Let extensions contribute this welcome message/docs
-			const message = this._codingAgentPrefix === '@copilot '
-				? new MarkdownString(localize('copilotCodingAgentMessage', "This chat session will be forwarded to the {0} [coding agent]({1}) where work is completed in the background. ", this._codingAgentPrefix, 'https://aka.ms/coding-agent-docs') + this.chatDisclaimer, { isTrusted: true })
-				: new MarkdownString(localize('genericCodingAgentMessage', "This chat session will be forwarded to the {0} coding agent where work is completed in the background. ", this._codingAgentPrefix) + this.chatDisclaimer);
+			// Check for provider-specific customizations from chat sessions service
+			const providerIcon = this._lockedAgent ? this.chatSessionsService.getIconForSessionType(this._lockedAgent.id) : undefined;
+			const providerTitle = this._lockedAgent ? this.chatSessionsService.getWelcomeTitleForSessionType(this._lockedAgent.id) : undefined;
+			const providerMessage = this._lockedAgent ? this.chatSessionsService.getWelcomeMessageForSessionType(this._lockedAgent.id) : undefined;
+
+			// Fallback to default messages if provider doesn't specify
+			const message = providerMessage
+				? new MarkdownString(providerMessage)
+				: (this._lockedAgent?.prefix === '@copilot '
+					? new MarkdownString(localize('copilotCodingAgentMessage', "This chat session will be forwarded to the {0} [coding agent]({1}) where work is completed in the background. ", this._lockedAgent.prefix, 'https://aka.ms/coding-agent-docs') + this.chatDisclaimer, { isTrusted: true })
+					: new MarkdownString(localize('genericCodingAgentMessage', "This chat session will be forwarded to the {0} coding agent where work is completed in the background. ", this._lockedAgent?.prefix) + this.chatDisclaimer));
 
 			return {
-				title: localize('codingAgentTitle', "Delegate to {0}", this._codingAgentPrefix),
+				title: providerTitle ?? localize('codingAgentTitle', "Delegate to {0}", this._lockedAgent?.prefix),
 				message,
-				icon: Codicon.sendToRemoteAgent,
+				icon: providerIcon ?? Codicon.sendToRemoteAgent,
 				additionalMessage,
 			};
 		}
@@ -1412,15 +1481,26 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			additionalMessage = localize('expChatAdditionalMessage', "AI responses may be inaccurate.");
 		}
 
+		// Check for provider-specific customizations
+		const providerIcon = this._lockedAgent?.id ? this.chatSessionsService.getIconForSessionType(this._lockedAgent.id) : undefined;
+		const providerTitle = this._lockedAgent ? this.chatSessionsService.getWelcomeTitleForSessionType(this._lockedAgent.id) : undefined;
+		const providerMessage = this._lockedAgent ? this.chatSessionsService.getWelcomeMessageForSessionType(this._lockedAgent.id) : undefined;
+		const providerTips = this._lockedAgent ? this.chatSessionsService.getWelcomeTipsForSessionType(this._lockedAgent.id) : undefined;
+		const suggestedPrompts = this._lockedAgent ? undefined : this.getNewSuggestedPrompts();
 		const welcomeContent: IChatViewWelcomeContent = {
-			title: localize('expChatTitle', 'Build with agent mode'),
-			message: new MarkdownString(localize('expchatMessage', "Let's get started")),
-			icon: Codicon.chatSparkle,
+			title: providerTitle ?? localize('expChatTitle', 'Build with agent mode'),
+			message: providerMessage ? new MarkdownString(providerMessage) : new MarkdownString(localize('expchatMessage', "Let's get started")),
+			icon: providerIcon ?? Codicon.chatSparkle,
 			inputPart: this.inputPart.element,
 			additionalMessage,
 			isNew: true,
-			suggestedPrompts: this.getNewSuggestedPrompts(),
+			suggestedPrompts
 		};
+
+		// Add contributed tips if available
+		if (providerTips) {
+			welcomeContent.tips = new MarkdownString(providerTips, { supportThemeIcons: true });
+		}
 		return welcomeContent;
 	}
 
@@ -1542,12 +1622,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		for (const { promptName } of topPrompts) {
 			const description = this.promptDescriptionsCache.get(promptName);
 			const commandLabel = localize('chatWidget.promptFile.commandLabel', "{0}", promptName);
+			const uri = this.promptUriCache.get(promptName);
 			const descriptionText = description?.trim() ? description : undefined;
 			result.push({
 				icon: Codicon.run,
 				label: commandLabel,
 				description: descriptionText,
-				prompt: `/${promptName} `
+				prompt: `/${promptName} `,
+				uri: uri
 			});
 		}
 
@@ -1572,6 +1654,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				if (promptNames.includes(promptCommand.command)) {
 					try {
 						if (promptCommand.promptPath) {
+							this.promptUriCache.set(promptCommand.command, promptCommand.promptPath.uri);
 							const parseResult = await this.promptsService.parseNew(
 								promptCommand.promptPath.uri,
 								CancellationToken.None
@@ -2268,8 +2351,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.container.setAttribute('data-session-id', model.sessionId);
 		this.viewModel = this.instantiationService.createInstance(ChatViewModel, model, this._codeBlockModelCollection);
 
-		if (this._lockedToCodingAgent) {
-			const placeholder = localize('chat.input.placeholder.lockedToAgent', "Chat with {0}", this._lockedToCodingAgent);
+		if (this._lockedAgent) {
+			let placeholder = this.chatSessionsService.getInputPlaceholderForSessionType(this._lockedAgent.id);
+			if (!placeholder) {
+				placeholder = localize('chat.input.placeholder.lockedToAgent', "Chat with {0}", this._lockedAgent.id);
+			}
 			this.viewModel.setInputPlaceholder(placeholder);
 			this.inputEditor.updateOptions({ placeholder });
 		} else if (this.viewModel.inputPlaceholder) {
@@ -2320,6 +2406,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.viewModelDisposables.add(model.onDidChange((e) => {
 			if (e.kind === 'setAgent') {
 				this._onDidChangeAgent.fire({ agent: e.agent, slashCommand: e.command });
+				// Update capabilities context keys when agent changes
+				this._updateAgentCapabilitiesContextKeys(e.agent);
 			}
 			if (e.kind === 'addRequest') {
 				this.clearTodoListWidget(model.sessionId, false);
@@ -2388,21 +2476,26 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	// Coding agent locking methods
 	public lockToCodingAgent(name: string, displayName: string, agentId: string): void {
-		this._lockedToCodingAgent = displayName;
-		this._codingAgentPrefix = `@${name} `;
-		this._lockedAgentId = agentId;
+		this._lockedAgent = {
+			id: agentId,
+			name,
+			prefix: `@${name} `,
+			displayName
+		};
 		this._lockedToCodingAgentContextKey.set(true);
 		this._welcomeRenderScheduler.schedule();
+		// Update capabilities for the locked agent
+		const agent = this.chatAgentService.getAgent(agentId);
+		this._updateAgentCapabilitiesContextKeys(agent);
 		this.renderer.updateOptions({ restorable: false, editable: false, noFooter: true, progressMessageAtBottomOfResponse: true });
 		this.tree.rerender();
 	}
 
 	public unlockFromCodingAgent(): void {
 		// Clear all state related to locking
-		this._lockedToCodingAgent = undefined;
-		this._codingAgentPrefix = undefined;
-		this._lockedAgentId = undefined;
+		this._lockedAgent = undefined;
 		this._lockedToCodingAgentContextKey.set(false);
+		this._updateAgentCapabilitiesContextKeys(undefined);
 
 		// Explicitly update the DOM to reflect unlocked state
 		this._welcomeRenderScheduler.schedule();
@@ -2417,11 +2510,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	public get isLockedToCodingAgent(): boolean {
-		return !!this._lockedToCodingAgent;
+		return !!this._lockedAgent;
 	}
 
 	public get lockedAgentId(): string | undefined {
-		return this._lockedAgentId;
+		return this._lockedAgent?.id;
 	}
 
 	logInputHistory(): void {
@@ -2613,7 +2706,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				noCommandDetection: options?.noCommandDetection,
 				...this.getModeRequestOptions(),
 				modeInfo: this.input.currentModeInfo,
-				agentIdSilent: this._lockedAgentId
+				agentIdSilent: this._lockedAgent?.id,
 			});
 
 			if (result) {
