@@ -669,7 +669,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			// Do not await this, we want SCM
 			// to know about the repo asap
 			repository.status().then(() => {
-				this.repositoryCache.updateRepository(repository.remotes, [], repository.root);
+				this.repositoryCache.update(repository.remotes, [], repository.root);
 			});
 		} catch (err) {
 			// noop
@@ -864,7 +864,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 
 		this.logger.info(`[Model][close] Repository: ${repository.root}`);
 		this._closedRepositoriesManager.addRepository(openRepository.repository.root);
-		this.repositoryCache.updateRepository(repository.remotes, [], repository.root);
+		this.repositoryCache.update(repository.remotes, [], repository.root);
 		openRepository.dispose();
 	}
 

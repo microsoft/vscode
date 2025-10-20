@@ -81,7 +81,7 @@ export class RepositoryCache {
 
 	}
 
-	updateRepository(addedRemotes: Remote[], removedRemotes: Remote[], rootPath: string): void {
+	update(addedRemotes: Remote[], removedRemotes: Remote[], rootPath: string): void {
 		for (const remote of removedRemotes) {
 			const url = remote.fetchUrl;
 			if (!url) {

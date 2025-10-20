@@ -1851,7 +1851,7 @@ export class Repository implements Disposable {
 	async addRemote(name: string, url: string): Promise<void> {
 		await this.run(Operation.Remote, async () => {
 			const result = await this.repository.addRemote(name, url);
-			this.repositoryCache.updateRepository(this.remotes, [], this.root);
+			this.repositoryCache.update(this.remotes, [], this.root);
 			return result;
 		});
 	}
@@ -1861,7 +1861,7 @@ export class Repository implements Disposable {
 			const result = this.repository.removeRemote(name);
 			const remote = this.remotes.find(remote => remote.name === name);
 			if (remote) {
-				this.repositoryCache.updateRepository([], [remote], this.root);
+				this.repositoryCache.update([], [remote], this.root);
 			}
 			return result;
 		});
