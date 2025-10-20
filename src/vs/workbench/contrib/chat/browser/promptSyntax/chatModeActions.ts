@@ -57,14 +57,14 @@ class PickerConfigAgentAction extends ConfigAgentActionImpl {
 /**
  * Action ID for the `Configure Agent` action.
  */
-const CONFIGURE_AGENTS_ACTION_ID = 'workbench.action.chat.manage.mode';
+const CONFIGURE_AGENTS_ACTION_ID = 'workbench.action.chat.manage.agents';
 
 class ManageAgentsAction extends ConfigAgentActionImpl {
 	constructor() {
 		super({
 			id: CONFIGURE_AGENTS_ACTION_ID,
-			title: localize2('configure-modes', "Configure Agents..."),
-			shortTitle: localize('configure-modes.short', "Agents"),
+			title: localize2('configure-agents', "Configure Agents..."),
+			shortTitle: localize('configure-agents.short', "Agents"),
 			icon: Codicon.bookmark,
 			f1: true,
 			precondition: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
