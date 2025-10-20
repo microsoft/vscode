@@ -19,6 +19,7 @@ import { TestChatEntitlementService, TestStorageService } from '../../../../test
 import { Event } from '../../../../../base/common/event.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
 
 suite('LanguageModels', function () {
 
@@ -210,11 +211,29 @@ suite('LanguageModels', function () {
 
 suite('LanguageModels - When Clause', function () {
 
+	class TestContextKeyService extends MockContextKeyService {
+		override contextMatchesRules(rules: ContextKeyExpression): boolean {
+			if (!rules) {
+				return true;
+			}
+			// Simple evaluation based on stored keys
+			const keys = rules.keys();
+			for (const key of keys) {
+				const contextKey = this.getContextKeyValue(key);
+				// If the key exists and is truthy, the rule matches
+				if (contextKey) {
+					return true;
+				}
+			}
+			return false;
+		}
+	}
+
 	let languageModelsWithWhen: LanguageModelsService;
-	let contextKeyService: MockContextKeyService;
+	let contextKeyService: TestContextKeyService;
 
 	setup(function () {
-		contextKeyService = new MockContextKeyService();
+		contextKeyService = new TestContextKeyService();
 		contextKeyService.createKey('testKey', true);
 
 		languageModelsWithWhen = new LanguageModelsService(
