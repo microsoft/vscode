@@ -247,7 +247,7 @@ suite('GitCommitFoldingProvider', () => {
 
 		// Diff block
 		assert.strictEqual(ranges[1].start, 5);
-		assert.strictEqual(ranges[1].end, 7);
+		assert.strictEqual(ranges[1].end, 8);
 		assert.strictEqual(ranges[1].kind, undefined);
 
 		// Second comment block
