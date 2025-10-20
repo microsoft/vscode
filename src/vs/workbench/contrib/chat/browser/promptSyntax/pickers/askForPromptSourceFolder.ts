@@ -110,7 +110,7 @@ function getPlaceholderStringforNew(type: PromptsType): string {
 		case PromptsType.prompt:
 			return localize('workbench.command.prompt.create.location.placeholder', "Select a location to create the prompt file in...");
 		case PromptsType.agent:
-			return localize('workbench.command.agent.create.location.placeholder', "Select a location to create the mode file in...");
+			return localize('workbench.command.agent.create.location.placeholder', "Select a location to create the agent file in...");
 		default:
 			throw new Error('Unknown prompt type');
 	}
@@ -191,7 +191,7 @@ function getMissingSourceFolderString(type: PromptsType): string {
 		case PromptsType.prompt:
 			return localize('commands.prompts.create.ask-folder.empty.placeholder', 'No prompt source folders found.');
 		case PromptsType.agent:
-			return localize('commands.mode.create.ask-folder.empty.placeholder', 'No agent source folders found.');
+			return localize('commands.agent.create.ask-folder.empty.placeholder', 'No agent source folders found.');
 		default:
 			throw new Error('Unknown prompt type');
 	}
