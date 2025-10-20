@@ -219,4 +219,40 @@ suite('GitCommitFoldingProvider', () => {
 		assert.strictEqual(ranges[2].end, 25);
 		assert.strictEqual(ranges[2].kind, undefined);
 	});
+
+	test('mixed comment and diff content', () => {
+		const provider = new GitCommitFoldingProvider();
+		const content = [
+			'Fix bug in parser',
+			'',
+			'# Comment 1',
+			'# Comment 2',
+			'',
+			'diff --git a/file.txt b/file.txt',
+			'--- a/file.txt',
+			'+++ b/file.txt',
+			'',
+			'# Comment 3',
+			'# Comment 4'
+		].join('\n');
+		const doc = createMockDocument(content);
+		const ranges = provider.provideFoldingRanges(doc, mockContext, mockToken) as vscode.FoldingRange[];
+
+		assert.strictEqual(ranges.length, 3);
+
+		// First comment block
+		assert.strictEqual(ranges[0].start, 2);
+		assert.strictEqual(ranges[0].end, 3);
+		assert.strictEqual(ranges[0].kind, vscode.FoldingRangeKind.Comment);
+
+		// Diff block
+		assert.strictEqual(ranges[1].start, 5);
+		assert.strictEqual(ranges[1].end, 7);
+		assert.strictEqual(ranges[1].kind, undefined);
+
+		// Second comment block
+		assert.strictEqual(ranges[2].start, 9);
+		assert.strictEqual(ranges[2].end, 10);
+		assert.strictEqual(ranges[2].kind, vscode.FoldingRangeKind.Comment);
+	});
 });
