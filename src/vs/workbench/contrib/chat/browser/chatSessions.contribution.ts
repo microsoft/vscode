@@ -37,6 +37,7 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 		type: 'array',
 		items: {
 			type: 'object',
+			additionalProperties: false,
 			properties: {
 				type: {
 					description: localize('chatSessionsExtPoint.chatSessionType', 'Unique identifier for the type of chat session.'),
@@ -81,6 +82,7 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 				capabilities: {
 					description: localize('chatSessionsExtPoint.capabilities', 'Optional capabilities for this chat session.'),
 					type: 'object',
+					additionalProperties: false,
 					properties: {
 						supportsFileAttachments: {
 							description: localize('chatSessionsExtPoint.supportsFileAttachments', 'Whether this chat session supports attaching files or file references.'),
