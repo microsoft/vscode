@@ -142,10 +142,5 @@
 		"completionsAdvancedSetting": "github.copilot.advanced",
 		"completionsEnablementSetting": "github.copilot.enable",
 		"nextEditSuggestionsSetting": "github.copilot.nextEditSuggestions.enabled"
-	},
-	"trustedExtensionAuthAccess": {
-		"github": [
-			"github.copilot-chat"
-		]
 	}
 }
