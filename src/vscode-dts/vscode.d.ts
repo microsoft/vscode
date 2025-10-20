@@ -8369,7 +8369,6 @@ declare module 'vscode' {
 		PullRequestDone = 16,
 	}
 
-
 	/**
 	 * Context information passed to {@link TerminalCompletionProvider.provideTerminalCompletions}.
 	 *
