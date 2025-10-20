@@ -21,47 +21,47 @@ import { IResourceNode, ResourceTree } from '../../../../base/common/resourceTre
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 
-export function isSCMViewService(element: any): element is ISCMViewService {
+export function isSCMViewService(element: unknown): element is ISCMViewService {
 	return Array.isArray((element as ISCMViewService).repositories) && Array.isArray((element as ISCMViewService).visibleRepositories);
 }
 
-export function isSCMRepository(element: any): element is ISCMRepository {
+export function isSCMRepository(element: unknown): element is ISCMRepository {
 	return !!(element as ISCMRepository).provider && !!(element as ISCMRepository).input;
 }
 
-export function isSCMInput(element: any): element is ISCMInput {
+export function isSCMInput(element: unknown): element is ISCMInput {
 	return !!(element as ISCMInput).validateInput && typeof (element as ISCMInput).value === 'string';
 }
 
-export function isSCMActionButton(element: any): element is ISCMActionButton {
+export function isSCMActionButton(element: unknown): element is ISCMActionButton {
 	return (element as ISCMActionButton).type === 'actionButton';
 }
 
-export function isSCMResourceGroup(element: any): element is ISCMResourceGroup {
+export function isSCMResourceGroup(element: unknown): element is ISCMResourceGroup {
 	return !!(element as ISCMResourceGroup).provider && !!(element as ISCMResourceGroup).resources;
 }
 
-export function isSCMResource(element: any): element is ISCMResource {
+export function isSCMResource(element: unknown): element is ISCMResource {
 	return !!(element as ISCMResource).sourceUri && isSCMResourceGroup((element as ISCMResource).resourceGroup);
 }
 
-export function isSCMResourceNode(element: any): element is IResourceNode<ISCMResource, ISCMResourceGroup> {
+export function isSCMResourceNode(element: unknown): element is IResourceNode<ISCMResource, ISCMResourceGroup> {
 	return ResourceTree.isResourceNode(element) && isSCMResourceGroup(element.context);
 }
 
-export function isSCMHistoryItemViewModelTreeElement(element: any): element is SCMHistoryItemViewModelTreeElement {
+export function isSCMHistoryItemViewModelTreeElement(element: unknown): element is SCMHistoryItemViewModelTreeElement {
 	return (element as SCMHistoryItemViewModelTreeElement).type === 'historyItemViewModel';
 }
 
-export function isSCMHistoryItemLoadMoreTreeElement(element: any): element is SCMHistoryItemLoadMoreTreeElement {
+export function isSCMHistoryItemLoadMoreTreeElement(element: unknown): element is SCMHistoryItemLoadMoreTreeElement {
 	return (element as SCMHistoryItemLoadMoreTreeElement).type === 'historyItemLoadMore';
 }
 
-export function isSCMHistoryItemChangeViewModelTreeElement(element: any): element is SCMHistoryItemChangeViewModelTreeElement {
+export function isSCMHistoryItemChangeViewModelTreeElement(element: unknown): element is SCMHistoryItemChangeViewModelTreeElement {
 	return (element as SCMHistoryItemChangeViewModelTreeElement).type === 'historyItemChangeViewModel';
 }
 
-export function isSCMHistoryItemChangeNode(element: any): element is IResourceNode<ISCMHistoryItem, SCMHistoryItemChangeViewModelTreeElement> {
+export function isSCMHistoryItemChangeNode(element: unknown): element is IResourceNode<ISCMHistoryItem, SCMHistoryItemChangeViewModelTreeElement> {
 	return ResourceTree.isResourceNode(element) && isSCMHistoryItemViewModelTreeElement(element.context);
 }
 
