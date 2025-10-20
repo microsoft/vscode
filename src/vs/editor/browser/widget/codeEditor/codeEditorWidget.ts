@@ -2156,6 +2156,7 @@ class EditorContextKeysManager extends Disposable {
 	private readonly _hasNonEmptySelection: IContextKey<boolean>;
 	private readonly _canUndo: IContextKey<boolean>;
 	private readonly _canRedo: IContextKey<boolean>;
+	private readonly _removePasteFromEditorContextMenu: IContextKey<boolean>;
 
 	constructor(
 		editor: CodeEditorWidget,
@@ -2179,6 +2180,7 @@ class EditorContextKeysManager extends Disposable {
 		this._hasNonEmptySelection = EditorContextKeys.hasNonEmptySelection.bindTo(contextKeyService);
 		this._canUndo = EditorContextKeys.canUndo.bindTo(contextKeyService);
 		this._canRedo = EditorContextKeys.canRedo.bindTo(contextKeyService);
+		this._removePasteFromEditorContextMenu = EditorContextKeys.removePasteFromEditorContextMenu.bindTo(contextKeyService);
 
 		this._register(this._editor.onDidChangeConfiguration(() => this._updateFromConfig()));
 		this._register(this._editor.onDidChangeCursorSelection(() => this._updateFromSelection()));
@@ -2205,6 +2207,10 @@ class EditorContextKeysManager extends Disposable {
 		this._editorReadonly.set(options.get(EditorOption.readOnly));
 		this._inDiffEditor.set(options.get(EditorOption.inDiffEditor));
 		this._editorColumnSelection.set(options.get(EditorOption.columnSelection));
+		// Custom option not part of standard EditorOption enum; read from construction options if present
+		// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
+		const rawOpts = (this._editor as any)._configuration?._rawOptions as { removePasteFromEditorContextMenu?: boolean } | undefined;
+		this._removePasteFromEditorContextMenu.set(!!rawOpts?.removePasteFromEditorContextMenu);
 	}
 
 	private _updateFromSelection(): void {

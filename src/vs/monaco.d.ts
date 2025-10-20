@@ -5434,6 +5434,11 @@ declare namespace monaco.editor {
 		 * Defaults to an internal DOM node.
 		 */
 		overflowWidgetsDomNode?: HTMLElement;
+		/**
+		 * When true, removes the "Paste" action from the editor's context menus (EditorContext & SimpleEditorContext).
+		 * Does not affect paste via keybindings or commands. Defaults to false.
+		 */
+		removePasteFromEditorContextMenu?: boolean;
 	}
 
 	/**

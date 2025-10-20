@@ -140,7 +140,7 @@ export const PasteAction = supportsPaste ? registerCommand(new MultiCommand({
 		menuId: MenuId.EditorContext,
 		group: CLIPBOARD_CONTEXT_MENU_GROUP,
 		title: nls.localize('actions.clipboard.pasteLabel', "Paste"),
-		when: EditorContextKeys.writable,
+		when: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.removePasteFromEditorContextMenu.toNegated()),
 		order: 4,
 	}, {
 		menuId: MenuId.CommandPalette,
@@ -151,7 +151,7 @@ export const PasteAction = supportsPaste ? registerCommand(new MultiCommand({
 		menuId: MenuId.SimpleEditorContext,
 		group: CLIPBOARD_CONTEXT_MENU_GROUP,
 		title: nls.localize('actions.clipboard.pasteLabel', "Paste"),
-		when: EditorContextKeys.writable,
+		when: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.removePasteFromEditorContextMenu.toNegated()),
 		order: 4,
 	}]
 })) : undefined;

@@ -27,6 +27,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { isObject } from '../../../../base/common/types.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { EditorOption, IEditorOptions as ICodeEditorOptions } from '../../../../editor/common/config/editorOptions.js';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { UILabelProvider } from '../../../../base/common/keybindingLabels.js';
 import { OS, OperatingSystem } from '../../../../base/common/platform.js';
@@ -322,6 +323,10 @@ export class WalkThroughPart extends EditorPane {
 					const editor = this.instantiationService.createInstance(CodeEditorWidget, div, options, {
 						telemetryData: telemetryData
 					});
+
+					// Set context key to hide Paste action from context menu in walkthrough snippets
+					EditorContextKeys.removePasteFromEditorContextMenu.bindTo(editor.contextKeyService).set(true);
+
 					editor.setModel(model);
 					this.contentDisposables.push(editor);
 

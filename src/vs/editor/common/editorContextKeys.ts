@@ -51,6 +51,12 @@ export namespace EditorContextKeys {
 	export const canUndo = new RawContextKey<boolean>('canUndo', false, true);
 	export const canRedo = new RawContextKey<boolean>('canRedo', false, true);
 
+	/**
+	 * A context key that is set when the editor configuration requests hiding the Paste action
+	 * from editor context menus. When this is true, Paste is not shown in EditorContext/SimpleEditorContext.
+	 */
+	export const removePasteFromEditorContextMenu = new RawContextKey<boolean>('removePasteFromEditorContextMenu', false, nls.localize('removePasteFromEditorContextMenu', "Whether Paste should be hidden from editor context menus"));
+
 	export const hoverVisible = new RawContextKey<boolean>('editorHoverVisible', false, nls.localize('editorHoverVisible', "Whether the editor hover is visible"));
 	export const hoverFocused = new RawContextKey<boolean>('editorHoverFocused', false, nls.localize('editorHoverFocused', "Whether the editor hover is focused"));
 
