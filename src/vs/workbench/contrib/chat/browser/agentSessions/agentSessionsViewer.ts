@@ -11,31 +11,14 @@ import { IListAccessibilityProvider } from '../../../../../base/browser/ui/list/
 import { ITreeCompressionDelegate } from '../../../../../base/browser/ui/tree/asyncDataTree.js';
 import { ICompressedTreeNode } from '../../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
 import { ICompressibleTreeRenderer } from '../../../../../base/browser/ui/tree/objectTree.js';
-import { ITreeNode, ITreeElementRenderDetails, IAsyncDataSource } from '../../../../../base/browser/ui/tree/tree.js';
-import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { ITreeNode, ITreeElementRenderDetails, IAsyncDataSource, ITreeFilter, TreeFilterResult, TreeVisibility } from '../../../../../base/browser/ui/tree/tree.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { IAgentSessionViewModel, IAgentSessionsViewModel, isAgentSession, isAgentSessionsViewModel } from './agentSessionViewModel.js';
 import { IconLabel } from '../../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { fromNow } from '../../../../../base/common/date.js';
-
-export class AgentSessionsListDelegate implements IListVirtualDelegate<IAgentSessionViewModel> {
-
-	getHeight(element: IAgentSessionViewModel): number {
-		return 44;
-	}
-
-	getTemplateId(element: IAgentSessionViewModel): string {
-		return AgentSessionRenderer.TEMPLATE_ID;
-	}
-}
-
-export class AgentSessionsCompressionDelegate implements ITreeCompressionDelegate<IAgentSessionViewModel> {
-
-	isIncompressible(element: IAgentSessionViewModel): boolean {
-		return true;
-	}
-}
+import { FuzzyScore, createMatches, matchesFuzzy } from '../../../../../base/common/filters.js';
 
 interface IAgentSessionItemTemplate {
 	readonly element: HTMLElement;
@@ -52,7 +35,7 @@ interface IAgentSessionItemTemplate {
 	readonly disposables: IDisposable;
 }
 
-export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSessionViewModel, void, IAgentSessionItemTemplate> {
+export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSessionViewModel, FuzzyScore, IAgentSessionItemTemplate> {
 
 	static readonly TEMPLATE_ID = 'agent-session';
 
@@ -101,12 +84,12 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 		};
 	}
 
-	renderElement(session: ITreeNode<IAgentSessionViewModel, void>, index: number, template: IAgentSessionItemTemplate, details?: ITreeElementRenderDetails): void {
+	renderElement(session: ITreeNode<IAgentSessionViewModel, FuzzyScore>, index: number, template: IAgentSessionItemTemplate, details?: ITreeElementRenderDetails): void {
 		template.elementDisposables.clear();
 
 		template.icon.className = `agent-session-icon ${this.getIconClassName(session.element)}`;
 
-		template.title.setLabel(session.element.title);
+		template.title.setLabel(session.element.title, undefined, { matches: createMatches(session.filterData) });
 
 		const { diff } = session.element;
 		template.diffAdded.textContent = diff ? `+${diff.added}` : '';
@@ -124,16 +107,27 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 		}
 	}
 
-	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<IAgentSessionViewModel>, void>, index: number, templateData: IAgentSessionItemTemplate, details?: ITreeElementRenderDetails): void {
+	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<IAgentSessionViewModel>, FuzzyScore>, index: number, templateData: IAgentSessionItemTemplate, details?: ITreeElementRenderDetails): void {
 		throw new Error('Should never happen since session is incompressible');
 	}
 
-	disposeElement(element: ITreeNode<IAgentSessionViewModel, void>, index: number, template: IAgentSessionItemTemplate, details?: ITreeElementRenderDetails): void {
+	disposeElement(element: ITreeNode<IAgentSessionViewModel, FuzzyScore>, index: number, template: IAgentSessionItemTemplate, details?: ITreeElementRenderDetails): void {
 		template.elementDisposables.clear();
 	}
 
 	disposeTemplate(templateData: IAgentSessionItemTemplate): void {
 		templateData.disposables.dispose();
+	}
+}
+
+export class AgentSessionsListDelegate implements IListVirtualDelegate<IAgentSessionViewModel> {
+
+	getHeight(element: IAgentSessionViewModel): number {
+		return 44;
+	}
+
+	getTemplateId(element: IAgentSessionViewModel): string {
+		return AgentSessionRenderer.TEMPLATE_ID;
 	}
 }
 
@@ -164,11 +158,46 @@ export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsV
 }
 
 export class AgentSessionsIdentityProvider implements IIdentityProvider<IAgentSessionsViewModel | IAgentSessionViewModel> {
+
 	getId(element: IAgentSessionsViewModel | IAgentSessionViewModel): string {
 		if (isAgentSession(element)) {
 			return element.id;
 		}
 
 		return 'agent-sessions-id';
+	}
+}
+
+export class AgentSessionsFilter extends Disposable implements ITreeFilter<IAgentSessionViewModel, FuzzyScore> {
+
+	private _pattern: string = '';
+	set pattern(pattern: string) { this._pattern = pattern; }
+
+	filter(element: IAgentSessionViewModel, parentVisibility: TreeVisibility): TreeFilterResult<FuzzyScore> {
+		if (!this._pattern) {
+			return TreeVisibility.Visible;
+		}
+
+		const score = matchesFuzzy(this._pattern, element.title, true);
+		if (score) {
+			const fuzzyScore: FuzzyScore = [0, 0];
+			for (let matchIndex = score.length - 1; matchIndex >= 0; matchIndex--) {
+				const match = score[matchIndex];
+				for (let i = match.end - 1; i >= match.start; i--) {
+					fuzzyScore.push(i);
+				}
+			}
+
+			return { data: fuzzyScore, visibility: TreeVisibility.Visible };
+		}
+
+		return TreeVisibility.Hidden;
+	}
+}
+
+export class AgentSessionsCompressionDelegate implements ITreeCompressionDelegate<IAgentSessionViewModel> {
+
+	isIncompressible(element: IAgentSessionViewModel): boolean {
+		return true;
 	}
 }

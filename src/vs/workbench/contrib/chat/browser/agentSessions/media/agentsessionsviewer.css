@@ -25,7 +25,6 @@
 		.agent-session-icon-col {
 			display: flex;
 			align-items: flex-start;
-			/* TODO@bpasero maybe a grid layout would be better? */
 			padding-top: 3px;
 		}
 
