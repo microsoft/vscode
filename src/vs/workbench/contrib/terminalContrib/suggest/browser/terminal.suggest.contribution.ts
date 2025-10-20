@@ -21,7 +21,7 @@ import { registerActiveInstanceAction, registerTerminalAction } from '../../../t
 import { registerTerminalContribution, type ITerminalContributionContext } from '../../../terminal/browser/terminalExtensions.js';
 import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
 import { TerminalSuggestCommandId } from '../common/terminal.suggest.js';
-import { terminalSuggestConfigSection, TerminalSuggestSettingId, type ITerminalSuggestConfiguration, registerTerminalSuggestProvidersConfiguration, type ITerminalSuggestProviderInfo } from '../common/terminalSuggestConfiguration.js';
+import { terminalSuggestConfigSection, TerminalSuggestSettingId, type ITerminalSuggestConfiguration, registerTerminalSuggestProvidersConfiguration } from '../common/terminalSuggestConfiguration.js';
 import { ITerminalCompletionService, TerminalCompletionService } from './terminalCompletionService.js';
 import { ITerminalContributionService } from '../../../terminal/common/terminalExtensionPoints.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
@@ -39,6 +39,8 @@ import { ITextModelService } from '../../../../../editor/common/services/resolve
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
 import { getTerminalLspSupportedLanguageObj } from './lspTerminalUtil.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { IStringDictionary } from '../../../../../base/common/collections.js';
+import { IConfigurationPropertySchema } from '../../../../../platform/configuration/common/configurationRegistry.js';
 
 registerSingleton(ITerminalCompletionService, TerminalCompletionService, InstantiationType.Delayed);
 
@@ -470,7 +472,8 @@ class TerminalSuggestProvidersConfigurationManager extends Disposable {
 
 	constructor(
 		@ITerminalCompletionService private readonly _terminalCompletionService: ITerminalCompletionService,
-		@ITerminalContributionService private readonly _terminalContributionService: ITerminalContributionService
+		@ITerminalContributionService private readonly _terminalContributionService: ITerminalContributionService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 		this._register(this._terminalCompletionService.onDidChangeProviders(() => {
@@ -484,29 +487,22 @@ class TerminalSuggestProvidersConfigurationManager extends Disposable {
 	}
 
 	private _updateConfiguration(): void {
-		const providerInfos: ITerminalSuggestProviderInfo[] = [];
-
 		// Add statically declared providers from package.json contributions
-		for (const contributedProvider of this._terminalContributionService.terminalCompletionProviders) {
-			providerInfos.push({
-				id: contributedProvider.id,
-				description: contributedProvider.description
-			});
-		}
+		const providers = new Set<string>();
+		this._terminalContributionService.terminalCompletionProviders.forEach(o => providers.add(o.id));
 
 		// Add dynamically registered providers (that aren't already declared statically)
-		const staticProviderIds = new Set(providerInfos.map(p => p.id));
-		const dynamicProviders = Array.from(this._terminalCompletionService.providers);
-		for (const provider of dynamicProviders) {
-			if (provider.id && !staticProviderIds.has(provider.id)) {
-				providerInfos.push({
-					id: provider.id,
-					description: undefined
-				});
+		for (const { id } of this._terminalCompletionService.providers) {
+			if (id) {
+				providers.add(id);
 			}
 		}
 
-		registerTerminalSuggestProvidersConfiguration(providerInfos);
+		// Add providers present in the user's config.
+		const configuredProviders = this._configurationService.getValue<IStringDictionary<IConfigurationPropertySchema>>(TerminalSuggestSettingId.Providers)?.properties ?? {};
+		Object.keys(configuredProviders).forEach(o => providers.add(o));
+
+		registerTerminalSuggestProvidersConfiguration(Array.from(providers));
 	}
 }
 

@@ -12,19 +12,14 @@ suite('Terminal Suggest Dynamic Configuration', () => {
 
 	test('should update configuration when providers change', () => {
 		// Test initial state
-		registerTerminalSuggestProvidersConfiguration([]);
+		registerTerminalSuggestProvidersConfiguration();
 
 		// Test with some providers
-		const providers = [
-			{ id: 'terminal-suggest', description: 'Provides intelligent completions for terminal commands' },
-			{ id: 'builtinPwsh', description: 'PowerShell completion provider' },
-			{ id: 'lsp' },
-			{ id: 'custom-provider' }
-		];
+		const providers = ['terminal-suggest', 'builtinPwsh', 'lsp', 'custom-provider'];
 		registerTerminalSuggestProvidersConfiguration(providers);
 
 		// Test with empty providers
-		registerTerminalSuggestProvidersConfiguration([]);
+		registerTerminalSuggestProvidersConfiguration();
 
 		// The fact that this doesn't throw means the basic logic works
 		assert.ok(true);
