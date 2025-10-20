@@ -2468,7 +2468,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._lockedAgent = {
 			id: agentId,
 			name,
-			prefix: `@${name}`,
+			prefix: `@${name} `,
 			displayName
 		};
 		this._lockedToCodingAgentContextKey.set(true);
