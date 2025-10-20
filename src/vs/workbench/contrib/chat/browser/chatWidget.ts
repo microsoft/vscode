@@ -722,7 +722,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._supportsImageAttachments = true;
 
 		// Check if the agent has capabilities defined directly
-		if (agent?.capabilities !== undefined) {
+		if (agent?.capabilities) {
 			this._supportsFileAttachments = agent.capabilities.supportsFileAttachments ?? false;
 			this._supportsToolAttachments = agent.capabilities.supportsToolAttachments ?? false;
 			this._supportsMCPAttachments = agent.capabilities.supportsMCPAttachments ?? false;
