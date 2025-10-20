@@ -18,7 +18,7 @@ import { ChatConfiguration } from '../../common/constants.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
@@ -30,9 +30,10 @@ import { defaultButtonStyles } from '../../../../../platform/theme/browser/defau
 import { ButtonWithDropdown } from '../../../../../base/browser/ui/button/button.js';
 import { IAction, Separator, toAction } from '../../../../../base/common/actions.js';
 import { FuzzyScore } from '../../../../../base/common/filters.js';
-import { registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IChatSessionsService } from '../../common/chatSessionsService.js';
 
 export class AgentSessionsView extends FilterViewPane {
 
@@ -54,6 +55,7 @@ export class AgentSessionsView extends FilterViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@IHoverService hoverService: IHoverService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService
 	) {
 		super({
 			...options,
@@ -111,16 +113,16 @@ export class AgentSessionsView extends FilterViewPane {
 			this.sessionsViewModel = this._register(this.instantiationService.createInstance(AgentSessionsViewModel));
 			this.list?.setInput(this.sessionsViewModel);
 		}));
+
+		this._register(this.chatSessionsService.onDidChangeItemsProviders(() => this.list?.updateChildren()));
 	}
 
 	private registerActions(): void {
-		const that = this;
-
 		this._register(registerAction2(class extends ViewAction<AgentSessionsView> {
 			constructor() {
 				super({
 					id: 'agentSessionsView.clearFilterText',
-					title: localize('clearFiltersText', "Clear filters text"),
+					title: localize('clearFiltersText', "Clear Filter"),
 					keybinding: {
 						when: AgentSessionsView.FILTER_FOCUS_CONTEXT_KEY,
 						weight: KeybindingWeight.WorkbenchContrib,
@@ -129,8 +131,27 @@ export class AgentSessionsView extends FilterViewPane {
 					viewId: AGENT_SESSIONS_VIEW_ID
 				});
 			}
-			runInView(): void {
-				that.filterWidget?.setFilterText('');
+			runInView(accessor: ServicesAccessor, view: AgentSessionsView): void {
+				view.filterWidget?.setFilterText('');
+			}
+		}));
+
+		this._register(registerAction2(class extends ViewAction<AgentSessionsView> {
+			constructor() {
+				super({
+					id: 'agentSessionsView.refresh',
+					title: localize2('refresh', "Refresh Sessions"),
+					icon: Codicon.refresh,
+					menu: {
+						id: MenuId.ViewTitle,
+						when: ContextKeyExpr.equals('view', AGENT_SESSIONS_VIEW_ID),
+						group: 'navigation'
+					},
+					viewId: AGENT_SESSIONS_VIEW_ID
+				});
+			}
+			runInView(accessor: ServicesAccessor, view: AgentSessionsView): void {
+				view.list?.updateChildren();
 			}
 		}));
 	}
