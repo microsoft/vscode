@@ -161,6 +161,9 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	private readonly _onDidChangeInProgress = this._register(new Emitter<void>());
 	public get onDidChangeInProgress() { return this._onDidChangeInProgress.event; }
 
+	private readonly _onDidChangeContentProviderSchemes = this._register(new Emitter<{ readonly added: string[]; readonly removed: string[] }>());
+	public get onDidChangeContentProviderSchemes() { return this._onDidChangeContentProviderSchemes.event; }
+
 	private readonly inProgressMap: Map<string, number> = new Map();
 	private readonly _sessionTypeModels: Map<string, ILanguageModelChatMetadataAndIdentifier[]> = new Map();
 
@@ -517,10 +520,18 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 	registerChatSessionContentProvider(chatSessionType: string, provider: IChatSessionContentProvider): IDisposable {
+		if (this._contentProviders.has(chatSessionType)) {
+			throw new Error(`Content provider for ${chatSessionType} is already registered.`);
+		}
+
 		this._contentProviders.set(chatSessionType, provider);
+		this._onDidChangeContentProviderSchemes.fire({ added: [chatSessionType], removed: [] });
+
 		return {
 			dispose: () => {
 				this._contentProviders.delete(chatSessionType);
+
+				this._onDidChangeContentProviderSchemes.fire({ added: [], removed: [chatSessionType] });
 
 				// Remove all sessions that were created by this provider
 				for (const [key, session] of this._sessions) {

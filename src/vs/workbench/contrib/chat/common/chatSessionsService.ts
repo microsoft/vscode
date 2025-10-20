@@ -128,10 +128,6 @@ export interface IChatSessionsService {
 	reportInProgress(chatSessionType: string, count: number): void;
 	getInProgress(): { displayName: string; count: number }[];
 
-	registerChatSessionContentProvider(chatSessionType: string, provider: IChatSessionContentProvider): IDisposable;
-	canResolveChatSession(chatSessionResource: URI): Promise<boolean>;
-	provideChatSessionContent(sessionResource: URI, token: CancellationToken): Promise<ChatSession>;
-
 	// Get available models for a session type
 	getModelsForSessionType(chatSessionType: string): ILanguageModelChatMetadataAndIdentifier[] | undefined;
 
@@ -154,6 +150,14 @@ export interface IChatSessionsService {
 
 	getSessionOption(chatSessionType: string, sessionResource: URI, optionId: string): string | undefined;
 	setSessionOption(chatSessionType: string, sessionResource: URI, optionId: string, value: string): boolean;
+
+	// Content provider support
+	// TODO: Split into separate service?
+	readonly onDidChangeContentProviderSchemes: Event<{ readonly added: string[]; readonly removed: string[] }>;
+
+	registerChatSessionContentProvider(chatSessionType: string, provider: IChatSessionContentProvider): IDisposable;
+	canResolveChatSession(chatSessionResource: URI): Promise<boolean>;
+	provideChatSessionContent(sessionResource: URI, token: CancellationToken): Promise<ChatSession>;
 }
 
 export const IChatSessionsService = createDecorator<IChatSessionsService>('chatSessionsService');
