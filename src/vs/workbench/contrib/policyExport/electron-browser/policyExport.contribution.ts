@@ -47,7 +47,7 @@ export class PolicyExportContribution extends Disposable implements IWorkbenchCo
 		}
 	}
 
-	private log(msg: string | undefined, ...args: any[]) {
+	private log(msg: string | undefined, ...args: unknown[]) {
 		this.logService.info(`[${PolicyExportContribution.ID}]`, msg, ...args);
 	}
 
