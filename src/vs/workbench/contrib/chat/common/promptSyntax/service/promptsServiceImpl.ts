@@ -349,13 +349,12 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return this.fileLocator.findAgentMDsInWorkspace(token);
 	}
 
-	public async listAgentMDs(token: CancellationToken): Promise<URI[]> {
+	public async listAgentMDs(token: CancellationToken, includeNested: boolean): Promise<URI[]> {
 		const useAgentMD = this.configurationService.getValue(PromptsConfig.USE_AGENT_MD);
 		if (!useAgentMD) {
 			return [];
 		}
-		const useNestedAgentMD = this.configurationService.getValue(PromptsConfig.USE_NESTED_AGENT_MD);
-		if (useNestedAgentMD) {
+		if (includeNested) {
 			return await this.fileLocator.findAgentMDsInWorkspace(token);
 		} else {
 			return await this.fileLocator.findAgentMDsInWorkspaceRoots(token);

@@ -239,9 +239,10 @@ export interface IPromptsService extends IDisposable {
 	findAgentMDsInWorkspace(token: CancellationToken): Promise<URI[]>;
 
 	/**
-	 * Gets list of AGENTS.md files, either at the root or the entire workspace depending on the feature flag.
+	 * Gets list of AGENTS.md files.
+	 * @param includeNested Whether to include AGENTS.md files from subfolders, or only from the root.
 	 */
-	listAgentMDs(token: CancellationToken): Promise<URI[]>;
+	listAgentMDs(token: CancellationToken, includeNested: boolean): Promise<URI[]>;
 
 	/**
 	 * Gets list of .github/copilot-instructions.md files.

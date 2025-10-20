@@ -191,7 +191,7 @@ export class ComputeAutomaticInstructions {
 			await this._addReferencedInstructions(entries, telemetryEvent, token);
 		}
 		if (useAgentMd) {
-			const files = await this._promptsService.listAgentMDs(token);
+			const files = await this._promptsService.listAgentMDs(token, false);
 			for (const file of files) {
 				entries.add(toPromptFileVariableEntry(file, PromptFileVariableKind.Instruction, localize('instruction.file.reason.agentsmd', 'Automatically attached as setting {0} is enabled', PromptsConfig.USE_AGENT_MD), true));
 				telemetryEvent.agentInstructionsCount++;
