@@ -17,7 +17,7 @@ import { TestStorageService } from '../../../../test/common/workbenchTestService
 import { IChatAgentService } from '../../common/chatAgents.js';
 import { ChatMode, ChatModeService } from '../../common/chatModes.js';
 import { ChatModeKind } from '../../common/constants.js';
-import { ICustomChatMode, IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
+import { IChatModeSource, ICustomChatMode, IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { MockPromptsService } from './mockPromptsService.js';
 
 class TestChatAgentService implements Partial<IChatAgentService> {
@@ -40,6 +40,8 @@ class TestChatAgentService implements Partial<IChatAgentService> {
 
 suite('ChatModeService', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	const workspaceSource: IChatModeSource = { storage: PromptsStorage.local };
 
 	let instantiationService: TestInstantiationService;
 	let promptsService: MockPromptsService;
@@ -110,8 +112,8 @@ suite('ChatModeService', () => {
 			name: 'Test Mode',
 			description: 'A test custom mode',
 			tools: ['tool1', 'tool2'],
-			modeInstructions: { content: 'Custom mode body', toolReferences: [] }
-
+			modeInstructions: { content: 'Custom mode body', toolReferences: [] },
+			source: workspaceSource
 		};
 
 		promptsService.setCustomModes([customMode]);
@@ -132,6 +134,7 @@ suite('ChatModeService', () => {
 		assert.deepStrictEqual(testMode.modeInstructions?.get(), customMode.modeInstructions);
 		assert.deepStrictEqual(testMode.handOffs?.get(), customMode.handOffs);
 		assert.strictEqual(testMode.uri?.get().toString(), customMode.uri.toString());
+		assert.deepStrictEqual(testMode.source, workspaceSource);
 	});
 
 	test('should fire change event when custom modes are updated', async () => {
@@ -146,6 +149,7 @@ suite('ChatModeService', () => {
 			description: 'A test custom mode',
 			tools: [],
 			modeInstructions: { content: 'Custom mode body', toolReferences: [] },
+			source: workspaceSource,
 		};
 
 		promptsService.setCustomModes([customMode]);
@@ -163,6 +167,7 @@ suite('ChatModeService', () => {
 			description: 'A findable custom mode',
 			tools: [],
 			modeInstructions: { content: 'Findable mode body', toolReferences: [] },
+			source: workspaceSource,
 		};
 
 		promptsService.setCustomModes([customMode]);
@@ -186,6 +191,7 @@ suite('ChatModeService', () => {
 			tools: ['tool1'],
 			modeInstructions: { content: 'Initial body', toolReferences: [] },
 			model: 'gpt-4',
+			source: workspaceSource,
 		};
 
 		promptsService.setCustomModes([initialMode]);
@@ -218,6 +224,7 @@ suite('ChatModeService', () => {
 		assert.deepStrictEqual(updatedCustomMode.customTools?.get(), ['tool1', 'tool2']);
 		assert.deepStrictEqual(updatedCustomMode.modeInstructions?.get(), { content: 'Updated body', toolReferences: [] });
 		assert.strictEqual(updatedCustomMode.model?.get(), 'Updated model');
+		assert.deepStrictEqual(updatedCustomMode.source, workspaceSource);
 	});
 
 	test('should remove custom modes that no longer exist', async () => {
@@ -227,6 +234,7 @@ suite('ChatModeService', () => {
 			description: 'First mode',
 			tools: [],
 			modeInstructions: { content: 'Mode 1 body', toolReferences: [] },
+			source: workspaceSource,
 		};
 
 		const mode2: ICustomChatMode = {
@@ -235,6 +243,7 @@ suite('ChatModeService', () => {
 			description: 'Second mode',
 			tools: [],
 			modeInstructions: { content: 'Mode 2 body', toolReferences: [] },
+			source: workspaceSource,
 		};
 
 		// Add both modes
