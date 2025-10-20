@@ -647,11 +647,19 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		// Clear existing widgets
-		this.chatSessionPickerWidgets.clear();
+		this.disposeSessionPickerWidgets();
 
-		// Create a widget for each option group
+		// Create a widget for each option group in effect for this specific session
 		const widgets: ChatSessionPickerActionItem[] = [];
 		for (const optionGroup of optionGroups) {
+			if (!ctx) {
+				continue;
+			}
+			if (!this.chatSessionsService.getSessionOption(ctx.chatSessionType, ctx.chatSessionResource, optionGroup.id)) {
+				// This session does not have a value to contribute for this option group
+				continue;
+			}
+
 			const initialItem = this.getCurrentOptionForGroup(optionGroup.id);
 			const initialState = { group: optionGroup, item: initialItem };
 
@@ -1137,19 +1145,21 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 */
 	private refreshChatSessionPickers(): void {
 		const sessionId = this._widget?.viewModel?.model.sessionId;
-		if (!sessionId) {
+		const hideAll = () => {
 			this.chatSessionHasOptions.set(false);
-			return;
+			this.hideAllSessionPickerWidgets();
+		};
+
+		if (!sessionId) {
+			return hideAll();
 		}
 		const ctx = this.chatService.getChatSessionFromInternalId(sessionId);
 		if (!ctx) {
-			this.chatSessionHasOptions.set(false);
-			return;
+			return hideAll();
 		}
 		const optionGroups = this.chatSessionsService.getOptionGroupsForSessionType(ctx.chatSessionType);
 		if (!optionGroups || optionGroups.length === 0) {
-			this.chatSessionHasOptions.set(false);
-			return;
+			return hideAll();
 		}
 
 		this.chatSessionHasOptions.set(true);
@@ -1164,6 +1174,35 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				}
 			}
 		}
+		for (const container of this.additionalSessionPickerContainers) {
+			const optionGroupId = container.getAttribute('data-option-group-id');
+			if (optionGroupId) {
+				const currentOption = this.chatSessionsService.getSessionOption(ctx.chatSessionType, ctx.chatSessionResource, optionGroupId);
+				container.style.display = currentOption ? '' : 'none';
+			}
+		}
+	}
+
+	private hideAllSessionPickerWidgets(): void {
+		for (const widget of this.chatSessionPickerWidgets.values()) {
+			if (widget.element) {
+				widget.element.style.display = 'none';
+			}
+		}
+		for (const container of this.additionalSessionPickerContainers) {
+			container.style.display = 'none';
+		}
+	}
+
+	private disposeSessionPickerWidgets(): void {
+		for (const widget of this.chatSessionPickerWidgets.values()) {
+			widget.dispose();
+		}
+		this.chatSessionPickerWidgets.clear();
+		for (const container of this.additionalSessionPickerContainers) {
+			container.remove();
+		}
+		this.additionalSessionPickerContainers = [];
 	}
 
 	/**
@@ -1425,11 +1464,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				const firstPickerElement = toolbarElement.querySelector('.chat-sessionPicker-item');
 				if (firstPickerElement && firstPickerElement.parentElement) {
 					// Get all widgets except the first one (which is already rendered by the toolbar)
-					const additionalWidgets = Array.from(this.chatSessionPickerWidgets.values()).slice(1);
+					const widgetEntries = Array.from(this.chatSessionPickerWidgets.entries()).slice(1);
 					let insertAfter = firstPickerElement;
-					for (const widget of additionalWidgets) {
+					for (const [optionGroupId, widget] of widgetEntries) {
 						// Create a container for this widget
 						const container = dom.$('.action-item');
+						container.setAttribute('data-option-group-id', optionGroupId);
 						widget.render(container);
 						// Insert after the previous picker
 						if (insertAfter.nextSibling) {
