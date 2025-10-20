@@ -103,13 +103,9 @@ export class PromptHoverProvider implements HoverProvider {
 			if (tools?.range.containsPosition(position)) {
 				return this.getToolHover(tools, position, localize('promptHeader.prompt.tools', 'The tools to use in this prompt.'));
 			}
-			const agent = header.getAttribute('agent');
+			const agent = header.getAttribute('agent') ?? header.getAttribute('mode');
 			if (agent?.range.containsPosition(position)) {
 				return this.getAgentHover(agent, position, localize('promptHeader.prompt.agent', 'The agent to use in this prompt.'));
-			}
-			const mode = header.getAttribute('mode');
-			if (mode?.range.containsPosition(position)) {
-				return this.createHover(localize('promptHeader.prompt.mode', '`mode` attribute is deprecated. Please use `agent` attribute to specify the agent to use in this prompt.'), mode.range);
 			}
 		}
 		return undefined;

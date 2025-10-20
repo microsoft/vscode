@@ -202,9 +202,14 @@ export class PromptValidator {
 	}
 
 	private validateAgent(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): IChatMode | undefined {
+		const agentAttribute = attributes.find(attr => attr.key === 'agent');
 		const modeAttribute = attributes.find(attr => attr.key === 'mode');
 		if (modeAttribute) {
-			report(toMarker(localize('promptValidator.modeDeprecated', "The 'mode' attribute has been renamed to 'agent'. Please use 'agent' instead."), modeAttribute.value.range, MarkerSeverity.Error));
+			if (agentAttribute) {
+				report(toMarker(localize('promptValidator.modeDeprecated', "The 'mode' attribute has been deprecated. The 'agent' attribute is used instead."), modeAttribute.range, MarkerSeverity.Warning));
+			} else {
+				report(toMarker(localize('promptValidator.modeDeprecated.useAgent', "The 'mode' attribute has been deprecated. Please rename it to 'agent'."), modeAttribute.range, MarkerSeverity.Error));
+			}
 		}
 
 		const attribute = attributes.find(attr => attr.key === 'agent') ?? modeAttribute;

@@ -366,7 +366,23 @@ suite('PromptValidator', () => {
 			].join('\n');
 			const markers = await validate(content, PromptsType.prompt);
 			assert.strictEqual(markers.length, 1);
-			assert.deepStrictEqual(markers.map(m => m.message), [`The 'mode' attribute has been renamed to 'agent'. Please use 'agent' instead.`]);
+			assert.deepStrictEqual(markers.map(m => m.message), [`The 'mode' attribute has been deprecated. Please rename it to 'agent'.`]);
+
+		});
+
+		test('prompt with custom mode an agent', async () => {
+			// Explicit custom mode should be recognized; BeastMode kind comes from setup; ensure tools accepted
+			const content = [
+				'---',
+				'description: "Prompt custom mode"',
+				'mode: BeastMode',
+				`agent: agent`,
+				'---',
+				'Body'
+			].join('\n');
+			const markers = await validate(content, PromptsType.prompt);
+			assert.strictEqual(markers.length, 1);
+			assert.deepStrictEqual(markers.map(m => m.message), [`The 'mode' attribute has been deprecated. The 'agent' attribute is used instead.`]);
 
 		});
 
