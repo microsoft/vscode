@@ -149,6 +149,15 @@ const postProcessBranches =
 				});
 		};
 
+// Common git for-each-ref arguments for branch queries with commit details
+const gitBranchForEachRefArgs = [
+	"git",
+	"--no-optional-locks",
+	"for-each-ref",
+	"--sort=-committerdate",
+	"--format=%(refname:short)|%(authorname)|%(objectname:short)|%(subject)|%(committerdate:relative)",
+] as const;
+
 export const gitGenerators = {
 	// Commit history
 	commits: {
@@ -273,11 +282,7 @@ export const gitGenerators = {
 	// All branches
 	remoteLocalBranches: {
 		script: [
-			"git",
-			"--no-optional-locks",
-			"for-each-ref",
-			"--sort=-committerdate",
-			"--format=%(refname:short)|%(authorname)|%(objectname:short)|%(subject)|%(committerdate:relative)",
+			...gitBranchForEachRefArgs,
 			"refs/heads/",
 			"refs/remotes/",
 		],
@@ -286,11 +291,7 @@ export const gitGenerators = {
 
 	localBranches: {
 		script: [
-			"git",
-			"--no-optional-locks",
-			"for-each-ref",
-			"--sort=-committerdate",
-			"--format=%(refname:short)|%(authorname)|%(objectname:short)|%(subject)|%(committerdate:relative)",
+			...gitBranchForEachRefArgs,
 			"refs/heads/",
 		],
 		postProcess: postProcessBranches({ insertWithoutRemotes: true }),
@@ -301,39 +302,19 @@ export const gitGenerators = {
 	localOrRemoteBranches: {
 		custom: async (tokens, executeShellCommand) => {
 			const pp = postProcessBranches({ insertWithoutRemotes: true });
-			if (tokens.includes("-r")) {
-				return pp?.(
-					(
-						await executeShellCommand({
-							command: "git",
-							args: [
-								"--no-optional-locks",
-								"for-each-ref",
-								"--sort=-committerdate",
-								"--format=%(refname:short)|%(authorname)|%(objectname:short)|%(subject)|%(committerdate:relative)",
-								"refs/remotes/",
-							],
-						})
-					).stdout,
-					tokens
-				);
-			} else {
-				return pp?.(
-					(
-						await executeShellCommand({
-							command: "git",
-							args: [
-								"--no-optional-locks",
-								"for-each-ref",
-								"--sort=-committerdate",
-								"--format=%(refname:short)|%(authorname)|%(objectname:short)|%(subject)|%(committerdate:relative)",
-								"refs/heads/",
-							],
-						})
-					).stdout,
-					tokens
-				);
-			}
+			const refs = tokens.includes("-r") ? "refs/remotes/" : "refs/heads/";
+			return pp?.(
+				(
+					await executeShellCommand({
+						command: gitBranchForEachRefArgs[0],
+						args: [
+							...gitBranchForEachRefArgs.slice(1),
+							refs,
+						],
+					})
+				).stdout,
+				tokens
+			);
 		},
 	} satisfies Fig.Generator,
 
