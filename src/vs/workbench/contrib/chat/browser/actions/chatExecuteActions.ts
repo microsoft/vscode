@@ -494,7 +494,7 @@ export class ChatSessionOpenModelPickerAction extends Action2 {
 		const widgetService = accessor.get(IChatWidgetService);
 		const widget = widgetService.lastFocusedWidget;
 		if (widget) {
-			widget.input.openChatSessionModelPicker();
+			widget.input.openChatSessionPicker();
 		}
 	}
 }
@@ -613,13 +613,13 @@ export class CreateRemoteAgentJobAction extends Action2 {
 		super({
 			id: CreateRemoteAgentJobAction.ID,
 			// TODO(joshspicer): Generalize title/tooltip - pull from contribution
-			title: localize2('actions.chat.createRemoteJob', "Delegate to Coding Agent"),
+			title: localize2('actions.chat.createRemoteJob', "Delegate to Agent"),
 			icon: Codicon.sendToRemoteAgent,
 			precondition,
 			toggled: {
 				condition: ChatContextKeys.remoteJobCreating,
 				icon: Codicon.sync,
-				tooltip: localize('remoteJobCreating', "Delegating to Coding Agent"),
+				tooltip: localize('remoteJobCreating', "Delegating to Agent"),
 			},
 			menu: [
 				{

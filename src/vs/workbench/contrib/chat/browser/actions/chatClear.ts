@@ -7,6 +7,8 @@ import { ServicesAccessor } from '../../../../../platform/instantiation/common/i
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { ChatSessionUri } from '../../common/chatUri.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 
 export async function clearChatEditor(accessor: ServicesAccessor, chatEditorInput?: ChatEditorInput): Promise<void> {
 	const editorService = accessor.get(IEditorService);
@@ -17,11 +19,14 @@ export async function clearChatEditor(accessor: ServicesAccessor, chatEditorInpu
 	}
 
 	if (chatEditorInput instanceof ChatEditorInput) {
+		const parsedInfo = ChatSessionUri.parse(chatEditorInput.resource);
+		const resource = parsedInfo?.chatSessionType ? ChatSessionUri.forSession(parsedInfo.chatSessionType, `untitled-${generateUuid()}`) : ChatEditorInput.getNewEditorUri();
+
 		// A chat editor can only be open in one group
 		const identifier = editorService.findEditors(chatEditorInput.resource)[0];
 		await editorService.replaceEditors([{
 			editor: chatEditorInput,
-			replacement: { resource: ChatEditorInput.getNewEditorUri(), options: { pinned: true } satisfies IChatEditorOptions }
+			replacement: { resource, options: { pinned: true } satisfies IChatEditorOptions }
 		}], identifier.groupId);
 	}
 }

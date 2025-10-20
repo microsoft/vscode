@@ -399,7 +399,6 @@ export class InlineCompletionsSource extends Disposable {
 		}
 
 		const emptyEndOfLifeEvent: InlineCompletionEndOfLifeEvent = {
-			id: requestResponseInfo.requestUuid,
 			opportunityId: requestResponseInfo.requestUuid,
 			noSuggestionReason: requestResponseInfo.noSuggestionReason ?? 'unknown',
 			extensionId: 'vscode-core',
