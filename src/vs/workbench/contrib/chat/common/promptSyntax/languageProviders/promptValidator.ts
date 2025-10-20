@@ -449,7 +449,6 @@ export class PromptValidatorContribution extends Disposable {
 			}
 		}));
 
-
 		const validateAll = (): void => trackers.forEach(tracker => tracker.validate());
 		this.localDisposables.add(this.languageModelToolsService.onDidChangeTools(() => validateAll()));
 		this.localDisposables.add(this.chatModeService.onDidChangeChatModes(() => validateAll()));
