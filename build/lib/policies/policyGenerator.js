@@ -590,7 +590,15 @@ async function getSpecificNLS(resourceUrlTemplate, languageId, version) {
         throw new Error(`[${res.status}] Error downloading language pack ${languageId}@${version}`);
     }
     const { contents: result } = await res.json();
-    return result;
+    // TODO: support module namespacing
+    // Flatten all moduleName keys to empty string
+    const flattened = { '': {} };
+    for (const moduleName in result) {
+        for (const nlsKey in result[moduleName]) {
+            flattened[''][nlsKey] = result[moduleName][nlsKey];
+        }
+    }
+    return flattened;
 }
 function parseVersion(version) {
     const [, major, minor, patch] = /^(\d+)\.(\d+)\.(\d+)/.exec(version);
@@ -665,6 +673,14 @@ async function parsePolicies(policyDataFile) {
         }
         policies.push(result);
     }
+    // Sort policies first by category name, then by policy name
+    policies.sort((a, b) => {
+        const categoryCompare = a.category.name.value.localeCompare(b.category.name.value);
+        if (categoryCompare !== 0) {
+            return categoryCompare;
+        }
+        return a.name.localeCompare(b.name);
+    });
     return policies;
 }
 async function getTranslations() {

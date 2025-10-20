@@ -693,7 +693,7 @@ type Translations = { languageId: string; languageTranslations: LanguageTranslat
 
 type Version = [number, number, number];
 
-async function getSpecificNLS(resourceUrlTemplate: string, languageId: string, version: Version) {
+async function getSpecificNLS(resourceUrlTemplate: string, languageId: string, version: Version): Promise<LanguageTranslations> {
 	const resource = {
 		publisher: 'ms-ceintl',
 		name: `vscode-language-pack-${languageId}`,
@@ -709,7 +709,17 @@ async function getSpecificNLS(resourceUrlTemplate: string, languageId: string, v
 	}
 
 	const { contents: result } = await res.json() as { contents: LanguageTranslations };
-	return result;
+
+	// TODO: support module namespacing
+	// Flatten all moduleName keys to empty string
+	const flattened: LanguageTranslations = { '': {} };
+	for (const moduleName in result) {
+		for (const nlsKey in result[moduleName]) {
+			flattened[''][nlsKey] = result[moduleName][nlsKey];
+		}
+	}
+
+	return flattened;
 }
 
 function parseVersion(version: string): Version {
@@ -794,6 +804,15 @@ async function parsePolicies(policyDataFile: string): Promise<Policy[]> {
 
 		policies.push(result);
 	}
+
+	// Sort policies first by category name, then by policy name
+	policies.sort((a, b) => {
+		const categoryCompare = a.category.name.value.localeCompare(b.category.name.value);
+		if (categoryCompare !== 0) {
+			return categoryCompare;
+		}
+		return a.name.localeCompare(b.name);
+	});
 
 	return policies;
 }
