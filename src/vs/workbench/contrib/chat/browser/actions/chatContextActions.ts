@@ -408,7 +408,10 @@ export class AttachContextAction extends Action2 {
 			menu: {
 				when: ContextKeyExpr.and(
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
-					ChatContextKeys.lockedToCodingAgent.negate()
+					ContextKeyExpr.or(
+						ChatContextKeys.lockedToCodingAgent.negate(),
+						ChatContextKeys.agentSupportsAttachments
+					)
 				),
 				id: MenuId.ChatInputAttachmentToolbar,
 				group: 'navigation',
