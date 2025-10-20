@@ -70,6 +70,10 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 					description: localize('chatSessionsExtPoint.welcomeMessage', 'Message text (supports markdown) to display in the chat welcome view for this session type.'),
 					type: 'string'
 				},
+				welcomeTips: {
+					description: localize('chatSessionsExtPoint.welcomeTips', 'Tips text (supports markdown and theme icons) to display in the chat welcome view for this session type.'),
+					type: 'string'
+				},
 				inputPlaceholder: {
 					description: localize('chatSessionsExtPoint.inputPlaceholder', 'Placeholder text to display in the chat input box for this session type.'),
 					type: 'string'
@@ -180,6 +184,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	private readonly _sessionTypeIcons: Map<string, ThemeIcon> = new Map();
 	private readonly _sessionTypeWelcomeTitles: Map<string, string> = new Map();
 	private readonly _sessionTypeWelcomeMessages: Map<string, string> = new Map();
+	private readonly _sessionTypeWelcomeTips: Map<string, string> = new Map();
 	private readonly _sessionTypeInputPlaceholders: Map<string, string> = new Map();
 
 	constructor(
@@ -207,6 +212,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 						icon: contribution.icon,
 						welcomeTitle: contribution.welcomeTitle,
 						welcomeMessage: contribution.welcomeMessage,
+						welcomeTips: contribution.welcomeTips,
 						inputPlaceholder: contribution.inputPlaceholder,
 						capabilities: contribution.capabilities,
 						extensionDescription: ext.description,
@@ -290,12 +296,15 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			this._sessionTypeIcons.set(contribution.type, icon);
 		}
 
-		// Store welcome title, message, and input placeholder if provided
+		// Store welcome title, message, tips, and input placeholder if provided
 		if (contribution.welcomeTitle) {
 			this._sessionTypeWelcomeTitles.set(contribution.type, contribution.welcomeTitle);
 		}
 		if (contribution.welcomeMessage) {
 			this._sessionTypeWelcomeMessages.set(contribution.type, contribution.welcomeMessage);
+		}
+		if (contribution.welcomeTips) {
+			this._sessionTypeWelcomeTips.set(contribution.type, contribution.welcomeTips);
 		}
 		if (contribution.inputPlaceholder) {
 			this._sessionTypeInputPlaceholders.set(contribution.type, contribution.inputPlaceholder);
@@ -309,6 +318,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				this._sessionTypeIcons.delete(contribution.type);
 				this._sessionTypeWelcomeTitles.delete(contribution.type);
 				this._sessionTypeWelcomeMessages.delete(contribution.type);
+				this._sessionTypeWelcomeTips.delete(contribution.type);
 				this._sessionTypeInputPlaceholders.delete(contribution.type);
 				const store = this._disposableStores.get(contribution.type);
 				if (store) {
@@ -742,6 +752,13 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	 */
 	public getInputPlaceholderForSessionType(chatSessionType: string): string | undefined {
 		return this._sessionTypeInputPlaceholders.get(chatSessionType);
+	}
+
+	/**
+	 * Get the welcome tips for a specific session type
+	 */
+	public getWelcomeTipsForSessionType(chatSessionType: string): string | undefined {
+		return this._sessionTypeWelcomeTips.get(chatSessionType);
 	}
 }
 

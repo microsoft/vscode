@@ -51,6 +51,7 @@ export interface IChatSessionsExtensionPoint {
 	readonly icon?: string;
 	readonly welcomeTitle?: string;
 	readonly welcomeMessage?: string;
+	readonly welcomeTips?: string;
 	readonly inputPlaceholder?: string;
 	readonly capabilities?: {
 		supportsFileAttachments?: boolean;
@@ -131,7 +132,15 @@ export interface IChatSessionsService {
 	getIconForSessionType(chatSessionType: string): ThemeIcon | undefined;
 	getWelcomeTitleForSessionType(chatSessionType: string): string | undefined;
 	getWelcomeMessageForSessionType(chatSessionType: string): string | undefined;
+	/**
+	 * Get the input placeholder for a specific session type
+	 */
 	getInputPlaceholderForSessionType(chatSessionType: string): string | undefined;
+
+	/**
+	 * Get the welcome tips for a specific session type
+	 */
+	getWelcomeTipsForSessionType(chatSessionType: string): string | undefined;
 	provideNewChatSessionItem(chatSessionType: string, options: {
 		request: IChatAgentRequest;
 		metadata?: any;
