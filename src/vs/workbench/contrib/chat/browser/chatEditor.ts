@@ -78,6 +78,8 @@ export class ChatEditor extends EditorPane {
 
 	protected override createEditor(parent: HTMLElement): void {
 		this._editorContainer = parent;
+		// Ensure the container has position relative for the loading overlay
+		parent.classList.add('chat-editor-relative');
 		this._scopedContextKeyService = this._register(this.contextKeyService.createScoped(parent));
 		const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
 		ChatContextKeys.inChatEditor.bindTo(this._scopedContextKeyService).set(true);
@@ -178,8 +180,17 @@ export class ChatEditor extends EditorPane {
 	}
 
 	override async setInput(input: ChatEditorInput, options: IChatEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+		// Show loading indicator early for non-local sessions to prevent layout shifts
+		let isContributedChatSession = false;
+		const chatSessionType = getChatSessionType(input);
+		if (chatSessionType !== 'local') {
+			const loadingMessage = nls.localize('chatEditor.loadingSession', "Loading...");
+			this.showLoadingInChatWidget(loadingMessage);
+		}
+
 		await super.setInput(input, options, context, token);
 		if (token.isCancellationRequested) {
+			this.hideLoadingInChatWidget();
 			return;
 		}
 
@@ -187,13 +198,7 @@ export class ChatEditor extends EditorPane {
 			throw new Error('ChatEditor lifecycle issue: no editor widget');
 		}
 
-		let isContributedChatSession = false;
-		const chatSessionType = getChatSessionType(input);
 		if (chatSessionType !== 'local') {
-			// Show single loading state for contributed sessions
-			const loadingMessage = nls.localize('chatEditor.loadingSession', "Loading...");
-			this.showLoadingInChatWidget(loadingMessage);
-
 			try {
 				await raceCancellationError(this.chatSessionsService.canResolveContentProvider(chatSessionType), token);
 				const contributions = this.chatSessionsService.getAllChatSessionContributions();

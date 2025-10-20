@@ -37,12 +37,12 @@ export class PromptHeaderDefinitionProvider implements DefinitionProvider {
 			return undefined;
 		}
 
-		const modeAttr = header.getAttribute('mode');
-		if (modeAttr && modeAttr.value.type === 'string' && modeAttr.range.containsPosition(position)) {
-			const mode = this.chatModeService.findModeByName(modeAttr.value.value);
-			if (mode && mode.uri) {
+		const agentAttr = header.getAttribute('agent') ?? header.getAttribute('mode');
+		if (agentAttr && agentAttr.value.type === 'string' && agentAttr.range.containsPosition(position)) {
+			const agent = this.chatModeService.findModeByName(agentAttr.value.value);
+			if (agent && agent.uri) {
 				return {
-					uri: mode.uri.get(),
+					uri: agent.uri.get(),
 					range: new Range(1, 1, 1, 1)
 				};
 			}

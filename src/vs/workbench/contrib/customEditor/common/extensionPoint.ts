@@ -48,6 +48,7 @@ const CustomEditorsContribution: IJSONSchema = {
 			Fields.displayName,
 			Fields.selector,
 		],
+		additionalProperties: false,
 		properties: {
 			[Fields.viewType]: {
 				type: 'string',
@@ -67,6 +68,7 @@ const CustomEditorsContribution: IJSONSchema = {
 							filenamePattern: '$1',
 						}
 					}],
+					additionalProperties: false,
 					properties: {
 						filenamePattern: {
 							type: 'string',

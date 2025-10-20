@@ -1005,7 +1005,13 @@ export class TerminalService extends Disposable implements ITerminalService {
 			const instance = this._terminalInstanceService.createInstance(shellLaunchConfig, TerminalLocation.Panel);
 			this._backgroundedTerminalInstances.push(instance);
 			this._backgroundedTerminalDisposables.set(instance.instanceId, [
-				instance.onDisposed(this._onDidDisposeInstance.fire, this._onDidDisposeInstance)
+				instance.onDisposed(instance => {
+					const idx = this._backgroundedTerminalInstances.indexOf(instance);
+					if (idx !== -1) {
+						this._backgroundedTerminalInstances.splice(idx, 1);
+					}
+					this._onDidDisposeInstance.fire(instance);
+				})
 			]);
 			this._terminalHasBeenCreated.set(true);
 			return instance;
