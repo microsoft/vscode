@@ -357,15 +357,18 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private _chatSuggestNextScheduler: RunOnceScheduler;
 
 	// Coding agent locking state
-	private _lockedToCodingAgent: string | undefined;
-	private _lockedToCodingAgentContextKey!: IContextKey<boolean>;
-	private _agentSupportsAttachmentsContextKey!: IContextKey<boolean>;
+	private _lockedAgent?: {
+		id: string;
+		name: string;
+		prefix: string;
+		displayName: string;
+	};
+	private readonly _lockedToCodingAgentContextKey: IContextKey<boolean>;
+	private readonly _agentSupportsAttachmentsContextKey: IContextKey<boolean>;
 	private _supportsToolAttachments: boolean = true;
 	private _supportsMCPAttachments: boolean = true;
 	private _supportsFileAttachments: boolean = true;
 	private _supportsImageAttachments: boolean = true;
-	private _codingAgentPrefix: string | undefined;
-	private _lockedAgentId: string | undefined;
 
 	private lastWelcomeViewChatMode: ChatModeKind | undefined;
 
@@ -423,7 +426,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				.parseChatRequest(this.viewModel!.sessionId, this.getInput(), this.location, {
 					selectedAgent: this._lastSelectedAgent,
 					mode: this.input.currentModeKind,
-					forcedAgent: this._lockedAgentId ? this.chatAgentService.getAgent(this._lockedAgentId) : undefined
+					forcedAgent: this._lockedAgent?.id ? this.chatAgentService.getAgent(this._lockedAgent.id) : undefined
 				});
 			this._onDidChangeParsedInput.fire();
 		}
@@ -722,7 +725,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._supportsImageAttachments = true;
 
 		// Check if the agent has capabilities defined directly
-		const capabilities = agent?.capabilities ?? (this._lockedAgentId ? this.chatSessionsService.getCapabilitiesForSessionType(this._lockedAgentId) : undefined);
+		const capabilities = agent?.capabilities ?? (this._lockedAgent ? this.chatSessionsService.getCapabilitiesForSessionType(this._lockedAgent.id) : undefined);
 		if (capabilities) {
 			this._supportsFileAttachments = capabilities.supportsFileAttachments ?? false;
 			this._supportsToolAttachments = capabilities.supportsToolAttachments ?? false;
@@ -969,8 +972,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (this.viewModel) {
 			this.viewModel.resetInputPlaceholder();
 		}
-		if (this._lockedAgentId && this._codingAgentPrefix && this._lockedToCodingAgent) {
-			this.lockToCodingAgent(this._codingAgentPrefix.substring(1), this._lockedToCodingAgent, this._lockedAgentId);
+		if (this._lockedAgent) {
+			this.lockToCodingAgent(this._lockedAgent.name, this._lockedAgent.displayName, this._lockedAgent.id);
 		} else {
 			this.unlockFromCodingAgent();
 		}
@@ -1108,10 +1111,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				const defaultTips = this.input.currentModeKind === ChatModeKind.Ask
 					? new MarkdownString(localize('chatWidget.tips', "{0} or type {1} to attach context\n\n{2} to chat with extensions\n\nType {3} to use commands", '$(attach)', '#', '$(mention)', '/'), { supportThemeIcons: true })
 					: new MarkdownString(localize('chatWidget.tips.withoutParticipants', "{0} or type {1} to attach context", '$(attach)', '#'), { supportThemeIcons: true });
-				const contributedTips = this._lockedAgentId ? this.chatSessionsService.getWelcomeTipsForSessionType(this._lockedAgentId) : undefined;
+				const contributedTips = this._lockedAgent?.id ? this.chatSessionsService.getWelcomeTipsForSessionType(this._lockedAgent.id) : undefined;
 				const tips = contributedTips
 					? new MarkdownString(contributedTips, { supportThemeIcons: true })
-					: (!this._lockedAgentId ? defaultTips : undefined);
+					: (!this._lockedAgent ? defaultTips : undefined);
 				welcomeContent = this.getWelcomeViewContent(additionalMessage);
 				welcomeContent.tips = tips;
 			}
@@ -1124,7 +1127,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 				// Optional: recent chat history above welcome content when enabled
 				const showHistory = this.configurationService.getValue<boolean>(ChatConfiguration.EmptyStateHistoryEnabled);
-				if (showHistory && !this._lockedToCodingAgent && this._historyVisible) {
+				if (showHistory && !this._lockedAgent && this._historyVisible) {
 					this.renderWelcomeHistorySection();
 				}
 				this.welcomePart.value = this.instantiationService.createInstance(
@@ -1408,19 +1411,19 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		if (this.isLockedToCodingAgent) {
 			// Check for provider-specific customizations from chat sessions service
-			const providerIcon = this._lockedAgentId ? this.chatSessionsService.getIconForSessionType(this._lockedAgentId) : undefined;
-			const providerTitle = this._lockedAgentId ? this.chatSessionsService.getWelcomeTitleForSessionType(this._lockedAgentId) : undefined;
-			const providerMessage = this._lockedAgentId ? this.chatSessionsService.getWelcomeMessageForSessionType(this._lockedAgentId) : undefined;
+			const providerIcon = this._lockedAgent ? this.chatSessionsService.getIconForSessionType(this._lockedAgent.id) : undefined;
+			const providerTitle = this._lockedAgent ? this.chatSessionsService.getWelcomeTitleForSessionType(this._lockedAgent.id) : undefined;
+			const providerMessage = this._lockedAgent ? this.chatSessionsService.getWelcomeMessageForSessionType(this._lockedAgent.id) : undefined;
 
 			// Fallback to default messages if provider doesn't specify
 			const message = providerMessage
 				? new MarkdownString(providerMessage)
-				: (this._codingAgentPrefix === '@copilot '
-					? new MarkdownString(localize('copilotCodingAgentMessage', "This chat session will be forwarded to the {0} [coding agent]({1}) where work is completed in the background. ", this._codingAgentPrefix, 'https://aka.ms/coding-agent-docs') + this.chatDisclaimer, { isTrusted: true })
-					: new MarkdownString(localize('genericCodingAgentMessage', "This chat session will be forwarded to the {0} coding agent where work is completed in the background. ", this._codingAgentPrefix) + this.chatDisclaimer));
+				: (this._lockedAgent?.prefix === '@copilot '
+					? new MarkdownString(localize('copilotCodingAgentMessage', "This chat session will be forwarded to the {0} [coding agent]({1}) where work is completed in the background. ", this._lockedAgent.prefix, 'https://aka.ms/coding-agent-docs') + this.chatDisclaimer, { isTrusted: true })
+					: new MarkdownString(localize('genericCodingAgentMessage', "This chat session will be forwarded to the {0} coding agent where work is completed in the background. ", this._lockedAgent?.prefix) + this.chatDisclaimer));
 
 			return {
-				title: providerTitle ?? localize('codingAgentTitle', "Delegate to {0}", this._codingAgentPrefix),
+				title: providerTitle ?? localize('codingAgentTitle', "Delegate to {0}", this._lockedAgent?.prefix),
 				message,
 				icon: providerIcon ?? Codicon.sendToRemoteAgent,
 				additionalMessage,
@@ -1471,12 +1474,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		// Check for provider-specific customizations
-		const providerIcon = this._lockedAgentId ? this.chatSessionsService.getIconForSessionType(this._lockedAgentId) : undefined;
-		const providerTitle = this._lockedAgentId ? this.chatSessionsService.getWelcomeTitleForSessionType(this._lockedAgentId) : undefined;
-		const providerMessage = this._lockedAgentId ? this.chatSessionsService.getWelcomeMessageForSessionType(this._lockedAgentId) : undefined;
-		const providerTips = this._lockedAgentId ? this.chatSessionsService.getWelcomeTipsForSessionType(this._lockedAgentId) : undefined;
-		const suggestedPrompts = this._lockedAgentId ? undefined : this.getNewSuggestedPrompts();
-
+		const providerIcon = this._lockedAgent?.id ? this.chatSessionsService.getIconForSessionType(this._lockedAgent.id) : undefined;
+		const providerTitle = this._lockedAgent ? this.chatSessionsService.getWelcomeTitleForSessionType(this._lockedAgent.id) : undefined;
+		const providerMessage = this._lockedAgent ? this.chatSessionsService.getWelcomeMessageForSessionType(this._lockedAgent.id) : undefined;
+		const providerTips = this._lockedAgent ? this.chatSessionsService.getWelcomeTipsForSessionType(this._lockedAgent.id) : undefined;
+		const suggestedPrompts = this._lockedAgent ? undefined : this.getNewSuggestedPrompts();
 		const welcomeContent: IChatViewWelcomeContent = {
 			title: providerTitle ?? localize('expChatTitle', 'Build with agent mode'),
 			message: providerMessage ? new MarkdownString(providerMessage) : new MarkdownString(localize('expchatMessage', "Let's get started")),
@@ -2338,10 +2340,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.container.setAttribute('data-session-id', model.sessionId);
 		this.viewModel = this.instantiationService.createInstance(ChatViewModel, model, this._codeBlockModelCollection);
 
-		if (this._lockedAgentId) {
-			let placeholder = this._lockedAgentId ? this.chatSessionsService.getInputPlaceholderForSessionType(this._lockedAgentId) : undefined;
+		if (this._lockedAgent) {
+			let placeholder = this.chatSessionsService.getInputPlaceholderForSessionType(this._lockedAgent.id);
 			if (!placeholder) {
-				placeholder = localize('chat.input.placeholder.lockedToAgent', "Chat with {0}", this._lockedAgentId);
+				placeholder = localize('chat.input.placeholder.lockedToAgent', "Chat with {0}", this._lockedAgent.id);
 			}
 			this.viewModel.setInputPlaceholder(placeholder);
 			this.inputEditor.updateOptions({ placeholder });
@@ -2463,9 +2465,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	// Coding agent locking methods
 	public lockToCodingAgent(name: string, displayName: string, agentId: string): void {
-		this._lockedToCodingAgent = displayName;
-		this._codingAgentPrefix = `@${name} `;
-		this._lockedAgentId = agentId;
+		this._lockedAgent = {
+			id: agentId,
+			name,
+			prefix: `@${name}`,
+			displayName
+		};
 		this._lockedToCodingAgentContextKey.set(true);
 		this._welcomeRenderScheduler.schedule();
 		// Update capabilities for the locked agent
@@ -2477,9 +2482,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	public unlockFromCodingAgent(): void {
 		// Clear all state related to locking
-		this._lockedToCodingAgent = undefined;
-		this._codingAgentPrefix = undefined;
-		this._lockedAgentId = undefined;
+		this._lockedAgent = undefined;
 		this._lockedToCodingAgentContextKey.set(false);
 		this._updateAgentCapabilitiesContextKeys(undefined);
 
@@ -2496,11 +2499,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	public get isLockedToCodingAgent(): boolean {
-		return !!this._lockedToCodingAgent;
+		return !!this._lockedAgent;
 	}
 
 	public get lockedAgentId(): string | undefined {
-		return this._lockedAgentId;
+		return this._lockedAgent?.id;
 	}
 
 	logInputHistory(): void {
@@ -2692,7 +2695,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				noCommandDetection: options?.noCommandDetection,
 				...this.getModeRequestOptions(),
 				modeInfo: this.input.currentModeInfo,
-				agentIdSilent: this._lockedAgentId
+				agentIdSilent: this._lockedAgent?.id,
 			});
 
 			if (result) {
