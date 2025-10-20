@@ -5,8 +5,8 @@
 
 import 'mocha';
 import * as assert from 'assert';
-import { KnownFolders } from '../knownFolders';
-import { Memento } from 'vscode';
+import { RepositoryCache } from '../repositoryCache';
+import { Event, EventEmitter, LogLevel, LogOutputChannel, Memento, Uri, WorkspaceFolder } from 'vscode';
 
 class InMemoryMemento implements Memento {
 	private store = new Map<string, any>();
@@ -38,25 +38,61 @@ class InMemoryMemento implements Memento {
 	}
 }
 
-suite('KnownFolders', () => {
+class MockLogOutputChannel implements LogOutputChannel {
+	logLevel: LogLevel = LogLevel.Info;
+	onDidChangeLogLevel: Event<LogLevel> = new EventEmitter<LogLevel>().event;
+	trace(_message: string, ..._args: any[]): void { }
+	debug(_message: string, ..._args: any[]): void { }
+	info(_message: string, ..._args: any[]): void { }
+	warn(_message: string, ..._args: any[]): void { }
+	error(_error: string | Error, ..._args: any[]): void { }
+	name: string = 'MockLogOutputChannel';
+	append(_value: string): void { }
+	appendLine(_value: string): void { }
+	replace(_value: string): void { }
+	clear(): void { }
+	show(_column?: unknown, _preserveFocus?: unknown): void { }
+	hide(): void { }
+	dispose(): void { }
+}
+
+class RepoCache extends RepositoryCache {
+	constructor(memento: Memento, logger: LogOutputChannel, private readonly _workspaceFileProp: Uri | undefined, private readonly _workspaceFoldersProp: readonly WorkspaceFolder[] | undefined) {
+		super(memento, logger);
+	}
+
+	protected override get _workspaceFile() {
+		return this._workspaceFileProp;
+	}
+
+	protected override get _workspaceFolders() {
+		return this._workspaceFoldersProp;
+	}
+}
+
+suite('RepositoryCache', () => {
 
 	test('set & get basic', () => {
 		const memento = new InMemoryMemento();
-		const kf = new KnownFolders(memento);
-		kf.set('https://example.com/repo.git', '/workspace/repo');
-		const folders = kf.get('https://example.com/repo.git');
+		const cache = new RepoCache(memento, new MockLogOutputChannel(), undefined, [{ uri: Uri.file('/workspace/repo'), name: 'workspace', index: 0 }]);
+		cache.set('https://example.com/repo.git', '/workspace/repo');
+		const folders = cache.get('https://example.com/repo.git')!.map(folder => folder.replace(/\\/g, '/'));
 		assert.ok(folders, 'folders should be defined');
 		assert.deepStrictEqual(folders, ['/workspace/repo']);
 	});
 
 	test('inner LRU capped at 10 entries', () => {
 		const memento = new InMemoryMemento();
-		const kf = new KnownFolders(memento);
+		const workspaceFolders: WorkspaceFolder[] = [];
+		for (let i = 1; i <= 12; i++) {
+			workspaceFolders.push({ uri: Uri.file(`/ws/folder-${i.toString().padStart(2, '0')}`), name: `folder-${i.toString().padStart(2, '0')}`, index: i - 1 });
+		}
+		const cache = new RepoCache(memento, new MockLogOutputChannel(), undefined, workspaceFolders);
 		const repo = 'https://example.com/repo.git';
 		for (let i = 1; i <= 12; i++) {
-			kf.set(repo, `/ws/folder-${i.toString().padStart(2, '0')}`);
+			cache.set(repo, `/ws/folder-${i.toString().padStart(2, '0')}`);
 		}
-		const folders = kf.get(repo)!;
+		const folders = cache.get(repo)!.map(folder => folder.replace(/\\/g, '/'));
 		assert.strictEqual(folders.length, 10, 'should only retain 10 most recent folders');
 		assert.ok(!folders.includes('/ws/folder-01'), 'oldest folder-01 should be evicted');
 		assert.ok(!folders.includes('/ws/folder-02'), 'second oldest folder-02 should be evicted');
@@ -65,41 +101,35 @@ suite('KnownFolders', () => {
 
 	test('outer LRU capped at 30 repos', () => {
 		const memento = new InMemoryMemento();
-		const kf = new KnownFolders(memento);
+		const workspaceFolders: WorkspaceFolder[] = [];
+		for (let i = 1; i <= 35; i++) {
+			workspaceFolders.push({ uri: Uri.file(`/ws/r${i}`), name: `r${i}`, index: i - 1 });
+		}
+		const cache = new RepoCache(memento, new MockLogOutputChannel(), undefined, workspaceFolders);
 		for (let i = 1; i <= 35; i++) {
 			const repo = `https://example.com/r${i}.git`;
-			kf.set(repo, `/ws/r${i}`);
+			cache.set(repo, `/ws/r${i}`);
 		}
-		assert.strictEqual(kf.get('https://example.com/r1.git'), undefined, 'oldest repo should be trimmed');
-		assert.ok(kf.get('https://example.com/r35.git'), 'newest repo should remain');
+		assert.strictEqual(cache.get('https://example.com/r1.git'), undefined, 'oldest repo should be trimmed');
+		assert.ok(cache.get('https://example.com/r35.git'), 'newest repo should remain');
 	});
 
 	test('delete removes folder and prunes empty repo', () => {
 		const memento = new InMemoryMemento();
-		const kf = new KnownFolders(memento);
-		const repo = 'https://example.com/repo.git';
-		kf.set(repo, '/ws/a');
-		kf.set(repo, '/ws/b');
-		assert.deepStrictEqual(new Set(kf.get(repo)), new Set(['/ws/a', '/ws/b']));
-		kf.delete(repo, '/ws/a');
-		assert.deepStrictEqual(kf.get(repo), ['/ws/b']);
-		kf.delete(repo, '/ws/b');
-		assert.strictEqual(kf.get(repo), undefined, 'repo should be pruned when last folder removed');
-	});
+		const workspaceFolders: WorkspaceFolder[] = [];
+		workspaceFolders.push({ uri: Uri.file(`/ws/a`), name: `a`, index: 0 });
+		workspaceFolders.push({ uri: Uri.file(`/ws/b`), name: `b`, index: 1 });
 
-	test('expiry prunes >90 day old entries on load', () => {
-		const now = Date.now();
-		const oldTs = now - (91 * 24 * 60 * 60 * 1000);
-		const recentTs = now - (5 * 24 * 60 * 60 * 1000);
-		const raw: [string, [string, number][]][] = [
-			['https://example.com/repo.git', [
-				['/ws/old', oldTs],
-				['/ws/new', recentTs]
-			]]
-		];
-		const memento = new InMemoryMemento({ 'git.knownFolders': raw });
-		const kf = new KnownFolders(memento);
-		const folders = kf.get('https://example.com/repo.git');
-		assert.deepStrictEqual(folders, ['/ws/new']);
+		const cache = new RepoCache(memento, new MockLogOutputChannel(), undefined, workspaceFolders);
+		const repo = 'https://example.com/repo.git';
+		const a = Uri.file('/ws/a').fsPath;
+		const b = Uri.file('/ws/b').fsPath;
+		cache.set(repo, a);
+		cache.set(repo, b);
+		assert.deepStrictEqual(new Set(cache.get(repo)!), new Set([a, b]));
+		cache.delete(repo, a);
+		assert.deepStrictEqual(cache.get(repo)!, [b]);
+		cache.delete(repo, b);
+		assert.strictEqual(cache.get(repo), undefined, 'repo should be pruned when last folder removed');
 	});
 });
