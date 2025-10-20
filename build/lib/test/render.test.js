@@ -8,8 +8,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 const assert_1 = __importDefault(require("assert"));
-const render_js_1 = require("../render.js");
-const types_js_1 = require("../types.js");
+const render_js_1 = require("../policies/render.js");
+const types_js_1 = require("../policies/types.js");
 suite('Render Functions', () => {
     suite('renderADMLString', () => {
         test('should render ADML string without translations', () => {
@@ -186,7 +186,7 @@ suite('Render Functions', () => {
             minimumVersion: '1.85',
             renderADMX: () => [],
             renderADMLStrings: (translations) => [
-                `<string id="TestPolicy">Test Policy ${translations ? translations['test.policy'] || 'Default' : 'Default'}</string>`
+                `<string id="TestPolicy">Test Policy ${translations?.['testModule']?.['test.policy'] || 'Default'}</string>`
             ],
             renderADMLPresentation: () => '<presentation id="TestPolicy"><textBox refId="TestPolicy"/></presentation>',
             renderProfile: () => [],
@@ -257,7 +257,7 @@ suite('Render Functions', () => {
 <key>pfm_name</key>
 <string>TestPolicy</string>
 <key>pfm_description</key>
-<string>${translations ? translations['test.desc'] || 'Default Desc' : 'Default Desc'}</string>
+<string>${translations?.['testModule']?.['test.desc'] || 'Default Desc'}</string>
 </dict>`
         };
         test('should render profile manifest with correct XML structure', () => {
@@ -363,7 +363,7 @@ suite('Render Functions', () => {
 <key>pfm_name</key>
 <string>TestPolicy</string>
 <key>pfm_description</key>
-<string>${translations ? translations['test.desc'] || 'Default Desc' : 'Default Desc'}</string>
+<string>${translations?.['testModule']?.['test.desc'] || 'Default Desc'}</string>
 </dict>`
         };
         test('should render complete macOS policy profile', () => {
@@ -514,7 +514,7 @@ suite('Render Functions', () => {
                 `</policy>`
             ],
             renderADMLStrings: (translations) => [
-                `<string id="TestPolicy">${translations ? translations['test.policy'] || 'Test Policy' : 'Test Policy'}</string>`
+                `<string id="TestPolicy">${translations?.['testModule']?.['test.policy'] || 'Test Policy'}</string>`
             ],
             renderADMLPresentation: () => '<presentation id="TestPolicy"/>',
             renderProfile: () => [],

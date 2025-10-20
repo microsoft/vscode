@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ObjectPolicy } from '../objectPolicy.js';
-import { LanguageTranslations, PolicyType } from '../types.js';
-import { CategoryDto, PolicyDto } from '../policyDto.js';
+import { ObjectPolicy } from '../policies/objectPolicy.js';
+import { LanguageTranslations, PolicyType } from '../policies/types.js';
+import { CategoryDto, PolicyDto } from '../policies/policyDto.js';
 
 suite('ObjectPolicy', () => {
 	const mockCategory: CategoryDto = {
@@ -19,6 +19,7 @@ suite('ObjectPolicy', () => {
 		name: 'TestObjectPolicy',
 		category: 'Category1',
 		minimumVersion: '1.0',
+		type: 'object',
 		localization: {
 			description: { key: 'test.policy.description', value: 'Test policy description' }
 		}
@@ -30,7 +31,8 @@ suite('ObjectPolicy', () => {
 		assert.ok(policy);
 		assert.strictEqual(policy.name, 'TestObjectPolicy');
 		assert.strictEqual(policy.minimumVersion, '1.0');
-		assert.strictEqual(policy.category, mockCategory);
+		assert.strictEqual(policy.category.name.nlsKey, mockCategory.name.key);
+		assert.strictEqual(policy.category.name.value, mockCategory.name.value);
 		assert.strictEqual(policy.type, PolicyType.Object);
 	});
 
@@ -123,7 +125,7 @@ suite('ObjectPolicy', () => {
 
 		const manifestValue = policy.renderProfileManifestValue();
 
-		assert.strictEqual(manifestValue, '<key>pfm_default</key>\n<string></string>\n<key>pfm_description</key>\n<string>Test policy description</string>\n<key>pfm_name</key>\n<string>TestObjectPolicy</string>\n<key>pfm_title</key>\n<string>TestObjectPolicy</string>\n<key>pfm_type</key>\n<string>string</string>');
+		assert.strictEqual(manifestValue, '<key>pfm_default</key>\n<string></string>\n<key>pfm_description</key>\n<string>Test policy description</string>\n<key>pfm_name</key>\n<string>TestObjectPolicy</string>\n<key>pfm_title</key>\n<string>TestObjectPolicy</string>\n<key>pfm_type</key>\n<string>string</string>\n');
 	});
 
 	test('should render profile manifest value with translations', () => {
@@ -139,7 +141,7 @@ suite('ObjectPolicy', () => {
 
 		const manifestValue = policy.renderProfileManifestValue(translations);
 
-		assert.strictEqual(manifestValue, '<key>pfm_default</key>\n<string></string>\n<key>pfm_description</key>\n<string>Translated manifest description</string>\n<key>pfm_name</key>\n<string>TestObjectPolicy</string>\n<key>pfm_title</key>\n<string>TestObjectPolicy</string>\n<key>pfm_type</key>\n<string>string</string>');
+		assert.strictEqual(manifestValue, '<key>pfm_default</key>\n<string></string>\n<key>pfm_description</key>\n<string>Translated manifest description</string>\n<key>pfm_name</key>\n<string>TestObjectPolicy</string>\n<key>pfm_title</key>\n<string>TestObjectPolicy</string>\n<key>pfm_type</key>\n<string>string</string>\n');
 	});
 
 	test('should render profile manifest correctly', () => {
@@ -149,6 +151,6 @@ suite('ObjectPolicy', () => {
 
 		const manifest = policy.renderProfileManifest();
 
-		assert.strictEqual(manifest, '<dict>\n<key>pfm_default</key>\n<string></string>\n<key>pfm_description</key>\n<string>Test policy description</string>\n<key>pfm_name</key>\n<string>TestObjectPolicy</string>\n<key>pfm_title</key>\n<string>TestObjectPolicy</string>\n<key>pfm_type</key>\n<string>string</string>\n</dict>');
+		assert.strictEqual(manifest, '<dict>\n<key>pfm_default</key>\n<string></string>\n<key>pfm_description</key>\n<string>Test policy description</string>\n<key>pfm_name</key>\n<string>TestObjectPolicy</string>\n<key>pfm_title</key>\n<string>TestObjectPolicy</string>\n<key>pfm_type</key>\n<string>string</string>\n\n</dict>');
 	});
 });

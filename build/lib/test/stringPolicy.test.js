@@ -8,8 +8,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 const assert_1 = __importDefault(require("assert"));
-const stringPolicy_js_1 = require("../stringPolicy.js");
-const types_js_1 = require("../types.js");
+const stringPolicy_js_1 = require("../policies/stringPolicy.js");
+const types_js_1 = require("../policies/types.js");
 suite('StringPolicy', () => {
     const mockCategory = {
         key: 'test.category',
@@ -20,6 +20,7 @@ suite('StringPolicy', () => {
         name: 'TestStringPolicy',
         category: 'Category1',
         minimumVersion: '1.0',
+        type: 'string',
         default: '',
         localization: {
             description: { key: 'test.policy.description', value: 'Test string policy description' }
@@ -30,7 +31,8 @@ suite('StringPolicy', () => {
         assert_1.default.ok(policy);
         assert_1.default.strictEqual(policy.name, 'TestStringPolicy');
         assert_1.default.strictEqual(policy.minimumVersion, '1.0');
-        assert_1.default.strictEqual(policy.category, mockCategory);
+        assert_1.default.strictEqual(policy.category.name.nlsKey, mockCategory.name.key);
+        assert_1.default.strictEqual(policy.category.name.value, mockCategory.name.value);
         assert_1.default.strictEqual(policy.type, types_js_1.PolicyType.String);
     });
     test('should render ADMX elements correctly', () => {

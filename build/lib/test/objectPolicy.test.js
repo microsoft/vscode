@@ -8,8 +8,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 const assert_1 = __importDefault(require("assert"));
-const objectPolicy_js_1 = require("../objectPolicy.js");
-const types_js_1 = require("../types.js");
+const objectPolicy_js_1 = require("../policies/objectPolicy.js");
+const types_js_1 = require("../policies/types.js");
 suite('ObjectPolicy', () => {
     const mockCategory = {
         key: 'test.category',
@@ -20,6 +20,7 @@ suite('ObjectPolicy', () => {
         name: 'TestObjectPolicy',
         category: 'Category1',
         minimumVersion: '1.0',
+        type: 'object',
         localization: {
             description: { key: 'test.policy.description', value: 'Test policy description' }
         }
@@ -29,7 +30,8 @@ suite('ObjectPolicy', () => {
         assert_1.default.ok(policy);
         assert_1.default.strictEqual(policy.name, 'TestObjectPolicy');
         assert_1.default.strictEqual(policy.minimumVersion, '1.0');
-        assert_1.default.strictEqual(policy.category, mockCategory);
+        assert_1.default.strictEqual(policy.category.name.nlsKey, mockCategory.name.key);
+        assert_1.default.strictEqual(policy.category.name.value, mockCategory.name.value);
         assert_1.default.strictEqual(policy.type, types_js_1.PolicyType.Object);
     });
     test('should render ADMX elements correctly', () => {
@@ -93,7 +95,7 @@ suite('ObjectPolicy', () => {
         const policy = objectPolicy_js_1.ObjectPolicy.from(mockCategory, mockPolicy);
         assert_1.default.ok(policy);
         const manifestValue = policy.renderProfileManifestValue();
-        assert_1.default.strictEqual(manifestValue, '<key>pfm_default</key>\n<string></string>\n<key>pfm_description</key>\n<string>Test policy description</string>\n<key>pfm_name</key>\n<string>TestObjectPolicy</string>\n<key>pfm_title</key>\n<string>TestObjectPolicy</string>\n<key>pfm_type</key>\n<string>string</string>');
+        assert_1.default.strictEqual(manifestValue, '<key>pfm_default</key>\n<string></string>\n<key>pfm_description</key>\n<string>Test policy description</string>\n<key>pfm_name</key>\n<string>TestObjectPolicy</string>\n<key>pfm_title</key>\n<string>TestObjectPolicy</string>\n<key>pfm_type</key>\n<string>string</string>\n');
     });
     test('should render profile manifest value with translations', () => {
         const policy = objectPolicy_js_1.ObjectPolicy.from(mockCategory, mockPolicy);
@@ -104,13 +106,13 @@ suite('ObjectPolicy', () => {
             }
         };
         const manifestValue = policy.renderProfileManifestValue(translations);
-        assert_1.default.strictEqual(manifestValue, '<key>pfm_default</key>\n<string></string>\n<key>pfm_description</key>\n<string>Translated manifest description</string>\n<key>pfm_name</key>\n<string>TestObjectPolicy</string>\n<key>pfm_title</key>\n<string>TestObjectPolicy</string>\n<key>pfm_type</key>\n<string>string</string>');
+        assert_1.default.strictEqual(manifestValue, '<key>pfm_default</key>\n<string></string>\n<key>pfm_description</key>\n<string>Translated manifest description</string>\n<key>pfm_name</key>\n<string>TestObjectPolicy</string>\n<key>pfm_title</key>\n<string>TestObjectPolicy</string>\n<key>pfm_type</key>\n<string>string</string>\n');
     });
     test('should render profile manifest correctly', () => {
         const policy = objectPolicy_js_1.ObjectPolicy.from(mockCategory, mockPolicy);
         assert_1.default.ok(policy);
         const manifest = policy.renderProfileManifest();
-        assert_1.default.strictEqual(manifest, '<dict>\n<key>pfm_default</key>\n<string></string>\n<key>pfm_description</key>\n<string>Test policy description</string>\n<key>pfm_name</key>\n<string>TestObjectPolicy</string>\n<key>pfm_title</key>\n<string>TestObjectPolicy</string>\n<key>pfm_type</key>\n<string>string</string>\n</dict>');
+        assert_1.default.strictEqual(manifest, '<dict>\n<key>pfm_default</key>\n<string></string>\n<key>pfm_description</key>\n<string>Test policy description</string>\n<key>pfm_name</key>\n<string>TestObjectPolicy</string>\n<key>pfm_title</key>\n<string>TestObjectPolicy</string>\n<key>pfm_type</key>\n<string>string</string>\n\n</dict>');
     });
 });
 //# sourceMappingURL=objectPolicy.test.js.map

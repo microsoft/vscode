@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { StringEnumPolicy } from '../stringEnumPolicy.js';
-import { LanguageTranslations, PolicyType } from '../types.js';
-import { CategoryDto, PolicyDto } from '../policyDto.js';
+import { StringEnumPolicy } from '../policies/stringEnumPolicy.js';
+import { LanguageTranslations, PolicyType } from '../policies/types.js';
+import { CategoryDto, PolicyDto } from '../policies/policyDto.js';
 
 suite('StringEnumPolicy', () => {
 	const mockCategory: CategoryDto = {
@@ -19,6 +19,7 @@ suite('StringEnumPolicy', () => {
 		name: 'TestStringEnumPolicy',
 		category: 'Category1',
 		minimumVersion: '1.0',
+		type: 'string',
 		localization: {
 			description: { key: 'test.policy.description', value: 'Test policy description' },
 			enumDescriptions: [
@@ -36,7 +37,8 @@ suite('StringEnumPolicy', () => {
 		assert.ok(policy);
 		assert.strictEqual(policy.name, 'TestStringEnumPolicy');
 		assert.strictEqual(policy.minimumVersion, '1.0');
-		assert.strictEqual(policy.category, mockCategory);
+		assert.strictEqual(policy.category.name.nlsKey, mockCategory.name.key);
+		assert.strictEqual(policy.category.name.value, mockCategory.name.value);
 		assert.strictEqual(policy.type, PolicyType.StringEnum);
 	});
 
@@ -53,9 +55,9 @@ suite('StringEnumPolicy', () => {
 			'\t<supportedOn ref="Supported_1_0" />',
 			'\t<elements>',
 			'<enum id="TestStringEnumPolicy" valueName="TestStringEnumPolicy">',
-			'\t<item displayName="$(string.TestStringEnumPolicy_test_option_one)"><value><string>auto</string></value></item>',
-			'\t<item displayName="$(string.TestStringEnumPolicy_test_option_two)"><value><string>manual</string></value></item>',
-			'\t<item displayName="$(string.TestStringEnumPolicy_test_option_three)"><value><string>disabled</string></value></item>',
+			'\t<item displayName="$(string.TestStringEnumPolicy_test.option.one)"><value><string>auto</string></value></item>',
+			'\t<item displayName="$(string.TestStringEnumPolicy_test.option.two)"><value><string>manual</string></value></item>',
+			'\t<item displayName="$(string.TestStringEnumPolicy_test.option.three)"><value><string>disabled</string></value></item>',
 			'</enum>',
 			'\t</elements>',
 			'</policy>'

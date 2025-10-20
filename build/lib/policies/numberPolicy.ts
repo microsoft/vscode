@@ -32,7 +32,7 @@ export class NumberPolicy extends BasePolicy {
 		moduleName: string,
 		protected readonly defaultValue: number,
 	) {
-		super(PolicyType.StringEnum, name, category, minimumVersion, description, moduleName);
+		super(PolicyType.Number, name, category, minimumVersion, description, moduleName);
 	}
 
 	protected renderADMXElements(): string[] {

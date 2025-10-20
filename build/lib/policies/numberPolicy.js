@@ -21,7 +21,7 @@ class NumberPolicy extends basePolicy_1.BasePolicy {
         return new NumberPolicy(name, { moduleName: '', name: { nlsKey: category.name.key, value: category.name.value } }, minimumVersion, { nlsKey: localization.description.key, value: localization.description.value }, '', defaultValue);
     }
     constructor(name, category, minimumVersion, description, moduleName, defaultValue) {
-        super(types_1.PolicyType.StringEnum, name, category, minimumVersion, description, moduleName);
+        super(types_1.PolicyType.Number, name, category, minimumVersion, description, moduleName);
         this.defaultValue = defaultValue;
     }
     renderADMXElements() {

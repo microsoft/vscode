@@ -8,8 +8,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 const assert_1 = __importDefault(require("assert"));
-const booleanPolicy_js_1 = require("../booleanPolicy.js");
-const types_js_1 = require("../types.js");
+const booleanPolicy_js_1 = require("../policies/booleanPolicy.js");
+const types_js_1 = require("../policies/types.js");
 suite('BooleanPolicy', () => {
     const mockCategory = {
         key: 'test.category',
@@ -20,6 +20,7 @@ suite('BooleanPolicy', () => {
         name: 'TestBooleanPolicy',
         category: 'Category1',
         minimumVersion: '1.0',
+        type: 'boolean',
         localization: {
             description: { key: 'test.policy.description', value: 'Test policy description' }
         }
@@ -29,7 +30,8 @@ suite('BooleanPolicy', () => {
         assert_1.default.ok(policy);
         assert_1.default.strictEqual(policy.name, 'TestBooleanPolicy');
         assert_1.default.strictEqual(policy.minimumVersion, '1.0');
-        assert_1.default.strictEqual(policy.category, mockCategory);
+        assert_1.default.strictEqual(policy.category.name.nlsKey, mockCategory.name.key);
+        assert_1.default.strictEqual(policy.category.name.value, mockCategory.name.value);
         assert_1.default.strictEqual(policy.type, types_js_1.PolicyType.Boolean);
     });
     test('should render ADMX elements correctly', () => {

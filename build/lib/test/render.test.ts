@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { renderADMLString, renderProfileString, renderADMX, renderADML, renderProfileManifest, renderMacOSPolicy, renderGP } from '../render.js';
-import { NlsString, LanguageTranslations, Category, Policy, PolicyType } from '../types.js';
+import { renderADMLString, renderProfileString, renderADMX, renderADML, renderProfileManifest, renderMacOSPolicy, renderGP } from '../policies/render.js';
+import { NlsString, LanguageTranslations, Category, Policy, PolicyType } from '../policies/types.js';
 
 suite('Render Functions', () => {
 
@@ -233,7 +233,7 @@ suite('Render Functions', () => {
 			minimumVersion: '1.85',
 			renderADMX: () => [],
 			renderADMLStrings: (translations?: LanguageTranslations) => [
-				`<string id="TestPolicy">Test Policy ${translations ? translations['test.policy'] || 'Default' : 'Default'}</string>`
+				`<string id="TestPolicy">Test Policy ${translations?.['testModule']?.['test.policy'] || 'Default'}</string>`
 			],
 			renderADMLPresentation: () => '<presentation id="TestPolicy"><textBox refId="TestPolicy"/></presentation>',
 			renderProfile: () => [],
@@ -325,7 +325,7 @@ suite('Render Functions', () => {
 <key>pfm_name</key>
 <string>TestPolicy</string>
 <key>pfm_description</key>
-<string>${translations ? translations['test.desc'] || 'Default Desc' : 'Default Desc'}</string>
+<string>${translations?.['testModule']?.['test.desc'] || 'Default Desc'}</string>
 </dict>`
 		};
 
@@ -462,7 +462,7 @@ suite('Render Functions', () => {
 <key>pfm_name</key>
 <string>TestPolicy</string>
 <key>pfm_description</key>
-<string>${translations ? translations['test.desc'] || 'Default Desc' : 'Default Desc'}</string>
+<string>${translations?.['testModule']?.['test.desc'] || 'Default Desc'}</string>
 </dict>`
 		};
 
@@ -634,7 +634,7 @@ suite('Render Functions', () => {
 				`</policy>`
 			],
 			renderADMLStrings: (translations?: LanguageTranslations) => [
-				`<string id="TestPolicy">${translations ? translations['test.policy'] || 'Test Policy' : 'Test Policy'}</string>`
+				`<string id="TestPolicy">${translations?.['testModule']?.['test.policy'] || 'Test Policy'}</string>`
 			],
 			renderADMLPresentation: () => '<presentation id="TestPolicy"/>',
 			renderProfile: () => [],

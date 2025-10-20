@@ -8,8 +8,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 const assert_1 = __importDefault(require("assert"));
-const stringEnumPolicy_js_1 = require("../stringEnumPolicy.js");
-const types_js_1 = require("../types.js");
+const stringEnumPolicy_js_1 = require("../policies/stringEnumPolicy.js");
+const types_js_1 = require("../policies/types.js");
 suite('StringEnumPolicy', () => {
     const mockCategory = {
         key: 'test.category',
@@ -20,6 +20,7 @@ suite('StringEnumPolicy', () => {
         name: 'TestStringEnumPolicy',
         category: 'Category1',
         minimumVersion: '1.0',
+        type: 'string',
         localization: {
             description: { key: 'test.policy.description', value: 'Test policy description' },
             enumDescriptions: [
@@ -35,7 +36,8 @@ suite('StringEnumPolicy', () => {
         assert_1.default.ok(policy);
         assert_1.default.strictEqual(policy.name, 'TestStringEnumPolicy');
         assert_1.default.strictEqual(policy.minimumVersion, '1.0');
-        assert_1.default.strictEqual(policy.category, mockCategory);
+        assert_1.default.strictEqual(policy.category.name.nlsKey, mockCategory.name.key);
+        assert_1.default.strictEqual(policy.category.name.value, mockCategory.name.value);
         assert_1.default.strictEqual(policy.type, types_js_1.PolicyType.StringEnum);
     });
     test('should render ADMX elements correctly', () => {
@@ -48,9 +50,9 @@ suite('StringEnumPolicy', () => {
             '\t<supportedOn ref="Supported_1_0" />',
             '\t<elements>',
             '<enum id="TestStringEnumPolicy" valueName="TestStringEnumPolicy">',
-            '\t<item displayName="$(string.TestStringEnumPolicy_test_option_one)"><value><string>auto</string></value></item>',
-            '\t<item displayName="$(string.TestStringEnumPolicy_test_option_two)"><value><string>manual</string></value></item>',
-            '\t<item displayName="$(string.TestStringEnumPolicy_test_option_three)"><value><string>disabled</string></value></item>',
+            '\t<item displayName="$(string.TestStringEnumPolicy_test.option.one)"><value><string>auto</string></value></item>',
+            '\t<item displayName="$(string.TestStringEnumPolicy_test.option.two)"><value><string>manual</string></value></item>',
+            '\t<item displayName="$(string.TestStringEnumPolicy_test.option.three)"><value><string>disabled</string></value></item>',
             '</enum>',
             '\t</elements>',
             '</policy>'

@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { StringPolicy } from '../stringPolicy.js';
-import { LanguageTranslations, PolicyType } from '../types.js';
-import { CategoryDto, PolicyDto } from '../policyDto.js';
+import { StringPolicy } from '../policies/stringPolicy.js';
+import { LanguageTranslations, PolicyType } from '../policies/types.js';
+import { CategoryDto, PolicyDto } from '../policies/policyDto.js';
 
 suite('StringPolicy', () => {
 	const mockCategory: CategoryDto = {
@@ -19,6 +19,7 @@ suite('StringPolicy', () => {
 		name: 'TestStringPolicy',
 		category: 'Category1',
 		minimumVersion: '1.0',
+		type: 'string',
 		default: '',
 		localization: {
 			description: { key: 'test.policy.description', value: 'Test string policy description' }
@@ -31,7 +32,8 @@ suite('StringPolicy', () => {
 		assert.ok(policy);
 		assert.strictEqual(policy.name, 'TestStringPolicy');
 		assert.strictEqual(policy.minimumVersion, '1.0');
-		assert.strictEqual(policy.category, mockCategory);
+		assert.strictEqual(policy.category.name.nlsKey, mockCategory.name.key);
+		assert.strictEqual(policy.category.name.value, mockCategory.name.value);
 		assert.strictEqual(policy.type, PolicyType.String);
 	});
 

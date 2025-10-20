@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { BooleanPolicy } from '../booleanPolicy.js';
-import { LanguageTranslations, PolicyType } from '../types.js';
-import { CategoryDto, PolicyDto } from '../policyDto.js';
+import { BooleanPolicy } from '../policies/booleanPolicy.js';
+import { LanguageTranslations, PolicyType } from '../policies/types.js';
+import { CategoryDto, PolicyDto } from '../policies/policyDto.js';
 
 suite('BooleanPolicy', () => {
 	const mockCategory: CategoryDto = {
@@ -19,6 +19,7 @@ suite('BooleanPolicy', () => {
 		name: 'TestBooleanPolicy',
 		category: 'Category1',
 		minimumVersion: '1.0',
+		type: 'boolean',
 		localization: {
 			description: { key: 'test.policy.description', value: 'Test policy description' }
 		}
@@ -30,7 +31,8 @@ suite('BooleanPolicy', () => {
 		assert.ok(policy);
 		assert.strictEqual(policy.name, 'TestBooleanPolicy');
 		assert.strictEqual(policy.minimumVersion, '1.0');
-		assert.strictEqual(policy.category, mockCategory);
+		assert.strictEqual(policy.category.name.nlsKey, mockCategory.name.key);
+		assert.strictEqual(policy.category.name.value, mockCategory.name.value);
 		assert.strictEqual(policy.type, PolicyType.Boolean);
 	});
 

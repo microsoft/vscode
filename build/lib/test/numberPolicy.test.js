@@ -8,8 +8,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 const assert_1 = __importDefault(require("assert"));
-const numberPolicy_js_1 = require("../numberPolicy.js");
-const types_js_1 = require("../types.js");
+const numberPolicy_js_1 = require("../policies/numberPolicy.js");
+const types_js_1 = require("../policies/types.js");
 suite('NumberPolicy', () => {
     const mockCategory = {
         key: 'test.category',
@@ -20,6 +20,7 @@ suite('NumberPolicy', () => {
         name: 'TestNumberPolicy',
         category: 'Category1',
         minimumVersion: '1.0',
+        type: 'number',
         default: 42,
         localization: {
             description: { key: 'test.policy.description', value: 'Test number policy description' }
@@ -30,7 +31,8 @@ suite('NumberPolicy', () => {
         assert_1.default.ok(policy);
         assert_1.default.strictEqual(policy.name, 'TestNumberPolicy');
         assert_1.default.strictEqual(policy.minimumVersion, '1.0');
-        assert_1.default.strictEqual(policy.category, mockCategory);
+        assert_1.default.strictEqual(policy.category.name.nlsKey, mockCategory.name.key);
+        assert_1.default.strictEqual(policy.category.name.value, mockCategory.name.value);
         assert_1.default.strictEqual(policy.type, types_js_1.PolicyType.Number);
     });
     test('should render ADMX elements correctly', () => {
