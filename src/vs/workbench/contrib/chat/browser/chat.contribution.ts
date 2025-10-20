@@ -51,9 +51,9 @@ import { ILanguageModelsService, LanguageModelsService } from '../common/languag
 import { ILanguageModelStatsService, LanguageModelStatsService } from '../common/languageModelStats.js';
 import { ILanguageModelToolsService } from '../common/languageModelToolsService.js';
 import { PromptsConfig } from '../common/promptSyntax/config/config.js';
-import { INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, MODE_DEFAULT_SOURCE_FOLDER, MODE_FILE_EXTENSION, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../common/promptSyntax/config/promptFileLocations.js';
+import { INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_FILE_EXTENSION, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../common/promptSyntax/config/promptFileLocations.js';
 import { PromptLanguageFeaturesProvider } from '../common/promptSyntax/promptFileContributions.js';
-import { INSTRUCTIONS_DOCUMENTATION_URL, MODE_DOCUMENTATION_URL, PROMPT_DOCUMENTATION_URL } from '../common/promptSyntax/promptTypes.js';
+import { INSTRUCTIONS_DOCUMENTATION_URL, AGENT_DOCUMENTATION_URL, PROMPT_DOCUMENTATION_URL } from '../common/promptSyntax/promptTypes.js';
 import { IPromptsService } from '../common/promptSyntax/service/promptsService.js';
 import { PromptsService } from '../common/promptSyntax/service/promptsServiceImpl.js';
 import { LanguageModelToolsExtensionPointHandler } from '../common/tools/languageModelToolsContribution.js';
@@ -123,6 +123,7 @@ import { SAVE_TO_PROMPT_ACTION_ID, SAVE_TO_PROMPT_SLASH_COMMAND_NAME } from './p
 import { ConfigureToolSets, UserToolSetsContributions } from './tools/toolSetsContribution.js';
 import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeHandler.js';
 import { ChatSessionsView } from './chatSessions/view/chatSessionsView.js';
+import { PolicyCategory } from '../../../../base/common/policy.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -240,18 +241,21 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.GlobalAutoApprove]: {
 			default: false,
-			// HACK: Description duplicated for policy parser. See https://github.com/microsoft/vscode/issues/254526
-			description: nls.localize('autoApprove2.description',
-				'Global auto approve also known as "YOLO mode" disables manual approval completely for all tools in all workspaces, allowing the agent to act fully autonomously. This is extremely dangerous and is *never* recommended, even containerized environments like Codespaces and Dev Containers have user keys forwarded into the container that could be compromised.\n\nThis feature disables critical security protections and makes it much easier for an attacker to compromise the machine.'
-			),
 			markdownDescription: globalAutoApproveDescription.value,
 			type: 'boolean',
 			scope: ConfigurationScope.APPLICATION_MACHINE,
 			tags: ['experimental'],
 			policy: {
 				name: 'ChatToolsAutoApprove',
+				category: PolicyCategory.InteractiveSession,
 				minimumVersion: '1.99',
 				value: (account) => account.chat_preview_features_enabled === false ? false : undefined,
+				localization: {
+					description: {
+						key: 'autoApprove2.description',
+						value: nls.localize('autoApprove2.description', 'Global auto approve also known as "YOLO mode" disables manual approval completely for all tools in all workspaces, allowing the agent to act fully autonomously. This is extremely dangerous and is *never* recommended, even containerized environments like Codespaces and Dev Containers have user keys forwarded into the container that could be compromised.\n\nThis feature disables critical security protections and makes it much easier for an attacker to compromise the machine.')
+					}
+				},
 			}
 		},
 		[ChatConfiguration.AutoApproveEdits]: {
@@ -344,6 +348,7 @@ configurationRegistry.registerConfiguration({
 			default: McpAccessValue.All,
 			policy: {
 				name: 'ChatMCP',
+				category: PolicyCategory.InteractiveSession,
 				minimumVersion: '1.99',
 				value: (account) => {
 					if (account.mcp === false) {
@@ -353,6 +358,23 @@ configurationRegistry.registerConfiguration({
 						return McpAccessValue.Registry;
 					}
 					return undefined;
+				},
+				localization: {
+					description: {
+						key: 'chat.mcp.access',
+						value: nls.localize('chat.mcp.access', "Controls access to installed Model Context Protocol servers.")
+					},
+					enumDescriptions: [
+						{
+							key: 'chat.mcp.access.none', value: nls.localize('chat.mcp.access.none', "No access to MCP servers."),
+						},
+						{
+							key: 'chat.mcp.access.registry', value: nls.localize('chat.mcp.access.registry', "Allows access to MCP servers installed from the registry that VS Code is connected to."),
+						},
+						{
+							key: 'chat.mcp.access.any', value: nls.localize('chat.mcp.access.any', "Allow access to any installed MCP server.")
+						}
+					]
 				},
 			}
 		},
@@ -419,8 +441,14 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			policy: {
 				name: 'ChatAgentExtensionTools',
+				category: PolicyCategory.InteractiveSession,
 				minimumVersion: '1.99',
-				description: nls.localize('chat.extensionToolsPolicy', "Enable using tools contributed by third-party extensions."),
+				localization: {
+					description: {
+						key: 'chat.extensionToolsEnabled',
+						value: nls.localize('chat.extensionToolsEnabled', "Enable using tools contributed by third-party extensions.")
+					}
+				},
 			}
 		},
 		[ChatConfiguration.AgentEnabled]: {
@@ -429,8 +457,15 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			policy: {
 				name: 'ChatAgentMode',
+				category: PolicyCategory.InteractiveSession,
 				minimumVersion: '1.99',
 				value: (account) => account.chat_agent_enabled === false ? false : undefined,
+				localization: {
+					description: {
+						key: 'chat.agent.enabled.description',
+						value: nls.localize('chat.agent.enabled.description', "Enable agent mode for chat. When this is enabled, agent mode can be activated via the dropdown in the view."),
+					}
+				}
 			}
 		},
 		[ChatConfiguration.EnableMath]: {
@@ -472,8 +507,15 @@ configurationRegistry.registerConfiguration({
 			included: false,
 			policy: {
 				name: 'McpGalleryServiceUrl',
+				category: PolicyCategory.InteractiveSession,
 				minimumVersion: '1.101',
-				value: (account) => account.mcpRegistryUrl
+				value: (account) => account.mcpRegistryUrl,
+				localization: {
+					description: {
+						key: 'mcp.gallery.serviceUrl',
+						value: nls.localize('mcp.gallery.serviceUrl', "Configure the MCP Gallery service URL to connect to"),
+					}
+				}
 			},
 		},
 		[PromptsConfig.KEY]: {
@@ -495,8 +537,14 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental', 'prompts', 'reusable prompts', 'prompt snippets', 'instructions'],
 			policy: {
 				name: 'ChatPromptFiles',
+				category: PolicyCategory.InteractiveSession,
 				minimumVersion: '1.99',
-				description: nls.localize('chat.promptFiles.policy', "Enables reusable prompt and instruction files in Chat sessions.")
+				localization: {
+					description: {
+						key: 'chat.promptFiles.policy',
+						value: nls.localize('chat.promptFiles.policy', "Enables reusable prompt and instruction files in Chat sessions.")
+					}
+				}
 			}
 		},
 		[PromptsConfig.INSTRUCTIONS_LOCATION_KEY]: {
@@ -565,22 +613,23 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: nls.localize(
 				'chat.mode.config.locations.description',
 				"Specify location(s) of custom chat mode files (`*{0}`). [Learn More]({1}).\n\nRelative paths are resolved from the root folder(s) of your workspace.",
-				MODE_FILE_EXTENSION,
-				MODE_DOCUMENTATION_URL,
+				LEGACY_MODE_FILE_EXTENSION,
+				AGENT_DOCUMENTATION_URL,
 			),
 			default: {
-				[MODE_DEFAULT_SOURCE_FOLDER]: true,
+				[LEGACY_MODE_DEFAULT_SOURCE_FOLDER]: true,
 			},
+			deprecationMessage: nls.localize('chat.mode.config.locations.deprecated', "This setting is deprecated and will be removed in future releases. Chat modes are now called agents and are located in `.github/agents`"),
 			additionalProperties: { type: 'boolean' },
 			unevaluatedProperties: { type: 'boolean' },
 			restricted: true,
 			tags: ['experimental', 'prompts', 'reusable prompts', 'prompt snippets', 'instructions'],
 			examples: [
 				{
-					[MODE_DEFAULT_SOURCE_FOLDER]: true,
+					[LEGACY_MODE_DEFAULT_SOURCE_FOLDER]: true,
 				},
 				{
-					[MODE_DEFAULT_SOURCE_FOLDER]: true,
+					[LEGACY_MODE_DEFAULT_SOURCE_FOLDER]: true,
 					'/Users/vscode/repos/chatmodes': true,
 				},
 			],

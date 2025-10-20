@@ -118,7 +118,7 @@ steps:
   - template: ../../common/install-builtin-extensions.yml@self
 
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
-    - script: node build/lib/policies darwin
+    - script: node build/lib/policies/policyGenerator build/lib/policies/policyData.jsonc darwin
       displayName: Generate policy definitions
       retryCountOnTaskFailure: 3
 

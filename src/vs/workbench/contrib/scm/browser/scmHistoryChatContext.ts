@@ -98,9 +98,10 @@ class SCMHistoryItemContext implements IChatContextPickerItem {
 		@ISCMViewService private readonly _scmViewService: ISCMViewService
 	) { }
 
-	isEnabled(_widget: IChatWidget): Promise<boolean> | boolean {
+	isEnabled(widget: IChatWidget): Promise<boolean> | boolean {
 		const activeRepository = this._scmViewService.activeRepository.get();
-		return activeRepository?.repository.provider.historyProvider.get() !== undefined;
+		const supported = !!widget.attachmentCapabilities.supportsSourceControlAttachments;
+		return activeRepository?.repository.provider.historyProvider.get() !== undefined && supported;
 	}
 
 	asPicker(_widget: IChatWidget) {

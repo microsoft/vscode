@@ -195,35 +195,32 @@ export interface ITerminalSuggestProviderInfo {
 
 let terminalSuggestProvidersConfiguration: IConfigurationNode | undefined;
 
-export function registerTerminalSuggestProvidersConfiguration(availableProviders?: ITerminalSuggestProviderInfo[]) {
-	const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
-
+export function registerTerminalSuggestProvidersConfiguration(providers?: Map<string, ITerminalSuggestProviderInfo>) {
 	const oldProvidersConfiguration = terminalSuggestProvidersConfiguration;
+	const enableByDefault = product.quality !== 'stable';
+
+	providers ??= new Map();
+	if (!providers.has('lsp')) {
+		providers.set('lsp', {
+			id: 'lsp',
+			description: localize('suggest.provider.lsp.description', 'Show suggestions from language servers.')
+		});
+	}
 
 	const providersProperties: IStringDictionary<IConfigurationPropertySchema> = {};
+	for (const id of Array.from(providers.keys()).sort()) {
+		providersProperties[id] = {
+			type: 'boolean',
+			default: enableByDefault,
+			description:
+				providers.get(id)?.description ??
+				localize('suggest.provider.title', "Show suggestions from {0}.", id)
+		};
+	}
 
-	const lspProviderId = 'lsp';
-	const defaultValue: IStringDictionary<boolean> = {
-		[lspProviderId]: product.quality !== 'stable',
-	};
-	providersProperties[lspProviderId] ??= {
-		type: 'boolean',
-		description: localize('suggest.provider.lsp.description', "Provides completions for language server protocol-specific arguments."),
-		default: product.quality !== 'stable',
-	};
-
-	if (availableProviders) {
-		for (const provider of availableProviders) {
-			if (provider.id in defaultValue) {
-				continue;
-			}
-			providersProperties[provider.id] = {
-				type: 'boolean',
-				description: provider.description || localize('suggest.provider.description', "Whether to enable this provider."),
-				default: true
-			};
-			defaultValue[provider.id] = true;
-		}
+	const defaultValue: IStringDictionary<boolean> = {};
+	for (const key in providersProperties) {
+		defaultValue[key] = providersProperties[key].default as boolean;
 	}
 
 	terminalSuggestProvidersConfiguration = {
@@ -234,19 +231,27 @@ export function registerTerminalSuggestProvidersConfiguration(availableProviders
 		properties: {
 			[TerminalSuggestSettingId.Providers]: {
 				restricted: true,
-				markdownDescription: localize('suggest.providers', "Providers are enabled by default. Omit them by setting the id of the provider to `false`."),
+				markdownDescription: enableByDefault ?
+					localize(
+						'suggest.providersEnabledByDefault',
+						"Controls which suggestions automatically show up while typing. Suggestion providers are enabled by default.") :
+					localize(
+						'suggest.providersDisabledByDefault',
+						"Controls which suggestions automatically show up while typing. Suggestion providers are disabled by default."),
 				type: 'object',
 				properties: providersProperties,
 				default: defaultValue,
 				tags: ['preview'],
+				additionalProperties: false
 			}
 		}
 	};
 
+	const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 	registry.updateConfigurations({
 		add: [terminalSuggestProvidersConfiguration],
 		remove: oldProvidersConfiguration ? [oldProvidersConfiguration] : []
 	});
 }
 
-registerTerminalSuggestProvidersConfiguration([]);
+registerTerminalSuggestProvidersConfiguration();
