@@ -4,10 +4,37 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { ITerminalGroupService } from './terminal.js';
+import { ITerminalGroupService, ITerminalService } from './terminal.js';
+import { registerAction2, Action2 } from '../../../../platform/actions/common/actions.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 
 export function setupTerminalCommands(): void {
 	registerOpenTerminalAtIndexCommands();
+	registerTestRunCommandAction();
+}
+
+// TODO: Remove
+// Dummy testing commands.
+function registerTestRunCommandAction(): void {
+	registerAction2(class TestRunCommand extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.terminal.testRunCommand',
+				title: { value: 'Test Run Command', original: 'Test Run Command' },
+				category: { value: 'Terminal', original: 'Terminal' },
+				f1: true
+			});
+		}
+
+		async run(accessor: ServicesAccessor) {
+			const terminalService = accessor.get(ITerminalService);
+			const instance = terminalService.activeInstance;
+			if (!instance) {
+				return;
+			}
+			await instance.runCommand('echo "Testing runCommand with timeout"', true);
+		}
+	});
 }
 
 function registerOpenTerminalAtIndexCommands(): void {

@@ -72,7 +72,12 @@ export class ToolTerminalCreator {
 		const siInjectionEnabled = this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled);
 
 		// Get the configurable timeout to wait for shell integration
-		const configuredTimeout = this._configurationService.getValue(TerminalChatAgentToolsSettingId.ShellIntegrationTimeout) as number | undefined;
+		// Try the new unified setting first, fall back to the deprecated chat-specific setting?
+		// TODO: Maybe we should just entirely get rid of the chat setting.
+		let configuredTimeout = this._configurationService.getValue(TerminalSettingId.ShellIntegrationTimeout) as number | undefined;
+		if (configuredTimeout === undefined || typeof configuredTimeout !== 'number') {
+			configuredTimeout = this._configurationService.getValue(TerminalChatAgentToolsSettingId.ShellIntegrationTimeout) as number | undefined;
+		}
 		let waitTime: number;
 		if (configuredTimeout === undefined || typeof configuredTimeout !== 'number' || configuredTimeout < 0) {
 			waitTime = siInjectionEnabled ? 5000 : (instance.isRemote ? 3000 : 2000);

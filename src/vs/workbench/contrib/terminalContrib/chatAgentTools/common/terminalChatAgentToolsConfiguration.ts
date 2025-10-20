@@ -325,11 +325,13 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		} satisfies Record<string, boolean | { approve: boolean; matchCommandLine?: boolean }>,
 	},
 	[TerminalChatAgentToolsSettingId.ShellIntegrationTimeout]: {
-		markdownDescription: localize('shellIntegrationTimeout.description', "Configures the duration in milliseconds to wait for shell integration to be detected when the run in terminal tool launches a new terminal. Set to `0` to wait the minimum time, the default value `-1` means the wait time is variable based on the value of {0} and whether it's a remote window. A large value can be useful if your shell starts very slowly and a low value if you're intentionally not using shell integration.", `\`#${TerminalSettingId.ShellIntegrationEnabled}#\``),
+		// TODO: We should probably just remove
+		markdownDescription: localize('shellIntegrationTimeout.description.deprecated', "**Deprecated**: Use {0} instead. Configures the duration in milliseconds to wait for shell integration to be detected when the run in terminal tool launches a new terminal.", `\`#${TerminalSettingId.ShellIntegrationTimeout}#\``),
 		type: 'integer',
 		minimum: -1,
 		maximum: 60000,
-		default: -1
+		default: -1,
+		deprecationMessage: localize('shellIntegrationTimeout.deprecation', "Use 'terminal.integrated.shellIntegration.timeout' instead.")
 	},
 	[TerminalChatAgentToolsSettingId.TerminalProfileLinux]: {
 		restricted: true,

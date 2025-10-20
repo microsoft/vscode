@@ -916,31 +916,58 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	async runCommand(commandLine: string, shouldExecute: boolean): Promise<void> {
-		let commandDetection = this.capabilities.get(TerminalCapability.CommandDetection);
+		const commandDetection = this.capabilities.get(TerminalCapability.CommandDetection);
 
-		// Await command detection if the terminal is starting up
-		if (!commandDetection && (this._processManager.processState === ProcessState.Uninitialized || this._processManager.processState === ProcessState.Launching)) {
-			const store = new DisposableStore();
-			await Promise.race([
-				new Promise<void>(r => {
-					store.add(this.capabilities.onDidAddCommandDetectionCapability(e => {
-						commandDetection = e;
-						r();
-					}));
-				}),
-				timeout(2000),
-			]);
-			store.dispose();
+		// Resolve configured timeout
+		const rawConfigured = this._configurationService.getValue(TerminalSettingId.ShellIntegrationTimeout) as number | undefined;
+		let timeoutMs: number;
+		if (rawConfigured === undefined || typeof rawConfigured !== 'number' || rawConfigured < 0) {
+			const siEnabled = this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled) === true;
+			timeoutMs = siEnabled ? 5000 : (this.isRemote ? 3000 : 2000);
+			this._logService.debug(`***runCommand***: timeout unset/negative, using heuristic: ${timeoutMs}ms (siEnabled=${siEnabled}, isRemote=${this.isRemote})`);
+		} else if (rawConfigured === 0) {
+			timeoutMs = 2000;
+			this._logService.debug(`***runCommand***: timeout explicitly set to 0 (immediate)`);
+		} else {
+			timeoutMs = Math.max(rawConfigured, 500);
+			this._logService.debug(`***runCommand***: timeout configured to ${rawConfigured}ms, enforced to ${timeoutMs}ms (min 500ms)`);
 		}
+
+		this._logService.debug(`***runCommand***: Timeout Ms is: ${timeoutMs}`);
+
+		// // *** I dont think command detection is "enough" to avoid dup command UI. Maybe we should just wait instead of racing between timeout.
+		// this._logService.debug(`*** state of commandDetection is: ${commandDetection}`);
+		// if (!commandDetection) {
+		// 	this._logService.debug(`***runCommand***: racing command detection vs timeout (${timeoutMs}ms), processState=${this._processManager.processState}`);
+		// 	const store = new DisposableStore();
+		// 	await Promise.race([
+		// 		new Promise<void>(r => {
+		// 			store.add(this.capabilities.onDidAddCommandDetectionCapability(e => {
+		// 				commandDetection = e;
+		// 				this._logService.debug(`***runCommand***: command detection capability acquired`);
+		// 				r();
+		// 			}));
+		// 		}),
+		// 		timeout(timeoutMs).then(() => {
+		// 			this._logService.debug(`***runCommand***: timeout (${timeoutMs}ms) reached without capability`);
+		// 		}),
+		// 	]);
+		// 	store.dispose();
+		// 	this._logService.debug(`***runCommand***: after race, commandDetection=${!!commandDetection}`);
+		// }
+		await timeout(timeoutMs);
 
 		// Determine whether to send ETX (ctrl+c) before running the command. This should always
 		// happen unless command detection can reliably say that a command is being entered and
 		// there is no content in the prompt
 		if (!commandDetection || commandDetection.promptInputModel.value.length > 0) {
+			this._logService.debug(`runCommand: Sending ^C before running command (commandDetection=${!!commandDetection}, promptLength=${commandDetection?.promptInputModel.value.length ?? 'N/A'})`);
 			await this.sendText('\x03', false);
 			// Wait a little before running the command to avoid the sequences being echoed while the ^C
 			// is being evaluated
 			await timeout(100);
+		} else {
+			this._logService.debug(`runCommand: Skipping ^C (commandDetection exists and prompt is empty)`);
 		}
 		// Use bracketed paste mode only when not running the command
 		await this.sendText(commandLine, shouldExecute, !shouldExecute);

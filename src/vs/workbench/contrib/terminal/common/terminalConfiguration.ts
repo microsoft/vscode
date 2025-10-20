@@ -593,6 +593,14 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 		],
 		default: 'both'
 	},
+	[TerminalSettingId.ShellIntegrationTimeout]: {
+		restricted: true,
+		markdownDescription: localize('terminal.integrated.shellIntegration.timeout', "Configures the duration in milliseconds to wait for shell integration to be detected when the terminal launches or when extension APIs like {0} are called. Set to {1} to wait the minimum time (500ms), the default value {2} means the wait time is variable based on whether shell integration injection is enabled and whether it's a remote window. A large value can be useful if your shell starts very slowly.", '`executeCommand`', '`0`', '`-1`'),
+		type: 'integer',
+		minimum: -1,
+		maximum: 60000,
+		default: -1
+	},
 	[TerminalSettingId.ShellIntegrationEnvironmentReporting]: {
 		markdownDescription: localize('terminal.integrated.shellIntegration.environmentReporting', "Controls whether to report the shell environment, enabling its use in features such as {0}. This may cause a slowdown when printing your shell's prompt.", `\`#${TerminalContribSettingId.SuggestEnabled}#\``),
 		type: 'boolean',
