@@ -7,7 +7,6 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import type { IStringDictionary } from '../../../../base/common/collections.js';
 import { IJSONSchemaSnippet } from '../../../../base/common/jsonSchema.js';
 import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
-import { PolicyCategory } from '../../../../base/common/policy.js';
 import { localize } from '../../../../nls.js';
 import { ConfigurationScope, Extensions, IConfigurationRegistry, type IConfigurationPropertySchema } from '../../../../platform/configuration/common/configurationRegistry.js';
 import product from '../../../../platform/product/common/product.js';
@@ -646,14 +645,7 @@ export async function registerTerminalConfiguration(getFontSnippets: () => Promi
 				default: true,
 				policy: {
 					name: 'ChatToolsTerminalEnableAutoApprove',
-					category: PolicyCategory.IntegratedTerminal,
 					minimumVersion: '1.104',
-					localization: {
-						description: {
-							key: 'autoApproveMode.description',
-							value: localize('autoApproveMode.description', "Controls whether to allow auto approval in the run in terminal tool."),
-						}
-					}
 				}
 			}
 		}
