@@ -39,7 +39,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
  *--------------------------------------------------------------------------------------------*/
 const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
-const sourceFile = path.join(__dirname, '../../../src/vs/base/common/policyDto.ts');
+const sourceFile = path.join(__dirname, '../../../src/vs/workbench/contrib/policyExport/common/policyDto.ts');
 const destFile = path.join(__dirname, 'policyDto.ts');
 try {
     // Check if source file exists

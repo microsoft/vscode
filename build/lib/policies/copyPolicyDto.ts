@@ -6,7 +6,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-const sourceFile = path.join(__dirname, '../../../src/vs/base/common/policyDto.ts');
+const sourceFile = path.join(__dirname, '../../../src/vs/workbench/contrib/policyExport/common/policyDto.ts');
 const destFile = path.join(__dirname, 'policyDto.ts');
 
 try {

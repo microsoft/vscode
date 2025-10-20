@@ -5,7 +5,7 @@
 
 import * as DOM from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
-import type { IHoverOptions, IHoverWidget } from '../../../../base/browser/ui/hover/hover.js';
+import { HoverStyle, type IHoverOptions, type IHoverWidget } from '../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { SimpleIconLabel } from '../../../../base/browser/ui/iconLabel/simpleIconLabel.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
@@ -100,13 +100,10 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 
 	private defaultHoverOptions: Partial<IHoverOptions> = {
 		trapFocus: true,
+		style: HoverStyle.Pointer,
 		position: {
 			hoverPosition: HoverPosition.BELOW,
 		},
-		appearance: {
-			showPointer: true,
-			compact: false,
-		}
 	};
 
 	private addHoverDisposables(disposables: DisposableStore, element: HTMLElement, showHover: (focus: boolean) => IHoverWidget | undefined) {
@@ -515,13 +512,10 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 				return this.hoverService.showInstantHover({
 					content: new MarkdownString().appendMarkdown(defaultOverrideHoverContent),
 					target: this.defaultOverrideIndicator.element,
+					style: HoverStyle.Pointer,
 					position: {
 						hoverPosition: HoverPosition.BELOW,
 					},
-					appearance: {
-						showPointer: true,
-						compact: false
-					}
 				}, focus);
 			};
 			this.addHoverDisposables(this.defaultOverrideIndicator.disposables, this.defaultOverrideIndicator.element, showHover);
