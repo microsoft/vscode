@@ -16,8 +16,8 @@ import { IOpenerService } from '../../../../../../platform/opener/common/opener.
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { getCleanPromptName } from '../../../common/promptSyntax/config/promptFileLocations.js';
-import { PromptsType, INSTRUCTIONS_DOCUMENTATION_URL, MODE_DOCUMENTATION_URL, PROMPT_DOCUMENTATION_URL } from '../../../common/promptSyntax/promptTypes.js';
-import { NEW_PROMPT_COMMAND_ID, NEW_INSTRUCTIONS_COMMAND_ID, NEW_MODE_COMMAND_ID } from '../newPromptFileActions.js';
+import { PromptsType, INSTRUCTIONS_DOCUMENTATION_URL, AGENT_DOCUMENTATION_URL, PROMPT_DOCUMENTATION_URL } from '../../../common/promptSyntax/promptTypes.js';
+import { NEW_PROMPT_COMMAND_ID, NEW_INSTRUCTIONS_COMMAND_ID, NEW_AGENT_COMMAND_ID } from '../newPromptFileActions.js';
 import { IKeyMods, IQuickInputButton, IQuickInputService, IQuickPick, IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { askForPromptFileName } from './askForPromptName.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -140,17 +140,17 @@ const UPDATE_INSTRUCTIONS_OPTION: IPromptPickerQuickPickItem = Object.freeze({
 /**
  * A quick pick item that starts the 'New Instructions File' command.
  */
-const NEW_MODE_FILE_OPTION: IPromptPickerQuickPickItem = Object.freeze({
+const NEW_AGENT_FILE_OPTION: IPromptPickerQuickPickItem = Object.freeze({
 	type: 'item',
 	label: `$(plus) ${localize(
-		'commands.new-modefile.select-dialog.label',
-		'Create new custom chat mode file...',
+		'commands.new-agentfile.select-dialog.label',
+		'Create new agent file...',
 	)}`,
-	value: URI.parse(MODE_DOCUMENTATION_URL),
+	value: URI.parse(AGENT_DOCUMENTATION_URL),
 	pickable: false,
 	alwaysShow: true,
 	buttons: [HELP_BUTTON],
-	commandId: NEW_MODE_COMMAND_ID,
+	commandId: NEW_AGENT_COMMAND_ID,
 });
 
 
@@ -350,8 +350,8 @@ export class PromptFilePickers {
 				return [NEW_PROMPT_FILE_OPTION];
 			case PromptsType.instructions:
 				return [NEW_INSTRUCTIONS_FILE_OPTION, UPDATE_INSTRUCTIONS_OPTION];
-			case PromptsType.mode:
-				return [NEW_MODE_FILE_OPTION];
+			case PromptsType.agent:
+				return [NEW_AGENT_FILE_OPTION];
 			default:
 				throw new Error(`Unknown prompt type '${type}'.`);
 		}

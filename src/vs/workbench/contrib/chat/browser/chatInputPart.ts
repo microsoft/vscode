@@ -785,14 +785,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		let modeLabel = '';
 		switch (this.currentModeKind) {
 			case ChatModeKind.Agent:
-				modeLabel = localize('chatInput.mode.agent', "(Agent Mode), edit files in your workspace.");
+				modeLabel = localize('chatInput.mode.agent', "(Agent), edit files in your workspace.");
 				break;
 			case ChatModeKind.Edit:
-				modeLabel = localize('chatInput.mode.edit', "(Edit Mode), edit files in your workspace.");
+				modeLabel = localize('chatInput.mode.edit', "(Edit), edit files in your workspace.");
 				break;
 			case ChatModeKind.Ask:
 			default:
-				modeLabel = localize('chatInput.mode.ask', "(Ask Mode), ask questions or type / for topics.");
+				modeLabel = localize('chatInput.mode.ask', "(Ask), ask questions or type / for topics.");
 				break;
 		}
 		if (verbose) {
