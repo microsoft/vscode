@@ -14,7 +14,7 @@ import { Lazy } from '../../../../base/common/lazy.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { MovingAverage } from '../../../../base/common/numbers.js';
-import { autorun, autorunWithStore, derived, IObservable, observableFromEvent, observableSignalFromEvent, observableValue, transaction, waitForState } from '../../../../base/common/observable.js';
+import { autorun, autorunWithStore, derived, IObservable, observableSignalFromEvent, observableValue, transaction, waitForState } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { assertType } from '../../../../base/common/types.js';
@@ -1320,6 +1320,10 @@ export class InlineChatController2 implements IEditorContribution {
 				location,
 				{
 					enableWorkingSet: 'implicit',
+					enableImplicitContext: false,
+					renderInputOnTop: false,
+					renderStyle: 'compact',
+					filter: _item => false, // filter ALL items
 					rendererOptions: {
 						renderTextEditsAsSummary: _uri => true
 					},
@@ -1438,17 +1442,18 @@ export class InlineChatController2 implements IEditorContribution {
 				ctxInlineChatVisible.set(true);
 				this._zone.value.widget.setChatModel(session.chatModel);
 				if (!this._zone.value.position) {
+					this._zone.value.widget.chatWidget.input.renderAttachedContext(); // TODO - fights layout bug
 					this._zone.value.show(session.initialPosition);
 				}
 				this._zone.value.reveal(this._zone.value.position!);
 				this._zone.value.widget.focus();
-				this._zone.value.widget.updateToolbar(true);
+				// this._zone.value.widget.updateToolbar(true);
 				const entry = session.editingSession.getEntry(session.uri);
 
 				entry?.autoAcceptController.read(undefined)?.cancel();
 
-				const requestCount = observableFromEvent(this, session.chatModel.onDidChange, () => session.chatModel.getRequests().length).read(r);
-				this._zone.value.widget.updateToolbar(requestCount > 0);
+				// const requestCount = observableFromEvent(this, session.chatModel.onDidChange, () => session.chatModel.getRequests().length).read(r);
+				// this._zone.value.widget.updateToolbar(requestCount > 0);
 			}
 		}));
 
