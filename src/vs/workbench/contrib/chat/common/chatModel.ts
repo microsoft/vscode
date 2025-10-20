@@ -221,6 +221,7 @@ export interface IChatRequestModeInfo {
 }
 
 export interface IChatRequestModeInstructions {
+	readonly name: string;
 	readonly content: string;
 	readonly toolReferences: readonly ChatRequestToolReferenceEntry[];
 	readonly metadata?: Record<string, boolean | string | number>;

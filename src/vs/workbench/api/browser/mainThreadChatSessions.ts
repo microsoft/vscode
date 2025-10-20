@@ -18,7 +18,6 @@ import { ILogService } from '../../../platform/log/common/log.js';
 import { IChatAgentRequest } from '../../contrib/chat/common/chatAgents.js';
 import { IChatContentInlineReference, IChatProgress } from '../../contrib/chat/common/chatService.js';
 import { ChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
-import { ILanguageModelChatMetadata } from '../../contrib/chat/common/languageModels.js';
 import { IEditorGroup, IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../services/editor/common/editorService.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
@@ -30,8 +29,8 @@ export class ObservableChatSession extends Disposable implements ChatSession {
 	readonly sessionResource: URI;
 	readonly providerHandle: number;
 	readonly history: Array<IChatSessionHistoryItem>;
-	private _options?: { model?: ILanguageModelChatMetadata } | undefined;
-	public get options(): { model?: ILanguageModelChatMetadata } | undefined {
+	private _options?: Record<string, string>;
+	public get options(): Record<string, string> | undefined {
 		return this._options;
 	}
 	private readonly _progressObservable = observableValue<IChatProgress[]>(this, []);
@@ -302,8 +301,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		readonly onDidChangeItems: Emitter<void>;
 	}>());
 	private readonly _contentProvidersRegistrations = this._register(new DisposableMap<number>());
-	private readonly _contentProviderModels = new Map<number, ILanguageModelChatMetadata[] | undefined>();
-	private readonly _contentProviderSchemeToHandle = new Map<string, number>();
+	private readonly _sessionTypeToHandle = new Map<string, number>();
 
 	private readonly _activeSessions = new ResourceMap<ObservableChatSession>();
 	private readonly _sessionDisposables = new ResourceMap<IDisposable>();
@@ -331,7 +329,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 	}
 
 	private _getHandleForSessionType(chatSessionType: string): number | undefined {
-		return this._contentProviderSchemeToHandle.get(chatSessionType);
+		return this._sessionTypeToHandle.get(chatSessionType);
 	}
 
 	$registerChatSessionItemProvider(handle: number, chatSessionType: string): void {
@@ -461,6 +459,17 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 
 		try {
 			await session.initialize(token);
+			if (session.options) {
+				for (const [chatSessionType, handle] of this._sessionTypeToHandle) {
+					if (handle === providerHandle) {
+						for (const [optionId, value] of Object.entries(session.options)) {
+							this._chatSessionsService.setSessionOption(chatSessionType, sessionResource, optionId, value);
+						}
+						break;
+					}
+				}
+			}
+
 			return session;
 		} catch (error) {
 			session.dispose();
@@ -478,25 +487,20 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 			provideChatSessionContent: (resource, token) => this._provideChatSessionContent(handle, resource, token)
 		};
 
-		this._contentProviderSchemeToHandle.set(chatSessionScheme, handle);
+		this._sessionTypeToHandle.set(chatSessionScheme, handle);
 		this._contentProvidersRegistrations.set(handle, this._chatSessionsService.registerChatSessionContentProvider(chatSessionScheme, provider));
 		this._proxy.$provideChatSessionProviderOptions(handle, CancellationToken.None).then(options => {
-			if (options?.models && options.models.length) {
-				this._contentProviderModels.set(handle, options.models);
-				const serviceModels: ILanguageModelChatMetadata[] = options.models.map(m => ({ ...m }));
-				this._chatSessionsService.setModelsForSessionType(chatSessionScheme, handle, serviceModels);
+			if (options?.optionGroups && options.optionGroups.length) {
+				this._chatSessionsService.setOptionGroupsForSessionType(chatSessionScheme, handle, options.optionGroups);
 			}
 		}).catch(err => this._logService.error('Error fetching chat session options', err));
 	}
 
 	$unregisterChatSessionContentProvider(handle: number): void {
 		this._contentProvidersRegistrations.deleteAndDispose(handle);
-		this._contentProviderModels.delete(handle);
-
-		// Remove session type mapping
-		for (const [sessionType, h] of this._contentProviderSchemeToHandle) {
+		for (const [sessionType, h] of this._sessionTypeToHandle) {
 			if (h === handle) {
-				this._contentProviderSchemeToHandle.delete(sessionType);
+				this._sessionTypeToHandle.delete(sessionType);
 				break;
 			}
 		}
@@ -571,13 +575,6 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		}
 
 		return undefined;
-	}
-
-	/**
-	 * Get the available models for a session provider
-	 */
-	getModelsForProvider(handle: number): ILanguageModelChatMetadata[] | undefined {
-		return this._contentProviderModels.get(handle);
 	}
 
 	/**
