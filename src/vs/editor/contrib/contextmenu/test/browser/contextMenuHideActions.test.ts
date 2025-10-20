@@ -61,12 +61,8 @@ suite('Clipboard Paste Visibility', () => {
 			hideKey.set(true);
 			assert.strictEqual(hideKey.get(), true);
 			const ids = collectVisibleEditorContextMenuActionIds(editor);
-			// If paste isn't registered, absence is expected; otherwise ensure hidden.
-			if (!ids.includes('editor.action.clipboardPasteAction')) {
-				assert.ok(true, 'Paste action not registered; hidden by environment.');
-			} else {
-				assert.ok(!ids.includes('editor.action.clipboardPasteAction'));
-			}
+			// When the context key is set to true, Paste should be hidden (not in the list)
+			assert.ok(!ids.includes('editor.action.clipboardPasteAction'), 'Paste action should be hidden when removePasteFromEditorContextMenu is set');
 			editor.getModel()?.dispose();
 			editor.dispose();
 		});
