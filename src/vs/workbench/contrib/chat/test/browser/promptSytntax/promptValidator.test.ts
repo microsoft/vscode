@@ -5,30 +5,31 @@
 
 import assert from 'assert';
 
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { ResourceSet } from '../../../../../../base/common/map.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { NewPromptsParser } from '../../../common/promptSyntax/service/newPromptsParser.js';
-import { PromptValidator } from '../../../common/promptSyntax/languageProviders/promptValidator.js';
-import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { PromptsConfig } from '../../../common/promptSyntax/config/config.js';
+import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
+import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
+import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILabelService } from '../../../../../../platform/label/common/label.js';
+import { IMarkerData, MarkerSeverity } from '../../../../../../platform/markers/common/markers.js';
+import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { LanguageModelToolsService } from '../../../browser/languageModelToolsService.js';
+import { ChatMode, CustomChatMode, IChatModeService } from '../../../common/chatModes.js';
+import { IChatService } from '../../../common/chatService.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../../../common/languageModelToolsService.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
-import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
-import { ChatMode, CustomChatMode, IChatModeService } from '../../../common/chatModes.js';
-import { MockChatModeService } from '../../common/mockChatModeService.js';
-import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
-import { IMarkerData, MarkerSeverity } from '../../../../../../platform/markers/common/markers.js';
+import { PromptsConfig } from '../../../common/promptSyntax/config/config.js';
 import { getPromptFileExtension } from '../../../common/promptSyntax/config/promptFileLocations.js';
-import { IFileService } from '../../../../../../platform/files/common/files.js';
-import { ResourceSet } from '../../../../../../base/common/map.js';
-import { ChatConfiguration } from '../../../common/constants.js';
-import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { IChatService } from '../../../common/chatService.js';
+import { PromptValidator } from '../../../common/promptSyntax/languageProviders/promptValidator.js';
+import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
+import { NewPromptsParser } from '../../../common/promptSyntax/service/newPromptsParser.js';
+import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { MockChatModeService } from '../../common/mockChatModeService.js';
 import { MockChatService } from '../../common/mockChatService.js';
-import { LanguageModelToolsService } from '../../../browser/languageModelToolsService.js';
-import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
-import { ILabelService } from '../../../../../../platform/label/common/label.js';
 
 suite('PromptValidator', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -80,6 +81,7 @@ suite('PromptValidator', () => {
 			uri: URI.parse('myFs://test/test/chatmode.md'),
 			name: 'BeastMode',
 			modeInstructions: { content: 'Beast mode instructions', toolReferences: [] },
+			source: { storage: PromptsStorage.local }
 		});
 		instaService.stub(IChatModeService, new MockChatModeService({ builtin: [ChatMode.Agent, ChatMode.Ask, ChatMode.Edit], custom: [customChatMode] }));
 
@@ -191,6 +193,65 @@ suite('PromptValidator', () => {
 			assert.strictEqual(markers.length, 1);
 			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
 			assert.ok(markers[0].message.startsWith(`Attribute 'applyTo' is not supported in mode files.`));
+		});
+
+		test('tools with invalid handoffs', async () => {
+			{
+				const content = [
+					'---',
+					'description: "Test"',
+					`handoffs: next`,
+					'---',
+				].join('\n');
+				const markers = await validate(content, PromptsType.mode);
+				assert.strictEqual(markers.length, 1);
+				assert.deepStrictEqual(markers.map(m => m.message), [`The 'handoffs' attribute must be an array.`]);
+			}
+			{
+				const content = [
+					'---',
+					'description: "Test"',
+					`handoffs:`,
+					`  - label: '123'`,
+					'---',
+				].join('\n');
+				const markers = await validate(content, PromptsType.mode);
+				assert.strictEqual(markers.length, 1);
+				assert.deepStrictEqual(markers.map(m => m.message), [`Missing required properties 'agent', 'prompt' in handoff object.`]);
+			}
+			{
+				const content = [
+					'---',
+					'description: "Test"',
+					`handoffs:`,
+					`  - label: '123'`,
+					`    agent: ''`,
+					`    prompt: ''`,
+					`    send: true`,
+					'---',
+				].join('\n');
+				const markers = await validate(content, PromptsType.mode);
+				assert.strictEqual(markers.length, 1);
+				assert.deepStrictEqual(markers.map(m => m.message), [`The 'agent' property in a handoff must be a non-empty string.`]);
+			}
+		});
+
+		test('mode with handoffs attribute', async () => {
+			const content = [
+				'---',
+				'description: \"Test mode with handoffs\"',
+				`handoffs:`,
+				'  - label: Test Prompt',
+				'    agent: Default',
+				'    prompt: Add tests for this code',
+				'  - label: Optimize Performance',
+				'    agent: Default',
+				'    prompt: Optimize for performance',
+				'---',
+				'Body',
+			].join('\n');
+			const markers = await validate(content, PromptsType.mode);
+			assert.deepStrictEqual(markers, [], 'Expected no validation issues for handoffs attribute');
 		});
 	});
 

@@ -33,11 +33,10 @@ import { clamp } from '../../../common/numbers.js';
 import { ScrollEvent } from '../../../common/scrollable.js';
 import './media/tree.css';
 import { localize } from '../../../../nls.js';
-import { IHoverDelegate } from '../hover/hoverDelegate.js';
-import { createInstantHoverDelegate } from '../hover/hoverDelegateFactory.js';
 import { autorun, constObservable } from '../../../common/observable.js';
 import { alert } from '../aria/aria.js';
 import { IMouseWheelEvent } from '../../mouseEvent.js';
+import { type IHoverLifecycleOptions } from '../hover/hover.js';
 
 class TreeElementsDragAndDropData<T, TFilterData, TContext> extends ElementsDragAndDropData<T, TContext> {
 
@@ -708,7 +707,7 @@ class TreeFindToggle extends Toggle {
 
 	readonly id: string;
 
-	constructor(contribution: ITreeFindToggleContribution, opts: IToggleStyles, hoverDelegate?: IHoverDelegate) {
+	constructor(contribution: ITreeFindToggleContribution, opts: IToggleStyles, hoverLifecycleOptions?: IHoverLifecycleOptions) {
 		super({
 			icon: contribution.icon,
 			title: contribution.title,
@@ -716,7 +715,7 @@ class TreeFindToggle extends Toggle {
 			inputActiveOptionBorder: opts.inputActiveOptionBorder,
 			inputActiveOptionForeground: opts.inputActiveOptionForeground,
 			inputActiveOptionBackground: opts.inputActiveOptionBackground,
-			hoverDelegate,
+			hoverLifecycleOptions,
 		});
 
 		this.id = contribution.id;
@@ -840,8 +839,9 @@ class FindWidget<T, TFilterData> extends Disposable {
 			this.elements.root.style.boxShadow = `0 0 8px 2px ${styles.listFilterWidgetShadow}`;
 		}
 
-		const toggleHoverDelegate = this._register(createInstantHoverDelegate());
-		this.toggles = toggleContributions.map(contribution => this._register(new TreeFindToggle(contribution, styles.toggleStyles, toggleHoverDelegate)));
+		// const toggleHoverDelegate = this._register(createInstantHoverDelegate());
+		const hoverLifecycleOptions: IHoverLifecycleOptions = { groupId: 'abstract-tree' };
+		this.toggles = toggleContributions.map(contribution => this._register(new TreeFindToggle(contribution, styles.toggleStyles, hoverLifecycleOptions)));
 		this.onDidToggleChange = Event.any(...this.toggles.map(toggle => Event.map(toggle.onChange, () => ({ id: toggle.id, isChecked: toggle.checked }))));
 
 		const history = options?.history || [];
@@ -852,7 +852,8 @@ class FindWidget<T, TFilterData> extends Disposable {
 			showCommonFindToggles: false,
 			inputBoxStyles: styles.inputBoxStyles,
 			toggleStyles: styles.toggleStyles,
-			history: new Set(history)
+			history: new Set(history),
+			hoverLifecycleOptions,
 		}));
 
 		this.actionbar = this._register(new ActionBar(this.elements.actionbar));

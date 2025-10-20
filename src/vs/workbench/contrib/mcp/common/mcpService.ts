@@ -118,6 +118,8 @@ export class McpService extends Disposable implements IMcpService {
 			serversRequiringInteraction: requiringInteraction,
 		}, undefined);
 
+		update();
+
 		await Promise.all([...todo].map(async (server, i) => {
 			try {
 				await startServerAndWaitForLiveTools(server, { interaction, errorOnUserInteraction: true }, token);
@@ -125,11 +127,11 @@ export class McpService extends Disposable implements IMcpService {
 				if (error instanceof UserInteractionRequiredError) {
 					requiringInteraction.push({ id: server.definition.id, label: server.definition.label, errorMessage: error.message });
 				}
-			}
-
-			if (!token.isCancellationRequested) {
+			} finally {
 				todo.delete(server);
-				update();
+				if (!token.isCancellationRequested) {
+					update();
+				}
 			}
 		}));
 	}
@@ -144,20 +146,7 @@ export class McpService extends Disposable implements IMcpService {
 	}
 
 	public async activateCollections(): Promise<void> {
-		const collectionIds = await this._activateCollections();
-
-		// Discover any newly-collected servers with unknown tools
-		const todo: Promise<unknown>[] = [];
-		for (const { object: server } of this._servers.get()) {
-			if (collectionIds.has(server.collection.id)) {
-				const state = server.cacheState.get();
-				if (state === McpServerCacheState.Unknown) {
-					todo.push(server.start());
-				}
-			}
-		}
-
-		await Promise.all(todo);
+		await this._activateCollections();
 	}
 
 	private async _activateCollections() {
