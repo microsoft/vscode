@@ -14,7 +14,7 @@ suite('NewPromptsParser', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('agent', async () => {
-		const uri = URI.parse('file:///test/test.vscode-agent.md');
+		const uri = URI.parse('file:///test/test.agent.md');
 		const content = [
 			/* 01 */'---',
 			/* 02 */`description: "Agent test"`,
@@ -58,7 +58,7 @@ suite('NewPromptsParser', () => {
 	});
 
 	test('mode with handoff', async () => {
-		const uri = URI.parse('file:///test/test.vscode-agent.md');
+		const uri = URI.parse('file:///test/test.agent.md');
 		const content = [
 			/* 01 */'---',
 			/* 02 */`description: "Agent test"`,
