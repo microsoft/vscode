@@ -23,6 +23,7 @@ import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { combinedDisposable, Disposable, DisposableStore, IDisposable, MutableDisposable, thenIfNotDisposed, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { filter } from '../../../../base/common/objects.js';
 import { autorun, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { basename, extUri, isEqual } from '../../../../base/common/resources.js';
 import { MicrotaskDelay } from '../../../../base/common/symbols.js';
@@ -57,7 +58,7 @@ import { ChatEntitlement, IChatEntitlementService } from '../../../services/chat
 import { IWorkbenchLayoutService, Position } from '../../../services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { checkModeOption } from '../common/chat.js';
-import { IChatAgentCommand, IChatAgentData, IChatAgentService } from '../common/chatAgents.js';
+import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, inChatEditingSessionContextKey, ModifiedFileEntryState } from '../common/chatEditingService.js';
 import { IChatLayoutService } from '../common/chatLayoutService.js';
@@ -77,7 +78,7 @@ import { ILanguageModelToolsService, IToolData, ToolSet } from '../common/langua
 import { ComputeAutomaticInstructions } from '../common/promptSyntax/computeAutomaticInstructions.js';
 import { PromptsConfig } from '../common/promptSyntax/config/config.js';
 import { PromptsType } from '../common/promptSyntax/promptTypes.js';
-import { IHandOff, ParsedPromptFile, PromptHeader } from '../common/promptSyntax/service/newPromptsParser.js';
+import { IHandOff, ParsedPromptFile, PromptHeader } from '../common/promptSyntax/promptFileParser.js';
 import { IPromptsService } from '../common/promptSyntax/service/promptsService.js';
 import { handleModeSwitch } from './actions/chatActions.js';
 import { ChatTreeItem, ChatViewId, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewOptions } from './chat.js';
@@ -246,6 +247,18 @@ class ChatHistoryListRenderer implements IListRenderer<IChatHistoryListItem, ICh
 	}
 }
 
+const supportsAllAttachments: Required<IChatAgentAttachmentCapabilities> = {
+	supportsFileAttachments: true,
+	supportsToolAttachments: true,
+	supportsMCPAttachments: true,
+	supportsImageAttachments: true,
+	supportsSearchResultAttachments: true,
+	supportsInstructionAttachments: true,
+	supportsSourceControlAttachments: true,
+	supportsProblemAttachments: true,
+	supportsSymbolAttachments: true,
+};
+
 export class ChatWidget extends Disposable implements IChatWidget {
 	public static readonly CONTRIBS: { new(...args: [IChatWidget, ...any]): IChatWidgetContrib }[] = [];
 
@@ -365,15 +378,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	};
 	private readonly _lockedToCodingAgentContextKey: IContextKey<boolean>;
 	private readonly _agentSupportsAttachmentsContextKey: IContextKey<boolean>;
-	private _supportsToolAttachments: boolean = true;
-	private _supportsMCPAttachments: boolean = true;
-	private _supportsFileAttachments: boolean = true;
-	private _supportsImageAttachments: boolean = true;
-
+	private _attachmentCapabilities: IChatAgentAttachmentCapabilities = supportsAllAttachments;
 	private lastWelcomeViewChatMode: ChatModeKind | undefined;
 
 	// Cache for prompt file descriptions to avoid async calls during rendering
 	private readonly promptDescriptionsCache = new Map<string, string>();
+	private readonly promptUriCache = new Map<string, URI>();
 	private _isLoadingPromptDescriptions = false;
 
 	// UI state for temporarily hiding chat history
@@ -719,37 +729,20 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private _updateAgentCapabilitiesContextKeys(agent: IChatAgentData | undefined): void {
-		this._supportsFileAttachments = true;
-		this._supportsToolAttachments = true;
-		this._supportsMCPAttachments = true;
-		this._supportsImageAttachments = true;
-
 		// Check if the agent has capabilities defined directly
 		const capabilities = agent?.capabilities ?? (this._lockedAgent ? this.chatSessionsService.getCapabilitiesForSessionType(this._lockedAgent.id) : undefined);
-		if (capabilities) {
-			this._supportsFileAttachments = capabilities.supportsFileAttachments ?? false;
-			this._supportsToolAttachments = capabilities.supportsToolAttachments ?? false;
-			this._supportsMCPAttachments = capabilities.supportsMCPAttachments ?? false;
-			this._supportsImageAttachments = capabilities.supportsImageAttachments ?? false;
-		}
+		this._attachmentCapabilities = capabilities ?? supportsAllAttachments;
 
-		this._agentSupportsAttachmentsContextKey.set(this._supportsFileAttachments || this._supportsImageAttachments || this._supportsToolAttachments || this._supportsMCPAttachments);
+		const supportsAttachments = Object.keys(filter(this._attachmentCapabilities, (key, value) => value === true)).length > 0;
+		this._agentSupportsAttachmentsContextKey.set(supportsAttachments);
 	}
 
 	get supportsFileReferences(): boolean {
 		return !!this.viewOptions.supportsFileReferences;
 	}
 
-	get supportsToolAttachments(): boolean {
-		return this._supportsToolAttachments;
-	}
-
-	get supportsMCPAttachments(): boolean {
-		return this._supportsMCPAttachments;
-	}
-
-	get supportsImageAttachments(): boolean {
-		return this._supportsImageAttachments;
+	get attachmentCapabilities(): IChatAgentAttachmentCapabilities {
+		return this._attachmentCapabilities;
 	}
 
 	get input(): ChatInputPart {
@@ -1099,7 +1092,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			let welcomeContent: IChatViewWelcomeContent;
 			const defaultAgent = this.chatAgentService.getDefaultAgent(this.location, this.input.currentModeKind);
 			let additionalMessage = defaultAgent?.metadata.additionalWelcomeMessage;
-			if (!additionalMessage) {
+			if (!additionalMessage && !this._lockedAgent) {
 				additionalMessage = this._getGenerateInstructionsMessage();
 			}
 			if (this.shouldShowChatSetup()) {
@@ -1361,7 +1354,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private _getGenerateInstructionsMessage(): IMarkdownString {
 		// Start checking for instruction files immediately if not already done
 		if (!this._instructionFilesCheckPromise) {
-			this._instructionFilesCheckPromise = this._checkForInstructionFiles();
+			this._instructionFilesCheckPromise = this._checkForAgentInstructionFiles();
 			// Use VS Code's idiomatic pattern for disposal-safe promise callbacks
 			this._register(thenIfNotDisposed(this._instructionFilesCheckPromise, hasFiles => {
 				this._instructionFilesExist = hasFiles;
@@ -1391,10 +1384,25 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return new MarkdownString('');
 	}
 
-	private async _checkForInstructionFiles(): Promise<boolean> {
+	/**
+	 * Checks if any agent instruction files (.github/copilot-instructions.md or AGENTS.md) exist in the workspace.
+	 * Used to determine whether to show the "Generate Agent Instructions" hint.
+	 *
+	 * @returns true if instruction files exist OR if instruction features are disabled (to hide the hint)
+	 */
+	private async _checkForAgentInstructionFiles(): Promise<boolean> {
 		try {
-			const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, undefined);
-			return await computer.hasAgentInstructions(CancellationToken.None);
+			const useCopilotInstructionsFiles = this.configurationService.getValue(PromptsConfig.USE_COPILOT_INSTRUCTION_FILES);
+			const useAgentMd = this.configurationService.getValue(PromptsConfig.USE_AGENT_MD);
+			if (!useCopilotInstructionsFiles && !useAgentMd) {
+				// If both settings are disabled, return true to hide the hint (since the features aren't enabled)
+				return true;
+			}
+			return (
+				(await this.promptsService.listCopilotInstructionsMDs(CancellationToken.None)).length > 0 ||
+				// Note: only checking for AGENTS.md files at the root folder, not ones in subfolders.
+				(await this.promptsService.listAgentMDs(CancellationToken.None, false)).length > 0
+			);
 		} catch (error) {
 			// On error, assume no instruction files exist to be safe
 			this.logService.warn('[ChatWidget] Error checking for instruction files:', error);
@@ -1614,12 +1622,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		for (const { promptName } of topPrompts) {
 			const description = this.promptDescriptionsCache.get(promptName);
 			const commandLabel = localize('chatWidget.promptFile.commandLabel', "{0}", promptName);
+			const uri = this.promptUriCache.get(promptName);
 			const descriptionText = description?.trim() ? description : undefined;
 			result.push({
 				icon: Codicon.run,
 				label: commandLabel,
 				description: descriptionText,
-				prompt: `/${promptName} `
+				prompt: `/${promptName} `,
+				uri: uri
 			});
 		}
 
@@ -1644,6 +1654,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				if (promptNames.includes(promptCommand.command)) {
 					try {
 						if (promptCommand.promptPath) {
+							this.promptUriCache.set(promptCommand.command, promptCommand.promptPath.uri);
 							const parseResult = await this.promptsService.parseNew(
 								promptCommand.promptPath.uri,
 								CancellationToken.None
@@ -2946,7 +2957,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.agentInInput.set(!!currentAgent);
 	}
 
-	private async _applyPromptMetadata({ mode, tools, model }: PromptHeader, requestInput: IChatRequestInputOptions): Promise<void> {
+	private async _applyPromptMetadata({ agent: mode, tools, model }: PromptHeader, requestInput: IChatRequestInputOptions): Promise<void> {
 
 		const currentMode = this.input.currentModeObs.get();
 
@@ -2954,7 +2965,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			mode = ChatModeKind.Agent;
 		}
 
-		// switch to appropriate chat mode if needed
+		// switch to appropriate agent if needed
 		if (mode && mode !== currentMode.name) {
 			// Find the mode object to get its kind
 			const chatMode = this.chatModeService.findModeByName(mode);

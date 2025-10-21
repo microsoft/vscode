@@ -43,6 +43,7 @@ import { ChatMarkdownContentPart, EditorPool } from '../chatMarkdownContentPart.
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 import { openTerminalSettingsLinkCommandId } from './chatTerminalToolProgressPart.js';
 import { HoverStyle } from '../../../../../../base/browser/ui/hover/hover.js';
+import { autorunSelfDisposable } from '../../../../../../base/common/observable.js';
 
 export const enum TerminalToolConfirmationStorageKeys {
 	TerminalAutoApproveWarningAccepted = 'chat.tools.terminal.autoApprove.warningAccepted'
@@ -298,16 +299,20 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 					}
 				}
 			}
+
 			if (doComplete) {
-				toolInvocation.confirmed.complete({ type: toolConfirmKind });
+				IChatToolInvocation.confirmWith(toolInvocation, { type: toolConfirmKind });
 				this.chatWidgetService.getWidgetBySessionId(this.context.element.sessionId)?.focusInput();
 			}
 		}));
 		this._register(confirmWidget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
-		toolInvocation.confirmed.p.then(() => {
-			ChatContextKeys.Editing.hasToolConfirmation.bindTo(this.contextKeyService).set(false);
-			this._onNeedsRerender.fire();
-		});
+		this._register(autorunSelfDisposable(reader => {
+			if (IChatToolInvocation.isConfirmed(toolInvocation, reader)) {
+				reader.dispose();
+				ChatContextKeys.Editing.hasToolConfirmation.bindTo(contextKeyService).set(false);
+				this._onNeedsRerender.fire();
+			}
+		}));
 
 		this.domNode = confirmWidget.domNode;
 	}

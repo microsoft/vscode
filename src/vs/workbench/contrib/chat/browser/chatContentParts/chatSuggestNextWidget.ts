@@ -8,7 +8,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { IChatMode } from '../../common/chatModes.js';
-import { IHandOff } from '../../common/promptSyntax/service/newPromptsParser.js';
+import { IHandOff } from '../../common/promptSyntax/promptFileParser.js';
 
 export interface INextPromptSelection {
 	readonly handoff: IHandOff;

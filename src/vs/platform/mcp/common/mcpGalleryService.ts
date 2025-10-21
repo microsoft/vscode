@@ -27,33 +27,37 @@ interface IMcpRegistryInfo {
 
 interface IGitHubInfo {
 	readonly name: string;
-	readonly name_with_owner: string;
-	readonly display_name?: string;
-	readonly is_in_organization?: boolean;
+	readonly nameWithOwner: string;
+	readonly displayName?: string;
+	readonly isInOrganization?: boolean;
 	readonly license?: string;
-	readonly opengraph_image_url?: string;
-	readonly owner_avatar_url?: string;
-	readonly primary_language?: string;
-	readonly primary_language_color?: string;
-	readonly pushed_at?: string;
-	readonly stargazer_count?: number;
+	readonly opengraphImageUrl?: string;
+	readonly ownerAvatarUrl?: string;
+	readonly primaryLanguage?: string;
+	readonly primaryLanguageColor?: string;
+	readonly pushedAt?: string;
+	readonly readMe?: string;
+	readonly stargazerCount?: number;
 	readonly topics?: readonly string[];
-	readonly uses_custom_opengraph_image?: boolean;
+	readonly usesCustomOpengraphImage?: boolean;
+}
+
+interface IAzureAPICenterInfo {
+	readonly 'x-ms-icon'?: string;
 }
 
 interface IRawGalleryMcpServersMetadata {
 	readonly count: number;
-	readonly total?: number;
-	readonly next_cursor?: string;
+	readonly nextCursor?: string;
 }
 
 interface IRawGalleryMcpServersResult {
-	readonly metadata?: IRawGalleryMcpServersMetadata;
+	readonly metadata: IRawGalleryMcpServersMetadata;
 	readonly servers: readonly IRawGalleryMcpServer[];
 }
 
 interface IGalleryMcpServersResult {
-	readonly metadata?: IRawGalleryMcpServersMetadata;
+	readonly metadata: IRawGalleryMcpServersMetadata;
 	readonly servers: IGalleryMcpServer[];
 }
 
@@ -68,6 +72,7 @@ interface IRawGalleryMcpServer {
 		readonly id?: string;
 		readonly readme?: string;
 	};
+	readonly icons?: readonly IRawGalleryMcpServerIcon[];
 	readonly status?: GalleryMcpServerStatus;
 	readonly websiteUrl?: string;
 	readonly createdAt?: string;
@@ -76,6 +81,7 @@ interface IRawGalleryMcpServer {
 	readonly remotes?: ReadonlyArray<SseTransport | StreamableHttpTransport>;
 	readonly registryInfo?: IMcpRegistryInfo;
 	readonly githubInfo?: IGitHubInfo;
+	readonly apicInfo?: IAzureAPICenterInfo;
 }
 
 interface IGalleryMcpServerDataSerializer {
@@ -83,6 +89,25 @@ interface IGalleryMcpServerDataSerializer {
 	toRawGalleryMcpServer(input: unknown): IRawGalleryMcpServer | undefined;
 }
 
+interface IRawGalleryMcpServerIcon {
+	readonly src: string;
+	readonly theme?: IconTheme;
+	readonly sizes?: string[];
+	readonly mimeType?: IconMimeType;
+}
+
+const enum IconMimeType {
+	PNG = 'image/png',
+	JPEG = 'image/jpeg',
+	JPG = 'image/jpg',
+	SVG = 'image/svg+xml',
+	WEBP = 'image/webp',
+}
+
+const enum IconTheme {
+	LIGHT = 'light',
+	DARK = 'dark',
+}
 
 namespace McpServerSchemaVersion_v2025_07_09 {
 
@@ -194,12 +219,28 @@ namespace McpServerSchemaVersion_v2025_07_09 {
 	}
 
 	interface RawGalleryMcpServersResult {
-		readonly metadata?: {
+		readonly metadata: {
 			readonly count: number;
 			readonly total?: number;
 			readonly next_cursor?: string;
 		};
 		readonly servers: readonly RawGalleryMcpServer[];
+	}
+
+	interface RawGitHubInfo {
+		readonly name: string;
+		readonly name_with_owner: string;
+		readonly display_name?: string;
+		readonly is_in_organization?: boolean;
+		readonly license?: string;
+		readonly opengraph_image_url?: string;
+		readonly owner_avatar_url?: string;
+		readonly primary_language?: string;
+		readonly primary_language_color?: string;
+		readonly pushed_at?: string;
+		readonly stargazer_count?: number;
+		readonly topics?: readonly string[];
+		readonly uses_custom_opengraph_image?: boolean;
 	}
 
 	class Serializer implements IGalleryMcpServerDataSerializer {
@@ -221,7 +262,10 @@ namespace McpServerSchemaVersion_v2025_07_09 {
 			}
 
 			return {
-				metadata: from.metadata,
+				metadata: {
+					count: from.metadata.count ?? 0,
+					nextCursor: from.metadata?.next_cursor
+				},
 				servers
 			};
 		}
@@ -334,6 +378,8 @@ namespace McpServerSchemaVersion_v2025_07_09 {
 				}
 			}
 
+			const gitHubInfo: RawGitHubInfo | undefined = from._meta['io.modelcontextprotocol.registry/publisher-provided']?.github as RawGitHubInfo | undefined;
+
 			return {
 				name: from.name,
 				description: from.description,
@@ -371,7 +417,21 @@ namespace McpServerSchemaVersion_v2025_07_09 {
 					publishedAt: registryInfo.published_at,
 					updatedAt: registryInfo.updated_at,
 				},
-				githubInfo: from._meta['io.modelcontextprotocol.registry/publisher-provided']?.github as IGitHubInfo | undefined,
+				githubInfo: gitHubInfo ? {
+					name: gitHubInfo.name,
+					nameWithOwner: gitHubInfo.name_with_owner,
+					displayName: gitHubInfo.display_name,
+					isInOrganization: gitHubInfo.is_in_organization,
+					license: gitHubInfo.license,
+					opengraphImageUrl: gitHubInfo.opengraph_image_url,
+					ownerAvatarUrl: gitHubInfo.owner_avatar_url,
+					primaryLanguage: gitHubInfo.primary_language,
+					primaryLanguageColor: gitHubInfo.primary_language_color,
+					pushedAt: gitHubInfo.pushed_at,
+					stargazerCount: gitHubInfo.stargazer_count,
+					topics: gitHubInfo.topics,
+					usesCustomOpengraphImage: gitHubInfo.uses_custom_opengraph_image
+				} : undefined
 			};
 		}
 	}
@@ -457,6 +517,7 @@ namespace McpServerSchemaVersion_v0_1 {
 		readonly version: string;
 		readonly $schema?: string;
 		readonly title?: string;
+		readonly icons?: IRawGalleryMcpServerIcon[];
 		readonly repository?: {
 			readonly source: string;
 			readonly url: string;
@@ -468,7 +529,7 @@ namespace McpServerSchemaVersion_v0_1 {
 		readonly remotes?: RawGalleryMcpServerRemotes;
 		readonly _meta?: {
 			readonly 'io.modelcontextprotocol.registry/publisher-provided'?: Record<string, unknown>;
-		};
+		} & IAzureAPICenterInfo;
 	}
 
 	interface RawGalleryMcpServerInfo {
@@ -484,10 +545,10 @@ namespace McpServerSchemaVersion_v0_1 {
 	}
 
 	interface RawGalleryMcpServersResult {
-		readonly metadata?: {
+		readonly metadata: {
 			readonly count: number;
 			readonly total?: number;
-			readonly next_cursor?: string;
+			readonly nextCursor?: string;
 		};
 		readonly servers: readonly RawGalleryMcpServerInfo[];
 	}
@@ -505,7 +566,11 @@ namespace McpServerSchemaVersion_v0_1 {
 			for (const server of from.servers) {
 				const rawServer = this.toRawGalleryMcpServer(server);
 				if (!rawServer) {
-					return undefined;
+					if (servers.length === 0) {
+						return undefined;
+					} else {
+						continue;
+					}
 				}
 				servers.push(rawServer);
 			}
@@ -536,6 +601,8 @@ namespace McpServerSchemaVersion_v0_1 {
 				return undefined;
 			}
 
+			const { 'io.modelcontextprotocol.registry/official': registryInfo, ...apicInfo } = from._meta ?? {};
+
 			return {
 				name: from.server.name,
 				description: from.server.description,
@@ -547,12 +614,14 @@ namespace McpServerSchemaVersion_v0_1 {
 					id: from.server.repository.id,
 					readme: from.server.repository.readme
 				} : undefined,
+				icons: from.server.icons,
 				websiteUrl: from.server.websiteUrl,
 				packages: from.server.packages,
 				remotes: from.server.remotes,
-				status: from._meta?.['io.modelcontextprotocol.registry/official']?.status,
-				registryInfo: from._meta?.['io.modelcontextprotocol.registry/official'],
+				status: registryInfo?.status,
+				registryInfo,
 				githubInfo: from.server._meta?.['io.modelcontextprotocol.registry/publisher-provided']?.github as IGitHubInfo | undefined,
+				apicInfo
 			};
 		}
 	}
@@ -660,27 +729,27 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 		}
 
 		const { servers, metadata } = await this.queryGalleryMcpServers(query, mcpGalleryManifest, token);
-		const total = metadata?.total ?? metadata?.count ?? servers.length;
+		let total = metadata.nextCursor ? metadata.count + query.pageSize : metadata.count;
 
 		const getNextPage = async (cursor: string | undefined, ct: CancellationToken): Promise<IPageIterator<IGalleryMcpServer>> => {
 			if (ct.isCancellationRequested) {
 				throw new CancellationError();
 			}
-			const { servers, metadata } = cursor ? await this.queryGalleryMcpServers(query.withPage(cursor).withSearchText(undefined), mcpGalleryManifest, token) : { servers: [], metadata: undefined };
+			const { servers, metadata } = cursor ? await this.queryGalleryMcpServers(query.withPage(cursor).withSearchText(undefined), mcpGalleryManifest, token) : { servers: [], metadata: { count: 0 } };
+			total = metadata.nextCursor ? total + query.pageSize : total;
 			return {
 				elements: servers,
 				total,
 				hasNextPage: !!cursor,
-				getNextPage: (token) => getNextPage(metadata?.next_cursor, token)
+				getNextPage: (token) => getNextPage(metadata.nextCursor, token)
 			};
 		};
 
 		return new PageIteratorPager({
 			elements: servers,
 			total,
-			hasNextPage: !!metadata?.next_cursor,
-			getNextPage: (token) => getNextPage(metadata?.next_cursor, token),
-
+			hasNextPage: !!metadata.nextCursor,
+			getNextPage: (token) => getNextPage(metadata.nextCursor, token),
 		});
 	}
 
@@ -759,7 +828,7 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 			if (!displayName) {
 				displayName = server.githubInfo.name.split('-').map(s => s.toLowerCase() === 'mcp' ? 'MCP' : s.toLowerCase() === 'github' ? 'GitHub' : uppercaseFirstLetter(s)).join(' ');
 			}
-			publisher = server.githubInfo.name_with_owner.split('/')[0];
+			publisher = server.githubInfo.nameWithOwner.split('/')[0];
 		} else {
 			const nameParts = server.name.split('/');
 			if (nameParts.length > 0) {
@@ -773,14 +842,34 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 			}
 		}
 
-		if (server.githubInfo?.display_name) {
-			displayName = server.githubInfo.display_name;
+		if (server.githubInfo?.displayName) {
+			displayName = server.githubInfo.displayName;
 		}
 
-		const icon: { light: string; dark: string } | undefined = server.githubInfo?.owner_avatar_url ? {
-			light: server.githubInfo.owner_avatar_url,
-			dark: server.githubInfo.owner_avatar_url
-		} : undefined;
+		let icon: { light: string; dark: string } | undefined;
+
+		if (server.githubInfo?.ownerAvatarUrl) {
+			icon = {
+				light: server.githubInfo.ownerAvatarUrl,
+				dark: server.githubInfo.ownerAvatarUrl
+			};
+		}
+
+		else if (server.apicInfo?.['x-ms-icon']) {
+			icon = {
+				light: server.apicInfo['x-ms-icon'],
+				dark: server.apicInfo['x-ms-icon']
+			};
+		}
+
+		else if (server.icons && server.icons.length > 0) {
+			const lightIcon = server.icons.find(icon => icon.theme === 'light') ?? server.icons[0];
+			const darkIcon = server.icons.find(icon => icon.theme === 'dark') ?? lightIcon;
+			icon = {
+				light: lightIcon.src,
+				dark: darkIcon.src
+			};
+		}
 
 		const webUrl = manifest ? this.getWebUrl(server.name, manifest) : undefined;
 		const publisherUrl = manifest ? this.getPublisherUrl(publisher, manifest) : undefined;
@@ -795,14 +884,14 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 			version: server.version,
 			isLatest: server.registryInfo?.isLatest ?? true,
 			publishDate: server.registryInfo?.publishedAt ? Date.parse(server.registryInfo.publishedAt) : undefined,
-			lastUpdated: server.githubInfo?.pushed_at ? Date.parse(server.githubInfo.pushed_at) : server.registryInfo?.updatedAt ? Date.parse(server.registryInfo.updatedAt) : undefined,
+			lastUpdated: server.githubInfo?.pushedAt ? Date.parse(server.githubInfo.pushedAt) : server.registryInfo?.updatedAt ? Date.parse(server.registryInfo.updatedAt) : undefined,
 			repositoryUrl: server.repository?.url,
 			readme: server.repository?.readme,
 			icon,
 			publisher,
 			publisherUrl,
 			license: server.githubInfo?.license,
-			starsCount: server.githubInfo?.stargazer_count,
+			starsCount: server.githubInfo?.stargazerCount,
 			topics: server.githubInfo?.topics,
 			configuration: {
 				packages: server.packages,
@@ -820,9 +909,9 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 	}
 
 	private async queryRawGalleryMcpServers(query: Query, mcpGalleryManifest: IMcpGalleryManifest, token: CancellationToken): Promise<IRawGalleryMcpServersResult> {
-		const mcpGalleryUrl = query.searchText ? this.getSearchUrl(mcpGalleryManifest) : this.getMcpGalleryUrl(mcpGalleryManifest);
+		const mcpGalleryUrl = query.searchText && mcpGalleryManifest.version === 'v0' ? this.getSearchUrl(mcpGalleryManifest) : this.getMcpGalleryUrl(mcpGalleryManifest);
 		if (!mcpGalleryUrl) {
-			return { servers: [] };
+			return { servers: [], metadata: { count: 0 } };
 		}
 
 		const uri = URI.parse(mcpGalleryUrl);
@@ -842,7 +931,7 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 		}
 		if (query.searchText) {
 			const text = encodeURIComponent(query.searchText);
-			url += `&q=${text}`;
+			url += mcpGalleryManifest.version === 'v0' ? `&q=${text}` : `&search=${text}`;
 		}
 
 		const context = await this.requestService.request({
@@ -853,7 +942,7 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 		const data = await asJson(context);
 
 		if (!data) {
-			return { servers: [] };
+			return { servers: [], metadata: { count: 0 } };
 		}
 
 		const result = this.serializeMcpServersResult(data, mcpGalleryManifest);
