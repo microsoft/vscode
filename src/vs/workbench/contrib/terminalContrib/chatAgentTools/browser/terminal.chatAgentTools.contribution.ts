@@ -22,7 +22,8 @@ import { TerminalChatAgentToolsCommandId } from '../common/terminal.chatAgentToo
 import { GetTerminalLastCommandTool, GetTerminalLastCommandToolData } from './tools/getTerminalLastCommandTool.js';
 import { GetTerminalOutputTool, GetTerminalOutputToolData } from './tools/getTerminalOutputTool.js';
 import { GetTerminalSelectionTool, GetTerminalSelectionToolData } from './tools/getTerminalSelectionTool.js';
-import { RunInTerminalTool, RunInTerminalToolData } from './tools/runInTerminalTool.js';
+import { ConfirmTerminalCommandTool, ConfirmTerminalCommandToolData } from './tools/runInTerminalConfirmationTool.js';
+import { RunInTerminalTool, RunInTerminalToolConfirmationHelper, RunInTerminalToolData } from './tools/runInTerminalTool.js';
 import { CreateAndRunTaskTool, CreateAndRunTaskToolData } from './tools/task/createAndRunTaskTool.js';
 import { GetTaskOutputTool, GetTaskOutputToolData } from './tools/task/getTaskOutputTool.js';
 import { RunTaskTool, RunTaskToolData } from './tools/task/runTaskTool.js';
@@ -41,7 +42,11 @@ class ChatAgentToolsContribution extends Disposable implements IWorkbenchContrib
 
 		// #region Terminal
 
-		const runInTerminalTool = instantiationService.createInstance(RunInTerminalTool);
+		const terminalConfirmationHelper = instantiationService.createInstance(RunInTerminalToolConfirmationHelper);
+		const confirmTerminalCommandTool = instantiationService.createInstance(ConfirmTerminalCommandTool, terminalConfirmationHelper);
+		this._register(toolsService.registerTool(ConfirmTerminalCommandToolData, confirmTerminalCommandTool));
+
+		const runInTerminalTool = instantiationService.createInstance(RunInTerminalTool, terminalConfirmationHelper);
 		this._register(toolsService.registerTool(RunInTerminalToolData, runInTerminalTool));
 
 		const getTerminalOutputTool = instantiationService.createInstance(GetTerminalOutputTool);
@@ -52,6 +57,7 @@ class ChatAgentToolsContribution extends Disposable implements IWorkbenchContrib
 			description: localize('toolset.runCommands', 'Runs commands in the terminal')
 		}));
 		runCommandsToolSet.addTool(RunInTerminalToolData);
+		runCommandsToolSet.addTool(ConfirmTerminalCommandToolData);
 		runCommandsToolSet.addTool(GetTerminalOutputToolData);
 
 		const getTerminalSelectionTool = instantiationService.createInstance(GetTerminalSelectionTool);
