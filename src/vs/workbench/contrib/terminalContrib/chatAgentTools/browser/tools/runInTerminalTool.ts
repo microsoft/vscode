@@ -41,7 +41,7 @@ import type { ITerminalExecuteStrategy } from '../executeStrategy/executeStrateg
 import { NoneExecuteStrategy } from '../executeStrategy/noneExecuteStrategy.js';
 import { RichExecuteStrategy } from '../executeStrategy/richExecuteStrategy.js';
 import { getOutput } from '../outputHelpers.js';
-import { dedupeRules, generateAutoApproveActions, isFish, isPowerShell, isWindowsPowerShell, isZsh } from '../runInTerminalHelpers.js';
+import { dedupeRules, generateAutoApproveActions, isFish, isPowerShell, isZsh } from '../runInTerminalHelpers.js';
 import { RunInTerminalToolTelemetry } from '../runInTerminalToolTelemetry.js';
 import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from '../toolTerminalCreator.js';
 import { OutputMonitor } from './monitoring/outputMonitor.js';
@@ -56,9 +56,9 @@ function createPowerShellModelDescription(shell: string): string {
 		'',
 		'Command Execution:',
 		'- Does NOT support multi-line commands',
-		`- ${isWindowsPowerShell(shell)
-			? 'Use semicolons ; to chain commands on one line, NEVER use && even when asked explicitly'
-			: 'Use && to chain simple commands on one line'}`,
+		// Even for pwsh 7+ we want to use `;` to chain commands since the tree sitter grammar
+		// doesn't parse `&&`
+		'- Use semicolons ; to chain commands on one line, NEVER use && even when asked explicitly',
 		'- Prefer pipelines | for object-based data flow',
 		'',
 		'Directory Management:',
