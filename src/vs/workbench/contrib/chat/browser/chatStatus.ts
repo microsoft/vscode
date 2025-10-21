@@ -236,7 +236,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 				if (chatQuotaExceeded && !completionsQuotaExceeded) {
 					quotaWarning = localize('chatQuotaExceededStatus', "Chat quota reached");
 				} else if (completionsQuotaExceeded && !chatQuotaExceeded) {
-					quotaWarning = localize('completionsQuotaExceededStatus', "Completions quota reached");
+					quotaWarning = localize('completionsQuotaExceededStatus', "Inline suggestions quota reached");
 				} else {
 					quotaWarning = localize('chatAndCompletionsQuotaExceededStatus', "Quota reached");
 				}
@@ -249,13 +249,13 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			// Completions Disabled
 			else if (this.editorService.activeTextEditorLanguageId && !isCompletionsEnabled(this.configurationService, this.editorService.activeTextEditorLanguageId)) {
 				text = '$(copilot-unavailable)';
-				ariaLabel = localize('completionsDisabledStatus', "Code completions disabled");
+				ariaLabel = localize('completionsDisabledStatus', "Inline suggestions disabled");
 			}
 
 			// Completions Snoozed
 			else if (this.completionsService.isSnoozing()) {
 				text = '$(copilot-snooze)';
-				ariaLabel = localize('completionsSnoozedStatus', "Code completions snoozed");
+				ariaLabel = localize('completionsSnoozedStatus', "Inline suggestions snoozed");
 			}
 		}
 
@@ -392,7 +392,7 @@ class ChatStatusDashboard extends Disposable {
 				run: () => this.runCommandAndClose(() => this.openerService.open(URI.parse(defaultChat.manageSettingsUrl))),
 			}));
 
-			const completionsQuotaIndicator = completionsQuota && (completionsQuota.total > 0 || completionsQuota.unlimited) ? this.createQuotaIndicator(this.element, disposables, completionsQuota, localize('completionsLabel', "Code completions"), false) : undefined;
+			const completionsQuotaIndicator = completionsQuota && (completionsQuota.total > 0 || completionsQuota.unlimited) ? this.createQuotaIndicator(this.element, disposables, completionsQuota, localize('completionsLabel', "Inline Suggestions"), false) : undefined;
 			const chatQuotaIndicator = chatQuota && (chatQuota.total > 0 || chatQuota.unlimited) ? this.createQuotaIndicator(this.element, disposables, chatQuota, localize('chatsLabel', "Chat messages"), false) : undefined;
 			const premiumChatQuotaIndicator = premiumChatQuota && (premiumChatQuota.total > 0 || premiumChatQuota.unlimited) ? this.createQuotaIndicator(this.element, disposables, premiumChatQuota, localize('premiumChatsLabel', "Premium requests"), true) : undefined;
 
@@ -429,7 +429,7 @@ class ChatStatusDashboard extends Disposable {
 		else if (this.chatEntitlementService.anonymous && this.chatEntitlementService.sentiment.installed) {
 			addSeparator(localize('anonymousTitle', "Copilot Usage"));
 
-			this.createQuotaIndicator(this.element, disposables, localize('quotaLimited', "Limited"), localize('completionsLabel', "Code completions"), false);
+			this.createQuotaIndicator(this.element, disposables, localize('quotaLimited', "Limited"), localize('completionsLabel', "Inline Suggestions"), false);
 			this.createQuotaIndicator(this.element, disposables, localize('quotaLimited', "Limited"), localize('chatsLabel', "Chat messages"), false);
 		}
 
@@ -493,7 +493,7 @@ class ChatStatusDashboard extends Disposable {
 		// Settings
 		{
 			const chatSentiment = this.chatEntitlementService.sentiment;
-			addSeparator(localize('codeCompletions', "Code Completions"), chatSentiment.installed && !chatSentiment.disabled && !chatSentiment.untrusted ? toAction({
+			addSeparator(localize('inlineSuggestions', "Inline Suggestions"), chatSentiment.installed && !chatSentiment.disabled && !chatSentiment.untrusted ? toAction({
 				id: 'workbench.action.openChatSettings',
 				label: localize('settingsLabel', "Settings"),
 				tooltip: localize('settingsTooltip', "Open Settings"),
@@ -699,14 +699,14 @@ class ChatStatusDashboard extends Disposable {
 		const modeId = this.editorService.activeTextEditorLanguageId;
 		const settings = container.appendChild($('div.settings'));
 
-		// --- Code completions
+		// --- Inline Suggestions
 		{
 			const globalSetting = append(settings, $('div.setting'));
-			this.createCodeCompletionsSetting(globalSetting, localize('settings.codeCompletions.allFiles', "All files"), '*', disposables);
+			this.createInlineSuggestionsSetting(globalSetting, localize('settings.codeCompletions.allFiles', "All files"), '*', disposables);
 
 			if (modeId) {
 				const languageSetting = append(settings, $('div.setting'));
-				this.createCodeCompletionsSetting(languageSetting, localize('settings.codeCompletions.language', "{0}", this.languageService.getLanguageName(modeId) ?? modeId), modeId, disposables);
+				this.createInlineSuggestionsSetting(languageSetting, localize('settings.codeCompletions.language', "{0}", this.languageService.getLanguageName(modeId) ?? modeId), modeId, disposables);
 			}
 		}
 
@@ -756,7 +756,7 @@ class ChatStatusDashboard extends Disposable {
 		return checkbox;
 	}
 
-	private createCodeCompletionsSetting(container: HTMLElement, label: string, modeId: string | undefined, disposables: DisposableStore): void {
+	private createInlineSuggestionsSetting(container: HTMLElement, label: string, modeId: string | undefined, disposables: DisposableStore): void {
 		this.createSetting(container, [defaultChat.completionsEnablementSetting], label, this.getCompletionsSettingAccessor(modeId), disposables);
 	}
 
@@ -846,10 +846,10 @@ class ChatStatusDashboard extends Disposable {
 
 			const timeLeftMs = this.inlineCompletionsService.snoozeTimeLeft;
 			if (!isEnabled || timeLeftMs <= 0) {
-				timerDisplay.textContent = localize('completions.snooze5minutesTitle', "Hide completions for 5 min");
+				timerDisplay.textContent = localize('completions.snooze5minutesTitle', "Hide suggestions for 5 min");
 				timerDisplay.title = '';
 				button.label = label;
-				button.setTitle(localize('completions.snooze5minutes', "Hide completions and NES for 5 min"));
+				button.setTitle(localize('completions.snooze5minutes', "Hide inline suggestions for 5 min"));
 				return true;
 			}
 
@@ -858,7 +858,7 @@ class ChatStatusDashboard extends Disposable {
 			const seconds = timeLeftSeconds % 60;
 
 			timerDisplay.textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds} ${localize('completions.remainingTime', "remaining")}`;
-			timerDisplay.title = localize('completions.snoozeTimeDescription', "Completions are hidden for the remaining duration");
+			timerDisplay.title = localize('completions.snoozeTimeDescription', "Inline suggestions are hidden for the remaining duration");
 			button.label = localize('completions.plus5min', "+5 min");
 			button.setTitle(localize('completions.snoozeAdditional5minutes', "Snooze additional 5 min"));
 			toolbar.push([cancelAction], { icon: true, label: false });
