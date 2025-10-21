@@ -468,12 +468,12 @@ export class OpenModePickerAction extends Action2 {
 	}
 }
 
-export class ChatSessionOpenModelPickerAction extends Action2 {
-	static readonly ID = 'workbench.action.chat.chatSessionOpenModelPicker';
+export class ChatSessionPrimaryPickerAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.chatSessionPrimaryPicker';
 	constructor() {
 		super({
-			id: ChatSessionOpenModelPickerAction.ID,
-			title: localize2('interactive.openModelPicker.label', "Open Model Picker"),
+			id: ChatSessionPrimaryPickerAction.ID,
+			title: localize2('interactive.openChatSessionPrimaryPicker.label', "Open Picker"),
 			category: CHAT_CATEGORY,
 			f1: false,
 			precondition: ChatContextKeys.enabled,
@@ -1192,7 +1192,7 @@ export function registerChatExecuteActions() {
 	registerAction2(SwitchToNextModelAction);
 	registerAction2(OpenModelPickerAction);
 	registerAction2(OpenModePickerAction);
-	registerAction2(ChatSessionOpenModelPickerAction);
+	registerAction2(ChatSessionPrimaryPickerAction);
 	registerAction2(ChangeChatModelAction);
 	registerAction2(CancelEdit);
 }

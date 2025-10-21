@@ -20,6 +20,7 @@ import { registerEditorFeature } from '../../../../../editor/common/editorFeatur
 import { PromptFileRewriter } from './promptFileRewriter.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { IEditorModel } from '../../../../../editor/common/editorCommon.js';
+import { PromptHeaderAttributes } from '../../common/promptSyntax/promptFileParser.js';
 
 class PromptToolsCodeLensProvider extends Disposable implements CodeLensProvider {
 
@@ -54,7 +55,7 @@ class PromptToolsCodeLensProvider extends Disposable implements CodeLensProvider
 		}
 
 
-		const toolsAttr = parser.header.getAttribute('tools');
+		const toolsAttr = parser.header.getAttribute(PromptHeaderAttributes.tools);
 		if (!toolsAttr || toolsAttr.value.type !== 'array') {
 			return undefined;
 		}
