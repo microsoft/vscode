@@ -9,9 +9,9 @@ import { CodeAction, CodeActionContext, CodeActionList, CodeActionProvider, IWor
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { localize } from '../../../../../../nls.js';
 import { ILanguageModelToolsService } from '../../languageModelToolsService.js';
-import { getPromptsTypeForLanguageId } from '../promptTypes.js';
+import { getPromptsTypeForLanguageId, PromptsType } from '../promptTypes.js';
 import { IPromptsService } from '../service/promptsService.js';
-import { IValue } from '../service/newPromptsParser.js';
+import { ParsedPromptFile, PromptHeaderAttributes } from '../service/newPromptsParser.js';
 import { Selection } from '../../../../../../editor/common/core/selection.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
 
@@ -29,24 +29,55 @@ export class PromptCodeActionProvider implements CodeActionProvider {
 
 	provideCodeActions(model: ITextModel, range: Range | Selection, context: CodeActionContext, token: CancellationToken): ProviderResult<CodeActionList> {
 		const promptType = getPromptsTypeForLanguageId(model.getLanguageId());
-		if (!promptType) {
+		if (!promptType || promptType === PromptsType.instructions) {
 			// if the model is not a prompt, we don't provide any code actions
 			return undefined;
 		}
 
+		const result: CodeAction[] = [];
+
 		const parser = this.promptsService.getParsedPromptFile(model);
-		const toolsAttr = parser.header?.getAttribute('tools');
-		if (!toolsAttr || toolsAttr.value.type !== 'array' || !toolsAttr.value.range.containsRange(range)) {
+		switch (promptType) {
+			case PromptsType.agent:
+				this.getUpdateToolsCodeActions(parser, model, range, result);
+				break;
+			case PromptsType.prompt:
+				this.getUpdateModeCodeActions(parser, model, range, result);
+				this.getUpdateToolsCodeActions(parser, model, range, result);
+				break;
+		}
+
+		if (result.length === 0) {
 			return undefined;
 		}
-		return this.getUpdateToolsCodeActions(toolsAttr.value.items, model, range);
+		return {
+			actions: result,
+			dispose: () => { }
+		};
 
 	}
 
-	private getUpdateToolsCodeActions(values: readonly IValue[], model: ITextModel, range: Range): CodeActionList | undefined {
+	private getUpdateModeCodeActions(promptFile: ParsedPromptFile, model: ITextModel, range: Range, result: CodeAction[]): void {
+		const modeAttr = promptFile.header?.getAttribute(PromptHeaderAttributes.mode);
+		if (!modeAttr?.range.containsRange(range)) {
+			return;
+		}
+		const keyRange = new Range(modeAttr.range.startLineNumber, modeAttr.range.startColumn, modeAttr.range.startLineNumber, modeAttr.range.startColumn + modeAttr.key.length);
+		result.push({
+			title: localize('renameToAgent', "Rename to 'agent'"),
+			edit: {
+				edits: [asWorkspaceTextEdit(model, { range: keyRange, text: 'agent' })]
+			}
+		});
+	}
 
+	private getUpdateToolsCodeActions(promptFile: ParsedPromptFile, model: ITextModel, range: Range, result: CodeAction[]): void {
+		const toolsAttr = promptFile.header?.getAttribute(PromptHeaderAttributes.tools);
+		if (toolsAttr?.value.type !== 'array' || !toolsAttr.value.range.containsRange(range)) {
+			return;
+		}
+		const values = toolsAttr.value.items;
 		const deprecatedNames = new Lazy(() => this.languageModelToolsService.getDeprecatedQualifiedToolNames());
-		const actions: CodeAction[] = [];
 		const edits: TextEdit[] = [];
 		for (const item of values) {
 			if (item.type !== 'string') {
@@ -60,7 +91,7 @@ export class PromptCodeActionProvider implements CodeActionProvider {
 				edits.push(edit);
 
 				if (item.range.containsRange(range)) {
-					actions.push({
+					result.push({
 						title: localize('updateToolName', "Update to '{0}'", newName),
 						edit: {
 							edits: [asWorkspaceTextEdit(model, edit)]
@@ -70,18 +101,14 @@ export class PromptCodeActionProvider implements CodeActionProvider {
 			}
 		}
 
-		if (edits.length && actions.length === 0 || edits.length > 1) {
-			actions.push({
+		if (edits.length && result.length === 0 || edits.length > 1) {
+			result.push({
 				title: localize('updateAllToolNames', "Update all tool names"),
 				edit: {
 					edits: edits.map(edit => asWorkspaceTextEdit(model, edit))
 				}
 			});
 		}
-		if (actions.length) {
-			return { actions, dispose: () => { } };
-		}
-		return undefined;
 	}
 }
 function asWorkspaceTextEdit(model: ITextModel, textEdit: TextEdit): IWorkspaceTextEdit {
