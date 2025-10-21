@@ -37,6 +37,6 @@ declare module 'vscode' {
 		 * It must be set for such buttons and the state will be updated when the button is toggled.
 		 * It cannot be set for buttons with other location value currently.
 		 */
-		toggle?: { checked: boolean };
+		readonly toggle?: { checked: boolean };
 	}
 }
