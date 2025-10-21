@@ -234,7 +234,7 @@ suite('ObservableChatSession', function () {
 
 		await session.requestHandler!(request, progressCallback, [], CancellationToken.None);
 
-		assert.ok((proxy.$invokeChatSessionRequestHandler as sinon.SinonStub).calledOnceWith(1, 'test-id', request, [], CancellationToken.None));
+		assert.ok((proxy.$invokeChatSessionRequestHandler as sinon.SinonStubbedMember<typeof proxy.$invokeChatSessionRequestHandler>).calledOnceWith(1, session.sessionResource, request, [], CancellationToken.None));
 	});
 
 	test('request handler forwards progress updates to external callback', async function () {
@@ -295,7 +295,7 @@ suite('ObservableChatSession', function () {
 		session.dispose();
 
 		assert.ok(disposeEventFired);
-		assert.ok((proxy.$disposeChatSessionContent as sinon.SinonStub).calledOnceWith(1, 'test-id'));
+		assert.ok((proxy.$disposeChatSessionContent as sinon.SinonStubbedMember<typeof proxy.$disposeChatSessionContent>).calledOnceWith(1, resource));
 
 		disposable.dispose();
 	});
@@ -424,7 +424,8 @@ suite('MainThreadChatSessions', function () {
 	});
 
 	test('provideChatSessionContent creates and initializes session', async function () {
-		mainThread.$registerChatSessionContentProvider(1, 'test-type');
+		const sessionScheme = 'test-session-type';
+		mainThread.$registerChatSessionContentProvider(1, sessionScheme);
 
 		const sessionContent = {
 			id: 'test-session',
@@ -433,7 +434,7 @@ suite('MainThreadChatSessions', function () {
 			hasRequestHandler: false
 		};
 
-		const resource = URI.parse(`${Schemas.vscodeChatSession}:/test-type/test-session`);
+		const resource = URI.parse(`${sessionScheme}:/test-session`);
 
 		(proxy.$provideChatSessionContent as sinon.SinonStub).resolves(sessionContent);
 		const session1 = await chatSessionsService.provideChatSessionContent(resource, CancellationToken.None);
@@ -448,7 +449,9 @@ suite('MainThreadChatSessions', function () {
 	});
 
 	test('$handleProgressChunk routes to correct session', async function () {
-		mainThread.$registerChatSessionContentProvider(1, 'test-type');
+		const sessionScheme = 'test-session-type';
+
+		mainThread.$registerChatSessionContentProvider(1, sessionScheme);
 
 		const sessionContent = {
 			id: 'test-session',
@@ -459,7 +462,7 @@ suite('MainThreadChatSessions', function () {
 
 		(proxy.$provideChatSessionContent as sinon.SinonStub).resolves(sessionContent);
 
-		const resource = URI.parse(`${Schemas.vscodeChatSession}:/test-type/test-session`);
+		const resource = URI.parse(`${sessionScheme}:/test-session`);
 		const session = await chatSessionsService.provideChatSessionContent(resource, CancellationToken.None) as ObservableChatSession;
 
 		const progressDto: IChatProgressDto = { kind: 'progressMessage', content: { value: 'Test', isTrusted: false } };
@@ -472,7 +475,8 @@ suite('MainThreadChatSessions', function () {
 	});
 
 	test('$handleProgressComplete marks session complete', async function () {
-		mainThread.$registerChatSessionContentProvider(1, 'test-type');
+		const sessionScheme = 'test-session-type';
+		mainThread.$registerChatSessionContentProvider(1, sessionScheme);
 
 		const sessionContent = {
 			id: 'test-session',
@@ -483,7 +487,7 @@ suite('MainThreadChatSessions', function () {
 
 		(proxy.$provideChatSessionContent as sinon.SinonStub).resolves(sessionContent);
 
-		const resource = URI.parse(`${Schemas.vscodeChatSession}:/test-type/test-session`);
+		const resource = URI.parse(`${sessionScheme}:/test-session`);
 		const session = await chatSessionsService.provideChatSessionContent(resource, CancellationToken.None) as ObservableChatSession;
 
 		const progressDto: IChatProgressDto = { kind: 'progressMessage', content: { value: 'Test', isTrusted: false } };
@@ -496,7 +500,8 @@ suite('MainThreadChatSessions', function () {
 	});
 
 	test('integration with multiple request/response pairs', async function () {
-		mainThread.$registerChatSessionContentProvider(1, 'test-type');
+		const sessionScheme = 'test-session-type';
+		mainThread.$registerChatSessionContentProvider(1, sessionScheme);
 
 		const sessionContent = {
 			id: 'multi-turn-session',
@@ -512,7 +517,7 @@ suite('MainThreadChatSessions', function () {
 
 		(proxy.$provideChatSessionContent as sinon.SinonStub).resolves(sessionContent);
 
-		const resource = URI.parse(`${Schemas.vscodeChatSession}:/test-type/multi-turn-session`);
+		const resource = URI.parse(`${sessionScheme}:/multi-turn-session`);
 		const session = await chatSessionsService.provideChatSessionContent(resource, CancellationToken.None) as ObservableChatSession;
 
 		// Verify the session loaded correctly
