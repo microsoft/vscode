@@ -6,10 +6,13 @@
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { isNumber } from '../../../../../base/common/types.js';
 import { localize } from '../../../../../nls.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
 import { registerWorkbenchContribution2, WorkbenchPhase, type IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { IChatWidgetService, showChatView } from '../../../chat/browser/chat.js';
@@ -19,6 +22,7 @@ import { registerActiveInstanceAction, sharedWhenClause } from '../../../termina
 import { TerminalContextMenuGroup } from '../../../terminal/browser/terminalMenus.js';
 import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
 import { TerminalChatAgentToolsCommandId } from '../common/terminal.chatAgentTools.js';
+import { TerminalChatAgentToolsSettingId } from '../common/terminalChatAgentToolsConfiguration.js';
 import { GetTerminalLastCommandTool, GetTerminalLastCommandToolData } from './tools/getTerminalLastCommandTool.js';
 import { GetTerminalOutputTool, GetTerminalOutputToolData } from './tools/getTerminalOutputTool.js';
 import { GetTerminalSelectionTool, GetTerminalSelectionToolData } from './tools/getTerminalSelectionTool.js';
@@ -27,7 +31,22 @@ import { CreateAndRunTaskTool, CreateAndRunTaskToolData } from './tools/task/cre
 import { GetTaskOutputTool, GetTaskOutputToolData } from './tools/task/getTaskOutputTool.js';
 import { RunTaskTool, RunTaskToolData } from './tools/task/runTaskTool.js';
 
-// #region Workbench contributions
+class ShellIntegrationTimeoutMigrationContribution extends Disposable implements IWorkbenchContribution {
+	static readonly ID = 'terminal.shellIntegrationTimeoutMigration';
+
+	constructor(
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+	) {
+		super();
+		const newSettingValue = this._configurationService.getValue<unknown>(TerminalSettingId.ShellIntegrationTimeout);
+		const deprecatedSettingValue = this._configurationService.getValue<unknown>(TerminalChatAgentToolsSettingId.ShellIntegrationTimeout);
+
+		if (!isNumber(newSettingValue) && isNumber(deprecatedSettingValue)) {
+			this._configurationService.updateValue(TerminalSettingId.ShellIntegrationTimeout, deprecatedSettingValue);
+		}
+	}
+}
+registerWorkbenchContribution2(ShellIntegrationTimeoutMigrationContribution.ID, ShellIntegrationTimeoutMigrationContribution, WorkbenchPhase.Eventually);
 
 class ChatAgentToolsContribution extends Disposable implements IWorkbenchContribution {
 
