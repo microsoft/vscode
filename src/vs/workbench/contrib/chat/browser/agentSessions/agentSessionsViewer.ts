@@ -13,12 +13,15 @@ import { ICompressedTreeNode } from '../../../../../base/browser/ui/tree/compres
 import { ICompressibleTreeRenderer } from '../../../../../base/browser/ui/tree/objectTree.js';
 import { ITreeNode, ITreeElementRenderDetails, IAsyncDataSource, ITreeFilter, TreeFilterResult, TreeVisibility } from '../../../../../base/browser/ui/tree/tree.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { IAgentSessionViewModel, IAgentSessionsViewModel, isAgentSession, isAgentSessionsViewModel } from './agentSessionViewModel.js';
+import { AgentSessionStatus, IAgentSessionViewModel, IAgentSessionsViewModel, isAgentSession, isAgentSessionsViewModel } from './agentSessionViewModel.js';
 import { IconLabel } from '../../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { fromNow } from '../../../../../base/common/date.js';
 import { FuzzyScore, createMatches, matchesFuzzy } from '../../../../../base/common/filters.js';
+import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
+import { allowedChatMarkdownHtmlTags } from '../chatContentMarkdownRenderer.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
 
 interface IAgentSessionItemTemplate {
 	readonly element: HTMLElement;
@@ -31,7 +34,7 @@ interface IAgentSessionItemTemplate {
 	readonly diffAdded: HTMLElement;
 	readonly diffRemoved: HTMLElement;
 
-	readonly elementDisposables: DisposableStore;
+	readonly elementDisposable: DisposableStore;
 	readonly disposables: IDisposable;
 }
 
@@ -41,11 +44,16 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 
 	readonly templateId = AgentSessionRenderer.TEMPLATE_ID;
 
+	constructor(
+		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
+		@IProductService private readonly productService: IProductService
+	) { }
+
 	renderTemplate(container: HTMLElement): IAgentSessionItemTemplate {
 		container.parentElement?.parentElement?.querySelector('.monaco-tl-twistie')?.classList.add('force-no-twistie'); // hack, but no API for hiding twistie on tree
 
 		const disposables = new DisposableStore();
-		const elementDisposables = disposables.add(new DisposableStore());
+		const elementDisposable = disposables.add(new DisposableStore());
 
 		const elements = h(
 			'div.agent-session-item@item',
@@ -79,32 +87,50 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 			timestamp: elements.timestamp,
 			diffAdded: elements.diffAdded,
 			diffRemoved: elements.diffRemoved,
-			elementDisposables,
+			elementDisposable,
 			disposables
 		};
 	}
 
 	renderElement(session: ITreeNode<IAgentSessionViewModel, FuzzyScore>, index: number, template: IAgentSessionItemTemplate, details?: ITreeElementRenderDetails): void {
-		template.elementDisposables.clear();
+		template.elementDisposable.clear();
 
-		template.icon.className = `agent-session-icon ${this.getIconClassName(session.element)}`;
+		template.icon.className = `agent-session-icon ${ThemeIcon.asClassName(this.statusToIcon(session.element.status))}`;
 
-		template.title.setLabel(session.element.title, undefined, { matches: createMatches(session.filterData) });
+		template.title.setLabel(session.element.label, undefined, { matches: createMatches(session.filterData) });
 
-		const { diff } = session.element;
-		template.diffAdded.textContent = diff ? `+${diff.added}` : '';
-		template.diffRemoved.textContent = diff ? `-${diff.removed}` : '';
+		const { statistics: diff } = session.element;
+		template.diffAdded.textContent = diff ? `+${diff.insertions}` : '';
+		template.diffRemoved.textContent = diff ? `-${diff.deletions}` : '';
 
-		template.description.textContent = session.element.description;
-		template.timestamp.textContent = fromNow(session.element.timing.start, true, false, true);
+		if (typeof session.element.description === 'string') {
+			template.description.textContent = session.element.description;
+		} else {
+			template.elementDisposable.add(this.markdownRendererService.render(session.element.description, {
+				sanitizerConfig: {
+					replaceWithPlaintext: true,
+					allowedTags: {
+						override: allowedChatMarkdownHtmlTags,
+					},
+					allowedLinkSchemes: { augment: [this.productService.urlProtocol] }
+				},
+			}, template.description));
+		}
+
+		template.timestamp.textContent = fromNow(session.element.timing.startTime, true, false, true);
 	}
 
-	private getIconClassName(session: IAgentSessionViewModel): string {
-		if (session.timing.end === undefined) {
-			return `${ThemeIcon.asClassName(Codicon.loading)} codicon-modifier-spin`;
-		} else {
-			return ThemeIcon.asClassName(Codicon.check);
+	private statusToIcon(status?: AgentSessionStatus): ThemeIcon {
+		switch (status) {
+			case AgentSessionStatus.InProgress:
+				return ThemeIcon.modify(Codicon.loading, 'spin');
+			case AgentSessionStatus.Completed:
+				return Codicon.pass;
+			case AgentSessionStatus.Failed:
+				return Codicon.error;
 		}
+
+		return Codicon.circleOutline;
 	}
 
 	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<IAgentSessionViewModel>, FuzzyScore>, index: number, templateData: IAgentSessionItemTemplate, details?: ITreeElementRenderDetails): void {
@@ -112,7 +138,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 	}
 
 	disposeElement(element: ITreeNode<IAgentSessionViewModel, FuzzyScore>, index: number, template: IAgentSessionItemTemplate, details?: ITreeElementRenderDetails): void {
-		template.elementDisposables.clear();
+		template.elementDisposable.clear();
 	}
 
 	disposeTemplate(templateData: IAgentSessionItemTemplate): void {
@@ -138,7 +164,7 @@ export class AgentSessionsAccessibilityProvider implements IListAccessibilityPro
 	}
 
 	getAriaLabel(element: IAgentSessionViewModel): string | null {
-		return element.title;
+		return element.label;
 	}
 }
 
@@ -180,7 +206,7 @@ export class AgentSessionsFilter extends Disposable implements ITreeFilter<IAgen
 			return TreeVisibility.Visible;
 		}
 
-		const score = matchesFuzzy(this._pattern, element.title, true);
+		const score = matchesFuzzy(this._pattern, element.label, true);
 		if (score) {
 			const fuzzyScore: FuzzyScore = [0, 0];
 			for (let matchIndex = score.length - 1; matchIndex >= 0; matchIndex--) {
