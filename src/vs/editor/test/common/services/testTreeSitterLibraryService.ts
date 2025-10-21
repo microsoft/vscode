@@ -11,11 +11,15 @@ export class TestTreeSitterLibraryService implements ITreeSitterLibraryService {
 	readonly _serviceBrand: undefined;
 
 	getParserClass(): Promise<typeof Parser> {
-		throw new Error('getParserClass is not implemented in TestTreeSitterLibraryService');
+		throw new Error('not implemented in TestTreeSitterLibraryService');
 	}
 
 	supportsLanguage(languageId: string, reader: IReader | undefined): boolean {
 		return false;
+	}
+
+	async getLanguage(languageId: string): Promise<Language> {
+		throw new Error('not implemented in TestTreeSitterLibraryService');
 	}
 
 	getLanguageSync(languageId: string, reader: IReader | undefined): Language | undefined {

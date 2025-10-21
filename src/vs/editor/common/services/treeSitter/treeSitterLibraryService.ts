@@ -25,6 +25,13 @@ export interface ITreeSitterLibraryService {
 	supportsLanguage(languageId: string, reader: IReader | undefined): boolean;
 
 	/**
+	 * Gets the Tree-sitter Language object.
+	 * @param languageId The language identifier to retrieve.
+	 * @param reader Optional observable reader.
+	 */
+	getLanguage(languageId: string): Promise<Language>;
+
+	/**
 	 * Gets the Tree-sitter Language object synchronously.
 	 *
 	 * Note that This method runs synchronously and may fail if the language is

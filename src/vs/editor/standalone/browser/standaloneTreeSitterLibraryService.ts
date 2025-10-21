@@ -11,30 +11,30 @@ export class StandaloneTreeSitterLibraryService implements ITreeSitterLibrarySer
 	readonly _serviceBrand: undefined;
 
 	getParserClass(): Promise<typeof Parser> {
-		throw new Error('getParserClass is not implemented in StandaloneTreeSitterLibraryService');
+		throw new Error('not implemented in StandaloneTreeSitterLibraryService');
 	}
 
 	supportsLanguage(languageId: string, reader: IReader | undefined): boolean {
 		return false;
 	}
 
+	async getLanguage(languageId: string): Promise<Language> {
+		throw new Error('not implemented in TestTreeSitterLibraryService');
+	}
+
 	getLanguageSync(languageId: string, reader: IReader | undefined): Language | undefined {
 		return undefined;
 	}
-	/**
-	 * Return value of null indicates that there are no injection queries for this language.
-	 * @param languageId
-	 * @param reader
-	 */
+
 	getInjectionQueriesSync(languageId: string, reader: IReader | undefined): Query | null | undefined {
 		return null;
 	}
-	/**
-	 * Return value of null indicates that there are no highlights queries for this language.
-	 * @param languageId
-	 * @param reader
-	 */
+
 	getHighlightingQueriesSync(languageId: string, reader: IReader | undefined): Query | null | undefined {
 		return null;
+	}
+
+	async createQuery(languageId: string, querySource: string, reader: IReader | undefined): Promise<Query | null | undefined> {
+		return undefined;
 	}
 }
