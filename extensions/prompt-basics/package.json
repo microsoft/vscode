@@ -45,7 +45,6 @@
         ],
         "extensions": [
           ".agent.md",
-          ".vscode-agent.md",
           ".chatmode.md"
         ],
         "configuration": "./language-configuration.json"
