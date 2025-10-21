@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jlelong/vscode-latex-basics/commit/6bd99800f7b2cbd0e36cecb56fe1936da5affadb",
+	"version": "https://github.com/jlelong/vscode-latex-basics/commit/ca85e20304afcb5c6a28a6e0b9fc1ead8f124001",
 	"name": "TeX",
 	"scopeName": "text.tex",
 	"patterns": [
@@ -30,6 +30,9 @@
 		{
 			"match": "\\\\\\\\",
 			"name": "keyword.control.newline.tex"
+		},
+		{
+			"include": "#ifnextchar"
 		},
 		{
 			"include": "#macro-general"
@@ -85,6 +88,10 @@
 					"include": "#conditionals"
 				}
 			]
+		},
+		"ifnextchar": {
+			"match": "\\\\@ifnextchar[({\\[]",
+			"name": "keyword.control.ifnextchar.tex"
 		},
 		"macro-control": {
 			"match": "(\\\\)(backmatter|csname|else|endcsname|fi|frontmatter|mainmatter|unless|if(case|cat|csname|defined|dim|eof|false|fontchar|hbox|hmode|inner|mmode|num|odd|true|vbox|vmode|void|x)?)(?![a-zA-Z@])",
