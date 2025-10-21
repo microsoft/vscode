@@ -23,6 +23,7 @@ import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { combinedDisposable, Disposable, DisposableStore, IDisposable, MutableDisposable, thenIfNotDisposed, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { filter } from '../../../../base/common/objects.js';
 import { autorun, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { basename, extUri, isEqual } from '../../../../base/common/resources.js';
 import { MicrotaskDelay } from '../../../../base/common/symbols.js';
@@ -57,7 +58,7 @@ import { ChatEntitlement, IChatEntitlementService } from '../../../services/chat
 import { IWorkbenchLayoutService, Position } from '../../../services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { checkModeOption } from '../common/chat.js';
-import { IChatAgentCommand, IChatAgentData, IChatAgentService } from '../common/chatAgents.js';
+import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, inChatEditingSessionContextKey, ModifiedFileEntryState } from '../common/chatEditingService.js';
 import { IChatLayoutService } from '../common/chatLayoutService.js';
@@ -246,6 +247,18 @@ class ChatHistoryListRenderer implements IListRenderer<IChatHistoryListItem, ICh
 	}
 }
 
+const supportsAllAttachments: Required<IChatAgentAttachmentCapabilities> = {
+	supportsFileAttachments: true,
+	supportsToolAttachments: true,
+	supportsMCPAttachments: true,
+	supportsImageAttachments: true,
+	supportsSearchResultAttachments: true,
+	supportsInstructionAttachments: true,
+	supportsSourceControlAttachments: true,
+	supportsProblemAttachments: true,
+	supportsSymbolAttachments: true,
+};
+
 export class ChatWidget extends Disposable implements IChatWidget {
 	public static readonly CONTRIBS: { new(...args: [IChatWidget, ...any]): IChatWidgetContrib }[] = [];
 
@@ -365,11 +378,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	};
 	private readonly _lockedToCodingAgentContextKey: IContextKey<boolean>;
 	private readonly _agentSupportsAttachmentsContextKey: IContextKey<boolean>;
-	private _supportsToolAttachments: boolean = true;
-	private _supportsMCPAttachments: boolean = true;
-	private _supportsFileAttachments: boolean = true;
-	private _supportsImageAttachments: boolean = true;
-
+	private _attachmentCapabilities: IChatAgentAttachmentCapabilities = supportsAllAttachments;
 	private lastWelcomeViewChatMode: ChatModeKind | undefined;
 
 	// Cache for prompt file descriptions to avoid async calls during rendering
@@ -720,37 +729,20 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private _updateAgentCapabilitiesContextKeys(agent: IChatAgentData | undefined): void {
-		this._supportsFileAttachments = true;
-		this._supportsToolAttachments = true;
-		this._supportsMCPAttachments = true;
-		this._supportsImageAttachments = true;
-
 		// Check if the agent has capabilities defined directly
 		const capabilities = agent?.capabilities ?? (this._lockedAgent ? this.chatSessionsService.getCapabilitiesForSessionType(this._lockedAgent.id) : undefined);
-		if (capabilities) {
-			this._supportsFileAttachments = capabilities.supportsFileAttachments ?? false;
-			this._supportsToolAttachments = capabilities.supportsToolAttachments ?? false;
-			this._supportsMCPAttachments = capabilities.supportsMCPAttachments ?? false;
-			this._supportsImageAttachments = capabilities.supportsImageAttachments ?? false;
-		}
+		this._attachmentCapabilities = capabilities ?? supportsAllAttachments;
 
-		this._agentSupportsAttachmentsContextKey.set(this._supportsFileAttachments || this._supportsImageAttachments || this._supportsToolAttachments || this._supportsMCPAttachments);
+		const supportsAttachments = Object.keys(filter(this._attachmentCapabilities, (key, value) => value === true)).length > 0;
+		this._agentSupportsAttachmentsContextKey.set(supportsAttachments);
 	}
 
 	get supportsFileReferences(): boolean {
 		return !!this.viewOptions.supportsFileReferences;
 	}
 
-	get supportsToolAttachments(): boolean {
-		return this._supportsToolAttachments;
-	}
-
-	get supportsMCPAttachments(): boolean {
-		return this._supportsMCPAttachments;
-	}
-
-	get supportsImageAttachments(): boolean {
-		return this._supportsImageAttachments;
+	get attachmentCapabilities(): IChatAgentAttachmentCapabilities {
+		return this._attachmentCapabilities;
 	}
 
 	get input(): ChatInputPart {
@@ -1100,7 +1092,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			let welcomeContent: IChatViewWelcomeContent;
 			const defaultAgent = this.chatAgentService.getDefaultAgent(this.location, this.input.currentModeKind);
 			let additionalMessage = defaultAgent?.metadata.additionalWelcomeMessage;
-			if (!additionalMessage) {
+			if (!additionalMessage && !this._lockedAgent) {
 				additionalMessage = this._getGenerateInstructionsMessage();
 			}
 			if (this.shouldShowChatSetup()) {
@@ -2965,7 +2957,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.agentInInput.set(!!currentAgent);
 	}
 
-	private async _applyPromptMetadata({ mode, tools, model }: PromptHeader, requestInput: IChatRequestInputOptions): Promise<void> {
+	private async _applyPromptMetadata({ agent: mode, tools, model }: PromptHeader, requestInput: IChatRequestInputOptions): Promise<void> {
 
 		const currentMode = this.input.currentModeObs.get();
 
@@ -2973,7 +2965,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			mode = ChatModeKind.Agent;
 		}
 
-		// switch to appropriate chat mode if needed
+		// switch to appropriate agent if needed
 		if (mode && mode !== currentMode.name) {
 			// Find the mode object to get its kind
 			const chatMode = this.chatModeService.findModeByName(mode);

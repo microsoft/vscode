@@ -34,9 +34,9 @@ import { TestContextService, TestUserDataProfileService } from '../../../../../.
 import { ChatRequestVariableSet, isPromptFileVariableEntry, toFileVariableEntry } from '../../../../common/chatVariableEntries.js';
 import { ComputeAutomaticInstructions, newInstructionsCollectionEvent } from '../../../../common/promptSyntax/computeAutomaticInstructions.js';
 import { PromptsConfig } from '../../../../common/promptSyntax/config/config.js';
-import { INSTRUCTION_FILE_EXTENSION, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, MODE_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../../common/promptSyntax/config/promptFileLocations.js';
+import { INSTRUCTION_FILE_EXTENSION, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../../common/promptSyntax/config/promptFileLocations.js';
 import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
-import { ICustomChatMode, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
+import { ICustomAgent, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
 import { PromptsService } from '../../../../common/promptSyntax/service/promptsServiceImpl.js';
 import { MockFilesystem } from '../testUtils/mockFilesystem.js';
 
@@ -61,7 +61,7 @@ suite('PromptsService', () => {
 		testConfigService.setUserConfiguration(PromptsConfig.USE_NESTED_AGENT_MD, false);
 		testConfigService.setUserConfiguration(PromptsConfig.INSTRUCTIONS_LOCATION_KEY, { [INSTRUCTIONS_DEFAULT_SOURCE_FOLDER]: true });
 		testConfigService.setUserConfiguration(PromptsConfig.PROMPT_LOCATIONS_KEY, { [PROMPT_DEFAULT_SOURCE_FOLDER]: true });
-		testConfigService.setUserConfiguration(PromptsConfig.MODE_LOCATION_KEY, { [MODE_DEFAULT_SOURCE_FOLDER]: true });
+		testConfigService.setUserConfiguration(PromptsConfig.MODE_LOCATION_KEY, { [LEGACY_MODE_DEFAULT_SOURCE_FOLDER]: true });
 
 		instaService.stub(IConfigurationService, testConfigService);
 		instaService.stub(IWorkbenchEnvironmentService, {});
@@ -127,7 +127,7 @@ suite('PromptsService', () => {
 								'---',
 								'description: \'Root prompt description.\'',
 								'tools: [\'my-tool1\', , true]',
-								'mode: "agent" ',
+								'agent: "agent" ',
 								'---',
 								'## Files',
 								'\t- this file #file:folder1/file3.prompt.md ',
@@ -146,7 +146,7 @@ suite('PromptsService', () => {
 									contents: [
 										'---',
 										'tools: [ false, \'my-tool1\' , ]',
-										'mode: \'edit\'',
+										'agent: \'edit\'',
 										'---',
 										'',
 										'[](./some-other-folder/non-existing-folder)',
@@ -163,7 +163,7 @@ suite('PromptsService', () => {
 												'---',
 												'tools: [\'my-tool1\', "my-tool2", true, , ]',
 												'something: true',
-												'mode: \'ask\'\t',
+												'agent: \'ask\'\t',
 												'description: "File 4 splendid description."',
 												'---',
 												'this file has a non-existing #file:./some-non-existing/file.prompt.md\t\treference',
@@ -222,7 +222,7 @@ suite('PromptsService', () => {
 			assert.deepEqual(result1.uri, rootFileUri);
 			assert.deepEqual(result1.header?.description, 'Root prompt description.');
 			assert.deepEqual(result1.header?.tools, ['my-tool1']);
-			assert.deepEqual(result1.header?.mode, 'agent');
+			assert.deepEqual(result1.header?.agent, 'agent');
 			assert.ok(result1.body);
 			assert.deepEqual(
 				result1.body.fileReferences.map(r => result1.body?.resolveFilePath(r.content)),
@@ -231,14 +231,14 @@ suite('PromptsService', () => {
 			assert.deepEqual(
 				result1.body.variableReferences,
 				[
-					{ name: 'my-tool', range: new Range(10, 5, 10, 12), offset: 239 },
-					{ name: 'my-other-tool', range: new Range(11, 5, 11, 18), offset: 251 },
+					{ name: 'my-tool', range: new Range(10, 5, 10, 12), offset: 240 },
+					{ name: 'my-other-tool', range: new Range(11, 5, 11, 18), offset: 252 },
 				]
 			);
 
 			const result2 = await service.parseNew(file3, CancellationToken.None);
 			assert.deepEqual(result2.uri, file3);
-			assert.deepEqual(result2.header?.mode, 'edit');
+			assert.deepEqual(result2.header?.agent, 'edit');
 			assert.ok(result2.body);
 			assert.deepEqual(
 				result2.body.fileReferences.map(r => result2.body?.resolveFilePath(r.content)),
@@ -737,14 +737,14 @@ suite('PromptsService', () => {
 		});
 	});
 
-	suite('getCustomChatModes', () => {
+	suite('getCustomAgents', () => {
 		teardown(() => {
 			sinon.restore();
 		});
 
 
 		test('header with handOffs', async () => {
-			const rootFolderName = 'custom-modes-with-handoffs';
+			const rootFolderName = 'custom-agents-with-handoffs';
 			const rootFolder = `/${rootFolderName}`;
 			const rootFolderUri = URI.file(rootFolder);
 
@@ -755,13 +755,13 @@ suite('PromptsService', () => {
 					name: rootFolderName,
 					children: [
 						{
-							name: '.github/chatmodes',
+							name: '.github/agents',
 							children: [
 								{
-									name: 'mode1.chatmode.md',
+									name: 'agent1.vscode-agent.md',
 									contents: [
 										'---',
-										'description: \'Mode file 1.\'',
+										'description: \'Agent file 1.\'',
 										'handoffs: [ { agent: "Edit", label: "Do it", prompt: "Do it now" } ]',
 										'---',
 									],
@@ -772,20 +772,20 @@ suite('PromptsService', () => {
 					],
 				}])).mock();
 
-			const result = (await service.getCustomChatModes(CancellationToken.None)).map(mode => ({ ...mode, uri: URI.from(mode.uri) }));
-			const expected: ICustomChatMode[] = [
+			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
+			const expected: ICustomAgent[] = [
 				{
-					name: 'mode1',
-					description: 'Mode file 1.',
+					name: 'agent1',
+					description: 'Agent file 1.',
 					handOffs: [{ agent: 'Edit', label: 'Do it', prompt: 'Do it now', send: undefined }],
-					modeInstructions: {
+					agentInstructions: {
 						content: '',
 						toolReferences: [],
 						metadata: undefined
 					},
 					model: undefined,
 					tools: undefined,
-					uri: URI.joinPath(rootFolderUri, '.github/chatmodes/mode1.chatmode.md'),
+					uri: URI.joinPath(rootFolderUri, '.github/agents/agent1.vscode-agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
 			];
@@ -793,12 +793,12 @@ suite('PromptsService', () => {
 			assert.deepEqual(
 				result,
 				expected,
-				'Must get custom chat modes.',
+				'Must get custom agents.',
 			);
 		});
 
 		test('body with tool references', async () => {
-			const rootFolderName = 'custom-modes';
+			const rootFolderName = 'custom-agents';
 			const rootFolder = `/${rootFolderName}`;
 			const rootFolderUri = URI.file(rootFolder);
 
@@ -810,20 +810,20 @@ suite('PromptsService', () => {
 					name: rootFolderName,
 					children: [
 						{
-							name: '.github/chatmodes',
+							name: '.github/agents',
 							children: [
 								{
-									name: 'mode1.chatmode.md',
+									name: 'agent1.vscode-agent.md',
 									contents: [
 										'---',
-										'description: \'Mode file 1.\'',
+										'description: \'Agent file 1.\'',
 										'tools: [ tool1, tool2 ]',
 										'---',
 										'Do it with #tool1',
 									],
 								},
 								{
-									name: 'mode2.chatmode.md',
+									name: 'agent2.vscode-agent.md',
 									contents: [
 										'First use #tool2\nThen use #tool1',
 									],
@@ -834,25 +834,25 @@ suite('PromptsService', () => {
 					],
 				}])).mock();
 
-			const result = (await service.getCustomChatModes(CancellationToken.None)).map(mode => ({ ...mode, uri: URI.from(mode.uri) }));
-			const expected: ICustomChatMode[] = [
+			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
+			const expected: ICustomAgent[] = [
 				{
-					name: 'mode1',
-					description: 'Mode file 1.',
+					name: 'agent1',
+					description: 'Agent file 1.',
 					tools: ['tool1', 'tool2'],
-					modeInstructions: {
+					agentInstructions: {
 						content: 'Do it with #tool1',
 						toolReferences: [{ name: 'tool1', range: { start: 11, endExclusive: 17 } }],
 						metadata: undefined
 					},
 					handOffs: undefined,
 					model: undefined,
-					uri: URI.joinPath(rootFolderUri, '.github/chatmodes/mode1.chatmode.md'),
+					uri: URI.joinPath(rootFolderUri, '.github/agents/agent1.vscode-agent.md'),
 					source: { storage: PromptsStorage.local },
 				},
 				{
-					name: 'mode2',
-					modeInstructions: {
+					name: 'agent2',
+					agentInstructions: {
 						content: 'First use #tool2\nThen use #tool1',
 						toolReferences: [
 							{ name: 'tool1', range: { start: 26, endExclusive: 32 } },
@@ -860,7 +860,7 @@ suite('PromptsService', () => {
 						],
 						metadata: undefined
 					},
-					uri: URI.joinPath(rootFolderUri, '.github/chatmodes/mode2.chatmode.md'),
+					uri: URI.joinPath(rootFolderUri, '.github/agents/agent2.vscode-agent.md'),
 					source: { storage: PromptsStorage.local },
 				}
 			];
@@ -868,9 +868,12 @@ suite('PromptsService', () => {
 			assert.deepEqual(
 				result,
 				expected,
-				'Must get custom chat modes.',
+				'Must get custom agents.',
 			);
 		});
+	});
+
+	suite('listPromptFiles - extensions', () => {
 
 		test('Contributed prompt file', async () => {
 			const uri = URI.parse('file://extensions/my-extension/textMate.instructions.md');
