@@ -941,7 +941,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 						r();
 					}));
 				}),
-				await timeout(timeoutMs),
+				timeout(timeoutMs),
 			]);
 			store.dispose();
 		}
