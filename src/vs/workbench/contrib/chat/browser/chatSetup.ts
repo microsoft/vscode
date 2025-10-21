@@ -1268,7 +1268,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				const params = new URLSearchParams(url.query);
 				this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: CHAT_SETUP_ACTION_ID, from: 'url', detail: params.get('referrer') ?? undefined });
 
-				const modeParam = params.get('mode');
+				const modeParam = params.get('agent') ?? params.get('mode');
 				let modeToUse: ChatModeKind | string | undefined;
 				if (modeParam) {
 					// check if the given param is a valid mode ID
