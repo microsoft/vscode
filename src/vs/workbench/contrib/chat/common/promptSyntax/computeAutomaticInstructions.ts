@@ -21,7 +21,7 @@ import { IToolData } from '../languageModelToolsService.js';
 import { PromptsConfig } from './config/config.js';
 import { isPromptOrInstructionsFile } from './config/promptFileLocations.js';
 import { PromptsType } from './promptTypes.js';
-import { ParsedPromptFile } from './service/newPromptsParser.js';
+import { ParsedPromptFile } from './promptFileParser.js';
 import { IPromptPath, IPromptsService } from './service/promptsService.js';
 
 export type InstructionsCollectionEvent = {
