@@ -7,15 +7,14 @@ import { CHAT_CATEGORY, CHAT_CONFIG_MENU_ID } from '../actions/chatActions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { localize, localize2 } from '../../../../../nls.js';
-import { PromptsConfig } from '../../common/promptSyntax/config/config.js';
 import { PromptFilePickers } from './pickers/promptFilePickers.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ChatViewId } from '../chat.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 
 abstract class ConfigAgentActionImpl extends Action2 {
 	public override async run(accessor: ServicesAccessor): Promise<void> {

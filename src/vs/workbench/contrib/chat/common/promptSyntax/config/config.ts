@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { PromptsType } from '../promptTypes.js';
 import { INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, getPromptFileDefaultLocation } from './promptFileLocations.js';

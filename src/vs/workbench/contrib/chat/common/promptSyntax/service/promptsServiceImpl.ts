@@ -162,7 +162,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		}
 
 		const userHome = this.userDataService.currentProfile.promptsHome;
-		result.push({ uri, storage: PromptsStorage.user, type });
+		result.push({ uri: userHome, storage: PromptsStorage.user, type });
 
 		return result;
 	}

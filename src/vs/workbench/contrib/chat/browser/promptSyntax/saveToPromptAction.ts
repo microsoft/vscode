@@ -6,10 +6,8 @@
 import { localize2 } from '../../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { PromptsConfig } from '../../common/promptSyntax/config/config.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { chatSubcommandLeader, IParsedChatRequest } from '../../common/chatParserTypes.js';

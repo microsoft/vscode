@@ -9,7 +9,6 @@ import { Range } from '../../../../../../editor/common/core/range.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../../nls.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IMarkerData, IMarkerService, MarkerSeverity } from '../../../../../../platform/markers/common/markers.js';
 import { IChatMode, IChatModeService } from '../../chatModes.js';
@@ -18,7 +17,6 @@ import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../langua
 import { ILanguageModelToolsService } from '../../languageModelToolsService.js';
 import { getPromptsTypeForLanguageId, PromptsType } from '../promptTypes.js';
 import { IArrayValue, IHeaderAttribute, ParsedPromptFile } from '../promptFileParser.js';
-import { PromptsConfig } from '../config/config.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Delayer } from '../../../../../../base/common/async.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
@@ -411,7 +409,6 @@ export class PromptValidatorContribution extends Disposable {
 	constructor(
 		@IModelService private modelService: IModelService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IConfigurationService private configService: IConfigurationService,
 		@IMarkerService private readonly markerService: IMarkerService,
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,

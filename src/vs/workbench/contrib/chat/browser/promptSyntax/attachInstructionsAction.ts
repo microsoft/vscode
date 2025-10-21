@@ -9,17 +9,16 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
-import { PromptsConfig } from '../../common/promptSyntax/config/config.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { PromptFilePickers } from './pickers/promptFilePickers.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPicker } from '../chatContextPickService.js';
 import { IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { getCleanPromptName } from '../../common/promptSyntax/config/promptFileLocations.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { INSTRUCTIONS_LANGUAGE_ID, PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { compare } from '../../../../../base/common/strings.js';
 import { IPromptFileVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/chatVariableEntries.js';
@@ -28,7 +27,6 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 
 /**
  * Action ID for the `Attach Instruction` action.
@@ -222,7 +220,6 @@ export class ChatInstructionsPickerPick implements IChatContextPickerItem {
 
 	constructor(
 		@IPromptsService private readonly promptsService: IPromptsService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) { }
 
 	isEnabled(widget: IChatWidget): Promise<boolean> | boolean {

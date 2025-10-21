@@ -10,14 +10,12 @@ import { SnippetController2 } from '../../../../../editor/contrib/snippet/browse
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService, NeverShowAgainScope, Severity } from '../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { PromptsConfig } from '../../common/promptSyntax/config/config.js';
 import { getLanguageIdForPromptsType, PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { IUserDataSyncEnablementService, SyncResource } from '../../../../../platform/userDataSync/common/userDataSync.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
