@@ -917,19 +917,19 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	async runCommand(commandLine: string, shouldExecute: boolean): Promise<void> {
 		let commandDetection = this.capabilities.get(TerminalCapability.CommandDetection);
-		const timeOutValue = this._configurationService.getValue(TerminalSettingId.ShellIntegrationTimeout) as number | undefined;
+		const timeoutValue = this._configurationService.getValue(TerminalSettingId.ShellIntegrationTimeout) as number | undefined;
 		let timeoutMs: number;
 
-		if (timeOutValue === undefined || typeof timeOutValue !== 'number' || timeOutValue < 0) {
+		if (timeoutValue === undefined || typeof timeoutValue !== 'number' || timeoutValue < 0) {
 			const siEnabled = this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled) === true;
 			// Discuss: This default from copilot chat setting feels pretty slow..
 			timeoutMs = siEnabled ? 5000 : (this.isRemote ? 3000 : 2000);
-		} else if (timeOutValue === 0) {
+		} else if (timeoutValue === 0) {
 			// Discuss: This is supposed to be fastest value.
 			// Past: We used to have Promise race between onDidAddCommandDetectionCapability and timeout of 2000ms.
 			timeoutMs = 500;
 		} else {
-			timeoutMs = Math.max(timeOutValue, 500);
+			timeoutMs = Math.max(timeoutValue, 500);
 		}
 
 		if (!commandDetection) {
