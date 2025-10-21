@@ -1566,7 +1566,7 @@ export function registerChatActions() {
 			super({
 				id: 'workbench.action.chat.generateInstructions',
 				title: localize2('generateInstructions', "Generate Workspace Instructions File"),
-				shortTitle: localize2('generateInstructions.short', "Generate Agent Instructions"),
+				shortTitle: localize2('generateInstructions.short', "Generate Chat Instructions"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.sparkle,
 				f1: true,
@@ -1574,7 +1574,7 @@ export function registerChatActions() {
 				menu: {
 					id: CHAT_CONFIG_MENU_ID,
 					when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
-					order: 13,
+					order: 11,
 					group: '1_level'
 				}
 			});
@@ -1624,7 +1624,7 @@ Update \`.github/copilot-instructions.md\` for the user, then ask for feedback o
 					id: CHAT_CONFIG_MENU_ID,
 					when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
 					order: 15,
-					group: '2_configure'
+					group: '3_configure'
 				}
 			});
 		}
@@ -1637,7 +1637,7 @@ Update \`.github/copilot-instructions.md\` for the user, then ask for feedback o
 
 	MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 		submenu: CHAT_CONFIG_MENU_ID,
-		title: localize2('config.label', "Configure Chat..."),
+		title: localize2('config.label', "Configure Chat"),
 		group: 'navigation',
 		when: ContextKeyExpr.equals('view', ChatViewId),
 		icon: Codicon.gear,
@@ -1788,7 +1788,7 @@ export async function handleCurrentEditingSession(currentEditingSession: IChatEd
 }
 
 /**
- * Returns whether we can switch the chat mode, based on whether the user had to agree to clear the session, false to cancel.
+ * Returns whether we can switch the agent, based on whether the user had to agree to clear the session, false to cancel.
  */
 export async function handleModeSwitch(
 	accessor: ServicesAccessor,
@@ -1806,7 +1806,7 @@ export async function handleModeSwitch(
 	const needToClearEdits = (!configurationService.getValue(ChatConfiguration.Edits2Enabled) && (fromMode === ChatModeKind.Edit || toMode === ChatModeKind.Edit)) && requestCount > 0;
 	if (needToClearEdits) {
 		// If not using edits2 and switching into or out of edit mode, ask to discard the session
-		const phrase = localize('switchMode.confirmPhrase', "Switching chat modes will end your current edit session.");
+		const phrase = localize('switchMode.confirmPhrase', "Switching agents will end your current edit session.");
 
 		const currentEdits = editingSession.entries.get();
 		const undecidedEdits = currentEdits.filter((edit) => edit.state.get() === ModifiedFileEntryState.Modified);
@@ -1819,7 +1819,7 @@ export async function handleModeSwitch(
 		} else {
 			const confirmation = await dialogService.confirm({
 				title: localize('agent.newSession', "Start new session?"),
-				message: localize('agent.newSessionMessage', "Changing the chat mode will end your current edit session. Would you like to change the chat mode?"),
+				message: localize('agent.newSessionMessage', "Changing the agent will end your current edit session. Would you like to change the agent?"),
 				primaryButton: localize('agent.newSession.confirm', "Yes"),
 				type: 'info'
 			});

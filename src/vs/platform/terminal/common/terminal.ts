@@ -169,6 +169,7 @@ export type ITerminalTabLayoutInfoById = IRawTerminalTabLayoutInfo<number>;
 
 export interface IRawTerminalsLayoutInfo<T> {
 	tabs: IRawTerminalTabLayoutInfo<T>[];
+	background: T[] | null;
 }
 
 export interface IPtyHostAttachTarget {
@@ -591,6 +592,12 @@ export interface IShellLaunchConfig {
 	 * as normal. The hidden terminals will not be restored when the workspace is next opened.
 	 */
 	hideFromUser?: boolean;
+
+	/**
+	 * Whether to force the terminal to persist across sessions regardless of the other
+	 * launch config, like `hideFromUser`.
+	 */
+	forcePersist?: boolean;
 
 	/**
 	 * Whether this terminal is not a terminal that the user directly created and uses, but rather

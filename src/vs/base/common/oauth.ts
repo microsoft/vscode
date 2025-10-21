@@ -257,6 +257,13 @@ export interface IAuthorizationServerMetadata {
 	 * OPTIONAL. JSON array containing a list of PKCE code challenge methods supported.
 	 */
 	code_challenge_methods_supported?: string[];
+
+	/**
+	 * OPTIONAL. Boolean flag indicating whether the authorization server supports the
+	 * client_id_metadata document.
+	 * ref https://datatracker.ietf.org/doc/html/draft-parecki-oauth-client-id-metadata-document-03
+	 */
+	client_id_metadata_document_supported?: boolean;
 }
 
 /**

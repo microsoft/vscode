@@ -8,7 +8,7 @@ import { EditSuggestionId } from '../../../../../../editor/common/textModelEditS
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { TelemetryTrustedValue } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
-import { DataChannelForwardingTelemetryService } from '../../../../../../platform/dataChannel/browser/forwardingTelemetryService.js';
+import { DataChannelForwardingTelemetryService, forwardToChannelIf, isCopilotLikeExtension } from '../../../../../../platform/dataChannel/browser/forwardingTelemetryService.js';
 import { IAiEditTelemetryService, IEditTelemetryCodeAcceptedData, IEditTelemetryCodeSuggestedData } from './aiEditTelemetryService.js';
 
 export class AiEditTelemetryServiceImpl implements IAiEditTelemetryService {
@@ -46,7 +46,7 @@ export class AiEditTelemetryServiceImpl implements IAiEditTelemetryService {
 			applyCodeBlockSuggestionId: string | undefined;
 		}, {
 			owner: 'hediet';
-			comment: 'Reports when code from AI is suggested to the user.';
+			comment: 'Reports when code from AI is suggested to the user. @sentToGitHub';
 
 			eventId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Unique identifier for this event.' };
 			suggestionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Unique identifier for this suggestion. Not always set.' };
@@ -86,6 +86,8 @@ export class AiEditTelemetryServiceImpl implements IAiEditTelemetryService {
 			modeId: data.modeId,
 			modelId: new TelemetryTrustedValue(data.modelId),
 			applyCodeBlockSuggestionId: data.applyCodeBlockSuggestionId as unknown as string,
+
+			...forwardToChannelIf(isCopilotLikeExtension(data.source?.extensionId)),
 		});
 
 		return suggestionId;
@@ -123,7 +125,7 @@ export class AiEditTelemetryServiceImpl implements IAiEditTelemetryService {
 			| 'accept';
 		}, {
 			owner: 'hediet';
-			comment: 'Reports when code from AI is accepted by the user.';
+			comment: 'Reports when code from AI is accepted by the user. @sentToGitHub';
 
 			eventId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Unique identifier for this event.' };
 			suggestionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Unique identifier for this suggestion. Not always set.' };
@@ -166,6 +168,8 @@ export class AiEditTelemetryServiceImpl implements IAiEditTelemetryService {
 			modelId: new TelemetryTrustedValue(data.modelId),
 			applyCodeBlockSuggestionId: data.applyCodeBlockSuggestionId as unknown as string,
 			acceptanceMethod: data.acceptanceMethod,
+
+			...forwardToChannelIf(isCopilotLikeExtension(data.source?.extensionId)),
 		});
 	}
 }

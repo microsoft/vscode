@@ -10,6 +10,7 @@ declare module 'vscode' {
 	export interface QuickPick<T extends QuickPickItem> extends QuickInput {
 		/**
 		 * An optional prompt text providing some ask or explanation to the user.
+		 * Shown below the input box and above the quick pick items.
 		 */
 		prompt: string | undefined;
 	}
@@ -17,6 +18,7 @@ declare module 'vscode' {
 	export interface QuickPickOptions {
 		/**
 		 * An optional prompt text providing some ask or explanation to the user.
+		 * Shown below the input box and above the quick pick items.
 		 */
 		prompt?: string;
 	}
