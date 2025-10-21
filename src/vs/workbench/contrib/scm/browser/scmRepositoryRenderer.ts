@@ -5,7 +5,7 @@
 
 import './media/scm.css';
 import { IDisposable, DisposableStore, combinedDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../base/common/observable.js';
+import { autorun, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { append, $ } from '../../../../base/browser/dom.js';
 import { ISCMProvider, ISCMRepository, ISCMViewService } from '../common/scm.js';
 import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge.js';
@@ -30,6 +30,7 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { shorten } from '../../../../base/common/labels.js';
 import { dirname } from '../../../../base/common/resources.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 
 export class RepositoryActionRunner extends ActionRunner {
 	constructor(private readonly getSelectedRepositories: () => ISCMRepository[]) {
@@ -107,9 +108,9 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 	renderElement(arg: ISCMRepository | ITreeNode<ISCMRepository, FuzzyScore>, index: number, templateData: RepositoryTemplate): void {
 		const repository = isSCMRepository(arg) ? arg : arg.element;
 
-		if (ThemeIcon.isThemeIcon(repository.provider.iconPath)) {
-			templateData.icon.classList.add(...ThemeIcon.asClassNameArray(repository.provider.iconPath));
-		}
+		// if (ThemeIcon.isThemeIcon(repository.provider.iconPath)) {
+		// 	templateData.icon.classList.add(...ThemeIcon.asClassNameArray(repository.provider.iconPath));
+		// }
 
 		// Use the description to disambiguate repositories with the same name and have
 		// a `rootUri`. Use the `provider.rootUri` for disambiguation. If they have the
@@ -144,6 +145,19 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 		// Label minimum width set to fit the three default actions (checkout, sync, more actions)
 		// 170px (activity bar) - 30px (indentation) - 18px (icon) - 3 x 24px (actions) - 12px (padding) - 1px (border)
 		templateData.label.element.style.minWidth = '37px';
+
+		const onDidChangeVisibleRepositoriesSignal = observableSignalFromEvent(this, this.scmViewService.onDidChangeVisibleRepositories);
+		templateData.elementDisposables.add(autorun(reader => {
+			onDidChangeVisibleRepositoriesSignal.read(reader);
+
+			const isVisible = this.scmViewService.isVisible(repository);
+			templateData.label.element.classList.toggle('visible', isVisible);
+
+			templateData.icon.className = isVisible
+				? ThemeIcon.asClassName(Codicon.repoClone)
+				: ThemeIcon.asClassName(Codicon.repo);
+			templateData.icon.style.paddingRight = '2px';
+		}));
 
 		let statusPrimaryActions: IAction[] = [];
 		let menuPrimaryActions: IAction[] = [];

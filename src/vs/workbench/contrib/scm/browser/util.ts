@@ -20,6 +20,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IResourceNode, ResourceTree } from '../../../../base/common/resourceTree.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { SCMArtifactGroupTreeElement, SCMArtifactTreeElement } from '../common/artifact.js';
 
 export function isSCMViewService(element: unknown): element is ISCMViewService {
 	return Array.isArray((element as ISCMViewService).repositories) && Array.isArray((element as ISCMViewService).visibleRepositories);
@@ -63,6 +64,14 @@ export function isSCMHistoryItemChangeViewModelTreeElement(element: unknown): el
 
 export function isSCMHistoryItemChangeNode(element: unknown): element is IResourceNode<ISCMHistoryItem, SCMHistoryItemChangeViewModelTreeElement> {
 	return ResourceTree.isResourceNode(element) && isSCMHistoryItemViewModelTreeElement(element.context);
+}
+
+export function isSCMArtifactGroupTreeElement(element: unknown): element is SCMArtifactGroupTreeElement {
+	return (element as SCMArtifactGroupTreeElement).type === 'artifactGroup';
+}
+
+export function isSCMArtifactTreeElement(element: unknown): element is SCMArtifactTreeElement {
+	return (element as SCMArtifactTreeElement).type === 'artifact';
 }
 
 const compareActions = (a: IAction, b: IAction) => {
