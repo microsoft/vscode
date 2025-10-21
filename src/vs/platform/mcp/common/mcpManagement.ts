@@ -105,8 +105,8 @@ export type Transport = StdioTransport | StreamableHttpTransport | SseTransport;
 export interface IMcpServerPackage {
 	readonly registryType: RegistryType;
 	readonly identifier: string;
-	readonly version: string;
-	readonly transport?: Transport;
+	readonly transport: Transport;
+	readonly version?: string;
 	readonly registryBaseUrl?: string;
 	readonly fileSha256?: string;
 	readonly packageArguments?: readonly IMcpServerArgument[];
