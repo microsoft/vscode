@@ -56,7 +56,7 @@ export type InlineCompletionEndOfLifeEvent = {
 
 type InlineCompletionsEndOfLifeClassification = {
 	owner: 'benibenj';
-	comment: 'Inline completions ended';
+	comment: 'Inline completions ended. @sentToGitHub';
 	opportunityId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Unique identifier for an opportunity to show an inline completion or NES' };
 	correlationId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The correlation identifier for the inline completion' };
 	extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier for the extension that contributed the inline completion' };

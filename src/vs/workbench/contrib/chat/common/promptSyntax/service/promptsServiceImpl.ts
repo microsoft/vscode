@@ -30,7 +30,7 @@ import { PromptsConfig } from '../config/config.js';
 import { getCleanPromptName, PROMPT_FILE_EXTENSION } from '../config/promptFileLocations.js';
 import { getPromptsTypeForLanguageId, AGENT_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptsType } from '../promptTypes.js';
 import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
-import { NewPromptsParser, ParsedPromptFile } from './newPromptsParser.js';
+import { NewPromptsParser, ParsedPromptFile, PromptHeaderAttributes } from './newPromptsParser.js';
 import { IAgentInstructions, IAgentSource, IChatPromptSlashCommand, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPromptPath, IPromptsService, IUserPromptPath, PromptsStorage } from './promptsService.js';
 
 /**
@@ -260,7 +260,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 				let metadata: any | undefined;
 				if (ast.header) {
-					const advanced = ast.header.getAttribute('advancedOptions');
+					const advanced = ast.header.getAttribute(PromptHeaderAttributes.advancedOptions);
 					if (advanced && advanced.value.type === 'object') {
 						metadata = {};
 						for (const [key, value] of Object.entries(advanced.value)) {
