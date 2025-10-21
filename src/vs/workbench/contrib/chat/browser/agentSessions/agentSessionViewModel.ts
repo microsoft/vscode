@@ -5,11 +5,14 @@
 
 import { ThrottledDelayer } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
+import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { localize } from '../../../../../nls.js';
+import { IChatService } from '../../common/chatService.js';
 import { IChatSessionItemProvider, IChatSessionsService } from '../../common/chatSessionsService.js';
+import { ChatSessionUri } from '../../common/chatUri.js';
 
 //#region Interfaces, Types
 
@@ -50,8 +53,10 @@ export interface IAgentSessionViewModel {
 	};
 }
 
+export const LOCAL_AGENT_SESSION_TYPE = 'local';
+
 export function isLocalAgentSessionItem(session: IAgentSessionViewModel): boolean {
-	return session.provider.chatSessionType === 'local';
+	return session.provider.chatSessionType === LOCAL_AGENT_SESSION_TYPE;
 }
 
 export function isAgentSession(obj: IAgentSessionsViewModel | IAgentSessionViewModel): obj is IAgentSessionViewModel {
@@ -68,13 +73,17 @@ export function isAgentSessionsViewModel(obj: IAgentSessionsViewModel | IAgentSe
 
 //#endregion
 
+const INCLUDE_HISTORY = false; // TODO@bpasero figure out how to best support history
 export class AgentSessionsViewModel extends Disposable implements IAgentSessionsViewModel {
 
 	readonly sessions: IAgentSessionViewModel[] = [];
 
 	private readonly resolver = this._register(new ThrottledDelayer<void>(100));
 
-	constructor(@IChatSessionsService private readonly chatSessionsService: IChatSessionsService) {
+	constructor(
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@IChatService private readonly chatService: IChatService,
+	) {
 		super();
 	}
 
@@ -95,20 +104,39 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 			}
 
 			for (const session of sessions) {
+				if (session.id === 'show-history' || session.id === 'workbench.panel.chat.view.copilot') {
+					continue; // TODO@bpasero this needs to be fixed at the provider level
+				}
+
 				newSessions.push({
 					provider,
 					id: session.id,
 					resource: session.resource,
 					label: session.label,
-					description: session.description ?? '',
+					description: session.description || new MarkdownString(`_<${localize('chat.session.noDescription', 'No description')}>_`),
 					icon: session.iconPath,
-					status: session.status as AgentSessionStatus | undefined,
+					status: session.status as unknown as AgentSessionStatus,
 					timing: {
-						startTime: session.timing?.startTime ?? Date.now(),
-						endTime: session.timing?.endTime
+						startTime: session.timing.startTime,
+						endTime: session.timing.endTime
 					},
 					statistics: session.statistics
 				});
+			}
+
+			if (INCLUDE_HISTORY && provider.chatSessionType === LOCAL_AGENT_SESSION_TYPE) {
+				for (const history of await this.chatService.getHistory()) { // TODO@bpasero this needs to come from the local provider
+					newSessions.push({
+						id: history.sessionId,
+						resource: ChatSessionUri.forSession(LOCAL_AGENT_SESSION_TYPE, history.sessionId),
+						label: history.title,
+						provider: provider,
+						timing: {
+							startTime: history.lastMessageDate ?? Date.now() /* BAD */
+						},
+						description: new MarkdownString(`_<${localize('chat.session.noDescription', 'No description')}>_`),
+					});
+				}
 			}
 		}
 

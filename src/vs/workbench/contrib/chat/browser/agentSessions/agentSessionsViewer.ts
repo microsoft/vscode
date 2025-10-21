@@ -11,7 +11,7 @@ import { IListAccessibilityProvider } from '../../../../../base/browser/ui/list/
 import { ITreeCompressionDelegate } from '../../../../../base/browser/ui/tree/asyncDataTree.js';
 import { ICompressedTreeNode } from '../../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
 import { ICompressibleTreeRenderer } from '../../../../../base/browser/ui/tree/objectTree.js';
-import { ITreeNode, ITreeElementRenderDetails, IAsyncDataSource, ITreeFilter, TreeFilterResult, TreeVisibility } from '../../../../../base/browser/ui/tree/tree.js';
+import { ITreeNode, ITreeElementRenderDetails, IAsyncDataSource, ITreeFilter, ITreeSorter, TreeFilterResult, TreeVisibility } from '../../../../../base/browser/ui/tree/tree.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { AgentSessionStatus, IAgentSessionViewModel, IAgentSessionsViewModel, isAgentSession, isAgentSessionsViewModel } from './agentSessionViewModel.js';
 import { IconLabel } from '../../../../../base/browser/ui/iconLabel/iconLabel.js';
@@ -229,5 +229,23 @@ export class AgentSessionsCompressionDelegate implements ITreeCompressionDelegat
 
 	isIncompressible(element: IAgentSessionViewModel): boolean {
 		return true;
+	}
+}
+
+export class AgentSessionsSorter implements ITreeSorter<IAgentSessionViewModel> {
+
+	compare(sessionA: IAgentSessionViewModel, sessionB: IAgentSessionViewModel): number {
+		const aHasEndTime = !!sessionA.timing.endTime;
+		const bHasEndTime = !!sessionB.timing.endTime;
+
+		if (!aHasEndTime && bHasEndTime) {
+			return -1; // a (in-progress) comes before b (finished)
+		}
+		if (aHasEndTime && !bHasEndTime) {
+			return 1; // a (finished) comes after b (in-progress)
+		}
+
+		// Both in-progress or finished: sort by start time (most recent first)
+		return sessionB.timing.startTime - sessionA.timing.startTime;
 	}
 }

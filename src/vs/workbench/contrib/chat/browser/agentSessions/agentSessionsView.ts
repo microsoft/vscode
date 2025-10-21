@@ -24,8 +24,8 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { IOpenEvent, WorkbenchCompressibleAsyncDataTree } from '../../../../../platform/list/browser/listService.js';
 import { $, append } from '../../../../../base/browser/dom.js';
-import { AgentSessionsViewModel, IAgentSessionViewModel, IAgentSessionsViewModel, isLocalAgentSessionItem } from './agentSessionViewModel.js';
-import { AgentSessionRenderer, AgentSessionsAccessibilityProvider, AgentSessionsCompressionDelegate, AgentSessionsDataSource, AgentSessionsFilter, AgentSessionsIdentityProvider, AgentSessionsListDelegate } from './agentSessionsViewer.js';
+import { AgentSessionsViewModel, IAgentSessionViewModel, IAgentSessionsViewModel, LOCAL_AGENT_SESSION_TYPE, isLocalAgentSessionItem } from './agentSessionViewModel.js';
+import { AgentSessionRenderer, AgentSessionsAccessibilityProvider, AgentSessionsCompressionDelegate, AgentSessionsDataSource, AgentSessionsFilter, AgentSessionsIdentityProvider, AgentSessionsListDelegate, AgentSessionsSorter } from './agentSessionsViewer.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ButtonWithDropdown } from '../../../../../base/browser/ui/button/button.js';
 import { IAction, toAction } from '../../../../../base/common/actions.js';
@@ -242,7 +242,7 @@ export class AgentSessionsView extends FilterViewPane {
 				getActions: () => {
 					const actions: IAction[] = [];
 					for (const provider of this.chatSessionsService.getAllChatSessionItemProviders()) {
-						if (provider.chatSessionType === 'local') {
+						if (provider.chatSessionType === LOCAL_AGENT_SESSION_TYPE) {
 							continue; // local is the primary action
 						}
 
@@ -288,6 +288,7 @@ export class AgentSessionsView extends FilterViewPane {
 				horizontalScrolling: false,
 				multipleSelectionSupport: false,
 				filter: this.filter,
+				sorter: new AgentSessionsSorter(),
 				paddingBottom: AgentSessionsListDelegate.ITEM_HEIGHT
 			}
 		)) as WorkbenchCompressibleAsyncDataTree<IAgentSessionsViewModel, IAgentSessionViewModel, FuzzyScore>;

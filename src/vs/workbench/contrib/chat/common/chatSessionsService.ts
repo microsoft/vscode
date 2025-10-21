@@ -69,7 +69,7 @@ export interface IChatSessionItem {
 	description?: string | IMarkdownString;
 	status?: ChatSessionStatus;
 	tooltip?: string | IMarkdownString;
-	timing?: {
+	timing: {
 		startTime: number;
 		endTime?: number;
 	};
