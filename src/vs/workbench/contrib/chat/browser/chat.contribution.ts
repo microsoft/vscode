@@ -613,7 +613,7 @@ configurationRegistry.registerConfiguration({
 			),
 			markdownDescription: nls.localize(
 				'chat.promptFilesRecommendations.description',
-				"Configure which prompt files to recommend in the chat welcome view. Each key is a prompt file name, and the value can be `true` to always recommend, `false` to never recommend, or a [when clause](https://aka.ms/vscode-when-clause) expression like `resourceExtname == .js` or `resourceLangId == markdown`.",
+				"Configure which prompt files to recommend in the chat welcome view. Each key is a prompt file name, and the value can be `true` to always recommend, `false` to never recommend, or a [when clause](https://aka.ms/vscode-when-clause) expression like `resourceExtname == .js` or `resourceLangId == markdown`. User settings take priority over workspace settings.",
 			),
 			default: {},
 			additionalProperties: {
