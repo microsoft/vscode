@@ -917,7 +917,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	async runCommand(commandLine: string, shouldExecute: boolean): Promise<void> {
 		let commandDetection = this.capabilities.get(TerminalCapability.CommandDetection);
-		const timeoutValue = this._configurationService.getValue(TerminalSettingId.ShellIntegrationTimeout) as number | undefined;
+		const timeoutValue = this._configurationService.getValue<unknown>(TerminalSettingId.ShellIntegrationTimeout);
 		let timeoutMs: number;
 
 		if (timeoutValue === undefined || typeof timeoutValue !== 'number' || timeoutValue < 0) {
