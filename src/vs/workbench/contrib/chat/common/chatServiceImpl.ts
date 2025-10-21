@@ -73,7 +73,6 @@ export class ChatService extends Disposable implements IChatService {
 
 	private readonly _sessionModels = new ObservableMap<string, ChatModel>();
 	private readonly _contentProviderSessionModels = new Map<string, Map<string, { readonly model: IChatModel; readonly disposables: DisposableStore }>>();
-	private readonly _modelToExternalSession = new Map<string /* internal model sessionId */, { readonly chatSessionType: string; readonly chatSessionId: string; readonly chatSessionResource: URI }>();
 	private readonly _pendingRequests = this._register(new DisposableMap<string, CancellableRequest>());
 	private _persistedSessions: ISerializableChatsData;
 
@@ -451,9 +450,9 @@ export class ChatService extends Disposable implements IChatService {
 		return this._startSession(data, data.initialLocation ?? ChatAgentLocation.Chat, true, CancellationToken.None);
 	}
 
-	async loadSessionForResource(resource: URI, location: ChatAgentLocation, token: CancellationToken): Promise<IChatModel | undefined> {
+	async loadSessionForResource(chatSessionResource: URI, location: ChatAgentLocation, token: CancellationToken): Promise<IChatModel | undefined> {
 		// TODO: Move this into a new ChatModelService
-		const parsed = ChatSessionUri.parse(resource);
+		const parsed = ChatSessionUri.parse(chatSessionResource);
 		if (!parsed) {
 			throw new Error('Invalid chat session URI');
 		}
@@ -468,12 +467,16 @@ export class ChatService extends Disposable implements IChatService {
 		}
 
 		const chatSessionType = parsed.chatSessionType;
-		const content = await this.chatSessionService.provideChatSessionContent(chatSessionType, parsed.sessionId, resource, CancellationToken.None);
+		const content = await this.chatSessionService.provideChatSessionContent(chatSessionType, parsed.sessionId, chatSessionResource, CancellationToken.None);
 
 		// Contributed sessions do not use UI tools
 		const model = this._startSession(undefined, location, true, CancellationToken.None, { canUseTools: false, inputType: chatSessionType });
-		// Record mapping from internal model session id to external contributed chat session identity
-		this._modelToExternalSession.set(model.sessionId, { chatSessionType, chatSessionId: parsed.sessionId, chatSessionResource: resource });
+		model.setContributedChatSession({
+			chatSessionType,
+			chatSessionId: parsed.sessionId,
+			chatSessionResource,
+			isUntitled: parsed.sessionId.startsWith('untitled-')  //TODO(jospicer)
+		});
 		if (!this._contentProviderSessionModels.has(chatSessionType)) {
 			this._contentProviderSessionModels.set(chatSessionType, new Map());
 		}
@@ -482,7 +485,6 @@ export class ChatService extends Disposable implements IChatService {
 
 		disposables.add(model.onDidDispose(() => {
 			this._contentProviderSessionModels?.get(chatSessionType)?.delete(parsed.sessionId);
-			this._modelToExternalSession.delete(model.sessionId);
 			content.dispose();
 		}));
 
@@ -579,14 +581,12 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	getChatSessionFromInternalId(modelSessionId: string): IChatSessionContext | undefined {
-		const data = this._modelToExternalSession.get(modelSessionId);
-		if (!data) {
+		const model = this._sessionModels.get(modelSessionId);
+		if (!model) {
 			return;
 		}
-		return {
-			...data,
-			isUntitled: data.chatSessionId.startsWith('untitled-'), // TODO(jospicer)
-		};
+		const { contributedChatSession } = model;
+		return contributedChatSession;
 	}
 
 	async resendRequest(request: IChatRequestModel, options?: IChatSendRequestOptions): Promise<void> {

@@ -11,6 +11,7 @@ import { basename, relativePath } from '../../../../../base/common/resources.js'
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { assertType } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { isLocation } from '../../../../../editor/common/languages.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
@@ -25,6 +26,7 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IRemoteCodingAgent, IRemoteCodingAgentsService } from '../../../remoteCodingAgents/common/remoteCodingAgentsService.js';
 import { IChatAgent, IChatAgentHistoryEntry, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys, ChatContextKeyExprs } from '../../common/chatContextKeys.js';
@@ -176,7 +178,7 @@ export class ChatSubmitAction extends SubmitAction {
 			precondition,
 			toggled: {
 				condition: ChatContextKeys.lockedToCodingAgent,
-				icon: Codicon.sendToRemoteAgent,
+				icon: Codicon.send,
 				tooltip: localize('sendToRemoteAgent', "Send to coding agent"),
 			},
 			keybinding: {
@@ -436,7 +438,6 @@ class OpenModelPickerAction extends Action2 {
 		}
 	}
 }
-
 export class OpenModePickerAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.openModePicker';
 
@@ -476,6 +477,37 @@ export class OpenModePickerAction extends Action2 {
 		const widget = widgetService.lastFocusedWidget;
 		if (widget) {
 			widget.input.openModePicker();
+		}
+	}
+}
+
+export class ChatSessionOpenModelPickerAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.chatSessionOpenModelPicker';
+	constructor() {
+		super({
+			id: ChatSessionOpenModelPickerAction.ID,
+			title: localize2('interactive.openModelPicker.label', "Open Model Picker"),
+			category: CHAT_CATEGORY,
+			f1: false,
+			precondition: ChatContextKeys.enabled,
+			menu: {
+				id: MenuId.ChatInput,
+				order: 4,
+				group: 'navigation',
+				when:
+					ContextKeyExpr.and(
+						ChatContextKeys.lockedToCodingAgent,
+						ChatContextKeys.chatSessionHasModels
+					)
+			}
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+		const widgetService = accessor.get(IChatWidgetService);
+		const widget = widgetService.lastFocusedWidget;
+		if (widget) {
+			widget.input.openChatSessionModelPicker();
 		}
 	}
 }
@@ -618,7 +650,10 @@ export class CreateRemoteAgentJobAction extends Action2 {
 					group: 'navigation',
 					order: 3.4,
 					when: ContextKeyExpr.and(
-						ChatContextKeys.hasRemoteCodingAgent,
+						ContextKeyExpr.or(
+							ChatContextKeys.hasRemoteCodingAgent,
+							ChatContextKeys.hasCloudButtonV2
+						),
 						ChatContextKeys.lockedToCodingAgent.negate(),
 						ContextKeyExpr.equals(`config.${ChatConfiguration.DelegateToCodingAgentInSecondaryMenu}`, false)
 					),
@@ -628,7 +663,10 @@ export class CreateRemoteAgentJobAction extends Action2 {
 					group: 'group_3',
 					order: 1,
 					when: ContextKeyExpr.and(
-						ChatContextKeys.hasRemoteCodingAgent,
+						ContextKeyExpr.or(
+							ChatContextKeys.hasRemoteCodingAgent,
+							ChatContextKeys.hasCloudButtonV2
+						),
 						ChatContextKeys.lockedToCodingAgent.negate(),
 						ContextKeyExpr.equals(`config.${ChatConfiguration.DelegateToCodingAgentInSecondaryMenu}`, true)
 					),
@@ -747,10 +785,6 @@ export class CreateRemoteAgentJobAction extends Action2 {
 	 * Converts full URIs from the user's systems into workspace-relative paths for coding agent.
 	 */
 	private extractRelativeFromAttachedContext(attachedContext: ChatRequestVariableSet, workspaceContextService: IWorkspaceContextService): string[] {
-		const workspaceFolder = workspaceContextService.getWorkspace().folders[0];
-		if (!workspaceFolder) {
-			return [];
-		}
 		if (!attachedContext) {
 			return [];
 		}
@@ -760,8 +794,9 @@ export class CreateRemoteAgentJobAction extends Action2 {
 				if (!(contextEntry.value instanceof URI)) {
 					continue;
 				}
+				const workspaceFolder = workspaceContextService.getWorkspaceFolder(contextEntry.value);
 				const fileUri = contextEntry.value;
-				const relativePathResult = relativePath(workspaceFolder.uri, fileUri);
+				const relativePathResult = workspaceFolder ? relativePath(workspaceFolder.uri, fileUri) : undefined;
 				if (relativePathResult) {
 					relativePaths.push(relativePathResult);
 				}
@@ -786,6 +821,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			const remoteCodingAgentService = accessor.get(IRemoteCodingAgentsService);
 			const chatSessionsService = accessor.get(IChatSessionsService);
 			const workspaceContextService = accessor.get(IWorkspaceContextService);
+			const editorService = accessor.get(IEditorService);
 
 			const widget = widgetService.lastFocusedWidget;
 			if (!widget) {
@@ -812,6 +848,30 @@ export class CreateRemoteAgentJobAction extends Action2 {
 
 			const attachedContext = widget.input.getAttachedAndImplicitContext(sessionId);
 			widget.input.acceptInput(true);
+
+			// For inline editor mode, add selection or cursor information
+			if (widget.location === ChatAgentLocation.EditorInline) {
+				const activeEditor = editorService.activeTextEditorControl;
+				if (activeEditor) {
+					const model = activeEditor.getModel();
+					let activeEditorUri: URI | undefined = undefined;
+					if (model && 'uri' in model) {
+						activeEditorUri = model.uri as URI;
+					}
+					const selection = activeEditor.getSelection();
+					if (activeEditorUri && selection) {
+						attachedContext.add({
+							kind: 'file',
+							id: 'vscode.implicit.selection',
+							name: basename(activeEditorUri),
+							value: {
+								uri: activeEditorUri,
+								range: selection
+							},
+						});
+					}
+				}
+			}
 
 			const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Chat);
 			const instantiationService = accessor.get(IInstantiationService);
@@ -848,6 +908,31 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			if (relativeAttachedContext.length) {
 				summary += `\n\n${localize('attachedFiles', "The user has attached the following files from their workspace:")}\n${relativeAttachedContext.map(file => `- ${file}`).join('\n')}\n\n`;
 			}
+
+			// Add selection or cursor information to the summary
+			attachedContext.asArray().forEach(ctx => {
+				if (isChatRequestFileEntry(ctx) && ctx.value && isLocation(ctx.value)) {
+					const range = ctx.value.range;
+					const isSelection = range.startLineNumber !== range.endLineNumber || range.startColumn !== range.endColumn;
+
+					// Get relative path for the file
+					let filePath = ctx.name;
+					const workspaceFolder = workspaceContextService.getWorkspaceFolder(ctx.value.uri);
+
+					if (workspaceFolder && ctx.value.uri) {
+						const relativePathResult = relativePath(workspaceFolder.uri, ctx.value.uri);
+						if (relativePathResult) {
+							filePath = relativePathResult;
+						}
+					}
+
+					if (isSelection) {
+						summary += `User has selected text in file ${filePath} from ${range.startLineNumber}:${range.startColumn} to ${range.endLineNumber}:${range.endColumn}\n`;
+					} else {
+						summary += `User is on file ${filePath} at position ${range.startLineNumber}:${range.startColumn}\n`;
+					}
+				}
+			});
 
 			// -- summarize context if necessary
 			if (defaultAgent && chatRequests.length > 1) {
@@ -1161,6 +1246,7 @@ export function registerChatExecuteActions() {
 	registerAction2(SwitchToNextModelAction);
 	registerAction2(OpenModelPickerAction);
 	registerAction2(OpenModePickerAction);
+	registerAction2(ChatSessionOpenModelPickerAction);
 	registerAction2(ChangeChatModelAction);
 	registerAction2(CancelEdit);
 }
