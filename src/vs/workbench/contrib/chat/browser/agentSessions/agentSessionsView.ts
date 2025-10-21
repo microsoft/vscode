@@ -37,6 +37,8 @@ import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { NEW_CHAT_SESSION_ACTION_ID } from '../chatSessions/common.js';
 import { ACTION_ID_OPEN_CHAT } from '../actions/chatActions.js';
+import { Event } from '../../../../../base/common/event.js';
+import { IProgressService } from '../../../../../platform/progress/common/progress.js';
 
 export class AgentSessionsView extends FilterViewPane {
 
@@ -59,7 +61,8 @@ export class AgentSessionsView extends FilterViewPane {
 		@IThemeService themeService: IThemeService,
 		@IHoverService hoverService: IHoverService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
-		@ICommandService private readonly commandService: ICommandService
+		@ICommandService private readonly commandService: ICommandService,
+		@IProgressService private readonly progressService: IProgressService
 	) {
 		super({
 			...options,
@@ -82,10 +85,10 @@ export class AgentSessionsView extends FilterViewPane {
 
 		container.classList.add('agent-sessions-view');
 
-		// New Button
+		// New Session
 		this.createNewSessionButton(container);
 
-		// List
+		// Sessions List
 		this.createList(container);
 
 		this.registerListeners();
@@ -93,7 +96,7 @@ export class AgentSessionsView extends FilterViewPane {
 
 	private registerListeners(): void {
 
-		// Filter
+		// Sessions Filter
 		this._register(this.filterWidget.onDidChangeFilterText(() => {
 			if (this.filter) {
 				this.filter.pattern = this.filterWidget.getFilterText() || '';
@@ -108,7 +111,7 @@ export class AgentSessionsView extends FilterViewPane {
 			}
 		}));
 
-		// List
+		// Sessions List
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (!visible || this.sessionsViewModel) {
 				return;
@@ -118,7 +121,11 @@ export class AgentSessionsView extends FilterViewPane {
 			this.list?.setInput(this.sessionsViewModel);
 		}));
 
-		this._register(this.chatSessionsService.onDidChangeItemsProviders(() => this.list?.updateChildren()));
+		this._register(Event.any(
+			this.chatSessionsService.onDidChangeItemsProviders,
+			this.chatSessionsService.onDidChangeAvailability,
+			this.chatSessionsService.onDidChangeSessionItems
+		)(() => this.refreshList()));
 	}
 
 	private registerActions(): void {
@@ -144,7 +151,7 @@ export class AgentSessionsView extends FilterViewPane {
 			constructor() {
 				super({
 					id: 'agentSessionsView.refresh',
-					title: localize2('refresh', "Refresh Sessions"),
+					title: localize2('refresh', "Refresh Agent Sessions"),
 					icon: Codicon.refresh,
 					menu: {
 						id: MenuId.ViewTitle,
@@ -155,7 +162,7 @@ export class AgentSessionsView extends FilterViewPane {
 				});
 			}
 			runInView(accessor: ServicesAccessor, view: AgentSessionsView): void {
-				view.list?.updateChildren();
+				view.refreshList();
 			}
 		}));
 	}
@@ -229,6 +236,18 @@ export class AgentSessionsView extends FilterViewPane {
 				filter: this.filter
 			}
 		)) as WorkbenchCompressibleAsyncDataTree<IAgentSessionsViewModel, IAgentSessionViewModel, FuzzyScore>;
+	}
+
+	private async refreshList(): Promise<void> {
+		await this.progressService.withProgress(
+			{
+				location: this.id,
+				title: localize('agentSessions.refreshing', 'Refreshing agent sessions...'),
+			},
+			async () => {
+				await this.list?.updateChildren();
+			}
+		);
 	}
 
 	//#endregion
