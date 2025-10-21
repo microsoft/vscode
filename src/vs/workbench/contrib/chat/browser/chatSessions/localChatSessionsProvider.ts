@@ -205,7 +205,7 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 			description: nls.localize('chat.sessions.chatView.description', "Chat View"),
 			iconPath: Codicon.chatSparkle,
 			status,
-			timing: { startTime: chatWidget?.viewModel?.model.getRequests()[0].timestamp || 0 },
+			timing: { startTime: chatWidget?.viewModel?.model.getRequests().at(0)?.timestamp || 0 },
 			provider: this
 		};
 		sessions.push(widgetSession);
