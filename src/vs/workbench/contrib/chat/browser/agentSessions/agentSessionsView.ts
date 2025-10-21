@@ -225,7 +225,7 @@ export class AgentSessionsView extends FilterViewPane {
 			new AgentSessionsListDelegate(),
 			new AgentSessionsCompressionDelegate(),
 			[
-				new AgentSessionRenderer()
+				this.instantiationService.createInstance(AgentSessionRenderer)
 			],
 			new AgentSessionsDataSource(),
 			{
