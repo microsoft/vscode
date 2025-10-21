@@ -6,12 +6,12 @@
 import assert from 'assert';
 import { CancellationToken, CancellationTokenSource } from '../../common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
-import { InfinitePagedModel, IInfinitePager, IInfinitePage } from '../../common/paging.js';
+import { IterativePagedModel, IIterativePager, IIterativePage } from '../../common/paging.js';
 
-function createTestPager(pageSize: number, maxPages: number): IInfinitePager<number> {
+function createTestPager(pageSize: number, maxPages: number): IIterativePager<number> {
 	let currentPage = 0;
 
-	const createPage = (page: number): IInfinitePage<number> => {
+	const createPage = (page: number): IIterativePage<number> => {
 		const start = page * pageSize;
 		const items: number[] = [];
 		for (let i = 0; i < pageSize; i++) {
@@ -23,7 +23,7 @@ function createTestPager(pageSize: number, maxPages: number): IInfinitePager<num
 
 	return {
 		firstPage: createPage(currentPage++),
-		getNextPage: async (cancellationToken: CancellationToken): Promise<IInfinitePage<number>> => {
+		getNextPage: async (cancellationToken: CancellationToken): Promise<IIterativePage<number>> => {
 			if (currentPage >= maxPages) {
 				return { items: [], hasMore: false };
 			}
@@ -38,7 +38,7 @@ suite('InfinitePagedModel', () => {
 
 	test('initial state', () => {
 		const pager = createTestPager(10, 3);
-		const model = store.add(new InfinitePagedModel(pager));
+		const model = store.add(new IterativePagedModel(pager));
 
 		// Initially first page is loaded, so length should be 10 + 1 sentinel
 		assert.strictEqual(model.length, 11);
@@ -49,7 +49,7 @@ suite('InfinitePagedModel', () => {
 
 	test('load first page via sentinel access', async () => {
 		const pager = createTestPager(10, 3);
-		const model = store.add(new InfinitePagedModel(pager));
+		const model = store.add(new IterativePagedModel(pager));
 
 		// Access an item in the first page (already loaded)
 		const item = await model.resolve(0, CancellationToken.None);
@@ -63,7 +63,7 @@ suite('InfinitePagedModel', () => {
 
 	test('load multiple pages', async () => {
 		const pager = createTestPager(10, 3);
-		const model = store.add(new InfinitePagedModel(pager));
+		const model = store.add(new IterativePagedModel(pager));
 
 		// First page already loaded
 		assert.strictEqual(model.length, 11);
@@ -80,7 +80,7 @@ suite('InfinitePagedModel', () => {
 
 	test('onDidIncrementLength event fires correctly', async () => {
 		const pager = createTestPager(10, 3);
-		const model = store.add(new InfinitePagedModel(pager));
+		const model = store.add(new IterativePagedModel(pager));
 		const lengths: number[] = [];
 
 		store.add(model.onDidIncrementLength((length: number) => lengths.push(length)));
@@ -100,7 +100,7 @@ suite('InfinitePagedModel', () => {
 
 	test('accessing regular items does not trigger loading', async () => {
 		const pager = createTestPager(10, 3);
-		const model = store.add(new InfinitePagedModel(pager));
+		const model = store.add(new IterativePagedModel(pager));
 
 		const initialLength = model.length;
 
@@ -114,7 +114,7 @@ suite('InfinitePagedModel', () => {
 
 	test('reaching end of data removes sentinel', async () => {
 		const pager = createTestPager(10, 3);
-		const model = store.add(new InfinitePagedModel(pager));
+		const model = store.add(new IterativePagedModel(pager));
 
 		// Load all pages
 		await model.resolve(10, CancellationToken.None);  // Page 2
@@ -130,7 +130,7 @@ suite('InfinitePagedModel', () => {
 
 	test('concurrent access to sentinel only loads once', async () => {
 		const pager = createTestPager(10, 3);
-		const model = store.add(new InfinitePagedModel(pager));
+		const model = store.add(new IterativePagedModel(pager));
 
 		// Access sentinel concurrently
 		const [item1, item2, item3] = await Promise.all([
@@ -147,22 +147,22 @@ suite('InfinitePagedModel', () => {
 	});
 
 	test('empty pager with no items', () => {
-		const emptyPager: IInfinitePager<number> = {
+		const emptyPager: IIterativePager<number> = {
 			firstPage: { items: [], hasMore: false },
 			getNextPage: async () => ({ items: [], hasMore: false })
 		};
-		const model = store.add(new InfinitePagedModel(emptyPager));
+		const model = store.add(new IterativePagedModel(emptyPager));
 
 		assert.strictEqual(model.length, 0);
 		assert.strictEqual(model.isResolved(0), false);
 	});
 
 	test('single page pager with no more pages', () => {
-		const singlePagePager: IInfinitePager<number> = {
+		const singlePagePager: IIterativePager<number> = {
 			firstPage: { items: [1, 2, 3], hasMore: false },
 			getNextPage: async () => ({ items: [], hasMore: false })
 		};
-		const model = store.add(new InfinitePagedModel(singlePagePager));
+		const model = store.add(new IterativePagedModel(singlePagePager));
 
 		assert.strictEqual(model.length, 3); // No sentinel
 		assert.strictEqual(model.isResolved(0), true);
@@ -174,7 +174,7 @@ suite('InfinitePagedModel', () => {
 
 	test('accessing item beyond loaded range throws', () => {
 		const pager = createTestPager(10, 3);
-		const model = store.add(new InfinitePagedModel(pager));
+		const model = store.add(new IterativePagedModel(pager));
 
 		// Try to access item beyond current length
 		assert.throws(() => model.get(15), /Item not resolved yet/);
@@ -182,7 +182,7 @@ suite('InfinitePagedModel', () => {
 
 	test('resolving item beyond all pages throws', async () => {
 		const pager = createTestPager(10, 3);
-		const model = store.add(new InfinitePagedModel(pager));
+		const model = store.add(new IterativePagedModel(pager));
 
 		// Load all pages
 		await model.resolve(10, CancellationToken.None);
@@ -197,7 +197,7 @@ suite('InfinitePagedModel', () => {
 
 	test('cancelled token during initial resolve', async () => {
 		const pager = createTestPager(10, 3);
-		const model = store.add(new InfinitePagedModel(pager));
+		const model = store.add(new IterativePagedModel(pager));
 
 		const cts = new CancellationTokenSource();
 		cts.cancel();
@@ -210,7 +210,7 @@ suite('InfinitePagedModel', () => {
 
 	test('event fires for each page load', async () => {
 		const pager = createTestPager(5, 4);
-		const model = store.add(new InfinitePagedModel(pager));
+		const model = store.add(new IterativePagedModel(pager));
 		const lengths: number[] = [];
 
 		store.add(model.onDidIncrementLength((length: number) => lengths.push(length)));
@@ -233,7 +233,7 @@ suite('InfinitePagedModel', () => {
 
 	test('sequential page loads work correctly', async () => {
 		const pager = createTestPager(5, 3);
-		const model = store.add(new InfinitePagedModel(pager));
+		const model = store.add(new IterativePagedModel(pager));
 
 		// Load pages sequentially
 		for (let page = 1; page < 3; page++) {
@@ -251,7 +251,7 @@ suite('InfinitePagedModel', () => {
 
 	test('accessing items after loading all pages', async () => {
 		const pager = createTestPager(10, 2);
-		const model = store.add(new InfinitePagedModel(pager));
+		const model = store.add(new IterativePagedModel(pager));
 
 		// Load second page
 		await model.resolve(10, CancellationToken.None);
@@ -269,9 +269,9 @@ suite('InfinitePagedModel', () => {
 
 	test('pager with varying page sizes', async () => {
 		let pageNum = 0;
-		const varyingPager: IInfinitePager<string> = {
+		const varyingPager: IIterativePager<string> = {
 			firstPage: { items: ['a', 'b', 'c'], hasMore: true },
-			getNextPage: async (): Promise<IInfinitePage<string>> => {
+			getNextPage: async (): Promise<IIterativePage<string>> => {
 				pageNum++;
 				if (pageNum === 1) {
 					return { items: ['d', 'e'], hasMore: true };
@@ -282,7 +282,7 @@ suite('InfinitePagedModel', () => {
 			}
 		};
 
-		const model = store.add(new InfinitePagedModel(varyingPager));
+		const model = store.add(new IterativePagedModel(varyingPager));
 
 		assert.strictEqual(model.length, 4); // 3 items + 1 sentinel
 

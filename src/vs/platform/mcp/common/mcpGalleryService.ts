@@ -15,7 +15,7 @@ import { ILogService } from '../../log/common/log.js';
 import { asJson, asText, IRequestService } from '../../request/common/request.js';
 import { GalleryMcpServerStatus, IGalleryMcpServer, IMcpGalleryService, IMcpServerArgument, IMcpServerInput, IMcpServerKeyValueInput, IMcpServerPackage, IQueryOptions, RegistryType, SseTransport, StreamableHttpTransport, Transport, TransportType } from './mcpManagement.js';
 import { IMcpGalleryManifestService, McpGalleryManifestStatus, getMcpGalleryManifestResourceUri, McpGalleryResourceType, IMcpGalleryManifest } from './mcpGalleryManifest.js';
-import { IInfinitePager, IInfinitePage } from '../../../base/common/paging.js';
+import { IIterativePager, IIterativePage } from '../../../base/common/paging.js';
 import { CancellationError } from '../../../base/common/errors.js';
 import { isObject, isString } from '../../../base/common/types.js';
 
@@ -717,7 +717,7 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 		return this.mcpGalleryManifestService.mcpGalleryManifestStatus === McpGalleryManifestStatus.Available;
 	}
 
-	async query(options?: IQueryOptions, token: CancellationToken = CancellationToken.None): Promise<IInfinitePager<IGalleryMcpServer>> {
+	async query(options?: IQueryOptions, token: CancellationToken = CancellationToken.None): Promise<IIterativePager<IGalleryMcpServer>> {
 		const mcpGalleryManifest = await this.mcpGalleryManifestService.getMcpGalleryManifest();
 		if (!mcpGalleryManifest) {
 			return {
@@ -736,7 +736,7 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 		let currentCursor = metadata.nextCursor;
 		return {
 			firstPage: { items: servers, hasMore: !!metadata.nextCursor },
-			getNextPage: async (ct: CancellationToken): Promise<IInfinitePage<IGalleryMcpServer>> => {
+			getNextPage: async (ct: CancellationToken): Promise<IIterativePage<IGalleryMcpServer>> => {
 				if (ct.isCancellationRequested) {
 					throw new CancellationError();
 				}

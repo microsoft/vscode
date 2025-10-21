@@ -18,14 +18,14 @@ export interface IPager<T> {
 	getPage(pageIndex: number, cancellationToken: CancellationToken): Promise<T[]>;
 }
 
-export interface IInfinitePage<T> {
+export interface IIterativePage<T> {
 	readonly items: T[];
 	readonly hasMore: boolean;
 }
 
-export interface IInfinitePager<T> {
-	readonly firstPage: IInfinitePage<T>;
-	getNextPage(cancellationToken: CancellationToken): Promise<IInfinitePage<T>>;
+export interface IIterativePager<T> {
+	readonly firstPage: IIterativePage<T>;
+	getNextPage(cancellationToken: CancellationToken): Promise<IIterativePage<T>>;
 }
 
 export interface IPageIterator<T> {
@@ -160,7 +160,7 @@ export class PagedModel<T> implements IPagedModel<T> {
 export class DelayedPagedModel<T> implements IPagedModel<T> {
 
 	get length(): number { return this.model.length; }
-	readonly onDidIncrementLength = this.model.onDidIncrementLength;
+	get onDidIncrementLength() { return this.model.onDidIncrementLength; }
 
 	constructor(private readonly model: IPagedModel<T>, private timeout: number = 500) { }
 
@@ -279,16 +279,16 @@ export class PageIteratorPager<T> implements IPager<T> {
 	}
 }
 
-export class InfinitePagedModel<T> implements IPagedModel<T> {
+export class IterativePagedModel<T> implements IPagedModel<T> {
 
 	private items: T[] = [];
 	private _hasNextPage = true;
 	private readonly _onDidIncrementLength = new Emitter<number>();
 	private loadingPromise: Promise<void> | null = null;
 
-	private readonly pager: IInfinitePager<T>;
+	private readonly pager: IIterativePager<T>;
 
-	constructor(pager: IInfinitePager<T>) {
+	constructor(pager: IIterativePager<T>) {
 		this.pager = pager;
 		this.items = [...pager.firstPage.items];
 		this._hasNextPage = pager.firstPage.hasMore;

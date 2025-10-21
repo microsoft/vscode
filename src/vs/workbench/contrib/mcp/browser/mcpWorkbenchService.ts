@@ -39,7 +39,7 @@ import { McpServerInstallData, McpServerInstallClassification } from '../common/
 import { HasInstalledMcpServersContext, IMcpConfigPath, IMcpService, IMcpWorkbenchService, IWorkbenchMcpServer, McpCollectionSortOrder, McpServerEnablementState, McpServerInstallState, McpServerEnablementStatus, McpServersGalleryStatusContext } from '../common/mcpTypes.js';
 import { McpServerEditorInput } from './mcpServerEditorInput.js';
 import { IMcpGalleryManifestService } from '../../../../platform/mcp/common/mcpGalleryManifest.js';
-import { IInfinitePager, IInfinitePage } from '../../../../base/common/paging.js';
+import { IIterativePager, IIterativePage } from '../../../../base/common/paging.js';
 import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { runOnChange } from '../../../../base/common/observable.js';
 import Severity from '../../../../base/common/severity.js';
@@ -338,7 +338,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		}
 	}
 
-	async queryGallery(options?: IQueryOptions, token?: CancellationToken): Promise<IInfinitePager<IWorkbenchMcpServer>> {
+	async queryGallery(options?: IQueryOptions, token?: CancellationToken): Promise<IIterativePager<IWorkbenchMcpServer>> {
 		if (!this.mcpGalleryService.isEnabled()) {
 			return {
 				firstPage: { items: [], hasMore: false },
@@ -347,7 +347,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		}
 		const pager = await this.mcpGalleryService.query(options, token);
 
-		const mapPage = (page: IInfinitePage<IGalleryMcpServer>): IInfinitePage<IWorkbenchMcpServer> => ({
+		const mapPage = (page: IIterativePage<IGalleryMcpServer>): IIterativePage<IWorkbenchMcpServer> => ({
 			items: page.items.map(gallery => this.fromGallery(gallery) ?? this.instantiationService.createInstance(McpWorkbenchServer, e => this.getInstallState(e), e => this.getRuntimeStatus(e), undefined, gallery, undefined)),
 			hasMore: page.hasMore
 		});
