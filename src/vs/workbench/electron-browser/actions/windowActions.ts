@@ -357,6 +357,23 @@ export class QuickSwitchWindowAction extends BaseSwitchWindow {
 	}
 }
 
+export class ShowAllWindowsAction extends BaseSwitchWindow {
+
+	static readonly ID = 'workbench.action.showAllWindows';
+
+	constructor() {
+		super({
+			id: ShowAllWindowsAction.ID,
+			title: localize2('showAllWindows', 'Show All Windows'),
+			f1: true
+		});
+	}
+
+	protected isQuickNavigate(): boolean {
+		return false;
+	}
+}
+
 function canRunNativeTabsHandler(accessor: ServicesAccessor): boolean {
 	if (!isMacintosh) {
 		return false;

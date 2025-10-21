@@ -10,7 +10,7 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions, Configur
 import { KeyMod, KeyCode } from '../../base/common/keyCodes.js';
 import { isLinux, isMacintosh, isWindows } from '../../base/common/platform.js';
 import { ConfigureRuntimeArgumentsAction, ToggleDevToolsAction, ReloadWindowWithExtensionsDisabledAction, OpenUserDataFolderAction, ShowGPUInfoAction, StopTracing } from './actions/developerActions.js';
-import { ZoomResetAction, ZoomOutAction, ZoomInAction, CloseWindowAction, SwitchWindowAction, QuickSwitchWindowAction, NewWindowTabHandler, ShowPreviousWindowTabHandler, ShowNextWindowTabHandler, MoveWindowTabToNewWindowHandler, MergeWindowTabsHandlerHandler, ToggleWindowTabsBarHandler, ToggleWindowAlwaysOnTopAction, DisableWindowAlwaysOnTopAction, EnableWindowAlwaysOnTopAction } from './actions/windowActions.js';
+import { ZoomResetAction, ZoomOutAction, ZoomInAction, CloseWindowAction, SwitchWindowAction, QuickSwitchWindowAction, ShowAllWindowsAction, NewWindowTabHandler, ShowPreviousWindowTabHandler, ShowNextWindowTabHandler, MoveWindowTabToNewWindowHandler, MergeWindowTabsHandlerHandler, ToggleWindowTabsBarHandler, ToggleWindowAlwaysOnTopAction, DisableWindowAlwaysOnTopAction, EnableWindowAlwaysOnTopAction } from './actions/windowActions.js';
 import { ContextKeyExpr } from '../../platform/contextkey/common/contextkey.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../platform/keybinding/common/keybindingsRegistry.js';
 import { CommandsRegistry } from '../../platform/commands/common/commands.js';
@@ -42,6 +42,7 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../common/contri
 	// Actions: Window
 	registerAction2(SwitchWindowAction);
 	registerAction2(QuickSwitchWindowAction);
+	registerAction2(ShowAllWindowsAction);
 	registerAction2(CloseWindowAction);
 	registerAction2(ToggleWindowAlwaysOnTopAction);
 	registerAction2(EnableWindowAlwaysOnTopAction);
