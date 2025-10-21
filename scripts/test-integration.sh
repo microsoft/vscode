@@ -100,7 +100,7 @@ kill_app
 echo
 echo "### Git Base tests"
 echo
-"$INTEGRATION_TEST_ELECTRON_PATH" $(mktemp -d 2>/dev/null) --extensionDevelopmentPath=$ROOT/extensions/git-base --extensionTestsPath=$ROOT/extensions/git-base/out/test $API_TESTS_EXTRA_ARGS
+npm run test-extension -- -l git-base
 kill_app
 
 echo

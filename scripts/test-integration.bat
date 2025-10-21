@@ -82,9 +82,7 @@ if %errorlevel% neq 0 exit /b %errorlevel%
 
 echo.
 echo ### Git Base tests
-set GITBASEWORKSPACE=%TEMPDIR%\git-base-%RANDOM%
-mkdir %GITBASEWORKSPACE%
-call "%INTEGRATION_TEST_ELECTRON_PATH%" %GITBASEWORKSPACE% --extensionDevelopmentPath=%~dp0\..\extensions\git-base --extensionTestsPath=%~dp0\..\extensions\git-base\out\test %API_TESTS_EXTRA_ARGS%
+call npm run test-extension -- -l git-base
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 echo.
