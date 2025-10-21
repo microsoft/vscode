@@ -925,25 +925,28 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// Discuss: This default from copilot chat setting feels pretty slow..
 			timeoutMs = siEnabled ? 5000 : (this.isRemote ? 3000 : 2000);
 		} else if (timeOutValue === 0) {
-			// Discuss: This is supposed to be fastest value. We used to have Promise race between onDidAddCommandDetectionCapability and timeout of 2000ms.
+			// Discuss: This is supposed to be fastest value.
+			// Past: We used to have Promise race between onDidAddCommandDetectionCapability and timeout of 2000ms.
 			timeoutMs = 500;
 		} else {
 			timeoutMs = Math.max(timeOutValue, 500);
 		}
 
-		// Question: Still dup command even when command detection is available.
-		// Maybe we should just not Promise.race , but rather merely wait for timeout instead?
 		if (!commandDetection) {
 			const store = new DisposableStore();
-			await Promise.race([
-				new Promise<void>(r => {
-					store.add(this.capabilities.onDidAddCommandDetectionCapability(e => {
-						commandDetection = e;
-						r();
-					}));
-				}),
-				timeout(timeoutMs),
-			]);
+			store.add(this.capabilities.onDidAddCommandDetectionCapability(e => {
+				commandDetection = e;
+			}));
+
+			const processReadyTime = this._processManager.processReadyTime;
+			if (processReadyTime) {
+				const elapsed = Date.now() - processReadyTime;
+				timeoutMs = Math.max(0, timeoutMs - elapsed);
+			}
+
+			if (timeoutMs > 0) {
+				await timeout(timeoutMs);
+			}
 			store.dispose();
 		}
 
