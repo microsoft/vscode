@@ -1754,7 +1754,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		// Switch to the specified agent/mode if provided
 		if (handoff.agent) {
-			this.input.setChatMode(handoff.agent);
+			// Handoffs specify modes by name, so try ID first (for builtin modes), then name (for custom modes)
+			const mode = this.chatModeService.findModeById(handoff.agent) ?? this.chatModeService.findModeByName(handoff.agent);
+			if (mode) {
+				this.input.setChatMode(mode.id);
+			}
 		}
 		// Insert the handoff prompt into the input
 		this.input.setValue(handoff.prompt, false);
