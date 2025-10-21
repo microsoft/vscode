@@ -5,10 +5,12 @@
 
 import { spawn } from 'child_process';
 import { existsSync, unlinkSync } from 'fs';
-import { readFile, unlink } from 'fs/promises';
+import { mkdir, readFile, unlink } from 'fs/promises';
+import { tmpdir } from 'os';
 import { app } from 'electron';
 import { timeout } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
+import { memoize } from '../../../base/common/decorators.js';
 import { hash } from '../../../base/common/hash.js';
 import * as path from '../../../base/common/path.js';
 import { URI } from '../../../base/common/uri.js';
@@ -52,6 +54,12 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 
 	private availableUpdate: IAvailableUpdate | undefined;
 
+	@memoize
+	get cachePath(): Promise<string> {
+		const result = path.join(tmpdir(), `vscode-${this.productService.quality}-${this.productService.target}-${process.arch}`);
+		return mkdir(result, { recursive: true }).then(() => result);
+	}
+
 	constructor(
 		@ILifecycleMainService lifecycleMainService: ILifecycleMainService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -90,7 +98,8 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 			return;
 		}
 
-		const cachePath = await this.nativeHostMainService.cachePath;
+		const cachePath = await this.cachePath;
+		app.setPath('appUpdate', cachePath);
 		try {
 			await unlink(path.join(cachePath, 'session-ending.flag'));
 		} catch { }
@@ -215,14 +224,14 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 	}
 
 	private async getUpdatePackagePath(version: string): Promise<string> {
-		const cachePath = await this.nativeHostMainService.cachePath;
+		const cachePath = await this.cachePath;
 		return path.join(cachePath, `CodeSetup-${this.productService.quality}-${version}.exe`);
 	}
 
 	private async cleanup(exceptVersion: string | null = null): Promise<void> {
 		const filter = exceptVersion ? (one: string) => !(new RegExp(`${this.productService.quality}-${exceptVersion}\\.exe$`).test(one)) : () => true;
 
-		const cachePath = await this.nativeHostMainService.cachePath;
+		const cachePath = await this.cachePath;
 		const versions = await pfs.Promises.readdir(cachePath);
 
 		const promises = versions.filter(filter).map(async one => {
@@ -248,7 +257,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		const update = this.state.update;
 		this.setState(State.Updating(update));
 
-		const cachePath = await this.nativeHostMainService.cachePath;
+		const cachePath = await this.cachePath;
 		const sessionEndFlagPath = path.join(cachePath, 'session-ending.flag');
 
 		this.availableUpdate.updateFilePath = path.join(cachePath, `CodeSetup-${this.productService.quality}-${update.version}.flag`);
