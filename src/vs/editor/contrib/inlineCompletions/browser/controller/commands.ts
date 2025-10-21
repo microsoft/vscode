@@ -13,9 +13,8 @@ import { IClipboardService } from '../../../../../platform/clipboard/common/clip
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { ICodeEditor } from '../../../../browser/editorBrowser.js';
-import { EditorAction, EditorCommand, ServicesAccessor } from '../../../../browser/editorExtensions.js';
+import { EditorAction, ServicesAccessor } from '../../../../browser/editorExtensions.js';
 import { EditorContextKeys } from '../../../../common/editorContextKeys.js';
 import { Context as SuggestContext } from '../../../suggest/browser/suggest.js';
 import { hideInlineCompletionId, inlineSuggestCommitId, jumpToNextInlineEditId, showNextInlineSuggestionActionId, showPreviousInlineSuggestionActionId, toggleShowCollapsedId } from './commandIds.js';
@@ -78,43 +77,6 @@ export class TriggerInlineSuggestionAction extends EditorAction {
 			await controller?.model.get()?.triggerExplicitly(tx);
 			controller?.playAccessibilitySignal(tx);
 		});
-	}
-}
-
-export class ExplicitTriggerInlineEditAction extends EditorAction {
-	constructor() {
-		super({
-			id: 'editor.action.inlineSuggest.triggerInlineEditExplicit',
-			label: nls.localize2('action.inlineSuggest.trigger.explicitInlineEdit', "Trigger Next Edit Suggestion"),
-			precondition: EditorContextKeys.writable,
-		});
-	}
-
-	public async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-		const notificationService = accessor.get(INotificationService);
-		const controller = InlineCompletionsController.get(editor);
-
-		await controller?.model.get()?.triggerExplicitly(undefined, true);
-		if (!controller?.model.get()?.inlineEditAvailable.get()) {
-			notificationService.notify({
-				severity: Severity.Info,
-				message: nls.localize('noInlineEditAvailable', "No inline edit is available.")
-			});
-		}
-	}
-}
-
-export class TriggerInlineEditAction extends EditorCommand {
-	constructor() {
-		super({
-			id: 'editor.action.inlineSuggest.triggerInlineEdit',
-			precondition: EditorContextKeys.writable,
-		});
-	}
-
-	public override async runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: { triggerKind?: 'automatic' | 'explicit' }): Promise<void> {
-		const controller = InlineCompletionsController.get(editor);
-		await controller?.model.get()?.trigger(undefined, { onlyFetchInlineEdits: true });
 	}
 }
 

@@ -26,7 +26,7 @@ import { PromptsConfig } from '../../../common/promptSyntax/config/config.js';
 import { getPromptFileExtension } from '../../../common/promptSyntax/config/promptFileLocations.js';
 import { PromptValidator } from '../../../common/promptSyntax/languageProviders/promptValidator.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
-import { NewPromptsParser } from '../../../common/promptSyntax/service/newPromptsParser.js';
+import { PromptFileParser } from '../../../common/promptSyntax/promptFileParser.js';
 import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { MockChatModeService } from '../../common/mockChatModeService.js';
 import { MockChatService } from '../../common/mockChatService.js';
@@ -96,7 +96,7 @@ suite('PromptValidator', () => {
 
 	async function validate(code: string, promptType: PromptsType): Promise<IMarkerData[]> {
 		const uri = URI.parse('myFs://test/testFile' + getPromptFileExtension(promptType));
-		const result = new NewPromptsParser().parse(uri, code);
+		const result = new PromptFileParser().parse(uri, code);
 		const validator = instaService.createInstance(PromptValidator);
 		const markers: IMarkerData[] = [];
 		await validator.validate(result, promptType, m => markers.push(m));

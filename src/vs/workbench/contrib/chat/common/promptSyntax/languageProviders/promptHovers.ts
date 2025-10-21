@@ -15,7 +15,7 @@ import { ILanguageModelToolsService, ToolSet } from '../../languageModelToolsSer
 import { IChatModeService, isBuiltinChatMode } from '../../chatModes.js';
 import { getPromptsTypeForLanguageId, PromptsType } from '../promptTypes.js';
 import { IPromptsService } from '../service/promptsService.js';
-import { IHeaderAttribute, PromptBody, PromptHeader } from '../service/newPromptsParser.js';
+import { IHeaderAttribute, PromptBody, PromptHeader, PromptHeaderAttributes } from '../promptFileParser.js';
 
 export class PromptHoverProvider implements HoverProvider {
 	/**
@@ -68,42 +68,42 @@ export class PromptHoverProvider implements HoverProvider {
 
 	private async provideHeaderHover(position: Position, promptType: PromptsType, header: PromptHeader): Promise<Hover | undefined> {
 		if (promptType === PromptsType.instructions) {
-			const descriptionRange = header.getAttribute('description')?.range;
+			const descriptionRange = header.getAttribute(PromptHeaderAttributes.description)?.range;
 			if (descriptionRange?.containsPosition(position)) {
 				return this.createHover(localize('promptHeader.instructions.description', 'The description of the instruction file. It can be used to provide additional context or information about the instructions and is passed to the language model as part of the prompt.'), descriptionRange);
 			}
-			const applyToRange = header.getAttribute('applyTo')?.range;
+			const applyToRange = header.getAttribute(PromptHeaderAttributes.applyTo)?.range;
 			if (applyToRange?.containsPosition(position)) {
 				return this.createHover(localize('promptHeader.instructions.applyToRange', 'One or more glob pattern (separated by comma) that describe for which files the instructions apply to. Based on these patterns, the file is automatically included in the prompt, when the context contains a file that matches one or more of these patterns. Use `**` when you want this file to always be added.\nExample: `**/*.ts`, `**/*.js`, `client/**`'), applyToRange);
 			}
 
 		} else if (promptType === PromptsType.agent) {
-			const descriptionRange = header.getAttribute('description')?.range;
+			const descriptionRange = header.getAttribute(PromptHeaderAttributes.description)?.range;
 			if (descriptionRange?.containsPosition(position)) {
 				return this.createHover(localize('promptHeader.agent.description', 'The description of the agent file. It is a short description of what the agent does.'), descriptionRange);
 			}
-			const model = header.getAttribute('model');
+			const model = header.getAttribute(PromptHeaderAttributes.model);
 			if (model?.range.containsPosition(position)) {
 				return this.getModelHover(model, model.range, localize('promptHeader.agent.model', 'The model to use in this agent.'));
 			}
-			const tools = header.getAttribute('tools');
+			const tools = header.getAttribute(PromptHeaderAttributes.tools);
 			if (tools?.range.containsPosition(position)) {
 				return this.getToolHover(tools, position, localize('promptHeader.agent.tools', 'The tools to use in this agent.'));
 			}
 		} else {
-			const descriptionRange = header.getAttribute('description')?.range;
+			const descriptionRange = header.getAttribute(PromptHeaderAttributes.description)?.range;
 			if (descriptionRange?.containsPosition(position)) {
 				return this.createHover(localize('promptHeader.prompt.description', 'The description of the prompt file. It is a short description of what the prompt does.'), descriptionRange);
 			}
-			const model = header.getAttribute('model');
+			const model = header.getAttribute(PromptHeaderAttributes.model);
 			if (model?.range.containsPosition(position)) {
 				return this.getModelHover(model, model.range, localize('promptHeader.prompt.model', 'The model to use in this prompt.'));
 			}
-			const tools = header.getAttribute('tools');
+			const tools = header.getAttribute(PromptHeaderAttributes.tools);
 			if (tools?.range.containsPosition(position)) {
 				return this.getToolHover(tools, position, localize('promptHeader.prompt.tools', 'The tools to use in this prompt.'));
 			}
-			const agent = header.getAttribute('agent') ?? header.getAttribute('mode');
+			const agent = header.getAttribute(PromptHeaderAttributes.agent) ?? header.getAttribute(PromptHeaderAttributes.mode);
 			if (agent?.range.containsPosition(position)) {
 				return this.getAgentHover(agent, position, localize('promptHeader.prompt.agent', 'The agent to use in this prompt.'));
 			}
