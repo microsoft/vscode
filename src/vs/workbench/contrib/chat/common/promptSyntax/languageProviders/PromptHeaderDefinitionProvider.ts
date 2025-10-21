@@ -10,7 +10,7 @@ import { Definition, DefinitionProvider } from '../../../../../../editor/common/
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { IChatModeService } from '../../chatModes.js';
 import { getPromptsTypeForLanguageId } from '../promptTypes.js';
-import { PromptHeaderAttributes } from '../service/newPromptsParser.js';
+import { PromptHeaderAttributes } from '../promptFileParser.js';
 import { IPromptsService } from '../service/promptsService.js';
 
 export class PromptHeaderDefinitionProvider implements DefinitionProvider {

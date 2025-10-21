@@ -12,7 +12,7 @@ import { ExtensionIdentifier, IExtensionDescription } from '../../../../../../pl
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IChatModeInstructions, IVariableReference } from '../../chatModes.js';
 import { PromptsType } from '../promptTypes.js';
-import { IHandOff, ParsedPromptFile } from './newPromptsParser.js';
+import { IHandOff, ParsedPromptFile } from '../promptFileParser.js';
 
 /**
  * Provides prompt services.
@@ -223,6 +223,12 @@ export interface IPromptsService extends IDisposable {
 	 * Gets list of .github/copilot-instructions.md files.
 	 */
 	listCopilotInstructionsMDs(token: CancellationToken): Promise<URI[]>;
+
+	/**
+	 * For a chat mode file URI, return the name of the agent file that it should use.
+	 * @param oldURI
+	 */
+	getAgentFileURIFromModeFile(oldURI: URI): URI | undefined;
 }
 
 export interface IChatPromptSlashCommand {

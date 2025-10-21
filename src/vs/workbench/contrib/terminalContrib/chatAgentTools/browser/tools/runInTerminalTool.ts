@@ -51,12 +51,13 @@ import { IPollingResult, OutputMonitorState } from './monitoring/types.js';
 // #region Tool data
 
 function createPowerShellModelDescription(shell: string): string {
+	const isWinPwsh = isWindowsPowerShell(shell);
 	return [
-		'This tool allows you to execute PowerShell commands in a persistent terminal session, preserving environment variables, working directory, and other context across multiple commands.',
+		`This tool allows you to execute ${isWinPwsh ? 'Windows PowerShell 5.1' : 'PowerShell'} commands in a persistent terminal session, preserving environment variables, working directory, and other context across multiple commands.`,
 		'',
 		'Command Execution:',
 		'- Does NOT support multi-line commands',
-		`- ${isWindowsPowerShell(shell)
+		`- ${isWinPwsh
 			? 'Use semicolons ; to chain commands on one line, NEVER use && even when asked explicitly'
 			: 'Use && to chain simple commands on one line'}`,
 		'- Prefer pipelines | for object-based data flow',

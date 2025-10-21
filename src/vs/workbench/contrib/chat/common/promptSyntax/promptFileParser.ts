@@ -3,15 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Iterable } from '../../../../../../base/common/iterator.js';
-import { dirname, joinPath } from '../../../../../../base/common/resources.js';
-import { splitLinesIncludeSeparators } from '../../../../../../base/common/strings.js';
-import { URI } from '../../../../../../base/common/uri.js';
-import { parse, YamlNode, YamlParseError, Position as YamlPosition } from '../../../../../../base/common/yaml.js';
-import { Range } from '../../../../../../editor/common/core/range.js';
-import { chatVariableLeader } from '../../chatParserTypes.js';
+import { Iterable } from '../../../../../base/common/iterator.js';
+import { dirname, joinPath } from '../../../../../base/common/resources.js';
+import { splitLinesIncludeSeparators } from '../../../../../base/common/strings.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { parse, YamlNode, YamlParseError, Position as YamlPosition } from '../../../../../base/common/yaml.js';
+import { Range } from '../../../../../editor/common/core/range.js';
 
-export class NewPromptsParser {
+export class PromptFileParser {
 	constructor() {
 	}
 
@@ -295,7 +294,7 @@ export class PromptBody {
 					fileReferences.push({ content: match[2], range, isMarkdownLink: true });
 					markdownLinkRanges.push(new Range(i + 1, match.index + 1, i + 1, match.index + match[0].length + 1));
 				}
-				const reg = new RegExp(`${chatVariableLeader}([\\w]+:)?([^\\s#]+)`, 'g');
+				const reg = new RegExp(`#([\\w]+:)?([^\\s#]+)`, 'g');
 				const matches = line.matchAll(reg);
 				for (const match of matches) {
 					const fullRange = new Range(i + 1, match.index + 1, i + 1, match.index + match[0].length + 1);

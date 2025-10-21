@@ -30,7 +30,7 @@ import { PromptsConfig } from '../config/config.js';
 import { getCleanPromptName, PROMPT_FILE_EXTENSION } from '../config/promptFileLocations.js';
 import { getPromptsTypeForLanguageId, AGENT_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptsType } from '../promptTypes.js';
 import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
-import { NewPromptsParser, ParsedPromptFile, PromptHeaderAttributes } from './newPromptsParser.js';
+import { PromptFileParser, ParsedPromptFile, PromptHeaderAttributes } from '../promptFileParser.js';
 import { IAgentInstructions, IAgentSource, IChatPromptSlashCommand, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPromptPath, IPromptsService, IUserPromptPath, PromptsStorage } from './promptsService.js';
 
 /**
@@ -75,7 +75,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IFileService private readonly fileService: IFileService,
-		@IFilesConfigurationService private readonly filesConfigService: IFilesConfigurationService
+		@IFilesConfigurationService private readonly filesConfigService: IFilesConfigurationService,
 	) {
 		super();
 
@@ -113,7 +113,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		if (cached && cached[0] === textModel.getVersionId()) {
 			return cached[1];
 		}
-		const ast = new NewPromptsParser().parse(textModel.uri, textModel.getValue());
+		const ast = new PromptFileParser().parse(textModel.uri, textModel.getValue());
 		if (!cached || cached[0] < textModel.getVersionId()) {
 			this.parsedPromptFileCache.set(textModel.uri, [textModel.getVersionId(), ast]);
 		}
@@ -310,7 +310,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
-		return new NewPromptsParser().parse(uri, fileContent.value.toString());
+		return new PromptFileParser().parse(uri, fileContent.value.toString());
 	}
 
 	public registerContributedFile(type: PromptsType, name: string, description: string, uri: URI, extension: IExtensionDescription) {
@@ -379,6 +379,11 @@ export class PromptsService extends Disposable implements IPromptsService {
 		}
 		return await this.fileLocator.findCopilotInstructionsMDsInWorkspace(token);
 	}
+
+	public getAgentFileURIFromModeFile(oldURI: URI): URI | undefined {
+		return this.fileLocator.getAgentFileURIFromModeFile(oldURI);
+	}
+
 }
 
 function getCommandNameFromPromptPath(promptPath: IPromptPath): string {
