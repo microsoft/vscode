@@ -62,7 +62,8 @@ export class DialogMainService implements IDialogMainService {
 	}
 
 	pickFolder(options: INativeOpenDialogOptions, window?: electron.BrowserWindow): Promise<string[] | undefined> {
-		return this.doPick({ ...options, pickFolders: true, title: localize('openFolder', "Open Folder") }, window);
+		const buttonLabel = mnemonicButtonLabel(localize({ key: 'selectFolder', comment: ['&& denotes a mnemonic'] }, "&&Select folder")).withMnemonic;
+		return this.doPick({ ...options, pickFolders: true, title: localize('openFolder', "Open Folder"), buttonLabel }, window);
 	}
 
 	pickFile(options: INativeOpenDialogOptions, window?: electron.BrowserWindow): Promise<string[] | undefined> {
