@@ -131,12 +131,12 @@ export class AgentSessionsView extends FilterViewPane {
 			list.setInput(this.sessionsViewModel);
 		}));
 
-		this._register(Event.any(
+		this._register(Event.debounce(Event.any(
 			this.chatSessionsService.onDidChangeItemsProviders,
 			this.chatSessionsService.onDidChangeAvailability,
 			this.chatSessionsService.onDidChangeSessionItems,
 			this.chatSessionsService.onDidChangeInProgress
-		)(() => this.refreshList()));
+		), () => undefined, 500)(() => this.refreshList()));
 
 		this._register(list.onDidOpen(e => {
 			this.openAgentSession(e);
@@ -299,6 +299,7 @@ export class AgentSessionsView extends FilterViewPane {
 			{
 				location: this.id,
 				title: localize('agentSessions.refreshing', 'Refreshing agent sessions...'),
+				delay: 800
 			},
 			async () => {
 				await this.list?.updateChildren();
