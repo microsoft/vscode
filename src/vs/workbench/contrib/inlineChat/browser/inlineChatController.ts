@@ -31,6 +31,7 @@ import { IEditorContribution } from '../../../../editor/common/editorCommon.js';
 import { TextEdit, VersionedExtensionId } from '../../../../editor/common/languages.js';
 import { IValidEditOperation } from '../../../../editor/common/model.js';
 import { IEditorWorkerService } from '../../../../editor/common/services/editorWorker.js';
+import { IMarkerDecorationsService } from '../../../../editor/common/services/markerDecorations.js';
 import { DefaultModelSHA1Computer } from '../../../../editor/common/services/modelService.js';
 import { EditSuggestionId } from '../../../../editor/common/textModelEditSource.js';
 import { InlineCompletionsController } from '../../../../editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController.js';
@@ -52,7 +53,7 @@ import { IChatEditingSession, ModifiedFileEntryState } from '../../chat/common/c
 import { ChatRequestRemovalReason, IChatRequestModel, IChatTextEditGroup, IChatTextEditGroupState, IResponse } from '../../chat/common/chatModel.js';
 import { ChatMode } from '../../chat/common/chatModes.js';
 import { IChatService } from '../../chat/common/chatService.js';
-import { IChatRequestVariableEntry } from '../../chat/common/chatVariableEntries.js';
+import { IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData } from '../../chat/common/chatVariableEntries.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { isNotebookContainingCellEditor as isNotebookWithCellEditor } from '../../notebook/browser/notebookEditor.js';
 import { INotebookEditorService } from '../../notebook/browser/services/notebookEditorService.js';
@@ -1267,8 +1268,8 @@ export class InlineChatController2 implements IEditorContribution {
 		@IFileService private readonly _fileService: IFileService,
 		@IChatAttachmentResolveService private readonly _chatAttachmentResolveService: IChatAttachmentResolveService,
 		@IEditorService private readonly _editorService: IEditorService,
+		@IMarkerDecorationsService private readonly _markerDecorationsService: IMarkerDecorationsService,
 		@IInlineChatSessionService inlineChatService: IInlineChatSessionService,
-		@IConfigurationService configurationService: IConfigurationService,
 		@IChatService chatService: IChatService,
 	) {
 
@@ -1498,6 +1499,25 @@ export class InlineChatController2 implements IEditorContribution {
 		const session = this._inlineChatSessions.getSession2(uri)
 			?? await this._inlineChatSessions.createSession2(this._editor, uri, CancellationToken.None);
 
+		// ADD diagnostics
+		const entries: IChatRequestVariableEntry[] = [];
+		for (const [range, marker] of this._markerDecorationsService.getLiveMarkers(uri)) {
+			if (range.intersectRanges(this._editor.getSelection())) {
+				const filter = IDiagnosticVariableEntryFilterData.fromMarker(marker);
+				entries.push(IDiagnosticVariableEntryFilterData.toEntry(filter));
+			}
+		}
+		if (entries.length > 0) {
+			this._zone.value.widget.chatWidget.attachmentModel.addContext(...entries);
+			this._zone.value.widget.chatWidget.input.setValue(entries.length > 1
+				? localize('fixN', "Fix the attached problems")
+				: localize('fix1', "Fix the attached problem"),
+				true
+			);
+			this._zone.value.widget.chatWidget.inputEditor.setSelection(new Selection(1, 1, Number.MAX_SAFE_INTEGER, 1));
+		}
+
+		// Check args
 		if (arg && InlineChatRunOptions.isInlineChatRunOptions(arg)) {
 			if (arg.initialRange) {
 				this._editor.revealRange(arg.initialRange);
