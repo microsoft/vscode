@@ -28,12 +28,15 @@ import { AgentSessionsViewModel, IAgentSessionViewModel, IAgentSessionsViewModel
 import { AgentSessionRenderer, AgentSessionsAccessibilityProvider, AgentSessionsCompressionDelegate, AgentSessionsDataSource, AgentSessionsFilter, AgentSessionsIdentityProvider, AgentSessionsListDelegate } from './agentSessionsViewer.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ButtonWithDropdown } from '../../../../../base/browser/ui/button/button.js';
-import { IAction, Separator, toAction } from '../../../../../base/common/actions.js';
+import { IAction, toAction } from '../../../../../base/common/actions.js';
 import { FuzzyScore } from '../../../../../base/common/filters.js';
 import { MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { NEW_CHAT_SESSION_ACTION_ID } from '../chatSessions/common.js';
+import { ACTION_ID_OPEN_CHAT } from '../actions/chatActions.js';
 
 export class AgentSessionsView extends FilterViewPane {
 
@@ -55,7 +58,8 @@ export class AgentSessionsView extends FilterViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@IHoverService hoverService: IHoverService,
-		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@ICommandService private readonly commandService: ICommandService
 	) {
 		super({
 			...options,
@@ -163,29 +167,40 @@ export class AgentSessionsView extends FilterViewPane {
 	private createNewSessionButton(container: HTMLElement): void {
 		this.newSessionContainer = append(container, $('.agent-sessions-new-session-container'));
 
-		// TODO@bpasero: Implement new session creation and registry lookup of providers
-
-		const dropdownActions: IAction[] = [
-			toAction({ id: 'action1', label: localize('agentSessions.action1', "Local Chat"), run: () => { /* TODO */ } }),
-			toAction({ id: 'action2', label: localize('agentSessions.action2', "Remote Chat"), run: () => { /* TODO */ } }),
-			new Separator(),
-			toAction({ id: 'installMore', label: localize('agentSessions.installMore', "Install More..."), run: () => { /* TODO */ } })
-		];
+		const primaryAction = toAction({
+			id: 'agentSessions.newSession.primary',
+			label: localize('agentSessions.newSession', "New Session"),
+			run: () => this.commandService.executeCommand(ACTION_ID_OPEN_CHAT)
+		});
 
 		const newSessionButton = this._register(new ButtonWithDropdown(this.newSessionContainer, {
-			...defaultButtonStyles,
-			title: localize('agentSessions.newSession', "New Agent Session"),
-			ariaLabel: localize('agentSessions.newSessionAriaLabel', "New Agent Session"),
+			title: localize('agentSessions.newSession', "New Session"),
+			ariaLabel: localize('agentSessions.newSessionAriaLabel', "New Session"),
 			contextMenuProvider: this.contextMenuService,
-			actions: dropdownActions,
-			addPrimaryActionToDropdown: false
+			actions: {
+				getActions: () => {
+					const actions: IAction[] = [];
+					for (const provider of this.chatSessionsService.getAllChatSessionItemProviders()) {
+						if (provider.chatSessionType === 'local') {
+							continue; // local is the primary action
+						}
+
+						actions.push(toAction({
+							id: `newChatSessionFromProvider.${provider.chatSessionType}`,
+							label: localize('newChatSessionFromProvider', "New Session ({0})", provider.chatSessionType),
+							run: () => this.commandService.executeCommand(`${NEW_CHAT_SESSION_ACTION_ID}.${provider.chatSessionType}`)
+						}));
+					}
+					return actions;
+				}
+			},
+			addPrimaryActionToDropdown: false,
+			...defaultButtonStyles,
 		}));
 
-		newSessionButton.label = localize('agentSessions.newSession', "New Agent Session");
+		newSessionButton.label = localize('agentSessions.newSession', "New Session");
 
-		this._register(newSessionButton.onDidClick(() => {
-			// TODO
-		}));
+		this._register(newSessionButton.onDidClick(() => primaryAction.run()));
 	}
 
 	//#endregion
