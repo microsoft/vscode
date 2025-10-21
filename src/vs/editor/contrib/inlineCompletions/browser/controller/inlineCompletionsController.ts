@@ -332,7 +332,7 @@ export class InlineCompletionsController extends Disposable {
 			state = model?.state.get();
 			if (!state || !model) { return; }
 			const lineText = state.kind === 'ghostText' ? model.textModel.getLineContent(state.primaryGhostText.lineNumber) : '';
-			this._accessibilitySignalService.playSignal(state.kind === 'ghostText' ? AccessibilitySignal.inlineSuggestion : AccessibilitySignal.nextEditSuggestion);
+			this._accessibilitySignalService.playSignal(AccessibilitySignal.inlineSuggestion);
 
 			if (this.editor.getOption(EditorOption.screenReaderAnnounceInlineSuggestion)) {
 				if (state.kind === 'ghostText') {
