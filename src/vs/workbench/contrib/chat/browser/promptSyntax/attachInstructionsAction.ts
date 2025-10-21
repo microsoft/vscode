@@ -78,7 +78,7 @@ class AttachInstructionsAction extends Action2 {
 			id: ATTACH_INSTRUCTIONS_ACTION_ID,
 			title: localize2('attach-instructions.capitalized.ellipses', "Attach Instructions..."),
 			f1: false,
-			precondition: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
+			precondition: ChatContextKeys.enabled,
 			category: CHAT_CATEGORY,
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Slash,
@@ -86,7 +86,7 @@ class AttachInstructionsAction extends Action2 {
 			},
 			menu: {
 				id: MenuId.CommandPalette,
-				when: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled)
+				when: ChatContextKeys.enabled
 			}
 		});
 	}
@@ -143,11 +143,11 @@ class ManageInstructionsFilesAction extends Action2 {
 			shortTitle: localize2('configure-instructions.short', "Chat Instructions"),
 			icon: Codicon.bookmark,
 			f1: true,
-			precondition: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
+			precondition: ChatContextKeys.enabled,
 			category: CHAT_CATEGORY,
 			menu: {
 				id: CHAT_CONFIG_MENU_ID,
-				when: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
 				order: 10,
 				group: '1_level'
 			}
@@ -226,7 +226,7 @@ export class ChatInstructionsPickerPick implements IChatContextPickerItem {
 	) { }
 
 	isEnabled(widget: IChatWidget): Promise<boolean> | boolean {
-		return PromptsConfig.enabled(this.configurationService) && !!widget.attachmentCapabilities.supportsInstructionAttachments;
+		return !!widget.attachmentCapabilities.supportsInstructionAttachments;
 	}
 
 	asPicker(): IChatContextPicker {

@@ -121,10 +121,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	public async listPromptFiles(type: PromptsType, token: CancellationToken): Promise<readonly IPromptPath[]> {
-		if (!PromptsConfig.enabled(this.configurationService)) {
-			return [];
-		}
-
 		const prompts = await Promise.all([
 			this.fileLocator.listFiles(type, PromptsStorage.user, token).then(uris => uris.map(uri => ({ uri, storage: PromptsStorage.user, type } satisfies IUserPromptPath))),
 			this.fileLocator.listFiles(type, PromptsStorage.local, token).then(uris => uris.map(uri => ({ uri, storage: PromptsStorage.local, type } satisfies ILocalPromptPath))),
@@ -135,10 +131,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	public async listPromptFilesForStorage(type: PromptsType, storage: PromptsStorage, token: CancellationToken): Promise<readonly IPromptPath[]> {
-		if (!PromptsConfig.enabled(this.configurationService)) {
-			return [];
-		}
-
 		switch (storage) {
 			case PromptsStorage.extension:
 				return this.getExtensionContributions(type);
@@ -156,10 +148,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	public getSourceFolders(type: PromptsType): readonly IPromptPath[] {
-		if (!PromptsConfig.enabled(this.configurationService)) {
-			return [];
-		}
-
 		const result: IPromptPath[] = [];
 
 		if (type === PromptsType.agent) {
@@ -174,7 +162,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		}
 
 		const userHome = this.userDataService.currentProfile.promptsHome;
-		result.push({ uri: userHome, storage: PromptsStorage.user, type });
+		result.push({ uri, storage: PromptsStorage.user, type });
 
 		return result;
 	}

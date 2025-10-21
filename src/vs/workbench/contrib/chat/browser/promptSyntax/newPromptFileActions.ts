@@ -37,14 +37,14 @@ class AbstractNewPromptFileAction extends Action2 {
 			id,
 			title,
 			f1: false,
-			precondition: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
+			precondition: ChatContextKeys.enabled,
 			category: CHAT_CATEGORY,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib
 			},
 			menu: {
 				id: MenuId.CommandPalette,
-				when: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled)
+				when: ChatContextKeys.enabled
 			}
 		});
 	}
@@ -202,7 +202,7 @@ class NewUntitledPromptFileAction extends Action2 {
 			id: 'workbench.command.new.untitled.prompt',
 			title: localize2('commands.new.untitled.prompt.title', "New Untitled Prompt File"),
 			f1: true,
-			precondition: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
+			precondition: ChatContextKeys.enabled,
 			category: CHAT_CATEGORY,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib

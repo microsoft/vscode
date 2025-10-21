@@ -54,7 +54,7 @@ class SaveToPromptAction extends Action2 {
 				"Save chat session to a prompt file",
 			),
 			f1: false,
-			precondition: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
+			precondition: ChatContextKeys.enabled,
 			category: CHAT_CATEGORY,
 		});
 	}

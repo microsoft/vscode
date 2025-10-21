@@ -67,12 +67,12 @@ class ManageAgentsAction extends ConfigAgentActionImpl {
 			shortTitle: localize('configure-agents.short', "Agents"),
 			icon: Codicon.bookmark,
 			f1: true,
-			precondition: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
+			precondition: ChatContextKeys.enabled,
 			category: CHAT_CATEGORY,
 			menu: [
 				{
 					id: CHAT_CONFIG_MENU_ID,
-					when: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
+					when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
 					order: 10,
 					group: '0_level'
 				}

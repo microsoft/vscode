@@ -422,18 +422,10 @@ export class PromptValidatorContribution extends Disposable {
 		this.validator = instantiationService.createInstance(PromptValidator);
 
 		this.updateRegistration();
-		this._register(this.configService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(PromptsConfig.KEY)) {
-				this.updateRegistration();
-			}
-		}));
 	}
 
 	updateRegistration(): void {
 		this.localDisposables.clear();
-		if (!PromptsConfig.enabled(this.configService)) {
-			return;
-		}
 		const trackers = new ResourceMap<ModelTracker>();
 		this.localDisposables.add(toDisposable(() => {
 			trackers.forEach(tracker => tracker.dispose());

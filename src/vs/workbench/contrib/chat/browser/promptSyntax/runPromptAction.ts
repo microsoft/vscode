@@ -35,7 +35,7 @@ import { IPromptsService } from '../../common/promptSyntax/service/promptsServic
  * Condition for the `Run Current Prompt` action.
  */
 const EDITOR_ACTIONS_CONDITION = ContextKeyExpr.and(
-	ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
+	ChatContextKeys.enabled,
 	ResourceContextKey.HasResource,
 	ResourceContextKey.LangId.isEqualTo(PROMPT_LANGUAGE_ID),
 );
@@ -101,7 +101,7 @@ abstract class RunPromptBaseAction extends Action2 {
 			id: options.id,
 			title: options.title,
 			f1: false,
-			precondition: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
+			precondition: ChatContextKeys.enabled,
 			category: CHAT_CATEGORY,
 			icon: options.icon,
 			keybinding: {
@@ -194,9 +194,9 @@ class RunSelectedPromptAction extends Action2 {
 			title: localize2('run-prompt.capitalized.ellipses', "Run Prompt..."),
 			icon: Codicon.bookmark,
 			f1: true,
-			precondition: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
+			precondition: ChatContextKeys.enabled,
 			keybinding: {
-				when: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
+				when: ChatContextKeys.enabled,
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: COMMAND_KEY_BINDING,
 			},
@@ -250,11 +250,11 @@ class ManagePromptFilesAction extends Action2 {
 			shortTitle: localize2('configure-prompts.short', "Prompt Files"),
 			icon: Codicon.bookmark,
 			f1: true,
-			precondition: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
+			precondition: ChatContextKeys.enabled,
 			category: CHAT_CATEGORY,
 			menu: {
 				id: CHAT_CONFIG_MENU_ID,
-				when: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
 				order: 11,
 				group: '0_level'
 			},

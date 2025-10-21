@@ -42,7 +42,6 @@ suite('PromptValidator', () => {
 	setup(async () => {
 
 		const testConfigService = new TestConfigurationService();
-		testConfigService.setUserConfiguration(PromptsConfig.KEY, true);
 		testConfigService.setUserConfiguration(ChatConfiguration.ExtensionToolsEnabled, true);
 		instaService = workbenchInstantiationService({
 			contextKeyService: () => disposables.add(new ContextKeyService(testConfigService)),
