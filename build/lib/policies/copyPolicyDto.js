@@ -45,7 +45,7 @@ try {
     // Check if source file exists
     if (!fs.existsSync(sourceFile)) {
         console.error(`Error: Source file not found: ${sourceFile}`);
-        console.error('Please ensure policyDto.ts exists in src/vs/base/common/');
+        console.error('Please ensure policyDto.ts exists in src/vs/workbench/contrib/policyExport/common/');
         process.exit(1);
     }
     // Copy the file
