@@ -19,6 +19,7 @@ export interface IMarkdownString {
 	readonly isTrusted?: boolean | MarkdownStringTrustedOptions;
 	readonly supportThemeIcons?: boolean;
 	readonly supportHtml?: boolean;
+	/** @internal */
 	readonly supportAlerts?: boolean;
 	readonly baseUri?: UriComponents;
 	uris?: { [href: string]: UriComponents };
