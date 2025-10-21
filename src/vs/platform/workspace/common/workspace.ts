@@ -384,11 +384,12 @@ export class Workspace implements IWorkspace {
 		let folder = this.foldersMapPrioritizingQueryAndFragment.findSubstr(resource);
 		if (!folder) {
 			// Fall back to a lookup ignoring query and fragment
-			folder = this.foldersMap.findSubstr(resource.with({
+			const strippedResource = resource.with({
 				scheme: resource.scheme,
 				authority: resource.authority,
 				path: resource.path
-			}));
+			});
+			folder = this.foldersMap.findSubstr(strippedResource);
 		}
 		return folder || null;
 	}
