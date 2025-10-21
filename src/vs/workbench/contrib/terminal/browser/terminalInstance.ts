@@ -923,6 +923,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		let timeoutMs: number;
 		if (rawConfigured === undefined || typeof rawConfigured !== 'number' || rawConfigured < 0) {
 			const siEnabled = this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled) === true;
+			// Discuss: This default from copilot chat setting feels pretty slow..
 			timeoutMs = siEnabled ? 5000 : (this.isRemote ? 3000 : 2000);
 			this._logService.debug(`***runCommand***: timeout unset/negative, using heuristic: ${timeoutMs}ms (siEnabled=${siEnabled}, isRemote=${this.isRemote})`);
 		} else if (rawConfigured === 0) {
