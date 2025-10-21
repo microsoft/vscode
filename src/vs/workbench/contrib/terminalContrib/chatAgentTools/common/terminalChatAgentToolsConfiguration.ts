@@ -8,6 +8,7 @@ import type { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
 import { localize } from '../../../../../nls.js';
 import { type IConfigurationPropertySchema } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
+import product from '../../../../../platform/product/common/product.js';
 import { terminalProfileBaseProperties } from '../../../../../platform/terminal/common/terminalPlatformConfiguration.js';
 
 export const enum TerminalChatAgentToolsSettingId {
@@ -15,6 +16,7 @@ export const enum TerminalChatAgentToolsSettingId {
 	AutoApprove = 'chat.tools.terminal.autoApprove',
 	ShellIntegrationTimeout = 'chat.tools.terminal.shellIntegrationTimeout',
 	AutoReplyToPrompts = 'chat.tools.terminal.autoReplyToPrompts',
+	OutputLocation = 'chat.tools.terminal.outputLocation',
 
 	TerminalProfileLinux = 'chat.tools.terminal.terminalProfile.linux',
 	TerminalProfileMacOs = 'chat.tools.terminal.terminalProfile.osx',
@@ -63,7 +65,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		markdownDescription: [
 			localize('autoApprove.description.intro', "A list of commands or regular expressions that control whether the run in terminal tool commands require explicit approval. These will be matched against the start of a command. A regular expression can be provided by wrapping the string in {0} characters followed by optional flags such as {1} for case-insensitivity.", '`/`', '`i`'),
 			localize('autoApprove.description.values', "Set to {0} to automatically approve commands, {1} to always require explicit approval or {2} to unset the value.", '`true`', '`false`', '`null`'),
-			localize('autoApprove.description.subCommands', "Note that these commands and regular expressions are evaluated for every _sub-command_ within the full _command line_, so {0} for example will need both {1} and {2} to match a {3} entry and must not match a {4} entry in order to auto approve. Inline commands such as {5} (command sustitution) or {6} (process substitution) are currently blocked by default via broad rules that detect these patterns.", '`foo && bar`', '`foo`', '`bar`', '`true`', '`false`', '`$(foo)`', '`<(foo)`'),
+			localize('autoApprove.description.subCommands', "Note that these commands and regular expressions are evaluated for every _sub-command_ within the full _command line_, so {0} for example will need both {1} and {2} to match a {3} entry and must not match a {4} entry in order to auto approve. Inline commands such as {5} (process substitution) are currently blocked by default via broad rules that detect these patterns.", '`foo && bar`', '`foo`', '`bar`', '`true`', '`false`', '`<(foo)`'),
 			localize('autoApprove.description.commandLine', "An object can be used to match against the full command line instead of matching sub-commands and inline commands, for example {0}. In order to be auto approved _both_ the sub-command and command line must not be explicitly denied, then _either_ all sub-commands or command line needs to be approved.", '`{ approve: false, matchCommandLine: true }`'),
 			[
 				localize('autoApprove.description.examples.title', 'Examples:'),
@@ -385,6 +387,17 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		default: false,
 		tags: ['experimental'],
 		markdownDescription: localize('autoReplyToPrompts.key', "Whether to automatically respond to prompts in the terminal such as `Confirm? y/n`. This is an experimental feature and may not work in all scenarios."),
+	}
+	,
+	[TerminalChatAgentToolsSettingId.OutputLocation]: {
+		markdownDescription: localize('outputLocation.description', "Where to show the output from the run in terminal tool session."),
+		type: 'string',
+		enum: ['terminal', 'none'],
+		enumDescriptions: [
+			localize('outputLocation.terminal', "Reveal the terminal when running the command."),
+			localize('outputLocation.none', "Do not reveal the terminal automatically."),
+		],
+		default: product.quality !== 'stable' ? 'none' : 'terminal'
 	}
 };
 

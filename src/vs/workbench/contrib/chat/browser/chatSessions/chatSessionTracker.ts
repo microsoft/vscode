@@ -102,6 +102,7 @@ export class ChatSessionTracker extends Disposable {
 			const parsed = ChatSessionUri.parse(editor.resource);
 			const hybridSession: ChatSessionItemWithProvider = {
 				id: parsed?.sessionId || editor.sessionId || `${provider.chatSessionType}-local-${index}`,
+				resource: editor.resource,
 				label: editor.getName(),
 				iconPath: Codicon.chatSparkle,
 				status,
