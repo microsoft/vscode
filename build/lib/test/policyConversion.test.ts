@@ -351,6 +351,44 @@ const mockProduct: ProductJson = {
 	win32RegValueName: 'CodeOSS'
 };
 
+const frenchTranslations = [
+	{
+		languageId: 'fr-fr',
+		languageTranslations: {
+			'': {
+				'interactiveSessionConfigurationTitle': 'Session interactive',
+				'extensionsConfigurationTitle': 'Extensions',
+				'terminalIntegratedConfigurationTitle': 'Terminal intégré',
+				'telemetryConfigurationTitle': 'Télémétrie',
+				'updateConfigurationTitle': 'Mettre à jour',
+				'chat.extensionToolsEnabled': 'Autorisez l\'utilisation d\'outils fournis par des extensions tierces.',
+				'chat.agent.enabled.description': 'Activez le mode Assistant pour la conversation. Lorsque cette option est activée, le mode Assistant peut être activé via la liste déroulante de la vue.',
+				'chat.mcp.access': 'Contrôle l\'accès aux serveurs de protocole de contexte du modèle.',
+				'chat.mcp.access.none': 'Aucun accès aux serveurs MCP.',
+				'chat.mcp.access.registry': 'Autorise l\'accès aux serveurs MCP installés à partir du registre auquel VS Code est connecté.',
+				'chat.mcp.access.any': 'Autorisez l\'accès à tout serveur MCP installé.',
+				'chat.promptFiles.policy': 'Active les fichiers d\'instruction et de requête réutilisables dans les sessions Conversation.',
+				'autoApprove2.description': 'L\'approbation automatique globale, également appelée « mode YOLO », désactive complètement l\'approbation manuelle pour tous les outils dans tous les espaces de travail, permettant à l\'agent d\'agir de manière totalement autonome. Ceci est extrêmement dangereux et est *jamais* recommandé, même dans des environnements conteneurisés comme [Codespaces](https://github.com/features/codespaces) et [Dev Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers), où des clés utilisateur sont transférées dans le conteneur et pourraient être compromises.\n\nCette fonctionnalité désactive [les protections de sécurité critiques](https://code.visualstudio.com/docs/copilot/security) et facilite considérablement la compromission de la machine par un attaquant.',
+				'mcp.gallery.serviceUrl': 'Configurer l\'URL du service de la galerie MCP à laquelle se connecter',
+				'extensions.allowed.policy': 'Spécifiez une liste d\'extensions autorisées. Cela permet de maintenir un environnement de développement sécurisé et cohérent en limitant l\'utilisation d\'extensions non autorisées. Plus d\'informations : https://code.visualstudio.com/docs/setup/enterprise#_configure-allowed-extensions',
+				'extensions.gallery.serviceUrl': 'Configurer l\'URL du service Place de marché à laquelle se connecter',
+				'autoApproveMode.description': 'Contrôle s\'il faut autoriser l\'approbation automatique lors de l\'exécution dans l\'outil terminal.',
+				'telemetry.feedback.enabled': 'Activez les mécanismes de commentaires tels que le système de rapport de problèmes, les sondages et autres options de commentaires.',
+				'telemetry.telemetryLevel.policyDescription': 'Contrôle le niveau de télémétrie.',
+				'telemetry.telemetryLevel.default': 'Envoie les données d\'utilisation, les erreurs et les rapports d\'erreur.',
+				'telemetry.telemetryLevel.error': 'Envoie la télémétrie d\'erreur générale et les rapports de plantage.',
+				'telemetry.telemetryLevel.crash': 'Envoie des rapports de plantage au niveau du système d\'exploitation.',
+				'telemetry.telemetryLevel.off': 'Désactive toutes les données de télémétrie du produit.',
+				'updateMode': 'Choisissez si vous voulez recevoir des mises à jour automatiques. Nécessite un redémarrage après le changement. Les mises à jour sont récupérées auprès d\'un service en ligne Microsoft.',
+				'none': 'Aucun',
+				'manual': 'Désactivez la recherche de mises à jour automatique en arrière-plan. Les mises à jour sont disponibles si vous les rechercher manuellement.',
+				'start': 'Démarrer',
+				'default': 'Système'
+			}
+		}
+	}
+];
+
 suite('Policy E2E conversion', () => {
 
 	test('should render macOS policy profile from policies list', async () => {
@@ -415,40 +453,41 @@ suite('Policy E2E conversion', () => {
 		assert.strictEqual(enUsAdml.contents, expectedContent, 'Windows ADML should match the fixture');
 	});
 
-	test('should render macOS manifest with fr-fr locale structure', async () => {
+	test('should render macOS manifest with fr-fr locale', async () => {
 		const parsedPolicies = parsePolicies(policies);
-		const mockTranslations = [
-			{ languageId: 'fr-fr', languageTranslations: { '': {} } } // Empty translations to test structure
-		];
-		const result = renderMacOSPolicy(mockProduct, parsedPolicies, mockTranslations);
+		const result = renderMacOSPolicy(mockProduct, parsedPolicies, frenchTranslations);
+
+		// Load the expected fixture file
+		const fixturePath = path.join(__dirname, 'fixtures', 'policies', 'darwin', 'fr-fr', 'com.visualstudio.code.oss.plist');
+		const expectedContent = await fs.readFile(fixturePath, 'utf-8');
 
 		// Find the fr-fr manifest
 		const frFrManifest = result.manifests.find(m => m.languageId === 'fr-fr');
 		assert.ok(frFrManifest, 'fr-fr manifest should exist');
 
-		// Verify it contains expected structure (XML declaration, plist structure, policy keys)
-		assert.ok(frFrManifest.contents.includes('<?xml version="1.0" encoding="UTF-8"?>'), 'Should have XML declaration');
-		assert.ok(frFrManifest.contents.includes('<plist version="1.0">'), 'Should have plist tag');
-		assert.ok(frFrManifest.contents.includes('<key>pfm_subkeys</key>'), 'Should have pfm_subkeys');
-		assert.ok(frFrManifest.contents.includes('ChatAgentExtensionTools'), 'Should include policy names');
+		// Compare the rendered manifest with the fixture, ignoring the timestamp
+		const normalizeTimestamp = (content: string) => content.replace(/<date>.*?<\/date>/, '<date>TIMESTAMP</date>');
+		assert.strictEqual(
+			normalizeTimestamp(frFrManifest.contents),
+			normalizeTimestamp(expectedContent),
+			'macOS fr-fr manifest should match the fixture (ignoring timestamp)'
+		);
 	});
 
-	test('should render Windows ADML with fr-fr locale structure', async () => {
+	test('should render Windows ADML with fr-fr locale', async () => {
 		const parsedPolicies = parsePolicies(policies);
-		const mockTranslations = [
-			{ languageId: 'fr-fr', languageTranslations: { '': {} } } // Empty translations to test structure
-		];
-		const result = renderGP(mockProduct, parsedPolicies, mockTranslations);
+		const result = renderGP(mockProduct, parsedPolicies, frenchTranslations);
+
+		// Load the expected fixture file
+		const fixturePath = path.join(__dirname, 'fixtures', 'policies', 'win32', 'fr-fr', 'CodeOSS.adml');
+		const expectedContent = await fs.readFile(fixturePath, 'utf-8');
 
 		// Find the fr-fr ADML
 		const frFrAdml = result.adml.find(a => a.languageId === 'fr-fr');
 		assert.ok(frFrAdml, 'fr-fr ADML should exist');
 
-		// Verify it contains expected structure (XML declaration, resources, string table)
-		assert.ok(frFrAdml.contents.includes('<?xml version="1.0" encoding="utf-8"?>'), 'Should have XML declaration');
-		assert.ok(frFrAdml.contents.includes('<policyDefinitionResources'), 'Should have policyDefinitionResources tag');
-		assert.ok(frFrAdml.contents.includes('<stringTable>'), 'Should have stringTable');
-		assert.ok(frFrAdml.contents.includes('ChatAgentExtensionTools'), 'Should include policy names');
+		// Compare the rendered ADML with the fixture
+		assert.strictEqual(frFrAdml.contents, expectedContent, 'Windows fr-fr ADML should match the fixture');
 	});
 
 });
