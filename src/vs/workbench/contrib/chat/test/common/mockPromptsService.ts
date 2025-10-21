@@ -48,6 +48,6 @@ export class MockPromptsService implements IPromptsService {
 	findAgentMDsInWorkspace(token: CancellationToken): Promise<URI[]> { throw new Error('Not implemented'); }
 	listAgentMDs(token: CancellationToken): Promise<URI[]> { throw new Error('Not implemented'); }
 	listCopilotInstructionsMDs(token: CancellationToken): Promise<URI[]> { throw new Error('Not implemented'); }
-
+	getAgentFileURIFromModeFile(oldURI: URI): URI | undefined { throw new Error('Not implemented'); }
 	dispose(): void { }
 }
