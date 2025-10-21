@@ -42,6 +42,8 @@ type SelectedToolClassification = {
 
 export const AcceptToolConfirmationActionId = 'workbench.action.chat.acceptTool';
 export const SkipToolConfirmationActionId = 'workbench.action.chat.skipTool';
+export const AcceptToolPostConfirmationActionId = 'workbench.action.chat.acceptToolPostExecution';
+export const SkipToolPostConfirmationActionId = 'workbench.action.chat.skipToolPostExecution';
 
 abstract class ToolConfirmationAction extends Action2 {
 	protected abstract getReason(): ConfirmedReason;
@@ -56,7 +58,7 @@ abstract class ToolConfirmationAction extends Action2 {
 
 		for (const item of lastItem.model.response.value) {
 			const state = item.kind === 'toolInvocation' ? item.state.get() : undefined;
-			if (state?.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
+			if (state?.type === IChatToolInvocation.StateKind.WaitingForConfirmation || state?.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
 				state.confirm(this.getReason());
 				break;
 			}

@@ -222,11 +222,13 @@ export interface IToolResultDataPart {
 }
 
 export interface IToolConfirmationMessages {
-	title: string | IMarkdownString;
-	message: string | IMarkdownString;
+	title?: string | IMarkdownString;
+	message?: string | IMarkdownString;
 	disclaimer?: string | IMarkdownString;
 	allowAutoConfirm?: boolean;
 	terminalCustomActions?: ToolConfirmationAction[];
+	/** If true, confirmation will be requested after the tool executes and before results are sent to the model */
+	confirmResults?: boolean;
 }
 
 export interface IToolConfirmationAction {
@@ -327,6 +329,7 @@ export interface ILanguageModelToolsService {
 	setToolAutoConfirmation(toolId: string, scope: 'workspace' | 'profile' | 'session' | 'never'): void;
 	getToolAutoConfirmation(toolId: string): 'workspace' | 'profile' | 'session' | 'never';
 	resetToolAutoConfirmation(): void;
+	getToolPostExecutionAutoConfirmation(toolId: string): 'workspace' | 'profile' | 'session' | 'never';
 	cancelToolCallsForRequest(requestId: string): void;
 
 	readonly toolSets: IObservable<Iterable<ToolSet>>;

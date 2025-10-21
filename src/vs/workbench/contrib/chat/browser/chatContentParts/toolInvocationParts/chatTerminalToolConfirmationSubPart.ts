@@ -97,7 +97,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			context.container.classList.add('from-sub-agent');
 		}
 
-		if (!toolInvocation.confirmationMessages) {
+		if (!toolInvocation.confirmationMessages?.title) {
 			throw new Error('Confirmation messages are missing');
 		}
 
@@ -185,7 +185,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		]);
 		append(elements.editor, editor.object.element);
 		this._register(hoverService.setupDelayedHover(elements.editor, {
-			content: message,
+			content: message || '',
 			style: HoverStyle.Pointer,
 			position: { hoverPosition: HoverPosition.LEFT },
 		}));
@@ -307,7 +307,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		}));
 		this._register(confirmWidget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 		this._register(autorunSelfDisposable(reader => {
-			if (IChatToolInvocation.isConfirmed(toolInvocation, reader)) {
+			if (IChatToolInvocation.executionConfirmedOrDenied(toolInvocation, reader)) {
 				reader.dispose();
 				ChatContextKeys.Editing.hasToolConfirmation.bindTo(contextKeyService).set(false);
 				this._onNeedsRerender.fire();
