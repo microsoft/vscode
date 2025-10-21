@@ -20,6 +20,7 @@ import { EditorOption } from '../../../../editor/common/config/editorOptions.js'
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { Action } from '../../../../base/common/actions.js';
 import { widgetClose } from '../../../../platform/theme/common/iconRegistry.js';
+import { Range } from '../../../../editor/common/core/range.js';
 const $ = dom.$;
 
 // theming
@@ -35,6 +36,7 @@ export class ExceptionWidget extends ZoneWidget {
 		editor: ICodeEditor,
 		private exceptionInfo: IExceptionInfo,
 		private debugSession: IDebugSession | undefined,
+		private readonly shouldScroll: () => boolean,
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
@@ -115,6 +117,14 @@ export class ExceptionWidget extends ZoneWidget {
 		const computedLinesNumber = Math.ceil((this.container!.offsetHeight + arrowHeight) / lineHeight);
 
 		this._relayout(computedLinesNumber);
+	}
+
+	protected override revealRange(range: Range, isLastLine: boolean): void {
+		// Only reveal/scroll if this widget should scroll
+		// For inactive editors, skip the reveal to prevent scrolling
+		if (this.shouldScroll()) {
+			super.revealRange(range, isLastLine);
+		}
 	}
 
 	focus(): void {

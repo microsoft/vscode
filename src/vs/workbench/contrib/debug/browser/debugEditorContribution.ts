@@ -267,6 +267,8 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	private readonly displayedStore = new DisposableStore();
 	private editorHoverOptions: IEditorHoverOptions | undefined;
 	private readonly debounceInfo: IFeatureDebounceInformation;
+	private allowScrollToExceptionWidget = true;
+	private shouldScrollToExceptionWidget = () => this.allowScrollToExceptionWidget;
 
 	// Holds a Disposable that prevents the default editor hover behavior while it exists.
 	private readonly defaultHoverLockout = new MutableDisposable();
@@ -609,7 +611,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			this.exceptionWidget.dispose();
 		}
 
-		this.exceptionWidget = this.instantiationService.createInstance(ExceptionWidget, this.editor, exceptionInfo, debugSession);
+		this.exceptionWidget = this.instantiationService.createInstance(ExceptionWidget, this.editor, exceptionInfo, debugSession, this.shouldScrollToExceptionWidget);
 		this.exceptionWidget.show({ lineNumber, column }, 0);
 		this.exceptionWidget.focus();
 		this.editor.revealRangeInCenter({
@@ -626,9 +628,36 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			this.exceptionWidget.dispose();
 		}
 
-		this.exceptionWidget = this.instantiationService.createInstance(ExceptionWidget, this.editor, exceptionInfo, debugSession);
+		// Disable scrolling to exception widget
+		this.allowScrollToExceptionWidget = false;
+
+		const currentScrollTop = this.editor.getScrollTop();
+		const visibleRanges = this.editor.getVisibleRanges();
+		const firstVisibleLine = visibleRanges.length > 0 ? visibleRanges[0].startLineNumber : 1;
+
+		// Create widget - this may add a zone that pushes content down
+		this.exceptionWidget = this.instantiationService.createInstance(ExceptionWidget, this.editor, exceptionInfo, debugSession, this.shouldScrollToExceptionWidget);
 		this.exceptionWidget.show({ lineNumber, column }, 0);
 		this.exceptionWidgetVisible.set(true);
+
+		// only adjust scroll if the exception widget is above the first visible line
+		if (lineNumber < firstVisibleLine) {
+			// Get the actual height of the widget that was just added
+			// by checking the view zones - find the zone we just added
+			const whitespaces = this.editor.getWhitespaces();
+			let scrollAdjustment = 0;
+			if (whitespaces.length > 0) {
+				// The most recently added whitespace is our widget
+				const lastWhitespace = whitespaces[whitespaces.length - 1];
+				scrollAdjustment = lastWhitespace.height;
+			}
+
+			// Scroll down by the actual widget height to keep the first visible line the same
+			this.editor.setScrollTop(currentScrollTop + scrollAdjustment, ScrollType.Immediate);
+		}
+
+		// Re-enable scrolling to exception widget
+		this.allowScrollToExceptionWidget = true;
 	}
 
 	closeExceptionWidget(): void {
