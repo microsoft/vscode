@@ -226,7 +226,7 @@ export class ChatInstructionsPickerPick implements IChatContextPickerItem {
 	) { }
 
 	isEnabled(widget: IChatWidget): Promise<boolean> | boolean {
-		return PromptsConfig.enabled(this.configurationService);
+		return PromptsConfig.enabled(this.configurationService) && !!widget.attachmentCapabilities.supportsInstructionAttachments;
 	}
 
 	asPicker(): IChatContextPicker {

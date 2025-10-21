@@ -21,11 +21,10 @@ export enum ChatConfiguration {
 	ShowAgentSessionsViewDescription = 'chat.showAgentSessionsViewDescription',
 	EmptyStateHistoryEnabled = 'chat.emptyState.history.enabled',
 	NotifyWindowOnResponseReceived = 'chat.notifyWindowOnResponseReceived',
-	DelegateToCodingAgentInSecondaryMenu = 'chat.delegateToCodingAgentInSecondaryMenu',
 }
 
 /**
- * The "kind" of the chat mode- "Agent" for custom modes.
+ * The "kind" of agents for custom agents.
  */
 export enum ChatModeKind {
 	Ask = 'ask',
