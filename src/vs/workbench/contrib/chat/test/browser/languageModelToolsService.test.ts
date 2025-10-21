@@ -22,10 +22,11 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { LanguageModelToolsService } from '../../browser/languageModelToolsService.js';
 import { IChatModel } from '../../common/chatModel.js';
-import { IChatService, IChatToolInputInvocationData } from '../../common/chatService.js';
+import { IChatService, IChatToolInputInvocationData, IChatToolInvocation, ToolConfirmKind } from '../../common/chatService.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { isToolResultInputOutputDetails, IToolData, IToolImpl, IToolInvocation, ToolDataSource, ToolSet } from '../../common/languageModelToolsService.js';
 import { MockChatService } from '../common/mockChatService.js';
+import { ChatToolInvocation } from '../../common/chatProgressTypes/chatToolInvocation.js';
 
 // --- Test helpers to reduce repetition and improve readability ---
 
@@ -86,7 +87,7 @@ function stubGetSession(chatService: MockChatService, sessionId: string, options
 	return fakeModel;
 }
 
-async function waitForPublishedInvocation(capture: { invocation?: any }, tries = 5): Promise<any> {
+async function waitForPublishedInvocation(capture: { invocation?: any }, tries = 5): Promise<ChatToolInvocation> {
 	for (let i = 0; i < tries && !capture.invocation; i++) {
 		await Promise.resolve();
 	}
@@ -367,7 +368,7 @@ suite('LanguageModelToolsService', () => {
 
 		const invokeP = service.invokeTool(dto, async () => 0, CancellationToken.None);
 		const published = await waitForPublishedInvocation(capture);
-		published.confirmed.complete(true);
+		IChatToolInvocation.confirmWith(published, { type: ToolConfirmKind.UserAction });
 		const result = await invokeP;
 		assert.strictEqual(result.content[0].value, 'ok');
 	});
@@ -403,7 +404,7 @@ suite('LanguageModelToolsService', () => {
 		assert.deepStrictEqual(published.toolSpecificData?.rawInput, dto.parameters);
 
 		// Confirm to let invoke proceed
-		published.confirmed.complete(true);
+		IChatToolInvocation.confirmWith(published, { type: ToolConfirmKind.UserAction });
 		const result = await invokeP;
 		assert.strictEqual(result.content[0].value, 'done');
 	});
@@ -436,7 +437,7 @@ suite('LanguageModelToolsService', () => {
 		assert.ok(published, 'expected ChatToolInvocation to be published');
 		assert.strictEqual(invoked, false, 'invoke should not run before confirmation');
 
-		published.confirmed.complete(true);
+		IChatToolInvocation.confirmWith(published, { type: ToolConfirmKind.UserAction });
 		const result = await promise;
 		assert.strictEqual(invoked, true, 'invoke should have run after confirmation');
 		assert.strictEqual(result.content[0].value, 'ran');
@@ -811,7 +812,7 @@ suite('LanguageModelToolsService', () => {
 		assert.ok(signalCall.options?.customAlertMessage.includes('Chat confirmation required'), 'alert message should include confirmation text');
 
 		// Complete the invocation
-		published.confirmed.complete(true);
+		IChatToolInvocation.confirmWith(published, { type: ToolConfirmKind.UserAction });
 		const result = await promise;
 		assert.strictEqual(result.content[0].value, 'executed');
 	});
@@ -944,7 +945,7 @@ suite('LanguageModelToolsService', () => {
 		const published = await waitForPublishedInvocation(capture);
 		assert.ok(published?.confirmationMessages, 'unspecified tool should require confirmation');
 
-		published.confirmed.complete(true);
+		IChatToolInvocation.confirmWith(published, { type: ToolConfirmKind.UserAction });
 		const unspecifiedResult = await unspecifiedPromise;
 		assert.strictEqual(unspecifiedResult.content[0].value, 'unspecified');
 	});
@@ -1118,7 +1119,7 @@ suite('LanguageModelToolsService', () => {
 		const call1 = testAccessibilitySignalService.signalPlayedCalls[0];
 		assert.strictEqual(call1.options?.modality, undefined, 'should use default modality for sound');
 
-		published1.confirmed.complete(true);
+		IChatToolInvocation.confirmWith(published1, { type: ToolConfirmKind.UserAction });
 		await promise1;
 
 		testAccessibilitySignalService.reset();
@@ -1159,7 +1160,7 @@ suite('LanguageModelToolsService', () => {
 		assert.ok(call2.options?.customAlertMessage, 'should have custom alert message');
 		assert.strictEqual(call2.options?.userGesture, true, 'should mark as user gesture');
 
-		published2.confirmed.complete(true);
+		IChatToolInvocation.confirmWith(published2, { type: ToolConfirmKind.UserAction });
 		await promise2;
 
 		testAccessibilitySignalService.reset();
@@ -1197,7 +1198,7 @@ suite('LanguageModelToolsService', () => {
 		// No signal should be played
 		assert.strictEqual(testAccessibilitySignalService.signalPlayedCalls.length, 0, 'no signal should be played when both sound and announcement are off');
 
-		published3.confirmed.complete(true);
+		IChatToolInvocation.confirmWith(published3, { type: ToolConfirmKind.UserAction });
 		await promise3;
 	});
 
