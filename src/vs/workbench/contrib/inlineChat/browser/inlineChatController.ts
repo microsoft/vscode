@@ -474,6 +474,11 @@ export class InlineChatController1 implements IEditorContribution {
 
 		this._ui.value.widget.setChatModel(this._session.chatModel);
 		this._updatePlaceholder();
+		
+		// Update placeholder when mode changes
+		this._sessionStore.add(this._ui.value.widget.chatWidget.input.onDidChangeCurrentChatMode(() => {
+			this._updatePlaceholder();
+		}));
 
 		const isModelEmpty = !this._session.chatModel.hasRequests;
 		this._ui.value.widget.updateToolbar(true);
@@ -1072,7 +1077,12 @@ export class InlineChatController1 implements IEditorContribution {
 	}
 
 	private _updatePlaceholder(): void {
-		this._ui.value.widget.placeholder = this._session?.agent.description ?? localize('askOrEditInContext', 'Ask or edit in context');
+		// Get the mode description from the chat widget's current mode
+		const currentMode = this._ui.value.widget.chatWidget.input.currentModeObs.get();
+		const modeDescription = currentMode.description.get();
+		
+		// Use mode description if available, otherwise fall back to agent description or default
+		this._ui.value.widget.placeholder = modeDescription ?? this._session?.agent.description ?? localize('askOrEditInContext', 'Ask or edit in context');
 	}
 
 	private _updateInput(text: string, selectAll = true): void {
