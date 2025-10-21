@@ -87,7 +87,7 @@ export class GitProtocolHandler implements UriHandler {
 		} else {
 			const cloneTarget = cloneUri.toString(true);
 			this.logger.info(`[GitProtocolHandler][clone] Executing git.clone for ${cloneTarget}`);
-			commands.executeCommand('git.clone', cloneTarget, undefined, { ref: ref });
+			commands.executeCommand('git.clone', cloneTarget, undefined, { ref: ref, openFolder: true });
 		}
 	}
 
