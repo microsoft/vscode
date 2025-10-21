@@ -180,6 +180,8 @@ export namespace PromptsConfig {
 		const inspected = configService.inspect<Record<string, boolean | string>>(PromptsConfig.PROMPT_FILES_SUGGEST_KEY, { resource });
 
 		// Manually merge configurations with user settings taking priority over workspace/folder settings
+		// VS Code's standard merge is: default → user → workspace → workspace folder (folder has highest priority)
+		// However, for prompt recommendations, we want user settings to override workspace settings
 		// Priority order (highest to lowest): user → workspace → workspace folder → default
 		const suggestions: Record<string, boolean | string> = {};
 
