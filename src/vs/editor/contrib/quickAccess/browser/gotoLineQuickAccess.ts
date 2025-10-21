@@ -160,7 +160,7 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 		let [lineNumber, column] = value.split(/,|:|#/).map(part => parseInt(part, 10)).filter(part => !isNaN(part));
 
 		// Handle negative line numbers and clip to valid range.
-		const maxLine = model?.getLineCount() ?? 0 + 1;
+		const maxLine = (model?.getLineCount() ?? 0) + 1;
 		lineNumber = lineNumber >= 0 ? lineNumber : maxLine + lineNumber;
 		lineNumber = Math.min(Math.max(1, lineNumber), maxLine);
 
