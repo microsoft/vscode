@@ -1005,7 +1005,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			if (treeItems.length > 0) {
 				this.updateChatViewVisibility();
-				this.renderChatTodoListWidget();
+				this.renderChatInputTodoListWidget();
 			} else {
 				this._welcomeRenderScheduler.schedule();
 			}
@@ -1310,7 +1310,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.renderHistoryItems(historyItems);
 	}
 
-	private renderChatTodoListWidget(): void {
+	private renderChatInputTodoListWidget(): void {
 		const sessionId = this.viewModel?.sessionId;
 		if (!sessionId) {
 			return;
