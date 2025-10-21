@@ -54,7 +54,7 @@ export class PromptBodyAutocompletion implements CompletionItemProvider {
 				// inside the link range
 				await this.collectFilePathCompletions(model, position, reference.contentRange, suggestions);
 			}
-		} else if (reference.type === '') {
+		} else if (reference.type === 'tool') {
 			const promptFileType = getPromptFileType(model.uri);
 			if (promptFileType === PromptsType.agent || promptFileType === PromptsType.prompt) {
 				await this.collectToolCompletions(model, position, reference.contentRange, suggestions);
@@ -144,9 +144,11 @@ export class PromptBodyAutocompletion implements CompletionItemProvider {
 		}
 		const nameMatch = varWord.word.match(/^#(\w+:)?/);
 		if (nameMatch) {
+			const contentCol = varWord.startColumn + nameMatch[0].length;
 			if (nameMatch[1] === 'file:') {
-				const contentCol = varWord.startColumn + nameMatch[0].length;
 				return { type: 'file', contentRange: new Range(position.lineNumber, contentCol, position.lineNumber, varWord.endColumn) };
+			} else if (nameMatch[1] === 'tool:') {
+				return { type: 'tool', contentRange: new Range(position.lineNumber, contentCol, position.lineNumber, varWord.endColumn) };
 			}
 		}
 		return { type: '', contentRange: new Range(position.lineNumber, varWord.startColumn + 1, position.lineNumber, varWord.endColumn) };

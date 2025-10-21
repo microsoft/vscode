@@ -294,7 +294,7 @@ export class PromptBody {
 					fileReferences.push({ content: match[2], range, isMarkdownLink: true });
 					markdownLinkRanges.push(new Range(i + 1, match.index + 1, i + 1, match.index + match[0].length + 1));
 				}
-				const reg = new RegExp(`#([\\w]+:)?([^\\s#]+)`, 'g');
+				const reg = /#(\w+:)([^\s#]+)/gi;
 				const matches = line.matchAll(reg);
 				for (const match of matches) {
 					const fullRange = new Range(i + 1, match.index + 1, i + 1, match.index + match[0].length + 1);
@@ -303,17 +303,14 @@ export class PromptBody {
 					}
 					const varType = match[1];
 					if (varType) {
+						const startOffset = match.index + match[0].length - match[2].length;
+						const endOffset = match.index + match[0].length;
+						const range = new Range(i + 1, startOffset + 1, i + 1, endOffset + 1);
 						if (varType === 'file:') {
-							const linkStartOffset = match.index + match[0].length - match[2].length;
-							const linkEndOffset = match.index + match[0].length;
-							const range = new Range(i + 1, linkStartOffset + 1, i + 1, linkEndOffset + 1);
 							fileReferences.push({ content: match[2], range, isMarkdownLink: false });
+						} else if (varType === 'tool:') {
+							variableReferences.push({ name: match[2], range, offset: lineStartOffset + match.index });
 						}
-					} else {
-						const contentStartOffset = match.index + 1; // after the #
-						const contentEndOffset = match.index + match[0].length;
-						const range = new Range(i + 1, contentStartOffset + 1, i + 1, contentEndOffset + 1);
-						variableReferences.push({ name: match[2], range, offset: lineStartOffset + match.index });
 					}
 				}
 				lineStartOffset += line.length;
