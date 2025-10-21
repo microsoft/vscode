@@ -96,11 +96,16 @@ export class PromptsService extends Disposable implements IPromptsService {
 				this.promptFileByCommandCache.clear();
 			}
 			else {
-				// Clear cache for prompt files that match the changed URI
+				// Clear cache for prompt files that match the changed URI\
+				const pendingDeletes: string[] = [];
 				for (const [key, value] of this.promptFileByCommandCache) {
 					if (isEqual(value.value?.uri, event.uri)) {
-						this.promptFileByCommandCache.delete(key);
+						pendingDeletes.push(key);
 					}
+				}
+
+				for (const key of pendingDeletes) {
+					this.promptFileByCommandCache.delete(key);
 				}
 			}
 
